@@ -281,6 +281,23 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+/** Record one credited rep into both the per-source tally and the run totals.
+ *  The credited/xp/byStat counters must move together — keeping that math in
+ *  ONE place stops a call site from bumping one counter and forgetting another
+ *  (the same numbers feed the dry-run preview and the live result). */
+function recordCredit(
+  t: SourceTally,
+  res: BackfillResult,
+  stat: string,
+  xp: number,
+): void {
+  t.credited++;
+  t.xp = round1(t.xp + xp);
+  res.credited++;
+  res.xpAdded = round1(res.xpAdded + xp);
+  res.byStat[stat] = round1((res.byStat[stat] ?? 0) + xp);
+}
+
 /**
  * CHEAP cost preview · counts UNCREDITED items per source with ZERO AI calls.
  * `uncredited` ≈ the number of AI attribution calls the real run will make.
@@ -359,10 +376,11 @@ export async function runComprehensiveBackfill(opts?: {
       if (item.text.length < 12) continue;
       todo.push(item);
     }
-    // Attribute in PARALLEL chunks (the speed fix — sequential per-item was
-    // ~15-30 items/min; chunked concurrency multiplies throughput). Writes
-    // stay sequential. A failed AI call → null → that item simply retries
-    // on the next idempotent run.
+    // Attribute in BATCHES (the speed fix): ONE attributeTextBatch call scores
+    // up to BATCH_SIZE items at once, so the serialized "reason" tier pays per
+    // batch instead of per item (~BATCH_SIZE-x fewer calls). Writes stay
+    // sequential. An item the batch omits (no-skill or parse failure) is simply
+    // absent from the map and retries on the next idempotent run.
     for (let i = 0; i < todo.length; i += BATCH_SIZE) {
       const chunk = todo.slice(i, i + BATCH_SIZE);
       const attrMap = await attributeTextBatch(
@@ -375,9 +393,7 @@ export async function runComprehensiveBackfill(opts?: {
         const attr = attrMap.get(item.key);
         if (!attr) continue;
         if (dryRun) {
-          t.credited++; t.xp = round1(t.xp + attr.xp);
-          res.credited++; res.xpAdded = round1(res.xpAdded + attr.xp);
-          res.byStat[attr.stat] = round1((res.byStat[attr.stat] ?? 0) + attr.xp);
+          recordCredit(t, res, attr.stat, attr.xp);
           continue;
         }
         const isNew = await creditStatXp({
@@ -388,11 +404,7 @@ export async function runComprehensiveBackfill(opts?: {
           sourceKey: item.key,
           backfillRun: runTag,
         });
-        if (isNew) {
-          t.credited++; t.xp = round1(t.xp + attr.xp);
-          res.credited++; res.xpAdded = round1(res.xpAdded + attr.xp);
-          res.byStat[attr.stat] = round1((res.byStat[attr.stat] ?? 0) + attr.xp);
-        }
+        if (isNew) recordCredit(t, res, attr.stat, attr.xp);
       }
     }
   }
@@ -412,9 +424,7 @@ export async function runComprehensiveBackfill(opts?: {
       t.scanned++;
       res.scanned++;
       if (dryRun) {
-        t.credited++; t.xp = round1(t.xp + 0.5);
-        res.credited++; res.xpAdded = round1(res.xpAdded + 0.5);
-        res.byStat["conditioning"] = round1((res.byStat["conditioning"] ?? 0) + 0.5);
+        recordCredit(t, res, "conditioning", 0.5);
         continue;
       }
       const isNew = await creditStatXp({
@@ -425,11 +435,7 @@ export async function runComprehensiveBackfill(opts?: {
         sourceKey: `body:${w.id}:conditioning`,
         backfillRun: runTag,
       });
-      if (isNew) {
-        t.credited++; t.xp = round1(t.xp + 0.5);
-        res.credited++; res.xpAdded = round1(res.xpAdded + 0.5);
-        res.byStat["conditioning"] = round1((res.byStat["conditioning"] ?? 0) + 0.5);
-      }
+      if (isNew) recordCredit(t, res, "conditioning", 0.5);
     }
   }
 
