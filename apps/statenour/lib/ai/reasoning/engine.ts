@@ -1008,6 +1008,12 @@ async function runReasoningEngine(
     }
   }
 
+  // Universal context fallback: ANY tier still without context (smart /
+  // quick / mega included) drops to a 3-lens fanout here. thorough/deep get
+  // richer pre-fallbacks above (@deep-research, @multi-agent); smart relies
+  // on THIS catch-all by design — its router already samples the same
+  // sources, so a tier-specific guard would be redundant. (2026-06-04 · M6
+  // reviewed: smart is NOT unguarded — empty smart context lands here.)
   if (!context) {
     try {
       const t = Date.now();
