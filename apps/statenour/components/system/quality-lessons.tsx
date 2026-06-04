@@ -34,6 +34,7 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { trpc } from "@/lib/trpc/client";
+import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
 type Severity = "info" | "warn" | "critical";
 type Domain = "business" | "personal" | "tech" | "health" | "relationships" | "other";
 
@@ -96,14 +97,6 @@ function compoundScore(item: { severity: Severity; revisitCount: number }): numb
 /** Estimated time saved per compound point — heuristic, not measured.
  *  20 min per compound point = a critical-twice lesson saves ~80 min. */
 const MINUTES_PER_COMPOUND = 20;
-
-function timeAgo(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))}s ago`;
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m ago`;
-  if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h ago`;
-  return `${Math.round(ms / 86_400_000)}d ago`;
-}
 
 export function QualityLessonsView() {
   // iOS-PWA-safe confirm · window.confirm() is silently suppressed in

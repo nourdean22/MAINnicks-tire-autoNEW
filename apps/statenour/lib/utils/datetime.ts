@@ -70,6 +70,26 @@ export function relativeTime(date: Date | string): string {
   return d.toLocaleDateString();
 }
 
+/** Relative "time ago", sub-minute precision in seconds (e.g. "5s ago", "3m ago", "2h ago", "4d ago"). null -> "never". */
+export function relativeTimeSeconds(iso: string | null): string {
+  if (!iso) return "never";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))}s ago`;
+  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m ago`;
+  if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h ago`;
+  return `${Math.round(ms / 86_400_000)}d ago`;
+}
+
+/** Relative "time ago", "just now" under a minute (e.g. "just now", "3m ago", "2h ago", "4d ago"). null -> "never". */
+export function relativeTimeMinutes(iso: string | null): string {
+  if (!iso) return "never";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
+  return `${Math.round(diff / 86_400_000)}d ago`;
+}
+
 /** Returns YYYY-MM-DD for a Date object in Eastern Time */
 export function toDateString(date: Date): string {
   return date.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
