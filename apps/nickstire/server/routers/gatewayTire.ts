@@ -1414,7 +1414,10 @@ export const gatewayTireRouter = router({
             const cost = pickWholesaleCost(item);
             const pricing = Array.isArray(item.pricing_data) && item.pricing_data.length > 0
               ? (item.pricing_data[0] as Record<string, unknown>) : null;
-            const retail = typeof pricing?.selling_price === "number" ? pricing.selling_price as number : 0;
+            // D&K inverts the names: `cost_price` is the suggested RETAIL,
+            // `selling_price` is the dealer cost (see pickWholesaleCost). The
+            // admin "retail" column wants D&K's retail = cost_price.
+            const retail = typeof pricing?.cost_price === "number" ? pricing.cost_price as number : 0;
             const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;
             const brandRaw = String(item.make || "");
             const modelRaw = String(item.minor_name || "").replace(/^[A-Z]+\s*-\s*/, "");
