@@ -545,6 +545,25 @@ export const voiceAgentRouter = router({
         // desk surfaces them above ordinary warm leads (15-min promise).
         const isRackCheck = !!input.notes && /rack.?check/i.test(input.notes);
 
+        // 2026-06-05 · operator directive: ordinary voice tire inquiries no
+        // longer create an admin lead. Every inbound call is already recorded
+        // + transcribed in vapi_call_logs, so a "warm lead" per tire caller
+        // was pure noise in the admin Leads feed. We persist a lead ONLY for a
+        // rack-check — a promised 15-min callback the front desk MUST act on
+        // (the dedicated `checkTireStock` tool is the primary rack-check path;
+        // this keeps the legacy notes-based rack-check working too). Ordinary
+        // inquiries are acknowledged and left to the call recording.
+        if (!isRackCheck) {
+          log.info("Voice agent tire inquiry — acknowledged, no admin lead (ordinary inquiry; call already recorded)", {
+            name: input.name,
+            size: input.tireSize,
+          });
+          return {
+            success: true,
+            message: `Got it — I've sent the tire info to the shop. ${input.tireSize ? `Looking for ${input.tireSize}.` : ""} Walk in any day, we usually have most common sizes on the rack from $60 installed.`,
+          };
+        }
+
         // wave-149 · capture the new lead's id via $returningId() so the
         // call→lead FK gets written below. Pre-fix the id was discarded, so
         // vapi_call_logs.leadId was ALWAYS null for voice tire inquiries —
