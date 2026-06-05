@@ -200,16 +200,30 @@ export async function searchTiresBySize(rawSize: string): Promise<Record<string,
 }
 
 /**
- * Pull wholesale cost from a D&K /quicksearch/cache item. The endpoint
- * nests pricing under `pricing_data[]` (one entry per shipping
- * location). We pick the first entry's cost_price.
+ * Pull the wholesale cost (what Nick pays D&K) from a D&K
+ * /quicksearch/cache item. Pricing is nested under `pricing_data[]`
+ * (one entry per shipping location); we read the first entry.
+ *
+ * CRITICAL — D&K's field names are INVERTED from intuition (verified
+ * 2026-06-05 against the live endpoint + the b2b.dktire.com portal):
+ *   - `selling_price` = the price D&K SELLS TO THE DEALER = Nick's
+ *                       wholesale COST   (e.g. NITTO LT295/55R22 = 470.75)
+ *   - `cost_price`    = D&K's suggested RETAIL = exactly 2x the cost
+ *                       (e.g. 941.50)    — NOT Nick's cost
+ * Every sampled item had `cost_price === selling_price * 2`. Reading the
+ * field literally named `cost_price` priced every tire off RETAIL, so the
+ * customer paid cost x 4 (100% markup applied to 2x cost). The dealer's
+ * true cost is always the LOWER of the two (cost <= retail), so we take the
+ * min — correct today and self-correcting if D&K's naming ever shifts.
  */
 export function pickWholesaleCost(item: Record<string, unknown>): number {
   const pricing = item.pricing_data;
   if (Array.isArray(pricing) && pricing.length > 0) {
     const first = pricing[0] as Record<string, unknown>;
-    const cost = first.cost_price;
-    if (typeof cost === "number" && cost > 0) return cost;
+    const selling = typeof first.selling_price === "number" ? first.selling_price : 0;
+    const listed = typeof first.cost_price === "number" ? first.cost_price : 0;
+    const positives = [selling, listed].filter((n) => n > 0);
+    if (positives.length > 0) return Math.min(...positives);
   }
   return 0;
 }
