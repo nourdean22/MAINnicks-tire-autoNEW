@@ -47,6 +47,7 @@ import {
 import { trackGeneration } from "@/lib/ai/track";
 import { recordInteraction } from "@/lib/ai/memory";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
+import { detectFailedActionClaims } from "@/lib/ai/chat/action-result-verifier";
 import { processConversation } from "@/lib/brain/pipeline-controller";
 import { summarizeAndStoreConversation } from "@/lib/brain/conversation-memory";
 import { maybeAutoRename } from "@/lib/chat/auto-rename";
@@ -154,6 +155,7 @@ async function buildMessageParts(
 interface DeferredBackgroundCtx {
   log: ChatLogger;
   convId: string | undefined;
+  traceId: string;
   provider: ProviderName;
   modelId: string;
   mode: string;
@@ -185,6 +187,7 @@ async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
   const {
     log,
     convId,
+    traceId,
     provider,
     modelId,
     mode,
@@ -447,6 +450,50 @@ async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                 },
               })
               .catch(() => {});
+
+            // Action-write verifier · the action-block analog of the
+            // SDK-tool fabrication guard. executeActions runs here in
+            // deferred background, so its failures never reach
+            // detectActionClaimsWithoutTools (which only inspects SDK
+            // capturedToolCalls). When a MUTATION action FAILED while
+            // Nick's prose claimed completion, emit a chat_claim_warn row
+            // so the existing correction chip (claim-warnings.ts →
+            // /api/ai/chat/claim-warnings → action-claim-warning.tsx)
+            // surfaces the truth. Best-effort — never tanks the turn.
+            const failedClaims = detectFailedActionClaims(results, cleanedText);
+            if (failedClaims.length > 0 && convId) {
+              log.warn("action_block_failed_claim", {
+                conversationId: convId,
+                traceId,
+                failed: failedClaims.map((c) => c.verb),
+              });
+              await prisma.brainMemory
+                .create({
+                  data: {
+                    category: "chat_claim_warn",
+                    key: `action-fail-${traceId}`,
+                    content: `Action did not complete · ${failedClaims
+                      .map((c) => c.verb)
+                      .join(", ")}`,
+                    confidence: 0.95,
+                    source: "action-result-verifier",
+                    metadata: {
+                      conversationId: convId,
+                      traceId,
+                      claims: failedClaims.map((c) => ({
+                        verb: c.verb,
+                        snippet: c.snippet,
+                        expectedTool: c.expectedTool,
+                      })),
+                      toolsActuallyFired: results
+                        .filter((r) => r.success)
+                        .map((r) => r.action),
+                      textPreview: cleanedText.slice(0, 200),
+                    },
+                  } as Parameters<typeof prisma.brainMemory.create>[0]["data"],
+                })
+                .catch(() => undefined);
+            }
             return results;
           },
           { timeoutMs: 15_000 }
@@ -1535,6 +1582,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       await runDeferredBackgroundWork({
         log,
         convId,
+        traceId,
         provider,
         modelId,
         mode,
