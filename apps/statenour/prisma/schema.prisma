@@ -2091,6 +2091,12 @@ model PersonProfile {
   lastInteraction  DateTime? @map("last_interaction")
   interactionCount Int       @default(0) @map("interaction_count")
   metadata         Json?
+  // 2026-06-06 · origin + contact (feature #5). source = who created this
+  // profile (operator|agent|digest) -> shop-vs-personal is structural.
+  // phone/email = stored contact identity (displayed; NOT a match key).
+  source           String?
+  phone            String?
+  email            String?
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 

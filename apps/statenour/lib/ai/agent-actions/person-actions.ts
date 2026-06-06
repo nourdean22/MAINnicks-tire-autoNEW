@@ -126,6 +126,7 @@ export async function handlePersonCreate(params: ActionParams, type: string): Pr
     role: String(params.role || "unknown"),
     relationship: String(params.relationship || ""),
     trustScore: Number(params.trustScore ?? 0.5),
+    source: "agent",
     createIfMissing: true,
   });
 
