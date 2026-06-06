@@ -40,6 +40,7 @@ enum LoopKind {
   ONCE
   DAILY
   PROMISE
+  WEEKLY
 }
 
 enum EffortBand {
@@ -395,6 +396,12 @@ model Task {
   /// WAITING with no wake-up timestamp — they never came back. The
   /// "snoozed N days" promise is now actually kept.
   snoozedUntil            DateTime?   @map("snoozed_until")
+  /// 2026-06-06 · WEEKLY loops · which weekdays this task recurs on.
+  /// 0=Sunday .. 6=Saturday (JS Date.getDay()). Empty for ONCE/DAILY/
+  /// PROMISE. On completion checkTask snoozes a WEEKLY task to its next
+  /// listed weekday (status WAITING + snoozedUntil); the task-resurface
+  /// cron flips it back to READY on that day.
+  recurringDays           Int[]       @default([]) @map("recurring_days")
   /// v7.9 · Apr 29 · Universal soft-delete.
   deletedAt               DateTime?   @map("deleted_at")
   /// v9.0-rc · Apr 30 · Proof attachment.

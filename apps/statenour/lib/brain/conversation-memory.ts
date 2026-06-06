@@ -270,15 +270,23 @@ export async function summarizeAndStoreConversation(
         relationship: person.context,
         trustScore: person.sentiment === "positive" ? 0.7 : person.sentiment === "negative" ? 0.3 : 0.5,
         metadata: { firstMentioned: digest.date, context: person.context },
+        // 2026-06-06 · the background digest only ENRICHES people Nour already
+        // has · it must never invent a profile from a name scraped out of a
+        // chat transcript (that auto-added tire-shop callers like "Fernando
+        // Romero"). New people are added explicitly via person.create after
+        // Nour confirms ("want me to add X?").
+        createIfMissing: false,
       });
-      if (resolution.matched) {
+      if (resolution.matched && resolution.person) {
         // Existing profile · just update interaction signal + most-recent context
         await prisma.personProfile.update({
           where: { id: resolution.person.id },
           data: {
             lastInteraction: new Date(),
             interactionCount: { increment: 1 },
-            relationship: person.context,
+            // 2026-06-06 · do NOT overwrite a curated `relationship` with the
+            // latest digest blurb · enrichment only bumps the interaction
+            // signal (the overwrite was corrupting hand-written context).
           },
         });
       }

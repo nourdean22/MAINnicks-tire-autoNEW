@@ -27,6 +27,7 @@ import { feedbackLoop } from "@/lib/brain/pipeline-controller";
 import {
   handleTaskCreate,
   handleTaskComplete,
+  handleTaskStatus,
   handleHabitToggle,
   handleMissionPlan,
 } from "@/lib/ai/agent-actions/task-actions";
@@ -42,7 +43,7 @@ import {
   handleSimulationRun,
   handleMemorySearch,
 } from "@/lib/ai/agent-actions/memory-actions";
-import { handlePersonUpdate } from "@/lib/ai/agent-actions/person-actions";
+import { handlePersonUpdate, handlePersonCreate } from "@/lib/ai/agent-actions/person-actions";
 import {
   handleShopGetLabor,
   handleShopGetLeads,
@@ -149,6 +150,9 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
       case "loop.close":
         return await handleTaskComplete(params, type);
 
+      case "task.status":
+        return await handleTaskStatus(params, type);
+
       // ── Commitments ────────────────────────────
       case "commitment.create":
         return await handleCommitmentCreate(params, type);
@@ -182,6 +186,9 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
       // ── People ─────────────────────────────────
       case "person.update":
         return await handlePersonUpdate(params, type);
+
+      case "person.create":
+        return await handlePersonCreate(params, type);
 
       // ═══════════════════════════════════════════
       // CROSS-SYSTEM: nickstire.org actions via tRPC
@@ -353,6 +360,7 @@ Available actions:
 |--------|--------|-------------|
 | task.create | title, description?, priority(1-10)?, domain?, dueDate? | Create a task |
 | task.complete | id | Mark task done |
+| task.status | title | CHECK a task/habit's real status — done today? streak? last completed? Use this WHENEVER Nour asks "did I do X?", "is X done?", or "can you check?". NEVER answer that from memory — call this and report what it returns. If it returns found:false, say you don't see the task; do not assume it's done or not done. |
 | loop.create | title, domain?, priority(1-5)? | Open a mental loop |
 | loop.close | id | Close a loop |
 | commitment.create | description, toWhom?, domain?, deadline? | Make a commitment |
@@ -366,7 +374,10 @@ Available actions:
 | mission.plan | title, domain, priority?, successMetric?, tasks[{title, nextPhysicalAction, effort?, context?}] | Create a mission with multiple linked tasks |
 | habit.toggle | habitKey (wake/exercise/business/order/shutdown) | Toggle today's habit |
 | simulation.run | scenario | Run a what-if simulation |
-| person.update | name, role?, relationship?, trustScore?, leverageNotes? | Update a person. relationship/leverageNotes/interaction apply immediately; role + trustScore become a PENDING proposal the operator approves on /people (never a silent reclassify). |
+| person.update | name, role?, relationship?, trustScore?, leverageNotes? | Update an EXISTING person (must already be in Nour's people). relationship/leverageNotes/interaction apply immediately; role + trustScore become a PENDING proposal approved on /people. Does NOT create — if the name isn't found it returns an error telling you to ask first. NEVER pass a pronoun/descriptor ("her", "the caller") as the name. |
+| person.create | name, role?, relationship?, leverageNotes? | Add a NEW person to Nour's people. Use ONLY after Nour explicitly says yes to "want me to add <name>?". Requires a real proper name (never a pronoun). NEVER auto-add tire-shop callers/leads/customers — those are business contacts, not Nour's personal relationships. |
+
+**People rule — ask before adding.** Nour's "people" are his PERSONAL relationships. Never silently add anyone. To log about someone he already has, use person.update. To add someone NEW, first ASK ("want me to add <name> to your people?") and use person.create only after he confirms. Never use a pronoun or "the caller"/"that guy" as a name, and never add tire-shop callers, leads, or customers — those live in the shop system.
 
 ### Shop Actions (cross-system — talks to nickstire.org)
 | Action | Params | What It Does |

@@ -15,7 +15,7 @@ import {
 // without importing a generated Prisma enum (the generated TS enum
 // lives deep inside @prisma/client and reimporting breaks some
 // runtimes). Keep this in sync with prisma/schema.prisma's LoopKind.
-export const loopKindValues = ["ONCE", "DAILY", "PROMISE"] as const;
+export const loopKindValues = ["ONCE", "DAILY", "PROMISE", "WEEKLY"] as const;
 
 const taskBaseSchema = z.object({
   title: requiredString("Task title"),
@@ -57,6 +57,10 @@ const taskBaseSchema = z.object({
   // tasks?" — the DAILY completion path needs to set it. Adding it
   // here unlocks the existing infrastructure end-to-end.
   snoozedUntil: nullableDate.optional(),
+  // 2026-06-06 · WEEKLY recurrence · which weekdays a WEEKLY loop recurs on
+  // (0=Sun..6=Sat) · empty for other kinds. Optional so partial updates don't
+  // reset it; create defaults to [] via the Prisma column default.
+  recurringDays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
   // ── Lineage + time tracking (Apr 15 pt 2) ──
   goalId: nullableString.optional(),
   phaseName: nullableString.optional(),

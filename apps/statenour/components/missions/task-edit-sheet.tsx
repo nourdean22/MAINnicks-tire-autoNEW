@@ -86,6 +86,11 @@ function TaskEditSheetBody({
   const [loopKind, setLoopKind] = useState(
     () => (task as unknown as { loopKind?: string }).loopKind ?? "ONCE",
   );
+  // 2026-06-06 · WEEKLY recurrence · selected weekdays (0=Sun..6=Sat).
+  const [recurringDays, setRecurringDays] = useState<number[]>(
+    () => (task as unknown as { recurringDays?: number[] }).recurringDays ?? [],
+  );
+  const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
   // standalone mode so the delete guard always took the cancel path.
@@ -111,6 +116,10 @@ function TaskEditSheetBody({
       toast.error("Title is required.");
       return;
     }
+    if (loopKind === "WEEKLY" && recurringDays.length === 0) {
+      toast.error("Pick at least one weekday for a weekly task.");
+      return;
+    }
     try {
       // wave-AB.c-audit · the taskUpdateSchema uses `undefined` for
       // "don't change" but allows nullable persisted fields to be set to
@@ -128,7 +137,8 @@ function TaskEditSheetBody({
           finishCondition: finishCondition.trim() || undefined,
           waitingOn: waitingOn.trim() || undefined,
           missionId: missionId || undefined,
-          loopKind: loopKind as "ONCE" | "DAILY" | "PROMISE",
+          loopKind: loopKind as "ONCE" | "DAILY" | "PROMISE" | "WEEKLY",
+          recurringDays: loopKind === "WEEKLY" ? recurringDays : [],
         },
       });
       toast.success("Saved.");
@@ -151,6 +161,7 @@ function TaskEditSheetBody({
     finishCondition,
     waitingOn,
     loopKind,
+    recurringDays,
     missionId,
     updateMutation,
     utils,
@@ -264,8 +275,41 @@ function TaskEditSheetBody({
             >
               <option value="ONCE">never · one-shot task</option>
               <option value="DAILY">daily · habit · resurfaces tomorrow</option>
+              <option value="WEEKLY">weekly · specific days</option>
             </select>
           </Field>
+
+          {loopKind === "WEEKLY" && (
+            <Field label="on which days?">
+              <div className="flex flex-wrap gap-1.5">
+                {weekdayLabels.map((label, idx) => {
+                  const on = recurringDays.includes(idx);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      disabled={submitting}
+                      aria-pressed={on}
+                      onClick={() =>
+                        setRecurringDays((prev) =>
+                          prev.includes(idx)
+                            ? prev.filter((d) => d !== idx)
+                            : [...prev, idx].sort((a, b) => a - b),
+                        )
+                      }
+                      className={`min-w-[44px] rounded-md border px-2 py-2 text-xs font-medium transition-colors ${
+                        on
+                          ? "border-primary bg-primary/15 text-primary"
+                          : "border-border text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          )}
 
           <Field label="mission · move to a different one">
             <select
