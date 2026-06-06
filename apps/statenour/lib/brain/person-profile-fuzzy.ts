@@ -158,6 +158,9 @@ export async function resolvePersonByName(
     relationship?: string;
     trustScore?: number;
     metadata?: Record<string, unknown>;
+    source?: string;
+    phone?: string;
+    email?: string;
     /** When false, return {matched:false, person:null} instead of creating. Default true. */
     createIfMissing?: boolean;
   } = {},
@@ -247,6 +250,9 @@ export async function resolvePersonByName(
       lastInteraction: new Date(),
       interactionCount: 1,
       metadata: createDefaults.metadata as never,
+      source: createDefaults.source ?? null,
+      phone: createDefaults.phone?.trim() || null,
+      email: createDefaults.email?.trim() || null,
     },
     select: { id: true, name: true },
   });

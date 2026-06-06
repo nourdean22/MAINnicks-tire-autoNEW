@@ -363,6 +363,8 @@ export const powerAtlasProcedures = {
         birthday: z.string().optional(),
         anniversary: z.string().optional(),
         cadenceDays: z.number().int().min(1).max(365).optional(),
+        phone: z.string().max(40).optional(),
+        email: z.string().max(200).optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -372,6 +374,9 @@ export const powerAtlasProcedures = {
       const resolved = await resolvePersonByName(input.name, {
         role: input.role,
         relationship: input.relationship,
+        source: "operator",
+        phone: input.phone,
+        email: input.email,
       });
       // 2026-06-06 · resolver returns person:null for a pronoun/descriptor
       // name (createIfMissing defaults true here, so this only triggers on a
@@ -391,6 +396,10 @@ export const powerAtlasProcedures = {
         fieldsToApply.anniversary = input.anniversary;
       if (input.cadenceDays !== undefined)
         fieldsToApply.cadenceDays = input.cadenceDays;
+      // 2026-06-06 · contact info updates on a create-on-match (operator EDIT
+      // path). source is NOT here · it's set-once on create, never overwritten.
+      if (input.phone !== undefined) fieldsToApply.phone = input.phone || null;
+      if (input.email !== undefined) fieldsToApply.email = input.email || null;
       if (resolved.matched) {
         // Don't overwrite existing relationship + role · operator-create
         // shouldn't clobber what's already curated.
@@ -432,6 +441,8 @@ export const powerAtlasProcedures = {
         birthday: z.string().nullable().optional(),
         anniversary: z.string().nullable().optional(),
         cadenceDays: z.number().int().min(1).max(365).nullable().optional(),
+        phone: z.string().max(40).nullable().optional(),
+        email: z.string().max(200).nullable().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -443,6 +454,8 @@ export const powerAtlasProcedures = {
       if (input.birthday !== undefined) data.birthday = input.birthday;
       if (input.anniversary !== undefined) data.anniversary = input.anniversary;
       if (input.cadenceDays !== undefined) data.cadenceDays = input.cadenceDays;
+      if (input.phone !== undefined) data.phone = input.phone;
+      if (input.email !== undefined) data.email = input.email;
       if (Object.keys(data).length === 0) return { ok: true, noop: true };
       await prisma.personProfile.update({
         where: { id: input.personId },

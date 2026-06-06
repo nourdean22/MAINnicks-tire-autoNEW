@@ -48,6 +48,8 @@ interface PersonEditDrawerProps {
     birthday: string | null;
     anniversary: string | null;
     cadenceDays: number | null;
+    phone: string | null;
+    email: string | null;
   };
   onSaved?: (personId: string) => void;
 }
@@ -87,6 +89,8 @@ function PersonEditDrawerBody({
       ? String(initial.cadenceDays)
       : "",
   );
+  const [phone, setPhone] = useState(() => initial?.phone ?? "");
+  const [email, setEmail] = useState(() => initial?.email ?? "");
 
   const createMutation = trpc.task.createPerson.useMutation();
   const updateMutation = trpc.task.updatePerson.useMutation();
@@ -117,6 +121,9 @@ function PersonEditDrawerBody({
           anniversary?: string | null;
           cadenceDays?: number | null;
           leverageNotes?: string | null;
+          phone?: string | null;
+          email?: string | null;
+          source?: string | null;
         }
       | undefined;
     if (!p) return;
@@ -127,6 +134,8 @@ function PersonEditDrawerBody({
     // Also hydrate leverageNotes · the /api/people row may truncate or
     // miss it depending on the cached snapshot.
     if (p.leverageNotes) setLeverageNotes(p.leverageNotes);
+    if (p.phone) setPhone(p.phone);
+    if (p.email) setEmail(p.email);
   }, [fetched.data]);
 
   const submitting =
@@ -166,6 +175,8 @@ function PersonEditDrawerBody({
           birthday: birthday.trim() || undefined,
           anniversary: anniversary.trim() || undefined,
           cadenceDays: cadence ?? undefined,
+          phone: phone.trim() || undefined,
+          email: email.trim() || undefined,
         });
         toast.success(
           res.matched
@@ -184,6 +195,8 @@ function PersonEditDrawerBody({
           birthday: birthday.trim() || null,
           anniversary: anniversary.trim() || null,
           cadenceDays: cadence,
+          phone: phone.trim() || null,
+          email: email.trim() || null,
         });
         toast.success(`Updated ${trimmedName}.`);
         onSaved?.(personId!);
@@ -201,6 +214,8 @@ function PersonEditDrawerBody({
     birthday,
     anniversary,
     cadenceDays,
+    phone,
+    email,
     personId,
     createMutation,
     updateMutation,
@@ -318,6 +333,15 @@ function PersonEditDrawerBody({
           </Field>
 
           <div className="grid grid-cols-2 gap-2">
+            <Field label="phone">
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={submitting} placeholder="(216) 555-0123" className={inputCls} />
+            </Field>
+            <Field label="email">
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={submitting} placeholder="name@email.com" className={inputCls} />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
             <Field label="birthday · YYYY-MM-DD">
               <input
                 type="text"
@@ -353,6 +377,12 @@ function PersonEditDrawerBody({
             />
           </Field>
         </div>
+
+        {!isCreate && (fetched.data?.person as { source?: string | null } | undefined)?.source && (
+          <p className="px-4 text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+            origin · {String((fetched.data as { person: { source: string } }).person.source)}
+          </p>
+        )}
 
         <footer className="sticky bottom-0 z-10 bg-[var(--bg-base)] flex items-center gap-2 border-t border-[var(--border-default)] px-4 py-3">
           {!isCreate && (

@@ -482,6 +482,8 @@ export default function RelationshipsPage() {
                             birthday: null,
                             anniversary: null,
                             cadenceDays: null,
+                            phone: null,
+                            email: null,
                           });
                           setEditPersonOpen(true);
                           telemetry.event("editPersonOpen", { personId: p.id });
@@ -498,6 +500,8 @@ export default function RelationshipsPage() {
                               birthday: null,
                               anniversary: null,
                               cadenceDays: null,
+                              phone: null,
+                              email: null,
                             });
                             setEditPersonOpen(true);
                           }

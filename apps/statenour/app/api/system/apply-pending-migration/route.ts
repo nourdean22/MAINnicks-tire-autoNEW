@@ -111,6 +111,16 @@ const MIGRATIONS: Record<string, string[]> = {
     `ALTER TYPE "LoopKind" ADD VALUE IF NOT EXISTS 'WEEKLY'`,
     `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "recurring_days" INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[]`,
   ],
+
+  // PersonProfile origin + contact · 2026-06-06 · additive · zero data loss.
+  // source (operator|agent|digest) makes shop-vs-personal structural; phone +
+  // email are stored contact identity (displayed; NOT a match key). All nullable.
+  // Matches prisma/migrations-pending/0009_person_source_contact/migration.sql.
+  "0009_person_source_contact": [
+    `ALTER TABLE "person_profiles" ADD COLUMN IF NOT EXISTS "source" TEXT`,
+    `ALTER TABLE "person_profiles" ADD COLUMN IF NOT EXISTS "phone" TEXT`,
+    `ALTER TABLE "person_profiles" ADD COLUMN IF NOT EXISTS "email" TEXT`,
+  ],
 };
 
 export async function POST(req: Request) {
