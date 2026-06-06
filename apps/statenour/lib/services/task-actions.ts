@@ -40,6 +40,7 @@ import { createTask as createTaskService, liftGoalOnTaskComplete } from "@/lib/s
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
+import { nextWeekdayOccurrence } from "@/lib/loops/weekday";
 
 const log = rootLogger.withSurface("services/task-actions");
 
@@ -135,8 +136,9 @@ export async function checkTask(args: {
   }
 
   // ── DAILY ──
-  if (task.loopKind === "DAILY" && action === "complete") {
+  if ((task.loopKind === "DAILY" || task.loopKind === "WEEKLY") && action === "complete") {
     void timeBump;
+    const isWeekly = task.loopKind === "WEEKLY";
     let nextStreak = 1;
     if (task.lastCompletedAt) {
       const last = new Date(task.lastCompletedAt);
@@ -151,7 +153,32 @@ export async function checkTask(args: {
           lastCompletedAt: task.lastCompletedAt,
         };
       }
-      nextStreak = gapDays === 1 ? task.streakCount + 1 : 1;
+      // DAILY = consecutive-day streak; WEEKLY = simple completion count
+      // (a ~7-day gap would otherwise reset the streak every week).
+      nextStreak = isWeekly
+        ? task.streakCount + 1
+        : gapDays === 1
+          ? task.streakCount + 1
+          : 1;
+    }
+
+    // WEEKLY → compute the next scheduled weekday and hide the task until
+    // then (status WAITING + snoozedUntil · the task-resurface cron flips it
+    // back to READY on that day). DAILY stays READY so it reappears tomorrow.
+    let nextStatus: "READY" | "WAITING" = "READY";
+    let nextSnoozedUntil: Date | null = null;
+    if (isWeekly) {
+      // Lazy-load recurringDays ONLY for WEEKLY tasks · keeps the main select
+      // (every DAILY/ONCE/PROMISE completion) off the new column.
+      const cfg = await prisma.task.findUnique({
+        where: { id },
+        select: { recurringDays: true },
+      });
+      const next = nextWeekdayOccurrence(cfg?.recurringDays ?? [], now);
+      if (next) {
+        nextStatus = "WAITING";
+        nextSnoozedUntil = next;
+      }
     }
 
     const updated = await prisma.task.update({
@@ -160,7 +187,8 @@ export async function checkTask(args: {
         lastCompletedAt: now,
         lastTouchedAt: now,
         streakCount: nextStreak,
-        status: "READY",
+        status: nextStatus,
+        ...(isWeekly ? { snoozedUntil: nextSnoozedUntil } : {}),
       },
       select: { id: true, streakCount: true, lastCompletedAt: true, loopKind: true, title: true },
     });
@@ -170,7 +198,7 @@ export async function checkTask(args: {
       title: updated.title ?? task.title ?? "(untitled)",
       missionId: task.missionId ?? null,
       domain: task.mission?.domain ?? null,
-      loopKind: "DAILY",
+      loopKind: task.loopKind,
       completedAt: now.toISOString(),
     });
 
@@ -193,7 +221,7 @@ export async function checkTask(args: {
           goal: null,
           roiScore: task.roiScore,
           effort: task.effort,
-          loopKind: "DAILY",
+          loopKind: task.loopKind,
           streakCount: updated.streakCount,
           hasGoalId: !!task.goalId,
         },

@@ -373,6 +373,12 @@ export const powerAtlasProcedures = {
         role: input.role,
         relationship: input.relationship,
       });
+      // 2026-06-06 · resolver returns person:null for a pronoun/descriptor
+      // name (createIfMissing defaults true here, so this only triggers on a
+      // rejected non-name). Surface a friendly error instead of crashing.
+      if (!resolved.person) {
+        throw new Error("Please enter a real person's name.");
+      }
       // If the fuzzy resolver MATCHED an existing person we update its
       // metadata fields the operator passed in. If it CREATED a new
       // one, we still apply the optional fields (the resolver's create

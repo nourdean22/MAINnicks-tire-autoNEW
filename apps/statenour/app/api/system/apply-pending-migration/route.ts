@@ -100,6 +100,17 @@ const MIGRATIONS: Record<string, string[]> = {
   "0007_brain_fts": [
     `CREATE INDEX IF NOT EXISTS "brain_memories_content_fts_idx" ON "brain_memories" USING GIN (to_tsvector('english', "content"))`,
   ],
+
+  // Custom weekday recurrence · 2026-06-06 · additive · zero data loss.
+  // Adds the WEEKLY loop kind + recurring_days int[] (0=Sun..6=Sat) so a task
+  // can recur on chosen weekdays (e.g. every Thursday). On completion checkTask
+  // snoozes a WEEKLY task to its next listed weekday; the task-resurface cron
+  // resurfaces it (WAITING -> READY) then. COLUMN-FIRST: apply BEFORE the
+  // schema/code that reads recurring_days is relied upon.
+  "0008_task_weekly_recurrence": [
+    `ALTER TYPE "LoopKind" ADD VALUE IF NOT EXISTS 'WEEKLY'`,
+    `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "recurring_days" INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[]`,
+  ],
 };
 
 export async function POST(req: Request) {

@@ -206,6 +206,15 @@ You are in Friend mode — just Nour's friend Nick.
 - Sentences starting with: However / Additionally / Furthermore / Moreover / In summary / In conclusion
 Speak as Nour's operator. Direct, specific, grounded in his data.`;
 
+  // ── HONESTY + RESPECT (always-on) ──
+  // 2026-06-06 · Fixes two failures caught in a reviewed chat: Nick asserted
+  // a task's completion status it never checked (the response-verifier flagged
+  // the unbacked claim), and it scolded Nour for changing topics. ~80 tokens
+  // that keep Nick honest about what he actually knows + drop the nagging.
+  systemPrompt += `\n\nHONESTY + RESPECT:
+- Never state whether a task/habit is done (or not) unless you actually checked — call task.status, or read his data. If you can't verify, say "I can't confirm that" · never assume he failed.
+- Don't scold Nour for changing topics or "drifting." Follow his lead — if he switches subjects, switch with him. Challenge his thinking on substance when he asks for it, not his choice of what to talk about.`;
+
   // ── TOOL-FIRST DIRECTIVE (injected only when query is factual) ──
   // When the user asks a data question Nick has tools for, force the
   // tool call before the answer. Prevents hallucinated numbers.

@@ -222,3 +222,58 @@ export async function handleMissionPlan(params: ActionParams, type: string): Pro
     tasks: createdTasks.map(t => ({ id: t.id, title: t.title })),
   }};
 }
+
+export async function handleTaskStatus(params: ActionParams, type: string): Promise<ActionResult> {
+  // 2026-06-06 · Lets Nick CHECK a task/habit's real status instead of
+  // asserting it from memory. The reviewed chat fabricated "you didn't do
+  // them" with no tool call · the response-verifier flagged it. No new
+  // columns selected, so this is safe to deploy ahead of the recurringDays
+  // migration.
+  const query = String(params.title ?? params.query ?? "").trim();
+  if (!query) {
+    return { action: type, success: false, error: "Provide the task/habit title to check." };
+  }
+  const matches = await prisma.task.findMany({
+    where: { deletedAt: null, title: { contains: query, mode: "insensitive" } },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      loopKind: true,
+      streakCount: true,
+      lastCompletedAt: true,
+      dueDate: true,
+    },
+    orderBy: { lastTouchedAt: "desc" },
+    take: 5,
+  });
+  if (matches.length === 0) {
+    return {
+      action: type,
+      success: true,
+      result: {
+        query,
+        found: false,
+        note: `No task matching "${query}" on Nour's list. Tell him you don't see it — do NOT assume whether it's done.`,
+      },
+    };
+  }
+  // "Done today" in Nour's timezone (ET) · mirrors handleHabitToggle's anchor.
+  const todayStartET = new Date(
+    new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) + "T00:00:00",
+  );
+  const tasks = matches.map((t) => {
+    const recurring = t.loopKind === "DAILY" || t.loopKind === "WEEKLY";
+    const completedToday = !!t.lastCompletedAt && t.lastCompletedAt >= todayStartET;
+    return {
+      title: t.title,
+      loopKind: t.loopKind,
+      status: t.status,
+      doneToday: recurring ? completedToday : t.status === "DONE",
+      streakCount: t.streakCount,
+      lastCompletedAt: t.lastCompletedAt ? t.lastCompletedAt.toISOString() : null,
+      dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
+    };
+  });
+  return { action: type, success: true, result: { query, found: true, count: tasks.length, tasks } };
+}
