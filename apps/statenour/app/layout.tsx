@@ -93,7 +93,7 @@ export default function RootLayout({
                 fontFamily: "var(--font-body)",
               },
             }}
-            duration={2000}
+            duration={4000}
           />
         </TooltipProvider>
       </body>

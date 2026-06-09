@@ -13,5 +13,7 @@ import { redirect } from "next/navigation";
  * fast-follow enrichment on /stats (tracked).
  */
 export default function GoalsRedirect() {
-  redirect("/stats");
+  // Land on the Goals section of /stats (id="goals") rather than the top
+  // of the character sheet, so a "Goals" mental model arrives at goals.
+  redirect("/stats#goals");
 }
