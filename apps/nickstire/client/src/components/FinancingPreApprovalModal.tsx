@@ -11,6 +11,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { BUSINESS } from "@shared/business";
+// attribution-wave 2026-06: financing leads (high-ticket) wrote NULL for
+// every attribution column — lead.submit already accepts these fields.
+import { getUtmData } from "@/lib/utm";
 
 interface FinancingPreApprovalModalProps {
   open: boolean;
@@ -48,6 +51,9 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
         source: "financing_preapproval",
         problem: `Financing pre-approval interest. Estimated amount: $${amount || "unknown"}`,
         vehicle: undefined,
+        // Same getUtmData() spread LeadPopup ships in prod — server stores
+        // utm/landing/referrer as nullish columns; extra keys zod-stripped.
+        ...getUtmData(),
       });
     },
     [name, phone, phoneValid, email, amount, submitMutation]
