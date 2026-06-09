@@ -196,6 +196,28 @@ export const callbackRouter = router({
     .mutation(async ({ input }) => {
       const result = await updateCallbackStatus(input.id, input.status, input.notes);
 
+      // lead-source hygiene · close the linked duplicate lead when the
+      // callback is resolved. callback.submit writes BOTH a callback_requests
+      // row and a leads row joined by leads.callbackId; resolving only the
+      // callback left a permanent status=new urgency-4 ghost that re-entered
+      // every action queue and kept the stale-lead SMS cron texting a person
+      // Nick already called. Scope: ONLY leads still in 'new' (never touches
+      // rows the operator progressed manually), only on called/no-answer/
+      // completed (re-opening to 'new' leaves the lead alone). FAIL-OPEN:
+      // a sync error never blocks the callback status update.
+      if (input.status !== "new") {
+        try {
+          const d = await db();
+          if (d) {
+            await d.update(leads)
+              .set({ status: "contacted", lastFollowUpAt: new Date(), contactedBy: "callback-resolution" })
+              .where(and(eq(leads.callbackId, input.id), eq(leads.status, "new")));
+          }
+        } catch (syncErr) {
+          log.warn("[callback:updateStatus] linked-lead close failed (callback status saved fine)", { id: input.id, err: syncErr instanceof Error ? syncErr.message : String(syncErr) });
+        }
+      }
+
       // Callback status = conversion signal
       import("../services/eventBus").then(({ dispatch }) =>
         dispatch("stage_changed", {
