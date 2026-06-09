@@ -121,6 +121,19 @@ const MIGRATIONS: Record<string, string[]> = {
     `ALTER TABLE "person_profiles" ADD COLUMN IF NOT EXISTS "phone" TEXT`,
     `ALTER TABLE "person_profiles" ADD COLUMN IF NOT EXISTS "email" TEXT`,
   ],
+
+  // Domain-anchored missions + classifier learning · 2026-06-09 · additive ·
+  // zero data loss · NO enum changes (pgvector-safe). system_kind="GENERAL"
+  // marks the 6 per-domain anchor missions; canonical_domain is the routing
+  // key (the legacy MissionDomain enum is kept + mapped in code). The
+  // corrections table is the classifier's few-shot learning signal.
+  // Matches prisma/migrations-pending/0010_domain_missions/migration.sql.
+  "0010_domain_missions": [
+    `ALTER TABLE "Mission" ADD COLUMN IF NOT EXISTS "system_kind" VARCHAR(16)`,
+    `ALTER TABLE "Mission" ADD COLUMN IF NOT EXISTS "canonical_domain" VARCHAR(24)`,
+    `CREATE TABLE IF NOT EXISTS "task_classification_corrections" ("id" TEXT NOT NULL, "task_title" TEXT NOT NULL, "chosen_mission_id" TEXT, "domain" VARCHAR(24), "created_by" VARCHAR(64) DEFAULT 'user', "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "task_classification_corrections_pkey" PRIMARY KEY ("id"))`,
+    `CREATE INDEX IF NOT EXISTS "task_classification_corrections_created_at_idx" ON "task_classification_corrections" ("created_at" DESC)`,
+  ],
 };
 
 export async function POST(req: Request) {
