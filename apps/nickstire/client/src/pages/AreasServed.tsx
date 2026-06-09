@@ -182,17 +182,28 @@ export default function AreasServed() {
             Nick's Tire & Auto welcomes drivers from all over Northeast Ohio. Walk in 7 days. Free check. Written quote. You don't pay until you say yes. Or schedule a drop-off online.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 stagger-in justify-center">
-            <Link
-              href="/booking"
+            {/* Near-me intent = call or navigate NOW. Call is the primary
+                action; Get Directions for "I'm pulling up"; drop-off kept. */}
+            <a
+              href={BUSINESS.phone.href}
               className="inline-flex items-center justify-center px-6 py-3 bg-[#FDB913] text-black font-semibold text-sm hover:bg-[#FDB913]/90 transition-colors"
             >
-              Schedule Drop-Off
-            </Link>
+              Call {BUSINESS.phone.display}
+            </a>
+            <a
+              href={BUSINESS.urls.googleMapsDirections}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 border border-border/30 text-foreground/70 font-medium text-sm hover:border-[#FDB913]/40 transition-colors"
+            >
+              <Navigation className="w-4 h-4" />
+              Get Directions
+            </a>
             <Link
-              href="/contact"
+              href="/booking"
               className="inline-flex items-center justify-center px-6 py-3 border border-border/30 text-foreground/70 font-medium text-sm hover:border-[#FDB913]/40 transition-colors"
             >
-              Contact Us
+              Schedule Drop-Off
             </Link>
           </div>
         </div>
