@@ -95,4 +95,28 @@ describe("buildActionReceiptFeed (injected loaders — no DB)", () => {
     expect(feed.items[0].receiptId).toBe("auto_boom"); // 12:00 newest
     expect(feed.items[0].status).toBe("failed");
   });
+
+  it("counts describe EXACTLY the returned items, not the 2×limit union (review fix)", async () => {
+    // 60 audits + 60 autos loaded under the default limit 50 → 120 receipts,
+    // but only 50 returned. counts.total must equal items.length, not 120.
+    const mk = (i: number, base: Date) => audit({ id: `a${i}`, createdAt: new Date(base.getTime() + i * 1000) });
+    const feed = await buildActionReceiptFeed({
+      loadAudit: async () => Array.from({ length: 60 }, (_, i) => mk(i, new Date("2026-06-09T00:00:00Z"))),
+      loadAutonomous: async () => Array.from({ length: 60 }, (_, i) => auto({ id: `x${i}`, result: "failed", error: "e", createdAt: new Date("2026-06-08T00:00:00Z") })),
+    });
+    expect(feed.items.length).toBe(50);
+    expect(feed.counts.total).toBe(50); // not 120
+    expect(feed.counts.success + feed.counts.failed + feed.counts.other).toBe(50);
+  });
+});
+
+describe("autonomousActionToReceipt — rejected / forbidden (review fix)", () => {
+  it("maps an operator-rejected action to skipped, not partial", () => {
+    const r = autonomousActionToReceipt(auto({ approval: "rejected", result: "pending_approval", executedAt: null }));
+    expect(r.status).toBe("skipped");
+  });
+  it("maps a policy-forbidden action to skipped", () => {
+    const r = autonomousActionToReceipt(auto({ approval: "auto", result: "forbidden_by_policy", executedAt: new Date() }));
+    expect(r.status).toBe("skipped");
+  });
 });

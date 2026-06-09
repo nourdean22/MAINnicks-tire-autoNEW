@@ -11,6 +11,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { extractShas } from "@/lib/utils/git-sha";
 
 export interface ParsedSession {
   title: string;
@@ -42,8 +43,10 @@ export interface FollowUpSuggestion {
   requiresApproval: boolean;
 }
 
-const SHA_RE = /\b[0-9a-f]{7,40}\b/g;
 const CONVENTIONAL_RE = /\b(?:feat|fix|chore|docs|refactor|test|perf|build|ci|style)(?:\([^)]*\))?:\s*.+/i;
+
+// Leading segment of a file path (not a repo). Used to reject "lib/foo" etc.
+const KNOWN_TOP_DIR = /^(app|apps|lib|components|scripts|config|prisma|tests|docs|src|public|node_modules)\//i;
 
 const APPROVAL_RE = /\b(needs?\s+owner\s+approval|owner\s+(?:decision|sign-?off|approval)|awaiting\s+(?:owner|approval|sign-?off)|requires?\s+approval|pending\s+approval|operator\s+(?:decision|approval))\b/i;
 const PROD_PENDING_RE = /\b(migration[^.\n]*\b(?:pending|not\s+applied|unapplied|awaiting)|(?:deploy|deployment|rollout|push)[^.\n]*\b(?:pending|blocked|awaiting|not\s+(?:done|deployed|pushed))|not\s+(?:yet\s+)?(?:deployed|pushed)|awaiting\s+deploy)\b/i;
@@ -115,14 +118,20 @@ export function parseSessionLog(raw: string): ParsedSession {
   const rawLines = text.split(/\r?\n/);
   const lines = rawLines.map(cleanLine).filter((l) => l.length > 0);
 
-  const repo = firstMatch(text, /\b([\w-]+\/[\w.-]+)(?=\s|`|$|\.git)/) // owner/repo
-    ?? firstMatch(text, /repo(?:sitory)?\s*[:=]\s*`?([\w/.-]+)`?/i);
+  // Prefer an explicit cue (github.com/<owner>/<repo> or a "repo:" label) before
+  // the bare owner/repo heuristic — otherwise the first file path in the log
+  // (lib/foo, apps/x) gets mis-read as the repo.
+  const bareRepo = firstMatch(text, /\b([\w-]+\/[\w.-]+)(?=\s|`|$|\.git)/);
+  const repo =
+    firstMatch(text, /\bgithub\.com\/([\w-]+\/[\w.-]+?)(?=[\s`)/]|\.git|$)/i) ??
+    firstMatch(text, /\brepo(?:sitory)?\s*[:=]\s*`?([\w-]+\/[\w.-]+)`?/i) ??
+    (bareRepo && !KNOWN_TOP_DIR.test(bareRepo) && !/\.\w+$/.test(bareRepo) ? bareRepo : null);
   const branch = firstMatch(text, /\bbranch\s*[:=]?\s*`?([\w./-]+)`?/i)
     ?? firstMatch(text, /\bon\s+branch\s+`?([\w./-]+)`?/i);
   const worktree = firstMatch(text, /worktree[^\n`]*`([^`]+)`/i)
     ?? firstMatch(text, /\.worktrees\/([\w./-]+)/i);
 
-  const commits = uniq((text.match(SHA_RE) ?? []).filter((s) => s.length >= 7 && s.length <= 12));
+  const commits = extractShas(text); // short (7-12) or full (40) SHAs, deduped by first-7
   const commitSubjects = uniq(
     lines.filter((l) => CONVENTIONAL_RE.test(l)).map((l) => {
       const m = l.match(CONVENTIONAL_RE);
