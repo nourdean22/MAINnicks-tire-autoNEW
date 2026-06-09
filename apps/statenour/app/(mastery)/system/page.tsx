@@ -16,7 +16,7 @@
  * Automation Policies · Brain Categories).
  */
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Panel } from "@/components/panel";
 import { MetricCard } from "@/components/metric-card";
 import { PageHeader } from "@/components/layout/ui";
@@ -118,6 +118,12 @@ export default function SystemPage() {
     diagnosticsQuery.isFetching ||
     brainQuery.isFetching ||
     healthQuery.isFetching;
+  // Hydration fix (React #418) · the "Last refresh" wall-clock differs
+  // between the SSR render and the first client render (server time vs
+  // client time, ms apart). Gate it behind a mounted flag so the
+  // initial HTML matches on both, then fill it in client-side.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const lastRefresh =
     diagnosticsQuery.dataUpdatedAt > 0
       ? new Date(diagnosticsQuery.dataUpdatedAt)
@@ -149,7 +155,7 @@ export default function SystemPage() {
       <PageHeader
         eyebrow="NOUR OS"
         title="system"
-        description={`v${d?.version ?? "..."} · Last refresh: ${lastRefresh.toLocaleTimeString()}`}
+        description={`v${d?.version ?? "..."}${mounted && diagnosticsQuery.dataUpdatedAt > 0 ? ` · Last refresh: ${new Date(diagnosticsQuery.dataUpdatedAt).toLocaleTimeString()}` : ""}`}
         actions={
           <div className="flex items-center gap-2">
             <FreshnessChip
@@ -198,8 +204,11 @@ export default function SystemPage() {
         />
         <MetricCard
           label="Avg Latency"
-          value={d ? `${d.kpis.latency_24h.avg_ms}ms` : "..."}
-          hint="24h average"
+          // avg_ms === 0 with live traffic means latency isn't being
+          // tracked (no data), not a real 0ms. Show an em-dash so the
+          // tile reads as "unknown" rather than an implausible zero.
+          value={d ? (d.kpis.latency_24h.avg_ms > 0 ? `${d.kpis.latency_24h.avg_ms}ms` : "—") : "..."}
+          hint={d && d.kpis.latency_24h.avg_ms === 0 ? "no data yet" : "24h average"}
         />
         <MetricCard
           label="Errors (24h)"
