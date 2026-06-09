@@ -18,6 +18,8 @@
  * client/src/__tests__/money-risks.test.ts.
  */
 
+import { isCallbackDuplicateLead } from "@shared/leadSource";
+
 /** 4h uncontacted = SLA breach. Matches LeadsBrief's red tier + the visual SLA timer. */
 export const SLA_BREACH_MS = 4 * 60 * 60 * 1000;
 /** A callback left unanswered past 4h is a money risk (missed-call → walk-away). */
@@ -38,6 +40,13 @@ export interface RiskLead {
   name?: string | null;
   email?: string | null;
   phone?: string | null;
+  /** Source + callback link — used to exclude callback artifacts that are
+   *  already counted on the Callbacks surface (avoids double-counting one
+   *  caller as both a stale lead AND a waiting callback). */
+  source?: string | null;
+  callbackId?: number | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
 }
 
 /** Narrow structural view of a callback row. */
@@ -103,6 +112,11 @@ export function deriveMoneyRisks(
 
   for (const l of leads ?? []) {
     if (l.status !== STALE_LEAD_STATUS) continue;
+    // A callback-form lead linked to a callback_requests row is the SAME person
+    // already counted in the callbacks loop below — skip it so one caller isn't
+    // counted twice. Voice rack-check leads (no callbackId, no callback_requests
+    // row) are NOT excluded — they have no other place to be counted.
+    if (isCallbackDuplicateLead(l)) continue;
     const age = ageMs(l.createdAt, now);
     if (age < SLA_BREACH_MS) continue;
     staleLeadCount += 1;
