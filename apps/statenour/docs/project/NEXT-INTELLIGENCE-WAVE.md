@@ -1,92 +1,65 @@
 # NEXT-INTELLIGENCE-WAVE — Statenour
 
-> **Status:** SHIPPED 2026-06-09. P5–P8 all landed (`4ef690dc` memory evals ·
-> `04c54f32` runbooks · `5988d3f0` action receipts · `7a082b77` knowledge→action),
-> on top of the truth cleanup (`01c5438c`). **Deferred:** P9 confirm cards · P10
-> jobs console (already exists) · receipts finalize-wiring · converter UI surface.
+> **Status:** Truth cleanup + first intelligence pass SHIPPED to `main` `c4716a90`
+> (memory evals `ef61c34b` · runbooks `a24d58d1` · action-receipt normalizer
+> `196fd59d` · knowledge→action `8cdf3a87`). **Active now:** the **Useful Function
+> Wave** below (re-scoped 2026-06-09) — built on the isolated branch
+> `statenour-truth-intelligence-wave`, **not pushed** until the owner says so.
 > Current truth: [`../CURRENT-TRUTH.md`](../CURRENT-TRUTH.md).
 
-## Premise
+## Re-scope rationale
 
-Statenour already has strong cognition (BrainMemory + pgvector recall + BGE
-rerank, mastery/XP, a 5-layer fabrication-defense stack, an action-write
-verifier wired to the `chat_claim_warn` chip). The gaps this wave closes are
-**reliability/trust**, not raw capability:
+The first pass shipped the *measurement + trust* foundation (truth scoreboard,
+runbooks, the `ActionReceipt` contract). What it did NOT do is reduce Nour's
+daily operating friction. This wave replaces the remaining abstract upgrades
+with five functions that each **reduce friction, improve execution, or prevent
+wrong AI behavior** — services + tests first, minimal UI, reuse existing models.
 
-1. Nothing **measures** whether Nick/agents actually know current truth
-   (deploy path, source-of-truth, action honesty, migration safety).
-2. Future agents inherit prose, not **operating procedure** — no structured
-   "how to work safely here" they can load.
-3. Action honesty is enforced reactively (detector regex + verifier) but there's
-   no normalized **receipt** contract a summary can be checked against.
-4. Useful knowledge surfaced in chat/journal doesn't convert to **action**.
+### Deprioritized (removed from the roadmap)
+- Generic generative-UI confirm cards (P9).
+- A new system-jobs dashboard — `/system/crons` already exists; improve via runbook.
+- Broad visual polish · big governed-memory migration · new DB tables (unless unavoidable).
+- The broad knowledge→action converter (`8cdf3a87`) already shipped as additive,
+  unwired lib code — **left in place, not extended**; it risked becoming abstract.
 
-## Ranking (daily-use × trust × future-agent × low-regression × fit × cost)
+## Top 5 useful functions (this wave)
 
-| Rank | Upgrade | Why | Regression risk | Ships this wave |
-|---|---|---|---|---|
-| 1 | **Memory evals + truth scoreboard** (P5) | Catches stale memory/docs/wrong-deploy/false-claim drift deterministically; protects every future session | **Very low** — new dir, no DB writes, no external API by default | **YES** |
-| 2 | **Agent runbooks foundation** (P6) | Gives future sessions safe operating procedure (migrations, deploys, classifier, stale-doc, boundary) | **Very low** — typed catalog + md + a guard | **YES** |
-| 3 | **Action receipts / no-false-claims** (P7) | Normalizes "did it actually happen?" into a typed receipt; hardens the existing verifier | **Medium** — touches chat finalize seam; kept additive | **YES (additive v1)** |
-| 4 | **Knowledge→action converter** (P8) | One-click idea→task/rule/decision; suggestion-only, no silent writes | **Low-medium** — pure lib + one surface | **YES (lib + tests; UI wiring minimal)** |
-| 5 | Generative UI confirm cards (P9) | Buttons instead of long text for uncertain/sensitive actions | Medium (UI) | **DEFER** — depends on P7/P8 landing clean |
-| 6 | System jobs/cron console (P10) | Transparency for crons/jobs | Low | **DEFER** — already exists (`/system/crons`, `cron-runs`, `deployment-truth`); improve via runbook + freshness check instead of a new surface |
+Build order favors services the command registry (#5) will call. Reuse existing
+models; **no new DB table unless clearly necessary**; every mutation path is
+explicit-confirmation or receipt-backed; no duplicate audit/task/chat logic.
 
-## P5 — Memory evals + truth scoreboard (ship)
+### F1 · Claude Session Importer / Work Session Digest — `feat(statenour): add Claude session importer`
+- **What:** parse a pasted Claude Code session log → structured digest (title, repo/branch, commits[], phases, files changed, tests/checks run, failures/blockers, migrations, prod-actions-needed, warnings/risks, next steps).
+- **Store:** the best EXISTING pattern (SessionReport / BrainMemory / AuditEvent / SystemMetric — decided in the Understand phase). No new table unless necessary.
+- **Surface:** `POST /api/system/session-import` (owner) and/or a `/import-session` command. Follow-up tasks suggested, **never silently created**.
+- **Acceptance:** SHAs extracted · "needs owner approval" detected · "prod migration/deploy pending" detected · tasks suggested not created · no memory spam · parser tests.
 
-- **Files:** `lib/evals/memory-eval-types.ts`, `memory-evals.ts` (dataset),
-  `memory-eval-runner.ts` (deterministic), `scripts/run-memory-evals.ts`
-  (`pnpm eval:memory`), `app/api/system/memory-evals/route.ts` (owner GET),
-  `components/system/memory-evals-card.tsx`, `tests/lib/evals/memory-evals.test.ts`.
-- **Data model impact:** none (no DB). Runner is read-only.
-- **Categories:** deployment_truth, source_of_truth, stale_doc_detection,
-  migration_safety, action_honesty, task_classification, memory_kind,
-  business_context, personal_os_context, provider_truth. ≥20 evals.
-- **Determinism:** each eval declares `expectedFacts` + `forbiddenClaims`; the
-  runner scores a candidate answer string by required-fact presence + forbidden
-  absence. With no answer source it runs as **dataset validation** (no LLM).
-  LLM judging is an explicit future flag, OFF by default.
-- **Tests:** dataset validity (unique ids, ≥20, every eval has facts +
-  forbidden, forbidden covers the retired-deploy/false-claim set), runner purity
-  (no DB import).
-- **Rollback:** delete the dir + script + route + card + the `eval:memory`
-  script line. Nothing else depends on it.
-- **Anti-overbuild:** no auto-LLM spend; no cron; no new schema.
-- **Success metric:** `pnpm eval:memory` green in CI; the card shows
-  pass/fail per category so a future agent/operator can see truth drift at a glance.
+### F2 · "What Changed?" system digest — `feat(statenour): add system change digest`
+- **What:** one call answers "what changed since last time?" — latest commits (if readable), latest RECONCILIATION entry, `eval:memory` score, stale-doc result, runbook-check result, pending-migration notes, rollout state, unresolved risks, next owner decision.
+- **Reuse:** `runMemoryEvals`, the stale-doc scanner, the runbook checker — call them, don't re-implement.
+- **Surface:** `getSystemChangeDigest` service + `/what-changed`.
+- **Acceptance:** crisp "since last reconciliation" digest · NEVER hallucinates deploy status (says "not deployed"/"unknown" when unverified) · tests with mocked inputs.
 
-## P6 — Agent runbooks foundation (ship)
+### F3 · Task/Mission Inbox Rescue scanner — `feat(statenour): add task rescue scanner`
+- **What:** read-only scan for: tasks in old inboxes · no mission · in a GENERAL/domain anchor but likely belong to a specific mission · stale (untouched) · `pendingClassification` · missing `nextPhysicalAction`. Each finding carries a reason + confidence + a suggested fix (move/add-action/archive/keep).
+- **Reuse:** the domain backbone + `isInboxMission()` + the classifier the sibling session just shipped; **GENERAL anchors protected** — real projects are not generic buckets.
+- **Surface:** `POST /api/system/task-rescue` (read-only) + a small card or chat tool. **No auto-move without confirmation.**
+- **Acceptance:** read-only default · suggestions reasoned/confident · GENERAL protected · tests for old-inbox / no-mission / GENERAL→specific / stale.
 
-- **Files:** `lib/runbooks/types.ts`, `lib/runbooks/catalog.ts`,
-  `docs/runbooks/*.md` (+ `docs/runbooks/index.md`),
-  `scripts/check-runbooks.ts` (`pnpm check:runbooks`),
-  `tests/lib/runbooks.test.ts`.
-- **8 active runbooks:** current-truth, claude-code-session, migrations-and-deploys,
-  task-classifier-domain-missions, stale-doc-cleanup, action-honesty-and-receipts,
-  memory-evals, nickstire-vs-statenour-boundary.
-- **Guard:** active runbooks can't carry critical stale-deploy terms (reuse the
-  stale-doc term set), need required fields + `lastVerified`, and `relatedFiles`
-  must exist on disk or be marked external.
-- **Rollback:** delete the dir + md + script + test + `check:runbooks` line.
-- **Success metric:** AGENTS.md + CURRENT-TRUTH link the index; `pnpm check:runbooks` green.
+### F4 · Action Receipt Feed — `feat(statenour): add action receipt feed`
+- **What:** read-side feed answering "what did Nick/system actually DO?" — action · status · entity · when · source · success/failure · undo-available. High-value entities: task create/complete/move · mission create/archive · memory pin/update · decision log · correction capture · session import.
+- **Reuse:** **integrate the existing `lib/ai/receipts/action-receipt.ts` normalizer** (`toReceipt`/`canClaimDone`) + existing audit/action records (AuditEvent etc., mapped in Understand). Do NOT duplicate receipt logic; do NOT invent a new audit store if one exists.
+- **Surface:** `getActionReceiptFeed` service + `/receipts` + optional small card.
+- **Acceptance:** failed actions visible · no false "done" · uses existing audit logs · normalization tests.
 
-## P7 — Action receipts (ship, additive v1)
+### F5 · Personal Command Shortcuts — `feat(statenour): add personal command shortcuts`
+- **What:** a SMALL command registry (not a framework) for daily-use commands that call the services above: `/today` (today's 3 + next action + current mission + one warning) · `/rescue` (F3) · `/what-changed` (F2) · `/import-session` (F1) · `/receipts` (F4) · `/stale` (stale docs/tasks/memories).
+- **Rules:** commands call EXISTING services · **no duplicate logic in the chat route** · unknown command → suggestions · routing/intent is pure + testable.
+- **Acceptance:** registry exists · ≥3 commands work end-to-end on the services above · chat route not bloated · routing + unknown-fallback tests.
 
-- **Reuse, don't duplicate:** the existing action-write verifier (`75e48458`),
-  `chat_claim_warn` chip, `action-claim-detector.ts`, and tool `sideEffecting`
-  metadata. v1 = a normalized `ActionReceipt` type + `toReceipt()` normalizer +
-  a `canClaimDone(receipts)` guard, with tests on core tools (createTask,
-  completeTask, pinMemory, journalDecision). **No chat-route restructure** — the
-  normalizer is a pure utility the finalize seam can adopt incrementally.
-- **Rollback:** delete `lib/ai/receipts/*` + tests; nothing imports it until wired.
-
-## P8 — Knowledge→action converter (ship lib + tests)
-
-- **Files:** `lib/knowledge/action-converter.ts` + `tests/lib/knowledge/action-converter.test.ts`.
-- Pure heuristic v1 (suggestion-only, `requiresApproval` for side-effects); one
-  surface wired only if trivial. No silent writes.
-
-## Verification gates (every phase)
-
-`pnpm typecheck` (0) · targeted vitest · `pnpm check:stale-docs` · `pnpm check:runbooks`
-(P6+) · `pnpm eval:memory` (P5+). Full `pnpm test` before the final commit.
+## Wave rules (binding)
+- Stay on the branch; **do not push to main** without owner approval.
+- No prod data mutation · no migrations unless unavoidable.
+- Services + tests before UI; keep UI minimal.
+- Reuse existing models/audit/task/chat seams; no duplication; no hidden autonomy.
+- **Verify after each function:** typecheck · targeted tests · `check:stale-docs` · `check:runbooks` (if runbooks touched) · `eval:memory` (if truth/runbook docs touched). Final: full suite + build if feasible, then reconcile AGENTS + RECONCILIATION.
