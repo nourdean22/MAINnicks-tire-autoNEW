@@ -110,7 +110,7 @@ export async function classifyTaskLinkage(
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userContent },
       ],
-      "reason",
+      "classify",
     );
 
     const text = result.content?.trim();

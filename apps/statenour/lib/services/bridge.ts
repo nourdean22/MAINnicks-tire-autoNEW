@@ -55,7 +55,7 @@ function resolveBridgeConfig(): { url: string | undefined; key: string | undefin
       process.env.NICKSTIRE_URL ||
       process.env.NICKS_ADMIN_URL ||
       process.env.NICKSTIRE_BRIDGE_URL,
-    key: process.env.STATENOUR_SYNC_KEY || process.env.BRIDGE_API_KEY,
+    key: process.env.BRIDGE_API_KEY || process.env.STATENOUR_SYNC_KEY,
   };
 }
 

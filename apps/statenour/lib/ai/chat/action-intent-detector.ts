@@ -44,7 +44,7 @@ const EDGE_INTENT_PATTERNS: IntentEntry[] = [
   // alone is too ambiguous (could mean email inbox · service-bay
   // inbox detail · etc) so dropped from the qualifier list.
   {
-    regex: /\b(?:add|put|throw)\b.{0,40}\b(?:to|on|in)\b\s+(?:my|the)\s+(?:todo|to-?do|task\s+list)\b/i,
+    regex: /\b(?:add|put|throw)\b.{0,40}\b(?:to|on|in|into)\b\s+(?:my|the)?\s*(?:todo|to-?do|task\s+list|tasks?)\b/i,
     intent: "task-add-to-list",
     expectedTool: "createTask",
   },

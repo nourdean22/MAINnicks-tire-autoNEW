@@ -471,10 +471,19 @@ const tasksCoreTools = {
             deletedAt: null,
           },
           orderBy: { lastTouchedAt: "desc" },
-          take: 1,
+          take: 5,
           select: { id: true, title: true },
         });
-        target = candidates[0] ?? null;
+        
+        const exactMatch = candidates.find(c => c.title.toLowerCase() === titleQuery.toLowerCase());
+        
+        if (exactMatch) {
+          target = exactMatch;
+        } else if (candidates.length === 1) {
+          target = candidates[0] ?? null;
+        } else if (candidates.length > 1) {
+          return { success: false, reason: `Ambiguous titleQuery '${titleQuery}'. Matches multiple tasks: ${candidates.map(c => c.title).join(" | ")}. Please refine query or use taskId.` };
+        }
       }
       if (!target) return { success: false, reason: "task not found" };
 
