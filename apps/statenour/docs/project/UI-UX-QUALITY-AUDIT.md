@@ -59,7 +59,7 @@ This is a **judgment** document. The 1–10 scores are **calibrated expert asses
 - `/missions` has **no filter/search/sort** (TaskFilters deleted from it; stranded behind the dead `/tasks` redirect).
 - The **reward toast** content (`formatReward`) and the absence of any celebration UI (verified in `lib/mastery/task-reward.ts`).
 - `/goals` is a **pure redirect** to `/stats` (verified, 17-line file).
-- **PersonEditDrawer** blanks 5 fields on edit (verified `people/page.tsx:482-487`).
+- **PersonEditDrawer** — `people/page.tsx:482-487` passes `null` for 5 fields, but `person-edit-drawer.tsx:111-139` (Wave BA) refetches the full profile and hydrates them on open, so the fields prefill. **Already fixed — no data loss** *(corrected 2026-06-09; originally mis-flagged from the page-level nulls alone).*
 - **Pins** "injected" badge is position-dependent (`pins/page.tsx`, agent-reported).
 - Dead/orphaned components (`MissionScoreboard`, `NicksScoreboardBrief` — 0 importers).
 - `⌘K` command-palette internals (40+ actions, semantic brain search) — read in `components/command-palette.tsx`, not exercised live.
@@ -69,7 +69,7 @@ This is a **judgment** document. The 1–10 scores are **calibrated expert asses
 - **A true mobile/iOS-PWA render** (resize did not take; no device). Highest-impact gap in this audit.
 - Live **empty states** (account is populated) — e.g. zero-people, zero-missions, cold journal.
 - Live **error/offline** flows (offline queue, stall banner, provider degradation, undo-send) — code-only.
-- Whether the PersonEditDrawer **save** actually writes the blanked fields back as null (data-loss vs display-only) — **save path runtime-unknown**.
+- ~~Whether PersonEditDrawer save writes nulls back~~ — **resolved**: the drawer hydrates the real stored values before save (Wave BA refetch), so there is no null-overwrite path *(corrected 2026-06-09)*.
 - `/system/*` subpages, `/knowledge`, `/pins`, `/content`, `/market`, `/business`, `/voice` — code-only (not visited live this pass).
 - Anything in **Cleaner's unpushed branch**.
 
@@ -212,7 +212,7 @@ REDIRECTS (consolidation history)
 | Purpose clarity | 8/10 | Observed live | "Power Atlas — tap a name to open their dossier" + subtitle is explicit. |
 | Daily usefulness | 8/10 | Observed live + code-inferred | Relationship brief + today's picks + trust/ledger = strong daily nudge. |
 | Visual quality | 8/10 | Observed live | Serif names, mono trust scores, premium. |
-| Speed/ease | 6/10 | Observed live + code-inferred · ⚠ defect | **PersonEditDrawer opens with birthday/anniversary/cadence/phone/email blanked** (`people/page.tsx:482-487`); inline `relativeTime` duplicates shared util. |
+| Speed/ease | 6/10 | Observed live + repo-verified | Edit drawer **does** prefill all fields (`person-edit-drawer.tsx:111-139` Wave BA refetch; the `people/page.tsx:482-487` nulls are compensated — *originally mis-flagged, corrected 2026-06-09*). Remaining: detail actions sit below the dossier on mobile; inline `relativeTime` duplicates a shared util. |
 | Mobile quality | 7/10 | Code-inferred | 44px row actions; but the 2/3+1/3 bento stacks on mobile, pushing deposit/withdraw actions below the full dossier+ledger. |
 | Motivation/reward | 6/10 | Code-inferred | Trust/ledger/balance is lightly gamified. |
 
@@ -373,7 +373,7 @@ Ranked by the brief's weighting: daily usefulness → clarity → motivation →
 | 9 | **Raise all secondary touch targets to 44px** (slash rows, header overflow, reply chips, suggestion dismiss, stall retry) | Mobile ergonomics on the primary device | **UI** + **Nick** (chat chips) | Low |
 | 10 | **Sign-post consolidations** (Goals→Stats anchor/scroll; a "Goals" tab on `/stats`) | Removes label→destination mismatch | **UI (safe)** | Low |
 | 11 | **Replace violet/purple leaks with gold tokens** in `/system/*` + `/knowledge` | Restores the premium identity (anti-AI-slop) | **UI (safe)** | Low |
-| 12 | **PersonEditDrawer: pre-fill all fields** (birthday/anniversary/cadence/phone/email) | Fixes a real edit defect / potential data loss | **UI (safe-ish)** | Low |
+| 12 | **PersonEditDrawer prefill — ALREADY FIXED** (Wave BA refetch hydrates all fields); no action needed *(corrected 2026-06-09)*. | none | done | none |
 | 13 | **Pins: server-authoritative "injected" badge** (not sort-position) | Currently mislabels which pins are in the prompt | **UI/Cleaner** | Low |
 | 14 | **Lengthen actionable toast duration** (≥4–5s or until-dismiss for reward/undo) | 2s is below readable-for-action | **UI (safe)** | Low |
 | 15 | **Tame journal filter density on mobile** (collapse the 2 filter rows behind a control; add "load more" past the 100-cap) | Feed is pushed far down; silent truncation | **UI (safe)** | Low |
@@ -437,7 +437,7 @@ The Nick/Wiring session (`statenour-nick-agent-gap-audit`) owns the agent + chat
 3. Violet → gold tokens (#11)
 4. Toast duration (#14)
 5. Consolidation signposts + stale comments/labels (#10)
-6. PersonEditDrawer field pre-fill (#12) · Pins injected-badge (#13) · 44px secondary targets that are *not* in chat (#9 partial)
+6. Pins injected-badge (#13) and 44px secondary targets that are *not* in chat (#9 partial). *(Dropped: PersonEditDrawer pre-fill — already fixed by Wave BA, corrected 2026-06-09.)*
 7. Journal filter density + load-more (#15)
 
 **Wave B — coordinate with Cleaner (reward/XP/missions):**
@@ -459,7 +459,7 @@ The Nick/Wiring session (`statenour-nick-agent-gap-audit`) owns the agent + chat
 Claims marked "verified" were spot-checked against source at `43b63268`:
 - `/goals` pure redirect — **verified** `app/(mastery)/goals/page.tsx:15-17`.
 - Reward toast content / day-1-silent — **verified** `lib/mastery/task-reward.ts:24-32`.
-- PersonEditDrawer blanks 5 fields on edit-open — **verified** `app/(mastery)/people/page.tsx:482-487` (save-path = **not observed**, so "potential data loss" is stated conditionally).
+- PersonEditDrawer prefill — **corrected 2026-06-09**: `people/page.tsx:482-487` passes nulls, but `person-edit-drawer.tsx:111-139` (Wave BA) refetches + hydrates the full profile on open, so fields DO prefill. The original "blank fields / data-loss" framing was a stale audit inference; **already fixed, no code change needed.**
 - No bottom tab bar / orb-only nav — **verified** `app/(mastery)/layout.tsx` (only `FloatingHome`) + observed live.
 - `/system` #418 + "0ms" — **observed live** (console + screenshot, 2026-06-09).
 
