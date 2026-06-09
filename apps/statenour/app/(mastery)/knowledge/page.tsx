@@ -22,6 +22,7 @@ import { PageNick } from "@/components/ai/page-nick";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { StandardPage } from "@/components/layout/standard-page";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Phase ZZ (2026-05-19 AM) · authedFetch reads migrated to trpc · 3
 // sites (list · open · search).
@@ -309,6 +310,14 @@ export default function KnowledgePage() {
       {/* File Grid */}
       {results.length === 0 && (
         <section>
+          {sortedFiltered.length === 0 ? (
+            <EmptyState
+              icon={FolderOpen}
+              title={filterCat === "all" ? "No knowledge files yet" : `No files in "${filterCat}"`}
+              why={filterCat === "all" ? "The corpus is empty or hasn't synced yet." : "No files match this category filter."}
+              unlock={filterCat === "all" ? "Run a corpus refresh above, or sync your sources." : "Clear the filter to see all files."}
+            />
+          ) : (
           <div className="grid grid-cols-1 gap-2 stagger-in">
             {sortedFiltered.map((f) => (
               <Card
@@ -325,6 +334,7 @@ export default function KnowledgePage() {
               </Card>
             ))}
           </div>
+          )}
         </section>
       )}
     </StandardPage>
