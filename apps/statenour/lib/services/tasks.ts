@@ -836,14 +836,19 @@ export async function updateTask(id: string, input: unknown) {
       // Await the credit so the REAL credited XP can ride back on the response
       // for the /missions reward toast. Idempotent per sourceKey (credit still
       // happens exactly once); .catch ⇒ 0 keeps it non-fatal + never fakes XP.
-      const creditedXp = await creditTaskStats(result.task.id).catch((err) => {
+      const credit = await creditTaskStats(result.task.id).catch((err) => {
         log.warn("task_stat_credit_failed", {
           taskId: result.task.id,
           error: err instanceof Error ? err.message : String(err),
         });
-        return 0;
+        return { statsCredited: 0, xpCredited: 0 };
       });
-      completionReward = { xp: creditedXp, goalLifted: !!existing.goalId, streak: null };
+      completionReward = {
+        xpCredited: credit.xpCredited,
+        statsCredited: credit.statsCredited,
+        goalLifted: !!existing.goalId,
+        streak: null,
+      };
       // currentValue lift stays goal-only (stat crediting handled above).
       if (existing.goalId) {
         void liftGoalOnTaskComplete(existing.goalId, result.task.id).catch(
@@ -969,8 +974,13 @@ export async function updateTask(id: string, input: unknown) {
     completionReward === undefined &&
     isDailyCheckoff(existing.loopKind, payload, existing.lastCompletedAt)
   ) {
-    const dailyXp = await creditTaskStats(id, { perDay: true }).catch(() => 0);
-    completionReward = { xp: dailyXp, goalLifted: false, streak: payload.streakCount ?? null };
+    const credit = await creditTaskStats(id, { perDay: true }).catch(() => ({ statsCredited: 0, xpCredited: 0 }));
+    completionReward = {
+      xpCredited: credit.xpCredited,
+      statsCredited: credit.statsCredited,
+      goalLifted: false,
+      streak: payload.streakCount ?? null,
+    };
   }
 
   if (autoLearnReport) {

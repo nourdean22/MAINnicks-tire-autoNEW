@@ -158,13 +158,23 @@ export function goalsByStat(
  *   · goal-resolved stats keep the historical `goal-task:<id>:<stat>` key.
  *   · statHints/domain-resolved stats use a fresh `task-stat:<id>:<stat>` key.
  *   · DAILY completions append `:<yyyy-mm-dd>` so each day credits once.
- * Returns the count of NEW credits. Fire-and-forget safe: never throws.
+ * Returns BOTH the count of NEW stat credits AND the real total XP credited.
+ * The per-stat XP is already computed here, so summing it is free — and it lets
+ * the /missions reward toast show TRUE XP instead of mislabelling the count as
+ * "+N XP". Fire-and-forget safe: never throws.
  */
+export interface TaskCreditResult {
+  /** (task, stat) pairs newly credited this call. 0 on a same-key re-credit. */
+  statsCredited: number;
+  /** Real total stat XP credited — sum of the per-stat amounts actually written. */
+  xpCredited: number;
+}
+
 export async function creditTaskStats(
   taskId: string,
   opts: { perDay?: boolean; dayKey?: string } = {},
-): Promise<number> {
-  if (!taskId) return 0;
+): Promise<TaskCreditResult> {
+  if (!taskId) return { statsCredited: 0, xpCredited: 0 };
   const task = await prisma.task
     .findUnique({
       where: { id: taskId },
@@ -186,7 +196,7 @@ export async function creditTaskStats(
       },
     })
     .catch(() => null);
-  if (!task) return 0;
+  if (!task) return { statsCredited: 0, xpCredited: 0 };
 
   // Resolve stats by priority, and remember which keying scheme + evidence.
   let stats: ResolvedGoalStat[];
@@ -216,7 +226,7 @@ export async function creditTaskStats(
       evidence = domain ? `task · ${domain}` : "task";
     }
   }
-  if (stats.length === 0) return 0;
+  if (stats.length === 0) return { statsCredited: 0, xpCredited: 0 };
 
   const multiplier = taskStatMultiplier({
     roiScore: task.roiScore,
@@ -227,7 +237,8 @@ export async function creditTaskStats(
   });
   const daySuffix = opts.perDay ? `:${opts.dayKey ?? today()}` : "";
 
-  let credited = 0;
+  let statsCredited = 0;
+  let xpCredited = 0;
   for (const s of stats) {
     const xp = Math.max(MIN_TASK_STAT_XP, goalStatXp(s.weight, multiplier));
     if (xp <= 0) continue;
@@ -241,9 +252,14 @@ export async function creditTaskStats(
       evidence: evidence.slice(0, 120),
       sourceKey: `${base}${daySuffix}`,
     });
-    if (isNew) credited++;
+    // Only count + sum NEWLY-credited stats — a same-key re-credit (idempotent)
+    // adds 0 to both, so the reward stays honest on repeat completions.
+    if (isNew) {
+      statsCredited++;
+      xpCredited += xp;
+    }
   }
-  return credited;
+  return { statsCredited, xpCredited: Math.round(xpCredited * 10) / 10 };
 }
 
 /**
@@ -253,6 +269,6 @@ export async function creditTaskStats(
 export async function creditGoalStatsForTask(
   taskId: string,
   _goalId: string,
-): Promise<number> {
+): Promise<TaskCreditResult> {
   return creditTaskStats(taskId);
 }

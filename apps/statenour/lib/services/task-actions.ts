@@ -213,7 +213,7 @@ export async function checkTask(args: {
     // Await so the real credited XP can ride back on the response for the
     // /missions reward toast (idempotent per-day; .catch keeps it non-fatal —
     // 0 ⇒ no XP claimed). Wire #2.
-    const dailyXp = await creditTaskStats(id, { perDay: true }).catch(() => 0);
+    const dailyCredit = await creditTaskStats(id, { perDay: true }).catch(() => ({ statsCredited: 0, xpCredited: 0 }));
 
     let dailyAutoLearn: AutoLearnReport | null = null;
     try {
@@ -244,7 +244,12 @@ export async function checkTask(args: {
       ok: true,
       task: updated,
       autoLearn: dailyAutoLearn,
-      reward: { xp: dailyXp, goalLifted: false, streak: updated.streakCount },
+      reward: {
+        xpCredited: dailyCredit.xpCredited,
+        statsCredited: dailyCredit.statsCredited,
+        goalLifted: false,
+        streak: updated.streakCount,
+      },
     };
   }
 
@@ -356,7 +361,7 @@ export async function checkTask(args: {
   // completion via /check (goal → goal stats · else statHints · else domain).
   // Await so the real credited XP rides back for the /missions reward toast
   // (.catch ⇒ 0, never a fake claim). Wire #2.
-  const onceXp = await creditTaskStats(id).catch(() => 0);
+  const onceCredit = await creditTaskStats(id).catch(() => ({ statsCredited: 0, xpCredited: 0 }));
   // CRITICAL pre-existing gap fixed: the /check route (the UI checkbox, the
   // dominant completion path) never lifted the linked goal's currentValue —
   // only the updateTask PATCH path did. So a goal-tagged task completed by
@@ -481,7 +486,12 @@ export async function checkTask(args: {
     timeAdded: timeBump,
     autoLearn: autoLearnReport,
     childrenCascaded,
-    reward: { xp: onceXp, goalLifted: !!task.goalId, streak: null },
+    reward: {
+      xpCredited: onceCredit.xpCredited,
+      statsCredited: onceCredit.statsCredited,
+      goalLifted: !!task.goalId,
+      streak: null,
+    },
   };
 }
 
