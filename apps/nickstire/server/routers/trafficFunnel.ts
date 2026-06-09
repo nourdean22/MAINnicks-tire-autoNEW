@@ -27,7 +27,9 @@
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { getDb } from "../db";
-import { sql } from "drizzle-orm";
+import { sql, gte } from "drizzle-orm";
+import { bookings } from "../../drizzle/schema";
+import { normalizePathname } from "@shared/attribution";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("trafficFunnel");
@@ -420,6 +422,63 @@ export const trafficFunnelRouter = router({
           algDeclined,
         },
       };
+    }),
+
+  /**
+   * topBookingPages — which pages turn into booked jobs (revenue-attribution
+   * wave 2026-06). READ-ONLY aggregation over bookings.landingPage, which
+   * booking.submit has stamped from sessionStorage UTM capture since the
+   * attribution columns shipped (booking.ts insert).
+   *
+   * HONESTY CONTRACT: landingPage stores the FULL href (utm.ts captures
+   * window.location.href) — normalize to pathname BEFORE grouping or counts
+   * fragment per UTM variant. Web-form bookings are the only rows that carry
+   * attribution; tire-order auto-bookings and phone bookings carry none, so
+   * the response includes totalBookings vs withAttribution and the UI must
+   * render that coverage line. No PII: only landingPage + counts leave the DB.
+   */
+  topBookingPages: adminProcedure
+    .input(
+      z.object({
+        range: z.enum(["7d", "30d", "90d"]).default("30d"),
+        limit: z.number().int().min(1).max(25).default(10),
+      }).optional(),
+    )
+    .query(async ({ input }) => {
+      const range: Range = input?.range ?? "30d";
+      const limit = input?.limit ?? 10;
+      const days = rangeToDays(range);
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const d = await getDb();
+      if (!d) {
+        return { pages: [], totalBookings: 0, withAttribution: 0, days };
+      }
+
+      // Bookings volume is small (hundreds per window) — fetch the single
+      // column and normalize/group in Node so pathname normalization is
+      // exactly the shared, unit-tested helper. Indexed range scan on
+      // createdAt (idx_booking_created).
+      const rows = await d
+        .select({ landingPage: bookings.landingPage })
+        .from(bookings)
+        .where(gte(bookings.createdAt, since));
+
+      const counts = new Map<string, number>();
+      let withAttribution = 0;
+      for (const r of rows) {
+        const path = normalizePathname(r.landingPage);
+        if (!path) continue;
+        withAttribution += 1;
+        counts.set(path, (counts.get(path) ?? 0) + 1);
+      }
+
+      const pages = [...counts.entries()]
+        .map(([path, count]) => ({ path, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit);
+
+      return { pages, totalBookings: rows.length, withAttribution, days };
     }),
 });
 

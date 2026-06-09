@@ -326,6 +326,11 @@ export default function TrafficFunnelSection() {
       {/* ─── CUSTOMER EVENTS PANEL — visual-surface engagement ── */}
       <CustomerEventsPanel range={range} />
 
+      {/* Revenue-attribution wave 2026-06 · which pages turn into BOOKED
+          jobs (web-form bookings carry landingPage; tire-order + phone
+          bookings carry none — the card states its own coverage). */}
+      <TopBookingPagesPanel range={range} />
+
       {/* ─── WEEKLY GSC AUDIT PANEL — CTR + ranking + cannibalization ── */}
       <GscAuditPanel range={range} />
 
@@ -504,6 +509,83 @@ function CustomerEventsPanel({ range }: { range: Range }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * TopBookingPagesPanel — revenue-attribution wave 2026-06.
+ * "Which pages turn into booked jobs?" — the closest-to-money question no
+ * surface answered. Read-only aggregation over bookings.landingPage
+ * (trafficFunnel.topBookingPages, pathname-normalized server-side).
+ *
+ * HONESTY: only web-form bookings carry landing-page attribution (tire-order
+ * auto-bookings + phone bookings carry none) — the coverage line states
+ * "N of M bookings carry page attribution" whenever data renders, and the
+ * empty state explains the gap instead of showing a hollow chart.
+ */
+function TopBookingPagesPanel({ range }: { range: Range }) {
+  const { data, isLoading } = trpc.trafficFunnel.topBookingPages.useQuery(
+    { range },
+    { refetchInterval: 120_000 },
+  );
+
+  const maxCount = data && data.pages.length > 0 ? data.pages[0].count : 0;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="text-primary text-[10px] font-mono uppercase tracking-widest mb-1">
+          Booking Attribution ({range})
+        </div>
+        <h3 className="font-bold text-base text-foreground tracking-wide uppercase">
+          Top Pages by Bookings
+        </h3>
+        <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
+          Which pages customers were on when they booked. Web-form bookings
+          only — tire-order and phone bookings carry no page attribution.
+        </p>
+      </div>
+
+      <div className="bg-card border border-border/30 p-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          </div>
+        ) : !data || data.withAttribution === 0 ? (
+          <div className="text-[12px] text-foreground/40 py-6 text-center">
+            No bookings with page attribution in this window. Web-form
+            bookings started carrying landing-page data when UTM capture
+            shipped; tire-order and phone bookings never carry it.
+          </div>
+        ) : (
+          <>
+            <div className="space-y-1.5">
+              {data.pages.map((p: { path: string; count: number }) => (
+                <div key={p.path} className="flex items-center gap-3 text-[13px] py-1.5 border-b border-border/10 last:border-0">
+                  <code className="text-foreground/80 font-mono text-[11px] w-56 truncate shrink-0">
+                    {p.path}
+                  </code>
+                  <div className="flex-1 h-2 bg-background/60 overflow-hidden rounded-sm">
+                    <div
+                      className="h-full bg-primary/60"
+                      style={{ width: `${maxCount > 0 ? Math.max(4, Math.round((p.count / maxCount) * 100)) : 0}%` }}
+                    />
+                  </div>
+                  <span className="font-mono font-bold text-foreground tabular-stat w-10 text-right shrink-0">
+                    {p.count.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {/* Mandatory coverage caption — a thin sample must never read as the whole picture. */}
+            <p className="text-[11px] text-foreground/35 mt-3">
+              {data.withAttribution.toLocaleString()} of {data.totalBookings.toLocaleString()} bookings
+              in this window carry page attribution — tire-order and phone bookings carry none.
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }

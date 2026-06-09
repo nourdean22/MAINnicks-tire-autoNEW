@@ -28,6 +28,9 @@ import { LeadsBrief } from "./leads/LeadsBrief";
 // lead-source hygiene — distinct CALLBACK/PHONE badges vs real web leads
 // + the read-only source rollup (counts, duplicates, phone overlap).
 import { classifyLeadOrigin, summarizeLeadSourceHygiene } from "@shared/leadSource";
+// revenue-attribution wave 2026-06 — pathname display for landingPage chips
+// (landingPage stores the FULL href; render the pathname only).
+import { normalizePathname } from "@shared/attribution";
 
 // ── Lead type ──
 // 2026-05-23 · widened to match drizzle/schema.ts. The JSX already
@@ -59,6 +62,13 @@ interface LeadItem {
   callbackId?: number | null;
   utmMedium?: string | null;
   utmCampaign?: string | null;
+  // revenue-attribution wave 2026-06 · also on the DB row (lead.list =
+  // SELECT *) since wave-125; declared so the attribution chip can render
+  // which campaign/page produced the lead. Voice leads self-label
+  // (utmSource='voice-agent', utmCampaign='vapi-rack-check').
+  utmSource?: string | null;
+  landingPage?: string | null;
+  referrer?: string | null;
 }
 
 /**
@@ -101,6 +111,28 @@ function LeadSourceBadge({ lead, hideWebSource = false }: { lead: LeadItem; hide
   return (
     <span className="font-mono text-[10px] text-foreground/30 uppercase tracking-wider">
       via {lead.source}
+    </span>
+  );
+}
+
+/**
+ * AttributionChip — revenue-attribution wave 2026-06. Shows which
+ * campaign/page produced the lead: "utmSource:utmCampaign" + the landing
+ * pathname. Renders NOTHING when utmSource is null (no "unknown" filler) —
+ * the data is already on every fetched row (lead.list = SELECT *), this is
+ * pure rendering. No PII: utm labels + pathnames only.
+ */
+function AttributionChip({ lead }: { lead: LeadItem }) {
+  if (!lead.utmSource) return null;
+  const path = normalizePathname(lead.landingPage);
+  return (
+    <span
+      title={lead.referrer ? `Referrer: ${lead.referrer}` : undefined}
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-border/30 bg-background/40 text-[10px] font-mono tracking-wide text-foreground/60"
+    >
+      {lead.utmSource}
+      {lead.utmCampaign ? `:${lead.utmCampaign}` : ""}
+      {path && <span className="text-foreground/35">{path}</span>}
     </span>
   );
 }
@@ -637,6 +669,24 @@ export default function LeadsSection() {
     return list;
   }, [leadsData, leadFilter, sourceFilter, searchQuery]);
 
+  // revenue-attribution wave 2026-06 · leads-by-source rollup over the
+  // already-fetched array (zero new queries) — copies CallTrackingSection's
+  // sourceBreakdown pattern. Null utmSource buckets as "direct/untagged"
+  // (matches the existing "direct" convention in Call Tracking). Honest by
+  // construction: re-presents fetched rows only, no fabricated history.
+  const leadSourceRollup = useMemo(() => {
+    if (!leadsData || leadsData.length === 0) return [];
+    const sources: Record<string, number> = {};
+    (leadsData as LeadItem[]).forEach(l => {
+      const src = l.utmSource || "direct/untagged";
+      sources[src] = (sources[src] || 0) + 1;
+    });
+    return Object.entries(sources)
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [leadsData]);
+
   const leadStats = useMemo(() => {
     if (!leadsData) return { new: 0, contacted: 0, urgent: 0, total: 0, booked: 0 };
     // wave-128 — operator screenshot bug: a booked lead with
@@ -911,6 +961,27 @@ export default function LeadsSection() {
         </div>
       </div>
 
+      {/* Leads by source · revenue-attribution wave 2026-06 · compact strip
+          over the loaded set (both views). Self-hides when nothing is loaded. */}
+      {leadSourceRollup.length > 0 && (
+        <div className="bg-card border border-border/30 px-4 py-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[10px] font-bold tracking-wider uppercase text-foreground/45 shrink-0">
+              Leads by source
+            </span>
+            {leadSourceRollup.map(s => (
+              <span key={s.source} className="inline-flex items-center gap-1.5 text-[11px] font-mono text-foreground/65">
+                {s.source}
+                <span className="font-bold text-foreground tabular-nums">{s.count}</span>
+              </span>
+            ))}
+            <span className="text-[10px] text-foreground/30 ml-auto shrink-0">
+              of {leadsData?.length.toLocaleString() ?? 0} loaded leads
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Kanban View · post-Phase-5 uses raw leadsData (Kanban shows
        * all columns as bird's-eye-view · list-view applies filters). */}
       {viewMode === "kanban" ? (
@@ -987,6 +1058,7 @@ export default function LeadsSection() {
                           {LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.label}
                         </span>
                         <LeadSourceBadge lead={lead} />
+                        <AttributionChip lead={lead} />
                         <LeadAge dateStr={lead.createdAt} />
                       </div>
 
