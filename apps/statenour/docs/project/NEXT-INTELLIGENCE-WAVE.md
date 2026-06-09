@@ -1,8 +1,10 @@
 # NEXT-INTELLIGENCE-WAVE — Statenour
 
-> **Status:** Active plan (drafted 2026-06-09). The truth-cleanup half of this
-> wave shipped first (`01c5438c`). This doc ranks the intelligence upgrades and
-> tracks what ships vs. defers. Current truth: [`../CURRENT-TRUTH.md`](../CURRENT-TRUTH.md).
+> **Status:** SHIPPED 2026-06-09. P5–P8 all landed (`4ef690dc` memory evals ·
+> `04c54f32` runbooks · `5988d3f0` action receipts · `7a082b77` knowledge→action),
+> on top of the truth cleanup (`01c5438c`). **Deferred:** P9 confirm cards · P10
+> jobs console (already exists) · receipts finalize-wiring · converter UI surface.
+> Current truth: [`../CURRENT-TRUTH.md`](../CURRENT-TRUTH.md).
 
 ## Premise
 
