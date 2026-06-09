@@ -1,0 +1,19 @@
+/**
+ * system.* digest queries (Wire 3) — read-only surfaces over the existing
+ * truth/intelligence services so they're reachable from /system, not just chat
+ * commands + raw API routes. No mutation, no new logic — thin wrappers.
+ */
+
+import { operatorProcedure } from "../../trpc";
+import { buildSystemChangeDigest } from "@/lib/services/system-change-digest";
+import { buildMemoryEvalReport } from "@/lib/evals/memory-eval-report";
+import { buildActionReceiptFeed } from "@/lib/services/action-receipt-feed";
+
+export const digestProcedures = {
+  /** F2 · "what changed since last reconciliation" + honest deploy status. */
+  changeDigest: operatorProcedure.query(async () => buildSystemChangeDigest()),
+  /** Truth scoreboard — does the docs corpus teach current truth? */
+  memoryEvals: operatorProcedure.query(async () => buildMemoryEvalReport()),
+  /** F4 · recent action receipts (what Nick/system actually did). */
+  receiptFeed: operatorProcedure.query(async () => buildActionReceiptFeed({ limit: 20 })),
+};
