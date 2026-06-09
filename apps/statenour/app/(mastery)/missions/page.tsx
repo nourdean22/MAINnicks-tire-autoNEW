@@ -45,6 +45,7 @@ import { MissionsQuickAdd } from "@/components/missions/missions-quick-add";
 import { NicksMorningBrief } from "@/components/missions/nicks-morning-brief";
 import { TopMissionToday } from "@/components/missions/top-mission-today";
 import { MissionsHealthStrip } from "@/components/missions/missions-health-strip";
+import { MissionsRescueStrip } from "@/components/missions/missions-rescue-strip";
 import { MissionRetroModal } from "@/components/missions/mission-retro-modal";
 import { MissionEditDrawer } from "@/components/missions/mission-edit-drawer";
 import { TaskEditSheet } from "@/components/missions/task-edit-sheet";
@@ -417,6 +418,10 @@ function MissionsPageInner() {
        *  (rose) · idle (zinc) · done (faint gold). Tap a chip → tooltip
        *  shows full title + state. Self-hides on empty. */}
       <MissionsHealthStrip missions={missions} tasks={tasks} />
+
+      {/* Wire 2 · read-only rescue suggestions + GENERAL-anchor open-counts.
+       *  Self-hides when nothing needs attention. Never moves a task. */}
+      <MissionsRescueStrip />
 
       {/* Single quick-add input at top */}
       <MissionsQuickAdd onSubmit={handleQuickAdd} busy={submitting} />

@@ -169,3 +169,71 @@ export async function buildTaskRescue(deps: RescueDeps = {}): Promise<RescueResu
   const tasks = await (deps.loadTasks ?? defaultLoadTasks)();
   return scanRescue(tasks, deps.now ?? new Date());
 }
+
+// ── GENERAL-anchor visibility (Wire 2) ──────────────────────────────────
+// /missions filters GENERAL anchors out of the project feed, so tasks the
+// classifier routes there pile up INVISIBLY. This surfaces each anchor + its
+// open-task count so the operator can see drift. Read-only. Computed
+// server-side where Mission.systemKind is available.
+
+export interface DomainAnchorSummary {
+  missionId: string;
+  title: string;
+  domain: string | null;
+  openCount: number;
+}
+
+/** One Mission row (GENERAL anchor) with its open tasks. */
+export interface AnchorRow {
+  id: string;
+  title: string;
+  canonicalDomain: string | null;
+  domain: string | null;
+  tasks: { id: string }[];
+}
+
+/** Map anchor rows → summaries, busiest first. Pure. */
+export function summarizeAnchorRows(rows: AnchorRow[]): DomainAnchorSummary[] {
+  return rows
+    .map((a) => ({
+      missionId: a.id,
+      title: a.title,
+      domain: a.canonicalDomain ?? a.domain ?? null,
+      openCount: a.tasks.length,
+    }))
+    .sort((x, y) => y.openCount - x.openCount);
+}
+
+export interface AnchorDeps {
+  loadAnchorRows?: () => Promise<AnchorRow[]>;
+}
+
+async function defaultLoadAnchorRows(): Promise<AnchorRow[]> {
+  const rows = await prisma.mission.findMany({
+    where: { systemKind: "GENERAL", deletedAt: null },
+    select: {
+      id: true,
+      title: true,
+      canonicalDomain: true,
+      domain: true,
+      tasks: {
+        where: { deletedAt: null, status: { notIn: ["DONE", "ARCHIVED"] } },
+        select: { id: true },
+      },
+    },
+  });
+  // domain is an enum at the type level; normalize to string|null for the flat return.
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    canonicalDomain: r.canonicalDomain ?? null,
+    domain: r.domain ? String(r.domain) : null,
+    tasks: r.tasks,
+  }));
+}
+
+/** Read-only: GENERAL domain anchors + their open-task counts (busiest first). */
+export async function buildDomainAnchors(deps: AnchorDeps = {}): Promise<DomainAnchorSummary[]> {
+  const rows = await (deps.loadAnchorRows ?? defaultLoadAnchorRows)();
+  return summarizeAnchorRows(rows);
+}
