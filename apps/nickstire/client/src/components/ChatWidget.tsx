@@ -9,6 +9,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
+// attribution-wave 2026-06: chat leads (hot — 4+ engaged turns) wrote NULL
+// for every attribution column — lead.submit already accepts these fields.
+import { getUtmData } from "@/lib/utm";
 
 interface Message {
   role: "user" | "assistant";
@@ -149,6 +152,9 @@ export default function ChatWidget() {
       phone: leadForm.phone.trim(),
       problem: lastProblem,
       source: "chat",
+      // Same getUtmData() spread LeadPopup ships in prod — server stores
+      // utm/landing/referrer as nullish columns; extra keys zod-stripped.
+      ...getUtmData(),
     });
   };
 
