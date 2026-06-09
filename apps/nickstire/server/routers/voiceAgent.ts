@@ -942,8 +942,13 @@ export const voiceAgentRouter = router({
           }
         }
 
+        // attribution-holds wave 2026-06 · capture the lead id (same
+        // $returningId pattern as tireInquiry wave-149) so the call->lead
+        // FK below gets written — checkTireStock previously discarded it,
+        // leaving vapi_call_logs.leadId NULL on the newer rack-check path.
+        let newLeadId: number | null = dedupLeadId;
         if (dedupLeadId == null) {
-          await d.insert(leads).values({
+          const insertedLeadRows = await d.insert(leads).values({
             name: input.name,
             phone: normalizedPhone,
             email: null,
@@ -955,8 +960,9 @@ export const voiceAgentRouter = router({
             utmSource: "voice-agent",
             utmMedium: "phone",
             utmCampaign: "vapi-rack-check",
-          });
-          log.info("Voice agent rack-check captured", { name: input.name, size: input.tireSize });
+          }).$returningId();
+          newLeadId = insertedLeadRows[0]?.id ?? null;
+          log.info("Voice agent rack-check captured", { name: input.name, size: input.tireSize, leadId: newLeadId });
         } else {
           // Same caller's voice lead from the last 5 min — annotate it with
           // this rack-check (a second size stays durably recorded on the
@@ -970,6 +976,22 @@ export const voiceAgentRouter = router({
             log.warn("[voiceAgent:checkTireStock] dedup annotate failed (existing lead still holds the promise)", { leadId: dedupLeadId, err: annotateErr instanceof Error ? annotateErr.message : String(annotateErr) });
           }
           log.info("Voice agent rack-check deduped onto existing voice lead", { name: input.name, leadId: dedupLeadId });
+        }
+
+        // attribution-holds wave 2026-06 · same convertedToLead linkage as
+        // tireInquiry (wave-fix-2026-05-25 audit #107): a rack-check that
+        // creates/annotates a real leads row IS a conversion — link the call
+        // log so call-to-conversion traceability covers this path too.
+        if (input.callId) {
+          try {
+            const { vapiCallLogs } = await import("../../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            await d.update(vapiCallLogs)
+              .set({ convertedToLead: 1, leadId: newLeadId })
+              .where(eq(vapiCallLogs.vapiCallId, input.callId));
+          } catch (err) {
+            log.warn("Failed to mark vapi_call_logs.convertedToLead=1 for checkTireStock", { callId: input.callId, err: err instanceof Error ? err.message : String(err) });
+          }
         }
 
         // Fire-and-forget Telegram so front desk sees it immediately

@@ -34,6 +34,9 @@ import {
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { FINANCING_PROVIDERS, FINANCING_FAQ } from "@shared/financing";
+// attribution-holds wave 2026-06 — financing Apply clicks now carry the same
+// session UTM context as lead/booking/callback submissions (Sheets tail).
+import { getUtmData } from "@/lib/utm";
 import { ACIMA_BANNER } from "@/lib/acima";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
@@ -579,6 +582,9 @@ export default function Financing() {
       trackMutation.mutate({
         provider: providerId as "acima" | "snap" | "koalafi" | "american-first",
         sourcePage: "/financing",
+        // Server accepts these as nullish; extra keys (gclid) zod-stripped —
+        // the same getUtmData() spread the lead forms ship in prod.
+        ...getUtmData(),
       });
     },
     [trackMutation]
