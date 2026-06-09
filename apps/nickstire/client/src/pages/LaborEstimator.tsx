@@ -529,7 +529,7 @@ export default function LaborEstimator() {
               <div>
                 <Wrench className="w-8 h-8 text-nick-teal mx-auto mb-3" />
                 <h4 className="font-bold text-foreground text-sm tracking-wide">Real Mechanics</h4>
-                <p className="text-foreground/60 text-xs mt-1">OBD-II tools, ASE-trained hands. We tell you what's wrong, no jargon.</p>
+                <p className="text-foreground/60 text-xs mt-1">OBD-II tools, ASE-certified hands. We tell you what's wrong, no jargon.</p>
               </div>
               <div>
                 <Car className="w-8 h-8 text-primary mx-auto mb-3" />
