@@ -10,6 +10,14 @@ import { serializeForJson } from "@/lib/utils/serialize";
 import { ServiceError } from "@/lib/utils/service-error";
 import { missionCreateSchema, missionUpdateSchema } from "@/lib/validators/missions";
 import { softDelete, softDeleteMany, activeOnly } from "@/lib/db/soft-delete";
+import type { MissionDomain } from "@prisma/client";
+import {
+  CANONICAL_DOMAIN_KEYS,
+  anchorTitleFor,
+  legacyDomainFor,
+  GENERAL_ANCHOR_KIND,
+  type CanonicalDomain,
+} from "@/lib/missions/domains";
 import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { invalidate } from "@/lib/utils/cache";
 // v10.0.174 · isInboxMission import removed when assertActiveMissionCap
@@ -445,7 +453,67 @@ export async function resolveInboxMissionId(): Promise<string> {
   }
 }
 
+// ── GENERAL anchor missions · 2026-06-09 ───────────────────────────────────
+// The 6 system-managed per-domain catch-alls (the classifier's fallback when
+// no specific mission fits). Identified by systemKind="GENERAL" (NOT by name —
+// the legacy Inbox name-regex was fragile). find-or-create with canonical id
+// `m-general-<domain>` so future lookups are fast. Defensive: if migration
+// 0010 (system_kind/canonical_domain columns) isn't applied yet, the create
+// throws → caught → returns null so enrichTaskLinkage falls back to the Inbox.
+const _generalAnchorCache = new Map<string, string>();
+
+export async function resolveGeneralAnchorId(
+  domain: CanonicalDomain,
+): Promise<string | null> {
+  const cached = _generalAnchorCache.get(domain);
+  if (cached) return cached;
+  const id = `m-general-${domain}`;
+  try {
+    const found = await prisma.mission.findUnique({
+      where: { id },
+      select: { id: true, deletedAt: true },
+    });
+    if (found && !found.deletedAt) {
+      _generalAnchorCache.set(domain, found.id);
+      return found.id;
+    }
+    const created = await prisma.mission.create({
+      data: {
+        id,
+        title: anchorTitleFor(domain),
+        successMetric: `Catch-all for ${domain} tasks with no specific project.`,
+        domain: legacyDomainFor(domain) as MissionDomain, // legacy enum placeholder
+        canonicalDomain: domain,
+        systemKind: GENERAL_ANCHOR_KIND,
+        status: "ACTIVE",
+        priority: 50,
+        roiScore: 50,
+        neglectCost: 50,
+      },
+      select: { id: true },
+    });
+    _generalAnchorCache.set(domain, created.id);
+    return created.id;
+  } catch {
+    // Race (another request created it) OR columns not migrated yet.
+    const retry = await prisma.mission
+      .findUnique({ where: { id }, select: { id: true } })
+      .catch(() => null);
+    if (retry) {
+      _generalAnchorCache.set(domain, retry.id);
+      return retry.id;
+    }
+    return null; // caller falls back to the Inbox
+  }
+}
+
+/** Idempotently ensure all 6 GENERAL anchors exist. Returns their ids. */
+export async function seedGeneralAnchors(): Promise<Array<string | null>> {
+  return Promise.all(CANONICAL_DOMAIN_KEYS.map((d) => resolveGeneralAnchorId(d)));
+}
+
 /** Test/admin helper · clears the in-memory cache. */
 export function _resetInboxCache(): void {
+  _generalAnchorCache.clear();
   _cachedInboxId = null;
 }

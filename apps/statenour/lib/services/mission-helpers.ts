@@ -26,7 +26,22 @@
  * we want to be defensive against legacy rows.
  */
 
+import { GENERAL_ANCHOR_KIND } from "@/lib/missions/domains";
+
 const INBOX_PATTERN = /^\s*inbox(\s*-\s*[a-z]+)?\s*$/i;
+
+/**
+ * True when a mission is a system-managed GENERAL per-domain anchor
+ * (2026-06-09 · the formalized replacement for "Inbox - <domain>"). Keyed on
+ * the structured `systemKind` flag, NOT the title — so a user project named
+ * with "general" is never mistaken for one. Like inboxes, anchors are
+ * infrastructure: excluded from project caps/counts, protected from delete.
+ */
+export function isGeneralAnchor(
+  mission: { systemKind?: string | null } | null | undefined,
+): boolean {
+  return mission?.systemKind === GENERAL_ANCHOR_KIND;
+}
 
 /**
  * True when the mission title matches an Inbox pattern (legacy or
@@ -43,8 +58,11 @@ export function isInboxMission(title: string | null | undefined): boolean {
  * (`missions.filter(isUserProject)` reads better than
  *  `missions.filter(m => !isInboxMission(m.title))`).
  */
-export function isUserProject<T extends { title: string | null | undefined }>(
-  mission: T,
-): boolean {
-  return !isInboxMission(mission.title);
+export function isUserProject<
+  T extends { title: string | null | undefined; systemKind?: string | null },
+>(mission: T): boolean {
+  // Exclude both the legacy Inbox catch-alls (by title) AND the new GENERAL
+  // anchors (by flag). Callers that want anchors excluded from caps/counts
+  // must `select: { systemKind: true }` — those that don't keep prior behavior.
+  return !isInboxMission(mission.title) && !isGeneralAnchor(mission);
 }

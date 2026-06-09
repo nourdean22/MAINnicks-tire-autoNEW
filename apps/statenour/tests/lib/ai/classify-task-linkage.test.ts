@@ -73,8 +73,37 @@ describe("fallbackLinkage · keyword overlap", () => {
     expect(r.missionId).toBeNull();
   });
 
-  it("empty title → empty result", () => {
+  it("empty title → empty result (domain defaults to personal)", () => {
     const r = fallbackLinkage(input({ taskTitle: "   " }));
-    expect(r).toEqual({ missionId: null, goalId: null, statHints: [], confidence: 0, rationale: "" });
+    expect(r).toEqual({
+      missionId: null,
+      goalId: null,
+      statHints: [],
+      domain: "personal",
+      confidence: 0,
+      rationale: "",
+    });
+  });
+});
+
+describe("fallbackLinkage · canonical domain (2026-06-09)", () => {
+  const SIX = ["health", "mind", "business", "social", "spiritual", "personal"];
+
+  it("ALWAYS resolves one of the 6 domains", () => {
+    for (const t of [
+      "go to the gym", "read a book", "fix the customer invoice",
+      "call mom", "pray fajr", "buy groceries", "zzz qqq",
+    ]) {
+      expect(SIX).toContain(fallbackLinkage(input({ taskTitle: t })).domain);
+    }
+  });
+
+  it("infers the domain from keyword cues", () => {
+    expect(fallbackLinkage(input({ taskTitle: "workout at the gym" })).domain).toBe("health");
+    expect(fallbackLinkage(input({ taskTitle: "pray and read quran" })).domain).toBe("spiritual");
+    expect(fallbackLinkage(input({ taskTitle: "send customer the invoice" })).domain).toBe("business");
+    expect(fallbackLinkage(input({ taskTitle: "dinner with family" })).domain).toBe("social");
+    expect(fallbackLinkage(input({ taskTitle: "study the course material" })).domain).toBe("mind");
+    expect(fallbackLinkage(input({ taskTitle: "organize the garage" })).domain).toBe("personal");
   });
 });

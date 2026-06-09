@@ -1,42 +1,61 @@
 /**
- * Task → linkage classifier · 2026-06-01 (supersedes classify-task-mission).
+ * Task → linkage classifier · 2026-06-01, upgraded 2026-06-09 (domain-anchored).
  *
- * Given a quick-add/created task and the operator's active missions, goals,
- * and the mastery stat catalog, returns the best-fit mission + goal + the
- * stat(s) the task should feed. This is the fix for "tasks don't correlate
- * to a goal or feed stats" — the old classifier only knew about missions.
+ * Given a quick-add/created task + the operator's active missions, goals, and
+ * the mastery stat catalog, returns the best-fit mission + goal + stat hints +
+ * the canonical life DOMAIN. Domain is ALWAYS resolved (one of the 6), so even
+ * when no specific mission fits, the caller can drop the task into that
+ * domain's GENERAL anchor instead of nowhere.
  *
- * Used by `enrichTaskLinkage` (server-side, on every creation path) as a
- * GAP-FILL: it only proposes links for fields still null/Inbox/empty, and
- * the caller compare-and-sets so it never overrides a deliberate choice.
+ * Smarter (2026-06-09):
+ *   · domain-first  — always returns a domain → correct GENERAL fallback.
+ *   · richer signal — sees each mission's description + recent task titles, not
+ *                     just the title, so it recognizes real projects.
+ *   · learns        — few-shot from the operator's recent re-files
+ *                     (recentExamples) so it adapts to their filing patterns.
+ *
+ * Used by `enrichTaskLinkage` (server-side, every creation path) as a GAP-FILL:
+ * it only proposes links for fields still null/Inbox/empty; the caller
+ * compare-and-sets so it never overrides a deliberate choice.
  *
  *   ≥ CONFIDENCE.silentAttach → silent attach
  *   < CONFIDENCE.silentAttach → caller surfaces an "attach to X?" chip
  *
- * Failure mode → a deterministic keyword fallback (never throws), so a
- * classifier outage degrades to "best-effort heuristic", not "no linkage".
+ * Failure mode → a deterministic keyword fallback (never throws).
  */
 
 import "server-only";
 
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { isCanonicalDomain, type CanonicalDomain } from "@/lib/missions/domains";
 
 export interface ClassifyLinkageInput {
   taskTitle: string;
   nextPhysicalAction?: string | null;
-  missions: Array<{ id: string; title: string; domain?: string | null }>;
+  /** Active user missions. `description` + `recentTasks` sharpen specific-vs-general. */
+  missions: Array<{
+    id: string;
+    title: string;
+    domain?: string | null;
+    description?: string | null;
+    recentTasks?: string[];
+  }>;
   goals: Array<{ id: string; title: string; domain?: string | null }>;
   /** The mastery stat catalog (key + human label) to choose statHints from. */
   stats: Array<{ key: string; label: string }>;
+  /** Few-shot: the operator's most-recent re-files (taskTitle → chosen mission/domain). */
+  recentExamples?: Array<{ taskTitle: string; missionTitle: string; domain?: string | null }>;
 }
 
 export interface ClassifyLinkageResult {
-  /** Best-fit mission id · null when none even weakly relates. */
+  /** Best-fit mission id · null when none relates (caller uses the domain anchor). */
   missionId: string | null;
   /** Best-fit goal id · null when none relates (most tasks have no goal). */
   goalId: string | null;
   /** 1-2 stat keys this task builds (validated against the catalog). */
   statHints: string[];
+  /** Canonical life domain (always one of the 6) — drives the GENERAL anchor fallback. */
+  domain: CanonicalDomain;
   /** 0..1 confidence in the mission/goal picks (drives the chip threshold). */
   confidence: number;
   /** ≤120-char operator-readable "why". */
@@ -47,29 +66,37 @@ const EMPTY: ClassifyLinkageResult = {
   missionId: null,
   goalId: null,
   statHints: [],
+  domain: "personal",
   confidence: 0,
   rationale: "",
 };
 
 const SYSTEM_PROMPT = `You are an attention-routing classifier for an operator's
-personal-OS. Given a task + the operator's active MISSIONS, active GOALS, and a
-catalog of mastery STATS, return ONE JSON object linking the task:
+personal-OS. Given a task + the operator's active MISSIONS, active GOALS, a
+catalog of mastery STATS, and recent FILING EXAMPLES, return ONE JSON object:
 
 {
   "missionId": "<one of the provided mission ids> | null",
   "goalId": "<one of the provided goal ids> | null",
   "statHints": ["<0-2 stat keys from the catalog>"],
+  "domain": "health | mind | business | social | spiritual | personal",
   "confidence": 0.0-1.0,
   "rationale": "one short sentence on the fit (or why none)"
 }
 
 RULES:
-- missionId: pick the best-fit mission; null ONLY if zero missions even weakly relate.
-- goalId: pick a goal ONLY if the task genuinely advances it; null is common and fine.
+- domain: ALWAYS pick the best of the 6 (health=body/fitness/sleep/food · mind=
+  focus/learning/emotions · business=work/shop/money/marketing · social=people/
+  relationships/family · spiritual=faith/prayer/purpose · personal=errands/home/
+  admin/misc). Never null — when unsure, "personal".
+- missionId: pick the best-fit SPECIFIC mission; null if none genuinely relates
+  (the caller routes null to the domain's GENERAL mission — so don't force it).
+- goalId: only if the task genuinely advances it; null is common and fine.
 - statHints: 0-2 stat KEYS (exact, from the catalog) the task builds. [] if unclear.
-- confidence reflects the mission/goal fit: >0.85 obvious · 0.6-0.85 clear · <0.6 weak.
-- rationale < 100 chars · plain language · no preamble.
-- Return ONLY the JSON object · no markdown fences.`;
+- confidence reflects the MISSION fit: >0.85 obvious · 0.6-0.85 clear · <0.6 weak.
+- Use the FILING EXAMPLES as precedent — if a similar task was filed to a mission
+  before, prefer that pattern.
+- rationale < 100 chars · plain · no preamble. Return ONLY the JSON, no fences.`;
 
 export async function classifyTaskLinkage(
   input: ClassifyLinkageInput,
@@ -78,21 +105,32 @@ export async function classifyTaskLinkage(
   if (!title) return EMPTY;
   const validStatKeys = new Set(input.stats.map((s) => s.key));
 
-  // No missions AND no goals → nothing to link to; skip the AI call.
-  if (input.missions.length === 0 && input.goals.length === 0) return EMPTY;
+  // No missions AND no goals → still resolve a domain via the keyword fallback.
+  if (input.missions.length === 0 && input.goals.length === 0) {
+    return fallbackLinkage(input);
+  }
 
   try {
     const missionsBlock = input.missions
       .slice(0, 30)
-      .map((m, i) => `${i + 1}. id="${m.id}" title="${m.title}"${m.domain ? ` domain="${m.domain}"` : ""}`)
+      .map((m, i) => {
+        const desc = m.description ? ` · ${m.description.slice(0, 80)}` : "";
+        const recent =
+          m.recentTasks && m.recentTasks.length > 0
+            ? ` · recent: ${m.recentTasks.slice(0, 3).map((t) => t.slice(0, 40)).join("; ")}`
+            : "";
+        return `${i + 1}. id="${m.id}" title="${m.title}"${m.domain ? ` domain="${m.domain}"` : ""}${desc}${recent}`;
+      })
       .join("\n");
     const goalsBlock = input.goals
       .slice(0, 30)
       .map((g, i) => `${i + 1}. id="${g.id}" title="${g.title}"${g.domain ? ` domain="${g.domain}"` : ""}`)
       .join("\n");
-    const statsBlock = input.stats
-      .map((s) => `${s.key} (${s.label})`)
-      .join(", ");
+    const statsBlock = input.stats.map((s) => `${s.key} (${s.label})`).join(", ");
+    const examplesBlock = (input.recentExamples ?? [])
+      .slice(0, 15)
+      .map((e) => `- "${e.taskTitle.slice(0, 60)}" -> ${e.missionTitle}${e.domain ? ` [${e.domain}]` : ""}`)
+      .join("\n");
 
     const userContent = [
       `TASK: ${title}`,
@@ -100,6 +138,7 @@ export async function classifyTaskLinkage(
       `\nACTIVE MISSIONS:\n${missionsBlock || "(none)"}`,
       `\nACTIVE GOALS:\n${goalsBlock || "(none)"}`,
       `\nSTAT CATALOG: ${statsBlock}`,
+      examplesBlock ? `\nRECENT FILING EXAMPLES (operator's own corrections):\n${examplesBlock}` : "",
     ]
       .filter(Boolean)
       .join("\n");
@@ -135,11 +174,16 @@ export async function classifyTaskLinkage(
           .filter((k): k is string => typeof k === "string" && validStatKeys.has(k))
           .slice(0, 2)
       : [];
+    // Validate the domain against the canonical 6 · default to the fallback's pick.
+    const domain = isCanonicalDomain(parsed.domain)
+      ? parsed.domain
+      : inferDomain(salientWords(`${input.taskTitle} ${input.nextPhysicalAction ?? ""}`));
 
     return {
       missionId,
       goalId,
       statHints,
+      domain,
       confidence: clamp01(Number(parsed.confidence ?? 0)),
       rationale: String(parsed.rationale ?? "").slice(0, 200),
     };
@@ -149,27 +193,44 @@ export async function classifyTaskLinkage(
 }
 
 /**
- * Deterministic keyword-overlap fallback — used when the AI call fails or
- * returns nothing. Picks the mission/goal whose title+domain shares the most
- * salient words with the task. Pure; statHints stay [] (completion-time
- * domain inference covers the stat). Exported for unit testing.
+ * Deterministic keyword-overlap fallback — used when the AI call fails/empty.
+ * Picks the mission/goal whose title+domain shares the most salient words with
+ * the task, and infers a canonical domain from keyword cues (defaults to
+ * "personal"). Pure; exported for unit testing.
  */
 export function fallbackLinkage(input: ClassifyLinkageInput): ClassifyLinkageResult {
   const taskWords = salientWords(`${input.taskTitle} ${input.nextPhysicalAction ?? ""}`);
-  if (taskWords.size === 0) return EMPTY;
+  const domain = inferDomain(taskWords);
+  if (taskWords.size === 0) return { ...EMPTY, domain };
 
   const mission = bestMatch(taskWords, input.missions);
   const goal = bestMatch(taskWords, input.goals);
-  // Confidence from the mission overlap (the primary link).
   const confidence = mission ? Math.min(0.55, 0.2 + mission.score * 0.1) : 0;
 
   return {
     missionId: mission?.id ?? null,
     goalId: goal && goal.score >= 2 ? goal.id : null, // goals need a stronger signal
     statHints: [],
+    domain,
     confidence,
     rationale: mission ? `keyword match · ${mission.score} shared term(s)` : "",
   };
+}
+
+/** Keyword → canonical domain (deterministic fallback for the domain field). */
+const DOMAIN_CUES: Array<[CanonicalDomain, string[]]> = [
+  ["health", ["workout", "gym", "run", "sleep", "diet", "doctor", "health", "water", "fitness", "meal", "stretch", "physio", "dentist"]],
+  ["spiritual", ["pray", "prayer", "quran", "mosque", "faith", "meditate", "gratitude", "purpose"]],
+  ["business", ["shop", "tire", "customer", "invoice", "lead", "sale", "client", "revenue", "marketing", "post", "content", "finance", "money", "bill", "vendor", "order", "estimate", "payroll"]],
+  ["social", ["meet", "dinner", "family", "friend", "dania", "mom", "dad", "party", "reach", "birthday", "wedding"]],
+  ["mind", ["read", "learn", "study", "course", "journal", "reflect", "focus", "think", "book", "skill"]],
+];
+
+function inferDomain(words: Set<string>): CanonicalDomain {
+  for (const [domain, cues] of DOMAIN_CUES) {
+    for (const cue of cues) if (words.has(cue)) return domain;
+  }
+  return "personal";
 }
 
 const STOPWORDS = new Set([
