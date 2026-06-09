@@ -27,7 +27,7 @@ import { openWalkInQuote } from "@/components/admin/WalkInQuoteDrawer";
 import { LeadsBrief } from "./leads/LeadsBrief";
 // lead-source hygiene — distinct CALLBACK/PHONE badges vs real web leads
 // + the read-only source rollup (counts, duplicates, phone overlap).
-import { classifyLeadOrigin, summarizeLeadSourceHygiene } from "@shared/leadSource";
+import { classifyLeadOrigin, summarizeLeadSourceHygiene, isCallbackDuplicateLead } from "@shared/leadSource";
 // revenue-attribution wave 2026-06 — pathname display for landingPage chips
 // (landingPage stores the FULL href; render the pathname only).
 import { normalizePathname } from "@shared/attribution";
@@ -710,7 +710,10 @@ export default function LeadsSection() {
   const uncontactedLeads = useMemo(() => {
     if (!leadsData) return [];
     return leadsData
-      .filter((l: LeadItem) => l.status === "new")
+      // Callback-linked duplicates are excluded — the same person is already
+      // an actionable item in the Callbacks queue; listing them here told
+      // the operator to call twice. Voice leads (callbackId null) stay.
+      .filter((l: LeadItem) => l.status === "new" && !isCallbackDuplicateLead(l))
       .sort((a: LeadItem, b: LeadItem) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [leadsData]);
 

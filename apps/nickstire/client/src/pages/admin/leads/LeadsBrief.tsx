@@ -40,6 +40,7 @@
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { Zap, DollarSign, Clock, TrendingUp } from "lucide-react";
 import { formatCents } from "../shared/format";
+import { isCallbackDuplicateLead } from "@shared/leadSource";
 
 // wave-181.x Leads Phase 2 · use the tRPC-inferred row type rather
 // than a manual mirror of the schema. Keeps this brief in sync with
@@ -82,10 +83,12 @@ export function LeadsBrief({ onSlaAction }: LeadsBriefProps) {
   const now = Date.now();
   const oneDayAgo = now - 86_400_000;
 
-  // VELOCITY · last 24h
+  // VELOCITY · last 24h. Uncontacted excludes callback-linked duplicate
+  // leads — the same person is already an actionable item on the Callbacks
+  // surface; counting them here told the operator to call twice.
   const newLast24h = leadsData.filter((l: Lead) => new Date(l.createdAt).getTime() >= oneDayAgo).length;
   const uncontactedLast24h = leadsData.filter(
-    (l: Lead) => l.status === "new" && new Date(l.createdAt).getTime() >= oneDayAgo,
+    (l: Lead) => l.status === "new" && !isCallbackDuplicateLead(l) && new Date(l.createdAt).getTime() >= oneDayAgo,
   ).length;
   const bookedLast24h = leadsData.filter(
     (l: Lead) => l.status === "booked" && new Date(l.createdAt).getTime() >= oneDayAgo,
@@ -105,7 +108,8 @@ export function LeadsBrief({ onSlaAction }: LeadsBriefProps) {
       pipelineCents += valueCents;
     }
 
-    if (lead.status === "new" && ageMs >= SLA_BREACH_MS) {
+    // SLA breach skips callback-linked duplicates (counted on Callbacks).
+    if (lead.status === "new" && ageMs >= SLA_BREACH_MS && !isCallbackDuplicateLead(lead)) {
       slaBreachCount += 1;
       atRiskCents += valueCents;
     }

@@ -59,6 +59,10 @@ import type {
   BookingItem, LeadItem, CallbackItem, WorkOrderItem,
   NBAAction, AtRiskWhale, ShopFloorData, ActionItem,
 } from "./today/types";
+// lead-source hygiene — a callback-form lead linked to a callback_requests
+// row is the SAME person as the callback item pushed below; skip it so the
+// queue doesn't list one caller twice. Voice leads (callbackId null) stay.
+import { isCallbackDuplicateLead } from "@shared/leadSource";
 
 // ─── WHAT TO DO NOW — Server-Driven Next Best Actions ─────
 const NBA_TYPE_CONFIG: Record<string, { icon: React.ReactNode; color: string; bgColor: string; label: string }> = {
@@ -361,6 +365,9 @@ export default function OverviewSection() {
       allLeads
         .filter((l: LeadItem) => {
           if (!ACTIONABLE_LEAD_STATUS.has(l.status)) return false;
+          // Skip callback-linked duplicates — the same person is already
+          // pushed below as their callback_requests item (canonical).
+          if (isCallbackDuplicateLead(l)) return false;
           return l.status === "new" || (l.urgencyScore && l.urgencyScore >= 4);
         })
         .forEach((l: LeadItem) => {

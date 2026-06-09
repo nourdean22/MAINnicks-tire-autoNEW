@@ -33,6 +33,9 @@ export interface LeadItem {
   phone?: string | null;
   status: string;
   source?: string;
+  /** Links a callback-form lead to its callback_requests row — used to skip
+   *  the duplicate in action queues (the callback row is the canonical item). */
+  callbackId?: number | null;
   urgencyScore?: number;
   createdAt: string | Date;
 }
