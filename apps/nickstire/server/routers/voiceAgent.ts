@@ -564,25 +564,75 @@ export const voiceAgentRouter = router({
           };
         }
 
+        // lead-source hygiene · 5-min dedup scoped to VOICE-AGENT rows only —
+        // VAPI can fire tireInquiry AND checkTireStock for one caller in a
+        // single call (or an immediate redial), which used to create two
+        // source="callback" leads with zero dedup. Scoping to utmSource=
+        // "voice-agent" guarantees the matched row is itself an urgency-5
+        // rack-check lead (the 15-min promise stays durably recorded) and a
+        // web/chat lead can never absorb a rack-check. Voice rows store
+        // digits-only phones, so RIGHT(phone,10) tolerates a country-code
+        // prefix (the lookupCustomer wave-181.2 pattern). Under 10 digits
+        // (blocked caller-ID, VAPI anonymous sentinel) we never dedup — a
+        // garbage key must not match a DIFFERENT person. FAIL-OPEN: a dedup
+        // error must never block capture — on error we insert.
+        const normalizedPhone = input.phone.replace(/\D/g, "");
+        const inquiryProblem = `[VOICE-AGENT TIRE INQUIRY]${input.callId ? ` callId=${input.callId}` : ""} — ${problemSummary}`;
+        let dedupLeadId: number | null = null;
+        if (normalizedPhone.length >= 10) {
+          try {
+            const { and, eq, gte, sql } = await import("drizzle-orm");
+            const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+            const [recent] = await d.select({ id: leads.id }).from(leads)
+              .where(and(
+                sql`RIGHT(${leads.phone}, 10) = ${normalizedPhone.slice(-10)}`,
+                eq(leads.utmSource, "voice-agent"),
+                gte(leads.createdAt, fiveMinAgo),
+              ))
+              .limit(1);
+            dedupLeadId = recent?.id ?? null;
+          } catch (dedupErr) {
+            log.warn("[voiceAgent:tireInquiry] dedup check failed — proceeding with insert", { err: dedupErr instanceof Error ? dedupErr.message : String(dedupErr) });
+          }
+        }
+
         // wave-149 · capture the new lead's id via $returningId() so the
         // call→lead FK gets written below. Pre-fix the id was discarded, so
         // vapi_call_logs.leadId was ALWAYS null for voice tire inquiries —
         // call-to-conversion traceability was broken (eval + attribution).
-        const insertedLeadRows = await d.insert(leads).values({
-          name: input.name,
-          phone: input.phone.replace(/\D/g, ""),
-          email: null,
-          problem: `[VOICE-AGENT TIRE INQUIRY]${input.callId ? ` callId=${input.callId}` : ""} — ${problemSummary}`,
-          vehicle: input.vehicle || null,
-          source: "callback",
-          status: "new",
-          urgencyScore: isRackCheck ? 5 : 4,
-          utmSource: "voice-agent",
-          utmMedium: "phone",
-          utmCampaign: isRackCheck ? "vapi-rack-check" : "vapi-tire-inquiry",
-        }).$returningId();
-        const newLeadId = insertedLeadRows[0]?.id ?? null;
-        log.info("Voice agent tire inquiry captured", { name: input.name, size: input.tireSize, leadId: newLeadId });
+        let newLeadId: number | null = dedupLeadId;
+        if (dedupLeadId == null) {
+          const insertedLeadRows = await d.insert(leads).values({
+            name: input.name,
+            phone: normalizedPhone,
+            email: null,
+            problem: inquiryProblem,
+            vehicle: input.vehicle || null,
+            source: "callback",
+            status: "new",
+            urgencyScore: isRackCheck ? 5 : 4,
+            utmSource: "voice-agent",
+            utmMedium: "phone",
+            utmCampaign: isRackCheck ? "vapi-rack-check" : "vapi-tire-inquiry",
+          }).$returningId();
+          newLeadId = insertedLeadRows[0]?.id ?? null;
+          log.info("Voice agent tire inquiry captured", { name: input.name, size: input.tireSize, leadId: newLeadId });
+        } else {
+          // Same caller's voice lead from the last 5 min — annotate it with
+          // this inquiry (e.g. a second tire size) and link this call to it,
+          // instead of creating a duplicate person in Leads. The annotation
+          // is fail-open: if it errors the existing urgency-5 row still
+          // carries the rack-check promise.
+          try {
+            const { eq, sql } = await import("drizzle-orm");
+            await d.update(leads)
+              .set({ problem: sql`CONCAT(COALESCE(${leads.problem}, ''), '\n[+] ', ${inquiryProblem})` })
+              .where(eq(leads.id, dedupLeadId));
+          } catch (annotateErr) {
+            log.warn("[voiceAgent:tireInquiry] dedup annotate failed (existing lead still holds the promise)", { leadId: dedupLeadId, err: annotateErr instanceof Error ? annotateErr.message : String(annotateErr) });
+          }
+          log.info("Voice agent tire inquiry deduped onto existing voice lead", { name: input.name, leadId: dedupLeadId });
+        }
 
         // wave-fix-2026-05-25 (audit #107) · same convertedToLead update
         // as bookSlot. A tire inquiry that creates a real `leads` row IS
@@ -863,19 +913,64 @@ export const voiceAgentRouter = router({
         const d = await db();
         if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
-        await d.insert(leads).values({
-          name: input.name,
-          phone: input.phone.replace(/\D/g, ""),
-          email: null,
-          problem: `[VOICE-AGENT RACK CHECK]${input.callId ? ` callId=${input.callId}` : ""} — Size: ${input.tireSize}${input.vehicle ? ` · Vehicle: ${input.vehicle}` : ""} · PHYSICAL RACK CHECK REQUESTED — promised 15 min callback`,
-          vehicle: input.vehicle || null,
-          source: "callback",
-          status: "new",
-          urgencyScore: 5,
-          utmSource: "voice-agent",
-          utmMedium: "phone",
-          utmCampaign: "vapi-rack-check",
-        });
+        // lead-source hygiene · 5-min dedup scoped to VOICE-AGENT rows only
+        // (same guard as tireInquiry) — VAPI often fires tireInquiry then
+        // checkTireStock for the SAME caller in one call; without this the
+        // caller appeared twice in Leads. A voice-row match is itself an
+        // urgency-5 rack-check lead, so the 15-min promise stays durably
+        // recorded; web/chat leads are never matched. Under 10 digits
+        // (blocked caller-ID / anonymous sentinel) we never dedup. FAIL-OPEN:
+        // a dedup error must never block capture. The Telegram rack-walk
+        // alert below fires regardless of dedup.
+        const normalizedPhone = input.phone.replace(/\D/g, "");
+        const rackCheckProblem = `[VOICE-AGENT RACK CHECK]${input.callId ? ` callId=${input.callId}` : ""} — Size: ${input.tireSize}${input.vehicle ? ` · Vehicle: ${input.vehicle}` : ""} · PHYSICAL RACK CHECK REQUESTED — promised 15 min callback`;
+        let dedupLeadId: number | null = null;
+        if (normalizedPhone.length >= 10) {
+          try {
+            const { and, eq, gte, sql } = await import("drizzle-orm");
+            const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+            const [recent] = await d.select({ id: leads.id }).from(leads)
+              .where(and(
+                sql`RIGHT(${leads.phone}, 10) = ${normalizedPhone.slice(-10)}`,
+                eq(leads.utmSource, "voice-agent"),
+                gte(leads.createdAt, fiveMinAgo),
+              ))
+              .limit(1);
+            dedupLeadId = recent?.id ?? null;
+          } catch (dedupErr) {
+            log.warn("[voiceAgent:checkTireStock] dedup check failed — proceeding with insert", { err: dedupErr instanceof Error ? dedupErr.message : String(dedupErr) });
+          }
+        }
+
+        if (dedupLeadId == null) {
+          await d.insert(leads).values({
+            name: input.name,
+            phone: normalizedPhone,
+            email: null,
+            problem: rackCheckProblem,
+            vehicle: input.vehicle || null,
+            source: "callback",
+            status: "new",
+            urgencyScore: 5,
+            utmSource: "voice-agent",
+            utmMedium: "phone",
+            utmCampaign: "vapi-rack-check",
+          });
+          log.info("Voice agent rack-check captured", { name: input.name, size: input.tireSize });
+        } else {
+          // Same caller's voice lead from the last 5 min — annotate it with
+          // this rack-check (a second size stays durably recorded on the
+          // surviving row) instead of creating a duplicate person. Fail-open.
+          try {
+            const { eq, sql } = await import("drizzle-orm");
+            await d.update(leads)
+              .set({ problem: sql`CONCAT(COALESCE(${leads.problem}, ''), '\n[+] ', ${rackCheckProblem})` })
+              .where(eq(leads.id, dedupLeadId));
+          } catch (annotateErr) {
+            log.warn("[voiceAgent:checkTireStock] dedup annotate failed (existing lead still holds the promise)", { leadId: dedupLeadId, err: annotateErr instanceof Error ? annotateErr.message : String(annotateErr) });
+          }
+          log.info("Voice agent rack-check deduped onto existing voice lead", { name: input.name, leadId: dedupLeadId });
+        }
 
         // Fire-and-forget Telegram so front desk sees it immediately
         import("../services/telegram")
@@ -884,7 +979,6 @@ export const voiceAgentRouter = router({
           )
           .catch((e) => log.warn("[voiceAgent:checkTireStock] telegram alert failed:", e));
 
-        log.info("Voice agent rack-check captured", { name: input.name, size: input.tireSize });
         return {
           success: true,
           message: `Got it — front desk will walk the rack and call you back within 15 minutes with a yes or no on ${input.tireSize}. That way you don't drive over for nothing.`,
