@@ -39,6 +39,21 @@ describe("parseLatestReconciliation", () => {
   it("returns null when no entry present", () => {
     expect(parseLatestReconciliation("no blockquote here")).toBeNull();
   });
+
+  it("stops at a non-blockquote line — does not harvest SHAs past the entry (review fix)", () => {
+    const doc = [
+      "# Reconciliation",
+      "",
+      "> ## 2026-06-09 · latest",
+      "> - **`a38f2d98`** shipped",
+      "",
+      "Some non-blockquote prose mentioning deadbeef and cafe1234.",
+    ].join("\n");
+    const e = parseLatestReconciliation(doc);
+    expect(e?.ships).toContain("a38f2d98");
+    expect(e?.ships).not.toContain("deadbeef"); // outside the blockquote
+    expect(e?.ships).not.toContain("cafe1234");
+  });
 });
 
 describe("readDeployIdentity (honest, never hallucinates)", () => {

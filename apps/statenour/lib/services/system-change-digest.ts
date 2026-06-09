@@ -20,6 +20,7 @@ import { scanContent } from "@/scripts/check-stale-docs";
 import { runMemoryEvals } from "@/lib/evals/memory-eval-runner";
 import { MEMORY_EVALS } from "@/lib/evals/memory-evals";
 import { RUNBOOKS } from "@/lib/runbooks/catalog";
+import { extractShas } from "@/lib/utils/git-sha";
 
 export interface ReconEntry {
   date: string | null;
@@ -58,8 +59,6 @@ export interface SystemChangeDigest {
 /** Key truth docs an agent reads first — a critical stale finding here is worst. */
 const KEY_DOCS = ["docs/CURRENT-TRUTH.md", "AGENTS.md", "docs/runbooks/index.md"];
 
-const SHA_RE = /\b[0-9a-f]{7,40}\b/g;
-
 /**
  * Parse the top blockquote entry of RECONCILIATION.md. Pure. Reads only the
  * first ~120 lines (the latest entry is always at the top).
@@ -76,11 +75,11 @@ export function parseLatestReconciliation(content: string): ReconEntry | null {
   // The block runs until the next "> ## <date>" header or a non-blockquote line.
   const block: string[] = [];
   for (let i = headerIdx + 1; i < lines.length; i++) {
-    if (/^>\s*##\s+\d{4}-\d{2}-\d{2}/.test(lines[i])) break;
+    if (/^>\s*##\s+\d{4}-\d{2}-\d{2}/.test(lines[i])) break; // next dated entry
+    if (lines[i].trim() && !/^>/.test(lines[i])) break; // true end-of-blockquote (matches the doc)
     block.push(lines[i]);
   }
-  const blockText = block.join("\n");
-  const ships = [...new Set((blockText.match(SHA_RE) ?? []).filter((s) => s.length >= 7 && s.length <= 12))].slice(0, 12);
+  const ships = extractShas(block.join("\n")).slice(0, 12);
   const verifyLine = block.find((l) => /verify\b/i.test(l)) ?? null;
   const verifyGate = verifyLine ? verifyLine.replace(/^>\s*[-*]?\s*/, "").replace(/\*\*/g, "").trim().slice(0, 220) : null;
 

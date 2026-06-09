@@ -114,3 +114,26 @@ describe("importSession (dry run — store:false, no DB)", () => {
     expect(r.suggestedTasks).toBe(r.digest.followUpSuggestions);
   });
 });
+
+describe("parseSessionLog — review-fix regressions", () => {
+  it("extracts FULL 40-char commit SHAs (git log --format=%H paste)", () => {
+    const full = "0123456789abcdef0123456789abcdef01234567";
+    const d = parseSessionLog(`Session\nCommits:\n- ${full} fix(x): y`);
+    expect(d.commits).toContain(full);
+  });
+
+  it("does NOT mis-detect a leading file path as the repo", () => {
+    const d = parseSessionLog("Edited lib/services/foo.ts and app/bar.tsx.\nRepo: nourdean22/MAINnicks-tire-autoNEW");
+    expect(d.repo).toBe("nourdean22/MAINnicks-tire-autoNEW"); // labelled form wins over the file paths
+  });
+
+  it("prefers a github.com URL for the repo", () => {
+    const d = parseSessionLog("see https://github.com/nourdean22/MAINnicks-tire-autoNEW for context, touched lib/x.ts");
+    expect(d.repo).toBe("nourdean22/MAINnicks-tire-autoNEW");
+  });
+
+  it("returns null repo when only file paths are present (no real repo cue)", () => {
+    const d = parseSessionLog("Edited lib/services/foo.ts and app/bar.tsx only.");
+    expect(d.repo).toBeNull();
+  });
+});

@@ -66,9 +66,11 @@ export function auditEntryToReceipt(e: AuditEntry): ActionReceipt {
 /** AutonomousAction.result → receipt status (this is where FAILED actions surface). */
 function autoStatus(action: { approval: string; executedAt: Date | null; result: string | null }): ReceiptStatus {
   if (action.result === "failed") return "failed";
-  if (action.result === "skipped") return "skipped";
   if (action.result === "success") return "success";
-  if (action.approval === "pending") return "needs_approval";
+  if (action.result === "skipped") return "skipped";
+  // Operator-rejected or policy-forbidden: it did NOT run → skipped, never "queued".
+  if (action.approval === "rejected" || action.result === "forbidden_by_policy") return "skipped";
+  if (action.approval === "pending" || action.result === "pending_approval") return "needs_approval";
   return "partial"; // queued/unknown — never assert done
 }
 
@@ -118,16 +120,21 @@ export interface ReceiptFeedResult {
   counts: { total: number; success: number; failed: number; other: number };
 }
 
-/** Merge + sort receipts newest-first; compute counts. Pure. */
-export function mergeReceipts(receipts: ActionReceipt[]): ReceiptFeedResult {
-  const items = [...receipts].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+/** Tally receipts by status. Pure. Always run on the list you actually return. */
+export function countByStatus(items: ReadonlyArray<ActionReceipt>): ReceiptFeedResult["counts"] {
   let success = 0, failed = 0, other = 0;
   for (const r of items) {
     if (r.status === "success") success++;
     else if (r.status === "failed") failed++;
     else other++;
   }
-  return { items, counts: { total: items.length, success, failed, other } };
+  return { total: items.length, success, failed, other };
+}
+
+/** Merge + sort receipts newest-first; counts match the returned items. Pure. */
+export function mergeReceipts(receipts: ActionReceipt[]): ReceiptFeedResult {
+  const items = [...receipts].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { items, counts: countByStatus(items) };
 }
 
 export interface ReceiptFeedDeps {
@@ -158,6 +165,8 @@ export async function buildActionReceiptFeed(deps: ReceiptFeedDeps = {}): Promis
     ...audits.map(auditEntryToReceipt),
     ...autos.map(autonomousActionToReceipt),
   ];
-  const merged = mergeReceipts(receipts);
-  return { items: merged.items.slice(0, limit), counts: merged.counts };
+  // Sort + slice to `limit` FIRST, then count — so the counts always describe
+  // exactly the items returned (we loaded up to 2×limit across both sources).
+  const items = mergeReceipts(receipts).items.slice(0, limit);
+  return { items, counts: countByStatus(items) };
 }
