@@ -245,14 +245,18 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
     // ─── LEADS ────────────────────────────────────────
     // wave-158 — same aggregate treatment as bookings
+    // `new` and `urgent` feed the Today action pills + MorningBrief priority
+    // line — they exclude callback-linked duplicate leads (the same person is
+    // already counted on the callback surfaces; see shared/leadSource.ts).
+    // Pipeline-state counters (total/contacted/booked/...) stay raw.
     const [leadAgg] = await d.select({
       total: sql<number>`COUNT(*)`,
-      new: sql<number>`SUM(CASE WHEN ${leads.status} = 'new' THEN 1 ELSE 0 END)`,
+      new: sql<number>`SUM(CASE WHEN ${leads.status} = 'new' AND NOT (${leads.source} = 'callback' AND ${leads.callbackId} IS NOT NULL) THEN 1 ELSE 0 END)`,
       contacted: sql<number>`SUM(CASE WHEN ${leads.status} = 'contacted' THEN 1 ELSE 0 END)`,
       booked: sql<number>`SUM(CASE WHEN ${leads.status} = 'booked' THEN 1 ELSE 0 END)`,
       closed: sql<number>`SUM(CASE WHEN ${leads.status} = 'closed' THEN 1 ELSE 0 END)`,
       lost: sql<number>`SUM(CASE WHEN ${leads.status} = 'lost' THEN 1 ELSE 0 END)`,
-      urgent: sql<number>`SUM(CASE WHEN COALESCE(${leads.urgencyScore}, 0) >= 4 THEN 1 ELSE 0 END)`,
+      urgent: sql<number>`SUM(CASE WHEN COALESCE(${leads.urgencyScore}, 0) >= 4 AND NOT (${leads.source} = 'callback' AND ${leads.callbackId} IS NOT NULL) THEN 1 ELSE 0 END)`,
       thisWeek: sql<number>`SUM(CASE WHEN ${leads.createdAt} >= ${weekAgo} THEN 1 ELSE 0 END)`,
       avgUrgencySum: sql<number>`COALESCE(SUM(COALESCE(${leads.urgencyScore}, 3)), 0)`,
     }).from(leads).where(gte(leads.createdAt, ninetyDaysAgo));

@@ -57,10 +57,14 @@ export const intelligenceRouter = router({
 
     const actions: Action[] = [];
 
-    // 1. Hot leads — new leads with urgency >= 3
+    // 1. Hot leads — new leads with urgency >= 3. Callback-linked duplicate
+    // leads (source=callback AND callbackId set) are excluded: the same
+    // person already surfaces via the callback branch below, and listing
+    // both made one caller two "do now" actions. Voice rack-check leads
+    // (callbackId NULL) keep counting. See shared/leadSource.ts.
     type HotLead = { id: number; name: string | null; phone: string | null; urgencyScore: number; source: string | null };
     const hotLeads = await safeRowQuery<HotLead>(d,
-      rawSql`SELECT id, name, phone, urgencyScore, source FROM leads WHERE status = 'new' AND urgencyScore >= 3 ORDER BY urgencyScore DESC, createdAt ASC LIMIT 10`
+      rawSql`SELECT id, name, phone, urgencyScore, source FROM leads WHERE status = 'new' AND urgencyScore >= 3 AND NOT (source = 'callback' AND callbackId IS NOT NULL) ORDER BY urgencyScore DESC, createdAt ASC LIMIT 10`
     );
     for (const l of hotLeads) {
       // Display-only clamp (wave-187 UrgencyBadge precedent): legacy rows
