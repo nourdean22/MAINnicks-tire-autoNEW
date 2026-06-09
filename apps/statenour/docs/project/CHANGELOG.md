@@ -1,7 +1,13 @@
 # Changelog
 
-All notable changes to **statenour-os** (Nour's personal command center) —
-deployed to `bdnick.info` via Vercel from the `codex/ollama-local` branch.
+All notable changes to **statenour-os** (Nour's personal command center),
+which lives in the `nourdean22/MAINnicks-tire-autoNEW` monorepo at
+`apps/statenour` and deploys from `main` → Railway → `bdnick.info`.
+
+> Entries below are a point-in-time **historical** release log. Older entries
+> reference the now-**retired** standalone repo / Vercel / `codex/ollama-local`
+> setup — that is history, not current truth. See
+> [`../CURRENT-TRUTH.md`](../CURRENT-TRUTH.md) for what's live.
 
 The project sits alongside the business repo `nickstire` but is intentionally
 separate: different stack (Next.js vs Express), different deploy target

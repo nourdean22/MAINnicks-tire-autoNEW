@@ -20,7 +20,7 @@
 
 | Surface | State |
 |---|---|
-| HEAD | `f63a856` on `codex/ollama-local` (post v9.1.28 + redeploy trigger) |
+| HEAD | `f63a856` on `codex/ollama-local` — **retired** branch snapshot (as of v9.1.28; production is now `main` → Railway, see CURRENT-TRUTH.md) |
 | Tests | 506/506 pass |
 | Pre-push gates | 9/9 green (sensitive-GET in HARD mode since v9.1.17) |
 | Production | every commit through v9.1.27 READY on bdnick.info |
@@ -417,6 +417,9 @@ Read-only ecosystem view.
 ```ts
 // config/repos.ts
 export const REPOS = [
+  // HISTORICAL 2026-04-30 snapshot of config/repos.ts — these values are now
+  // RETIRED (standalone statenour-os repo + Vercel + codex/ollama-local). See
+  // the live config/repos.ts; statenour now deploys from main -> Railway.
   {
     name: "statenour-os",
     fullName: "nourdean22/statenour-os",

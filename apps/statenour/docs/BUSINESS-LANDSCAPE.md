@@ -184,7 +184,7 @@ Documented so the system can compensate:
 - **Gmail** — vendor + customer email, also knowledge-ingest source.
 - **Google Calendar** — limited use (fleet blocks only).
 - **Instagram** — content + social proof (posts generated via Nick content tools).
-- **Venice** — AI chat + content generation (Nour's primary provider, unrestricted).
+- **AI chat + content generation** — provider chain is env/code-driven; the live order + models are in `lib/ai/provider.ts` (`AI_PROVIDER` env selects). Do not assume a specific provider/model here.
 
 ### In staging / ready to activate
 - **Snap Financing** — BNPL for higher-ticket sales (tires + alignment + brakes combos).

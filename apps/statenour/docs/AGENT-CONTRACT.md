@@ -147,7 +147,7 @@ exactly why.
 
 | Looking for … | It's at … |
 |---|---|
-| Current state of the world | [`UPGRADE-PLAN.md`](../UPGRADE-PLAN.md) §0 |
+| Current state of the world | [`CURRENT-TRUTH.md`](CURRENT-TRUTH.md) + [`RECONCILIATION.md`](RECONCILIATION.md) (top entry). `UPGRADE-PLAN.md` §0 is HISTORICAL — do not use for current state. |
 | Cron definitions | [`config/crons.ts`](../config/crons.ts) |
 | Retention rules | [`config/retention.ts`](../config/retention.ts) |
 | Env spec | [`lib/env.ts`](../lib/env.ts) · template `.env.example` |

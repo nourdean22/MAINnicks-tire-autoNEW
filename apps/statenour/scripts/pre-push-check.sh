@@ -1,4 +1,9 @@
 #!/bin/bash
+# ⚠️ RETIRED — NOT THE ACTIVE HOOK. This is a Vercel-era artifact: its speed
+# tiers below reference the retired `codex/ollama-local` / `statenour-master`
+# branches. The active push gate is `.husky/pre-push` (repo root → turbo build).
+# Do not run or wire this script. See docs/CURRENT-TRUTH.md. Kept for history.
+#
 # Pre-push build gate — prevents pushing code that fails local quality checks.
 # Protects against the class of bugs that caused 11 consecutive deploy failures
 # (missing deps, tsconfig issues, client/server import leaks, hook violations).
