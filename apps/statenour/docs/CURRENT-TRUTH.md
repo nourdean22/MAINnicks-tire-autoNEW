@@ -49,5 +49,7 @@
 
 ## See also
 
-- `docs/runbooks/index.md` — agent operating runbooks (how to work safely here).
+- `docs/runbooks/index.md` — agent operating runbooks (how to work safely here). Guard: `pnpm check:runbooks`.
 - `lib/evals/` + `pnpm eval:memory` — the truth scoreboard that checks Nick remembers this file.
+- `lib/ai/receipts/action-receipt.ts` — the action-honesty receipt contract (`canClaimDone`).
+- `lib/knowledge/action-converter.ts` — knowledge→action suggestions (suggestion-only).
