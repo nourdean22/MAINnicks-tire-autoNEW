@@ -965,7 +965,10 @@ export async function updateTask(id: string, input: unknown) {
   // block above, so credit its per-day stat XP here (idempotent per-day via the
   // sourceKey) and set the reward — the honest fix for "DAILY shows a streak but
   // earns no XP". goalLifted stays false (DAILY never lifts goal currentValue).
-  if (completionReward === undefined && isDailyCheckoff(existing.loopKind, payload)) {
+  if (
+    completionReward === undefined &&
+    isDailyCheckoff(existing.loopKind, payload, existing.lastCompletedAt)
+  ) {
     const dailyXp = await creditTaskStats(id, { perDay: true }).catch(() => 0);
     completionReward = { xp: dailyXp, goalLifted: false, streak: payload.streakCount ?? null };
   }
