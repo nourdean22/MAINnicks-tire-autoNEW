@@ -87,6 +87,10 @@ function MissionsPageInner() {
 
   const createTask = trpc.task.create.useMutation();
   const updateTask = trpc.task.update.useMutation();
+  // WEEKLY completion routes through the unified checkTask service (it
+  // lazy-loads recurringDays + computes the next scheduled weekday, which
+  // the client doesn't carry). See handleCompleteTask.
+  const checkTaskMut = trpc.task.check.useMutation();
   const deleteTaskMut = trpc.task.delete.useMutation();
   const createMission = trpc.task.createMission.useMutation();
   // Wave AJ · 2026-05-28 · ↑/↓ reorder mutations · server resolves the
@@ -155,9 +159,11 @@ function MissionsPageInner() {
       //   · status = WAITING + snoozedUntil = tomorrow 00:00 local
       // The existing task-resurface cron auto-flips WAITING→READY
       // when snoozedUntil ≤ now · the task reappears tomorrow.
-      const isDaily =
-        (task as unknown as { loopKind?: string } | undefined)?.loopKind ===
-        "DAILY";
+      const loopKind = (task as unknown as { loopKind?: string } | undefined)
+        ?.loopKind;
+      const isDaily = loopKind === "DAILY";
+      const isWeekly = loopKind === "WEEKLY";
+      const isRecurring = isDaily || isWeekly;
       try {
         telemetry.event("completeTask", { taskId: id, isDaily });
         if (isDaily) {
@@ -176,6 +182,15 @@ function MissionsPageInner() {
               streakCount: currentStreak + 1,
             },
           });
+        } else if (isWeekly) {
+          // 2026-06-09 · BUGFIX · WEEKLY tasks used to fall through to the
+          // DONE branch below, so a weekly repeat completed ONCE and died —
+          // it never recurred. Route through the unified task.check service:
+          // it computes nextWeekdayOccurrence(recurringDays) and parks the
+          // task WAITING + snoozedUntil its next scheduled weekday (the
+          // task-resurface cron flips it back to READY that day). The client
+          // can't do this — recurringDays is lazy-loaded server-side.
+          await checkTaskMut.mutateAsync({ id, action: "complete" });
         } else {
           await updateTask.mutateAsync({
             id,
@@ -189,7 +204,7 @@ function MissionsPageInner() {
         // complete + capture a retro. Wave AL · DAILY tasks come back
         // tomorrow · they don't actually "close" the mission · skip
         // the cascade so the retro prompt doesn't fire incorrectly.
-        if (wasOpen && task?.missionId && !isDaily) {
+        if (wasOpen && task?.missionId && !isRecurring) {
           const mission = missions.find((m) => m.id === task.missionId);
           if (mission && mission.status === "ACTIVE") {
             const remaining = tasks.filter(
@@ -208,7 +223,7 @@ function MissionsPageInner() {
         toast.error("Could not complete task.");
       }
     },
-    [tasks, missions, updateTask, refetchAll, telemetry],
+    [tasks, missions, updateTask, checkTaskMut, refetchAll, telemetry],
   );
 
   const handleStartTask = useCallback(
