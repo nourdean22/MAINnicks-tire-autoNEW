@@ -69,6 +69,10 @@ import { buildFastStream, ensureConvAndPersistUser } from "./handlers/shared";
 import { handleImage } from "./handlers/image";
 import { handleDecision } from "./handlers/decision";
 import { handleBrainDump, handleSlashSave } from "./handlers/brain-dump";
+// F5 operator command shortcuts (/today, /rescue, /what-changed, /import-session,
+// /receipts, /stale). resolveCommand/runCommand are the SAME registry the
+// /api/system/command endpoint uses — no duplicated command logic.
+import { resolveCommand, runCommand } from "./command-registry";
 
 export {
   EARLY_NL_IMAGE_VERB,
@@ -348,6 +352,31 @@ export function hasImageAttachment(msg: Record<string, unknown> & { role?: strin
 export async function runInterceptors(
   args: InterceptArgs,
 ): Promise<InterceptResult> {
+  // ── F5 operator command shortcuts ──────────────────────────────────
+  // /today /rescue /what-changed /import-session /receipts /stale → run the
+  // F5 command registry and stream its concise text back. EXACT-match only
+  // (resolveCommand.command !== null), so existing slash commands (/save, /img,
+  // /chill, …) and unrelated input fall straight through to the model pipeline —
+  // no hijacking, no chat-route rewrite, no duplicated command logic.
+  if (resolveCommand(args.userContent).command) {
+    const commandConvId = await ensureConvAndPersistUser(
+      args.convId,
+      args.userContent,
+      args.lastUserMsg,
+    );
+    const outcome = await runCommand(args.userContent);
+    return {
+      kind: "handled",
+      response: await buildFastStream(
+        commandConvId,
+        outcome.result.text,
+        "command",
+        `cmd:${outcome.command ?? "unknown"}`,
+      ),
+      convId: commandConvId,
+    };
+  }
+
   // Cheap context lookup: was the last assistant turn an image gen?
   // If yes, the classifier accepts "another one"/"again"/"switch it up"
   // as image follow-ups. Skipped when there's no convId (first turn).

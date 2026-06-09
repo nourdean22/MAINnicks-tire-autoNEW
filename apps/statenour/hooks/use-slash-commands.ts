@@ -78,6 +78,15 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/pins", label: "Pinned Memory Manager", icon: "📌", prompt: "", navigate: "/pins" },
   { cmd: "/saturday", label: "Plan my Saturday (with full context)", icon: "🛠️", prompt: "Plan my Saturday based on my open tasks, calendar, and recent commitments. Cluster work, build in rest, intertwine with the actions/HQ/tasks pages." },
   { cmd: "/improve", label: "Photo Improver (analyze + rebrand)", icon: "🖼️", prompt: "", navigate: "/photo-improver" },
+
+  // 2026-06-09 · F5 operator command shortcuts. The chat interceptor runs the
+  // F5 command registry server-side; selecting fills the input, send to run.
+  { cmd: "/today", label: "Today: done/open + top stat + one warning", icon: "📅", prompt: "/today" },
+  { cmd: "/rescue", label: "Task Rescue (misfiled/stale/low-confidence)", icon: "🛟", prompt: "/rescue" },
+  { cmd: "/what-changed", label: "What Changed since last reconciliation", icon: "🔭", prompt: "/what-changed" },
+  { cmd: "/receipts", label: "Recent Actions (what Nick/system did)", icon: "🧾", prompt: "/receipts" },
+  { cmd: "/stale", label: "Stale docs + stale tasks summary", icon: "⏳", prompt: "/stale" },
+  { cmd: "/import-session", label: "Import a pasted Claude session log", icon: "📥", prompt: "/import-session " },
 ];
 
 export function useSlashCommands() {
