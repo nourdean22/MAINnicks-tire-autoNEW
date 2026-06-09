@@ -647,6 +647,40 @@ export async function createTaskAndEnrich(
   return task;
 }
 
+/**
+ * 2026-06-09 · classifier learning signal. When the operator RE-FILES a task
+ * into a different mission, log (taskTitle → mission/domain) so the classifier
+ * few-shots the operator's own filing patterns (classify-task-linkage
+ * .recentExamples). Re-filing INTO the legacy generic Inbox is "un-filing", not
+ * a signal → skipped; moves to a specific mission OR a GENERAL anchor teach it.
+ * Fire-and-forget · best-effort (table is added in migration 0010).
+ */
+async function recordTaskClassificationCorrection(args: {
+  taskTitle: string;
+  newMissionId: string;
+}): Promise<void> {
+  try {
+    const m = await prisma.mission.findUnique({
+      where: { id: args.newMissionId },
+      select: { title: true, canonicalDomain: true, domain: true },
+    });
+    if (!m) return;
+    const { isInboxMission } = await import("@/lib/services/mission-helpers");
+    if (isInboxMission(m.title)) return; // un-filing into the generic Inbox · not a signal
+    const { canonicalFromLegacy } = await import("@/lib/missions/domains");
+    await prisma.taskClassificationCorrection.create({
+      data: {
+        taskTitle: args.taskTitle.slice(0, 500),
+        chosenMissionId: args.newMissionId,
+        domain: m.canonicalDomain ?? canonicalFromLegacy(m.domain),
+        createdBy: "user",
+      },
+    });
+  } catch {
+    /* best-effort · table may not exist pre-0010 */
+  }
+}
+
 export async function updateTask(id: string, input: unknown) {
   const payload = taskUpdateSchema.parse(input);
 
@@ -725,6 +759,15 @@ export async function updateTask(id: string, input: unknown) {
     stripNoise(result.task as unknown as Record<string, unknown>),
     { source: "service:updateTask" },
   );
+
+  // 2026-06-09 · classifier learning · record a re-file (mission changed to a
+  // different one) as a few-shot example for future classification.
+  if (payload.missionId && payload.missionId !== existing.missionId) {
+    void recordTaskClassificationCorrection({
+      taskTitle: result.task.title,
+      newMissionId: payload.missionId,
+    });
+  }
 
   // Apr 26 · Emit semantic events for state transitions. Determined
   // post-hoc from the diff so we don't need to thread the previous
