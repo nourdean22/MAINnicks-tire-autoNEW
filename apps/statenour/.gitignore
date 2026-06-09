@@ -62,3 +62,8 @@ USER.md
 docs/vapi-kb/restore-payload.json
 docs/vapi-kb/restore-full.json
 docs/vapi-kb/_tool-payload.json
+
+# One-off debug-script dumps — check-errors.ts / check-recent-chats.ts
+# redirect their output here. Diagnostic captures, never source.
+chat-output.txt
+errors-out.txt
