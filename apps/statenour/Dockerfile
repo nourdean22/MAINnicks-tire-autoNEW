@@ -43,6 +43,15 @@ COPY packages/lenses/package.json ./packages/lenses/
 COPY apps/statenour/patches ./apps/statenour/patches
 COPY apps/nickstire/patches ./apps/nickstire/patches
 
+# Prisma 7's `postinstall: prisma generate` (apps/statenour) needs the schema
+# AT INSTALL TIME. This stage copies only manifests, so without the schema the
+# postinstall dies with "Could not find Prisma Schema" — a latent failure that
+# only surfaces when BuildKit's deps-layer cache is cold (warm cache skips the
+# RUN). The build stage regenerates the client too, but the deps install must
+# not fail. Copy ONLY schema.prisma to keep the deps cache tight (migrations/
+# changes won't bust it).
+COPY apps/statenour/prisma/schema.prisma ./apps/statenour/prisma/schema.prisma
+
 # Install ONLY the @statenour/web app and its deps · skips nickstire + worker.
 #
 # NOTE on cache mounts: Railway's BuildKit variant rejects both `--mount=type=
