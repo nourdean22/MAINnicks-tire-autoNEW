@@ -802,7 +802,7 @@ export default function DiagnosePage() {
                 <div className="bg-card/50 border border-[#2A2A2A] rounded-xl p-4">
                   <p className="text-xs text-foreground/40 leading-relaxed">
                     <Shield className="w-3.5 h-3.5 inline mr-1 text-foreground/30" />
-                    This is a preliminary read based on the symptoms you described. For the real answer we want the car in front of us. ASE-trained hands, OBD-II tools, written quote before anyone touches a wrench.
+                    This is a preliminary read based on the symptoms you described. For the real answer we want the car in front of us. ASE-certified hands, OBD-II tools, written quote before anyone touches a wrench.
                   </p>
                 </div>
 

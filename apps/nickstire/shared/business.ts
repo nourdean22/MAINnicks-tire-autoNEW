@@ -132,6 +132,18 @@ export const BUSINESS = {
     year: 2018,
     display: "Since 2018",
   },
+  // ─── ASE CERTIFICATION (owner-confirmed trust fact) ──
+  // Owner confirmed the shop has ASE-certified technician capability.
+  // Precise + defensible wording centralized here so every public surface
+  // stays consistent and never overclaims: we say "ASE-certified
+  // technicians" — NOT "all technicians are ASE certified" (unproven) and
+  // NOT "ASE Master Certified" (unproven). No counts or names are claimed.
+  ase: {
+    certified: true,
+    display: "ASE-certified technicians",
+    short: "ASE-certified",
+    capability: "ASE-certified service capability",
+  },
   languages: ["English", "Arabic"] as readonly string[],
   languageDisplay: "Bilingual (English/Arabic)",
 
