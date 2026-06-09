@@ -13,6 +13,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { countActionableLeads } from "@shared/leadSource";
 import { eq, gte, sql, and, lte } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 
@@ -232,7 +233,7 @@ export async function generateProactiveAlerts(): Promise<string[]> {
 
   // Check for urgent unhandled items
   const [urgentLeads, urgentCallbacks, todayBookings] = await Promise.all([
-    d.select({ count: sql<number>`count(*)` }).from(leads)
+    d.select({ source: leads.source, callbackId: leads.callbackId }).from(leads)
       .where(and(eq(leads.status, "new"), sql`${leads.urgencyScore} >= 4`)),
     d.select({ count: sql<number>`count(*)` }).from(callbackRequests)
       .where(eq(callbackRequests.status, "new")),
@@ -240,7 +241,9 @@ export async function generateProactiveAlerts(): Promise<string[]> {
       .where(gte(bookings.createdAt, new Date(now.getFullYear(), now.getMonth(), now.getDate()))),
   ]);
 
-  const urgentLeadCount = urgentLeads[0]?.count ?? 0;
+  // Exclude linked callback-form leads (counted as urgentCallbacks below) — callback.submit
+  // sets urgencyScore=4, so a fresh web callback would otherwise double-count. See shared/leadSource.ts.
+  const urgentLeadCount = countActionableLeads(urgentLeads);
   const callbackCount = urgentCallbacks[0]?.count ?? 0;
   const bookingCount = todayBookings[0]?.count ?? 0;
   const etHour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);

@@ -9,6 +9,7 @@ import type { Invoice } from "../../../drizzle/schema";
 import { log, db } from "./utils";
 
 import { BUSINESS } from "@shared/business";
+import { countActionableLeads } from "@shared/leadSource";
 // ─── OPERATOR COMMAND (Admin-only Nick AI interface) ──────
 
 export async function handleOperatorCommand(input: {
@@ -34,14 +35,14 @@ export async function handleOperatorCommand(input: {
       ] = await Promise.all([
         d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, todayStart)),
         d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, todayStart)),
-        d.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "new")),
+        d.select({ source: leads.source, callbackId: leads.callbackId }).from(leads).where(eq(leads.status, "new")),
         d.select({ count: sql<number>`count(*)` }).from(chatSessions).where(gte(chatSessions.createdAt, todayStart)),
         d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, weekAgo)),
         d.select().from(invoices).where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid"))),
         d.select({ count: sql<number>`count(*)` }).from(customers),
         d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.createdAt, monthAgo)),
         d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(eq(callbackRequests.status, "new")),
-        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(eq(leads.status, "new"), gte(leads.createdAt, weekAgo))),
+        d.select({ source: leads.source, callbackId: leads.callbackId }).from(leads).where(and(eq(leads.status, "new"), gte(leads.createdAt, weekAgo))),
         d.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(gte(reviewRequests.createdAt, monthAgo)),
         d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, weekAgo)),
       ]);
@@ -59,8 +60,8 @@ TODAY:
 THIS WEEK:
 - Drop-offs: ${weekBookings[0]?.count ?? 0} | Leads: ${weekLeads[0]?.count ?? 0}
 PIPELINE:
-- Pending leads (new): ${callbacksPending[0]?.count ?? 0}
-- Stale leads (new, 7d): ${staleLeads[0]?.count ?? 0}
+- Pending leads (new): ${countActionableLeads(callbacksPending)}
+- Stale leads (new, 7d): ${countActionableLeads(staleLeads)}
 - Pending callbacks: ${pendingCallbacks[0]?.count ?? 0}
 FINANCIAL (30d):
 - Revenue: $${monthRevenue.toLocaleString()} from ${monthInvoicesPaid.length} paid invoices

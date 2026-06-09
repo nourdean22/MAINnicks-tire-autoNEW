@@ -14,6 +14,7 @@ import { invokeLLM } from "../../_core/llm";
 import { db } from "../../lib/db-helper";
 
 import { BUSINESS } from "@shared/business";
+import { countActionableLeads } from "@shared/leadSource";
 const log = createLogger("cron:morning-brief");
 
 export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; details?: string }> {
@@ -46,7 +47,7 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
         .where(and(gte(leads.createdAt, yesterdayStart), sql`${leads.createdAt} < ${todayStart}`)),
       d.select({ count: sql<number>`count(*)` }).from(bookings)
         .where(and(gte(bookings.createdAt, yesterdayStart), sql`${bookings.createdAt} < ${todayStart}`)),
-      d.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "new")),
+      d.select({ source: leads.source, callbackId: leads.callbackId }).from(leads).where(eq(leads.status, "new")),
       d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(eq(callbackRequests.status, "new")),
       d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, weekAgo)),
       d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, weekAgo)),
@@ -56,7 +57,7 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
       d.select({ count: sql<number>`count(*)` }).from(workOrders).where(sql`${workOrders.status} NOT IN ('closed', 'invoiced', 'picked_up', 'cancelled')`),
       d.select({ count: sql<number>`count(*)` }).from(chatSessions)
         .where(and(gte(chatSessions.createdAt, yesterdayStart), sql`${chatSessions.createdAt} < ${todayStart}`)),
-      d.select({ count: sql<number>`count(*)` }).from(leads)
+      d.select({ source: leads.source, callbackId: leads.callbackId }).from(leads)
         .where(and(eq(leads.status, "new"), sql`${leads.createdAt} < ${weekAgo}`)),
       d.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(gte(reviewRequests.createdAt, monthAgo)),
       d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, monthAgo)),
@@ -69,8 +70,13 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
       ? Math.round((jobsWon / (monthBookingsTotal[0]?.count ?? 1)) * 100)
       : 0;
 
-    const pendingCount = (pendingLeads[0]?.count ?? 0) + (pendingCallbacks[0]?.count ?? 0);
-    const staleCount = staleLeads[0]?.count ?? 0;
+    // Linked callback-form leads are the SAME person as a callback_requests row
+    // (counted separately as pendingCallbacks), so exclude them from the lead-side
+    // tallies — otherwise one caller inflates both. Voice rack-check leads
+    // (callbackId null) and real web leads still count. See shared/leadSource.ts.
+    const pendingLeadsCount = countActionableLeads(pendingLeads);
+    const staleCount = countActionableLeads(staleLeads);
+    const pendingCount = pendingLeadsCount + (pendingCallbacks[0]?.count ?? 0);
 
     // ─── Build raw data for AI to analyze ──────────────
     const dayName = now.toLocaleDateString("en-US", { weekday: "long", timeZone: BUSINESS.timezone });
@@ -94,7 +100,7 @@ THIS WEEK:
 - Conversion rate: ${conversionRate}%
 
 PIPELINE:
-- Pending leads (new): ${pendingLeads[0]?.count ?? 0}
+- Pending leads (new): ${pendingLeadsCount}
 - Pending callbacks: ${pendingCallbacks[0]?.count ?? 0}
 - Stale leads (>7d untouched): ${staleCount}
 - Open work orders: ${openWorkOrders[0]?.count ?? 0}
@@ -292,7 +298,7 @@ THIS WEEK: ${weekBookings[0]?.count ?? 0} drop-offs | ${weekLeads[0]?.count ?? 0
 
 30-DAY: $${monthRevenue.toLocaleString()} revenue | ${jobsWon} jobs won | $${avgTicket} avg ticket | ${conversionRate}% conversion
 
-PIPELINE: ${pendingLeads[0]?.count ?? 0} new leads | ${pendingCallbacks[0]?.count ?? 0} callbacks | ${staleCount} stale leads | ${openWorkOrders[0]?.count ?? 0} open WOs
+PIPELINE: ${pendingLeadsCount} new leads | ${pendingCallbacks[0]?.count ?? 0} callbacks | ${staleCount} stale leads | ${openWorkOrders[0]?.count ?? 0} open WOs
 
 CUSTOMERS: ${totalCustomers[0]?.count ?? 0} total | ${newCustomersMonth[0]?.count ?? 0} new this month
 ${masterBlock}
