@@ -61,7 +61,7 @@ the gotchas that bite everyone.
 - **Task runner:** Turborepo (pinned `^2.5.8`)
 - **Workspaces:** `pnpm-workspace.yaml` → `apps/*` + `packages/*`
 
-**`apps/nickstire`** — Vite `^7.3` · React `^19.2` · wouter `3.7.1` (patched) · TanStack Query `^5` · tRPC `^11.6` · Tailwind CSS `^4.1` · Express `^4.21` · Drizzle ORM `^0.45` on `mysql2` → TiDB Cloud · Stripe · web-push · Twilio · Resend · `@aws-sdk/client-s3` · Vitest `^2.1` · Puppeteer (prerender). AI is called over HTTP (Venice primary, OpenAI/Anthropic/Ollama optional) — no first-party AI SDK dependency.
+**`apps/nickstire`** — Vite `^7.3` · React `^19.2` · wouter `3.7.1` (patched) · TanStack Query `^5` · tRPC `^11.6` · Tailwind CSS `^4.1` · Express `^4.21` · Drizzle ORM `^0.45` on `mysql2` → TiDB Cloud · Stripe · web-push · Twilio · Resend · `@aws-sdk/client-s3` · Vitest `^2.1` · Puppeteer (prerender). AI is called over HTTP (Venice/OpenAI/Anthropic/Ollama) — no first-party AI SDK dependency.
 
 **`apps/statenour`** — Next.js `^16.2` (App Router, `output: "standalone"`) · React `^19.2` · Prisma `^7.5` + `@prisma/adapter-neon` → Neon Postgres · tRPC `^11` · Vercel AI SDK `ai@6.0.162` (patched) with `@ai-sdk/anthropic` + `@ai-sdk/openai` · NextAuth `^5` (Google) · Inngest `^4.4` (cron fan-out) · Three.js / R3F · Tailwind CSS `^4.2` · Vitest `^3.2` · Playwright.
 
@@ -313,7 +313,7 @@ nickstire `pnpm --filter nicks-tire-auto env:validate`; statenour `pnpm --filter
 | `JWT_SECRET`, `ADMIN_API_KEY` | Session/JWT signing + admin API auth — **required** |
 | `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET`, `OWNER_OPEN_ID` | Admin Google OAuth login |
 | `VAPID_PUBLIC_KEY` / `_PRIVATE_KEY` / `_EMAIL` | PWA web-push |
-| `VENICE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LLM_MODEL` | AI providers (Venice primary) |
+| `VENICE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LLM_MODEL` | AI provider keys (selection in app config) |
 | `TWILIO_*`, `OWNER_PHONE_NUMBER`, `STORE_PHONE` | SMS + alert numbers |
 | `STRIPE_SECRET_KEY` / `_PUBLISHABLE_KEY` / `_WEBHOOK_SECRET` | Payments |
 | `META_*` / `FB_*`, `GA4_*`, `GOOGLE_PLACES_API_KEY`, `GOOGLE_PLACE_ID` | Social autoposting, analytics, GBP |
