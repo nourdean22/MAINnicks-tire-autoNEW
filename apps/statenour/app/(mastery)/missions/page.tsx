@@ -35,6 +35,7 @@ import { Suspense, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { logger as rootLogger } from "@/lib/logger";
+import { formatReward } from "@/lib/mastery/task-reward";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { OmniCaptureModal } from "@/components/actions/omni-capture-modal";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
@@ -182,20 +183,18 @@ function MissionsPageInner() {
               streakCount: currentStreak + 1,
             },
           });
-        } else if (isWeekly) {
-          // 2026-06-09 · BUGFIX · WEEKLY tasks used to fall through to the
-          // DONE branch below, so a weekly repeat completed ONCE and died —
-          // it never recurred. Route through the unified task.check service:
-          // it computes nextWeekdayOccurrence(recurringDays) and parks the
-          // task WAITING + snoozedUntil its next scheduled weekday (the
-          // task-resurface cron flips it back to READY that day). The client
-          // can't do this — recurringDays is lazy-loaded server-side.
-          await checkTaskMut.mutateAsync({ id, action: "complete" });
+          // Wire #2 · DAILY credits XP server-side on its own cadence; the
+          // streak is the reliable, client-known reward to surface now.
+          const dailyMsg = formatReward({ xp: 0, goalLifted: false, streak: currentStreak + 1 });
+          if (dailyMsg) toast.success(dailyMsg);
         } else {
-          await updateTask.mutateAsync({
-            id,
-            fields: { status: "DONE" },
-          });
+          // WEEKLY + ONCE/PROMISE both complete through the unified task.check
+          // service (WEEKLY needs server-side nextWeekdayOccurrence; routing
+          // ONCE here too gives it the same canonical completion + the reward
+          // envelope). It returns the real credited XP / goal-lift / streak.
+          const res = await checkTaskMut.mutateAsync({ id, action: "complete" });
+          const msg = formatReward(res.reward);
+          if (msg) toast.success(msg);
         }
         await refetchAll();
 
