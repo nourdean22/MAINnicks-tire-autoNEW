@@ -48,6 +48,7 @@ import { trackGeneration } from "@/lib/ai/track";
 import { recordInteraction } from "@/lib/ai/memory";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
 import { detectFailedActionClaims } from "@/lib/ai/chat/action-result-verifier";
+import { emptyResponseFallback } from "@/lib/ai/chat/empty-response-fallback";
 import { processConversation } from "@/lib/brain/pipeline-controller";
 import { summarizeAndStoreConversation } from "@/lib/brain/conversation-memory";
 import { maybeAutoRename } from "@/lib/chat/auto-rename";
@@ -702,6 +703,17 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           rArr: reasoningText.length,
           finish: finishReason,
         });
+
+        // GRACEFUL FALLBACK — was: silently skip the save (hasContent
+        // stays false) → blank bubble → the user retries → duplicate
+        // records (the 06-08 "UFC USA BBQ" mission spawned 5× with ~26
+        // orphan tasks). Replace the empty turn with an honest, non-
+        // fabricating message so it persists + renders. Branches on
+        // finishReason so a tool-call turn STEERS AWAY from a duplicate-
+        // causing retry. The recordError above still fires, so the empty-
+        // response pattern stays visible in /system/audit. Root fix
+        // (glm-5.1/ollama thinking-budget control) is tracked separately.
+        text = emptyResponseFallback(finishReason);
       }
 
       // ═══ CRITICAL PATH — must succeed for chat to work ═══
