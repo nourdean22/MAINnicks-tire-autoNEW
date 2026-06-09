@@ -167,6 +167,13 @@ export const leadRouter = router({
           urgencyScore: scoring.score,
           urgencyReason: scoring.reason,
           recommendedService: scoring.recommendedService,
+          // sheets-attribution wave 2026-06 — same already-validated input
+          // fields the DB insert stores; appended as the row's tail columns.
+          utmSource: input.utmSource,
+          utmMedium: input.utmMedium,
+          utmCampaign: input.utmCampaign,
+          landingPage: input.landingPage,
+          referrer: input.referrer,
         }),
         { maxRetries: 3, baseDelayMs: 1000, label: "syncLeadToSheet" }
       ).catch(err => {

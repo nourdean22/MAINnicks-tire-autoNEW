@@ -130,6 +130,16 @@ export const callbackRouter = router({
         );
       }
 
+      // sheets-attribution wave 2026-06 — same already-validated input
+      // fields the DB insert stores; appended as each row's tail columns.
+      const sheetAttribution = {
+        utmSource: input.utmSource,
+        utmMedium: input.utmMedium,
+        utmCampaign: input.utmCampaign,
+        landingPage: input.landingPage,
+        referrer: input.referrer,
+      };
+
       syncLeadToSheet({
         name: input.name,
         phone: input.phone,
@@ -137,6 +147,7 @@ export const callbackRouter = router({
         problem: "Callback request",
         urgencyScore: 4,
         urgencyReason: "Customer requested callback",
+        ...sheetAttribution,
       }).catch(e => log.warn("[callback:submit] lead sheet sync failed:", e));
 
       syncCallbackToSheet({
@@ -144,6 +155,7 @@ export const callbackRouter = router({
         phone: input.phone,
         reason: input.context || undefined,
         sourcePage: input.sourcePage || undefined,
+        ...sheetAttribution,
       }).catch(e => log.warn("[callback:submit] callback sheet sync failed:", e));
 
       // Meta Conversions API: Send server-side Lead event for callback

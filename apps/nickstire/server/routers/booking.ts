@@ -324,6 +324,13 @@ export const bookingRouter = router({
           preferredDate: input.preferredDate,
           preferredTime: input.preferredTime,
           message: input.message,
+          // sheets-attribution wave 2026-06 — same already-validated input
+          // fields the DB insert stores; appended as the row's tail columns.
+          utmSource: input.utmSource,
+          utmMedium: input.utmMedium,
+          utmCampaign: input.utmCampaign,
+          landingPage: input.landingPage,
+          referrer: input.referrer,
         }),
         { maxRetries: 3, baseDelayMs: 1000, label: "syncBookingToSheet" }
       ).catch(err => {

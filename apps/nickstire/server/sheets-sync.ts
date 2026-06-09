@@ -16,7 +16,61 @@
 import { createLogger } from "./lib/logger";
 
 import { BUSINESS } from "@shared/business";
+import { normalizePathname } from "@shared/attribution";
 const log = createLogger("sheets-sync");
+
+// ─── ATTRIBUTION COLUMNS (sheets-attribution wave 2026-06) ───────────
+// Append-only attribution tail added to the Leads / Bookings / Callbacks
+// rows so the owner's working CRM can answer "which source/campaign/page
+// produced this" without opening the app.
+//
+// RULES (operator-approved):
+//  - APPEND-ONLY: these cells go AFTER every existing column; existing
+//    column positions and any owner formulas are untouched.
+//  - ALWAYS 5 CELLS: every row appends exactly these five values (blank
+//    when unknown) so columns stay aligned across all submit paths —
+//    including paths with no web attribution (SMS bot, after-hours
+//    emergency), which write honest blanks.
+//  - TRUTHFUL: values come only from fields already captured/stored
+//    (lead/booking/callback input -> DB columns). Nothing is invented;
+//    blank is better than fake. Landing Page is pathname-normalized
+//    (the stored value is the full href; pathname keeps the column
+//    readable and stops UTM variants fragmenting it).
+//  - NON-SENSITIVE: utm labels, a pathname, and the referrer URL only.
+//    No tokens, no user agents, no raw payloads, no PII beyond what the
+//    CRM rows already carry by design.
+//
+// Header labels for the owner to paste in row 1 of each tab (exact
+// columns are in docs/audits/NICKSTIRE-SHEETS-ATTRIBUTION-AUDIT.md):
+export const SHEET_ATTRIBUTION_HEADERS = [
+  "UTM Source",
+  "UTM Medium",
+  "UTM Campaign",
+  "Landing Page",
+  "Referrer",
+] as const;
+
+export interface SheetAttribution {
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  landingPage?: string | null;
+  referrer?: string | null;
+}
+
+/**
+ * Build the fixed 5-cell attribution tail for a sheet row.
+ * Pure + exported for unit tests. Always returns exactly 5 strings.
+ */
+export function attributionCells(a?: SheetAttribution | null): string[] {
+  return [
+    a?.utmSource || "",
+    a?.utmMedium || "",
+    a?.utmCampaign || "",
+    normalizePathname(a?.landingPage) || "",
+    a?.referrer || "",
+  ];
+}
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_CRM_ID || "";
 
@@ -108,7 +162,7 @@ export async function syncLeadToSheet(lead: {
   urgencyScore: number;
   urgencyReason?: string | null;
   recommendedService?: string | null;
-}): Promise<boolean> {
+} & SheetAttribution): Promise<boolean> {
   const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
   return appendRow("Leads", [
     now,
@@ -125,6 +179,8 @@ export async function syncLeadToSheet(lead: {
     "No",
     "",
     "",
+    // attribution tail (cols O-S) — always 5 cells, blank when unknown
+    ...attributionCells(lead),
   ]);
 }
 
@@ -140,7 +196,7 @@ export async function syncBookingToSheet(booking: {
   preferredDate?: string | null;
   preferredTime: string;
   message?: string | null;
-}): Promise<boolean> {
+} & SheetAttribution): Promise<boolean> {
   const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
   return appendRow("Bookings", [
     now,
@@ -155,6 +211,8 @@ export async function syncBookingToSheet(booking: {
     "New",
     "No",
     "",
+    // attribution tail (cols M-Q) — always 5 cells, blank when unknown
+    ...attributionCells(booking),
   ]);
 }
 
@@ -178,7 +236,7 @@ export async function syncCallbackToSheet(callback: {
   phone: string;
   reason?: string | null;
   sourcePage?: string | null;
-}): Promise<boolean> {
+} & SheetAttribution): Promise<boolean> {
   const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
   return appendRow("Callbacks", [
     now,
@@ -191,6 +249,8 @@ export async function syncCallbackToSheet(callback: {
     "",
     "",
     "",
+    // attribution tail (cols K-O) — always 5 cells, blank when unknown
+    ...attributionCells(callback),
   ]);
 }
 
