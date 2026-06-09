@@ -16,6 +16,7 @@ import { runAutoLearn, type AutoLearnReport } from "@/lib/services/auto-learn";
 import { emitGoalEventAsync } from "@/lib/brain/goal-events";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import type { TaskReward } from "@/lib/mastery/task-reward";
+import { isDailyCheckoff } from "@/lib/loops/daily-checkoff";
 import { DOMAINS } from "@/lib/mastery/config";
 import { CONFIDENCE } from "@/lib/mastery/scoring-config";
 import { classifyTaskLinkage } from "@/lib/ai/classify-task-linkage";
@@ -960,6 +961,15 @@ export async function updateTask(id: string, input: unknown) {
   // is structurally-typed already · adding the extra field is safe
   // for JSON serialization and ignored by view-model consumers that
   // don't know about autoLearn yet.
+  // Wire 4 · DAILY check-off (status → WAITING, not DONE) skips the DONE-credit
+  // block above, so credit its per-day stat XP here (idempotent per-day via the
+  // sourceKey) and set the reward — the honest fix for "DAILY shows a streak but
+  // earns no XP". goalLifted stays false (DAILY never lifts goal currentValue).
+  if (completionReward === undefined && isDailyCheckoff(existing.loopKind, payload)) {
+    const dailyXp = await creditTaskStats(id, { perDay: true }).catch(() => 0);
+    completionReward = { xp: dailyXp, goalLifted: false, streak: payload.streakCount ?? null };
+  }
+
   if (autoLearnReport) {
     (result.vm as unknown as Record<string, unknown>).autoLearn = autoLearnReport;
   }
