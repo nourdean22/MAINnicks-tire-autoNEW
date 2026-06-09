@@ -172,10 +172,17 @@ export const trafficFunnelRouter = router({
         ),
         exec(
           d,
+          // Lead-source hygiene: the engagement stage counts PEOPLE who acted
+          // on the site. Excluded: callback-linked duplicate leads (the same
+          // person is already counted via callback_requests) and booking-auto
+          // leads (workOrderAutomation mirrors every booking into leads — those
+          // belong to the bookings stage, not site engagement).
           sql`
             SELECT COUNT(*) AS c
             FROM leads
             WHERE createdAt >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+              AND NOT (source = 'callback' AND callbackId IS NOT NULL)
+              AND source <> 'booking'
           `,
         ),
         exec(
@@ -256,7 +263,10 @@ export const trafficFunnelRouter = router({
 
       // ─── FUNNEL STAGES with conversion math ───────────
       // Order matters — each stage compares to the previous one to highlight leaks.
-      const actions = calls + chats + leads + callbacks; // "any engagement beyond landing"
+      // Callbacks live in ONE stage only (stage 4, as commitment) — counting
+      // them in "engaged" too put the same person in the numerator AND the
+      // denominator of the stage-4 conversion, inflating it structurally.
+      const actions = calls + chats + leads; // "any engagement beyond landing"
       const bookingsPlusCallbacks = bookingsTotal + callbacks;
 
       const stages: Stage[] = [
@@ -282,7 +292,7 @@ export const trafficFunnelRouter = router({
           label: "Engaged on Site",
           count: actions,
           conversionFromPrev: pct(actions, clicks),
-          sub: `${calls} call clicks · ${chats} chats · ${leads} leads · ${callbacks} callbacks`,
+          sub: `${calls} call clicks · ${chats} chats · ${leads} leads (callbacks counted in the next stage)`,
           // Healthy local shops hit 5–12% clicks→engagement. Under 2% = leak.
           severity: pct(actions, clicks) >= 5 ? "good"
             : pct(actions, clicks) >= 2 ? "warn"
@@ -347,7 +357,7 @@ export const trafficFunnelRouter = router({
         alerts.push({
           level: "critical",
           title: "Call tracking dead",
-          detail: `${clicks} clicks in ${days}d but ZERO phone-click events. You're generating calls (218 invoices this month) but the tracking script isn't firing.`,
+          detail: `${clicks} clicks in ${days}d but ZERO phone-click events. The shop is clearly transacting (${invoices} paid invoices in the same window) — the tracking script isn't firing.`,
           fix: "Verify /api/call-events endpoint + the client call-tracking wrapper on every tel: link.",
         });
       }
