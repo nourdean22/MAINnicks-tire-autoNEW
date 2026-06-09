@@ -16,7 +16,7 @@ Mechanism: `server/sheets-sync.ts` `appendRow(tab, values[])` → `spreadsheets.
 | Leads | 14 (A-N) | `source` only (col G) | **+5 tail (O-S)** | 19 | YES |
 | Bookings | 12 (A-L) | none | **+5 tail (M-Q)** | 17 | YES |
 | Callbacks | 10 (A-J) | `sourcePage` (col E) | **+5 tail (K-O)** | 15 | YES |
-| Financing | 10 (A-J) | `sourcePage` (col G) | **HOLD** — the acima/snap router captures only sourcePage; accepting UTM there = a new-capture change (needs approval). Financing *leads* (pre-approval modal) already flow attributed into the **Leads** tab via `lead.submit` (`source=financing_preapproval` + UTM) | — | — |
+| Financing | 10 (A-J) | `sourcePage` (col G) | **+5 tail (K-O)** — closed in the attribution-holds wave: trackApplication accepts optional UTM (client Apply clicks spread getUtmData); admin counter-logs get honest blanks. Owner pastes the same 5 headers at Financing `K1:O1` | 15 | YES |
 | Invoices | 17 (A-Q) | n/a (ALG mirror) | **DO_NOT_ADD** — no attribution data exists | — | — |
 | WorkOrders | 11 (A-K) | `source` | **DO_NOT_ADD** — same | — | — |
 | Dashboard | 7 (A-G) | n/a (metrics cron) | **DO_NOT_ADD** | — | — |
