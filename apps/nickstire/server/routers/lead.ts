@@ -36,8 +36,12 @@ export const leadRouter = router({
         vehicle: z.string().max(200).nullish(),
         problem: z.string().max(2000).nullish(),
         // Conversion-overhaul Batch 8 added "sms_capture" and "newsletter"
-        // so multi-channel capture sources route through the same lead pipe
-        // but stay distinguishable in admin / analytics rollups.
+        // as INPUT values — but they are NOT in the DB `leads.source` enum
+        // (schema.ts), so MySQL coerced them to '' (or errored in strict
+        // mode), silently corrupting the source on every TextMeQuote /
+        // EmailNewsletterCapture lead. They stay accepted here (public forms
+        // send them) and are REMAPPED to valid enum values at insert below.
+        // "sms" added — it exists in the DB enum but was missing here.
         source: z.enum([
           "popup",
           "chat",
@@ -47,6 +51,7 @@ export const leadRouter = router({
           "fleet",
           "financing_preapproval",
           "careers",
+          "sms",
           "sms_capture",
           "newsletter",
         ]).default("popup"),
@@ -97,13 +102,22 @@ export const leadRouter = router({
         return { success: true, leadId: recentDupe.id, message: "Recent lead exists" };
       }
 
+      // Remap input-only source values to members of the DB enum — without
+      // this, MySQL coerces "sms_capture"/"newsletter" to '' (blank source,
+      // invisible to every source rollup) or rejects the row in strict mode.
+      // The true origin is preserved in utmCampaign when the form didn't
+      // supply one (TextMeQuote / EmailNewsletterCapture send no UTM).
+      const SOURCE_REMAP: Record<string, "sms" | "popup"> = { sms_capture: "sms", newsletter: "popup" };
+      const dbSource = SOURCE_REMAP[input.source] ?? input.source;
+      const originCampaign = dbSource !== input.source && !input.utmCampaign ? input.source : null;
+
       const insertedRows = await d.insert(leads).values({
         name,
         phone,
         email: email || null,
         vehicle: vehicle || null,
         problem: problem || null,
-        source: input.source,
+        source: dbSource,
         urgencyScore: scoring.score,
         urgencyReason: scoring.reason,
         recommendedService: scoring.recommendedService,
@@ -112,7 +126,7 @@ export const leadRouter = router({
         vehicleTypes: input.vehicleTypes || null,
         utmSource: input.utmSource || null,
         utmMedium: input.utmMedium || null,
-        utmCampaign: input.utmCampaign || null,
+        utmCampaign: input.utmCampaign || originCampaign,
         landingPage: input.landingPage || null,
         referrer: input.referrer || null,
       }).$returningId();
