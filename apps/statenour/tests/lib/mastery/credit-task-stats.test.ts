@@ -67,18 +67,21 @@ describe("creditTaskStats · stat resolution + keying", () => {
   it("goal-linked → credits the goal's stat under the goal-task: key", async () => {
     mocks.task.findUnique.mockResolvedValue(goalTask());
     const n = await creditTaskStats("t1");
-    expect(n).toBe(1);
+    expect(n.statsCredited).toBe(1);
     expect(mocks.brainMemory.upsert).toHaveBeenCalledTimes(1);
     const arg = mocks.brainMemory.upsert.mock.calls[0][0];
     expect(arg.where.category_key.key).toBe("goal-task:t1:physical");
     expect(arg.create.metadata.stat).toBe("physical");
     expect(arg.create.metadata.xp).toBeGreaterThan(0);
+    // xpCredited is the REAL summed XP (not the stat count) — equals what was written.
+    expect(n.xpCredited).toBe(arg.create.metadata.xp);
   });
 
   it("no goal → credits from statHints under the task-stat: key", async () => {
     mocks.task.findUnique.mockResolvedValue(noGoalTask({ statHints: ["business_ops", "sales"] }));
     const n = await creditTaskStats("t2");
-    expect(n).toBe(2);
+    expect(n.statsCredited).toBe(2);
+    expect(n.xpCredited).toBeGreaterThan(0);
     expect(keysUpserted()).toEqual(
       expect.arrayContaining(["task-stat:t2:business_ops", "task-stat:t2:sales"]),
     );
@@ -87,14 +90,15 @@ describe("creditTaskStats · stat resolution + keying", () => {
   it("no goal + no statHints → infers the stat from the mission domain", async () => {
     mocks.task.findUnique.mockResolvedValue(noGoalTask({ mission: { domain: "BUSINESS" } }));
     const n = await creditTaskStats("t3");
-    expect(n).toBe(1);
+    expect(n.statsCredited).toBe(1);
     expect(keysUpserted()[0]).toBe("task-stat:t3:business_ops");
   });
 
   it("unmappable domain + no goal + no hints → credits NOTHING (no wrong credit)", async () => {
     mocks.task.findUnique.mockResolvedValue(noGoalTask({ mission: { domain: "zzzz" } }));
     const n = await creditTaskStats("t4");
-    expect(n).toBe(0);
+    expect(n.statsCredited).toBe(0);
+    expect(n.xpCredited).toBe(0);
     expect(mocks.brainMemory.upsert).not.toHaveBeenCalled();
   });
 
@@ -108,7 +112,9 @@ describe("creditTaskStats · stat resolution + keying", () => {
 
   it("missing task → no-op", async () => {
     mocks.task.findUnique.mockResolvedValue(null);
-    expect(await creditTaskStats("nope")).toBe(0);
+    const n = await creditTaskStats("nope");
+    expect(n.statsCredited).toBe(0);
+    expect(n.xpCredited).toBe(0);
     expect(mocks.brainMemory.upsert).not.toHaveBeenCalled();
   });
 });
@@ -118,7 +124,10 @@ describe("creditTaskStats · exactly-once idempotency", () => {
     mocks.task.findUnique.mockResolvedValue(goalTask());
     mocks.brainMemory.findUnique.mockResolvedValue({ id: "already-credited" });
     const n = await creditTaskStats("t1");
-    expect(n).toBe(0); // creditStatXp sees the existing event → not new
+    // a same-key re-credit adds 0 NEW stats AND 0 NEW XP → the reward stays
+    // honest (no double-credit, no inflated XP) on a repeat completion.
+    expect(n.statsCredited).toBe(0);
+    expect(n.xpCredited).toBe(0);
   });
 });
 

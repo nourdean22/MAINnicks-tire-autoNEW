@@ -187,7 +187,7 @@ function MissionsPageInner() {
           // Wire 4 · DAILY now credits per-day stat XP server-side; surface the
           // real reward, falling back to the client-known streak if absent.
           const dailyReward = (res as unknown as { reward?: TaskReward }).reward ?? {
-            xp: 0,
+            xpCredited: null,
             goalLifted: false,
             streak: currentStreak + 1,
           };
