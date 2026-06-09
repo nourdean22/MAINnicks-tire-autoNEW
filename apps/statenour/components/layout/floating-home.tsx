@@ -29,7 +29,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { MOBILE_TABS, type NavItem } from "./nav-items";
+import { MOBILE_TABS, NAV_ITEMS, type NavItem } from "./nav-items";
+import { resolveActiveNav } from "@/lib/nav/active-nav";
 import { CAPTURE_OPEN_EVENT } from "@/components/brain-dump-modal";
 // v10.0.529.72 · BrainIcon · ServerIcon · CompassIcon dropped — they
 // only powered the BRAIN / OPS / LIFE rows of the QUICK NAV that were
@@ -311,11 +312,10 @@ export function FloatingHome() {
     });
   }, []);
 
-  // Determine the active tab so the orb icon reflects current page
-  const activeTab = MOBILE_TABS.find(
-    (t) => pathname === t.href || pathname.startsWith(t.href + "/")
-  );
-  const OrbIcon = activeTab?.icon ?? Shield;
+  // Determine the active surface so the orb icon + menu header reflect
+  // WHERE the operator is, on every page (not just the 4 mobile tabs).
+  const activeNav = resolveActiveNav(pathname ?? "/", NAV_ITEMS);
+  const OrbIcon = activeNav?.icon ?? Shield;
 
   // ── Render: peek tab when hidden ───────────────────────
   if (state.hidden) {
@@ -377,7 +377,7 @@ export function FloatingHome() {
               Nour OS
             </span>
             <span className="text-[8px] font-mono text-[var(--text-tertiary)] uppercase">
-              quick nav
+              {activeNav ? activeNav.label : "quick nav"}
             </span>
           </div>
 
