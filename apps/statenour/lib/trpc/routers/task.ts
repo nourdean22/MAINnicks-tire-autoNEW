@@ -53,6 +53,7 @@ import { backfillProjectTasks } from "@/lib/services/backfill-tasks";
 import { buildTodayCompound } from "@/lib/services/today-compound";
 import { buildNextMove } from "@/lib/services/next-move";
 import { buildGoalNextActions } from "@/lib/services/goal-next-actions";
+import { buildTaskRescue, buildDomainAnchors } from "@/lib/services/task-rescue";
 import { spawnProjectTasks } from "@/lib/services/spawn-tasks";
 import {
   createMissionLink,
@@ -220,6 +221,16 @@ export const taskRouter = router({
    * it without a separate procedure.
    */
   missions: operatorProcedure.query(async () => listMissions()),
+
+  /**
+   * Wire 2 · /missions hygiene: read-only task-rescue suggestions + GENERAL
+   * domain-anchor open-counts (so anchors aren't invisible inboxes). Both
+   * return flat shapes (no Prisma Json) — TS2589-safe. No mutation.
+   */
+  missionsHygiene: operatorProcedure.query(async () => {
+    const [rescue, anchors] = await Promise.all([buildTaskRescue(), buildDomainAnchors()]);
+    return { rescue, anchors };
+  }),
 
   /**
    * Phase PP · owner-only · list goals with optional horizon / domain

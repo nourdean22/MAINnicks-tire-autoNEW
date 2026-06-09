@@ -3,7 +3,10 @@ import {
   classifyRescue,
   scanRescue,
   buildTaskRescue,
+  summarizeAnchorRows,
+  buildDomainAnchors,
   type RescueTaskInput,
+  type AnchorRow,
 } from "@/lib/services/task-rescue";
 
 const NOW = new Date("2026-06-09T00:00:00.000Z");
@@ -96,5 +99,34 @@ describe("buildTaskRescue (injected loader — no DB)", () => {
       now: NOW,
     });
     expect(r.findings[0].issue).toBe("legacy_inbox");
+  });
+});
+
+describe("GENERAL-anchor visibility (Wire 2)", () => {
+  const row = (over: Partial<AnchorRow>): AnchorRow => ({
+    id: "m", title: "GENERAL BUSINESS", canonicalDomain: "business", domain: "BUSINESS",
+    tasks: [],
+    ...over,
+  });
+
+  it("summarizes open-counts busiest-first with a domain fallback", () => {
+    const out = summarizeAnchorRows([
+      row({ id: "a", title: "GENERAL HEALTH", canonicalDomain: "health", tasks: [{ id: "1" }, { id: "2" }] }),
+      row({ id: "b", title: "GENERAL BUSINESS", canonicalDomain: null, domain: "BUSINESS", tasks: [{ id: "3" }, { id: "4" }, { id: "5" }] }),
+      row({ id: "c", title: "GENERAL SOCIAL", canonicalDomain: null, domain: null, tasks: [] }),
+    ]);
+    expect(out.map((a) => a.missionId)).toEqual(["b", "a", "c"]); // 3 > 2 > 0 open
+    expect(out[0].openCount).toBe(3);
+    expect(out[1].domain).toBe("health");
+    expect(out[0].domain).toBe("BUSINESS"); // falls back to legacy domain when canonical null
+    expect(out[2].domain).toBeNull();
+  });
+
+  it("buildDomainAnchors returns summaries via an injected loader (no DB)", async () => {
+    const out = await buildDomainAnchors({
+      loadAnchorRows: async () => [row({ id: "z", tasks: [{ id: "1" }] })],
+    });
+    expect(out[0].missionId).toBe("z");
+    expect(out[0].openCount).toBe(1);
   });
 });
