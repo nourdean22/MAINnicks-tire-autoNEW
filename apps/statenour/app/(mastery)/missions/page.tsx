@@ -175,7 +175,7 @@ function MissionsPageInner() {
           const currentStreak =
             (task as unknown as { streakCount?: number } | undefined)
               ?.streakCount ?? 0;
-          await updateTask.mutateAsync({
+          const res = await updateTask.mutateAsync({
             id,
             fields: {
               status: "WAITING",
@@ -184,9 +184,14 @@ function MissionsPageInner() {
               streakCount: currentStreak + 1,
             },
           });
-          // Wire #2 · DAILY credits XP server-side on its own cadence; the
-          // streak is the reliable, client-known reward to surface now.
-          const dailyMsg = formatReward({ xp: 0, goalLifted: false, streak: currentStreak + 1 });
+          // Wire 4 · DAILY now credits per-day stat XP server-side; surface the
+          // real reward, falling back to the client-known streak if absent.
+          const dailyReward = (res as unknown as { reward?: TaskReward }).reward ?? {
+            xp: 0,
+            goalLifted: false,
+            streak: currentStreak + 1,
+          };
+          const dailyMsg = formatReward(dailyReward);
           if (dailyMsg) toast.success(dailyMsg);
         } else if (isWeekly) {
           // 2026-06-09 · WEEKLY completes through the unified task.check service
