@@ -1,10 +1,16 @@
 /**
  * FomoTicker — Live Social Proof Notification.
- * Pulls REAL recent activity (bookings, completed jobs, reviews) from the server.
- * Falls back to hardcoded entries when no real data is available.
- * Slides in a small toast from the bottom-left (desktop) or bottom-center (mobile)
- * showing recent activity. Rotates every 30-45s, visible for 5s each.
- * Dismissable permanently via localStorage.
+ * Shows ONLY real recent activity (bookings, completed jobs, reviews) pulled
+ * from the server (`trpc.activity.recent` → server/routers/public.ts:166).
+ * When there is no real activity, it shows NOTHING — it never fabricates.
+ * Slides in a small toast from the bottom-left (desktop) or bottom-center (mobile).
+ * Rotates every 30-45s, visible for 5s each. Dismissable permanently via localStorage.
+ *
+ * 2026 public-UI-quality pass: removed the hardcoded FALLBACK_ENTRIES (invented
+ * bookings + invented 5-star review quotes with fake timestamps). Fabricated
+ * social proof violated the "no fake proof / no fake reviews" guardrail and
+ * undermined the real 4.9-star moat. Now hides rather than fakes — matching
+ * the honest LiveVisitorCounter pattern. See ./fomoEntries.
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -12,28 +18,9 @@ import { X, Star, Clock, Wrench, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { resolveFomoEntries, type FomoEntry } from "./fomoEntries";
 
-// ── Data ─────────────────────────────────────────────────────────────
-
-interface FomoEntry {
-  type: "booking" | "completed" | "review";
-  message: string;
-  minutesAgo: number;
-}
-
-// Hardcoded fallback entries used when real data is not available
-const FALLBACK_ENTRIES: FomoEntry[] = [
-  { type: "completed", message: "A 2020 Honda CR-V just got used tires — in and out in 18 minutes", minutesAgo: 5 },
-  { type: "booking", message: "Someone in Euclid just booked a drop-off for brake repair", minutesAgo: 8 },
-  { type: "completed", message: "A 2018 Chevy Equinox owner never left the car — tire swap done", minutesAgo: 11 },
-  { type: "booking", message: "Someone in Parma just dropped off for a check-engine scan", minutesAgo: 4 },
-  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Didn't even get out of my car. They came out, fixed it, brought the receipt. Amazing.\"", minutesAgo: 25 },
-  { type: "completed", message: "A 2021 Toyota Camry just got brakes done — dropped off this morning", minutesAgo: 15 },
-  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Best tire shop in Cleveland. Used tire mounted, in and out before my coffee got cold.\"", minutesAgo: 40 },
-  { type: "booking", message: "Someone in Cleveland Heights just booked online — skipped the line", minutesAgo: 18 },
-  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Nick and his team are the real deal. Fair prices, honest work.\"", minutesAgo: 55 },
-  { type: "completed", message: "A 2022 Ford Escape just got an oil change — same day drop-off", minutesAgo: 22 },
-];
+// ── Constants ────────────────────────────────────────────────────────
 
 const STORAGE_KEY = "fomo-dismissed";
 const SHOW_DURATION = 5000;
@@ -69,21 +56,17 @@ export default function FomoTicker() {
   const showTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const cycleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // Fetch real activity data from server
+  // Fetch REAL activity data from the server. No fabricated fallback.
   const { data: realActivity } = trpc.activity.recent.useQuery(undefined, {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     refetchInterval: 5 * 60 * 1000,
     retry: 1,
   });
 
-  // Use real data when available, fallback to hardcoded
-  const entriesRef = useRef<FomoEntry[]>(FALLBACK_ENTRIES);
+  // Real activity only — empty when the server has none (ticker then hides).
+  const entriesRef = useRef<FomoEntry[]>([]);
   useEffect(() => {
-    if (realActivity && realActivity.length > 0) {
-      entriesRef.current = realActivity;
-    } else {
-      entriesRef.current = FALLBACK_ENTRIES;
-    }
+    entriesRef.current = resolveFomoEntries(realActivity);
   }, [realActivity]);
 
   // Check localStorage on mount
@@ -110,19 +93,6 @@ export default function FomoTicker() {
 
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  // Shuffle entries once on mount
-  const shuffledOnce = useRef(false);
-  useEffect(() => {
-    if (shuffledOnce.current) return;
-    shuffledOnce.current = true;
-    const shuffled = [...entriesRef.current];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    entriesRef.current = shuffled;
   }, []);
 
   const showNext = useCallback(() => {
