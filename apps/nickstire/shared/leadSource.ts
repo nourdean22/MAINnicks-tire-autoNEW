@@ -110,6 +110,78 @@ export function isOperationalCallerLead(lead: LeadOriginInput): boolean {
   return kind === "duplicateLink" || kind === "phoneCall" || kind === "operationalCallback";
 }
 
+/** Minimal row shapes for the hygiene summary (assignable from Drizzle rows). */
+export interface HygieneLeadRow extends LeadOriginInput {
+  phone?: string | null;
+}
+export interface HygieneCallbackRow {
+  phone?: string | null;
+}
+
+export interface LeadSourceHygieneSummary {
+  totalLeads: number;
+  /** Lead count per operator-facing label (PHONE / CALLBACK / POPUP / ...). */
+  countsByLabel: Record<string, number>;
+  /** source="callback" leads LINKED to a callback_requests row (excluded from money-risk counts). */
+  linkedCallbackDuplicates: number;
+  /** Voice rack-check leads (source="callback", no link) — counted once, never excluded. */
+  voiceLeads: number;
+  /** Leads with a blank/unrecognized source (legacy enum-coercion victims). */
+  blankSourceLeads: number;
+  /** Distinct phone numbers that appear in BOTH the leads list and the callbacks list. */
+  phoneOverlapCount: number;
+}
+
+/** Last-10-digit phone key — tolerates formatting and a leading country code. */
+function phoneKey(phone: string | null | undefined): string | null {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  if (digits.length < 7) return null; // too short to be a real match key
+  return digits.slice(-10);
+}
+
+/**
+ * Read-only hygiene rollup for the admin Leads surface: where leads come
+ * from, how many are operational caller artifacts, and how many people
+ * exist on BOTH the Leads and Callbacks surfaces (duplicate-person signal).
+ * Pure — computed client-side from queries the admin already runs.
+ */
+export function summarizeLeadSourceHygiene(
+  leads: HygieneLeadRow[],
+  callbacks: HygieneCallbackRow[],
+): LeadSourceHygieneSummary {
+  const countsByLabel: Record<string, number> = {};
+  let linkedCallbackDuplicates = 0;
+  let voiceLeads = 0;
+  let blankSourceLeads = 0;
+
+  const leadPhones = new Set<string>();
+  for (const lead of leads) {
+    const label = leadSourceLabel(lead);
+    countsByLabel[label] = (countsByLabel[label] ?? 0) + 1;
+    const kind = classifyLeadOrigin(lead);
+    if (kind === "duplicateLink") linkedCallbackDuplicates++;
+    else if (kind === "phoneCall") voiceLeads++;
+    else if (kind === "unknown") blankSourceLeads++;
+    const key = phoneKey(lead.phone);
+    if (key) leadPhones.add(key);
+  }
+
+  const overlap = new Set<string>();
+  for (const cb of callbacks) {
+    const key = phoneKey(cb.phone);
+    if (key && leadPhones.has(key)) overlap.add(key);
+  }
+
+  return {
+    totalLeads: leads.length,
+    countsByLabel,
+    linkedCallbackDuplicates,
+    voiceLeads,
+    blankSourceLeads,
+    phoneOverlapCount: overlap.size,
+  };
+}
+
 /** Short, distinct operator-facing label for a lead's source. */
 export function leadSourceLabel(lead: LeadOriginInput): string {
   switch (classifyLeadOrigin(lead)) {
