@@ -13,6 +13,7 @@ import {
   isOperationalCallerLead,
   leadSourceLabel,
   countActionableLeads,
+  summarizeLeadSourceHygiene,
 } from "@shared/leadSource";
 
 describe("classifyLeadOrigin", () => {
@@ -113,5 +114,59 @@ describe("countActionableLeads — server-side risk-count exclusion", () => {
 
   it("returns 0 for an empty list", () => {
     expect(countActionableLeads([])).toBe(0);
+  });
+});
+
+describe("summarizeLeadSourceHygiene — read-only admin rollup", () => {
+  it("counts leads per label and classifies the callback cluster", () => {
+    const s = summarizeLeadSourceHygiene(
+      [
+        { source: "popup", phone: "(216) 555-0001" },
+        { source: "callback", callbackId: 7, phone: "2165550002" },                       // linked dup
+        { source: "callback", callbackId: null, utmCampaign: "vapi-rack-check", phone: "2165550003" }, // voice
+        { source: "", phone: "2165550004" },                                               // blank (legacy coercion)
+      ],
+      [],
+    );
+    expect(s.totalLeads).toBe(4);
+    expect(s.countsByLabel["POPUP"]).toBe(1);
+    expect(s.countsByLabel["CALLBACK"]).toBe(1);
+    expect(s.countsByLabel["PHONE"]).toBe(1);
+    expect(s.linkedCallbackDuplicates).toBe(1);
+    expect(s.voiceLeads).toBe(1);
+    expect(s.blankSourceLeads).toBe(1);
+  });
+
+  it("detects phone overlap between leads and callbacks despite formatting", () => {
+    const s = summarizeLeadSourceHygiene(
+      [
+        { source: "popup", phone: "(216) 555-0001" },
+        { source: "chat", phone: "216-555-0009" },
+      ],
+      [
+        { phone: "12165550001" },   // same person, +1 prefix
+        { phone: "2165559999" },    // no lead match
+      ],
+    );
+    expect(s.phoneOverlapCount).toBe(1);
+  });
+
+  it("ignores blank/short phones and returns zeros for empty input", () => {
+    const s = summarizeLeadSourceHygiene(
+      [{ source: "popup", phone: "000" }, { source: "popup", phone: null }],
+      [{ phone: "" }],
+    );
+    expect(s.phoneOverlapCount).toBe(0);
+    const empty = summarizeLeadSourceHygiene([], []);
+    expect(empty.totalLeads).toBe(0);
+    expect(empty.phoneOverlapCount).toBe(0);
+  });
+
+  it("counts overlap as distinct phones, not row pairs", () => {
+    const s = summarizeLeadSourceHygiene(
+      [{ source: "popup", phone: "2165550001" }],
+      [{ phone: "2165550001" }, { phone: "(216) 555-0001" }], // two callback rows, one person
+    );
+    expect(s.phoneOverlapCount).toBe(1);
   });
 });

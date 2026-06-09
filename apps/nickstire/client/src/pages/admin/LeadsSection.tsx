@@ -25,8 +25,9 @@ import { openWalkInQuote } from "@/components/admin/WalkInQuoteDrawer";
 // (velocity / pipeline / SLA-breach action). Composes from the same
 // trpc.lead.list query the parent already runs · no extra round-trip.
 import { LeadsBrief } from "./leads/LeadsBrief";
-// lead-source hygiene — distinct CALLBACK/PHONE badges vs real web leads.
-import { classifyLeadOrigin } from "@shared/leadSource";
+// lead-source hygiene — distinct CALLBACK/PHONE badges vs real web leads
+// + the read-only source rollup (counts, duplicates, phone overlap).
+import { classifyLeadOrigin, summarizeLeadSourceHygiene } from "@shared/leadSource";
 
 // ── Lead type ──
 // 2026-05-23 · widened to match drizzle/schema.ts. The JSX already
@@ -663,6 +664,16 @@ export default function LeadsSection() {
       .sort((a: LeadItem, b: LeadItem) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [leadsData]);
 
+  // Source hygiene rollup — read-only. Reuses lead.list (above) + callback.list.
+  // No refetchInterval: the Admin shell already polls callback.list at 30s
+  // (Admin.tsx), and this observer shares that cache entry — adding our own
+  // interval would only fire redundant off-phase fetches.
+  const { data: callbacksData } = trpc.callback.list.useQuery();
+  const sourceHygiene = useMemo(() => {
+    if (!leadsData) return null;
+    return summarizeLeadSourceHygiene(leadsData, callbacksData ?? []);
+  }, [leadsData, callbacksData]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -834,6 +845,43 @@ export default function LeadsSection() {
       {/* wave-181.x Leads Phase 5 · Category Tabs deleted (chat /
        * callbacks were duplicates of sourceFilter · estimates is
        * reachable via search · ~30 LOC removed). Operator opt-in. */}
+
+      {/* SOURCE HYGIENE — read-only rollup: where leads come from, which
+          rows are caller artifacts, and how many people exist on BOTH the
+          Leads and Callbacks surfaces. No actions, no mutations. */}
+      {sourceHygiene && sourceHygiene.totalLeads > 0 && (
+        <div className="bg-card border border-border/30 rounded-lg px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-[10px] font-bold tracking-wider text-foreground/40 uppercase">Source hygiene</span>
+            {Object.entries(sourceHygiene.countsByLabel)
+              .sort((a, b) => b[1] - a[1])
+              .map(([label, count]) => (
+                <span key={label} className="font-mono text-[10px] text-foreground/60 uppercase tracking-wider">
+                  {label} <span className="text-foreground font-bold">{count}</span>
+                </span>
+              ))}
+          </div>
+          {(sourceHygiene.linkedCallbackDuplicates > 0 || sourceHygiene.phoneOverlapCount > 0 || sourceHygiene.blankSourceLeads > 0) && (
+            <div className="mt-2 space-y-1">
+              {sourceHygiene.linkedCallbackDuplicates > 0 && (
+                <p className="text-[11px] text-amber-400/80">
+                  {sourceHygiene.linkedCallbackDuplicates} callback-linked duplicate{sourceHygiene.linkedCallbackDuplicates > 1 ? "s" : ""} — same person also under Call Tracking; excluded from money-risk counts
+                </p>
+              )}
+              {sourceHygiene.phoneOverlapCount > 0 && (
+                <p className="text-[11px] text-foreground/50">
+                  {sourceHygiene.phoneOverlapCount} phone number{sourceHygiene.phoneOverlapCount > 1 ? "s" : ""} appear{sourceHygiene.phoneOverlapCount > 1 ? "" : "s"} in both Leads and Callbacks
+                </p>
+              )}
+              {sourceHygiene.blankSourceLeads > 0 && (
+                <p className="text-[11px] text-red-400/80">
+                  {sourceHygiene.blankSourceLeads} lead{sourceHygiene.blankSourceLeads > 1 ? "s" : ""} with a blank source (legacy capture bug) — fix shipped; old rows unaffected
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
