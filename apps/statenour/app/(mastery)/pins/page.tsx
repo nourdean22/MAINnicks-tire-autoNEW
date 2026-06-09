@@ -15,7 +15,7 @@
  *   · "remind me" callbacks via reminder action
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
@@ -31,6 +31,7 @@ import { Pin, PinOff, Plus, Edit3, Save, X, Sparkles, AlertCircle } from "lucide
 import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { selectInjectedPinIds } from "@/lib/pins/injected";
 interface PinRow {
   id: string;
   key: string;
@@ -212,6 +213,14 @@ export default function PinsPage() {
     }
   };
 
+  // Which pins actually inject into the system prompt — computed from the
+  // SERVER (injection) order, NOT the display sort, so the "injected" badge
+  // stays correct when the operator re-sorts (e.g. "stalest first").
+  const injectedIds = useMemo(
+    () => selectInjectedPinIds((data?.pins ?? []).map((p) => p.id), data?.stats?.injectedCount),
+    [data],
+  );
+
   return (
     <StandardPage
       eyebrow="NOUR OS · Brain"
@@ -223,6 +232,7 @@ export default function PinsPage() {
       }
       width="lg"
       rhythm="comfortable"
+      loading={loading && !data}
     >
 
       {error && (
@@ -279,7 +289,7 @@ export default function PinsPage() {
             <Stat label="stale" value={data.stats.stalePins} tone="text-amber-300" />
             <Stat label="very stale" value={data.stats.veryStalePins} tone="text-rose-300" />
             <Stat label="injected" value={data.stats.injectedCount} tone="text-sky-300" />
-            <Stat label="prompt tokens" value={data.stats.estimatedPromptTokens} tone="text-violet-300" />
+            <Stat label="prompt tokens" value={data.stats.estimatedPromptTokens} tone="text-[var(--gold)]/80" />
           </div>
         </Panel>
       )}
@@ -317,9 +327,9 @@ export default function PinsPage() {
               default:
                 return 0;
             }
-          }).map((p, idx) => {
+          }).map((p) => {
             const stale = staleness(p.updatedAt);
-            const isInjected = idx < 5;
+            const isInjected = injectedIds.has(p.id);
             const isEditing = editingId === p.id;
             return (
               <Panel
@@ -383,14 +393,14 @@ export default function PinsPage() {
                     <div className="flex gap-1 pt-1">
                       <button
                         onClick={() => startEdit(p)}
-                        className="text-[10px] text-zinc-400 hover:text-zinc-200 inline-flex items-center gap-0.5"
+                        className="text-[10px] text-zinc-400 hover:text-zinc-200 inline-flex items-center gap-0.5 min-h-[44px] px-1 -mx-1"
                       >
                         <Edit3 className="h-3 w-3" /> edit
                       </button>
                       <span className="text-[10px] text-zinc-600">·</span>
                       <button
                         onClick={() => unpin(p.id)}
-                        className="text-[10px] text-rose-400 hover:text-rose-200 inline-flex items-center gap-0.5"
+                        className="text-[10px] text-rose-400 hover:text-rose-200 inline-flex items-center gap-0.5 min-h-[44px] px-1 -mx-1"
                       >
                         <PinOff className="h-3 w-3" /> unpin
                       </button>
