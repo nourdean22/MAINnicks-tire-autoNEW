@@ -48,6 +48,7 @@ import { trackGeneration } from "@/lib/ai/track";
 import { recordInteraction } from "@/lib/ai/memory";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
 import { detectFailedActionClaims } from "@/lib/ai/chat/action-result-verifier";
+import { toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { emptyResponseFallback } from "@/lib/ai/chat/empty-response-fallback";
 import { processConversation } from "@/lib/brain/pipeline-controller";
 import { summarizeAndStoreConversation } from "@/lib/brain/conversation-memory";
@@ -451,6 +452,30 @@ async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                 },
               })
               .catch(() => {});
+
+            // Receipts (Wire 1) · normalize each SIDE-EFFECTING action-block
+            // result into the ActionReceipt contract and persist it as an
+            // `action_receipt` AuditEvent so the F4 receipt feed shows what Nick
+            // actually DID in chat (failures included). Advisory + fire-and-
+            // forget — never blocks the turn, never fabricates (status mirrors
+            // the real result). Reads are skipped (not a "did").
+            await Promise.allSettled(
+              results
+                .map((r) => toReceipt({ toolName: r.action, ok: r.success, error: r.error }))
+                .filter((rcpt) => rcpt.sideEffecting)
+                .map((rcpt) =>
+                  prisma.auditEvent
+                    .create({
+                      data: {
+                        actor: "nick_agent",
+                        eventType: "action_receipt",
+                        detail: rcpt.userVisibleSummary.slice(0, 200),
+                        payload: JSON.parse(JSON.stringify(rcpt)),
+                      },
+                    })
+                    .catch(() => {}),
+                ),
+            );
 
             // Action-write verifier · the action-block analog of the
             // SDK-tool fabrication guard. executeActions runs here in
