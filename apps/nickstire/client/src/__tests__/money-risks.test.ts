@@ -111,4 +111,47 @@ describe("deriveMoneyRisks", () => {
     expect(r.primary).toBe("callbacks");
     expect(r.severity).toBe("medium"); // totalRisks >= 2
   });
+
+  // --- lead-source hygiene: callback artifacts must not double-count ---
+
+  it("excludes a callback-form lead LINKED to a callback row (already counted as a callback)", () => {
+    const r = deriveMoneyRisks(
+      [staleLead({ source: "callback", callbackId: 7, name: "Linked Caller" })],
+      [],
+      NOW,
+    );
+    expect(r.staleLeadCount).toBe(0);
+  });
+
+  it("still counts a voice rack-check callback lead (no callbackId, no callback row)", () => {
+    const r = deriveMoneyRisks(
+      [staleLead({ source: "callback", callbackId: null, utmCampaign: "vapi-rack-check" })],
+      [],
+      NOW,
+    );
+    expect(r.staleLeadCount).toBe(1);
+  });
+
+  it("does NOT double-count one web callback caller: lead + its callback row = 1 risk total", () => {
+    // callback.submit writes BOTH a source=callback lead (callbackId set) AND a
+    // callback_requests row. Pre-fix this counted as 2 risks; now the same
+    // person is 1 (counted as the callback, not also as a stale lead).
+    const r = deriveMoneyRisks(
+      [staleLead({ source: "callback", callbackId: 42, name: "Same Person" })],
+      [waitingCallback({ name: "Same Person" })],
+      NOW,
+    );
+    expect(r.staleLeadCount).toBe(0);
+    expect(r.callbacksWaitingCount).toBe(1);
+    expect(r.totalRisks).toBe(1);
+  });
+
+  it("leaves real web leads (popup/chat) counted as before", () => {
+    const r = deriveMoneyRisks(
+      [staleLead({ source: "popup" }), staleLead({ source: "chat" })],
+      [],
+      NOW,
+    );
+    expect(r.staleLeadCount).toBe(2);
+  });
 });
