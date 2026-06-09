@@ -305,11 +305,14 @@ export const trafficFunnelRouter = router({
           key: "bookings",
           label: "Bookings + Callbacks",
           count: bookingsPlusCallbacks,
-          conversionFromPrev: pct(bookingsPlusCallbacks, actions),
+          // No conversion % from "engaged" — bookings include walk-in/phone/
+          // voice paths that never pass through site engagement, so the ratio
+          // can exceed 100% (it did, the moment the engaged stage stopped
+          // double-counting). Same treatment as the invoices stage below.
+          conversionFromPrev: null,
           sub: `${bookingsTotal} bookings (${bookingsCompleted} completed) · ${callbacks} callbacks`,
-          severity: pct(bookingsPlusCallbacks, actions) >= 20 ? "good"
-            : pct(bookingsPlusCallbacks, actions) >= 8 ? "warn"
-            : "critical",
+          severity: bookingsPlusCallbacks > 0 ? "good" : "warn",
+          note: "Includes walk-in, phone, and voice-agent paths that don't route through site engagement — no honest % exists against the stage above.",
         },
         {
           key: "invoices",
