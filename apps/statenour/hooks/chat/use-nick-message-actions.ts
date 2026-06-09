@@ -52,6 +52,26 @@ function memoryKey(content: string): string {
   return (h >>> 0).toString(36);
 }
 
+/**
+ * Derive a task title from arbitrary message text — first sentence, capped at
+ * 120 chars. Pure + exported so the confirm step and its tests share ONE
+ * definition (this is the naive split that used to fire silently on one tap).
+ */
+export function deriveTaskTitle(text: string): string {
+  return text.split(/[.!?]\s/)[0]?.slice(0, 120) || text.slice(0, 120);
+}
+
+/**
+ * Resolve the operator's confirmed title into the value to create, or null to
+ * abort. null (cancelled) or a blank/whitespace-only edit ⇒ do NOT create —
+ * so the confirm step can never persist an empty task.
+ */
+export function resolveConfirmedTitle(confirmed: string | null): string | null {
+  if (confirmed === null) return null;
+  const t = confirmed.trim();
+  return t.length > 0 ? t : null;
+}
+
 export type NickMessageActions = {
   onCopy: (text: string) => void;
   onCreateTask: (text: string) => Promise<void>;
@@ -61,8 +81,15 @@ export type NickMessageActions = {
 
 export function useNickMessageActions({
   setError,
+  confirmTitle,
 }: {
   setError: (msg: string | null) => void;
+  /**
+   * Optional editable-confirm step shown before a task is created from AI text
+   * (P9 · prevents one-tap junk tasks). Receives the proposed title; returns the
+   * operator's confirmed title, or null to cancel. When omitted, creates directly.
+   */
+  confirmTitle?: (proposedTitle: string) => Promise<string | null>;
 }): NickMessageActions {
   // tRPC mutations · each throws TRPCError on failure, caught by the
   // try/catch below (matching the legacy `!res.ok` branches).
@@ -81,14 +108,24 @@ export function useNickMessageActions({
       // v10.0.28 — toast feedback. Pre-v10.0.28
       // failures were silent (only console.error).
       try {
-        const firstSentence = text.split(/[.!?]\s/)[0]?.slice(0, 120) || text.slice(0, 120);
+        const proposed = deriveTaskTitle(text);
+        // P9 · editable confirm BEFORE persisting — the operator sees and can
+        // fix the AI-derived title (this used to fire silently on one tap, so a
+        // messy first-sentence split became the task title). Cancel or a blank
+        // edit aborts; if no confirm fn is wired the behavior is unchanged.
+        let title = proposed;
+        if (confirmTitle) {
+          const resolved = resolveConfirmedTitle(await confirmTitle(proposed));
+          if (resolved === null) return;
+          title = resolved;
+        }
         // `task.create`'s input is a permissive z.record · the
         // createTaskFromAPI → createTask service re-validates the
         // payload against `taskCreateSchema` (same as the REST route).
         await createTaskMutation.mutateAsync({
-          title: firstSentence,
+          title,
           loopKind: "ONCE",
-          nextPhysicalAction: firstSentence,
+          nextPhysicalAction: title,
           effort: "M15",
           roiScore: 50,
           frictionScore: 30,
@@ -103,7 +140,7 @@ export function useNickMessageActions({
         setTimeout(() => setError(null), 3500);
       }
     },
-    [setError, createTaskMutation],
+    [setError, createTaskMutation, confirmTitle],
   );
 
   const onSaveToBrain = useCallback(
