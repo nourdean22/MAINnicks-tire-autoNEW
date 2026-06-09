@@ -2,10 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   auditEntryToReceipt,
   autonomousActionToReceipt,
+  auditEventToReceipt,
   mergeReceipts,
   buildActionReceiptFeed,
   type AutonomousActionRow,
+  type AgentReceiptRow,
 } from "@/lib/services/action-receipt-feed";
+import { canClaimDone, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import type { AuditEntry } from "@/lib/db/entity-audit";
 
 function audit(over: Partial<AuditEntry>): AuditEntry {
@@ -89,6 +92,7 @@ describe("buildActionReceiptFeed (injected loaders — no DB)", () => {
     const feed = await buildActionReceiptFeed({
       loadAudit: async () => [audit({ id: "t", action: "updated", createdAt: new Date("2026-06-09T11:00:00Z") })],
       loadAutonomous: async () => [auto({ id: "boom", result: "failed", error: "down", createdAt: new Date("2026-06-09T12:00:00Z") })],
+      loadAgentReceipts: async () => [],
     });
     expect(feed.counts.total).toBe(2);
     expect(feed.counts.failed).toBe(1);
@@ -103,6 +107,7 @@ describe("buildActionReceiptFeed (injected loaders — no DB)", () => {
     const feed = await buildActionReceiptFeed({
       loadAudit: async () => Array.from({ length: 60 }, (_, i) => mk(i, new Date("2026-06-09T00:00:00Z"))),
       loadAutonomous: async () => Array.from({ length: 60 }, (_, i) => auto({ id: `x${i}`, result: "failed", error: "e", createdAt: new Date("2026-06-08T00:00:00Z") })),
+      loadAgentReceipts: async () => [],
     });
     expect(feed.items.length).toBe(50);
     expect(feed.counts.total).toBe(50); // not 120
@@ -118,5 +123,51 @@ describe("autonomousActionToReceipt — rejected / forbidden (review fix)", () =
   it("maps a policy-forbidden action to skipped", () => {
     const r = autonomousActionToReceipt(auto({ approval: "auto", result: "forbidden_by_policy", executedAt: new Date() }));
     expect(r.status).toBe("skipped");
+  });
+});
+
+describe("Wire 1 · chat action receipts (auditEventToReceipt + feed)", () => {
+  // A persisted action_receipt row stores a serialized ActionReceipt as payload.
+  const row = (over: Partial<AgentReceiptRow> & { payload?: unknown }): AgentReceiptRow => ({
+    id: "ae1",
+    payload: toReceipt({ toolName: "task.create", ok: true, label: "Call vendor" }),
+    createdAt: new Date("2026-06-09T10:00:00.000Z"),
+    ...over,
+  });
+
+  it("reconstructs a success receipt from a stored payload", () => {
+    const r = auditEventToReceipt(row({}));
+    expect(r?.status).toBe("success");
+    expect(r?.toolName).toBe("task.create");
+    expect(r?.sideEffecting).toBe(true);
+  });
+
+  it("keeps a FAILED action visible (no false done)", () => {
+    const r = auditEventToReceipt(row({ payload: toReceipt({ toolName: "person.update", ok: false, error: "ask first" }) }));
+    expect(r?.status).toBe("failed");
+    expect(canClaimDone(r ? [r] : []).ok).toBe(false); // failed side-effecting blocks a done-claim
+  });
+
+  it("returns null for a junk payload (defensive)", () => {
+    expect(auditEventToReceipt(row({ payload: { nope: 1 } }))).toBeNull();
+    expect(auditEventToReceipt(row({ payload: null }))).toBeNull();
+  });
+
+  it("the feed includes chat action receipts, failures visible, deduped by receiptId", async () => {
+    const r1 = toReceipt({ toolName: "task.create", ok: true, entityId: "t1", label: "A" });
+    const r2 = toReceipt({ toolName: "shop.sendSms", ok: false, error: "gateway down", entityId: "s1", label: "B" });
+    const feed = await buildActionReceiptFeed({
+      loadAudit: async () => [],
+      loadAutonomous: async () => [],
+      loadAgentReceipts: async () => [
+        auditEventToReceipt(row({ id: "a", payload: r1, createdAt: new Date("2026-06-09T10:00:00Z") }))!,
+        auditEventToReceipt(row({ id: "b", payload: r2, createdAt: new Date("2026-06-09T11:00:00Z") }))!,
+        // duplicate of r1 (same receiptId) from a concurrent write — must dedupe
+        auditEventToReceipt(row({ id: "c", payload: r1, createdAt: new Date("2026-06-09T10:00:01Z") }))!,
+      ],
+    });
+    expect(feed.counts.total).toBe(2); // r1 deduped
+    expect(feed.counts.failed).toBe(1);
+    expect(feed.items[0].status).toBe("failed"); // 11:00 newest, the failed SMS
   });
 });

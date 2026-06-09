@@ -137,9 +137,47 @@ export function mergeReceipts(receipts: ActionReceipt[]): ReceiptFeedResult {
   return { items, counts: countByStatus(items) };
 }
 
+/** An AuditEvent row of eventType "action_receipt" — payload is a serialized ActionReceipt. */
+export interface AgentReceiptRow {
+  id: string;
+  payload: unknown;
+  createdAt: Date;
+}
+
+const STATUSES: ReadonlySet<string> = new Set(["success", "failed", "skipped", "needs_approval", "partial"]);
+
+/**
+ * Map a persisted action_receipt AuditEvent row back to an ActionReceipt.
+ * Defensive (payload is Json/unknown) — reconstructs a flat, typed receipt so no
+ * Prisma JsonValue leaks into the feed return (TS2589-safe). Pure.
+ */
+export function auditEventToReceipt(row: AgentReceiptRow): ActionReceipt | null {
+  const p = (row.payload ?? {}) as Record<string, unknown>;
+  if (typeof p.toolName !== "string") return null;
+  const status = (typeof p.status === "string" && STATUSES.has(p.status) ? p.status : "partial") as ReceiptStatus;
+  const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  return {
+    receiptId: str(p.receiptId) ?? `agent_${row.id}`,
+    toolName: p.toolName,
+    category: str(p.category) ?? "action-block",
+    sideEffecting: p.sideEffecting !== false,
+    status,
+    entityType: str(p.entityType),
+    entityId: str(p.entityId),
+    label: str(p.label),
+    userVisibleSummary: str(p.userVisibleSummary) ?? p.toolName,
+    errorSafeMessage: str(p.errorSafeMessage),
+    undoAvailable: p.undoAvailable === true,
+    metadata: undefined,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 export interface ReceiptFeedDeps {
   loadAudit?: (limit: number) => Promise<AuditEntry[]>;
   loadAutonomous?: (limit: number) => Promise<AutonomousActionRow[]>;
+  /** Wire 1 · persisted chat action-block receipts (AuditEvent action_receipt). */
+  loadAgentReceipts?: (limit: number) => Promise<ActionReceipt[]>;
   limit?: number;
 }
 
@@ -154,19 +192,48 @@ async function defaultLoadAutonomous(limit: number): Promise<AutonomousActionRow
   });
 }
 
-/** Build the receipt feed from EntityAudit + AutonomousAction. Read-only. */
+async function defaultLoadAgentReceipts(limit: number): Promise<ActionReceipt[]> {
+  const rows = await prisma.auditEvent.findMany({
+    where: { eventType: "action_receipt" },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: { id: true, payload: true, createdAt: true },
+  });
+  return rows.map(auditEventToReceipt).filter((r): r is ActionReceipt => r != null);
+}
+
+/** Drop duplicate receiptIds (keep the first after the newest-first sort). Pure. */
+function dedupeById(receipts: ActionReceipt[]): ActionReceipt[] {
+  const seen = new Set<string>();
+  const out: ActionReceipt[] = [];
+  for (const r of receipts) {
+    if (seen.has(r.receiptId)) continue;
+    seen.add(r.receiptId);
+    out.push(r);
+  }
+  return out;
+}
+
+/** Build the receipt feed from EntityAudit + AutonomousAction + chat action receipts. Read-only. */
 export async function buildActionReceiptFeed(deps: ReceiptFeedDeps = {}): Promise<ReceiptFeedResult> {
   const limit = deps.limit ?? 50;
   const loadAudit = deps.loadAudit ?? ((l: number) => getGlobalActivity({ limit: l }));
   const loadAutonomous = deps.loadAutonomous ?? defaultLoadAutonomous;
+  const loadAgentReceipts = deps.loadAgentReceipts ?? defaultLoadAgentReceipts;
 
-  const [audits, autos] = await Promise.all([loadAudit(limit), loadAutonomous(limit)]);
+  const [audits, autos, agent] = await Promise.all([
+    loadAudit(limit),
+    loadAutonomous(limit),
+    loadAgentReceipts(limit),
+  ]);
   const receipts = [
     ...audits.map(auditEntryToReceipt),
     ...autos.map(autonomousActionToReceipt),
+    ...agent,
   ];
-  // Sort + slice to `limit` FIRST, then count — so the counts always describe
-  // exactly the items returned (we loaded up to 2×limit across both sources).
-  const items = mergeReceipts(receipts).items.slice(0, limit);
+  // Sort newest-first, dedupe by receiptId, slice to `limit` FIRST, then count —
+  // so the counts always describe exactly the items returned (we load up to
+  // 3×limit across the sources).
+  const items = dedupeById(mergeReceipts(receipts).items).slice(0, limit);
   return { items, counts: countByStatus(items) };
 }
