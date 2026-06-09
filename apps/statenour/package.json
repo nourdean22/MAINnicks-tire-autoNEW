@@ -38,6 +38,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "eval": "tsx tests/eval/run-suite.ts",
+    "eval:memory": "tsx scripts/run-memory-evals.ts",
     "eval:live": "tsx tests/eval/run-suite.ts --live",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
