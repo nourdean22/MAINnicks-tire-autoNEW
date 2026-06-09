@@ -125,7 +125,7 @@ import { useNickMessageActions, postFeedback } from "@/hooks/chat/use-nick-messa
 // needed below for BuilderSandbox + BrowserSandbox.
 import dynamic from "next/dynamic";
 import { ChatHistorySearch } from "@/components/chat/chat-history-search";
-import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirmDialog, usePromptDialog } from "@/components/ui/confirm-dialog";
 import { ConnectionStatus } from "@/components/chat/connection-status";
 import { KeyboardCheatSheet } from "@/components/chat/keyboard-cheat-sheet";
 import { SlashCommandDropdown } from "@/components/chat/slash-command-dropdown";
@@ -1543,6 +1543,10 @@ function Chat() {
   // Now both flows share one confirm-protected path. e.preventDefault
   // / stopPropagation still happen via deleteConvoBase.
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
+  // P9 · editable confirm before creating a task from an AI message (prevents
+  // one-tap junk tasks from a naive title split). Reuses the existing prompt
+  // primitive; the dialog node is mounted next to confirmDialog below.
+  const { prompt, dialog: promptDialog } = usePromptDialog();
   const deleteConvo = useCallback(async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const ok = await confirm({
@@ -1782,7 +1786,16 @@ function Chat() {
   // onCreateTask / onSaveToBrain / onPinToMemory · ~80 LOC of inline
   // async fetch in the messages.map) lifted into useNickMessageActions.
   // postFeedback (per-message body) stays a free function call below.
-  const nickMessageActions = useNickMessageActions({ setError });
+  const nickMessageActions = useNickMessageActions({
+    setError,
+    confirmTitle: (proposed) =>
+      prompt({
+        title: "Create this task?",
+        body: "Edit the title if needed, then confirm. Nothing is created until you do.",
+        defaultValue: proposed,
+        confirmLabel: "Create task",
+      }),
+  });
 
   return (
     <div
@@ -2461,6 +2474,7 @@ function Chat() {
 
       {/* ─── Chat history search (Cmd+F) ─── */}
       {confirmDialog}
+      {promptDialog}
       <ChatHistorySearch
         open={showHistorySearch}
         onClose={() => setShowHistorySearch(false)}
