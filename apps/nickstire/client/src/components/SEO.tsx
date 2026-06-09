@@ -251,6 +251,12 @@ export function trackPhoneClick(source: string) {
  * Use for: PhotoRibbon photo views, sticky-CTA Hold-A-Bay clicks,
  * scroll-depth milestones, anywhere we want signal but a DB row is
  * overkill.
+ *
+ * PII GUARDRAIL (attribution-wave 2026-06): NEVER pass customer name,
+ * phone, email, VIN, or message text in `data`. It is forwarded verbatim
+ * to GA4 + umami (third parties) AND persisted via customerEvents.log,
+ * which has NO server-side sanitization. Safe payload = labels only:
+ * source/surface, CTA label, page type, service slug.
  */
 export function trackEvent(
   eventName: string,

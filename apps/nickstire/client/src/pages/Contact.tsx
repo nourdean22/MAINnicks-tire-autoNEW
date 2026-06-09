@@ -8,7 +8,7 @@ import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { useEffect } from "react";
 import BookingForm from "@/components/BookingForm";
-import { SEOHead, Breadcrumbs } from "@/components/SEO";
+import { SEOHead, Breadcrumbs, trackPhoneClick, trackEvent } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, Navigation } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { Link } from "wouter";
@@ -142,7 +142,7 @@ export default function Contact() {
                       </div>
                       <h3 className="font-bold text-foreground tracking-wider text-sm uppercase">Phone</h3>
                     </div>
-                    <a href={BUSINESS.phone.href} className="font-mono text-2xl text-foreground hover:text-primary transition-colors">
+                    <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("contact-info")} className="font-mono text-2xl text-foreground hover:text-primary transition-colors">
                       {BUSINESS.phone.display}
                     </a>
                     <p className="text-foreground/50 text-sm mt-2">Answered by an actual person at the shop — no phone tree, no call-center. Open hours: under 30 seconds typical. After hours: leave a message, called back first thing next morning.</p>
@@ -162,6 +162,7 @@ export default function Contact() {
                       href={BUSINESS.urls.googleMapsDirectionsNamed}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={() => trackEvent("directions_click", { source: "contact-address" })}
                       className="inline-flex items-center gap-2 mt-3 text-nick-blue-light hover:text-nick-blue-light transition-colors text-sm font-medium"
                     >
                       <Navigation className="w-4 h-4" />

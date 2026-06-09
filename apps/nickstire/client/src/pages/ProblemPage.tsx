@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import { Phone, ChevronRight, AlertOctagon } from "lucide-react";
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
-import { SEOHead, Breadcrumbs } from "@/components/SEO";
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { getProblemBySlug } from "@shared/seo-pages";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
@@ -21,11 +21,10 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
   );
 }
 
-function trackPhoneClick(location: string) {
-  if (typeof window !== "undefined" && window.gtag) {
-    window.gtag("event", "phone_call_click", { event_category: "conversion", event_label: location });
-  }
-}
+// attribution-wave: the private gtag-only trackPhoneClick duplicate was
+// removed — problem-page phone clicks now route through the canonical SEO
+// helper (umami + GA4 "phone_click" + Meta Pixel Contact + call_events DB
+// row with UTM) like every other surface.
 
 function LikelihoodBadge({ likelihood }: { likelihood: string }) {
   const colors = {

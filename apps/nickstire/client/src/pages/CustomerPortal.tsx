@@ -7,8 +7,9 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
-import { SEOHead } from "@/components/SEO";
-import { trackPhoneClick } from "@/lib/analytics";
+// attribution-wave: trackPhoneClick from the canonical SEO helper (was the
+// legacy gtag-only @/lib/analytics path — no Pixel, no call_events DB row).
+import { SEOHead, trackPhoneClick } from "@/components/SEO";
 import { BUSINESS } from "@shared/business";
 import NotificationBar from "@/components/NotificationBar";
 import {

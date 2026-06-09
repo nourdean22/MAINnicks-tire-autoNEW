@@ -6,6 +6,9 @@ import { Star } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
 import BrandMark from "@/components/BrandMark";
+// attribution-wave 2026-06: footer call/text links appear on EVERY page —
+// they were untracked plain anchors, dropping site-wide conversion signal.
+import { trackPhoneClick, trackEvent } from "@/components/SEO";
 // 2026-05-19 · EmailNewsletterCapture import removed · band killed (see render).
 
 const LINK_CLASS = "block text-[13px] text-foreground/60 hover:text-foreground/90 transition-colors duration-200";
@@ -68,12 +71,12 @@ export default function SiteFooter() {
         <div className="container text-center">
           <p className="text-black text-sm sm:text-base font-semibold">
             Car acting up? We can usually fix it same day.{" "}
-            <a href={BUSINESS.phone.href} className="underline hover:no-underline">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("footer-stripe")} className="underline hover:no-underline">
               Call {BUSINESS.phone.display}
             </a>{" "}
             <span className="sm:hidden">
               {" "}or{" "}
-              <a href={`sms:${BUSINESS.phone.raw}`} className="underline hover:no-underline">
+              <a href={`sms:${BUSINESS.phone.raw}`} onClick={() => trackEvent("sms_click", { source: "footer-stripe" })} className="underline hover:no-underline">
                 Text Us
               </a>
             </span>
@@ -108,7 +111,7 @@ export default function SiteFooter() {
               <p className="mt-3 text-foreground/30 text-[13px] leading-relaxed">
                 {BUSINESS.address.full}
               </p>
-              <a href={BUSINESS.phone.href} className="block mt-1 text-foreground/60 hover:text-foreground/90 text-[13px] transition-colors duration-200">
+              <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("footer-brand")} className="block mt-1 text-foreground/60 hover:text-foreground/90 text-[13px] transition-colors duration-200">
                 {BUSINESS.phone.display}
               </a>
               {/* Social links */}

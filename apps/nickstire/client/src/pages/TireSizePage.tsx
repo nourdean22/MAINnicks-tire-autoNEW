@@ -2,7 +2,7 @@ import PageLayout from "@/components/PageLayout";
 import { useParams } from "wouter";
 import { Link } from "wouter";
 import { Phone, ChevronRight, ShieldCheck, Clock, Package, Search } from "lucide-react";
-import { SEOHead, Breadcrumbs } from "@/components/SEO";
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { getTireSizeBySlug, TIRE_SIZE_PAGES, buildTireSizeMetaDescription } from "@shared/tireSizes";
 import { getBuyingGuide } from "@shared/tireSizeContent";
 import { BUSINESS } from "@shared/business";
@@ -10,7 +10,8 @@ import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
 import BookingForm from "@/components/BookingForm";
-import { trackPhoneClick } from "@/lib/analytics";
+// attribution-wave: legacy @/lib/analytics import removed — trackPhoneClick
+// is now the canonical SEO helper (adds Pixel + call_events DB attribution).
 
 export default function TireSizePage() {
   const { size: paramSlug } = useParams<{ size: string }>();

@@ -23,6 +23,12 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { BUSINESS } from "@shared/business";
+// attribution-wave 2026-06: the widget's Call CTA was untracked (its SMS
+// capture was tracked via callback.submit but phone clicks vanished —
+// biasing this surface's read toward SMS). UTM spread added to the
+// callback submission so widget callbacks attribute to channel/campaign.
+import { trackPhoneClick } from "@/components/SEO";
+import { getUtmData } from "@/lib/utm";
 
 const STORAGE_KEY = "urgency-widget-dismissed-until";
 const SCROLL_THRESHOLD = 0.35;
@@ -60,6 +66,9 @@ export default function UrgencyWidget() {
       name: "Urgency-widget visitor",
       phone: phone.trim(),
       sourcePage: window.location.pathname + "?capture=urgency-widget",
+      // Server (callback.submit) already accepts + stores these as nullish
+      // columns; extra keys from getUtmData (gclid etc.) are stripped by zod.
+      ...getUtmData(),
     });
   }
 
@@ -197,6 +206,7 @@ export default function UrgencyWidget() {
                     </button>
                     <a
                       href={BUSINESS.phone.href}
+                      onClick={() => trackPhoneClick("urgency-widget")}
                       className="flex items-center justify-center gap-1.5 rounded border border-foreground/30 text-foreground/80 px-3 py-2 text-xs font-semibold hover:border-primary hover:text-primary transition-colors"
                     >
                       Call
