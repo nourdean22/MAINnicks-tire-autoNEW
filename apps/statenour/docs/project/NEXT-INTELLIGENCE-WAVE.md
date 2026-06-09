@@ -20,8 +20,9 @@ wrong AI behavior** — services + tests first, minimal UI, reuse existing model
 - Generic generative-UI confirm cards (P9).
 - A new system-jobs dashboard — `/system/crons` already exists; improve via runbook.
 - Broad visual polish · big governed-memory migration · new DB tables (unless unavoidable).
-- The broad knowledge→action converter (`8cdf3a87`) already shipped as additive,
-  unwired lib code — **left in place, not extended**; it risked becoming abstract.
+- The broad knowledge→action converter (`8cdf3a87`) shipped as additive lib code.
+  The Wiring Wave (below) gave it ONE narrow, suggestion-only surface — a `/convert`
+  command — rather than extending it into a broad auto-acting feature.
 
 ## Top 5 useful functions (this wave)
 
@@ -57,6 +58,35 @@ explicit-confirmation or receipt-backed; no duplicate audit/task/chat logic.
 - **What:** a SMALL command registry (not a framework) for daily-use commands that call the services above: `/today` (today's 3 + next action + current mission + one warning) · `/rescue` (F3) · `/what-changed` (F2) · `/import-session` (F1) · `/receipts` (F4) · `/stale` (stale docs/tasks/memories).
 - **Rules:** commands call EXISTING services · **no duplicate logic in the chat route** · unknown command → suggestions · routing/intent is pure + testable.
 - **Acceptance:** registry exists · ≥3 commands work end-to-end on the services above · chat route not bloated · routing + unknown-fallback tests.
+
+## Wiring Wave (Wires 1–5) — making F1–F5 reachable
+
+After F1–F5 shipped as services, this wave connected them to real surfaces, one
+wire at a time, each committed + verified separately (typecheck 0 · targeted +
+full suite · guards · build green). No new tables, no prod mutation, no autonomy.
+
+- **Wire 1 — receipts ← real chat actions.** `persist-assistant-turn` writes an
+  `action_receipt` AuditEvent per side-effecting executed action (via the existing
+  `ActionReceipt` contract); `action-receipt-feed` merges that source. Failed actions
+  are visible; advisory only (never blocks chat).
+- **Wire 2 — /missions rescue strip + GENERAL anchors.** `task.missionsHygiene`
+  (read-only) returns `buildTaskRescue` + `buildDomainAnchors`; a self-hiding strip
+  shows rescue findings + per-domain open-counts. Suggestion-only — never auto-moves.
+- **Wire 3 — /system read-only cards.** `system.{changeDigest,memoryEvals,receiptFeed}`
+  + a `/system/digest` page with three read-only cards (what-changed · truth evals ·
+  recent receipts). No duplicate feed.
+- **Wire 4 — DAILY stat XP credit.** DAILY check-offs (updateTask→WAITING) never hit
+  the DONE credit block, so they earned 0 XP. `isDailyCheckoff` gates a per-day
+  idempotent `creditTaskStats` on that path; the reward is returned + toasted. ONCE/
+  WEEKLY/PROMISE unchanged; no double-credit.
+- **Wire 5a — knowledge→action `/convert`.** `convertToAction` (pure, was zero-caller)
+  now has one suggestion-only surface: a `/convert <thought>` command that proposes a
+  next move and flags sensitive intents `requiresApproval`. Never writes.
+- **Wire 5b — people→stats: already wired, not rebuilt.** `lib/mastery/people-credit.ts`
+  already credits relationships/networking/persuasion on ledger deposits + power-plays
+  (callers: `power-plays-runner`, `power-atlas`, `comprehensive-backfill`), via the
+  idempotent `creditStatXp` seam. Audited + left as-is — rebuilding would be redundant
+  and risk the people-intelligence layer.
 
 ## Wave rules (binding)
 - Stay on the branch; **do not push to main** without owner approval.
