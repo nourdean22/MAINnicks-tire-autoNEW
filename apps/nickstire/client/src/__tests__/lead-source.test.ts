@@ -12,6 +12,7 @@ import {
   isCallbackDuplicateLead,
   isOperationalCallerLead,
   leadSourceLabel,
+  countActionableLeads,
 } from "@shared/leadSource";
 
 describe("classifyLeadOrigin", () => {
@@ -84,5 +85,33 @@ describe("leadSourceLabel", () => {
     expect(leadSourceLabel({ source: "popup" })).toBe("POPUP");
     expect(leadSourceLabel({ source: "financing_preapproval" })).toBe("FINANCING_PREAPPROVAL");
     expect(leadSourceLabel({})).toBe("—");
+  });
+});
+
+describe("countActionableLeads — server-side risk-count exclusion", () => {
+  it("excludes a linked callback duplicate lead (already counted as a callback)", () => {
+    expect(countActionableLeads([{ source: "callback", callbackId: 7 }])).toBe(0);
+  });
+
+  it("still counts a voice rack-check callback lead (callbackId null, no callback row)", () => {
+    expect(countActionableLeads([{ source: "callback", callbackId: null, utmCampaign: "vapi-rack-check" }])).toBe(1);
+  });
+
+  it("counts normal web leads (popup / chat / booking)", () => {
+    expect(countActionableLeads([{ source: "popup" }, { source: "chat" }, { source: "booking" }])).toBe(3);
+  });
+
+  it("excludes ONLY the linked callback from a mixed set", () => {
+    const rows = [
+      { source: "popup" },                                                         // real lead -> kept
+      { source: "callback", callbackId: 12 },                                      // linked dup -> excluded
+      { source: "callback", callbackId: null, utmCampaign: "vapi-rack-check" },     // voice -> kept
+      { source: "chat" },                                                          // real lead -> kept
+    ];
+    expect(countActionableLeads(rows)).toBe(3);
+  });
+
+  it("returns 0 for an empty list", () => {
+    expect(countActionableLeads([])).toBe(0);
   });
 });

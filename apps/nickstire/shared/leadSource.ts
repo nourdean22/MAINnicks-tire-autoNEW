@@ -92,6 +92,18 @@ export function isCallbackDuplicateLead(lead: LeadOriginInput): boolean {
   return classifyLeadOrigin(lead) === "duplicateLink";
 }
 
+/**
+ * Count leads for a lead-side pending / stale / urgent risk tally, EXCLUDING
+ * callback-form leads already counted on the Callbacks surface (a linked
+ * callback lead + its callback_requests row are the SAME person). Voice
+ * rack-check leads (callbackId null) and all real web leads still count.
+ * Reused server-side (morningBrief, controlCenter, Nick AI briefs) so every
+ * "pending leads + pending callbacks" summary shares one definition.
+ */
+export function countActionableLeads(leads: LeadOriginInput[]): number {
+  return leads.filter((lead) => !isCallbackDuplicateLead(lead)).length;
+}
+
 /** True for any `source="callback"` lead (web callback, voice, or linked duplicate). */
 export function isOperationalCallerLead(lead: LeadOriginInput): boolean {
   const kind = classifyLeadOrigin(lead);

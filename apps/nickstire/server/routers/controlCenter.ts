@@ -8,6 +8,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 const execAsync = promisify(exec);
 import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits } from "../../drizzle/schema";
+import { countActionableLeads } from "@shared/leadSource";
 import { getGatewayHealth, getAvailableModels } from "../lib/ai-gateway";
 import { z } from "zod";
 
@@ -188,7 +189,7 @@ export const controlCenterRouter = router({
 
       // Parallel urgent item queries (was 4 serial)
       const [staleLeadsArr, staleQuotesArr, failedSmsArr, newLeadsTodayArr] = await Promise.all([
-        d.select({ count: sql<number>`count(*)` }).from(leads)
+        d.select({ source: leads.source, callbackId: leads.callbackId }).from(leads)
           .where(and(eq(leads.status, "new"), sql`${leads.createdAt} < ${yesterday}`)),
         d.select({ count: sql<number>`count(*)` }).from(leads)
           .where(and(eq(leads.status, "contacted"), sql`${leads.createdAt} < ${twoDaysAgo}`)),
@@ -202,14 +203,18 @@ export const controlCenterRouter = router({
             log.warn("[controlCenter] failedSms count query failed", { error: err instanceof Error ? err.message : String(err) });
             return [{ count: 0 }];
           }),
-        d.select({ count: sql<number>`count(*)` }).from(leads)
+        d.select({ source: leads.source, callbackId: leads.callbackId }).from(leads)
           .where(and(eq(leads.status, "new"), gte(leads.createdAt, todayStart))),
       ]);
 
-      const staleLeadsCount = staleLeadsArr[0]?.count ?? 0;
+      // Linked callback-form leads (callbackId set) are the same person as a
+      // callback_requests row counted separately below — exclude them so one
+      // caller isn't both a "stale lead" and a "pending callback". Voice
+      // rack-check leads (callbackId null) still count. See shared/leadSource.ts.
+      const staleLeadsCount = countActionableLeads(staleLeadsArr);
       const staleQuotesCount = staleQuotesArr[0]?.count ?? 0;
       const failedSmsCount = failedSmsArr[0]?.count ?? 0;
-      const newLeadsTodayCount = newLeadsTodayArr[0]?.count ?? 0;
+      const newLeadsTodayCount = countActionableLeads(newLeadsTodayArr);
 
       if (staleLeadsCount > 0) {
         urgentItems.push({
@@ -363,7 +368,7 @@ export const controlCenterRouter = router({
     if (d) {
       // Parallel revenue queries (was 4 serial)
       const [staleLeadsArr, staleQuotesArr, callbacksArr, topOpps, pipelineValue, stalePipelineValue] = await Promise.all([
-        d.select({ count: sql<number>`count(*)` })
+        d.select({ source: leads.source, callbackId: leads.callbackId })
           .from(leads)
           .where(and(eq(leads.status, "new"), sql`${leads.createdAt} < ${yesterday}`)),
         d.select({ count: sql<number>`count(*)` })
@@ -396,7 +401,8 @@ export const controlCenterRouter = router({
           )),
       ]);
 
-      revenueWaiting.staleLeadsCount = staleLeadsArr[0]?.count ?? 0;
+      // Exclude linked callback-form leads (counted as callbacks below). See shared/leadSource.ts.
+      revenueWaiting.staleLeadsCount = countActionableLeads(staleLeadsArr);
       revenueWaiting.staleQuotesCount = staleQuotesArr[0]?.count ?? 0;
       revenueWaiting.pendingCallbacks = callbacksArr[0]?.count ?? 0;
       revenueWaiting.pipelineValueCents = pipelineValue[0]?.total ?? 0;
