@@ -554,6 +554,14 @@ function ProofBankPanel() {
   const [objectionFilter, setObjectionFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Live Google review performance (read-only) — surfaces the REAL social-proof
+  // numbers (rating, count, latest review) above the curated quote bank. Reuses
+  // the existing public reviews.google query (also used by SiteHealthSection +
+  // the public site); no new backend, no mutation, no customer contact.
+  const { data: googleData, isLoading: googleLoading } = trpc.reviews.google.useQuery(undefined, {
+    staleTime: 60 * 60 * 1000,
+  });
+
   // Aggregate all proof quotes from the config
   const allQuotes = useMemo(() => {
     const quotes: (ProofQuote & { configService: string })[] = [];
@@ -627,7 +635,48 @@ function ProofBankPanel() {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
+      {/* Live Google Reviews — real social proof (read-only · trpc.reviews.google) */}
+      <div className="stat-card !p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
+            <Star className="w-3.5 h-3.5 text-amber-400" /> Live Google Reviews
+          </h3>
+          <span className="text-[10px] text-muted-foreground">real-time social proof</span>
+        </div>
+        {googleLoading ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading review data…
+          </div>
+        ) : !googleData ? (
+          <p className="text-sm text-muted-foreground">
+            Live Google review data is unavailable right now. The curated quote bank below is always available.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              <StatCard label="Avg Rating" value={`${(googleData.rating ?? 0).toFixed(1)}★`} icon={<Star className="w-4 h-4" />} color="text-amber-400" />
+              <StatCard label="Total Reviews" value={googleData.totalReviews ?? 0} icon={<MessageSquare className="w-4 h-4" />} color="text-primary" />
+              <StatCard label="Recent Pulled" value={googleData.reviews?.length ?? 0} icon={<Shield className="w-4 h-4" />} />
+            </div>
+            {googleData.reviews?.[0] && (
+              <div className="mt-4 border-t border-border/20 pt-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Latest review</div>
+                <p className="text-sm text-foreground/80 italic">
+                  "{googleData.reviews[0].text.length > 220 ? `${googleData.reviews[0].text.slice(0, 220)}…` : googleData.reviews[0].text}"
+                </p>
+                <div className="text-[11px] text-muted-foreground mt-1">
+                  — {googleData.reviews[0].authorName} · {"★".repeat(Math.max(0, Math.min(5, Math.round(googleData.reviews[0].rating))))} · {googleData.reviews[0].relativeTime}
+                </div>
+              </div>
+            )}
+            <p className="text-[11px] text-primary/80 mt-3">
+              Next move: turn every completed job into a review ask — the Review Requests tab grows this number.
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* Curated quote bank — objection-handling proof for GBP / sales use */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Total Quotes" value={allQuotes.length} icon={<Star className="w-4 h-4" />} />
         <StatCard label="Services Covered" value={Object.keys(PROOF_CONFIG).length} icon={<Shield className="w-4 h-4" />} color="text-blue-400" />
