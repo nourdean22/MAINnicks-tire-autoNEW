@@ -15,6 +15,7 @@ import { emitTaskCompleted } from "@/lib/db/brain-bus-emit";
 import { runAutoLearn, type AutoLearnReport } from "@/lib/services/auto-learn";
 import { emitGoalEventAsync } from "@/lib/brain/goal-events";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
+import type { TaskReward } from "@/lib/mastery/task-reward";
 import { DOMAINS } from "@/lib/mastery/config";
 import { CONFIDENCE } from "@/lib/mastery/scoring-config";
 import { classifyTaskLinkage } from "@/lib/ai/classify-task-linkage";
@@ -779,6 +780,9 @@ export async function updateTask(id: string, input: unknown) {
   // lift · Knowledge insight · Learn tutorial complete). Null when
   // nothing learned · falsy-checked client-side.
   let autoLearnReport: AutoLearnReport | null = null;
+  // Wire #2 · set only on a real DONE transition (with the credited XP). Stays
+  // undefined for non-completion updates → no reward surfaced.
+  let completionReward: TaskReward | undefined;
   if (before !== after) {
     if (after === "DOING") {
       emitTaskEventAsync({ taskId: id, kind: "started", source: "service:updateTask" });
@@ -828,12 +832,17 @@ export async function updateTask(id: string, input: unknown) {
       // 2026-06-01 · credit character-sheet stat XP for EVERY completion
       // (goal-tagged → goal stats · else statHints · else domain inference),
       // scaled by effort/ROI. This is the path that actually moves /stats.
-      void creditTaskStats(result.task.id).catch((err) =>
+      // Await the credit so the REAL credited XP can ride back on the response
+      // for the /missions reward toast. Idempotent per sourceKey (credit still
+      // happens exactly once); .catch ⇒ 0 keeps it non-fatal + never fakes XP.
+      const creditedXp = await creditTaskStats(result.task.id).catch((err) => {
         log.warn("task_stat_credit_failed", {
           taskId: result.task.id,
           error: err instanceof Error ? err.message : String(err),
-        }),
-      );
+        });
+        return 0;
+      });
+      completionReward = { xp: creditedXp, goalLifted: !!existing.goalId, streak: null };
       // currentValue lift stays goal-only (stat crediting handled above).
       if (existing.goalId) {
         void liftGoalOnTaskComplete(existing.goalId, result.task.id).catch(
@@ -953,6 +962,11 @@ export async function updateTask(id: string, input: unknown) {
   // don't know about autoLearn yet.
   if (autoLearnReport) {
     (result.vm as unknown as Record<string, unknown>).autoLearn = autoLearnReport;
+  }
+  // Wire #2 · attach the reward at runtime (same cast pattern as autoLearn) so
+  // the vm type is unchanged — backward-compatible, view-model consumers ignore it.
+  if (completionReward) {
+    (result.vm as unknown as Record<string, unknown>).reward = completionReward;
   }
   return result.vm;
 }
