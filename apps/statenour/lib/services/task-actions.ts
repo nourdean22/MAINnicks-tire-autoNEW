@@ -38,6 +38,7 @@ import { logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
 import { createTask as createTaskService, liftGoalOnTaskComplete } from "@/lib/services/tasks";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
+import type { TaskReward } from "@/lib/mastery/task-reward";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { nextWeekdayOccurrence } from "@/lib/loops/weekday";
@@ -68,6 +69,9 @@ export interface CheckTaskResult {
    *  existed. Client uses this for toast messaging ("completed parent
    *  + 3 subtasks"). */
   childrenCascaded?: number;
+  /** 2026-06-09 · Wire #2 · the reward signal the /missions toast renders
+   *  (real XP credited, goal-lift, streak). Only set on a completion. */
+  reward?: TaskReward;
 }
 
 /**
@@ -206,7 +210,10 @@ export async function checkTask(args: {
     // a daily habit tied to a fitness goal used to credit NOTHING). Per-day
     // keyed so each day's check-off credits once. Goal `currentValue` is NOT
     // incremented for DAILY (a daily habit would inflate concrete progress).
-    void creditTaskStats(id, { perDay: true }).catch(() => {});
+    // Await so the real credited XP can ride back on the response for the
+    // /missions reward toast (idempotent per-day; .catch keeps it non-fatal —
+    // 0 ⇒ no XP claimed). Wire #2.
+    const dailyXp = await creditTaskStats(id, { perDay: true }).catch(() => 0);
 
     let dailyAutoLearn: AutoLearnReport | null = null;
     try {
@@ -233,7 +240,12 @@ export async function checkTask(args: {
       });
     }
 
-    return { ok: true, task: updated, autoLearn: dailyAutoLearn };
+    return {
+      ok: true,
+      task: updated,
+      autoLearn: dailyAutoLearn,
+      reward: { xp: dailyXp, goalLifted: false, streak: updated.streakCount },
+    };
   }
 
   // ── PROMISE broken ──
@@ -342,7 +354,9 @@ export async function checkTask(args: {
 
   // 2026-06-01 · credit character-sheet stat XP for every ONCE/PROMISE
   // completion via /check (goal → goal stats · else statHints · else domain).
-  void creditTaskStats(id).catch(() => {});
+  // Await so the real credited XP rides back for the /missions reward toast
+  // (.catch ⇒ 0, never a fake claim). Wire #2.
+  const onceXp = await creditTaskStats(id).catch(() => 0);
   // CRITICAL pre-existing gap fixed: the /check route (the UI checkbox, the
   // dominant completion path) never lifted the linked goal's currentValue —
   // only the updateTask PATCH path did. So a goal-tagged task completed by
@@ -467,6 +481,7 @@ export async function checkTask(args: {
     timeAdded: timeBump,
     autoLearn: autoLearnReport,
     childrenCascaded,
+    reward: { xp: onceXp, goalLifted: !!task.goalId, streak: null },
   };
 }
 
