@@ -119,3 +119,29 @@ describe("registry shape", () => {
     expect(new Set(names).size).toBe(names.length);
   });
 });
+
+// Wire #1: the chat interceptor fires ONLY when resolveCommand(text).command is
+// non-null. These assertions pin that gate so F5 commands route while existing
+// slash commands + unrelated input pass through to the model (no hijacking).
+describe("chat interceptor routing gate (Wire #1)", () => {
+  const routes = (t: string) => resolveCommand(t).command !== null;
+
+  it("routes every F5 command + alias (with or without args)", () => {
+    for (const t of ["/today", "/rescue", "/what-changed", "/changed", "/receipts", "/stale", "/import-session a log", "/import x"]) {
+      expect(routes(t), t).toBe(true);
+    }
+  });
+
+  it("does NOT hijack existing chat slash commands", () => {
+    for (const t of ["/save note", "/image a cat", "/img x", "/chill", "/strict", "/brain", "/tasks", "/journal", "/pin", "/clear", "/new", "/diagnose"]) {
+      expect(routes(t), t).toBe(false); // → passes through to existing handlers / model
+    }
+  });
+
+  it("does NOT route unknown slash commands or plain chat (they pass through)", () => {
+    expect(routes("/frobnicate")).toBe(false);
+    expect(routes("just a normal message")).toBe(false);
+    // but the registry still has suggestions ready for the /api/system/command path
+    expect(resolveCommand("/frobnicate").suggestions.length).toBeGreaterThan(0);
+  });
+});
