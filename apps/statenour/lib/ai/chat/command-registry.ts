@@ -3,7 +3,8 @@
  * for daily-use slash commands that call the services built in this wave. Pure
  * routing + thin handlers; NO logic duplicated in the chat route.
  *
- * Commands: /today /rescue /what-changed /import-session /receipts /stale.
+ * Commands: /today /rescue /what-changed /import-session /receipts /stale
+ * /convert.
  *
  * parseCommand + resolveCommand are pure (testable). runCommand executes a
  * command via injectable deps (real services by default; stubbed in tests).
@@ -18,6 +19,7 @@ import { buildTaskRescue, type RescueResult } from "@/lib/services/task-rescue";
 import { buildActionReceiptFeed, type ReceiptFeedResult } from "@/lib/services/action-receipt-feed";
 import { buildTodayCompound, type TodayCompound } from "@/lib/services/today-compound";
 import { parseSessionLog, type ParsedSession } from "@/lib/services/session-import";
+import { convertToAction, type ActionSuggestion, type ConvertInput } from "@/lib/knowledge/action-converter";
 
 export interface CommandResult {
   text: string;
@@ -31,6 +33,7 @@ export interface CommandDeps {
   receiptFeed: () => Promise<ReceiptFeedResult>;
   today: () => Promise<TodayCompound>;
   parseSession: (raw: string) => ParsedSession;
+  convert: (input: ConvertInput) => ActionSuggestion;
 }
 
 export interface CommandSpec {
@@ -87,6 +90,21 @@ export function formatSessionDigest(p: ParsedSession): string {
   ].join("\n");
 }
 
+export function formatActionSuggestion(s: ActionSuggestion): string {
+  const lines = [
+    `[${s.kind}] ${s.title}  (conf ${s.confidence.toFixed(2)} · risk ${s.riskLevel})`,
+    s.explanation,
+  ];
+  if (s.kind === "task" && s.nextPhysicalAction) lines.push(`Next: ${s.nextPhysicalAction}`);
+  if (s.suggestedDomain) lines.push(`Domain: ${s.suggestedDomain}`);
+  lines.push(
+    s.requiresApproval
+      ? "⚠ Sensitive — needs your explicit approval before acting. Suggestion only; nothing was created."
+      : "Suggestion only — nothing was created. Act on it yourself if it's right.",
+  );
+  return lines.join("\n");
+}
+
 // ── registry ──────────────────────────────────────────────────────────
 
 export const COMMANDS: CommandSpec[] = [
@@ -134,6 +152,18 @@ export const COMMANDS: CommandSpec[] = [
     run: async (_args, deps) => {
       const f = await deps.receiptFeed();
       return { text: formatReceipts(f), data: f };
+    },
+  },
+  {
+    name: "convert",
+    description: "Turn a thought into a suggested next move (task/rule/decision/...) — suggestion only.",
+    aliases: ["action"],
+    run: async (args, deps) => {
+      if (!args.trim()) {
+        return { text: "Give me a thought to convert, e.g. `/convert I need to call the vendor about the rims`." };
+      }
+      const s = deps.convert({ sourceType: "chat", text: args });
+      return { text: formatActionSuggestion(s), data: s };
     },
   },
   {
@@ -200,6 +230,7 @@ const DEFAULT_DEPS: CommandDeps = {
   receiptFeed: () => buildActionReceiptFeed(),
   today: () => buildTodayCompound(),
   parseSession: (raw) => parseSessionLog(raw),
+  convert: (input) => convertToAction(input),
 };
 
 export interface CommandOutcome {

@@ -99,6 +99,27 @@ describe("runCommand (end-to-end with stubbed services)", () => {
     expect(o.result.text.toLowerCase()).toContain("paste");
   });
 
+  it("runs /convert on an actionable thought (suggestion-only, no write)", async () => {
+    const o = await runCommand("/convert I need to call the vendor about the rims", stubs);
+    expect(o.handled).toBe(true);
+    expect(o.command).toBe("convert");
+    expect(o.result.text).toContain("[task]");
+    expect(o.result.text.toLowerCase()).toContain("suggestion only");
+    expect(o.result.text.toLowerCase()).toContain("nothing was created");
+  });
+
+  it("flags a sensitive /convert with an approval warning", async () => {
+    const o = await runCommand("/convert text Dania that I'm running late", stubs);
+    expect(o.result.text.toLowerCase()).toContain("sensitive");
+    expect(o.result.text.toLowerCase()).toContain("approval");
+  });
+
+  it("/convert with no args prompts for a thought", async () => {
+    const o = await runCommand("/convert", stubs);
+    expect(o.handled).toBe(true);
+    expect(o.result.text.toLowerCase()).toContain("convert");
+  });
+
   it("falls back with suggestions on an unknown command", async () => {
     const o = await runCommand("/frobnicate", stubs);
     expect(o.handled).toBe(false);
@@ -113,9 +134,9 @@ describe("runCommand (end-to-end with stubbed services)", () => {
 });
 
 describe("registry shape", () => {
-  it("has the six expected commands with unique names", () => {
+  it("has the expected commands with unique names", () => {
     const names = COMMANDS.map((c) => c.name);
-    expect(names).toEqual(expect.arrayContaining(["today", "rescue", "what-changed", "import-session", "receipts", "stale"]));
+    expect(names).toEqual(expect.arrayContaining(["today", "rescue", "what-changed", "import-session", "receipts", "stale", "convert"]));
     expect(new Set(names).size).toBe(names.length);
   });
 });
@@ -127,7 +148,7 @@ describe("chat interceptor routing gate (Wire #1)", () => {
   const routes = (t: string) => resolveCommand(t).command !== null;
 
   it("routes every F5 command + alias (with or without args)", () => {
-    for (const t of ["/today", "/rescue", "/what-changed", "/changed", "/receipts", "/stale", "/import-session a log", "/import x"]) {
+    for (const t of ["/today", "/rescue", "/what-changed", "/changed", "/receipts", "/stale", "/import-session a log", "/import x", "/convert a thing", "/action a thing"]) {
       expect(routes(t), t).toBe(true);
     }
   });
