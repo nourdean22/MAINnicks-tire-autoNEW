@@ -26,7 +26,9 @@
     "prepare": "git config core.hooksPath .husky 2>/dev/null || true"
   },
   "devDependencies": {
-    "turbo": "^2.5.8"
+    "@types/node": "25.9.2",
+    "turbo": "^2.5.8",
+    "typescript": "6.0.3"
   },
   "engines": {
     "node": ">=20.0.0"

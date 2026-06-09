@@ -261,6 +261,7 @@ const VENICE_TASK_OVERRIDES: Record<TaskType, Record<string, unknown>> = {
   },
   summary: {
     reasoning_effort: "low",
+    disable_thinking: true,
     // v10.0.481 · 0.3 → 0.45 · operator turned up creativity. Summary
     // gets slightly more room for novel phrasing while still being
     // grounded (reasoning=low + rep_penalty 1.2 keep it tight).
