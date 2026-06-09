@@ -25,6 +25,8 @@ import { openWalkInQuote } from "@/components/admin/WalkInQuoteDrawer";
 // (velocity / pipeline / SLA-breach action). Composes from the same
 // trpc.lead.list query the parent already runs · no extra round-trip.
 import { LeadsBrief } from "./leads/LeadsBrief";
+// lead-source hygiene — distinct CALLBACK/PHONE badges vs real web leads.
+import { classifyLeadOrigin } from "@shared/leadSource";
 
 // ── Lead type ──
 // 2026-05-23 · widened to match drizzle/schema.ts. The JSX already
@@ -50,6 +52,56 @@ interface LeadItem {
   contactNotes?: string | null;
   createdAt: string | Date;
   lastFollowUpAt?: string | Date | null;
+  // Present on the DB row (lead.list = SELECT *); declared so the source
+  // classifier can read them. callbackId distinguishes a web-callback artifact
+  // (linked, has a callback_requests row) from a voice rack-check lead (null).
+  callbackId?: number | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+}
+
+/**
+ * Distinct source badge — lets an operator tell a real website lead from a
+ * callback/voice artifact at a glance (lead-source hygiene audit). `careers`
+ * keeps its JOB APPLICANT pill; source="callback" leads render CALLBACK
+ * (web callback request) or PHONE (voice rack-check) instead of blending in.
+ * `hideWebSource` drops the low-signal "via {source}" line for real leads in
+ * the dense Kanban view (where it was previously invisible anyway).
+ */
+function LeadSourceBadge({ lead, hideWebSource = false }: { lead: LeadItem; hideWebSource?: boolean }) {
+  if (lead.source === "careers") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider font-bold text-purple-400 bg-purple-500/10 border-purple-500/30">
+        JOB APPLICANT
+      </span>
+    );
+  }
+  const origin = classifyLeadOrigin(lead);
+  if (origin === "phoneCall") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider font-bold text-sky-400 bg-sky-500/10 border-sky-500/30">
+        <PhoneCall className="w-3 h-3" /> PHONE
+      </span>
+    );
+  }
+  if (origin === "duplicateLink" || origin === "operationalCallback") {
+    return (
+      <span
+        title={origin === "duplicateLink"
+          ? "Callback request — same person also appears under Call Tracking"
+          : "Callback request"}
+        className="inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider font-bold text-amber-400 bg-amber-500/10 border-amber-500/30"
+      >
+        <PhoneCall className="w-3 h-3" /> CALLBACK
+      </span>
+    );
+  }
+  if (hideWebSource) return null;
+  return (
+    <span className="font-mono text-[10px] text-foreground/30 uppercase tracking-wider">
+      via {lead.source}
+    </span>
+  );
 }
 
 // ── SLA Timer for leads ──
@@ -116,12 +168,8 @@ function KanbanLeadCard({ lead, onUpdate }: {
           <UrgencyBadge score={lead.urgencyScore ?? 3} />
         </div>
 
-        {/* Career badge */}
-        {lead.source === "careers" && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/30">
-            JOB APPLICANT
-          </span>
-        )}
+        {/* Source badge — careers / callback / phone flagged distinctly */}
+        <LeadSourceBadge lead={lead} hideWebSource />
 
         {/* Phone — guard null (tel:null renders a dead link otherwise) */}
         {lead.phone && (
@@ -890,15 +938,7 @@ export default function LeadsSection() {
                         <span className={`inline-flex items-center px-2 py-0.5 border text-[10px] tracking-wider ${LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.color} ${LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.bgColor}`}>
                           {LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.label}
                         </span>
-                        {lead.source === "careers" ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider font-bold text-purple-400 bg-purple-500/10 border-purple-500/30">
-                            JOB APPLICANT
-                          </span>
-                        ) : (
-                          <span className="font-mono text-[10px] text-foreground/30 uppercase tracking-wider">
-                            via {lead.source}
-                          </span>
-                        )}
+                        <LeadSourceBadge lead={lead} />
                         <LeadAge dateStr={lead.createdAt} />
                       </div>
 
