@@ -4,9 +4,9 @@
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import {
-  Activity, BarChart3, CheckCircle2, ExternalLink, Eye, FileSpreadsheet, Gauge, Globe, Loader2, MapPin, PieChart, RefreshCw, Search, Sparkles, Star, TrendingUp, XCircle, Heart
+  Activity, AlertTriangle, BarChart3, CheckCircle2, ExternalLink, Eye, FileSpreadsheet, Gauge, Globe, Loader2, MapPin, PieChart, RefreshCw, Search, Sparkles, Star, TrendingUp, XCircle, Heart
 } from "lucide-react";
-import { PageHeader, ErrorState } from "./shared";
+import { PageHeader, ErrorState, formatDateTime } from "./shared";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
   ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend
@@ -21,6 +21,9 @@ export default function SiteHealthSection() {
   // trends/watchdog every 60s. Poll it here so "Site Health" finally leads with
   // actual system reliability, not just SEO. Pure read of already-computed data.
   const { data: diag } = trpc.adminDashboard.systemDiagnostics.useQuery(undefined, { refetchInterval: 60_000 });
+  // Read-only integration-failure visibility — silent sheets/CAPI/SMS/email
+  // breakage that can lose leads. Safe fields only (raw payloads never exposed).
+  const { data: failData } = trpc.adminDashboard.integrationFailures.useQuery(undefined, { refetchInterval: 60_000 });
 
   if (isLoading) {
     return (
@@ -134,6 +137,68 @@ export default function SiteHealthSection() {
           <p className="text-[11px] text-foreground/40 mt-3">
             Traffic: {diag.requestRate.currentPerMinute}/min now · {diag.requestRate.averagePerMinute}/min avg · {diag.requestRate.peakPerMinute}/min peak
           </p>
+        </div>
+      )}
+
+      {/* ── INTEGRATION FAILURES (read-only) ─────────────────
+          Silent breakage that can lose leads — sheets sync, CAPI, SMS, email.
+          Safe fields only; raw error payloads are never exposed. */}
+      {failData && (
+        <div className="bg-card border border-border/30 p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-bold text-sm tracking-wide text-foreground flex items-center gap-2">
+              <AlertTriangle className={`w-4 h-4 ${failData.counts.leadAffectingUnresolved > 0 ? "text-red-400" : failData.counts.unresolved > 0 ? "text-amber-400" : "text-emerald-400"}`} />
+              INTEGRATION FAILURES
+            </h3>
+            <span className="text-[11px] text-foreground/40">
+              {failData.counts.unresolved} unresolved · {failData.counts.recent} recent
+            </span>
+          </div>
+
+          {failData.failures.length === 0 ? (
+            <div className="flex items-center gap-2 p-3 border border-emerald-500/20 bg-emerald-500/5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span className="text-[13px] text-foreground/70">No integration failures logged — sheets sync, CAPI, SMS &amp; email are clean.</span>
+            </div>
+          ) : (
+            <>
+              {failData.counts.leadAffectingUnresolved > 0 && (
+                <div className="mb-3 border border-red-500/40 bg-red-500/5 p-3 text-[12px] text-red-300">
+                  {failData.counts.leadAffectingUnresolved} unresolved lead-affecting failure{failData.counts.leadAffectingUnresolved === 1 ? "" : "s"} (sheets / CAPI / SMS / email) — a lead may have been lost. Review the rows below.
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 mb-3">
+                {Object.entries(failData.counts.byType).sort((a, b) => b[1] - a[1]).map(([type, n]) => (
+                  <span key={type} className="text-[11px] px-2 py-0.5 rounded bg-foreground/5 border border-border/30 text-foreground/60 capitalize">
+                    {type.replace(/_/g, " ")}: {n}
+                  </span>
+                ))}
+              </div>
+              <div className="space-y-2">
+                {failData.failures.map((f) => (
+                  <div
+                    key={f.id}
+                    className={`flex items-start justify-between gap-3 p-3 border ${f.resolved ? "border-border/20 opacity-60" : f.leadAffecting ? "border-red-500/30" : "border-amber-500/30"}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[12px] font-semibold text-foreground capitalize">{f.failureType.replace(/_/g, " ")}</span>
+                        <span className="text-[10px] text-foreground/40">{f.entityType}{f.entityId != null ? ` #${f.entityId}` : ""}</span>
+                        {f.leadAffecting && !f.resolved && (
+                          <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">LEAD RISK</span>
+                        )}
+                        {f.resolved && (
+                          <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">RESOLVED</span>
+                        )}
+                      </div>
+                      <p className="text-[12px] text-foreground/55 mt-0.5 break-words">{f.message || "—"}</p>
+                    </div>
+                    <span className="text-[10px] text-foreground/40 whitespace-nowrap shrink-0">{formatDateTime(f.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 

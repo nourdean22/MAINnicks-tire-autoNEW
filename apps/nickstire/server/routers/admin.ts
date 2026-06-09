@@ -44,6 +44,20 @@ export const adminDashboardRouter = router({
     return generateDiagnosticReport();
   }),
 
+  /**
+   * Recent integration failures (read-only) — sheets_sync / email / sms / capi /
+   * review_request / reminders / invoice. Surfaces silent breakage that can lose
+   * leads. Returns SAFE fields only: the raw errorDetails payload is never
+   * exposed and the message is scrubbed of key/token text.
+   * See server/integration-failures.ts:getRecentIntegrationFailures.
+   */
+  integrationFailures: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).default(30) }).optional())
+    .query(async ({ input }) => {
+      const { getRecentIntegrationFailures } = await import("../integration-failures");
+      return getRecentIntegrationFailures(input?.limit ?? 30);
+    }),
+
   /** Get recent notification delivery log */
   notificationLog: adminProcedure
     .input(z.object({ limit: z.number().default(50) }).optional())
