@@ -310,7 +310,7 @@ export async function syncFinancingToSheet(application: {
   estimatedAmount?: string | null;
   status: string;
   notes?: string | null;
-}): Promise<boolean> {
+} & SheetAttribution): Promise<boolean> {
   const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
   return appendRow("Financing", [
     now,
@@ -323,6 +323,9 @@ export async function syncFinancingToSheet(application: {
     application.estimatedAmount || "",
     application.status,
     application.notes || "",
+    // attribution tail (cols K-O) — always 5 cells, blank when unknown
+    // (admin counter-logged applications carry no web attribution).
+    ...attributionCells(application),
   ]);
 }
 

@@ -26,6 +26,15 @@ export const financingRouter = router({
         customerEmail: z.string().max(254).optional(),
         sourcePage: z.string().max(500).default("/financing"),
         estimatedAmount: z.string().max(20).optional(),
+        // attribution-holds wave 2026-06 · optional UTM context (same shapes
+        // as lead/callback/booking) so the Financing sheet rows attribute to
+        // channel/campaign. Nullish + optional — no behavior change for
+        // callers that omit them.
+        utmSource: z.string().max(100).nullish(),
+        utmMedium: z.string().max(100).nullish(),
+        utmCampaign: z.string().max(255).nullish(),
+        landingPage: z.string().max(500).nullish(),
+        referrer: z.string().max(500).nullish(),
       })
     )
     .mutation(async ({ input }) => {
@@ -50,6 +59,11 @@ export const financingRouter = router({
           estimatedAmount: input.estimatedAmount,
           status: "Clicked Apply",
           notes: `Applied via ${input.sourcePage}`,
+          utmSource: input.utmSource,
+          utmMedium: input.utmMedium,
+          utmCampaign: input.utmCampaign,
+          landingPage: input.landingPage,
+          referrer: input.referrer,
         });
 
         console.info(
