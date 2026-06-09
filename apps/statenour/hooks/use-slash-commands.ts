@@ -87,6 +87,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/receipts", label: "Recent Actions (what Nick/system did)", icon: "🧾", prompt: "/receipts" },
   { cmd: "/stale", label: "Stale docs + stale tasks summary", icon: "⏳", prompt: "/stale" },
   { cmd: "/import-session", label: "Import a pasted Claude session log", icon: "📥", prompt: "/import-session " },
+  { cmd: "/convert", label: "Convert a thought into a suggested next move", icon: "💡", prompt: "/convert " },
 ];
 
 export function useSlashCommands() {
