@@ -1,10 +1,11 @@
 # NEXT-INTELLIGENCE-WAVE — Statenour
 
-> **Status:** Truth cleanup + first intelligence pass SHIPPED to `main` `c4716a90`
-> (memory evals `ef61c34b` · runbooks `a24d58d1` · action-receipt normalizer
-> `196fd59d` · knowledge→action `8cdf3a87`). **Active now:** the **Useful Function
-> Wave** below (re-scoped 2026-06-09) — built on the isolated branch
-> `statenour-truth-intelligence-wave`, **not pushed** until the owner says so.
+> **Status:** Truth cleanup + first intelligence pass SHIPPED to `main` `c4716a90`.
+> The **Useful Function Wave** (F1–F5) below is now **BUILT + verified on branch
+> `statenour-truth-intelligence-wave`, NOT pushed** (awaiting owner deploy decision):
+> F1 session-importer `a38f2d98` · F2 change-digest `ff2d4cb6` · F3 task-rescue
+> `b4c5505e` · F4 receipt-feed `63edff7b` · F5 command-shortcuts `faca5995`.
+> Gates: typecheck 0 · 225 files/3155 tests · build green · guards clean.
 > Current truth: [`../CURRENT-TRUTH.md`](../CURRENT-TRUTH.md).
 
 ## Re-scope rationale
