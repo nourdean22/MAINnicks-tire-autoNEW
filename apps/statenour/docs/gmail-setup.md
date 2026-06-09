@@ -56,10 +56,10 @@ You already have one (used by NextAuth login). Confirm:
 GMAIL_REFRESH_TOKEN=1//...your-refresh-token-here
 ```
 
-**Vercel production**:
+**Railway production** (service `statenour-web`):
 ```
-vercel env add GMAIL_REFRESH_TOKEN production
-# paste the token when prompted
+# Railway dashboard → statenour-web → Variables → New Variable, or via CLI:
+railway variables --set GMAIL_REFRESH_TOKEN=<token>
 ```
 
 ### 4 · Remove the OAuth Playground redirect URI

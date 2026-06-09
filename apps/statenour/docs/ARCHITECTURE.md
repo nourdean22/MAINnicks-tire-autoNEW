@@ -307,19 +307,19 @@ off by TTL; brain + audit + decision data is `forever`.
 
 ## AI provider chain
 
-Declared in `lib/ai/provider.ts`. Set `AI_PROVIDER` env to pin one.
+**Declared in `lib/ai/provider.ts` — that file is the source of truth. Set `AI_PROVIDER` env to pin one.** The chain *shape* below is illustrative; exact model ids are env-driven and drift, so verify in code rather than citing a model from this diagram.
 
 ```
-Ollama Cloud   (primary · large-context · qwen3-vl:235b-instruct)
+Ollama Cloud   (primary · large-context)
    │   if down:
    ▼
-Venice          (fallback · GLM-4.7-flash-heretic)
+Venice          (fallback · uncensored)
    │   if down:
    ▼
-OpenAI          (GPT-5 fallback)
+OpenAI          (fallback)
    │
    ▼
-Anthropic       (Claude Sonnet 4)
+Anthropic       (fallback)
    │
    ▼
 Gemini          (xAI Grok also installed but unused)

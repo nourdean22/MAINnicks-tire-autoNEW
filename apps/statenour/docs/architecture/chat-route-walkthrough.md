@@ -417,7 +417,7 @@ which context blocks fired for telemetry.
 | Provider  | System prompt cap | Notes                                           |
 |-----------|-------------------|-------------------------------------------------|
 | anthropic | 120k chars        | Claude Sonnet 4.6 · ~200K context window        |
-| venice    | 65k chars         | GLM-4.7-flash · 128K total · raised from 50k    |
+| venice    | 65k chars         | model env-driven (see lib/ai/provider.ts) · 128K total · raised from 50k |
 | ollama    | 65k chars         | (same cap, 1M-context models tolerate more)     |
 | openai    | 65k chars         | gpt-4o-mini · 128K total                        |
 

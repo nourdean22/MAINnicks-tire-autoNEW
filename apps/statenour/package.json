@@ -23,6 +23,7 @@
     "check:env": "tsx scripts/check-env.ts",
     "check:env:prod": "tsx scripts/check-env.ts --prod",
     "check:crons": "tsx scripts/verify-crons.ts",
+    "check:stale-docs": "tsx scripts/check-stale-docs.ts",
     "check:raw-sql": "tsx scripts/audit-raw-sql-columns.ts",
     "check:secrets": "tsx scripts/scan-secrets.ts",
     "check:prompt-injection": "tsx scripts/scan-prompt-injection.ts",

@@ -1,5 +1,11 @@
 # Statenour Consolidation Plan · 2026-05-16
 
+> **🗄 HISTORICAL (superseded 2026-06-09).** Dated 2026-05-16 snapshot. Any
+> "pending" item referencing `vercel.json` or the `statenour-master` /
+> `codex/ollama-local` branches is obsolete — Vercel and those branches are
+> retired (see [`CURRENT-TRUTH.md`](CURRENT-TRUTH.md)). Kept for historical
+> context; do not execute its pending steps.
+
 > **Status**: IN PROGRESS · Waves 46-55 SHIPPED (8 commits · v10.0.529.106 across 1 day) · Waves 56-57 pending
 > **Owner**: Nour
 > **Source**: 18 parallel code-explorer agents covered pages · API/services · crons · schema · components · tech debt · hooks · lib/ai · lib/brain · lib/services+db · integrations · performance/LLM cost · security · tests · dependencies · docs · build/config · file complexity

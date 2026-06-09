@@ -59,17 +59,20 @@ export const REPOS: RepoEntry[] = [
     name: "statenour-os",
     fullName: "nourdean22/statenour-os",
     ring: "personal",
-    tier: "core",
+    tier: "archive",
     purpose:
-      "STATE NOUR · personal OS + AI assistant + command spine. Single source of truth for Nour's life/business operations. Hosts NICK Prime context + brain + crons.",
-    host: "railway",
-    branch: "main",
-    productionUrl: "https://bdnick.info",
-    status: "active",
-    monitored: true,
+      "RETIRED standalone repo. STATE NOUR (personal OS + Nick Prime + brain + crons) now lives in the nourdean22/MAINnicks-tire-autoNEW monorepo at apps/statenour and deploys to bdnick.info from there. Kept here as an archived pointer only.",
+    // 2026-06-09 truth cleanup — corrected from active/core/bdnick.info. The
+    // standalone repo + its statenour-master CI mirror + Vercel are all retired
+    // (see docs/CURRENT-TRUTH.md). bdnick.info now ships from the monorepo.
+    host: "github-only",
+    branch: null,
+    productionUrl: null,
+    status: "archived",
+    monitored: false,
     nickWriteAccess: "none",
-    nextAction: "Track A · NICK_PRIME_PROMPT shadow soak (24-48h)",
-    notes: "Mirror branch statenour-master is fast-forwarded by CI on green push.",
+    nextAction: "Archive on GitHub (retired — superseded by the monorepo)",
+    notes: "Production source moved to apps/statenour in nourdean22/MAINnicks-tire-autoNEW (branch main → Railway → bdnick.info). The statenour-master mirror is retired.",
   },
 
   // ═══ BUSINESS RING — Nick's Tire & Auto ═══
@@ -79,7 +82,7 @@ export const REPOS: RepoEntry[] = [
     ring: "business",
     tier: "core",
     purpose:
-      "Nick's Tire & Auto · public-facing storefront + admin + booking + customer database. Source of truth for shop ops.",
+      "Monorepo hosting BOTH rings: apps/nickstire (Nick's Tire & Auto storefront + admin + booking, → nickstire.org) AND apps/statenour (STATE NOUR personal OS + Nick Prime + brain, → bdnick.info). Branch main auto-deploys both to Railway.",
     // v10.0.43 — corrected from "vercel" to "railway". Cross-checked
     // against ARCHITECTURE.md (Express 4 · tRPC 11 · Drizzle · TiDB ·
     // Railway), REPO-MAP.md deployment matrix, and nickstire-cron-worker
