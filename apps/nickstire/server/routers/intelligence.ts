@@ -63,10 +63,14 @@ export const intelligenceRouter = router({
       rawSql`SELECT id, name, phone, urgencyScore, source FROM leads WHERE status = 'new' AND urgencyScore >= 3 ORDER BY urgencyScore DESC, createdAt ASC LIMIT 10`
     );
     for (const l of hotLeads) {
+      // Display-only clamp (wave-187 UrgencyBadge precedent): legacy rows
+      // store out-of-range urgencyScores (e.g. 34, 42) from before capture
+      // clamping — raw render produced nonsense like "34/5 urgency".
+      const displayScore = Math.min(5, Math.max(1, l.urgencyScore));
       actions.push({
         type: "hot_lead",
-        message: `Call ${l.name || "Unknown"} — hot lead (${l.urgencyScore}/5 urgency, ${l.source || "direct"})`,
-        urgency: Math.min(5, l.urgencyScore + 1),
+        message: `Call ${l.name || "Unknown"} — hot lead (${displayScore}/5 urgency, ${l.source || "direct"})`,
+        urgency: Math.min(5, displayScore + 1),
         actionUrl: "/admin?tab=leads",
         phone: l.phone || null,
       });

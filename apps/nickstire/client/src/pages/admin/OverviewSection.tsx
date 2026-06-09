@@ -369,9 +369,11 @@ export default function OverviewSection() {
             entityId: l.id,
             type: "lead",
             name: l.name || l.email || "Unknown",
-            detail: `${l.source || "Direct"} · Score ${l.urgencyScore || 1}/5`,
+            // Display-only clamp (wave-187 UrgencyBadge precedent) — legacy
+            // out-of-range urgencyScores rendered nonsense like "Score 42/5".
+            detail: `${l.source || "Direct"} · Score ${Math.min(5, Math.max(1, l.urgencyScore || 1))}/5`,
             phone: l.phone,
-            urgency: l.urgencyScore || 2,
+            urgency: Math.min(5, Math.max(1, l.urgencyScore || 2)),
             createdAt: l.createdAt,
             status: l.status,
           });

@@ -902,12 +902,18 @@ export default function LeadsSection() {
       {sourceHygiene && sourceHygiene.totalLeads > 0 && (
         <div className="bg-card border border-border/30 rounded-lg px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-[10px] font-bold tracking-wider text-foreground/40 uppercase">Source hygiene</span>
+            <span
+              title="How each lead ENTERED the system (web form, phone, callback artifact) — origin/type cleanliness, not marketing attribution"
+              className="text-[10px] font-bold tracking-wider text-foreground/40 uppercase cursor-help"
+            >
+              Source hygiene
+            </span>
             {Object.entries(sourceHygiene.countsByLabel)
               .sort((a, b) => b[1] - a[1])
               .map(([label, count]) => (
                 <span key={label} className="font-mono text-[10px] text-foreground/60 uppercase tracking-wider">
-                  {label} <span className="text-foreground font-bold">{count}</span>
+                  {/* raw enum values read as developer-speak (FINANCING_PREAPPROVAL) — display with spaces */}
+                  {label.replace(/_/g, " ")} <span className="text-foreground font-bold">{count}</span>
                 </span>
               ))}
           </div>
@@ -966,7 +972,10 @@ export default function LeadsSection() {
       {leadSourceRollup.length > 0 && (
         <div className="bg-card border border-border/30 px-4 py-3">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-[10px] font-bold tracking-wider uppercase text-foreground/45 shrink-0">
+            <span
+              title="Marketing attribution — which campaign/channel tag (utm_source) each lead carried; direct/untagged = arrived with no campaign tag"
+              className="text-[10px] font-bold tracking-wider uppercase text-foreground/45 shrink-0 cursor-help"
+            >
               Leads by source
             </span>
             {leadSourceRollup.map(s => (
