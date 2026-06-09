@@ -40,6 +40,7 @@ import { schemaProcedures } from "./system/schema";
 import { devicesProcedures } from "./system/devices";
 import { agentsProcedures } from "./system/agents";
 import { notificationsProcedures } from "./system/notifications";
+import { digestProcedures } from "./system/digest";
 
 /**
  * Mechanical decomposition (2026-05-31): the ~105 procedures were moved
@@ -58,4 +59,5 @@ export const systemRouter = router({
   ...devicesProcedures,
   ...agentsProcedures,
   ...notificationsProcedures,
+  ...digestProcedures,
 });

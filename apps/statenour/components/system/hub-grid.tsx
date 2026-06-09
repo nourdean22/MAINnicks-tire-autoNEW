@@ -92,6 +92,14 @@ interface HubCard {
 // (now-dead) cards.
 const CARDS: HubCard[] = [
   {
+    href: "/system/digest",
+    title: "Digest",
+    icon: FileText,
+    group: "ai",
+    description: "What changed · truth scoreboard · recent action receipts (read-only)",
+    chip: () => ({ label: "view", severity: "info" }),
+  },
+  {
     href: "/system/health",
     title: "Diagnostics",
     icon: Stethoscope,
