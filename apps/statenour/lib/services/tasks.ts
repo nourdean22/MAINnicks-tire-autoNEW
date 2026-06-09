@@ -493,26 +493,41 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
     });
     if (!task) return;
 
-    const { resolveInboxMissionId } = await import("@/lib/services/missions");
-    const [inboxId, missions, goals] = await Promise.all([
+    const { resolveInboxMissionId, resolveGeneralAnchorId } = await import("@/lib/services/missions");
+    const { isGeneralAnchor } = await import("@/lib/services/mission-helpers");
+    const [inboxId, missions, goals, recentCorrections] = await Promise.all([
       resolveInboxMissionId(),
       prisma.mission.findMany({
         where: activeOnly(),
-        select: { id: true, title: true, domain: true },
+        // successMetric = the mission's "what done looks like" (its description);
+        // systemKind lets us drop GENERAL anchors from the candidate list.
+        select: { id: true, title: true, domain: true, successMetric: true, systemKind: true },
       }),
       prisma.lifeGoal.findMany({
         where: { status: "active", deletedAt: null },
         select: { id: true, title: true, domain: true },
       }),
+      // Few-shot learning signal · last 15 operator re-files. Empty pre-migration
+      // (table added in 0010) — the .catch keeps classification working regardless.
+      prisma.taskClassificationCorrection
+        .findMany({
+          orderBy: { createdAt: "desc" },
+          take: 15,
+          select: { taskTitle: true, chosenMissionId: true, domain: true },
+        })
+        .catch(() => [] as Array<{ taskTitle: string; chosenMissionId: string | null; domain: string | null }>),
     ]);
 
     // 2026-06-01 · treat ALL inbox-variant missions as "unclassified", not
     // just the canonical m-inbox. The operator runs "Inbox", "Inbox - health",
     // "Inbox - business"… — a task in any of them should still be offered a
     // real mission (data-profile finding).
+    // "Unclassified" buckets = legacy Inbox variants AND the GENERAL anchors.
+    // A task in any of them is still eligible for a SPECIFIC mission, and none
+    // of them should be offered as a specific-match target.
     const inboxIds = new Set<string>([inboxId]);
     for (const m of missions) {
-      if (/^inbox\b/i.test(m.title ?? "")) inboxIds.add(m.id);
+      if (/^inbox\b/i.test(m.title ?? "") || isGeneralAnchor(m)) inboxIds.add(m.id);
     }
     const missionUnset = !task.missionId || inboxIds.has(task.missionId);
     const goalUnset = !task.goalId;
@@ -523,10 +538,20 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
     const result = await classifyTaskLinkage({
       taskTitle: task.title,
       nextPhysicalAction: task.nextPhysicalAction,
-      // Don't offer any inbox variant as a target — they ARE "unclassified".
-      missions: missions.filter((m) => !inboxIds.has(m.id)),
+      // Don't offer inbox variants OR GENERAL anchors — they're the fallback,
+      // not a "pick me" project. Pass each mission's successMetric as its
+      // description (richer signal for specific-vs-general).
+      missions: missions
+        .filter((m) => !inboxIds.has(m.id))
+        .map((m) => ({ id: m.id, title: m.title, domain: m.domain, description: m.successMetric })),
       goals,
       stats: DOMAINS.map((d) => ({ key: d.key, label: d.label })),
+      // Few-shot from the operator's recent re-files (empty until 0010 + corrections capture).
+      recentExamples: recentCorrections.map((c) => ({
+        taskTitle: c.taskTitle,
+        missionTitle: missions.find((m) => m.id === c.chosenMissionId)?.title ?? "a mission",
+        domain: c.domain,
+      })),
     });
 
     // Compare-and-set, one conditional write per field the classifier filled.
@@ -578,6 +603,25 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
           },
         })
         .catch(() => {});
+    }
+
+    // 2026-06-09 · DOMAIN ANCHOR FALLBACK. When no specific mission is even a
+    // chip-worthy suggestion, route the task out of the generic Inbox into its
+    // canonical domain's GENERAL anchor (a real, visible per-domain bucket)
+    // instead of leaving it unsorted — the "wrong/no bucket" fix. No-op
+    // pre-seed (resolveGeneralAnchorId returns null) → task stays in Inbox.
+    const hasSpecificSuggestion =
+      !!result.missionId && result.confidence >= CONFIDENCE.chipFloor;
+    if (missionUnset && !hasSpecificSuggestion) {
+      const anchorId = await resolveGeneralAnchorId(result.domain);
+      if (anchorId) {
+        await prisma.task
+          .updateMany({
+            where: { id: taskId, missionId: { in: [...inboxIds] } },
+            data: { missionId: anchorId },
+          })
+          .catch(() => {});
+      }
     }
   } catch (err) {
     log.warn("enrich_task_linkage_failed", {
