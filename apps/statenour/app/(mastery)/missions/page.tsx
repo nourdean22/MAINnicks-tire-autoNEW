@@ -35,7 +35,7 @@ import { Suspense, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { logger as rootLogger } from "@/lib/logger";
-import { formatReward } from "@/lib/mastery/task-reward";
+import { formatReward, type TaskReward } from "@/lib/mastery/task-reward";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { OmniCaptureModal } from "@/components/actions/omni-capture-modal";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
@@ -187,13 +187,21 @@ function MissionsPageInner() {
           // streak is the reliable, client-known reward to surface now.
           const dailyMsg = formatReward({ xp: 0, goalLifted: false, streak: currentStreak + 1 });
           if (dailyMsg) toast.success(dailyMsg);
-        } else {
-          // WEEKLY + ONCE/PROMISE both complete through the unified task.check
-          // service (WEEKLY needs server-side nextWeekdayOccurrence; routing
-          // ONCE here too gives it the same canonical completion + the reward
-          // envelope). It returns the real credited XP / goal-lift / streak.
+        } else if (isWeekly) {
+          // 2026-06-09 · WEEKLY completes through the unified task.check service
+          // (it computes nextWeekdayOccurrence(recurringDays) + parks the task
+          // WAITING until its next weekday — the client can't, recurringDays is
+          // lazy-loaded server-side). CheckTaskResult carries the typed reward.
           const res = await checkTaskMut.mutateAsync({ id, action: "complete" });
           const msg = formatReward(res.reward);
+          if (msg) toast.success(msg);
+        } else {
+          // ONCE/PROMISE → status DONE via updateTask (unchanged semantics). The
+          // service attaches `reward` at runtime on the DONE transition (same
+          // cast pattern as autoLearn), so read it via a cast.
+          const res = await updateTask.mutateAsync({ id, fields: { status: "DONE" } });
+          const reward = (res as unknown as { reward?: TaskReward }).reward;
+          const msg = formatReward(reward);
           if (msg) toast.success(msg);
         }
         await refetchAll();
