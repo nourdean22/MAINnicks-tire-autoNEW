@@ -52,6 +52,9 @@ import { MorningBrief } from "./today/MorningBrief";
 // no fake empty state) · placed between Priority Queue + chevron so
 // it's above the fold for ops scanning post-shipment lift.
 import { WaveMetricWins } from "./today/WaveMetricWins";
+// wave-2 money-visibility · "what's at risk before it costs money today" ·
+// derives from the same overviewMediumBundle (cache-shared · no new query).
+import { TodaysMoneyRisks } from "./today/TodaysMoneyRisks";
 import type {
   BookingItem, LeadItem, CallbackItem, WorkOrderItem,
   NBAAction, AtRiskWhale, ShopFloorData, ActionItem,
@@ -654,6 +657,9 @@ export default function OverviewSection() {
           )}
         </button>
       </div>
+
+      {/* ─── MONEY AT RISK TODAY · clear it before it costs us ─── */}
+      <TodaysMoneyRisks />
 
       {/* ─── WHAT TO DO NOW · server-ranked NBA strip ─── */}
       <NextBestActions />
