@@ -228,6 +228,13 @@ model Mission {
   deadline           DateTime?
   weeklyReviewNote   String?            @db.Text
   manualRankOverride Int?
+  /// 2026-06-09 · domain-anchored missions. systemKind="GENERAL" marks a
+  /// system-managed per-domain anchor (the classifier's catch-all · protected
+  /// from delete · excluded from project caps/counts). canonicalDomain is one
+  /// of the 6 life domains (health/mind/business/social/spiritual/personal) —
+  /// the real routing key; the legacy `domain` enum stays for back-compat.
+  systemKind         String?            @map("system_kind") @db.VarChar(16)
+  canonicalDomain    String?            @map("canonical_domain") @db.VarChar(24)
   /// v7.8 · Apr 29 · Universal audit. Who created vs who last
   /// updated. Values: "user" (explicit Nour click) · "nick" (AI
   /// agent action) · "cron:<jobName>" · "bridge:<system>" · "system".
@@ -294,6 +301,23 @@ model MissionLink {
   @@index([targetId], map: "mission_links_target_idx")
   @@index([createdAt(sort: Desc)], map: "mission_links_created_at_idx")
   @@map("mission_links")
+}
+
+/// 2026-06-09 · classifier learning signal. Every time the operator re-files a
+/// task into a different mission, we log (taskTitle → chosenMission/domain).
+/// The task classifier injects the most-recent N as few-shot examples so it
+/// adapts to the operator's filing patterns (no training/infra). Append-only.
+model TaskClassificationCorrection {
+  id              String   @id @default(cuid())
+  taskTitle       String   @map("task_title") @db.Text
+  chosenMissionId String?  @map("chosen_mission_id")
+  /// Canonical domain of the chosen mission at re-file time (health/mind/…).
+  domain          String?  @db.VarChar(24)
+  createdBy       String?  @default("user") @map("created_by") @db.VarChar(64)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt(sort: Desc)], map: "task_classification_corrections_created_at_idx")
+  @@map("task_classification_corrections")
 }
 
 model Task {
