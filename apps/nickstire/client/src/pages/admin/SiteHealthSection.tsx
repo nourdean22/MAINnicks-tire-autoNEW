@@ -7,6 +7,7 @@ import {
   Activity, AlertTriangle, BarChart3, CheckCircle2, ExternalLink, Eye, FileSpreadsheet, Gauge, Globe, Loader2, MapPin, PieChart, RefreshCw, Search, Sparkles, Star, TrendingUp, XCircle, Heart
 } from "lucide-react";
 import { PageHeader, ErrorState, formatDateTime } from "./shared";
+import { deriveSheetsSyncHealth, type SheetsSyncStatus } from "./siteHealth/sheetsSyncHealth";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
   ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend
@@ -67,6 +68,17 @@ export default function SiteHealthSection() {
       </div>
     );
   }
+
+  // wave-2 · derive Sheets/CRM sync trust from the (already-queried) integration-
+  // failure feed. Pure mapper — sheets-sync logs failures only, so "Healthy" means
+  // "no recent failures logged", never a fabricated last-success.
+  const sheetsSync = deriveSheetsSyncHealth(failData);
+  const sheetsSyncMeta: Record<SheetsSyncStatus, { label: string; pill: string; icon: string }> = {
+    healthy: { label: "Healthy", pill: "text-emerald-400 bg-emerald-500/10", icon: "text-emerald-400" },
+    warning: { label: "Warning", pill: "text-amber-400 bg-amber-500/10", icon: "text-amber-400" },
+    failing: { label: "Failing", pill: "text-red-400 bg-red-500/10", icon: "text-red-400" },
+    unknown: { label: "Unknown", pill: "text-foreground/50 bg-foreground/5", icon: "text-foreground/40" },
+  };
 
   return (
     <div className="space-y-8">
@@ -201,6 +213,79 @@ export default function SiteHealthSection() {
           )}
         </div>
       )}
+
+      {/* ── SHEETS SYNC HEALTH (read-only) ───────────────────
+          Is the Google Sheets / CRM sync trustworthy or silently stale?
+          server/sheets-sync.ts is fire-and-forget and logs FAILURES only (no
+          last-success signal), so this derives from the same integration-failure
+          feed above, filtered to sheets_sync. "Healthy" = no recent failures
+          logged — never a fabricated success/timestamp. */}
+      <div className="bg-card border border-border/30 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-sm tracking-wide text-foreground flex items-center gap-2">
+            <FileSpreadsheet className={`w-4 h-4 ${sheetsSyncMeta[sheetsSync.status].icon}`} />
+            SHEETS SYNC HEALTH
+          </h3>
+          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${sheetsSyncMeta[sheetsSync.status].pill}`}>
+            {sheetsSyncMeta[sheetsSync.status].label}
+          </span>
+        </div>
+
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between text-[13px]">
+            <span className="text-foreground/50">Affected source</span>
+            <span className="text-foreground/75">Google Sheets / CRM</span>
+          </div>
+
+          {/* HONESTY · sheets-sync tracks no last-success timestamp or row count. */}
+          <p className="text-[12px] text-foreground/40">Last successful sync not tracked yet.</p>
+
+          {sheetsSync.status === "unknown" && (
+            <p className="text-[12px] text-foreground/50">Integration log not loaded yet — status unavailable.</p>
+          )}
+
+          {sheetsSync.lastFailure && (
+            <div className={`p-3 border ${sheetsSync.lastFailure.resolved ? "border-border/20" : "border-red-500/30 bg-red-500/5"}`}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[12px] font-semibold text-foreground">Last failure</span>
+                {sheetsSync.lastFailure.resolved ? (
+                  <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">RESOLVED</span>
+                ) : (
+                  <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">UNRESOLVED</span>
+                )}
+                <span className="ml-auto text-[10px] text-foreground/40 whitespace-nowrap">{formatDateTime(sheetsSync.lastFailure.createdAt)}</span>
+              </div>
+              <p className="text-[12px] text-foreground/55 mt-0.5 break-words">{sheetsSync.lastFailure.message || "—"}</p>
+            </div>
+          )}
+
+          {/* Next action — only when the evidence supports it. */}
+          {sheetsSync.status === "failing" && (
+            <div className="flex items-start gap-2 p-2.5 border border-red-500/30 bg-red-500/5">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+              <span className="text-[12px] text-red-300">Next · investigate Sheets credentials — a recent sync failed and is unresolved.</span>
+            </div>
+          )}
+          {sheetsSync.status === "warning" && (
+            <div className="flex items-start gap-2 p-2.5 border border-amber-500/30 bg-amber-500/5">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+              <span className="text-[12px] text-amber-300">Next · watch the next sync — a recent failure was marked resolved.</span>
+            </div>
+          )}
+          {sheetsSync.status === "healthy" && (
+            <div className="flex items-center gap-2 p-2.5 border border-emerald-500/20 bg-emerald-500/5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="text-[12px] text-foreground/70">No recent Sheets sync failures logged.</span>
+            </div>
+          )}
+
+          {health.sheetsUrl && (
+            <a href={health.sheetsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12px] text-primary hover:text-primary/80">
+              Check Google Sheet <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      </div>
 
       {/* Domain Status */}
       <div className="bg-card border border-border/30 p-6">
