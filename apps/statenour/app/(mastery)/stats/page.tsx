@@ -109,7 +109,7 @@ export default function StatsPage() {
           </div>
 
           {/* ② WHERE YOU'RE GOING · the goals surface (interactive GoalBoard). */}
-          <section className="mt-8 space-y-3">
+          <section id="goals" className="mt-8 space-y-3 scroll-mt-24">
             <MasterySectionLabel label="Goals · what you're climbing toward" />
             <GoalBoard />
           </section>

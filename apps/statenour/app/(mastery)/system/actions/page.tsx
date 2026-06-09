@@ -195,7 +195,7 @@ export default function ActionsPage() {
             onClick={() => setWin(w)}
             className={cn(
               "rounded-full px-3 py-1 text-xs transition",
-              win === w ? "bg-violet-500/20 text-violet-200" : "bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800/60",
+              win === w ? "bg-[var(--gold)]/15 text-[var(--gold)]" : "bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800/60",
             )}
           >
             {w}
@@ -248,7 +248,7 @@ export default function ActionsPage() {
                 onClick={() => setRuleFilter(r.ruleName)}
                 className={cn(
                   "grid w-full grid-cols-[auto_1fr_auto_auto_auto] items-center gap-3 rounded-lg border border-zinc-800/40 bg-[var(--bg-raised)]/[0.02] px-3 py-2 text-left transition hover:border-zinc-700/60 hover:bg-white/[0.03]",
-                  ruleFilter === r.ruleName && "border-violet-500/40 bg-violet-500/[0.04]",
+                  ruleFilter === r.ruleName && "border-[var(--gold)]/40 bg-[var(--gold)]/[0.04]",
                 )}
               >
                 <SuccessRing rate={r.successRate} />

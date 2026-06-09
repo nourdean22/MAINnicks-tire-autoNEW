@@ -366,7 +366,7 @@ function KnowledgeRefreshPanel() {
             "rounded-md border px-3 py-1.5 text-xs font-medium transition",
             refreshing
               ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
-              : "border-violet-500/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/15",
+              : "border-[var(--gold)]/40 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15",
           )}
         >
           {refreshing ? "refreshing…" : "refresh now"}
