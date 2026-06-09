@@ -6,7 +6,7 @@
 
 import PageLayout from "@/components/PageLayout";
 import { Link } from "wouter";
-import { SEOHead, Breadcrumbs } from "@/components/SEO";
+import { SEOHead, Breadcrumbs, trackPhoneClick, trackEvent } from "@/components/SEO";
 import { CITIES } from "@shared/cities";
 import { NEIGHBORHOODS } from "@shared/neighborhoods";
 // 2026-05-19 · INTERSECTIONS import removed · 154-page intersection
@@ -186,6 +186,7 @@ export default function AreasServed() {
                 action; Get Directions for "I'm pulling up"; drop-off kept. */}
             <a
               href={BUSINESS.phone.href}
+              onClick={() => trackPhoneClick("areas-served")}
               className="inline-flex items-center justify-center px-6 py-3 bg-[#FDB913] text-black font-semibold text-sm hover:bg-[#FDB913]/90 transition-colors"
             >
               Call {BUSINESS.phone.display}
@@ -194,6 +195,7 @@ export default function AreasServed() {
               href={BUSINESS.urls.googleMapsDirections}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => trackEvent("directions_click", { source: "areas-served" })}
               className="inline-flex items-center justify-center gap-2 px-6 py-3 border border-border/30 text-foreground/70 font-medium text-sm hover:border-[#FDB913]/40 transition-colors"
             >
               <Navigation className="w-4 h-4" />

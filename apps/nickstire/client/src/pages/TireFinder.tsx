@@ -9,8 +9,11 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import PageLayout from "@/components/PageLayout";
-import { SEOHead, Breadcrumbs } from "@/components/SEO";
-import { trackPhoneClick } from "@/lib/analytics";
+// attribution-wave: trackPhoneClick now comes from the canonical SEO helper
+// (umami + GA4 "phone_click" + Meta Pixel Contact + call_events DB row with
+// UTM) instead of the legacy gtag-only @/lib/analytics path — tire-buyer
+// phone clicks were invisible to the admin call dashboard before this.
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 // wave-fix-2026-05-28 (SEO-AEO parity) · /tires was the highest-impression
 // money page lacking FAQPage JSON-LD that /brakes + oil + alignment already

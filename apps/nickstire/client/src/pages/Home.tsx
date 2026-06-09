@@ -10,7 +10,7 @@ import FinancingCTA from "@/components/FinancingCTA";
 import LeadPopup from "@/components/LeadPopup";
 import ComparisonTable from "@/components/ComparisonTable";
 import PageLayout from "@/components/PageLayout";
-import { SEOHead, trackPhoneClick } from "@/components/SEO";
+import { SEOHead, trackPhoneClick, trackEvent } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Disc, Activity, Wrench, Zap, AlertTriangle, Snowflake } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
@@ -303,6 +303,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
                 each deserves a primary CTA. */}
             <Link
               href="/tires"
+              onClick={() => trackEvent("tire_quote_cta_click", { source: "hero" })}
               className="group relative inline-flex items-center bg-[#FDB913] text-[#0A0A0A] pl-7 pr-2 py-2 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913] hover:shadow-[0_6px_32px_rgba(253,185,19,0.55)] active:scale-[0.98]"
               aria-label="Order tires online from Nick's Tire and Auto"
             >
@@ -313,6 +314,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             </Link>
             <a
               href="#booking"
+              onClick={() => trackEvent("booking_cta_click", { source: "hero" })}
               className="group relative inline-flex items-center bg-[#FDB913] text-[#0A0A0A] pl-7 pr-2 py-2 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913] hover:shadow-[0_6px_32px_rgba(253,185,19,0.55)] active:scale-[0.98] btn-premium"
               aria-label="Schedule a drop-off at Nick's Tire and Auto"
             >
@@ -341,6 +343,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               href="https://www.google.com/maps/dir//Nick's+Tire+And+Auto+Euclid,+17625+Euclid+Ave,+Cleveland,+OH+44112"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => trackEvent("directions_click", { source: "hero" })}
               className="group inline-flex items-center justify-center gap-2 border-2 border-[#FDB913]/40 text-[#FDB913]/90 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913]/10 hover:border-[#FDB913]/70 hover:text-[#FDB913] active:scale-[0.98] btn-premium"
               aria-label="Get directions to Nick's Tire and Auto on Euclid Ave"
             >

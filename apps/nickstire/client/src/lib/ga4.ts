@@ -158,6 +158,11 @@ export function trackChatInteraction(action: 'start' | 'message' | 'convert', da
 
 /**
  * Track a search/diagnosis action
+ *
+ * WARNING (attribution-wave 2026-06): `query` is sent verbatim to GA4.
+ * Free-text search input can contain phone numbers/names typed by
+ * customers — sanitize before calling. Currently DEAD CODE (zero
+ * production callers); if you wire it up, strip digits/emails first.
  */
 export function trackSearch(query: string, data?: {
   resultCount?: number;
