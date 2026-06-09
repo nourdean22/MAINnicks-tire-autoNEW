@@ -11,6 +11,9 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 type CallEvent = RouterOutputs["callTracking"]["list"][number];
 type Callback = NonNullable<RouterOutputs["callback"]["list"]>[number];
 import { StatCard, CHART_COLORS, CHART_THEME, PageHeader, SectionInsightStrip, formatDateTime, LoadingState } from "./shared";
+// landingPage stores the full href — render the pathname only (same treatment
+// as the Leads attribution chips from the revenue-attribution wave).
+import { normalizePathname } from "@shared/attribution";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
@@ -128,7 +131,7 @@ export default function CallTrackingSection() {
     <div className="space-y-6">
       <PageHeader
         title="Call Tracking"
-        subtitle="Phone-click attribution, callback queue, missed-call recovery. Twilio webhook fires the moment a call status changes."
+        subtitle="Phone-click attribution, callback queue, missed-call recovery. Rows are tel: clicks captured on the site — not carrier call logs."
         icon={<PhoneCall className="w-5 h-5" />}
       />
       <DegradedDataBanner stats={stats} />
@@ -377,7 +380,7 @@ export default function CallTrackingSection() {
             <PhoneCall className="w-3.5 h-3.5 text-primary" />
             Recent Call Events
           </h3>
-          <p className="text-[10px] text-muted-foreground/50 mt-0.5">Every phone click on the site with source attribution</p>
+          <p className="text-[10px] text-muted-foreground/50 mt-0.5">Most recent {calls?.length ?? 0} phone clicks on the site with source attribution</p>
         </div>
         {!calls || calls.length === 0 ? (
           <div className="p-8 text-center">
@@ -390,7 +393,9 @@ export default function CallTrackingSection() {
               <thead>
                 <tr className="bg-foreground/[0.03]">
                   <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Page</th>
+                  {/* sourcePage holds the CTA placement label (e.g. mobile-cta-bar), not a URL — header says so */}
+                  <th className="text-left p-3 font-medium text-muted-foreground">CTA</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Landing Page</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Source</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Medium</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Campaign</th>
@@ -402,6 +407,7 @@ export default function CallTrackingSection() {
                   <tr key={call.id} className="border-t border-border/10 hover:bg-foreground/[0.02]">
                     <td className="p-3 font-mono text-foreground">{call.phoneNumber}</td>
                     <td className="p-3 text-foreground/70">{call.sourcePage || "—"}</td>
+                    <td className="p-3 text-foreground/70">{call.landingPage ? normalizePathname(call.landingPage) : "—"}</td>
                     <td className="p-3">
                       {call.utmSource ? (
                         <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-medium">{call.utmSource}</span>

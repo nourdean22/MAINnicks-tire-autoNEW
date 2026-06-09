@@ -98,6 +98,16 @@ export function MorningBrief({ priorityQueueLength, urgentLeads }: MorningBriefP
         text: `Last 24h: ${parts.join(" · ")}`,
         tone: smsGw?.online === false ? "warn" : "good",
       });
+    } else if (smsGw?.online === false) {
+      // Quiet night + gateway down: the OFFLINE warning used to be gated
+      // behind "there were calls", so the one morning the SMS gateway died
+      // silently the brief read all-clear. Surface it on its own line —
+      // customer texts are NOT sending until the F25e phone is back.
+      out.push({
+        icon: <Phone className="w-3.5 h-3.5 text-blue-400" />,
+        text: "Last 24h: no AI calls · F25e SMS gateway OFFLINE — customer texts are not sending",
+        tone: "warn",
+      });
     }
 
     // Line 3 · MORNING PRIORITY
