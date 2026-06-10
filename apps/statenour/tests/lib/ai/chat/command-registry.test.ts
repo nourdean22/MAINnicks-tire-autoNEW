@@ -34,6 +34,35 @@ const stubs: Partial<CommandDeps> = {
     date: "2026-06-09", masteryTotal: 100, masteryByDomain: {}, topMastery: { domain: "business", score: 50, delta: 3 },
     insightCount: 0, wisdomCount: 0, learnCount: 0, goalsLifted: 0, focusedMinutes: 90, tasksDone: 4, tasksOpen: 7,
   }),
+  proactivePreview: async (slot) => [
+    {
+      kind: "preview",
+      slot: "morning",
+      nowIso: "2026-06-09T12:00:00Z",
+      timezone: "America/New_York",
+      dryRun: true,
+      wouldSend: true,
+      wouldSkip: false,
+      reason: "eligible",
+      messageText: "Test morning message",
+      messagePreviewSafe: "Test morning message",
+      dedupBlocked: false,
+      quietHoursBlocked: false,
+      rateLimitBlocked: false,
+      sourceFunction: "fireMorningPush",
+      riskFlags: ["preview_only"],
+      nextSafeStep: "Verify",
+      sources: [
+        {
+          category: "anticipated_question",
+          title: "Top Question Spec",
+          summary: "Top predicted question preview",
+          confidence: "high",
+          reason: "Prior user chat signal patterns.",
+        },
+      ],
+    },
+  ],
 };
 
 describe("parseCommand", () => {
@@ -88,6 +117,17 @@ describe("runCommand (end-to-end with stubbed services)", () => {
     expect(o.result.text).toContain("⚠");
   });
 
+  it("runs /preview-pushes and formats output", async () => {
+    const o = await runCommand("/preview-pushes morning", stubs);
+    expect(o.handled).toBe(true);
+    expect(o.command).toBe("preview-pushes");
+    expect(o.result.text).toContain("Test morning message");
+    expect(o.result.text).toContain("eligible");
+    expect(o.result.text).toContain("Dry-run only");
+    expect(o.result.text).toContain("Why / Sources:");
+    expect(o.result.text).toContain("- [anticipated_question] Top Question Spec — high confidence");
+  });
+
   it("runs /import-session on pasted text (suggestion-only, no store)", async () => {
     const o = await runCommand("/import-session # Wave\\n- abc1234 fix(x): y\\nNext steps\\n- Deploy it", stubs);
     expect(o.handled).toBe(true);
@@ -136,7 +176,7 @@ describe("runCommand (end-to-end with stubbed services)", () => {
 describe("registry shape", () => {
   it("has the expected commands with unique names", () => {
     const names = COMMANDS.map((c) => c.name);
-    expect(names).toEqual(expect.arrayContaining(["today", "rescue", "what-changed", "import-session", "receipts", "stale", "convert"]));
+    expect(names).toEqual(expect.arrayContaining(["today", "rescue", "what-changed", "import-session", "receipts", "stale", "convert", "preview-pushes"]));
     expect(new Set(names).size).toBe(names.length);
   });
 });
