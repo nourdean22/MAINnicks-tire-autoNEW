@@ -78,4 +78,5 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   trafficFunnel: "Traffic → Revenue",
   memberships: "Nonstop Nick",
   tireOrders: "Tire Orders",
+  opsHub: "Ops Hub",
 };
