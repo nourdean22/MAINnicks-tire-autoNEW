@@ -14,6 +14,8 @@ import PageLayout from "@/components/PageLayout";
 // UTM) instead of the legacy gtag-only @/lib/analytics path — tire-buyer
 // phone clicks were invisible to the admin call dashboard before this.
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
+// attribution-holds migration 0067 — tire orders carry session UTM context.
+import { getUtmData } from "@/lib/utm";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 // wave-fix-2026-05-28 (SEO-AEO parity) · /tires was the highest-impression
 // money page lacking FAQPage JSON-LD that /brakes + oil + alignment already
@@ -571,6 +573,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
               vehicleInfo: vehicle.trim() || undefined,
               customerNotes: deliveryNote || undefined,
               installPreference: deliveryMethod,
+              // attribution-holds migration 0067 — same getUtmData() spread the
+              // lead forms ship; server stores nullish, extras zod-stripped.
+              ...getUtmData(),
             });
           }}
           disabled={orderMutation.isPending}

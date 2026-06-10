@@ -620,6 +620,13 @@ export const gatewayTireRouter = router({
       pricePerTireCents: z.number().int().min(0),
       customerNotes: z.string().max(1000).optional(),
       installPreference: z.enum(["walk-in", "drop-off-morning", "drop-off-afternoon", "ship"]).default("walk-in"),
+      // attribution-holds migration 0067 — optional UTM context so tire
+      // ORDERS (the money path) attribute to channel/campaign/page.
+      utmSource: z.string().max(100).nullish(),
+      utmMedium: z.string().max(100).nullish(),
+      utmCampaign: z.string().max(255).nullish(),
+      landingPage: z.string().max(500).nullish(),
+      referrer: z.string().max(500).nullish(),
     }))
     .mutation(async ({ input }) => {
       const d = await db();
@@ -740,6 +747,12 @@ export const gatewayTireRouter = router({
         totalAmount,
         status: "received",
         customerNotes: input.customerNotes || null,
+        // attribution-holds migration 0067 — nullable; blank when untagged
+        utmSource: input.utmSource || null,
+        utmMedium: input.utmMedium || null,
+        utmCampaign: input.utmCampaign || null,
+        landingPage: input.landingPage || null,
+        referrer: input.referrer || null,
       });
 
       // Map install preference to booking time

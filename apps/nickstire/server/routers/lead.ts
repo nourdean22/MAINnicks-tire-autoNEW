@@ -69,6 +69,10 @@ export const leadRouter = router({
         utmCampaign: z.string().max(255).nullish(),
         landingPage: z.string().max(500).nullish(),
         referrer: z.string().max(500).nullish(),
+        // attribution-holds migration 0067 — content/term were already SENT
+        // by every getUtmData() form spread but zod-stripped (no column).
+        utmContent: z.string().max(255).nullish(),
+        utmTerm: z.string().max(255).nullish(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -129,6 +133,8 @@ export const leadRouter = router({
         utmCampaign: input.utmCampaign || originCampaign,
         landingPage: input.landingPage || null,
         referrer: input.referrer || null,
+        utmContent: input.utmContent || null,
+        utmTerm: input.utmTerm || null,
       }).$returningId();
       const leadId = insertedRows[0]?.id ?? null;
 

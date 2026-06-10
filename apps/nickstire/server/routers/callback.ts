@@ -43,6 +43,10 @@ export const callbackRouter = router({
       utmCampaign: z.string().max(255).nullish(),
       landingPage: z.string().max(500).nullish(),
       referrer: z.string().max(500).nullish(),
+      // attribution-holds migration 0067 — content/term were already SENT
+      // by the getUtmData() spread but zod-stripped (no column).
+      utmContent: z.string().max(255).nullish(),
+      utmTerm: z.string().max(255).nullish(),
     }))
     .mutation(async ({ input }) => {
       try {
@@ -61,6 +65,8 @@ export const callbackRouter = router({
         utmCampaign: input.utmCampaign || null,
         landingPage: input.landingPage || null,
         referrer: input.referrer || null,
+        utmContent: input.utmContent || null,
+        utmTerm: input.utmTerm || null,
       });
 
       const d = await db();
@@ -103,6 +109,8 @@ export const callbackRouter = router({
             utmCampaign: input.utmCampaign || null,
             landingPage: input.landingPage || null,
             referrer: input.referrer || null,
+            utmContent: input.utmContent || null,
+            utmTerm: input.utmTerm || null,
           }).catch((e: unknown) => log.warn("[callback:submit] lead insert failed:", e));
         }
       }
