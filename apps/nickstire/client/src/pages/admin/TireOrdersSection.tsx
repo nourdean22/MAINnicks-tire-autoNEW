@@ -16,6 +16,15 @@ import {
   getQuoteConfidence, getRiskFlags, getNextAction, getFulfillmentTimeline
 } from "@shared/tireCommerce";
 import GatewayPill from "@/components/admin/GatewayPill";
+// 2026-06-10 cockpit consolidation · in-DOM confirm (window.confirm is
+// silently suppressed in the iOS PWA) for the cancel-with-refund guard
+// ported from the retired Money → Tire Orders tab.
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
+
+// Sort rank for getNextAction priorities — most urgent first.
+const PRIORITY_RANK: Record<"urgent" | "high" | "normal" | "low", number> = {
+  urgent: 0, high: 1, normal: 2, low: 3,
+};
 
 type OrderStatusFilter =
   | "all"
@@ -47,15 +56,41 @@ export default function TireOrdersSection() {
   const [confidenceFilter, setConfidenceFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
 
-  // Queries
+  const utils = trpc.useUtils();
+
+  // Queries — 60s auto-refresh so the cockpit stays current on the
+  // counter screen without manual syncs.
   const { data: listData, isLoading, isError, refetch: refetchOrders } = trpc.gatewayTire.listOrders.useQuery({
     status: activeTab === "all" ? undefined : activeTab,
     search: searchQuery || undefined,
     limit: 100,
-  });
+  }, { refetchInterval: 60_000 });
 
-  const { data: stats, refetch: refetchStats } = trpc.gatewayTire.orderStats.useQuery();
+  const { data: stats, refetch: refetchStats } = trpc.gatewayTire.orderStats.useQuery(undefined, { refetchInterval: 60_000 });
   const { data: gatewayStatus } = trpc.gatewayTire.status.useQuery();
+
+  // ─── Money-protection surfaces (ported from the retired Money →
+  // Tire Orders tab, 2026-06-10 cockpit consolidation) ───────────────
+  // Payment-infrastructure health (booleans only) — surfaces the silent
+  // half-configured state where Stripe charges succeed but webhook
+  // events are dropped. Env changes need a deploy, so 5 min is plenty.
+  const { data: health } = trpc.payments.health.useQuery(undefined, {
+    refetchInterval: 5 * 60_000,
+  });
+  // Cancelled-order money risks: paid-but-cancelled (refund owed) and
+  // cancelled-with-open-checkout (customer can still pay a dead order).
+  const { data: risks } = trpc.gatewayTire.cancellationRisks.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  // Paid orders whose email AND Telegram hand-off both failed — the
+  // most urgent thing in the shop when non-empty.
+  const { data: backlog } = trpc.nickActions.paymentAlertBacklog.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  const resolveAlert = trpc.nickActions.resolvePaymentAlert.useMutation({
+    onSuccess: () => { utils.nickActions.paymentAlertBacklog.invalidate(); toast.success("Alert resolved"); },
+    onError: (e) => toast.error(`Resolve failed: ${e.message}`),
+  });
 
   // Mutation for updating order fields
   const updateOrderMutation = trpc.gatewayTire.updateOrder.useMutation({
@@ -74,10 +109,13 @@ export default function TireOrdersSection() {
     refetchStats();
   };
 
-  // Filter orders on client for fields not handled by backend query
+  // Filter orders on client for fields not handled by backend query,
+  // then sort by next-action priority (urgent first) so the operator's
+  // next move is always at the top — a paid order needing a Gateway
+  // order must never sit below the fold.
   const filteredOrders = useMemo(() => {
     if (!listData?.orders) return [];
-    return listData.orders.filter((order: any) => {
+    const filtered = listData.orders.filter((order: any) => {
       // Payment filter
       if (paymentFilter === "paid" && order.paymentStatus !== "paid") return false;
       if (paymentFilter === "unpaid" && order.paymentStatus === "paid") return false;
@@ -89,6 +127,12 @@ export default function TireOrdersSection() {
       }
 
       return true;
+    });
+    return [...filtered].sort((a: any, b: any) => {
+      const ra = PRIORITY_RANK[getNextAction(a).priority];
+      const rb = PRIORITY_RANK[getNextAction(b).priority];
+      if (ra !== rb) return ra - rb;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
   }, [listData, paymentFilter, confidenceFilter]);
 
@@ -171,6 +215,90 @@ export default function TireOrdersSection() {
         </div>
       }
     >
+      {/* ─── Money-protection banners (ported from the retired Money →
+          Tire Orders tab). Render ABOVE the metrics: red payment-risk
+          warnings must never sit below the fold. Each appears only when
+          its condition is real — no duplicate or decorative warnings. ─── */}
+      {health?.stripe.halfConfigured && (
+        <div className="mb-4 border border-red-500/40 bg-red-500/10 rounded p-3 flex items-start gap-2 text-xs text-red-300">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+          <span>
+            <strong>Stripe is half-configured:</strong> STRIPE_SECRET_KEY is set but
+            STRIPE_WEBHOOK_SECRET is missing — customers CAN pay, but paid events are
+            being <strong>dropped</strong> (orders only flip to paid if the customer
+            returns to the site). Set STRIPE_WEBHOOK_SECRET on Railway.
+          </span>
+        </div>
+      )}
+      {health && !health.stripe.secretKeySet && (
+        <div className="mb-4 border border-amber-500/40 bg-amber-500/10 rounded p-3 flex items-start gap-2 text-xs text-amber-200">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+          <span>
+            <strong>Online payment is OFF:</strong> STRIPE_SECRET_KEY is not set —
+            the customer "Pay Now" button degrades to call-to-pay. Orders still work.
+          </span>
+        </div>
+      )}
+      {health && !health.sheetsConfigured && (
+        <div className="mb-4 border border-amber-500/40 bg-amber-500/10 rounded p-3 flex items-start gap-2 text-xs text-amber-200">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+          <span>
+            <strong>Sheets sync is OFF:</strong> GOOGLE_SHEETS_CRM_ID is not set —
+            orders are NOT mirrored to the CRM spreadsheet (this cockpit + the DB
+            remain the source of truth).
+          </span>
+        </div>
+      )}
+      {backlog && backlog.count > 0 && (
+        <div className="mb-4 border border-red-500/40 bg-red-500/10 rounded p-3 space-y-2 text-xs">
+          <div className="flex items-center gap-2 text-red-400 font-bold tracking-wider">
+            <AlertTriangle className="w-4 h-4" />
+            {backlog.count} PAID ORDER{backlog.count === 1 ? "" : "S"} WITH FAILED HAND-OFF — FULFIL MANUALLY
+          </div>
+          {backlog.items.map((b) => (
+            <div key={b.id} className="flex items-start justify-between gap-3 text-foreground/80">
+              <span>
+                {b.tireOrderNumber ? `${b.tireOrderNumber} - ` : ""}{b.summary}
+                <span className="text-foreground/40"> ({b.failureReason})</span>
+              </span>
+              <button
+                onClick={() => resolveAlert.mutate({ id: b.id })}
+                disabled={resolveAlert.isPending}
+                className="shrink-0 px-2 py-1 border border-red-500/40 rounded text-red-300 text-[10px] font-bold hover:bg-red-500/20 disabled:opacity-50"
+              >
+                MARK HANDLED
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {risks && risks.refundNeeded.length > 0 && (
+        <div className="mb-4 border border-red-500/40 bg-red-500/10 rounded p-3 space-y-1 text-xs">
+          <div className="flex items-center gap-2 text-red-400 font-bold tracking-wider">
+            <AlertTriangle className="w-4 h-4" />
+            {risks.refundNeeded.length} CANCELLED ORDER{risks.refundNeeded.length === 1 ? "" : "S"} PAID ONLINE — REFUND VIA STRIPE DASHBOARD
+          </div>
+          {risks.refundNeeded.map((r) => (
+            <div key={r.id} className="text-foreground/80">
+              {r.orderNumber} - {r.customerName} - ${r.totalAmount.toFixed(2)} — search the order # in Stripe, then Refund (refunds are NOT automatic)
+            </div>
+          ))}
+        </div>
+      )}
+      {risks && risks.staleSessions.length > 0 && (
+        <div className="mb-4 border border-amber-500/40 bg-amber-500/10 rounded p-3 space-y-1 text-xs">
+          <div className="flex items-center gap-2 text-amber-300 font-bold tracking-wider">
+            <AlertTriangle className="w-4 h-4" />
+            {risks.staleSessions.length} CANCELLED ORDER{risks.staleSessions.length === 1 ? "" : "S"} WITH AN OPEN CHECKOUT LINK
+          </div>
+          {risks.staleSessions.map((r) => (
+            <div key={r.id} className="text-foreground/80">
+              {r.orderNumber} - {r.customerName} — the Stripe checkout page may still be payable (~24h); expire the session in Stripe if in doubt
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Metric Tiles Grid */}
       <MetricGrid cols={6}>
         <StatCard
@@ -329,7 +457,16 @@ export default function TireOrdersSection() {
                           <User className="w-3.5 h-3.5 text-foreground/40" />
                           {order.customerName}
                         </h4>
-                        <span className="text-xs text-muted-foreground">({order.customerPhone})</span>
+                        {/* tel: link — most next-actions start with "call the
+                            customer"; one tap from the counter phone. Stop
+                            propagation so dialing doesn't toggle the card. */}
+                        <a
+                          href={`tel:${order.customerPhone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          ({order.customerPhone})
+                        </a>
                         {order.vehicleInfo && (
                           <span className="text-xs text-muted-foreground/80 flex items-center gap-1">
                             <Car className="w-3.5 h-3.5 text-foreground/30" />
@@ -417,6 +554,16 @@ export default function TireOrdersSection() {
             })}
           </div>
         )}
+
+        {/* Operating truths — keeps the cockpit honest about what is and
+            is NOT automated. */}
+        <p className="text-[10px] text-foreground/30 leading-relaxed pt-2">
+          The database (this cockpit) is the source of truth — email/Telegram/Sheets
+          are copies. Supplier tires are NOT auto-ordered and online payment does NOT
+          reserve supplier stock: confirm availability with the customer, order from
+          Gateway (b2b.dktire.com), record the PO above, and advance the status.
+          Refunds are NOT automatic — process them in the Stripe dashboard.
+        </p>
       </div>
     </Section>
   );
@@ -448,8 +595,25 @@ function OrderFormEdit({
 
   const timeline = getFulfillmentTimeline(order);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Cancel guard (ported from the retired Money tab, 2026-06-10):
+    // cancelling is the one transition with money consequences — a PAID
+    // order needs a manual Stripe refund (no refund API exists), and an
+    // unpaid order may still have a payable checkout link. Confirm
+    // in-DOM before saving; window.confirm is suppressed in the PWA.
+    if (status === "cancelled" && order.status !== "cancelled") {
+      const paid = order.paymentStatus === "paid";
+      const ok = await confirmDialog({
+        title: "Cancel this order?",
+        message: paid
+          ? `Customer PAID $${Number(order.totalAmount).toFixed(2)} online. Cancelling does NOT refund them — refund manually in the Stripe dashboard (search ${order.orderNumber}).`
+          : `${order.orderNumber} — ${order.customerName}. If a checkout link was issued it may stay payable ~24h; expire it in Stripe if in doubt. This can be undone by setting a new status.`,
+        confirmLabel: "Cancel order",
+        tone: "danger",
+      });
+      if (!ok) return;
+    }
     updateOrderMutation.mutate({
       id: order.id,
       status: status as any,

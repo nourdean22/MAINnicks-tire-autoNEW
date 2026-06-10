@@ -27,7 +27,6 @@ import {
   isMissingSheetTabError,
 } from "./sheets-sync";
 import { classifyStripeHealth } from "./services/payments";
-import { nextActionForOrder } from "@shared/tireOrderNextAction";
 
 // ─── Price guard ─────────────────────────────────────────────
 describe("evaluateOrderPrice", () => {
@@ -299,50 +298,7 @@ describe("isMissingSheetTabError", () => {
 });
 
 // ─── Admin next action ───────────────────────────────────────
-describe("nextActionForOrder", () => {
-  it("paid + received outranks everything fulfillment-wise", () => {
-    const a = nextActionForOrder({ status: "received", paymentStatus: "paid" });
-    expect(a.priority).toBe(1);
-    expect(a.tone).toBe("crit");
-    expect(a.label).toContain("PAID");
-  });
-
-  it("unpaid received asks staff to contact the customer", () => {
-    const a = nextActionForOrder({ status: "received", paymentStatus: "unpaid" });
-    expect(a.priority).toBe(2);
-    expect(a.label).toContain("call customer");
-  });
-
-  it("cancelled-but-paid demands a refund at top priority", () => {
-    const a = nextActionForOrder({ status: "cancelled", paymentStatus: "paid" });
-    expect(a.priority).toBe(1);
-    expect(a.label).toContain("refund");
-  });
-
-  it("plain cancelled sinks to the bottom", () => {
-    expect(nextActionForOrder({ status: "cancelled", paymentStatus: "unpaid" }).priority).toBe(8);
-  });
-
-  it("delivered prompts scheduling the install", () => {
-    const a = nextActionForOrder({ status: "delivered", paymentStatus: "paid" });
-    expect(a.label).toContain("schedule install");
-  });
-
-  it("installed + unpaid reminds staff to collect", () => {
-    const a = nextActionForOrder({ status: "installed", paymentStatus: "unpaid" });
-    expect(a.label).toContain("collect balance");
-  });
-
-  it("installed + paid is done", () => {
-    expect(nextActionForOrder({ status: "installed", paymentStatus: "paid" }).tone).toBe("ok");
-  });
-
-  it("ordered without an ETA nudges staff to set one", () => {
-    expect(nextActionForOrder({ status: "ordered", paymentStatus: "paid", expectedDelivery: null }).label).toContain("set ETA");
-    expect(nextActionForOrder({ status: "ordered", paymentStatus: "paid", expectedDelivery: "2026-06-12" }).label).toBe("Awaiting delivery");
-  });
-
-  it("unknown status falls back to a review prompt", () => {
-    expect(nextActionForOrder({ status: "weird", paymentStatus: null }).priority).toBe(9);
-  });
-});
+// 2026-06-10 cockpit consolidation: the tireOrderNextAction module was
+// superseded by shared/tireCommerce's getNextAction (PR #41), which has
+// its own coverage in server/__tests__/tireCommerce.test.ts. The
+// consolidated cockpit sorts by getNextAction priority directly.
