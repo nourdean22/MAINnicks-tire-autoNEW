@@ -140,3 +140,7 @@ apps/statenour/logs/
 # NOTE: do NOT ignore all of .claude/ - .claude/skills/ is tracked + shared.
 .serena/
 .claude/worktrees/
+
+# Local context packs and agent memory
+docs/LOCAL-CONTEXT-PACK.md
+.remember/

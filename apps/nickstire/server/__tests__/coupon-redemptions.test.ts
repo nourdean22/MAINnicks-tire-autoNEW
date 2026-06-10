@@ -8,7 +8,38 @@
  *   maxRedemptions = 0  → unlimited (no cap)
  *   maxRedemptions > 0  → hard cap; reject when currentRedemptions >= maxRedemptions
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// ─── DB mocks for integration-like unit tests ────────────────────────────────
+const mockSelect = vi.fn();
+const mockUpdate = vi.fn();
+
+const mockDb = {
+  select: vi.fn(() => ({
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({
+        limit: mockSelect
+      }))
+    }))
+  })),
+  update: vi.fn(() => ({
+    set: vi.fn(() => ({
+      where: mockUpdate
+    }))
+  }))
+};
+
+vi.mock("mysql2/promise", () => ({
+  default: {
+    createPool: vi.fn(() => ({
+      end: vi.fn().mockResolvedValue(undefined),
+    })),
+  },
+}));
+
+vi.mock("drizzle-orm/mysql2", () => ({
+  drizzle: vi.fn(() => mockDb),
+}));
 
 // ─── Pure helper extracted from the enforcement logic ─────────────────────────
 // These mirror the exact guard logic in redeemCouponById so tests stay in sync.
@@ -144,5 +175,67 @@ describe("Coupon redemption guard", () => {
     const { coupons } = await import("../../drizzle/schema");
     expect(coupons.maxRedemptions).toBeDefined();
     expect(coupons.currentRedemptions).toBeDefined();
+  });
+});
+
+describe("redeemCouponById Database Fallback", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.DATABASE_URL = "mysql://dummy:3306/db";
+  });
+
+  it("succeeds when updateResult contains affectedRows = 1", async () => {
+    const { redeemCouponById } = await import("../db");
+    
+    // Mock select row
+    mockSelect.mockResolvedValue([
+      {
+        isActive: 1,
+        expiresAt: null,
+        maxRedemptions: 10,
+        currentRedemptions: 2,
+      }
+    ]);
+
+    // Mock update result with affectedRows: 1
+    mockUpdate.mockResolvedValue([{ affectedRows: 1 }]);
+
+    const result = await redeemCouponById(123);
+    expect(result).toEqual({ success: true, currentRedemptions: 3 });
+  });
+
+  it("fails when updateResult contains affectedRows = 0 (cap reached concurrent)", async () => {
+    const { redeemCouponById } = await import("../db");
+    
+    mockSelect.mockResolvedValue([
+      {
+        isActive: 1,
+        expiresAt: null,
+        maxRedemptions: 10,
+        currentRedemptions: 2,
+      }
+    ]);
+
+    mockUpdate.mockResolvedValue([{ affectedRows: 0 }]);
+
+    await expect(redeemCouponById(123)).rejects.toThrow("COUPON_CAP_REACHED");
+  });
+
+  it("fails-closed when updateResult is empty array (unknown/empty update result shape)", async () => {
+    const { redeemCouponById } = await import("../db");
+    
+    mockSelect.mockResolvedValue([
+      {
+        isActive: 1,
+        expiresAt: null,
+        maxRedemptions: 10,
+        currentRedemptions: 2,
+      }
+    ]);
+
+    // Mock updateResult as empty array or empty object inside array
+    mockUpdate.mockResolvedValue([{}]);
+
+    await expect(redeemCouponById(123)).rejects.toThrow("COUPON_CAP_REACHED");
   });
 });

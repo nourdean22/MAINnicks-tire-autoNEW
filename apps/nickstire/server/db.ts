@@ -288,7 +288,7 @@ export async function redeemCouponById(id: number): Promise<{ success: true; cur
     ));
 
   // mysql2 returns [ResultSetHeader, ...] — affectedRows is on [0]
-  const affectedRows = (updateResult[0] as unknown as { affectedRows?: number })?.affectedRows ?? 1;
+  const affectedRows = (updateResult[0] as unknown as { affectedRows?: number })?.affectedRows ?? 0;
 
   if (affectedRows === 0) {
     // A concurrent claim won the last slot after our read
