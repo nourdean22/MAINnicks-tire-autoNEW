@@ -1235,6 +1235,7 @@ export const gatewayTireRouter = router({
               tireSize: currentOrder.tireSize,
               totalAmount: currentOrder.totalAmount || 0,
               paymentStatus: currentOrder.paymentStatus,
+              stripeSessionId: currentOrder.stripeSessionId,
             }, input.adminNotes))
           ).catch(e => log.warn("[gatewayTire:updateOrder] cancelled telegram alert failed:", e));
         }
@@ -1280,6 +1281,58 @@ export const gatewayTireRouter = router({
       cancelled: result["cancelled"] || 0,
       totalRevenue: totalRevenue / 100,
     };
+  }),
+
+  /**
+   * Cancellation money risks for the admin Tire Orders tab.
+   * 2026-06-10 checkout-protection wave — two states nothing else
+   * watches continuously:
+   *   refundNeeded   — cancelled but PAID: Stripe holds the customer's
+   *                    money and only a manual dashboard refund returns
+   *                    it (no refund API exists in this codebase).
+   *   staleSessions  — cancelled, unpaid, but a Stripe Checkout session
+   *                    was issued: the hosted page stays payable ~24h,
+   *                    so a customer can still pay for a cancelled order
+   *                    (createCheckout blocks NEW sessions only). Expire
+   *                    it in the Stripe dashboard to close the hole.
+   */
+  cancellationRisks: adminProcedure.query(async () => {
+    type RiskRow = {
+      id: number;
+      orderNumber: string;
+      customerName: string;
+      customerPhone: string;
+      totalAmount: number;
+      paymentStatus: string;
+      stripeSessionId: string | null;
+      updatedAt: Date;
+    };
+    const d = await db();
+    if (!d) return { refundNeeded: [] as RiskRow[], staleSessions: [] as RiskRow[] };
+    const rows = await d.select({
+      id: tireOrders.id,
+      orderNumber: tireOrders.orderNumber,
+      customerName: tireOrders.customerName,
+      customerPhone: tireOrders.customerPhone,
+      totalAmount: tireOrders.totalAmount,
+      paymentStatus: tireOrders.paymentStatus,
+      stripeSessionId: tireOrders.stripeSessionId,
+      updatedAt: tireOrders.updatedAt,
+    })
+      .from(tireOrders)
+      .where(and(
+        eq(tireOrders.status, "cancelled"),
+        sql`(${tireOrders.paymentStatus} = 'paid' OR ${tireOrders.stripeSessionId} IS NOT NULL)`,
+      ))
+      .orderBy(desc(tireOrders.updatedAt))
+      .limit(25) as RiskRow[];
+    const refundNeeded = rows
+      .filter((r: RiskRow) => r.paymentStatus === "paid")
+      .map((r: RiskRow) => ({ ...r, totalAmount: r.totalAmount / 100 }));
+    const staleSessions = rows
+      .filter((r: RiskRow) => r.paymentStatus !== "paid" && !!r.stripeSessionId)
+      .map((r: RiskRow) => ({ ...r, totalAmount: r.totalAmount / 100 }));
+    return { refundNeeded, staleSessions };
   }),
 
   status: adminProcedure.query(async () => {

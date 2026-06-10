@@ -20,7 +20,13 @@ import {
   buildCancellationAlert,
   ABSOLUTE_MIN_TIRE_PRICE_CENTS,
 } from "./lib/tire-order-guards";
-import { tireOrderRow } from "./sheets-sync";
+import {
+  tireOrderRow,
+  TIRE_ORDER_SHEET_HEADERS,
+  TIRE_ORDER_SHEET_TAB,
+  isMissingSheetTabError,
+} from "./sheets-sync";
+import { classifyStripeHealth } from "./services/payments";
 import { nextActionForOrder } from "@shared/tireOrderNextAction";
 
 // ─── Price guard ─────────────────────────────────────────────
@@ -128,6 +134,57 @@ describe("buildCancellationAlert", () => {
     expect(text).toContain("Stripe Dashboard");
     expect(text).toContain("TO-20260610-123");
   });
+
+  it("warns about a still-payable checkout link on an unpaid cancelled order", () => {
+    const text = buildCancellationAlert({ ...order, stripeSessionId: "cs_live_abc123" });
+    expect(text).toContain("still be PAYABLE");
+    expect(text).toContain("expire the session");
+    expect(text).not.toContain("REFUND REQUIRED");
+  });
+
+  it("refund warning wins over the stale-session warning when both apply", () => {
+    const text = buildCancellationAlert({ ...order, paymentStatus: "paid", stripeSessionId: "cs_live_abc123" });
+    expect(text).toContain("REFUND REQUIRED");
+    expect(text).not.toContain("still be PAYABLE");
+  });
+
+  it("no Stripe warnings when unpaid and no session was ever issued", () => {
+    const text = buildCancellationAlert({ ...order, stripeSessionId: null });
+    expect(text).not.toContain("REFUND");
+    expect(text).not.toContain("PAYABLE");
+  });
+});
+
+// ─── Stripe configuration health ─────────────────────────────
+describe("classifyStripeHealth", () => {
+  it("fully configured when all three are set", () => {
+    const h = classifyStripeHealth({ secretKey: "sk_live_x", webhookSecret: "whsec_x", publishableKey: "pk_live_x" });
+    expect(h).toEqual({
+      secretKeySet: true,
+      webhookSecretSet: true,
+      publishableKeySet: true,
+      halfConfigured: false,
+      fullyConfigured: true,
+    });
+  });
+
+  it("flags the dangerous half-configured state (secret key without webhook secret)", () => {
+    const h = classifyStripeHealth({ secretKey: "sk_live_x", webhookSecret: null, publishableKey: "pk_live_x" });
+    expect(h.halfConfigured).toBe(true);
+    expect(h.fullyConfigured).toBe(false);
+  });
+
+  it("not half-configured when Stripe is entirely off", () => {
+    const h = classifyStripeHealth({ secretKey: null, webhookSecret: null, publishableKey: null });
+    expect(h.halfConfigured).toBe(false);
+    expect(h.secretKeySet).toBe(false);
+  });
+
+  it("webhook secret alone is not half-configured (no charges possible)", () => {
+    const h = classifyStripeHealth({ secretKey: "", webhookSecret: "whsec_x", publishableKey: null });
+    expect(h.halfConfigured).toBe(false);
+    expect(h.webhookSecretSet).toBe(true);
+  });
 });
 
 // ─── Sheets row ──────────────────────────────────────────────
@@ -203,6 +260,41 @@ describe("tireOrderRow", () => {
     expect(row[5]).toBe("");
     expect(row[18]).toBe("unpaid"); // defaults rather than fabricates a paid state
     expect(row.slice(19)).toEqual(["", "", "", "", ""]);
+  });
+});
+
+// ─── Sheet setup contract ────────────────────────────────────
+describe("TIRE_ORDER_SHEET_HEADERS", () => {
+  it("stays aligned with tireOrderRow column-for-column", () => {
+    const row = tireOrderRow({
+      orderNumber: "TO-1", customerName: "x", customerPhone: "y",
+      tireBrand: "b", tireModel: "m", tireSize: "s", quantity: 1,
+      pricePerTire: 1, totalAmount: 1, status: "received",
+    }, "ts");
+    expect(TIRE_ORDER_SHEET_HEADERS.length).toBe(row.length);
+  });
+
+  it("pins the load-bearing columns", () => {
+    expect(TIRE_ORDER_SHEET_HEADERS[0]).toBe("Order #");
+    expect(TIRE_ORDER_SHEET_HEADERS[15]).toBe("Gateway Ref");
+    expect(TIRE_ORDER_SHEET_HEADERS[18]).toBe("Payment Status");
+    expect(TIRE_ORDER_SHEET_HEADERS.slice(19)).toEqual([
+      "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer",
+    ]);
+    expect(TIRE_ORDER_SHEET_TAB).toBe("Tire Orders");
+  });
+});
+
+describe("isMissingSheetTabError", () => {
+  it("detects Google's missing-tab append failure", () => {
+    expect(isMissingSheetTabError(new Error("Unable to parse range: 'Tire Orders'!A:Z"))).toBe(true);
+    expect(isMissingSheetTabError({ message: "Unable to parse range: Leads!A:Z", code: 400 })).toBe(true);
+  });
+
+  it("ignores auth/quota/other failures", () => {
+    expect(isMissingSheetTabError(new Error("The caller does not have permission"))).toBe(false);
+    expect(isMissingSheetTabError(new Error("Quota exceeded"))).toBe(false);
+    expect(isMissingSheetTabError("network reset")).toBe(false);
   });
 });
 

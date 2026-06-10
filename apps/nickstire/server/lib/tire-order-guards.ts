@@ -96,6 +96,8 @@ export function buildCancellationAlert(
     /** cents */
     totalAmount: number;
     paymentStatus: string;
+    /** Set when a Stripe Checkout session was ever issued for this order. */
+    stripeSessionId?: string | null;
   },
   reason?: string,
 ): string {
@@ -109,6 +111,13 @@ export function buildCancellationAlert(
     text +=
       `\n\n⚠️ CUSTOMER PAID $${(order.totalAmount / 100).toFixed(2)} ONLINE — REFUND REQUIRED.\n` +
       `Stripe Dashboard → Payments → search "${order.orderNumber}" → Refund.`;
+  } else if (order.stripeSessionId) {
+    // createCheckout blocks NEW sessions for cancelled orders, but an
+    // already-issued hosted checkout page stays payable for ~24h — the
+    // customer can still pay for this cancelled order unless it's closed.
+    text +=
+      `\n\n⚠️ An open Stripe checkout link may still be PAYABLE for this cancelled order.\n` +
+      `Stripe Dashboard → Payments → search "${order.orderNumber}" → expire the session.`;
   }
   return text;
 }
