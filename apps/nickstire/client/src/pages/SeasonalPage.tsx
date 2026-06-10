@@ -298,7 +298,7 @@ export default function SeasonalPage() {
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-bold text-foreground text-lg mb-2">Flush Your Coolant — Antifreeze Degrades</h3>
-                        <p className="text-foreground/70 leading-relaxed">Antifreeze protects your engine down to -34 degrees, but only if it's fresh. Old coolant loses its freeze protection and can cause a cracked block or blown head gasket. If it's been more than two years or 30,000 miles, get a <Link href="/coolant-flush-cleveland" className="text-nick-blue-light hover:underline">coolant flush</Link> before winter hits.</p>
+                        <p className="text-foreground/70 leading-relaxed">Antifreeze protects your engine down to -34 degrees, but only if it's fresh. Old coolant loses its freeze protection and can cause a cracked block or blown head gasket. If it's been more than two years or 30,000 miles, get a <Link href="/cooling" className="text-nick-blue-light hover:underline">coolant flush</Link> before winter hits.</p>
                       </div>
                     </div>
                   </FadeIn>
@@ -328,7 +328,7 @@ export default function SeasonalPage() {
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-bold text-foreground text-lg mb-2">Get Your AC Checked Before the Heat Hits</h3>
-                        <p className="text-foreground/70 leading-relaxed">If your AC blew weak last summer, it won't magically fix itself. Low refrigerant, a failing compressor, or a clogged cabin filter all reduce cooling. Get an <Link href="/ac-repair-cleveland" className="text-nick-blue-light hover:underline">AC check</Link> in spring before every shop in Cleveland has a two-week wait.</p>
+                        <p className="text-foreground/70 leading-relaxed">If your AC blew weak last summer, it won't magically fix itself. Low refrigerant, a failing compressor, or a clogged cabin filter all reduce cooling. Get an <Link href="/ac-repair" className="text-nick-blue-light hover:underline">AC check</Link> in spring before every shop in Cleveland has a two-week wait.</p>
                       </div>
                     </div>
                   </FadeIn>
