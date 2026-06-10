@@ -42,6 +42,25 @@ const log = rootLogger.withSurface("brain/proactive-pushes");
 
 export type PushSlot = "morning" | "afternoon" | "evening";
 
+export interface PushSource {
+  id?: string;
+  category:
+    | "journal"
+    | "body"
+    | "task"
+    | "goal"
+    | "concern"
+    | "anticipated_question"
+    | "previous_push"
+    | "system_context"
+    | "unknown";
+  title: string;
+  summary: string;
+  confidence: "high" | "medium" | "low";
+  reason: string;
+  href?: string;
+}
+
 export interface PushResult {
   kind: "live";
   slot: PushSlot;
@@ -68,6 +87,7 @@ export interface PushPreview {
   sourceFunction: string;
   riskFlags: string[];
   nextSafeStep: string;
+  sources: PushSource[];
 }
 
 export interface PushSkip {
@@ -113,13 +133,13 @@ async function alreadyPushed(slot: PushSlot, dateKey: string): Promise<boolean> 
  * Returns null when nothing logged today · downstream gracefully
  * degrades to a generic evening shutdown nudge.
  */
-async function getTodayBody(options?: { now?: Date }): Promise<{ sleepHours?: number | null; energy?: number | null } | null> {
+async function getTodayBody(options?: { now?: Date }): Promise<{ id: number; sleepHours?: number | null; energy?: number | null } | null> {
   const dateStr = options?.now
     ? options.now.toLocaleDateString("en-CA", { timeZone: "America/New_York" })
     : today();
   const row = await prisma.bodyTracking.findUnique({
     where: { date: dateStr },
-    select: { sleepHours: true, energy: true },
+    select: { id: true, sleepHours: true, energy: true },
   }).catch(() => null);
   return row;
 }
@@ -163,6 +183,36 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
     if (!hasContent) riskFlags.push("empty_message", "context_missing");
     if (quietHoursBlocked) riskFlags.push("quiet_hours_overnight");
 
+    const memoryRow = await prisma.brainMemory.findUnique({
+      where: { category_key: { category: "anticipated_question", key: `anticipated_${dateKey}` } },
+      select: { id: true },
+    }).catch(() => null);
+
+    const sources: PushSource[] = [];
+    if (top) {
+      const qConf = top.confidence ?? 1;
+      const confidenceStr: "high" | "medium" | "low" = 
+        qConf >= 0.7 ? "high" : (qConf >= 0.4 ? "medium" : "low");
+      
+      sources.push({
+        id: memoryRow?.id,
+        category: "anticipated_question",
+        title: "Anticipated Question",
+        summary: `Top predicted question: "${top.question}"`,
+        confidence: confidenceStr,
+        reason: "Calculated from past 7 days user chats, decisions, and commitments.",
+        href: "/brain?tab=board",
+      });
+    } else {
+      sources.push({
+        category: "system_context",
+        title: "Anticipated Question Fallback",
+        summary: "No anticipated question set found for today.",
+        confidence: "medium",
+        reason: "No active anticipated questions predicted by the nightly background agent.",
+      });
+    }
+
     return {
       kind: "preview",
       slot: "morning",
@@ -181,6 +231,7 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
       sourceFunction: "fireMorningPush",
       riskFlags,
       nextSafeStep: "Verify preview text looks appropriate.",
+      sources,
     };
   }
 
@@ -247,6 +298,32 @@ export async function fireAfternoonPush(options?: { dryRun?: boolean; now?: Date
     if (!hasContent) riskFlags.push("empty_message", "context_missing");
     if (quietHoursBlocked) riskFlags.push("quiet_hours_overnight");
 
+    const memoryRow = await prisma.brainMemory.findUnique({
+      where: { category_key: { category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS, key: "current" } },
+      select: { id: true },
+    }).catch(() => null);
+
+    const sources: PushSource[] = [];
+    if (top) {
+      sources.push({
+        id: top.sourceConversationId || memoryRow?.id,
+        category: "concern",
+        title: "Active Concern Thread",
+        summary: `Distilled open concern: "${top.text}"`,
+        confidence: "high",
+        reason: "Unresolved question or follow-up from past chat distillations.",
+        href: top.sourceConversationId ? `/chat?cid=${top.sourceConversationId}` : undefined,
+      });
+    } else {
+      sources.push({
+        category: "system_context",
+        title: "Concern Thread Fallback",
+        summary: "No unresolved concerns found in history.",
+        confidence: "medium",
+        reason: "No open threads were identified in recent session distillations.",
+      });
+    }
+
     return {
       kind: "preview",
       slot: "afternoon",
@@ -265,6 +342,7 @@ export async function fireAfternoonPush(options?: { dryRun?: boolean; now?: Date
       sourceFunction: "fireAfternoonPush",
       riskFlags,
       nextSafeStep: "Verify preview text looks appropriate.",
+      sources,
     };
   }
 
@@ -332,6 +410,29 @@ export async function fireEveningPush(options?: { dryRun?: boolean; now?: Date }
     if (quietHoursBlocked) riskFlags.push("quiet_hours_overnight");
     if (!body) riskFlags.push("body_data_missing", "noisy_or_generic");
 
+    const sources: PushSource[] = [];
+    if (body) {
+      const sleepStr = typeof body.sleepHours === "number" ? `${body.sleepHours.toFixed(1)}h sleep` : "No sleep logged";
+      const energyStr = typeof body.energy === "number" ? `energy ${body.energy}/10` : "No energy logged";
+      sources.push({
+        id: String(body.id),
+        category: "body",
+        title: "Daily Health Check-in",
+        summary: `${sleepStr}, ${energyStr}`,
+        confidence: "high",
+        reason: "Determined from logged sleep/energy metrics in operator health check-in.",
+        href: "/stats#body",
+      });
+    } else {
+      sources.push({
+        category: "system_context",
+        title: "Evening Review Ritual",
+        summary: "No health check-in logged for today.",
+        confidence: "medium",
+        reason: "Prompt defaults to standard review checklist when health metrics are missing.",
+      });
+    }
+
     return {
       kind: "preview",
       slot: "evening",
@@ -350,6 +451,7 @@ export async function fireEveningPush(options?: { dryRun?: boolean; now?: Date }
       sourceFunction: "fireEveningPush",
       riskFlags,
       nextSafeStep: "Verify preview text looks appropriate.",
+      sources,
     };
   }
 
@@ -416,6 +518,13 @@ export async function fireSlotForCurrentHour(options?: { dryRun?: boolean; now?:
       sourceFunction: "fireSlotForCurrentHour",
       riskFlags,
       nextSafeStep: "Wait for active hours (6am - 11pm ET) to preview slot-based pushes.",
+      sources: [{
+        category: "system_context",
+        title: "Overnight Quiet Hours",
+        summary: "Quiet hours block active overnight (12am - 5am ET).",
+        confidence: "high",
+        reason: "Automatic overnight scheduling block.",
+      }],
     } as PushPreview;
   }
 

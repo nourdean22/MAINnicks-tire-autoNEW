@@ -334,7 +334,7 @@ async function updateNickCurrentConcerns(distill: SessionDistill): Promise<void>
  */
 export async function getNickCurrentConcerns(): Promise<{
   updatedAt: string;
-  threads: Array<{ text: string; kind: "open" | "followup"; sourceLastAt: string }>;
+  threads: Array<{ text: string; kind: "open" | "followup"; sourceLastAt: string; sourceConversationId?: string }>;
 } | null> {
   const row = await prisma.brainMemory.findUnique({
     where: { category_key: { category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS, key: "current" } },
@@ -346,10 +346,11 @@ export async function getNickCurrentConcerns(): Promise<{
     if (!Array.isArray(parsed.threads)) return null;
     return {
       updatedAt: String(parsed.updatedAt ?? new Date().toISOString()),
-      threads: parsed.threads.map((t: { text: string; kind: string; sourceLastAt: string }) => ({
+      threads: parsed.threads.map((t: { text: string; kind: string; sourceLastAt: string; sourceConversationId?: string }) => ({
         text: String(t.text),
         kind: t.kind === "followup" ? "followup" : "open",
         sourceLastAt: String(t.sourceLastAt),
+        sourceConversationId: t.sourceConversationId ? String(t.sourceConversationId) : undefined,
       })),
     };
   } catch {

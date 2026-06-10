@@ -52,6 +52,15 @@ const stubs: Partial<CommandDeps> = {
       sourceFunction: "fireMorningPush",
       riskFlags: ["preview_only"],
       nextSafeStep: "Verify",
+      sources: [
+        {
+          category: "anticipated_question",
+          title: "Top Question Spec",
+          summary: "Top predicted question preview",
+          confidence: "high",
+          reason: "Prior user chat signal patterns.",
+        },
+      ],
     },
   ],
 };
@@ -115,6 +124,8 @@ describe("runCommand (end-to-end with stubbed services)", () => {
     expect(o.result.text).toContain("Test morning message");
     expect(o.result.text).toContain("eligible");
     expect(o.result.text).toContain("Dry-run only");
+    expect(o.result.text).toContain("Why / Sources:");
+    expect(o.result.text).toContain("- [anticipated_question] Top Question Spec — high confidence");
   });
 
   it("runs /import-session on pasted text (suggestion-only, no store)", async () => {

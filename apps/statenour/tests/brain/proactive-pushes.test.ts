@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockFindUnique = vi.fn();
 const mockUpsert = vi.fn();
+const mockBodyTrackingFindUnique = vi.fn().mockResolvedValue(null);
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -12,7 +13,7 @@ vi.mock("@/lib/prisma", () => ({
       upsert: () => mockUpsert(),
     },
     bodyTracking: {
-      findUnique: vi.fn().mockResolvedValue(null),
+      findUnique: () => mockBodyTrackingFindUnique(),
     },
   },
 }));
@@ -22,16 +23,18 @@ vi.mock("@/lib/services/telegram", () => ({
   sendTelegram: (text: string) => mockSendTelegram(text),
 }));
 
+let mockAnticipatedQuestions: any[] = [{ question: "What is Nour's target today?" }];
 vi.mock("@/lib/brain/anticipated-questions", () => ({
   getTodaysAnticipated: async () => ({
-    questions: [{ question: "What is Nour's target today?" }],
+    questions: mockAnticipatedQuestions,
   }),
 }));
 
+let mockCurrentConcerns: any = {
+  threads: [{ text: "Resolve memory leak check", sourceLastAt: new Date().toISOString(), kind: "question" }],
+};
 vi.mock("@/lib/brain/session-distiller", () => ({
-  getNickCurrentConcerns: async () => ({
-    threads: [{ text: "Resolve memory leak check", sourceLastAt: new Date().toISOString(), kind: "question" }],
-  }),
+  getNickCurrentConcerns: async () => mockCurrentConcerns,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -55,7 +58,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockFindUnique.mockReset();
   mockUpsert.mockReset();
+  mockBodyTrackingFindUnique.mockReset().mockResolvedValue(null);
   mockSendTelegram.mockReset();
+  mockAnticipatedQuestions = [{ question: "What is Nour's target today?" }];
+  mockCurrentConcerns = {
+    threads: [{ text: "Resolve memory leak check", sourceLastAt: new Date().toISOString(), kind: "question" }],
+  };
 });
 
 describe("Proactive Pushes Dry-Run Logic", () => {
@@ -155,4 +163,128 @@ describe("Proactive Pushes Dry-Run Logic", () => {
       expect(result.riskFlags).toContain("quiet_hours_overnight");
     });
   });
+
+  describe("Memory Source Attribution", () => {
+    it("Morning preview attaches anticipated question source when available", async () => {
+      mockFindUnique.mockResolvedValue(null);
+      const now = new Date("2026-06-10T08:00:00-04:00");
+      const result = await fireMorningPush({ dryRun: true, now });
+
+      expect(result.kind).toBe("preview");
+      expect(result.sources).toHaveLength(1);
+      const src = result.sources[0];
+      expect(src.category).toBe("anticipated_question");
+      expect(src.title).toBe("Anticipated Question");
+      expect(src.summary).toContain("What is Nour's target today?");
+      expect(src.confidence).toBe("high");
+      expect(src.href).toBe("/brain?tab=board");
+      expect(src.summary.length).toBeLessThan(150);
+    });
+
+    it("Morning preview attaches system_context fallback when questions are missing", async () => {
+      mockFindUnique.mockResolvedValue(null);
+      mockAnticipatedQuestions = []; // clear questions
+      const now = new Date("2026-06-10T08:00:00-04:00");
+      const result = await fireMorningPush({ dryRun: true, now });
+
+      expect(result.kind).toBe("preview");
+      expect(result.sources).toHaveLength(1);
+      const src = result.sources[0];
+      expect(src.category).toBe("system_context");
+      expect(src.title).toBe("Anticipated Question Fallback");
+      expect(src.confidence).toBe("medium");
+      expect(src.summary.length).toBeLessThan(150);
+    });
+
+    it("Afternoon preview attaches concern source with deep link when concerns are available", async () => {
+      mockFindUnique.mockResolvedValue(null);
+      mockCurrentConcerns = {
+        threads: [{
+          text: "Resolve memory leak check",
+          sourceLastAt: new Date().toISOString(),
+          kind: "question",
+          sourceConversationId: "conv-123",
+        }],
+      };
+      const now = new Date("2026-06-10T14:00:00-04:00");
+      const result = await fireAfternoonPush({ dryRun: true, now });
+
+      expect(result.kind).toBe("preview");
+      expect(result.sources).toHaveLength(1);
+      const src = result.sources[0];
+      expect(src.category).toBe("concern");
+      expect(src.title).toBe("Active Concern Thread");
+      expect(src.summary).toContain("Resolve memory leak");
+      expect(src.confidence).toBe("high");
+      expect(src.href).toBe("/chat?cid=conv-123");
+      expect(src.summary.length).toBeLessThan(150);
+    });
+
+    it("Afternoon preview attaches system_context fallback when concerns are missing", async () => {
+      mockFindUnique.mockResolvedValue(null);
+      mockCurrentConcerns = { threads: [] };
+      const now = new Date("2026-06-10T14:00:00-04:00");
+      const result = await fireAfternoonPush({ dryRun: true, now });
+
+      expect(result.kind).toBe("preview");
+      expect(result.sources).toHaveLength(1);
+      const src = result.sources[0];
+      expect(src.category).toBe("system_context");
+      expect(src.title).toBe("Concern Thread Fallback");
+      expect(src.confidence).toBe("medium");
+      expect(src.summary.length).toBeLessThan(150);
+    });
+
+    it("Evening preview attaches body source with stats and link when body tracking is present", async () => {
+      mockFindUnique.mockResolvedValue(null);
+      mockBodyTrackingFindUnique.mockResolvedValue({
+        id: 42,
+        sleepHours: 7.5,
+        energy: 8,
+      });
+      const now = new Date("2026-06-10T21:00:00-04:00");
+      const result = await fireEveningPush({ dryRun: true, now });
+
+      expect(result.kind).toBe("preview");
+      expect(result.sources).toHaveLength(1);
+      const src = result.sources[0];
+      expect(src.category).toBe("body");
+      expect(src.title).toBe("Daily Health Check-in");
+      expect(src.summary).toContain("7.5h sleep");
+      expect(src.summary).toContain("energy 8/10");
+      expect(src.confidence).toBe("high");
+      expect(src.href).toBe("/stats#body");
+      expect(src.id).toBe("42");
+      expect(src.summary.length).toBeLessThan(150);
+    });
+
+    it("Evening preview attaches system_context fallback when body tracking is missing", async () => {
+      mockFindUnique.mockResolvedValue(null);
+      mockBodyTrackingFindUnique.mockResolvedValue(null);
+      const now = new Date("2026-06-10T21:00:00-04:00");
+      const result = await fireEveningPush({ dryRun: true, now });
+
+      expect(result.kind).toBe("preview");
+      expect(result.sources).toHaveLength(1);
+      const src = result.sources[0];
+      expect(src.category).toBe("system_context");
+      expect(src.title).toBe("Evening Review Ritual");
+      expect(src.confidence).toBe("medium");
+      expect(src.summary.length).toBeLessThan(150);
+    });
+
+    it("Overnight dispatcher attaches overnight quiet hours system_context source", async () => {
+      mockFindUnique.mockResolvedValue(null);
+      const now = new Date("2026-06-10T03:00:00-04:00"); // 3am ET
+      const result = await fireSlotForCurrentHour({ dryRun: true, now });
+
+      expect(result.kind).toBe("preview");
+      expect(result.sources).toHaveLength(1);
+      const src = result.sources[0];
+      expect(src.category).toBe("system_context");
+      expect(src.title).toBe("Overnight Quiet Hours");
+      expect(src.confidence).toBe("high");
+    });
+  });
 });
+
