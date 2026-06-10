@@ -245,6 +245,14 @@ const CARDS: HubCard[] = [
     description: "Look up a sanitized error by its ID",
     chip: () => ({ label: "lookup", severity: "info" }),
   },
+  {
+    href: "/system/proactive-preview",
+    title: "Proactive Preview",
+    icon: Bot,
+    group: "ai",
+    description: "Preview morning/afternoon/evening proactive pushes and risk telemetry",
+    chip: () => ({ label: "preview", severity: "info" }),
+  },
 ];
 
 const SEVERITY_PALETTE: Record<
