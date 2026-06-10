@@ -1,5 +1,12 @@
 # GBP Growth Center — Integration Plan (post-#47)
 
+> **STATUS 2026-06-10: EXECUTED** by the growth-social wiring PR
+> (`feature/nickstire-growth-social-wiring`) — as a dedicated admin
+> "Growth" section (`GrowthSection.tsx`, 7 tabs) rather than an Ops Hub
+> tab, because 7 sub-surfaces would have crowded the hub's 3 tabs. The
+> review-reply copy surface below shipped in the same PR. This document
+> remains as the design rationale.
+
 This PR ships the libraries, the read-only `localGrowth` server router,
 tests, and docs WITHOUT touching the admin shell — because `Admin.tsx`,
 `shared/nav.tsx`, `shared/types.ts`, and `OpsHubSection.tsx` are all
