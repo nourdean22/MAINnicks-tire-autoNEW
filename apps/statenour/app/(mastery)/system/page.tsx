@@ -213,7 +213,7 @@ export default function SystemPage() {
         <MetricCard
           label="Errors (24h)"
           value={d?.kpis.errors_24h ?? "..."}
-          hint={d && d.kpis.errors_24h > 0 ? "Check /system/errors" : "Clean"}
+          hint={d && d.kpis.errors_24h > 0 ? "Check /system/logs" : "Clean"}
         />
       </div>
 
