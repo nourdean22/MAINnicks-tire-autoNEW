@@ -4,6 +4,49 @@ import type { TrpcContext } from "./_core/context";
 import { getWeatherAlert, type WeatherData } from "./weather";
 import { SERVICES, getServiceBySlug } from "../shared/services";
 
+// Mock external services to prevent network dependency in tests
+vi.mock("./weather", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./weather")>();
+  return {
+    ...actual,
+    getWeather: vi.fn().mockResolvedValue({
+      temperature_f: 65,
+      wind_speed_mph: 8,
+      weather_code: 0,
+      weather_condition: "clear",
+      is_day: true,
+      precipitation_mm: 0,
+    }),
+  };
+});
+
+vi.mock("./google-reviews", () => {
+  return {
+    getGoogleReviews: vi.fn().mockResolvedValue({
+      placeId: "mock-place-id",
+      name: "Nick's Tire & Auto",
+      rating: 4.8,
+      totalReviews: 245,
+      reviews: [
+        {
+          authorName: "John Doe",
+          rating: 5,
+          text: "Excellent service!",
+          relativeTime: "2 days ago",
+          time: Math.floor(Date.now() / 1000) - 172800,
+        }
+      ],
+      address: "17625 Euclid Ave, Cleveland, OH 44112",
+      phone: "(216) 862-0005",
+      website: "https://nickstire.org",
+      openNow: true,
+      hours: [],
+      lastUpdated: Date.now(),
+    }),
+    saveReviewStatsToDb: vi.fn(),
+  };
+});
+
 // ─── HELPERS ───────────────────────────────────────────
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;

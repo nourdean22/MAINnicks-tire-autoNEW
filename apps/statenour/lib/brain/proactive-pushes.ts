@@ -40,13 +40,61 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/proactive-pushes");
 
-type PushSlot = "morning" | "afternoon" | "evening";
+export type PushSlot = "morning" | "afternoon" | "evening";
 
-interface PushResult {
+export interface PushSource {
+  id?: string;
+  category:
+    | "journal"
+    | "body"
+    | "task"
+    | "goal"
+    | "concern"
+    | "anticipated_question"
+    | "previous_push"
+    | "system_context"
+    | "unknown";
+  title: string;
+  summary: string;
+  confidence: "high" | "medium" | "low";
+  reason: string;
+  href?: string;
+}
+
+export interface PushResult {
+  kind: "live";
   slot: PushSlot;
   fired: boolean;
   reason: string;
   text?: string;
+}
+
+export interface PushPreview {
+  kind: "preview";
+  slot: PushSlot;
+  nowIso: string;
+  timezone: string;
+  dryRun: true;
+  wouldSend: boolean;
+  wouldSkip: boolean;
+  reason: string;
+  messageText?: string;
+  messagePreviewSafe?: string;
+  dedupKey?: string;
+  dedupBlocked: boolean;
+  quietHoursBlocked: boolean;
+  rateLimitBlocked: boolean;
+  sourceFunction: string;
+  riskFlags: string[];
+  nextSafeStep: string;
+  sources: PushSource[];
+}
+
+export interface PushSkip {
+  kind: "skip";
+  slot?: PushSlot;
+  skipped: true;
+  reason: string;
 }
 
 /**
@@ -85,11 +133,13 @@ async function alreadyPushed(slot: PushSlot, dateKey: string): Promise<boolean> 
  * Returns null when nothing logged today · downstream gracefully
  * degrades to a generic evening shutdown nudge.
  */
-async function getTodayBody(): Promise<{ sleepHours?: number | null; energy?: number | null } | null> {
-  const dateStr = today();
+async function getTodayBody(options?: { now?: Date }): Promise<{ id: number; sleepHours?: number | null; energy?: number | null } | null> {
+  const dateStr = options?.now
+    ? options.now.toLocaleDateString("en-CA", { timeZone: "America/New_York" })
+    : today();
   const row = await prisma.bodyTracking.findUnique({
     where: { date: dateStr },
-    select: { sleepHours: true, energy: true },
+    select: { id: true, sleepHours: true, energy: true },
   }).catch(() => null);
   return row;
 }
@@ -99,24 +149,104 @@ async function getTodayBody(): Promise<{ sleepHours?: number | null; energy?: nu
  * Pulls the top question from getTodaysAnticipated() and sends it
  * as a one-line Telegram prompt. Operator can tap-to-open chat.
  */
-export async function fireMorningPush(): Promise<PushResult> {
-  const dateKey = today();
-  if (await alreadyPushed("morning", dateKey)) {
-    return { slot: "morning", fired: false, reason: "already_pushed_today" };
-  }
+export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }): Promise<PushResult | PushPreview> {
+  const now = options?.now ?? new Date();
+  const dateKey = options?.now
+    ? options.now.toLocaleDateString("en-CA", { timeZone: "America/New_York" })
+    : today();
+
+  const isDup = await alreadyPushed("morning", dateKey);
   const set = await getTodaysAnticipated().catch(() => null);
-  if (!set || set.questions.length === 0) {
-    return { slot: "morning", fired: false, reason: "no_anticipated_set" };
+  const top = set?.questions?.[0];
+  const hasContent = !!top;
+  
+  const skipReason = isDup 
+    ? "already_pushed_today" 
+    : (!hasContent ? "no_anticipated_set" : "");
+
+  const text = top
+    ? `☀️ <b>Morning · Nick's pick</b>\n\n` +
+      `Today you'll likely want to know:\n` +
+      `<i>"${top.question}"</i>\n\n` +
+      `Tap to ask Nick · already warmed.`
+    : "";
+
+  if (options?.dryRun) {
+    const etHour = parseInt(
+      now.toLocaleString("en-US", { hour: "2-digit", hour12: false, timeZone: "America/New_York" }),
+      10,
+    );
+    const quietHoursBlocked = etHour >= 0 && etHour <= 5;
+
+    const riskFlags = ["preview_only", "live_send_disabled"];
+    if (isDup) riskFlags.push("already_sent_today");
+    if (!hasContent) riskFlags.push("empty_message", "context_missing");
+    if (quietHoursBlocked) riskFlags.push("quiet_hours_overnight");
+
+    const memoryRow = await prisma.brainMemory.findUnique({
+      where: { category_key: { category: "anticipated_question", key: `anticipated_${dateKey}` } },
+      select: { id: true },
+    }).catch(() => null);
+
+    const sources: PushSource[] = [];
+    if (top) {
+      const qConf = top.confidence ?? 1;
+      const confidenceStr: "high" | "medium" | "low" = 
+        qConf >= 0.7 ? "high" : (qConf >= 0.4 ? "medium" : "low");
+      
+      sources.push({
+        id: memoryRow?.id,
+        category: "anticipated_question",
+        title: "Anticipated Question",
+        summary: `Top predicted question: "${top.question}"`,
+        confidence: confidenceStr,
+        reason: "Calculated from past 7 days user chats, decisions, and commitments.",
+        href: "/brain?tab=board",
+      });
+    } else {
+      sources.push({
+        category: "system_context",
+        title: "Anticipated Question Fallback",
+        summary: "No anticipated question set found for today.",
+        confidence: "medium",
+        reason: "No active anticipated questions predicted by the nightly background agent.",
+      });
+    }
+
+    return {
+      kind: "preview",
+      slot: "morning",
+      nowIso: now.toISOString(),
+      timezone: "America/New_York",
+      dryRun: true,
+      wouldSend: !skipReason && !quietHoursBlocked,
+      wouldSkip: !!skipReason || quietHoursBlocked,
+      reason: skipReason || (quietHoursBlocked ? "quiet_hours_overnight" : "eligible"),
+      messageText: text || undefined,
+      messagePreviewSafe: text || undefined,
+      dedupKey: `morning_${dateKey}`,
+      dedupBlocked: isDup,
+      quietHoursBlocked,
+      rateLimitBlocked: false,
+      sourceFunction: "fireMorningPush",
+      riskFlags,
+      nextSafeStep: "Verify preview text looks appropriate.",
+      sources,
+    };
   }
-  const top = set.questions[0];
-  const text =
-    `☀️ <b>Morning · Nick's pick</b>\n\n` +
-    `Today you'll likely want to know:\n` +
-    `<i>"${top.question}"</i>\n\n` +
-    `Tap to ask Nick · already warmed.`;
+
+  // Live flow
+  if (isDup) {
+    return { kind: "live", slot: "morning", fired: false, reason: "already_pushed_today" };
+  }
+  if (!hasContent) {
+    return { kind: "live", slot: "morning", fired: false, reason: "no_anticipated_set" };
+  }
+
   const ok = await sendTelegram(text).catch(() => false);
   if (ok) await markPushSent("morning", dateKey);
   return {
+    kind: "live",
     slot: "morning",
     fired: ok,
     reason: ok ? "sent" : "telegram_failed",
@@ -130,26 +260,104 @@ export async function fireMorningPush(): Promise<PushResult> {
  * unresolved thread from past sessions. Falls back to silent
  * when no concerns exist · don't push noise.
  */
-export async function fireAfternoonPush(): Promise<PushResult> {
-  const dateKey = today();
-  if (await alreadyPushed("afternoon", dateKey)) {
-    return { slot: "afternoon", fired: false, reason: "already_pushed_today" };
-  }
+export async function fireAfternoonPush(options?: { dryRun?: boolean; now?: Date }): Promise<PushResult | PushPreview> {
+  const now = options?.now ?? new Date();
+  const dateKey = options?.now
+    ? options.now.toLocaleDateString("en-CA", { timeZone: "America/New_York" })
+    : today();
+
+  const isDup = await alreadyPushed("afternoon", dateKey);
   const concerns = await getNickCurrentConcerns().catch(() => null);
-  if (!concerns || concerns.threads.length === 0) {
-    return { slot: "afternoon", fired: false, reason: "no_open_threads" };
+  const top = concerns?.threads?.[0];
+  const hasContent = !!top;
+  
+  const skipReason = isDup 
+    ? "already_pushed_today" 
+    : (!hasContent ? "no_open_threads" : "");
+
+  let text = "";
+  if (top) {
+    const ageH = Math.round((now.getTime() - new Date(top.sourceLastAt).getTime()) / 3600_000);
+    const ageStr = ageH < 24 ? `${ageH}h` : `${Math.round(ageH / 24)}d`;
+    const mark = top.kind === "followup" ? "→" : "?";
+    text =
+      `🎯 <b>Open thread · ${ageStr} old</b>\n\n` +
+      `${mark} ${top.text}\n\n` +
+      `Tap to pick it back up.`;
   }
-  const top = concerns.threads[0];
-  const ageH = Math.round((Date.now() - new Date(top.sourceLastAt).getTime()) / 3600_000);
-  const ageStr = ageH < 24 ? `${ageH}h` : `${Math.round(ageH / 24)}d`;
-  const mark = top.kind === "followup" ? "→" : "?";
-  const text =
-    `🎯 <b>Open thread · ${ageStr} old</b>\n\n` +
-    `${mark} ${top.text}\n\n` +
-    `Tap to pick it back up.`;
+
+  if (options?.dryRun) {
+    const etHour = parseInt(
+      now.toLocaleString("en-US", { hour: "2-digit", hour12: false, timeZone: "America/New_York" }),
+      10,
+    );
+    const quietHoursBlocked = etHour >= 0 && etHour <= 5;
+
+    const riskFlags = ["preview_only", "live_send_disabled"];
+    if (isDup) riskFlags.push("already_sent_today");
+    if (!hasContent) riskFlags.push("empty_message", "context_missing");
+    if (quietHoursBlocked) riskFlags.push("quiet_hours_overnight");
+
+    const memoryRow = await prisma.brainMemory.findUnique({
+      where: { category_key: { category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS, key: "current" } },
+      select: { id: true },
+    }).catch(() => null);
+
+    const sources: PushSource[] = [];
+    if (top) {
+      sources.push({
+        id: top.sourceConversationId || memoryRow?.id,
+        category: "concern",
+        title: "Active Concern Thread",
+        summary: `Distilled open concern: "${top.text}"`,
+        confidence: "high",
+        reason: "Unresolved question or follow-up from past chat distillations.",
+        href: top.sourceConversationId ? `/chat?cid=${top.sourceConversationId}` : undefined,
+      });
+    } else {
+      sources.push({
+        category: "system_context",
+        title: "Concern Thread Fallback",
+        summary: "No unresolved concerns found in history.",
+        confidence: "medium",
+        reason: "No open threads were identified in recent session distillations.",
+      });
+    }
+
+    return {
+      kind: "preview",
+      slot: "afternoon",
+      nowIso: now.toISOString(),
+      timezone: "America/New_York",
+      dryRun: true,
+      wouldSend: !skipReason && !quietHoursBlocked,
+      wouldSkip: !!skipReason || quietHoursBlocked,
+      reason: skipReason || (quietHoursBlocked ? "quiet_hours_overnight" : "eligible"),
+      messageText: text || undefined,
+      messagePreviewSafe: text || undefined,
+      dedupKey: `afternoon_${dateKey}`,
+      dedupBlocked: isDup,
+      quietHoursBlocked,
+      rateLimitBlocked: false,
+      sourceFunction: "fireAfternoonPush",
+      riskFlags,
+      nextSafeStep: "Verify preview text looks appropriate.",
+      sources,
+    };
+  }
+
+  // Live flow
+  if (isDup) {
+    return { kind: "live", slot: "afternoon", fired: false, reason: "already_pushed_today" };
+  }
+  if (!hasContent) {
+    return { kind: "live", slot: "afternoon", fired: false, reason: "no_open_threads" };
+  }
+
   const ok = await sendTelegram(text).catch(() => false);
   if (ok) await markPushSent("afternoon", dateKey);
   return {
+    kind: "live",
     slot: "afternoon",
     fired: ok,
     reason: ok ? "sent" : "telegram_failed",
@@ -163,12 +371,15 @@ export async function fireAfternoonPush(): Promise<PushResult> {
  * suggests early shutdown. Otherwise: standard end-of-day review.
  * If body data is missing entirely: standard nudge.
  */
-export async function fireEveningPush(): Promise<PushResult> {
-  const dateKey = today();
-  if (await alreadyPushed("evening", dateKey)) {
-    return { slot: "evening", fired: false, reason: "already_pushed_today" };
-  }
-  const body = await getTodayBody();
+export async function fireEveningPush(options?: { dryRun?: boolean; now?: Date }): Promise<PushResult | PushPreview> {
+  const now = options?.now ?? new Date();
+  const dateKey = options?.now
+    ? options.now.toLocaleDateString("en-CA", { timeZone: "America/New_York" })
+    : today();
+
+  const isDup = await alreadyPushed("evening", dateKey);
+  const body = await getTodayBody({ now });
+  
   let text: string;
   if (body && (
     (typeof body.sleepHours === "number" && body.sleepHours < 6) ||
@@ -186,9 +397,73 @@ export async function fireEveningPush(): Promise<PushResult> {
       `Log today's score + tomorrow's MIT before bed. ` +
       `2-min ritual · keeps the streak alive.`;
   }
+
+  if (options?.dryRun) {
+    const etHour = parseInt(
+      now.toLocaleString("en-US", { hour: "2-digit", hour12: false, timeZone: "America/New_York" }),
+      10,
+    );
+    const quietHoursBlocked = etHour >= 0 && etHour <= 5;
+
+    const riskFlags = ["preview_only", "live_send_disabled"];
+    if (isDup) riskFlags.push("already_sent_today");
+    if (quietHoursBlocked) riskFlags.push("quiet_hours_overnight");
+    if (!body) riskFlags.push("body_data_missing", "noisy_or_generic");
+
+    const sources: PushSource[] = [];
+    if (body) {
+      const sleepStr = typeof body.sleepHours === "number" ? `${body.sleepHours.toFixed(1)}h sleep` : "No sleep logged";
+      const energyStr = typeof body.energy === "number" ? `energy ${body.energy}/10` : "No energy logged";
+      sources.push({
+        id: String(body.id),
+        category: "body",
+        title: "Daily Health Check-in",
+        summary: `${sleepStr}, ${energyStr}`,
+        confidence: "high",
+        reason: "Determined from logged sleep/energy metrics in operator health check-in.",
+        href: "/stats#body",
+      });
+    } else {
+      sources.push({
+        category: "system_context",
+        title: "Evening Review Ritual",
+        summary: "No health check-in logged for today.",
+        confidence: "medium",
+        reason: "Prompt defaults to standard review checklist when health metrics are missing.",
+      });
+    }
+
+    return {
+      kind: "preview",
+      slot: "evening",
+      nowIso: now.toISOString(),
+      timezone: "America/New_York",
+      dryRun: true,
+      wouldSend: !isDup && !quietHoursBlocked,
+      wouldSkip: isDup || quietHoursBlocked,
+      reason: isDup ? "already_pushed_today" : (quietHoursBlocked ? "quiet_hours_overnight" : "eligible"),
+      messageText: text,
+      messagePreviewSafe: text,
+      dedupKey: `evening_${dateKey}`,
+      dedupBlocked: isDup,
+      quietHoursBlocked,
+      rateLimitBlocked: false,
+      sourceFunction: "fireEveningPush",
+      riskFlags,
+      nextSafeStep: "Verify preview text looks appropriate.",
+      sources,
+    };
+  }
+
+  // Live flow
+  if (isDup) {
+    return { kind: "live", slot: "evening", fired: false, reason: "already_pushed_today" };
+  }
+
   const ok = await sendTelegram(text).catch(() => false);
   if (ok) await markPushSent("evening", dateKey);
   return {
+    kind: "live",
     slot: "evening",
     fired: ok,
     reason: ok ? "sent" : "telegram_failed",
@@ -207,23 +482,51 @@ export async function fireEveningPush(): Promise<PushResult> {
  *   · 18-23 → evening
  *   · 0-5   → skip (operator should be sleeping)
  */
-export async function fireSlotForCurrentHour(): Promise<PushResult | { skipped: true; reason: string }> {
-  const now = new Date();
+export async function fireSlotForCurrentHour(options?: { dryRun?: boolean; now?: Date }): Promise<PushResult | PushPreview | PushSkip> {
+  const now = options?.now ?? new Date();
   const etHour = parseInt(
     now.toLocaleString("en-US", { hour: "2-digit", hour12: false, timeZone: "America/New_York" }),
     10,
   );
   if (etHour >= 6 && etHour <= 11) {
     log.info("slot_dispatch", { slot: "morning", etHour });
-    return fireMorningPush();
+    return fireMorningPush(options);
   }
   if (etHour >= 12 && etHour <= 17) {
     log.info("slot_dispatch", { slot: "afternoon", etHour });
-    return fireAfternoonPush();
+    return fireAfternoonPush(options);
   }
   if (etHour >= 18 && etHour <= 23) {
     log.info("slot_dispatch", { slot: "evening", etHour });
-    return fireEveningPush();
+    return fireEveningPush(options);
   }
-  return { skipped: true, reason: `overnight_hour_${etHour}` };
+
+  if (options?.dryRun) {
+    const riskFlags = ["preview_only", "live_send_disabled", "quiet_hours_overnight"];
+    return {
+      kind: "preview",
+      slot: "evening", // fallback placeholder for return contract compatibility
+      nowIso: now.toISOString(),
+      timezone: "America/New_York",
+      dryRun: true,
+      wouldSend: false,
+      wouldSkip: true,
+      reason: `quiet_hours_overnight_${etHour}`,
+      dedupBlocked: false,
+      quietHoursBlocked: true,
+      rateLimitBlocked: false,
+      sourceFunction: "fireSlotForCurrentHour",
+      riskFlags,
+      nextSafeStep: "Wait for active hours (6am - 11pm ET) to preview slot-based pushes.",
+      sources: [{
+        category: "system_context",
+        title: "Overnight Quiet Hours",
+        summary: "Quiet hours block active overnight (12am - 5am ET).",
+        confidence: "high",
+        reason: "Automatic overnight scheduling block.",
+      }],
+    } as PushPreview;
+  }
+
+  return { kind: "skip", skipped: true, reason: `overnight_hour_${etHour}` };
 }

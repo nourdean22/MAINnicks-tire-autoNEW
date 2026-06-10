@@ -20,6 +20,13 @@ import { buildActionReceiptFeed, type ReceiptFeedResult } from "@/lib/services/a
 import { buildTodayCompound, type TodayCompound } from "@/lib/services/today-compound";
 import { parseSessionLog, type ParsedSession } from "@/lib/services/session-import";
 import { convertToAction, type ActionSuggestion, type ConvertInput } from "@/lib/knowledge/action-converter";
+import {
+  fireMorningPush,
+  fireAfternoonPush,
+  fireEveningPush,
+  fireSlotForCurrentHour,
+  type PushPreview,
+} from "@/lib/brain/proactive-pushes";
 
 export interface CommandResult {
   text: string;
@@ -34,6 +41,7 @@ export interface CommandDeps {
   today: () => Promise<TodayCompound>;
   parseSession: (raw: string) => ParsedSession;
   convert: (input: ConvertInput) => ActionSuggestion;
+  proactivePreview: (slot: string, now?: Date) => Promise<PushPreview[]>;
 }
 
 export interface CommandSpec {
@@ -107,7 +115,36 @@ export function formatActionSuggestion(s: ActionSuggestion): string {
 
 // ── registry ──────────────────────────────────────────────────────────
 
+export function formatPushPreview(p: PushPreview): string {
+  const status = p.wouldSend ? "🟢 WOULD SEND" : "🔴 WOULD SKIP";
+  const dedup = p.dedupBlocked ? " [DEDUP BLOCKED]" : "";
+  const quiet = p.quietHoursBlocked ? " [QUIET HOURS BLOCKED]" : "";
+  const title = `Slot: ${p.slot.toUpperCase()} · ${status}${dedup}${quiet}`;
+  const details = `  Reason: ${p.reason}\n  Source: ${p.sourceFunction}\n  Risk flags: ${p.riskFlags.join(", ") || "none"}`;
+  
+  const whyBlock = p.sources && p.sources.length > 0
+    ? `  Why / Sources:\n` + p.sources.map(s => `    - [${s.category}] ${s.title} — ${s.confidence} confidence\n      Reason: ${s.reason}`).join("\n")
+    : `  Why / Sources: None`;
+
+  const message = p.messageText ? `  Message:\n  """\n  ${p.messageText.replace(/\n/g, "\n  ")}\n  """` : "  Message: (None)";
+  return `${title}\n${details}\n${whyBlock}\n${message}`;
+}
+
 export const COMMANDS: CommandSpec[] = [
+  {
+    name: "preview-pushes",
+    description: "Preview what STATENOUR would proactively send (dry-run).",
+    aliases: ["pushes"],
+    run: async (args, deps) => {
+      const slot = args.trim().toLowerCase() || "all";
+      const previews = await deps.proactivePreview(slot);
+      const text = [
+        "⚠️ Dry-run only. No Telegram messages were sent and no BrainMemory markers were written.",
+        ...previews.map(formatPushPreview),
+      ].join("\n\n");
+      return { text, data: previews };
+    },
+  },
   {
     name: "today",
     description: "Today's snapshot: done/open, top mastery domain, one warning.",
@@ -231,6 +268,30 @@ const DEFAULT_DEPS: CommandDeps = {
   today: () => buildTodayCompound(),
   parseSession: (raw) => parseSessionLog(raw),
   convert: (input) => convertToAction(input),
+  proactivePreview: async (slot: string, now?: Date) => {
+    const dryRun = true;
+    const date = now ?? new Date();
+    const previews: PushPreview[] = [];
+    if (slot === "morning") {
+      const r = await fireMorningPush({ dryRun, now: date });
+      previews.push(r as PushPreview);
+    } else if (slot === "afternoon") {
+      const r = await fireAfternoonPush({ dryRun, now: date });
+      previews.push(r as PushPreview);
+    } else if (slot === "evening") {
+      const r = await fireEveningPush({ dryRun, now: date });
+      previews.push(r as PushPreview);
+    } else if (slot === "auto") {
+      const r = await fireSlotForCurrentHour({ dryRun, now: date });
+      if (r.kind === "preview") previews.push(r);
+    } else {
+      const m = await fireMorningPush({ dryRun, now: date });
+      const a = await fireAfternoonPush({ dryRun, now: date });
+      const e = await fireEveningPush({ dryRun, now: date });
+      previews.push(m as PushPreview, a as PushPreview, e as PushPreview);
+    }
+    return previews;
+  },
 };
 
 export interface CommandOutcome {

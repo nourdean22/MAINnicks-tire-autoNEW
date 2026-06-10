@@ -282,11 +282,11 @@ describe("Vehicle Health Dashboard", () => {
   });
 
   it("should calculate oil change due date", () => {
-    const lastOilChange = new Date("2025-09-01");
+    const lastOilChange = new Date(Date.UTC(2025, 8, 1));
     const intervalMonths = 6;
     const nextDue = new Date(lastOilChange);
-    nextDue.setMonth(nextDue.getMonth() + intervalMonths);
-    expect(nextDue.toISOString().slice(0, 10)).toBe("2026-03-04");
+    nextDue.setUTCMonth(nextDue.getUTCMonth() + intervalMonths);
+    expect(nextDue.toISOString().slice(0, 10)).toBe("2026-03-01");
   });
 
   it("should deduct points for overdue services", () => {

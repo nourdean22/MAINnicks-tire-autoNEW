@@ -39,6 +39,7 @@ const RevenueSection = lazy(() => import("./admin/RevenueSection"));
 const CallTrackingSection = lazy(() => import("./admin/CallTrackingSection"));
 const CampaignsSection = lazy(() => import("./admin/OutreachHubSection"));
 const MembershipsSection = lazy(() => import("./admin/MembershipsSection"));
+const TireOrdersSection = lazy(() => import("./admin/TireOrdersSection"));
 // wave-181.x Intelligence Dispersal Wave 3 (2026-05-24) · Intelligence-
 // Section retired entirely. Signals are dispersed to canonical surfaces:
 // statenour /scoreboard (Wave 1.5 · NickHealthSection) · the various
@@ -91,6 +92,7 @@ function SectionContent({ section }: { section: AdminSection }) {
         {section === "trafficFunnel" && <TrafficFunnelSection />}
         {section === "voiceReceptionist" && <VoiceReceptionistSection />}
         {section === "memberships" && <MembershipsSection />}
+        {section === "tireOrders" && <TireOrdersSection />}
       </Suspense>
     </AdminSectionBoundary>
   );
@@ -207,7 +209,7 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   inspections: "overview",
   loyalty: "customers",
   followups: "campaigns",
-  tireorders: "overview",
+  tireorders: "tireOrders",
   warranty: "customers",
   inventory: "overview",
   waitlist: "customers",
@@ -225,7 +227,7 @@ const TAB_ALIASES: Record<string, AdminSection> = {
 const VALID_SECTIONS: ReadonlySet<AdminSection> = new Set<AdminSection>([
   "overview", "leads", "content", "customers",
   "campaigns", "settings", "revenue", "callTrackingView",
-  "trafficFunnel", "voiceReceptionist", "memberships",
+  "trafficFunnel", "voiceReceptionist", "memberships", "tireOrders",
 ]);
 
 // 2026-05-19 MONEY consolidation · compound redirects for old bookmarks.
