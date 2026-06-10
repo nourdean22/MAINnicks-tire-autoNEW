@@ -63,36 +63,28 @@ To balance conversion rate optimization (CRO) with operational constraints, the 
 
 ## 3. Copy-Safety Audit & Active Watch Items
 
-While many marketing claims have been softened, several aggressive value propositions and pricing labels remain in the codebase. These are tracked as known copy-safety watch items that require future refactoring.
+The `/tires` page has improved payment/reservation safety language, but not all installation-package marketing language has been fully softened yet.
 
-### 3.1. Replaced and Softened Claims (Solved)
-*   **Unqualified Free Claims**:
-    *   Changed `Included Free` badge to `Included in Estimate` in the `PackageBanner` header.
-    *   Changed `Free Flat Repair` to `Flat Repair Included` in the banner highlights.
-    *   Changed `20-Point Inspection: Included free` to `Included in estimate`.
-    *   Changed `We install it free` step label to `Installation package included`.
-    *   Changed individual service values (e.g., `$20 value — FREE`) to `$20 value — Included` inside the expanded services drawer.
-*   **Guaranteed Installation Promises**:
-    *   Softened `Same-day on in-stock` in the trust strip and page haiku to `Same-day help when stock allows`.
-    *   Softened `Same-day Install` badge to `Same-day Help`.
-*   **Supplier Stock Reservation**:
-    *   Softened order modal prepayment text from claiming payment "locks in" or "reserves" stock to explicitly stating:
-        > *"Payment does not guarantee supplier reservation. No supplier reservation is guaranteed until staff confirms availability. Prepayment is optional; you can also pay at the counter during your visit."*
-*   **Banned Brand-Voice Adjectives**:
-    *   Changed `"The shop your grandfather would've trusted"` to `"1,700+ Google reviews, with the gear your kid's Tesla needs"` (removed `trusted`).
-    *   Changed `"quality used tires"` to `"inspected used tires"` (removed `quality`).
+### 3.1. Solved / Improved
 
-### 3.2. Known Copy-Safety Watch Items (Still Present)
-The following marketing hooks are still active in the current frontend code and are not fully resolved:
-1.  **Aggressive Value References**:
-    *   The `PackageBanner` still displays a prominent `"$289+ Value"` badge.
-    *   The banner description states: *"Other shops charge $250+ for these services."*
-    *   The services list summary block displays: *"Total package value: $289+ — included in estimate with every tire purchase"*.
-    *   The pricing breakdown block contains a strike-through on `$289+` with the text: *"At Conrad's, Mavis, or Firestone, the same install package adds $289+ at the register."*
-2.  **Used Tires Install Claim**:
-    *   The used tires section states: *"Same professional installation, same included mount/balance/valve stems/disposal... just a friendlier number on the receipt."* (Note: used tire pricing structures must be monitored to ensure margins support this bundle).
-3.  **Same-Day Service Implications**:
-    *   Trust anchors such as `"✓ Walk-in OK 7 days"` and `"✓ Same-day help when stock allows"` must be monitored for shop capacity compliance.
+- Payment and stock-reservation language now clearly states that payment does not guarantee supplier reservation.
+- Staff confirmation before availability/fitment remains visible in the request flow.
+- Same-day wording should be kept qualified as “when stock allows.”
+- Result-card estimate language should avoid unsupported savings claims.
+
+### 3.2. Still Active Watch Items
+
+The current `PackageBanner` still contains aggressive package-value language:
+
+- `Included Free`
+- `$packageValue+ Value`
+- `Other shops charge $250+ for these services`
+- `Free Flat Repair`
+- `Included free`
+- `$svc.value value — FREE`
+- `Total package value: $packageValue+ — yours free with every tire purchase`
+
+These should be reviewed in a future claim-safety cleanup because they may create customer expectation risk unless the shop is comfortable proving and honoring the value/free claims consistently.
 
 ---
 
