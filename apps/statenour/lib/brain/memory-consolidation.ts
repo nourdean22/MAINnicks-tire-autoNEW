@@ -369,7 +369,11 @@ export async function scoreMemories(): Promise<{ scored: number }> {
     // to 1.0 by promoteToWisdom) whenever they hadn't been seen in
     // 30d. The next consolidation run promoted them right back to
     // 1.0 — a perpetual see-saw burning DB writes every cycle.
-    where: { confidence: { gt: 0 }, category: { not: "wisdom" } },
+    // 2026-06-10 — also exclude operator-curated rows (source="manual"),
+    // same rationale: manual confidence is an explicit operator signal
+    // (the highest-trust value in the system); the recency scorer must
+    // not silently erode it.
+    where: { confidence: { gt: 0 }, category: { not: "wisdom" }, source: { not: "manual" } },
     orderBy: { updatedAt: "asc" },
     take: 100,
     select: { id: true, category: true, content: true, confidence: true, seenCount: true, lastSeen: true, createdAt: true },
