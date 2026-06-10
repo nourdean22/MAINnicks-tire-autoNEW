@@ -121,8 +121,13 @@ export function formatPushPreview(p: PushPreview): string {
   const quiet = p.quietHoursBlocked ? " [QUIET HOURS BLOCKED]" : "";
   const title = `Slot: ${p.slot.toUpperCase()} · ${status}${dedup}${quiet}`;
   const details = `  Reason: ${p.reason}\n  Source: ${p.sourceFunction}\n  Risk flags: ${p.riskFlags.join(", ") || "none"}`;
+  
+  const whyBlock = p.sources && p.sources.length > 0
+    ? `  Why / Sources:\n` + p.sources.map(s => `    - [${s.category}] ${s.title} — ${s.confidence} confidence\n      Reason: ${s.reason}`).join("\n")
+    : `  Why / Sources: None`;
+
   const message = p.messageText ? `  Message:\n  """\n  ${p.messageText.replace(/\n/g, "\n  ")}\n  """` : "  Message: (None)";
-  return `${title}\n${details}\n${message}`;
+  return `${title}\n${details}\n${whyBlock}\n${message}`;
 }
 
 export const COMMANDS: CommandSpec[] = [
