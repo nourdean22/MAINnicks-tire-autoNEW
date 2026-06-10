@@ -13,9 +13,15 @@ const RECOMMENDED_ENV = [
 if (process.env.GOOGLE_MAPS_API_KEY && !process.env.GOOGLE_PLACES_API_KEY) {
   process.env.GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 }
-if (process.env.GOOGLE_MAPS_API_KEY && !process.env.GOOGLE_SEARCH_CONSOLE_KEY) {
-  // GSC uses service account, not API key — but set for scheduler env check
-  process.env.GOOGLE_SEARCH_CONSOLE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ? "configured" : "";
+// GSC scheduler env-check synthesis. 2026-06-10 gap-sweep fix: this used
+// to be nested inside `if (GOOGLE_MAPS_API_KEY && ...)`, so deleting the
+// Maps key silently stopped Search Console syncing even though GSC auths
+// via the SERVICE ACCOUNT (gsc-data.ts), not the Maps key. Now the
+// "configured" marker derives ONLY from the real GSC credentials, fully
+// independent of the Maps key.
+if (!process.env.GOOGLE_SEARCH_CONSOLE_KEY) {
+  const gscReady = !!(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+  process.env.GOOGLE_SEARCH_CONSOLE_KEY = gscReady ? "configured" : "";
 }
 
 const missingRequired = REQUIRED_ENV.filter(k => !process.env[k]);
