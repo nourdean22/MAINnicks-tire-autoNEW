@@ -77,4 +77,5 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   // URL alias redirects ?tab=intelligence → "overview"
   trafficFunnel: "Traffic → Revenue",
   memberships: "Nonstop Nick",
+  tireOrders: "Tire Orders",
 };

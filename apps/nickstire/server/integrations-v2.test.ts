@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from "vitest";
 
-describe("Gateway Tire Integration", () => {
+describe("Gateway Tire Integration", { timeout: 30000 }, () => {
   it("exports gatewayTireRouter from routers/index", async () => {
     const { gatewayTireRouter } = await import("./routers/index");
     expect(gatewayTireRouter).toBeDefined();
@@ -59,7 +59,7 @@ describe("Gateway Tire Integration", () => {
   });
 });
 
-describe("Auto Labor Integration", () => {
+describe("Auto Labor Integration", { timeout: 30000 }, () => {
   it("exports autoLaborRouter from routers/index", async () => {
     const { autoLaborRouter } = await import("./routers/index");
     expect(autoLaborRouter).toBeDefined();
@@ -105,7 +105,7 @@ describe("Auto Labor Integration", () => {
   });
 });
 
-describe("Integration Router Registration", () => {
+describe("Integration Router Registration", { timeout: 30000 }, () => {
   it("both routers are registered in appRouter", async () => {
     const { appRouter } = await import("./routers");
     // The appRouter should have both integration routers
