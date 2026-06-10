@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import FadeIn from "@/components/FadeIn";
 import { useState } from "react";
 
@@ -42,6 +42,9 @@ interface Special {
   code?: string;
   /** "Cost of waiting" tie-in — one-liner. Used for major-repair specials. */
   waitingCost?: string;
+  // ── Surface active coupons extensions ─────────────────────
+  isFeatured?: boolean;
+  badgeText?: string;
 }
 
 const SPECIALS: Special[] = [
@@ -190,10 +193,10 @@ function SpecialCard({ special }: { special: Special }) {
   return (
     <div className="relative bg-[#141414] border border-[#2A2A2A] rounded-xl overflow-hidden hover:border-primary/40 transition-colors flex flex-col">
       {/* Limited badge */}
-      {special.limited && (
+      {(special.limited || special.badgeText) && (
         <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-red-500/15 text-red-400 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
           <AlertTriangle className="w-3 h-3" />
-          Seasonal
+          {special.badgeText || "Seasonal"}
         </div>
       )}
 
@@ -339,9 +342,56 @@ function mapDbSpecial(s: any, idx: number): Special {
   };
 }
 
+type DbCoupon = NonNullable<RouterOutputs["coupons"]["active"]>[number];
+
+export function mapDbCouponToSpecial(c: DbCoupon, idx: number): Special {
+  const val = c.discountValue ?? 0;
+  const label = c.discountType === "percent" ? `${val}% OFF` : c.discountType === "free" ? "FREE" : val > 0 ? `$${val} OFF` : "COUPON";
+
+  // Determine icon based on applicableServices description
+  const servicesLower = (c.applicableServices || "").toLowerCase();
+  let icon: React.ReactNode = <Tag className="w-6 h-6" />;
+  if (servicesLower.includes("oil")) {
+    icon = ICON_MAP.oil;
+  } else if (servicesLower.includes("brake")) {
+    icon = ICON_MAP.brakes;
+  } else if (servicesLower.includes("diag")) {
+    icon = ICON_MAP.diagnostic;
+  } else if (servicesLower.includes("tire")) {
+    icon = ICON_MAP.tires;
+  } else if (servicesLower.includes("ac") || servicesLower.includes("cool") || servicesLower.includes("air")) {
+    icon = ICON_MAP.cooling;
+  } else if (servicesLower.includes("winter")) {
+    icon = ICON_MAP.winter;
+  }
+
+  const remaining = c.maxRedemptions > 0 ? c.maxRedemptions - (c.currentRedemptions ?? 0) : 0;
+  const badgeText = remaining > 0 ? `${remaining} LEFT` : undefined;
+
+  return {
+    id: idx + 200, // ensure unique key space
+    icon,
+    service: c.applicableServices === "all" ? "Any Service" : c.applicableServices,
+    headline: c.title,
+    description: c.description || "",
+    salePrice: "COUPON",
+    originalPrice: "",
+    discountLabel: label,
+    validThrough: c.expiresAt
+      ? new Date(c.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      : "While supplies last",
+    terms: c.terms || "Mention at checkout.",
+    limited: remaining > 0,
+    badgeText,
+    isFeatured: c.isFeatured === 1,
+    code: c.code || undefined,
+  };
+}
+
 /* ─── MAIN PAGE ─────────────────────────────────────────── */
 export default function SpecialsPage() {
   const { data: dbSpecials } = trpc.specials.getActive.useQuery(undefined, { staleTime: 60_000 });
+  const { data: dbCoupons } = trpc.coupons.active.useQuery(undefined, { staleTime: 60_000 });
 
   const specials = useMemo(() => {
     // Filter out expired hardcoded specials.
@@ -367,8 +417,13 @@ export default function SpecialsPage() {
     const dbExtras = fromDb.filter(
       (s: Special) => !coveredServices.has(String(s.service).toLowerCase())
     );
-    return [...activeHardcoded, ...dbExtras];
-  }, [dbSpecials]);
+
+    const fromCoupons = (dbCoupons || []).map((c: any, i: number) => mapDbCouponToSpecial(c, i));
+    const featuredCoupons = fromCoupons.filter((c: any) => c.isFeatured);
+    const regularCoupons = fromCoupons.filter((c: any) => !c.isFeatured);
+
+    return [...featuredCoupons, ...activeHardcoded, ...dbExtras, ...regularCoupons];
+  }, [dbSpecials, dbCoupons]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
