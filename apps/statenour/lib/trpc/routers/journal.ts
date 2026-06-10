@@ -669,7 +669,14 @@ export const journalRouter = router({
           deletedAt: null,
           enrichedAt: { not: null },
         },
-        select: { createdAt: true, entryType: true, extractedItems: true, linkStatus: true },
+        select: {
+          createdAt: true,
+          entryType: true,
+          extractedItems: true,
+          linkStatus: true,
+          rawThoughts: true,
+          summary: true,
+        },
         orderBy: { createdAt: "desc" },
         take: 400,
       })
@@ -679,6 +686,8 @@ export const journalRouter = router({
           entryType: string | null;
           extractedItems: string | null;
           linkStatus: string | null;
+          rawThoughts: string;
+          summary: string | null;
         }[] => [],
       );
     let weekTotal = 0;
@@ -686,6 +695,34 @@ export const journalRouter = router({
     let grounded = 0;
     const byDomain = new Map<string, number>();
     const byType = new Map<string, number>();
+
+    // 10 identity "proof of becoming" domains (item D · 2026-06-10). Each
+    // THIS-WEEK entry is binned into exactly ONE — first match wins, so the
+    // grid sums back to weekTotal · no double-count, no fabrication. Bins on
+    // the brain's structured signals (entryType + extracted domains) plus the
+    // operator's own words; a zero domain reads "no proof logged", never fudged.
+    const norm = (s: string) => s.toLowerCase();
+    const tagHit = (tags: string[], ...needles: string[]) =>
+      tags.some((h) => needles.some((n) => norm(h).includes(n)));
+    const BECOMING_DOMAINS: {
+      key: string;
+      label: string;
+      match: (entryType: string, domains: string[], text: string) => boolean;
+    }[] = [
+      { key: "fitness", label: "Fitness", match: (_t, d, x) => tagHit(d, "health", "body", "fitness") || /\b(workout|gym|train(ed|ing)?|run|lift|reps|cardio|diet|sleep)\b/.test(x) },
+      { key: "business", label: "Business", match: (_t, d, x) => tagHit(d, "business", "empire", "finance", "content", "mission") || /\b(revenue|client|sale|deal|launch|ship(ped)?|invoice|profit)\b/.test(x) },
+      { key: "leadership", label: "Leadership", match: (_t, d, x) => tagHit(d, "social", "influence", "leadership") || /\b(team|led|delegat|hire|manage(d|r)?|mentor|negotiat)\b/.test(x) },
+      { key: "faith", label: "Faith", match: (_t, d, x) => tagHit(d, "spiritual", "faith") || /\b(pray(ed|er)?|god|faith|quran|salah|gratitude|grateful)\b/.test(x) },
+      { key: "family-future", label: "Family / Future", match: (t, _d, x) => t === "planning" || /\b(family|wife|kids?|son|daughter|legacy|future|90 days?|vision)\b/.test(x) },
+      { key: "follow-through", label: "Follow-through", match: (t) => t === "decision" },
+      { key: "emotional-control", label: "Emotional control", match: (t) => t === "venting" },
+      { key: "dopamine-control", label: "Dopamine control", match: (_t, _d, x) => /\b(resist(ed)?|avoid(ed)?|temptation|scroll|porn|junk|distract|urge|craving|said no)\b/.test(x) },
+      { key: "patience", label: "Patience", match: (_t, _d, x) => /\b(patien(t|ce)|wait(ed)?|slow|long game|compound|stayed calm|held back)\b/.test(x) },
+      { key: "discipline", label: "Discipline", match: () => true },
+    ];
+    const becoming: Record<string, number> = Object.fromEntries(
+      BECOMING_DOMAINS.map((d) => [d.key, 0]),
+    );
     for (const r of rows) {
       const isThisWeek = now - r.createdAt.getTime() < 7 * DAY;
       if (!isThisWeek) {
@@ -710,6 +747,10 @@ export const journalRouter = router({
       for (const d of domains.slice(0, 4)) byDomain.set(d, (byDomain.get(d) ?? 0) + 1);
       const t = r.entryType ?? jsonType;
       if (t) byType.set(t, (byType.get(t) ?? 0) + 1);
+      // Identity-domain bin (first match wins → sums back to weekTotal).
+      const proofText = `${r.rawThoughts} ${r.summary ?? ""}`.toLowerCase();
+      const bin = BECOMING_DOMAINS.find((d) => d.match(t ?? "", domains, proofText));
+      if (bin) becoming[bin.key] += 1;
     }
     return {
       weekTotal,
@@ -721,6 +762,13 @@ export const journalRouter = router({
       byType: [...byType.entries()]
         .map(([type, count]) => ({ type, count }))
         .sort((a, b) => b.count - a.count),
+      // 10 fixed identity domains, ordered, zeros included (the grid renders
+      // empty domains honestly as "no proof logged").
+      becomingDomains: BECOMING_DOMAINS.map((d) => ({
+        key: d.key,
+        label: d.label,
+        count: becoming[d.key],
+      })),
     };
   }),
 
