@@ -129,6 +129,9 @@ export const leads = mysqlTable("leads", {
   utmCampaign: varchar("utmCampaign", { length: 255 }),
   landingPage: varchar("landingPage", { length: 500 }),
   referrer: varchar("referrer", { length: 500 }),
+  // attribution-holds migration 0067 (2026-06) - additive, nullable
+  utmContent: varchar("utmContent", { length: 255 }),
+  utmTerm: varchar("utmTerm", { length: 255 }),
   // wave-125 — pipeline FKs. callbackId links a callback-source lead
   // back to its callback_requests row (closes the "same person in two
   // sections" gap). bookingId / invoiceId set on conversion so
@@ -632,6 +635,9 @@ export const callbackRequests = mysqlTable("callback_requests", {
   utmCampaign: varchar("utmCampaign", { length: 255 }),
   landingPage: varchar("landingPage", { length: 500 }),
   referrer: varchar("referrer", { length: 500 }),
+  // attribution-holds migration 0067 (2026-06) - additive, nullable
+  utmContent: varchar("utmContent", { length: 255 }),
+  utmTerm: varchar("utmTerm", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -1479,6 +1485,15 @@ export const tireOrders = mysqlTable("tire_orders", {
   gatewayOrderRef: varchar("gatewayOrderRef", { length: 100 }),
   /** Expected delivery date */
   expectedDelivery: timestamp("expectedDelivery"),
+
+  // attribution-holds migration 0067 (2026-06) - additive, nullable.
+  // Which page/campaign produced the tire ORDER (the money path) -
+  // same field shapes as leads/bookings.
+  utmSource: varchar("utmSource", { length: 100 }),
+  utmMedium: varchar("utmMedium", { length: 100 }),
+  utmCampaign: varchar("utmCampaign", { length: 255 }),
+  landingPage: varchar("landingPage", { length: 500 }),
+  referrer: varchar("referrer", { length: 500 }),
   /** Scheduled installation date */
   installationDate: timestamp("installationDate"),
 
