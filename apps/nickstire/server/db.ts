@@ -201,11 +201,13 @@ export async function getActiveCoupons() {
   const db = await getDb();
   if (!db) return [];
   const now = new Date();
+  // maxRedemptions = 0 means unlimited; exclude coupons that have hit their cap.
   return db.select().from(coupons)
     .where(and(
       eq(coupons.isActive, 1),
       lte(coupons.startsAt, now),
       sql`(${coupons.expiresAt} IS NULL OR ${coupons.expiresAt} >= ${now})`,
+      sql`(${coupons.maxRedemptions} = 0 OR ${coupons.currentRedemptions} < ${coupons.maxRedemptions})`,
     ))
     .orderBy(desc(coupons.isFeatured), desc(coupons.createdAt));
 }
@@ -228,6 +230,72 @@ export async function deleteCoupon(id: number) {
   if (!db) throw new Error("Database not available");
   await db.delete(coupons).where(eq(coupons.id, id));
   return { success: true };
+}
+
+/**
+ * Atomically validate and record a single coupon redemption.
+ *
+ * Rules:
+ *   - maxRedemptions = 0  → unlimited; always increments and succeeds.
+ *   - maxRedemptions > 0  → hard cap; rejects when currentRedemptions >= maxRedemptions.
+ *   - Inactive or expired coupons are rejected before the increment.
+ *   - Concurrency: the UPDATE is conditional (WHERE clause mirrors the cap check),
+ *     so affectedRows = 0 means a concurrent claim won the last slot → cap error.
+ *
+ * Does NOT send SMS. Does NOT publish anything. Pure DB write.
+ */
+export async function redeemCouponById(id: number): Promise<{ success: true; currentRedemptions: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Step 1: Fetch coupon for validation
+  const rows = await db.select({
+    isActive: coupons.isActive,
+    expiresAt: coupons.expiresAt,
+    maxRedemptions: coupons.maxRedemptions,
+    currentRedemptions: coupons.currentRedemptions,
+  }).from(coupons).where(eq(coupons.id, id)).limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("COUPON_NOT_FOUND");
+  }
+
+  const coupon = rows[0];
+
+  if (coupon.isActive !== 1) {
+    throw new Error("COUPON_INACTIVE");
+  }
+
+  const now = new Date();
+  if (coupon.expiresAt !== null && coupon.expiresAt < now) {
+    throw new Error("COUPON_EXPIRED");
+  }
+
+  if (coupon.maxRedemptions > 0 && coupon.currentRedemptions >= coupon.maxRedemptions) {
+    throw new Error("COUPON_CAP_REACHED");
+  }
+
+  // Step 2: Atomic increment with cap guard in WHERE clause.
+  // If a concurrent claim consumed the last slot between Step 1 and here,
+  // the WHERE condition fails → affectedRows = 0 → we catch it below.
+  const updateResult = await db.update(coupons)
+    .set({ currentRedemptions: sql`${coupons.currentRedemptions} + 1` })
+    .where(and(
+      eq(coupons.id, id),
+      eq(coupons.isActive, 1),
+      // Re-check cap atomically: maxRedemptions=0 (unlimited) OR still under cap
+      sql`(${coupons.maxRedemptions} = 0 OR ${coupons.currentRedemptions} < ${coupons.maxRedemptions})`,
+    ));
+
+  // mysql2 returns [ResultSetHeader, ...] — affectedRows is on [0]
+  const affectedRows = (updateResult[0] as unknown as { affectedRows?: number })?.affectedRows ?? 1;
+
+  if (affectedRows === 0) {
+    // A concurrent claim won the last slot after our read
+    throw new Error("COUPON_CAP_REACHED");
+  }
+
+  return { success: true, currentRedemptions: coupon.currentRedemptions + 1 };
 }
 
 // ─── CUSTOMER VEHICLE QUERIES ─────────────────────────

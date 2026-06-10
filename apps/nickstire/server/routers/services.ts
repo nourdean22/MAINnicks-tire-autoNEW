@@ -5,7 +5,7 @@
 import { publicProcedure, protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
-  createCoupon, getActiveCoupons, getAllCoupons, updateCoupon, deleteCoupon,
+  createCoupon, getActiveCoupons, getAllCoupons, updateCoupon, deleteCoupon, redeemCouponById,
   getCustomerVehicles, addCustomerVehicle, updateCustomerVehicle, deleteCustomerVehicle,
   getServiceHistoryForUser,
   createReferral, getReferrals, updateReferralStatus,
@@ -75,6 +75,37 @@ export const couponsRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       return deleteCoupon(input.id);
+    }),
+  /**
+   * Admin-triggered redemption recording.
+   * Validates active/unexpired state and enforces the maxRedemptions cap.
+   * Returns { success, currentRedemptions } on success.
+   * Throws BAD_REQUEST with code COUPON_CAP_REACHED / COUPON_INACTIVE /
+   * COUPON_EXPIRED, or NOT_FOUND when the coupon doesn't exist.
+   *
+   * Does NOT send SMS. Does NOT publish GBP posts.
+   */
+  redeem: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      try {
+        return await redeemCouponById(input.id);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg === "COUPON_NOT_FOUND") {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Coupon not found." });
+        }
+        if (msg === "COUPON_INACTIVE") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Coupon is inactive." });
+        }
+        if (msg === "COUPON_EXPIRED") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Coupon has expired." });
+        }
+        if (msg === "COUPON_CAP_REACHED") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Redemption cap reached — this offer is fully claimed." });
+        }
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Redemption failed." });
+      }
     }),
 });
 
