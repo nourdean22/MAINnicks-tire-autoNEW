@@ -307,6 +307,8 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
               </button>
               <p className="text-[10px] text-muted-foreground text-center mt-2">
                 Secure card payment by Stripe. Your card details never touch our site.
+                Paying now locks in your order — we still confirm availability with
+                you before install.
               </p>
 
               {/* Secondary — pay by phone */}
@@ -343,9 +345,22 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
               </div>
             </div>
           )}
+          {/* Merge of the checkout-hardening wave (per-delivery-method
+              guidance + FCFS honesty) and PR #41 (dropped the 1-business-
+              hour promise, added the no-reservation disclaimer). One
+              deliberate correction to #41's line: "or payment is
+              completed" implied paying reserves supplier stock — it
+              doesn't (no D&K reservation API exists), so the disclaimer
+              ends at staff confirmation. */}
           <div className="text-muted-foreground mb-6 leading-relaxed text-sm space-y-2 text-center">
-            <p>Secure online checkout option follows. Staff will confirm availability and fitment before final shop hand-off.</p>
-            <p className="text-xs text-amber-500/95 font-medium">No supplier reservation is guaranteed until staff confirms or payment is completed.</p>
+            <p>
+              {deliveryMethod === "ship"
+                ? "We'll confirm availability and contact you with shipping cost. Payment required before shipping."
+                : deliveryMethod.startsWith("drop-off")
+                ? "We'll confirm availability and contact you. Drop off your vehicle and we'll get it done — drop-offs are worked first come, first serve."
+                : "We'll confirm availability and contact you. Walk in anytime we're open — first come first serve!"}
+            </p>
+            <p className="text-xs text-amber-500/95 font-medium">No supplier reservation is guaranteed until staff confirms availability.</p>
           </div>
           <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6 text-left space-y-2">
             <div className="flex justify-between text-sm">
@@ -555,6 +570,13 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
               toast.error("Shipping address is required for delivery orders.");
               return;
             }
+            // Server zod rejects invalid emails and the customer would only
+            // see the generic something-went-wrong toast — catch it here
+            // with a fixable message instead of losing the order.
+            if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+              toast.error("That email doesn't look right — fix it or leave it blank.");
+              return;
+            }
             const deliveryNote = deliveryMethod === "ship"
               ? `[SHIP TO: ${shippingAddress.trim()}] ${notes.trim()}`
               : notes.trim();
@@ -585,8 +607,10 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
           )}
         </button>
 
+        {/* Merge: #41's 3-line structure + this wave's pay-at-the-shop
+            option clarity. */}
         <div className="text-xs text-muted-foreground text-center mt-4 space-y-1">
-          <p>No card required to request — secure checkout follows.</p>
+          <p>No card required to request — paying online afterward is optional, or pay at the shop.</p>
           <p>Staff will confirm availability and fitment before final shop hand-off.</p>
           <p className="text-amber-500/80">Gateway/D&K availability can change until staff confirms.</p>
         </div>
@@ -1343,7 +1367,7 @@ export default function TireFinder() {
                   {/* Info note */}
                   <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
                     <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                    <p>Prices shown are estimates based on current wholesale availability. We confirm exact pricing before processing your order. <span className="text-foreground/80">Free check. Written quote. You don't pay until you say yes.</span></p>
+                    <p>Prices shown are estimates based on current wholesale availability. We confirm exact pricing and availability before installing. <span className="text-foreground/80">Free check. Written quote. Paying online is optional — pay at the shop if you prefer.</span></p>
                   </div>
                 </>
               ) : (

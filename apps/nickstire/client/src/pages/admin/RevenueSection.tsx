@@ -7,7 +7,7 @@ import React, { useState, lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   DollarSign, Loader2, Activity, Plus,
-  AlertTriangle, Wrench, CreditCard,
+  AlertTriangle, Wrench, CreditCard, Package,
 } from "lucide-react";
 
 // 2026-05-19 Elon-cut · Specials moved to ContentSection (it's content
@@ -20,6 +20,11 @@ const WorkOrdersSection = lazy(() => import("./WorkOrdersSection"));
 const DispatchSection = lazy(() => import("./DispatchSection"));
 const DeclinedEstimatesSection = lazy(() => import("./DeclinedEstimatesSection"));
 const SnapDashboardSection = lazy(() => import("./SnapDashboardSection"));
+// 2026-06-10 checkout-hardening · admin surface for the LIVE online tire
+// ordering money path (orders + payment state + next action + the paid-
+// order alert backlog). The server endpoints existed since launch but
+// had zero UI after the 2026-04-24 TireOrdersSection deletion.
+const TireOrdersTab = lazy(() => import("./money/TireOrdersTab"));
 
 // 2026-05-19 · PageHeader removed from import + render (Move 4 of audit ·
 // reclaims ~80px of mobile viewport · topbar already shows "Money").
@@ -38,17 +43,21 @@ import { CreateInvoiceView } from "./money/CreateInvoiceView";
 // its slot. Shop Pulse + Status remain because Dispatch + WorkOrders are
 // distinct operational surfaces (verified Phase 3) — they don't fold
 // cleanly elsewhere yet.
-type SectionTab = "revenue" | "declined" | "financing" | "shopPulse" | "shopStatus";
+// 2026-06-10 · +1 tab over the 5-tab cap note above: Tire Orders is the
+// LIVE Stripe money path with no other admin surface — it earns the slot
+// outright (TabBar's border variant scrolls horizontally on mobile).
+type SectionTab = "revenue" | "tireOrders" | "declined" | "financing" | "shopPulse" | "shopStatus";
 
 const MONEY_TABS: { id: SectionTab; label: string; icon: React.ReactNode }[] = [
   { id: "revenue", label: "Revenue", icon: <DollarSign className="w-3.5 h-3.5" /> },
+  { id: "tireOrders", label: "Tire Orders", icon: <Package className="w-3.5 h-3.5" /> },
   { id: "declined", label: "Declined", icon: <AlertTriangle className="w-3.5 h-3.5" /> },
   { id: "financing", label: "Financing", icon: <CreditCard className="w-3.5 h-3.5" /> },
   { id: "shopPulse", label: "Shop Pulse", icon: <Wrench className="w-3.5 h-3.5" /> },
   { id: "shopStatus", label: "Shop Status", icon: <Activity className="w-3.5 h-3.5" /> },
 ];
 
-const VALID_MONEY_TABS: SectionTab[] = ["revenue", "declined", "financing", "shopPulse", "shopStatus"];
+const VALID_MONEY_TABS: SectionTab[] = ["revenue", "tireOrders", "declined", "financing", "shopPulse", "shopStatus"];
 
 export default function RevenueSection() {
   // URL-persistent so deep-links + back-button + sidebar refresh land on
@@ -74,6 +83,11 @@ export default function RevenueSection() {
       />
 
       {section === "revenue" && <RevenueContent onGoToDeclined={() => setSection("declined")} />}
+      {section === "tireOrders" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <TireOrdersTab />
+        </Suspense>
+      )}
       {section === "declined" && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
           <DeclinedEstimatesSection />

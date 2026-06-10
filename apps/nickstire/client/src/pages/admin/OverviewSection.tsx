@@ -501,7 +501,10 @@ export default function OverviewSection() {
         id: "payment-backlog",
         severity: "crit",
         message: `${paymentBacklogCount} paid tire order${paymentBacklogCount === 1 ? "" : "s"} need shop hand-off — email/Telegram fell through. Click to view.`,
-        href: "/admin?tab=revenue",
+        // 2026-06-10 · lands on the Tire Orders tab, which renders the
+        // backlog with MARK HANDLED buttons (was the bare Money page —
+        // a dead end with zero backlog content).
+        href: "/admin?tab=revenue&moneyTab=tireOrders",
         ctaLabel: "View",
         dismissable: false,
       });

@@ -141,6 +141,20 @@ async function appendRow(sheetName: string, values: string[], retried = false): 
       await new Promise((r) => setTimeout(r, 30_000 + Math.random() * 5_000));
       return appendRow(sheetName, values, true);
     }
+    // Missing tab is an OPERATOR SETUP problem, not a transient failure —
+    // say exactly what to do instead of a generic append error. Fail-soft:
+    // the caller's row is dropped (and logged), the DB record is unaffected.
+    if (isMissingSheetTabError(error)) {
+      log.error(
+        `Sheet tab "${sheetName}" does not exist in the CRM spreadsheet — ` +
+        `row dropped (DB record unaffected). FIX: open the spreadsheet ` +
+        `(GOOGLE_SHEETS_CRM_ID), add a tab named exactly "${sheetName}", ` +
+        `and paste the header row into row 1` +
+        (sheetName === TIRE_ORDER_SHEET_TAB ? ` (TIRE_ORDER_SHEET_HEADERS in server/sheets-sync.ts)` : "") +
+        `. Sync resumes automatically on the next order.`,
+      );
+      return false;
+    }
     log.error(`Failed to append row to ${sheetName}:`, {
       error: error?.message || String(error),
       code: error?.code,
@@ -252,6 +266,115 @@ export async function syncCallbackToSheet(callback: {
     // attribution tail (cols K-O) — always 5 cells, blank when unknown
     ...attributionCells(callback),
   ]);
+}
+
+/** Tab name syncTireOrderToSheet appends to — must exist in the CRM spreadsheet. */
+export const TIRE_ORDER_SHEET_TAB = "Tire Orders";
+
+/**
+ * Row-1 headers for the "Tire Orders" tab, in exact column order —
+ * MUST stay aligned with tireOrderRow below (unit-tested). The operator
+ * pastes these into row 1 of the tab; the sync itself only ever appends
+ * data rows and never writes headers (append-only, non-destructive).
+ */
+export const TIRE_ORDER_SHEET_HEADERS = [
+  "Order #",
+  "Date",
+  "Status",
+  "Customer Name",
+  "Phone",
+  "Email",
+  "Vehicle",
+  "Tire Brand",
+  "Tire Model",
+  "Tire Size",
+  "Qty",
+  "Price/Tire",
+  "Install Fee",
+  "Total",
+  "Customer Notes",
+  "Gateway Ref",
+  "Expected Delivery",
+  "Installation Date",
+  "Payment Status",
+  ...SHEET_ATTRIBUTION_HEADERS,
+] as const;
+
+/**
+ * Google's values.append against a tab that doesn't exist fails with
+ * 400 "Unable to parse range: '<tab>'!A:Z". Pure + exported so the
+ * detection is unit-testable.
+ */
+export function isMissingSheetTabError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+  return /unable to parse range/i.test(msg);
+}
+
+/**
+ * Build the "Tire Orders" sheet row. Pure + exported for unit tests.
+ * Columns A-R mirror the tab's original layout (order#, date, status,
+ * customer, tire, money, notes, then fulfillment cells the shop fills
+ * in by hand), followed by append-only additions: Payment Status + the
+ * standard 5-cell attribution tail. Blank is better than fake — the
+ * fulfillment cells start empty.
+ */
+export function tireOrderRow(
+  order: {
+    orderNumber: string;
+    customerName: string;
+    customerPhone: string;
+    customerEmail?: string | null;
+    vehicleInfo?: string | null;
+    tireBrand: string;
+    tireModel: string;
+    tireSize: string;
+    quantity: number;
+    /** dollars */
+    pricePerTire: number;
+    /** dollars */
+    totalAmount: number;
+    customerNotes?: string | null;
+    status: string;
+    paymentStatus?: string | null;
+  } & SheetAttribution,
+  timestamp: string,
+): string[] {
+  return [
+    order.orderNumber,
+    timestamp,
+    order.status.charAt(0).toUpperCase() + order.status.slice(1),
+    order.customerName,
+    order.customerPhone,
+    order.customerEmail || "",
+    order.vehicleInfo || "",
+    order.tireBrand,
+    order.tireModel,
+    order.tireSize,
+    String(order.quantity),
+    `$${order.pricePerTire.toFixed(2)}`,
+    "$0.00 (Included)", // install package — baked into the tire price
+    `$${order.totalAmount.toFixed(2)}`,
+    order.customerNotes || "",
+    "", // Gateway Ref — shop fills after ordering from D&K
+    "", // Expected Delivery
+    "", // Installation Date
+    order.paymentStatus || "unpaid",
+    // attribution tail — always 5 cells, blank when unknown
+    ...attributionCells(order),
+  ];
+}
+
+/**
+ * Sync a new tire order to the "Tire Orders" sheet.
+ * Replaces the dead Manus-era rclone path (it read
+ * /home/ubuntu/.gdrive-rclone.ini, which does not exist on Railway) —
+ * the service-account auth used by every other sync works anywhere.
+ */
+export async function syncTireOrderToSheet(
+  order: Parameters<typeof tireOrderRow>[0],
+): Promise<boolean> {
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
+  return appendRow(TIRE_ORDER_SHEET_TAB, tireOrderRow(order, now));
 }
 
 /**

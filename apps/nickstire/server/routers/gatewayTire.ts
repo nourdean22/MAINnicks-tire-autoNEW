@@ -13,9 +13,16 @@
  * - Admin order management (view, update status, notes)
  */
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
-import { notifyTireOrder, notifyInvoiceCreated } from "../email-notify";
+import { notifyTireOrder } from "../email-notify";
 import { getNextInvoiceNumber, createInvoice } from "../db";
-import { syncInvoiceToSheet } from "../sheets-sync";
+import { syncInvoiceToSheet, syncTireOrderToSheet } from "../sheets-sync";
+import {
+  evaluateOrderPrice,
+  getIdempotencyKey,
+  generateOrderNumber,
+  isDuplicateKeyError,
+  buildCancellationAlert,
+} from "../lib/tire-order-guards";
 import { z } from "zod";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
@@ -25,105 +32,10 @@ import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:gatewayTire");
-/** Auto-create an invoice when a tire order is marked as installed */
-async function autoCreateInvoiceFromTireOrder(d: ReturnType<typeof import("drizzle-orm/mysql2").drizzle>, orderId: number): Promise<void> {
-  const [order] = await d.select().from(tireOrders).where(eq(tireOrders.id, orderId)).limit(1);
-  if (!order) return;
-
-  const invoiceNumber = await getNextInvoiceNumber();
-
-  // Get labor rate from shop settings
-  let laborRate = 115;
-  try {
-    const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
-    if (setting) laborRate = parseFloat(setting.value);
-  } catch (err) {
-    log.error("[GatewayTire] Failed to fetch labor rate, using default:", err instanceof Error ? (err as Error).message : err);
-  }
-
-  // Tire installation labor: 0.7 hours for mount + balance (from Auto Labor Guide)
-  const installHours = 0.7;
-  const laborCost = Math.round(installHours * laborRate * 100); // cents
-  const partsCost = order.totalAmount; // tire cost is the "parts" cost
-  // Ohio sales tax: parts/materials only, NOT labor
-  const taxRate = 0.08;
-  const taxAmount = Math.round(partsCost * taxRate);
-  const totalAmount = laborCost + partsCost + taxAmount;
-
-  await createInvoice({
-    customerName: order.customerName,
-    customerPhone: order.customerPhone,
-    invoiceNumber,
-    totalAmount,
-    partsCost,
-    laborCost,
-    taxAmount,
-    serviceDescription: `Tire Order & Installation — ${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize})`,
-    vehicleInfo: order.vehicleInfo || null,
-    paymentMethod: "card",
-    paymentStatus: "pending",
-    source: "manual",
-    invoiceDate: new Date(),
-  });
-
-  // Sync to Google Sheets
-  await syncInvoiceToSheet({
-    invoiceNumber,
-    customerName: order.customerName,
-    customerPhone: order.customerPhone,
-    vehicleInfo: order.vehicleInfo,
-    serviceDescription: `Tire Install: ${order.quantity}x ${order.tireBrand} ${order.tireModel}`,
-    laborHours: installHours,
-    laborRate,
-    laborCost: laborCost / 100,
-    partsCost: partsCost / 100,
-    taxAmount: taxAmount / 100,
-    totalAmount: totalAmount / 100,
-    paymentMethod: "card",
-    paymentStatus: "pending",
-    source: "tire_order",
-    orderRef: order.orderNumber,
-    notes: `Auto-generated from tire order ${order.orderNumber}`,
-  });
-
-  // Notify CEO about the auto-generated invoice
-  notifyInvoiceCreated({
-    invoiceNumber,
-    customerName: order.customerName,
-    totalAmount: totalAmount / 100,
-    source: "tire_order",
-    serviceDescription: `Tire Install: ${order.quantity}x ${order.tireBrand} ${order.tireModel}`,
-  }).catch(e => log.warn("[gatewayTire:autoInvoice] invoice email notification failed:", e));
-
-  // Notify admin — synced to dashboard
-  import("../services/telegram").then(({ sendTelegram }) =>
-    sendTelegram(
-      `🧾 TIRE INVOICE — SYNCED TO ADMIN\n\n` +
-      `Invoice: ${invoiceNumber}\n` +
-      `Order: ${order.orderNumber}\n` +
-      `Customer: ${order.customerName} | ${order.customerPhone}\n` +
-      `Vehicle: ${order.vehicleInfo || "N/A"}\n` +
-      `Tires: ${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize})\n` +
-      `Labor: $${(laborCost / 100).toFixed(2)} (${installHours}h @ $${laborRate}/hr)\n` +
-      `Parts: $${(partsCost / 100).toFixed(2)}\n` +
-      `Tax: $${(taxAmount / 100).toFixed(2)}\n` +
-      `Total: $${(totalAmount / 100).toFixed(2)}\n\n` +
-      `⚡ Create this invoice in ShopDriver NOW`
-    )
-  ).catch(e => log.warn("[gatewayTire:autoInvoice] telegram invoice alert failed:", e));
-
-  // Unified event bus
-  import("../services/eventBus").then(({ emit }) =>
-    emit.invoiceCreated({
-      invoiceNumber,
-      customerName: order.customerName,
-      totalAmount: totalAmount / 100,
-      source: "tire_order",
-    })
-  ).catch(e => log.warn("[gatewayTire:autoInvoice] event bus invoice dispatch failed:", e));
-
-  console.info(`[invoice:created] ${invoiceNumber} for tire order ${order.orderNumber} — $${(totalAmount / 100).toFixed(2)}`);
-}
+// 2026-06-10 checkout-hardening wave · autoCreateInvoiceFromTireOrder
+// deleted — zero call sites since invoice creation moved to placeOrder
+// (updateOrder explicitly must NOT create a second invoice). Keeping a
+// dead "create invoice on installed" path invites a double-invoice bug.
 
 // ─── Gateway Tire B2B Session ─────────────────────────
 // Shared client lives at server/services/gatewayClient.ts. We re-export
@@ -212,12 +124,13 @@ function setCachedSearch(key: string, results: any, source: "live" | "catalog") 
 }
 
 // ─── Order Idempotency ──────────────────────────────
+// L1: in-memory map (fast path, this instance only). L2: a durable DB
+// check inside placeOrder — the map dies on every redeploy and never
+// existed on a second instance, so it CANNOT be the only guard.
+// Pure helpers (getIdempotencyKey, generateOrderNumber, price guards)
+// live in ../lib/tire-order-guards so they're unit-testable.
 const recentOrderKeys = new Map<string, { orderNumber: string; at: number }>();
 const IDEMPOTENCY_WINDOW = 5 * 60 * 1000; // 5 minutes
-
-function getIdempotencyKey(input: { customerPhone: string; tireBrand: string; tireModel: string; tireSize: string; quantity: number }): string {
-  return `${input.customerPhone}|${input.tireBrand}|${input.tireModel}|${input.tireSize}|${input.quantity}`;
-}
 
 function checkDuplicateOrder(key: string): string | null {
   const existing = recentOrderKeys.get(key);
@@ -235,98 +148,11 @@ function recordOrder(key: string, orderNumber: string) {
   }
 }
 
-// ─── Order number generator ──────────────────────────
-function generateOrderNumber(): string {
-  const now = new Date();
-  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const rand = Math.floor(Math.random() * 900) + 100;
-  return `TO-${dateStr}-${rand}`;
-}
-
-// ─── Google Sheets sync ──────────────────────────────
-async function syncOrderToGoogleSheet(order: {
-  orderNumber: string;
-  customerName: string;
-  customerPhone: string;
-  customerEmail: string | null;
-  vehicleInfo: string | null;
-  tireBrand: string;
-  tireModel: string;
-  tireSize: string;
-  quantity: number;
-  pricePerTire: number;
-  totalAmount: number;
-  customerNotes: string | null;
-  status: string;
-}) {
-  try {
-    const fs = await import("fs");
-    const configContent = fs.readFileSync("/home/ubuntu/.gdrive-rclone.ini", "utf-8");
-    const tokenJson = configContent.split("token = ")[1]?.trim();
-    if (!tokenJson) return;
-    // wave-122b (MEDIUM S5) — JSON.parse on disk-stored token file
-    // could throw on corruption; wrap so a bad token doesn't crash
-    // the whole request handler. Validate the shape minimally
-    // (access_token must be a string).
-    let accessToken: string | undefined;
-    try {
-      const tokenData = JSON.parse(tokenJson) as { access_token?: unknown };
-      if (typeof tokenData.access_token !== "string") return;
-      accessToken = tokenData.access_token;
-    } catch (parseErr) {
-      log.warn("token JSON parse failed", { err: parseErr instanceof Error ? parseErr.message : String(parseErr) });
-      return;
-    }
-    const sheetId = process.env.GOOGLE_SHEETS_CRM_ID;
-    if (!sheetId) return;
-
-    const now = new Date();
-    const dateStr = now.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-
-    const row = [
-      order.orderNumber,
-      dateStr,
-      order.status.charAt(0).toUpperCase() + order.status.slice(1),
-      order.customerName,
-      order.customerPhone,
-      order.customerEmail || "",
-      order.vehicleInfo || "",
-      order.tireBrand,
-      order.tireModel,
-      order.tireSize,
-      order.quantity.toString(),
-      `$${order.pricePerTire.toFixed(2)}`,
-      "$0.00 (Included)",
-      `$${order.totalAmount.toFixed(2)}`,
-      order.customerNotes || "",
-      "", // Gateway Ref - filled later
-      "", // Expected Delivery
-      "", // Installation Date
-    ];
-
-    const body = JSON.stringify({
-      values: [row],
-    });
-
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Tire%20Orders!A:R:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body,
-    });
-
-    if (resp.ok) {
-      console.info(`[tireorder:sheets] Synced ${order.orderNumber} to Google Sheets`);
-    } else {
-      log.error(`[TireOrder] Google Sheets sync failed:`, resp.status, await resp.text());
-    }
-  } catch (err) {
-    log.error("[TireOrder] Google Sheets sync error:", err);
-  }
-}
+// 2026-06-10 checkout-hardening wave · the legacy syncOrderToGoogleSheet
+// here read /home/ubuntu/.gdrive-rclone.ini (Manus-era path that does not
+// exist on Railway) — order rows NEVER reached the sheet in production.
+// Replaced by syncTireOrderToSheet in ../sheets-sync (service-account
+// auth, same as every other working sync).
 
 // ─── Gmail notification (uses dual-email system) ────
 
@@ -634,12 +460,44 @@ export const gatewayTireRouter = router({
       const d = await db();
       if (!d) return { success: false, error: "Service unavailable" };
 
-      // Idempotency check — prevent duplicate orders within 5 minutes
+      // Idempotency check — prevent duplicate orders within 5 minutes.
+      // L1: in-memory map (fast, this instance only).
       const idemKey = getIdempotencyKey(input);
       const existingOrder = checkDuplicateOrder(idemKey);
       if (existingOrder) {
         console.info(`[tireorder:dedup] Duplicate blocked — existing order ${existingOrder}`);
         return { success: true, orderNumber: existingOrder, totalAmount: 0, duplicate: true };
+      }
+
+      // L2: durable DB check — the map dies on every redeploy, so the
+      // same customer + exact tire + qty inside the window is treated as
+      // the same submission retried (double-tap, page refresh, redeploy
+      // mid-flow). Cancelled orders don't block a genuine re-order.
+      // Fail-open on query error: a dedup outage must not block sales.
+      try {
+        const windowStart = new Date(Date.now() - IDEMPOTENCY_WINDOW);
+        const [recent] = await d.select({
+          orderNumber: tireOrders.orderNumber,
+          totalAmount: tireOrders.totalAmount,
+        })
+          .from(tireOrders)
+          .where(and(
+            eq(tireOrders.customerPhone, input.customerPhone),
+            eq(tireOrders.tireBrand, input.tireBrand),
+            eq(tireOrders.tireModel, input.tireModel),
+            eq(tireOrders.tireSize, input.tireSize),
+            eq(tireOrders.quantity, input.quantity),
+            sql`${tireOrders.createdAt} >= ${windowStart}`,
+            sql`${tireOrders.status} <> 'cancelled'`,
+          ))
+          .orderBy(desc(tireOrders.createdAt))
+          .limit(1);
+        if (recent) {
+          console.info(`[tireorder:dedup-db] Duplicate blocked — existing order ${recent.orderNumber}`);
+          return { success: true, orderNumber: recent.orderNumber, totalAmount: recent.totalAmount / 100, duplicate: true };
+        }
+      } catch (e) {
+        log.warn("[tireorder:dedup-db] durable dedup check failed — continuing:", e instanceof Error ? e.message : e);
       }
 
       // wave-fix-2026-05-25 (audit #151) · server-side price re-derivation.
@@ -709,54 +567,77 @@ export const gatewayTireRouter = router({
         }
       }
 
-      if (expectedPriceCents !== null) {
-        // Tight floor · 5% below expected = reject (catches manipulated prices)
-        const minAcceptableCents = Math.floor(expectedPriceCents * 0.95);
-        if (input.pricePerTireCents < minAcceptableCents) {
-          log.error(`[placeOrder:price-mismatch] BLOCKED · client=${input.pricePerTireCents}¢ expected=${expectedPriceCents}¢ floor=${minAcceptableCents}¢ tire=${input.tireBrand}/${input.tireModel}/${input.tireSize}`);
+      // Verdict logic is pure + unit-tested in ../lib/tire-order-guards.
+      const verdict = evaluateOrderPrice(input.pricePerTireCents, expectedPriceCents);
+      if (!verdict.ok) {
+        if (verdict.reason === "below-expected") {
+          // Tight floor · 5% below expected = reject (catches manipulated prices)
+          log.error(`[placeOrder:price-mismatch] BLOCKED · client=${input.pricePerTireCents}¢ expected=${expectedPriceCents}¢ tire=${input.tireBrand}/${input.tireModel}/${input.tireSize}`);
           return { success: false, error: "Price has changed. Please refresh and try again." };
         }
-      } else {
-        // Loose absolute floor · 5000¢ ($50) blocks pay-a-penny class
-        // without false-rejecting during Gateway outages
-        const ABSOLUTE_MIN_TIRE_PRICE_CENTS = 5000;
-        if (input.pricePerTireCents < ABSOLUTE_MIN_TIRE_PRICE_CENTS) {
-          log.error(`[placeOrder:price-floor] BLOCKED · client=${input.pricePerTireCents}¢ < $50 absolute floor · tire=${input.tireBrand}/${input.tireModel}/${input.tireSize}`);
-          return { success: false, error: "Invalid price. Please refresh and try again." };
-        }
+        // Loose absolute floor · $50 blocks the pay-a-penny class without
+        // false-rejecting during Gateway outages
+        log.error(`[placeOrder:price-floor] BLOCKED · client=${input.pricePerTireCents}¢ < $50 absolute floor · tire=${input.tireBrand}/${input.tireModel}/${input.tireSize}`);
+        return { success: false, error: "Invalid price. Please refresh and try again." };
+      }
+      if (verdict.basis === "floor") {
         log.warn(`[placeOrder:price-derive] could not derive price for ${input.tireBrand} ${input.tireModel} ${input.tireSize} · proceeding with $50 absolute floor only`);
       }
 
-      const orderNumber = generateOrderNumber();
-      recordOrder(idemKey, orderNumber);
       // No service fee — everything included in tire price
       const serviceFeePerTire = 0;
       const totalAmount = input.pricePerTireCents * input.quantity;
 
-      // Insert the tire order
-      await d.insert(tireOrders).values({
-        orderNumber,
-        customerName: input.customerName,
-        customerPhone: input.customerPhone,
-        customerEmail: input.customerEmail || null,
-        vehicleInfo: input.vehicleInfo || null,
-        tireBrand: input.tireBrand,
-        tireModel: input.tireModel,
-        tireSize: input.tireSize,
-        quantity: input.quantity,
-        pricePerTire: input.pricePerTireCents,
-        serviceFeePerTire,
-        totalAmount,
-        status: "received",
-        customerNotes: input.customerNotes || null,
-        // attribution-holds migration 0067 — nullable; blank when untagged
-        utmSource: input.utmSource || null,
-        utmMedium: input.utmMedium || null,
-        utmCampaign: input.utmCampaign || null,
-        landingPage: input.landingPage || null,
-        referrer: input.referrer || null,
-        sessionId: input.sessionId || null,
-      });
+      // Insert the tire order. TO-YYYYMMDD-NNN has only ~900 suffixes per
+      // day, so a busy day WILL collide with the orderNumber UNIQUE key —
+      // regenerate and retry instead of failing the customer. recordOrder
+      // runs only AFTER a successful insert: the old order (record first,
+      // insert second) poisoned the idempotency map when the insert threw,
+      // making the customer's retry return success for a phantom order.
+      let orderNumber = generateOrderNumber();
+      let inserted = false;
+      for (let attempt = 1; attempt <= 3 && !inserted; attempt++) {
+        try {
+          await d.insert(tireOrders).values({
+            orderNumber,
+            customerName: input.customerName,
+            customerPhone: input.customerPhone,
+            customerEmail: input.customerEmail || null,
+            vehicleInfo: input.vehicleInfo || null,
+            tireBrand: input.tireBrand,
+            tireModel: input.tireModel,
+            tireSize: input.tireSize,
+            quantity: input.quantity,
+            pricePerTire: input.pricePerTireCents,
+            serviceFeePerTire,
+            totalAmount,
+            status: "received",
+            customerNotes: input.customerNotes || null,
+            // When the $50 floor was the only price guard (Gateway down +
+            // cache cold), flag the order so staff verify the price before
+            // fulfilling — a fabricated brand/model also lands here.
+            adminNotes: verdict.basis === "floor"
+              ? "PRICE UNVERIFIED at placement (Gateway + cache unavailable) — verify price before fulfilling."
+              : null,
+            // attribution-holds migration 0067 — nullable; blank when untagged
+            utmSource: input.utmSource || null,
+            utmMedium: input.utmMedium || null,
+            utmCampaign: input.utmCampaign || null,
+            landingPage: input.landingPage || null,
+            referrer: input.referrer || null,
+            sessionId: input.sessionId || null,
+          });
+          inserted = true;
+        } catch (err) {
+          if (isDuplicateKeyError(err) && attempt < 3) {
+            log.warn(`[placeOrder] order number collision on ${orderNumber} (attempt ${attempt}) — regenerating`);
+            orderNumber = generateOrderNumber();
+            continue;
+          }
+          throw err;
+        }
+      }
+      recordOrder(idemKey, orderNumber);
 
       // Map install preference to booking time
       const timeMap: Record<string, string> = {
@@ -865,8 +746,9 @@ export const gatewayTireRouter = router({
         log.error("[TireOrder] Invoice creation failed:", err instanceof Error ? (err as Error).message : err);
       }
 
-      // Sync to Google Sheets (async, don't block)
-      syncOrderToGoogleSheet({
+      // Sync to Google Sheets (async, don't block — a Sheets failure
+      // must never erase the DB order; the DB row is the source of truth)
+      syncTireOrderToSheet({
         orderNumber,
         customerName: input.customerName,
         customerPhone: input.customerPhone,
@@ -880,6 +762,12 @@ export const gatewayTireRouter = router({
         totalAmount: totalDollars,
         customerNotes: input.customerNotes || null,
         status: "received",
+        paymentStatus: "unpaid",
+        utmSource: input.utmSource,
+        utmMedium: input.utmMedium,
+        utmCampaign: input.utmCampaign,
+        landingPage: input.landingPage,
+        referrer: input.referrer,
       }).catch(err => log.error("[TireOrder] Sheet sync error:", err));
 
       // Send email notification to shop + CEO (async, don't block)
@@ -914,22 +802,30 @@ export const gatewayTireRouter = router({
         })
       ).catch(e => log.warn("[gatewayTire:placeOrder] ShopDriver sync failed:", e));
 
+      // Computed here (not just in the uncommon-size block below) so the
+      // event payload can tell Telegram whether the richer uncommon-size
+      // alert is coming — avoids double-alerting the same order.
+      const normalizedSize = input.tireSize.replace(/[^0-9]/g, "");
+      const isCommonSize = POPULAR_SIZES.includes(normalizedSize);
+
       // Unified event bus (→ NOUR OS + ShopDriver + Telegram + learning)
       import("../services/eventBus").then(({ emit }) =>
         emit.tireOrderPlaced({
           orderNumber,
           customerName: input.customerName,
+          customerPhone: input.customerPhone,
           tireBrand: input.tireBrand,
           tireModel: input.tireModel,
+          tireSize: input.tireSize,
           quantity: input.quantity,
           totalAmount: totalDollars,
+          uncommonSize: !isCommonSize,
         })
       ).catch(e => log.warn("[gatewayTire:placeOrder] event bus tire order dispatch failed:", e));
 
       // ─── Smart uncommon-size detection ────────────────
-      // If the tire size isn't one we commonly stock, flag it for Gateway ordering
-      const normalizedSize = input.tireSize.replace(/[^0-9]/g, "");
-      const isCommonSize = POPULAR_SIZES.includes(normalizedSize);
+      // If the tire size isn't one we commonly stock, flag it for Gateway
+      // ordering (isCommonSize computed above, before the event emit)
       if (!isCommonSize) {
         import("../services/telegram").then(({ sendTelegram }) =>
           sendTelegram(
@@ -1320,15 +1216,27 @@ export const gatewayTireRouter = router({
           ).catch(e => log.warn("[gatewayTire:updateOrder] installed telegram alert failed:", e));
         }
 
-        // CANCELLED → Telegram alert
+        // CANCELLED → Telegram alert. buildCancellationAlert appends a
+        // loud REFUND REQUIRED block when the customer already paid
+        // online — Stripe has their money and nothing else in the
+        // system surfaces that a refund is owed.
         if (input.status === "cancelled") {
+          if (currentOrder.paymentStatus === "paid") {
+            log.error(`[gatewayTire:updateOrder] PAID order ${currentOrder.orderNumber} cancelled — refund of $${((currentOrder.totalAmount || 0) / 100).toFixed(2)} REQUIRED via Stripe dashboard`);
+          }
           import("../services/telegram").then(({ sendTelegram }) =>
-            sendTelegram(
-              `❌ ORDER CANCELLED — ${currentOrder.orderNumber}\n` +
-              `${orderDesc}\n` +
-              `Customer: ${currentOrder.customerName} | ${currentOrder.customerPhone}\n` +
-              (input.adminNotes ? `Reason: ${input.adminNotes}` : "")
-            )
+            sendTelegram(buildCancellationAlert({
+              orderNumber: currentOrder.orderNumber,
+              customerName: currentOrder.customerName,
+              customerPhone: currentOrder.customerPhone,
+              quantity: currentOrder.quantity,
+              tireBrand: currentOrder.tireBrand,
+              tireModel: currentOrder.tireModel,
+              tireSize: currentOrder.tireSize,
+              totalAmount: currentOrder.totalAmount || 0,
+              paymentStatus: currentOrder.paymentStatus,
+              stripeSessionId: currentOrder.stripeSessionId,
+            }, input.adminNotes))
           ).catch(e => log.warn("[gatewayTire:updateOrder] cancelled telegram alert failed:", e));
         }
       }
@@ -1373,6 +1281,58 @@ export const gatewayTireRouter = router({
       cancelled: result["cancelled"] || 0,
       totalRevenue: totalRevenue / 100,
     };
+  }),
+
+  /**
+   * Cancellation money risks for the admin Tire Orders tab.
+   * 2026-06-10 checkout-protection wave — two states nothing else
+   * watches continuously:
+   *   refundNeeded   — cancelled but PAID: Stripe holds the customer's
+   *                    money and only a manual dashboard refund returns
+   *                    it (no refund API exists in this codebase).
+   *   staleSessions  — cancelled, unpaid, but a Stripe Checkout session
+   *                    was issued: the hosted page stays payable ~24h,
+   *                    so a customer can still pay for a cancelled order
+   *                    (createCheckout blocks NEW sessions only). Expire
+   *                    it in the Stripe dashboard to close the hole.
+   */
+  cancellationRisks: adminProcedure.query(async () => {
+    type RiskRow = {
+      id: number;
+      orderNumber: string;
+      customerName: string;
+      customerPhone: string;
+      totalAmount: number;
+      paymentStatus: string;
+      stripeSessionId: string | null;
+      updatedAt: Date;
+    };
+    const d = await db();
+    if (!d) return { refundNeeded: [] as RiskRow[], staleSessions: [] as RiskRow[] };
+    const rows = await d.select({
+      id: tireOrders.id,
+      orderNumber: tireOrders.orderNumber,
+      customerName: tireOrders.customerName,
+      customerPhone: tireOrders.customerPhone,
+      totalAmount: tireOrders.totalAmount,
+      paymentStatus: tireOrders.paymentStatus,
+      stripeSessionId: tireOrders.stripeSessionId,
+      updatedAt: tireOrders.updatedAt,
+    })
+      .from(tireOrders)
+      .where(and(
+        eq(tireOrders.status, "cancelled"),
+        sql`(${tireOrders.paymentStatus} = 'paid' OR ${tireOrders.stripeSessionId} IS NOT NULL)`,
+      ))
+      .orderBy(desc(tireOrders.updatedAt))
+      .limit(25) as RiskRow[];
+    const refundNeeded = rows
+      .filter((r: RiskRow) => r.paymentStatus === "paid")
+      .map((r: RiskRow) => ({ ...r, totalAmount: r.totalAmount / 100 }));
+    const staleSessions = rows
+      .filter((r: RiskRow) => r.paymentStatus !== "paid" && !!r.stripeSessionId)
+      .map((r: RiskRow) => ({ ...r, totalAmount: r.totalAmount / 100 }));
+    return { refundNeeded, staleSessions };
   }),
 
   status: adminProcedure.query(async () => {
