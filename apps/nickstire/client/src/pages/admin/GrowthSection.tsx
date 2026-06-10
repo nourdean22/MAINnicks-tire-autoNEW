@@ -553,16 +553,25 @@ function StudiosTab() {
           then post them manually from your phone.
         </p>
       </a>
-      <div className="bg-background/40 border border-border/20 rounded p-4 opacity-60">
-        <div className="flex items-center gap-2">
-          <Camera className="w-4 h-4 text-foreground/40" />
-          <span className="text-sm font-bold text-foreground/60">Faceless Reel Intelligence Studio</span>
-          <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-foreground/5 text-foreground/40 border-border/20">NOT BUILT</span>
+      {/* 2026-06-10 · was a disabled NOT BUILT tile; #52 shipped the studio
+        * and #54 wired /admin/reel-studio, so it's live now. */}
+      <a
+        href="/admin/reel-studio"
+        className="block bg-background/40 border border-border/30 rounded p-4 hover:border-primary/40 transition-colors"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Camera className="w-4 h-4 text-primary" />
+            <span className="text-sm font-bold text-foreground">Faceless Reel Intelligence Studio</span>
+            <ModeBadge mode="copy-only" />
+          </div>
+          <ExternalLink className="w-4 h-4 text-foreground/40" />
         </div>
-        <p className="text-[11px] text-foreground/40 mt-1.5 leading-relaxed">
-          Planned but not built — no PR exists for it yet. This tile activates when it ships.
+        <p className="text-[11px] text-foreground/60 mt-1.5 leading-relaxed">
+          Plan faceless reels (hooks, shot lists, captions) — generation, publishing,
+          and insights stay disabled by design; you shoot and post manually.
         </p>
-      </div>
+      </a>
     </div>
   );
 }
