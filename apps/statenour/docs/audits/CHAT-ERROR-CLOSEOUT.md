@@ -159,12 +159,20 @@ it (the page was consolidated into `/system/logs`). Fix:
 
 - `pnpm typecheck` — 0 errors (run from the worktree, not the main checkout)
 - `pnpm test` — 233 files / 3222 tests passed (incl. the 6 new `message-text` cases)
-- `pnpm build` — see push gate result in the session report
-- **Production runtime verification — PENDING post-deploy** (filled in the follow-up
-  commit once `statenour-web` deploys the fix): bdnick.info 200, `/api/health` healthy,
-  `/chat` + `/system/logs` + `/system/errors` redirect + `/system/digest` +
-  `/system/actions` load with no new console errors, and a controlled benign chat turn
-  exercises post-process without producing a new `chat:post-process` `.match` error.
+- `pnpm build` — passed locally and again on push (pre-push affected build: 3 tasks OK, 1m35s)
+- **Production runtime verification — DONE** (2026-06-10 · pushed `91c198a1` ·
+  Railway `statenour-web` deploy status SUCCESS · deployed commit confirmed `91c198a1`):
+  - bdnick.info `/` → 200; `/api/health` → healthy, DB connected
+  - **`/system/errors` → redirects to `/system/logs`** — the dead 404 is closed; logs
+    surface renders ("0 errors · 0 warnings"); no console errors
+  - `/chat` loads (message input renders); no console errors
+  - `/system/digest` loads (receipts "10 ok · 0 failed"); no console errors
+  - `/system/actions` loads ("0 FAILED"); no console errors
+  - **Controlled live chat turn — deliberately NOT run.** A real turn drives the
+    post-process pipeline, which *writes* BrainMemory / interaction / feedback rows;
+    that collides with this session's "no mutate memories / no fake receipts" hard-stops
+    and incurs AI spend. The `.match` fix is instead proven by the unit test (the exact
+    `undefined → ""` crash case) plus the removed `as unknown as string` cast. See §11.
 
 ---
 
