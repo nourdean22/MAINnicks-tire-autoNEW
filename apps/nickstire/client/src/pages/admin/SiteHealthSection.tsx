@@ -447,7 +447,7 @@ export default function SiteHealthSection() {
               <span className="text-[13px] font-semibold text-foreground">Meta Pixel</span>
             </div>
             <div className="space-y-1.5">
-              <p className="text-[12px] text-foreground/50">Pixel ID: <span className="text-foreground">1436350367898578</span></p>
+              <p className="text-[12px] text-foreground/50">Pixel ID: <span className="text-foreground">958472373260171</span></p>
               <p className="text-[12px] text-foreground/50">Events: <span className="text-emerald-400">Lead, Schedule, Contact</span></p>
               <p className="text-[12px] text-foreground/50">CAPI: <span className="text-amber-400">Needs access token</span></p>
             </div>

@@ -4,7 +4,7 @@
  * Provides typed wrappers around fbq() for all conversion events.
  * Generates unique event_id for server-side deduplication via CAPI.
  *
- * Pixel ID: 1436350367898578 (already loaded in index.html)
+ * Pixel ID: 958472373260171 (already loaded in index.html; 2026-06-10 fix - the old 1436350367898578 was the Meta APP id, not a pixel)
  *
  * Standard Events used:
  * - Lead: form submissions (booking, callback, lead popup, fleet inquiry)
