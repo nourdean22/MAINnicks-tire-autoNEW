@@ -141,16 +141,23 @@
           fbq('track', 'PageView');
 
           // Google Analytics 4 (GA4)
+          // BUG FIX (2026-06-10, GA4 wave): gtag was a LOCAL function inside
+          // ga.onload — window.gtag never existed, so every custom event in
+          // the codebase (lib/ga4.ts + SEO.tsx trackEvent, all guarded by
+          // `typeof window.gtag === "function"`) silently skipped FOREVER.
+          // GA4 admin confirmed: zero custom events ever received; only
+          // automatic page_view/scroll (sent by the config hit) worked.
+          // Canonical pattern: define dataLayer + window.gtag BEFORE the
+          // script loads — early events queue in dataLayer and flush when
+          // gtag.js arrives.
+          window.dataLayer = window.dataLayer || [];
+          window.gtag = function(){ window.dataLayer.push(arguments); };
+          window.gtag('js', new Date());
+          window.gtag('config', 'G-B1LJ1P43G8');
           var ga = document.createElement('script');
           ga.src = 'https://www.googletagmanager.com/gtag/js?id=G-B1LJ1P43G8';
           ga.async = true;
           document.head.appendChild(ga);
-          ga.onload = function() {
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-B1LJ1P43G8');
-          };
 
           // Ahrefs Analytics
           var ah = document.createElement('script');
