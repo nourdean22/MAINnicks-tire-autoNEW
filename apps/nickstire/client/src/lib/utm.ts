@@ -6,6 +6,13 @@
  * and phone click includes these params for attribution.
  */
 
+// journey-join wave 2026-06 — every getUtmData() spread now also carries the
+// localStorage visitor id, so all submit paths (lead/booking/callback/
+// financing/tire-order) store the same exact-join key as call_events and
+// customer_events. Servers accept it as nullish; paths that don't take it
+// zod-strip it harmlessly.
+import { getSessionId } from "@/lib/session";
+
 const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"] as const;
 const STORAGE_KEY = "nta_utm";
 const LANDING_KEY = "nta_landing";
@@ -21,6 +28,7 @@ export interface UtmData {
   landingPage?: string;
   referrer?: string;
   gclid?: string;
+  sessionId?: string;
 }
 
 /**
@@ -83,6 +91,7 @@ export function getUtmData(): UtmData {
       landingPage: landing || undefined,
       referrer: referrer || undefined,
       gclid: gclid || undefined,
+      sessionId: getSessionId() || undefined,
     };
   } catch {
     return {};

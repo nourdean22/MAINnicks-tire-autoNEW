@@ -47,6 +47,8 @@ export const callbackRouter = router({
       // by the getUtmData() spread but zod-stripped (no column).
       utmContent: z.string().max(255).nullish(),
       utmTerm: z.string().max(255).nullish(),
+      // journey-join migration 0068 - localStorage visitor id
+      sessionId: z.string().max(64).nullish(),
     }))
     .mutation(async ({ input }) => {
       try {
@@ -67,6 +69,7 @@ export const callbackRouter = router({
         referrer: input.referrer || null,
         utmContent: input.utmContent || null,
         utmTerm: input.utmTerm || null,
+        sessionId: input.sessionId || null,
       });
 
       const d = await db();
@@ -111,6 +114,7 @@ export const callbackRouter = router({
             referrer: input.referrer || null,
             utmContent: input.utmContent || null,
             utmTerm: input.utmTerm || null,
+            sessionId: input.sessionId || null,
           }).catch((e: unknown) => log.warn("[callback:submit] lead insert failed:", e));
         }
       }

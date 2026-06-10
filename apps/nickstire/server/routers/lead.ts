@@ -73,6 +73,8 @@ export const leadRouter = router({
         // by every getUtmData() form spread but zod-stripped (no column).
         utmContent: z.string().max(255).nullish(),
         utmTerm: z.string().max(255).nullish(),
+        // journey-join migration 0068 - localStorage visitor id
+        sessionId: z.string().max(64).nullish(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -135,6 +137,7 @@ export const leadRouter = router({
         referrer: input.referrer || null,
         utmContent: input.utmContent || null,
         utmTerm: input.utmTerm || null,
+        sessionId: input.sessionId || null,
       }).$returningId();
       const leadId = insertedRows[0]?.id ?? null;
 

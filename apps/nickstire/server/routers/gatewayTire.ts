@@ -627,6 +627,8 @@ export const gatewayTireRouter = router({
       utmCampaign: z.string().max(255).nullish(),
       landingPage: z.string().max(500).nullish(),
       referrer: z.string().max(500).nullish(),
+      // journey-join migration 0068 - localStorage visitor id
+      sessionId: z.string().max(64).nullish(),
     }))
     .mutation(async ({ input }) => {
       const d = await db();
@@ -753,6 +755,7 @@ export const gatewayTireRouter = router({
         utmCampaign: input.utmCampaign || null,
         landingPage: input.landingPage || null,
         referrer: input.referrer || null,
+        sessionId: input.sessionId || null,
       });
 
       // Map install preference to booking time

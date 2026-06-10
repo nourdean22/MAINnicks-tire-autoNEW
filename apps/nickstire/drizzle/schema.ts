@@ -62,6 +62,8 @@ export const bookings = mysqlTable("bookings", {
   utmMedium: varchar("utmMedium", { length: 100 }),
   utmCampaign: varchar("utmCampaign", { length: 255 }),
   utmTerm: varchar("utmTerm", { length: 255 }),
+  // journey-join migration 0068 (2026-06) - localStorage visitor id; exact-key joins only
+  sessionId: varchar("sessionId", { length: 64 }),
   utmContent: varchar("utmContent", { length: 255 }),
   /** Landing page URL that brought the visitor */
   landingPage: varchar("landingPage", { length: 500 }),
@@ -132,6 +134,8 @@ export const leads = mysqlTable("leads", {
   // attribution-holds migration 0067 (2026-06) - additive, nullable
   utmContent: varchar("utmContent", { length: 255 }),
   utmTerm: varchar("utmTerm", { length: 255 }),
+  // journey-join migration 0068 (2026-06) - localStorage visitor id; exact-key joins only
+  sessionId: varchar("sessionId", { length: 64 }),
   // wave-125 — pipeline FKs. callbackId links a callback-source lead
   // back to its callback_requests row (closes the "same person in two
   // sections" gap). bookingId / invoiceId set on conversion so
@@ -638,6 +642,8 @@ export const callbackRequests = mysqlTable("callback_requests", {
   // attribution-holds migration 0067 (2026-06) - additive, nullable
   utmContent: varchar("utmContent", { length: 255 }),
   utmTerm: varchar("utmTerm", { length: 255 }),
+  // journey-join migration 0068 (2026-06) - localStorage visitor id; exact-key joins only
+  sessionId: varchar("sessionId", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -1494,6 +1500,8 @@ export const tireOrders = mysqlTable("tire_orders", {
   utmCampaign: varchar("utmCampaign", { length: 255 }),
   landingPage: varchar("landingPage", { length: 500 }),
   referrer: varchar("referrer", { length: 500 }),
+  // journey-join migration 0068 (2026-06) - localStorage visitor id; exact-key joins only
+  sessionId: varchar("sessionId", { length: 64 }),
   /** Scheduled installation date */
   installationDate: timestamp("installationDate"),
 
@@ -1545,6 +1553,10 @@ export const callEvents = mysqlTable("call_events", {
   referrer: varchar("referrer", { length: 500 }),
   /** User agent for device tracking */
   userAgent: varchar("userAgent", { length: 500 }),
+  // journey-join migration 0068 (2026-06) - localStorage visitor id +
+  // Meta-pixel event_id (trackPhoneCall generates+returns it; was discarded)
+  sessionId: varchar("sessionId", { length: 64 }),
+  eventId: varchar("eventId", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   idx_call_created: index("idx_call_created").on(table.createdAt),

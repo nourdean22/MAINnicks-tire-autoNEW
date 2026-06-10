@@ -58,6 +58,17 @@ export const adminDashboardRouter = router({
       return getRecentIntegrationFailures(input?.limit ?? 30);
     }),
 
+  /**
+   * Meta CAPI configuration status (read-only, booleans ONLY — env values
+   * are never returned). Lets the owner see dormant-vs-active on Site
+   * Health instead of asking. Activation runbook:
+   * docs/runbooks/CAPI-ACTIVATION.md.
+   */
+  capiStatus: adminProcedure.query(() => ({
+    tokenConfigured: Boolean(process.env.META_CAPI_ACCESS_TOKEN),
+    pixelIdOverridden: Boolean(process.env.META_CAPI_PIXEL_ID),
+  })),
+
   /** Get recent notification delivery log */
   notificationLog: adminProcedure
     .input(z.object({ limit: z.number().default(50) }).optional())
@@ -1330,6 +1341,10 @@ export const callTrackingRouter = router({
       landingPage: z.string().max(500).nullish(),
       referrer: z.string().max(500).nullish(),
       userAgent: z.string().max(500).nullish(),
+      // journey-join migration 0068 — localStorage visitor id + the Meta
+      // pixel event_id the client's Contact event fired with.
+      sessionId: z.string().max(64).nullish(),
+      eventId: z.string().max(64).nullish(),
     }))
     .mutation(async ({ input, ctx }) => {
       // wave-141b — per-IP rate limit guards the SMS side-effect.
@@ -1353,6 +1368,8 @@ export const callTrackingRouter = router({
           landingPage: input.landingPage || null,
           referrer: input.referrer || null,
           userAgent: input.userAgent || null,
+          sessionId: input.sessionId || null,
+          eventId: input.eventId || null,
         });
 
         // Schedule review request SMS 2 hours after call CTA click
