@@ -2,7 +2,35 @@
 
 **Purpose:** Single place to record what must be **true in production** for this repo. Update when you ship behavior or infra changes.
 
-## 🟢 Latest shipped — 2026-06-04 (VAPI receptionist live-bug fixes + SMS pre-launch hardening — receptionist + SMS TURNED ON)
+## 🟢 Latest shipped — 2026-06-10 (11-PR ship night: tire money path hardened + admin grew Tire Orders / Ops Hub / Growth + both social studios)
+
+Eleven PRs squash-merged to main in one evening (#42, #44, #45, #46, #47, #48, #49, #50, #51 + #52, #53, #54, #55 line; final main `a231e449`). What must now be true in prod:
+
+**Money path (tire checkout — Stripe LIVE):**
+- Online tire checkout hardened (#42): durable webhook dedup (atomic conditional UPDATE), price-tamper guards, collision retry, Sheets sync revival, Telegram per order, cancel/refund-risk alerts. Pay Now stays ENABLED (operator decision).
+- ONE admin cockpit for tire orders (#46): the Money→Tire Orders tab and the #41 command center are consolidated; protection banners (payments.health / refund / stale-session) live there. Old URLs redirect.
+- Google Sheets "Tire Orders" tab exists with the 24 canonical headers (operator-verified live edit). **Watch item: first synced order row not yet observed.**
+- Still NO `stripe.refunds` call anywhere — refunds remain manual by design, pending owner approval of `docs/refund-writeback-design.md`.
+
+**Admin shell — three new top-level sections:**
+- **Ops Hub** (#47): owner-action registry (danger-zone truth), reports corpus, PREVIEW-ONLY customer message templates (no send path exists — it throws by design).
+- **Growth** (#50 systems + #53 wiring): 7 tabs — Local Growth (IG autoposter armed-state booleans + Google reviews/Place-ID health), Review Replies (copy-only drafts; Approve/Skip are DB-status-only, **nothing posts to Google**), GBP Q&A (17 claim-safe seeds), Photo Queue (deterministic weekly 6), Entity/Brand (canonical NAP checklist), Competitors (2026-06 baseline, honest gap math), Social Studios.
+- **Studios** (#51 IG carousel, #52+#54 faceless reel, #55 tile): `/admin/ig-studio` + `/admin/reel-studio` + topbar icon links. DRAFT-ONLY — generation/publish/insights kill-switches all OFF.
+- Deep-link aliases: `?tab=gbp|local|localseo|social` → Growth; `?tab=reviews` still → Outreach (review REQUESTS, unchanged).
+
+**Safety/correctness fixes that must hold:**
+- `docs/MIGRATION_AUDIT.md` is REDACTED in HEAD (#49) — but the leaked Stripe secret / TiDB URL / vendor passwords **live in git history → rotation is still owner-urgent**.
+- GSC env-aliasing fixed (#50): `GOOGLE_SEARCH_CONSOLE_KEY` "configured" marker now derives from the service-account creds, NOT the Maps key — deleting the Maps key no longer silently kills Search Console sync.
+- Dead links fixed, CAN-SPAM footer address corrected to 17625 Euclid Ave (#49).
+- Web used-tire pricing stays the approved **"$25 installed (select 12-inch) / most $40-80"**; quoting channels stay $60 (two-tier policy unchanged — see 2026-06-03 section).
+
+**Operator watch items:** post-deploy phone smoke (Admin → Tire Orders / Ops Hub / Growth / both studios) · armed-state card should read DISARMED + dry-run ON · first Sheets order row · credential rotation (rank 0).
+
+Ledger of every item + evidence: `docs/PROJECT-COMPLETION-LEDGER.md` (repo root). Ranked queue: `docs/NEXT-BEST-ACTIONS.md`.
+
+---
+
+## 🟢 Shipped — 2026-06-04 (VAPI receptionist live-bug fixes + SMS pre-launch hardening — receptionist + SMS TURNED ON)
 
 Operator turned the AI receptionist + customer SMS back ON; F25e gateway back online (was ~22h offline). A live-call review caught real bugs the static audit + harness-secret theory both missed; all fixed + deployed; new prompt pushed to the live assistant.
 
