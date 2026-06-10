@@ -333,20 +333,25 @@ function TireSearchTab() {
                   <div key={i} className="p-3 bg-background border border-border/30 hover:border-primary/30 transition-colors cursor-pointer"
                     onClick={() => {
                       setCostPrice(tire.costPrice.toFixed(2));
-                      setFet(tire.fet.toFixed(2));
+                      // searchBySize returns no `fet` field — the old
+                      // tire.fet.toFixed(2) threw a TypeError on every
+                      // result click, breaking the calculator prefill.
+                      setFet((tire.fet ?? 0).toFixed(2));
                     }}
                   >
                     <div className="flex justify-between items-start">
                       <div>
                         <span className="font-bold text-sm text-foreground">{tire.brand}</span>
                         <span className="text-foreground/60 text-sm ml-2">{tire.model}</span>
+                        {tire.partNumber ? (
+                          <span className="text-foreground/40 text-[10px] ml-2 font-mono">D&K #{tire.partNumber}</span>
+                        ) : null}
                       </div>
                       <span className="font-mono text-primary font-bold">${tire.costPrice.toFixed(2)}</span>
                     </div>
                     <div className="flex gap-4 mt-1 text-foreground/40 text-[10px]">
                       <span>LOCAL: {tire.localInventory}</span>
                       <span>REGIONAL: {tire.regionalInventory}</span>
-                      <span>ETA: {tire.deliveryDate}</span>
                     </div>
                   </div>
                 ))}
