@@ -46,6 +46,7 @@ import {
 } from "@/lib/ai/fact-check";
 import { trackGeneration } from "@/lib/ai/track";
 import { recordInteraction } from "@/lib/ai/memory";
+import { messageContentToText } from "@/lib/ai/chat/message-text";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
 import { detectFailedActionClaims } from "@/lib/ai/chat/action-result-verifier";
 import { toReceipt } from "@/lib/ai/receipts/action-receipt";
@@ -235,11 +236,11 @@ async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
           const priorAssistant = [...messages]
             .reverse()
             .find((m) => (m as { role?: string }).role === "assistant" && (m as { id?: unknown }).id !== undefined) as { content?: unknown } | undefined;
-          const priorText = priorAssistant
-            ? (Array.isArray(priorAssistant.content)
-                ? priorAssistant.content.map((c: { type?: string; text?: string }) => c.text ?? "").join("\n")
-                : (priorAssistant.content as unknown as string))
-            : "";
+          // priorAssistant.content can be undefined (parts-only turns) — the
+          // old `as unknown as string` cast produced undefined and the
+          // .match() below threw (the recurring chat:post-process crash).
+          // messageContentToText always returns a string.
+          const priorText = priorAssistant ? messageContentToText(priorAssistant.content) : "";
           const priorHasHashtags = (priorText.match(/#\w+/g) || []).length >= 2;
           const priorHasMarker = /\b(caption|reel|carousel|headline|tagline)\b/i.test(priorText);
           if (!priorHasHashtags && !priorHasMarker) return;

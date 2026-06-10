@@ -158,7 +158,7 @@ pnpm typecheck
 
 ## Error triage flow
 
-Open `/system/errors`. You'll see:
+Open `/system/logs`. You'll see:
 - **Fingerprints · top 20** — errors grouped by message with last-seen
 - **Recent · last 50** — individual rows with expand-to-stack
 
@@ -316,7 +316,7 @@ Last-resort recovery from a Neon branch:
 
 **Severity 2 — Nick is broken but UI loads.**
 1. `/system/ai-cost` — is error rate pulsing rose?
-2. `/system/errors` — recent ai-chat route errors?
+2. `/system/logs` — recent ai-chat route errors?
 3. Try a different provider: set Railway env `AI_PROVIDER=openai`, redeploy.
 4. If circuit breaker tripped: check `lib/ai/provider.ts` status via logs.
 
@@ -328,8 +328,8 @@ Last-resort recovery from a Neon branch:
 
 **Severity 4 — weird UX glitch.**
 1. Browser console.
-2. `/system/errors` for backend counterpart.
-3. File task via `/system/errors` → task.
+2. `/system/logs` for backend counterpart.
+3. File task via `/system/logs` → task.
 
 ---
 
@@ -339,7 +339,7 @@ Last-resort recovery from a Neon branch:
 |---|---|
 | DB latency | `/system` → header status bar |
 | Cron drift | `/system/crons` → summary `drifted` counter |
-| Error spike | `/system/errors` → new-since-last-refresh badge |
+| Error spike | `/system/logs` → new-since-last-refresh badge |
 | AI cost runaway | `/system/ai-cost` → burn rate |
 | Rogue Nick actions | `/system/actions` → approval=auto + result=failed |
 | Device offline | `/api/health` devices block vs `/api/system/pulse` |
