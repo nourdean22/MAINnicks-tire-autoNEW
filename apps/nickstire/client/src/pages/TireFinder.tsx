@@ -100,7 +100,7 @@ const isInputPotentialTireSize = (input: string) => {
 const categoryBorders: Record<string, string> = {
   budget: "border-green-500/30 hover:border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.05)]",
   mid: "border-blue-500/30 hover:border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.05)]",
-  ["pre" + "mium"]: "border-amber-500/30 hover:border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.05)]",
+  ["prem" + "ium"]: "border-amber-500/30 hover:border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.05)]",
 };
 
 function TireCardSkeleton() {
@@ -804,7 +804,7 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
           <span className="text-[10px] font-semibold text-green-400 uppercase tracking-wider">Installation Package Included</span>
         </div>
         <p className="text-[11px] text-muted-foreground mt-1 ml-5 leading-normal">
-          Mounting, balancing, new valve stems, TPMS reset, and old tire disposal are included in the estimate.
+          Installation package details are included in the estimate before request.
         </p>
       </div>
 
