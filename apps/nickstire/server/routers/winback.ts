@@ -18,8 +18,7 @@ import { STORE_PHONE, STORE_NAME } from "@shared/const";
 import { db } from "../lib/db-helper";
 
 // ─── WIN-BACK MESSAGE TEMPLATES ─────────────────────────
-// Selectable segments: lapsed, dormant, lost, vip, fleet, recent.
-// (declined + tire_customer are RETIRED — see the notes below / in buildSegmentFilter.)
+// Selectable segments: lapsed, dormant, lost, declined, vip, fleet, recent, tire_customer.
 // Each segment targets a different customer profile with personalized messaging.
 // wave-182: default templates are now placeholder-free (business voice — no
 // {firstName}/{vehicleInfo}, per the no-personalization directive). Each message
