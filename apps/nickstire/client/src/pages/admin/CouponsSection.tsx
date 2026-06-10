@@ -7,10 +7,38 @@ import { toast } from "sonner";
 
 type Coupon = NonNullable<RouterOutputs["coupons"]["all"]>[number];
 import {
-  Calendar, CheckCircle2, Loader2, Power, Star, XCircle, Zap, Gift
+  Calendar, CheckCircle2, Loader2, Power, Star, XCircle, Zap, Gift, TicketCheck
 } from "lucide-react";
 import { PageHeader, LoadingState } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+
+/**
+ * Derives disabled state and label for the Mark Redeemed button.
+ * Pure function — safe to call in render and test independently.
+ *
+ * maxRedemptions = 0 → unlimited; active + unexpired coupons stay enabled.
+ * maxRedemptions > 0 → hard cap; disabled once currentRedemptions >= maxRedemptions.
+ */
+export function getRedeemState(c: Pick<Coupon, "isActive" | "expiresAt" | "maxRedemptions" | "currentRedemptions">, now = new Date()): {
+  disabled: boolean;
+  label: string;
+  badge: string | null;
+} {
+  if (c.isActive !== 1) {
+    return { disabled: true, label: "Inactive", badge: null };
+  }
+  if (c.expiresAt !== null && new Date(c.expiresAt) < now) {
+    return { disabled: true, label: "Expired", badge: null };
+  }
+  if (c.maxRedemptions > 0 && (c.currentRedemptions ?? 0) >= c.maxRedemptions) {
+    return { disabled: true, label: "Fully Claimed", badge: null };
+  }
+  if (c.maxRedemptions === 0) {
+    return { disabled: false, label: "Mark Redeemed", badge: "Unlimited" };
+  }
+  const remaining = c.maxRedemptions - (c.currentRedemptions ?? 0);
+  return { disabled: false, label: "Mark Redeemed", badge: `${remaining} left` };
+}
 
 export default function CouponsSection() {
   const { data: coupons, isLoading } = trpc.coupons.all.useQuery();
@@ -36,6 +64,31 @@ export default function CouponsSection() {
   const deleteCoupon = trpc.coupons.delete.useMutation({
     onSuccess: () => { utils.coupons.all.invalidate(); toast.success("Coupon deleted"); },
     onError: (err) => toast.error(`Delete failed: ${err.message}`),
+  });
+
+  // Track which coupon ID is mid-redeem to disable that row's button only.
+  const [redeemingId, setRedeemingId] = useState<number | null>(null);
+  const redeemCoupon = trpc.coupons.redeem.useMutation({
+    onSuccess: (_data, variables) => {
+      utils.coupons.all.invalidate();
+      setRedeemingId(null);
+      toast.success("Redemption recorded.");
+    },
+    onError: (err, variables) => {
+      setRedeemingId(null);
+      const msg = err.message;
+      if (msg.includes("inactive") || msg.includes("INACTIVE")) {
+        toast.error("Coupon is inactive.");
+      } else if (msg.includes("expired") || msg.includes("EXPIRED")) {
+        toast.error("Coupon has expired.");
+      } else if (msg.includes("cap") || msg.includes("CAP") || msg.includes("fully") || msg.includes("claimed")) {
+        toast.error("Redemption cap reached — offer is fully claimed.");
+      } else if (msg.includes("not found") || msg.includes("NOT_FOUND")) {
+        toast.error("Coupon not found.");
+      } else {
+        toast.error(`Redemption failed: ${err.message}`);
+      }
+    },
   });
 
   return (
@@ -144,6 +197,55 @@ export default function CouponsSection() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {/* ── Mark Redeemed ─────────────────────────────────────────────
+                    Counter staff tap this when a customer presents a coupon
+                    at the counter. Calls coupons.redeem → enforces the
+                    maxRedemptions cap atomically on the server.
+                    Disabled when: loading · inactive · expired · fully claimed.
+                */}
+                {(() => {
+                  const rs = getRedeemState(c);
+                  const isLoading = redeemingId === c.id;
+                  return (
+                    <button
+                      id={`redeem-btn-${c.id}`}
+                      disabled={rs.disabled || isLoading}
+                      title={
+                        rs.disabled
+                          ? rs.label
+                          : `Record one redemption for "${c.title}"`
+                      }
+                      onClick={async () => {
+                        const ok = await confirmDialog({
+                          title: "Record redemption?",
+                          message: `Record one redemption for "${c.title}". This cannot be undone.`,
+                          confirmLabel: "Record",
+                        });
+                        if (!ok) return;
+                        setRedeemingId(c.id);
+                        redeemCoupon.mutate({ id: c.id });
+                      }}
+                      className={`flex items-center gap-1 px-2 py-1 text-[10px] font-bold tracking-wide border transition-colors ${
+                        rs.disabled
+                          ? "text-foreground/25 border-border/20 bg-transparent cursor-not-allowed"
+                          : "text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 cursor-pointer"
+                      }`}
+                    >
+                      {isLoading
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <TicketCheck className="w-3 h-3" />
+                      }
+                      <span className="ml-0.5">
+                        {isLoading ? "RECORDING..." : rs.label.toUpperCase()}
+                      </span>
+                      {!rs.disabled && rs.badge && (
+                        <span className="ml-1 text-[9px] text-blue-400/70 font-normal normal-case tracking-normal">
+                          {rs.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })()}
                 <button
                   onClick={() => toggleCoupon.mutate({ id: c.id, isActive: c.isActive === 1 ? 0 : 1 })}
                   disabled={toggleCoupon.isPending}
