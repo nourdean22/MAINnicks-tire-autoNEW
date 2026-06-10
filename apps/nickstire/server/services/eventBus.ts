@@ -339,6 +339,23 @@ async function ensureInitialized(): Promise<void> {
           `Invoice: ${event.data.invoiceNumber || "N/A"}`
         );
       }
+      // 2026-06-10 checkout-hardening · tire_order_placed was declared in
+      // `handles` but had NO branch — common-size online orders produced
+      // zero Telegram alerts (only uncommon sizes had a direct send in
+      // placeOrder, and the placement email is throttleable). Every order
+      // is money; alert on all of them. Skip uncommon sizes here — they
+      // already get the richer order-from-Gateway alert.
+      if (event.type === "tire_order_placed" && !event.data.uncommonSize) {
+        const size = event.data.tireSize ? ` (${event.data.tireSize})` : "";
+        const phone = event.data.customerPhone ? ` | ${event.data.customerPhone}` : "";
+        await sendTelegram(
+          `🛞 ONLINE TIRE ORDER — ${event.data.orderNumber}\n` +
+          `${event.data.quantity}x ${event.data.tireBrand} ${event.data.tireModel}${size}\n` +
+          `${event.data.customerName}${phone}\n` +
+          `Total: $${Number(event.data.totalAmount || 0).toFixed(2)} — payment pending\n` +
+          `Confirm availability, then order from Gateway (b2b.dktire.com).`
+        );
+      }
       // Wave-105: every new booking from nickstire.org → Telegram alert
       if (event.type === "booking_created") {
         const service = event.data.service || "service";
