@@ -25,6 +25,8 @@ export default function SiteHealthSection() {
   // Read-only integration-failure visibility — silent sheets/CAPI/SMS/email
   // breakage that can lose leads. Safe fields only (raw payloads never exposed).
   const { data: failData } = trpc.adminDashboard.integrationFailures.useQuery(undefined, { refetchInterval: 60_000 });
+  // journey/CAPI wave 2026-06 - env-presence booleans only; values never leave the server.
+  const { data: capi } = trpc.adminDashboard.capiStatus.useQuery(undefined, { staleTime: 60_000 });
 
   if (isLoading) {
     return (
@@ -285,6 +287,26 @@ export default function SiteHealthSection() {
             </a>
           )}
         </div>
+      </div>
+
+      {/* ── META CAPI STATUS (read-only) ─────────────────────
+          Server-side conversion tracking is DORMANT until the owner sets
+          META_CAPI_ACCESS_TOKEN in Railway (docs/runbooks/CAPI-ACTIVATION.md).
+          Booleans only — the token value never reaches the browser. */}
+      <div className="bg-card border border-border/30 p-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-sm tracking-wide text-foreground">META SERVER-SIDE CONVERSIONS (CAPI)</h3>
+          {capi && (
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${capi.tokenConfigured ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"}`}>
+              {capi.tokenConfigured ? "ACTIVE" : "DORMANT"}
+            </span>
+          )}
+        </div>
+        <p className="text-[12px] text-foreground/55">
+          {capi?.tokenConfigured
+            ? "Access token configured - Lead/Schedule events send server-side with hashed PII and pixel event-id dedup. Verify arrivals in Meta Events Manager."
+            : "No access token set - zero Meta traffic is sent (ad-blocked/iOS conversions are NOT being recovered). One Railway env var activates it: see docs/runbooks/CAPI-ACTIVATION.md."}
+        </p>
       </div>
 
       {/* Domain Status */}
