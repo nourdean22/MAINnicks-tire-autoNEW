@@ -144,7 +144,7 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
           const footer = `
 <div style="margin-top:32px;padding-top:16px;border-top:1px solid #ddd;color:#666;font-size:12px;font-family:sans-serif;line-height:1.5">
   <p>You're receiving this because you're a Nick's Tire &amp; Auto customer who hasn't visited in 30+ days. We send these reminders occasionally to help you stay on top of your vehicle.</p>
-  <p><strong>Nick's Tire &amp; Auto</strong><br>21010 Euclid Ave, Euclid, OH 44117<br>(216) 862-0005</p>
+  <p><strong>Nick's Tire &amp; Auto</strong><br>17625 Euclid Ave, Cleveland, OH 44112<br>(216) 862-0005</p>
   <p><a href="${unsubscribeMailto}" style="color:#666">Unsubscribe</a> &middot; reply STOP to this email or call us anytime.</p>
 </div>`;
           const body = bodyRaw + footer;

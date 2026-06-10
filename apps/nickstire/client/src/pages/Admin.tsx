@@ -149,7 +149,10 @@ const TAB_ALIASES: Record<string, AdminSection> = {
 
   // Settings sub-tabs (the old standalone sections are now Settings tabs)
   health: "settings",
-  sysHealth: "settings",
+  // 2026-06-10 gap-sweep · alias lookup lowercases the input, so a
+  // mixed-case key could never match — staff typing ?tab=sysHealth hit
+  // nothing. Lowercased so the alias actually resolves.
+  syshealth: "settings",
   compliance: "settings",
   integrations: "settings",
   system: "settings",
