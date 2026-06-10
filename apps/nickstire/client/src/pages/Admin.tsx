@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   Loader2, Shield, XCircle, ArrowLeft, Menu, X, Sparkles, ChevronRight,
+  Images, Clapperboard,
 } from "lucide-react";
 import {
   AdminSection, NAV_GROUPS, SECTION_TITLES,
@@ -645,6 +646,22 @@ export default function Admin() {
             className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
           >
             <Sparkles className="w-4 h-4" />
+          </Link>
+          <Link
+            href="/admin/ig-studio"
+            title="IG Carousel Studio"
+            aria-label="IG Carousel Studio"
+            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
+          >
+            <Images className="w-4 h-4" />
+          </Link>
+          <Link
+            href="/admin/reel-studio"
+            title="Reel Studio"
+            aria-label="Reel Studio"
+            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
+          >
+            <Clapperboard className="w-4 h-4" />
           </Link>
         </header>
 
