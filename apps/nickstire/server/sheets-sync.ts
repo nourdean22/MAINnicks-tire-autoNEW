@@ -255,6 +255,73 @@ export async function syncCallbackToSheet(callback: {
 }
 
 /**
+ * Build the "Tire Orders" sheet row. Pure + exported for unit tests.
+ * Columns A-R mirror the tab's original layout (order#, date, status,
+ * customer, tire, money, notes, then fulfillment cells the shop fills
+ * in by hand), followed by append-only additions: Payment Status + the
+ * standard 5-cell attribution tail. Blank is better than fake — the
+ * fulfillment cells start empty.
+ */
+export function tireOrderRow(
+  order: {
+    orderNumber: string;
+    customerName: string;
+    customerPhone: string;
+    customerEmail?: string | null;
+    vehicleInfo?: string | null;
+    tireBrand: string;
+    tireModel: string;
+    tireSize: string;
+    quantity: number;
+    /** dollars */
+    pricePerTire: number;
+    /** dollars */
+    totalAmount: number;
+    customerNotes?: string | null;
+    status: string;
+    paymentStatus?: string | null;
+  } & SheetAttribution,
+  timestamp: string,
+): string[] {
+  return [
+    order.orderNumber,
+    timestamp,
+    order.status.charAt(0).toUpperCase() + order.status.slice(1),
+    order.customerName,
+    order.customerPhone,
+    order.customerEmail || "",
+    order.vehicleInfo || "",
+    order.tireBrand,
+    order.tireModel,
+    order.tireSize,
+    String(order.quantity),
+    `$${order.pricePerTire.toFixed(2)}`,
+    "$0.00 (Included)", // install package — baked into the tire price
+    `$${order.totalAmount.toFixed(2)}`,
+    order.customerNotes || "",
+    "", // Gateway Ref — shop fills after ordering from D&K
+    "", // Expected Delivery
+    "", // Installation Date
+    order.paymentStatus || "unpaid",
+    // attribution tail — always 5 cells, blank when unknown
+    ...attributionCells(order),
+  ];
+}
+
+/**
+ * Sync a new tire order to the "Tire Orders" sheet.
+ * Replaces the dead Manus-era rclone path (it read
+ * /home/ubuntu/.gdrive-rclone.ini, which does not exist on Railway) —
+ * the service-account auth used by every other sync works anywhere.
+ */
+export async function syncTireOrderToSheet(
+  order: Parameters<typeof tireOrderRow>[0],
+): Promise<boolean> {
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
+  return appendRow("Tire Orders", tireOrderRow(order, now));
+}
+
+/**
  * Sync an invoice to the Invoices sheet.
  */
 export async function syncInvoiceToSheet(invoice: {

@@ -347,7 +347,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
             {deliveryMethod === "ship"
               ? "We'll confirm availability and contact you within 1 business hour with shipping cost. Payment required before shipping."
               : deliveryMethod.startsWith("drop-off")
-              ? "We'll confirm availability and contact you within 1 business hour. Drop off your vehicle and we'll get it done — your spot is held in line!"
+              ? "We'll confirm availability and contact you within 1 business hour. Drop off your vehicle and we'll get it done — drop-offs are worked first come, first serve."
               : "We'll confirm availability and contact you within 1 business hour. Walk in anytime we're open — first come first serve!"}
           </p>
           <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6 text-left space-y-2">
@@ -558,6 +558,13 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
               toast.error("Shipping address is required for delivery orders.");
               return;
             }
+            // Server zod rejects invalid emails and the customer would only
+            // see the generic something-went-wrong toast — catch it here
+            // with a fixable message instead of losing the order.
+            if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+              toast.error("That email doesn't look right — fix it or leave it blank.");
+              return;
+            }
             const deliveryNote = deliveryMethod === "ship"
               ? `[SHIP TO: ${shippingAddress.trim()}] ${notes.trim()}`
               : notes.trim();
@@ -589,7 +596,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
         </button>
 
         <p className="text-xs text-muted-foreground text-center mt-4">
-          No charge until we confirm. We verify pricing and availability before processing.
+          Placing the order doesn't charge your card. Paying online afterward is
+          optional — or pay at the shop. We verify pricing and availability
+          before installing.
         </p>
       </motion.div>
     </div>
@@ -1344,7 +1353,7 @@ export default function TireFinder() {
                   {/* Info note */}
                   <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
                     <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                    <p>Prices shown are estimates based on current wholesale availability. We confirm exact pricing before processing your order. <span className="text-foreground/80">Free check. Written quote. You don't pay until you say yes.</span></p>
+                    <p>Prices shown are estimates based on current wholesale availability. We confirm exact pricing and availability before installing. <span className="text-foreground/80">Free check. Written quote. Paying online is optional — pay at the shop if you prefer.</span></p>
                   </div>
                 </>
               ) : (
