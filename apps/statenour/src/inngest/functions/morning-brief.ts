@@ -6,19 +6,21 @@
  * does. Composes the brief, sends Web Push, optionally generates a
  * Cartesia-spoken audio file the operator can tap-and-listen to.
  *
- * Relationship to existing path:
- *   · `/api/cron/morning-brief` (legacy · fires inside mega-morning
- *     at 9:00 UTC) sends the brief via Telegram + writes the durable
- *     BrainMemory row. THAT PATH STAYS — it's the durable producer.
- *   · This Inngest function reads what that path wrote and adds
- *     two delivery channels the legacy cron doesn't have:
+ * Relationship to existing path (UPDATED 2026-06-10 · evolution audit):
+ *   · `/api/cron/morning-brief` (the legacy Telegram producer) was
+ *     DELETED in Wave AE (2026-05-28) and was never in MORNING_JOBS —
+ *     so this function is now the ONLY producer. composeBrief()
+ *     persists the durable BrainMemory row itself (it previously
+ *     assumed the legacy cron wrote it → readMorningBrief() returned
+ *     ready:false every day in prod).
+ *   · Delivery channels:
  *       (a) Web Push — silent landing on the operator's phone
  *       (b) Cartesia spoken audio — pre-rendered today.mp3 for the
- *           upcoming voice-tap-to-play flow on the PWA at /voice
+ *           voice-tap-to-play flow on the PWA at /voice
  *
- *   · Idempotency: composes from BrainMemory(category="morning_brief")
- *     for today. If the legacy cron hasn't fired yet (race window),
- *     we just call buildMorningBrief() directly to fall back.
+ *   · Idempotency: reuses BrainMemory(category="morning_brief") for
+ *     today when present; otherwise composes via buildMorningBrief()
+ *     and upserts the row.
  *
  *   · Failure semantics: each step retries independently. If Web Push
  *     fails because VAPID isn't set up, that step errors but the
@@ -58,7 +60,15 @@ interface ComposedBrief {
  */
 async function composeBrief(): Promise<ComposedBrief> {
   const { prisma } = await import("@/lib/prisma");
-  const today = new Date().toISOString().slice(0, 10);
+  // 2026-06-10 · evolution-audit fix · use the READER's date convention
+  // (America/New_York, en-CA = YYYY-MM-DD — see lib/services/
+  // morning-brief-read.ts) so the row this function writes is the row
+  // readMorningBrief() looks up. Identical at the 10:00 UTC fire time;
+  // correct for manual re-runs in the 00:00-05:00 UTC window where the
+  // UTC date is already tomorrow.
+  const today = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
 
   const existing = await prisma.brainMemory.findFirst({
     where: { category: "morning_brief", key: today },
@@ -75,15 +85,46 @@ async function composeBrief(): Promise<ComposedBrief> {
     };
   }
 
-  // Fallback · compose from scratch (legacy cron probably hasn't fired)
+  // Compose from scratch. 2026-06-10 · evolution-audit fix · the header
+  // comment's "legacy cron writes the durable row, THAT PATH STAYS" went
+  // stale: Wave AE (2026-05-28) deleted /api/cron/morning-brief and it
+  // was never in MORNING_JOBS — so NOTHING wrote the durable row and
+  // readMorningBrief() returned ready:false every day (confirmed live
+  // 2026-06-10: ready:false · composedAt:null) while push/audio kept
+  // working off this in-memory fallback. This function is now the
+  // durable producer: persist the row so /voice, the home surfaces, and
+  // every other reader see the brief.
   log.warn("brief_not_yet_persisted", {
     date: today,
     action: "compose-direct",
   });
   const { buildMorningBrief } = await import("@/lib/services/morning-brief");
   const brief = await buildMorningBrief();
+  await prisma.brainMemory
+    .upsert({
+      where: { category_key: { category: "morning_brief", key: today } },
+      create: {
+        category: "morning_brief",
+        key: today,
+        content: brief.text,
+        confidence: 1.0,
+        source: "inngest/morning-brief",
+        metadata: brief.payload as never,
+      },
+      update: {
+        content: brief.text,
+        metadata: brief.payload as never,
+      },
+    })
+    .catch((err) => {
+      // Persist failure must not kill push/audio delivery — log + continue.
+      log.warn("brief_persist_failed", {
+        date: today,
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      });
+    });
   return {
-    date: brief.date,
+    date: today,
     text: brief.text,
     sectionCount: Object.keys(brief.payload).length,
   };
