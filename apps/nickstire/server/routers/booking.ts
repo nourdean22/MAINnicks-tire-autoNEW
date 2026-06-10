@@ -214,6 +214,8 @@ export const bookingRouter = router({
         landingPage: z.string().max(500).nullish(),
         referrer: z.string().max(500).nullish(),
         gclid: z.string().max(255).optional(),
+        // journey-join migration 0068 - localStorage visitor id
+        sessionId: z.string().max(64).nullish(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -279,6 +281,7 @@ export const bookingRouter = router({
             landingPage: input.landingPage || null,
             referrer: input.referrer || null,
             gclid: input.gclid || null,
+            sessionId: input.sessionId || null,
           });
           break; // Success — exit retry loop
         } catch (err: unknown) {

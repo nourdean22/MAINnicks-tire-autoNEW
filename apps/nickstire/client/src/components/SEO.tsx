@@ -202,15 +202,16 @@ export function trackPhoneClick(source: string) {
   if (typeof window !== "undefined" && window.umami) {
     window.umami.track("phone_click", { source });
   }
-  // Meta Pixel: Track phone call as a Contact conversion event
-  import("@/lib/metaPixel").then(({ trackPhoneCall }) => {
-    trackPhoneCall({ sourcePage: source });
-  });
   // GA4: Track phone call event
   import("@/lib/ga4").then(({ trackPhoneClick: ga4PhoneClick }) => {
     ga4PhoneClick(source, { page: window.location.pathname });
   });
-  // Log to database via tRPC for admin dashboard call tracking.
+  // Meta Pixel Contact event, then the DB row — chained so the row carries
+  // the SAME event_id the pixel fired (journey-join wave 2026-06).
+  // trackPhoneCall has always generated + returned this id; it was
+  // discarded, which made pixel<->CAPI Contact dedup and click-row joins
+  // structurally impossible. sessionId = the localStorage visitor id every
+  // other captured surface stores.
   //
   // BUG FIX (May 2026): client previously sent `sourceElement` but the
   // server schema validates `clickElement` (matches the column name in
@@ -218,7 +219,8 @@ export function trackPhoneClick(source: string) {
   // by zod's nullish() — so call_events rows had clickElement=NULL across
   // the entire history. Renamed to clickElement + added userAgent so
   // device-type analytics actually populate.
-  import("@/lib/utm").then(({ getUtmData }) => {
+  Promise.all([import("@/lib/metaPixel"), import("@/lib/utm")]).then(([{ trackPhoneCall }, { getUtmData }]) => {
+    const eventId = trackPhoneCall({ sourcePage: source });
     const utm = getUtmData();
     fetch("/api/trpc/callTracking.logCall", {
       method: "POST",
@@ -235,10 +237,12 @@ export function trackPhoneClick(source: string) {
           landingPage: utm.landingPage || null,
           referrer: utm.referrer || null,
           userAgent: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 500) : null,
+          sessionId: getCachedSessionId(),
+          eventId: eventId || null,
         },
       }),
     }).catch(() => { /* silent fail — don't block the call */ });
-  });
+  }).catch(() => { /* import blocked — never block the call */ });
   // Also fire a custom DOM event for any other tracking
   window.dispatchEvent(new CustomEvent("nick_phone_click", { detail: { source } }));
 }
@@ -323,26 +327,11 @@ export function trackEvent(
   }
 }
 
-// Module-scoped session id cache. Without this every trackEvent call
-// hits localStorage — fine in isolation, but PhotoRibbon can fire
-// dozens of view events per scroll which made the localStorage call
-// the dominant cost. Now: read once, reuse forever.
-let _cachedSessionId: string | null = null;
-function getCachedSessionId(): string | null {
-  if (_cachedSessionId) return _cachedSessionId;
-  try {
-    let id = window.localStorage.getItem("nick_session_id");
-    if (!id) {
-      id = `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-      window.localStorage.setItem("nick_session_id", id);
-    }
-    _cachedSessionId = id;
-    return id;
-  } catch {
-    /* localStorage unavailable (private mode etc.) — return null */
-    return null;
-  }
-}
+// journey-join wave 2026-06 — the visitor-id generator moved to
+// @/lib/session (single source of truth: trackEvent, trackPhoneClick, and
+// getUtmData all read the SAME localStorage key so every captured surface
+// joins on one exact key). Same behavior, same key, module-cached there.
+import { getSessionId as getCachedSessionId } from "@/lib/session";
 
 /**
  * Skip navigation link — renders as first focusable element.
