@@ -40,6 +40,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   vip: "VIP Customers",
   fleet: "Fleet/Commercial",
   recent: "Recent (30-90d)",
+  tire_customer: "Tire Customers (180d+)",
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
@@ -51,7 +52,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
 
 function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated: (id: number) => void }) {
   const [name, setName] = useState("");
-  const [segment, setSegment] = useState<"lapsed" | "dormant" | "lost" | "vip" | "fleet" | "recent">("lapsed");
+  const [segment, setSegment] = useState<"lapsed" | "dormant" | "lost" | "vip" | "fleet" | "recent" | "tire_customer">("lapsed");
   const [creating, setCreating] = useState(false);
 
   const { data: customerStats } = trpc.customers.stats.useQuery();
@@ -121,23 +122,24 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
               2 cols (~160px each), 4 cols only at sm+ (640px+). */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {/* wave-150 · "declined" removed — the 50/day declined-recovery cron now owns that pool (a winback campaign here would double-text it).
-                "tire_customer" removed — no tire signal (filter was just <90d), so "you got tires from us" was a false claim to non-tire customers. */}
-            {(["lapsed", "dormant", "lost", "vip", "fleet", "recent"] as const).map(s => {
+                "tire_customer" is revived with evidence-gated verification (requires last visit > 180d and prior tire service on invoices). */}
+            {(["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"] as const).map(s => {
               const labels: Record<string, string> = {
                 lapsed: "Lapsed (90-180d)", dormant: "Dormant (180-365d)", lost: "Lost (365d+)",
                 vip: "VIP",
                 fleet: "Fleet/Commercial", recent: "Recent (30-90d)",
+                tire_customer: "Tire (180d+)",
               };
               const count = customerStats?.[s as keyof typeof customerStats] ?? "?";
               return (
                 <button
-                  key={s}
-                  onClick={() => setSegment(s)}
-                  className={`p-4 border text-left transition-colors ${
-                    segment === s
-                      ? "border-primary bg-primary/5"
-                      : "border-border/30 bg-card hover:border-border/50"
-                  }`}
+                   key={s}
+                   onClick={() => setSegment(s)}
+                   className={`p-4 border text-left transition-colors ${
+                     segment === s
+                       ? "border-primary bg-primary/5"
+                       : "border-border/30 bg-card hover:border-border/50"
+                   }`}
                 >
                   <span className="font-bold text-[10px] tracking-wide text-foreground block leading-tight">
                     {labels[s] ?? s}
@@ -166,6 +168,12 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
                 <StepPreview step={1} delay="Immediately" desc="6+ months: Free safety inspection for returning customers" />
                 <StepPreview step={2} delay="Day 7" desc="Cost warning: $200 brake job → $800 rotor replacement" />
                 <StepPreview step={3} delay="Day 14" desc="Final: No hard feelings, still here, 4.9★ 1700+ reviews" />
+              </>
+            )}
+            {segment === "tire_customer" && (
+              <>
+                <StepPreview step={1} delay="Immediately" desc="6 months post-tire: Prompt free tire rotation" />
+                <StepPreview step={2} delay="Day 7" desc="Follow-up check: Ensure even tire tread wear" />
               </>
             )}
             {segment === "lost" && (

@@ -30,13 +30,13 @@ interface LineItem {
   laborHours: number;
 }
 
-const PRESETS: Array<Omit<LineItem, "id">> = [
+export const PRESETS: Array<Omit<LineItem, "id">> = [
   // Oil is a flat-rate service: the advertised price ($49 conv/blend, $80 full synthetic — shared/pricing.ts)
   // is all-in for parts + labor, so NO separate labor bundle. partsCost x markup lands the pre-tax line on
   // the advertised number exactly; Ohio tax (parts-only) still shows separately, as on a real receipt.
   { description: "Oil Change (conventional/blend 5qt)", partsCostCents: 2450, partsMarkup: 2.0, laborHours: 0 },
   { description: "Oil Change (full synthetic 5qt)",     partsCostCents: 4000, partsMarkup: 2.0, laborHours: 0 },
-  { description: "Used Tire ($60 each, mount+balance)", partsCostCents: 2500, partsMarkup: 2.4, laborHours: 0.7 },
+  { description: "Used Tire ($60 each, mount+balance)", partsCostCents: 2500, partsMarkup: 2.4, laborHours: 0 },
   { description: "Brake Pads — Front Axle",        partsCostCents: 3500, partsMarkup: 2.2, laborHours: 1.5 },
   { description: "Brake Pads + Rotors — Front",    partsCostCents: 9500, partsMarkup: 1.9, laborHours: 2.0 },
   { description: "Wheel Alignment (4-wheel)",      partsCostCents: 0,    partsMarkup: 1,   laborHours: 1.0 },

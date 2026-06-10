@@ -26,6 +26,7 @@
  */
 
 import { BUSINESS } from "@shared/business";
+import { OIL_PRICE } from "@shared/pricing";
 import { createLogger } from "../lib/logger";
 import { db } from "../lib/db-helper";
 import { specials, gbpPostLog } from "../../drizzle/schema";
@@ -112,38 +113,8 @@ export async function logPostToDb(post: GeneratedGBPPost, source: "cron" | "admi
 }
 
 // ─────────────────────────────────────────────────────────
-// VARIABLE BANK (from playbook)
+// HELPERS & VALIDATION
 // ─────────────────────────────────────────────────────────
-
-const CUSTOMER_NAMES = [
-  "Marcus L.", "Tina B.", "Greg M.", "Amber S.", "Diane H.",
-  "Rich P.", "Jasmine T.", "Bobby C.", "Yolanda K.", "Frank D.",
-  "Sherice O.", "Devon W.", "Aaron K.", "Mariah J.", "Dwayne R.",
-];
-
-const REAL_VEHICLES = [
-  "2014 Honda Civic", "2017 Ford Escape", "2019 Toyota Camry",
-  "2015 Chevy Silverado", "2018 Jeep Grand Cherokee", "2016 Hyundai Sonata",
-  "2020 Nissan Altima", "2013 Dodge Ram 1500", "Tesla Model Y",
-  "BMW 3 Series", "2017 Kia Sorento", "2019 Subaru Outback",
-];
-
-const CLEVELAND_LANDMARKS = [
-  "Euclid Ave", "Mayfield Rd", "Cedar Rd", "I-90", "I-271", "Shoreway",
-  "Lakeshore", "East 185th", "Coventry", "Wade Park", "Severance",
-  "Beachwood Place", "Edgewater", "Rocket Arena",
-];
-
-// Pseudo-random pick that's still deterministic per-week (so same Monday
-// generation produces same content if re-run).
-function pickFor(seed: string, list: string[]): string {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) {
-    h = (h << 5) - h + seed.charCodeAt(i);
-    h |= 0;
-  }
-  return list[Math.abs(h) % list.length];
-}
 
 function weekSeed(): string {
   const d = new Date();
@@ -152,68 +123,81 @@ function weekSeed(): string {
   return `${d.getFullYear()}-w${week}`;
 }
 
+function formatAuthorName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    const first = parts[0];
+    const last = parts[parts.length - 1];
+    if (/^[A-Za-z]+$/.test(last)) {
+      return `${first} ${last[0]}.`;
+    }
+    return `${first} ${last}`;
+  }
+  return name;
+}
+
+function assertNoFabrication(text: string): void {
+  const forbidden = [
+    "1,200",
+    "487",
+    "grinding brakes",
+    "dealer quote",
+    "dealer trying to upsell",
+    "PROOF_SCENARIOS",
+    "Marcus L.",
+    "Tina B.",
+    "Greg M.",
+    "Amber S.",
+    "Diane H.",
+  ];
+  const lower = text.toLowerCase();
+  for (const item of forbidden) {
+    if (lower.includes(item.toLowerCase())) {
+      throw new Error(`Fabrication guard triggered: text contains forbidden placeholder/mock artifact "${item}"`);
+    }
+  }
+}
+
 // ─────────────────────────────────────────────────────────
 // ARCHETYPE 1 — PROOF POST
-// "Marcus L. came in with grinding brakes and a $1,200 dealer quote."
+// Real customer review text from Google Reviews cache
 // ─────────────────────────────────────────────────────────
 
-const PROOF_SCENARIOS = [
-  {
-    problem: "grinding brakes and a $1,200 dealer quote",
-    solution: "$487. Real pads. Real rotors. Real receipt.",
-    quote: "Way cheaper than the dealer wanted, and they showed me the worn part on the lift before they touched it.",
-    timeWindow: "Walked in Saturday at 11am. Left at 1:30pm.",
-    imageHint: "actual brake job in our bay — show worn pad next to new",
-  },
-  {
-    problem: "a flashing check engine light and a no-start panic",
-    solution: "Bad coil pack. $215 with the diagnosis credited toward the fix.",
-    quote: "They told me what was wrong before I even paid for the check. Other shops would've kept me guessing.",
-    timeWindow: "Came in Tuesday morning. Drove home at lunch.",
-    imageHint: "OBD-II scanner on the dashboard — caught mid-read",
-  },
-  {
-    problem: "a failed Ohio E-Check and a 30-day deadline",
-    solution: "Oxygen sensor swap. Passed re-test the same afternoon. $189.",
-    quote: "Two other shops told me to come back next week. Nick's got me legal that day.",
-    timeWindow: "Pulled in Friday at 9am. E-Check pass certificate by 2pm.",
-    imageHint: "the actual E-Check pass certificate, redacted",
-  },
-  {
-    problem: "a tire slow-leak and a dealer trying to upsell 4 new tires",
-    solution: "Found a roofing nail. Plug-and-patch from the inside. $35.",
-    quote: "I almost bought 4 new tires before I came here. They saved me $1,000+.",
-    timeWindow: "Walked in Sunday afternoon. Out in 25 minutes.",
-    imageHint: "the actual nail pulled out of the tire on the bay floor",
-  },
-  {
-    problem: "a salt-eaten brake line that the dealer quoted at $1,800",
-    solution: "Brake line replacement + bleed: $640. Same parts. Same warranty.",
-    quote: "Cleveland salt destroys these lines. Glad I didn't pay dealer price for what an honest shop fixes for a third of the cost.",
-    timeWindow: "Drop-off Monday morning. Done by Tuesday lunch.",
-    imageHint: "the actual rusted-through brake line vs new one",
-  },
-];
+async function buildProofPost(): Promise<GeneratedGBPPost> {
+  const { getGoogleReviews } = await import("../google-reviews");
+  const reviewData = await getGoogleReviews();
+  if (!reviewData || !reviewData.reviews || reviewData.reviews.length === 0) {
+    throw new Error("No Google reviews available");
+  }
 
-function buildProofPost(): GeneratedGBPPost {
+  const qualifyingReviews = reviewData.reviews.filter(
+    (r) => r.rating >= 4 && r.text && r.text.trim().length >= 10
+  );
+
+  if (qualifyingReviews.length === 0) {
+    throw new Error("No qualifying Google reviews (rating >= 4 with text) found");
+  }
+
   const seed = weekSeed() + "-proof";
-  const name = pickFor(seed, CUSTOMER_NAMES);
-  const scenario = PROOF_SCENARIOS[Math.abs(hashStr(seed)) % PROOF_SCENARIOS.length];
-  const text = `${name} came in with ${scenario.problem}.
-${scenario.timeWindow}
-${scenario.solution}
+  const review = qualifyingReviews[Math.abs(hashStr(seed)) % qualifyingReviews.length];
+  
+  const author = formatAuthorName(review.authorName);
+  const excerpt = review.text.length > 200 ? review.text.slice(0, 200) + "..." : review.text;
+  
+  const text = `${author} shared their experience with ${BUSINESS.name}:
 
-"${scenario.quote}"
+"${excerpt}"
 
 Drop in any day, walk-ins welcome.
 ${BUSINESS.address.full} · ${BUSINESS.phone.display}`;
+
   return {
     archetype: "proof",
     text,
     callToAction: "CALL",
     ctaUrl: BUSINESS.phone.href,
-    imageHint: scenario.imageHint,
-    topicHash: `proof-${scenario.problem.slice(0, 20)}`,
+    imageHint: "photo of our service bays or a happy customer's car",
+    topicHash: `proof-${review.authorName.slice(0, 10)}-${review.time}`,
   };
 }
 
@@ -272,16 +256,16 @@ ${BUSINESS.phone.display} · open 7 days · ${BUSINESS.address.full}`;
 
 // ─────────────────────────────────────────────────────────
 // ARCHETYPE 3 — FIRST-PRINCIPLES (math-as-argument)
-// "$487 brake job today. $2,100 brake + caliper + rotor in 30 days."
+// "$299 brake pads today. $950 caliper and rotor replacement in 30 days."
 // ─────────────────────────────────────────────────────────
 
 const MATH_ARGUMENTS = [
   {
-    today: { amount: "$487", thing: "brake job today" },
-    later: { amount: "$2,100", thing: "brake + caliper + rotor job in 30 days if pads grind metal" },
+    today: { amount: "$299", thing: "brake pads on one axle" },
+    later: { amount: "$950", thing: "caliper and rotor replacement if worn to the metal" },
     explanation: "Cleveland salt eats brake hardware faster than dry-state cars. Catching it early IS the maintenance.",
     finance: "Acima · Snap · Koalafi · $10 down today · pay it down monthly",
-    imageHint: "side-by-side: worn pad ($487) and chewed-up rotor ($2,100) with prices overlaid in brand yellow",
+    imageHint: "side-by-side: worn pad ($299) and chewed-up rotor ($950) with prices overlaid in brand yellow",
   },
   {
     today: { amount: "$189", thing: "E-Check fix today" },
@@ -291,7 +275,7 @@ const MATH_ARGUMENTS = [
     imageHint: "the actual E-Check repair certificate next to a state-issued failed-test letter",
   },
   {
-    today: { amount: "$79", thing: "synthetic oil change today" },
+    today: { amount: `$${OIL_PRICE.fullSynthetic}`, thing: "synthetic oil change today" },
     later: { amount: "$4,000+", thing: "engine rebuild in 60K miles if you skip oil changes" },
     explanation: "Sludge from old oil destroys engines. The math is brutal but the maintenance is cheap.",
     finance: "Walk in any day. 30 minutes. Free 27-point check while you wait.",
@@ -392,7 +376,7 @@ function pickSeasonalContext(): SeasonalContext {
   // Default mid-season
   return {
     title: "Routine maintenance is cheaper than emergencies.",
-    consequence: "The $50 belt prevents a $500 tow. The $79 oil change prevents a $4,000 engine. Cleveland weather doesn't care about your schedule.",
+    consequence: `The $50 belt prevents a $500 tow. The $${OIL_PRICE.conventional} oil change prevents a $4,000 engine. Cleveland weather doesn't care about your schedule.`,
     service: "Free 27-point check on any visit. No appointment needed.",
     imageHint: "the workshop bay floor with multi-bay activity",
   };
@@ -457,7 +441,7 @@ ${featuredSpecial.description ?? ""}
 
 Walk in 7 days · ${BUSINESS.address.full}
 ${BUSINESS.phone.display} · code ${featuredSpecial.couponCode ?? "—"}`;
-    return {
+    const post: GeneratedGBPPost = {
       archetype: "math",
       text: text.slice(0, 1500),
       callToAction: "BOOK",
@@ -465,28 +449,32 @@ ${BUSINESS.phone.display} · code ${featuredSpecial.couponCode ?? "—"}`;
       imageHint: "the actual special — service-specific photo",
       topicHash: `special-${featuredSpecial.id}`,
     };
+    assertNoFabrication(post.text);
+    return post;
   }
 
   // Pick archetype, retry up to 4× if the topic was recent.
   for (let attempt = 0; attempt < 4; attempt++) {
     const archetype = forceArchetype ?? pickArchetype();
-    const post = buildPost(archetype);
+    const post = await buildPost(archetype);
     if (!isRecentTopic(post.topicHash)) {
       recordTopic(post.topicHash);
+      assertNoFabrication(post.text);
       return post;
     }
   }
 
   // Variety guard exhausted — return whatever we got. Better one repeat
   // than infinite loop.
-  const fallback = buildPost(forceArchetype ?? "proof");
+  const fallback = await buildPost(forceArchetype ?? "proof");
   recordTopic(fallback.topicHash);
+  assertNoFabrication(fallback.text);
   return fallback;
 }
 
-function buildPost(archetype: GBPArchetype): GeneratedGBPPost {
+async function buildPost(archetype: GBPArchetype): Promise<GeneratedGBPPost> {
   switch (archetype) {
-    case "proof":    return buildProofPost();
+    case "proof":    return await buildProofPost();
     case "anti":     return buildAntiPost();
     case "math":     return buildMathPost();
     case "seasonal": return buildSeasonalPost();
