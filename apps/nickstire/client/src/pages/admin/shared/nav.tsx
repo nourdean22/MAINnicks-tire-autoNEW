@@ -4,7 +4,7 @@
 import React from "react";
 import {
   LayoutDashboard, UserCheck, Send, DollarSign, PhoneCall, Settings, Disc,
-  ClipboardList,
+  ClipboardList, TrendingUp,
 } from "lucide-react";
 import type { NavGroup } from "./types";
 
@@ -59,6 +59,11 @@ export const NAV_GROUPS: NavGroup[] = [
       // slot because the four owner-gated systems (refunds, D&K,
       // messaging, entity cleanup) had no visible home before this.
       { id: "opsHub", label: "Ops Hub", icon: <ClipboardList className="w-4 h-4" /> },
+      // 2026-06-10 · Growth: the local-SEO + social systems get an operator
+      // surface (GBP Q&A seeds, photo queue, entity checklist, competitor
+      // watch, review-reply drafts, automation armed-state, social studios).
+      // Read/copy/manual only — nothing posts externally.
+      { id: "growth", label: "Growth", icon: <TrendingUp className="w-4 h-4" /> },
       { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
     ],
   },

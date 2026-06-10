@@ -43,6 +43,10 @@ const TireOrdersSection = lazy(() => import("./admin/TireOrdersSection"));
 // 2026-06-10 danger-zone-safe-build · Ops Hub: reports corpus, owner
 // action registry, and PREVIEW-ONLY customer message templates. Read-only.
 const OpsHubSection = lazy(() => import("./admin/OpsHubSection"));
+// 2026-06-10 growth-social wiring · Growth: operator surface for the GBP
+// local-growth systems + social studios. Read/copy/manual only — nothing
+// on it posts, sends, or edits anything outside this app.
+const GrowthSection = lazy(() => import("./admin/GrowthSection"));
 // wave-181.x Intelligence Dispersal Wave 3 (2026-05-24) · Intelligence-
 // Section retired entirely. Signals are dispersed to canonical surfaces:
 // statenour /scoreboard (Wave 1.5 · NickHealthSection) · the various
@@ -97,6 +101,7 @@ function SectionContent({ section }: { section: AdminSection }) {
         {section === "memberships" && <MembershipsSection />}
         {section === "tireOrders" && <TireOrdersSection />}
         {section === "opsHub" && <OpsHubSection />}
+        {section === "growth" && <GrowthSection />}
       </Suspense>
     </AdminSectionBoundary>
   );
@@ -220,6 +225,13 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   opshub: "opsHub",
   reports: "opsHub",
   ops: "opsHub",
+  // 2026-06-10 · growth-social wiring. NB `reviews` already aliases to
+  // "campaigns" (review REQUESTS live in Outreach) — left untouched;
+  // review REPLIES are the Growth tab's reviews surface.
+  gbp: "growth",
+  local: "growth",
+  localseo: "growth",
+  social: "growth",
   warranty: "customers",
   inventory: "overview",
   waitlist: "customers",
@@ -238,7 +250,7 @@ const VALID_SECTIONS: ReadonlySet<AdminSection> = new Set<AdminSection>([
   "overview", "leads", "content", "customers",
   "campaigns", "settings", "revenue", "callTrackingView",
   "trafficFunnel", "voiceReceptionist", "memberships", "tireOrders",
-  "opsHub",
+  "opsHub", "growth",
 ]);
 
 // 2026-05-19 MONEY consolidation · compound redirects for old bookmarks.
