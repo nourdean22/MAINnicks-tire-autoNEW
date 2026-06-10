@@ -70,6 +70,18 @@ export function TireOrdersTab() {
   const { data: backlog } = trpc.nickActions.paymentAlertBacklog.useQuery(undefined, {
     refetchInterval: 60_000,
   });
+  // Payment-infrastructure health (booleans only) — surfaces the silent
+  // half-configured state where Stripe charges succeed but webhook
+  // events are dropped. Checked every 5 min; env changes need a deploy
+  // anyway so faster polling buys nothing.
+  const { data: health } = trpc.payments.health.useQuery(undefined, {
+    refetchInterval: 5 * 60_000,
+  });
+  // Cancelled-order money risks: paid-but-cancelled (refund owed) and
+  // cancelled-with-open-checkout (customer can still pay a dead order).
+  const { data: risks } = trpc.gatewayTire.cancellationRisks.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
 
   const resolveAlert = trpc.nickActions.resolvePaymentAlert.useMutation({
     onSuccess: () => { utils.nickActions.paymentAlertBacklog.invalidate(); toast.success("Alert resolved"); },
@@ -92,6 +104,67 @@ export function TireOrdersTab() {
 
   return (
     <div className="space-y-4">
+      {/* Payment infrastructure misconfiguration — silent-failure states
+          that otherwise live only in server logs. */}
+      {health?.stripe.halfConfigured && (
+        <div className="border border-red-500/40 bg-red-500/10 p-3 flex items-start gap-2 text-xs text-red-300">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+          <span>
+            <strong>Stripe is half-configured:</strong> STRIPE_SECRET_KEY is set but
+            STRIPE_WEBHOOK_SECRET is missing — customers CAN pay, but paid events are
+            being <strong>dropped</strong> (orders only flip to paid if the customer
+            returns to the site). Set STRIPE_WEBHOOK_SECRET on Railway.
+          </span>
+        </div>
+      )}
+      {health && !health.stripe.secretKeySet && (
+        <div className="border border-amber-500/40 bg-amber-500/10 p-3 flex items-start gap-2 text-xs text-amber-200">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+          <span>
+            <strong>Online payment is OFF:</strong> STRIPE_SECRET_KEY is not set —
+            the customer "Pay Now" button degrades to call-to-pay. Orders still work.
+          </span>
+        </div>
+      )}
+      {health && !health.sheetsConfigured && (
+        <div className="border border-amber-500/40 bg-amber-500/10 p-3 flex items-start gap-2 text-xs text-amber-200">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+          <span>
+            <strong>Sheets sync is OFF:</strong> GOOGLE_SHEETS_CRM_ID is not set —
+            orders are NOT mirrored to the CRM spreadsheet (DB + this tab remain the
+            source of truth).
+          </span>
+        </div>
+      )}
+
+      {/* Cancellation money risks — refund owed / still-payable sessions */}
+      {risks && risks.refundNeeded.length > 0 && (
+        <div className="border border-red-500/40 bg-red-500/10 p-3 space-y-1 text-xs">
+          <div className="flex items-center gap-2 text-red-400 font-bold tracking-wider">
+            <AlertTriangle className="w-4 h-4" />
+            {risks.refundNeeded.length} CANCELLED ORDER{risks.refundNeeded.length === 1 ? "" : "S"} PAID ONLINE — REFUND VIA STRIPE DASHBOARD
+          </div>
+          {risks.refundNeeded.map((r) => (
+            <div key={r.id} className="text-foreground/80">
+              {r.orderNumber} · {r.customerName} · ${r.totalAmount.toFixed(2)} — search the order # in Stripe → Refund
+            </div>
+          ))}
+        </div>
+      )}
+      {risks && risks.staleSessions.length > 0 && (
+        <div className="border border-amber-500/40 bg-amber-500/10 p-3 space-y-1 text-xs">
+          <div className="flex items-center gap-2 text-amber-300 font-bold tracking-wider">
+            <AlertTriangle className="w-4 h-4" />
+            {risks.staleSessions.length} CANCELLED ORDER{risks.staleSessions.length === 1 ? "" : "S"} WITH AN OPEN CHECKOUT LINK
+          </div>
+          {risks.staleSessions.map((r) => (
+            <div key={r.id} className="text-foreground/80">
+              {r.orderNumber} · {r.customerName} — the Stripe checkout page may still be payable (~24h); expire the session in Stripe if in doubt
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Paid-order alert backlog — paid money with a failed hand-off is
           the single most urgent thing in the shop. */}
       {backlog && backlog.count > 0 && (

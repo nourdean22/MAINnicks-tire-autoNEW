@@ -400,3 +400,46 @@ export function isStripeConfigured(): boolean {
 export function getStripePublishableKey(): string | null {
   return process.env.STRIPE_PUBLISHABLE_KEY || process.env.VITE_STRIPE_PUBLISHABLE_KEY || null;
 }
+
+/**
+ * Pure classification of the Stripe env wiring — booleans only, never
+ * key material. `halfConfigured` is the dangerous state: charges succeed
+ * at Stripe but webhook events are signature-rejected (the handler
+ * returns 500 so they pile up in Stripe's retry queue) — paid orders
+ * then depend entirely on the customer's return-page confirm.
+ *
+ * 2026-06-10 checkout-protection wave. Before this, half-configuration
+ * was only a runtime log line inside the webhook handler — visible to
+ * nobody. payments.health + the admin Tire Orders tab surface it.
+ */
+export function classifyStripeHealth(env: {
+  secretKey?: string | null;
+  webhookSecret?: string | null;
+  publishableKey?: string | null;
+}): {
+  secretKeySet: boolean;
+  webhookSecretSet: boolean;
+  publishableKeySet: boolean;
+  halfConfigured: boolean;
+  fullyConfigured: boolean;
+} {
+  const secretKeySet = !!env.secretKey;
+  const webhookSecretSet = !!env.webhookSecret;
+  const publishableKeySet = !!env.publishableKey;
+  return {
+    secretKeySet,
+    webhookSecretSet,
+    publishableKeySet,
+    halfConfigured: secretKeySet && !webhookSecretSet,
+    fullyConfigured: secretKeySet && webhookSecretSet && publishableKeySet,
+  };
+}
+
+/** classifyStripeHealth over the live process env. */
+export function getStripeHealth() {
+  return classifyStripeHealth({
+    secretKey: process.env.STRIPE_SECRET_KEY,
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+    publishableKey: getStripePublishableKey(),
+  });
+}

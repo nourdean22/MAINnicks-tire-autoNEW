@@ -307,6 +307,8 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
               </button>
               <p className="text-[10px] text-muted-foreground text-center mt-2">
                 Secure card payment by Stripe. Your card details never touch our site.
+                Paying now locks in your order — we still confirm availability with
+                you before install.
               </p>
 
               {/* Secondary — pay by phone */}

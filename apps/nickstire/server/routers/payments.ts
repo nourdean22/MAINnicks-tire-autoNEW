@@ -30,6 +30,21 @@ export const paymentsRouter = router({
     };
   }),
 
+  /**
+   * Payment-infrastructure health for the admin Tire Orders tab.
+   * Booleans only — never key material. Surfaces the half-configured
+   * state (secret key set, webhook secret missing) where paid Stripe
+   * events are DROPPED and only the return-page confirm saves the order.
+   */
+  health: adminProcedure.query(async () => {
+    const { getStripeHealth } = await import("../services/payments");
+    const { isSheetConfigured } = await import("../sheets-sync");
+    return {
+      stripe: getStripeHealth(),
+      sheetsConfigured: isSheetConfigured(),
+    };
+  }),
+
   /** Look up an invoice for payment (public — requires phone for verification) */
   lookupInvoice: publicProcedure
     .input(z.object({
