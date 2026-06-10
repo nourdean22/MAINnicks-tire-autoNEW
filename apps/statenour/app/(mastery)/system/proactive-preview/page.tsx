@@ -5,6 +5,25 @@ import { Panel } from "@/components/panel";
 import { PageHeader } from "@/components/layout/ui";
 import { toast } from "sonner";
 
+interface PushSourceItem {
+  id?: string;
+  category:
+    | "journal"
+    | "body"
+    | "task"
+    | "goal"
+    | "concern"
+    | "anticipated_question"
+    | "previous_push"
+    | "system_context"
+    | "unknown";
+  title: string;
+  summary: string;
+  confidence: "high" | "medium" | "low";
+  reason: string;
+  href?: string;
+}
+
 interface PushPreviewItem {
   kind: "preview";
   slot: "morning" | "afternoon" | "evening";
@@ -23,6 +42,7 @@ interface PushPreviewItem {
   sourceFunction: string;
   riskFlags: string[];
   nextSafeStep: string;
+  sources: PushSourceItem[];
 }
 
 interface PreviewResponse {
@@ -240,6 +260,52 @@ export default function ProactivePreviewPage() {
                         </span>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Why / Source Attribution */}
+                  <div className="space-y-2 border-t border-white/5 pt-3">
+                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 block font-mono">
+                      Why / Source Attribution
+                    </span>
+                    {preview.sources && preview.sources.length > 0 ? (
+                      <div className="space-y-3">
+                        {preview.sources.map((src, idx) => {
+                          const confColors =
+                            src.confidence === "high"
+                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                              : src.confidence === "medium"
+                              ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                              : "bg-amber-400/10 text-amber-300 border-amber-500/20";
+                          return (
+                            <div key={idx} className="rounded bg-white/[0.01] border border-white/5 p-2 space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-mono text-zinc-400 border border-zinc-700/40 uppercase">
+                                  {src.category}
+                                </span>
+                                <span className={`rounded border px-1.5 py-0.5 text-[9px] font-mono uppercase ${confColors}`}>
+                                  {src.confidence} confidence
+                                </span>
+                              </div>
+                              <h4 className="text-xs font-semibold text-white">{src.title}</h4>
+                              <p className="text-xs text-zinc-300">{src.summary}</p>
+                              <p className="text-[10px] text-zinc-500 italic">Reason: {src.reason}</p>
+                              {src.href && (
+                                <a
+                                  href={src.href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-block text-[10px] text-[var(--gold)] hover:underline font-mono"
+                                >
+                                  View Source →
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-zinc-500 italic">No direct source found. Preview is based on scheduled system context.</p>
+                    )}
                   </div>
                 </div>
 
