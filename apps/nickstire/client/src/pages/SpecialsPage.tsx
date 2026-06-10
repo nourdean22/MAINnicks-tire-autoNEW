@@ -379,7 +379,9 @@ export function mapDbCouponToSpecial(c: DbCoupon, idx: number): Special {
     discountLabel: label,
     validThrough: c.expiresAt
       ? new Date(c.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
-      : "While supplies last",
+      : c.maxRedemptions === 0
+        ? "Available now"
+        : "While supplies last",
     terms: c.terms || "Mention at checkout.",
     limited: remaining > 0,
     badgeText,

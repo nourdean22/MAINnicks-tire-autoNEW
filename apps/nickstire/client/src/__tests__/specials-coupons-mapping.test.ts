@@ -94,9 +94,19 @@ describe("mapDbCouponToSpecial — Surfacing active coupons", () => {
     expect(special.validThrough).toContain("2026");
   });
 
-  it("handles null expiresAt with 'While supplies last'", () => {
+  it("handles null expiresAt with 'Available now' for unlimited coupons", () => {
     const special = mapDbCouponToSpecial({
       ...BASE_COUPON,
+      maxRedemptions: 0,
+      expiresAt: null,
+    }, 0);
+    expect(special.validThrough).toBe("Available now");
+  });
+
+  it("handles null expiresAt with 'While supplies last' for capped coupons", () => {
+    const special = mapDbCouponToSpecial({
+      ...BASE_COUPON,
+      maxRedemptions: 10,
       expiresAt: null,
     }, 0);
     expect(special.validThrough).toBe("While supplies last");
