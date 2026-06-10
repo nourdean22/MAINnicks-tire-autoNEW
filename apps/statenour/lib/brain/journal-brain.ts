@@ -439,33 +439,40 @@ async function generateJournalTake(
 Return ONLY valid JSON:
 {
   "idea": ${wantIdea ? '"one bold, specific, NON-OBVIOUS idea or angle this sparks (1-2 sentences)"' : "null"},
-  "challenge": ${wantChallenge ? '"one sharp challenge — a counter-question, blind spot, or uncomfortable truth (1 sentence). Make him think; do NOT flatter."' : "null"}
+  "challenge": ${wantChallenge ? '"one sharp challenge — a counter-question, blind spot, or uncomfortable truth (1 sentence). Make him think; do NOT flatter."' : "null"},
+  "nextAction": "ONE concrete next move WITH timing if this entry implies action — e.g. 'Tomorrow before 11am, 25 min on the highest-leverage business task before any entertainment.' Imperative and specific to his journey. Use null if the entry implies no real action — do NOT invent one.",
+  "domain": "the life domain of that move: business|health|personal|finance|relationship|mastery — or null"
 }
 
-No preamble. Specific over generic. ${tone}`,
+No preamble. Specific over generic. Blank beats fabricated: null the action if none is real. ${tone}`,
       },
       { role: "user", content: sanitizeForPrompt(text, 1000) },
     ],
     "reason",
   );
 
-  const parsed = extractJsonObject<{ idea?: unknown; challenge?: unknown }>(res.content);
+  const parsed = extractJsonObject<{ idea?: unknown; challenge?: unknown; nextAction?: unknown; domain?: unknown }>(res.content);
   if (!parsed.ok) return;
   const idea = typeof parsed.value.idea === "string" ? parsed.value.idea.trim().slice(0, 600) : null;
   const challenge = typeof parsed.value.challenge === "string" ? parsed.value.challenge.trim().slice(0, 400) : null;
-  if (!idea && !challenge) return;
+  // Next-Action: the loop's "Act" step. Honest — null when the model returns no real move (don't fabricate).
+  const actionText = typeof parsed.value.nextAction === "string" ? parsed.value.nextAction.trim().slice(0, 300) : null;
+  const actionDomain = typeof parsed.value.domain === "string" ? parsed.value.domain.trim().slice(0, 24) : null;
+  const nextAction = actionText ? { action: actionText, domain: actionDomain } : null;
+  if (!idea && !challenge && !nextAction) return;
 
+  const takeContent = JSON.stringify({ idea, challenge, nextAction });
   await prisma.brainMemory
     .upsert({
       where: { category_key: { category: "journal_brain_take", key: `journal-take:${id}` } },
       create: {
         category: "journal_brain_take",
         key: `journal-take:${id}`,
-        content: JSON.stringify({ idea, challenge }),
+        content: takeContent,
         source: "journal_brain",
         confidence: 1,
       },
-      update: { content: JSON.stringify({ idea, challenge }) },
+      update: { content: takeContent },
     })
     .catch(() => {});
 }
