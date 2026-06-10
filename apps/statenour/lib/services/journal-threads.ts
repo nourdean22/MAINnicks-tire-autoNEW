@@ -30,10 +30,15 @@ import {
   type EntrySource,
 } from "./journal-convergence";
 import { Prisma } from "@prisma/client";
+import { computeThreadTrend, type ThreadTrend } from "./journal-thread-trend";
 
 const log = rootLogger.withSurface("services/journal-threads");
 
 // ──────────────────────── Read paths ────────────────────────
+
+// Arc trend · journal-advancement item E (2026-06-10) · pure rules live in
+// journal-thread-trend.ts (dependency-free → unit-testable without prisma).
+export type { ThreadTrend } from "./journal-thread-trend";
 
 export interface ThreadSummary {
   id: string;
@@ -46,6 +51,11 @@ export interface ThreadSummary {
   namedAt: Date;
   lastJoinAt: Date | null;
   recentExcerpts: string[]; // up to 3 most-recent member excerpts
+  /** Item E · arc data — joins in the last 7d / the 7d before that
+   *  (computed over the 30 most-recent memberships · bounded read). */
+  joins7d: number;
+  joinsPrior7d: number;
+  trend: ThreadTrend;
 }
 
 export interface ConvergenceCandidateRow {
@@ -102,8 +112,10 @@ export async function listThreads(opts: {
       lastJoinAt: true,
       memberships: {
         orderBy: { joinedAt: "desc" },
-        take: 3,
-        select: { entrySource: true, entryId: true },
+        // Item E · 30 most-recent (was 3) so the 7d/7d arc windows have
+        // real join data. Excerpts below still use only the first 3.
+        take: 30,
+        select: { entrySource: true, entryId: true, joinedAt: true },
       },
     },
   });
@@ -116,7 +128,8 @@ export async function listThreads(opts: {
   // fetchExcerpts via the const ENTRY_SOURCES check upstream.
   const tuples = threads.flatMap((t) =>
     t.memberships
-      .filter((m): m is { entrySource: EntrySource; entryId: string } =>
+      .slice(0, 3)
+      .filter((m): m is { entrySource: EntrySource; entryId: string; joinedAt: Date } =>
         (ENTRY_SOURCES as readonly string[]).includes(m.entrySource),
       )
       .map((m) => ({
@@ -126,20 +139,37 @@ export async function listThreads(opts: {
   );
   const excerpts = await fetchExcerpts(tuples);
 
-  return threads.map((t) => ({
-    id: t.id,
-    name: t.name,
-    summary: t.summary,
-    status: t.status,
-    coherence: t.coherence,
-    memberCount: t.memberCount,
-    detectedAt: t.detectedAt,
-    namedAt: t.namedAt,
-    lastJoinAt: t.lastJoinAt,
-    recentExcerpts: t.memberships
-      .map((m) => excerpts.get(`${m.entrySource}:${m.entryId}`))
-      .filter((x): x is string => Boolean(x)),
-  }));
+  const now = Date.now();
+  const DAY = 86_400_000;
+  return threads.map((t) => {
+    // Item E · arc windows computed from REAL join timestamps.
+    const joins7d = t.memberships.filter((m) => now - m.joinedAt.getTime() < 7 * DAY).length;
+    const joinsPrior7d = t.memberships.filter((m) => {
+      const age = now - m.joinedAt.getTime();
+      return age >= 7 * DAY && age < 14 * DAY;
+    }).length;
+    const lastRef = t.lastJoinAt ?? t.namedAt;
+    const daysSinceJoin = Math.floor((now - lastRef.getTime()) / DAY);
+    const trend = computeThreadTrend({ status: t.status, daysSinceJoin, joins7d, joinsPrior7d });
+    return {
+      id: t.id,
+      name: t.name,
+      summary: t.summary,
+      status: t.status,
+      coherence: t.coherence,
+      memberCount: t.memberCount,
+      detectedAt: t.detectedAt,
+      namedAt: t.namedAt,
+      lastJoinAt: t.lastJoinAt,
+      recentExcerpts: t.memberships
+        .slice(0, 3)
+        .map((m) => excerpts.get(`${m.entrySource}:${m.entryId}`))
+        .filter((x): x is string => Boolean(x)),
+      joins7d,
+      joinsPrior7d,
+      trend,
+    };
+  });
 }
 
 /**

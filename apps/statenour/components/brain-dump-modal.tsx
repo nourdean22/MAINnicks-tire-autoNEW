@@ -52,6 +52,82 @@ interface CaptureResult {
 
 export const CAPTURE_OPEN_EVENT = "ultron:open-capture";
 
+// ─── Mode-Based Capture · journal-advancement item B (2026-06-10) ───
+// 7 capture modes. A mode ONLY seeds the prompt (placeholder) + declares
+// the entryType — capture stays instant, zero extra round-trips. The
+// declared type rides the captureThought mutation as entryTypeHint and
+// outranks the blind fast classification (operator is ground truth).
+type EntryTypeHint =
+  | "raw" | "thinking" | "reasoning" | "insight"
+  | "decision" | "reflection" | "planning" | "venting";
+
+interface CaptureMode {
+  key: string;
+  label: string;
+  desc: string;
+  placeholder: string;
+  hint: EntryTypeHint | null; // null = let the AI classify (plain dump)
+}
+
+const CAPTURE_MODES: CaptureMode[] = [
+  {
+    key: "dump",
+    label: "Dump",
+    desc: "Empty your head — raw, unfiltered. Nick sorts it.",
+    placeholder:
+      "What's in your head right now? Nick will sort it into thinking / reasoning / insight / decision / reflection — and extract any tasks, commitments, or patterns.",
+    hint: null,
+  },
+  {
+    key: "debrief",
+    label: "Daily Debrief",
+    desc: "Close the day like an operator.",
+    placeholder:
+      "Today: what moved? What stalled? What did you avoid? Name the one thing tomorrow must get.",
+    hint: "reflection",
+  },
+  {
+    key: "battle",
+    label: "Battle Log",
+    desc: "Log the fight while it's hot.",
+    placeholder:
+      "What hit you, how you reacted, what it cost. No varnish — the log is for the operator you're becoming.",
+    hint: "venting",
+  },
+  {
+    key: "replay",
+    label: "Decision Replay",
+    desc: "Re-run a call you made.",
+    placeholder:
+      "The decision. The options you saw. Why you chose. What you'd do differently knowing what you know now.",
+    hint: "decision",
+  },
+  {
+    key: "breaker",
+    label: "Pattern Breaker",
+    desc: "Name the loop to break it.",
+    placeholder:
+      "Which pattern fired again? What triggered it? What's the interrupt next time it starts?",
+    hint: "insight",
+  },
+  {
+    key: "win",
+    label: "Win Proof",
+    desc: "Evidence you're becoming.",
+    placeholder:
+      "What did you do that your old self wouldn't have? Specifics — date it, size it, name what it proves.",
+    hint: "reflection",
+  },
+  {
+    key: "future",
+    label: "Future Self",
+    desc: "Write from who you're becoming.",
+    placeholder:
+      "It's 12 months out and it worked. What did you do THIS week to get here? Lay out the next moves.",
+    hint: "planning",
+  },
+];
+
 export function BrainDumpModal() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -62,6 +138,9 @@ export function BrainDumpModal() {
   // Most-recent capture result · sticky footer feedback. Replaces the
   // pre-v529.22 modal-mode-switch (result-card replaced the textarea).
   const [lastResult, setLastResult] = useState<CaptureResult | null>(null);
+  // Item B · active capture mode. Index 0 (Dump) = the classic behavior.
+  const [modeKey, setModeKey] = useState<string>(CAPTURE_MODES[0].key);
+  const mode = CAPTURE_MODES.find((m) => m.key === modeKey) ?? CAPTURE_MODES[0];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const captureMutation = trpc.brain.captureThought.useMutation();
 
@@ -100,6 +179,7 @@ export function BrainDumpModal() {
       setTimeout(() => {
         setText("");
         setLastResult(null);
+        setModeKey(CAPTURE_MODES[0].key);
       }, 200);
     }
   }, [open]);
@@ -123,6 +203,9 @@ export function BrainDumpModal() {
     try {
       const data = (await captureMutation.mutateAsync({
         text: trimmed,
+        // Item B · the mode's declared entry type (undefined for Dump —
+        // the AI classifies freely, exactly the pre-mode behavior).
+        entryTypeHint: mode.hint ?? undefined,
       })) as CaptureResult;
       setLastResult(data);
       notifyDataChanged("any", { source: "global-capture", detail: "journal-capture" });
@@ -146,7 +229,7 @@ export function BrainDumpModal() {
     } finally {
       setInFlight((n) => Math.max(0, n - 1));
     }
-  }, [text, captureMutation]);
+  }, [text, captureMutation, mode]);
 
   const onKey = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -240,12 +323,47 @@ export function BrainDumpModal() {
               requestAnimationFrame(() => textareaRef.current?.focus());
             }}
           />
+          {/* Item B · mode strip. Selecting a mode is instant — it only
+              swaps the placeholder prompt + declares the entryType hint.
+              No round-trip, no extra state to wait on. */}
+          <div className="space-y-1">
+            <div className="flex flex-wrap gap-1">
+              {CAPTURE_MODES.map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => {
+                    setModeKey(m.key);
+                    requestAnimationFrame(() => textareaRef.current?.focus());
+                  }}
+                  aria-pressed={m.key === mode.key}
+                  className={cn(
+                    "rounded-md border px-2 py-1 text-[9px] font-bold uppercase tracking-wider transition-all",
+                    "[@media(pointer:coarse)]:min-h-[36px]",
+                    m.key === mode.key
+                      ? "bg-[var(--gold)]/15 border-[var(--gold)]/40 text-[var(--gold)]"
+                      : "bg-transparent border-zinc-800 text-zinc-500 hover:text-zinc-300",
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[9px] text-[var(--text-tertiary)] italic">
+              {mode.desc}
+              {mode.hint && (
+                <span className="ml-1 font-mono not-italic text-[var(--gold)]/50">
+                  → {mode.hint}
+                </span>
+              )}
+            </p>
+          </div>
           <textarea
             ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKey}
-            placeholder="What's in your head right now? Nick will sort it into thinking / reasoning / insight / decision / reflection — and extract any tasks, commitments, or patterns."
+            placeholder={mode.placeholder}
             rows={6}
             className={cn(
               "w-full text-[13px] leading-[1.55] resize-none rounded-xl px-3.5 py-3",

@@ -961,10 +961,22 @@ export const brainRouter = router({
    * · essentially zero abuse surface).
    */
   captureThought: operatorProcedure
-    .input(z.object({ text: z.string().min(3).max(20_000) }))
+    .input(
+      z.object({
+        text: z.string().min(3).max(20_000),
+        // Item B (2026-06-10) · capture-mode entry-type hint. The modal's
+        // mode picker declares what KIND of entry the operator is writing;
+        // ingestJournal lets it outrank the blind fast classification.
+        entryTypeHint: z
+          .enum(["raw", "thinking", "reasoning", "insight", "decision", "reflection", "planning", "venting"])
+          .optional(),
+      }),
+    )
     .mutation(async ({ input }) => {
       try {
-        return await ingestJournal(input.text.trim(), "manual");
+        return await ingestJournal(input.text.trim(), "manual", {
+          entryTypeHint: input.entryTypeHint,
+        });
       } catch (err) {
         if (err instanceof ServiceError) {
           throw new TRPCError({

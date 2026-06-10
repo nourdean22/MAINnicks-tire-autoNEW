@@ -1,4 +1,5 @@
 import { NicksHomeBrief } from "@/components/home/nicks-home-brief";
+import { JournalNextMove } from "@/components/home/journal-next-move";
 import { HomeOneTapMoves } from "@/components/home/home-one-tap-moves";
 import { HomeStatePulse } from "@/components/home/home-state-pulse";
 import { HomeIdentityHeader } from "@/components/home/home-identity-header";
@@ -39,6 +40,10 @@ export default function HomePage() {
     <div className="space-y-4 max-w-3xl mx-auto px-3 pb-32">
       <HomeIdentityHeader />
       <NicksHomeBrief />
+      {/* Item G (2026-06-10) · the journal loop's "Act" output lands where
+          the day starts — freshest extracted NEXT MOVE, deep-linked to its
+          entry. Self-hides when the last 48h implied no real action. */}
+      <JournalNextMove />
       <HomeOneTapMoves />
       <HomeStatePulse />
       <HomeComposer />

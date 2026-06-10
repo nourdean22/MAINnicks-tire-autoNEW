@@ -171,8 +171,16 @@ export function JournalEntryRow({
         <div className="px-3 pb-3 space-y-2 border-t border-zinc-800/40 pt-2 ml-[calc(13px+12px)]">
           {/* Journal Brain · impact receipt. Lazy-fetched (enabled only when
               expanded) so the list doesn't fire N receipt queries on load.
-              Self-skips for retro (no silo) and empty receipts. */}
-          {silo && <ImpactReceipt id={entry.id} silo={silo} enabled={isExpanded} />}
+              Self-skips for retro (no silo). Empty receipts render an HONEST
+              state line (Analyzing… / Legacy / no-link) instead of vanishing. */}
+          {silo && (
+            <ImpactReceipt
+              id={entry.id}
+              silo={silo}
+              enabled={isExpanded}
+              createdAt={entry.createdAt}
+            />
+          )}
           {entry.summary && (
             <div>
               <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
@@ -473,13 +481,44 @@ function LinkChip({ entry, silo }: { entry: FeedEntry; silo: JournalSilo }) {
  * visually distinct but subtle) + the linked goal/mission name. Silent when
  * the receipt is null or carries no XP (don't show an empty receipt).
  */
-function ImpactReceipt({ id, silo, enabled }: { id: string; silo: JournalSilo; enabled: boolean }) {
+function ImpactReceipt({
+  id,
+  silo,
+  enabled,
+  createdAt,
+}: {
+  id: string;
+  silo: JournalSilo;
+  enabled: boolean;
+  createdAt: string;
+}) {
   const { data } = trpc.journal.receipt.useQuery(
     { silo, id },
     { enabled, refetchOnWindowFocus: false, staleTime: 60 * 1000 },
   );
-  // Show the receipt if there's XP OR a generated "take" (idea/challenge).
-  if (!data || (data.xp.length === 0 && !data.take)) return null;
+  if (!data) return null;
+
+  // Honest empty states (journal-advancement item A · 2026-06-10). Pre-fix
+  // an empty receipt rendered NOTHING — "still analyzing", "analyzed, found
+  // no link", and "never enriched" were indistinguishable. Never fabricate:
+  // each state names exactly what the system did (or hasn't done yet).
+  // Phase 0 of the Journal Brain shipped 2026-06-01 — rows created before
+  // that and never enriched are legacy, not pending.
+  const hasContent = data.xp.length > 0 || !!data.take || !!data.goal || !!data.mission;
+  if (!hasContent) {
+    const JOURNAL_BRAIN_EPOCH = Date.parse("2026-06-01T00:00:00Z");
+    const state =
+      data.enrichedAt == null
+        ? Date.parse(createdAt) < JOURNAL_BRAIN_EPOCH
+          ? "Legacy entry — not enriched"
+          : "Analyzing…"
+        : "No grounded link found · no action extracted";
+    return (
+      <p className="text-[9px] font-mono text-[var(--text-tertiary)] italic">
+        {state}
+      </p>
+    );
+  }
   return (
     <div className="space-y-1.5 rounded-md border border-[var(--gold)]/15 bg-[var(--gold)]/[0.03] p-2">
       {data.xp.length > 0 && (

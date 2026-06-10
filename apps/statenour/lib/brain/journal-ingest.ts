@@ -138,14 +138,20 @@ export function simpleHash(s: string): string {
 export async function ingestJournal(
   rawText: string,
   source: "telegram" | "chat" | "manual" = "telegram",
-  opts: { creditXp?: boolean } = {},
+  // entryTypeHint · journal-advancement item B (2026-06-10) · the capture
+  // modal's mode picker passes the operator's declared entry kind. The
+  // operator is ground truth about WHAT KIND of entry they wrote, so the
+  // hint wins over the blind fast classification. The async enrichment
+  // pass may still refine it grounded-in-goals later (acceptable — mode-
+  // shaped text re-classifies consistently in practice).
+  opts: { creditXp?: boolean; entryTypeHint?: ThoughtType } = {},
 ): Promise<JournalResult> {
   const dateStr = today();
   let tasksCreated = 0;
   let insightsStored = 0;
   let commitmentsFound = 0;
   let summary = "";
-  let entryType: ThoughtType = "raw";
+  let entryType: ThoughtType = opts.entryTypeHint ?? "raw";
 
   // v10.0.529.25 · /journal audit #4b · rawThoughts dedup window.
   // Pre-fix the rate-limit allowed 10 req/min/IP, so a laggy phone
@@ -326,9 +332,13 @@ ${rawText}`,
         "planning",
         "venting",
       ];
-      entryType = VALID_TYPES.includes(data.entryType as ThoughtType)
-        ? (data.entryType as ThoughtType)
-        : "raw";
+      // Operator-declared mode (entryTypeHint) outranks the blind AI
+      // classification — he chose what he was writing.
+      entryType =
+        opts.entryTypeHint ??
+        (VALID_TYPES.includes(data.entryType as ThoughtType)
+          ? (data.entryType as ThoughtType)
+          : "raw");
 
       // Update brain dump with extracted data. The entryType, domains, and
       // linkedTopics all live inside extractedItems so no schema migration

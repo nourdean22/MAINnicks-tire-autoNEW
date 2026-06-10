@@ -28,6 +28,12 @@ interface Thread {
   namedAt: string;
   lastJoinAt: string | null;
   recentExcerpts: string[];
+  // Item E (2026-06-10) · arc data — computed server-side from real join
+  // recency. "fading"/"stale" render via the existing drift/dormant chips;
+  // "strengthening" gets its own emerald chip.
+  joins7d: number;
+  joinsPrior7d: number;
+  trend: "strengthening" | "steady" | "fading" | "stale";
 }
 
 export function ThreadRail({
@@ -292,6 +298,15 @@ function ThreadCard({
               >
                 drifting · {driftDays}d
               </span>
+            ) : thread.trend === "strengthening" ? (
+              /* Item E · arc chip — only shown when the trend is REAL
+                 (≥2 joins this week AND more than the prior week). */
+              <span
+                className="text-[10px] uppercase tracking-wider text-emerald-300/90 border border-emerald-500/30 rounded px-1.5 py-0.5 bg-emerald-500/[0.06]"
+                title={`${thread.joins7d} entries this week vs ${thread.joinsPrior7d} last week — this arc is compounding`}
+              >
+                strengthening · {thread.joins7d}/wk
+              </span>
             ) : null}
           </div>
           {!expanded && thread.recentExcerpts[0] ? (
@@ -313,6 +328,26 @@ function ThreadCard({
 
       {expanded ? (
         <div className="px-4 pb-4 border-t border-white/5 pt-3 space-y-3">
+          {/* Item E · arc line — the thread's life in one honest row:
+              when it started, how big it is, this week vs last. */}
+          <p className="text-[10px] uppercase tracking-wider text-white/40 tabular-nums">
+            arc · first seen{" "}
+            {new Date(thread.detectedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            {" · "}{thread.memberCount} entries
+            {" · "}{thread.joins7d} this wk vs {thread.joinsPrior7d} last
+            {" · "}
+            <span
+              className={
+                thread.trend === "strengthening"
+                  ? "text-emerald-300/90"
+                  : thread.trend === "fading" || thread.trend === "stale"
+                    ? "text-amber-300/80"
+                    : "text-white/50"
+              }
+            >
+              {thread.trend}
+            </span>
+          </p>
           {thread.summary ? (
             <p className="text-xs text-white/60 italic">
               "{thread.summary}"
