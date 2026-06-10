@@ -345,13 +345,23 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
               </div>
             </div>
           )}
-          <p className="text-muted-foreground mb-6 leading-relaxed text-sm">
-            {deliveryMethod === "ship"
-              ? "We'll confirm availability and contact you within 1 business hour with shipping cost. Payment required before shipping."
-              : deliveryMethod.startsWith("drop-off")
-              ? "We'll confirm availability and contact you within 1 business hour. Drop off your vehicle and we'll get it done — drop-offs are worked first come, first serve."
-              : "We'll confirm availability and contact you within 1 business hour. Walk in anytime we're open — first come first serve!"}
-          </p>
+          {/* Merge of the checkout-hardening wave (per-delivery-method
+              guidance + FCFS honesty) and PR #41 (dropped the 1-business-
+              hour promise, added the no-reservation disclaimer). One
+              deliberate correction to #41's line: "or payment is
+              completed" implied paying reserves supplier stock — it
+              doesn't (no D&K reservation API exists), so the disclaimer
+              ends at staff confirmation. */}
+          <div className="text-muted-foreground mb-6 leading-relaxed text-sm space-y-2 text-center">
+            <p>
+              {deliveryMethod === "ship"
+                ? "We'll confirm availability and contact you with shipping cost. Payment required before shipping."
+                : deliveryMethod.startsWith("drop-off")
+                ? "We'll confirm availability and contact you. Drop off your vehicle and we'll get it done — drop-offs are worked first come, first serve."
+                : "We'll confirm availability and contact you. Walk in anytime we're open — first come first serve!"}
+            </p>
+            <p className="text-xs text-amber-500/95 font-medium">No supplier reservation is guaranteed until staff confirms availability.</p>
+          </div>
           <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6 text-left space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{quantity}x {tire.brand} {tire.model}</span>
@@ -359,7 +369,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Nick's Premium Installation Package</span>
-              <span className="text-green-400 font-medium">FREE</span>
+              <span className="text-green-400 font-medium">Included</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Ohio sales tax (8%)</span>
@@ -370,7 +380,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
               <span className="text-foreground">${(bd.cardFee / 100).toFixed(2)}</span>
             </div>
             <div className="flex justify-between pt-2 border-t border-border/30">
-              <span className="font-medium text-foreground">Total</span>
+              <span className="font-medium text-foreground">Total Estimate</span>
               <span className="font-semibold text-primary">${(bd.total / 100).toFixed(2)}</span>
             </div>
           </div>
@@ -394,7 +404,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
           <X className="w-5 h-5" />
         </button>
 
-        <h3 className="text-xl font-semibold text-foreground mb-1">Order Tires</h3>
+        <h3 className="text-xl font-semibold text-foreground mb-1">Request Tires</h3>
         <p className="text-muted-foreground text-sm mb-6">{quantity}x {tire.brand} {tire.model} ({tire.size})</p>
 
         {/* Price breakdown — the psychology */}
@@ -408,35 +418,35 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
           <div className="border-t border-border/20 mt-2 pt-2 space-y-1.5">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Professional Mounting x{quantity}</span>
-              <span className="text-green-400 font-medium line-through-none">FREE</span>
+              <span className="text-green-400 font-medium line-through-none">Included</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Computer Balancing x{quantity}</span>
-              <span className="text-green-400 font-medium">FREE</span>
+              <span className="text-green-400 font-medium">Included</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">New Valve Stems x{quantity}</span>
-              <span className="text-green-400 font-medium">FREE</span>
+              <span className="text-green-400 font-medium">Included</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Tire Disposal & Recycling x{quantity}</span>
-              <span className="text-green-400 font-medium">FREE</span>
+              <span className="text-green-400 font-medium">Included</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">TPMS Sensor Reset</span>
-              <span className="text-green-400 font-medium">FREE</span>
+              <span className="text-green-400 font-medium">Included</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">20-Point Safety Inspection</span>
-              <span className="text-green-400 font-medium">FREE</span>
+              <span className="text-green-400 font-medium">Included</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Alignment Check</span>
-              <span className="text-green-400 font-medium">FREE</span>
+              <span className="text-green-400 font-medium">Included</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">1-Year Free Rotation & Flat Repair</span>
-              <span className="text-green-400 font-medium">FREE</span>
+              <span className="text-green-400 font-medium">Included</span>
             </div>
           </div>
 
@@ -458,7 +468,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
               <span className="text-foreground">${(bd.cardFee / 100).toFixed(2)}</span>
             </div>
             <div className="flex justify-between pt-1.5 border-t border-border/20">
-              <span className="font-medium text-foreground">Your Total</span>
+              <span className="font-medium text-foreground">Estimated Total</span>
               <span className="font-semibold text-primary text-lg">${(bd.total / 100).toFixed(2)}</span>
             </div>
             <p className="text-[10px] text-green-400 text-right font-medium">
@@ -472,9 +482,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
           <label className="block text-sm text-muted-foreground mb-2">How do you want your tires installed?</label>
           <div className="grid grid-cols-2 gap-2">
             {([
-              { id: "walk-in" as const, icon: "🏪", title: "Walk In", desc: "Come anytime we're open", note: "FREE install" },
-              { id: "drop-off-morning" as const, icon: "🌅", title: "Drop Off AM", desc: "Leave it before noon", note: "FREE install" },
-              { id: "drop-off-afternoon" as const, icon: "🌇", title: "Drop Off PM", desc: "Leave it afternoon", note: "FREE install" },
+              { id: "walk-in" as const, icon: "🏪", title: "Walk In", desc: "Come anytime we're open", note: "Included" },
+              { id: "drop-off-morning" as const, icon: "🌅", title: "Drop Off AM", desc: "Leave it before noon", note: "Included" },
+              { id: "drop-off-afternoon" as const, icon: "🌇", title: "Drop Off PM", desc: "Leave it afternoon", note: "Included" },
               { id: "ship" as const, icon: "📦", title: "Ship to Me", desc: "We ship to your door", note: "Shipping extra" },
             ]).map((opt) => (
               <button
@@ -591,17 +601,19 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
           className="w-full mt-6 bg-primary text-primary-foreground py-3.5 rounded-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {orderMutation.isPending ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> Placing Order...</>
+            <><Loader2 className="w-4 h-4 animate-spin" /> Requesting Tires...</>
           ) : (
-            <>Place Order — ${(bd.total / 100).toFixed(2)}</>
+            <>Request These Tires — ${(bd.total / 100).toFixed(2)}</>
           )}
         </button>
 
-        <p className="text-xs text-muted-foreground text-center mt-4">
-          Placing the order doesn't charge your card. Paying online afterward is
-          optional — or pay at the shop. We verify pricing and availability
-          before installing.
-        </p>
+        {/* Merge: #41's 3-line structure + this wave's pay-at-the-shop
+            option clarity. */}
+        <div className="text-xs text-muted-foreground text-center mt-4 space-y-1">
+          <p>No card required to request — paying online afterward is optional, or pay at the shop.</p>
+          <p>Staff will confirm availability and fitment before final shop hand-off.</p>
+          <p className="text-amber-500/80">Gateway/D&K availability can change until staff confirms.</p>
+        </div>
       </motion.div>
     </div>
   );
@@ -725,7 +737,7 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
           onClick={onSelect}
           className="flex items-center gap-1.5 bg-primary text-primary-foreground px-5 py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors btn-premium"
         >
-          Order
+          Select
           <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>

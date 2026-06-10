@@ -3,7 +3,7 @@
  */
 import React from "react";
 import {
-  LayoutDashboard, UserCheck, Send, DollarSign, PhoneCall, Settings,
+  LayoutDashboard, UserCheck, Send, DollarSign, PhoneCall, Settings, Disc,
 } from "lucide-react";
 import type { NavGroup } from "./types";
 
@@ -46,6 +46,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
       { id: "campaigns", label: "Outreach", icon: <Send className="w-4 h-4" /> },
       { id: "revenue", label: "Money", icon: <DollarSign className="w-4 h-4" /> },
+      { id: "tireOrders", label: "Tire Orders", icon: <Disc className="w-4 h-4" /> },
       // 2026-05-23 · added Voice back. Wave 181.92 dropped it claiming
       // Cmd+K accessibility, but it was never actually wired into
       // CommandSearch — leaving operator with no way to find it from
