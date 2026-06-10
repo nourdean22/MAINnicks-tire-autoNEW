@@ -523,9 +523,18 @@ function ImpactReceipt({ id, silo, enabled }: { id: string; silo: JournalSilo; e
           )}
         </p>
       )}
-      {/* Phase 2 · Nick's take — bold idea + sharp challenge. */}
-      {data.take && (data.take.idea || data.take.challenge) && (
+      {/* Phase 2 · Nick's take — the next move (the "Act" step) + bold idea + sharp challenge. */}
+      {data.take && (data.take.idea || data.take.challenge || data.take.nextAction) && (
         <div className="space-y-1 border-t border-[var(--gold)]/10 pt-1.5">
+          {data.take.nextAction && (
+            <p className="text-[10px] leading-snug text-[var(--gold)]">
+              <span className="font-mono uppercase tracking-wider text-[var(--gold)]/70">next move · </span>
+              <span className="text-[var(--text-primary)]">{data.take.nextAction.action}</span>
+              {data.take.nextAction.domain && (
+                <span className="ml-1 text-[8px] uppercase tracking-wider text-[var(--gold)]/50">#{data.take.nextAction.domain}</span>
+              )}
+            </p>
+          )}
           {data.take.idea && (
             <p className="text-[10px] leading-snug text-[var(--text-secondary)]">
               <span className="font-mono uppercase tracking-wider text-[var(--gold)]/60">idea · </span>

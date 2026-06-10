@@ -614,11 +614,24 @@ export const journalRouter = router({
           select: { content: true },
         })
         .catch(() => null);
-      let take: { idea: string | null; challenge: string | null } | null = null;
+      let take: {
+        idea: string | null;
+        challenge: string | null;
+        nextAction: { action: string; domain: string | null } | null;
+      } | null = null;
       if (takeRow?.content) {
         try {
-          const p = JSON.parse(takeRow.content) as { idea?: string | null; challenge?: string | null };
-          if (p.idea || p.challenge) take = { idea: p.idea ?? null, challenge: p.challenge ?? null };
+          const p = JSON.parse(takeRow.content) as {
+            idea?: string | null;
+            challenge?: string | null;
+            nextAction?: { action?: string; domain?: string | null } | null;
+          };
+          const na =
+            p.nextAction && typeof p.nextAction.action === "string"
+              ? { action: p.nextAction.action, domain: p.nextAction.domain ?? null }
+              : null;
+          if (p.idea || p.challenge || na)
+            take = { idea: p.idea ?? null, challenge: p.challenge ?? null, nextAction: na };
         } catch {
           /* malformed take · ignore */
         }
