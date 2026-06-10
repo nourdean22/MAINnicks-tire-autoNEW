@@ -4,6 +4,7 @@
 import React from "react";
 import {
   LayoutDashboard, UserCheck, Send, DollarSign, PhoneCall, Settings, Disc,
+  ClipboardList,
 } from "lucide-react";
 import type { NavGroup } from "./types";
 
@@ -53,6 +54,11 @@ export const NAV_GROUPS: NavGroup[] = [
       // the phone. VAPI / "Nick" handles inbound shop calls; the
       // operator needs to see call activity + transcripts on a glance.
       { id: "voiceReceptionist", label: "Voice (Nick)", icon: <PhoneCall className="w-4 h-4" /> },
+      // 2026-06-10 · Ops Hub: reports corpus + owner-action registry +
+      // preview-only message templates. Read-only by design; earns the
+      // slot because the four owner-gated systems (refunds, D&K,
+      // messaging, entity cleanup) had no visible home before this.
+      { id: "opsHub", label: "Ops Hub", icon: <ClipboardList className="w-4 h-4" /> },
       { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
     ],
   },
