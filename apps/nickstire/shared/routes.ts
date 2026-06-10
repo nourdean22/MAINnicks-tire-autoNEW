@@ -1168,6 +1168,7 @@ const EXCLUDED_PAGES: RouteEntry[] = [
   { path: "/portal", priority: 0, changefreq: "monthly", title: "Customer Portal — Nick's Tire & Auto", description: "Nick's Tire & Auto customer portal. View invoices, service history, and manage your account.", group: "utility", sitemap: false, prerender: false },
   { path: "/admin", priority: 0, changefreq: "monthly", title: "Admin Dashboard", description: "", group: "utility", sitemap: false, prerender: false },
   { path: "/admin/content", priority: 0, changefreq: "monthly", title: "Content Manager", description: "", group: "utility", sitemap: false, prerender: false },
+  { path: "/admin/ig-studio", priority: 0, changefreq: "monthly", title: "IG Carousel Studio", description: "", group: "utility", sitemap: false, prerender: false },
   { path: "/lp/brakes", priority: 0, changefreq: "monthly", title: "Brake Repair Special — Nick's Tire & Auto", description: "Limited time brake repair special at Nick's Tire & Auto, Cleveland.", group: "landing", sitemap: false, prerender: false },
   { path: "/lp/tires", priority: 0, changefreq: "monthly", title: "Tire Sale — Nick's Tire & Auto", description: "Limited time tire sale at Nick's Tire & Auto, Cleveland.", group: "landing", sitemap: false, prerender: false },
   { path: "/lp/diagnostics", priority: 0, changefreq: "monthly", title: "Diagnostics Special — Nick's Tire & Auto", description: "Limited time diagnostics special at Nick's Tire & Auto, Cleveland.", group: "landing", sitemap: false, prerender: false },
