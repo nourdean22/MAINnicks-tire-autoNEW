@@ -419,6 +419,12 @@ function JournalPageInner() {
         <NicksJournalBrief />
         <TodaysPrompt />
         <JournalThreadsStrip />
+        {/* Journal-advancement item D (2026-06-10) · Proof of Becoming.
+            One honest evidence line — enriched entries this week grouped
+            by life domain + goal-linked count. Derived from real data
+            (enrichedAt + extractedItems + linkStatus) · never synthetic ·
+            self-hides on a zero week. */}
+        <ProofOfBecomingStrip />
       </div>
 
       {/* Mastery Layer Stage B adoption on /journal · 2026-05-26.
@@ -1035,6 +1041,53 @@ function BrainSignalsChip() {
           → {arc.intervention.slice(0, 60)}
         </span>
       )}
+    </div>
+  );
+}
+
+/**
+ * Journal-advancement item D (2026-06-10) · Proof of Becoming strip.
+ *
+ * The operator's evidence file, one line: how many entries the brain
+ * decoded this week (vs last), how many landed on a goal, and which
+ * life domains they prove. Every number is derived from real rows
+ * (enrichedAt / linkStatus / extracted domains) — blank beats
+ * fabricated, so a zero week renders nothing.
+ */
+function ProofOfBecomingStrip() {
+  const { data } = trpc.journal.proofStack.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  if (!data || data.weekTotal === 0) return null;
+  const delta = data.weekTotal - data.prevWeekTotal;
+  return (
+    <div
+      className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--gold)]/20 bg-[var(--gold)]/[0.03] px-3 py-2 text-[10px]"
+      title="Enriched journal entries from the last 7 days, grouped by life domain — your evidence file."
+    >
+      <span className="font-bold uppercase tracking-[0.22em] text-[var(--gold)]/80">
+        becoming
+      </span>
+      <span className="font-mono tabular-nums text-[var(--text-primary)]">
+        {data.weekTotal} proof{data.weekTotal === 1 ? "" : "s"} this week
+        {delta !== 0 && (
+          <span className={cn("ml-1", delta > 0 ? "text-emerald-400/80" : "text-rose-400/70")}>
+            ({delta > 0 ? "+" : ""}
+            {delta} vs last)
+          </span>
+        )}
+      </span>
+      {data.grounded > 0 && (
+        <span className="font-mono tabular-nums text-emerald-300/80">
+          · {data.grounded} goal-linked
+        </span>
+      )}
+      {data.byDomain.slice(0, 4).map((d) => (
+        <span key={d.domain} className="font-mono tabular-nums text-[var(--text-secondary)]">
+          · {d.domain} {d.count}
+        </span>
+      ))}
     </div>
   );
 }

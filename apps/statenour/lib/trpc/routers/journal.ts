@@ -650,6 +650,125 @@ export const journalRouter = router({
     }),
 
   /**
+   * Proof of Becoming · journal-advancement item D (2026-06-10). DERIVED,
+   * never fabricated: counts the operator's ENRICHED brain dumps from the
+   * last 7 days grouped by life domain + entry type, with grounded-link
+   * counts and a prior-week comparison. v1 reads brain_dumps only — they
+   * are the operator's own captured thoughts (reflections are cron
+   * outputs). An entry "counts as proof" because the brain actually
+   * decoded it — no synthetic scores, no invented progress.
+   */
+  proofStack: operatorProcedure.query(async () => {
+    const { prisma } = await import("@/lib/prisma");
+    const DAY = 86_400_000;
+    const now = Date.now();
+    const rows = await prisma.brainDump
+      .findMany({
+        where: {
+          createdAt: { gte: new Date(now - 14 * DAY) },
+          deletedAt: null,
+          enrichedAt: { not: null },
+        },
+        select: { createdAt: true, entryType: true, extractedItems: true, linkStatus: true },
+        orderBy: { createdAt: "desc" },
+        take: 400,
+      })
+      .catch(
+        (): {
+          createdAt: Date;
+          entryType: string | null;
+          extractedItems: string | null;
+          linkStatus: string | null;
+        }[] => [],
+      );
+    let weekTotal = 0;
+    let prevWeekTotal = 0;
+    let grounded = 0;
+    const byDomain = new Map<string, number>();
+    const byType = new Map<string, number>();
+    for (const r of rows) {
+      const isThisWeek = now - r.createdAt.getTime() < 7 * DAY;
+      if (!isThisWeek) {
+        prevWeekTotal++;
+        continue;
+      }
+      weekTotal++;
+      if (r.linkStatus === "auto" || r.linkStatus === "confirmed") grounded++;
+      let domains: string[] = [];
+      let jsonType: string | null = null;
+      try {
+        const parsed = JSON.parse(r.extractedItems ?? "{}") as {
+          domains?: unknown;
+          entryType?: unknown;
+        };
+        if (Array.isArray(parsed.domains))
+          domains = parsed.domains.filter((d): d is string => typeof d === "string");
+        if (typeof parsed.entryType === "string") jsonType = parsed.entryType;
+      } catch {
+        /* legacy/malformed JSON · still counts toward the total */
+      }
+      for (const d of domains.slice(0, 4)) byDomain.set(d, (byDomain.get(d) ?? 0) + 1);
+      const t = r.entryType ?? jsonType;
+      if (t) byType.set(t, (byType.get(t) ?? 0) + 1);
+    }
+    return {
+      weekTotal,
+      prevWeekTotal,
+      grounded,
+      byDomain: [...byDomain.entries()]
+        .map(([domain, count]) => ({ domain, count }))
+        .sort((a, b) => b.count - a.count),
+      byType: [...byType.entries()]
+        .map(([type, count]) => ({ type, count }))
+        .sort((a, b) => b.count - a.count),
+    };
+  }),
+
+  /**
+   * Feed-OS · journal-advancement item G (2026-06-10). The freshest
+   * journal-extracted NEXT MOVE for the home surface — the "Act" output
+   * of the journal loop feeding the OS's action surface. Reads the
+   * journal_brain_take rows written in the last 48h, returns the newest
+   * one carrying a non-null nextAction (honest: null when none exists —
+   * the strip self-hides, nothing is invented).
+   */
+  latestNextAction: operatorProcedure.query(async () => {
+    const { prisma } = await import("@/lib/prisma");
+    const rows = await prisma.brainMemory
+      .findMany({
+        where: {
+          category: "journal_brain_take",
+          updatedAt: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) },
+          deletedAt: null,
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 10,
+        select: { key: true, content: true, updatedAt: true },
+      })
+      .catch((): { key: string | null; content: string; updatedAt: Date }[] => []);
+    for (const r of rows) {
+      try {
+        const p = JSON.parse(r.content) as {
+          nextAction?: { action?: string; domain?: string | null } | null;
+        };
+        if (p.nextAction && typeof p.nextAction.action === "string") {
+          return {
+            action: p.nextAction.action,
+            domain: p.nextAction.domain ?? null,
+            // key is `journal-take:<entryId>` → expose the entry id for
+            // the /journal#bd-<id> deep link.
+            entryId: r.key?.startsWith("journal-take:") ? r.key.slice("journal-take:".length) : null,
+            at: r.updatedAt.toISOString(),
+          };
+        }
+      } catch {
+        /* malformed take · skip */
+      }
+    }
+    return null;
+  }),
+
+  /**
    * Journal Brain · confirm or reject a PROPOSED goal/mission link. Accept →
    * linkStatus="confirmed" + (idempotently) bank the grounded XP bonus. Reject
    * → clear the link + linkStatus="rejected". The grounded credit is idempotent
