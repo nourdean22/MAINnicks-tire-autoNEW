@@ -1061,34 +1061,83 @@ function ProofOfBecomingStrip() {
   });
   if (!data || data.weekTotal === 0) return null;
   const delta = data.weekTotal - data.prevWeekTotal;
+  const filed = data.becomingDomains.filter((d) => d.count > 0).length;
   return (
-    <div
-      className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--gold)]/20 bg-[var(--gold)]/[0.03] px-3 py-2 text-[10px]"
-      title="Enriched journal entries from the last 7 days, grouped by life domain — your evidence file."
+    <section
+      className="rounded-lg border border-[var(--gold)]/20 bg-[var(--gold)]/[0.03] px-3 py-2.5 space-y-2.5"
+      aria-label="This week's proof stack — your evidence file"
     >
-      <span className="font-bold uppercase tracking-[0.22em] text-[var(--gold)]/80">
-        becoming
-      </span>
-      <span className="font-mono tabular-nums text-[var(--text-primary)]">
-        {data.weekTotal} proof{data.weekTotal === 1 ? "" : "s"} this week
-        {delta !== 0 && (
-          <span className={cn("ml-1", delta > 0 ? "text-emerald-400/80" : "text-rose-400/70")}>
-            ({delta > 0 ? "+" : ""}
-            {delta} vs last)
+      {/* Trend header — kept from the original strip: total this week vs
+          last, plus goal-linked count. Every number is from real rows. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
+        <span className="font-bold uppercase tracking-[0.22em] text-[var(--gold)]/80">
+          becoming
+        </span>
+        <span className="font-mono tabular-nums text-[var(--text-primary)]">
+          {data.weekTotal} proof{data.weekTotal === 1 ? "" : "s"} this week
+          {delta !== 0 && (
+            <span className={cn("ml-1", delta > 0 ? "text-emerald-400/80" : "text-rose-400/70")}>
+              ({delta > 0 ? "+" : ""}
+              {delta} vs last)
+            </span>
+          )}
+        </span>
+        {data.grounded > 0 && (
+          <span className="font-mono tabular-nums text-emerald-300/80">
+            · {data.grounded} goal-linked
           </span>
         )}
-      </span>
-      {data.grounded > 0 && (
-        <span className="font-mono tabular-nums text-emerald-300/80">
-          · {data.grounded} goal-linked
+        <span className="ml-auto font-mono tabular-nums text-[var(--text-tertiary)]">
+          {filed}/{data.becomingDomains.length} domains
         </span>
-      )}
-      {data.byDomain.slice(0, 4).map((d) => (
-        <span key={d.domain} className="font-mono tabular-nums text-[var(--text-secondary)]">
-          · {d.domain} {d.count}
-        </span>
-      ))}
-    </div>
+      </div>
+
+      {/* 10-domain identity grid — the operator's evidence file. Filed
+          domains read as exhibits (gold count); empty domains stay visible
+          and honest ("no proof logged"), never hidden. */}
+      <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
+        {data.becomingDomains.map((d) => {
+          const hasProof = d.count > 0;
+          return (
+            <li
+              key={d.key}
+              className={cn(
+                "flex flex-col gap-0.5 rounded-md border px-2.5 py-2 [@media(pointer:coarse)]:min-h-[44px]",
+                hasProof
+                  ? "border-[var(--gold)]/35 bg-[var(--gold)]/[0.06]"
+                  : "border-[var(--border-default)] bg-[var(--bg-raised)]/60",
+              )}
+              title={
+                hasProof
+                  ? `${d.count} entr${d.count === 1 ? "y" : "ies"} of ${d.label.toLowerCase()} proof this week`
+                  : `No ${d.label.toLowerCase()} proof logged this week`
+              }
+            >
+              <span
+                className={cn(
+                  "text-[8.5px] font-bold uppercase tracking-[0.16em] leading-tight",
+                  hasProof ? "text-[var(--gold)]/85" : "text-[var(--text-tertiary)]",
+                )}
+              >
+                {d.label}
+              </span>
+              {hasProof ? (
+                <span className="font-[var(--font-display)] text-[17px] font-bold tabular-nums leading-none text-[var(--text-primary)]">
+                  {d.count}
+                  <span className="ml-1 text-[8.5px] font-mono font-normal uppercase tracking-wider text-[var(--text-tertiary)]">
+                    {d.count === 1 ? "entry" : "entries"}
+                  </span>
+                </span>
+              ) : (
+                <span className="text-[9px] font-mono italic leading-tight text-[var(--text-tertiary)]/70">
+                  no proof logged
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
