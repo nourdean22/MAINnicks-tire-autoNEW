@@ -91,10 +91,18 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
     },
   ],
 
-  // ── TIRE CUSTOMERS — RETIRED. The segment had no tire signal (filter was
-  //    just lastVisitDate < 90d), so "you got tires from us" went to people
-  //    who never bought tires. Removed from the targetSegment enum +
-  //    buildSegmentFilter; the template is gone so it can't be revived by name.
+  // ── TIRE CUSTOMERS — 2-step sequence ──
+  // Targets customers who bought tires in the past (visit > 180 days ago) to prompt free rotation.
+  tire_customer: [
+    {
+      step: 1, delayDays: 0,
+      template: `It's been 6 months since your tire service at ${STORE_NAME}. Tires should be rotated every 5,000 miles to keep the wear even and get the most life out of them. Pull up any day for a free tire rotation. ${STORE_PHONE}`,
+    },
+    {
+      step: 2, delayDays: 7,
+      template: `Still here at ${STORE_NAME} whenever you're ready for that free tire rotation. No appointment needed, open 7 days. ${STORE_PHONE} or nickstire.org`,
+    },
+  ],
 
   // ── VIP / HIGH-VALUE — 2-step, exclusive tone ──
   vip: [
@@ -167,12 +175,18 @@ function buildSegmentFilter(segment: string) {
     // cron (50/day · FEATURE_DECLINED_RECOVERY), which now owns that pool.
     // Removed from the targetSegment enum; any legacy "declined" campaign
     // falls to the default below → segment='declined' matches ~0 rows (safe).
-    // "tire_customer" winback segment RETIRED for the same reason class.
-    // It had ZERO tire signal — the filter was just lastVisitDate < 90d, so
-    // it texted "you got tires from us" to anyone who'd visited recently
-    // (most of whom never bought tires) — a false claim. Removed from the
-    // targetSegment enum; any legacy "tire_customer" campaign falls to the
-    // default below → segment='tire_customer' matches ~0 rows (safe).
+    case "tire_customer":
+      // tire_customer is revived only when invoice/service evidence proves prior tire work and lastVisitDate is older than 180 days.
+      return and(
+        sql`${customers.lastVisitDate} IS NOT NULL`,
+        sql`${customers.lastVisitDate} < ${d180}`,
+        eq(customers.smsOptOut, 0),
+        sql`EXISTS (
+          SELECT 1 FROM invoices 
+          WHERE invoices.customerId = ${customers.id} 
+          AND (invoices.serviceDescription LIKE '%tire%' OR invoices.serviceDescription LIKE '%tires%')
+        )`
+      )!;
     case "vip":
       // totalSpent is stored in CENTS. VIP = lifetime spend > $2,000 (200000c).
       // (Was `> 500` = >$5, which matched nearly the entire paying base.)
@@ -290,7 +304,7 @@ export const winbackRouter = router({
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1).max(255),
-      targetSegment: z.enum(["lapsed", "dormant", "lost", "vip", "fleet", "recent"]),
+      targetSegment: z.enum(["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"]),
       customMessages: z.array(z.object({
         step: z.number(),
         delayDays: z.number(),
