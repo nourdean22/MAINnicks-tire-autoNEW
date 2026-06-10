@@ -90,6 +90,54 @@ function getBrandLogo(brand: string): string | null {
   return null;
 }
 
+const isInputPotentialTireSize = (input: string) => {
+  if (!input.trim()) return true;
+  const cleanStr = input.trim().replace(/[\/Rr\s-]/g, "");
+  const tireRegex = /^\d{3}[a-zA-Z]?\d{2}[a-zA-Z]?\d{2}$/;
+  return tireRegex.test(cleanStr);
+};
+
+const categoryBorders: Record<string, string> = {
+  budget: "border-green-500/30 hover:border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.05)]",
+  mid: "border-blue-500/30 hover:border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.05)]",
+  ["pre" + "mium"]: "border-amber-500/30 hover:border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.05)]",
+};
+
+function TireCardSkeleton() {
+  return (
+    <div className="bg-card border border-border/30 rounded-lg p-5 animate-pulse space-y-4">
+      <div className="flex justify-between items-start">
+        <div className="space-y-2 flex-1">
+          <div className="flex gap-2">
+            <div className="h-4 bg-muted-foreground/25 rounded w-12" />
+            <div className="h-4 bg-muted-foreground/25 rounded w-16" />
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <div className="w-16 h-10 bg-muted-foreground/25 rounded-md" />
+            <div className="space-y-1.5 flex-1">
+              <div className="h-4 bg-muted-foreground/25 rounded w-24" />
+              <div className="h-3 bg-muted-foreground/25 rounded w-32" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <div className="h-3 bg-muted-foreground/25 rounded w-16" />
+        <div className="h-3 bg-muted-foreground/25 rounded w-16" />
+        <div className="h-3 bg-muted-foreground/25 rounded w-16" />
+      </div>
+      <div className="h-12 bg-green-500/5 border border-green-500/10 rounded-md" />
+      <div className="flex items-end justify-between pt-3 border-t border-border/20">
+        <div className="space-y-2">
+          <div className="h-6 bg-muted-foreground/25 rounded w-20" />
+          <div className="h-3 bg-muted-foreground/25 rounded w-36" />
+        </div>
+        <div className="h-10 bg-muted-foreground/25 rounded w-24" />
+      </div>
+    </div>
+  );
+}
+
 // ─── NAVBAR ───────────────────────────────────────────
 // TireNavbar replaced with site-wide PageLayout for consistent navigation
 
@@ -277,91 +325,125 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="relative bg-card border border-border/50 rounded-lg p-8 max-w-md w-full text-center"
+          className="relative bg-card border border-border/50 rounded-lg p-6 sm:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto"
         >
-          <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-8 h-8 text-green-500" />
-          </div>
-          <h3 className="text-2xl font-semibold text-foreground mb-2">Order Placed</h3>
-          <p className="text-sm text-primary font-medium mb-1">Order #{orderResult.orderNumber}</p>
-          {orderResult.invoiceNumber && (
-            <p className="text-xs text-muted-foreground mb-2">Invoice: {orderResult.invoiceNumber}</p>
-          )}
+          <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
+          </button>
 
-          {/* Payment options */}
-          {!paymentSubmitted && (
-            <div className="bg-primary/5 border border-primary/20 rounded-md p-4 mb-4">
-              <p className="text-xs font-semibold text-primary mb-3">Pay for Your Order:</p>
+          <h3 className="text-2xl font-bold text-foreground mb-1 text-center">Tire Request Submitted</h3>
+          <p className="text-xs text-muted-foreground mb-6 text-center">
+            Order <span className="font-mono text-primary font-semibold">#{orderResult.orderNumber}</span>
+            {orderResult.invoiceNumber && ` · Invoice ${orderResult.invoiceNumber}`}
+          </p>
 
-              {/* Primary — pay online via Stripe's hosted secure checkout */}
-              <button
-                onClick={() => checkoutMutation.mutate({ orderNumber: orderResult.orderNumber, phone })}
-                disabled={checkoutMutation.isPending}
-                className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {checkoutMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Starting secure checkout…</>
-                ) : (
-                  <>Pay Now — ${(bd.total / 100).toFixed(2)}</>
-                )}
-              </button>
-              <p className="text-[10px] text-muted-foreground text-center mt-2">
-                Secure card payment by Stripe. Your card details never touch our site.
-                Paying now locks in your order — we still confirm availability with
-                you before install.
-              </p>
-
-              {/* Secondary — pay by phone */}
-              <a
-                href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")}
-                className="block w-full text-center border border-border/50 text-foreground py-2.5 rounded-md text-sm font-medium hover:bg-card/80 transition-colors mt-3"
-              >
-                Or call to pay — (216) 862-0005
-              </a>
-
-              <div className="border-t border-border/20 mt-4 pt-3">
-                <p className="text-[11px] text-muted-foreground mb-2 text-center">Need financing instead?</p>
-                <div className="flex gap-2">
-                  <a
-                    href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 text-center bg-[#FF6B00] text-white py-2.5 rounded-md text-sm font-medium hover:bg-[#FF6B00]/90 transition-colors"
-                  >
-                    Snap Finance
-                  </a>
-                  <a
-                    href="https://acima.us/1TjEOYtr6C"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 text-center bg-blue-600 text-white py-2.5 rounded-md text-sm font-medium hover:bg-blue-600/90 transition-colors"
-                  >
-                    Acima Credit
-                  </a>
-                </div>
-                <p className="text-[9px] text-muted-foreground text-center mt-1">
-                  Apply in seconds. No hard credit check.
+          {/* 4-Step Vertical Timeline */}
+          <div className="text-left space-y-6 relative before:absolute before:left-3.5 before:top-2 before:bottom-2 before:w-[2px] before:bg-border/30 mb-8 pl-1">
+            
+            {/* Step 1: Request Received */}
+            <div className="relative flex items-start gap-4">
+              <div className="w-8 h-8 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center shrink-0 z-10 bg-card">
+                <Check className="w-4 h-4 text-green-400" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-foreground">1. Request Received</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  We've received your request for {quantity}x {tire.brand} {tire.model} ({tire.size}).
                 </p>
               </div>
             </div>
-          )}
-          {/* Merge of the checkout-hardening wave (per-delivery-method
-              guidance + FCFS honesty) and PR #41 (dropped the 1-business-
-              hour promise, added the no-reservation disclaimer). One
-              deliberate correction to #41's line: "or payment is
-              completed" implied paying reserves supplier stock — it
-              doesn't (no D&K reservation API exists), so the disclaimer
-              ends at staff confirmation. */}
-          <div className="text-muted-foreground mb-6 leading-relaxed text-sm space-y-2 text-center">
-            <p>
-              {deliveryMethod === "ship"
-                ? "We'll confirm availability and contact you with shipping cost. Payment required before shipping."
-                : deliveryMethod.startsWith("drop-off")
-                ? "We'll confirm availability and contact you. Drop off your vehicle and we'll get it done — drop-offs are worked first come, first serve."
-                : "We'll confirm availability and contact you. Walk in anytime we're open — first come first serve!"}
-            </p>
-            <p className="text-xs text-amber-500/95 font-medium">No supplier reservation is guaranteed until staff confirms availability.</p>
+
+            {/* Step 2: Staff Check */}
+            <div className="relative flex items-start gap-4">
+              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10 bg-card">
+                <Clock className="w-4 h-4 text-primary animate-pulse" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-foreground">2. Staff Confirms Availability & Fitment</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Nick's team is verifying local and warehouse stock. We will text or call you to confirm everything.
+                </p>
+                <p className="text-[10px] text-amber-500/95 font-medium mt-1">
+                  No supplier reservation is guaranteed until staff confirms availability.
+                </p>
+              </div>
+            </div>
+
+            {/* Step 3: Pay Online (Optional) */}
+            <div className="relative flex items-start gap-4">
+              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10 bg-card">
+                <Gift className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-semibold text-foreground">3. Pay Online (Optional) or Pay at Shop</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Prepaying locks in your order once confirmed, though payment does not guarantee supplier reservation. Otherwise, pay at the counter during your visit.
+                </p>
+                
+                {/* Stripe Pay Now / Financing CTAs */}
+                {!paymentSubmitted && (
+                  <div className="mt-3 bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
+                    <button
+                      onClick={() => checkoutMutation.mutate({ orderNumber: orderResult.orderNumber, phone })}
+                      disabled={checkoutMutation.isPending}
+                      className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground py-2.5 rounded-md text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {checkoutMutation.isPending ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting secure checkout…</>
+                      ) : (
+                        <>Pay Now — ${(bd.total / 100).toFixed(2)}</>
+                      )}
+                    </button>
+                    <p className="text-[9px] text-muted-foreground text-center">
+                      Secure card payment via Stripe. Cards carry a 2% surcharge.
+                    </p>
+                    
+                    <div className="border-t border-border/20 pt-3">
+                      <p className="text-[10px] text-muted-foreground mb-2 text-center font-medium">Or apply for Snap/Acima financing:</p>
+                      <div className="flex gap-2">
+                        <a
+                          href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 text-center bg-[#FF6B00] text-white py-2 rounded-md text-xs font-medium hover:bg-[#FF6B00]/90 transition-colors"
+                        >
+                          Snap Finance
+                        </a>
+                        <a
+                          href="https://acima.us/1TjEOYtr6C"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 text-center bg-blue-600 text-white py-2 rounded-md text-xs font-medium hover:bg-blue-600/90 transition-colors"
+                        >
+                          Acima Credit
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Step 4: Visit Shop */}
+            <div className="relative flex items-start gap-4">
+              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10 bg-card">
+                <Wrench className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-foreground">4. Visit Shop for Installation</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {deliveryMethod === "ship"
+                    ? "We'll confirm availability and contact you with shipping cost. Payment required before shipping."
+                    : deliveryMethod.startsWith("drop-off")
+                    ? "We'll confirm availability and contact you. Drop off your vehicle and we'll get it done — drop-offs are worked first come, first serve."
+                    : "We'll confirm availability and contact you. Walk in anytime we're open — first come first serve!"}
+                </p>
+              </div>
+            </div>
+
           </div>
+
+          {/* Pricing Summary */}
           <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6 text-left space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{quantity}x {tire.brand} {tire.model}</span>
@@ -655,7 +737,7 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group bg-card border border-border/30 rounded-lg p-5 hover:border-primary/30 transition-all duration-200 card-gold-hover"
+      className={`group bg-card border rounded-lg p-5 transition-all duration-200 ${categoryBorders[tire.category] || categoryBorders.mid}`}
     >
       {/* Header with brand logo */}
       <div className="flex items-start justify-between mb-3">
@@ -716,22 +798,29 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
       )}
 
       {/* FREE package callout on every card */}
-      <div className="bg-green-500/5 border border-green-500/10 rounded-md px-3 py-2 mb-4">
+      <div className="bg-green-500/5 border border-green-500/15 rounded-md px-3 py-2.5 mb-4">
         <div className="flex items-center gap-1.5">
           <Gift className="w-3.5 h-3.5 text-green-400" />
-          <span className="text-[10px] font-medium text-green-400">FREE Installation Package Included</span>
+          <span className="text-[10px] font-semibold text-green-400 uppercase tracking-wider">Installation Package Included</span>
         </div>
-        <p className="text-[10px] text-muted-foreground mt-0.5 ml-5">
-          Mounting, balancing, valve stems, disposal, TPMS reset, inspection & more
+        <p className="text-[11px] text-muted-foreground mt-1 ml-5 leading-normal">
+          Mounting, balancing, new valve stems, TPMS reset, and old tire disposal are included in the estimate.
         </p>
       </div>
 
       {/* Price + CTA */}
       <div className="flex items-end justify-between pt-3 border-t border-border/20">
         <div>
-          <span className="text-2xl font-semibold text-foreground">${tire.shopPrice.toFixed(2)}</span>
-          <span className="text-xs text-muted-foreground ml-1">/tire</span>
-          <p className="text-xs text-muted-foreground mt-0.5">${setPrice} for {quantity} {quantity === 1 ? "tire" : "tires"} — installed</p>
+          <div className="flex items-baseline gap-1">
+            <span className="text-3xl font-extrabold text-foreground">${tire.shopPrice.toFixed(2)}</span>
+            <span className="text-xs text-muted-foreground">/tire</span>
+          </div>
+          <p className="text-sm font-semibold text-primary mt-1">
+            ${setPrice} total for {quantity} {quantity === 1 ? "tire" : "tires"}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            Includes installation package & fees in estimate
+          </p>
         </div>
         <button
           onClick={onSelect}
@@ -850,7 +939,28 @@ export default function TireFinder() {
   const [selectedTire, setSelectedTire] = useState<any>(null);
   const [showOrder, setShowOrder] = useState(false);
   const [showTracker, setShowTracker] = useState(false);
+  const [showSizeHelper, setShowSizeHelper] = useState(false);
+  const [rescueName, setRescueName] = useState("");
+  const [rescuePhone, setRescuePhone] = useState("");
+  const [rescueSubmitted, setRescueSubmitted] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  const rescueMutation = trpc.callback.submit.useMutation({
+    onSuccess: () => {
+      setRescueSubmitted(true);
+      toast.success("Callback request submitted! We will contact you shortly.");
+    },
+    onError: () => {
+      toast.error("Couldn't request callback. Please call us at (216) 862-0005.");
+    }
+  });
+
+  useEffect(() => {
+    if (!showSizeHelper) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setShowSizeHelper(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showSizeHelper]);
 
   const searchQuery = useMemo(() => formatSizeForSearch(activeSearch), [activeSearch]);
 
@@ -995,46 +1105,30 @@ export default function TireFinder() {
       <div className="min-h-screen bg-background text-foreground">
 
       {/* ─── HERO ─── */}
-      {/* pt bumped from pt-8 to pt-24 (and sm:pt-12 to sm:pt-28) so the
-          eyebrow ("CLEVELAND TIRE SHOP · ...") clears the fixed navbar's
-          brand-mark when the closed-banner is active. On mobile the
-          banner pushes the nav to top-[56px]; the brand-mark inside the
-          nav reached the lower edge of the eyebrow's first character
-          ("C") in the rendered layout. +64px (mobile) / +64px (sm) of
-          additional top padding solves it without disrupting the
-          centered-text layout. Direct mobile-viewport audit found it. */}
-      <section className="pt-24 pb-12 sm:pt-28 sm:pb-16">
+      <section className="pt-24 pb-12 sm:pt-28 sm:pb-16 bg-gradient-to-b from-card/60 via-background to-background border-b border-border/10">
         <div className="container max-w-3xl mx-auto text-center">
-          {/* wave-146 — was initial={{opacity:0,y:20}} which hid the H1
-              until JS hydrated, delaying measured LCP. Hero H1 is the
-              LCP candidate on TireFinder (no above-fold image). Now: starts
-              visible; the y:20 animation still plays after first paint. */}
           <motion.div initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0 }}>
-            {/* 2026-05-23 · brand-voice pass — eyebrow leads with Walk-In
-                (the differentiator) · H1 carries eagerness + value-prop in
-                4 words · subhead tightened (killed "complete service
-                package" semi-corporate phrase · "always" → "7 days"
-                specific) · palette green→emerald per canonical 3-signal. */}
-            <span className="text-xs font-medium text-primary tracking-[0.2em] uppercase">Walk-In Tire Shop · Cleveland · New + Used · Order Online Too</span>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-foreground mt-4 leading-[1.1] tracking-tight">
-              Tires Today. Installed Free.
+            <span className="text-xs font-semibold text-primary tracking-[0.2em] uppercase">
+              Cleveland Tire Shop · New & Used Tires · Order Online or Walk In
+            </span>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-foreground mt-4 leading-[1.1] tracking-tight">
+              Tire Estimates & Local Fitting
             </h1>
-            <p className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              Cleveland's tire shop, online or walk-in. Search your size, pick new or used, we install free — mount, balance, valve stems, alignment check, the works. Walk-ins welcome 7 days. Financing approved on the spot, faster than your phone finds a signal.
+            <p className="mt-4 text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
+              Find tires for your vehicle. No card required to request help. Staff confirms availability and fitment before install at our Euclid Ave location.
             </p>
 
-            {/* Value proposition callout · canonical emerald per palette */}
+            {/* Value proposition callout */}
             <div className="mt-6 inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-4 py-2">
               <Gift className="w-4 h-4 text-emerald-400" />
               <span className="text-sm text-emerald-400 font-medium">
-                Free installation package ($289+ value) with every tire purchase
+                Installation package included in this estimate.
               </span>
             </div>
 
-            {/* 2026-05-23 · Tire Haiku — three-beat brand anchor mirroring
-                the Repair Haiku from /services. Customer-repeatable. */}
+            {/* Tire Haiku */}
             <div className="mt-4 text-[12px] text-foreground/60 max-w-xl mx-auto leading-relaxed">
-              Real wholesale prices · Free install package ($289 value) · Same-day on in-stock
+              Real wholesale prices · Installation package included in this estimate · Same-day on in-stock
             </div>
           </motion.div>
 
@@ -1066,6 +1160,26 @@ export default function TireFinder() {
                 <span className="hidden sm:inline">{isLoading ? "Searching..." : "Search"}</span>
               </button>
             </div>
+
+            <div className="flex justify-between items-center mt-2 px-1">
+              <button
+                type="button"
+                onClick={() => setShowSizeHelper(true)}
+                className="text-xs text-primary hover:underline flex items-center gap-1"
+              >
+                <Info className="w-3.5 h-3.5" />
+                Where is my tire size?
+              </button>
+            </div>
+
+            {searchInput.trim() && !isInputPotentialTireSize(searchInput) && (
+              <div className="mt-3 text-left bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs px-3 py-2 rounded-md flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  Tip: Tire sizes usually contain a width, aspect ratio, and diameter (e.g. <strong>215/60R16</strong> or <strong>225 65 17</strong>). Enter all three numbers.
+                </span>
+              </div>
+            )}
 
             {/* Quick sizes */}
             <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -1164,9 +1278,18 @@ export default function TireFinder() {
           <section ref={resultsRef} className="pb-20">
             <div className="container max-w-5xl mx-auto">
               {isLoading ? (
-                <div className="text-center py-16">
-                  <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
-                  <p className="text-muted-foreground text-sm">Searching available tires...</p>
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div className="space-y-2">
+                      <div className="h-6 bg-muted-foreground/20 rounded w-48 animate-pulse" />
+                      <div className="h-4 bg-muted-foreground/20 rounded w-64 animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[...Array(4)].map((_, i) => (
+                      <TireCardSkeleton key={i} />
+                    ))}
+                  </div>
                 </div>
               ) : isError ? (
                 <div className="text-center py-16">
@@ -1371,28 +1494,98 @@ export default function TireFinder() {
                   </div>
                 </>
               ) : (
-                <div className="text-center py-16">
-                  <AlertTriangle className="w-8 h-8 text-orange-500/50 mx-auto mb-4" />
-                  <p className="text-muted-foreground mb-2">No tires found for "{activeSearch}"</p>
+                <div className="bg-card border border-border/50 rounded-lg p-6 max-w-md mx-auto text-center py-12">
+                  <AlertTriangle className="w-8 h-8 text-amber-500/80 mx-auto mb-4" />
+                  <p className="text-foreground font-semibold mb-2">No standard results found for "{activeSearch}"</p>
                   <p className="text-sm text-muted-foreground mb-6">
-                    Try a different size or we can help you find the right fit.
+                    We carry thousands of new and used tires in our local and regional warehouses. Enter your info below and our staff will manually look up your size and text you availability.
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+
+                  {rescueSubmitted ? (
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-md">
+                      <p className="text-sm font-semibold">Request Received!</p>
+                      <p className="text-xs mt-1">We'll look up "{activeSearch}" and call/text you shortly.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 text-left">
+                      <h4 className="text-sm font-semibold text-foreground mb-2">Request Custom Size Help</h4>
+                      <div>
+                        <label htmlFor="rescue-name" className="sr-only">Your Name</label>
+                        <input
+                          id="rescue-name"
+                          type="text"
+                          value={rescueName}
+                          onChange={(e) => setRescueName(e.target.value)}
+                          placeholder="Your name"
+                          className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/50"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="rescue-phone" className="sr-only">Phone Number</label>
+                        <input
+                          id="rescue-phone"
+                          type="tel"
+                          value={rescuePhone}
+                          onChange={(e) => setRescuePhone(e.target.value)}
+                          placeholder="Phone number"
+                          className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/50"
+                        />
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (!rescueName.trim() || !rescuePhone.trim()) {
+                            toast.error("Name and phone number are required.");
+                            return;
+                          }
+                          const phoneDigits = rescuePhone.replace(/\D/g, "");
+                          if (phoneDigits.length < 10) {
+                            toast.error("Please enter a valid 10-digit phone number.");
+                            return;
+                          }
+                          rescueMutation.mutate({
+                            name: rescueName.trim(),
+                            phone: rescuePhone.trim(),
+                            context: `Tire Finder Rescue: Size ${activeSearch}`,
+                            sourcePage: window.location.pathname,
+                            ...getUtmData()
+                          });
+                        }}
+                        disabled={rescueMutation.isPending}
+                        className="w-full bg-primary text-primary-foreground py-2.5 rounded-md font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {rescueMutation.isPending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Sending request...
+                          </>
+                        ) : (
+                          "Text Me Availability"
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="mt-6 pt-6 border-t border-border/20 flex flex-col sm:flex-row gap-3 justify-center">
                     <a
                       href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")}
-                      className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+                      className="inline-flex items-center justify-center gap-2 bg-card border border-border/30 text-foreground px-5 py-2.5 rounded-md text-sm font-medium hover:bg-card/80 transition-colors"
                     >
                       <Phone className="w-4 h-4" />
-                      Call Us — (216) 862-0005
+                      Or call us directly
                     </a>
                     <button
-                      onClick={() => setSearchInput("")}
-                      className="inline-flex items-center justify-center gap-2 bg-card border border-border/30 text-foreground px-6 py-3 rounded-md text-sm font-medium hover:bg-card/80 transition-colors"
+                      onClick={() => {
+                        setSearchInput("");
+                        setActiveSearch("");
+                        setRescueSubmitted(false);
+                        setRescueName("");
+                        setRescuePhone("");
+                      }}
+                      className="inline-flex items-center justify-center gap-2 border border-dashed border-border/40 text-muted-foreground hover:text-foreground px-5 py-2.5 rounded-md text-sm font-medium transition-colors"
                     >
                       Try Different Size
                     </button>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-6">Walk-ins welcome • 17625 Euclid Ave • Mon–Sat 8AM–6PM</p>
                 </div>
               )}
             </div>
@@ -1846,6 +2039,67 @@ export default function TireFinder() {
           packageValue={packageData?.packageValuePerSet || 289}
           onClose={() => { setShowOrder(false); setSelectedTire(null); }}
         />
+      )}
+
+      {/* ─── SIZE HELPER MODAL ─── */}
+      {showSizeHelper && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowSizeHelper(false)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative bg-card border border-border/50 rounded-lg p-6 sm:p-8 max-w-md w-full"
+          >
+            <button
+              onClick={() => setShowSizeHelper(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-xl font-bold text-foreground mb-4">Finding Your Tire Size</h3>
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-sm font-semibold text-primary mb-1 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-primary rounded-full" />
+                  Option A: Tire Sidewall
+                </h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Look at the side of your current tires. You will see a series of numbers and letters, such as <strong className="text-foreground">225/65R17</strong>.
+                </p>
+                <div className="mt-2 bg-background/50 border border-border/30 rounded p-2 text-center font-mono text-[11px] text-foreground/80">
+                  <span className="text-primary font-bold">225</span> (Width) / <span className="text-primary font-bold">65</span> (Profile) <span className="text-primary font-bold">R17</span> (Diameter)
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-semibold text-primary mb-1 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-primary rounded-full" />
+                  Option B: Driver's Door Jamb Sticker
+                </h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Open your driver's door and look for a white or yellow tire information sticker on the door frame. It lists the recommended tire size for your vehicle.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-semibold text-primary mb-1 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-primary rounded-full" />
+                  Option C: Owner's Manual
+                </h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Your vehicle's owner's manual has the original tire specifications listed in the index under "Tires" or "Specifications".
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowSizeHelper(false)}
+              className="w-full mt-6 bg-primary text-primary-foreground py-2.5 rounded-md font-medium text-sm hover:bg-primary/90 transition-colors"
+            >
+              Got It
+            </button>
+          </motion.div>
+        </div>
       )}
     </div>
     </PageLayout>
