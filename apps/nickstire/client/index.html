@@ -137,7 +137,12 @@
           t.src=v;s=b.getElementsByTagName(e)[0];
           s.parentNode.insertBefore(t,s)}(window, document,'script',
           'https://connect.facebook.net/en_US/fbevents.js');
-          fbq('init', '1436350367898578');
+          // PIXEL-ID FIX (2026-06-10): 1436350367898578 is the Meta APP id ('nour os' app),
+          // NOT a pixel - Graph metadata-verified. The real dataset/pixel = 958472373260171
+          // (created 2026-04-06). The browser pixel was init'd against the app id and
+          // never tracked. Same root cause as every failed CAPI token (can't post events
+          // to an app id).
+          fbq('init', '958472373260171');
           fbq('track', 'PageView');
 
           // Google Analytics 4 (GA4)
@@ -225,7 +230,7 @@
 
   <body>
     <noscript><img height="1" width="1" style="display:none"
-      src="https://www.facebook.com/tr?id=1436350367898578&ev=PageView&noscript=1"
+      src="https://www.facebook.com/tr?id=958472373260171&ev=PageView&noscript=1"
     /></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
