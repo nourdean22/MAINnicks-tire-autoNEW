@@ -31,7 +31,8 @@
  * for the data-driven prune.
  */
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { logger as rootLogger } from "@/lib/logger";
@@ -74,6 +75,10 @@ export default function MissionsPage() {
 }
 
 function MissionsPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const taskIdParam = searchParams.get("taskId");
+
   const utils = trpc.useUtils();
   const tasksQuery = trpc.task.list.useQuery(
     {},
@@ -96,6 +101,11 @@ function MissionsPageInner() {
   const missions = useMemo<Project[]>(
     () => (missionsQuery.data ?? []) as Project[],
     [missionsQuery.data],
+  );
+
+  const taskDetailQuery = trpc.task.byId.useQuery(
+    { id: taskIdParam ?? "" },
+    { enabled: !!taskIdParam && !tasksQuery.isLoading && !tasks.some((t) => t.id === taskIdParam) }
   );
 
   const createTask = trpc.task.create.useMutation();
@@ -150,6 +160,40 @@ function MissionsPageInner() {
 
   // Queue Next focused task ID state
   const [queuedTaskId, setQueuedTaskId] = useState<string | null>(null);
+
+  const clearTaskIdParam = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("taskId");
+    const newUrl = params.toString() ? `/missions?${params.toString()}` : "/missions";
+    router.replace(newUrl, { scroll: false });
+  }, [router]);
+
+  // Handle deep-linked task from query params
+  useEffect(() => {
+    if (taskIdParam) {
+      if (tasks.length > 0) {
+        const localTask = tasks.find((t) => t.id === taskIdParam);
+        if (localTask) {
+          setTaskEditTarget(localTask);
+          setTaskEditOpen(true);
+          clearTaskIdParam();
+          return;
+        }
+      }
+
+      if (taskDetailQuery.data) {
+        setTaskEditTarget(taskDetailQuery.data as Task);
+        setTaskEditOpen(true);
+        clearTaskIdParam();
+      } else if (taskDetailQuery.isSuccess && !taskDetailQuery.data) {
+        toast.error("Linked task not found.");
+        clearTaskIdParam();
+      } else if (taskDetailQuery.isError) {
+        toast.error("Failed to load linked task.");
+        clearTaskIdParam();
+      }
+    }
+  }, [taskIdParam, tasks, taskDetailQuery.data, taskDetailQuery.isSuccess, taskDetailQuery.isError, clearTaskIdParam]);
 
   // Memoized selector for the focused task in Execution Mode
   const focusedTask = useMemo(() => {
