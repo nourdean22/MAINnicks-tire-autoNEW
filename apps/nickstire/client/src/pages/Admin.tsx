@@ -21,7 +21,6 @@ import ThemeToggle from "@/components/admin/ThemeToggle";
 import DensityToggle from "@/components/admin/DensityToggle";
 import ActivityPulse from "@/components/admin/ActivityPulse";
 import WeatherAwareBanner from "@/components/admin/WeatherAwareBanner";
-import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
 import DrilldownDrawer from "@/components/admin/DrilldownDrawer";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import WalkInQuoteDrawer from "@/components/admin/WalkInQuoteDrawer";
@@ -65,7 +64,6 @@ const TrafficFunnelSection = lazy(() => import("./admin/TrafficFunnelSection"));
 const VoiceReceptionistSection = lazy(() => import("./admin/VoiceReceptionistSection"));
 // Settings tab sub-sections — kept because they're consumed INSIDE SettingsSection,
 // but not rendered as top-level routes anymore (Settings page handles them).
-// AdminContent.tsx still routes here for /admin/content.
 
 function SectionSpinner() {
   return (
@@ -320,7 +318,6 @@ export default function Admin() {
   const { user, loading: authLoading } = useAuth();
   const [section, setSection] = useState<AdminSection>(resolveInitialSection);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [drawerCustomerId, setDrawerCustomerId] = useState<number | null>(null);
   // Admin theme -- opt-in "neutral" (Linear/Vercel calm) scoped to .admin-shell.
   // Default "grit" = the live look; zero change until opted in. Preview from a
   // phone via ?adminTheme=neutral (persists to localStorage); revert with =grit.
@@ -397,12 +394,17 @@ export default function Admin() {
 
   // wave-115 — listen for direct customer-drawer requests fired from any
   // admin surface (at-risk whales row, top-spenders card, NBA actions, etc.)
-  // via openCustomerDrawer(id) helper in shared.tsx.
+  // via openCustomerDrawer(id) helper in shared.tsx. Now redirects to the
+  // URL-addressable Customer Profile page instead of a side drawer.
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ customerId: number }>).detail;
       if (typeof detail?.customerId === "number") {
-        setDrawerCustomerId(detail.customerId);
+        setSection("customers");
+        const url = new URL(window.location.href);
+        url.searchParams.set("tab", "customers");
+        url.searchParams.set("id", String(detail.customerId));
+        window.history.replaceState({}, "", url.toString());
       }
     };
     window.addEventListener("admin:open-customer-drawer", handler);
@@ -647,12 +649,18 @@ export default function Admin() {
           <div className="flex-1" />
           <CommandSearch
             onNavigate={(s) => setSection(s)}
-            onSelectCustomer={(id) => setDrawerCustomerId(id)}
+            onSelectCustomer={(id) => {
+              setSection("customers");
+              const url = new URL(window.location.href);
+              url.searchParams.set("tab", "customers");
+              url.searchParams.set("id", String(id));
+              window.history.replaceState({}, "", url.toString());
+            }}
           />
           <DensityToggle />
           <ThemeToggle />
           <Link
-            href="/admin/content"
+            href="/admin?tab=content"
             title="AI Content"
             aria-label="AI Content"
             className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
@@ -686,19 +694,6 @@ export default function Admin() {
           <SectionContent section={section} />
         </div>
       </main>
-
-      {/* Customer side drawer */}
-      <CustomerDrawer
-        customerId={drawerCustomerId}
-        onClose={() => setDrawerCustomerId(null)}
-        onNavigateToSection={(s) => {
-          // 2026-05-23 · same resolver as the event-bridge — legacy
-          // slugs like "sms"/"workorders" now route correctly instead
-          // of silently blanking the right pane.
-          const resolved = resolveSection(s);
-          if (resolved) setSection(resolved);
-        }}
-      />
 
       {/* 2026-05-06 — Global drilldown drawer (event-bus triggered) */}
       <DrilldownDrawer />
