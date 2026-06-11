@@ -1287,17 +1287,15 @@ export function startTieredScheduler(): void {
             // walk-ins as one returning customer and fabricates "comebacks".
             // Exclude the sentinels — a real returning customer is keyed by a
             // numeric id or a stable phone string, both of which we keep.
-            const isAnonWoCustomer = (id: string | null): boolean => {
-              if (!id) return true;
-              const v = id.trim().toLowerCase();
-              return v === "" || v === "walk-in" || v === "walkin";
+            const isAnonWoCustomer = (id: number | null): boolean => {
+              return id === null;
             };
-            const customerIds: string[] = Array.from(new Set(
+            const customerIds: number[] = Array.from(new Set(
               recentWOs
-                .map((wo: { customerId: string | null }) => wo.customerId)
-                .filter((id: string | null): id is string => !isAnonWoCustomer(id))
+                .map((wo: { customerId: number | null }) => wo.customerId)
+                .filter((id: number | null): id is number => !isAnonWoCustomer(id))
             ));
-            const priorByCustomer = new Map<string, Set<string>>();
+            const priorByCustomer = new Map<number, Set<string>>();
             if (customerIds.length > 0) {
               const priorRows = await d.select({ id: workOrders.id, customerId: workOrders.customerId })
                 .from(workOrders)
@@ -1305,9 +1303,9 @@ export function startTieredScheduler(): void {
                   inArray(workOrders.customerId, customerIds),
                   sqlFn`${workOrders.status} IN ('closed','invoiced','picked_up')`,
                   gte(workOrders.createdAt, thirtyDaysAgo),
-                )) as Array<{ id: string; customerId: string | null }>;
+                )) as Array<{ id: string; customerId: number | null }>;
               for (const row of priorRows) {
-                if (!row.customerId) continue;
+                if (row.customerId === null) continue;
                 const existing = priorByCustomer.get(row.customerId);
                 if (existing) existing.add(row.id);
                 else priorByCustomer.set(row.customerId, new Set([row.id]));
@@ -1317,7 +1315,7 @@ export function startTieredScheduler(): void {
             let comebacks = 0;
             for (const wo of recentWOs) {
               if (isAnonWoCustomer(wo.customerId)) continue;
-              const priorIds = priorByCustomer.get(wo.customerId);
+              const priorIds = priorByCustomer.get(wo.customerId!);
               if (!priorIds) continue;
               // Comeback iff a qualifying prior WO exists that isn't this row itself
               for (const id of priorIds) {

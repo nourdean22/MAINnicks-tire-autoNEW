@@ -126,12 +126,12 @@ export async function autoCreateWorkOrderFromBooking(data: {
     if (!db) return;
 
     // Find or default customer
-    let customerId = "walk-in";
+    let customerId: number | null = null;
     const phone10 = data.phone.replace(/\D/g, "").slice(-10);
     if (phone10.length === 10) {
       const [cust] = await db.select({ id: customers.id })
         .from(customers).where(like(customers.phone, `%${phone10}%`)).limit(1);
-      if (cust) customerId = String(cust.id);
+      if (cust) customerId = cust.id;
     }
 
     // Parse vehicle info

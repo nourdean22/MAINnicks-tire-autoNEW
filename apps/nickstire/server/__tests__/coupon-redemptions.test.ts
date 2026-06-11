@@ -187,7 +187,11 @@ describe("redeemCouponById Database Fallback", () => {
   });
 
   afterAll(() => {
-    process.env.DATABASE_URL = originalDatabaseUrl;
+    if (originalDatabaseUrl === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = originalDatabaseUrl;
+    }
   });
 
   it("succeeds when updateResult contains affectedRows = 1", async () => {
