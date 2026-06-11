@@ -466,7 +466,51 @@ export const customersRouter = router({
     .query(async ({ input }) => {
       const d = await db();
       if (!d) return null;
-      const [customer] = await d.select().from(customers).where(eq(customers.id, input.id));
+      const [customer] = await d
+        .select({
+          id: customers.id,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+          phone: customers.phone,
+          phone2: customers.phone2,
+          email: customers.email,
+          address: customers.address,
+          city: customers.city,
+          state: customers.state,
+          zip: customers.zip,
+          customerType: customers.customerType,
+          totalVisits: customers.totalVisits,
+          totalSpent: customers.totalSpent,
+          lastVisitDate: customers.lastVisitDate,
+          firstVisitDate: customers.firstVisitDate,
+          balanceDue: customers.balanceDue,
+          vehicleYear: customers.vehicleYear,
+          vehicleMake: customers.vehicleMake,
+          vehicleModel: customers.vehicleModel,
+          alsCustomerId: customers.alsCustomerId,
+          segment: customers.segment,
+          psychoProfile: customers.psychoProfile,
+          psychoProfileScore: customers.psychoProfileScore,
+          psychoProfileAt: customers.psychoProfileAt,
+          smsCampaignSent: customers.smsCampaignSent,
+          smsCampaignDate: customers.smsCampaignDate,
+          notes: customers.notes,
+          smsOptOut: customers.smsOptOut,
+          lastRetentionTier: customers.lastRetentionTier,
+          lastRetentionDate: customers.lastRetentionDate,
+          createdAt: customers.createdAt,
+          updatedAt: customers.updatedAt,
+          daysSinceLastVisit: customerMetrics.daysSinceLastVisit,
+          churnRisk: customerMetrics.churnRisk,
+          isVip: customerMetrics.isVip,
+          declinedValue: customerMetrics.declinedValue,
+          declinedCount: customerMetrics.declinedCount,
+          backlogValueCents: customerMetrics.backlogValueCents,
+          backlogCount: customerMetrics.backlogCount,
+        })
+        .from(customers)
+        .leftJoin(customerMetrics, eq(customers.id, customerMetrics.customerId))
+        .where(eq(customers.id, input.id));
       return customer ?? null;
     }),
 
