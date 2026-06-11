@@ -10,7 +10,7 @@ import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
 import { TRPCError } from "@trpc/server";
 import { buildPlaceDetailsUrl } from "@shared/const";
-import { buildReplyPromptRules, checkReviewReply, canMarkPosted } from "@shared/reviewReplyQa";
+import { buildReplyPromptRules, checkReviewReply } from "@shared/reviewReplyQa";
 
 import { db } from "../lib/db-helper";
 
@@ -206,42 +206,6 @@ export const reviewRepliesRouter = router({
       return { success: true };
     }),
 
-  /**
-   * Owner confirms the approved reply was pasted into the Google Business
-   * app. DB-only: flips status approved → posted and stamps postedAt.
-   * Nothing is ever posted to Google from here.
-   */
-  markPosted: adminProcedure
-    .input(z.object({ id: z.number().int() }))
-    .mutation(async ({ input }) => {
-      const { reviewReplies } = await import("../../drizzle/schema");
-      const database = await db();
-      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-      const record = await database
-        .select()
-        .from(reviewReplies)
-        .where(eq(reviewReplies.id, input.id))
-        .limit(1);
-
-      if (!record.length) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Review not found" });
-      }
-      if (!canMarkPosted(record[0].status)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Only approved replies can be marked posted — approve it first.",
-        });
-      }
-
-      await database
-        .update(reviewReplies)
-        .set({ status: "posted", postedAt: new Date() })
-        .where(eq(reviewReplies.id, input.id));
-
-      return { success: true };
-    }),
-
   /** Skip replying to a review (admin) */
   skip: adminProcedure
     .input(z.object({ id: z.number().int() }))
@@ -258,23 +222,62 @@ export const reviewRepliesRouter = router({
       return { success: true };
     }),
 
+  /** Owner confirms an approved reply was pasted into Google (admin).
+   *  DB-only — records the outcome; nothing is sent to Google from here.
+   *  Only reachable from "approved" so "posted" always means a final
+   *  reply existed and the owner explicitly confirmed pasting it. */
+  markPosted: adminProcedure
+    .input(z.object({ id: z.number().int() }))
+    .mutation(async ({ input }) => {
+      const { reviewReplies } = await import("../../drizzle/schema");
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      const record = await database
+        .select()
+        .from(reviewReplies)
+        .where(eq(reviewReplies.id, input.id))
+        .limit(1);
+
+      if (!record.length) {
+        throw new Error("Review reply not found");
+      }
+      if (record[0].status !== "approved") {
+        throw new Error("Only approved replies can be marked posted — approve the draft first");
+      }
+
+      await database
+        .update(reviewReplies)
+        .set({ status: "posted", postedAt: new Date() })
+        .where(eq(reviewReplies.id, input.id));
+
+      return { success: true };
+    }),
+
   /** Get stats on review replies (admin) */
   stats: adminProcedure.query(async () => {
     const { reviewReplies } = await import("../../drizzle/schema");
     const database = await db();
     if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-    const [drafts, approved, skipped, posted] = await Promise.all([
+    const [drafts, approved, skipped, posted, oldestApproved] = await Promise.all([
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "draft")),
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "approved")),
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "skipped")),
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "posted")),
+      // Backlog rot signal: the oldest approved-but-not-posted reply.
+      database
+        .select({ oldest: sql<Date | string | null>`min(${reviewReplies.approvedAt})` })
+        .from(reviewReplies)
+        .where(eq(reviewReplies.status, "approved")),
     ]);
 
     const d = drafts[0]?.count ?? 0;
     const a = approved[0]?.count ?? 0;
     const s = skipped[0]?.count ?? 0;
     const p = posted[0]?.count ?? 0;
+    const oldestRaw = oldestApproved[0]?.oldest ?? null;
+    const oldestApprovedAt = oldestRaw ? new Date(oldestRaw) : null;
 
     return {
       draft: d,
@@ -282,6 +285,8 @@ export const reviewRepliesRouter = router({
       skipped: s,
       posted: p,
       total: d + a + s + p,
+      /** When the oldest still-unposted approved reply was approved (null if none). */
+      oldestApprovedAt,
     };
   }),
 });

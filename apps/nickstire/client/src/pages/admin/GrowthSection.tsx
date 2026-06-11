@@ -234,18 +234,40 @@ function ReviewRepliesTab() {
   const busy = approve.isPending || skip.isPending || markPosted.isPending || updateDraft.isPending;
   const mutationError = approve.error || markPosted.error || updateDraft.error;
 
+  const oldestApprovedDays = stats?.oldestApprovedAt
+    ? Math.floor((Date.now() - new Date(stats.oldestApprovedAt).getTime()) / 86_400_000)
+    : null;
+
   return (
     <div className="space-y-4">
       <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2">
         <Star className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
         <span>
           <strong>Copy-only — nothing here posts to Google.</strong> The full loop:
-          edit the draft if needed → Approve → Copy → paste it in the Google
-          Business app → <strong>Mark posted</strong> so it leaves your queue.
-          Every button only marks rows in our database. Drafts are ordered worst
-          rating first — handle the angry ones first.
+          edit the draft if needed → Approve → Copy → paste it on the review in
+          the Google Business app → then come back and tap <strong>Mark posted</strong>{" "}
+          so the backlog below stays honest. Every button only marks rows in our
+          database. Drafts are ordered worst rating first — handle the angry ones first.
         </span>
       </div>
+
+      {stats && stats.approved > 0 && (
+        <div className="border border-amber-500/40 bg-amber-500/10 rounded p-3 text-xs text-amber-200 flex items-start gap-2">
+          <RefreshCw className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+          <span>
+            <strong>
+              {stats.approved} approved {stats.approved === 1 ? "reply" : "replies"} not
+              marked posted yet
+            </strong>
+            {oldestApprovedDays !== null && oldestApprovedDays >= 1 && (
+              <> — oldest approved {oldestApprovedDays} {oldestApprovedDays === 1 ? "day" : "days"} ago</>
+            )}
+            . Next move: copy each one, paste it on the review in the Google Business
+            app, then tap "Mark posted". (Counts our DB state only — we can't see
+            Google's side.)
+          </span>
+        </div>
+      )}
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-1 flex-wrap">
@@ -336,7 +358,7 @@ function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-bold text-foreground">{reply.reviewerName}</span>
         <span className="text-[10px] text-amber-400">{"★".repeat(reply.reviewRating)}{"☆".repeat(Math.max(0, 5 - reply.reviewRating))}</span>
-        <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase bg-foreground/5 text-foreground/50 border-border/20">{reply.status}</span>
+        <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase ${reply.status === "posted" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" : "bg-foreground/5 text-foreground/50 border-border/20"}`}>{reply.status}</span>
       </div>
       {reply.reviewText && <p className="text-[11px] text-foreground/60 leading-relaxed">"{reply.reviewText}"</p>}
       {editText !== null ? (
@@ -413,9 +435,9 @@ function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }
           <button
             onClick={() => (confirming === "posted" ? (onMarkPosted(), setConfirming(null)) : setConfirming("posted"))}
             disabled={busy}
-            className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors ${confirming === "posted" ? "bg-blue-500/20 text-blue-300 border-blue-500/50" : "text-blue-400 border-blue-500/30 hover:bg-blue-500/10"}`}
+            className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors ${confirming === "posted" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50" : "text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"}`}
           >
-            {confirming === "posted" ? "Tap again — I pasted it in Google" : "Mark posted (DB only)"}
+            {confirming === "posted" ? "Tap again — confirms you pasted it" : "Mark posted (DB only)"}
           </button>
         )}
         <ModeBadge mode="db-only" />

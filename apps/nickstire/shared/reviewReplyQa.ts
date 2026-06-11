@@ -115,12 +115,3 @@ export function buildReplyPromptRules(): string {
     "- No same-day promises.",
   ].join("\n");
 }
-
-/**
- * State machine: draft → approved → posted (skip is terminal from draft).
- * "posted" means the owner confirmed they pasted the reply in the Google
- * Business app — it is a manual-confirmation state, never automated.
- */
-export function canMarkPosted(status: string | null | undefined): boolean {
-  return status === "approved";
-}

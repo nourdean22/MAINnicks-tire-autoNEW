@@ -2,13 +2,12 @@
  * Tests for the review-reply claim-safety QA layer (shared/reviewReplyQa.ts).
  * The load-bearing assertions: a reply with a forbidden claim can never be
  * approved (block tier), legitimate neighborhood-shop replies pass clean,
- * and the posted state is only reachable from approved.
+ * and the AI draft prompt rules stay in lockstep with the detector.
  */
 import { describe, it, expect } from "vitest";
 import {
   checkReviewReply,
   hasBlockingFindings,
-  canMarkPosted,
   buildReplyPromptRules,
   REPLY_BLOCK_PATTERNS,
 } from "../shared/reviewReplyQa";
@@ -91,16 +90,8 @@ describe("review-reply claim safety — warn tier", () => {
   });
 });
 
-describe("posted-state transition", () => {
-  it("is only reachable from approved", () => {
-    expect(canMarkPosted("approved")).toBe(true);
-    expect(canMarkPosted("draft")).toBe(false);
-    expect(canMarkPosted("skipped")).toBe(false);
-    expect(canMarkPosted("posted")).toBe(false);
-    expect(canMarkPosted(null)).toBe(false);
-    expect(canMarkPosted(undefined)).toBe(false);
-  });
-});
+// The posted-state machine itself (markPosted only reachable from
+// approved) is pinned at router level in __tests__/review-replies.test.ts.
 
 describe("prompt rules stay in lockstep with the detector", () => {
   it("the prompt rules mention every blocked claim family", () => {

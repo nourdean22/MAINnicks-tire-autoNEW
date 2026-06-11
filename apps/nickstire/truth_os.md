@@ -2,15 +2,15 @@
 
 **Purpose:** Single place to record what must be **true in production** for this repo. Update when you ship behavior or infra changes.
 
-## 🟢 Latest shipped — 2026-06-10 late (Review Replies operator loop closed + claim-safety QA)
+## 🟢 Latest shipped — 2026-06-10 late (Review Replies: claim-safety QA + draft editing — stacked on the #57 posted-confirmation loop)
 
-The Growth → Review Replies surface now has a complete state machine: **draft → approved → posted** (skip terminal from draft). Before this, `posted` was unreachable — no mutation set it, `postedAt` sat unwritten since the table shipped — so approved replies piled up with no done-signal.
+Two stacked PRs complete the Growth → Review Replies operator loop. **#57** (`nickstire-ops-bridge`) closed the state machine: `reviewReplies.markPosted` (approved → posted + `postedAt`, only reachable from approved, DB-only owner confirmation — nothing posts to Google), `stats.oldestApprovedAt` rot signal + the approved-backlog amber banner, and the two-tap "Mark posted (DB only)" button. **#58** (this delta, base = #57) adds the QA layer:
 
-- **`reviewReplies.markPosted`** (new mutation, DB-only): owner confirms they pasted the reply in the Google Business app; flips approved → posted + stamps `postedAt`. Only reachable from `approved` (`canMarkPosted`, shared + unit-tested). Nothing posts to Google — manual-confirmation state by design.
-- **Claim-safety QA layer** `shared/reviewReplyQa.ts` (same rule family as the GBP Q&A seeds / studio pattern banks): block tier (guarantees, warranty talk, `free` except "free check", self-ranking, wait-time numbers, prices) + warn tier (kill-words, bot phrases, same-day). `approve` refuses server-side on block findings; the Growth UI shows live findings on draft cards and disables Approve until the draft is edited clean. Both AI draft prompts (router `fetchNewReviews` + the review-monitor cron) embed `buildReplyPromptRules()` from the same module, so drafts come out clean in the first place.
+- **Claim-safety QA** `shared/reviewReplyQa.ts` (same rule family as the GBP Q&A seeds / studio pattern banks): block tier (guarantees, warranty talk, `free` except "free check", self-ranking, wait-time numbers, prices) + warn tier (kill-words, bot phrases, same-day). `approve` refuses server-side on block findings; the Growth UI shows live findings on draft cards and disables Approve until the draft is edited clean.
+- **Both AI draft prompts** (router `fetchNewReviews` + the review-monitor cron) embed `buildReplyPromptRules()` from the same module, so drafts come out clean in the first place.
 - **`updateDraft` now reachable**: the Growth UI gained an in-DOM edit box (the mutation existed with no UI — the operator could only approve-verbatim or skip).
 - **Queue order**: `reviewReplies.list` orders worst rating first, newest first within a rating — angry reviews surface on top.
-- Tests: `server/review-reply-qa.test.ts` (15) — detector blocks/allows incl. the cron fallback templates + a phone-number false-positive guard + state transitions + prompt/detector lockstep. No migration (`status` is varchar(20); `postedAt` already existed). No external side effects added.
+- Tests: `server/review-reply-qa.test.ts` (detector blocks/allows incl. the cron fallback templates + a phone-number false-positive guard + prompt/detector lockstep) alongside #57's 7 router tests (`server/__tests__/review-replies.test.ts`). No migration (`status` is varchar(20); `postedAt` already existed). No external side effects added.
 
 ---
 
@@ -26,7 +26,7 @@ Eleven PRs squash-merged to main in one evening (#42, #44, #45, #46, #47, #48, #
 
 **Admin shell — three new top-level sections:**
 - **Ops Hub** (#47): owner-action registry (danger-zone truth), reports corpus, PREVIEW-ONLY customer message templates (no send path exists — it throws by design).
-- **Growth** (#50 systems + #53 wiring): 7 tabs — Local Growth (IG autoposter armed-state booleans + Google reviews/Place-ID health), Review Replies (copy-only drafts; Approve/Skip are DB-status-only, **nothing posts to Google**), GBP Q&A (17 claim-safe seeds), Photo Queue (deterministic weekly 6), Entity/Brand (canonical NAP checklist), Competitors (2026-06 baseline, honest gap math), Social Studios.
+- **Growth** (#50 systems + #53 wiring): 7 tabs — Local Growth (IG autoposter armed-state booleans + Google reviews/Place-ID health), Review Replies (copy-only drafts; Approve/Skip/Mark-posted are DB-status-only, **nothing posts to Google** — "Mark posted" is the owner's after-the-paste confirmation that sets `postedAt`, and the tab shows an approved-but-unposted backlog banner off real DB state), GBP Q&A (17 claim-safe seeds), Photo Queue (deterministic weekly 6), Entity/Brand (canonical NAP checklist), Competitors (2026-06 baseline, honest gap math), Social Studios.
 - **Studios** (#51 IG carousel, #52+#54 faceless reel, #55 tile): `/admin/ig-studio` + `/admin/reel-studio` + topbar icon links. DRAFT-ONLY — generation/publish/insights kill-switches all OFF.
 - Deep-link aliases: `?tab=gbp|local|localseo|social` → Growth; `?tab=reviews` still → Outreach (review REQUESTS, unchanged).
 
