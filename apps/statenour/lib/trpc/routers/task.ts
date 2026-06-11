@@ -518,6 +518,32 @@ export const taskRouter = router({
     .input(z.record(z.string(), z.unknown()))
     .mutation(async ({ input }) => createTaskFromAPI(input)),
 
+  createImportedTasks: operatorProcedure
+    .input(
+      z.array(
+        z.object({
+          title: z.string().min(1),
+          missionId: z.string().min(1),
+          goalId: z.string().nullish(),
+        })
+      )
+    )
+    .mutation(async ({ input }) => {
+      const { createTask } = await import("@/lib/services/tasks");
+      const results = [];
+      for (const item of input) {
+        const payload = {
+          title: item.title,
+          missionId: item.missionId,
+          goalId: item.goalId || undefined,
+          status: "READY" as const,
+        };
+        const task = await createTask(payload);
+        results.push(task);
+      }
+      return results;
+    }),
+
   /**
    * Phase SS · owner-only · create a mission (the Inbox auto-create
    * path uses this when no mission exists yet). Delegates to

@@ -78,11 +78,46 @@ export function formatReceipts(f: ReceiptFeedResult): string {
 
 export function formatToday(t: TodayCompound, topWarning: string | null): string {
   const top = t.topMastery ? `Top domain: ${t.topMastery.domain} (${t.topMastery.score}, ${t.topMastery.delta >= 0 ? "+" : ""}${t.topMastery.delta}).` : "No mastery movement yet.";
-  return [
+  
+  const lines = [
     `Today (${t.date}): ${t.tasksDone} done · ${t.tasksOpen} open · ${t.focusedMinutes}m focused.`,
     top,
-    `⚠ ${topWarning ?? "No rescue flags — task list is clean."}`,
-  ].join("\n");
+  ];
+
+  if (t.activeMission) {
+    lines.push(
+      ``,
+      `🎯 Active Mission: ${t.activeMission.title}`,
+      `   • Domain: ${t.activeMission.domain}`,
+      `   • Metric: ${t.activeMission.successMetric}`,
+      `   • Open Tasks: ${t.activeMission.openTaskCount}`
+    );
+  } else {
+    lines.push(
+      ``,
+      `🎯 Active Mission: None`
+    );
+  }
+
+  if (t.topTasks && t.topTasks.length > 0) {
+    lines.push(
+      ``,
+      `🔥 Top Priority Tasks:`,
+      ...t.topTasks.map((task, idx) => `   ${idx + 1}. [${task.missionTitle}] ${task.title} (Priority: ${task.priority})`)
+    );
+  } else {
+    lines.push(
+      ``,
+      `🔥 Top Priority Tasks: None`
+    );
+  }
+
+  lines.push(
+    ``,
+    `⚠ ${topWarning ?? "No rescue flags — task list is clean."}`
+  );
+
+  return lines.join("\n");
 }
 
 export function formatSessionDigest(p: ParsedSession): string {
