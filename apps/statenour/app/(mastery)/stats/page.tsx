@@ -41,6 +41,12 @@ import { MasterySectionLabel } from "@/components/mastery/mastery-section-label"
 // 2026-05-30 · the mastery leveling engine's face · every stat as an RPG
 // level card + an overall-power hero. Self-hides on error · honest Day-1 zero.
 import { CharacterSheet } from "@/components/mastery/character-sheet";
+// Level-Up Directive (2026-06-10) · the deterministic "level THIS stat
+// today, because X, here's the rep" card. Pure re-rank of data the page
+// already fetches (sheet + goals + body) — supersedes the old in-sheet
+// "Next rep" strip. Honest "Missing data" empty state; self-hides on
+// transient error.
+import { LevelUpDirectiveCard } from "@/components/mastery/level-up-directive-card";
 // The interactive goal surface (LifeGoal ladder + active missions) folded in
 // from the retired /goals page. Self-fetches /api/goals · zero type coupling.
 import { GoalBoard } from "@/components/goals/goal-board";
@@ -96,10 +102,13 @@ export default function StatsPage() {
     <>
       <StandardPage eyebrow="Who you are · where you're going" title="Stats">
         <Suspense fallback={<StatsBodyFallback />}>
-          {/* ① WHO YOU ARE · the character sheet (the stats — the hero). */}
+          {/* ⓪ TODAY'S MOVE · one stat, one reason, one rep (deterministic). */}
           <div className="mt-6">
-            <CharacterSheet />
+            <LevelUpDirectiveCard />
           </div>
+
+          {/* ① WHO YOU ARE · the character sheet (the stats — the hero). */}
+          <CharacterSheet />
 
           {/* Coach Channel · goal nudges + mission-mode breadcrumb (compact,
            *  both self-hide when there's nothing to surface). */}
