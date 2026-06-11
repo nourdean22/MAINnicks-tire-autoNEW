@@ -14,7 +14,7 @@
 
 A receptionist that just takes a name and a callback number is a $6k-$15k/mo asset.
 
-A receptionist that ALSO books appointments, answers price questions, qualifies the lead by service type, and texts the customer a follow-up confirmation — is a 10x asset.
+A receptionist that ALSO answers price questions, provides walk-in/drop-off guidance, qualifies the lead by service type, and texts the customer a follow-up confirmation — is a 10x asset.
 
 ---
 
@@ -125,7 +125,7 @@ New file: `server/routers/voiceAgent.ts`
 
 ```ts
 export const voiceAgentRouter = router({
-  // Called by Vapi when assistant needs available booking slots
+  // Called by Vapi when assistant needs shop load and capacity details
   capacityCheck: publicProcedure
     .input(z.object({ day: z.string().optional() }))
     .query(async ({ input }) => {
@@ -157,19 +157,24 @@ export const voiceAgentRouter = router({
       };
     }),
 
-  // Called by Vapi when ready to book
-  bookSlot: publicProcedure
+  // Called by Vapi when caller wants to drop off or walk in (logs call log but does not create booking)
+  bookSlot: voiceAgentInternalProcedure
     .input(z.object({
-      name: z.string(),
-      phone: z.string(),
-      vehicle: z.string(),
-      service: z.string(),
-      preferredDay: z.string().optional(),
-      source: z.literal("voice-agent"),
+      name: z.string().min(2).max(200),
+      phone: z.string().min(7).max(20),
+      vehicle: z.string().max(200).optional(),
+      service: z.string().max(200),
+      preferredDay: z.string().max(20).optional(),
+      callId: z.string().max(100).optional(),
     }))
     .mutation(async ({ input }) => {
-      // Reuse existing booking pipeline + tag source
-      return trpc.booking.submit.mutate({ ...input, source: "voice-agent" });
+      // Bypasses DB bookings table, marks log converted, returns walk-in/drop-off info
+      return {
+        success: true,
+        reference: "WALKIN-INFO",
+        status: "walk_in_guidance",
+        message: "No appointment was booked. Tell the caller Nick's is first come, first served. They can walk in or drop off during business hours. Send a recap text with the address if helpful.",
+      };
     }),
 
   // Called by Vapi for problem escalation
@@ -223,11 +228,11 @@ export const voiceAgentRouter = router({
 | Risk | Mitigation |
 |---|---|
 | AI gives wrong price | Always say "range" — never commit to exact $. quoteRange returns range from services.ts only. |
-| AI books invalid slot | capacityCheck must run before bookSlot. tRPC mutation will reject if slot full (existing validation). |
-| AI commits to "same-day" we can't deliver | Prompt forbids same-day promises unless capacityCheck explicitly returns slotsRemainingToday > 0. |
+| AI promises a scheduled spot | Prompt forbids promising scheduled appointments or reserved slots; always emphasizes walk-in/drop-off policy. |
+| AI commits to "same-day" repair completion | Prompt forbids same-day promises. AI explains it depends on active shop load. |
 | AI hallucinates a service we don't offer | Knowledge base ONLY contains services.ts entries. If asked about something not in that file → escalate. |
 | Customer hates AI, demands human | Detect via sentiment OR keyword ("manager", "person", "human", frustration markers) → escalate immediately. Always allow "press 0 for human" early-exit. |
-| AI takes booking but customer no-shows | Existing 4-hour reservation expiry handles this. SMS reminder 2hrs before pulls them in. |
+| AI promises a callback time on stock check | Physical stock checks capture a lead at urgency 5, but prompt prohibits promising a specific time window for the callback. |
 | Compliance: AI must disclose it's AI | First message includes "this is Nick's automated assistant" — required by FCC + many state laws as of 2025. |
 
 ---
