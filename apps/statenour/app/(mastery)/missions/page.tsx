@@ -50,9 +50,18 @@ import { MissionRetroModal } from "@/components/missions/mission-retro-modal";
 import { MissionEditDrawer } from "@/components/missions/mission-edit-drawer";
 import { TaskEditSheet } from "@/components/missions/task-edit-sheet";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
-import type { Project, Task } from "@/components/actions/shared";
+import { daysSince, type Project, type Task } from "@/components/actions/shared";
 import { isUserProject } from "@/lib/services/mission-helpers";
 import { ExecutionPanel } from "@/components/missions/execution-panel";
+import { useCustomDomains } from "@/hooks/use-custom-domains";
+import { TaskFilters } from "@/components/actions/task-filters";
+import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
+import { AlertTriangle } from "lucide-react";
+import { HiddenRiskWarning } from "@/components/missions/hidden-risk-warning";
+import { computeHiddenRiskSummary } from "@/lib/tasks/hidden-risk";
+import { cn } from "@/lib/utils";
+
+type KindFilter = "all" | "ONCE" | "DAILY" | "PROMISE";
 
 const log = rootLogger.withSurface("missions/page");
 
@@ -127,11 +136,38 @@ function MissionsPageInner() {
   // Execution Mode state & selectors
   const [executionModeActive, setExecutionModeActive] = useState(false);
 
+  // ── Search & Filter State ──
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [domainFilter, setDomainFilter] = useState<string | null>(null);
+  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+  const [addingDomain, setAddingDomain] = useState(false);
+  const [newDomainInput, setNewDomainInput] = useState("");
+  const [filterEditMode, setFilterEditMode] = useState(false);
+
+  // Custom domains hook
+  const { customDomains, setCustomDomains } = useCustomDomains();
+
+  // Queue Next focused task ID state
+  const [queuedTaskId, setQueuedTaskId] = useState<string | null>(null);
+
   // Memoized selector for the focused task in Execution Mode
   const focusedTask = useMemo(() => {
     // 1. First choice: a task that is currently in "DOING" status
     const doingTask = tasks.find((t) => t.status === "DOING");
     if (doingTask) return doingTask;
+
+    // 1.5 Second choice: a task queued by the operator (Queue next)
+    if (queuedTaskId) {
+      const queuedTask = tasks.find(
+        (t) =>
+          t.id === queuedTaskId &&
+          t.status !== "DONE" &&
+          t.status !== "WAITING" &&
+          t.status !== "ARCHIVED"
+      );
+      if (queuedTask) return queuedTask;
+    }
 
     // We only care about open (non-DONE, non-WAITING, non-ARCHIVED) tasks for focus recommendations
     const openTasks = tasks.filter((t) => t.status !== "DONE" && t.status !== "WAITING" && t.status !== "ARCHIVED");
@@ -180,12 +216,125 @@ function MissionsPageInner() {
 
     // 4. Fallback: first open task in the general list
     return openTasks[0] || null;
-  }, [tasks, missions]);
+  }, [tasks, missions, queuedTaskId]);
 
   const focusedTaskMission = useMemo(() => {
     if (!focusedTask || !focusedTask.missionId) return null;
     return missions.find((m) => m.id === focusedTask.missionId) || null;
   }, [focusedTask, missions]);
+
+  // ── Filtered Tasks & Missions ──
+  const filteredTasks = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    return tasks.filter((t) => {
+      const mission = missions.find((m) => m.id === t.missionId);
+      const missionTitle = mission?.title.toLowerCase() || t.mission?.title.toLowerCase() || "";
+      const domain = mission?.domain?.toLowerCase() || t.mission?.domain?.toLowerCase() || "other";
+
+      if (query) {
+        const matchesTitle = t.title.toLowerCase().includes(query);
+        const matchesMission = missionTitle.includes(query);
+        if (!matchesTitle && !matchesMission) return false;
+      }
+
+      if (kindFilter !== "all" && t.loopKind !== kindFilter) return false;
+
+      if (domainFilter) {
+        if (domain !== domainFilter.toLowerCase()) return false;
+      }
+
+      return true;
+    });
+  }, [tasks, missions, searchQuery, kindFilter, domainFilter]);
+
+  const filteredMissions = useMemo(() => {
+    const hasActiveFilter = !!(searchQuery.trim() || domainFilter || kindFilter !== "all");
+    if (!hasActiveFilter) return missions;
+
+    return missions.filter((m) => {
+      if (m.status !== "ACTIVE" || !isUserProject(m)) return false;
+
+      if (domainFilter && m.domain?.toLowerCase() !== domainFilter.toLowerCase()) {
+        return false;
+      }
+
+      const query = searchQuery.toLowerCase().trim();
+      const missionTasks = tasks.filter((t) => t.missionId === m.id);
+
+      const missionMatchesSearch = !query || m.title.toLowerCase().includes(query);
+
+      const hasMatchingTask = missionTasks.some((t) => {
+        if (query && !t.title.toLowerCase().includes(query)) return false;
+        if (kindFilter !== "all" && t.loopKind !== kindFilter) return false;
+        return true;
+      });
+
+      return missionMatchesSearch || hasMatchingTask;
+    });
+  }, [missions, tasks, searchQuery, domainFilter, kindFilter]);
+
+  // ── Filter helper counts ──
+  const activeTasks = useMemo(() => tasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED"), [tasks]);
+  const onceCount = useMemo(() => activeTasks.filter((t) => !t.loopKind || t.loopKind === "ONCE").length, [activeTasks]);
+  const dailyCount = useMemo(() => activeTasks.filter((t) => t.loopKind === "DAILY").length, [activeTasks]);
+  const promiseCount = useMemo(() => activeTasks.filter((t) => t.loopKind === "PROMISE").length, [activeTasks]);
+  const activeCount = activeTasks.length;
+
+  const activeDomains = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const t of activeTasks) {
+      const mission = missions.find((m) => m.id === t.missionId);
+      const d = mission?.domain?.toLowerCase() || t.mission?.domain?.toLowerCase() || "other";
+      counts[d] = (counts[d] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  }, [activeTasks, missions]);
+
+  // ── Hidden High-Risk Detection ──
+  const visibleTaskIds = useMemo(() => {
+    const set = new Set<string>();
+    if (executionModeActive) {
+      if (focusedTask) {
+        set.add(focusedTask.id);
+      }
+    } else {
+      for (const t of filteredTasks) {
+        set.add(t.id);
+      }
+    }
+    return set;
+  }, [executionModeActive, focusedTask, filteredTasks]);
+
+  const filtersActive = !!(searchQuery.trim() || domainFilter || kindFilter !== "all");
+  const filterKey = `${searchQuery}-${domainFilter}-${kindFilter}-${executionModeActive}`;
+
+  const hiddenRiskSummary = useMemo(() => {
+    return computeHiddenRiskSummary({
+      allTasks: tasks,
+      visibleTaskIds,
+      filtersActive,
+      executionModeActive,
+      now: new Date(),
+      searchQuery,
+      kindFilter,
+      domainFilter,
+      missions,
+    });
+  }, [tasks, visibleTaskIds, filtersActive, executionModeActive, searchQuery, kindFilter, domainFilter, missions]);
+
+  const handleClearFilters = useCallback(() => {
+    setSearchQuery("");
+    setDomainFilter(null);
+    setKindFilter("all");
+  }, []);
+
+  const handleQueueNext = useCallback((taskId: string) => {
+    setQueuedTaskId(taskId);
+    const task = tasks.find(t => t.id === taskId);
+    toast.success(`Queued “${task?.title || "task"}” next in Execution Mode.`);
+  }, [tasks]);
 
   // ── Mutation wrappers · invalidate task + mission queries on success ──
   const refetchAll = useCallback(async () => {
@@ -485,6 +634,16 @@ function MissionsPageInner() {
           ]}
         />
 
+        {/* Hidden risk warning banner */}
+        <HiddenRiskWarning
+          summary={hiddenRiskSummary}
+          executionModeActive={executionModeActive}
+          filterKey={filterKey}
+          onClearFilters={handleClearFilters}
+          onExitFocusMode={() => setExecutionModeActive(false)}
+          onQueueNext={handleQueueNext}
+        />
+
         {focusedTask ? (
           <ExecutionPanel
             task={focusedTask}
@@ -578,6 +737,16 @@ function MissionsPageInner() {
        *  Self-hides when nothing needs attention. Never moves a task. */}
       <MissionsRescueStrip />
 
+      {/* Hidden risk warning banner */}
+      <HiddenRiskWarning
+        summary={hiddenRiskSummary}
+        executionModeActive={executionModeActive}
+        filterKey={filterKey}
+        onClearFilters={handleClearFilters}
+        onExitFocusMode={() => setExecutionModeActive(false)}
+        onQueueNext={handleQueueNext}
+      />
+
       {/* Single quick-add input at top */}
       <MissionsQuickAdd onSubmit={handleQuickAdd} busy={submitting} />
 
@@ -606,6 +775,18 @@ function MissionsPageInner() {
         >
           ⚡ Execution Mode
         </button>
+        <button
+          type="button"
+          onClick={() => setShowFilters((v) => !v)}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] transition-colors",
+            showFilters
+              ? "border-amber-500/50 bg-amber-500/10 text-amber-400"
+              : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200"
+          )}
+        >
+          {showFilters ? "✕ Close Filters" : "⚙️ Filters"}
+        </button>
         <span className="text-[10px] font-mono text-[var(--text-tertiary)]/70">
           or type{" "}
           <code className="px-1 rounded bg-[var(--bg-raised)]/10 text-[var(--text-tertiary)]">
@@ -615,10 +796,49 @@ function MissionsPageInner() {
         </span>
       </div>
 
+      {showFilters && (
+        <TaskFilters
+          showFilters={showFilters}
+          kindFilter={kindFilter}
+          setKindFilter={setKindFilter}
+          domainFilter={domainFilter}
+          setDomainFilter={setDomainFilter}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onceCount={onceCount}
+          dailyCount={dailyCount}
+          promiseCount={promiseCount}
+          activeCount={activeCount}
+          activeDomains={activeDomains}
+          customDomains={customDomains}
+          setCustomDomains={setCustomDomains}
+          addingDomain={addingDomain}
+          setAddingDomain={setAddingDomain}
+          newDomainInput={newDomainInput}
+          setNewDomainInput={setNewDomainInput}
+          filterEditMode={filterEditMode}
+          setFilterEditMode={setFilterEditMode}
+        />
+      )}
+
+      {/* Active filters summary chip bar */}
+      {filtersActive && (
+        <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
+          <ActiveFiltersStrip
+            filters={[
+              ...(searchQuery.trim() ? [{ label: `search · "${searchQuery.trim().slice(0, 20)}"`, onRemove: () => setSearchQuery("") }] : []),
+              ...(kindFilter !== "all" ? [{ label: `kind · ${kindFilter}`, onRemove: () => setKindFilter("all") }] : []),
+              ...(domainFilter ? [{ label: `domain · ${domainFilter}`, onRemove: () => setDomainFilter(null) }] : []),
+            ]}
+            onClearAll={handleClearFilters}
+          />
+        </div>
+      )}
+
       {/* Mission cards + unattached section */}
       <MissionFeed
-        missions={missions}
-        tasks={tasks}
+        missions={filteredMissions}
+        tasks={filteredTasks}
         onAddTask={handleAddTask}
         onCompleteTask={handleCompleteTask}
         onStartTask={handleStartTask}
