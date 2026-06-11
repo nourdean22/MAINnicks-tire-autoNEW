@@ -305,6 +305,16 @@ export const CRONS: CronDef[] = [
       "FOLDED into mega (morning) · the data-source canary · probes the nickstire bridge + service feeders and writes data_source_probe rows the /system/health operational rollup reads to flag a dead bridge / $0-revenue feeder. Pipeline+reader existed since v10.0.58 but the cron was never wired — it ran zero times, which is why the revenue-$0 regression went uncaught.",
     addedAt: "2026-05-29",
   },
+  {
+    name: "subtask-usage-audit",
+    schedule: "0 3 * * *",
+    mode: "active",
+    category: "hygiene",
+    description: "Daily audit of subtask feature usage per ADR-0017 A1 gate; self-fires on/after 2026-06-22 to clean up files if unused.",
+    memory: 256,
+    maxDuration: 60,
+    addedAt: "2026-06-11",
+  },
 
   // ── REVIEW ──────────────────────────────────────────────────────────
   {

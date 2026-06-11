@@ -4,7 +4,7 @@
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
 >
-> **Last refreshed:** 2026-06-11 · post the **anticipated-wire wave** (PR #61 → `bf7f82e5`): `findAnticipated`/`precomputeAnswers` wired into chat · morning-read yesterday-fallback fix · system prompt 62.1k→54.2k (size gate green, 10% headroom) · aiChat sentinel guard. Gates at merge: tsc 0 · 243 files/3334 tests · build green. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-06-11 · post the **chat command surface cleanup, missions deep-linking, and subtask-usage audit waves** (PR #74 / PR #76 merged): `/missions?taskId=` deep-linking fallback TRPC query (`trpc.task.byId`), ported `weekly-review` to v2 prompt builder, fixed `journal-brief` UTC rollover cache key to New York local time, and implemented the automated `/api/cron/subtask-usage-audit` self-firing on/after 2026-06-22. Gates at merge: tsc 0 · 244 files/3341 tests · eslint 0 · check:crons clean · prompt size 54.0k chars with 10% headroom. Full detail: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 
@@ -70,11 +70,7 @@ Detection regex: [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/action-cla
 
 ## 5 · Active backlog (priority order · updated 2026-06-11)
 
-1. **`/missions?taskId=` is inert** — GoalBoard links share it (found in the #59 wave).
-2. **v2 prompt cutover** — port the weekly-review + anticipated blocks to the v2 builder if `NICK_PRIME_PROMPT` flips; Phase 0 prerequisites in `docs/v2-prompt-cutover-plan.md`.
-3. **journal-brief UTC cache key** — needs an NY-date pass (flagged in the delivery-layer wave).
-4. **2026-06-22 · subtask-usage audit** — automated via `app/api/cron/subtask-usage-audit/route.ts` (self-fires on/after the date; ADR-0017 A1 gate).
-5. P9 confirm-cards · judge-eval calibration verdict (needs n≥30) — low priority.
+1. P9 confirm-cards · judge-eval calibration verdict (needs n≥30) — low priority.
 
 ## 6 · How to resume in a fresh session
 
