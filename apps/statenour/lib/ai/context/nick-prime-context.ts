@@ -73,6 +73,7 @@ export interface NickPrimeContext {
   recentDecisions: MasteryDecisionSummary[];
   decisionsNeedingReview: MasteryDecisionSummary[];
   systemHealth: SystemHealthSummary;
+  weeklyReview?: string;
 }
 
 /**
@@ -85,7 +86,10 @@ export interface NickPrimeContext {
  */
 export async function buildNickPrimeContext(): Promise<NickPrimeContext> {
   const state = await buildCommandCenterState();
-  return nickContextFromState(state);
+  const ctx = nickContextFromState(state);
+  const { getWeeklyReviewContext } = await import("@/lib/brain/weekly-review-context");
+  ctx.weeklyReview = await getWeeklyReviewContext().catch((): string => "");
+  return ctx;
 }
 
 /**

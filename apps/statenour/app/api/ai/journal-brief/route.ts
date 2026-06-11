@@ -55,7 +55,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Cache key carries a format version — bumping it (v2 = the 4-line
   // directive format, item F) invalidates stale same-day briefs in the
   // old narrative format the moment the new code deploys.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const cacheKey = `${today}:v2`;
 
   // Cache check.
