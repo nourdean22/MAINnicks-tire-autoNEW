@@ -1,0 +1,22 @@
+# ADR 0024: Hidden High-Risk Warning & Execution Mode
+
+- **Status**: Accepted
+- **Context**: `/missions` serves as the primary task execution and routing dashboard. The interface introduces filtering (search query, loop kind, and custom domains) alongside "Execution Mode" (focus state recommended next task). However, active filters or focus mode can hide critical, overdue, or stale tasks from the operator's view. Burying this warning logic inside the React page component would lead to unmaintainable code, difficult-to-test side-effects, and visual clutter.
+- **Decision**: 
+  - We decoupled the pure business logic and classification from the UI.
+  - Exposed `classifyTaskRisk(task, now)` and `computeHiddenRiskSummary(...)` in a standalone logic file: `lib/tasks/hidden-risk.ts`.
+  - Created a compact, responsive warning banner component: `components/missions/hidden-risk-warning.tsx` displaying warnings and up to 3 preview items.
+  - Implemented session-level and filter-specific dismissal states (`dismissedUntilFilterChange` and `sessionStorage` fallback).
+  - Explicitly excluded `DONE`, `ARCHIVED`, and `CANCELLED` statuses from any risk classification.
+  - Wired a custom queue override state (`queuedTaskId`) within the `focusedTask` selector to allow prioritizing a user-selected task right after any `DOING` task.
+- **Consequences**:
+  - **Positive**: Clean separation of concerns. The risk conditions are unit-testable in Node with high fidelity, and the warning component can be rendered in isolation without requiring complex state providers.
+  - **Negative**: Adds a tiny client-side overhead to walk all tasks on filter changes, though easily mitigated by caching calculations via `useMemo`.
+- **Alternatives Considered**:
+  - *Aggressive Auto-Triage*: Automatically clear active filters when a high-risk task is detected. Rejected because it breaks operator workflows and ruins focus during Execution Mode.
+  - *Database-Backed Dismissals*: Rejected because it requires schema migrations and network latency to dismiss a local warning, violating the "minimize DB mutations" rule.
+- **References**:
+  - [hidden-risk.ts](file:///c:/Users/nourd/NOURCITY/apps/statenour/lib/tasks/hidden-risk.ts)
+  - [hidden-risk-warning.tsx](file:///c:/Users/nourd/NOURCITY/apps/statenour/components/missions/hidden-risk-warning.tsx)
+  - [hidden-high-risk-warning.test.tsx](file:///c:/Users/nourd/NOURCITY/apps/statenour/tests/components/hidden-high-risk-warning.test.tsx)
+  - [page.tsx](file:///c:/Users/nourd/NOURCITY/apps/statenour/app/(mastery)/missions/page.tsx)
