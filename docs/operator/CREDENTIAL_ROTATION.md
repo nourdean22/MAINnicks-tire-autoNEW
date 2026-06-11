@@ -6,7 +6,7 @@ clarity-status: CLEAR
 hitl-status: PENDING
 hitl-pending-count: 15
 points-passed: 1-9
-document-sha256: 3464b7932f54a23922085d1ce81f6363598b80ca0ca2e83f92ae712d5db847ea
+document-sha256: f9f9d6b405df97935d7b20ff359564fd9a8577487bc7204dd07b49393e17c8b0
 ---
 
 # Deployed Production Credential Rotation Runbook
