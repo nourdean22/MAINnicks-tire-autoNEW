@@ -1,71 +1,16 @@
 # Nick's Tire & Auto · agent context
 
-**Repo:** nickstire-dev (deploys to nickstire.org via Railway from `main`)
+**Repo:** `apps/nickstire` in the NOURCITY monorepo (`nourdean22/MAINnicks-tire-autoNEW` · deploys to nickstire.org via Railway from `main`)
 **Stack:** Vite 7 + React 19 client / Express 4 + tRPC 11 server / Drizzle ORM / MySQL (TiDB Cloud) / pnpm 9+ / Node 20+
-**Last refreshed:** 2026-05-08 EOD · post wave-109 (F25e SMS gateway live · ALG declined-work pipeline surfaced)
 
-## Quick start
-
-```bash
-pnpm install
-cp .env.example .env       # fill required keys (see .env.example headers)
-pnpm dev                   # API + Vite client (single tsx watch)
-pnpm test                  # vitest run
-pnpm run check             # tsc --noEmit
-pnpm run verify            # MASTER GATE · env + check + lint + source-lint + hooks-lint + route-validate + tests + build
-pnpm run build             # vite build + esbuild server + maybe-prerender
-pnpm run prerender         # regenerate static HTML (DO NOT hand-edit prerendered/)
-pnpm run db:push           # drizzle-kit generate + migrate
-pnpm run validate:routes   # confirm registered routes match handler files
-pnpm run lint:hooks        # catch useState etc. used after early-return
-```
-
-## Layout
-
-| Path | Purpose |
-|---|---|
-| `client/src` | React app · pages · admin |
-| `server/_core/index.ts` | Express entry |
-| `server/routers/` | tRPC routers |
-| `server/services/` | business logic |
-| `server/cron/` | scheduled jobs |
-| `shared/` | constants used by client + server |
-| `drizzle/schema.ts` | source of truth for DB |
-| `drizzle/*.sql` | hand-applied migrations (NOT auto-run) |
-| `prerendered/` | generated static HTML — regenerate, don't hand-edit |
-| `scripts/` | prerender · sitemap · deploy helpers · validators |
-| `docs/integrations/` | INTEGRATION_REGISTRY.md is canonical |
-| `docs/operations/` | LOAD_BEARING_SYSTEMS.md is canonical |
-
-## Gotchas
-
-- **Migrations are hand-applied SQL** — after schema change, apply `drizzle/NNNN_*.sql` to DB then run `pnpm run check`. There is no auto-migrate.
-- **Prerender is generated** — never hand-edit `prerendered/*.html`; run `pnpm run prerender` after NAP/SEO content changes. CI audits this.
-- **`pnpm run verify` is the master gate** — chains env → check → lint → source-lint → hooks-lint → route-validate → tests → build. Run before any push.
-- **Hook ordering audited** — `pnpm run lint:hooks` catches `useState`/etc. used after early-return, which silently breaks React.
-- **Route registry has a validator** — `pnpm run validate:routes` confirms registered routes match handler files. Don't ship without it.
-- **`server/_core/index.ts` is the single Express entry** — there is no `app/` or multi-entry split; all routers mount here.
+Commands, conventions, layout: [`AGENTS.md`](./AGENTS.md) — read it first. Cross-cutting repo rules (branching, shared `main`, Windows): root `AGENTS.md`.
 
 ## Canonical project docs (read before editing)
 
-- `README.md` — full quick start + layout
-- `MEMORY.md` — operator memory index (where to look next)
 - `truth_os.md` — what's true in prod (update when shipping)
-- `architecture_map.md` — request flow
-- `PROTECTED-CORE.md` — files you don't touch without explicit approval
-- `RECOVERY.md` — recovery procedures
-
-## Recent waves (2026-05)
-
-| Wave | What landed |
-|---|---|
-| 181.92-.100 (May 19-20) | Elon+Jobs admin + site cut · admin sidebar 12→5 flat items · Today page rebuilt 16 cards→5 above-fold + 5 collapsed · MONEY consolidated (Revenue+Declined+Snap → 1 page, 5 tabs) · Intelligence 7→4 tabs · 8 zombie admin files deleted · WalkIn calc → event-bus drawer · canonical 3-color palette documented · customer card 12→8 fields · site: unified mobile CTA bar (Call·Text·Directions) · booking lie killed (FCFS drop-off card) · 3 friction popups removed · 154 orphan /near/[slug] intersection pages deleted · SERP price-anchor titles on /brakes /diagnostics /oil-change · soft-404 cleanup (13 exact 301s + /near/* wildcard 301 · 2 stale prerendered blog dirs deleted) · ~6,380 lines removed total |
-| 181.82-.86 (May 19) | 8-hour autonomous build · Gates leverage move (differential targeting + personalized SMS · 2× engagement lift) · db-optimizer deferred cluster (LAST_INSERT_ID single-atomic checkDailyLimit · cron_tier_skip_state durable counter · sms_conversations expression index migration deferred-pending-config) · AgentPhone Confirmation Bot infra (5 env vars · op-gated · cron at 20/day cap) · AgentPhone Voice Recovery escalation (5/day cap · post-D30 cohort) · OPERATOR_AGENTPHONE_SETUP.md runbook · truth_os.md refreshed |
-| 181.77-.81 (May 19) | Database-optimizer audit + 5 surgical fixes (P0 drip FOR UPDATE deadlock · UNIQUE constraint + INSERT IGNORE pattern · QC comeback SELECT projection · cron_alerts_fired cleanup · connectionLimit 5→10) · Admin "🔥 FIRE ALL ELIGIBLE NOW" button · Operator revenue-flag sweep · enabled retention_7day + retention_14day DB flags |
-| 181.60 (May 18) | SMS routing default flipped Twilio→shop (forgotten `via` now safe) · MEDIUM cluster: durable OTP brute-force counter (new `otp_attempts` table + middleware/bruteForce.ts) · portal.verifyCode cleanup scoped to phone · voiceAgent PII projection trimmed · staleLeadFollowup N+1 collapsed · `sms_messages.status` += "sending" for honest rehydrate state machine · `alg_estimates.follow_up_{7,30}d_attempted_at` for at-most-once declined-recovery · vitest matcher quirk worked around in cron-rethrow.test.ts |
-| 181.58-.59 (May 18) | 5 CRITICAL + 6 HIGH audit fixes (F25e routing on 5 missed sites · VAPI webhook secret on admin push · retention D7/D14 dead-code wired · cross-sell cooldown LIKE regression · SQL injection in NON_NEGOTIABLES insert · timing-safe admin auth · smsPerformance "untagged" LIKE-on-NULL · DeclinedEstimates native confirm · cron errorMessage write · SmsSection/SmsPerformanceSection isError banners) |
-| 103-109 (May 8 EVE) | F25e SMS gateway live · 216-862-0005 primary SMS sender · admin chat UI · manager-on-duty alerts · dual-gateway monitoring |
-| 95-101 (May 7) | ALG declined-work pipeline surfaced ($321K visible · was $0) · estimate-as-invoice leak killed (-$36,909 fake revenue) · cron consolidation · materialized aggregates · bulk-SMS recovery UI |
+- `MEMORY.md` — operator memory index · `architecture_map.md` — request flow
+- `PROTECTED-CORE.md` — don't-touch list · `RECOVERY.md` — recovery procedures
+- `docs/integrations/INTEGRATION_REGISTRY.md` + `docs/operations/LOAD_BEARING_SYSTEMS.md` — canonical. Ship history lives in `truth_os.md` + the memory index — not in this file.
 
 ---
 
