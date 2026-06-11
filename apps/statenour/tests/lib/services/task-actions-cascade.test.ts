@@ -238,3 +238,47 @@ describe("checkTask · cascade · graceful degradation", () => {
     expect(result.childrenCascaded).toBe(0);
   });
 });
+
+describe("checkTask · outcomes", () => {
+  it("saves completionNote and outcomeScore for ONCE loops", async () => {
+    setupOnceParent();
+    
+    await checkTask({
+      id: "parent-1",
+      action: "complete",
+      completionNote: "Excellent outcome note",
+      outcomeScore: 92,
+    });
+
+    expect(mocks.task.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "parent-1" },
+        data: expect.objectContaining({
+          completionNote: "Excellent outcome note",
+          outcomeScore: 92,
+        }),
+      }),
+    );
+  });
+
+  it("saves completionNote and outcomeScore for DAILY loops", async () => {
+    setupOnceParent({ loopKind: "DAILY" });
+
+    await checkTask({
+      id: "parent-1",
+      action: "complete",
+      completionNote: "Daily loop note",
+      outcomeScore: 75,
+    });
+
+    expect(mocks.task.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "parent-1" },
+        data: expect.objectContaining({
+          completionNote: "Daily loop note",
+          outcomeScore: 75,
+        }),
+      }),
+    );
+  });
+});
