@@ -9,8 +9,9 @@
  *   MANUAL     — checklists the owner works by hand on external platforms
  *   DB-ONLY    — mutations that touch our own database rows, never Google
  * The only mutations reachable from this screen are reviewReplies
- * updateDraft/approve/skip/fetchNewReviews — all write OUR rows; the
- * actual Google reply is always pasted by the owner in the GBP app.
+ * updateDraft/approve/skip/markPosted/fetchNewReviews — all write OUR
+ * rows; the actual Google reply is always pasted by the owner in the
+ * GBP app, then confirmed here with "Mark posted".
  */
 import { useState } from "react";
 import {
@@ -26,6 +27,7 @@ import {
   weeklyPhotoQueue, PHOTO_SAFETY_RULES, UPLOAD_DESTINATION,
 } from "@/lib/gbpPhotoQueue";
 import { CANONICAL_IDENTITY, ENTITY_PLATFORMS, ENTITY_FIX_ORDER } from "@/lib/entityConsistency";
+import { checkReviewReply } from "@shared/reviewReplyQa";
 import {
   COMPETITORS, COMPETITOR_BASELINE_DATE, WEEKLY_CHECK_FIELDS, reviewVolumeGaps,
 } from "@/lib/competitorGbpMonitor";
@@ -189,7 +191,7 @@ function LocalGrowthTab() {
           <li>Post the GBP Q&A seeds (next tab over) — ~15 min, highest local-SEO ROI.</li>
           <li>Shoot this week's 6 photos (Photo Queue tab) and upload to GBP.</li>
           <li>Work the Entity / Brand checklist top-to-bottom (GBP first).</li>
-          <li>Reply to draft reviews from the Review Replies tab (copy → paste in GBP).</li>
+          <li>Reply to draft reviews from the Review Replies tab, worst rating first, then Mark posted (copy → paste in GBP).</li>
           <li>Once a week: log the Competitors tab numbers against the baseline.</li>
         </ol>
       </Panel>
@@ -228,6 +230,9 @@ function ReviewRepliesTab() {
   const approve = trpc.reviewReplies.approve.useMutation({ onSuccess: invalidate });
   const skip = trpc.reviewReplies.skip.useMutation({ onSuccess: invalidate });
   const markPosted = trpc.reviewReplies.markPosted.useMutation({ onSuccess: invalidate });
+  const updateDraft = trpc.reviewReplies.updateDraft.useMutation({ onSuccess: invalidate });
+  const busy = approve.isPending || skip.isPending || markPosted.isPending || updateDraft.isPending;
+  const mutationError = approve.error || markPosted.error || updateDraft.error;
 
   const oldestApprovedDays = stats?.oldestApprovedAt
     ? Math.floor((Date.now() - new Date(stats.oldestApprovedAt).getTime()) / 86_400_000)
@@ -238,10 +243,11 @@ function ReviewRepliesTab() {
       <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2">
         <Star className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
         <span>
-          <strong>Copy-only — nothing here posts to Google.</strong> "Approve" and
-          "Skip" only mark the row in our database. To actually reply: copy the
-          draft, open the review in the Google Business app, paste it yourself —
-          then come back and tap "Mark posted" so the backlog below stays honest.
+          <strong>Copy-only — nothing here posts to Google.</strong> The full loop:
+          edit the draft if needed → Approve → Copy → paste it on the review in
+          the Google Business app → then come back and tap <strong>Mark posted</strong>{" "}
+          so the backlog below stays honest. Every button only marks rows in our
+          database. Drafts are ordered worst rating first — handle the angry ones first.
         </span>
       </div>
 
@@ -300,6 +306,12 @@ function ReviewRepliesTab() {
         {fetchNew.error && " Last run failed — likely a missing Google key; see Reviews health on the Local Growth tab."}
       </p>
 
+      {mutationError && (
+        <p className="text-[10px] text-red-400 leading-relaxed flex items-start gap-1">
+          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{mutationError.message}
+        </p>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
       ) : !replies?.length ? (
@@ -316,7 +328,8 @@ function ReviewRepliesTab() {
               onApprove={() => approve.mutate({ id: r.id })}
               onSkip={() => skip.mutate({ id: r.id })}
               onMarkPosted={() => markPosted.mutate({ id: r.id })}
-              busy={approve.isPending || skip.isPending || markPosted.isPending}
+              onSaveDraft={(draftReply) => updateDraft.mutateAsync({ id: r.id, draftReply })}
+              busy={busy}
             />
           ))}
         </div>
@@ -325,13 +338,20 @@ function ReviewRepliesTab() {
   );
 }
 
-function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, busy }: {
+function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }: {
   reply: ReplyRow;
-  onApprove: () => void; onSkip: () => void; onMarkPosted: () => void; busy: boolean;
+  onApprove: () => void; onSkip: () => void; onMarkPosted: () => void;
+  onSaveDraft: (text: string) => Promise<unknown>; busy: boolean;
 }) {
   // iOS-PWA-safe two-tap confirm (window.confirm is suppressed in the PWA).
   const [confirming, setConfirming] = useState<"approve" | "skip" | "posted" | null>(null);
+  // null = not editing; string = the in-progress edit text.
+  const [editText, setEditText] = useState<string | null>(null);
   const text = reply.finalReply || reply.draftReply || "";
+  const isDraft = reply.status === "draft";
+  // Live claim-safety findings on whatever text would be approved.
+  const findings = isDraft ? checkReviewReply(editText ?? text) : [];
+  const blockers = findings.filter((f) => f.severity === "block");
 
   return (
     <div className="bg-background/40 border border-border/30 rounded p-3 space-y-2">
@@ -341,22 +361,72 @@ function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, busy }: {
         <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase ${reply.status === "posted" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" : "bg-foreground/5 text-foreground/50 border-border/20"}`}>{reply.status}</span>
       </div>
       {reply.reviewText && <p className="text-[11px] text-foreground/60 leading-relaxed">"{reply.reviewText}"</p>}
-      {text && (
+      {editText !== null ? (
+        <div className="bg-background/60 border border-border/30 rounded p-2 space-y-1.5">
+          <span className="text-[9px] uppercase tracking-wider text-foreground/40 font-semibold">Edit reply draft</span>
+          <textarea
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            rows={3}
+            maxLength={500}
+            className="w-full bg-background/80 border border-border/40 rounded p-2 text-[11px] text-foreground/90 leading-relaxed focus:outline-none focus:border-primary/50"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (!editText.trim()) return;
+                // Close the editor only AFTER the save lands — a failed save
+                // keeps the operator's typed text on screen (the error shows
+                // in the banner above) instead of silently discarding it.
+                onSaveDraft(editText.trim()).then(() => setEditText(null)).catch(() => {});
+              }}
+              disabled={busy || !editText.trim()}
+              className="px-2 py-1 text-[10px] font-semibold rounded border text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
+            >
+              Save draft
+            </button>
+            <button
+              onClick={() => setEditText(null)}
+              className="px-2 py-1 text-[10px] font-semibold rounded border text-foreground/50 border-border/30 hover:text-foreground/80 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : text ? (
         <div className="bg-background/60 border border-border/30 rounded p-2">
           <span className="text-[9px] uppercase tracking-wider text-foreground/40 font-semibold">Reply draft</span>
           <p className="text-[11px] text-foreground/80 leading-relaxed mt-0.5">{text}</p>
         </div>
+      ) : null}
+      {findings.length > 0 && (
+        <div className="space-y-1">
+          {findings.map((f) => (
+            <p key={`${f.rule}-${f.match}`} className={`text-[10px] leading-relaxed flex items-start gap-1 ${f.severity === "block" ? "text-red-400" : "text-amber-400"}`}>
+              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+              <span><strong>{f.severity === "block" ? "BLOCKED" : "CHECK"}</strong> · {f.rule} ("{f.match}") — {f.fix}</span>
+            </p>
+          ))}
+        </div>
       )}
       <div className="flex items-center gap-2 flex-wrap">
         <CopyBtn text={text} label="Copy reply" />
-        {reply.status === "draft" && (
+        {isDraft && editText === null && (
           <>
             <button
-              onClick={() => (confirming === "approve" ? (onApprove(), setConfirming(null)) : setConfirming("approve"))}
+              onClick={() => setEditText(reply.draftReply || "")}
               disabled={busy}
-              className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors ${confirming === "approve" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50" : "text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"}`}
+              className="px-2 py-1 text-[10px] font-semibold rounded border text-foreground/60 border-border/30 hover:text-foreground/90 hover:border-primary/40 transition-colors"
             >
-              {confirming === "approve" ? "Tap again — marks DB only" : "Approve (DB only)"}
+              Edit
+            </button>
+            <button
+              onClick={() => (confirming === "approve" ? (onApprove(), setConfirming(null)) : setConfirming("approve"))}
+              disabled={busy || blockers.length > 0}
+              title={blockers.length > 0 ? "Fix the blocked wording first (Edit)" : undefined}
+              className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors disabled:opacity-50 ${confirming === "approve" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50" : "text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"}`}
+            >
+              {blockers.length > 0 ? "Blocked — edit first" : confirming === "approve" ? "Tap again — marks DB only" : "Approve (DB only)"}
             </button>
             <button
               onClick={() => (confirming === "skip" ? (onSkip(), setConfirming(null)) : setConfirming("skip"))}
