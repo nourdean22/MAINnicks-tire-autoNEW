@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { invoices, tireOrders } from "../../drizzle/schema";
 
 describe("Walk-In Calculator & Win-Back tire_customer Segment", () => {
   it("Used Tire preset has 0 labor hours (no double labor)", async () => {
@@ -59,5 +60,45 @@ describe("Walk-In Calculator & Win-Back tire_customer Segment", () => {
     // Test that it does not double append if already present
     const doubleResult = withOptOut(result);
     expect(doubleResult).toBe(result);
+  });
+
+  it("getVerifiedTirePurchaseCustomerIds checks both invoices and tire_orders", async () => {
+    const { getVerifiedTirePurchaseCustomerIds } = await import("../routers/winback");
+
+    // Setup mock DB builder
+    const mockSelect = vi.fn().mockImplementation(() => {
+      return {
+        from: vi.fn().mockImplementation((table) => {
+          return {
+            where: vi.fn().mockImplementation(() => {
+              if (table === invoices) {
+                return [
+                  { customerId: 1 },
+                  { customerId: null },
+                ];
+              } else if (table === tireOrders) {
+                return [
+                  { customerId: 2 },
+                  { customerId: 3 },
+                ];
+              }
+              return [];
+            })
+          };
+        })
+      };
+    });
+
+    const mockDb = {
+      select: mockSelect,
+    };
+
+    const verifiedSet = await getVerifiedTirePurchaseCustomerIds(mockDb, [1, 2, 3, 4]);
+    expect(verifiedSet).toBeInstanceOf(Set);
+    expect(verifiedSet.has(1)).toBe(true); // From invoices
+    expect(verifiedSet.has(2)).toBe(true); // From tireOrders
+    expect(verifiedSet.has(3)).toBe(true); // From tireOrders
+    expect(verifiedSet.has(4)).toBe(false); // No purchase
+    expect(verifiedSet.size).toBe(3);
   });
 });

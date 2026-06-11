@@ -3,7 +3,17 @@
  * Tests SMS templates, retention sequences, confirmation flow,
  * and scheduling logic.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// Mock Twilio
+export const mockTwilioCreate = vi.fn().mockResolvedValue({ sid: "SM_test_footer" });
+vi.mock("twilio", () => ({
+  default: () => ({
+    messages: {
+      create: mockTwilioCreate,
+    },
+  }),
+}));
 
 describe("SMS Templates", () => {
   it("all templates return non-empty strings", async () => {
@@ -102,3 +112,82 @@ describe("SMS Scheduling", () => {
     expect(RATE_LIMIT_MS).toBe(1500);
   });
 });
+
+describe("SMS Opt-Out Compliance & Footer Bypass", () => {
+  it("should append opt-out footer to marketing message for regular customer", async () => {
+    const sms = await import("../sms");
+    const body = "Due for an oil change? Swing by!";
+    const result = sms.withOptOut(body);
+    expect(result).toBe("Due for an oil change? Swing by!\n\nReply STOP to opt out.");
+  });
+
+  it("should not append opt-out footer if it already exists in body", async () => {
+    const sms = await import("../sms");
+    const body = "Due for an oil change? Reply STOP to opt out.";
+    const result = sms.withOptOut(body);
+    expect(result).toBe("Due for an oil change? Reply STOP to opt out.");
+  });
+
+  it("should verify footer insertion in sendSms via twilio mock", async () => {
+    mockTwilioCreate.mockClear();
+
+    process.env.TWILIO_ACCOUNT_SID = "AC_test";
+    process.env.TWILIO_AUTH_TOKEN = "token_test";
+    process.env.TWILIO_PHONE_NUMBER = "12168620005";
+    process.env.SMS_KILL_SWITCH = "false";
+
+    // Unset shop gateway credentials to ensure it falls back to Twilio
+    const origUser = process.env.SHOP_SMS_GATEWAY_USERNAME;
+    const origPass = process.env.SHOP_SMS_GATEWAY_PASSWORD;
+    delete process.env.SHOP_SMS_GATEWAY_USERNAME;
+    delete process.env.SHOP_SMS_GATEWAY_PASSWORD;
+
+    const sms = await import("../sms");
+
+    // Regular marketing send to normal customer should append footer
+    await sms.sendSms("2165550001", "Promo message", { via: "twilio" });
+    expect(mockTwilioCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: "Promo message\n\nReply STOP to opt out.",
+      })
+    );
+
+    // Transactional send should bypass
+    await sms.sendSms("2165550002", "Transactional message", { via: "twilio", transactional: true });
+    expect(mockTwilioCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: "Transactional message",
+      })
+    );
+
+    // skipOptOutFooter send should bypass
+    await sms.sendSms("2165550003", "Skip footer message", { via: "twilio", skipOptOutFooter: true });
+    expect(mockTwilioCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: "Skip footer message",
+      })
+    );
+
+    // isInternal send should bypass
+    await sms.sendSms("2165550004", "Internal message", { via: "twilio", isInternal: true });
+    expect(mockTwilioCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: "Internal message",
+      })
+    );
+
+    // Staff/Owner recipient number should bypass
+    process.env.OWNER_PHONE_NUMBER = "2165551111";
+    await sms.sendSms("2165551111", "Staff message", { via: "twilio" });
+    expect(mockTwilioCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: "Staff message",
+      })
+    );
+
+    // Restore env
+    if (origUser) process.env.SHOP_SMS_GATEWAY_USERNAME = origUser;
+    if (origPass) process.env.SHOP_SMS_GATEWAY_PASSWORD = origPass;
+  });
+});
+

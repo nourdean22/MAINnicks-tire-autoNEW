@@ -140,6 +140,14 @@ function LocalGrowthTab() {
                 ? "ARMED: the IG autoposter COULD post live right now."
                 : "DISARMED: the IG autoposter cannot post live right now."}
             </p>
+            {armed.ig.tokenExpirationWarning && (
+              <p className={`font-semibold flex items-start gap-1 ${
+                armed.ig.tokenStatus === "expired" ? "text-red-400" : "text-amber-400"
+              }`}>
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>{armed.ig.tokenExpirationWarning}</span>
+              </p>
+            )}
             <p className="text-[11px] text-foreground/60 leading-relaxed">{armed.disarmNote}</p>
             <p className="text-[11px] text-foreground/50">
               GBP posting: direct API posting is {armed.gbp.directPostingPossible ? "possible" : "NOT possible"} (Posts API deprecated 2024) — mode: {armed.gbp.mode}.
