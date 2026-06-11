@@ -863,25 +863,21 @@ ${urls.join("\n")}
       ) {
         const sub = event.data.object as any;
         // Accept any Nonstop Nick tier (base $7.99 or +$9.99 with repair discount).
+        const { isKnownMembershipPlan, mapSubscriptionEventToStatus, normalizeMembershipPhone } =
+          await import("../lib/membership-guards");
         const subPlan = String(sub.metadata?.plan || "");
-        if (subPlan === "nonstop-nick" || subPlan === "nonstop-nick-plus") {
+        if (isKnownMembershipPlan(subPlan)) {
           const { getDb } = await import("../db");
           const { memberships } = await import("../../drizzle/schema");
           const { eq } = await import("drizzle-orm");
           const d = await getDb();
           if (d) {
-            // Map Stripe status → our enum. "active"/"trialing" = active;
-            // "past_due"/"unpaid" = past_due (grace); "canceled" = canceled;
-            // anything else (incomplete/incomplete_expired) = incomplete.
-            const stripeStatus = String(sub.status);
-            const status: "active" | "past_due" | "canceled" | "incomplete" =
-              event.type === "customer.subscription.deleted" ? "canceled"
-              : stripeStatus === "active" || stripeStatus === "trialing" ? "active"
-              : stripeStatus === "past_due" || stripeStatus === "unpaid" ? "past_due"
-              : stripeStatus === "canceled" ? "canceled"
-              : "incomplete";
+            // Stripe status → our enum (tested in membership-guards):
+            // active/trialing = active; past_due/unpaid = past_due (grace);
+            // deleted event or canceled = canceled; else incomplete.
+            const status = mapSubscriptionEventToStatus(event.type, String(sub.status));
             const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
-            const phone = String(sub.metadata?.phone || "").replace(/\D/g, "").slice(-10);
+            const phone = normalizeMembershipPhone(sub.metadata?.phone);
 
             // Upsert by the unique stripeSubscriptionId. Try update first; if no
             // row exists yet (created event arriving before any row), insert.
