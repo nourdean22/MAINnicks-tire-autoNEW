@@ -119,14 +119,14 @@ export const estimatesRouter = router({
       const { eq } = await import("drizzle-orm");
 
       // Find customer by phone
-      let customerId = "walk-in";
+      let customerId: number | null = null;
       if (input.customerPhone) {
         const d = await getDb();
         if (d) {
           const existing = await d.select().from(customers)
             .where(eq(customers.phone, input.customerPhone)).limit(1);
           if (existing.length > 0) {
-            customerId = String(existing[0].id);
+            customerId = existing[0].id;
           }
         }
       }

@@ -107,7 +107,7 @@ export async function pushToAdmins(payload: PushPayload): Promise<number> {
 /**
  * Send push to a specific customer by ID.
  */
-export async function pushToCustomer(customerId: string, payload: PushPayload): Promise<boolean> {
+export async function pushToCustomer(customerId: number, payload: PushPayload): Promise<boolean> {
   try {
     const { getDb } = await import("../db");
     const { pushSubscriptions } = await import("../../drizzle/schema");

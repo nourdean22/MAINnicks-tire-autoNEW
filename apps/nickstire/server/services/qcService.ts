@@ -236,7 +236,7 @@ export async function failQc(params: {
 
 // ─── Comeback Detection ─────────────────────────────
 export async function checkForComeback(params: {
-  customerId: string;
+  customerId: number;
   vehicleVin?: string | null;
   serviceDescription?: string;
 }): Promise<Array<{
@@ -275,7 +275,7 @@ export async function checkForComeback(params: {
 export async function recordComeback(params: {
   originalWorkOrderId: string;
   comebackWorkOrderId?: string;
-  customerId: string;
+  customerId: number;
   serviceType?: string;
   originalTechId?: number;
   daysSinceOriginal: number;

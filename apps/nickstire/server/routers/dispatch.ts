@@ -186,7 +186,7 @@ export const dispatchRouter = router({
   // ─── Comeback Detection ──────────────────────────
   checkComeback: adminProcedure
     .input(z.object({
-      customerId: z.string(),
+      customerId: z.number(),
       vehicleVin: z.string().optional(),
       serviceDescription: z.string().optional(),
     }))
@@ -199,7 +199,7 @@ export const dispatchRouter = router({
     .input(z.object({
       originalWorkOrderId: z.string(),
       comebackWorkOrderId: z.string().optional(),
-      customerId: z.string(),
+      customerId: z.number(),
       serviceType: z.string().optional(),
       originalTechId: z.number().optional(),
       daysSinceOriginal: z.number(),

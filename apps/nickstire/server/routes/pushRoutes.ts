@@ -54,7 +54,14 @@ export function registerPushRoutes(app: Express): void {
         await db.update(pushSubscriptions).set({ p256dh: keys.p256dh, auth: keys.auth }).where(eq(pushSubscriptions.id, existing[0].id));
         res.json({ success: true, action: "updated" });
       } else {
-        await db.insert(pushSubscriptions).values({ id: nanoid(), endpoint, p256dh: keys.p256dh, auth: keys.auth, isAdmin: isAdminVerified, customerId: customerId || null });
+        await db.insert(pushSubscriptions).values({
+          id: nanoid(),
+          endpoint,
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+          isAdmin: isAdminVerified,
+          customerId: customerId ? Number(customerId) : null
+        });
         res.json({ success: true, action: "created" });
       }
     } catch (err) {

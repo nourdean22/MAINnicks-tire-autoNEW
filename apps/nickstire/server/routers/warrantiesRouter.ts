@@ -11,7 +11,7 @@ import { createLogger } from "../lib/logger";
 const log = createLogger("routers:warrantiesRouter");
 export const warrantiesRouter = router({
   getByCustomer: adminProcedure
-    .input(z.object({ customerId: z.string() }))
+    .input(z.object({ customerId: z.number() }))
     .query(async ({ input }) => {
       const { getDb } = await import("../db");
       const { warranties } = await import("../../drizzle/schema");
@@ -33,7 +33,7 @@ export const warrantiesRouter = router({
 
   create: adminProcedure
     .input(z.object({
-      workOrderId: z.string(), customerId: z.string(), vehicleId: z.string().optional(),
+      workOrderId: z.string(), customerId: z.number(), vehicleId: z.string().optional(),
       serviceDescription: z.string(), warrantyMonths: z.number(), warrantyMiles: z.number().optional(),
       mileageAtService: z.number().optional(),
     }))
@@ -96,7 +96,7 @@ export const warrantiesRouter = router({
           totalRevenue: customerMetrics.totalRevenue,
         })
         .from(warranties)
-        .leftJoin(customerMetrics, sql`CAST(${warranties.customerId} AS UNSIGNED) = ${customerMetrics.customerId}`)
+        .leftJoin(customerMetrics, eq(warranties.customerId, customerMetrics.customerId))
         .where(and(eq(warranties.status, "active"), lte(warranties.expiresAt, thirtyDaysFromNow)))
         .orderBy(sql`${customerMetrics.isVip} DESC, ${warranties.expiresAt} ASC`);
 
