@@ -182,7 +182,6 @@ console.log("[6/6]  manifest active -> actually fires");
 // CronJobLog). Keep this list tiny + evidence-based.
 const INDEPENDENT = new Set([
   "error-telegram-push", // fires every ~10min via its own path (verified live)
-  "proactive-push",      // fires hourly via its own path (verified live)
   "mega", // the morning dispatcher itself (Inngest cron 0 9 * * *)
   "mega-evening", // the evening dispatcher itself (Inngest cron 0 3 * * *)
 ]);
