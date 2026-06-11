@@ -87,7 +87,8 @@ function extractEntities(text: string): string[] {
     // suggested "Show Added tasks". They're verbs, not entities.
     "Added", "Created", "Made", "Sent", "Scheduled", "Saved", "Pinned",
     "Linked", "Moved", "Marked", "Completed", "Removed", "Deleted",
-    "Started", "Stopped", "Updated", "Posted", "Published",
+    "Started", "Stopped", "Updated", "Posted", "Published", "Closed",
+    "Opened", "Contacted", "Drafted", "Resolved",
     // v-truth · generic business nouns Nick uses about the operator's OWN
     // shop/metrics — NOT lead/person entities. Pre-fix "Shop status: slow"
     // made the extractor treat "Shop" as a lead -> nonsensical

@@ -40,12 +40,10 @@ const STOP_WORDS = new Set([
   "I", "Nick", "Nour", "The", "A", "An", "This", "That", "These", "Those",
   "If", "When", "While", "Once", "Today", "Yesterday", "Tomorrow",
   "Yes", "No", "Sure", "Done", "Total", "Next", "Hi", "Hello", "Okay", "Hey", "Ok",
-  // v10.0.175 · past-participle action verbs (mirrors the same set
-  // in lib/ai/suggestion-cache.ts) so truth-grounding doesn't try
-  // to look up "Added" as a project.
   "Added", "Created", "Made", "Sent", "Scheduled", "Saved", "Pinned",
   "Linked", "Moved", "Marked", "Completed", "Removed", "Deleted",
-  "Started", "Stopped", "Updated", "Posted", "Published",
+  "Started", "Stopped", "Updated", "Posted", "Published", "Closed",
+  "Opened", "Contacted", "Drafted", "Resolved",
 ]);
 
 function extractEntities(text: string): string[] {
