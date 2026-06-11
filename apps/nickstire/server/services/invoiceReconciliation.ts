@@ -59,9 +59,8 @@ export async function reconcileWorkOrder(workOrderId: string): Promise<WorkOrder
 
   let customerName = "";
   try {
-    const custId = parseInt(wo.customerId, 10);
-    if (!isNaN(custId)) {
-      const [cust] = await db.select().from(customers).where(eq(customers.id, custId));
+    if (wo.customerId != null) {
+      const [cust] = await db.select().from(customers).where(eq(customers.id, wo.customerId));
       if (cust) customerName = `${cust.firstName} ${cust.lastName || ""}`.trim();
     }
   } catch (err) {

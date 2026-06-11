@@ -252,7 +252,7 @@ export const dispatchRouter = router({
   sendMessage: adminProcedure
     .input(z.object({
       workOrderId: z.string(),
-      customerId: z.string().optional(),
+      customerId: z.number().nullable().optional(),
       trigger: z.string(),
       channel: z.string().default("sms"),
       recipient: z.string(),

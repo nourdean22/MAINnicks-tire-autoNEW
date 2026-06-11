@@ -39,7 +39,7 @@ export const nickActionsRouter = router({
   createWorkOrder: adminProcedure
     .input(z.object({
       sessionId: z.number(),
-      customerId: z.string().optional(),
+      customerId: z.number().optional(),
       priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
       autoAssign: z.boolean().default(true),
     }))

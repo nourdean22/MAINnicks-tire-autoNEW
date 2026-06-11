@@ -68,31 +68,19 @@ export async function refreshCustomerMetrics(): Promise<MetricsRefreshResult> {
   `);
 
   // Step 3: compute fresh backlogValueCents/backlogCount per customer.
-  // wave-182 (architecture decision #1): work_orders.customer_id is polymorphic
-  // — a numeric customers.id, a raw phone string (AI-chat / walk-in WOs), or the
-  // "WALK-IN" sentinel. The old join `w.customer_id = CAST(c.id AS CHAR)` matched
-  // ONLY the numeric form, so every phone-keyed open WO was silently excluded
-  // from the customer's backlog. Resolve each WO to its customer by numeric id
-  // OR last-10-digit phone match, then group by the resolved id (one row per
-  // customer → correct SUM even when a customer has both a numeric-id WO and a
-  // phone-keyed WO, which a GROUP BY customer_id would have split).
+  // Post-migration 0070: work_orders.customer_id is int (nullable).
+  // Direct integer join — no more polymorphic REGEXP/CAST handling.
   const backlogRes = await d.execute(sql`
     UPDATE customer_metrics m
     INNER JOIN customers c ON c.id = m.customerId
     LEFT JOIN (
-      SELECT cust.id AS cid,
+      SELECT w.customer_id AS cid,
              COALESCE(ROUND(SUM(w.total) * 100), 0) AS sum_cents,
              COUNT(*) AS cnt
       FROM work_orders w
-      JOIN customers cust ON (
-        (w.customer_id REGEXP '^[0-9]+$' AND cust.id = CAST(w.customer_id AS UNSIGNED))
-        OR (w.customer_id NOT REGEXP '^[0-9]+$'
-            AND CHAR_LENGTH(REGEXP_REPLACE(w.customer_id, '[^0-9]', '')) >= 10
-            AND RIGHT(REGEXP_REPLACE(cust.phone, '[^0-9]', ''), 10)
-              = RIGHT(REGEXP_REPLACE(w.customer_id, '[^0-9]', ''), 10))
-      )
-      WHERE w.status NOT IN ('completed', 'picked_up', 'closed', 'cancelled')
-      GROUP BY cust.id
+      WHERE w.customer_id IS NOT NULL
+        AND w.status NOT IN ('completed', 'picked_up', 'closed', 'cancelled')
+      GROUP BY w.customer_id
     ) w ON w.cid = c.id
     SET m.backlogValueCents = COALESCE(w.sum_cents, 0),
         m.backlogCount = COALESCE(w.cnt, 0),
