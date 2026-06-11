@@ -27,7 +27,7 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Sparkline } from "@/components/ui/sparkline";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, Grid3x3, Sparkles } from "lucide-react";
+import { ChevronLeft, Grid3x3, Sparkles, Scale, ThumbsUp, ThumbsDown } from "lucide-react";
 
 type Mood = "energized" | "neutral" | "depleted" | "scattered";
 
@@ -36,6 +36,38 @@ const MOOD_LABEL: Record<Mood, string> = {
   neutral: "neutral",
   depleted: "depleted",
   scattered: "scattered",
+};
+
+type CalibrationVerdict = "well-calibrated" | "moderate" | "miscalibrated" | "preliminary";
+
+const VERDICT_STYLE: Record<
+  CalibrationVerdict,
+  { bg: string; text: string; border: string; label: string }
+> = {
+  "well-calibrated": {
+    bg: "bg-emerald-500/10",
+    text: "text-emerald-300",
+    border: "border-emerald-500/30",
+    label: "Well-Calibrated",
+  },
+  moderate: {
+    bg: "bg-amber-500/10",
+    text: "text-amber-300",
+    border: "border-amber-500/30",
+    label: "Moderate Calibration",
+  },
+  miscalibrated: {
+    bg: "bg-rose-500/10",
+    text: "text-rose-300",
+    border: "border-rose-500/30",
+    label: "Miscalibrated",
+  },
+  preliminary: {
+    bg: "bg-blue-500/10",
+    text: "text-blue-300",
+    border: "border-blue-500/30",
+    label: "Preliminary",
+  },
 };
 
 // 2026-05-23 · UI #2 · heatmap style cell · gradient saturation
@@ -104,6 +136,16 @@ export default function CalibrationPage() {
       { refetchOnWindowFocus: false },
     );
 
+  const {
+    data: judgeData,
+    isLoading: judgeLoading,
+    error: judgeError,
+    refetch: refetchJudge,
+  } = trpc.system.judgeEvalCalibration.useQuery(
+    { sinceDays: 30 },
+    { refetchOnWindowFocus: false },
+  );
+
   return (
     <StandardPage
       eyebrow="NOUR OS · System"
@@ -141,7 +183,10 @@ export default function CalibrationPage() {
               (dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : undefined)
             }
             source="brain · suggestion_loop"
-            onReload={() => void refetch()}
+            onReload={() => {
+              void refetch();
+              void refetchJudge();
+            }}
           />
           <Link
             href="/system"
@@ -353,6 +398,131 @@ export default function CalibrationPage() {
             </tbody>
           </table>
         </div>
+      </GlassCard>
+
+      {/* 2026-06-11 · Judge Calibration Upgrades */}
+      <GlassCard className="p-6">
+        <div className="flex items-center gap-2">
+          <Scale size={16} className="text-[var(--gold)]" aria-hidden />
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+            Judge Evaluation Calibration
+          </h2>
+        </div>
+        <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+          Measures the agreement rate between LLM judge decisions (V2 vs V1 wins) and actual operator reactions (thumbs-up/down) on shown replies.
+        </p>
+
+        {judgeLoading ? (
+          <div className="mt-4 text-xs text-[var(--text-tertiary)]">Loading judge calibration data...</div>
+        ) : judgeError ? (
+          <div className="mt-4 text-xs text-rose-300">Failed to load judge calibration: {judgeError.message}</div>
+        ) : judgeData ? (
+          <div className="mt-4 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-default)] pb-4">
+              <div>
+                <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
+                  Agreement Rate: {judgeData.agreementPct >= 0 ? `${judgeData.agreementPct}%` : "N/A"}
+                </span>
+                <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
+                  Based on {judgeData.totalScored} scored comparisons (excluding {judgeData.noOperatorReaction} pending operator reaction, {judgeData.noSourceMessage} synthetic/batch, and {judgeData.ties} ties) over the last {judgeData.sinceDays} days.
+                </p>
+              </div>
+
+              {judgeData.verdict && (
+                <div className={cn(
+                  "inline-flex flex-col items-start sm:items-end rounded-lg border px-3 py-2",
+                  VERDICT_STYLE[judgeData.verdict as CalibrationVerdict]?.bg || "bg-[var(--bg-elevated)]",
+                  VERDICT_STYLE[judgeData.verdict as CalibrationVerdict]?.border || "border-[var(--border-default)]"
+                )}>
+                  <span className={cn(
+                    "text-xs font-semibold uppercase tracking-wider",
+                    VERDICT_STYLE[judgeData.verdict as CalibrationVerdict]?.text || "text-[var(--text-secondary)]"
+                  )}>
+                    {VERDICT_STYLE[judgeData.verdict as CalibrationVerdict]?.label || judgeData.verdict}
+                  </span>
+                  <span className="text-[10px] text-[var(--text-tertiary)] mt-0.5 max-w-[280px] sm:text-right">
+                    {judgeData.verdictReason}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Confusion Matrix Table */}
+            {judgeData.totalScored > 0 ? (
+              <div className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+                  Decision Confusion Matrix (2×2)
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-separate border-spacing-0 border border-[var(--border-default)] rounded-lg text-xs font-mono">
+                    <thead>
+                      <tr className="bg-[var(--bg-elevated)]/30">
+                        <th className="border-b border-r border-[var(--border-default)] p-2 text-left text-[10px] uppercase text-[var(--text-tertiary)]">
+                          Judge Verdict / Operator Feedback
+                        </th>
+                        <th className="border-b border-r border-[var(--border-default)] p-2 text-center text-emerald-300">
+                          <div className="flex items-center justify-center gap-1">
+                            <ThumbsUp size={11} />
+                            <span>Thumbs Up (+1)</span>
+                          </div>
+                        </th>
+                        <th className="border-b border-[var(--border-default)] p-2 text-center text-rose-300">
+                          <div className="flex items-center justify-center gap-1">
+                            <ThumbsDown size={11} />
+                            <span>Thumbs Down (-1)</span>
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="border-b border-r border-[var(--border-default)] p-2.5 font-semibold text-[var(--text-secondary)] bg-[var(--bg-elevated)]/10">
+                          Judge Preferred V2 (V2 &gt; V1)
+                        </td>
+                        <td className="border-b border-r border-[var(--border-default)] p-2.5 text-center text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors">
+                          <span className="font-bold text-sm tabular-nums">
+                            {judgeData.matrix.find(c => c.judge === "v2" && c.human === "thumbs_up")?.count ?? 0}
+                          </span>
+                          <span className="block text-[9px] text-[var(--text-tertiary)] mt-0.5">True Positive (Agree)</span>
+                        </td>
+                        <td className="border-b border-[var(--border-default)] p-2.5 text-center text-rose-400 bg-rose-500/5 hover:bg-rose-500/10 transition-colors">
+                          <span className="font-bold text-sm tabular-nums">
+                            {judgeData.matrix.find(c => c.judge === "v2" && c.human === "thumbs_down")?.count ?? 0}
+                          </span>
+                          <span className="block text-[9px] text-[var(--text-tertiary)] mt-0.5">False Positive (Disagree)</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="border-r border-[var(--border-default)] p-2.5 font-semibold text-[var(--text-secondary)] bg-[var(--bg-elevated)]/10">
+                          Judge Preferred V1 (V1 &gt; V2)
+                        </td>
+                        <td className="border-r border-[var(--border-default)] p-2.5 text-center text-rose-400 bg-rose-500/5 hover:bg-rose-500/10 transition-colors">
+                          <span className="font-bold text-sm tabular-nums">
+                            {judgeData.matrix.find(c => c.judge === "v1" && c.human === "thumbs_up")?.count ?? 0}
+                          </span>
+                          <span className="block text-[9px] text-[var(--text-tertiary)] mt-0.5">False Negative (Disagree)</span>
+                        </td>
+                        <td className="p-2.5 text-center text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors">
+                          <span className="font-bold text-sm tabular-nums">
+                            {judgeData.matrix.find(c => c.judge === "v1" && c.human === "thumbs_down")?.count ?? 0}
+                          </span>
+                          <span className="block text-[9px] text-[var(--text-tertiary)] mt-0.5">True Negative (Agree)</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-6 border border-dashed border-[var(--border-default)] rounded-xl bg-[var(--bg-elevated)]/10 text-center">
+                <span className="text-xs text-[var(--text-secondary)] font-semibold">No calibration events scored yet</span>
+                <span className="text-[10px] text-[var(--text-tertiary)] mt-1 max-w-sm">
+                  We need comparison logs where the operator has reacted (thumbs up/down) to the reply shown in the chat window to compute matrix agreement.
+                </span>
+              </div>
+            )}
+          </div>
+        ) : null}
       </GlassCard>
 
       <p className="text-[11px] text-[var(--text-tertiary)]">
