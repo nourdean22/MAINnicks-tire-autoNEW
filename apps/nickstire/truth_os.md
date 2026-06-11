@@ -2,7 +2,19 @@
 
 **Purpose:** Single place to record what must be **true in production** for this repo. Update when you ship behavior or infra changes.
 
-## 🟢 Latest shipped — 2026-06-10 (11-PR ship night: tire money path hardened + admin grew Tire Orders / Ops Hub / Growth + both social studios)
+## 🟢 Latest shipped — 2026-06-10 late (Review Replies: claim-safety QA + draft editing — stacked on the #57 posted-confirmation loop)
+
+Two stacked PRs complete the Growth → Review Replies operator loop. **#57 (MERGED, squash `722934c7`)** closed the state machine: `reviewReplies.markPosted` (approved → posted + `postedAt`, only reachable from approved, DB-only owner confirmation — nothing posts to Google), `stats.oldestApprovedAt` rot signal + the approved-backlog amber banner, and the two-tap "Mark posted (DB only)" button. **#58** (this delta, retargeted to main after the #57 merge) adds the QA layer:
+
+- **Claim-safety QA** `shared/reviewReplyQa.ts` (same rule family as the GBP Q&A seeds / studio pattern banks): block tier (guarantees, warranty talk, `free` except "free check", self-ranking, wait-time numbers, prices) + warn tier (kill-words, bot phrases, same-day). `approve` refuses server-side on block findings; the Growth UI shows live findings on draft cards and disables Approve until the draft is edited clean.
+- **Both AI draft prompts** (router `fetchNewReviews` + the review-monitor cron) embed `buildReplyPromptRules()` from the same module, so drafts come out clean in the first place.
+- **`updateDraft` now reachable**: the Growth UI gained an in-DOM edit box (the mutation existed with no UI — the operator could only approve-verbatim or skip).
+- **Queue order**: `reviewReplies.list` orders worst rating first, newest first within a rating — angry reviews surface on top.
+- Tests: `server/review-reply-qa.test.ts` (detector blocks/allows incl. the cron fallback templates + a phone-number false-positive guard + prompt/detector lockstep) alongside #57's 7 router tests (`server/__tests__/review-replies.test.ts`). No migration (`status` is varchar(20); `postedAt` already existed). No external side effects added.
+
+---
+
+## 🟢 Shipped — 2026-06-10 (11-PR ship night: tire money path hardened + admin grew Tire Orders / Ops Hub / Growth + both social studios)
 
 Eleven PRs squash-merged to main in one evening (#42, #44, #45, #46, #47, #48, #49, #50, #51 + #52, #53, #54, #55 line; final main `a231e449`). What must now be true in prod:
 

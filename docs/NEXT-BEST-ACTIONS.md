@@ -26,7 +26,10 @@ all merged; the queue below is what's actually left.
 Old rank 1 (merge stack) — **all 11 PRs merged**. Old rank 3 (size-duplication fix) — **fixed**. Old rank 4 (verify GBP/IG
 enablement) — collapsed into rank 1's armed-state card read. Old rank 11
 (GBP draft queues) — **built** (#50 + #53). Old rank 13 (safe-fix sweep) —
-**merged** (#49).
+**merged** (#49). Review-replies operator loop — **#57 merged** (`722934c7`:
+markPosted confirmation + rot signal); **#58 open** (claim-safety QA gate +
+draft editing + worst-first ordering, stacked on #57 — also carries the
+Antigravity `/tires` size-dup rider `09471b79`).
 
 ## Next 3 code PRs
 1. Env-validate + coverage hardening (rank 10).
