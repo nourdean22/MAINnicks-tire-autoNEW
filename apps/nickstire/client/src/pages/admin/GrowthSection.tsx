@@ -328,7 +328,7 @@ function ReviewRepliesTab() {
               onApprove={() => approve.mutate({ id: r.id })}
               onSkip={() => skip.mutate({ id: r.id })}
               onMarkPosted={() => markPosted.mutate({ id: r.id })}
-              onSaveDraft={(draftReply) => updateDraft.mutate({ id: r.id, draftReply })}
+              onSaveDraft={(draftReply) => updateDraft.mutateAsync({ id: r.id, draftReply })}
               busy={busy}
             />
           ))}
@@ -341,7 +341,7 @@ function ReviewRepliesTab() {
 function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }: {
   reply: ReplyRow;
   onApprove: () => void; onSkip: () => void; onMarkPosted: () => void;
-  onSaveDraft: (text: string) => void; busy: boolean;
+  onSaveDraft: (text: string) => Promise<unknown>; busy: boolean;
 }) {
   // iOS-PWA-safe two-tap confirm (window.confirm is suppressed in the PWA).
   const [confirming, setConfirming] = useState<"approve" | "skip" | "posted" | null>(null);
@@ -373,7 +373,13 @@ function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }
           />
           <div className="flex items-center gap-2">
             <button
-              onClick={() => { if (editText.trim()) { onSaveDraft(editText.trim()); setEditText(null); } }}
+              onClick={() => {
+                if (!editText.trim()) return;
+                // Close the editor only AFTER the save lands — a failed save
+                // keeps the operator's typed text on screen (the error shows
+                // in the banner above) instead of silently discarding it.
+                onSaveDraft(editText.trim()).then(() => setEditText(null)).catch(() => {});
+              }}
               disabled={busy || !editText.trim()}
               className="px-2 py-1 text-[10px] font-semibold rounded border text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
             >
