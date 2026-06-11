@@ -238,8 +238,8 @@ function Router() {
             <Route path={"/contact"} component={Contact} />
             <Route path={"/about"} component={About} />
             {/* Admin dashboard */}
-            <Route path={"/admin"} component={Admin} />
             <Route path={"/admin/content"}>{() => <Redirect to="/admin?tab=content" />}</Route>
+            <Route path={"/admin"} component={Admin} />
             <Route path={"/admin/ig-studio"} component={AdminIgCarouselStudio} />
             <Route path={"/admin/reel-studio"} component={AdminFacelessReelStudio} />
             {/* City-specific landing pages for local SEO */}
