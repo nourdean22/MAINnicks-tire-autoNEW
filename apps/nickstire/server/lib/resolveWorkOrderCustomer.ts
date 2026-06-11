@@ -18,7 +18,7 @@ import { phoneRawDigits } from "./phone";
  * Self-contained (loads its own db + schema) so any send path can call it with
  * just the work order's customer_id.
  */
-export async function resolveWorkOrderCustomer(customerId: string | null | undefined) {
+export async function resolveWorkOrderCustomer(customerId: number | null | undefined) {
   if (!customerId) return null;
 
   const { getDb } = await import("../db");
@@ -26,26 +26,8 @@ export async function resolveWorkOrderCustomer(customerId: string | null | undef
   const db = await getDb();
   if (!db) return null;
 
-  // 1. Numeric customers.id (the common case — resolved at WO-write time).
-  const numeric = parseInt(customerId, 10);
-  if (!isNaN(numeric)) {
-    const [byId] = await db.select().from(customers).where(eq(customers.id, numeric)).limit(1);
-    if (byId) return byId;
-  }
-
-  // 2. Phone fallback — AI-chat / walk-in WOs store a raw phone string. A
-  //    10-digit phone also parses as an int above, but no real customers.id is
-  //    that large, so the id lookup misses and we land here. "WALK-IN" yields
-  //    no digits and is correctly left unresolved.
-  const phone10 = phoneRawDigits(customerId);
-  if (phone10.length === 10) {
-    const [byPhone] = await db
-      .select()
-      .from(customers)
-      .where(sql`RIGHT(REGEXP_REPLACE(${customers.phone}, '[^0-9]', ''), 10) = ${phone10}`)
-      .limit(1);
-    if (byPhone) return byPhone;
-  }
+  const [byId] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+  if (byId) return byId;
 
   return null;
 }

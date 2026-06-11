@@ -113,7 +113,7 @@ export async function logTransition(
 
 // ─── Create work order ──────────────────────────────
 export async function createWorkOrder(params: {
-  customerId: string;
+  customerId: number | null;
   vehicleInfo?: string;
   vehicleYear?: number;
   vehicleMake?: string;
@@ -161,12 +161,12 @@ export async function createWorkOrder(params: {
   // Sync to Google Sheets (fire-and-forget)
   try {
     // Resolve customer name from DB (params.customerId is an ID, not a name)
-    let customerName = params.customerId;
+    let customerName = params.customerId ? String(params.customerId) : "Walk-in";
     try {
       const { db: db2, customers: custTable } = await getDbAndSchema();
       const custRow = await db2.select({ firstName: custTable.firstName, lastName: custTable.lastName })
-        .from(custTable).where(eq(custTable.id, parseInt(params.customerId, 10))).limit(1);
-      if (custRow[0]) customerName = [custRow[0].firstName, custRow[0].lastName].filter(Boolean).join(" ") || params.customerId;
+        .from(custTable).where(eq(custTable.id, params.customerId as number)).limit(1);
+      if (custRow[0]) customerName = [custRow[0].firstName, custRow[0].lastName].filter(Boolean).join(" ") || String(params.customerId);
     } catch (e) { log.warn("[services/workOrderService] operation failed:", e); }
     const { syncWorkOrderToSheet } = await import("../sheets-sync");
     syncWorkOrderToSheet({
@@ -749,7 +749,7 @@ export async function getPendingParts(): Promise<any[]> {
 }
 
 // ─── Declined work history for a customer ────────────
-export async function getDeclinedWorkHistory(customerId: string): Promise<any[]> {
+export async function getDeclinedWorkHistory(customerId: number): Promise<any[]> {
   const { db, workOrders } = await getDbAndSchema();
 
   const pastOrders = await db.select({

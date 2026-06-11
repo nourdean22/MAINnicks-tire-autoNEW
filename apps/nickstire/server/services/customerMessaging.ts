@@ -86,8 +86,7 @@ export async function generateStatusMessage(params: {
   let customerName = "there";
   let customerPhone = "";
   try {
-    // wave-182: resolve numeric-id OR phone-keyed walk-in customer_id so status
-    // messages reach AI-chat / walk-in customers, not just numeric-id ones.
+    // Post-migration 0070: customerId is now int|null — direct lookup
     const { resolveWorkOrderCustomer } = await import("../lib/resolveWorkOrderCustomer");
     const cust = await resolveWorkOrderCustomer(wo.customerId);
     if (cust) {
@@ -119,7 +118,7 @@ export async function generateStatusMessage(params: {
 // ─── Log a sent/suggested message ───────────────────
 export async function logStatusMessage(params: {
   workOrderId: string;
-  customerId?: string;
+  customerId?: number | null;
   trigger: string;
   channel: string;
   recipient: string;
@@ -159,34 +158,18 @@ export async function getTrackingInfo(orderNumber: string, phone: string) {
   if (!wo) return null;
 
   // Verify the requester's phone matches this work order — FAIL CLOSED.
-  // SECURITY (code-underneath audit): walk-in / AI-chat WOs store a NON-numeric
-  // `customer_id` (a phone string or the "WALK-IN" sentinel). The old check ran
-  // ONLY inside `if (!isNaN(custId))`, so a non-numeric id skipped verification
-  // entirely and returned the status/vehicle/service list to anyone with the
-  // (low-entropy) order number — an IDOR / PII leak. Now every path must yield a
-  // phone match or we return null.
+  // After migration 0070, customer_id is a numeric int or NULL.
   const normalize = (p: string) => (p || "").replace(/\D/g, "").slice(-10);
   const provided = normalize(phone);
   if (provided.length < 10) return null; // no usable phone supplied -> deny
   let verified = false;
   try {
-    const custId = parseInt(wo.customerId, 10);
-    if (!isNaN(custId)) {
-      const [cust] = await db.select().from(customers).where(eq(customers.id, custId));
+    if (wo.customerId != null) {
+      const [cust] = await db.select().from(customers).where(eq(customers.id, wo.customerId));
       if (cust && normalize(cust.phone) === provided) verified = true;
     }
-    // ALSO accept when customer_id itself holds the phone. Walk-in / AI-chat WOs
-    // store a raw phone string (which parseInt happily turns into a non-existent
-    // numeric "id" — so the branch above MISSES it and would wrongly deny the
-    // customer their own tracking) or the literal "WALK-IN" sentinel. Matching
-    // the caller's phone against customer_id covers the phone case and still
-    // denies "WALK-IN" (no digits -> empty -> never equals a 10-digit phone).
-    if (!verified && normalize(wo.customerId) === provided) {
-      verified = true;
-    }
+    // null customerId = walk-in with no linked customer — cannot verify by phone
   } catch (err) {
-    // wave-116 — was a silent `catch (_) { return null }`. A transient DB error
-    // looked identical to "phone doesn't match" and suppressed the pickup SMS.
     log.warn("Phone-to-customer verification failed", {
       workOrderId: wo.id,
       error: err instanceof Error ? err.message : String(err),
