@@ -429,6 +429,8 @@ export const taskRouter = router({
         // children · this flag carries the operator's yes. False or
         // undefined preserves the legacy behavior (parent-only).
         cascadeChildren: z.boolean().optional(),
+        completionNote: z.string().nullable().optional(),
+        outcomeScore: z.number().int().min(1).max(100).nullable().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -437,6 +439,8 @@ export const taskRouter = router({
           id: input.id,
           action: input.action,
           cascadeChildren: input.cascadeChildren,
+          completionNote: input.completionNote,
+          outcomeScore: input.outcomeScore,
         });
       } catch (err) {
         if (err instanceof ServiceError) {

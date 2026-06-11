@@ -1,3 +1,23 @@
+---
+clarity-gate-version: 2.1
+processed-date: 2026-06-11
+processed-by: Antigravity + Nour
+clarity-status: CLEAR
+hitl-status: REVIEWED
+hitl-pending-count: 0
+points-passed: 1-9
+document-sha256: 9e09f2ec99d6a926cc41ea00dc02c5bf155b3ec561e5db233cefa2722b926119
+hitl-claims:
+  - id: claim-backup-tables-exist
+    text: "The following 10 temporary tables currently exist in the live TiDB database instance."
+    value: "10 tables exist"
+    source: "Database audit via mysql2 connection"
+    location: "DB_BACKUPS_CLEANUP.md#L13"
+    round: B
+    confirmed-by: Nour
+    confirmed-date: 2026-06-11
+---
+
 # DB Backup Tables Cleanup Runbook
 
 This guide documents the temporary backup tables created during the database deduplication process on `2026-06-03` in the TiDB instance and outlines the procedure for dropping them after receiving explicit owner approval.
@@ -61,3 +81,17 @@ Verify that all tables were dropped successfully by running:
 SHOW TABLES LIKE '_bak_%_20260603';
 ```
 *(This query should return 0 rows.)*
+
+---
+
+## HITL Verification Record
+
+### Round A: Derived Data Confirmation
+
+### Round B: True HITL Verification
+| # | Claim | Status | Verified By | Date |
+|---|-------|--------|-------------|------|
+| 1 | The following 10 temporary tables currently exist in the live TiDB database instance | ✓ Confirmed | Nour | 2026-06-11 |
+
+<!-- CLARITY_GATE_END -->
+Clarity Gate: CLEAR | REVIEWED

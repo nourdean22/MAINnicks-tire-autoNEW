@@ -112,6 +112,20 @@ describe("taskUpdateSchema · task.update call-site payloads", () => {
     expect(r.status).toBe("WAITING");
     expect((r as Record<string, unknown>).snoozedUntil).toBeDefined();
   });
+
+  it("accepts completionNote and outcomeScore", () => {
+    const r = taskUpdateSchema.parse({
+      completionNote: "Finished successfully",
+      outcomeScore: 85,
+    });
+    expect(r.completionNote).toBe("Finished successfully");
+    expect(r.outcomeScore).toBe(85);
+  });
+
+  it("rejects invalid outcomeScore", () => {
+    expect(() => taskUpdateSchema.parse({ outcomeScore: 0 })).toThrow();
+    expect(() => taskUpdateSchema.parse({ outcomeScore: 101 })).toThrow();
+  });
 });
 
 // ───────────────── task.goalsCreate · createGoalSchema ──────────────────

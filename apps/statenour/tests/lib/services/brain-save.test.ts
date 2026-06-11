@@ -206,4 +206,75 @@ describe("saveToBrain", () => {
     expect(result.summary).toContain("Saved as user_save");
     expect(result.summary).toMatch(/…$/);
   });
+
+  it("creates a new memory even when embedding retrieval fails", async () => {
+    vi.mocked(getEmbedding).mockRejectedValueOnce(new Error("Embedding API offline"));
+
+    const result = await saveToBrain({
+      content: "I decided to launch the Cleveland tire promotion in May",
+    });
+
+    expect(result.id).toBe("bm-123");
+    expect(result.category).toBe("decision");
+    expect(mocks.brainMemory.create).toHaveBeenCalled();
+    expect(mocks.vectorEmbedding.create).not.toHaveBeenCalled();
+  });
+
+  it("falls back to JS cosine similarity when pgvector query throws an error", async () => {
+    mocks.queryRawUnsafe.mockRejectedValueOnce(new Error("pgvector database connection timeout"));
+    mocks.brainMemory.findMany.mockResolvedValue([
+      { id: "bm-fallback", key: "decision_fallback", content: "Fallback decision content" }
+    ]);
+    mocks.vectorEmbedding.findMany.mockResolvedValue([
+      { sourceId: "bm-fallback", embedding: JSON.stringify([0.1, 0.2, 0.3]) }
+    ]);
+
+    const result = await saveToBrain({
+      content: "I decided to launch the Cleveland tire promotion in May",
+    });
+
+    expect(result.id).toBe("bm-fallback");
+    expect(result.key).toBe("decision_fallback");
+    expect(mocks.brainMemory.update).toHaveBeenCalled();
+    expect(mocks.brainMemory.create).not.toHaveBeenCalled();
+  });
+
+  it("skips malformed JSON embeddings during JS cosine similarity fallback", async () => {
+    pgvectorMock.isPgvectorAvailable.mockResolvedValue(false);
+    mocks.brainMemory.findMany.mockResolvedValue([
+      { id: "bm-malformed", key: "decision_malformed", content: "Malformed embedding content" },
+      { id: "bm-good", key: "decision_good", content: "Good embedding content" }
+    ]);
+    mocks.vectorEmbedding.findMany.mockResolvedValue([
+      { sourceId: "bm-malformed", embedding: "{invalid-json}" },
+      { sourceId: "bm-good", embedding: JSON.stringify([0.1, 0.2, 0.3]) }
+    ]);
+
+    const result = await saveToBrain({
+      content: "Good embedding content",
+    });
+
+    expect(result.id).toBe("bm-good");
+    expect(result.key).toBe("decision_good");
+    expect(mocks.brainMemory.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "bm-good" },
+      })
+    );
+  });
+
+  it("does not deduplicate when there is a category mismatch", async () => {
+    pgvectorMock.isPgvectorAvailable.mockResolvedValue(false);
+    mocks.brainMemory.findMany.mockResolvedValue([]); // Category decision has no records
+    
+    const result = await saveToBrain({
+      content: "I decided to launch the Cleveland tire promotion in May",
+      category: "decision",
+    });
+
+    expect(result.id).toBe("bm-123");
+    expect(mocks.brainMemory.create).toHaveBeenCalled();
+    expect(mocks.brainMemory.update).not.toHaveBeenCalled();
+  });
 });
+
