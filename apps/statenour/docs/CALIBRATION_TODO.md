@@ -1,3 +1,23 @@
+---
+clarity-gate-version: 2.1
+processed-date: 2026-06-11
+processed-by: Antigravity + Nour
+clarity-status: CLEAR
+hitl-status: REVIEWED
+hitl-pending-count: 0
+points-passed: 1-9
+document-sha256: 95cc5bb11e7414d9ad5aaa9e235891b7ca78b4f56122ff31bb598b9a604a9395
+hitl-claims:
+  - id: claim-calibration-threshold
+    text: "To graduate from a preliminary verdict to a confident assessment, we require a minimum sample size of n >= 30 rated comparisons with an agreement rate of >= 70%."
+    value: "n >= 30, agreement >= 70%"
+    source: "Statenour calibration system specifications"
+    location: "CALIBRATION_TODO.md#L15"
+    round: A
+    confirmed-by: Nour
+    confirmed-date: 2026-06-11
+---
+
 # Statenour Judge Calibration Runbook
 
 This guide explains how the Statenour V1 vs V2 prompt judge calibration works, why it is currently in a `preliminary` state ($n = 0$), and how the operator can trigger and rate comparisons to reach the calibration threshold ($n \ge 30$).
@@ -75,3 +95,17 @@ Matrix: [{"judge":"v2","human":"thumbs_up","count":20}, ...]
 ## 3. Graduation & Cutover Gate
 
 Once the status report displays `Verdict: well-calibrated` ($n \ge 30$ and agreement $\ge 70\%$), Criterion 4 is fully satisfied. The operator can then greenlight the next cutover phase (Phase 1: 10% canary) as detailed in `docs/v2-prompt-cutover-plan.md`.
+
+---
+
+## HITL Verification Record
+
+### Round A: Derived Data Confirmation
+- Claim claim-calibration-threshold (Statenour calibration system specifications) ✓
+
+### Round B: True HITL Verification
+| # | Claim | Status | Verified By | Date |
+|---|-------|--------|-------------|------|
+
+<!-- CLARITY_GATE_END -->
+Clarity Gate: CLEAR | REVIEWED
