@@ -30,7 +30,6 @@ import {
   TIME_OF_DAY_VOICE,
   MODE_PERSONAS,
   TRUTH_RULE_NEVER_FABRICATE,
-  BROADEN_AND_SUGGEST,
 } from "@/lib/ai/prompt/policy/operator-rules";
 import { today } from "@/lib/utils/datetime";
 
@@ -124,14 +123,15 @@ export function renderToolsCatalog(): string[] {
   const p: string[] = [];
 
   p.push(`## Tools — call them, don't describe them`);
-  p.push(`113 tools attached. Categorized so you can find the right one fast. Never narrate an action you didn't fire.`);
-  // v10.0.173 · categorized tool catalog. 113 tools grouped by intent
-  // so the model matches the user ask to the right family fast.
-  p.push(`READ (state queries):`);
-  p.push(`  getMissions · getTasks · getCommitments · getDriftAlerts · getHabitStreaks`);
-  p.push(`  getDashboardSummary · getShopSnapshot · getMasteryScores · getProjections`);
-  p.push(`  getRevenuePace · getRevenueAging · getCustomerLTV · getRevenueStats · getReviewStats · getTopServices`);
-  p.push(`  getBodyData · getFinancialSnapshot · getCameraIntelligence · getAttentionAlerts`);
+  p.push(`Tools are attached per-turn with full schemas. The categories below route you to the right family fast. Never narrate an action you didn't fire.`);
+  // 2026-06-10 prompt-budget trim · the READ + UTILITY name enumerations
+  // were pure duplication of the schemas the AI SDK already sends per
+  // turn — and the old list advertised tools that don't exist
+  // (getRevenuePace/getRevenueAging/getCustomerLTV never built;
+  // respondToLead retired Apr 18) plus a false "113 tools attached"
+  // count. WRITE/PLANNING/MEMORY lists stay: they anchor the
+  // anti-fabrication rules below.
+  p.push(`READ (state queries) + UTILITY (charts · image-gen · code/math · analysis): attached with full schemas — match the ask to the schema descriptions, not a memorized name list.`);
   p.push(``);
   p.push(`WRITE — tasks/projects:`);
   p.push(`  createTask · addTasksToProject · completeTask · setTaskPriority`);
@@ -141,7 +141,7 @@ export function renderToolsCatalog(): string[] {
   p.push(`  createCommitment · updateCommitment · updateMasteryScore · setMit · setWeeklyTargets`);
   p.push(``);
   p.push(`WRITE — leads/customers/comms:`);
-  p.push(`  scheduleFollowUp · respondToLead · triageStaleLead · createQuickQuote`);
+  p.push(`  scheduleFollowUp · triageStaleLead · createQuickQuote`);
   p.push(`  composeEmail · sendTelegram · runDeviceCommand · resolveAlert`);
   p.push(``);
   p.push(`PLANNING (operator rituals):`);
@@ -155,20 +155,17 @@ export function renderToolsCatalog(): string[] {
   p.push(`CROSS-RING (Nick's Tire business):`);
   p.push(`  queryNickstire · compareLiveRevenue`);
   p.push(``);
-  p.push(`STRATEGIC INTELLIGENCE:`);
-  p.push(`  searchGreeneLaws · arsenalResearch · arsenalWebSearch · arsenalFindLeads · compareCompetitors · searchBuildYourOwnX`);
-  p.push(`  arsenalPreTaskFanout · arsenalDeepResearch · arsenalMultiAgent · arsenalGmailInbox · arsenalGmailReadThread`);
-  p.push(``);
-  // v10.0.389 · research-tool selection guidance.
+  // v10.0.389 · research-tool selection guidance. (2026-06-10: the
+  // separate STRATEGIC INTELLIGENCE name list was merged in here —
+  // 5 of its 11 names were already listed below; cost tiers are the
+  // info the schemas DON'T carry, so this block stays.)
   p.push(`RESEARCH TOOL SELECTION (pick the cheapest fit):`);
   p.push(`  · One-shot fact: arsenalWebSearch (cheap · 1 Perplexity call)`);
   p.push(`  · Hard internal question (decision/strategy/trade-off): arsenalPreTaskFanout (medium · 3 lenses · research/risk/plan)`);
   p.push(`  · Task that decomposes naturally (compare X/Y/Z, audit across channels): arsenalMultiAgent (medium · max 8 sub-agents)`);
   p.push(`  · Due diligence / lit review / cross-source synthesis: arsenalDeepResearch (expensive · 3-5 Perplexity + 10-15s · use sparingly)`);
   p.push(`  · Power dynamics / human nature / strategic principle: searchGreeneLaws (free · 189 laws indexed)`);
-  p.push(``);
-  p.push(`UTILITY:`);
-  p.push(`  generateImage · renderInlineChart · summarize · analyzeSentiment · extractData · solveMath · runCode · analyzeImage · writeCreative · generateSQL · generateCode`);
+  p.push(`  Also strategic: arsenalResearch · arsenalFindLeads · compareCompetitors · searchBuildYourOwnX · arsenalGmailInbox · arsenalGmailReadThread`);
   p.push(``);
   // v10.0.172 · explicit guidance on bulk task creation.
   p.push(`BULK TASKS — when Nour asks you to add MULTIPLE tasks to a project ("add these tasks to Bay 5", "break this into 5 steps", "create the task list for X"), USE addTasksToProject ONCE with the full array. Do NOT call createTask in a loop. Do NOT describe the tasks in prose. Fire the tool. If you don't have the missionId, look it up via getMissions or findCustomer — never guess.`);
@@ -181,10 +178,11 @@ export function renderToolsCatalog(): string[] {
   p.push(CONFIDENCE_CUES);
   p.push(TIME_OF_DAY_VOICE);
   p.push(MODE_PERSONAS);
-  // v-fix 2026-06-02: BROADEN_AND_SUGGEST shipped in operator-rules + v2's
-  // getOperatorPolicyLines, but the v1 path never pushed it — Nick never
-  // received the broaden+suggest instruction. Push it for v1/v2 parity.
-  p.push(BROADEN_AND_SUGGEST);
+  // 2026-06-10: BROADEN_AND_SUGGEST moved to system-prompt.ts as the
+  // FALLBACK when no ANTICIPATE_AND_ELEVATE directive fires —
+  // behavior-directive.ts documents the directive as its replacement,
+  // yet v1 pushed BOTH every standard turn (same instruction twice,
+  // ~740 chars). Exactly one of the two now loads per turn.
 
   p.push(`NL shortcuts (server-intercepted — don't respond to these): image generation ("draw X"), decision logging ("log this decision: X"), memory capture ("remember that X"), brain dumps ("journal: X").`);
   // Apr 28 v6 · COLD-MEMORY BIAS hard rule.

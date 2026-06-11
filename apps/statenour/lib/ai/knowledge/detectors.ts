@@ -145,9 +145,6 @@ export function getBusinessKnowledge(
     `### DIFFERENTIATION (vs chains, dealers, other indies)\n${SHOP_DIFFERENTIATION}`,
     `### CUSTOMER PROFILE — who walks in\n${CUSTOMER_PROFILE}`,
     `### BRAND VOICE — exact tone calibration\n${BRAND_VOICE}`,
-    `### SMS VOICE — outbound text-message tone\n${SMS_VOICE}`,
-    `### EQUIPMENT AUTHORITY (concrete proof, not bragging)\n${EQUIPMENT_AUTHORITY}`,
-    `### CLEVELAND IDENTITY (local vocab + landmarks)\n${CLEVELAND_IDENTITY}`,
     `### REVENUE FUNNEL — where money lives + dies\n${REVENUE_FUNNEL}`,
     `### HARD RULES (Nour's standing directives)\n${HARD_RULES}`,
     `### SUCCESS / FAILURE PROFILE — what good + bad days look like\n${SUCCESS_PROFILE}`,
@@ -186,6 +183,18 @@ export function getBusinessKnowledge(
   // performance / scoring / 90-day / boost / etc.
 
   const isContentMode = detectContentIntent(userMessage);
+
+  // 2026-06-10 prompt-budget trim · SMS_VOICE / EQUIPMENT_AUTHORITY /
+  // CLEVELAND_IDENTITY are content-creation reference cards, not chat
+  // knowledge — they loaded on EVERY business+ chat (~3.7kc of the
+  // 60k budget). SMS_VOICE keeps its OWN regex gate (not just content
+  // mode) because detectContentIntent's keyword list has no sms/text
+  // entries — an SMS-drafting ask outside content mode still gets the
+  // tone card. The other two ride the content-mode essentials below.
+  if (isContentMode || /\b(sms|text(s|ing|ed)?|win.?back)\b/i.test(userMessage ?? "")) {
+    blocks.push(`### SMS VOICE — outbound text-message tone\n${SMS_VOICE}`);
+  }
+
   if (isContentMode) {
     // ── ESSENTIALS — leanest possible for one strong post ─────────
     // Apr 28 v3 · Dropped from this tier (moved to DEEP):
@@ -208,6 +217,12 @@ export function getBusinessKnowledge(
       `### DAILY OUTPUT TEMPLATE (14-section format Nick uses for every post)\n${DAILY_OUTPUT_TEMPLATE}`,
       `### NEVER-GENERIC LIST (banned phrases + stronger replacements)\n${NEVER_GENERIC}`,
       `### 20 FINAL MASTER RULES + The Final Standard\n${FINAL_MASTER_RULES}`,
+      // 2026-06-10 · moved here from the always-on foundation — both
+      // exist to feed content generation (equipment citations in posts;
+      // image-anchor rules + rotation vocab). Cross-mode local facts
+      // (potholes, Dead Man's Curve, salt season) stay in CUSTOMER_PROFILE.
+      `### EQUIPMENT AUTHORITY (concrete proof, not bragging)\n${EQUIPMENT_AUTHORITY}`,
+      `### CLEVELAND IDENTITY (local vocab + landmarks)\n${CLEVELAND_IDENTITY}`,
     );
 
     // ── FORMAT-SPECIFIC engines — conditional inject ──────────────

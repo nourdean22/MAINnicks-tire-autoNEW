@@ -660,7 +660,13 @@ export async function buildSystemPromptUncached(
     getKnowledgeDigest().catch((): string => ""),
   ]);
 
-  const masteryScores = characterSheet.map(statLine);
+  // 2026-06-10 · the Mastery one-liner was the only UNCAPPED data line
+  // in the prompt (~33-45 stats ≈ 1.7kc). computeCharacterSheet sorts
+  // strongest-first, so the top 15 are the stats Nick actually cites.
+  const masteryScores = characterSheet.slice(0, 15).map(statLine);
+  if (characterSheet.length > 15) {
+    masteryScores.push(`+${characterSheet.length - 15} more (full sheet on /stats)`);
+  }
 
   // Compute habit rates (kept for legacy parity — habit-rate prompt
   // section retired, but the map is referenced by /system/prompt
@@ -703,6 +709,15 @@ export async function buildSystemPromptUncached(
   // after rules so the model knows HOW to answer, not just WHAT.
   const intensity = resolveIntensity();
   const directive = getBehaviorDirective(userMessage, intensity);
+  // 2026-06-10 · BROADEN_AND_SUGGEST is the directive's documented
+  // predecessor (behavior-directive.ts: "Replaces the
+  // BROADEN_AND_SUGGEST operator-rule") — v1 pushed BOTH every
+  // standard turn. Now exactly one loads: the directive when it
+  // fires, the older rule as fallback.
+  if (!directive) {
+    const { BROADEN_AND_SUGGEST } = await import("@/lib/ai/prompt/policy/operator-rules");
+    p.push(BROADEN_AND_SUGGEST);
+  }
   if (directive) {
     p.push(`## Behavior directive (intensity: ${intensity.toLowerCase()})`);
     p.push(directive);
@@ -988,10 +1003,14 @@ export async function buildSystemPromptUncached(
   // ═══════════════════════════════════════════════════════════════
   p.push(...renderRecentBrainDumps({ recentBrainDumps }));
 
-  // Knowledge digest — capped to 2500ch. Skip on core tier.
+  // Knowledge digest — capped to 1000ch (2026-06-10, was 2500: the
+  // surviving window was byte-verified as a stale 2026-03-25 dossier
+  // copy of identity/business facts the static sections already
+  // state; the corpus stays reachable via searchColdMemory). Skip on
+  // core tier.
   if (knowledgeDigest && tier !== "core") {
     p.push(`# KNOWLEDGE BASE (compiled — call searchColdMemory for more)`);
-    p.push(cap(knowledgeDigest, 2500));
+    p.push(cap(knowledgeDigest, 1000));
     p.push(``);
   }
 
@@ -1004,9 +1023,13 @@ export async function buildSystemPromptUncached(
     }
   }
 
-  const learnedKnowledge = await getLearnedKnowledge();
+  // 2026-06-10 · 20 facts/1500 → 10 facts/800: these are LLM-auto-
+  // extracted one-liners (the lowest-provenance memory tier in the
+  // prompt) overlapping the curated hot rules; fetching 10 keeps the
+  // block ending on a fact boundary instead of cap-truncating.
+  const learnedKnowledge = await getLearnedKnowledge(10);
   if (learnedKnowledge) {
-    p.push(cap(learnedKnowledge, 1500));
+    p.push(cap(learnedKnowledge, 800));
     p.push(``);
   }
 
@@ -1091,10 +1114,12 @@ export async function buildSystemPromptUncached(
   // Apr 28 · Engine caps cut ~30% across the board. Net savings: ~6kc
   // on full-tier prompts.
 
-  // Core (always)
-  if (reflections) { p.push(cap(reflections, 800)); p.push(``); }
-  if (decisionPatterns) { p.push(cap(decisionPatterns, 800)); p.push(``); }
-  if (wisdom) { p.push(cap(wisdom, 700)); p.push(``); }
+  // Core (always) · 2026-06-10 — reflections/decisionPatterns/wisdom
+  // caps tightened (800/800/700 → 600/550/550); all three sat AT their
+  // caps truncating mid-sentence, so the tail chars carried fragments.
+  if (reflections) { p.push(cap(reflections, 600)); p.push(``); }
+  if (decisionPatterns) { p.push(cap(decisionPatterns, 550)); p.push(``); }
+  if (wisdom) { p.push(cap(wisdom, 550)); p.push(``); }
   // v10.0.414 · violations sit RIGHT AFTER wisdom · positioning matters.
   if (violations) { p.push(cap(violations, 600)); p.push(``); }
   // v10.0.434 · top 3 relevant skills · 700-char cap.

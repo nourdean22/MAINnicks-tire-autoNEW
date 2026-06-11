@@ -67,7 +67,7 @@ export const CONTENT_GENERATION_MODE = [
   "",
   "5. LENGTH: educational and PAS posts MUST be 300+ characters. Data-confirmed: longer detailed captions outperform short ones for this audience. Anything under 80 characters is rejected unless it's a hook-only image overlay.",
   "",
-  "6. CLEVELAND ANCHOR: include ONE local element naturally — Euclid Ave construction (PIR 3908 pipeline through May 2026), Dead Man's Curve (I-90/I-271 split), pothole season, salt corrosion, Lake Effect snow, the 216, Forest City. Never more than ONE per post. Never tourist-postcard vibes.",
+  "6. CLEVELAND ANCHOR: include ONE local element naturally — Dead Man's Curve (I-90/I-271 split), pothole season, salt corrosion, Lake Effect snow, the 216, Forest City. Never more than ONE per post. Never tourist-postcard vibes.",
   "",
   "7. SEASONAL ALIGNMENT (current month dictates push):",
   "   - SPRING (Apr-May): push BRAKES (winter wear shows now), ALIGNMENT (pothole damage), suspension. AVOID winter tires, snow prep.",
@@ -83,7 +83,7 @@ export const CONTENT_GENERATION_MODE = [
   "",
   "11. EMOJIS: optional but sparing. Maximum 1-2 per post. Approved set: 🔧 🛞 ⚠️ ❄️ 🌧️ 🚗 🛠️. NEVER 🚘✅👍🤝 (corporate/cheesy).",
   "",
-  "12. NEVER fabricate review counts, customer testimonials, breakdown stats, or any specific number. ALL stats must be either: (a) verifiable from this knowledge file (4.9 stars / 1,683+ reviews / 50+ used tires per day / $60 / 36-month warranty / etc.), or (b) sourced (AAA / NHTSA / EPA / NOAA / Hunter alignment data), or (c) honestly hedged ('typical', 'most', 'varies but direction holds').",
+  "12. NEVER fabricate review counts, customer testimonials, breakdown stats, or any specific number. ALL stats must be either: (a) verifiable from this knowledge file (4.9 stars / 1,700+ reviews / 50+ used tires per day / $60 / 36-month warranty / etc.), or (b) sourced (AAA / NHTSA / EPA / NOAA / Hunter alignment data), or (c) honestly hedged ('typical', 'most', 'varies but direction holds').",
   "",
   "13. SIGN-OFF: end Instagram captions with the shop card on its own lines — 📍 17625 Euclid Ave, Cleveland OH · 📞 (216) 862-0005 · 🌐 nickstire.org · 🕒 Mon-Sat 8AM-6PM | Sun 9AM-4PM",
   "",
@@ -146,7 +146,7 @@ export const SHOP_MODEL = [
   "PRICING: avg ticket ~$150-250 (per ALG data). 36-month warranty on most repairs. $50 inspection fee for deep inspections — credits TOWARD the repair if customer accepts.",
   "PAYMENT TYPES: Cash, Visa, SNAP, AFTERPAY, Acima, Snap Finance, Koalafi, American First Finance. $0 down financing on big-ticket repairs.",
   "Tire ordering vendor: Gateway Tire (DK Tire B2B) — authenticated scraping integration. [LANDSCAPE]",
-  "Bays: 4 service bays. Authority strip data points (verified Apr 26): 30+ years experience, 4 bays, Snap-on OBD-II diagnostics, 12-month warranty on parts/labor (vs 36-month on most repairs — context matters). [LANDSCAPE v1.5]",
+  "Bays: 4 service bays. Snap-on OBD-II diagnostics. 30+ years combined experience. [LANDSCAPE v1.5]",
 ].join("\n");
 
 // ── PRICING POLICY — what's public, what stays private ────────────
@@ -211,8 +211,8 @@ export const SUCCESS_PROFILE = [
 export const SHOP_DIFFERENTIATION = [
   "vs national chains (Discount Tire, Pep Boys, Mavis): they do tires only and send you elsewhere; we do tires + brakes + alignment + inspection in one visit. Independent + family-owned, the mechanic who quotes you is the same one who turns the wrench. No commission-pumping for unnecessary work.",
   "vs dealer service: same-day or next-day on most jobs (vs dealer 1-2 week wait). Half the price. FCFS, no appointment needed.",
-  "vs other independent shops (incl. Moe Rabah on same Euclid Ave): 4.9 stars / 1,683+ reviews — highest in the area. The Pit Stop drive-up tire experience. Bilingual EN/AR.",
-  "FREE inspection rule: under 1 hour = FREE (this is a STRATEGY not charity — get the car on the lift, find the problem, present the solution, offer financing). $50 inspection fee for longer inspections, applied OFF the repair if customer accepts the work. Removes risk, converts more estimates.",
+  "vs other independent shops (incl. Moe Rabah on same Euclid Ave): 4.9 stars / 1,700+ reviews — highest in the area. The Pit Stop drive-up tire experience. Bilingual EN/AR.",
+  "FREE inspection under 1 hour (a STRATEGY not charity — car on the lift, find the problem, present the solution, offer financing; the $50 longer-inspection fee + repair credit mechanics live in BUSINESS MODEL).",
   "AI-powered systems no competitor can match (the website lets people skip the line, the chatbot diagnoses problems, lead scoring sorts intent).",
   "Cleveland pothole damage specialists — suspension and alignment volume means we see this every day.",
 ].join("\n");
@@ -221,9 +221,9 @@ export const SHOP_DIFFERENTIATION = [
 // Sources: [BLUEPRINT], [MARKETING]
 export const CUSTOMER_PROFILE = [
   "Target: practical, discerning Cleveland-area vehicle owner who values expertise, honesty, and a long-term relationship with a mechanic they can trust.",
-  "Geographic core: Euclid Ave corridor. Service area: Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Northeast Ohio. The shop has 168-foot frontage on Euclid Ave [MARKETING].",
+  "Geographic core: Euclid Ave corridor (service-area list lives in the OPS CARD). The shop has 168-foot frontage on Euclid Ave [MARKETING].",
   "Top customer pains (in priority order, from MARKETING + BLUEPRINT analysis):",
-  "  1. Pothole damage — alignment, struts, bent rims. Cleveland roads are atrocious. The I-90/I-271 split (locally 'Dead Man's Curve') and the active Euclid Ave PIR 3908 pipeline construction (through May 2026) are major sources of suspension damage.",
+  "  1. Pothole damage — alignment, struts, bent rims. Cleveland roads are atrocious. The I-90/I-271 split (locally 'Dead Man's Curve') is a major source of suspension damage.",
   "  2. Winter tire panic — first snowfall every year triggers a rush. PSI drops ~1 lb per 10°F.",
   "  3. TPMS warning lights — sensors have sealed lithium batteries (5-10 year lifespan). Cold weather doesn't create leaks; it exposes dead batteries on aging sensors. Customers think the light is broken; it's the electronics dying.",
   "  4. Salt corrosion on brake rotors and lines.",
@@ -441,7 +441,6 @@ export const EQUIPMENT_AUTHORITY = [
 export const CLEVELAND_IDENTITY = [
   "Cleveland nicknames to use naturally (rotate, don't repeat): The Land. The Cleve. The 216. Forest City. Sixth City.",
   "Local landmarks/shorthand: Dead Man's Curve (I-90/I-271 split — high-speed impact zone, debris). Euclid Ave corridor (the shop's street). I-90 / I-271 split. The Heights. Lake Erie horizon. Lorain-Carnegie bridge 'Guardians' (art deco statues, civic-pride visual metaphor for 'wheeled transportation protection').",
-  "Active local context (Apr 2026, expires May 2026): Enbridge Gas Ohio pipeline replacement project (PIR 3908) on Euclid Ave. Creates uneven road surfaces, metal plates, debris between East 91st and East 92nd. Use as 'proving ground' content angle.",
   "Cleveland weather levers: Lake Effect snow. PSI drops ~1 lb per 10°F. Salt season runs Nov-Mar. Pothole season peaks Mar-May. AC failure peaks first heat wave (Jun-Jul).",
   "Cultural touchpoints: Paczki Day (February). Severe Weather Awareness Week (March 15-21). Browns/Cavs/Guardians game days = local conversation hooks.",
   "ONE Cleveland anchor element per image, never multiple: wet pavement reflections, salt residue on car panels in winter, weathered industrial brick, Lake Erie horizon, Midwest overcast sky tone.",
@@ -471,7 +470,7 @@ export const FOUR_PILLARS = [
 // Source: [DNA] 2026-04-26 v1.1 reinforcement, [VISION] working principles
 export const HARD_RULES = [
   "Never assume — always verify (git, code, DB, logs). Anything in marketing copy MUST be true. 'Court-recognized expert witness' only if literally true. '0 customer breakdowns 2024 YTD' only if confirmed operationally.",
-  "REAL NUMBERS only — no fake counters, no fabricated reviews, no rounded-up stats. '4.9 stars / 1,683+ reviews' not 'thousands.' '$60 used tires / 50 per day' not 'affordable.' Source every cascade-cost stat to AAA / NHTSA / EPA / NOAA Cleveland or honestly hedge ('typical', 'most', 'varies but direction holds') [CONVERSION].",
+  "REAL NUMBERS only — no fake counters, no fabricated reviews, no rounded-up stats. '4.9 stars / 1,700+ reviews' not 'thousands.' '$60 used tires / 50 per day' not 'affordable.' Source every cascade-cost stat to AAA / NHTSA / EPA / NOAA Cleveland or honestly hedge ('typical', 'most', 'varies but direction holds') [CONVERSION].",
   "BANNED phrases that signal fake/cheesy auto-shop content: 'where the rubber meets the road,' 'we go the extra mile,' 'family-owned and operated since 19XX,' tire/wheel/brake puns ('tire-d of waiting?', 'you spin we win'), thumbs-up handshakes, 'Book Appointment' (it's 'Schedule Your Drop-Off').",
   "Power + control everywhere — every dial exposed in admin, every automation overridable, every piece of content editable from admin without a deploy where reasonable.",
   "Interesting data + clever ideas — boring = failure. Live counters, social-proof streams, weather-driven CTAs, geo-aware reviews.",
