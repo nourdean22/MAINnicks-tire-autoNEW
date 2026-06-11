@@ -10,8 +10,9 @@
  *   1. CORE/CHAT — just OPS_CARD (~700 chars). Casual "hey" messages.
  *   2. BUSINESS (default) — foundation only: model, voice, pricing,
  *      customer, differentiation, hard rules, seasonal playbook,
- *      revenue funnel, Cleveland identity, equipment authority,
- *      success profile. ~12kc. Plenty of room for memory + tools.
+ *      revenue funnel, success profile. ~8kc. (2026-06-10: Cleveland
+ *      identity + equipment authority + SMS voice moved to content
+ *      mode / the SMS gate — they are content reference cards.)
  *   3. CONTENT MODE — foundation + Master Content Engine v5.0
  *      essentials, plus opt-in DEEP block for strategy / planning
  *      questions. Capped near Venice's 65k system-prompt limit.
@@ -22,6 +23,7 @@
  * than skip the engine when it's needed.
  */
 
+import { detectContentIntentSync } from "@/lib/ai/content-intent";
 import {
   ALGORITHM_PRIORITIES,
   BRAND_VOICE,
@@ -99,9 +101,10 @@ import {
  */
 export function detectContentIntent(message: string | null | undefined): boolean {
   if (!message) return false;
-  // Lazy require so module load order stays clean
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { detectContentIntentSync } = require("../content-intent") as typeof import("../content-intent");
+  // 2026-06-10 · was a lazy require "so module load order stays clean"
+  // — content-intent.ts has ZERO imports (no cycle is possible), and
+  // CJS require of TS modules doesn't resolve under vitest, which made
+  // every real test of this path impossible. Static import is safe.
   return detectContentIntentSync(message).isContent;
 }
 
@@ -122,6 +125,16 @@ export function detectContentDeepIntent(message: string | null | undefined): boo
  * If userMessage is undefined, content mode defaults to false — safe
  * default that keeps the prompt under Venice's 65k limit.
  */
+/**
+ * SMS-drafting intent · its own detector because detectContentIntent's
+ * keyword list has no sms/text entries. Exported so the system-prompt
+ * CACHE KEY can include it — without that, the 300s prompt cache would
+ * serve a non-SMS prompt to an SMS ask (or vice versa) for up to 5min.
+ */
+export function detectSmsIntent(message: string | null | undefined): boolean {
+  return /\b(sms|text(s|ing|ed)?|win.?back)\b/i.test(message ?? "");
+}
+
 export function getBusinessKnowledge(
   tier: KnowledgeTier,
   userMessage?: string | null,
@@ -135,8 +148,8 @@ export function getBusinessKnowledge(
   if (tier === "core" || tier === "chat") return blocks.join("\n\n");
 
   // ═══ BUSINESS FOUNDATION — always loaded for business+ tier ═══
-  // ~12kc total. Identity, model, voice, pricing, customer, hard rules,
-  // funnel, equipment, Cleveland, success profile, seasonal playbook.
+  // ~8kc total. Identity, model, voice, pricing, customer, hard rules,
+  // funnel, success profile, seasonal playbook.
   blocks.push(
     `### THE FOUR PILLARS (operating compass)\n${FOUR_PILLARS}`,
     `### BUSINESS MODEL\n${SHOP_MODEL}`,
@@ -191,7 +204,7 @@ export function getBusinessKnowledge(
   // mode) because detectContentIntent's keyword list has no sms/text
   // entries — an SMS-drafting ask outside content mode still gets the
   // tone card. The other two ride the content-mode essentials below.
-  if (isContentMode || /\b(sms|text(s|ing|ed)?|win.?back)\b/i.test(userMessage ?? "")) {
+  if (isContentMode || detectSmsIntent(userMessage)) {
     blocks.push(`### SMS VOICE — outbound text-message tone\n${SMS_VOICE}`);
   }
 

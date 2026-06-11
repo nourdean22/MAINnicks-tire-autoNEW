@@ -486,8 +486,8 @@ export const SEASONAL_PLAYBOOKS = {
     "AVOID: anything about summer travel, AC service, top-down driving.",
   ].join(" "),
   spring: [
-    "PUSH (Apr-May): brake service (winter wear shows now). Alignment (pothole damage from active Euclid Ave construction + Dead Man's Curve). Suspension work (struts/shocks). Free 1-hour inspection special. Tire rotation + balance.",
-    "HOOKS that work: 'Pothole season is brutal — free alignment check.' 'One hit on the I-90 split can rob you of 10,000 miles' (0.20° toe misalignment = 25% tire life loss, per Hunter alignment data). 'Winter beat your brakes — let's check them.' 'First warm Saturday — get the car summer-ready.' 'The Euclid Ave construction is a proving ground for your suspension.'",
+    "PUSH (Apr-May): brake service (winter wear shows now). Alignment (pothole damage from Dead Man's Curve + spring pothole season). Suspension work (struts/shocks). Free 1-hour inspection special. Tire rotation + balance.",
+    "HOOKS that work: 'Pothole season is brutal — free alignment check.' 'One hit on the I-90 split can rob you of 10,000 miles' (0.20° toe misalignment = 25% tire life loss, per Hunter alignment data). 'Winter beat your brakes — let's check them.' 'First warm Saturday — get the car summer-ready.'",
     "DM keywords to use: ALIGN, SHAKE.",
     "AVOID: anything about winter tires, snow prep.",
   ].join(" "),

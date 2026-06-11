@@ -166,8 +166,13 @@ describe("loadTodaysSet yesterday-fallback (evening-build keying)", () => {
       (c) => (c[0] as { where: { category_key: { key: string } } }).where.category_key.key,
     );
     expect(keys[0]).toBe(`anticipated_${todayKey()}`);
-    expect(keys[1]).toMatch(/^anticipated_\d{4}-\d{2}-\d{2}$/);
-    expect(keys[1]).not.toBe(keys[0]);
+    // Pin the EXACT yesterday key (NY timezone) — a UTC or off-by-one
+    // regression in yesterdayKey() must fail here, not just produce
+    // "some other date".
+    const expectedYesterday = new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA", {
+      timeZone: "America/New_York",
+    });
+    expect(keys[1]).toBe(`anticipated_${expectedYesterday}`);
   });
 
   it("returns null when both today's and yesterday's rows are missing", async () => {
@@ -198,6 +203,23 @@ describe("precomputeAnswers", () => {
     expect(answers).toEqual(["good take", null]);
 
     mockAiChat.mockResolvedValue({ content: "   " });
+    expect(await precomputeAnswers([{ question: Q1, topic: null }])).toEqual([null]);
+  });
+
+  it("rejects the provider-failure sentinel — aiChat RETURNS it instead of throwing", async () => {
+    // lib/ai/provider.ts returns { content: "I'm having trouble
+    // connecting…", provider: "emergency" } on total chain failure;
+    // without the provider check this would be stored as the answer
+    // and injected into next-day chat as a "draft take".
+    mockAiChat.mockResolvedValue({
+      content:
+        "I'm having trouble connecting to my AI providers right now. Try again in a moment, or switch to a different mode.",
+      provider: "emergency",
+      model: "none",
+    });
+    expect(await precomputeAnswers([{ question: Q1, topic: null }])).toEqual([null]);
+
+    mockAiChat.mockResolvedValue({ content: "real take", provider: "none", model: "none" });
     expect(await precomputeAnswers([{ question: Q1, topic: null }])).toEqual([null]);
   });
 

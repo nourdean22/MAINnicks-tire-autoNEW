@@ -139,7 +139,7 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
 // ── Slice 4 · ANTICIPATED (v10.0.526 · Arc B F6 · NEW) ──────────────
 
 /**
- * Anticipated-question slice · surfaces "Tomorrow you'll probably ask:"
+ * Anticipated-question slice · surfaces "Today you'll probably ask:"
  * with the 3 predictions built last night by /api/cron/anticipate.
  *
  * The cron runs in mega-evening and writes BrainMemory(category=
@@ -161,7 +161,12 @@ export async function buildAnticipatedSlice(): Promise<MorningBriefSlice> {
     const set = await getTodaysAnticipated();
     if (!set || set.questions.length === 0) return emptySlice();
 
-    const lines: string[] = ["<b>Tomorrow you'll probably ask:</b>"];
+    // 2026-06-10 · "Tomorrow" → "Today": the set is built the EVENING
+    // before (mega-evening fan-out) predicting the NEXT day, and the
+    // brief reads it the next morning via the yesterday-fallback — so
+    // by the time the operator sees this header, the questions are
+    // about TODAY.
+    const lines: string[] = ["<b>Today you'll probably ask:</b>"];
     const payloadQs: Array<{ question: string; topic: string | null; hasAnswer: boolean }> = [];
     for (let i = 0; i < set.questions.length && i < 3; i++) {
       const q = set.questions[i]!;

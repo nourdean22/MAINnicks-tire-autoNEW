@@ -318,13 +318,16 @@ export async function buildSystemPrompt(
   // contains content-creation signals (post, caption, instagram, etc.).
   // Without this, the first cached prompt of the tier would persist for
   // 5 minutes regardless of subsequent user message intent.
-  const { detectContentIntent, detectContentDeepIntent } = await import("./business-knowledge");
+  const { detectContentIntent, detectContentDeepIntent, detectSmsIntent } = await import("./business-knowledge");
   const contentMode = detectContentIntent(userMessage);
   const deepMode = contentMode && detectContentDeepIntent(userMessage);
-  // Three slots per tier: default · content-basic · content-deep.
+  // Four slots per tier: default · content-basic · content-deep · sms.
   // Without deepMode in the key, "give me a content plan" would re-use
-  // a "give me a post" cache and miss the strategic sections.
-  const slot = deepMode ? "deep" : contentMode ? "content" : "default";
+  // a "give me a post" cache and miss the strategic sections. The sms
+  // slot (2026-06-10) mirrors the SMS_VOICE gate in knowledge/detectors
+  // — without it the 300s cache would serve a non-SMS prompt to an SMS
+  // ask (or pin an SMS prompt for 5min of ordinary turns).
+  const slot = deepMode ? "deep" : contentMode ? "content" : detectSmsIntent(userMessage) ? "sms" : "default";
   const mode = resolvePromptMode();
 
   // v9.1.3 · "on" mode skips v1 entirely. Caches under a separate key
@@ -709,15 +712,13 @@ export async function buildSystemPromptUncached(
   // after rules so the model knows HOW to answer, not just WHAT.
   const intensity = resolveIntensity();
   const directive = getBehaviorDirective(userMessage, intensity);
-  // 2026-06-10 · BROADEN_AND_SUGGEST is the directive's documented
-  // predecessor (behavior-directive.ts: "Replaces the
-  // BROADEN_AND_SUGGEST operator-rule") — v1 pushed BOTH every
-  // standard turn. Now exactly one loads: the directive when it
-  // fires, the older rule as fallback.
-  if (!directive) {
-    const { BROADEN_AND_SUGGEST } = await import("@/lib/ai/prompt/policy/operator-rules");
-    p.push(BROADEN_AND_SUGGEST);
-  }
+  // 2026-06-10 · BROADEN_AND_SUGGEST retired from v1 entirely: the
+  // directive is its documented replacement (behavior-directive.ts),
+  // and the directive returns EMPTY only when the operator asked for
+  // silence (/strict or persistent MINIMAL intensity) — a fallback
+  // there would inject broadening exactly when it was opted out of
+  // (the pre-trim always-push had the same inversion). v2's
+  // getOperatorPolicyLines still carries the rule (dormant path).
   if (directive) {
     p.push(`## Behavior directive (intensity: ${intensity.toLowerCase()})`);
     p.push(directive);

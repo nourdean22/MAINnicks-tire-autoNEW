@@ -397,8 +397,15 @@ export async function precomputeAnswers(
             setTimeout(() => resolve(null), PRECOMPUTE_TIMEOUT_MS),
           ),
         ]);
-        const text =
-          result && typeof result.content === "string" ? result.content.trim() : "";
+        // aiChat NEVER throws on total provider-chain failure — it
+        // returns an "I'm having trouble connecting…" sentinel with
+        // provider "emergency"/"none" (lib/ai/provider.ts). Without
+        // this check the sentinel would be stored as the question's
+        // answer and injected into next-day chat as a "draft take".
+        if (!result || result.provider === "emergency" || result.provider === "none") {
+          return null;
+        }
+        const text = typeof result.content === "string" ? result.content.trim() : "";
         return text.length > 0 ? text.slice(0, MAX_ANSWER_CHARS) : null;
       } catch (err) {
         log.warn("precompute_failed", {
@@ -482,7 +489,7 @@ let todayCache: { date: string; set: AnticipatedSet | null; at: number } | null 
  * yet) · cached 5min · returns null when nothing's stored.
  */
 /** Yesterday's date in America/New_York · the evening-build fallback key. */
-function yesterdayKey(): string {
+export function yesterdayKey(): string {
   return new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA", {
     timeZone: "America/New_York",
   });
@@ -571,11 +578,17 @@ export interface AnticipatedMatch {
   date: string;
 }
 
-/** Per-day cache of the 3 question embeddings · 3 embed calls once per day per process. */
-let questionEmbedCache: { date: string; vectors: Array<number[] | null> } | null = null;
+/**
+ * Per-build cache of the 3 question embeddings · 3 embed calls once
+ * per build per process. Keyed by date+builtAt (not date alone) so a
+ * same-day manual cron re-run past the 6h skip window — which rewrites
+ * the questions — can't pair stale vectors with the new questions.
+ */
+let questionEmbedCache: { buildKey: string; vectors: Array<number[] | null> } | null = null;
 
 async function questionVectors(set: AnticipatedSet): Promise<Array<number[] | null>> {
-  if (questionEmbedCache && questionEmbedCache.date === set.date) {
+  const buildKey = `${set.date}|${set.builtAt}`;
+  if (questionEmbedCache && questionEmbedCache.buildKey === buildKey) {
     return questionEmbedCache.vectors;
   }
   const vectors = await Promise.all(
@@ -588,7 +601,7 @@ async function questionVectors(set: AnticipatedSet): Promise<Array<number[] | nu
       }
     }),
   );
-  questionEmbedCache = { date: set.date, vectors };
+  questionEmbedCache = { buildKey, vectors };
   return vectors;
 }
 
