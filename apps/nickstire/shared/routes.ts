@@ -439,7 +439,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.9,
     changefreq: "monthly",
     title: "Nonstop Nick — $7.99/mo Tire Membership | Nick's Tire & Auto",
-    description: "Pull up, we got it. $7.99/month and a flat is never your problem again — repairs, valve stems, rotation, air-ups. No appointment. Euclid Ave. (216) 862-0005",
+    description: "Pull up, we got it. $7.99/mo covers the little tire stuff on one registered vehicle — flat repairs, valve stems, rotation, air-ups. No appointment. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
