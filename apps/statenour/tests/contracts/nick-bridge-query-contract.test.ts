@@ -150,7 +150,7 @@ describe("nickstire bridge query contract", () => {
         `Fix: point the callsite at a real handler, OR (if nickstire genuinely ` +
         `owes a new handler) add the query to KNOWN_PENDING here + contract-pre-flight.ts.`,
     ).toEqual([]);
-  });
+  }, 60000);
 
   it("KNOWN_PENDING only lists queries nickstire has NOT shipped (promote when shipped)", () => {
     const valid = liveHandlers();

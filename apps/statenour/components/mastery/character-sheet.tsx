@@ -100,9 +100,12 @@ export function CharacterSheet() {
     (best, x) => (x.rising7dXp > (best?.rising7dXp ?? 0) ? x : best),
     null,
   );
-  // 2026-06-10 · the "Next rep" strip (max progressPct) moved out — it's
-  // now the weakest tier ("closest") of <LevelUpDirectiveCard>, mounted
-  // above this sheet on /stats with a reason + an actionable rep link.
+  // Agentic nudge — the stat you're closest to leveling (most progress into
+  // its current level). Null when nothing's on the verge.
+  const nextRep = stats.reduce<StatLevel | null>(
+    (best, x) => (x.progressPct > (best?.progressPct ?? 0) ? x : best),
+    null,
+  );
 
   // Compute branch level summaries for the Identity Build Card
   const branchLevels = stats.reduce<Record<string, number>>((acc, s) => {

@@ -43,9 +43,9 @@ export function loadEnv(): void {
   ];
   for (const file of candidates) {
     if (!fs.existsSync(file)) continue;
-    const raw = fs.readFileSync(file, "utf-8");
+    const raw = fs.readFileSync(file, "utf-8").replace(/\r/g, "");
     for (const line of raw.split("\n")) {
-      const m = line.match(/^([A-Z_][A-Z0-9_]*)="?(.+?)"?$/);
+      const m = line.trim().match(/^([A-Z_][A-Z0-9_]*)="?(.+?)"?$/);
       if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
     }
   }
