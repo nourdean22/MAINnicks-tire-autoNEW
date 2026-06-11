@@ -259,6 +259,8 @@ export async function checkTask(args: {
           loopKind: task.loopKind,
           streakCount: updated.streakCount,
           hasGoalId: !!task.goalId,
+          outcomeScore: outcomeScore ?? null,
+          completionNote: completionNote ?? null,
         },
       });
     } catch (e) {
@@ -417,6 +419,8 @@ export async function checkTask(args: {
         loopKind: task.loopKind,
         streakCount: task.streakCount,
         hasGoalId: !!task.goalId,
+        outcomeScore: outcomeScore ?? null,
+        completionNote: completionNote ?? null,
       },
     });
   } catch (e) {

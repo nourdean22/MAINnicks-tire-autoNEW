@@ -879,6 +879,8 @@ export async function updateTask(id: string, input: unknown) {
             loopKind: true,
             streakCount: true,
             goalId: true,
+            outcomeScore: true,
+            completionNote: true,
             mission: { select: { title: true, domain: true } },
             goal: { select: { domain: true } },
           },
@@ -898,6 +900,8 @@ export async function updateTask(id: string, input: unknown) {
               loopKind: enriched.loopKind,
               streakCount: enriched.streakCount,
               hasGoalId: !!enriched.goalId,
+              outcomeScore: enriched.outcomeScore,
+              completionNote: enriched.completionNote,
             },
           });
         }
