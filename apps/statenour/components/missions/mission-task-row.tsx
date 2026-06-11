@@ -149,8 +149,10 @@ export function MissionTaskRow({
       // at the top of /missions and made the operator scan. scroll-mt-24
       // honors the sticky ticker. Closes the orphan-anchor synergy gap.
       className={cn(
-        "group flex items-start gap-2 py-2 px-2.5 rounded-md transition-colors scroll-mt-24",
-        "hover:bg-[var(--bg-raised)]/[0.06]",
+        "group flex items-start gap-2 py-2 px-2.5 rounded-md transition-all scroll-mt-24 border",
+        isDoing
+          ? "border-amber-500/30 bg-amber-500/[0.03] shadow-[0_0_12px_rgba(253,185,19,0.04)] animate-breath"
+          : "border-transparent hover:bg-[var(--bg-raised)]/[0.06]",
         isDone && "opacity-50",
         indent === 1 && "ml-6 border-l border-[var(--border-default)]/40 pl-3",
       )}

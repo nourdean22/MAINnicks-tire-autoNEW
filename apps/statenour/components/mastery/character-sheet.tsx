@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { BRANCHES } from "@/lib/mastery/config";
+import { ShieldAlert } from "lucide-react";
 
 interface StatLevel {
   key: string;
@@ -107,68 +108,148 @@ export function CharacterSheet() {
     null,
   );
 
+  // Compute branch level summaries for the Identity Build Card
+  const branchLevels = stats.reduce<Record<string, number>>((acc, s) => {
+    acc[s.branch] = (acc[s.branch] || 0) + s.level;
+    return acc;
+  }, { body: 0, mind: 0, empire: 0, influence: 0 });
+
+  const totalBranchLevel = Object.values(branchLevels).reduce((a, b) => a + b, 0);
+
+  let archetypeLabel = "Balanced Polymath";
+  let archetypeDesc = "Disciplined mastery across all domains";
+
+  if (totalBranchLevel > 0) {
+    const sortedBranches = Object.entries(branchLevels).sort((a, b) => b[1] - a[1]);
+    const topBranch = sortedBranches[0];
+    const runnerUpBranch = sortedBranches[1];
+    
+    // If top branch is dominant (more than 5% lead over runner up)
+    if (topBranch[1] - runnerUpBranch[1] > totalBranchLevel * 0.05) {
+      if (topBranch[0] === "body") {
+        archetypeLabel = "Physical Sentinel";
+        archetypeDesc = "Peak vitality & condition";
+      } else if (topBranch[0] === "mind") {
+        archetypeLabel = "Mind Strategist";
+        archetypeDesc = "Fortitude & focus mastery";
+      } else if (topBranch[0] === "empire") {
+        archetypeLabel = "Empire Architect";
+        archetypeDesc = "Systems & craft building";
+      } else if (topBranch[0] === "influence") {
+        archetypeLabel = "Sovereign Influencer";
+        archetypeDesc = "Networking & people leadership";
+      }
+    }
+  }
+
+  // Find the highest-level stat that hasn't gained any XP this week (rising7dXp === 0)
+  const highestNeglected = [...stats]
+    .filter((s) => s.rising7dXp === 0)
+    .sort((a, b) => b.level - a.level)[0] ?? null;
+
   return (
-    <section className="mt-6 space-y-3">
+    <section className="mt-6 space-y-4">
       <MasterySectionLabel label="Mastery · character sheet" count={stats.length} />
 
-      {/* Overall-power hero · the one number that sums every stat. */}
-      <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-2.5 flex items-center justify-between gap-4">
-        <div className="flex items-baseline gap-2">
-          <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-            Power
-          </span>
-          <span className="text-2xl font-medium tabular-nums text-[var(--brand-gold,#FDB913)] leading-none">
-            Lvl {totalLevel}
-          </span>
-          <span className="text-[10px] tabular-nums text-white/35">
-            {totalXp.toLocaleString()} XP
-          </span>
-        </div>
-        {topRiser ? (
-          <p
-            className="text-[11px] text-white/70 truncate"
-            title={`Fastest riser this week · +${topRiser.rising7dXp} XP`}
-          >
-            <span style={{ color: topRiser.color }}>▲ week</span> {topRiser.icon}{" "}
-            {topRiser.shortLabel || topRiser.label}{" "}
-            <span className="tabular-nums text-white/50">+{topRiser.rising7dXp}</span>
-          </p>
-        ) : (
-          <p className="text-[11px] text-white/70 truncate" title="Peak stat">
-            <span className="text-white/35">peak</span> {peak.tierEmoji} {peak.icon}{" "}
-            {peak.shortLabel || peak.label}
-          </p>
-        )}
-      </div>
+      {/* RPG Hero Card & Identity Build Card - Bento Layout */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Card 1: Core Hero Sheet */}
+        <div className="md:col-span-2 rounded-xl border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 p-4 shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--gold)]/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="flex items-start justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-[var(--gold)]/80">
+                character sheet
+              </span>
+              <h3 className="text-lg font-bold uppercase tracking-wide text-white/90">
+                {archetypeLabel}
+              </h3>
+            </div>
+            <span className="text-[10px] font-mono text-white/35 uppercase tracking-wider">
+              {archetypeDesc}
+            </span>
+          </div>
 
-      {/* Agentic "next rep" — the board surfaces the single easiest level-up
-          and tells you to go close it. Accent uses the stat's own color. */}
-      {nextRep ? (
-        <div
-          className="flex items-center gap-2 rounded-lg border px-3.5 py-2"
-          style={{
-            borderColor: `${nextRep.color}40`,
-            backgroundColor: `${nextRep.color}0f`,
-          }}
-        >
-          <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-white/40">
-            Next rep
-          </span>
-          <span className="shrink-0 text-base leading-none" aria-hidden>
-            {nextRep.icon}
-          </span>
-          <span className="truncate text-[12px] font-medium text-white/85">
-            {nextRep.shortLabel || nextRep.label}
-          </span>
-          <span
-            className="ml-auto shrink-0 text-[11px] font-semibold tabular-nums"
-            style={{ color: nextRep.color }}
-          >
-            {Math.round(nextRep.xpForNext - nextRep.xpIntoLevel)} XP → Lvl{" "}
-            {nextRep.level + 1}
-          </span>
+          <div className="mt-4 flex items-end justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[9px] font-mono uppercase text-white/40">total level</span>
+                <span className="text-3xl font-extrabold text-[var(--gold)] font-display tracking-tight leading-none">
+                  {totalLevel}
+                </span>
+              </div>
+              <span className="block text-[10px] font-mono text-white/35">
+                {totalXp.toLocaleString()} TOTAL XP
+              </span>
+            </div>
+
+            {/* Branch Level bars summary */}
+            <div className="flex items-center gap-3 shrink-0">
+              {BRANCHES.map((br) => {
+                const brLvl = branchLevels[br.key] || 0;
+                const brPct = totalLevel > 0 ? (brLvl / totalLevel) * 100 : 0;
+                return (
+                  <div key={br.key} className="flex flex-col items-center gap-1" title={`${br.label}: Level ${brLvl}`}>
+                    <span className="text-xs" aria-hidden>{br.icon}</span>
+                    <div className="h-8 w-1.5 rounded-full bg-white/5 overflow-hidden flex flex-col justify-end">
+                      <div className="w-full bg-[var(--gold)] rounded-full" style={{ height: `${brPct}%` }} />
+                    </div>
+                    <span className="text-[8px] font-mono text-white/40">{brLvl}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
-      ) : null}
+
+        {/* Card 2: Next Rep & Neglected Stats */}
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 flex flex-col justify-between space-y-3">
+          {nextRep ? (
+            <div className="space-y-1">
+              <span className="text-[8px] font-mono uppercase tracking-wider text-white/45 block">
+                closest level up (next rep)
+              </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs">{nextRep.icon}</span>
+                  <span className="text-[12px] font-semibold text-white/95">{nextRep.shortLabel || nextRep.label}</span>
+                </div>
+                <span className="text-[11px] font-mono font-semibold" style={{ color: nextRep.color }}>
+                  Lvl {nextRep.level} → {nextRep.level + 1}
+                </span>
+              </div>
+              <div className="pt-1 flex items-center gap-1.5">
+                <div className="h-1 flex-1 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${nextRep.progressPct}%`, backgroundColor: nextRep.color }} />
+                </div>
+                <span className="text-[9px] font-mono text-white/50 shrink-0">
+                  {Math.round(nextRep.xpForNext - nextRep.xpIntoLevel)} XP
+                </span>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Neglected stat check */}
+          {highestNeglected ? (
+            <div className="pt-2 border-t border-white/5 space-y-1">
+              <div className="flex items-center gap-1.5 text-amber-500">
+                <ShieldAlert size={10} />
+                <span className="text-[8px] font-mono uppercase tracking-wider">
+                  neglected stat (7d idle)
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-white/80 flex items-center gap-1">
+                  <span>{highestNeglected.icon}</span>
+                  <span>{highestNeglected.shortLabel || highestNeglected.label}</span>
+                </span>
+                <span className="text-[10px] font-mono text-white/40">Lvl {highestNeglected.level}</span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
 
       {/* Per-branch skill-tree groups. Stats arrive pre-sorted by level;
           we keep that order within each branch so the strongest leads. */}
