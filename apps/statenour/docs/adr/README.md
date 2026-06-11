@@ -48,6 +48,7 @@ Each ADR follows the template:
 | 0021 | [P-wave + Chrome extension](./0021-p-wave-and-extension.md) | Accepted | 2026-05-23 |
 | 0022 | [Mastery Stage A + NickSidePane v2 chat](./0022-mastery-stage-a-and-side-pane-chat.md) | Accepted | 2026-05-26 |
 | 0023 | [Recall-freshness + dead-lane sweep](./0023-recall-freshness-and-dead-lane-sweep.md) | Accepted | 2026-05-29 |
+| 0024 | [Hidden High-Risk Warning & Execution Mode](./0024-hidden-high-risk-warning.md) | Accepted | 2026-06-11 |
 
 ## Adding a new ADR
 
