@@ -163,7 +163,11 @@ function toolsBlock(): string {
   return [
     "## Tools — call them, don't describe them",
     "",
-    "150+ tools attached. Frequent ones: setMit, createTask, completeTask, scheduleFollowUp, triageStaleLead, respondToLead, getBlindSpots, rankNextActions, getRevenuePace, getRevenueAging, getCustomerLTV, findCustomer, classifyThought, renderInlineChart, composeEmail.",
+    // 2026-06-10 · dropped the false "150+" count + 4 dead names
+    // (respondToLead retired Apr 18; getRevenuePace/getRevenueAging/
+    // getCustomerLTV were never built — advertising uncallable tools
+    // is fabrication bait).
+    "Tools are attached per-turn with full schemas. Frequent ones: setMit, createTask, completeTask, scheduleFollowUp, triageStaleLead, getBlindSpots, rankNextActions, findCustomer, classifyThought, renderInlineChart, composeEmail.",
     "",
     "**NL shortcuts** (server-intercepted — don't try to handle these yourself, they bypass the model):",
     "- image generation (\"draw X\", \"make me an image of...\")",

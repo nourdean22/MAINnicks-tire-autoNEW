@@ -22,6 +22,7 @@ import { prisma } from "@/lib/prisma";
 import {
   gatherSignals,
   draftAnticipatedQuestions,
+  precomputeAnswers,
   storeAnticipated,
   todayKey,
 } from "@/lib/brain/anticipated-questions";
@@ -103,17 +104,30 @@ export const GET = cronHandler(async () => {
     };
   }
 
+  // 3. Precompute answers · per-question 10s budget, parallel — worst
+  //    case ~10s wall for the step (3 x 10s budgets race together).
+  //    This step existed in the doc-comment contract from day one but
+  //    was never built — storeAnticipated always received [] so the
+  //    chat match + morning brief had no takes to surface (evolution
+  //    audit 2026-06-10). Per-question failures degrade to null.
+  const tPrecomputeStart = Date.now();
+  const answers = await precomputeAnswers(questions);
+  const tPrecompute = Date.now() - tPrecomputeStart;
+
   // 4. Store · upsert into BrainMemory.
   const tStoreStart = Date.now();
-  const stored = await storeAnticipated(questions, [], { date });
+  const stored = await storeAnticipated(questions, answers, { date });
   const tStore = Date.now() - tStoreStart;
 
+  const answerCount = answers.filter((a) => typeof a === "string" && a.length > 0).length;
   log.info("anticipate_done", {
     date,
     signalCount: signals.total,
     questionCount: questions.length,
+    answerCount,
     gatherMs: tGather,
     draftMs: tDraft,
+    precomputeMs: tPrecompute,
     storeMs: tStore,
     totalMs: Date.now() - t0,
   });
@@ -123,10 +137,12 @@ export const GET = cronHandler(async () => {
     date,
     signalCount: signals.total,
     questionCount: questions.length,
+    answerCount,
     builtAt: stored.builtAt,
     timing: {
       gatherMs: tGather,
       draftMs: tDraft,
+      precomputeMs: tPrecompute,
       storeMs: tStore,
       totalMs: Date.now() - t0,
     },

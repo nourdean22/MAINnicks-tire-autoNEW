@@ -49,6 +49,8 @@ export interface ContextBlocksFired {
   contradictions: boolean;
   /** v10.0.529.106 · Wave 62 · cross-session "open threads" carry-over */
   concerns: boolean;
+  /** 2026-06-10 · anticipated-question cosine match (precomputed nightly take) */
+  anticipated: boolean;
   // Index signature so Prisma's InputJsonValue accepts this type when
   // it gets persisted into ChatMessage.tokenUsage.contextBlocks. Pure
   // type accommodation — no runtime keys beyond the named flags.
@@ -82,7 +84,7 @@ export interface BuildBrainContextOutput {
 const EMPTY_FIRED: ContextBlocksFired = {
   recall: false, skills: false, identity: false, ghost: false,
   qualitative: false, beliefs: false, nudges: false, contradictions: false,
-  concerns: false,
+  concerns: false, anticipated: false,
 };
 
 export async function buildBrainContext(
@@ -121,7 +123,7 @@ export async function buildBrainContext(
   try {
     const [
       recallMod, skillsMod, identityMod, ghostMod,
-      qualMod, beliefsMod, nudgeMod, concernsMod,
+      qualMod, beliefsMod, nudgeMod, concernsMod, anticipatedMod,
     ] = await Promise.all([
       import("@/lib/brain/chat-recall").catch(() => null),
       import("@/lib/brain/skill-extractor").catch(() => null),
@@ -134,11 +136,15 @@ export async function buildBrainContext(
       // surfaces Nour's open threads from past sessions so Nick
       // opens with full continuity.
       import("@/lib/brain/session-distiller").catch(() => null),
+      // 2026-06-10 · anticipated-question match — when the turn cosine-
+      // matches a question the nightly cron predicted, the precomputed
+      // take rides in as warm context (never short-circuits the reply).
+      import("@/lib/brain/anticipated-questions").catch(() => null),
     ]);
 
     const [
       recallBlock, skillsBlock, identityBlock, ghostBlock,
-      qBlock, bBlock, nBlock, concernsBlock,
+      qBlock, bBlock, nBlock, concernsBlock, anticipatedBlock,
     ] = await Promise.all([
       userContent.length > 10 && recallMod
         ? withTimeout(recallMod.buildChatRecallBlock(userContent, mode === "deep" ? 6 : 4), 3000, "")
@@ -164,6 +170,16 @@ export async function buildBrainContext(
       concernsMod
         ? withTimeout(concernsMod.buildConcernsContextBlock(), 3000, "")
         : Promise.resolve(""),
+      // Reuses the prefetch userEmbedding — zero extra embedding calls
+      // on the hot path. Same length gate as recall: short greetings
+      // can't meaningfully cosine-match a predicted question.
+      userContent.length > 10 && anticipatedMod
+        ? withTimeout(
+            anticipatedMod.buildAnticipatedContextBlock(userContent, userEmbedding),
+            3000,
+            "",
+          )
+        : Promise.resolve(""),
     ]);
 
     // Apr 19 · Task queue injection. Runs in the same promise race
@@ -187,6 +203,7 @@ export async function buildBrainContext(
       { name: "beliefs", content: bBlock },
       { name: "nudges", content: nBlock },
       { name: "concerns", content: concernsBlock },
+      { name: "anticipated", content: anticipatedBlock },
       { name: "tasks", content: taskBlock },
     ].filter((b) => b.content && b.content.trim().length > 0);
 
@@ -226,6 +243,7 @@ export async function buildBrainContext(
       nudges: !!nBlock,
       contradictions: !!(nBlock && /contradiction/i.test(nBlock)),
       concerns: !!concernsBlock,
+      anticipated: !!anticipatedBlock,
     };
 
     log.info("brain_blocks_assembled", {

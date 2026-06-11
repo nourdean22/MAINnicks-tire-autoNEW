@@ -1,12 +1,15 @@
 /**
  * v10.0.526 · Arc B Feature 6 · anticipated-question regression armor.
  *
- * Locks in the contracts the cron + chat-route inject path depend on:
+ * Locks in the contracts the cron pipeline depends on:
  *   1. gatherSignals composes the 4-lane structure correctly
  *   2. draftAnticipatedQuestions caps at 3, dedups topics, length-bounds
- *   3. findAnticipated only matches above the 0.85 cosine floor
- *   4. Empty 7d window is a clean cold-start (no signals → no draft call)
- *   5. precomputeAnswers degrades to null when LLM/pipeline unavailable
+ *   3. Empty 7d window is a clean cold-start (no signals → no draft call)
+ *
+ * findAnticipated / precomputeAnswers / the chat-route inject block are
+ * pinned in tests/brain/anticipated-match.test.ts (separate file — this
+ * file's module-scope aiChat mock returns a fixed "[]" which would
+ * collide with precompute assertions).
  *
  * Pure-function focus where possible · DB calls are mocked at the
  * prisma boundary (same pattern as reflection-idempotency.test.ts).

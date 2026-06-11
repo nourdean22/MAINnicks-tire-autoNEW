@@ -240,7 +240,7 @@ export async function competitorInsightChain(input: CompetitorInsightChainInput)
   // Step 1 — Grok: analyze competitor
   const grokStep = await runStep("grok_competitor_analysis", () =>
     analyzeRealTime(
-      `Competitive analysis: "${input.competitorName}" vs Nick's Tire & Auto (Cleveland OH, 4.9 stars, 1683+ reviews). ` +
+      `Competitive analysis: "${input.competitorName}" vs Nick's Tire & Auto (Cleveland OH, 4.9 stars, 1,700+ reviews). ` +
         (input.competitorDetails ? `Known info: ${input.competitorDetails}. ` : "") +
         "Identify their strengths, weaknesses, pricing positioning, and 3 specific actions Nick's can take to win against them."
     )

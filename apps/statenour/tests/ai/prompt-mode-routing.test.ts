@@ -105,6 +105,8 @@ vi.mock("@/lib/ai/prompt/v2", () => ({
 vi.mock("@/lib/ai/business-knowledge", () => ({
   detectContentIntent: () => false,
   detectContentDeepIntent: () => false,
+  // 2026-06-10 · the sms cache-key slot reads this too.
+  detectSmsIntent: () => false,
 }));
 
 // We CAN'T fully mock buildSystemPromptUncached because it's not exported.
