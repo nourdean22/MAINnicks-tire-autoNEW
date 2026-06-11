@@ -108,6 +108,26 @@ export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: nu
       return { recordsProcessed: 0, details: `Skip — runs Mondays only (today is ${day})` };
     }
 
+    // 24-hour cooldown check
+    const { db } = await import("../lib/db-helper");
+    const { gbpPostLog } = await import("../../drizzle/schema");
+    const { desc } = await import("drizzle-orm");
+    const d = await db();
+    if (d) {
+      const lastPosts = await d
+        .select({ postedAt: gbpPostLog.postedAt })
+        .from(gbpPostLog)
+        .orderBy(desc(gbpPostLog.postedAt))
+        .limit(1);
+      if (lastPosts.length > 0) {
+        const lastPostTime = new Date(lastPosts[0].postedAt).getTime();
+        const diffMs = now.getTime() - lastPostTime;
+        if (diffMs < 24 * 60 * 60 * 1000) {
+          return { recordsProcessed: 0, details: `Skip — post generated within last 24 hours` };
+        }
+      }
+    }
+
     const { generateGBPPost, logPostToDb } = await import("./gbpContentGenerator");
     const post = await generateGBPPost();
     // Durable log so variety guard survives deploys + admin can review history.
@@ -118,8 +138,9 @@ export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: nu
     });
 
     await sendTelegram(
-      `📝 GBP POST — Week of ${today}\n\n` +
+      `📝 GBP POST — Week of ${today} (DRAFT - Requires Review)\n\n` +
       `Archetype: ${post.archetype.toUpperCase()}\n` +
+      `Provenance: ${post.provenance}\n` +
       `Paste at: business.google.com → Posts → Add update\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━━\n` +
       `${post.text}\n` +
@@ -271,6 +292,7 @@ export async function generateOneOffGBPPost(forceArchetype?: "proof" | "anti" | 
   callToAction: string;
   ctaUrl: string;
   imageHint: string;
+  provenance: string;
 }> {
   const { generateGBPPost, logPostToDb } = await import("./gbpContentGenerator");
   const post = await generateGBPPost(forceArchetype);
@@ -283,6 +305,7 @@ export async function generateOneOffGBPPost(forceArchetype?: "proof" | "anti" | 
     callToAction: post.callToAction,
     ctaUrl: post.ctaUrl,
     imageHint: post.imageHint,
+    provenance: post.provenance,
   };
 }
 

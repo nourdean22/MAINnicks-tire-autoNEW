@@ -29,7 +29,7 @@ import {
 } from "../db";
 import { bookings } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { sendSms } from "../sms";
+import { sendSms, withOptOut } from "../sms";
 import { z } from "zod";
 import crypto from "crypto";
 
@@ -174,7 +174,7 @@ export async function processReviewRequestQueue() {
     const trackingUrl = `${SITE_URL}/api/review-click/${req.trackingToken}`;
     const message = buildReviewMessage(req.customerName, req.service, trackingUrl, settings.messageTemplate);
 
-    const result = await sendSms(`+1${req.phone}`, message, { via: "shop" });
+    const result = await sendSms(`+1${req.phone}`, withOptOut(message), { via: "shop" });
 
     if (result.success) {
       await markReviewRequestSent(req.id, result.sid);

@@ -79,6 +79,11 @@ const LearningLoop = dynamic(
   { ssr: false, loading: () => <SectionFallback /> },
 );
 
+const IdentityArcCard = dynamic(
+  () => import("@/components/mastery/identity-arc-card").then((m) => m.IdentityArcCard),
+  { ssr: false, loading: () => <div className="h-[200px] rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" /> },
+);
+
 /** Light shimmer matching the character-sheet hero + stat-grid shape, so the
  *  static prerender shell holds the layout until the client subtree hydrates. */
 function StatsBodyFallback() {
@@ -102,9 +107,10 @@ export default function StatsPage() {
     <>
       <StandardPage eyebrow="Who you are · where you're going" title="Stats">
         <Suspense fallback={<StatsBodyFallback />}>
-          {/* ⓪ TODAY'S MOVE · one stat, one reason, one rep (deterministic). */}
-          <div className="mt-6">
+          {/* ⓪ TODAY'S MOVE & IDENTITY ARC · responsive 2-column layout */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             <LevelUpDirectiveCard />
+            <IdentityArcCard />
           </div>
 
           {/* ① WHO YOU ARE · the character sheet (the stats — the hero). */}

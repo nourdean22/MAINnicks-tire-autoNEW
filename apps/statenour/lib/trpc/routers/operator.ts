@@ -21,6 +21,9 @@
 
 import { z } from "zod";
 import { router, operatorProcedure } from "../trpc";
+import { DOMAINS } from "@/lib/mastery/config";
+import { xpEventTotalsSince } from "@/lib/mastery/credit";
+import { toDateString } from "@/lib/utils/datetime";
 import {
   buildOperatorPulse,
   type PulseSurface,
@@ -47,6 +50,7 @@ import {
   loadIdentitySnapshot,
   loadIdentityHistory,
   setManualOverride,
+  projectIdentityForward,
 } from "@/lib/brain/identity-snapshot";
 import {
   loadActiveSkills,
@@ -288,14 +292,78 @@ export const operatorRouter = router({
    * unchanged.
    */
   identity: operatorProcedure
-    .input(z.object({ history: z.boolean().optional() }).optional())
+    .input(
+      z.object({
+        history: z.boolean().optional(),
+        days: z.number().optional(),
+      }).optional(),
+    )
     .query(async ({ input }) => {
+      const days = input?.days ?? 90;
       const [snapshot, history] = await Promise.all([
         loadIdentitySnapshot(),
-        input?.history ? loadIdentityHistory(30) : Promise.resolve(null),
+        input?.history ? loadIdentityHistory(days) : Promise.resolve(null),
       ]);
       return { snapshot, history };
     }),
+
+  identityProjection: operatorProcedure
+    .input(z.object({ days: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      const days = input?.days ?? 30;
+      return projectIdentityForward(days);
+    }),
+
+  xpGrowthComparison: operatorProcedure.query(async () => {
+    const horizons = [30, 60, 90, 180];
+    const now = new Date();
+    const prismaModule = await import("@/lib/prisma");
+    const p = prismaModule.prisma;
+    
+    const promises = horizons.map(async (days) => {
+      const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      const sinceKey = toDateString(since);
+      
+      const [taskSums, eventSums] = await Promise.all([
+        p.masteryScore
+          .groupBy({
+            by: ["domain"],
+            _sum: { delta: true },
+            where: { date: { gte: sinceKey } },
+          })
+          .catch(() => [] as { domain: string; _sum: { delta: number | null } }[]),
+        xpEventTotalsSince(since),
+      ]);
+      
+      const map = new Map<string, number>();
+      for (const t of taskSums) {
+        map.set(t.domain, Math.max(0, t._sum.delta ?? 0));
+      }
+      for (const [key, val] of eventSums.entries()) {
+        map.set(key, (map.get(key) ?? 0) + val);
+      }
+      return { days, map };
+    });
+    
+    const results = await Promise.all(promises);
+    
+    return DOMAINS.map((d) => {
+      const g30 = results.find((r) => r.days === 30)?.map.get(d.key) ?? 0;
+      const g60 = results.find((r) => r.days === 60)?.map.get(d.key) ?? 0;
+      const g90 = results.find((r) => r.days === 90)?.map.get(d.key) ?? 0;
+      const g180 = results.find((r) => r.days === 180)?.map.get(d.key) ?? 0;
+      
+      return {
+        stat: d.key,
+        label: d.label,
+        icon: d.icon,
+        gained30d: Math.round(g30 * 10) / 10,
+        gained60d: Math.round(g60 * 10) / 10,
+        gained90d: Math.round(g90 * 10) / 10,
+        gained180d: Math.round(g180 * 10) / 10,
+      };
+    });
+  }),
 
   /**
    * Phase UU.2 · owner-only · recompute the identity snapshot NOW

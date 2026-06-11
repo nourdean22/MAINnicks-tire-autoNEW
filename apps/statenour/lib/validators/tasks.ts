@@ -74,6 +74,8 @@ const taskBaseSchema = z.object({
   // the schema permits N levels (graceful degradation if someone
   // ever bypasses the UI).
   parentTaskId: nullableString.optional(),
+  completionNote: nullableString.optional(),
+  outcomeScore: nullableInteger(1, 100).optional(),
 });
 
 export const taskCreateSchema = taskBaseSchema;

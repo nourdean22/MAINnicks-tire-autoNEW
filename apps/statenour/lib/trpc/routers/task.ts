@@ -214,6 +214,15 @@ export const taskRouter = router({
       }),
     ),
 
+  inboxCount: operatorProcedure.query(async () => {
+    return prisma.task.count({
+      where: {
+        status: "INBOX",
+        deletedAt: null,
+      },
+    });
+  }),
+
   /**
    * /missions?taskId= deep-link support · owner-only · fetch a single task
    * with its view model properties by ID.

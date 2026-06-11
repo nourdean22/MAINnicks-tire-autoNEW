@@ -40,7 +40,7 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/proactive-pushes");
 
-export type PushSlot = "morning" | "afternoon" | "evening";
+export type PushSlot = "morning" | "afternoon" | "evening" | "approvals_nudge";
 
 export interface PushSource {
   id?: string;
@@ -542,4 +542,106 @@ export async function fireSlotForCurrentHour(options?: { dryRun?: boolean; now?:
   }
 
   return { kind: "skip", skipped: true, reason: `overnight_hour_${etHour}` };
+}
+
+/**
+ * Check if there are any pending autonomous actions and send a daily nudge
+ * via Telegram if any exist. Bounded by quiet hours.
+ */
+export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?: Date }): Promise<PushResult | PushPreview | PushSkip> {
+  const now = options?.now ?? new Date();
+  const dateKey = options?.now
+    ? options.now.toLocaleDateString("en-CA", { timeZone: "America/New_York" })
+    : today();
+
+  const etHour = parseInt(
+    now.toLocaleString("en-US", { hour: "2-digit", hour12: false, timeZone: "America/New_York" }),
+    10,
+  );
+  const quietHoursBlocked = etHour >= 0 && etHour <= 5;
+
+  const pendingCount = await prisma.autonomousAction.count({
+    where: { approval: "pending" },
+  });
+
+  if (pendingCount === 0) {
+    return { kind: "skip", skipped: true, reason: "no_pending_actions" };
+  }
+
+  const isDup = await alreadyPushed("approvals_nudge", dateKey);
+  const text = `⚖️ <b>Governance · Pending Actions</b>\n\n` +
+    `There are <b>${pendingCount}</b> actions pending operator approval in the queue.\n\n` +
+    `Tap to review & resolve.`;
+
+  if (quietHoursBlocked) {
+    if (options?.dryRun) {
+      return {
+        kind: "preview",
+        slot: "approvals_nudge",
+        nowIso: now.toISOString(),
+        timezone: "America/New_York",
+        dryRun: true,
+        wouldSend: false,
+        wouldSkip: true,
+        reason: `quiet_hours_overnight_${etHour}`,
+        dedupBlocked: isDup,
+        quietHoursBlocked: true,
+        rateLimitBlocked: false,
+        sourceFunction: "checkAndNudgeApprovals",
+        riskFlags: ["quiet_hours_overnight"],
+        nextSafeStep: "Wait for active hours (6am - 11pm ET) to nudge.",
+        sources: [{
+          category: "system_context",
+          title: "Pending Approvals Queue",
+          summary: `${pendingCount} pending actions in database`,
+          confidence: "high",
+          reason: "Active count of actions waiting for operator approval.",
+        }],
+      } as unknown as PushPreview;
+    }
+    return { kind: "skip", skipped: true, reason: `quiet_hours_overnight_${etHour}` };
+  }
+
+  if (options?.dryRun) {
+    return {
+      kind: "preview",
+      slot: "approvals_nudge",
+      nowIso: now.toISOString(),
+      timezone: "America/New_York",
+      dryRun: true,
+      wouldSend: !isDup,
+      wouldSkip: isDup,
+      reason: isDup ? "already_nudged_today" : "eligible",
+      messageText: text,
+      messagePreviewSafe: text,
+      dedupKey: `approvals_nudge_${dateKey}`,
+      dedupBlocked: isDup,
+      quietHoursBlocked: false,
+      rateLimitBlocked: false,
+      sourceFunction: "checkAndNudgeApprovals",
+      riskFlags: isDup ? ["already_sent_today"] : [],
+      nextSafeStep: "Verify preview text looks appropriate.",
+      sources: [{
+        category: "system_context",
+        title: "Pending Approvals Queue",
+        summary: `${pendingCount} pending actions in database`,
+        confidence: "high",
+        reason: "Active count of actions waiting for operator approval.",
+      }],
+    } as unknown as PushPreview;
+  }
+
+  if (isDup) {
+    return { kind: "live", slot: "approvals_nudge", fired: false, reason: "already_nudged_today" };
+  }
+
+  const ok = await sendTelegram(text).catch(() => false);
+  if (ok) await markPushSent("approvals_nudge", dateKey);
+  return {
+    kind: "live",
+    slot: "approvals_nudge",
+    fired: ok,
+    reason: ok ? "sent" : "telegram_failed",
+    text: ok ? text : undefined,
+  };
 }

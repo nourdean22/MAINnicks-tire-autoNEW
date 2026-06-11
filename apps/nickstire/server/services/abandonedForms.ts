@@ -119,9 +119,9 @@ export async function processAbandonedForms(): Promise<{ recordsProcessed: numbe
         if (recent.length > 0) continue;
       }
 
-      const { sendSms } = await import("../sms");
+      const { sendSms, withOptOut } = await import("../sms");
       const firstName = partial.name?.split(" ")[0] || "there";
-      const message = `Hi ${firstName}, looks like you didn't finish booking at Nick's Tire & Auto. Need help? Call (216) 862-0005 or reply here!`;
+      const message = withOptOut(`Hi ${firstName}, looks like you didn't finish booking at Nick's Tire & Auto. Need help? Call (216) 862-0005 or reply here!`);
 
       const result = await sendSms(partial.phone, message, { via: "shop", skipPersist: true, variantKey: "abandoned_form" });
       // Persist with variantKey="abandoned_form" so the cooldown above

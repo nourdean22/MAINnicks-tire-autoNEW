@@ -15,6 +15,7 @@ import { cronHandler } from "@/lib/utils/http";
 import { scorePendingPredictions } from "@/lib/brain/outcome-tracker";
 import { findCounterIntuitive } from "@/lib/brain/counter-intuitive";
 import { logger as rootLogger } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
 
 const log = rootLogger.withSurface("cron/brain-intelligence");
 import { distillWisdom } from "@/lib/brain/wisdom-distiller";
@@ -38,6 +39,60 @@ export const GET = cronHandler(async () => {
     };
   } catch (err) {
     results.predictions = { error: err instanceof Error ? err.message : "failed" };
+  }
+
+  // 1b. Resolve pending GSC clicks or shop revenue assistant predictions
+  try {
+    const unresolved = await prisma.brainMemory.findMany({
+      where: {
+        category: "prediction",
+        deletedAt: null,
+        createdAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+    });
+
+    const pending = unresolved.filter((p) => {
+      const meta = p.metadata as any;
+      return meta && meta.resolved === false;
+    });
+
+    let resolvedAssistantCount = 0;
+    if (pending.length > 0) {
+      const { queryNick } = await import("@/lib/nickstire/query");
+      const { resolvePrediction } = await import("@/lib/ai/outcome-calibration");
+
+      for (const p of pending) {
+        const meta = p.metadata as any;
+        const text = (meta?.captionPreview || p.content || "").toLowerCase();
+        const dateStr = new Date(p.createdAt).toISOString().split("T")[0];
+
+        let actualScore: number | null = null;
+        if (text.includes("click") || text.includes("gsc") || text.includes("search")) {
+          const res = await queryNick<any>("gsc_summary", { from: dateStr, to: dateStr });
+          if (res) {
+            const data = (res as any).data || res;
+            actualScore = typeof data.totalClicks === "number" ? data.totalClicks : null;
+          }
+        } else if (text.includes("revenue") || text.includes("sales") || text.includes("dollar")) {
+          const res = await queryNick<any>("revenue_range", { from: dateStr, to: dateStr });
+          if (res) {
+            const data = (res as any).data || res;
+            actualScore = typeof data.totalDollars === "number" ? data.totalDollars : null;
+          }
+        }
+
+        if (actualScore !== null) {
+          const captionText = meta?.captionPreview || p.content || "";
+          const result = await resolvePrediction({ captionText, actualScore });
+          if (result.resolved) {
+            resolvedAssistantCount++;
+          }
+        }
+      }
+    }
+    results.assistantPredictions = { resolved: resolvedAssistantCount };
+  } catch (err) {
+    results.assistantPredictions = { error: err instanceof Error ? err.message : "failed" };
   }
 
   // 2. Counter-intuitive findings

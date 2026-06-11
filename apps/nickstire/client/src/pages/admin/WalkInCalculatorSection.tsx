@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { toast } from "sonner";
+import { OIL_PRICE } from "@shared/pricing";
 
 // Ohio sales tax — parts only, NOT labor. This is the legal split.
 const OHIO_TAX_RATE = 0.08;
@@ -34,8 +35,8 @@ export const PRESETS: Array<Omit<LineItem, "id">> = [
   // Oil is a flat-rate service: the advertised price ($49 conv/blend, $80 full synthetic — shared/pricing.ts)
   // is all-in for parts + labor, so NO separate labor bundle. partsCost x markup lands the pre-tax line on
   // the advertised number exactly; Ohio tax (parts-only) still shows separately, as on a real receipt.
-  { description: "Oil Change (conventional/blend 5qt)", partsCostCents: 2450, partsMarkup: 2.0, laborHours: 0 },
-  { description: "Oil Change (full synthetic 5qt)",     partsCostCents: 4000, partsMarkup: 2.0, laborHours: 0 },
+  { description: `Oil Change (conventional/blend 5qt) — starting at $${OIL_PRICE.conventional}`, partsCostCents: (OIL_PRICE.conventional * 100) / 2, partsMarkup: 2.0, laborHours: 0 },
+  { description: `Oil Change (full synthetic 5qt) — starting at $${OIL_PRICE.fullSynthetic}`,     partsCostCents: (OIL_PRICE.fullSynthetic * 100) / 2, partsMarkup: 2.0, laborHours: 0 },
   { description: "Used Tire ($60 each, mount+balance)", partsCostCents: 2500, partsMarkup: 2.4, laborHours: 0 },
   { description: "Brake Pads — Front Axle",        partsCostCents: 3500, partsMarkup: 2.2, laborHours: 1.5 },
   { description: "Brake Pads + Rotors — Front",    partsCostCents: 9500, partsMarkup: 1.9, laborHours: 2.0 },
@@ -242,6 +243,9 @@ export default function WalkInCalculatorSection() {
             <Plus className="w-3 h-3" />
             Custom row
           </button>
+        </div>
+        <div className="mt-3 p-3 border border-yellow-500/30 bg-yellow-500/5 text-yellow-600 dark:text-yellow-400 text-xs rounded">
+          ⚠️ Note: Oil change presets include base conventional/synthetic oil changes (up to 5 quarts). Extra oil, specialized filters, disposal fees, and Ohio sales tax apply separately. Do NOT add separate labor hours for oil changes or tire flat-rate presets.
         </div>
       </div>
 

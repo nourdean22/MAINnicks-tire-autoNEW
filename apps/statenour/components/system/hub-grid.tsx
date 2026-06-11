@@ -62,6 +62,7 @@ interface HubPayload {
   pulse: { priorityCount: number };
   ai: { calls24h: number; costCents7d: number };
   power: { paused: boolean };
+  governance: { pendingCount: number };
   generatedAt: string;
 }
 
@@ -184,7 +185,12 @@ const CARDS: HubCard[] = [
     group: "governance",
     description:
       "Pending autonomous actions awaiting operator review · approve / reject",
-    chip: () => ({ label: "queue", severity: "info" }),
+    chip: (d) => {
+      if (!d) return { label: "—", severity: "unknown" };
+      const count = d.governance?.pendingCount ?? 0;
+      if (count > 0) return { label: `${count} pending`, severity: "warning" };
+      return { label: "empty", severity: "healthy" };
+    },
     featured: true,
   },
   {
