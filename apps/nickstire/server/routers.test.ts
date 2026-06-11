@@ -91,7 +91,7 @@ describe.skipIf(!HAS_DB)("booking.statusByPhone", () => {
 describe.skipIf(!HAS_DB)("booking.statusByRef", () => {
   it("returns empty array for non-existent reference number", async () => {
     const caller = appRouter.createCaller(createPublicContext());
-    const result = await caller.booking.statusByRef({ ref: "NONEXISTENT-REF-12345" });
+    const result = await caller.booking.statusByRef({ ref: "NONEXISTENT-REF-123" });
     // getBookingByRef returns an array, not null
     expect(Array.isArray(result)).toBe(true);
     expect(result.length).toBe(0);
