@@ -218,7 +218,14 @@ describe("redeemCouponById Database Fallback", () => {
 
     mockUpdate.mockResolvedValue([{ affectedRows: 0 }]);
 
-    await expect(redeemCouponById(123)).rejects.toThrow("COUPON_CAP_REACHED");
+    let caught: any;
+    try {
+      await redeemCouponById(123);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toMatch("COUPON_CAP_REACHED");
   });
 
   it("fails-closed when updateResult is empty array (unknown/empty update result shape)", async () => {
@@ -236,6 +243,13 @@ describe("redeemCouponById Database Fallback", () => {
     // Mock updateResult as empty array or empty object inside array
     mockUpdate.mockResolvedValue([{}]);
 
-    await expect(redeemCouponById(123)).rejects.toThrow("COUPON_CAP_REACHED");
+    let caught: any;
+    try {
+      await redeemCouponById(123);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toMatch("COUPON_CAP_REACHED");
   });
 });

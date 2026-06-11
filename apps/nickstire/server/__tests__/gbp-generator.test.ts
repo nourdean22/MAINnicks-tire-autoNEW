@@ -29,7 +29,14 @@ describe("GBP Generator and Fabrication Guard", () => {
 
   it("throws when getGoogleReviews returns null or empty reviews list", async () => {
     vi.mocked(getGoogleReviews).mockResolvedValue(null);
-    await expect(generateGBPPost("proof")).rejects.toThrow("No Google reviews available");
+    let caught: any;
+    try {
+      await generateGBPPost("proof");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toMatch("No Google reviews available");
   });
 
   it("throws when no reviews meet the quality threshold (rating >= 4, text >= 10 chars)", async () => {
@@ -45,7 +52,14 @@ describe("GBP Generator and Fabrication Guard", () => {
         { authorName: "Tester B", rating: 5, text: "Ok", relativeTime: "1 day ago", time: Date.now() },
       ],
     });
-    await expect(generateGBPPost("proof")).rejects.toThrow("No qualifying Google reviews");
+    let caught: any;
+    try {
+      await generateGBPPost("proof");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toMatch("No qualifying Google reviews");
   });
 
   it("successfully creates proof post using real review text when available", async () => {
