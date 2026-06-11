@@ -775,7 +775,8 @@ ${urls.join("\n")}
     try {
       const { default: Stripe } = await import("stripe");
       const stripe = new Stripe(stripeSecretKey);
-      const event = stripe.webhooks.constructEvent(req.body, sig || "", webhookSecret);
+      const rawBody = (req as express.Request & { rawBody?: Buffer }).rawBody || req.body;
+      const event = stripe.webhooks.constructEvent(rawBody, sig || "", webhookSecret);
 
       if (event.type === "payment_intent.succeeded") {
         const intent = event.data.object as any;
