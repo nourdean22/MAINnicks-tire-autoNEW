@@ -61,7 +61,7 @@ the gotchas that bite everyone.
 - **Task runner:** Turborepo (pinned `^2.5.8`)
 - **Workspaces:** `pnpm-workspace.yaml` → `apps/*` + `packages/*`
 
-**`apps/nickstire`** — Vite `^7.3` · React `^19.2` · wouter `3.7.1` (patched) · TanStack Query `^5` · tRPC `^11.6` · Tailwind CSS `^4.1` · Express `^4.21` · Drizzle ORM `^0.45` on `mysql2` → TiDB Cloud · Stripe · web-push · Twilio · Resend · `@aws-sdk/client-s3` · Vitest `^2.1` · Puppeteer (prerender). AI is called over HTTP (Venice/OpenAI/Anthropic/Ollama) — no first-party AI SDK dependency. *(Advisory warning: Active provider routing is dynamically managed by fallback rules and environment configuration in `apps/statenour/lib/ai/provider.ts`; do not rely on static listings.)*
+**`apps/nickstire`** — Vite `^7.3` · React `^19.2` · wouter `3.7.1` (patched) · TanStack Query `^5` · tRPC `^11.6` · Tailwind CSS `^4.1` · Express `^4.21` · Drizzle ORM `^0.45` on `mysql2` → TiDB Cloud · Stripe · web-push · Twilio · Resend · `@aws-sdk/client-s3` · Vitest `^2.1` · Puppeteer (prerender). AI is called over HTTP (Venice/OpenAI/Anthropic/Ollama) — no first-party AI SDK dependency.
 
 **`apps/statenour`** — Next.js `^16.2` (App Router, `output: "standalone"`) · React `^19.2` · Prisma `^7.5` + `@prisma/adapter-neon` → Neon Postgres · tRPC `^11` · Vercel AI SDK `ai@6.0.162` (patched) with `@ai-sdk/anthropic` + `@ai-sdk/openai` · NextAuth `^5` (Google) · Inngest `^4.4` (cron fan-out) · Three.js / R3F · Tailwind CSS `^4.2` · Vitest `^3.2` · Playwright.
 
@@ -328,7 +328,7 @@ nickstire `pnpm --filter nicks-tire-auto env:validate`; statenour `pnpm --filter
 | `DATABASE_URL` | Neon pooled connection (`pgbouncer=true`) — **required** |
 | `DIRECT_URL` | Neon direct (non-pooled) connection for migrations |
 | `AUTH_SECRET`, `AUTH_GOOGLE_CLIENT_ID` / `_SECRET`, `AUTH_ALLOWED_EMAIL` | NextAuth (single-operator Google sign-in) |
-| `OLLAMA_API_KEY` (+ `OLLAMA_MODEL`), `VENICE_API_KEY` (+ `VENICE_MODEL`), `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY` | AI provider chain (Ollama Cloud primary -> Venice -> OpenAI -> Anthropic; see `lib/ai/provider.ts`) *(Advisory warning: The active routing sequence and fallback hierarchy can dynamically deviate from this order depending on provider availability and quota circuit breakers; always treat `apps/statenour/lib/ai/provider.ts` as the source of truth.)* |
+| `OLLAMA_API_KEY` (+ `OLLAMA_MODEL`), `VENICE_API_KEY` (+ `VENICE_MODEL`), `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY` | AI provider chain (Ollama Cloud primary -> Venice -> OpenAI -> Anthropic; see `lib/ai/provider.ts`) |
 | `CRON_SECRET`, `STATENOUR_SYNC_KEY` | Cron + sync/bridge auth |
 | `TELEGRAM_BOT_TOKEN` / `_CHAT_ID` / `_WEBHOOK_SECRET` | Ops alerts + ✓/✗ confirms |
 | `TWILIO_*`, `VAPID_*`, `STRIPE_*`, `RESEND_API_KEY` | SMS, web-push, payments, email |

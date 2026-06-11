@@ -4,7 +4,7 @@
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
 >
-> **Last refreshed: 2026-06-11 · post the **calibration & command surface upgrades wave**: `judge-eval` calibration card + 2x2 confusion matrix on `/system/calibration` page, `createImportedTasks` tRPC mutation + Session Importer panel on `/system/digest` page, `/today` command enriched with active mission metadata + top tasks, and root README routing warnings. Gates at merge: tsc 0 · eslint 0 errors · vitest green · check:crons clean · prompt size check green with 10% headroom · prisma validate green. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-06-11 · post the **chat command surface cleanup, missions deep-linking, and subtask-usage audit waves** (PR #74 / PR #76 merged): `/missions?taskId=` deep-linking fallback TRPC query (`trpc.task.byId`), ported `weekly-review` to v2 prompt builder, fixed `journal-brief` UTC rollover cache key to New York local time, and implemented the automated `/api/cron/subtask-usage-audit` self-firing on/after 2026-06-22. Gates at merge: tsc 0 · 244 files/3341 tests · eslint 0 · check:crons clean · prompt size 54.0k chars with 10% headroom. Full detail: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 
@@ -70,7 +70,7 @@ Detection regex: [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/action-cla
 
 ## 5 · Active backlog (priority order · updated 2026-06-11)
 
-(No active items remaining in current wave backlog.)
+1. P9 confirm-cards · judge-eval calibration verdict (needs n≥30) — low priority.
 
 ## 6 · How to resume in a fresh session
 

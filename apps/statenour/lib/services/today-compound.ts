@@ -31,17 +31,6 @@ export interface TodayCompound {
   focusedMinutes: number;
   tasksDone: number;
   tasksOpen: number;
-  activeMission?: {
-    title: string;
-    domain: string;
-    successMetric: string;
-    openTaskCount: number;
-  } | null;
-  topTasks?: Array<{
-    title: string;
-    missionTitle: string;
-    priority: number;
-  }>;
 }
 
 export async function buildTodayCompound(): Promise<TodayCompound> {
@@ -153,76 +142,6 @@ export async function buildTodayCompound(): Promise<TodayCompound> {
     }
   }).length;
 
-  // 2026-06-11 · Query top 3 active tasks sorted by priority (descending)
-  const activeTasks = await prisma.task.findMany({
-    where: {
-      status: { in: ["READY", "DOING", "INBOX"] },
-      deletedAt: null,
-    },
-    select: {
-      title: true,
-      manualPriorityOverride: true,
-      autoPriority: true,
-      mission: {
-        select: {
-          title: true,
-        },
-      },
-    },
-  }).catch((): Array<{ title: string; manualPriorityOverride: number | null; autoPriority: number | null; mission: { title: string } }> => []);
-
-  const topTasks = activeTasks
-    .map((t) => ({
-      title: t.title,
-      missionTitle: t.mission.title,
-      priority: t.manualPriorityOverride ?? t.autoPriority ?? 0,
-    }))
-    .sort((a, b) => b.priority - a.priority)
-    .slice(0, 3);
-
-  // 2026-06-11 · Query active mission
-  let activeMission: TodayCompound["activeMission"] = null;
-  try {
-    let execState = await prisma.dailyExecutionState.findFirst({
-      where: { dayState: "OPEN" },
-      orderBy: { stateDate: "desc" },
-    });
-    if (!execState) {
-      execState = await prisma.dailyExecutionState.findFirst({
-        orderBy: { stateDate: "desc" },
-      });
-    }
-
-    if (execState?.activeMissionId) {
-      const mission = await prisma.mission.findUnique({
-        where: { id: execState.activeMissionId },
-        include: {
-          _count: {
-            select: {
-              tasks: {
-                where: {
-                  status: { in: ["READY", "DOING", "INBOX"] },
-                  deletedAt: null,
-                },
-              },
-            },
-          },
-        },
-      });
-
-      if (mission) {
-        activeMission = {
-          title: mission.title,
-          domain: mission.domain,
-          successMetric: mission.successMetric || "none",
-          openTaskCount: mission._count.tasks,
-        };
-      }
-    }
-  } catch (err) {
-    // Fail-soft
-  }
-
   return {
     date,
     masteryTotal: Math.round(masteryTotal * 10) / 10,
@@ -241,7 +160,5 @@ export async function buildTodayCompound(): Promise<TodayCompound> {
     focusedMinutes,
     tasksDone: todaysDone.length,
     tasksOpen,
-    activeMission,
-    topTasks,
   };
 }
