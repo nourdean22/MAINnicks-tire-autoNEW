@@ -54,6 +54,7 @@ import { getBlindSpotContext } from "@/lib/brain/blind-spot-detector";
 import { getCounterIntuitiveContext } from "@/lib/brain/counter-intuitive";
 import { getWisdomContext } from "@/lib/brain/wisdom-distiller";
 import { getViolationContext } from "@/lib/brain/violation-context";
+import { getWeeklyReviewContext } from "@/lib/brain/weekly-review-context";
 import { getRelevantSkillsBlock } from "@/lib/skills/skill-context";
 import { getLearningJournalContext } from "@/lib/brain/learning-journal";
 import { getAttentionContext } from "@/lib/brain/attention-tracker";
@@ -247,7 +248,7 @@ function gated<T>(
  * context), we detect the topic and only load the engines relevant
  * to that conversation. Reduces context by ~60% on casual messages.
  *
- *   core     — always loaded (reflections, decisions, wisdom, synthesis, blind spots)
+ *   core     — always loaded (reflections, decisions, wisdom, synthesis, blind spots, weekly review)
  *   business — revenue, pipeline, customers, staff, forecasts
  *   personal — mood, habits, health, learning, attention
  *   strategy — strategic plans, correlations, thinking layers, counter-intuitive
@@ -1012,7 +1013,7 @@ export async function buildSystemPromptUncached(
   // ═══════════════════════════════════════════════════════════════
   // SECTION 8: QUERY-ADAPTIVE INTELLIGENCE ENGINES
   // ═══════════════════════════════════════════════════════════════
-  //   core     → 5 engines  (~5K chars)  — always loaded
+  //   core     → 7 engines  (~6K chars)  — always loaded
   //   business → +8 engines (~8K chars)  — revenue, pipeline, customers
   //   personal → +6 engines (~6K chars)  — mood, habits, health
   //   strategy → +5 engines (~6K chars)  — plans, correlations, thinking
@@ -1026,7 +1027,7 @@ export async function buildSystemPromptUncached(
   const loadReference = tier === "full";
 
   // CORE engines — always loaded regardless of topic
-  const [reflections, decisionPatterns, wisdom, blindSpots, violations, relevantSkills] = await Promise.all([
+  const [reflections, decisionPatterns, wisdom, blindSpots, violations, relevantSkills, weeklyReview] = await Promise.all([
     getRecentReflections().catch((): string => ""),
     getDecisionPatternContext().catch((): string => ""),
     getWisdomContext().catch((): string => ""),
@@ -1035,6 +1036,10 @@ export async function buildSystemPromptUncached(
     // v10.0.434 · top 3 skills semantically relevant to the current
     // operator message (multi-language).
     getRelevantSkillsBlock(userMessage).catch((): string => ""),
+    // 2026-06-10 · cross-week memory — the Sunday weekly review +
+    // ReviewWizard commitment were computed but never deterministically
+    // injected; core tier so casual Monday turns get it too.
+    getWeeklyReviewContext().catch((): string => ""),
   ]);
 
   // OVERSIGHT — predictions + accuracy (business analytics live in
@@ -1095,6 +1100,7 @@ export async function buildSystemPromptUncached(
   // v10.0.434 · top 3 relevant skills · 700-char cap.
   if (relevantSkills) { p.push(cap(relevantSkills, 700)); p.push(``); }
   if (blindSpots) { p.push(cap(blindSpots, 700)); p.push(``); }
+  if (weeklyReview) { p.push(cap(weeklyReview, 800)); p.push(``); }
 
   // Strategy (when strategic)
   if (strategicPlan) { p.push(cap(strategicPlan, 1000)); p.push(``); }
