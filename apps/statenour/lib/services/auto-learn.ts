@@ -121,6 +121,8 @@ interface AutoLearnTaskShape {
   loopKind?: string | null;
   streakCount?: number | null;
   hasGoalId?: boolean | null;
+  outcomeScore?: number | null;
+  completionNote?: string | null;
 }
 
 interface AutoLearnArgs {
@@ -331,6 +333,8 @@ async function tryKnowledgeCapture({
       finishCondition: task.finishCondition,
       missionTitle: task.mission?.title ?? null,
       missionDomain: task.mission?.domain ?? null,
+      outcomeScore: task.outcomeScore ?? null,
+      completionNote: task.completionNote ?? null,
     },
   });
 

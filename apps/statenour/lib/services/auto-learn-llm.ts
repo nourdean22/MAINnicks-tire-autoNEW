@@ -221,12 +221,20 @@ interface ClassifierInput {
   finishCondition: string | null;
   missionTitle: string | null;
   missionDomain: string | null;
+  outcomeScore?: number | null;
+  completionNote?: string | null;
 }
 
 async function classifyWithLLM(input: ClassifierInput): Promise<ClassifierResult | null> {
-  const systemPrompt = `You read a completed task and extract one operator-grade insight from it.
+  const systemPrompt = `You read a completed task along with its completion outcome (score and note) and extract one operator-grade insight from it.
 
 You write for Nour Dean · he runs a tire shop + builds his own personal OS. He's a high-velocity operator who values brevity and signal over noise. Match his tone: lowercase · plain English · no jargon · no AI clichés.
+
+If an outcome score and/or completion note are provided, treat them as evidence (not absolute truth):
+  - A low outcome score (e.g. < 60) indicates execution friction. Inspect potential blockers, poor fit, unclear task definition, bad timing, or an under-scoped plan. Reflect this friction in the lesson to help the operator identify patterns of friction or prevent them.
+  - A high outcome score (e.g. >= 80) indicates successful execution. Capture what worked, repeatable conditions, leverage, systems, or useful patterns.
+  - If there is not enough signal in the task and outcome, return null for lesson (do not force a memory).
+  - Keep extracted lessons short, grounded, lowercase, plain English, and reusable. Avoid therapy language, and avoid making major life conclusions from a single score.
 
 Output strict JSON. Be conservative with confidence — only ≥0.7 when the task content really does carry a learning.
 
@@ -243,7 +251,9 @@ The 8 identity axes:
   const userPrompt = `Task title: ${input.taskTitle}
 Finish condition: ${input.finishCondition ?? "(none)"}
 Mission: ${input.missionTitle ?? "(none)"}
-Domain: ${input.missionDomain ?? "(none)"}`;
+Domain: ${input.missionDomain ?? "(none)"}
+Outcome score: ${input.outcomeScore != null ? input.outcomeScore : "(none)"}
+Completion note: ${input.completionNote != null ? input.completionNote : "(none)"}`;
 
   try {
     const result = await createStructuredAiResponse<{
@@ -352,6 +362,10 @@ export async function enrichInsightAsync(args: EnrichArgs): Promise<void> {
     model: `${provider}:${modelId}`,
     ms: elapsedMs,
     enriched_at: new Date().toISOString(),
+    taskOutcome: {
+      score: args.task.outcomeScore ?? null,
+      note: args.task.completionNote ? args.task.completionNote.slice(0, 1000) : null,
+    },
   };
 
   try {
