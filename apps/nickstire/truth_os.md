@@ -14,7 +14,7 @@ Eleven PRs squash-merged to main in one evening (#42, #44, #45, #46, #47, #48, #
 
 **Admin shell — three new top-level sections:**
 - **Ops Hub** (#47): owner-action registry (danger-zone truth), reports corpus, PREVIEW-ONLY customer message templates (no send path exists — it throws by design).
-- **Growth** (#50 systems + #53 wiring): 7 tabs — Local Growth (IG autoposter armed-state booleans + Google reviews/Place-ID health), Review Replies (copy-only drafts; Approve/Skip are DB-status-only, **nothing posts to Google**), GBP Q&A (17 claim-safe seeds), Photo Queue (deterministic weekly 6), Entity/Brand (canonical NAP checklist), Competitors (2026-06 baseline, honest gap math), Social Studios.
+- **Growth** (#50 systems + #53 wiring): 7 tabs — Local Growth (IG autoposter armed-state booleans + Google reviews/Place-ID health), Review Replies (copy-only drafts; Approve/Skip/Mark-posted are DB-status-only, **nothing posts to Google** — "Mark posted" is the owner's after-the-paste confirmation that sets `postedAt`, and the tab shows an approved-but-unposted backlog banner off real DB state), GBP Q&A (17 claim-safe seeds), Photo Queue (deterministic weekly 6), Entity/Brand (canonical NAP checklist), Competitors (2026-06 baseline, honest gap math), Social Studios.
 - **Studios** (#51 IG carousel, #52+#54 faceless reel, #55 tile): `/admin/ig-studio` + `/admin/reel-studio` + topbar icon links. DRAFT-ONLY — generation/publish/insights kill-switches all OFF.
 - Deep-link aliases: `?tab=gbp|local|localseo|social` → Growth; `?tab=reviews` still → Outreach (review REQUESTS, unchanged).
 

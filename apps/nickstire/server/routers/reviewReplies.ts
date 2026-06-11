@@ -204,23 +204,62 @@ export const reviewRepliesRouter = router({
       return { success: true };
     }),
 
+  /** Owner confirms an approved reply was pasted into Google (admin).
+   *  DB-only — records the outcome; nothing is sent to Google from here.
+   *  Only reachable from "approved" so "posted" always means a final
+   *  reply existed and the owner explicitly confirmed pasting it. */
+  markPosted: adminProcedure
+    .input(z.object({ id: z.number().int() }))
+    .mutation(async ({ input }) => {
+      const { reviewReplies } = await import("../../drizzle/schema");
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      const record = await database
+        .select()
+        .from(reviewReplies)
+        .where(eq(reviewReplies.id, input.id))
+        .limit(1);
+
+      if (!record.length) {
+        throw new Error("Review reply not found");
+      }
+      if (record[0].status !== "approved") {
+        throw new Error("Only approved replies can be marked posted — approve the draft first");
+      }
+
+      await database
+        .update(reviewReplies)
+        .set({ status: "posted", postedAt: new Date() })
+        .where(eq(reviewReplies.id, input.id));
+
+      return { success: true };
+    }),
+
   /** Get stats on review replies (admin) */
   stats: adminProcedure.query(async () => {
     const { reviewReplies } = await import("../../drizzle/schema");
     const database = await db();
     if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-    const [drafts, approved, skipped, posted] = await Promise.all([
+    const [drafts, approved, skipped, posted, oldestApproved] = await Promise.all([
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "draft")),
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "approved")),
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "skipped")),
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "posted")),
+      // Backlog rot signal: the oldest approved-but-not-posted reply.
+      database
+        .select({ oldest: sql<Date | string | null>`min(${reviewReplies.approvedAt})` })
+        .from(reviewReplies)
+        .where(eq(reviewReplies.status, "approved")),
     ]);
 
     const d = drafts[0]?.count ?? 0;
     const a = approved[0]?.count ?? 0;
     const s = skipped[0]?.count ?? 0;
     const p = posted[0]?.count ?? 0;
+    const oldestRaw = oldestApproved[0]?.oldest ?? null;
+    const oldestApprovedAt = oldestRaw ? new Date(oldestRaw) : null;
 
     return {
       draft: d,
@@ -228,6 +267,8 @@ export const reviewRepliesRouter = router({
       skipped: s,
       posted: p,
       total: d + a + s + p,
+      /** When the oldest still-unposted approved reply was approved (null if none). */
+      oldestApprovedAt,
     };
   }),
 });
