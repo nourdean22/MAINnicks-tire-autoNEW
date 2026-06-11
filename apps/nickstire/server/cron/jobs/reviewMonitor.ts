@@ -5,6 +5,7 @@
 
 import { createLogger } from "../../lib/logger";
 import { buildPlaceDetailsUrl } from "@shared/const";
+import { buildReplyPromptRules } from "@shared/reviewReplyQa";
 
 const log = createLogger("review-monitor");
 
@@ -130,7 +131,9 @@ Rules:
 - Keep it under 100 words
 - Tone: warm, professional, takes ownership
 - Never blame the customer
-- Business name: Nick's Tire & Auto`,
+- Business name: Nick's Tire & Auto
+
+${buildReplyPromptRules()}`,
           },
           {
             role: "user",

@@ -99,13 +99,9 @@ export function CharacterSheet() {
     (best, x) => (x.rising7dXp > (best?.rising7dXp ?? 0) ? x : best),
     null,
   );
-  // Agentic nudge — the stat you're closest to leveling (most progress into
-  // its current level). The board tells you the easiest win to go close,
-  // instead of just displaying numbers. Null when nothing's on the verge.
-  const nextRep = stats.reduce<StatLevel | null>(
-    (best, x) => (x.progressPct > (best?.progressPct ?? 0) ? x : best),
-    null,
-  );
+  // 2026-06-10 · the "Next rep" strip (max progressPct) moved out — it's
+  // now the weakest tier ("closest") of <LevelUpDirectiveCard>, mounted
+  // above this sheet on /stats with a reason + an actionable rep link.
 
   return (
     <section className="mt-6 space-y-3">
@@ -140,35 +136,6 @@ export function CharacterSheet() {
           </p>
         )}
       </div>
-
-      {/* Agentic "next rep" — the board surfaces the single easiest level-up
-          and tells you to go close it. Accent uses the stat's own color. */}
-      {nextRep ? (
-        <div
-          className="flex items-center gap-2 rounded-lg border px-3.5 py-2"
-          style={{
-            borderColor: `${nextRep.color}40`,
-            backgroundColor: `${nextRep.color}0f`,
-          }}
-        >
-          <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-white/40">
-            Next rep
-          </span>
-          <span className="shrink-0 text-base leading-none" aria-hidden>
-            {nextRep.icon}
-          </span>
-          <span className="truncate text-[12px] font-medium text-white/85">
-            {nextRep.shortLabel || nextRep.label}
-          </span>
-          <span
-            className="ml-auto shrink-0 text-[11px] font-semibold tabular-nums"
-            style={{ color: nextRep.color }}
-          >
-            {Math.round(nextRep.xpForNext - nextRep.xpIntoLevel)} XP → Lvl{" "}
-            {nextRep.level + 1}
-          </span>
-        </div>
-      ) : null}
 
       {/* Per-branch skill-tree groups. Stats arrive pre-sorted by level;
           we keep that order within each branch so the strongest leads. */}

@@ -5,11 +5,12 @@
  */
 import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
-import { eq, sql } from "drizzle-orm";
+import { eq, asc, desc, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
 import { TRPCError } from "@trpc/server";
 import { buildPlaceDetailsUrl } from "@shared/const";
+import { buildReplyPromptRules, checkReviewReply } from "@shared/reviewReplyQa";
 
 import { db } from "../lib/db-helper";
 
@@ -45,9 +46,11 @@ The customer gave a ${review.rating}-star review with this comment: "${review.te
 Write a warm, professional 2-3 sentence response that:
 1. Thanks them for the feedback
 2. If negative (1-3 stars): Apologizes and offers to make it right
-3. If positive (4-5 stars): Reinforces quality and invites them back
+3. If positive (4-5 stars): Mentions one specific thing that went well and invites them back
 
-Keep it under 160 characters (Google's limit).`;
+${buildReplyPromptRules()}
+
+Keep it under 160 characters.`;
 
   try {
     const result = await invokeLLM({
@@ -132,7 +135,11 @@ export const reviewRepliesRouter = router({
         ? database.select().from(reviewReplies).where(eq(reviewReplies.status, input.status))
         : database.select().from(reviewReplies);
 
-      return query.limit(input.limit);
+      // Operator queue order: worst rating first (angry reviews are the
+      // urgent ones), newest first within a rating.
+      return query
+        .orderBy(asc(reviewReplies.reviewRating), desc(reviewReplies.reviewDate))
+        .limit(input.limit);
     }),
 
   /** Update draft reply text (admin) */
@@ -173,7 +180,18 @@ export const reviewRepliesRouter = router({
         .limit(1);
 
       if (!record.length || !record[0].draftReply) {
-        throw new Error("Review or draft not found");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Review or draft not found" });
+      }
+
+      // Claim-safety gate: a reply with a blocking finding can never be
+      // approved — the operator edits the draft first. Same rule family
+      // the GBP Q&A seeds are test-enforced against.
+      const blockers = checkReviewReply(record[0].draftReply).filter((f) => f.severity === "block");
+      if (blockers.length) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Claim-safety: ${blockers.map((f) => `${f.rule} ("${f.match}")`).join("; ")} — edit the draft first.`,
+        });
       }
 
       await database
