@@ -149,6 +149,34 @@ describe("findAnticipated", () => {
   });
 });
 
+describe("loadTodaysSet yesterday-fallback (evening-build keying)", () => {
+  // The anticipate cron runs in the mega-EVENING fan-out (~10-11pm ET,
+  // before midnight), keying the row to the ENDING day. Without the
+  // fallback every next-morning read silently got null — the feature
+  // wrote rows nobody could read.
+  it("falls back to yesterday's key when today's row is missing", async () => {
+    mockFindUnique.mockImplementation((args: { where?: { category_key?: { key?: string } } }) => {
+      const key = args?.where?.category_key?.key;
+      if (key === `anticipated_${todayKey()}`) return Promise.resolve(null);
+      return Promise.resolve(storedSet(["ALG take", null]));
+    });
+    const match = await findAnticipated("any message", [1, 0]);
+    expect(match?.answer).toBe("ALG take");
+    const keys = mockFindUnique.mock.calls.map(
+      (c) => (c[0] as { where: { category_key: { key: string } } }).where.category_key.key,
+    );
+    expect(keys[0]).toBe(`anticipated_${todayKey()}`);
+    expect(keys[1]).toMatch(/^anticipated_\d{4}-\d{2}-\d{2}$/);
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+
+  it("returns null when both today's and yesterday's rows are missing", async () => {
+    mockFindUnique.mockResolvedValue(null);
+    expect(await findAnticipated("any message", [1, 0])).toBeNull();
+    expect(mockFindUnique).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("precomputeAnswers", () => {
   it("returns a trimmed, capped answer per question", async () => {
     mockAiChat.mockResolvedValue({ content: "  A sharp take. " });

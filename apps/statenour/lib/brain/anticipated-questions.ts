@@ -12,23 +12,26 @@
  *      commitments + open loops · the "what's-on-his-mind" surface
  *   2. draftAnticipatedQuestions(signals) · single aiChat call (factual
  *      task · cheap) returns 3 short questions
- *   3. precomputeAnswers(questions) · runs each question through the
- *      in-process chat pipeline (same lift as eval-regression-runner)
- *      with a 10s timeout per question · captures the reply
+ *   3. precomputeAnswers(questions) · one NO-tools "reason" call per
+ *      question (10s budget each, parallel) drafting a take that never
+ *      asserts live numbers or claims actions — TRUTH-RULE compatible
+ *      by construction (2026-06-10: built; the original "in-process
+ *      chat pipeline" design was never implemented)
  *   4. storeAnticipated(...) · upsert BrainMemory(category=
  *      "anticipated_question", key="anticipated_YYYY-MM-DD") · NO new
  *      table, the no-duplicate-data rule
  *
- * Match-at-ask-time:
- *   · findAnticipated(query) · cosine-similarity against today's set ·
- *     similarity > 0.85 returns the cached answer + freshness flag.
- *   · The chat route injects the cached take as context · DOES NOT
+ * Match-at-ask-time (2026-06-10: built — was doc-only before):
+ *   · findAnticipated(query, userEmbedding?) · cosine vs today's set
+ *     (yesterday-fallback: the EVENING fan-out keys the row to the
+ *     ending day) · >= 0.85 returns the cached answer + freshness.
+ *   · brain-context injects the take as a reranked block · DOES NOT
  *     short-circuit · the operator's exact phrasing always drives the
  *     final response (per the spec).
  *
- * Cost · 1 draft call (factual, ~$0.001) + 3 chat-pipeline runs
- * (~$0.02 each) ≈ $0.07/day · pays for itself the first time the
- * operator gets an instant answer instead of waiting for the model.
+ * Cost · 1 draft call (factual, ~$0.001) + 3 no-tools reason calls
+ * nightly · the chat hot path adds ZERO embedding calls (reuses the
+ * route's prefetch embedding; question vectors cached per day).
  *
  * Skill stances applied: production-code-audit (no shadow tables,
  * surgical fold into existing cron), kaizen (smallest change that
@@ -478,6 +481,33 @@ let todayCache: { date: string; set: AnticipatedSet | null; at: number } | null 
  * Load today's anticipated set (or yesterday's if today's not built
  * yet) · cached 5min · returns null when nothing's stored.
  */
+/** Yesterday's date in America/New_York · the evening-build fallback key. */
+function yesterdayKey(): string {
+  return new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
+}
+
+async function fetchSetByKey(key: string): Promise<AnticipatedSet | null> {
+  const row = await prisma.brainMemory
+    .findUnique({
+      where: {
+        category_key: { category: "anticipated_question", key },
+      },
+      select: { metadata: true, updatedAt: true },
+    })
+    .catch((err) => {
+      log.warn("loadToday_failed", { key, err: errMsg(err) });
+      return null as { metadata: unknown; updatedAt: Date } | null;
+    });
+  if (!row || !row.metadata) return null;
+  const meta = row.metadata as unknown as AnticipatedSet;
+  if (Array.isArray(meta.questions) && Array.isArray(meta.answers)) {
+    return meta;
+  }
+  return null;
+}
+
 async function loadTodaysSet(): Promise<AnticipatedSet | null> {
   const date = todayKey();
   if (
@@ -488,28 +518,18 @@ async function loadTodaysSet(): Promise<AnticipatedSet | null> {
     return todayCache.set;
   }
 
-  const row = await prisma.brainMemory
-    .findUnique({
-      where: {
-        category_key: {
-          category: "anticipated_question",
-          key: `anticipated_${date}`,
-        },
-      },
-      select: { metadata: true, updatedAt: true },
-    })
-    .catch((err) => {
-      log.warn("loadToday_failed", { err: errMsg(err) });
-      return null as { metadata: unknown; updatedAt: Date } | null;
-    });
+  // 2026-06-10 · yesterday-fallback — this function's contract promised
+  // it from day one but it was never implemented, and it is LOAD-BEARING:
+  // the anticipate cron runs inside the mega-EVENING fan-out (0 3 * * *
+  // UTC ≈ 10-11pm ET, BEFORE midnight ET), so the set lands under the
+  // ENDING day's key. Every next-morning read (morning brief, proactive
+  // pushes, chat match) computed the NEW day's key and silently got
+  // null — the feature wrote rows nobody could read. The fallback is
+  // bounded to exactly one day; an older set stays honestly absent.
+  const set =
+    (await fetchSetByKey(`anticipated_${date}`)) ??
+    (await fetchSetByKey(`anticipated_${yesterdayKey()}`));
 
-  let set: AnticipatedSet | null = null;
-  if (row && row.metadata) {
-    const meta = row.metadata as unknown as AnticipatedSet;
-    if (Array.isArray(meta.questions) && Array.isArray(meta.answers)) {
-      set = meta;
-    }
-  }
   todayCache = { date, set, at: Date.now() };
   return set;
 }
