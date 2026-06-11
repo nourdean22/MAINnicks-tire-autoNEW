@@ -263,8 +263,8 @@ function ReviewRepliesTab() {
               <> — oldest approved {oldestApprovedDays} {oldestApprovedDays === 1 ? "day" : "days"} ago</>
             )}
             . Next move: copy each one, paste it on the review in the Google Business
-            app, then tap "Mark posted". (Counts our DB state only — we can't see
-            Google's side.)
+            app, then tap "Mark posted". Already replied on Google? Just tap
+            "Mark posted". (Counts our DB state only — we can't see Google's side.)
           </span>
         </div>
       )}

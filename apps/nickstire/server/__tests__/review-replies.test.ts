@@ -119,7 +119,10 @@ describe("reviewReplies.markPosted", () => {
   it("rejects non-admin users before touching the database", async () => {
     const caller = reviewRepliesRouter.createCaller(userContext());
 
-    await expect(caller.markPosted({ id: 7 })).rejects.toThrow();
+    // Assert the PERMISSION error specifically — a bare rejects.toThrow()
+    // would also pass via the handler's own "not found" throw (empty mock
+    // queue), which would NOT prove the auth gate fired.
+    await expect(caller.markPosted({ id: 7 })).rejects.toThrow(/permission/i);
     expect(h.updates).toHaveLength(0);
   });
 });
