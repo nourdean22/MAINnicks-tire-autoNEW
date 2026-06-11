@@ -24,6 +24,7 @@ Co-Authored-By: <model name> <noreply@anthropic.com>
 ```
 
 ## Key Conventions
+- **NEVER push `main`** — named branches (`nickstire/<task>`) + PR; operator merges (repo rule 2026-06-11; see root `AGENTS.md`).
 - **Stage only your files by explicit path** — never `git add -A` (concurrent agent sessions share `main`).
 - **PRs are squash-merged** — never stack branches on another open PR's commits; if you must build ahead, expect a cherry-pick rebuild after the parent lands.
 - **Migrations are hand-applied SQL** (`drizzle/*.sql`) — there is no auto-migrate; never run one without explicit approval.
