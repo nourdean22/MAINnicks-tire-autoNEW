@@ -19,10 +19,16 @@ import {
 
 export async function handleCreateWorkOrder(input: {
   sessionId: number;
-  customerId?: string;
+  customerId?: number;
   priority: "low" | "normal" | "high" | "urgent";
   autoAssign: boolean;
 }) {
+  if (input.customerId !== undefined && input.customerId !== null) {
+    const cid = Number(input.customerId);
+    if (typeof input.customerId !== "number" || !Number.isInteger(cid) || cid <= 0 || !Number.isFinite(cid) || cid >= 10000000) {
+      throw new Error("Invalid customerId: must be a finite positive integer");
+    }
+  }
   const { d, session, messages, conversationText } = await fetchSessionWithMessages(input.sessionId);
 
   // Parallel: AI extraction + customer lookup
@@ -145,9 +151,8 @@ export async function handleCreateWorkOrder(input: {
   const orderId = randomUUID();
   const orderNumber = `WO-${Date.now().toString(36).toUpperCase()}`;
 
-  // Link to returning customer if found
-  const resolvedCustomerId = input.customerId
-    || (customerData?.phone ? customerData.phone : "WALK-IN");
+  // Link to returning customer if found (numeric ID or null for walk-ins)
+  const resolvedCustomerId = input.customerId ?? null;
 
   const workOrderData = {
     id: orderId,
