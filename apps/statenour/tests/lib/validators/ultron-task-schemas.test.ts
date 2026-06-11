@@ -300,3 +300,26 @@ describe("task.logSessionEvent · call-site payload contract", () => {
     ).toThrow();
   });
 });
+
+// ──────────────── task.byId ────────────────
+//
+// /missions?taskId= deep-link support · fires trpc.task.byId({ id }).
+// The tRPC `.input()` is re-declared verbatim from lib/trpc/routers/task.ts.
+
+describe("task.byId · call-site payload contract", () => {
+  const byIdInput = z.object({ id: z.string().min(1).max(64) });
+
+  it("accepts the byId payload — { id }", () => {
+    expect(() =>
+      byIdInput.parse({ id: "clx9k2p4t0001abcd1234efgh" }),
+    ).not.toThrow();
+  });
+
+  it("rejects an empty id — min(1) is the guard", () => {
+    expect(() => byIdInput.parse({ id: "" })).toThrow();
+  });
+
+  it("rejects a missing id key", () => {
+    expect(() => byIdInput.parse({})).toThrow();
+  });
+});
