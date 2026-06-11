@@ -183,10 +183,23 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
     if (!hasContent) riskFlags.push("empty_message", "context_missing");
     if (quietHoursBlocked) riskFlags.push("quiet_hours_overnight");
 
-    const memoryRow = await prisma.brainMemory.findUnique({
-      where: { category_key: { category: "anticipated_question", key: `anticipated_${dateKey}` } },
-      select: { id: true },
-    }).catch(() => null);
+    // 2026-06-10 · the set is keyed to its BUILD day (evening fan-out),
+    // so the morning preview must fall back to yesterday's key for
+    // source attribution — same fallback getTodaysAnticipated applies.
+    // (Yesterday computed inline, NY timezone, matching
+    // anticipated-questions.ts yesterdayKey().)
+    const yesterdayDateKey = new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA", {
+      timeZone: "America/New_York",
+    });
+    const memoryRow =
+      (await prisma.brainMemory.findUnique({
+        where: { category_key: { category: "anticipated_question", key: `anticipated_${dateKey}` } },
+        select: { id: true },
+      }).catch(() => null)) ??
+      (await prisma.brainMemory.findUnique({
+        where: { category_key: { category: "anticipated_question", key: `anticipated_${yesterdayDateKey}` } },
+        select: { id: true },
+      }).catch(() => null));
 
     const sources: PushSource[] = [];
     if (top) {

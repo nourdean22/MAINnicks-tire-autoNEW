@@ -12,23 +12,26 @@
  *      commitments + open loops · the "what's-on-his-mind" surface
  *   2. draftAnticipatedQuestions(signals) · single aiChat call (factual
  *      task · cheap) returns 3 short questions
- *   3. precomputeAnswers(questions) · runs each question through the
- *      in-process chat pipeline (same lift as eval-regression-runner)
- *      with a 10s timeout per question · captures the reply
+ *   3. precomputeAnswers(questions) · one NO-tools "reason" call per
+ *      question (10s budget each, parallel) drafting a take that never
+ *      asserts live numbers or claims actions — TRUTH-RULE compatible
+ *      by construction (2026-06-10: built; the original "in-process
+ *      chat pipeline" design was never implemented)
  *   4. storeAnticipated(...) · upsert BrainMemory(category=
  *      "anticipated_question", key="anticipated_YYYY-MM-DD") · NO new
  *      table, the no-duplicate-data rule
  *
- * Match-at-ask-time:
- *   · findAnticipated(query) · cosine-similarity against today's set ·
- *     similarity > 0.85 returns the cached answer + freshness flag.
- *   · The chat route injects the cached take as context · DOES NOT
+ * Match-at-ask-time (2026-06-10: built — was doc-only before):
+ *   · findAnticipated(query, userEmbedding?) · cosine vs today's set
+ *     (yesterday-fallback: the EVENING fan-out keys the row to the
+ *     ending day) · >= 0.85 returns the cached answer + freshness.
+ *   · brain-context injects the take as a reranked block · DOES NOT
  *     short-circuit · the operator's exact phrasing always drives the
  *     final response (per the spec).
  *
- * Cost · 1 draft call (factual, ~$0.001) + 3 chat-pipeline runs
- * (~$0.02 each) ≈ $0.07/day · pays for itself the first time the
- * operator gets an instant answer instead of waiting for the model.
+ * Cost · 1 draft call (factual, ~$0.001) + 3 no-tools reason calls
+ * nightly · the chat hot path adds ZERO embedding calls (reuses the
+ * route's prefetch embedding; question vectors cached per day).
  *
  * Skill stances applied: production-code-audit (no shadow tables,
  * surgical fold into existing cron), kaizen (smallest change that
@@ -41,6 +44,8 @@
 import { prisma } from "@/lib/prisma";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { extractJsonArray } from "@/lib/ai/extract-structured";
+import { getEmbedding } from "@/lib/ai/provider";
+import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("brain/anticipated-questions");
@@ -347,6 +352,72 @@ Rules · non-negotiable:
   }
 }
 
+// ── 3. Answer precompute ─────────────────────────────────────────
+
+/** Per-question budget · keeps the cron's 60s ceiling safe (3 x 10s worst case). */
+const PRECOMPUTE_TIMEOUT_MS = 10_000;
+
+/** Cap stored answers · they ride BrainMemory metadata JSON + the chat prompt. */
+const MAX_ANSWER_CHARS = 1200;
+
+/**
+ * The take is drafted at night WITHOUT tools or live data — the system
+ * prompt forbids asserting live numbers or claiming checks, so the
+ * cached answer can be injected tomorrow without violating the chat
+ * TRUTH RULE (it's framing/strategy, never a fact-claim).
+ */
+const PRECOMPUTE_SYSTEM = `You are Nick, Nour's operator, drafting a take TONIGHT so it's warm if he asks this question TOMORROW.
+You have NO tools and NO live data in this draft. Rules:
+1. Give the framing, the strategy, and concrete next moves — the thinking, not the lookup.
+2. NEVER assert a specific live number (revenue, counts, streaks, prices). Say what to check and where instead.
+3. NEVER claim an action was taken or a check was performed.
+4. Under 120 words. Terse operator voice.`;
+
+/**
+ * Precompute a draft answer per question. Degrades per-question to
+ * null on timeout/failure — the caller stores nulls and downstream
+ * surfaces (morning brief, chat match) skip them.
+ */
+export async function precomputeAnswers(
+  questions: AnticipatedQuestion[],
+): Promise<Array<string | null>> {
+  if (questions.length === 0) return [];
+  return Promise.all(
+    questions.map(async (q) => {
+      try {
+        const result = await Promise.race([
+          aiChat(
+            [
+              { role: "system", content: PRECOMPUTE_SYSTEM },
+              { role: "user", content: q.question },
+            ],
+            "reason",
+          ),
+          new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), PRECOMPUTE_TIMEOUT_MS),
+          ),
+        ]);
+        // aiChat NEVER throws on total provider-chain failure — it
+        // returns an "I'm having trouble connecting…" sentinel with
+        // provider "emergency"/"none" (lib/ai/provider.ts). Without
+        // this check the sentinel would be stored as the question's
+        // answer and injected into next-day chat as a "draft take".
+        if (!result || result.provider === "emergency" || result.provider === "none") {
+          return null;
+        }
+        const text = typeof result.content === "string" ? result.content.trim() : "";
+        return text.length > 0 ? text.slice(0, MAX_ANSWER_CHARS) : null;
+      } catch (err) {
+        log.warn("precompute_failed", {
+          question: q.question.slice(0, 80),
+          err: errMsg(err),
+        });
+        return null;
+      }
+    }),
+  );
+}
+
 // ── 4. Storage (BrainMemory upsert · no new table) ──────────────
 
 /**
@@ -417,6 +488,33 @@ let todayCache: { date: string; set: AnticipatedSet | null; at: number } | null 
  * Load today's anticipated set (or yesterday's if today's not built
  * yet) · cached 5min · returns null when nothing's stored.
  */
+/** Yesterday's date in America/New_York · the evening-build fallback key. */
+export function yesterdayKey(): string {
+  return new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
+}
+
+async function fetchSetByKey(key: string): Promise<AnticipatedSet | null> {
+  const row = await prisma.brainMemory
+    .findUnique({
+      where: {
+        category_key: { category: "anticipated_question", key },
+      },
+      select: { metadata: true, updatedAt: true },
+    })
+    .catch((err) => {
+      log.warn("loadToday_failed", { key, err: errMsg(err) });
+      return null as { metadata: unknown; updatedAt: Date } | null;
+    });
+  if (!row || !row.metadata) return null;
+  const meta = row.metadata as unknown as AnticipatedSet;
+  if (Array.isArray(meta.questions) && Array.isArray(meta.answers)) {
+    return meta;
+  }
+  return null;
+}
+
 async function loadTodaysSet(): Promise<AnticipatedSet | null> {
   const date = todayKey();
   if (
@@ -427,28 +525,18 @@ async function loadTodaysSet(): Promise<AnticipatedSet | null> {
     return todayCache.set;
   }
 
-  const row = await prisma.brainMemory
-    .findUnique({
-      where: {
-        category_key: {
-          category: "anticipated_question",
-          key: `anticipated_${date}`,
-        },
-      },
-      select: { metadata: true, updatedAt: true },
-    })
-    .catch((err) => {
-      log.warn("loadToday_failed", { err: errMsg(err) });
-      return null as { metadata: unknown; updatedAt: Date } | null;
-    });
+  // 2026-06-10 · yesterday-fallback — this function's contract promised
+  // it from day one but it was never implemented, and it is LOAD-BEARING:
+  // the anticipate cron runs inside the mega-EVENING fan-out (0 3 * * *
+  // UTC ≈ 10-11pm ET, BEFORE midnight ET), so the set lands under the
+  // ENDING day's key. Every next-morning read (morning brief, proactive
+  // pushes, chat match) computed the NEW day's key and silently got
+  // null — the feature wrote rows nobody could read. The fallback is
+  // bounded to exactly one day; an older set stays honestly absent.
+  const set =
+    (await fetchSetByKey(`anticipated_${date}`)) ??
+    (await fetchSetByKey(`anticipated_${yesterdayKey()}`));
 
-  let set: AnticipatedSet | null = null;
-  if (row && row.metadata) {
-    const meta = row.metadata as unknown as AnticipatedSet;
-    if (Array.isArray(meta.questions) && Array.isArray(meta.answers)) {
-      set = meta;
-    }
-  }
   todayCache = { date, set, at: Date.now() };
   return set;
 }
@@ -465,6 +553,136 @@ export async function getTodaysAnticipated(): Promise<AnticipatedSet | null> {
 /** Test seam · clear the 5min cache between unit tests. */
 export function _resetTodayCacheForTests(): void {
   todayCache = null;
+}
+
+// ── 6. findAnticipated · cosine match at ask time ────────────────
+//
+// The module doc promised this from day one ("the chat route surfaces
+// the cached take as a system-prompt addendum") but it was never
+// built — the chat route had zero callers (evolution audit 2026-06-10).
+// Contract per the original spec: similarity above the 0.85 floor
+// returns the cached answer; the chat route injects it as CONTEXT and
+// never short-circuits the live response.
+
+/** Conservative match floor — a false-positive injection pollutes the turn. */
+export const ANTICIPATED_MATCH_FLOOR = 0.85;
+
+export interface AnticipatedMatch {
+  question: string;
+  topic: string | null;
+  answer: string;
+  similarity: number;
+  /** ISO timestamp the set was built · drives the freshness framing. */
+  builtAt: string;
+  /** YYYY-MM-DD the set covers. */
+  date: string;
+}
+
+/**
+ * Per-build cache of the 3 question embeddings · 3 embed calls once
+ * per build per process. Keyed by date+builtAt (not date alone) so a
+ * same-day manual cron re-run past the 6h skip window — which rewrites
+ * the questions — can't pair stale vectors with the new questions.
+ */
+let questionEmbedCache: { buildKey: string; vectors: Array<number[] | null> } | null = null;
+
+async function questionVectors(set: AnticipatedSet): Promise<Array<number[] | null>> {
+  const buildKey = `${set.date}|${set.builtAt}`;
+  if (questionEmbedCache && questionEmbedCache.buildKey === buildKey) {
+    return questionEmbedCache.vectors;
+  }
+  const vectors = await Promise.all(
+    set.questions.map(async (q) => {
+      try {
+        const v = await getEmbedding(q.question);
+        return Array.isArray(v) && v.length > 0 ? v : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  questionEmbedCache = { buildKey, vectors };
+  return vectors;
+}
+
+/**
+ * Match the operator's message against today's anticipated set.
+ * Returns the best match at/above the cosine floor that has a
+ * precomputed answer, else null. Accepts the chat route's
+ * already-computed user embedding so the hot path adds ZERO
+ * embedding calls; embeds the message itself only when absent
+ * (cron/test callers).
+ */
+export async function findAnticipated(
+  userMessage: string,
+  userEmbedding?: number[],
+): Promise<AnticipatedMatch | null> {
+  if (!userMessage || userMessage.trim().length < 5) return null;
+  const set = await loadTodaysSet();
+  if (!set || set.questions.length === 0) return null;
+  // Matching is only worth an embed when at least one answer exists.
+  const hasAnswer = (set.answers ?? []).some(
+    (a) => typeof a === "string" && a.length > 0,
+  );
+  if (!hasAnswer) return null;
+
+  let msgVec = userEmbedding ?? [];
+  if (msgVec.length === 0) {
+    try {
+      msgVec = await getEmbedding(userMessage);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(msgVec) || msgVec.length === 0) return null;
+
+  const vectors = await questionVectors(set);
+  let best: AnticipatedMatch | null = null;
+  for (let i = 0; i < set.questions.length; i++) {
+    const answer = set.answers?.[i];
+    if (typeof answer !== "string" || answer.length === 0) continue;
+    const qVec = vectors[i];
+    if (!qVec) continue;
+    const sim = cosineSimilarity(msgVec, qVec);
+    if (sim < ANTICIPATED_MATCH_FLOOR) continue;
+    if (!best || sim > best.similarity) {
+      best = {
+        question: set.questions[i].question,
+        topic: set.questions[i].topic,
+        answer,
+        similarity: sim,
+        builtAt: set.builtAt,
+        date: set.date,
+      };
+    }
+  }
+  return best;
+}
+
+/**
+ * Chat-context block · "" when no match (same contract as every other
+ * brain block, so brain-context can append it blindly). The framing
+ * keeps the TRUTH RULE intact: the take was drafted last night WITHOUT
+ * tools, so the model is told to verify volatile facts live and never
+ * claim a check already happened.
+ */
+export async function buildAnticipatedContextBlock(
+  userMessage: string,
+  userEmbedding?: number[],
+): Promise<string> {
+  const match = await findAnticipated(userMessage, userEmbedding).catch(() => null);
+  if (!match) return "";
+  return [
+    `### ANTICIPATED QUESTION (precomputed ${match.date} · match ${match.similarity.toFixed(2)})`,
+    `You predicted Nour would ask: "${match.question}"${match.topic ? ` [${match.topic}]` : ""}`,
+    `Draft take from last night (drafted with NO tools — verify any live number with tools before asserting it; never claim you already checked something this turn):`,
+    match.answer,
+  ].join("\n");
+}
+
+/** Test seam · clear the per-day question-embedding cache. */
+export function _resetAnticipatedMatchCacheForTests(): void {
+  questionEmbedCache = null;
 }
 
 // ── helpers ──────────────────────────────────────────────────────

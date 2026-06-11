@@ -144,7 +144,7 @@ export async function askPerplexityLegacy(
  */
 export async function researchCompetitor(competitorName: string): Promise<PerplexityResponse> {
   return askPerplexity(
-    `Research "${competitorName}" auto repair shop in Cleveland/Euclid Ohio area. What are their prices, services, reviews, and competitive advantages? How do they compare to a shop with 4.9 stars and 1683+ reviews?`,
+    `Research "${competitorName}" auto repair shop in Cleveland/Euclid Ohio area. What are their prices, services, reviews, and competitive advantages? How do they compare to a shop with 4.9 stars and 1,700+ reviews?`,
     {
       systemPrompt:
         "You are a competitive intelligence analyst for an auto repair shop. Be specific with data points, prices, and actionable insights.",
