@@ -100,6 +100,8 @@ export async function checkTask(args: {
    *  children stay open · half-state allowed). Skipped for DAILY
    *  (DAILY just bumps streak · cascade semantics don't apply). */
   cascadeChildren?: boolean;
+  completionNote?: string | null;
+  outcomeScore?: number | null;
 }): Promise<CheckTaskResult> {
   const { id } = args;
   const action: CheckAction = args.action === "break" ? "break" : "complete";
@@ -193,6 +195,8 @@ export async function checkTask(args: {
         streakCount: nextStreak,
         status: nextStatus,
         ...(isWeekly ? { snoozedUntil: nextSnoozedUntil } : {}),
+        completionNote: args.completionNote ?? undefined,
+        outcomeScore: args.outcomeScore ?? undefined,
       },
       select: { id: true, streakCount: true, lastCompletedAt: true, loopKind: true, title: true },
     });
@@ -295,6 +299,8 @@ export async function checkTask(args: {
       lastCompletedAt: now,
       actualMinutes: (task.actualMinutes ?? 0) + timeBump,
       startedAt: null,
+      completionNote: args.completionNote ?? undefined,
+      outcomeScore: args.outcomeScore ?? undefined,
     },
     select: { id: true, status: true, loopKind: true, actualMinutes: true, effort: true },
   });

@@ -19,4 +19,45 @@ describe("Walk-In Calculator & Win-Back tire_customer Segment", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("personalizeWinbackBody uses fallback generic text for customer without verified tire purchases", async () => {
+    const { personalizeWinbackBody } = await import("../routers/winback");
+    const originalBody = "It's time for your free tire rotation at Nick's!";
+    const customer = {
+      firstName: "John",
+      vehicleYear: 2018,
+      vehicleMake: "Honda",
+      vehicleModel: "Civic",
+    };
+    const result = personalizeWinbackBody(originalBody, customer, false);
+    expect(result).toContain("Still need tires or service?");
+    expect(result).not.toContain("free tire rotation");
+    expect(result).toContain("Reply STOP to opt out");
+  });
+
+  it("personalizeWinbackBody uses tire-specific text for customer with verified tire purchases", async () => {
+    const { personalizeWinbackBody } = await import("../routers/winback");
+    const originalBody = "It's time for your free tire rotation at Nick's!";
+    const customer = {
+      firstName: "John",
+      vehicleYear: 2018,
+      vehicleMake: "Honda",
+      vehicleModel: "Civic",
+    };
+    const result = personalizeWinbackBody(originalBody, customer, true);
+    expect(result).toContain("free tire rotation");
+    expect(result).not.toContain("Still need tires or service?");
+    expect(result).toContain("Reply STOP to opt out");
+  });
+
+  it("withOptOut appends opt-out footers to SMS if not present", async () => {
+    const { withOptOut } = await import("../sms");
+    const testMsg = "Hello from Nick's!";
+    const result = withOptOut(testMsg);
+    expect(result).toContain("Reply STOP to opt out.");
+    
+    // Test that it does not double append if already present
+    const doubleResult = withOptOut(result);
+    expect(doubleResult).toBe(result);
+  });
 });

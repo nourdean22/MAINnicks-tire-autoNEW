@@ -323,7 +323,15 @@ function renderWhyBlock(ctx: NickPrimeContext): string {
 function renderRecentThinking(ctx: NickPrimeContext): string {
   const dumps = ctx.recentBrainDumps ?? [];
   const reflections = ctx.recentReflections ?? [];
-  if (dumps.length === 0 && reflections.length === 0 && !ctx.weeklyReview) return "";
+  if (
+    dumps.length === 0 &&
+    reflections.length === 0 &&
+    !ctx.weeklyReview &&
+    (!ctx.followUps || ctx.followUps.length === 0) &&
+    (!ctx.anticipatedQuestions || ctx.anticipatedQuestions.length === 0)
+  ) {
+    return "";
+  }
 
   const lines: string[] = [];
 
@@ -385,6 +393,22 @@ function renderRecentThinking(ctx: NickPrimeContext): string {
   if (ctx.weeklyReview) {
     if (lines.length > 0) lines.push("");
     lines.push(cap(ctx.weeklyReview, 800));
+  }
+
+  if (ctx.followUps && ctx.followUps.length > 0) {
+    if (lines.length > 0) lines.push("");
+    lines.push(`## Follow-Ups Needed`);
+    for (const item of ctx.followUps) {
+      lines.push(`- ${item}`);
+    }
+  }
+
+  if (ctx.anticipatedQuestions && ctx.anticipatedQuestions.length > 0) {
+    if (lines.length > 0) lines.push("");
+    lines.push(`## Anticipated Questions for Today`);
+    for (const q of ctx.anticipatedQuestions) {
+      lines.push(`- ${q}`);
+    }
   }
 
   return lines.join("\n");

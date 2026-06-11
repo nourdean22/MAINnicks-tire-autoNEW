@@ -10,7 +10,7 @@
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, sql, desc, and, lte, isNull } from "drizzle-orm";
-import { customers } from "../../drizzle/schema";
+import { customers, invoices } from "../../drizzle/schema";
 import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/schema";
 import { sendSms, withOptOut } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
@@ -222,13 +222,21 @@ function buildSegmentFilter(segment: string) {
  * customer NEVER receives a literal "{vehicleInfo}". Must be applied anywhere a
  * personalizedBody is built (activate) or previewed so the two stay in sync.
  */
-function personalizeWinbackBody(
+export function personalizeWinbackBody(
   body: string,
-  customer: Pick<typeof customers.$inferSelect, "firstName" | "vehicleYear" | "vehicleMake" | "vehicleModel">
+  customer: Pick<typeof customers.$inferSelect, "firstName" | "vehicleYear" | "vehicleMake" | "vehicleModel">,
+  hasTirePurchase: boolean = true
 ): string {
+  let finalBody = body;
+  if (!hasTirePurchase) {
+    if (finalBody.includes("free tire rotation") || finalBody.includes("tire service") || finalBody.includes("got tires") || finalBody.includes("tire rotation")) {
+      finalBody = `Still need tires or service? We're here at ${STORE_NAME} whenever you're ready. Pull up any day for a free 27-point check, walk-ins welcome 7 days a week. ${STORE_PHONE}`;
+    }
+  }
+
   const vehicleInfo =
     [customer.vehicleYear, customer.vehicleMake, customer.vehicleModel]
-      .map((p) => (p ?? "").trim())
+      .map((p) => String(p ?? "").trim())
       .filter((p) => p.length > 0)
       .join(" ")
       .trim() || "vehicle";
@@ -236,7 +244,7 @@ function personalizeWinbackBody(
   // Wrap centrally here so all segments + any operator custom message comply
   // (idempotent: withOptOut no-ops if the body already carries a STOP line).
   return withOptOut(
-    body
+    finalBody
       .replace(/{firstName}/g, customer.firstName)
       .replace(/{vehicleInfo}/g, vehicleInfo),
   );
@@ -377,17 +385,51 @@ export const winbackRouter = router({
         .where(buildSegmentFilter(campaign.targetSegment))
         .limit(5);
 
+      const sampleCustomerIds = sampleCustomers.map((c: any) => c.id);
+      const tirePurchaseCustomerIds = new Set<number>();
+      if (sampleCustomerIds.length > 0) {
+        const rows = await d
+          .select({ customerId: invoices.customerId })
+          .from(invoices)
+          .where(
+            and(
+              sql`${invoices.customerId} IN (${sql.join(sampleCustomerIds)})`,
+              sql`(${invoices.serviceDescription} LIKE '%tire%' OR ${invoices.serviceDescription} LIKE '%tires%')`,
+              sql`${invoices.serviceDescription} NOT LIKE '%repair%'`,
+              sql`${invoices.serviceDescription} NOT LIKE '%rotation%'`,
+              sql`${invoices.serviceDescription} NOT LIKE '%rotate%'`,
+              sql`${invoices.serviceDescription} NOT LIKE '%flat%'`,
+              sql`${invoices.serviceDescription} NOT LIKE '%patch%'`,
+              sql`${invoices.serviceDescription} NOT LIKE '%plug%'`,
+              sql`${invoices.serviceDescription} NOT LIKE '%balance%'`,
+              sql`${invoices.serviceDescription} NOT LIKE '%mount%'`
+            )
+          );
+        for (const r of rows) {
+          if (r.customerId !== null) {
+            tirePurchaseCustomerIds.add(r.customerId);
+          }
+        }
+      }
+
       type SampleCustomer = typeof customers.$inferSelect;
       type WinbackMessageRow = typeof winbackMessages.$inferSelect;
-      return sampleCustomers.map((c: SampleCustomer) => ({
-        customer: `${c.firstName} ${c.lastName || ""}`.trim(),
-        phone: c.phone,
-        messages: messages.map((m: WinbackMessageRow) => ({
-          step: m.step,
-          delayDays: m.delayDays,
-          body: personalizeWinbackBody(m.body, c),
-        })),
-      }));
+      return sampleCustomers.map((c: SampleCustomer) => {
+        const hasTirePurchase = tirePurchaseCustomerIds.has(c.id);
+        const qualifiedReason = campaign.targetSegment === "tire_customer"
+          ? (hasTirePurchase ? "Verified tire purchase" : "No verified tire purchase (using fallback generic copy)")
+          : `Qualified by segment: ${campaign.targetSegment}`;
+        return {
+          customer: `${c.firstName} ${c.lastName || ""}`.trim(),
+          phone: c.phone,
+          qualifiedReason,
+          messages: messages.map((m: WinbackMessageRow) => ({
+            step: m.step,
+            delayDays: m.delayDays,
+            body: personalizeWinbackBody(m.body, c, hasTirePurchase),
+          })),
+        };
+      });
     }),
 
   /** Activate a campaign — creates send records for all target customers */
@@ -416,6 +458,36 @@ export const winbackRouter = router({
         .where(buildSegmentFilter(campaign.targetSegment))
         .limit(10_000);
 
+      const targetCustomerIds = targetCustomers.map((c: any) => c.id);
+      const tirePurchaseCustomerIds = new Set<number>();
+      if (targetCustomerIds.length > 0) {
+        for (let i = 0; i < targetCustomerIds.length; i += 1000) {
+          const idChunk = targetCustomerIds.slice(i, i + 1000);
+          const rows = await d
+            .select({ customerId: invoices.customerId })
+            .from(invoices)
+            .where(
+              and(
+                sql`${invoices.customerId} IN (${sql.join(idChunk)})`,
+                sql`(${invoices.serviceDescription} LIKE '%tire%' OR ${invoices.serviceDescription} LIKE '%tires%')`,
+                sql`${invoices.serviceDescription} NOT LIKE '%repair%'`,
+                sql`${invoices.serviceDescription} NOT LIKE '%rotation%'`,
+                sql`${invoices.serviceDescription} NOT LIKE '%rotate%'`,
+                sql`${invoices.serviceDescription} NOT LIKE '%flat%'`,
+                sql`${invoices.serviceDescription} NOT LIKE '%patch%'`,
+                sql`${invoices.serviceDescription} NOT LIKE '%plug%'`,
+                sql`${invoices.serviceDescription} NOT LIKE '%balance%'`,
+                sql`${invoices.serviceDescription} NOT LIKE '%mount%'`
+              )
+            );
+          for (const r of rows) {
+            if (r.customerId !== null) {
+              tirePurchaseCustomerIds.add(r.customerId);
+            }
+          }
+        }
+      }
+
       const now = new Date();
       let created = 0;
 
@@ -424,6 +496,7 @@ export const winbackRouter = router({
       // 500 rows per insert, ~30 round-trips for the same workload.
       const sendRecords: typeof winbackSends.$inferInsert[] = [];
       for (const customer of targetCustomers) {
+        const hasTirePurchase = tirePurchaseCustomerIds.has(customer.id);
         for (const msg of messages) {
           const scheduledAt = new Date(now.getTime() + msg.delayDays * 24 * 60 * 60 * 1000);
           sendRecords.push({
@@ -432,7 +505,7 @@ export const winbackRouter = router({
             messageId: msg.id,
             step: msg.step,
             phone: customer.phone,
-            personalizedBody: personalizeWinbackBody(msg.body, customer),
+            personalizedBody: personalizeWinbackBody(msg.body, customer, hasTirePurchase),
             scheduledAt,
             status: "pending",
           });

@@ -250,6 +250,32 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
  * the BATCH-5 content_performance scoring path.
  */
 export function buildCalibrationPromptBlock(stats: CalibrationStats): string {
-  void stats;
-  return "";
+  if (stats.resolvedCount < 5) {
+    return `
+═══ PREDICTION CALIBRATION (insufficient data — fewer than 5 resolved predictions) ═══
+You don't have enough shipped + scored predictions to calibrate confidence yet.
+Make predictions when generating ("I think this hits 200+ engagement") so the loop can train. Until 30+ are resolved, hedge: say "early signal" instead of "high confidence."
+`.trim();
+  }
+  const within20 = (stats.within20PctRate * 100).toFixed(0);
+  const within40 = (stats.within40PctRate * 100).toFixed(0);
+  const bias = stats.meanBiasPct;
+  const biasNote = bias > 0.1
+    ? `You tend to UNDER-PROMISE by ${(bias * 100).toFixed(0)}% — be bolder.`
+    : bias < -0.1
+      ? `You tend to OVER-PROMISE by ${Math.abs(bias * 100).toFixed(0)}% — temper your claims.`
+      : "Your predictions are well-calibrated (no consistent bias).";
+  return `
+═══ PREDICTION CALIBRATION (last 30 days, ${stats.resolvedCount} resolved) ═══
+Your accuracy track record:
+  · ${within20}% of predictions within ±20% of actual
+  · ${within40}% within ±40%
+  · Mean error: ${(stats.meanErrorPct * 100).toFixed(0)}%
+  · ${biasNote}
+
+Calibration rules:
+  · Make predictions ONLY when you have base-rate evidence (similar past posts).
+  · State confidence as a percentage that matches your accuracy class — if ${within20}% of your predictions hit ±20%, don't claim "95% confident" lightly.
+  · If you don't have base-rate evidence, say "early signal" or "no read yet" instead of inventing a number.
+`.trim();
 }

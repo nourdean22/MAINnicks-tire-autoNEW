@@ -225,6 +225,8 @@ const FIXTURE: NickPrimeContext = {
     memory: { lastBrainCycleAt: null, embeddingCoveragePct: 87.4 },
   },
   weeklyReview: "── WEEKLY REVIEWS (cross-week memory · last 14d) ──\nWins: Closed DK Tire",
+  followUps: [],
+  anticipatedQuestions: [],
 };
 
 const EMPTY_FIXTURE: NickPrimeContext = {
@@ -275,6 +277,8 @@ const EMPTY_FIXTURE: NickPrimeContext = {
     ai: { recentCallCount: 0, recentErrorRate: 0 },
     memory: { lastBrainCycleAt: null, embeddingCoveragePct: 0 },
   },
+  followUps: [],
+  anticipatedQuestions: [],
 };
 
 beforeEach(() => {

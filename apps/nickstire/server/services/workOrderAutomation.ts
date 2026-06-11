@@ -265,7 +265,7 @@ export async function processEstimateFollowUp(): Promise<{ recordsProcessed: num
     const estimates = rows as unknown as any[];
     if (!estimates || estimates.length === 0) return { recordsProcessed: 0, details: "No estimates to follow up" };
 
-    const { sendSms } = await import("../sms");
+    const { sendSms, withOptOut } = await import("../sms");
     let sent = 0;
 
     // Gate SMS behind feature flag
@@ -277,9 +277,11 @@ export async function processEstimateFollowUp(): Promise<{ recordsProcessed: num
         if (estimateSmsEnabled) {
           await sendSms(
             est.customerPhone,
-            `Hi ${est.customerName || "there"}, following up on your estimate for ${est.serviceType || "auto service"} ($${est.totalEstimate || "see estimate"}). ` +
-            `Remember: car problems rarely stay the same — early diagnosis costs less. ` +
-            `Bring your estimate back anytime. Call (216) 862-0005 or book at nickstire.org. We also offer financing! — Nick's Tire & Auto`,
+            withOptOut(
+              `Hi ${est.customerName || "there"}, following up on your estimate for ${est.serviceType || "auto service"} ($${est.totalEstimate || "see estimate"}). ` +
+              `Remember: car problems rarely stay the same — early diagnosis costs less. ` +
+              `Bring your estimate back anytime. Call (216) 862-0005 or book at nickstire.org. We also offer financing! — Nick's Tire & Auto`
+            ),
             { via: "shop" }
           );
         }
@@ -328,7 +330,7 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
 
     if (untexted.length === 0) return { recordsProcessed: 0, details: "All customers texted" };
 
-    const { sendSms } = await import("../sms");
+    const { sendSms, withOptOut } = await import("../sms");
     let sent = 0;
 
     // Gate SMS behind feature flag
@@ -342,7 +344,7 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
         : `Hi ${name}, thank you for choosing Nick's Tire & Auto! We truly appreciate your business.\n\nGot 30 sec? A Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\n— Nick's Team ${STORE_PHONE}`;
 
       if (campaignSmsEnabled) {
-        const result = await sendSms(c.phone, msg, { via: "shop" });
+        const result = await sendSms(c.phone, withOptOut(msg), { via: "shop" });
         if (result.success) {
           sent++;
           await db.update(customers)
@@ -412,7 +414,7 @@ export async function enrollInDripCampaign(
       return;
     }
 
-    const { sendSms } = await import("../sms");
+    const { sendSms, withOptOut } = await import("../sms");
     const msg = personalizeMessage(step.messageTemplate, {
       firstName: customer.name.split(" ")[0] || "there",
       vehicle: customer.vehicle || "vehicle",
@@ -423,7 +425,8 @@ export async function enrollInDripCampaign(
     // Gate SMS behind feature flag
     const { isEnabled: isEnabledDrip } = await import("./featureFlags");
     if (await isEnabledDrip("sms_retention_sequences")) {
-      await sendSms(customer.phone, msg, { via: "shop" });
+      const finalMsg = trigger === "post-service" ? msg : withOptOut(msg);
+      await sendSms(customer.phone, finalMsg, { via: "shop" });
     }
     log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 sent)`);
   } catch (err: unknown) {

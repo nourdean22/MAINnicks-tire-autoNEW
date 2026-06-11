@@ -428,6 +428,8 @@ model Task {
   recurringDays           Int[]       @default([]) @map("recurring_days")
   /// v7.9 · Apr 29 · Universal soft-delete.
   deletedAt               DateTime?   @map("deleted_at")
+  completionNote          String?     @map("completion_note")
+  outcomeScore            Int?        @map("outcome_score")
   /// v9.0-rc · Apr 30 · Proof attachment.
   /// Shape: { urls?: string[]; screenshots?: string[]; metrics?: Record<string,number>; notes?: string; observedAt?: string }
   /// Marking DONE without proof is allowed (soft enforcement) but the
@@ -784,6 +786,7 @@ model WorkResult {
   errorMessage String?
   completedAt  DateTime       @default(now())
   createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   @@index([workItemId])
   @@index([createdAt])
@@ -939,6 +942,7 @@ model MasteryScore {
   evidence  String?  @db.Text
   delta     Float    @default(0)
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([date, domain])
   @@index([createdAt])
@@ -1061,6 +1065,7 @@ model BodyTracking {
   workoutDone Boolean? @map("workout_done")
   energy      Int?     @db.SmallInt
   stress      Int?     @db.SmallInt
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@index([createdAt])
   @@map("body_tracking")
@@ -1079,6 +1084,7 @@ model FinancialSnapshot {
   savingsRatePct   Float?   @map("savings_rate_pct")
   notes            String?  @db.Text
   createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@index([createdAt])
   @@map("financial_snapshots")
@@ -1278,6 +1284,7 @@ model BrainDump {
   /// v7.9 · Apr 29 · Universal soft-delete.
   deletedAt      DateTime? @map("deleted_at")
   createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   // Journal Brain (2026-06-01) — grounding/scoring spine · docs/journal-brain-redesign.md
   entryType      String?   @map("entry_type")
@@ -2671,6 +2678,7 @@ model VectorEmbedding {
   embedding_vec_1536 Unsupported("vector(1536)")?
   embedding_dim      Int?
   model              String?                      @db.VarChar(64)
+  updatedAt          DateTime                     @updatedAt
 
   @@index([sourceType, sourceId]) // composite — fixes slow lookup queries
   @@index([sourceType])

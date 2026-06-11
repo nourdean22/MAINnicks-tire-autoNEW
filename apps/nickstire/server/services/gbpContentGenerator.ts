@@ -40,6 +40,7 @@ const log = createLogger("gbp-content-generator");
 
 export type GBPArchetype = "proof" | "anti" | "math" | "seasonal";
 export type GBPCallToAction = "BOOK" | "CALL" | "LEARN_MORE" | "ORDER";
+export type GBPProvenance = "real-review" | "real-service-catalog" | "real-offer" | "generic-educational";
 
 export interface GeneratedGBPPost {
   archetype: GBPArchetype;
@@ -48,6 +49,7 @@ export interface GeneratedGBPPost {
   ctaUrl: string;
   imageHint: string;            // suggested photo for the post
   topicHash: string;            // for variety guard
+  provenance: GBPProvenance;
 }
 
 // Variety guard. Hybrid: DB (durable, survives deploys) + in-memory cache
@@ -158,6 +160,47 @@ function assertNoFabrication(text: string): void {
   }
 }
 
+function getWords(str: string): Set<string> {
+  const words = str.toLowerCase().match(/\b\w+\b/g) || [];
+  return new Set(words);
+}
+
+export function jaccardSimilarity(str1: string, str2: string): number {
+  const words1 = getWords(str1);
+  const words2 = getWords(str2);
+  if (words1.size === 0 && words2.size === 0) return 1;
+  
+  let intersectionSize = 0;
+  for (const word of words1) {
+    if (words2.has(word)) {
+      intersectionSize++;
+    }
+  }
+  const unionSize = words1.size + words2.size - intersectionSize;
+  return unionSize === 0 ? 0 : intersectionSize / unionSize;
+}
+
+function validateNoUnsourcedCustomerIdentity(text: string, archetype: GBPArchetype): void {
+  if (archetype === "proof") return;
+  
+  const lower = text.toLowerCase();
+  if (
+    lower.includes("customer said") || 
+    lower.includes("client said") || 
+    lower.includes("customer mentioned") || 
+    lower.includes("he said") || 
+    lower.includes("she said")
+  ) {
+    throw new Error(`Fabrication guard triggered: non-proof archetype contains unsourced customer quote/attribution.`);
+  }
+  
+  // Match Name LastInitial pattern (e.g. John D. or John D)
+  const nameInitialRegex = /\b[A-Z][a-z]+\s+[A-Z]\b\.?/g;
+  if (nameInitialRegex.test(text)) {
+    throw new Error(`Fabrication guard triggered: non-proof archetype contains name with last initial pattern.`);
+  }
+}
+
 // ─────────────────────────────────────────────────────────
 // ARCHETYPE 1 — PROOF POST
 // Real customer review text from Google Reviews cache
@@ -198,6 +241,7 @@ ${BUSINESS.address.full} · ${BUSINESS.phone.display}`;
     ctaUrl: BUSINESS.phone.href,
     imageHint: "photo of our service bays or a happy customer's car",
     topicHash: `proof-${review.authorName.slice(0, 10)}-${review.time}`,
+    provenance: "real-review",
   };
 }
 
@@ -251,6 +295,7 @@ ${BUSINESS.phone.display} · open 7 days · ${BUSINESS.address.full}`;
     ctaUrl: BUSINESS.phone.href,
     imageHint: set.imageHint,
     topicHash: `anti-${set.promises[0].slice(0, 25)}`,
+    provenance: "generic-educational",
   };
 }
 
@@ -309,6 +354,7 @@ ${BUSINESS.phone.display}`;
     ctaUrl: `${BUSINESS.urls.website}/financing?utm_source=gbp&utm_medium=organic&utm_campaign=math-post&utm_content=archetype-math`,
     imageHint: m.imageHint,
     topicHash: `math-${m.today.amount}-vs-${m.later.amount}`,
+    provenance: "real-service-catalog",
   };
 }
 
@@ -398,6 +444,7 @@ Open 7 days · ${BUSINESS.address.full} · ${BUSINESS.phone.display}`;
     ctaUrl: BUSINESS.phone.href,
     imageHint: ctx.imageHint,
     topicHash: `seasonal-${ctx.title.slice(0, 25)}`,
+    provenance: "generic-educational",
   };
 }
 
@@ -448,25 +495,58 @@ ${BUSINESS.phone.display} · code ${featuredSpecial.couponCode ?? "—"}`;
       ctaUrl: `${BUSINESS.urls.website}/specials?utm_source=gbp&utm_medium=organic&utm_campaign=special-${featuredSpecial.couponCode ?? "active"}&utm_content=archetype-special`,
       imageHint: "the actual special — service-specific photo",
       topicHash: `special-${featuredSpecial.id}`,
+      provenance: "real-offer",
     };
+    validateNoUnsourcedCustomerIdentity(post.text, post.archetype);
     assertNoFabrication(post.text);
     return post;
   }
 
-  // Pick archetype, retry up to 4× if the topic was recent.
+  // Fetch last 5 post bodies to check similarity
+  let last5PostBodies: string[] = [];
+  try {
+    const d = await db();
+    if (d) {
+      const rows = await d
+        .select({ postBody: gbpPostLog.postBody })
+        .from(gbpPostLog)
+        .orderBy(desc(gbpPostLog.postedAt))
+        .limit(5);
+      last5PostBodies = rows.map((r: { postBody: string }) => r.postBody);
+    }
+  } catch (err) {
+    log.warn("Failed to fetch last 5 posts for Jaccard check", { err });
+  }
+
+  // Pick archetype, retry up to 4× if the topic was recent or similarity is too high.
   for (let attempt = 0; attempt < 4; attempt++) {
     const archetype = forceArchetype ?? pickArchetype();
     const post = await buildPost(archetype);
-    if (!isRecentTopic(post.topicHash)) {
-      recordTopic(post.topicHash);
-      assertNoFabrication(post.text);
-      return post;
+    if (isRecentTopic(post.topicHash)) continue;
+
+    // Check Jaccard similarity against last 5 posts
+    let tooSimilar = false;
+    for (const oldBody of last5PostBodies) {
+      if (jaccardSimilarity(post.text, oldBody) > 0.75) {
+        tooSimilar = true;
+        break;
+      }
     }
+    if (tooSimilar) {
+      log.info(`Post too similar to recent post (Jaccard > 0.75), retrying archetype ${archetype}`);
+      continue;
+    }
+
+    validateNoUnsourcedCustomerIdentity(post.text, post.archetype);
+    recordTopic(post.topicHash);
+    assertNoFabrication(post.text);
+    return post;
   }
 
   // Variety guard exhausted — return whatever we got. Better one repeat
   // than infinite loop.
   const fallback = await buildPost(forceArchetype ?? "proof");
+  validateNoUnsourcedCustomerIdentity(fallback.text, fallback.archetype);
   recordTopic(fallback.topicHash);
   assertNoFabrication(fallback.text);
   return fallback;

@@ -763,6 +763,40 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
       return { ok: false as const, error: err instanceof Error ? err.message : "Unknown error" };
     }
   },
+
+  // ─── Recent invoices (added 2026-06-11) ──────────
+  "recent_invoices": async (filters) => {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { error: "No DB" };
+    const days = Math.max(1, Math.min(1000, Number(filters.days ?? 30)));
+    const [rows] = await d.execute(sql`
+      SELECT id, totalAmount, invoiceDate
+      FROM invoices
+      WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+      ORDER BY invoiceDate DESC
+      LIMIT 1000
+    `);
+    return { invoices: rows, count: (rows as unknown[]).length, days };
+  },
+
+  // ─── Recent leads (added 2026-06-11) ─────────────
+  "recent_leads": async (filters) => {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { error: "No DB" };
+    const days = Math.max(1, Math.min(1000, Number(filters.days ?? 30)));
+    const [rows] = await d.execute(sql`
+      SELECT id, name AS fullName, createdAt, status, urgencyScore, source
+      FROM leads
+      WHERE createdAt >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+      ORDER BY createdAt DESC
+      LIMIT 1000
+    `);
+    return { leads: rows, count: (rows as unknown[]).length, days };
+  },
 };
 
 export function registerNourOsQueryRoute(app: Express): void {

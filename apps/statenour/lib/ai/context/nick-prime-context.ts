@@ -41,6 +41,8 @@ import {
   type DomainSnapshot,
   type TemporalContext,
 } from "./command-center-state";
+import { prisma } from "@/lib/prisma";
+import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
 
 export interface NickPrimeContext {
   operatorState: CommandCenterState["operator"];
@@ -74,6 +76,8 @@ export interface NickPrimeContext {
   decisionsNeedingReview: MasteryDecisionSummary[];
   systemHealth: SystemHealthSummary;
   weeklyReview?: string;
+  followUps: string[];
+  anticipatedQuestions: string[];
 }
 
 /**
@@ -87,8 +91,37 @@ export interface NickPrimeContext {
 export async function buildNickPrimeContext(): Promise<NickPrimeContext> {
   const state = await buildCommandCenterState();
   const ctx = nickContextFromState(state);
+  
   const { getWeeklyReviewContext } = await import("@/lib/brain/weekly-review-context");
-  ctx.weeklyReview = await getWeeklyReviewContext().catch((): string => "");
+  
+  const [weeklyReview, recentDigests, anticipated] = await Promise.all([
+    getWeeklyReviewContext().catch((): string => ""),
+    prisma.auditEvent.findMany({
+      where: { eventType: "conversation_digest" },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { payload: true },
+    }).catch((): any[] => []),
+    getTodaysAnticipated().catch(() => null),
+  ]);
+
+  ctx.weeklyReview = weeklyReview;
+
+  const followUps: string[] = [];
+  for (const row of recentDigests) {
+    if (row.payload && typeof row.payload === "object") {
+      const payload = row.payload as Record<string, any>;
+      if (typeof payload.followUpNeeded === "string" && payload.followUpNeeded.trim().length > 0) {
+        followUps.push(payload.followUpNeeded.trim());
+      }
+    }
+  }
+  ctx.followUps = followUps;
+
+  ctx.anticipatedQuestions = anticipated
+    ? anticipated.questions.map((q) => q.question)
+    : [];
+
   return ctx;
 }
 
@@ -121,5 +154,7 @@ export function nickContextFromState(state: CommandCenterState): NickPrimeContex
     recentDecisions: state.decisions.recent,
     decisionsNeedingReview: state.decisions.needsReview,
     systemHealth: state.systemHealth,
+    followUps: [],
+    anticipatedQuestions: [],
   };
 }
