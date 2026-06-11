@@ -23,6 +23,12 @@ export async function handleCreateWorkOrder(input: {
   priority: "low" | "normal" | "high" | "urgent";
   autoAssign: boolean;
 }) {
+  if (input.customerId !== undefined && input.customerId !== null) {
+    const cid = Number(input.customerId);
+    if (typeof input.customerId !== "number" || !Number.isInteger(cid) || cid <= 0 || !Number.isFinite(cid) || cid >= 10000000) {
+      throw new Error("Invalid customerId: must be a finite positive integer");
+    }
+  }
   const { d, session, messages, conversationText } = await fetchSessionWithMessages(input.sessionId);
 
   // Parallel: AI extraction + customer lookup
