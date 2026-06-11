@@ -505,6 +505,17 @@ export const CRONS: CronDef[] = [
     memory: 256,
     maxDuration: 30,
   },
+  {
+    name: "proactive-push",
+    schedule: "0 * * * *",
+    mode: "active",
+    category: "alert",
+    inngest: true,
+    description: "Hourly · runs hourly to fire slot-based Telegram micro-pushes and nudge pending approvals if any exist.",
+    memory: 256,
+    maxDuration: 60,
+  },
+
 
   // ── ACTION (Wave AG · Nick Action Queue) ────────────────────────────
   // Wave AK · 2026-05-28 · 7am UTC prewarm of the relationships-picks
