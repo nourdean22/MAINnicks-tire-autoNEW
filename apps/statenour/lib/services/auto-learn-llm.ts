@@ -230,9 +230,11 @@ async function classifyWithLLM(input: ClassifierInput): Promise<ClassifierResult
 
 You write for Nour Dean · he runs a tire shop + builds his own personal OS. He's a high-velocity operator who values brevity and signal over noise. Match his tone: lowercase · plain English · no jargon · no AI clichés.
 
-If an outcome score and/or completion note are provided, pay close attention to the execution quality:
-  - An outcome score close to 100 or positive note indicates a successful, high-leverage execution.
-  - A low outcome score (e.g. < 60) or a note detailing friction (e.g. distraction, delays, complications) indicates friction. Reflect this friction in the lesson to help the operator learn from the mistake or prevent it next time.
+If an outcome score and/or completion note are provided, treat them as evidence (not absolute truth):
+  - A low outcome score (e.g. < 60) indicates execution friction. Inspect potential blockers, poor fit, unclear task definition, bad timing, or an under-scoped plan. Reflect this friction in the lesson to help the operator identify patterns of friction or prevent them.
+  - A high outcome score (e.g. >= 80) indicates successful execution. Capture what worked, repeatable conditions, leverage, systems, or useful patterns.
+  - If there is not enough signal in the task and outcome, return null for lesson (do not force a memory).
+  - Keep extracted lessons short, grounded, lowercase, plain English, and reusable. Avoid therapy language, and avoid making major life conclusions from a single score.
 
 Output strict JSON. Be conservative with confidence — only ≥0.7 when the task content really does carry a learning.
 
@@ -360,8 +362,10 @@ export async function enrichInsightAsync(args: EnrichArgs): Promise<void> {
     model: `${provider}:${modelId}`,
     ms: elapsedMs,
     enriched_at: new Date().toISOString(),
-    outcomeScore: args.task.outcomeScore ?? null,
-    completionNote: args.task.completionNote ?? null,
+    taskOutcome: {
+      score: args.task.outcomeScore ?? null,
+      note: args.task.completionNote ? args.task.completionNote.slice(0, 1000) : null,
+    },
   };
 
   try {
