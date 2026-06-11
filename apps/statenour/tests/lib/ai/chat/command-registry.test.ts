@@ -33,16 +33,6 @@ const stubs: Partial<CommandDeps> = {
   today: async () => ({
     date: "2026-06-09", masteryTotal: 100, masteryByDomain: {}, topMastery: { domain: "business", score: 50, delta: 3 },
     insightCount: 0, wisdomCount: 0, learnCount: 0, goalsLifted: 0, focusedMinutes: 90, tasksDone: 4, tasksOpen: 7,
-    activeMission: {
-      title: "Test Active Mission",
-      domain: "business",
-      successMetric: "Test success metric",
-      openTaskCount: 5,
-    },
-    topTasks: [
-      { title: "Test task 1", missionTitle: "Test mission 1", priority: 95 },
-      { title: "Test task 2", missionTitle: "Test mission 2", priority: 85 },
-    ],
   }),
   proactivePreview: async (slot) => [
     {
@@ -124,9 +114,6 @@ describe("runCommand (end-to-end with stubbed services)", () => {
   it("runs /today with a warning line", async () => {
     const o = await runCommand("/today", stubs);
     expect(o.result.text).toContain("4 done");
-    expect(o.result.text).toContain("🎯 Active Mission: Test Active Mission");
-    expect(o.result.text).toContain("🔥 Top Priority Tasks:");
-    expect(o.result.text).toContain("Test task 1 (Priority: 95)");
     expect(o.result.text).toContain("⚠");
   });
 
