@@ -1,6 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { Project, Task, GoalLineageEntry } from "@/components/actions/shared";
 import { classifyTaskRisk, computeHiddenRiskSummary } from "@/lib/tasks/hidden-risk";
+import { HiddenRiskWarning } from "@/components/missions/hidden-risk-warning";
+
+// Mock Lucide icons to avoid ESM resolution issues in Node test environment
+vi.mock("lucide-react", () => ({
+  AlertTriangle: () => null,
+  ChevronDown: () => null,
+  ChevronUp: () => null,
+  Play: () => null,
+}));
 
 const m = (id: string, overrides: Partial<Project> = {}): Project => ({
   id,
@@ -28,9 +38,10 @@ const t = (
 describe("Hidden Risk Logic - classifyTaskRisk", () => {
   const now = new Date("2026-06-10T12:00:00.000Z");
 
-  it("returns null for DONE or ARCHIVED tasks", () => {
+  it("returns null for DONE, ARCHIVED, or CANCELLED tasks", () => {
     expect(classifyTaskRisk(t("t1", "m1", "DONE"), now)).toBeNull();
     expect(classifyTaskRisk(t("t2", "m1", "ARCHIVED"), now)).toBeNull();
+    expect(classifyTaskRisk(t("t3", "m1", "CANCELLED"), now)).toBeNull();
   });
 
   it("flags overdue due dates as critical", () => {
@@ -274,5 +285,54 @@ describe("Hidden Risk Logic - computeHiddenRiskSummary", () => {
     });
     expect(summary5.counts.critical).toBe(1);
     expect(summary5.categories.hiddenByExecutionMode).toBe(1);
+  });
+});
+
+describe("HiddenRiskWarning UI Component", () => {
+  const dummySummary = {
+    hiddenTasks: [],
+    counts: { critical: 1, high: 2, medium: 0, total: 3 },
+    categories: { hiddenBySearch: 1, hiddenByKindFilter: 1, hiddenByDomainFilter: 1, hiddenByExecutionMode: 0 },
+    previewList: [
+      { id: "t-overdue", title: "Fix leak", severity: "critical" as const, label: "overdue" },
+      { id: "t-promise", title: "Respond client", severity: "high" as const, label: "promise due today" },
+    ],
+  };
+
+  it("adapts warning copy and actions in normal filtered mode", () => {
+    const html = renderToStaticMarkup(
+      <HiddenRiskWarning
+        summary={dummySummary}
+        executionModeActive={false}
+        filterKey="filter-key"
+        onClearFilters={() => {}}
+        onExitFocusMode={() => {}}
+        onQueueNext={() => {}}
+      />
+    );
+    expect(html).toContain("high-risk tasks hidden by filters");
+    expect(html).toContain("Clear filters");
+    expect(html).not.toContain("Exit to review");
+  });
+
+  it("adapts warning copy and actions in Execution Mode", () => {
+    const executionSummary = {
+      ...dummySummary,
+      counts: { critical: 0, high: 1, medium: 1, total: 2 },
+      categories: { hiddenBySearch: 0, hiddenByKindFilter: 0, hiddenByDomainFilter: 0, hiddenByExecutionMode: 2 },
+    };
+    const html = renderToStaticMarkup(
+      <HiddenRiskWarning
+        summary={executionSummary}
+        executionModeActive={true}
+        filterKey="filter-key"
+        onClearFilters={() => {}}
+        onExitFocusMode={() => {}}
+        onQueueNext={() => {}}
+      />
+    );
+    expect(html).toContain("risk tasks outside this focus");
+    expect(html).toContain("Exit to review");
+    expect(html).not.toContain("Clear filters");
   });
 });

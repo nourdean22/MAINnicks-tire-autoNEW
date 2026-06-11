@@ -165,7 +165,7 @@ export function HiddenRiskWarning({
                   className="shrink-0 flex items-center gap-1 font-mono uppercase tracking-wider text-amber-400 hover:text-amber-300 transition-colors border border-amber-500/20 hover:border-amber-500/50 rounded bg-amber-500/[0.04] px-2 py-1 text-[10px]"
                 >
                   <Play size={10} className="fill-current" />
-                  Queue next
+                  Queue after this
                 </button>
               )}
             </div>
