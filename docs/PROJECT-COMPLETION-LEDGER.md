@@ -54,6 +54,10 @@ DANGEROUS_DO_NOT_AUTOMATE_YET
 | UI/UX Wow Pass character sheet layout | DONE_MERGED | PR #66 (`401c19a5`) | Restores nextRep leveling algorithm on RPG sheet, fixes safety script line-endings and contract test timeout | low | — | — | no |
 | Report/insight viewer | PARTIAL | `/system/digest` 3 read-only cards; `docs/audits/*` | System digest exists / no doc-corpus viewer | low | out of scope this pass (nickstire hub first) | later | no |
 | OpenWeb-style UI | NOT_STARTED | No evidence | — | low | only if operator wants it | later | yes |
+| Gap 5 — Semantic Memory Deduplication | DONE_MERGED | PR #79 (bcb5f64c); `save.ts` + `brain-save.test.ts` | pgvector cosine distance < 0.05 and JS fallback similarity > 0.95 deduplication; 18 tests passing / — | low | — | — | no |
+| Gap 6 — Outcomes and Predictions | DONE_MERGED | PR #79 (bcb5f64c); `task-actions.ts` + REST/tRPC routes + `task-actions-cascade.test.ts` | Shared runtime validation parity (outcomeScore 1-100, completionNote limit); calibration tests passing / — | low | — | — | no |
+| Gap 7 — Business Data Island | DONE_MERGED | PR #79 (bcb5f64c); `businessData.ts` + Nick's Tire query handlers | Drizzle-based query handlers and Statenour shims mapping; 12 tests passing / — | low | — | — | no |
+| Clarity Gate Operations Runbooks | DONE_MERGED | PR #79 (bcb5f64c); `DB_BACKUPS_CLEANUP.md`, `META_TOKEN_RENEWAL.md`, `CALIBRATION_TODO.md` | YAML frontmatter, verified hashes, and clear owner approval hitl-claims / — | low | — | — | no |
 
 ---
 
