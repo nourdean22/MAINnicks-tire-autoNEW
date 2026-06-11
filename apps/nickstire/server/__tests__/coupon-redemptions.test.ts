@@ -8,7 +8,7 @@
  *   maxRedemptions = 0  → unlimited (no cap)
  *   maxRedemptions > 0  → hard cap; reject when currentRedemptions >= maxRedemptions
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 
 // ─── DB mocks for integration-like unit tests ────────────────────────────────
 const mockSelect = vi.fn();
@@ -179,9 +179,15 @@ describe("Coupon redemption guard", () => {
 });
 
 describe("redeemCouponById Database Fallback", () => {
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.DATABASE_URL = "mysql://dummy:3306/db";
+  });
+
+  afterAll(() => {
+    process.env.DATABASE_URL = originalDatabaseUrl;
   });
 
   it("succeeds when updateResult contains affectedRows = 1", async () => {

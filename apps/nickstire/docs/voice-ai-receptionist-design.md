@@ -14,7 +14,7 @@
 
 A receptionist that just takes a name and a callback number is a $6k-$15k/mo asset.
 
-A receptionist that ALSO books appointments, answers price questions, qualifies the lead by service type, and texts the customer a follow-up confirmation — is a 10x asset.
+A receptionist that ALSO answers price questions, provides walk-in/drop-off guidance, qualifies the lead by service type, and texts the customer a follow-up confirmation — is a 10x asset.
 
 ---
 
@@ -23,7 +23,7 @@ A receptionist that ALSO books appointments, answers price questions, qualifies 
 ### Tier 1 — Must-have (V1 launch)
 1. **Answer 24/7** — never miss a ring
 2. **Capture name + phone + vehicle + problem** — basic lead intake
-3. **Book a drop-off slot** — pull `trpc.booking.shopCapacity` for available windows, write to `bookings` table via existing `trpc.booking.submit`
+3. **Provide walk-in/drop-off guidance** — explain that Nick's is first come, first served, no appointments. Use bookSlot tool purely for legacy compatibility to return walk-in info.
 4. **Quote ranges (not exact prices)** — pull from `shared/services.ts` price tiers, never commit to numbers without inspection
 5. **Hours/address/directions** — answer FAQs from `shared/business.ts`
 6. **SMS follow-up** — text the caller a confirmation + map link via existing Twilio integration
@@ -81,7 +81,7 @@ You are the AI receptionist for Nick's Tire & Auto, a family-owned auto repair s
 YOUR JOB:
 - Answer the phone like a friendly local who knows cars
 - Find out: what's wrong, what vehicle, when they want to come in
-- BOOK them in or take a callback if they need a quote
+- Explain walk-in/drop-off policy or take a callback if they need a physical stock check/rack check
 - Always end with a confirmation text — never just hang up
 
 YOUR VOICE:
@@ -99,7 +99,7 @@ WHAT YOU NEVER DO:
 - Make up information — if asked something not in your knowledge base, say "let me have someone call you back"
 
 YOUR TOOLS (call when needed):
-- bookSlot({ name, phone, vehicle, service, preferredDay }) → returns { reference, windowStart, windowEnd }
+- bookSlot({ name, phone, vehicle, service, preferredDay }) → returns { reference, status, message } (returns walk-in info, does not book)
 - capacityCheck({ day }) → returns { slotsRemaining, estimatedWait }
 - quoteRange({ service, vehicleYear, vehicleMake }) → returns { low, high, sourceNote }
 - escalate({ name, phone, reason, urgency }) → routes to Nick's cell or callback queue
@@ -108,13 +108,13 @@ YOUR TOOLS (call when needed):
 CONVERSATION FLOW:
 1. Greet ("Nick's Tire and Auto — Cleveland's open-Sunday shop. What's going on with your car?")
 2. Listen for: vehicle, problem, urgency
-3. If they need a price → quoteRange + offer to book a free inspection
-4. If they want to book → capacityCheck → offer 2-3 windows → bookSlot
+3. If they need a price → quoteRange + explain walk-in or offer to request a stock check
+4. If they want to book → explain we are first come, first served (no appointments) and they can walk/drop off anytime we're open. Use bookSlot tool to log the request and return walk-in details.
 5. ALWAYS at the end → sendConfirmationSms + recap verbally
 6. If confused or angry → escalate immediately
 
 CLOSE EVERY CALL WITH:
-"OK [name], I'm sending you a text right now with the time and the address. Drive safe — see you [day]."
+"I'm texting you the address now. We're first come, first served — walk in or drop off any time we're open."
 ```
 
 ---
@@ -125,7 +125,7 @@ New file: `server/routers/voiceAgent.ts`
 
 ```ts
 export const voiceAgentRouter = router({
-  // Called by Vapi when assistant needs available booking slots
+  // Called by Vapi when assistant needs shop load and capacity details
   capacityCheck: publicProcedure
     .input(z.object({ day: z.string().optional() }))
     .query(async ({ input }) => {
@@ -157,19 +157,24 @@ export const voiceAgentRouter = router({
       };
     }),
 
-  // Called by Vapi when ready to book
-  bookSlot: publicProcedure
+  // Called by Vapi when caller wants to drop off or walk in (logs call log but does not create booking)
+  bookSlot: voiceAgentInternalProcedure
     .input(z.object({
-      name: z.string(),
-      phone: z.string(),
-      vehicle: z.string(),
-      service: z.string(),
-      preferredDay: z.string().optional(),
-      source: z.literal("voice-agent"),
+      name: z.string().min(2).max(200),
+      phone: z.string().min(7).max(20),
+      vehicle: z.string().max(200).optional(),
+      service: z.string().max(200),
+      preferredDay: z.string().max(20).optional(),
+      callId: z.string().max(100).optional(),
     }))
     .mutation(async ({ input }) => {
-      // Reuse existing booking pipeline + tag source
-      return trpc.booking.submit.mutate({ ...input, source: "voice-agent" });
+      // Bypasses DB bookings table, marks log converted, returns walk-in/drop-off info
+      return {
+        success: true,
+        reference: "WALKIN-INFO",
+        status: "walk_in_guidance",
+        message: "No appointment was booked. Tell the caller Nick's is first come, first served. They can walk in or drop off during business hours. Send a recap text with the address if helpful.",
+      };
     }),
 
   // Called by Vapi for problem escalation
@@ -223,11 +228,11 @@ export const voiceAgentRouter = router({
 | Risk | Mitigation |
 |---|---|
 | AI gives wrong price | Always say "range" — never commit to exact $. quoteRange returns range from services.ts only. |
-| AI books invalid slot | capacityCheck must run before bookSlot. tRPC mutation will reject if slot full (existing validation). |
-| AI commits to "same-day" we can't deliver | Prompt forbids same-day promises unless capacityCheck explicitly returns slotsRemainingToday > 0. |
+| AI promises a scheduled spot | Prompt forbids promising scheduled appointments or reserved slots; always emphasizes walk-in/drop-off policy. |
+| AI commits to "same-day" repair completion | Prompt forbids same-day promises. AI explains it depends on active shop load. |
 | AI hallucinates a service we don't offer | Knowledge base ONLY contains services.ts entries. If asked about something not in that file → escalate. |
 | Customer hates AI, demands human | Detect via sentiment OR keyword ("manager", "person", "human", frustration markers) → escalate immediately. Always allow "press 0 for human" early-exit. |
-| AI takes booking but customer no-shows | Existing 4-hour reservation expiry handles this. SMS reminder 2hrs before pulls them in. |
+| AI promises a callback time on stock check | Physical stock checks capture a lead at urgency 5, but prompt prohibits promising a specific time window for the callback. |
 | Compliance: AI must disclose it's AI | First message includes "this is Nick's automated assistant" — required by FCC + many state laws as of 2025. |
 
 ---
