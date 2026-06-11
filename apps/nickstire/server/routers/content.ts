@@ -135,11 +135,16 @@ export const contentAdminRouter = router({
   generateGBPPost: adminProcedure
     .input(z.object({
       forceArchetype: z.enum(["proof", "anti", "math", "seasonal"]).optional(),
+      dryRun: z.boolean().optional(),
+      requiresReview: z.boolean().optional(),
     }).optional())
     .mutation(async ({ input }) => {
       try {
         const { generateOneOffGBPPost } = await import("../services/gbpAutoPost");
-        return await generateOneOffGBPPost(input?.forceArchetype);
+        return await generateOneOffGBPPost(input?.forceArchetype, {
+          dryRun: input?.dryRun,
+          requiresReview: input?.requiresReview,
+        });
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "GBP post generation failed" });
       }

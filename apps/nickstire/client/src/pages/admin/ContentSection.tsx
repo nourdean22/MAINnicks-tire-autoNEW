@@ -643,6 +643,16 @@ function GBPPostGenerator() {
         </div>
       </div>
 
+      {/* Safety warning */}
+      <div className="p-3 border border-yellow-500/30 bg-yellow-500/5 text-yellow-600 dark:text-yellow-400 text-xs rounded space-y-1">
+        <p className="font-bold flex items-center gap-1">
+          <AlertTriangle className="w-3.5 h-3.5" /> Google Business Profile Copy-Paste Safety Gate
+        </p>
+        <p>
+          Generated posts are **copy-paste drafts only**. By default, generation operates in a **dry-run mode** that does not publish live. All generated content **must be manually reviewed and verified** before being pasted on <a href="https://business.google.com" target="_blank" rel="noopener noreferrer" className="underline font-bold text-primary hover:text-primary/80">business.google.com</a>. Do not blindly auto-post fabricated customer reviews or prices.
+        </p>
+      </div>
+
       {/* Archetype buttons */}
       <div className="flex flex-wrap gap-2">
         {(["auto", "proof", "anti", "math", "seasonal"] as const).map((a) => (
