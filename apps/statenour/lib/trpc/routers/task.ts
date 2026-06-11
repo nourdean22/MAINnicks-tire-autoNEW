@@ -26,7 +26,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
 import { powerAtlasProcedures } from "./task/power-atlas";
-import { listTasks, deleteTask, updateTask } from "@/lib/services/tasks";
+import { listTasks, deleteTask, updateTask, getTaskById } from "@/lib/services/tasks";
 import {
   listMissions,
   createMission,
@@ -213,6 +213,18 @@ export const taskRouter = router({
         goalId: input?.goalId,
       }),
     ),
+
+  /**
+   * /missions?taskId= deep-link support · owner-only · fetch a single task
+   * with its view model properties by ID.
+   */
+  byId: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const task = await getTaskById(input.id);
+      if (!task) return null;
+      return task;
+    }),
 
   /**
    * Phase PP · owner-only · list missions (active + archived). The
