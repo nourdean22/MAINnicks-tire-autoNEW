@@ -40,7 +40,7 @@ interface DeclinedItem {
 interface DeclinedWorkEntry {
   workOrderId: string;
   orderNumber: string;
-  customerId: string;
+  customerId: number | null;
   customerName?: string;
   phone?: string;
   vehicle: string;
@@ -89,9 +89,8 @@ export async function getDeclinedWorkLedger(limit = 50): Promise<DeclinedWorkEnt
     let customerName = "";
     let phone = "";
     try {
-      const custId = parseInt(wo.customerId, 10);
-      if (!isNaN(custId)) {
-        const [cust] = await db.select().from(customers).where(eq(customers.id, custId));
+      if (wo.customerId != null) {
+        const [cust] = await db.select().from(customers).where(eq(customers.id, wo.customerId));
         if (cust) {
           customerName = `${cust.firstName} ${cust.lastName || ""}`.trim();
           phone = cust.phone;

@@ -19,7 +19,7 @@ import {
 
 export async function handleCreateWorkOrder(input: {
   sessionId: number;
-  customerId?: string;
+  customerId?: number;
   priority: "low" | "normal" | "high" | "urgent";
   autoAssign: boolean;
 }) {
@@ -145,9 +145,8 @@ export async function handleCreateWorkOrder(input: {
   const orderId = randomUUID();
   const orderNumber = `WO-${Date.now().toString(36).toUpperCase()}`;
 
-  // Link to returning customer if found
-  const resolvedCustomerId = input.customerId
-    || (customerData?.phone ? customerData.phone : "WALK-IN");
+  // Link to returning customer if found (numeric ID or null for walk-ins)
+  const resolvedCustomerId = input.customerId ?? null;
 
   const workOrderData = {
     id: orderId,
