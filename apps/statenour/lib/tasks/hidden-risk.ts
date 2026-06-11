@@ -73,7 +73,7 @@ export function classifyTaskRisk(
   goalLineage?: Map<string, GoalLineageEntry>
 ): RiskClassification | null {
   const status = task.status;
-  if (status === "DONE" || status === "ARCHIVED") return null;
+  if (status === "DONE" || status === "ARCHIVED" || status === "CANCELLED") return null;
 
   const nowMs = now.getTime();
   const todayStartMs = getDayStart(now);
