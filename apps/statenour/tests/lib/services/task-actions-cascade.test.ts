@@ -281,4 +281,78 @@ describe("checkTask · outcomes", () => {
       }),
     );
   });
+
+  it("accepts boundary values for outcomeScore", async () => {
+    // Valid minimum
+    setupOnceParent();
+    await checkTask({ id: "parent-1", action: "complete", outcomeScore: 1 });
+    expect(mocks.task.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ outcomeScore: 1 }),
+      })
+    );
+
+    // Valid maximum
+    setupOnceParent();
+    await checkTask({ id: "parent-1", action: "complete", outcomeScore: 100 });
+    expect(mocks.task.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ outcomeScore: 100 }),
+      })
+    );
+  });
+
+  it("rejects invalid outcomeScore values", async () => {
+    setupOnceParent();
+
+    // 0 is too small
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", outcomeScore: 0 })
+    ).rejects.toThrow(/must be an integer between 1 and 100/i);
+
+    // 101 is too large
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", outcomeScore: 101 })
+    ).rejects.toThrow(/must be an integer between 1 and 100/i);
+
+    // String "100" is rejected due to strict typecheck
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", outcomeScore: "100" as any })
+    ).rejects.toThrow(/must be an integer between 1 and 100/i);
+
+    // Non-integer is rejected
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", outcomeScore: 85.5 })
+    ).rejects.toThrow(/must be an integer between 1 and 100/i);
+  });
+
+  it("accepts null for outcomeScore and completionNote", async () => {
+    setupOnceParent();
+
+    await checkTask({
+      id: "parent-1",
+      action: "complete",
+      outcomeScore: null,
+      completionNote: null,
+    });
+
+    expect(mocks.task.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          outcomeScore: null,
+          completionNote: null,
+        }),
+      })
+    );
+  });
+
+  it("rejects excessively long completionNote", async () => {
+    setupOnceParent();
+    const longNote = "a".repeat(1001);
+
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", completionNote: longNote })
+    ).rejects.toThrow(/must not exceed 1000 characters/i);
+  });
 });
+
