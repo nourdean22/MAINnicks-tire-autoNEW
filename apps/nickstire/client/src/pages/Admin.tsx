@@ -14,7 +14,7 @@ import {
   Images, Clapperboard,
 } from "lucide-react";
 import {
-  AdminSection, NAV_GROUPS, SECTION_TITLES,
+  AdminSection, NAV_GROUPS, SECTION_TITLES, openCustomerDrawer,
 } from "./admin/shared";
 import { CommandSearch } from "@/components/admin/CommandSearch";
 import ThemeToggle from "@/components/admin/ThemeToggle";
@@ -341,6 +341,19 @@ export default function Admin() {
     window.history.replaceState({}, "", url.toString());
   }, [section]);
 
+  // Listen for browser Back/Forward history navigation
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("tab") || params.get("section") || "";
+      const resolved = resolveSection(raw);
+      setSection(resolved ?? "overview");
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   const utils = trpc.useUtils();
 
   const { data: stats } = trpc.adminDashboard.stats.useQuery(undefined, {
@@ -649,13 +662,7 @@ export default function Admin() {
           <div className="flex-1" />
           <CommandSearch
             onNavigate={(s) => setSection(s)}
-            onSelectCustomer={(id) => {
-              setSection("customers");
-              const url = new URL(window.location.href);
-              url.searchParams.set("tab", "customers");
-              url.searchParams.set("id", String(id));
-              window.history.replaceState({}, "", url.toString());
-            }}
+            onSelectCustomer={(id) => openCustomerDrawer(id)}
           />
           <DensityToggle />
           <ThemeToggle />
