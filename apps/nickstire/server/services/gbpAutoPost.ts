@@ -100,13 +100,16 @@ export function createSeasonalPost(season: { title: string; services: string[]; 
  *   - First Monday of month: ALSO a monthly summary block (specials
  *     overview + reviews snapshot)
  */
-export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: number; details: string }> {
+export async function generateAndNotifyGBPPost(opts?: { dryRun?: boolean; requiresReview?: boolean }): Promise<{ recordsProcessed: number; details: string }> {
   try {
     const now = new Date();
     const day = now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
     if (day !== "Monday") {
       return { recordsProcessed: 0, details: `Skip — runs Mondays only (today is ${day})` };
     }
+
+    const dryRun = opts?.dryRun !== false;
+    const requiresReview = opts?.requiresReview !== false;
 
     // 24-hour cooldown check
     const { db } = await import("../lib/db-helper");
@@ -130,15 +133,27 @@ export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: nu
 
     const { generateGBPPost, logPostToDb } = await import("./gbpContentGenerator");
     const post = await generateGBPPost();
+
+    // Provenance validation
+    if (!post.provenance || !["real-review", "real-service-catalog", "real-offer", "generic-educational"].includes(post.provenance)) {
+      throw new Error(`Invalid or missing provenance: ${post.provenance}`);
+    }
+
     // Durable log so variety guard survives deploys + admin can review history.
-    await logPostToDb(post, "cron");
+    if (!dryRun) {
+      await logPostToDb(post, "cron");
+    }
+
     const { sendTelegram } = await import("./telegram");
     const today = now.toLocaleDateString("en-US", {
       timeZone: BUSINESS.timezone, weekday: "long", month: "short", day: "numeric",
     });
 
+    const isDry = dryRun || requiresReview;
+    const dryIndicator = isDry ? " (Requires Review - Dry Run)" : " (DRAFT - Requires Review)";
+
     await sendTelegram(
-      `📝 GBP POST — Week of ${today} (DRAFT - Requires Review)\n\n` +
+      `📝 GBP POST — Week of ${today}${dryIndicator}\n\n` +
       `Archetype: ${post.archetype.toUpperCase()}\n` +
       `Provenance: ${post.provenance}\n` +
       `Paste at: business.google.com → Posts → Add update\n\n` +
@@ -286,7 +301,10 @@ async function buildMonthlyRecap(): Promise<string | null> {
  * Returns the post text + Telegram-ready payload without auto-sending.
  * Used by admin "Generate GBP Post" button.
  */
-export async function generateOneOffGBPPost(forceArchetype?: "proof" | "anti" | "math" | "seasonal"): Promise<{
+export async function generateOneOffGBPPost(
+  forceArchetype?: "proof" | "anti" | "math" | "seasonal",
+  opts?: { dryRun?: boolean; requiresReview?: boolean }
+): Promise<{
   archetype: string;
   text: string;
   callToAction: string;
@@ -294,11 +312,20 @@ export async function generateOneOffGBPPost(forceArchetype?: "proof" | "anti" | 
   imageHint: string;
   provenance: string;
 }> {
+  const dryRun = opts?.dryRun !== false;
   const { generateGBPPost, logPostToDb } = await import("./gbpContentGenerator");
   const post = await generateGBPPost(forceArchetype);
+
+  // Provenance validation
+  if (!post.provenance || !["real-review", "real-service-catalog", "real-offer", "generic-educational"].includes(post.provenance)) {
+    throw new Error(`Invalid or missing provenance: ${post.provenance}`);
+  }
+
   // Log admin-triggered posts too — counts toward variety guard so we don't
   // generate same archetype/topic via cron right after.
-  await logPostToDb(post, "admin");
+  if (!dryRun) {
+    await logPostToDb(post, "admin");
+  }
   return {
     archetype: post.archetype,
     text: post.text,

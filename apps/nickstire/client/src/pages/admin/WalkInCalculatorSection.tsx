@@ -366,6 +366,15 @@ export default function WalkInCalculatorSection() {
                 <div>Tax: <span className="font-mono text-foreground">{formatCents(line.taxCents)}</span></div>
                 <div>Cost: <span className="font-mono text-muted-foreground">{formatCents(line.partsCost)}</span></div>
               </div>
+
+              {/* Warnings for double labor */}
+              {line.laborHours > 0 &&
+                (line.description.toLowerCase().includes("oil change") ||
+                 line.description.toLowerCase().includes("used tire")) && (
+                  <div className="mt-2 text-[10px] font-bold text-red-400 flex items-center gap-1 bg-red-500/5 border border-red-500/20 p-2 rounded">
+                    ⚠️ Flat-rate item: Adding labor hours will double-charge labor!
+                  </div>
+                )}
             </div>
           ))}
         </div>

@@ -606,6 +606,10 @@ interface SendSmsOptions {
   _forceImmediate?: boolean;
   /** Transactional SMS (booking confirmations, status updates) bypass timing restrictions */
   transactional?: boolean;
+  /** Internal staff alerts bypass customer opt-out footers */
+  isInternal?: boolean;
+  /** Explicitly bypass customer opt-out footer */
+  skipOptOutFooter?: boolean;
   /**
    * Routing override.
    * - undefined (default · wave-181.60): shop-first — tries the F25e
@@ -1029,6 +1033,18 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   const normalizedEarly = normalizePhone(to);
   if (!normalizedEarly) {
     return { success: false, error: `Invalid phone number: ${to}` };
+  }
+
+  // TCPA/CTIA Compliance: automatically apply the opt-out footer where appropriate.
+  // Bypass for staff numbers, transactional messages, internal messages, or explicit skip options.
+  const ownerPhone = process.env.OWNER_PHONE_NUMBER;
+  const adminPhone = process.env.ADMIN_PHONE;
+  const isStaffNumber = !!((ownerPhone && normalizedEarly.endsWith(ownerPhone.replace(/\D/g, "").slice(-10))) ||
+                        (adminPhone && normalizedEarly.endsWith(adminPhone.replace(/\D/g, "").slice(-10))));
+  const isTransactionalOrStaff = !!(opts?.transactional || opts?.isInternal || isStaffNumber || opts?.skipOptOutFooter);
+
+  if (!isTransactionalOrStaff) {
+    body = withOptOut(body);
   }
 
   // wave-181.60-followup (audit · 2026-05-18 PM) · TCPA opt-out check

@@ -10,12 +10,69 @@
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, sql, desc, and, lte, isNull } from "drizzle-orm";
-import { customers, invoices } from "../../drizzle/schema";
+import { customers, invoices, tireOrders } from "../../drizzle/schema";
 import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/schema";
 import { sendSms, withOptOut } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 
 import { db } from "../lib/db-helper";
+
+/**
+ * Centrally verify which customer IDs have a verified tire purchase history.
+ * Checks:
+ * 1. Invoices containing 'tire'/'tires' keywords without repair/rotation/flat/patch/plug/balance/mount exclusions.
+ * 2. Tire orders where paymentStatus is 'paid' or status is not 'cancelled'/'received' (meaning in-progress or completed).
+ */
+export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: number[]): Promise<Set<number>> {
+  const verifiedIds = new Set<number>();
+  if (customerIds.length === 0) return verifiedIds;
+
+  for (let i = 0; i < customerIds.length; i += 1000) {
+    const chunk = customerIds.slice(i, i + 1000);
+
+    // 1. Query invoices
+    const invoiceRows = await d
+      .select({ customerId: invoices.customerId })
+      .from(invoices)
+      .where(
+        and(
+          sql`${invoices.customerId} IN (${sql.join(chunk)})`,
+          sql`(${invoices.serviceDescription} LIKE '%tire%' OR ${invoices.serviceDescription} LIKE '%tires%')`,
+          sql`${invoices.serviceDescription} NOT LIKE '%repair%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%rotation%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%rotate%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%flat%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%patch%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%plug%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%balance%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%mount%'`
+        )
+      );
+    for (const r of invoiceRows) {
+      if (r.customerId !== null) {
+        verifiedIds.add(r.customerId);
+      }
+    }
+
+    // 2. Query tire_orders
+    const orderRows = await d
+      .select({ customerId: tireOrders.customerId })
+      .from(tireOrders)
+      .where(
+        and(
+          sql`${tireOrders.customerId} IN (${sql.join(chunk)})`,
+          sql`(${tireOrders.paymentStatus} = 'paid' OR ${tireOrders.status} NOT IN ('cancelled', 'received'))`
+        )
+      );
+    for (const r of orderRows) {
+      if (r.customerId !== null) {
+        verifiedIds.add(r.customerId);
+      }
+    }
+  }
+
+  return verifiedIds;
+}
 
 // ─── WIN-BACK MESSAGE TEMPLATES ─────────────────────────
 // Selectable segments: lapsed, dormant, lost, declined, vip, fleet, recent, tire_customer.
@@ -386,31 +443,7 @@ export const winbackRouter = router({
         .limit(5);
 
       const sampleCustomerIds = sampleCustomers.map((c: any) => c.id);
-      const tirePurchaseCustomerIds = new Set<number>();
-      if (sampleCustomerIds.length > 0) {
-        const rows = await d
-          .select({ customerId: invoices.customerId })
-          .from(invoices)
-          .where(
-            and(
-              sql`${invoices.customerId} IN (${sql.join(sampleCustomerIds)})`,
-              sql`(${invoices.serviceDescription} LIKE '%tire%' OR ${invoices.serviceDescription} LIKE '%tires%')`,
-              sql`${invoices.serviceDescription} NOT LIKE '%repair%'`,
-              sql`${invoices.serviceDescription} NOT LIKE '%rotation%'`,
-              sql`${invoices.serviceDescription} NOT LIKE '%rotate%'`,
-              sql`${invoices.serviceDescription} NOT LIKE '%flat%'`,
-              sql`${invoices.serviceDescription} NOT LIKE '%patch%'`,
-              sql`${invoices.serviceDescription} NOT LIKE '%plug%'`,
-              sql`${invoices.serviceDescription} NOT LIKE '%balance%'`,
-              sql`${invoices.serviceDescription} NOT LIKE '%mount%'`
-            )
-          );
-        for (const r of rows) {
-          if (r.customerId !== null) {
-            tirePurchaseCustomerIds.add(r.customerId);
-          }
-        }
-      }
+      const tirePurchaseCustomerIds = await getVerifiedTirePurchaseCustomerIds(d, sampleCustomerIds);
 
       type SampleCustomer = typeof customers.$inferSelect;
       type WinbackMessageRow = typeof winbackMessages.$inferSelect;
@@ -459,34 +492,7 @@ export const winbackRouter = router({
         .limit(10_000);
 
       const targetCustomerIds = targetCustomers.map((c: any) => c.id);
-      const tirePurchaseCustomerIds = new Set<number>();
-      if (targetCustomerIds.length > 0) {
-        for (let i = 0; i < targetCustomerIds.length; i += 1000) {
-          const idChunk = targetCustomerIds.slice(i, i + 1000);
-          const rows = await d
-            .select({ customerId: invoices.customerId })
-            .from(invoices)
-            .where(
-              and(
-                sql`${invoices.customerId} IN (${sql.join(idChunk)})`,
-                sql`(${invoices.serviceDescription} LIKE '%tire%' OR ${invoices.serviceDescription} LIKE '%tires%')`,
-                sql`${invoices.serviceDescription} NOT LIKE '%repair%'`,
-                sql`${invoices.serviceDescription} NOT LIKE '%rotation%'`,
-                sql`${invoices.serviceDescription} NOT LIKE '%rotate%'`,
-                sql`${invoices.serviceDescription} NOT LIKE '%flat%'`,
-                sql`${invoices.serviceDescription} NOT LIKE '%patch%'`,
-                sql`${invoices.serviceDescription} NOT LIKE '%plug%'`,
-                sql`${invoices.serviceDescription} NOT LIKE '%balance%'`,
-                sql`${invoices.serviceDescription} NOT LIKE '%mount%'`
-              )
-            );
-          for (const r of rows) {
-            if (r.customerId !== null) {
-              tirePurchaseCustomerIds.add(r.customerId);
-            }
-          }
-        }
-      }
+      const tirePurchaseCustomerIds = await getVerifiedTirePurchaseCustomerIds(d, targetCustomerIds);
 
       const now = new Date();
       let created = 0;

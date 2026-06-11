@@ -29,6 +29,7 @@ export const localGrowthRouter = router({
     let durableTokenPresent = false;
     let expiresAt: string | null = process.env.META_PAGE_ACCESS_TOKEN_EXPIRES_AT || null;
     let warning: string | null = null;
+    let tokenStatus: "expired" | "expiring_soon" | "valid" = "valid";
 
     try {
       const { db } = await import("../lib/db-helper");
@@ -54,7 +55,11 @@ export const localGrowthRouter = router({
       if (!isNaN(expDate.getTime())) {
         const diffMs = expDate.getTime() - Date.now();
         const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-        if (diffDays <= 14) {
+        if (diffDays <= 0) {
+          tokenStatus = "expired";
+          warning = `❌ Meta Page Access Token is expired (expired on ${expDate.toLocaleDateString()}). Please renew the token to prevent automated posting failure.`;
+        } else if (diffDays <= 14) {
+          tokenStatus = "expiring_soon";
           warning = `⚠️ Meta Page Access Token is set to expire in ${diffDays} day${diffDays === 1 ? "" : "s"} (on ${expDate.toLocaleDateString()}). Please renew the token to prevent automated posting failure.`;
         }
       }
@@ -71,6 +76,7 @@ export const localGrowthRouter = router({
         couldPostLiveNow: igCouldPostLive,
         tokenExpiresAt: expiresAt,
         tokenExpirationWarning: warning,
+        tokenStatus,
       },
       // GBP posting can't go direct — the Posts API was deprecated 2024;
       // gbpAutoPost only generates copy-paste text via Telegram.
