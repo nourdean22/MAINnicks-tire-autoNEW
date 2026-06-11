@@ -29,6 +29,7 @@ import {
 import { StatusBadge } from "./customers/StatusBadge";
 import { WinBackButton } from "./customers/WinBackButton";
 import { Customer360Panel } from "./customers/Customer360Panel";
+import CustomerProfile from "./customers/CustomerProfile";
 
 const LoyaltyAdminSection = lazy(() => import("./LoyaltyAdminSection"));
 const CouponsSection = lazy(() => import("./CouponsSection"));
@@ -84,6 +85,46 @@ export default function CustomersSection() {
     return raw === "loyalty" || raw === "coupons" ? raw : "customers";
   });
 
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const raw = new URLSearchParams(window.location.search).get("id");
+    return raw ? Number(raw) : null;
+  });
+
+  // Keep state in sync with URL queries (e.g., when clicking back/forward, or direct event)
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("id");
+      setSelectedCustomerId(raw ? Number(raw) : null);
+
+      const customersTabParam = params.get("customersTab");
+      if (raw) {
+        setActiveTab("customers");
+      } else if (customersTabParam === "loyalty" || customersTabParam === "coupons") {
+        setActiveTab(customersTabParam);
+      } else {
+        setActiveTab("customers");
+      }
+    };
+
+    window.addEventListener("popstate", handleUrlChange);
+
+    const handleOpenDrawer = (e: Event) => {
+      const detail = (e as CustomEvent<{ customerId: number }>).detail;
+      if (typeof detail?.customerId === "number") {
+        setSelectedCustomerId(detail.customerId);
+        setActiveTab("customers");
+      }
+    };
+    window.addEventListener("admin:open-customer-drawer", handleOpenDrawer);
+
+    return () => {
+      window.removeEventListener("popstate", handleUrlChange);
+      window.removeEventListener("admin:open-customer-drawer", handleOpenDrawer);
+    };
+  }, []);
+
   // Keep URL in sync when tab changes
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -92,6 +133,15 @@ export default function CustomersSection() {
     else url.searchParams.set("customersTab", activeTab);
     window.history.replaceState({}, "", url.toString());
   }, [activeTab]);
+
+  const handleBackToList = () => {
+    setSelectedCustomerId(null);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("id");
+      window.history.pushState({}, "", url.toString());
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -121,7 +171,13 @@ export default function CustomersSection() {
           <CouponsSection />
         </Suspense>
       )}
-      {activeTab === "customers" && <CustomersList />}
+      {activeTab === "customers" && (
+        selectedCustomerId !== null ? (
+          <CustomerProfile customerId={selectedCustomerId} onClose={handleBackToList} />
+        ) : (
+          <CustomersList />
+        )
+      )}
     </div>
   );
 }
