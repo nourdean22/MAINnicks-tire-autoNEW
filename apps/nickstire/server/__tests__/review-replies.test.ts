@@ -96,7 +96,14 @@ describe("reviewReplies.markPosted", () => {
     h.selectQueue.push([{ id: 8, status: "draft", draftReply: "Draft text" }]);
     const caller = reviewRepliesRouter.createCaller(adminContext());
 
-    await expect(caller.markPosted({ id: 8 })).rejects.toThrow(/approve the draft first/);
+    let caught: any;
+    try {
+      await caller.markPosted({ id: 8 });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toMatch(/approve the draft first/);
     expect(h.updates).toHaveLength(0);
   });
 
@@ -104,7 +111,14 @@ describe("reviewReplies.markPosted", () => {
     h.selectQueue.push([{ id: 9, status: "posted", finalReply: "Done" }]);
     const caller = reviewRepliesRouter.createCaller(adminContext());
 
-    await expect(caller.markPosted({ id: 9 })).rejects.toThrow(/approve the draft first/);
+    let caught: any;
+    try {
+      await caller.markPosted({ id: 9 });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toMatch(/approve the draft first/);
     expect(h.updates).toHaveLength(0);
   });
 
@@ -112,7 +126,14 @@ describe("reviewReplies.markPosted", () => {
     h.selectQueue.push([]);
     const caller = reviewRepliesRouter.createCaller(adminContext());
 
-    await expect(caller.markPosted({ id: 999 })).rejects.toThrow(/not found/);
+    let caught: any;
+    try {
+      await caller.markPosted({ id: 999 });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toMatch(/not found/);
     expect(h.updates).toHaveLength(0);
   });
 
@@ -122,7 +143,14 @@ describe("reviewReplies.markPosted", () => {
     // Assert the PERMISSION error specifically — a bare rejects.toThrow()
     // would also pass via the handler's own "not found" throw (empty mock
     // queue), which would NOT prove the auth gate fired.
-    await expect(caller.markPosted({ id: 7 })).rejects.toThrow(/permission/i);
+    let caught: any;
+    try {
+      await caller.markPosted({ id: 7 });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toMatch(/permission/i);
     expect(h.updates).toHaveLength(0);
   });
 });
