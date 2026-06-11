@@ -39,7 +39,7 @@ const ENTITY_PATTERN =
 const STOP_WORDS = new Set([
   "I", "Nick", "Nour", "The", "A", "An", "This", "That", "These", "Those",
   "If", "When", "While", "Once", "Today", "Yesterday", "Tomorrow",
-  "Yes", "No", "Sure", "Done", "Total", "Next", "Hi", "Hello", "Okay",
+  "Yes", "No", "Sure", "Done", "Total", "Next", "Hi", "Hello", "Okay", "Hey", "Ok",
   // v10.0.175 · past-participle action verbs (mirrors the same set
   // in lib/ai/suggestion-cache.ts) so truth-grounding doesn't try
   // to look up "Added" as a project.

@@ -142,16 +142,16 @@ export function ReasoningTrace({ messageId, conversationId, className }: Reasoni
         type="button"
         onClick={toggle}
         className={cn(
-          "inline-flex items-center gap-1 px-1.5 py-0.5",
-          "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-          "transition-colors",
+          "inline-flex items-center gap-1 px-1.5 py-0.5 opacity-60 hover:opacity-100",
+          "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] text-[9.5px]",
+          "transition-all",
         )}
         aria-expanded={open}
         aria-controls={contentsId}
         aria-label="Toggle reasoning trace"
       >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        <span className="font-mono uppercase tracking-wider">why this answer</span>
+        {open ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
+        <span className="font-mono uppercase tracking-wider">Reason</span>
       </button>
 
       {open && (

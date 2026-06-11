@@ -461,7 +461,7 @@ function detectQuickActions(text: string): QuickAction[] {
     actions.push({ label: "Revenue breakdown", prompt: "Break down today's revenue by service type" });
   }
   if (lower.includes("lead") || lower.includes("estimate")) {
-    actions.push({ label: "Check stale leads", prompt: "Show me leads that haven't been contacted in 24+ hours" });
+    actions.push({ label: "Open lead queue", prompt: "Show me leads that haven't been contacted in 24+ hours" });
   }
   if (lower.includes("drift") || lower.includes("habit")) {
     actions.push({ label: "What should I do next?", prompt: "What's the single most important thing I should do right now?" });

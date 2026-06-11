@@ -156,7 +156,7 @@ export function generateTimelines(i: Inputs): Timeline[] {
     items.push({
       id: "drift-accumulating",
       kind: "caution",
-      text: `${i.driftOpen} drift alerts open · each +day = discipline -0.3`,
+      text: `${i.driftOpen} open loops. Close 3 today.`,
       domain: "mind",
       severity: "warn",
     });

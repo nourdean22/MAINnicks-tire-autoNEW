@@ -197,7 +197,7 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       severity: daysStale > 14 ? "high" : "medium",
       evidence: `Last updated ${daysStale} days ago. Still marked as open.`,
       daysSinceAttention: daysStale,
-      suggestedAction: `Close it, delegate it, or schedule specific time for it`,
+      suggestedAction: `Close, delegate, or schedule`,
     });
   }
 
