@@ -180,7 +180,7 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       severity: daysOverdue > 7 ? "critical" : "high",
       evidence: `Due ${c.deadline}, now ${daysOverdue} days overdue with no update`,
       daysSinceAttention: daysOverdue,
-      suggestedAction: `Either complete it, renegotiate the deadline, or explicitly abandon it`,
+      suggestedAction: `Resolve commitment`,
     });
   }
 
@@ -197,7 +197,7 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       severity: daysStale > 14 ? "high" : "medium",
       evidence: `Last updated ${daysStale} days ago. Still marked as open.`,
       daysSinceAttention: daysStale,
-      suggestedAction: `Close it, delegate it, or schedule specific time for it`,
+      suggestedAction: `Close, delegate, or schedule`,
     });
   }
 
@@ -214,7 +214,7 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       severity: staleLEads > 3 ? "critical" : "high",
       evidence: `Each hour unanswered = -15% conversion probability. These leads are likely dead.`,
       daysSinceAttention: 7,
-      suggestedAction: `Triage these NOW — respond or mark as lost. Stop the pipeline leak.`,
+      suggestedAction: `Triage leads`,
     });
   }
 
@@ -226,7 +226,7 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       severity: "medium",
       evidence: `Decision replays are how you learn from past choices. Skipping them means repeating mistakes.`,
       daysSinceAttention: 7,
-      suggestedAction: `Spend 10 minutes reviewing — was the decision right? What would you do differently?`,
+      suggestedAction: `Review decisions`,
     });
   }
 
@@ -238,7 +238,7 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       severity: "high",
       evidence: `Alerts pile up when you stop looking. ${driftAlerts.length} unresolved means the system is screaming.`,
       daysSinceAttention: 3,
-      suggestedAction: `Resolve or dismiss these alerts. An ignored warning system is worse than no system.`,
+      suggestedAction: `Resolve alerts`,
     });
   }
 
@@ -282,7 +282,7 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
         severity: inverseHits >= 4 ? "critical" : "high",
         evidence: `Recent text contains ${inverseHits} inversion phrases (e.g. "${inverseWords.split("|")[0].trim()}"). You're not just neglecting ${domain} — you're accidentally executing the opposite. Munger: "Invert, always invert."`,
         daysSinceAttention: 0,
-        suggestedAction: `Name the inversion explicitly. The opposite-of-goal is the most expensive blind spot.`,
+        suggestedAction: `Name inversion`,
         frame: "inversion",
       });
     }
@@ -305,7 +305,7 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
           severity: "medium",
           evidence: `No journal entries, chat mentions, or decisions touch this domain. Wald's bullet-hole rule: the planes that DIDN'T come back showed where the armor was missing. Silence is the real blind spot.`,
           daysSinceAttention: 14,
-          suggestedAction: `Open a 5-min reflection on ${domain}. If genuinely fine, log a check-in. If not, surface what you're avoiding.`,
+          suggestedAction: `Reflect on domain`,
           frame: "survivor-bias",
         });
       }
@@ -329,7 +329,7 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
           severity: "high",
           evidence: `Phrase "${phrase} ${domain}..." surfaced, but domain has near-zero engagement signal. Dunning-Kruger: high confidence + low data = peak risk zone.`,
           daysSinceAttention: 7,
-          suggestedAction: `Test the confidence — write down the last concrete action you took on ${domain} this week.`,
+          suggestedAction: `Verify action`,
           frame: "dunning-kruger",
         });
         break;
@@ -366,7 +366,7 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       severity: c.ratio > 4 ? "critical" : "high",
       evidence: `Importance signal: ${c.importance} (overdue commitments + stale loops). Engagement signal: ${c.engagement} mentions. Goldratt: every system has ONE constraint. Optimizing anything else is wasted effort.`,
       daysSinceAttention: 7,
-      suggestedAction: `For one week, ALL discretionary attention goes to ${c.domain}. Subordinate everything else (Goldratt's 5 focusing steps).`,
+      suggestedAction: `Focus on bottleneck`,
       frame: "constraint",
     });
   }

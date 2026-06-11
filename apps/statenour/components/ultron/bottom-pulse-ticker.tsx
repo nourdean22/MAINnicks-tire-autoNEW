@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { useDismissedTicker } from "@/hooks/use-dismissed-ticker";
 import { DismissButton } from "@/components/ui/dismiss-button";
+import { useNourState } from "@/lib/state/nour-state";
 
 // v10.0.104 audit fix · keep this union in sync with the server's PulseItem.kind
 // in app/api/ultron/personal-pulse/route.ts.
@@ -73,6 +74,7 @@ export function BottomPulseTicker() {
     retry: false,
   });
   const { dismissed, dismiss } = useDismissedTicker();
+  const s = useNourState();
 
   const items = useMemo<PulseItem[]>(() => {
     const live = (data?.items ?? []).filter((it) => !dismissed.has(it.id));
@@ -99,6 +101,9 @@ export function BottomPulseTicker() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
+
+  const hasP0P1 = s.staleLeads > 0 || s.pendingCallbacks > 0 || s.driftAlerts > 0 || s.overdueCommitments > 0 || s.agingCritical > 0;
+  if (!open && hasP0P1) return null;
 
   if (!data || items.length === 0) return null;
 
