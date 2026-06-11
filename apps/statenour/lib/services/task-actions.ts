@@ -107,6 +107,30 @@ export async function checkTask(args: {
   const action: CheckAction = args.action === "break" ? "break" : "complete";
   const cascadeChildren = args.cascadeChildren === true;
 
+  // Validate completionNote and outcomeScore at runtime
+  let outcomeScore: number | null | undefined = undefined;
+  if (args.outcomeScore !== undefined) {
+    if (args.outcomeScore !== null) {
+      if (typeof args.outcomeScore !== "number" || !Number.isInteger(args.outcomeScore) || args.outcomeScore < 1 || args.outcomeScore > 100) {
+        throw new ServiceError("Outcome score must be an integer between 1 and 100", 400);
+      }
+    }
+    outcomeScore = args.outcomeScore;
+  }
+
+  let completionNote: string | null | undefined = undefined;
+  if (args.completionNote !== undefined) {
+    if (args.completionNote !== null) {
+      const trimmed = String(args.completionNote).trim();
+      if (trimmed.length > 1000) {
+        throw new ServiceError("Completion note must not exceed 1000 characters", 400);
+      }
+      completionNote = trimmed === "" ? null : trimmed;
+    } else {
+      completionNote = null;
+    }
+  }
+
   const task = await prisma.task.findUnique({
     where: { id },
     select: {
@@ -195,8 +219,8 @@ export async function checkTask(args: {
         streakCount: nextStreak,
         status: nextStatus,
         ...(isWeekly ? { snoozedUntil: nextSnoozedUntil } : {}),
-        completionNote: args.completionNote ?? undefined,
-        outcomeScore: args.outcomeScore ?? undefined,
+        completionNote,
+        outcomeScore,
       },
       select: { id: true, streakCount: true, lastCompletedAt: true, loopKind: true, title: true },
     });
@@ -299,8 +323,8 @@ export async function checkTask(args: {
       lastCompletedAt: now,
       actualMinutes: (task.actualMinutes ?? 0) + timeBump,
       startedAt: null,
-      completionNote: args.completionNote ?? undefined,
-      outcomeScore: args.outcomeScore ?? undefined,
+      completionNote,
+      outcomeScore,
     },
     select: { id: true, status: true, loopKind: true, actualMinutes: true, effort: true },
   });

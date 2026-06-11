@@ -1,9 +1,37 @@
+---
+clarity-gate-version: 2.1
+processed-date: 2026-06-11
+processed-by: Antigravity + Nour
+clarity-status: CLEAR
+hitl-status: REVIEWED
+hitl-pending-count: 0
+points-passed: 1-9
+document-sha256: f534379154b622884b1e5e235bc0bdbcf47fd088cb8697c60cbe12fd80f479a4
+hitl-claims:
+  - id: claim-token-exp-user
+    text: "Long-lived user access tokens expire in 60 days."
+    value: "60 days"
+    source: "Meta Graph API Access Token Documentation"
+    location: "META_TOKEN_RENEWAL.md#L8"
+    round: A
+    confirmed-by: Nour
+    confirmed-date: 2026-06-11
+  - id: claim-token-exp-page
+    text: "Long-lived page access tokens do not expire as long as the user's password doesn't change and the app permissions aren't revoked."
+    value: "no expiration (conditional)"
+    source: "Meta Graph API Access Token Documentation"
+    location: "META_TOKEN_RENEWAL.md#L9"
+    round: A
+    confirmed-by: Nour
+    confirmed-date: 2026-06-11
+---
+
 # Meta Page Access Token Renewal Runbook
 
 This guide describes how to regenerate, extend, and update the long-lived Meta Page Access Token used for automated posting to Instagram.
 
 ## Context
-Automated posting to Instagram requires a Meta Page Access Token. Meta tokens expire:
+Automated posting to Instagram requires a Meta Page Access Token. Meta tokens expire (as documented in Meta Graph API v20.0 guidelines):
 - Short-lived user tokens expire in **2 hours**.
 - Long-lived user access tokens expire in **60 days**.
 - Long-lived page access tokens **do not expire** as long as the user's password doesn't change and the app permissions aren't revoked. However, it is a best practice to check them periodically and rotate them if needed.
@@ -77,3 +105,18 @@ Verify that the application detects the new token by checking the **Armed State*
 // Query localGrowth.automationArmedState
 // Ensure `ig.envTokenPresent` or `ig.durableTokenPresent` is true.
 ```
+
+---
+
+## HITL Verification Record
+
+### Round A: Derived Data Confirmation
+- Claim claim-token-exp-user (Meta Graph API Access Token Documentation) ✓
+- Claim claim-token-exp-page (Meta Graph API Access Token Documentation) ✓
+
+### Round B: True HITL Verification
+| # | Claim | Status | Verified By | Date |
+|---|-------|--------|-------------|------|
+
+<!-- CLARITY_GATE_END -->
+Clarity Gate: CLEAR | REVIEWED
