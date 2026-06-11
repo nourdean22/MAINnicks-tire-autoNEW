@@ -204,7 +204,9 @@ export function BodySection() {
       {/* Former StandardPage description + actions, relocated inline. */}
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm text-[var(--text-secondary)]" style={{ maxWidth: "60ch" }}>
-          Body = business performance. When workouts stop, revenue follows within 5 days.
+          {/* 2026-06-10 · honest copy — the old "revenue follows within 5
+              days" line asserted a measured correlation no data backs. */}
+          When sleep, workouts, and energy slip, execution usually follows.
         </p>
         {progress && (
           <div className="text-right flex flex-col items-end gap-1 shrink-0">
