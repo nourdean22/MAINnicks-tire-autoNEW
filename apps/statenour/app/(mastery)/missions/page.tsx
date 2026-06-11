@@ -51,6 +51,8 @@ import { MissionEditDrawer } from "@/components/missions/mission-edit-drawer";
 import { TaskEditSheet } from "@/components/missions/task-edit-sheet";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import type { Project, Task } from "@/components/actions/shared";
+import { isUserProject } from "@/lib/services/mission-helpers";
+import { ExecutionPanel } from "@/components/missions/execution-panel";
 
 const log = rootLogger.withSurface("missions/page");
 
@@ -121,6 +123,69 @@ function MissionsPageInner() {
   >(undefined);
   const [taskEditOpen, setTaskEditOpen] = useState(false);
   const [taskEditTarget, setTaskEditTarget] = useState<Task | null>(null);
+
+  // Execution Mode state & selectors
+  const [executionModeActive, setExecutionModeActive] = useState(false);
+
+  // Memoized selector for the focused task in Execution Mode
+  const focusedTask = useMemo(() => {
+    // 1. First choice: a task that is currently in "DOING" status
+    const doingTask = tasks.find((t) => t.status === "DOING");
+    if (doingTask) return doingTask;
+
+    // We only care about open (non-DONE, non-WAITING, non-ARCHIVED) tasks for focus recommendations
+    const openTasks = tasks.filter((t) => t.status !== "DONE" && t.status !== "WAITING" && t.status !== "ARCHIVED");
+    if (openTasks.length === 0) {
+      // Fallback to any tasks that are not DONE or ARCHIVED if nothing else
+      const anyNotDone = tasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED");
+      if (anyNotDone.length > 0) return anyNotDone[0];
+      return null;
+    }
+
+    // Helper: is the project a real user mission?
+    const userMissions = missions.filter((m) => m.status === "ACTIVE" && isUserProject(m));
+
+    // 2. Second choice: first open task of the Top Mission Today
+    const picks = userMissions.map((m) => {
+      const tasksForMission = openTasks.filter((t) => t.missionId === m.id);
+      const days = m.deadline
+        ? Math.round((new Date(m.deadline).getTime() - Date.now()) / 86400000)
+        : null;
+      return {
+        mission: m,
+        openTasks: tasksForMission.length,
+        daysToDeadline: days,
+      };
+    }).filter((p) => p.openTasks > 0);
+
+    if (picks.length > 0) {
+      const sorted = [...picks].sort((a, b) => {
+        const aD = a.daysToDeadline ?? 99_999;
+        const bD = b.daysToDeadline ?? 99_999;
+        if (aD !== bD) return aD - bD;
+        return b.openTasks - a.openTasks;
+      });
+      const topMission = sorted[0]?.mission;
+      if (topMission) {
+        const taskForTop = openTasks.find((t) => t.missionId === topMission.id);
+        if (taskForTop) return taskForTop;
+      }
+    }
+
+    // 3. Third choice: first task of any active user mission
+    for (const mission of userMissions) {
+      const taskForMission = openTasks.find((t) => t.missionId === mission.id);
+      if (taskForMission) return taskForMission;
+    }
+
+    // 4. Fallback: first open task in the general list
+    return openTasks[0] || null;
+  }, [tasks, missions]);
+
+  const focusedTaskMission = useMemo(() => {
+    if (!focusedTask || !focusedTask.missionId) return null;
+    return missions.find((m) => m.id === focusedTask.missionId) || null;
+  }, [focusedTask, missions]);
 
   // ── Mutation wrappers · invalidate task + mission queries on success ──
   const refetchAll = useCallback(async () => {
@@ -270,6 +335,19 @@ function MissionsPageInner() {
     [deleteTaskMut, refetchAll, telemetry],
   );
 
+  const handleUpdateTaskFields = useCallback(
+    async (id: string, fields: any) => {
+      try {
+        await updateTask.mutateAsync({ id, fields });
+        await refetchAll();
+      } catch (err) {
+        log.error("updateTaskFields_failed", { err });
+        toast.error("Could not update task.");
+      }
+    },
+    [updateTask, refetchAll],
+  );
+
   const handleCompleteMission = useCallback(
     (missionId: string) => {
       const mission = missions.find((m) => m.id === missionId);
@@ -389,6 +467,78 @@ function MissionsPageInner() {
     return <MissionsPageSkeleton />;
   }
 
+  if (executionModeActive) {
+    return (
+      <div className="space-y-4 max-w-3xl pb-[env(safe-area-inset-bottom,0px)]">
+        {/* ⌘K omni-capture · kaizen-B kept */}
+        <OmniCaptureModal onCapture={(text) => void handleQuickAdd(text)} />
+
+        {/* Nick chat FAB · kaizen-B kept */}
+        <NickSidePane
+          page="missions"
+          coachSurface="tasks"
+          presets={[
+            "Which mission should I push today?",
+            "Which mission is stalling?",
+            "What's the next move across all my missions?",
+            "Summarize my week so far.",
+          ]}
+        />
+
+        {focusedTask ? (
+          <ExecutionPanel
+            task={focusedTask}
+            mission={focusedTaskMission}
+            onComplete={handleCompleteTask}
+            onStart={handleStartTask}
+            onDelete={handleDeleteTask}
+            onEdit={(task) => {
+              setTaskEditTarget(task);
+              setTaskEditOpen(true);
+              telemetry.event("editTaskOpen", { taskId: task.id });
+            }}
+            onUpdateTask={handleUpdateTaskFields}
+            onExit={() => setExecutionModeActive(false)}
+          />
+        ) : (
+          <div className="space-y-4 max-w-xl mx-auto py-12 text-center">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-zinc-950 border border-zinc-800 text-zinc-400 text-xl font-bold">
+              ✓
+            </span>
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                All Tasks Completed
+              </h3>
+              <p className="text-xs text-[var(--text-secondary)]">
+                You have no open tasks left to execute. Great work!
+              </p>
+            </div>
+            <button
+              onClick={() => setExecutionModeActive(false)}
+              className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              Exit Focus Mode
+            </button>
+          </div>
+        )}
+
+        {/* task edit sheet · pass live mission list so the
+         *  operator can reassign tasks between missions inline. */}
+        <TaskEditSheet
+          key={taskEditTarget?.id ?? "none"}
+          open={taskEditOpen}
+          onClose={() => setTaskEditOpen(false)}
+          task={taskEditTarget}
+          missions={missions}
+          onSaved={() => {
+            setTaskEditOpen(false);
+            void refetchAll();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 max-w-3xl pb-[env(safe-area-inset-bottom,0px)]">
       {/* ⌘K omni-capture · kaizen-B kept */}
@@ -445,6 +595,16 @@ function MissionsPageInner() {
           className="inline-flex items-center gap-1.5 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/90 hover:bg-[var(--gold)]/[0.08]"
         >
           + new mission
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setExecutionModeActive(true);
+            telemetry.event("executionModeOpen", { source: "button" });
+          }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-amber-400 hover:bg-amber-500/10"
+        >
+          ⚡ Execution Mode
         </button>
         <span className="text-[10px] font-mono text-[var(--text-tertiary)]/70">
           or type{" "}
