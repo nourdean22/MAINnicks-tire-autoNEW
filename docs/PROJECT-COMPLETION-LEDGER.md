@@ -39,6 +39,7 @@ DANGEROUS_DO_NOT_AUTOMATE_YET
 | Google Reviews API / Place ID reliability | PARTIAL (surface live, prod read pending) | `localGrowth.reviewsHealth` (#50) + Growth tab card (#53) report key-presence + live-reachability + fallback honestly | Health card live / nobody has READ it against prod yet | low | open Admin → Growth → Local Growth on the deployed site — the card answers this row | — | 1-min check |
 | Building Blue redesign | UNKNOWN_NEEDS_VERIFICATION | No branch/doc named "Building Blue" found in repo | Unclear what this refers to / definition | ? | owner: define or drop the item | no | yes |
 | Repo/runtime/CI/governance hardening | PARTIAL | `.github/workflows` (affected build, used by PR CI), husky pre-commit/pre-push chains, PROTECTED-CORE.md | Strong local gates + CI / coverage excludes money-path files; STRIPE_WEBHOOK_SECRET not in env-validate required keys | med | add env-validate warn + coverage include (separate PR) | yes | no |
+| Credential rotation | MANUAL_OWNER_TASK | [CREDENTIAL_ROTATION.md](file:///C:/Users/nourd/NOURCITY/docs/operator/CREDENTIAL_ROTATION.md) | Zero-downtime runbook prepared for all 15 leaked keys / Actual key rotations pending owner execution | high | owner: rotate keys manually using runbook when ready | — | **yes** |
 | Brand/entity cleanup (external NAP) | MANUAL_OWNER_TASK | No automation possible without platform logins | — / every external listing | med | owner checklist (`apps/nickstire/docs/entity-cleanup-checklist.md`, ops-hub PR) | checklist only | **yes** |
 
 ## STATENOUR
