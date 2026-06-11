@@ -1,4 +1,5 @@
 import { NicksHomeBrief } from "@/components/home/nicks-home-brief";
+import { HomeJournalDirective } from "@/components/home/home-journal-directive";
 import { JournalNextMove } from "@/components/home/journal-next-move";
 import { HomeOneTapMoves } from "@/components/home/home-one-tap-moves";
 import { HomeStatePulse } from "@/components/home/home-state-pulse";
@@ -40,6 +41,12 @@ export default function HomePage() {
     <div className="space-y-4 max-w-3xl mx-auto px-3 pb-32">
       <HomeIdentityHeader />
       <NicksHomeBrief />
+      {/* Delivery-layer pass (2026-06-10) · the journal's 4-line operator
+          directive (item F: COMPOUNDING / STALLED / WATCH / MOVE) was
+          composed + cached daily but visible only on /journal. Surfaced
+          here, where the day starts. Reads the same daily cache; self-hides
+          when empty. */}
+      <HomeJournalDirective />
       {/* Item G (2026-06-10) · the journal loop's "Act" output lands where
           the day starts — freshest extracted NEXT MOVE, deep-linked to its
           entry. Self-hides when the last 48h implied no real action. */}
