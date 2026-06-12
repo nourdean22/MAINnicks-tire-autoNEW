@@ -23,8 +23,84 @@
  */
 
 import { logger as rootLogger } from "@/lib/logger";
+import { evaluateToolAction } from "@/lib/tools/tool-policy";
+import { prisma } from "@/lib/prisma";
+import { AsyncLocalStorage } from "async_hooks";
 
 const log = rootLogger.withSurface("tools/guardian");
+
+export const pendingExecutions = new Map<string, { fn: Function; args: any[] }>();
+export const guardianBypassStorage = new AsyncLocalStorage<boolean>();
+
+export const TOOL_MAP: Record<string, string> = {
+  "gmail.compose_draft_card": "composeEmail",
+  "code.run_js_vm": "runCode",
+  "code.run_python_e2b": "runPython",
+  "memory.pin": "pinMemory",
+  "memory.resolve_contradiction": "resolveContradiction",
+};
+
+export class GuardianApprovalPendingError extends Error {
+  requestId: string;
+  constructor(requestId: string) {
+    super(`Approval pending for request: ${requestId}`);
+    this.name = "GuardianApprovalPendingError";
+    this.requestId = requestId;
+  }
+}
+
+export async function executeApprovedToolAsync(requestId: string): Promise<void> {
+  try {
+    await prisma.approvalRequest.update({
+      where: { id: requestId },
+      data: { status: "executing" },
+    });
+
+    const request = await prisma.approvalRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request) {
+      throw new Error(`Request ${requestId} not found`);
+    }
+
+    let result: any;
+    const pending = pendingExecutions.get(requestId);
+
+    if (pending) {
+      result = await guardianBypassStorage.run(true, () => pending.fn(...pending.args));
+    } else {
+      const { nourTools } = await import("@/lib/ai/tools");
+      const toolName = TOOL_MAP[request.toolId];
+      const toolObj = toolName ? (nourTools as any)[toolName] : null;
+      if (toolObj && typeof toolObj.execute === "function") {
+        result = await guardianBypassStorage.run(true, () => toolObj.execute(request.payload));
+      } else {
+        throw new Error(`No execution function found for tool ${request.toolId}`);
+      }
+    }
+
+    await prisma.approvalRequest.update({
+      where: { id: requestId },
+      data: {
+        status: "executed",
+        resultPayload: result as any,
+        executedAt: new Date(),
+      },
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    await prisma.approvalRequest.update({
+      where: { id: requestId },
+      data: {
+        status: "failed",
+        resultPayload: { error: errMsg },
+      },
+    });
+  } finally {
+    pendingExecutions.delete(requestId);
+  }
+}
+
 
 export type FailureCategory =
   | "truncated_json"
@@ -157,6 +233,149 @@ export function withGuardian<T, A extends unknown[]>(
   const validateSchema = opts.validateSchema;
 
   return async function guarded(...args: A): Promise<T> {
+    const bypassPolicy = guardianBypassStorage.getStore() === true;
+
+    if (!bypassPolicy) {
+      const payload = args[0] !== undefined ? args[0] : {};
+      const decision = evaluateToolAction({
+        toolId: toolName,
+        actionType: "execute",
+        destructive: (payload as any)?.destructive,
+        containsExternalContent: (payload as any)?.containsExternalContent,
+        memoryWriteRequested: (payload as any)?.memoryWriteRequested,
+      });
+
+      if (decision.decision === "deny") {
+        throw new Error(`Action denied: ${decision.reason}`);
+      }
+
+      if (decision.decision === "require_memory_review") {
+        const content = (payload as any)?.content || "";
+
+        const existing = await prisma.memoryInboxItem.findFirst({
+          where: {
+            rawTextFenced: content,
+            status: {
+              in: ["quarantined", "conflicting", "committed", "discarded"]
+            }
+          },
+          orderBy: { createdAt: "desc" }
+        });
+
+        if (existing) {
+          if (existing.status === "committed") {
+            return { pinned: true, committed: true, content } as T;
+          }
+          if (existing.status === "discarded") {
+            throw new Error("Memory ingestion rejected by operator");
+          }
+          throw new GuardianApprovalPendingError(existing.id);
+        }
+
+        // Detect contradictions via semanticSearch
+        const { semanticSearch } = await import("@/lib/brain/embedding-utils");
+        const neighbors = await semanticSearch(content, 5, ["brain_memory"]).catch(() => []);
+        const candidates = neighbors.filter((n) => n.similarity >= 0.75);
+        let contradictionLogs: any[] = [];
+        let status = "quarantined";
+
+        if (candidates.length > 0) {
+          status = "conflicting";
+          const dbMemories = await prisma.brainMemory.findMany({
+            where: { id: { in: candidates.map(c => c.sourceId) } },
+            select: { id: true, content: true, category: true, createdAt: true }
+          });
+          contradictionLogs = candidates.map(c => {
+            const m = dbMemories.find(row => row.id === c.sourceId);
+            return {
+              id: c.sourceId,
+              content: m?.content || "",
+              similarity: c.similarity,
+              category: m?.category || "",
+              createdAt: m?.createdAt ? m.createdAt.toISOString() : null
+            };
+          });
+        }
+
+        const newInboxItem = await prisma.memoryInboxItem.create({
+          data: {
+            sourceType: "agent_tool",
+            sourceUrl: (payload as any)?.sourceUrl || null,
+            rawTextFenced: content,
+            extractedClaims: [{ text: content }],
+            contradictionLogs: contradictionLogs as any,
+            privacyClass: (payload as any)?.privacyClass || "internal",
+            status,
+          }
+        });
+
+        throw new GuardianApprovalPendingError(newInboxItem.id);
+      }
+
+      if (
+        decision.decision === "require_approval" ||
+        decision.decision === "require_owner" ||
+        decision.decision === "require_screenshot_approval"
+      ) {
+        const existing = await prisma.approvalRequest.findFirst({
+          where: {
+            toolId: toolName,
+            status: {
+              in: ["pending_approval", "approved", "rejected", "executed", "failed"]
+            }
+          },
+          orderBy: { createdAt: "desc" }
+        });
+
+        let matched = existing;
+        if (existing) {
+          const existingStr = JSON.stringify(existing.payload);
+          const currentStr = JSON.stringify(payload);
+          if (existingStr !== currentStr) {
+            matched = null;
+          }
+        }
+
+        if (matched) {
+          if (matched.status === "executed") {
+            return matched.resultPayload as T;
+          }
+          if (matched.status === "rejected") {
+            throw new Error("Action rejected by operator");
+          }
+          if (matched.status === "failed") {
+            throw new Error(`Action execution failed: ${JSON.stringify(matched.resultPayload)}`);
+          }
+
+          if (matched.status === "pending_approval" || matched.status === "approved") {
+            pendingExecutions.set(matched.id, { fn, args });
+          }
+
+          throw new GuardianApprovalPendingError(matched.id);
+        }
+
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24);
+
+        const newRequest = await prisma.approvalRequest.create({
+          data: {
+            toolId: toolName,
+            actionType: decision.decision,
+            status: "pending_approval",
+            riskClass: decision.riskClass,
+            payload: payload as any,
+            requestedBy: "agent",
+            reason: decision.reason,
+            expiresAt,
+          }
+        });
+
+        pendingExecutions.set(newRequest.id, { fn, args });
+
+        throw new GuardianApprovalPendingError(newRequest.id);
+      }
+    }
+
     let lastError: unknown;
     let lastCategory: FailureCategory = "unknown";
 

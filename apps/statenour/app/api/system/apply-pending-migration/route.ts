@@ -134,6 +134,47 @@ const MIGRATIONS: Record<string, string[]> = {
     `CREATE TABLE IF NOT EXISTS "task_classification_corrections" ("id" TEXT NOT NULL, "task_title" TEXT NOT NULL, "chosen_mission_id" TEXT, "domain" VARCHAR(24), "created_by" VARCHAR(64) DEFAULT 'user', "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "task_classification_corrections_pkey" PRIMARY KEY ("id"))`,
     `CREATE INDEX IF NOT EXISTS "task_classification_corrections_created_at_idx" ON "task_classification_corrections" ("created_at" DESC)`,
   ],
+
+  "0011_approval_queue_and_memory_inbox": [
+    `CREATE TABLE IF NOT EXISTS "approval_requests" (
+      "id" TEXT NOT NULL,
+      "action_type" TEXT NOT NULL,
+      "tool_id" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'pending_approval',
+      "risk_class" TEXT NOT NULL,
+      "payload" JSONB NOT NULL,
+      "result_payload" JSONB,
+      "requested_by" TEXT NOT NULL,
+      "reason" TEXT NOT NULL,
+      "expires_at" TIMESTAMP(3) NOT NULL,
+      "approved_at" TIMESTAMP(3),
+      "approved_by" TEXT,
+      "executed_at" TIMESTAMP(3),
+      "screenshot_url" TEXT,
+      "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "approval_requests_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "approval_requests_status_idx" ON "approval_requests"("status")`,
+    `CREATE INDEX IF NOT EXISTS "approval_requests_created_at_idx" ON "approval_requests"("created_at")`,
+    `CREATE TABLE IF NOT EXISTS "memory_inbox_items" (
+      "id" TEXT NOT NULL,
+      "source_url" TEXT,
+      "source_type" TEXT NOT NULL,
+      "raw_text_fenced" TEXT NOT NULL,
+      "extracted_claims" JSONB NOT NULL,
+      "contradiction_logs" JSONB,
+      "privacy_class" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'quarantined',
+      "reviewed_by" TEXT,
+      "reviewed_at" TIMESTAMP(3),
+      "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "memory_inbox_items_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "memory_inbox_items_status_idx" ON "memory_inbox_items"("status")`,
+    `CREATE INDEX IF NOT EXISTS "memory_inbox_items_created_at_idx" ON "memory_inbox_items"("created_at")`,
+  ],
 };
 
 export async function POST(req: Request) {
