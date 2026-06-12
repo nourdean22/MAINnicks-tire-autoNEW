@@ -886,13 +886,14 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
           SUM(CASE WHEN stage = 'ready' THEN 1 ELSE 0 END) AS ready,
           COUNT(*) AS total_bookings
         FROM bookings
-        WHERE (DATE(createdAt) = CURDATE() OR preferredDate = DATE_FORMAT(CURDATE(), '%Y-%m-%d'))
+        WHERE (DATE(CONVERT_TZ(createdAt, '+00:00', 'America/New_York')) = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
+            OR preferredDate = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York')))
           AND status != 'cancelled'
       `),
       exec(d, sql`
         SELECT COUNT(*) AS paid, COALESCE(SUM(totalAmount), 0) AS totalCents, COALESCE(AVG(totalAmount), 0) AS avgCents
         FROM invoices
-        WHERE DATE(invoiceDate) = CURDATE()
+        WHERE DATE(CONVERT_TZ(invoiceDate, '+00:00', 'America/New_York')) = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
           AND paymentStatus = 'paid'
       `),
     ]);
@@ -911,7 +912,8 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const paymentBreakdown = await exec(d, sql`
       SELECT paymentMethod, COUNT(*) AS cnt, COALESCE(SUM(totalAmount), 0) AS totalCents
       FROM invoices
-      WHERE DATE(invoiceDate) = CURDATE() AND paymentStatus = 'paid'
+      WHERE DATE(CONVERT_TZ(invoiceDate, '+00:00', 'America/New_York')) = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
+        AND paymentStatus = 'paid'
       GROUP BY paymentMethod
     `);
     const byPayment = Object.fromEntries(
