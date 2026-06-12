@@ -42,7 +42,9 @@ export type AuditAction =
   | "invoice.refunded"
   | "invoice.refund_failed"
   // 2026-06-12 · nonstop nick membership overrides
-  | "membership.grace_period_granted";
+  | "membership.grace_period_granted"
+  // 2026-06-12 · database hygiene and cleanup
+  | "database.hygiene_prune";
 
 // ─── Log an admin action ────────────────────────────
 export async function logAdminAction(data: {
