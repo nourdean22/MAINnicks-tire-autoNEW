@@ -9,7 +9,7 @@ import "dotenv/config";
 
 const ASSISTANT_ID = "150fe622-0b9f-4b03-b8c7-3063812717ae";
 const VAPI_BASE = "https://api.vapi.ai";
-const NEW_NUMBER = "+14404442383"; // E.164 format · Cleveland 440 area
+const NEW_NUMBER = "+12168620005"; // E.164 format · Cleveland 216 area (shop landline)
 
 async function main() {
   const apiKey = process.env.VAPI_API_KEY;

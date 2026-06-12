@@ -175,6 +175,7 @@ function getStagedFiles() {
       .split("\n")
       .map((f) => f.trim())
       .filter(Boolean)
+      .map((f) => f.replace(/^apps\/nickstire\//, ""))
       .filter(isInScope);
   } catch {
     return [];
