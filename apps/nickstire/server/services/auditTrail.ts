@@ -39,6 +39,8 @@ export type AuditAction =
   // 2026-06-11 · refund action types
   | "tireorder.refunded"
   | "tireorder.refund_failed"
+  | "invoice.refunded"
+  | "invoice.refund_failed"
   // 2026-06-12 · nonstop nick membership overrides
   | "membership.grace_period_granted";
 
