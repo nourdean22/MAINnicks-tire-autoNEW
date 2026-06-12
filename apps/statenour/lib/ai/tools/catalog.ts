@@ -57,6 +57,10 @@ export interface ToolMeta {
   needsBridge?: boolean;
   /** Rough cost tier per invocation — used for /system/ai-cost aggregation. */
   cost?: "free" | "cheap" | "medium" | "spendy";
+  /** Risk classification of the tool. If not provided, dynamically calculated. */
+  riskClass?: "low" | "medium" | "high" | "critical";
+  /** Required environment keys for this tool to run. */
+  requiredEnv?: string[];
 }
 
 /**
@@ -84,20 +88,20 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getTodaySchedule",             category: "personal_read",  battle: true,  cost: "free" },
   { name: "proposeCalendarEvent",         category: "personal_read",  battle: true,  cost: "free" },
   // v10.0.515 · #3 E2B code sandbox · cost is bounded by E2B free tier (100 runs/day)
-  { name: "runPython",                    category: "ai_analysis",                   cost: "cheap" },
+  { name: "runPython",                    category: "ai_analysis",                   cost: "cheap", riskClass: "critical", requiredEnv: ["E2B_API_KEY"] },
   // v10.0.515 · #10 Document Q&A · cheap (one embedding call + DB knn)
-  { name: "searchDocuments",              category: "research",       battle: true,  cost: "cheap" },
-  { name: "ingestDocumentFromUrl",        category: "research",                      cost: "cheap" },
+  { name: "searchDocuments",              category: "research",       battle: true,  cost: "cheap", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
+  { name: "ingestDocumentFromUrl",        category: "research",                      cost: "cheap", riskClass: "low" },
   // v10.0.524 · #1 Cross-conversation recall + #4 multi-source search
-  { name: "findRelatedConversations",     category: "brain",          battle: true,  cost: "cheap" },
-  { name: "searchWebVerified",            category: "research",                      cost: "medium" },
+  { name: "findRelatedConversations",     category: "brain",          battle: true,  cost: "cheap", riskClass: "low" },
+  { name: "searchWebVerified",            category: "research",                      cost: "medium", riskClass: "low", requiredEnv: ["PERPLEXITY_API_KEY"] },
   // v10.0.524 · #6 skill suggestion + #10 anti-pattern surface
-  { name: "suggestSkills",                category: "brain",          battle: true,  cost: "cheap" },
-  { name: "surfaceAntiPatterns",          category: "brain",          battle: true,  cost: "free" },
+  { name: "suggestSkills",                category: "brain",          battle: true,  cost: "cheap", riskClass: "low" },
+  { name: "surfaceAntiPatterns",          category: "brain",          battle: true,  cost: "free", riskClass: "low" },
   // v10.0.525 · Session-recording recall (VideoDB · operator captures
   // own sessions externally, submits to /api/system/videodb-sessions)
-  { name: "searchSessionRecordings",      category: "research",       battle: true,  cost: "cheap" },
-  { name: "recallFromSession",            category: "research",       battle: true,  cost: "cheap" },
+  { name: "searchSessionRecordings",      category: "research",       battle: true,  cost: "cheap", riskClass: "low", requiredEnv: ["VIDEO_DB_API_KEY"] },
+  { name: "recallFromSession",            category: "research",       battle: true,  cost: "cheap", riskClass: "low", requiredEnv: ["VIDEO_DB_API_KEY"] },
 
   // ── personal_write ───────────────────────────────────────────────
   // v10.0.75 · closeLoop + createLoop legacy aliases retired
@@ -225,20 +229,20 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "resolveContradiction",          category: "brain",          sideEffecting: true, cost: "free" },
 
   // ── files (Drive + GitHub) ───────────────────────────────────────
-  { name: "buildArchitectureMemory",      category: "files",          cost: "spendy" },
-  { name: "getRepoMap",                   category: "files",          cost: "cheap" },
-  { name: "githubCreateIssue",            category: "files",          sideEffecting: true, cost: "free" },
-  { name: "githubCreatePR",               category: "files",          sideEffecting: true, cost: "free" },
-  { name: "githubListFiles",              category: "files",          battle: true, cost: "free" },
-  { name: "githubListRepos",              category: "files",          battle: true, cost: "free" },
-  { name: "githubReadFile",               category: "files",          battle: true, cost: "free" },
-  { name: "githubReadMultiple",           category: "files",          cost: "free" },
-  { name: "githubRecentCommits",          category: "files",          battle: true, cost: "free" },
-  { name: "githubSearchCode",             category: "files",          cost: "free" },
-  { name: "learnCodingPreference",        category: "files",          cost: "free" },
-  { name: "listRecentDriveFiles",         category: "files",          battle: true, cost: "free" },
-  { name: "readDriveFile",                category: "files",          cost: "free" },
-  { name: "searchDriveFiles",             category: "files",          cost: "free" },
+  { name: "buildArchitectureMemory",      category: "files",          cost: "spendy", riskClass: "low" },
+  { name: "getRepoMap",                   category: "files",          cost: "cheap", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
+  { name: "githubCreateIssue",            category: "files",          sideEffecting: true, cost: "free", riskClass: "high", requiredEnv: ["GITHUB_TOKEN"] },
+  { name: "githubCreatePR",               category: "files",          sideEffecting: true, cost: "free", riskClass: "high", requiredEnv: ["GITHUB_TOKEN"] },
+  { name: "githubListFiles",              category: "files",          battle: true, cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
+  { name: "githubListRepos",              category: "files",          battle: true, cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
+  { name: "githubReadFile",               category: "files",          battle: true, cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
+  { name: "githubReadMultiple",           category: "files",          cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
+  { name: "githubRecentCommits",          category: "files",          battle: true, cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
+  { name: "githubSearchCode",             category: "files",          cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
+  { name: "learnCodingPreference",        category: "files",          cost: "free", riskClass: "low" },
+  { name: "listRecentDriveFiles",         category: "files",          battle: true, cost: "free", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
+  { name: "readDriveFile",                category: "files",          cost: "free", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
+  { name: "searchDriveFiles",             category: "files",          cost: "free", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
 
   // ── routines ─────────────────────────────────────────────────────
   { name: "analyzeWeek",                  category: "routines",       cost: "medium" },
@@ -261,11 +265,11 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // Side-effecting because it drives a real headless browser — clicks,
   // extracts, posts. Spendy because Browserbase bills per session-minute
   // and Stagehand acts wrap LLM calls per step.
-  { name: "browser_do",                   category: "browser",        sideEffecting: true, cost: "spendy" },
-  { name: "browser_navigate",             category: "browser",        sideEffecting: true, cost: "cheap"  },
-  { name: "browser_act",                  category: "browser",        sideEffecting: true, cost: "medium" },
-  { name: "browser_observe",              category: "browser",        sideEffecting: false, cost: "medium" },
-  { name: "browser_extract",              category: "browser",        sideEffecting: true, cost: "medium" },
+  { name: "browser_do",                   category: "browser",        sideEffecting: true, cost: "spendy", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
+  { name: "browser_navigate",             category: "browser",        sideEffecting: true, cost: "cheap",  riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
+  { name: "browser_act",                  category: "browser",        sideEffecting: true, cost: "medium", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
+  { name: "browser_observe",              category: "browser",        sideEffecting: false, cost: "medium", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
+  { name: "browser_extract",              category: "browser",        sideEffecting: true, cost: "medium", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
 
   // ── inline rich renderers (v10.0.49) ─────────────────────────────
   // Ports of open-webui-plugins Inline Visualizer + Email Composer.
@@ -327,3 +331,20 @@ export function sideEffectingTools(): string[] {
 
 /** Count in the catalog — should always match the number of tool entries in nourTools. */
 export const TOOL_COUNT = TOOL_CATALOG.length;
+
+export function getToolRiskClass(name: string, meta?: ToolMeta | null): "low" | "medium" | "high" | "critical" {
+  const actualMeta = meta ?? getToolMeta(name);
+  if (actualMeta?.riskClass) return actualMeta.riskClass;
+  if (name === "runCode" || name === "runPython" || name === "runDeviceCommand") {
+    return "critical";
+  }
+  if (actualMeta?.sideEffecting) {
+    return "high";
+  }
+  const category = actualMeta?.category;
+  if (category === "personal_write" || category === "business_write" || category === "comms") {
+    return "high";
+  }
+  return "low";
+}
+
