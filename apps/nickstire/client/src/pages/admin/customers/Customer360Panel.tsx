@@ -346,7 +346,7 @@ export function Customer360Panel({ customer }: {
           </div>
 
           {/* NICK AI ASSISTANT DRAWER */}
-          <div className="bg-card border border-primary/25 rounded-lg p-4 space-y-4">
+          <div className="bg-card border border-primary/25 p-4 space-y-4">
             <div className="flex items-center justify-between border-b border-border/20 pb-3 flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />

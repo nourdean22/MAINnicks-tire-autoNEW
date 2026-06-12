@@ -514,7 +514,7 @@ export default function OverviewSection() {
         <button
           type="button"
           onClick={() => openDrilldown({ kind: "revenue_today" })}
-          className="text-left p-4 rounded-lg bg-card border border-border/40 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-colors"
+          className="text-left p-4 bg-card border border-border/40 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-colors"
           aria-label="Open today's revenue detail"
         >
           <div className="text-2xl font-bold text-primary tabular-nums">${Math.round(todayRevenue).toLocaleString()}</div>
@@ -537,7 +537,7 @@ export default function OverviewSection() {
         <button
           type="button"
           onClick={() => openDrilldown({ kind: "cars_in_shop" })}
-          className="text-left p-4 rounded-lg bg-card border border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+          className="text-left p-4 bg-card border border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-colors"
           aria-label="Open cars in shop detail"
         >
           <div className={`text-2xl font-bold tabular-nums ${carsInShop > 0 ? "text-primary" : "text-muted-foreground"}`}>{carsInShop}</div>
@@ -561,7 +561,7 @@ export default function OverviewSection() {
               setTimeout(() => target.classList.remove("ring-2", "ring-primary/60"), 1500);
             }
           }}
-          className="text-left p-4 rounded-lg bg-card border border-border/40 hover:border-red-500/40 hover:bg-red-500/5 transition-colors"
+          className="text-left p-4 bg-card border border-border/40 hover:border-red-500/40 hover:bg-red-500/5 transition-colors"
           aria-label="Scroll to priority action queue"
         >
           <div className={`text-2xl font-bold tabular-nums ${priorityQueue.length > 0 ? "text-red-400" : "text-emerald-400"}`}>{priorityQueue.length}</div>
@@ -573,7 +573,7 @@ export default function OverviewSection() {
         <button
           type="button"
           onClick={() => openDrilldown({ kind: "fresh_leads" })}
-          className="text-left p-4 rounded-lg bg-card border border-border/40 hover:border-blue-500/40 hover:bg-blue-500/5 transition-colors"
+          className="text-left p-4 bg-card border border-border/40 hover:border-blue-500/40 hover:bg-blue-500/5 transition-colors"
           aria-label="Open hot leads detail"
         >
           <div className={`text-2xl font-bold tabular-nums ${urgentLeads > 0 ? "text-red-400" : activeLeads > 0 ? "text-blue-400" : "text-muted-foreground"}`}>{activeLeads}</div>

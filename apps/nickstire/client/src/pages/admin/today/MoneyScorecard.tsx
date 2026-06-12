@@ -25,7 +25,7 @@ export function MoneyScorecard() {
 
   if (isLoading) {
     return (
-      <div className="bg-card border border-border/40 p-5 rounded-xl space-y-4 animate-pulse">
+      <div className="bg-card border border-border/40 p-5 space-y-4 animate-pulse">
         <div className="h-4 w-40 bg-foreground/10 rounded" />
         <div className="grid grid-cols-3 gap-4">
           <div className="h-16 bg-foreground/10 rounded" />
@@ -48,7 +48,7 @@ export function MoneyScorecard() {
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : new Date().toLocaleTimeString();
 
   return (
-    <div className="bg-card border border-border/40 p-5 rounded-xl space-y-4 shadow-lg backdrop-blur-sm bg-opacity-80">
+    <div className="bg-card border border-border/40 p-5 space-y-4 shadow-lg backdrop-blur-sm bg-opacity-80">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold text-emerald-400 tracking-wide uppercase flex items-center gap-2">

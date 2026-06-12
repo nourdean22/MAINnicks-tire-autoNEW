@@ -479,29 +479,6 @@ export async function generateGBPPost(forceArchetype?: GBPArchetype): Promise<Ge
   // Pull recent topics from DB once per generation cycle (cached 5 min).
   await hydrateRecentTopicsFromDb();
 
-  // If a special is active, prefer to feature it (highest signal/conversion).
-  const featuredSpecial = await getFeaturedActiveSpecial();
-  if (featuredSpecial && !forceArchetype) {
-    const text = `${featuredSpecial.title}
-
-${featuredSpecial.description ?? ""}
-
-Walk in 7 days · ${BUSINESS.address.full}
-${BUSINESS.phone.display} · code ${featuredSpecial.couponCode ?? "—"}`;
-    const post: GeneratedGBPPost = {
-      archetype: "math",
-      text: text.slice(0, 1500),
-      callToAction: "BOOK",
-      ctaUrl: `${BUSINESS.urls.website}/specials?utm_source=gbp&utm_medium=organic&utm_campaign=special-${featuredSpecial.couponCode ?? "active"}&utm_content=archetype-special`,
-      imageHint: "the actual special — service-specific photo",
-      topicHash: `special-${featuredSpecial.id}`,
-      provenance: "real-offer",
-    };
-    validateNoUnsourcedCustomerIdentity(post.text, post.archetype);
-    assertNoFabrication(post.text);
-    return post;
-  }
-
   // Fetch last 5 post bodies to check similarity
   let last5PostBodies: string[] = [];
   try {
@@ -516,6 +493,43 @@ ${BUSINESS.phone.display} · code ${featuredSpecial.couponCode ?? "—"}`;
     }
   } catch (err) {
     log.warn("Failed to fetch last 5 posts for Jaccard check", { err });
+  }
+
+  // If a special is active, prefer to feature it (highest signal/conversion),
+  // but only if it's not too similar to recent postings.
+  const featuredSpecial = await getFeaturedActiveSpecial();
+  if (featuredSpecial && !forceArchetype) {
+    const text = `${featuredSpecial.title}
+
+${featuredSpecial.description ?? ""}
+
+Walk in 7 days · ${BUSINESS.address.full}
+${BUSINESS.phone.display} · code ${featuredSpecial.couponCode ?? "—"}`;
+
+    let tooSimilar = false;
+    for (const oldBody of last5PostBodies) {
+      if (jaccardSimilarity(text, oldBody) > 0.75) {
+        tooSimilar = true;
+        break;
+      }
+    }
+
+    if (!tooSimilar) {
+      const post: GeneratedGBPPost = {
+        archetype: "math",
+        text: text.slice(0, 1500),
+        callToAction: "BOOK",
+        ctaUrl: `${BUSINESS.urls.website}/specials?utm_source=gbp&utm_medium=organic&utm_campaign=special-${featuredSpecial.couponCode ?? "active"}&utm_content=archetype-special`,
+        imageHint: "the actual special — service-specific photo",
+        topicHash: `special-${featuredSpecial.id}`,
+        provenance: "real-offer",
+      };
+      validateNoUnsourcedCustomerIdentity(post.text, post.archetype);
+      assertNoFabrication(post.text);
+      return post;
+    } else {
+      log.info(`Active special "${featuredSpecial.title}" is too similar to recent posts (Jaccard > 0.75), falling back to other archetypes.`);
+    }
   }
 
   // Pick archetype, retry up to 4× if the topic was recent or similarity is too high.
