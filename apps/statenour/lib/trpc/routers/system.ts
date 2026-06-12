@@ -42,6 +42,8 @@ import { agentsProcedures } from "./system/agents";
 import { notificationsProcedures } from "./system/notifications";
 import { digestProcedures } from "./system/digest";
 import { toolsProcedures } from "./system/tools";
+import { actionsProcedures } from "./system/actions";
+import { inboxProcedures } from "./system/inbox";
 
 /**
  * Mechanical decomposition (2026-05-31): the ~105 procedures were moved
@@ -62,4 +64,6 @@ export const systemRouter = router({
   ...notificationsProcedures,
   ...digestProcedures,
   ...toolsProcedures,
+  ...actionsProcedures,
+  ...inboxProcedures,
 });
