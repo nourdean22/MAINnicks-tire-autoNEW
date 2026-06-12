@@ -747,10 +747,18 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
             <span className={`text-[10px] font-medium tracking-wider uppercase px-2 py-0.5 rounded-full ${cat.color}`}>
               {cat.label}
             </span>
-            {tire.inStock && (
-              <span className="text-[10px] font-medium text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <CircleDot className="w-2.5 h-2.5" /> In Stock
+            {tire.inStock ? (
+              <span className="text-[10px] font-medium text-green-400 bg-green-500/10 px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                <CircleDot className="w-2.5 h-2.5 animate-pulse" /> In Stock (Euclid Warehouse)
               </span>
+            ) : (
+              <a
+                href="tel:+12168620005"
+                onClick={(e) => { e.stopPropagation(); trackPhoneClick("tire-finder-stock-availability"); }}
+                className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1 hover:text-amber-300 transition-colors shrink-0"
+              >
+                <CircleDot className="w-2.5 h-2.5 text-amber-500" /> Call for Availability
+              </a>
             )}
           </div>
           <div className="flex items-center gap-3 mt-1">

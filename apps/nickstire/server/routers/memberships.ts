@@ -112,4 +112,42 @@ export const membershipsRouter = router({
       log.info(`Nonstop Nick membership ${input.membershipId} bound to ${input.vehiclePlate}`);
       return { success: true };
     }),
+
+  /** Grant 3-day grace period override for membership status (admin). */
+  grantGracePeriod: adminProcedure
+    .input(z.object({
+      membershipId: z.number().int(),
+      days: z.number().int().default(3),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new Error("Database unavailable");
+      const [existing] = await d.select().from(memberships)
+        .where(eq(memberships.id, input.membershipId)).limit(1);
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No membership with that ID" });
+      }
+
+      const newPeriodEnd = new Date(Date.now() + input.days * 24 * 60 * 60 * 1000);
+      await d.update(memberships)
+        .set({
+          status: "active",
+          currentPeriodEnd: newPeriodEnd,
+        })
+        .where(eq(memberships.id, input.membershipId));
+
+      const { logAdminAction } = await import("../services/auditTrail");
+      await logAdminAction({
+        action: "membership.grace_period_granted",
+        entityType: "membership",
+        entityId: input.membershipId,
+        details: `Granted ${input.days}-day grace period override. New currentPeriodEnd: ${newPeriodEnd.toISOString()}`,
+        previousValue: existing.status,
+        newValue: "active",
+        metadata: { days: input.days },
+      });
+
+      log.info(`Grace period granted for membership ID ${input.membershipId} until ${newPeriodEnd.toISOString()}`);
+      return { success: true, currentPeriodEnd: newPeriodEnd };
+    }),
 });
