@@ -11,7 +11,10 @@ export async function handleSystemHealth(_params: ActionParams, type: string): P
   const [dbOk, memCount, alertCount, syncAge] = await Promise.all([
     prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
     prisma.brainMemory.count(),
-    prisma.driftAlert.count({ where: { acknowledged: false } }),
+    (async () => {
+      const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+      return (await getUnresolvedAlerts().catch(() => [])).length;
+    })(),
     prisma.auditEvent.findFirst({ where: { eventType: "business_metrics_sync" }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
   ]);
   const syncMinutes = syncAge?.createdAt ? Math.floor((Date.now() - syncAge.createdAt.getTime()) / 60000) : -1;
@@ -67,11 +70,10 @@ export async function handleSystemDeepScan(_params: ActionParams, type: string):
 }
 
 export async function handleSystemClearAlerts(_params: ActionParams, type: string): Promise<ActionResult> {
-  const updated = await prisma.driftAlert.updateMany({
-    where: { acknowledged: false },
-    data: { acknowledged: true },
-  });
-  return { action: type, success: true, result: { cleared: updated.count } };
+  const { getUnresolvedAlerts, acknowledgeAlert } = await import("@/lib/mastery/drift-engine");
+  const unresolved = await getUnresolvedAlerts().catch(() => []);
+  await Promise.all(unresolved.map((a) => acknowledgeAlert(a.id)));
+  return { action: type, success: true, result: { cleared: unresolved.length } };
 }
 
 export async function handleSystemPagePatterns(_params: ActionParams, type: string): Promise<ActionResult> {

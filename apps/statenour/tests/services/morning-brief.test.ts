@@ -17,19 +17,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  driftAlert: { findFirst: vi.fn() },
   task: { findMany: vi.fn(), count: vi.fn() },
   commitment: { findMany: vi.fn() },
   auditEvent: { findFirst: vi.fn() },
   cronJobLog: { count: vi.fn(), findMany: vi.fn() },
   personalDailyLog: { findMany: vi.fn() },
   bodyTracking: { findMany: vi.fn() },
-  brainMemory: { findMany: vi.fn() },
+  brainMemory: { findMany: vi.fn(), update: vi.fn() },
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    driftAlert: mocks.driftAlert,
     task: mocks.task,
     commitment: mocks.commitment,
     auditEvent: mocks.auditEvent,
@@ -46,9 +44,16 @@ vi.mock("@/lib/services/calendar-api", () => ({
 
 import { buildMorningBrief } from "@/lib/services/morning-brief";
 
+let mockDriftEvents: any[] = [];
+let mockWisdomEvents: any[] = [];
+let mockDecisionReplays: any[] = [];
+
 function resetMocks() {
   vi.clearAllMocks();
-  mocks.driftAlert.findFirst.mockResolvedValue(null);
+  mockDriftEvents = [];
+  mockWisdomEvents = [];
+  mockDecisionReplays = [];
+
   mocks.task.findMany.mockResolvedValue([]);
   mocks.task.count.mockResolvedValue(0);
   mocks.commitment.findMany.mockResolvedValue([]);
@@ -57,7 +62,22 @@ function resetMocks() {
   mocks.cronJobLog.findMany.mockResolvedValue([]);
   mocks.personalDailyLog.findMany.mockResolvedValue([]);
   mocks.bodyTracking.findMany.mockResolvedValue([]);
-  mocks.brainMemory.findMany.mockResolvedValue([]);
+  mocks.brainMemory.update.mockResolvedValue({});
+
+  mocks.brainMemory.findMany.mockImplementation(async (args: any) => {
+    const where = args?.where || {};
+    const category = where.category || where.active?.category;
+    if (category === "coach_event") {
+      return mockDriftEvents;
+    }
+    if (category === "wisdom" || category === "WISDOM") {
+      return mockWisdomEvents;
+    }
+    if (category === "decision_replay_due") {
+      return mockDecisionReplays;
+    }
+    return [];
+  });
 }
 
 describe("Morning Brief · v10.0.526 multi-slice composer", () => {
@@ -67,7 +87,7 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
 
   // 1 ─────────────────────────────────────────────────────────────
   it("personal slice · emits drift + top task + open-task count", async () => {
-    mocks.driftAlert.findFirst.mockResolvedValue({ severity: "high" });
+    mockDriftEvents = [{ metadata: { priority: "P1" } }];
     mocks.task.findMany.mockResolvedValue([
       { title: "Old title", nextPhysicalAction: "Call Mike about ALG" },
     ]);
@@ -75,10 +95,10 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
 
     const brief = await buildMorningBrief();
 
-    expect(brief.drift).toBe("HIGH");
+    expect(brief.drift).toBe("ALERT");
     expect(brief.topTask).toBe("Call Mike about ALG");
     expect(brief.taskCount).toBe(7);
-    expect(brief.text).toContain("Drift: <b>HIGH</b>");
+    expect(brief.text).toContain("Drift: <b>ALERT</b>");
     expect(brief.text).toContain("Top: Call Mike about ALG");
     expect(brief.text).toContain("Open tasks: 7");
   });
@@ -175,7 +195,7 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
       { date: "2026-05-12", weight: 180.5 },
       { date: "2026-05-08", weight: 182.0 },
     ]);
-    mocks.brainMemory.findMany.mockResolvedValue([
+    mockWisdomEvents = [
       {
         id: "w1",
         content: "Compound interest is the eighth wonder of the world.",
@@ -186,7 +206,7 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
         content: "Read 500 pages every day.",
         source: "wisdom_munger_3",
       },
-    ]);
+    ];
 
     vi.setSystemTime(today);
     const brief = await buildMorningBrief();
@@ -216,7 +236,7 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
 
   // 7 ─────────────────────────────────────────────────────────────
   it("combined · stitches personal + shop + wellbeing with separators", async () => {
-    mocks.driftAlert.findFirst.mockResolvedValue({ severity: "medium" });
+    mockDriftEvents = [{ metadata: { priority: "P2" } }];
     mocks.task.count.mockResolvedValue(3);
     mocks.auditEvent.findFirst.mockResolvedValue({
       createdAt: new Date(),
@@ -225,9 +245,9 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
     mocks.personalDailyLog.findMany.mockResolvedValue([
       { logDate: new Date(), workoutCompleted: true, sleepHours: 7 },
     ]);
-    mocks.brainMemory.findMany.mockResolvedValue([
+    mockWisdomEvents = [
       { id: "w1", content: "Stay hungry.", source: "wisdom_jobs_1" },
-    ]);
+    ];
 
     const brief = await buildMorningBrief();
     const text = brief.text;
@@ -238,14 +258,14 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
     const separatorCount = (text.match(/<i>· · ·<\/i>/g) || []).length;
     expect(separatorCount).toBe(2); // personal→shop, shop→wellbeing
 
-    expect(text).toContain("Drift: <b>MEDIUM</b>");
+    expect(text).toContain("Drift: <b>WARNING</b>");
     expect(text).toContain("<b>Shop</b>");
     expect(text).toContain("<b>Wellbeing</b>");
   });
 
   // 8 ─────────────────────────────────────────────────────────────
   it("backward compat · top-level flat fields keep working", async () => {
-    mocks.driftAlert.findFirst.mockResolvedValue({ severity: "low" });
+    mockDriftEvents = [];
     mocks.task.count.mockResolvedValue(4);
     mocks.commitment.findMany.mockResolvedValue([
       { id: "c1", description: "Email Brian about contract", deadline: null },
@@ -270,11 +290,11 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
     mocks.personalDailyLog.findMany.mockResolvedValue([
       { logDate: new Date(), workoutCompleted: true, sleepHours: 7 },
     ]);
-    mocks.brainMemory.findMany.mockResolvedValue([
+    mockWisdomEvents = [
       { id: "w1", content: "Quote A.", source: "wisdom_buffett_1" },
       { id: "w2", content: "Quote B.", source: "wisdom_munger_3" },
       { id: "w3", content: "Quote C.", source: "wisdom_naval_2" },
-    ]);
+    ];
 
     vi.setSystemTime(new Date("2026-05-12"));
     const brief1 = await buildMorningBrief();

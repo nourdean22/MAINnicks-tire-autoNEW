@@ -131,7 +131,7 @@ const PRIORITY_RANK: Record<CoachEventPriority, number> = {
 export async function recordCoachEvent(input: CoachEventInput): Promise<CoachEvent | null> {
   try {
     const key = buildCoachEventKey(input.kind, input.subjectId);
-    const surfaces = input.surfaces ?? ["tasks", "goals", "journal", "brain", "scoreboard"];
+    const surfaces = input.surfaces ?? ["tasks", "goals", "journal", "brain", "scoreboard", "home"];
     const dismissable = input.dismissable !== false; // default true
     const eventId =
       // Use a hash of key + priority + title (truncated) as the eventId
@@ -316,7 +316,7 @@ function rowToCoachEvent(row: RawRow, key: string): CoachEvent | null {
   const subjectId = typeof meta.subjectId === "string" ? meta.subjectId : "unknown";
   const priority = (meta.priority as CoachEventPriority) ?? "P2";
   const surfaces = (
-    Array.isArray(meta.surfaces) ? (meta.surfaces as CoachEventSurface[]) : ["tasks", "goals", "journal", "brain", "scoreboard"]
+    Array.isArray(meta.surfaces) ? (meta.surfaces as CoachEventSurface[]) : ["tasks", "goals", "journal", "brain", "scoreboard", "home"]
   ).filter((s) => typeof s === "string") as CoachEventSurface[];
   const dismissable = meta.dismissable !== false;
 

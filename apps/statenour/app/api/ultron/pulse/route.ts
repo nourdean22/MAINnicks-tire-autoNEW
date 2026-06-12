@@ -103,7 +103,11 @@ export async function GET() {
           select: { date: true, weight: true },
           orderBy: { date: "asc" },
         }).catch((): Array<{ date: string; weight: number | null }> => []),
-        prisma.driftAlert.count({ where: { resolved: false } }).catch(() => 0),
+        (async () => {
+          const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+          const alerts = await getUnresolvedAlerts().catch(() => []);
+          return alerts.length;
+        })(),
         prisma.financialSnapshot.findMany({
           orderBy: { date: "desc" },
           take: 12,
@@ -156,7 +160,9 @@ export async function GET() {
       })();
 
       const weightTrend: number | null = (() => {
-        const ws = weightPoints.filter((p) => p.weight != null).map((p) => p.weight as number);
+        const ws = weightPoints
+          .filter((p: { weight: number | null }) => p.weight != null)
+          .map((p: { weight: number | null }) => p.weight as number);
         if (ws.length < 2) return null;
         return Math.round((ws[ws.length - 1] - ws[0]) * 10) / 10; // 30-day delta
       })();

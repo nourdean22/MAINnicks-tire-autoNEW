@@ -473,11 +473,15 @@ export async function buildSystemPromptUncached(
       const { recentScoreSnapshots } = await import("@/lib/brain/legacy-shims");
       return recentScoreSnapshots(7);
     })(),
-    gated(tier, ["business", "personal", "strategy"], () =>
-      prisma.driftAlert.findMany({
-        where: { resolved: false }, orderBy: { severity: "asc" }, take: 5,
-        select: { ruleName: true, severity: true, message: true },
-      }),
+    gated(tier, ["business", "personal", "strategy"], async () => {
+      const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+      const list = await getUnresolvedAlerts();
+      return list.slice(0, 5).map((a) => ({
+        ruleName: a.ruleName,
+        severity: a.severity,
+        message: a.message,
+      }));
+    },
       [] as { ruleName: string; severity: string; message: string }[],
     ),
     // v8.22 RAG · the v8.x BrainMemory alert pipeline. Pulling the

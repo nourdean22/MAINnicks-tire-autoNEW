@@ -949,24 +949,6 @@ model MasteryScore {
   @@map("mastery_scores")
 }
 
-model DriftAlert {
-  id           Int      @id @default(autoincrement())
-  date         String
-  ruleId       String   @map("rule_id")
-  ruleName     String   @map("rule_name")
-  severity     String
-  message      String   @db.Text
-  acknowledged Boolean  @default(false)
-  resolved     Boolean  @default(false)
-  resolvedDate String?  @map("resolved_date")
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  @@index([resolved, date])
-  @@index([date, ruleId])
-  @@index([createdAt])
-  @@map("drift_alerts")
-}
-
 model MasteryDecision {
   id                Int       @id @default(autoincrement())
   date              String

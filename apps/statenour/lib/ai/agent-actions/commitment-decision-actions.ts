@@ -48,9 +48,11 @@ export async function handleDecisionLog(params: ActionParams, type: string): Pro
 }
 
 export async function handleAlertResolve(params: ActionParams, type: string): Promise<ActionResult> {
-  const alert = await prisma.driftAlert.update({
-    where: { id: Number(params.id) },
-    data: { resolved: true },
-  });
-  return { action: type, success: true, result: { id: alert.id } };
+  const alertId = params.id;
+  if (typeof alertId !== "string" && typeof alertId !== "number") {
+    return { action: type, success: false, error: "Alert ID required (must be string or number)" };
+  }
+  const { resolveAlert } = await import("@/lib/mastery/drift-engine");
+  await resolveAlert(alertId);
+  return { action: type, success: true, result: { id: alertId } };
 }

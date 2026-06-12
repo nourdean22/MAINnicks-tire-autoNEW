@@ -136,7 +136,7 @@ const HANDLERS: Array<{ topic: string; handler: DurableHandler }> = [
     topic: "drift.fired",
     handler: async (event, ctx) => {
       const payload = (event.payload ?? {}) as {
-        alertId?: number;
+        alertId?: string;
         ruleId?: string;
         ruleName?: string;
         severity?: string;

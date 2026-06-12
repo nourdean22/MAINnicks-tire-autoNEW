@@ -3,6 +3,9 @@ import { DRIFT_RULES, type DriftContext } from "./config";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { recentScoreSnapshots, recentDailyHabits } from "@/lib/brain/legacy-shims";
 import { emitDriftFired } from "@/lib/db/brain-bus-emit";
+import { recordCoachEvent, ackCoachEvent } from "@/lib/services/coach-events";
+
+export type RegressionSeverity = "info" | "warn" | "critical";
 
 export async function runDriftScan(): Promise<Array<{ rule_id: string; rule_name: string; severity: string; message: string }>> {
   const now = today();
@@ -63,59 +66,77 @@ export async function runDriftScan(): Promise<Array<{ rule_id: string; rule_name
   // Cooldown suppression — two cases to avoid:
   //   1. SAME-DAY re-fire: rule already fired today
   //   2. DISMISSED-RECENT re-fire: Nour dismissed/resolved/acknowledged
-  //      the alert within the last 7 days. Without this, every day the
-  //      rule keeps firing fresh rows that the user already said they
-  //      saw — exactly the "keep coming back even when cleared" issue
-  //      the notification bell was surfacing.
-  //
-  // Any rule whose condition genuinely persists will re-surface naturally
-  // on day 8. Anything that clears in between gets a clean slate.
+  //      the alert within the last 7 days.
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
-  const recentAlerts = await prisma.driftAlert.findMany({
+  const recentEvents = await prisma.brainMemory.findMany({
     where: {
-      OR: [
-        { date: now },
-        {
-          AND: [
-            { createdAt: { gte: sevenDaysAgo } },
-            { OR: [{ resolved: true }, { acknowledged: true }] },
-          ],
-        },
-      ],
+      category: "coach_event",
+      key: { startsWith: "coach:drift-recovery:" },
     },
-    select: { ruleId: true },
+    select: { key: true, createdAt: true, updatedAt: true, metadata: true },
   });
-  const suppressedRuleIds = new Set(recentAlerts.map((a) => a.ruleId));
+
+  const suppressedRuleIds = new Set<string>();
+  const nowStr = now;
+  for (const event of recentEvents) {
+    const ruleId = event.key.replace("coach:drift-recovery:", "");
+    const meta = (event.metadata ?? {}) as Record<string, unknown>;
+
+    // Check if updated today
+    const eventDate = new Date(event.updatedAt).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const firedToday = eventDate === nowStr;
+
+    // Check if acked/resolved within the last 7 days
+    const ackedAtStr = meta.ackedAt as string | undefined;
+    let ackedRecently = false;
+    if (ackedAtStr) {
+      const ackedTime = Date.parse(ackedAtStr);
+      if (!Number.isNaN(ackedTime) && ackedTime >= sevenDaysAgo.getTime()) {
+        ackedRecently = true;
+      }
+    }
+
+    if (firedToday || ackedRecently) {
+      suppressedRuleIds.add(ruleId);
+    }
+  }
 
   const fired: Array<{ rule_id: string; rule_name: string; severity: string; message: string }> = [];
+
+  const severityMap: Record<string, "P0" | "P1" | "P2"> = {
+    critical: "P0",
+    alert: "P1",
+    warning: "P2",
+  };
 
   for (const rule of DRIFT_RULES) {
     if (suppressedRuleIds.has(rule.id)) continue;
 
     try {
       if (rule.check(ctx)) {
-        const alert = await prisma.driftAlert.create({
-          data: {
-            date: now,
+        const priority = severityMap[rule.severity] ?? "P2";
+        const event = await recordCoachEvent({
+          kind: "drift-recovery",
+          subjectId: rule.id,
+          priority,
+          title: rule.name,
+          body: rule.message,
+          surfaces: ["tasks", "goals", "journal", "brain", "scoreboard", "home"],
+        });
+
+        if (event) {
+          // v10.0.63 · brain-bus producer · emit drift.fired event for
+          // the durable replay log. Best-effort — failure is logged but
+          // never blocks the primary alert write above.
+          void emitDriftFired({
+            alertId: event.eventId,
             ruleId: rule.id,
             ruleName: rule.name,
             severity: rule.severity,
             message: rule.message,
-          },
-          select: { id: true },
-        });
-
-        // v10.0.63 · brain-bus producer · emit drift.fired event for
-        // the durable replay log. Best-effort — failure is logged but
-        // never blocks the primary alert write above.
-        void emitDriftFired({
-          alertId: alert.id,
-          ruleId: rule.id,
-          ruleName: rule.name,
-          severity: rule.severity,
-          message: rule.message,
-          date: now,
-        });
+            date: now,
+          });
+        }
 
         fired.push({
           rule_id: rule.id,
@@ -133,25 +154,46 @@ export async function runDriftScan(): Promise<Array<{ rule_id: string; rule_name
 }
 
 export async function getUnresolvedAlerts() {
-  return prisma.driftAlert.findMany({
-    where: { resolved: false },
-    orderBy: [
-      { severity: "asc" },
-      { date: "desc" },
-    ],
+  const events = await prisma.brainMemory.findMany({
+    where: {
+      category: "coach_event",
+      key: { startsWith: "coach:drift-recovery:" },
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { key: true, content: true, metadata: true, createdAt: true, updatedAt: true },
+  });
+
+  const unresolved = events.filter((e) => {
+    const meta = (e.metadata ?? {}) as Record<string, unknown>;
+    return !meta.ackedAt;
+  });
+
+  return unresolved.map((e) => {
+    const meta = (e.metadata ?? {}) as Record<string, unknown>;
+    const ruleId = e.key.replace("coach:drift-recovery:", "");
+    return {
+      id: e.key,
+      date: new Date(e.updatedAt).toLocaleDateString("en-CA", { timeZone: "America/New_York" }),
+      ruleId,
+      ruleName: e.content,
+      severity: meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "alert" : "warning",
+      message: typeof meta.body === "string" ? meta.body : "",
+      resolved: false,
+      acknowledged: false,
+      createdAt: e.createdAt,
+      updatedAt: e.updatedAt,
+    };
   });
 }
 
-export async function acknowledgeAlert(id: number) {
-  await prisma.driftAlert.update({
-    where: { id },
-    data: { acknowledged: true },
-  });
+export async function acknowledgeAlert(id: string | number) {
+  const idStr = String(id);
+  const key = idStr.startsWith("coach:") ? idStr : `coach:drift-recovery:${idStr}`;
+  await ackCoachEvent(key);
 }
 
-export async function resolveAlert(id: number) {
-  await prisma.driftAlert.update({
-    where: { id },
-    data: { resolved: true, resolvedDate: today() },
-  });
+export async function resolveAlert(id: string | number) {
+  const idStr = String(id);
+  const key = idStr.startsWith("coach:") ? idStr : `coach:drift-recovery:${idStr}`;
+  await ackCoachEvent(key);
 }

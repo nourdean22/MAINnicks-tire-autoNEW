@@ -103,7 +103,32 @@ export async function generateAiTasks(args: {
         select: { content: true },
       })
       .catch(() => null),
-    prisma.driftAlert.findMany({ where: { resolved: false } }),
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "coach_event",
+          key: { startsWith: "coach:drift-recovery:" },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { content: true, metadata: true },
+      })
+      .then((rows) => {
+        const unresolved = rows.filter((r) => {
+          const meta = (r.metadata ?? {}) as Record<string, any>;
+          return !meta.ackedAt;
+        });
+        return unresolved.map((r) => {
+          const meta = (r.metadata ?? {}) as Record<string, any>;
+          const severity = meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "high" : "warning";
+          return {
+            severity,
+            ruleName: r.content,
+            message: typeof meta.body === "string" ? meta.body : "",
+          };
+        });
+      })
+      .catch((): never[] => []),
   ]);
 
   const loops = loopRows.map((t) => ({

@@ -720,6 +720,29 @@ export async function updateTask(id: string, input: unknown) {
     throw new ServiceError("Task not found.", 404);
   }
 
+  if (payload.status === "DONE" || (payload.status === "ARCHIVED" && existing.loopKind === "PROMISE")) {
+    const { checkTask } = await import("@/lib/services/task-actions");
+    const checkRes = await checkTask({
+      id,
+      action: payload.status === "ARCHIVED" ? "break" : "complete",
+      completionNote: payload.completionNote ?? null,
+      outcomeScore: payload.outcomeScore ?? null,
+    });
+    const updated = await prisma.task.findUnique({
+      where: { id },
+      include: { mission: true }
+    });
+    const missions = await prisma.mission.findMany({
+      where: activeOnly(),
+    });
+    return {
+      task: updated!,
+      vm: buildTaskViewModels(updated ? [updated] : [], missions)[0],
+      autoLearn: checkRes.autoLearn,
+      reward: checkRes.reward,
+    };
+  }
+
   if (payload.missionId) {
     await ensureMissionExists(prisma, payload.missionId);
   }

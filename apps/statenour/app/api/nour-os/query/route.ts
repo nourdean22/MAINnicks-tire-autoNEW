@@ -140,20 +140,17 @@ async function handleQuery(
     }
 
     case "drift_alerts": {
-      const alerts = await prisma.driftAlert.findMany({
-        where: { resolved: false },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-        select: {
-          id: true,
-          ruleName: true,
-          severity: true,
-          message: true,
-          acknowledged: true,
-          createdAt: true,
-        },
-      });
-      return { count: alerts.length, alerts };
+      const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+      const list = await getUnresolvedAlerts().catch(() => []);
+      const alerts = list.slice(0, 10).map((a) => ({
+        id: a.id,
+        ruleName: a.ruleName,
+        severity: a.severity,
+        message: a.message,
+        acknowledged: a.acknowledged,
+        createdAt: a.createdAt,
+      }));
+      return { count: list.length, alerts };
     }
 
     case "recent_reflections": {
@@ -260,7 +257,10 @@ async function handleQuery(
           // OpenLoop count retired Apr 18 — inbox-Task count is the
           // replacement backlog signal.
           prisma.task.count({ where: { status: "INBOX" } }),
-          prisma.driftAlert.count({ where: { resolved: false } }),
+          (async () => {
+            const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+            return (await getUnresolvedAlerts().catch(() => [])).length;
+          })(),
           prisma.captureInboxItem.count({ where: { status: "active" } }),
           prisma.brainDump.findFirst({
             orderBy: { createdAt: "desc" },

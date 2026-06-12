@@ -41,7 +41,10 @@ export async function buildPageData(page: string): Promise<string> {
       // signal instead of "7-day scores: none" every call.
       const [scores, alerts, habits] = await Promise.all([
         recentScoreSnapshots(7),
-        prisma.driftAlert.count({ where: { resolved: false } }),
+        (async () => {
+          const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+          return (await getUnresolvedAlerts().catch(() => [])).length;
+        })(),
         recentDailyHabits(7),
       ]);
       const completed = habits.filter((h) => h.completed).length;
@@ -112,10 +115,8 @@ export async function buildPageData(page: string): Promise<string> {
     }
 
     case "drift": {
-      const alerts = await prisma.driftAlert.findMany({
-        where: { resolved: false },
-        orderBy: { date: "desc" },
-      });
+      const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+      const alerts = await getUnresolvedAlerts().catch(() => []);
       return `${alerts.length} unresolved alerts: ${
         alerts
           .map((a) => `[${a.severity}] ${a.ruleName}: ${a.message}`)
@@ -329,7 +330,10 @@ export async function buildPageData(page: string): Promise<string> {
             select: { headline: true, focus: true, startupStatus: true },
           })
           .catch(() => null),
-        prisma.driftAlert.count({ where: { resolved: false } }),
+        (async () => {
+          const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+          return (await getUnresolvedAlerts().catch(() => [])).length;
+        })(),
         prisma.masteryScore.findMany({ orderBy: { date: "desc" }, take: 8 }),
       ]);
       return [

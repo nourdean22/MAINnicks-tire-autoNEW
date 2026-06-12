@@ -40,10 +40,28 @@ async function gatherPredictiveData() {
     // HabitLog retired; identity_snapshot + DAILY-tasks now provide).
     recentScoreSnapshots(30),
     recentDailyHabits(30),
-    prisma.driftAlert.findMany({
-      where: { createdAt: { gte: thirtyDaysAgo } },
-      select: { ruleName: true, severity: true, resolved: true, createdAt: true },
-    }),
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "coach_event",
+          key: { startsWith: "coach:drift-recovery:" },
+          createdAt: { gte: thirtyDaysAgo },
+          deletedAt: null,
+        },
+        select: { content: true, metadata: true, createdAt: true },
+      })
+      .then((rows) =>
+        rows.map((r) => {
+          const meta = (r.metadata ?? {}) as Record<string, unknown>;
+          return {
+            ruleName: r.content,
+            severity: meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "alert" : "warning",
+            resolved: !!meta.ackedAt,
+            createdAt: r.createdAt,
+          };
+        }),
+      )
+      .catch((): Array<{ ruleName: string; severity: string; resolved: boolean; createdAt: Date }> => []),
     // Apr 18: OpenLoop retired → Task INBOX/READY/DOING.
     prisma.task
       .findMany({

@@ -64,7 +64,7 @@ async function tryEmit(
 // ── drift.fired ───────────────────────────────────────────────────
 
 export interface DriftFiredPayload {
-  alertId: number;
+  alertId: string;
   ruleId: string;
   ruleName: string;
   severity: string;
