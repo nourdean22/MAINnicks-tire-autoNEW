@@ -250,6 +250,9 @@ export const autoLaborRouter = router({
   status: adminProcedure.query(async () => {
     const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
     const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
+    const { getDataStaleDays, getLastSuccessfulSync } = await import("../services/shopDriverMirror");
+    const staleDays = getDataStaleDays();
+    const lastSuccessfulSync = getLastSuccessfulSync();
 
     if (!username || !password) {
       return {
@@ -259,6 +262,8 @@ export const autoLaborRouter = router({
         usingFallback: true,
         fallbackCategories: Object.keys(LABOR_CATEGORIES).length,
         fallbackJobs: Object.values(LABOR_CATEGORIES).reduce((sum, cat) => sum + cat.jobs.length, 0),
+        staleDays,
+        lastSuccessfulSync: lastSuccessfulSync ? lastSuccessfulSync.toISOString() : null,
       };
     }
 
@@ -276,6 +281,8 @@ export const autoLaborRouter = router({
       fallbackJobs: Object.values(LABOR_CATEGORIES).reduce((sum, cat) => sum + cat.jobs.length, 0),
       lastAuthCheck: lastShopDriverAuthAt,
       totalLookups: laborLookupCount,
+      staleDays,
+      lastSuccessfulSync: lastSuccessfulSync ? lastSuccessfulSync.toISOString() : null,
     };
   }),
 
