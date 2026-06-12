@@ -9,6 +9,7 @@ Nick's Tire admin overhaul + live customer dedup + code-underneath fixes + the 3
 - **Deduped the customer database** — merged **21 duplicate people** (same name + same vehicle, different phones, with double-counted spend). **1,964 → 1,943** customers; "Total Customers" / VIP / spend tiers are no longer inflated. Fully reversible (timestamped backups kept). `ff71a08b`
 - **Dupe-proofed going forward** — a new customer from chat/booking now merges into the existing record instead of spawning a twin. `eae7ad60`
 - **Linked 18 orphaned invoices** back to their customers (restores those customers' lifetime value). The remaining ~299 unlinked are anonymous walk-ins / estimates with no real customer — correctly left alone.
+- **Redirected dead `customerMetrics.totalRevenue` reads** — Fixed the bug where `customerMetrics.totalRevenue` was always 0 in the database (never written by the refreshers) by redirecting reads in both `customersRouter.vipLookup` and `customerPsychoProfile` service to `customers.totalSpent` (the live spent value in cents).
 - Phones standardized to 10-digit; customer metrics recomputed so the deduped numbers are authoritative.
 
 ## 🏗️ Architecture decisions 1–3 (wave-182, `96ba44d9` — all pure-code, reversible, no schema migration, no prod data-write)
@@ -54,7 +55,7 @@ Nick's Tire admin overhaul + live customer dedup + code-underneath fixes + the 3
 
 ## 🟡 Still open
 - **GBP content generator** fabricates names/prices to Google — **held** pending your go (say "unhold GBP").
-- **Optional polish:** a couple of VAPI voicemail micro-tweaks (recovery voicemail could add the "we honor the quote" line; confirmation voicemail the address) — deploy-gated (needs a VAPI re-push to take effect). Plus a dead always-zero `customerMetrics.totalRevenue` read by the VIP lookup (cosmetic — the live VIP signal already uses `customers.totalSpent`).
+- **Optional polish:** a couple of VAPI voicemail micro-tweaks (recovery voicemail could add the "we honor the quote" line; confirmation voicemail the address) — deploy-gated (needs a VAPI re-push to take effect).
 
 ---
 *Full technical detail:* `SESSION-CHECKPOINT.md` (anchored resume record) · `customer-dedup-plan.md` (§ EXECUTION OUTCOME + rollback) · `code-underneath-audit-{data,logic}.md` · the surface audit set (`money.md`, `outreach.md`, `leads-customers.md`, `ops-system.md`, `voice-content-uniformity.md`).
