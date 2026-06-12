@@ -121,6 +121,49 @@ export async function proposeTaskRoi(task: Task): Promise<ProposedTaskOutcome> {
     }
   }
 
+  // 4. Additive modifiers (Goal alignment, long horizon delayed payoff, business domain)
+  let additiveModifiers = 0;
+  if (task.goalId) {
+    additiveModifiers += 10;
+    rationaleParts.push("Goal alignment (+10 ROI)");
+    try {
+      const goal = await prisma.lifeGoal.findUnique({
+        where: { id: task.goalId },
+        select: { horizon: true },
+      });
+      if (goal?.horizon && ["QUARTER", "YEAR", "LIFE"].includes(goal.horizon)) {
+        additiveModifiers += 5;
+        rationaleParts.push(`Long-term horizon ${goal.horizon} delayed payoff leverage (+5 ROI)`);
+      }
+    } catch (err) {
+      log.warn("failed_to_fetch_goal_horizon", { taskId: task.id, err: String(err) });
+    }
+  }
+
+  try {
+    let isBusiness = false;
+    if ((task as any).mission?.domain) {
+      const domain = (task as any).mission.domain;
+      isBusiness = domain === "BUSINESS" || domain === "FINANCE";
+    } else if (task.missionId) {
+      const mission = await prisma.mission.findUnique({
+        where: { id: task.missionId },
+        select: { domain: true },
+      });
+      if (mission) {
+        isBusiness = mission.domain === "BUSINESS" || mission.domain === "FINANCE";
+      }
+    }
+    if (isBusiness) {
+      additiveModifiers += 10;
+      rationaleParts.push("Business/Finance domain leverage (+10 ROI)");
+    }
+  } catch (err) {
+    log.warn("failed_to_fetch_mission_domain", { taskId: task.id, err: String(err) });
+  }
+
+  proposedScore = Math.min(100, Math.max(1, proposedScore + additiveModifiers));
+
   const finalScore = Math.round(proposedScore);
   const diff = finalScore - baseRoi;
 
@@ -153,7 +196,10 @@ interface ProposedPredictionOutcome {
  * Propose prediction outcome based on memory searches and business metrics.
  */
 export async function proposePredictionOutcome(pred: Prediction): Promise<ProposedPredictionOutcome> {
-  const evidence: Record<string, any> = {};
+  const evidence: Record<string, any> = {
+    dataFreshness: new Date().toISOString(),
+    proxyStatus: "proxy",
+  };
   const targetDateIso = pred.targetDate ? new Date(`${pred.targetDate}T00:00:00Z`).toISOString() : pred.createdAt.toISOString();
 
   // 1. Query business metrics if it's a business/operational prediction mentioning revenue or GSC
@@ -161,6 +207,7 @@ export async function proposePredictionOutcome(pred: Prediction): Promise<Propos
   const isBusiness = pred.category === "business" || pred.category === "operational" || textLower.includes("revenue") || textLower.includes("leads") || textLower.includes("gsc");
   
   if (isBusiness) {
+    evidence.source = "nickstire_bridge";
     try {
       // Impose a strict 5s timeout on bridge queries as requested
       const businessRes = await queryNick<{ totalDollars?: number; invoiceCount?: number }>(
@@ -171,6 +218,7 @@ export async function proposePredictionOutcome(pred: Prediction): Promise<Propos
 
       if (businessRes && !("error" in businessRes) && businessRes.data) {
         evidence.businessMetrics = businessRes.data;
+        evidence.proxyStatus = textLower.includes("revenue") ? "direct" : "proxy";
         log.info("business_evidence_found", { predictionId: pred.id, data: businessRes.data });
 
         // Simple numeric threshold checker
@@ -178,6 +226,17 @@ export async function proposePredictionOutcome(pred: Prediction): Promise<Propos
         if (numMatch && businessRes.data.totalDollars !== undefined) {
           const targetNum = parseInt(numMatch[1], 10);
           const actualDollars = businessRes.data.totalDollars;
+          
+          if (pred.kind === "continuous" || pred.kind === "numeric") {
+            const error = Math.abs(actualDollars - targetNum) / (targetNum || 1);
+            const accuracyScore = Math.max(0, 100 - Math.round(error * 100));
+            return {
+              status: error <= 0.1 ? "confirmed" : "disproven",
+              outcomeDescription: `Auto-graded continuous prediction: target $${targetNum} vs actual $${actualDollars.toFixed(2)} (${accuracyScore}% accuracy).`,
+              evidence,
+            };
+          }
+
           const exceeds = textLower.includes("exceed") || textLower.includes("above") || textLower.includes(">") || textLower.includes("more than");
           const below = textLower.includes("below") || textLower.includes("less than") || textLower.includes("<") || textLower.includes("under");
 
@@ -207,13 +266,17 @@ export async function proposePredictionOutcome(pred: Prediction): Promise<Propos
             };
           }
         }
+      } else if (businessRes && "error" in businessRes) {
+        evidence.failureState = String((businessRes as any).error || "Unknown bridge error");
       }
     } catch (err) {
       log.warn("business_bridge_failed", { predictionId: pred.id, err: String(err) });
+      evidence.failureState = err instanceof Error ? err.message : String(err);
     }
   }
 
   // 2. Fall back to / combine with semantic memory check
+  evidence.source = isBusiness && evidence.source ? evidence.source : "brain_memories";
   try {
     const queryText = `${pred.prediction} ${pred.basis || ""}`;
     const emb = await getEmbedding(queryText).catch(() => [] as number[]);

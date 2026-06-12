@@ -83,6 +83,7 @@ export const POST = apiHandler(
             content: `Task ROI Calibration: Task "${task.title}" estimated ROI ${pred?.roiScore || 50} vs actual ROI ${outcomeScore}. Class: ${classification}. Note: ${correctionNote || finalActualOutcome.rationale || ""}`,
             confidence: 1.0,
             source: "system:calibration",
+            expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90-day TTL
             metadata: {
               sourceId: item.sourceId,
               sourceType: "Task",
@@ -93,6 +94,7 @@ export const POST = apiHandler(
           },
           update: {
             content: `Task ROI Calibration: Task "${task.title}" estimated ROI ${pred?.roiScore || 50} vs actual ROI ${outcomeScore}. Class: ${classification}. Note: ${correctionNote || finalActualOutcome.rationale || ""}`,
+            expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90-day TTL
             metadata: {
               sourceId: item.sourceId,
               sourceType: "Task",
@@ -143,6 +145,7 @@ export const POST = apiHandler(
             content: `Prediction Calibration: Prediction "${pred.prediction}" (confidence: ${pred.confidence}) resolved as ${approvedStatus}. Brier: ${brier !== null ? brier.toFixed(3) : "N/A"}. Outcome: ${outcomeDescription}`,
             confidence: pred.confidence,
             source: "system:calibration",
+            expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90-day TTL
             metadata: {
               sourceId: item.sourceId,
               sourceType: "Prediction",
@@ -153,6 +156,7 @@ export const POST = apiHandler(
           },
           update: {
             content: `Prediction Calibration: Prediction "${pred.prediction}" (confidence: ${pred.confidence}) resolved as ${approvedStatus}. Brier: ${brier !== null ? brier.toFixed(3) : "N/A"}. Outcome: ${outcomeDescription}`,
+            expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90-day TTL
             metadata: {
               sourceId: item.sourceId,
               sourceType: "Prediction",
