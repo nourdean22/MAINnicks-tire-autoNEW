@@ -203,6 +203,13 @@ const nextConfig: NextConfig = {
     { source: "/system/providers", destination: "/system", permanent: false },
     { source: "/system/power", destination: "/system", permanent: false },
     { source: "/system/ghost-nour", destination: "/system/calibration", permanent: false },
+    // PR #85 cleanup redirects:
+    { source: "/system/approvals", destination: "/system/actions", permanent: false },
+    { source: "/system/digest", destination: "/system", permanent: false },
+    { source: "/system/coach-events", destination: "/system/alerts", permanent: false },
+    { source: "/system/reviews", destination: "/system", permanent: false },
+    { source: "/system/proactive-preview", destination: "/system", permanent: false },
+    { source: "/system/errors", destination: "/system/logs?view=errors", permanent: false },
     // Reason consolidation. Wave 2 (2026-06-03) · /reason itself folded
     // into /brain?tab=reason · these two land there directly (single hop).
     { source: "/reason/history", destination: "/brain?tab=reason", permanent: false },
