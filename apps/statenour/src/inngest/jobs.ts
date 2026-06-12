@@ -103,6 +103,7 @@ export const EVENING_JOBS: readonly string[] = [
   "/api/cron/journal-checkin?slot=evening",
   "/api/cron/intelligence",
   "/api/cron/brain-intelligence",
+  "/api/cron/calibration-generator",
   "/api/cron/embed-backfill",
   "/api/cron/correlation-alarm",
   "/api/cron/creation-spike-detect",

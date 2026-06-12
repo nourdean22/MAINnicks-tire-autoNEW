@@ -239,6 +239,16 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
+    name: "calibration-generator",
+    schedule: "0 3 * * *",
+    mode: "active",
+    category: "brain",
+    description: "Daily evening pass · scans completed tasks/predictions and proposes outcomes for manual calibration.",
+    memory: 512,
+    maxDuration: 120,
+    addedAt: "2026-06-11",
+  },
+  {
     name: "reflect-categories",
     schedule: null,
     mode: "folded",
