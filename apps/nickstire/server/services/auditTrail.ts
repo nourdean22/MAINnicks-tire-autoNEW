@@ -35,7 +35,10 @@ export type AuditAction =
   // 2026-05-30 · control-plane actions (operator levers, not entity CRUD)
   | "flag.toggled"
   | "customer.sms_manual_send"
-  | "migrations.ran";
+  | "migrations.ran"
+  // 2026-06-11 · refund action types
+  | "tireorder.refunded"
+  | "tireorder.refund_failed";
 
 // ─── Log an admin action ────────────────────────────
 export async function logAdminAction(data: {
