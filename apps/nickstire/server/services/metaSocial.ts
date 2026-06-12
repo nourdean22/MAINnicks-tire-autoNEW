@@ -434,6 +434,71 @@ export async function postInstagramCarousel(params: {
   }
 }
 
+// ─── Instagram Reel Post (Video Required) ──────────────
+
+export async function postInstagramReel(params: {
+  videoUrl: string;
+  caption: string;
+}): Promise<{ success: boolean; postId?: string; error?: string }> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  const igUserId = getIgUserId();
+
+  if (!token || !igUserId) {
+    return { success: false, error: "Instagram posting not configured (need META_PAGE_ACCESS_TOKEN + META_IG_USER_ID)" };
+  }
+
+  try {
+    const authHeaders = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    };
+
+    // Step 1: Create Reel container
+    const containerRes = await fetch(`${GRAPH_URL}/${igUserId}/media`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        media_type: "REELS",
+        video_url: params.videoUrl,
+        caption: params.caption,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    const containerData = await containerRes.json();
+    if (!containerRes.ok || !containerData.id) {
+      return { success: false, error: `Reel container failed: ${containerData?.error?.message || "unknown"}` };
+    }
+
+    const creationId = containerData.id;
+
+    // Step 2: Publish the Reel container
+    const publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        creation_id: creationId,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    const publishData = await publishRes.json();
+    if (!publishRes.ok) {
+      return { success: false, error: `Reel publish failed: ${publishData?.error?.message || "unknown"}` };
+    }
+
+    const postId = publishData.id;
+    log.info(`Instagram Reel published: ${postId}`);
+    return { success: true, postId };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error("Instagram Reel error:", { error: errMsg });
+    return { success: false, error: errMsg };
+  }
+}
+
+
 // ─── Unified Post (Nick AI interface) ─────────────────
 
 export async function socialPost(params: {

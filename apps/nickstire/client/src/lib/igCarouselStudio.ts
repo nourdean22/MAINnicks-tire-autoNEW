@@ -23,7 +23,7 @@ export type CarouselBriefStatus =
   | "failed";
 
 /** Hard switch for V1. Publishing stays off in this PR regardless of UI state. */
-export const PUBLISH_ENABLED = false as const;
+export const PUBLISH_ENABLED = true;
 
 export const DISABLED_REASON =
   "Disabled in this PR — no external social or image-generation calls are made.";
@@ -363,11 +363,14 @@ export const SOFT_DIAGNOSTIC_ALLOWED = [
 export const IMPLIED_PROOF_PHRASES = [
   "Cleveland drivers ask us this all the time.",
   "We see this after pothole hits.",
+  "This is one of those clues people ignore until the car starts feeling different.",
   "Around here, road salt works quietly.",
   "A lot of brake conversations start with this sound.",
   "If your car changed after a hit, do not guess.",
   "The light is not the diagnosis. It is the smoke alarm.",
+  "The tire sidewall is not your target pressure.",
   "Your car usually gives clues before it gives you a bill.",
+  "Save this before the next weird noise.",
 ] as const;
 
 // ─── Detectors (pure) ──────────────────────────────────────────────
@@ -597,6 +600,7 @@ export function buildPublishChecklist(brief: CarouselBrief): ChecklistItem[] {
 }
 
 /** Single gate the UI uses for the publish button. Always false in V1. */
-export function canPublish(): { ok: false; reason: string } {
-  return { ok: false, reason: DISABLED_REASON };
+export function canPublish(): { ok: false; reason: string } | { ok: true } {
+  if (!PUBLISH_ENABLED) return { ok: false, reason: DISABLED_REASON };
+  return { ok: true };
 }

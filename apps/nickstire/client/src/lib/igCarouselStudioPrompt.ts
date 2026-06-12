@@ -122,6 +122,7 @@ export function buildCarouselStudioSystemPrompt(opts: MasterPromptOptions): stri
   lines.push("- Consistent visual world across all 5 slides (same territory, palette, lighting).");
   lines.push("- Headline text is added as OVERLAY by the operator — prompts must request clean negative space, and AVOID baked-in text (AI-warped text is an automatic reject).");
   lines.push("- Each prompt states: scene, subject, mood, camera/composition, lighting, and the negative-space zone for the overlay.");
+  lines.push("- Each prompt MUST include premium cinematic descriptors: 'award-winning, 85mm lens, shallow depth of field, ultra-detailed, 8K, studio-grade lighting, cinematic color grade, dramatic high contrast, photorealistic premium product photography, 35mm film grain texture, no AI artifacts, professional automotive photography'.");
   lines.push("");
 
   lines.push("## CAPTION REQUIREMENTS");
@@ -170,10 +171,14 @@ export function buildHiggsfieldPromptPack(brief: CarouselBrief): string {
   out.push("- 4:5 portrait · 1080×1350 px · consistent world across all 5 slides");
   out.push("- NO baked-in text or lettering of any kind (overlay added manually; AI text = reject)");
   out.push("- Leave clean negative space where noted for the headline overlay");
+  out.push("- Quality keywords: award-winning, 85mm lens, shallow depth of field, ultra-detailed, 8K, studio-grade lighting, cinematic color grade, dramatic high contrast, photorealistic premium product photography, 35mm film grain texture, no AI artifacts, professional automotive photography");
   out.push("");
   brief.slides.forEach((s, i) => {
     out.push(`## Slide ${s.slideNumber} — ${SLIDE_ROLES[i]?.label ?? s.role}`);
-    out.push(s.visualPrompt);
+    const basePrompt = s.visualPrompt.trim();
+    const premiumSuffix = "award-winning, 85mm lens, shallow depth of field, ultra-detailed, 8K, studio-grade lighting, cinematic color grade, dramatic high contrast, photorealistic premium product photography, 35mm film grain texture, no AI artifacts, professional automotive photography.";
+    const fullPrompt = basePrompt.endsWith(".") ? `${basePrompt} ${premiumSuffix}` : `${basePrompt}. ${premiumSuffix}`;
+    out.push(fullPrompt);
     out.push(`Overlay plan: ${s.textOverlayPlan}`);
     out.push("");
   });
