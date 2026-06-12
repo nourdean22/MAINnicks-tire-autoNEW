@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
   // `standalone` produces .next/standalone/server.js with all required
   // node_modules tracing · no `pnpm install` needed in the runtime image.
   // Backward-compatible · Vercel ignores this flag.
-  output: "standalone",
+  output: process.platform === "win32" ? undefined : "standalone",
   // CP7 · Railway build containers can't reach Neon as fast as Vercel's
   // can. Three /api/ultron/* routes (signal · pulse · pulse-digest) run
   // 10+ Prisma queries during prerender and hit the 60s default. Bumping
