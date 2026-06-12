@@ -212,6 +212,14 @@ const CARDS: HubCard[] = [
     description: "Prediction accuracy, judge-eval, drift + coverage",
     chip: () => ({ label: "eval", severity: "info" }),
   },
+  {
+    href: "/system/proactive-preview",
+    title: "Proactive Preview",
+    icon: Bot,
+    group: "ai",
+    description: "Preview morning/afternoon/evening proactive pushes and risk telemetry",
+    chip: () => ({ label: "preview", severity: "info" }),
+  },
 ];
 
 const SEVERITY_PALETTE: Record<

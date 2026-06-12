@@ -158,18 +158,32 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
   const isDup = await alreadyPushed("morning", dateKey);
   const set = await getTodaysAnticipated().catch(() => null);
   const top = set?.questions?.[0];
-  const hasContent = !!top;
+  
+  const pendingApprovalsCount = await prisma.approvalRequest.count({
+    where: { status: "pending_approval" },
+  }).catch(() => 0);
+
+  const hasContent = !!top || pendingApprovalsCount > 0;
   
   const skipReason = isDup 
     ? "already_pushed_today" 
-    : (!hasContent ? "no_anticipated_set" : "");
+    : (!hasContent ? "no_morning_content" : "");
 
-  const text = top
+  let text = top
     ? `☀️ <b>Morning · Nick's pick</b>\n\n` +
       `Today you'll likely want to know:\n` +
       `<i>"${top.question}"</i>\n\n` +
       `Tap to ask Nick · already warmed.`
     : "";
+
+  if (pendingApprovalsCount > 0) {
+    if (text) {
+      text += `\n\n⚠️ You have ${pendingApprovalsCount} action(s) waiting in your System Approval Queue.`;
+    } else {
+      text = `☀️ <b>Morning Update</b>\n\n` +
+        `⚠️ You have ${pendingApprovalsCount} action(s) waiting in your System Approval Queue.`;
+    }
+  }
 
   if (options?.dryRun) {
     const etHour = parseInt(
@@ -563,15 +577,24 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
   const pendingCount = await prisma.autonomousAction.count({
     where: { approval: "pending" },
   });
+  const pendingSystemCount = await prisma.approvalRequest.count({
+    where: { status: "pending_approval" },
+  }).catch(() => 0);
 
-  if (pendingCount === 0) {
+  if (pendingCount === 0 && pendingSystemCount === 0) {
     return { kind: "skip", skipped: true, reason: "no_pending_actions" };
   }
 
   const isDup = await alreadyPushed("approvals_nudge", dateKey);
-  const text = `⚖️ <b>Governance · Pending Actions</b>\n\n` +
-    `There are <b>${pendingCount}</b> actions pending operator approval in the queue.\n\n` +
-    `Tap to review & resolve.`;
+  
+  let text = `⚖️ <b>Governance · Pending Actions</b>\n\n`;
+  if (pendingCount > 0) {
+    text += `There are <b>${pendingCount}</b> autonomous action(s) pending approval.\n`;
+  }
+  if (pendingSystemCount > 0) {
+    text += `There are <b>${pendingSystemCount}</b> tool execution(s) pending approval.\n`;
+  }
+  text += `\nTap to review & resolve.`;
 
   if (quietHoursBlocked) {
     if (options?.dryRun) {
@@ -593,7 +616,7 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
         sources: [{
           category: "system_context",
           title: "Pending Approvals Queue",
-          summary: `${pendingCount} pending actions in database`,
+          summary: `${pendingCount} actions, ${pendingSystemCount} tool requests pending`,
           confidence: "high",
           reason: "Active count of actions waiting for operator approval.",
         }],
@@ -624,7 +647,7 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
       sources: [{
         category: "system_context",
         title: "Pending Approvals Queue",
-        summary: `${pendingCount} pending actions in database`,
+        summary: `${pendingCount} actions, ${pendingSystemCount} tool requests pending`,
         confidence: "high",
         reason: "Active count of actions waiting for operator approval.",
       }],

@@ -3,6 +3,15 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/tools/tool-policy", () => ({
+  evaluateToolAction: () => ({
+    decision: "allow",
+    riskClass: "low",
+    reason: "mocked",
+  }),
+}));
+
 import { classify, withGuardian, GuardianError } from "@/lib/tools/guardian";
 
 describe("classify · failure categorization", () => {

@@ -2929,3 +2929,45 @@ model CalibrationReviewItem {
   @@map("calibration_review_items")
 }
 
+model ApprovalRequest {
+  id               String           @id @default(cuid())
+  actionType       String           @map("action_type")
+  toolId           String           @map("tool_id")
+  status           String           @default("pending_approval")
+  riskClass        String           @map("risk_class")
+  payload          Json
+  resultPayload    Json?            @map("result_payload")
+  requestedBy      String           @map("requested_by")
+  reason           String           @db.Text
+  expiresAt        DateTime         @map("expires_at")
+  approvedAt       DateTime?        @map("approved_at")
+  approvedBy       String?          @map("approved_by")
+  executedAt       DateTime?        @map("executed_at")
+  screenshotUrl    String?          @map("screenshot_url")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("approval_requests")
+}
+
+model MemoryInboxItem {
+  id                String           @id @default(cuid())
+  sourceUrl         String?          @map("source_url")
+  sourceType        String           @map("source_type")
+  rawTextFenced     String           @map("raw_text_fenced")
+  extractedClaims   Json             @map("extracted_claims")
+  contradictionLogs Json?            @map("contradiction_logs")
+  privacyClass      String           @map("privacy_class")
+  status            String           @default("quarantined")
+  reviewedBy        String?          @map("reviewed_by")
+  reviewedAt        DateTime?        @map("reviewed_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("memory_inbox_items")
+}
+
