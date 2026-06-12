@@ -1,7 +1,7 @@
 # AGENT-CONTEXT.md — Nick's Tire & Auto
 > Quick-load context for Antigravity and any AI agent working on `apps/nickstire/`.
-> For full context, read `CLAUDE.md` in this directory. For monorepo rules, read root
-> `AGENT-OPERATING-PROFILE.md`.
+> For full context, read `CLAUDE.md` in this directory and apply the [CIITTY framework](file:///c:/Users/nourd/.gemini/config/skills/ciitty/SKILL.md).
+> For monorepo rules, read root `AGENT-OPERATING-PROFILE.md`.
 >
 > Last verified: 2026-06-10 · Post wave-109 + admin-excellence
 
