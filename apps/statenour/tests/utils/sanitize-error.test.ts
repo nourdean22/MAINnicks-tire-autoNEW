@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 import {
   sanitizeError,
   sanitizedErrorBody,
+  redactSensitive,
 } from "@/lib/utils/sanitize-error";
 
 describe("v10.0.529.4 · sanitizeError", () => {
@@ -133,5 +134,39 @@ describe("v10.0.529.4 · sanitizedErrorBody", () => {
     );
     expect(body.error).toBe("db_error");
     expect(body.detail).toBe("[redacted-db-url]");
+  });
+});
+
+describe("redactSensitive", () => {
+  it("scrubs sensitive keys from an object recursively", () => {
+    const input = {
+      password: "super-secret-password",
+      email: "test@example.com",
+      benign: "value",
+      nested: {
+        token: "bearer token-value",
+        safe: "yes",
+        deep: {
+          x: "postgres://user:pass@host/db",
+          api_key: "sk-12345678"
+        }
+      }
+    };
+
+    const expected = {
+      password: "[REDACTED]",
+      email: "[REDACTED]",
+      benign: "value",
+      nested: {
+        token: "[REDACTED]",
+        safe: "yes",
+        deep: {
+          x: "[redacted-db-url]",
+          api_key: "[REDACTED]"
+        }
+      }
+    };
+
+    expect(redactSensitive(input)).toEqual(expected);
   });
 });

@@ -306,12 +306,12 @@ export function CronControlPanel() {
                   {/* Fire button */}
                   <button
                     onClick={() => trigger(r.path, r.jobName)}
-                    disabled={firing === r.jobName}
+                    disabled={firing !== null}
                     title={`fire ${r.path}`}
                     className={cn(
                       "w-6 h-6 rounded flex items-center justify-center border transition-colors shrink-0",
                       "border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30",
-                      firing === r.jobName && "opacity-50 cursor-wait",
+                      firing !== null && "opacity-50 cursor-wait",
                     )}
                   >
                     {firing === r.jobName ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
@@ -320,14 +320,14 @@ export function CronControlPanel() {
                   {/* Kill switch */}
                   <button
                     onClick={() => toggle(r.jobName, !r.enabled)}
-                    disabled={toggling === r.jobName}
+                    disabled={toggling !== null || firing !== null}
                     title={r.enabled ? "click to kill" : "click to enable"}
                     className={cn(
                       "shrink-0 h-5 w-9 rounded-full border relative transition-colors",
                       r.enabled
                         ? "bg-emerald-500/20 border-emerald-500/40"
                         : "bg-red-500/10 border-red-500/30",
-                      toggling === r.jobName && "opacity-50",
+                      (toggling === r.jobName || firing !== null) && "opacity-50",
                     )}
                   >
                     <span

@@ -73,3 +73,31 @@ export function sanitizedErrorBody(
 ): { error: string; detail: string } {
   return { error: code, detail: sanitizeError(err) };
 }
+
+const SENSITIVE_KEYS = new Set([
+  "password", "token", "secret", "key", "authorization",
+  "cookie", "x-sync-key", "bearer", "api_key", "apikey",
+  "phone", "email", "phonenumber", "phone_number",
+  "ssn", "social_security", "creditcard", "credit_card",
+  "fullname", "full_name", "address", "dob", "date_of_birth",
+]);
+
+export function redactSensitive(obj: unknown, depth = 0): unknown {
+  if (depth > 3 || obj === null || obj === undefined) return obj;
+  if (typeof obj === "string") {
+    return sanitizeError(obj);
+  }
+  if (Array.isArray(obj)) return obj.map((v) => redactSensitive(v, depth + 1));
+  if (typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (SENSITIVE_KEYS.has(k.toLowerCase())) {
+        result[k] = "[REDACTED]";
+      } else {
+        result[k] = redactSensitive(v, depth + 1);
+      }
+    }
+    return result;
+  }
+  return obj;
+}
