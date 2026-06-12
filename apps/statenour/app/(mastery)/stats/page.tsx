@@ -84,6 +84,11 @@ const IdentityArcCard = dynamic(
   { ssr: false, loading: () => <div className="h-[200px] rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" /> },
 );
 
+const CalibrationSection = dynamic(
+  () => import("@/components/stats/calibration-section").then((m) => m.CalibrationSection),
+  { ssr: false, loading: () => <SectionFallback /> },
+);
+
 /** Light shimmer matching the character-sheet hero + stat-grid shape, so the
  *  static prerender shell holds the layout until the client subtree hydrates. */
 function StatsBodyFallback() {
@@ -142,6 +147,12 @@ export default function StatsPage() {
             <MasterySectionLabel label="Learning · the active loop" />
             <LearningLoop />
           </section>
+
+          {/* ⑤ CALIBRATION · outcome tracking & prediction scoring · lazy-mounted · id="calibration" anchor */}
+          <section id="calibration" className="mt-8 space-y-3 scroll-mt-24">
+            <MasterySectionLabel label="Calibration · outcome benchmarking" />
+            <CalibrationSection />
+          </section>
         </Suspense>
       </StandardPage>
 
@@ -156,6 +167,8 @@ export default function StatsPage() {
             "What's the fastest way to level up today?",
             "Which goal needs my attention most?",
             "Where am I falling behind this week?",
+            "How calibrated are my prediction outcomes?",
+            "What is my task ROI estimation error?",
           ]}
         />
       </Suspense>

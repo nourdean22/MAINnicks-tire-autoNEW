@@ -2902,3 +2902,30 @@ model VoiceLatencyEvent {
   @@index([assistantId, stage, createdAt])
   @@map("voice_latency_events")
 }
+
+model CalibrationReviewItem {
+  id                    String    @id @default(cuid())
+  type                  String    @db.VarChar(32) // "prediction" | "task_roi" | "business_projection"
+  sourceId              String    @map("source_id")
+  sourceType            String    @map("source_type") @db.VarChar(32) // "Prediction" | "Task"
+  status                String    @default("pending") // pending | approved | corrected | rejected | needs_more_evidence | auto_resolved_low_risk
+  predictedOutcome      Json      @map("predicted_outcome")
+  proposedActualOutcome Json?     @map("proposed_actual_outcome")
+  approvedActualOutcome Json?     @map("approved_actual_outcome")
+  confidence            Float     @default(0.5)
+  evidence              Json?     // e.g. { taskNote: "...", clicks: 10, revenue: 100 }
+  evidenceFreshness     DateTime? @map("evidence_freshness")
+  reviewedBy            String?   @map("reviewed_by") @db.VarChar(64)
+  reviewedAt            DateTime? @map("reviewed_at")
+  correctionNote        String?   @map("correction_note") @db.Text
+  accuracyScore         Float?    @map("accuracy_score")
+  calibrationImpact     Json?     @map("calibration_impact")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@unique([sourceId, sourceType], map: "calibration_review_items_source_uniq")
+  @@index([status, type])
+  @@index([createdAt])
+  @@map("calibration_review_items")
+}
+
