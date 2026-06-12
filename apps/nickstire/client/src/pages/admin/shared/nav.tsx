@@ -33,6 +33,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "growth", label: "Marketing / Growth", icon: <TrendingUp className="w-4 h-4" /> },
       { id: "campaigns", label: "Winback", icon: <Send className="w-4 h-4" /> },
       { id: "memberships", label: "Nonstop Nick", icon: <Shield className="w-4 h-4" /> },
+      { id: "voiceReceptionist", label: "Voice Receptionist", icon: <PhoneCall className="w-4 h-4" /> },
       { id: "opsHub", label: "Reports", icon: <ClipboardList className="w-4 h-4" /> },
       { id: "settings", label: "Settings / Safety", icon: <Settings className="w-4 h-4" /> },
     ],

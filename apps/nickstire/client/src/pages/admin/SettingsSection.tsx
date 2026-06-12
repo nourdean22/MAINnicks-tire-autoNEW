@@ -30,7 +30,6 @@ import { confirmDialog } from "@/components/admin/ConfirmDialog";
 // catalog were extracted into ./settings/* (pure verbatim move). This
 // file is now a lean tab host.
 import AlgProbeBudgetPanel from "./settings/AlgProbeBudgetPanel";
-import VapiPanel from "./settings/VapiPanel";
 import IgAutopostPanel from "./settings/IgAutopostPanel";
 import DeclinedRecoveryPanel from "./settings/DeclinedRecoveryPanel";
 import FeatureFlagsPanel from "./settings/FeatureFlagsPanel";
@@ -376,12 +375,6 @@ export default function SettingsSection() {
       {/* wave-181.x · removed Import History panel (Phase 1).
           CSV imports were a one-time bulk-load tool · no imports
           have happened in months · the panel was just empty space. */}
-
-      {/* 2026-05-05 — VAPI VOICE RECEPTIONIST */}
-      {/* wave-181.x · VapiPanel STAYS here through Phase 1.
-          Properly relocates to /admin VoiceReceptionistSection in
-          Phase 4 (Integrations consolidation). */}
-      <VapiPanel />
 
       {/* 2026-06-01 — IG + FB AUTOPOST (content brain + Fire Now) */}
       <IgAutopostPanel />
