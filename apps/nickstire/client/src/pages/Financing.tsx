@@ -22,6 +22,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
@@ -596,8 +597,8 @@ export default function Financing() {
           operator voice rules. Renamed to "Payment Programs" —
           same lender stack, same product, FCFS-affirming wording. */}
       <SEOHead
-        title="Auto Repair Payment Programs · Cleveland · $10 Down | Nick's"
-        description="Cleveland auto repair payment programs — four lenders compete for your business. Soft pre-qualification (no hard credit pull). Acima · Snap · Koalafi · American First. (216) 862-0005"
+        title="Auto Repair Payment Programs Cleveland & Euclid · Nick's"
+        description="Cleveland & Euclid auto repair payment programs. $10 down, no hard credit pull, soft check pre-qualification. Easy weekly payments. Call (216) 862-0005."
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Payment Programs", href: "/financing" }]} />
@@ -616,7 +617,7 @@ export default function Financing() {
             <span className="text-[#FDB913]">Postpone the bill.</span>
           </h1>
           <p className="mt-5 text-white/70 text-lg lg:text-xl max-w-2xl mx-auto">
-            Soft pre-qualification, no hard credit pull, no shame. Four lenders compete for your business in the time it takes to refill your coffee. Drive away today, pay it down on a schedule that fits the way you actually get paid.
+            Soft pre-qualification, no hard credit pull, no shame. Explore payment programs for same-day <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake repair</Link>, new or used <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tires</Link>, and professional <Link href="/diagnostics" className="underline text-primary hover:text-primary-foreground font-semibold">car diagnostics</Link> at Nick's on Euclid Ave. <Link href="/contact" className="underline text-primary hover:text-primary-foreground font-semibold">Contact us</Link> today to get approved in under 60 seconds!
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">

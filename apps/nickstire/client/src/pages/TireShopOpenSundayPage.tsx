@@ -31,7 +31,7 @@ const CONFIG: ServicePageConfig = {
   description: "Tire shop open Sunday in Cleveland. Nick's Tire & Auto on Euclid Ave runs 9am-4pm every Sunday — walk-in tires, brakes, oil change. Conrad's closed. Mavis closed. We're open. (216) 862-0005",
   eyebrow: "OPEN SUNDAYS — 9am to 4pm",
   h1: "TIRE SHOP OPEN SUNDAY CLEVELAND.\nEVERY SUNDAY. 9 AM TO 4 PM.",
-  sub: "Conrad's closes Sunday. Mavis hides Sunday hours behind a widget. NTB closed. Firestone varies by location. Nick's Tire & Auto on Euclid Ave runs Cleveland's most reliable Sunday tire shop — 9am to 4pm, same crew as Monday, walk-in welcome, no appointment. Flat on the Browns-Sunday-snow? Bald tires on a Cleveland slope when the weather turned? Pull up. We're the only independent on Euclid Ave with the lights on every Sunday for the past seven years running.",
+  sub: "Conrad's closes Sunday. Mavis hides Sunday hours behind a widget. NTB closed. Firestone varies by location. Nick's Tire & Auto on Euclid Ave runs Cleveland's most reliable Sunday tire shop — 9am to 4pm, same crew as Monday, first-come, first-served (FCFS) walk-ins welcome, no appointment. We're located right next to the Euclid Ave & London Rd intersection, just off I-90 Exit 182C and Route 2. Note: Same-day tire swaps, flat repairs, brake checks, and basic services are standard on Sundays. However, major engine/transmission overhauls or repairs requiring parts from closed warehouses will be diagnosed on Sunday and started first thing Monday morning to keep your vehicle moving.",
   startingPrice: "9am–4pm every Sunday · walk-in OK",
   pricingTitle: "WHAT'S OPEN ON SUNDAY AT NICK'S",
   pricingSub: "Same crew, same service, same pricing as weekdays. The only thing different on Sunday is the chains' closed signs and our shorter hours.",
@@ -60,12 +60,12 @@ const CONFIG: ServicePageConfig = {
   includedSub: "Same physical standard as the rest of the week — operators don't take Sundays off, they just close earlier.",
   included: [
     "9am-4pm every Sunday (and yes, every Sunday — no surprise closures)",
-    "Walk-in welcome — no appointment required",
-    "Same full crew, same tire inventory, same lift bays",
+    "First-come, first-served (FCFS) walk-ins — no appointment needed",
+    "Located near I-90 Exit 182C and Route 2 on Euclid Ave (near London Rd)",
+    "Same-day tire swaps, flat patches, and basic brake repairs",
+    "Major overhauls diagnosed Sunday, parts ordered for Monday start",
     "Drop-off + Uber back home (we send the ride)",
-    "Free brake check — Sundays are usually quieter so we walk you under the car",
     "Same financing programs — $10 down, 4 lenders, no FICO ding",
-    "Same lifetime free rotations + alignment checks",
     "Open most major holidays — call ahead if you're not sure",
   ],
   faqs: [
@@ -83,7 +83,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "Can I walk in on Sunday or do I need an appointment?",
-      a: "Walk-in. Every day, including Sunday. Nick's runs first-come-first-served — pull up, hand us the keys, get in line. If you want to drop the car and go, we'll Uber you home and call when the work is done. The chains require Sunday appointments (when they're open at all) and routinely double-book — Nick's takes you in line order, period.",
+      a: "Walk-in. Every day, including Sunday. Nick's runs first-come-first-served (FCFS) — pull up, hand us the keys, get in line. If you want to drop the car and go, we'll Uber you home and call when the work is done. The chains require Sunday appointments (when they're open at all) and routinely double-book — Nick's takes you in line order, period.",
     },
     {
       q: "Will the Sunday crew know what they're doing?",
@@ -91,7 +91,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "What if I need a big repair (brakes, transmission) on Sunday — can it be done same-day?",
-      a: "Most brake jobs, yes — pad replacement runs 60-90 minutes per axle, and the 9am-4pm Sunday window comfortably fits one or two of those. Transmission work and major repairs usually need Monday-Friday because parts deliveries and the labor budget — but we'll check it Sunday for free, write the quote, and start Monday morning. You drop the car, we Uber you home, you have a fixed number in your inbox before dinner.",
+      a: "Same-day service is standard for tire swaps, inspections, flat repairs, and basic brake services (pads/rotors). However, major repairs like engine or transmission overhauls, or anything requiring specialty parts from closed Sunday warehouses, will be diagnosed on Sunday and scheduled to start first thing Monday morning. We'll Uber you back home from our Euclid Ave location while we handle the diagnostics.",
     },
     {
       q: "Do you charge extra for Sunday service?",
@@ -109,7 +109,7 @@ const CONFIG: ServicePageConfig = {
   bookingService: "tires",
   serviceType: "Tire & Auto Repair · Sunday Service",
   ctaHeadline: "PULL UP THIS SUNDAY — 9 AM TO 4 PM",
-  ctaSub: "17625 Euclid Ave, Cleveland OH · walk-in welcome · drop-off + Uber back home · (216) 862-0005",
+  ctaSub: "17625 Euclid Ave, Cleveland OH (near London Rd & I-90 Exit 182C) · first-come, first-served walk-ins · (216) 862-0005",
 
   // wave-181.10 · updated with real Cleveland-metro scrape data
   // (econrads.com Lakewood page verified verbatim · firestone Downtown

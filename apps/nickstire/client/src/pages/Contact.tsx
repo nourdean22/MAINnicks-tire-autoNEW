@@ -8,6 +8,7 @@ import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { useEffect } from "react";
 import BookingForm from "@/components/BookingForm";
+import TrustBlock from "@/components/TrustBlock";
 import { SEOHead, Breadcrumbs, trackPhoneClick, trackEvent } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, Navigation } from "lucide-react";
 import { BUSINESS } from "@shared/business";
@@ -87,8 +88,8 @@ export default function Contact() {
           off the hours + walk-in line. Trimmed to 134 chars: phone +
           address + hours + walk-in all visible. */}
       <SEOHead
-        title="Nick's Tire & Auto · (216) 862-0005 · 17625 Euclid Ave"
-        description={`Nick's Tire & Auto · ${BUSINESS.phone.display} · 17625 Euclid Ave, Cleveland. Mon-Sat 8-6, Sun 9-4. Walk in 7 days · free check, written quote, you don't pay until you say yes.`}
+        title="Contact Nick's Tire & Auto · Cleveland & Euclid Auto Shop"
+        description="Contact Nick's Tire & Auto in Euclid/Cleveland. Hours: Mon-Sat 8-6, Sun 9-4. First come, first served. Vehicle drop-off welcome. Call (216) 862-0005."
         canonicalPath="/contact"
       />
       <Breadcrumbs items={[{ label: "Contact", href: "/contact" }]} />
@@ -168,6 +169,19 @@ export default function Contact() {
                       <Navigation className="w-4 h-4" />
                       Get Directions
                     </a>
+                  </div>
+
+                  {/* Wayfinding & Landmarks */}
+                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 surface-raised-card">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md">
+                        <Navigation className="w-5 h-5 text-primary" />
+                      </div>
+                      <h3 className="font-bold text-foreground tracking-wider text-sm uppercase">Directions & Landmarks</h3>
+                    </div>
+                    <p className="text-foreground/75 text-sm leading-relaxed">
+                      Located directly on <strong>Euclid Ave</strong>, we're just minutes off the <strong>I-90 exit (Exit 182C for East 185th St/Euclid Ave)</strong> or <strong>Route 2</strong>. Our shop is situated near the major intersection of <strong>Euclid Ave & London Rd</strong>. Look for our signature yellow sign and tire racks right by the road!
+                    </p>
                   </div>
 
                   {/* Hours */}
@@ -255,11 +269,19 @@ export default function Contact() {
                     DROP IT OFF <span className="text-primary">TODAY</span>
                   </h2>
                   <p className="text-foreground/60 mb-6 leading-relaxed">
-                    Tap to call or text and we'll get right back to you. Or just pull up — first come, first served, 7 days a week.
+                    We run on a <strong>first-come, first-served (FCFS)</strong> model. No appointments are needed. Pull up anytime, drop off your vehicle, and we will get to work. We recommend calling ahead to check current bay queue times.
+                  </p>
+                  <p className="text-foreground/60 mb-6 leading-relaxed">
+                    Whether you need a same-day check for <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake repair</Link>, quick mounting of new or used <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tires</Link>, an OBD-II scan for <Link href="/diagnostics" className="underline text-primary hover:text-primary-foreground font-semibold">engine diagnostics</Link>, or want to set up one of our flexible <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">repair payment programs</Link>, we've got you covered.
                   </p>
                   <BookingForm />
                 </div>
               </FadeIn>
+            </div>
+
+            {/* Reusable Trust Block */}
+            <div className="mt-16">
+              <TrustBlock />
             </div>
           </div>
         </section>
