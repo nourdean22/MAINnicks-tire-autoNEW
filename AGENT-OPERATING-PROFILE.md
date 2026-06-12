@@ -269,6 +269,8 @@ At end of every session, your report must include:
 
 **Cross-cutting:**
 - Root `CLAUDE.md` — always-must-know gotchas
+- `docs/ANTIGRAVITY-PROFILE.md` — Antigravity Operating Profile
+- `docs/ANTIGRAVITY-RULES.md` — Antigravity-specific rules and constraints
 - `docs/MIGRATION_PLAN.md` — cross-app migration context
 - `TASKS.md` — active task log
 
