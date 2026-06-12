@@ -197,7 +197,7 @@ export function ProjectDetail({
     setBulkBusy("complete");
     try {
       const results = await Promise.allSettled(
-        active.map((t) => checkTaskMut.mutateAsync({ id: t.id })),
+        active.map((t) => checkTaskMut.mutateAsync({ id: t.id }) as Promise<any>),
       );
       const ok = results.filter((rr) => rr.status === "fulfilled").length;
       toast.success(`Completed ${ok}/${active.length}`);
@@ -218,7 +218,7 @@ export function ProjectDetail({
     try {
       const results = await Promise.allSettled(
         done.map((t) =>
-          updateTask.mutateAsync({ id: t.id, fields: { status: "ARCHIVED" } }),
+          updateTask.mutateAsync({ id: t.id, fields: { status: "ARCHIVED" } }) as Promise<any>,
         ),
       );
       const ok = results.filter((rr) => rr.status === "fulfilled").length;
@@ -278,7 +278,7 @@ export function ProjectDetail({
       // which is exactly the "move INBOX-status tasks back to global
       // Inbox" the button promises.
       const results = await Promise.allSettled(
-        inboxTasks.map((t) => leaveMissionMut.mutateAsync({ id: t.id })),
+        inboxTasks.map((t) => leaveMissionMut.mutateAsync({ id: t.id }) as Promise<any>),
       );
       const ok = results.filter((rr) => rr.status === "fulfilled").length;
       toast.success(`Cleared ${ok} INBOX → global`);
