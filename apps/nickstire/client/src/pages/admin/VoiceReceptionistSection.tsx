@@ -32,6 +32,14 @@ import {
   ChevronDown,
   ChevronUp,
   Settings,
+  TrendingUp,
+  UserCheck,
+  Clipboard,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Check,
+  HelpCircle,
 } from "lucide-react";
 import {
   SkeletonKpiGrid,
@@ -58,6 +66,8 @@ import {
   fmtTime,
   fmtPhone,
   prettyReason,
+  maskPhone,
+  prettyOutcome,
 } from "./voice/format";
 import { DateRangeSelector } from "./voice/DateRangeSelector";
 import { FilterChip } from "./voice/FilterChip";
@@ -77,6 +87,9 @@ export default function VoiceReceptionistSection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [reasonFilter, setReasonFilter] = useState<string | null>(null); // null = "all"
 
+  const [activeTab, setActiveTab] = useState<"performance" | "queue">("performance");
+  const [queueStatusFilter, setQueueStatusFilter] = useState<"pending" | "reviewed" | "converted" | "came_in" | "ignored">("pending");
+
   // Wave-91 — date range state.
   // wave-181.x Voice Phase 1 · audit agent cleanup #10 · customSince
   // defaulted to 7 days back · clicking "Custom" fresh silently
@@ -95,12 +108,30 @@ export default function VoiceReceptionistSection() {
   const { data: calls, isLoading: callsLoading, refetch: refetchCalls, isFetching: callsFetching } = trpc.vapi.todayCalls.useQuery(queryInput, {
     refetchInterval: rangePreset === "today" ? 60_000 : false,
   });
+
+  const { data: queueItems, isLoading: queueLoading, refetch: refetchQueue, isFetching: queueFetching } = trpc.vapi.getMissedRevenueQueue.useQuery({
+    status: queueStatusFilter,
+  }, {
+    enabled: activeTab === "queue",
+  });
+
+  const updateQueueMutation = trpc.vapi.updateQueueStatus.useMutation({
+    onSuccess: () => {
+      void refetchQueue();
+      void refetchMetrics();
+      void refetchCalls();
+    },
+  });
+
   // wave-111 — manual refresh for non-"today" ranges (auto-poll off there).
   const handleManualRefresh = () => {
     void refetchMetrics();
     void refetchCalls();
+    if (activeTab === "queue") {
+      void refetchQueue();
+    }
   };
-  const refreshing = metricsFetching || callsFetching;
+  const refreshing = metricsFetching || callsFetching || (activeTab === "queue" && queueFetching);
   const { data: vapiStatus } = trpc.vapi.status.useQuery(undefined, { staleTime: 5 * 60_000 });
 
   const rawCalls = calls ?? [];
@@ -140,6 +171,40 @@ export default function VoiceReceptionistSection() {
     }
     return list;
   })();
+
+  const [editingNotes, setEditingNotes] = useState<Record<number, string>>({});
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  const handleCopy = (id: number, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const getSmsDraft = (intents: string[], outcome: string): string => {
+    if (intents.includes("used_tire") || intents.includes("tire_size_request")) {
+      return "Thanks for calling Nick’s Tire & Auto. Used tire availability changes quickly. Stop by 17625 Euclid Ave and we’ll check available options for your vehicle.";
+    }
+    if (intents.includes("new_tire")) {
+      return "Thanks for calling Nick’s Tire & Auto. We stock all major brands of new tires. Stop by 17625 Euclid Ave and we'll show you options and give you a written quote.";
+    }
+    if (intents.includes("flat_tire") || intents.includes("tire_leak")) {
+      return "Thanks for calling Nick’s Tire & Auto. Bring your vehicle by 17625 Euclid Ave and we'll inspect the tire leak. Flat repairs are done while you wait.";
+    }
+    if (intents.includes("brakes") || intents.includes("suspension") || intents.includes("exhaust")) {
+      return "Thanks for calling Nick’s Tire & Auto. You can bring the vehicle in or drop it off at 17625 Euclid Ave and we’ll inspect it before any work is approved.";
+    }
+    if (intents.includes("diagnostics") || intents.includes("check_engine")) {
+      return "Thanks for calling Nick’s Tire & Auto. Bring the vehicle in for a free diagnostic light check and quote before 6 PM today.";
+    }
+    if (intents.includes("battery") || intents.includes("alternator") || intents.includes("starter")) {
+      return "Thanks for calling Nick’s Tire & Auto. Stop by 17625 Euclid Ave for a free battery and alternator test. We can replace batteries on the spot.";
+    }
+    if (intents.includes("oil_change") || intents.includes("alignment")) {
+      return "Thanks for calling Nick’s Tire & Auto. Oil changes and alignments are handled on a first-come, first-served basis. Swing by the shop at your convenience.";
+    }
+    return "Sorry we missed your call. Let us know what you need, or stop by Nick’s Tire & Auto at 17625 Euclid Ave.";
+  };
 
   const reasonsChart = m
     ? Object.entries(m.endReasons).map(([reason, count]) => ({
@@ -223,211 +288,433 @@ export default function VoiceReceptionistSection() {
         refreshing={refreshing}
       />
 
-      {/* ─── KPI Tiles ────────────────────────────────────
-       * wave-181.x Voice Phase 5 ELON cut · 5→3 tiles · per audit
-       * agent: Caller-Ended + Nick-Closed are redundantly shown in
-       * the "Why calls ended" BarChart below (L552+) · classic AI-
-       * slop 5-tile symmetry pattern (same kill we did on Today +
-       * Money). Three tiles · Calls · Forwarded · Total Talk Time ·
-       * fits cleanly on mobile without horizontal scroll. */}
-      {metricsLoading || !m ? (
-        // SkeletonKpiGrid `cols` prop only accepts 4|5|6 · pass 4 for
-        // the closest match to the 3-tile post-ELON-cut MetricGrid.
-        // Skeleton over-counts by 1 for ~200ms · acceptable.
-        <SkeletonKpiGrid cols={4} />
-      ) : (
-        <MetricGrid cols={3}>
-          <StatCard
-            label={rangePreset === "today" ? "Today's Calls" : `Calls · ${range.shortLabel}`}
-            value={m.total}
-            icon={<PhoneCall className="w-4 h-4" />}
-            color="text-foreground"
-            trend={m.total > 0 ? "up" : "neutral"}
-            trendLabel={m.inbound > 0 ? `${m.inbound} inbound` : undefined}
-          />
-          <StatCard
-            label="Forwarded to You"
-            value={m.forwarded}
-            icon={<PhoneForwarded className="w-4 h-4" />}
-            color={m.forwarded > 0 ? "text-amber-400" : "text-muted-foreground"}
-            trend={m.forwarded > 0 ? "up" : "neutral"}
-            trendLabel={m.total > 0 ? `${Math.round((m.forwarded / m.total) * 100)}% of calls` : undefined}
-          />
-          <StatCard
-            label="Total Talk Time"
-            value={fmtDuration(m.totalSeconds)}
-            icon={<Clock className="w-4 h-4" />}
-            color="text-foreground"
-            trendLabel={m.avgSeconds > 0 ? `${fmtDuration(m.avgSeconds)} avg` : undefined}
-          />
-        </MetricGrid>
-      )}
-
-      {/* ─── End reasons breakdown ──────────────────────
-       * wave-181.x Voice Phase 5 · was a `grid-cols-3` with a
-       * `col-span-2` chart + Quick-math panel. Quick-math
-       * deleted · chart now takes full width directly. */}
-      <div>
-        <Panel title="Why calls ended" subtitle={`Breakdown of end reasons · ${range.shortLabel}`} padding="md">
-          {reasonsChart.length === 0 ? (
-            <EmptyState
-              icon={<PhoneCall className="w-8 h-8" />}
-              title="No calls today yet"
-              subtitle="Once Nick takes a call, the breakdown appears here."
-            />
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={reasonsChart} layout="vertical" margin={{ left: 40, right: 12, top: 8, bottom: 8 }}>
-                <XAxis type="number" stroke={CHART_THEME.axis} fontSize={11} />
-                <YAxis type="category" dataKey="name" stroke={CHART_THEME.axis} fontSize={11} width={120} />
-                <Tooltip contentStyle={CHART_THEME.tooltip} />
-                <Bar dataKey="value" fill={CHART_THEME.primary} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+      {/* ─── Navigation Tabs ─────────────────────────────────── */}
+      <div className="flex border-b border-border/20 gap-4 mb-4">
+        <button
+          onClick={() => setActiveTab("performance")}
+          className={`pb-2 text-sm font-semibold border-b-2 transition-colors ${
+            activeTab === "performance"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Performance Dashboard
+        </button>
+        <button
+          onClick={() => setActiveTab("queue")}
+          className={`pb-2 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === "queue"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Missed Revenue Queue
+          {activeTab !== "queue" && (
+            <span className="bg-rose-500/15 text-rose-500 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+              Action Required
+            </span>
           )}
-        </Panel>
-
-        {/* wave-181.x Voice Phase 5 ELON cut · "Quick math" Panel
-         * deleted · was full duplication of KPI tiles + "Why calls
-         * ended" chart. Connect-rate / Avg / Total-talk / Web-vs-
-         * phone are all already shown elsewhere on this page. Pure
-         * decoration · 30 LOC reclaimed. The m.ok error message moves
-         * up to the page-header badge which already shows "VAPI
-         * UNREACHABLE" when m.ok === false. */}
+        </button>
       </div>
 
-      {/* ─── Recent calls table — wave-89 sort + filter controls ───── */}
-      <Panel
-        title={rangePreset === "today" ? "Today's Calls" : `Calls · ${range.shortLabel}`}
-        subtitle={
-          searchQuery || reasonFilter
-            ? `Showing ${callsList.length} of ${rawCalls.length} calls · click any row to see transcript`
-            : "Click any row to see transcript + tool calls"
-        }
-        padding="none"
-      >
-        {/* Sort + filter controls */}
-        {rawCalls.length > 0 && (
-          <div className="px-4 py-3 border-b border-border/20 bg-foreground/[0.01] space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Search */}
-              <SearchInput
-                value={searchQuery}
-                onChange={setSearchQuery}
-                placeholder="Search number / name / summary"
-                size="compact"
-                className="flex-1 min-w-[180px] max-w-[280px]"
+      {activeTab === "performance" ? (
+        <div className="space-y-6">
+          {/* ─── KPI Tiles ──────────────────────────────────── */}
+          {metricsLoading || !m ? (
+            <SkeletonKpiGrid cols={4} />
+          ) : (
+            <MetricGrid cols={4}>
+              <StatCard
+                label="Valid Conversations"
+                value={m.validConversationsCount ?? 0}
+                icon={<PhoneCall className="w-4 h-4" />}
+                color="text-foreground"
+                trendLabel={m.total > 0 ? `${Math.round(((m.validConversationsCount ?? 0) / m.total) * 100)}% of total calls` : undefined}
               />
-
-              {/* Sort dropdown */}
-              <div className="relative inline-flex items-center gap-1.5">
-                <ArrowUpDown className="w-3.5 h-3.5 text-foreground/40" />
-                <select
-                  value={sortMode}
-                  onChange={(e) => setSortMode(e.target.value as SortMode)}
-                  className="bg-background border border-border/30 rounded px-2 py-1.5 text-[12px] text-foreground focus:border-primary/50 focus:outline-none"
-                >
-                  {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
-                    <option key={mode} value={mode}>{SORT_LABELS[mode]}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Reset chip — show only when something is filtered */}
-              {(searchQuery || reasonFilter) && (
-                <button
-                  onClick={() => { setSearchQuery(""); setReasonFilter(null); }}
-                  className="text-[11px] text-foreground/50 hover:text-foreground border border-border/30 hover:border-primary/40 rounded px-2 py-1.5 transition-colors"
-                >
-                  Reset filters
-                </button>
-              )}
-            </div>
-
-            {/* Reason filter chips */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] uppercase tracking-[0.15em] text-foreground/45 mr-1">Filter:</span>
-              <FilterChip
-                label="All"
-                count={rawCalls.length}
-                active={reasonFilter === null}
-                onClick={() => setReasonFilter(null)}
-                tone="neutral"
+              <StatCard
+                label="Hard Conversions"
+                value={m.hardConversionsCount ?? 0}
+                icon={<TrendingUp className="w-4 h-4" />}
+                color="text-emerald-400"
+                trendLabel={m.total > 0 ? `Legacy: ${m.legacyConversionRate}%, Revised: ${m.revisedHardConversionRate}%` : undefined}
               />
-              {m && Object.entries(m.endReasons).sort((a, b) => b[1] - a[1]).map(([reason, count]) => {
-                const pretty = prettyReason(reason);
-                return (
-                  <FilterChip
-                    key={reason}
-                    label={pretty.label}
-                    count={count}
-                    active={reasonFilter === reason}
-                    onClick={() => setReasonFilter(reasonFilter === reason ? null : reason)}
-                    tone={reason}
+              <StatCard
+                label="Actionable Outcome Rate"
+                value={`${m.actionableRate ?? 0}%`}
+                icon={<UserCheck className="w-4 h-4" />}
+                color="text-blue-400"
+                trendLabel={`${m.actionableOutcomesCount ?? 0} actionable calls`}
+              />
+              <StatCard
+                label="Forwarded / Walk-In Directed"
+                value={(m.forwarded || 0) + (m.walkInDirectedCount || 0)}
+                icon={<PhoneForwarded className="w-4 h-4" />}
+                color="text-amber-400"
+                trendLabel={`Forwarded: ${m.forwarded || 0}, Walk-ins: ${m.walkInDirectedCount || 0}`}
+              />
+            </MetricGrid>
+          )}
+
+          {/* ─── Outcome & Intent Charts ───────────────────── */}
+          {m && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Panel title="Outcome Taxonomy Breakdown" subtitle="Distribution of evaluated call outcomes" padding="md">
+                {Object.keys(m.outcomeBreakdown || {}).length === 0 ? (
+                  <EmptyState
+                    icon={<PhoneCall className="w-8 h-8" />}
+                    title="No outcomes evaluated yet"
+                    subtitle="Daily evaluation job will populate outcome categories."
                   />
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart
+                      data={Object.entries(m.outcomeBreakdown || {}).map(([outcome, count]) => ({
+                        name: prettyOutcome(outcome).label,
+                        value: count,
+                      })).sort((a, b) => b.value - a.value)}
+                      layout="vertical"
+                      margin={{ left: 50, right: 12, top: 8, bottom: 8 }}
+                    >
+                      <XAxis type="number" stroke={CHART_THEME.axis} fontSize={10} />
+                      <YAxis type="category" dataKey="name" stroke={CHART_THEME.axis} fontSize={10} width={130} />
+                      <Tooltip contentStyle={CHART_THEME.tooltip} />
+                      <Bar dataKey="value" fill={CHART_THEME.primary} radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </Panel>
+
+              <Panel title="Service Intent Distribution" subtitle="Customer requests extracted by AI classifier" padding="md">
+                {!m.intentDistribution || m.intentDistribution.length === 0 ? (
+                  <EmptyState
+                    icon={<Search className="w-8 h-8" />}
+                    title="No intents detected yet"
+                    subtitle="Customer service mentions will populate this list."
+                  />
+                ) : (
+                  <div className="max-h-[220px] overflow-y-auto space-y-2.5 pr-1">
+                    {m.intentDistribution.slice(0, 10).map((item: any, idx: number) => (
+                      <div key={item.intent} className="flex items-center justify-between text-xs">
+                        <span className="capitalize font-medium text-foreground/80 w-28 truncate">
+                          {item.intent.replace(/_/g, " ")}
+                        </span>
+                        <div className="flex items-center gap-2 flex-1 mx-3">
+                          <div className="h-2 rounded bg-foreground/5 flex-1 overflow-hidden">
+                            <div 
+                              className="h-full bg-primary rounded" 
+                              style={{ width: `${(item.count / m.intentDistribution[0].count) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className="font-mono text-foreground/60 w-6 text-right">{item.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+            </div>
+          )}
+
+          {/* ─── Recent calls table — wave-89 sort + filter controls ───── */}
+          <Panel
+            title={rangePreset === "today" ? "Today's Calls" : `Calls · ${range.shortLabel}`}
+            subtitle={
+              searchQuery || reasonFilter
+                ? `Showing ${callsList.length} of ${rawCalls.length} calls · click any row to see transcript`
+                : "Click any row to see transcript + tool calls"
+            }
+            padding="none"
+          >
+            {/* Sort + filter controls */}
+            {rawCalls.length > 0 && (
+              <div className="px-4 py-3 border-b border-border/20 bg-foreground/[0.01] space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Search */}
+                  <SearchInput
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder="Search number / name / summary"
+                    size="compact"
+                    className="flex-1 min-w-[180px] max-w-[280px]"
+                  />
+
+                  {/* Sort dropdown */}
+                  <div className="relative inline-flex items-center gap-1.5">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-foreground/40" />
+                    <select
+                      value={sortMode}
+                      onChange={(e) => setSortMode(e.target.value as SortMode)}
+                      className="bg-background border border-border/30 rounded px-2 py-1.5 text-[12px] text-foreground focus:border-primary/50 focus:outline-none"
+                    >
+                      {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
+                        <option key={mode} value={mode}>{SORT_LABELS[mode]}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Reset chip — show only when something is filtered */}
+                  {(searchQuery || reasonFilter) && (
+                    <button
+                      onClick={() => { setSearchQuery(""); setReasonFilter(null); }}
+                      className="text-[11px] text-foreground/50 hover:text-foreground border border-border/30 hover:border-primary/40 rounded px-2 py-1.5 transition-colors"
+                    >
+                      Reset filters
+                    </button>
+                  )}
+                </div>
+
+                {/* Reason filter chips */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] uppercase tracking-[0.15em] text-foreground/45 mr-1">Filter:</span>
+                  <FilterChip
+                    label="All"
+                    count={rawCalls.length}
+                    active={reasonFilter === null}
+                    onClick={() => setReasonFilter(null)}
+                    tone="neutral"
+                  />
+                  {m && Object.entries(m.endReasons).sort((a, b) => b[1] - a[1]).map(([reason, count]) => {
+                    const pretty = prettyReason(reason);
+                    return (
+                      <FilterChip
+                        key={reason}
+                        label={pretty.label}
+                        count={count}
+                        active={reasonFilter === reason}
+                        onClick={() => setReasonFilter(reasonFilter === reason ? null : reason)}
+                        tone={reason}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {callsLoading ? (
+              <SkeletonTable rows={6} cells={5} />
+            ) : callsList.length === 0 && rawCalls.length === 0 ? (
+              <EmptyState
+                icon={<PhoneCall className="w-8 h-8" />}
+                title="No calls yet today"
+                subtitle="Calls appear here within ~60 seconds of ending."
+              />
+            ) : callsList.length === 0 ? (
+              <EmptyState
+                icon={<Search className="w-8 h-8" />}
+                title="No calls match the filter"
+                subtitle="Try clearing the search or selecting a different reason."
+              />
+            ) : (
+              <div className="divide-y divide-border/20">
+                <div className="flex items-center gap-3 px-4 py-2.5 bg-foreground/[0.02] text-[11px] font-medium tracking-[0.15em] uppercase text-foreground/40">
+                  <span className="w-16">Time</span>
+                  <span className="flex-1">Caller</span>
+                  <span className="w-20 text-right">Duration</span>
+                  <span className="w-32">Outcome Category</span>
+                  <span className="w-6"></span>
+                </div>
+                {callsList.map((c: any) => {
+                  const outcome = prettyOutcome(c.evalOutcome || c.successEvaluation);
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedCallId(c.id)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-foreground/[0.03] transition-colors"
+                    >
+                      <span className="w-16 text-[12px] font-mono text-foreground/60 tabular-nums">
+                        {fmtTime(c.createdAt)}
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground truncate">
+                          {c.customerName || maskPhone(c.customerNumber)}
+                        </div>
+                        {c.summary && (
+                          <div className="text-[11px] text-foreground/40 truncate mt-0.5">
+                            {c.summary.slice(0, 80)}
+                          </div>
+                        )}
+                      </span>
+                      <span className="w-20 text-right text-[12px] font-mono text-foreground/70 tabular-nums">
+                        {fmtDuration(c.durationSeconds)}
+                      </span>
+                      <span className={`w-32 text-[11px] font-medium ${outcome.color}`}>
+                        {outcome.label}
+                      </span>
+                      <span className="w-6 text-foreground/30 text-xs">›</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Panel>
+        </div>
+      ) : (
+        /* ─── Missed Revenue Queue Tab ──────────────────────── */
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            <span className="text-xs text-muted-foreground mr-1">Roster Status:</span>
+            {(["pending", "reviewed", "converted", "came_in", "ignored"] as const).map((status) => (
+              <button
+                key={status}
+                onClick={() => setQueueStatusFilter(status)}
+                className={`text-xs px-3 py-1 rounded-full border transition-all ${
+                  queueStatusFilter === status
+                    ? "bg-primary/10 border-primary text-primary font-medium"
+                    : "bg-background border-border/20 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {status.toUpperCase().replace("_", " ")}
+              </button>
+            ))}
+          </div>
+
+          {queueLoading ? (
+            <SkeletonTable rows={4} cells={4} />
+          ) : !queueItems || queueItems.length === 0 ? (
+            <EmptyState
+              icon={<CheckCircle2 className="w-10 h-10 text-emerald-400" />}
+              title="All Caught Up!"
+              subtitle={`No missed opportunities currently classified as "${queueStatusFilter}".`}
+            />
+          ) : (
+            <div className="space-y-4">
+              {queueItems.map((item: any) => {
+                const outcome = prettyOutcome(item.evalOutcome);
+                const smsText = getSmsDraft(item.intents, item.evalOutcome);
+                const recAction = 
+                  item.evalOutcome === "callback_needed" ? "Call customer back immediately to schedule service." :
+                  item.evalOutcome === "lost_opportunity" ? "Reach out to recover the repair/tire opportunity." :
+                  item.evalOutcome === "walk_in_directed" ? "Check if customer arrived at Euclid Ave shop. Mark 'Came In' if they did." :
+                  "Contact customer to verify if technical disconnect prevented booking.";
+
+                return (
+                  <div key={item.id} className="bg-card border border-border/20 rounded-lg p-4 space-y-3 shadow-sm hover:border-primary/20 transition-all flex flex-col md:flex-row md:gap-6 justify-between items-start">
+                    
+                    {/* Left Column: Call Info */}
+                    <div className="flex-1 space-y-2.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-foreground">
+                          {item.customerName || maskPhone(item.phoneNumber)}
+                        </span>
+                        
+                        {item.isRepeatCaller && (
+                          <span className="bg-rose-500/15 text-rose-400 text-[10px] px-2 py-0.5 rounded font-bold border border-rose-500/20">
+                            Repeat Caller (+3)
+                          </span>
+                        )}
+
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${outcome.bg} ${outcome.color}`}>
+                          {outcome.label}
+                        </span>
+
+                        <span className="text-xs text-muted-foreground font-mono">
+                          Priority Score: {item.priorityScore}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {item.intents.map((intent: string) => (
+                          <span key={intent} className="text-[10px] px-2 py-0.5 bg-foreground/5 rounded text-foreground/75 border border-border/10 font-medium">
+                            {intent.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                        {item.intents.length === 0 && (
+                          <span className="text-[10px] italic text-muted-foreground">No specific intent tags</span>
+                        )}
+                      </div>
+
+                      {item.aiSummary && (
+                        <div className="text-xs text-foreground/80 bg-foreground/[0.01] border border-border/10 p-2.5 rounded">
+                          <strong className="text-foreground/70 block mb-0.5">AI Summary:</strong>
+                          {item.aiSummary}
+                        </div>
+                      )}
+
+                      <div className="text-xs">
+                        <span className="text-amber-400 font-semibold">Recommended Action:</span>{" "}
+                        <span className="text-foreground/70">{recAction}</span>
+                      </div>
+
+                      {/* SMS Draft Sub-Panel */}
+                      <div className="border border-border/15 bg-background rounded p-3 space-y-2 mt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">SMS Follow-Up Draft</span>
+                          <button
+                            onClick={() => handleCopy(item.id, smsText)}
+                            className="flex items-center gap-1 text-[11px] bg-foreground/5 hover:bg-foreground/10 text-foreground border border-border/20 px-2 py-0.5 rounded transition-colors font-medium"
+                          >
+                            {copiedId === item.id ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Clipboard className="w-3 h-3" />
+                                Copy Draft
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-foreground/75 leading-relaxed bg-foreground/[0.01] p-2 rounded border border-border/5 font-mono select-all">
+                          {smsText}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Workflow Actions */}
+                    <div className="w-full md:w-56 shrink-0 space-y-2.5 pt-3 md:pt-0 border-t md:border-t-0 md:border-l border-border/15 md:pl-6">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Staff Notes</label>
+                        <textarea
+                          value={editingNotes[item.id] !== undefined ? editingNotes[item.id] : item.notes}
+                          onChange={(e) => setEditingNotes({ ...editingNotes, [item.id]: e.target.value })}
+                          placeholder="Outcome notes..."
+                          className="w-full text-xs p-2 bg-background border border-border/30 rounded focus:outline-none focus:border-primary/50 text-foreground resize-none h-14"
+                        />
+                        <button
+                          onClick={() => {
+                            updateQueueMutation.mutate({
+                              id: item.id,
+                              status: item.queueStatus,
+                              notes: editingNotes[item.id] !== undefined ? editingNotes[item.id] : item.notes,
+                            });
+                          }}
+                          className="text-[10px] px-2.5 py-1 bg-foreground/5 hover:bg-foreground/10 text-foreground rounded font-medium border border-border/20 transition-colors w-full"
+                        >
+                          Save Notes
+                        </button>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Mark Status</label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {(["reviewed", "converted", "came_in", "ignored"] as const).map((status) => (
+                            <button
+                              key={status}
+                              onClick={() => {
+                                updateQueueMutation.mutate({
+                                  id: item.id,
+                                  status,
+                                  notes: editingNotes[item.id] !== undefined ? editingNotes[item.id] : item.notes,
+                                });
+                              }}
+                              className="text-[10px] py-1 border border-border/20 hover:border-primary/30 rounded hover:bg-primary/5 text-foreground capitalize transition-all"
+                            >
+                              {status.replace("_", " ")}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
                 );
               })}
             </div>
-          </div>
-        )}
-
-        {callsLoading ? (
-          <SkeletonTable rows={6} cells={5} />
-        ) : callsList.length === 0 && rawCalls.length === 0 ? (
-          <EmptyState
-            icon={<PhoneCall className="w-8 h-8" />}
-            title="No calls yet today"
-            subtitle="Calls appear here within ~60 seconds of ending."
-          />
-        ) : callsList.length === 0 ? (
-          <EmptyState
-            icon={<Search className="w-8 h-8" />}
-            title="No calls match the filter"
-            subtitle="Try clearing the search or selecting a different reason."
-          />
-        ) : (
-          <div className="divide-y divide-border/20">
-            <div className="flex items-center gap-3 px-4 py-2.5 bg-foreground/[0.02] text-[11px] font-medium tracking-[0.15em] uppercase text-foreground/40">
-              <span className="w-16">Time</span>
-              <span className="flex-1">Caller</span>
-              <span className="w-20 text-right">Duration</span>
-              <span className="w-32">End reason</span>
-              <span className="w-6"></span>
-            </div>
-            {callsList.map((c) => {
-              const reason = prettyReason(c.endedReason);
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setSelectedCallId(c.id)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-foreground/[0.03] transition-colors"
-                >
-                  <span className="w-16 text-[12px] font-mono text-foreground/60 tabular-nums">
-                    {fmtTime(c.createdAt)}
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">
-                      {c.customerName || fmtPhone(c.customerNumber)}
-                    </div>
-                    {c.summary && (
-                      <div className="text-[11px] text-foreground/40 truncate mt-0.5">
-                        {c.summary.slice(0, 80)}
-                      </div>
-                    )}
-                  </span>
-                  <span className="w-20 text-right text-[12px] font-mono text-foreground/70 tabular-nums">
-                    {fmtDuration(c.durationSeconds)}
-                  </span>
-                  <span className={`w-32 text-[11px] font-medium ${reason.color}`}>
-                    {reason.label}
-                  </span>
-                  <span className="w-6 text-foreground/30 text-xs">›</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </Panel>
+          )}
+        </div>
+      )}
 
       {/* ─── System & Developer Settings (Collapsible) ─── */}
       <div className="space-y-4">
