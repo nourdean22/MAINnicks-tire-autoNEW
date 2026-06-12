@@ -15,11 +15,11 @@ import {
 // 2026-05-19 MONEY consolidation · Declined Work + Snap Finance pulled
 // IN as tabs (they were sidebar destinations; all three answer
 // "where's the money?" so one screen, three tabs).
-const WorkOrdersSection = lazy(() => import("./WorkOrdersSection"));
+const WorkOrdersSection = lazy(() => import("./money/WorkOrdersSection"));
 // wave-110 — CustomersSection removed; reachable as top-level /admin?tab=customers
-const DispatchSection = lazy(() => import("./DispatchSection"));
-const DeclinedEstimatesSection = lazy(() => import("./DeclinedEstimatesSection"));
-const SnapDashboardSection = lazy(() => import("./SnapDashboardSection"));
+const DispatchSection = lazy(() => import("./money/DispatchSection"));
+const DeclinedEstimatesSection = lazy(() => import("./money/DeclinedEstimatesSection"));
+const SnapDashboardSection = lazy(() => import("./money/SnapDashboardSection"));
 // 2026-06-10 cockpit consolidation · the short-lived Money → Tire Orders
 // tab (same-day checkout-hardening wave) is retired: PR #41's top-level
 // Tire Commerce Command Center is the single surviving cockpit, with the

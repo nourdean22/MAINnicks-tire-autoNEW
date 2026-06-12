@@ -25,7 +25,7 @@ import { BUSINESS } from "@shared/business";
 import {
   ArrowLeft, Send as SendIcon, Plus, MessageSquare, Search, X, Sparkles,
 } from "lucide-react";
-import { PageHeader } from "./shared";
+import { PageHeader } from "../shared";
 // wave-181.x Outreach Hub Phase 2 · GatewayPill hoisted to shared
 // component so all Outreach tabs show gateway state, not just Messages.
 import GatewayPill from "@/components/admin/GatewayPill";

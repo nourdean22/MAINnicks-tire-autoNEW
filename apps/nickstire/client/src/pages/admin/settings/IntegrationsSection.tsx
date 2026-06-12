@@ -21,7 +21,7 @@ import {
   ThermometerSun, Cog, CircleDot, ArrowRight, RefreshCw, XCircle,
   Activity, Wifi, WifiOff, Plug
 } from "lucide-react";
-import { PageHeader, ErrorState } from "./shared";
+import { PageHeader, ErrorState } from "../shared";
 
 // ─── TYPES ──────────────────────────────────────────────
 type Tab = "tires" | "labor" | "estimate";

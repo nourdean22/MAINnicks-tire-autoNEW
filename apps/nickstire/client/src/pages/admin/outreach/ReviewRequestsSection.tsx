@@ -5,7 +5,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { StatCard, PageHeader, useUrlFilter, FilterChips, formatDate, formatDateTime } from "./shared";
+import { StatCard, PageHeader, useUrlFilter, FilterChips, formatDate, formatDateTime } from "../shared";
 // wave-181.x Outreach Phase 1 · confirmDialog gate on backfill blast +
 // process queue (both fire real outbound SMS to dozens-to-hundreds of
 // customers · previously ungated).
@@ -25,7 +25,7 @@ export default function ReviewRequestsSection() {
   // URL-persistent ?reviewTab=requests|settings|backfill|proofbank (default requests)
   const [tab, setTab] = useUrlFilter<SettingsTab>(
     "reviewTab", "requests",
-    { validate: (v) => (["requests", "settings", "backfill", "proofbank"].includes(v) ? (v as SettingsTab) : null) },
+    { validate: (v: string) => (["requests", "settings", "backfill", "proofbank"].includes(v) ? (v as SettingsTab) : null) },
   );
   const utils = trpc.useUtils();
 

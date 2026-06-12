@@ -9,8 +9,8 @@
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { PageHeader, LoadingState, ErrorState } from "./shared";
-import { timeAgoShort as timeAgo } from "./shared/format";
+import { PageHeader, LoadingState, ErrorState } from "../shared";
+import { timeAgoShort as timeAgo } from "../shared/format";
 // wave-181.x Money Phase 1 · H1 fix · confirmDialog gate on Snap
 // submission. Real $-affecting external API call (triggers Snap
 // credit pull · shop is charged per app · cannot be undone).

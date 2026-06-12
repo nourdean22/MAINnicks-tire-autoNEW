@@ -8,12 +8,12 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 
 type DeclinedEstimate = NonNullable<RouterOutputs["invoices"]["declined"]>["estimates"][number];
-import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter, FilterChips, LoadingState } from "./shared";
+import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter, FilterChips, LoadingState } from "../shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 // wave-181.x Money Phase 2 · shared daily-burn helpers · code-review
 // agent M4 fix (DAILY_DECAY_RATE was duplicated between MoneyBrief
 // and this file) + #3 fix (anchor burn on aged ≥7d-old estimates only).
-import { agedRecoverableDollars, dailyBurnDollars } from "./money/moneyMath";
+import { agedRecoverableDollars, dailyBurnDollars } from "./moneyMath";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
@@ -60,7 +60,7 @@ export default function DeclinedEstimatesSection() {
   // URL-persistent ?range=7|30|all (default 30 not written to URL)
   const [filter, setFilter] = useUrlFilter<TimeFilter>(
     "range", "30",
-    { validate: (v) => (v === "7" || v === "30" || v === "all" ? v : null) },
+    { validate: (v: string) => (v === "7" || v === "30" || v === "all" ? (v as TimeFilter) : null) },
   );
   const days = filter === "all" ? 365 : Number(filter);
   const [sortMode, setSortMode] = useState<SortMode>("score");

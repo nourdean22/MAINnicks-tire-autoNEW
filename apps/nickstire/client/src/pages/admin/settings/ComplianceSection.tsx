@@ -6,11 +6,11 @@
 
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { PageHeader, LoadingState, ErrorState } from "./shared";
+import { PageHeader, LoadingState, ErrorState } from "../shared";
 import {
   Shield, UserCheck, UserX, LogIn, AlertTriangle, Clock, Globe,
 } from "lucide-react";
-import { timeAgoShort as timeAgo } from "./shared/format";
+import { timeAgoShort as timeAgo } from "../shared/format";
 
 type Tab = "logins" | "consent" | "failures";
 

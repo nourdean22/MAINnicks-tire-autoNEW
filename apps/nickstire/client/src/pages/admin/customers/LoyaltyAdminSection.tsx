@@ -8,7 +8,7 @@ import {
   StatCard, UrgencyBadge, ActivityIcon, StatusDot, PageHeader,
   BOOKING_STATUS_CONFIG, LEAD_STATUS_CONFIG, TIME_LABELS, CHART_COLORS,
   type BookingStatus, type LeadStatus,
-} from "./shared";
+} from "../shared";
 import {
   Loader2, Trophy, Gift, Star, Phone, Award, TrendingUp, BarChart3,
   ToggleLeft, ToggleRight,
