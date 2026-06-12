@@ -42,6 +42,20 @@ type CronRow = {
   fail14d: number;
 };
 
+const CRON_RUNBOOKS: Record<string, string> = {
+  "embed-backfill": "hf-embeddings-cutover.md",
+  "mega": "statenour-current-truth.md",
+  "mega-evening": "statenour-current-truth.md",
+  "dossier-autodraft": "action-honesty-and-receipts.md",
+  "nick-action-proposal": "action-honesty-and-receipts.md",
+  "nick-action-execute": "action-honesty-and-receipts.md",
+  "data-cleanup": "statenour-migrations-and-deploys.md",
+  "stale-tasks": "stale-doc-cleanup.md",
+  "goal-drift-detector": "task-classifier-domain-missions.md",
+  "conversation-mission-link": "task-classifier-domain-missions.md",
+  "mastery-xp": "memory-evals.md",
+};
+
 // Human-readable cron schedule (covers the vercel.json patterns this
 // project actually uses; falls back to the raw expression otherwise).
 function describeSchedule(expr: string): string {
@@ -277,13 +291,26 @@ export function CronControlPanel() {
 
                   {/* Name + schedule */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full">
                       <span className="text-[11px] font-mono text-[var(--text-primary)] truncate">
                         {r.jobName}
                       </span>
                       <span className="text-[9px] font-mono text-[var(--text-tertiary)] shrink-0">
                         {describeSchedule(r.schedule)}
                       </span>
+                      <a
+                        href={
+                          CRON_RUNBOOKS[r.jobName]
+                            ? `https://github.com/nourdean22/MAINnicks-tire-autoNEW/blob/main/apps/statenour/docs/runbooks/${CRON_RUNBOOKS[r.jobName]}`
+                            : `https://github.com/nourdean22/MAINnicks-tire-autoNEW/blob/main/apps/statenour/docs/RUNBOOK.md#cron-catalog`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[9px] font-mono text-[var(--gold)]/60 hover:text-[var(--gold)] hover:underline shrink-0 ml-auto mr-1"
+                        title="view runbook"
+                      >
+                        [runbook]
+                      </a>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 text-[9px] font-mono text-[var(--text-tertiary)]">
                       <span className="inline-flex items-center gap-0.5">
