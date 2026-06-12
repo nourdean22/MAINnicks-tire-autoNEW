@@ -269,6 +269,7 @@ At end of every session, your report must include:
 
 **Cross-cutting:**
 - Root `CLAUDE.md` — always-must-know gotchas
+- `c:\Users\nourd\.gemini\config\skills\ciitty\SKILL.md` — CIITTY Operating Rules (elite reasoning, Visual Kinetics UI/UX aesthetics, resilient systems, PowerShell command reliability)
 - `docs/ANTIGRAVITY-PROFILE.md` — Antigravity Operating Profile
 - `docs/ANTIGRAVITY-RULES.md` — Antigravity-specific rules and constraints
 - `docs/MIGRATION_PLAN.md` — cross-app migration context
