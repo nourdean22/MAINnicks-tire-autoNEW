@@ -619,17 +619,7 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
             image: `https://nickstire.org${config.heroImage || HERO_IMAGE_DEFAULT}`,
             provider: {
               "@type": "AutoRepair",
-              name: "Nick's Tire & Auto",
-              telephone: "+1-216-862-0005",
-              url: `https://nickstire.org${config.canonicalPath}`,
-              address: {
-                "@type": "PostalAddress",
-                streetAddress: "17625 Euclid Ave",
-                addressLocality: "Euclid",
-                addressRegion: "OH",
-                postalCode: "44112",
-                addressCountry: "US",
-              },
+              "@id": `${BUSINESS.urls.website}/#localbusiness`,
             },
             areaServed: [
               { "@type": "City", name: "Cleveland" },

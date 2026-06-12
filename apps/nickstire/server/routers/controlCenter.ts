@@ -3,11 +3,11 @@
  * today's stats, AI gateway health, system status, daily brief, and execution tracking.
  */
 import { adminProcedure, router } from "../_core/trpc";
-import { sql, eq, gte, and } from "drizzle-orm";
+import { sql, eq, gte, and, desc } from "drizzle-orm";
 import { exec } from "child_process";
 import { promisify } from "util";
 const execAsync = promisify(exec);
-import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits } from "../../drizzle/schema";
+import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits, invoices, estimatesLog, callEvents, tireOrders, winbackSends } from "../../drizzle/schema";
 import { countActionableLeads } from "@shared/leadSource";
 import { getGatewayHealth, getAvailableModels } from "../lib/ai-gateway";
 import { z } from "zod";
@@ -84,6 +84,116 @@ function deriveBottleneck(
 }
 
 export const controlCenterRouter = router({
+  moneySummary: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) {
+      return {
+        unpaidInvoicesSum: 0,
+        openEstimatesSum: 0,
+        totalOutstanding: 0,
+        todayMetrics: { calls: 0, leads: 0, bookings: 0, tireOrders: 0, winbacks: 0 },
+        pendingItems: [],
+      };
+    }
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const [
+      unpaidInvoices,
+      openEstimates,
+      callsToday,
+      leadsToday,
+      bookingsToday,
+      tireOrdersToday,
+      winbacksToday,
+      pendingInvoicesList,
+      pendingEstimatesList,
+    ] = await Promise.all([
+      d.select({ sum: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
+        .from(invoices)
+        .where(sql`${invoices.paymentStatus} IN ('pending', 'partial')`),
+      d.select({ sum: sql<number>`COALESCE(SUM(${estimatesLog.estimatedAmountCents}), 0)` })
+        .from(estimatesLog)
+        .where(eq(estimatesLog.converted, 0)),
+      d.select({ count: sql<number>`count(*)` })
+        .from(callEvents)
+        .where(gte(callEvents.createdAt, todayStart)),
+      d.select({ count: sql<number>`count(*)` })
+        .from(leads)
+        .where(gte(leads.createdAt, todayStart)),
+      d.select({ count: sql<number>`count(*)` })
+        .from(bookings)
+        .where(gte(bookings.createdAt, todayStart)),
+      d.select({ count: sql<number>`count(*)` })
+        .from(tireOrders)
+        .where(gte(tireOrders.createdAt, todayStart)),
+      d.select({ count: sql<number>`count(*)` })
+        .from(winbackSends)
+        .where(gte(winbackSends.createdAt, todayStart)),
+      d.select({
+        id: invoices.id,
+        name: invoices.customerName,
+        value: invoices.totalAmount,
+        createdAt: invoices.invoiceDate,
+        number: invoices.invoiceNumber,
+      })
+        .from(invoices)
+        .where(sql`${invoices.paymentStatus} IN ('pending', 'partial')`)
+        .orderBy(desc(invoices.totalAmount))
+        .limit(5),
+      d.select({
+        id: estimatesLog.id,
+        name: estimatesLog.name,
+        value: estimatesLog.estimatedAmountCents,
+        createdAt: estimatesLog.createdAt,
+        service: estimatesLog.service,
+      })
+        .from(estimatesLog)
+        .where(eq(estimatesLog.converted, 0))
+        .orderBy(desc(estimatesLog.estimatedAmountCents))
+        .limit(5),
+    ]);
+
+    const unpaidInvoicesSum = unpaidInvoices[0]?.sum ?? 0;
+    const openEstimatesSum = openEstimates[0]?.sum ?? 0;
+
+    const combinedPending = [
+      ...pendingInvoicesList.map((inv: { id: number; name: string | null; value: number; createdAt: Date; number: string | null }) => ({
+        id: inv.id,
+        name: inv.name || "Unknown",
+        value: inv.value,
+        type: "invoice" as const,
+        date: inv.createdAt,
+        reference: inv.number || `INV-${inv.id}`,
+      })),
+      ...pendingEstimatesList.map((est: { id: number; name: string | null; value: number | null; createdAt: Date; service: string | null }) => ({
+        id: est.id,
+        name: est.name || "Unknown",
+        value: est.value ?? 0,
+        type: "estimate" as const,
+        date: est.createdAt,
+        reference: est.service || `EST-${est.id}`,
+      })),
+    ]
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+
+    return {
+      unpaidInvoicesSum,
+      openEstimatesSum,
+      totalOutstanding: unpaidInvoicesSum + openEstimatesSum,
+      todayMetrics: {
+        calls: callsToday[0]?.count ?? 0,
+        leads: leadsToday[0]?.count ?? 0,
+        bookings: bookingsToday[0]?.count ?? 0,
+        tireOrders: tireOrdersToday[0]?.count ?? 0,
+        winbacks: winbacksToday[0]?.count ?? 0,
+      },
+      pendingItems: combinedPending,
+    };
+  }),
+
   getOverview: adminProcedure.query(async () => {
     const d = await db();
 

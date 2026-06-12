@@ -54,6 +54,7 @@ export default function LocalBusinessSchema({
     // Now: the same shop-exterior hero image used as the OG default in SEO.tsx
     // (1200px+ wide, optimized webp). Consistent with the OG signal.
     image: `${BUSINESS.urls.website}/photos/shop-exterior-hero-wide-sign-bays.webp`,
+    "@id": `${BUSINESS.urls.website}/#localbusiness`,
     telephone: `+1-${BUSINESS.phone.dashed}`,
     url: BUSINESS.urls.website,
     email: "info@nickstire.org",

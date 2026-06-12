@@ -55,6 +55,7 @@ import { WaveMetricWins } from "./today/WaveMetricWins";
 // wave-2 money-visibility · "what's at risk before it costs money today" ·
 // derives from the same overviewMediumBundle (cache-shared · no new query).
 import { TodaysMoneyRisks } from "./today/TodaysMoneyRisks";
+import { MoneyScorecard } from "./today/MoneyScorecard";
 import type {
   BookingItem, LeadItem, CallbackItem, WorkOrderItem,
   NBAAction, AtRiskWhale, ShopFloorData, ActionItem,
@@ -594,6 +595,8 @@ export default function OverviewSection() {
         priorityQueueLength={priorityQueue.length}
         urgentLeads={urgentLeads}
       />
+
+      <MoneyScorecard />
 
       {/* ─── 4 STAT PILLS · the always-visible scoreboard ─── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

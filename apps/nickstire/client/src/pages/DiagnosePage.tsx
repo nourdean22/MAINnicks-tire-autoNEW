@@ -476,24 +476,8 @@ export default function DiagnosePage() {
               "name": "Automotive Diagnostics Service",
               "description": "Tell us the symptom, we tell you what's likely wrong + how urgent.",
               "provider": {
-                "@type": "LocalBusiness",
-                "name": BUSINESS.name,
-                "telephone": `+1-${BUSINESS.phone.dashed}`,
-                "address": {
-                  "@type": "PostalAddress",
-                  "streetAddress": BUSINESS.address.street,
-                  "addressLocality": BUSINESS.address.city,
-                  "addressRegion": BUSINESS.address.state,
-                  "postalCode": BUSINESS.address.zip,
-                  "addressCountry": "US"
-                },
-                "aggregateRating": {
-                  "@type": "AggregateRating",
-                  "ratingValue": BUSINESS.reviews.rating,
-                  "reviewCount": BUSINESS.reviews.count,
-                  "bestRating": "5"
-                },
-                "url": BUSINESS.urls.website
+                "@type": "AutoRepair",
+                "@id": `${BUSINESS.urls.website}/#localbusiness`
               },
               "areaServed": {
                 "@type": "City",

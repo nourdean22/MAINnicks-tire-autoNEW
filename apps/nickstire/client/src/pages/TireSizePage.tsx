@@ -114,17 +114,7 @@ export default function TireSizePage() {
             image: "https://nickstire.org/photos/rugged-tire-tread-closeup.webp",
             provider: {
               "@type": "AutoRepair",
-              name: "Nick's Tire & Auto",
-              telephone: "+1-216-862-0005",
-              url: `https://nickstire.org/tires/${page.slug}`,
-              address: {
-                "@type": "PostalAddress",
-                streetAddress: "17625 Euclid Ave",
-                addressLocality: "Cleveland",
-                addressRegion: "OH",
-                postalCode: "44112",
-                addressCountry: "US",
-              },
+              "@id": `${BUSINESS.urls.website}/#localbusiness`,
             },
             areaServed: [
               { "@type": "City", name: "Cleveland" },

@@ -320,6 +320,65 @@ export function personalizeWinbackBody(
 }
 
 export const winbackRouter = router({
+  /** Calculate campaign readiness metrics */
+  campaignReadiness: adminProcedure
+    .input(z.object({
+      targetSegment: z.enum(["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"]),
+      customMessages: z.array(z.object({
+        step: z.number(),
+        delayDays: z.number(),
+        body: z.string(),
+      })).optional(),
+    }))
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return { netTargetCount: 0, projectedValueCents: 0, previewMessages: [] };
+
+      const segmentFilter = buildSegmentFilter(input.targetSegment);
+      const [stats] = await d.select({
+        count: sql<number>`count(*)`,
+        avgSpent: sql<number>`COALESCE(AVG(${customers.totalSpent}), 0)`,
+      })
+        .from(customers)
+        .where(segmentFilter);
+
+      const netTargetCount = stats?.count ?? 0;
+      // 5% projected conversion rate
+      const projectedValueCents = Math.round(netTargetCount * (stats?.avgSpent ?? 10000) * 0.05);
+
+      const [recentCustomer] = await d.select()
+        .from(customers)
+        .where(segmentFilter)
+        .orderBy(desc(customers.lastVisitDate))
+        .limit(1);
+
+      let previewMessages: Array<{ step: number; body: string }> = [];
+      if (recentCustomer) {
+        const tirePurchaseCustomerIds = await getVerifiedTirePurchaseCustomerIds(d, [recentCustomer.id]);
+        const hasTire = tirePurchaseCustomerIds.has(recentCustomer.id);
+
+        const customMsgs = input.customMessages;
+        if (customMsgs && customMsgs.length > 0) {
+          previewMessages = customMsgs.map((m) => ({
+            step: m.step,
+            body: personalizeWinbackBody(m.body, recentCustomer, hasTire),
+          }));
+        } else {
+          const defaults = WINBACK_TEMPLATES[input.targetSegment] || WINBACK_TEMPLATES.lapsed;
+          previewMessages = defaults.map((tmpl) => ({
+            step: tmpl.step,
+            body: personalizeWinbackBody(tmpl.template, recentCustomer, hasTire),
+          }));
+        }
+      }
+
+      return {
+        netTargetCount,
+        projectedValueCents,
+        previewMessages,
+      };
+    }),
+
   /** List all campaigns */
   campaigns: adminProcedure.query(async () => {
     const d = await db();
