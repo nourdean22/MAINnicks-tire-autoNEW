@@ -855,25 +855,22 @@ ${urls.join("\n")}
       if (event.type === "charge.refunded") {
         const charge = event.data.object as any;
         const tireOrderNumber = charge.metadata?.tireOrderNumber;
-        const invoiceNumber = charge.metadata?.invoiceNumber;
         if (tireOrderNumber) {
           const { getDb } = await import("../db");
-          const { tireOrders, invoices } = await import("../../drizzle/schema");
+          const { tireOrders } = await import("../../drizzle/schema");
           const { eq } = await import("drizzle-orm");
           const d = await getDb();
           if (d) {
             await d.update(tireOrders)
               .set({ paymentStatus: "refunded", updatedAt: new Date() })
               .where(eq(tireOrders.orderNumber, tireOrderNumber));
-
-            if (invoiceNumber) {
-              await d.update(invoices)
-                .set({ paymentStatus: "refunded" })
-                .where(eq(invoices.invoiceNumber, invoiceNumber));
-            }
             serverLog.info(`[Stripe Webhook] Out-of-band refund recorded for order ${tireOrderNumber}`);
           }
         }
+
+        // Delegate invoice status update and ShopDriver sync to the writeback service
+        const { processStripeRefundEvent } = await import("../services/refundWriteback");
+        await processStripeRefundEvent(event);
       }
 
       // ─── Nonstop Nick membership (chunk 4/5) ─────────────

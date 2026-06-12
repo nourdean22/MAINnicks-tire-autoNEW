@@ -102,7 +102,7 @@ async function isTokenAlive(token: string): Promise<boolean> {
   }
 }
 
-async function getSession(): Promise<string | null> {
+export async function getSession(): Promise<string | null> {
   // Validate cached token before returning — catches shop-login session kicks
   if (mirrorSession && Date.now() < mirrorSession.expiresAt) {
     const alive = await isTokenAlive(mirrorSession.token);
