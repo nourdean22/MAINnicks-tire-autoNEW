@@ -837,10 +837,10 @@ export const journalRouter = router({
   updateSettings: operatorProcedure
     .input(
       z.object({
-        baselineXp: z.number().min(0).max(5).optional(),
+        baselineXp: z.number().min(0.1).max(5).optional(),
         baselineEnabled: z.boolean().optional(),
         qualityFloorChars: z.number().int().min(0).max(2000).optional(),
-        groundedXpMultiplier: z.number().min(0).max(5).optional(),
+        groundedXpMultiplier: z.number().min(1).max(5).optional(),
         autoConfirmThreshold: z.number().min(0).max(1).optional(),
         challengeCadence: z.enum(["every", "daily", "off"]).optional(),
         creativeIntensity: z.enum(["bold", "balanced", "off"]).optional(),
