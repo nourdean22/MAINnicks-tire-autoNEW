@@ -4,7 +4,7 @@
  */
 
 import { getDb } from "./db";
-import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents, invoices, customers, workOrders, algEstimates } from "../drizzle/schema";
+import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents, invoices, customers, workOrders, algEstimates, tireOrders } from "../drizzle/schema";
 import { eq, desc, gte, sql, and } from "drizzle-orm";
 
 import { BUSINESS } from "@shared/business";
@@ -84,6 +84,12 @@ export interface DashboardStats {
     completed: number;
     thisWeek: number;
   };
+  memberships: {
+    warning: number;
+  };
+  tires: {
+    new: number;
+  };
   /** ALG invoice data — the real source of truth for completed sales */
   shopFloor: {
     /** Completed sales (paid invoices) — SOURCE: invoices table (ALG mirror) */
@@ -160,6 +166,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     sourceAttribution: { bookingsBySource: [], leadsBySource: [], callsBySource: [] },
     callTracking: { totalCalls: 0, thisWeek: 0, byPage: [] },
     callbacks: { total: 0, new: 0, completed: 0, thisWeek: 0 },
+    memberships: { warning: 0 },
+    tires: { new: 0 },
     shopFloor: { invoicesToday: 0, invoicesThisWeek: 0, invoicesThisMonth: 0, revenueToday: 0, revenueThisWeek: 0, revenueThisMonth: 0, avgTicket: 0, estimatesToday: 0, estimatesThisWeek: 0, conversionRate: 0, declinedWorkCount: 0, declinedWorkValue: 0, paymentMethods: [], totalCustomers: 0, vipCustomers: 0 },
   };
 
@@ -542,6 +550,31 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       log.error("[AdminStats] Shop floor stats error:", err instanceof Error ? err.message : err);
     }
 
+    // Memberships warning count: past_due or incomplete
+    let membershipsWarning = 0;
+    try {
+      const { memberships } = await import("../drizzle/schema");
+      const [membRes] = await d.select({
+        count: sql<number>`COUNT(*)`
+      }).from(memberships)
+        .where(sql`${memberships.status} IN ('past_due', 'incomplete')`);
+      membershipsWarning = Number(membRes?.count ?? 0);
+    } catch (err) {
+      log.error("[AdminStats] Memberships warning check failed:", err instanceof Error ? err.message : err);
+    }
+
+    // Tires new count: status = 'received'
+    let tiresNew = 0;
+    try {
+      const [tiresRes] = await d.select({
+        count: sql<number>`COUNT(*)`
+      }).from(tireOrders)
+        .where(eq(tireOrders.status, "received"));
+      tiresNew = Number(tiresRes?.count ?? 0);
+    } catch (err) {
+      log.error("[AdminStats] Tires new check failed:", err instanceof Error ? err.message : err);
+    }
+
     return {
       bookings: bookingStats,
       leads: leadStats,
@@ -556,6 +589,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       },
       callTracking: callTrackingStats,
       callbacks: callbackStats,
+      memberships: { warning: membershipsWarning },
+      tires: { new: tiresNew },
       shopFloor: shopFloorStats,
     };
   } catch (error) {

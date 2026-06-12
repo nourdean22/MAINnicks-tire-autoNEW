@@ -18,7 +18,7 @@ import { navigateToAdminSection } from "../shared/navigation";
 
 export function MoneyScorecard() {
   const [isOpen, setIsOpen] = useState(false);
-  const { data, isLoading } = trpc.controlCenter.moneySummary.useQuery(undefined, {
+  const { data, isLoading, dataUpdatedAt } = trpc.controlCenter.moneySummary.useQuery(undefined, {
     refetchInterval: 30000,
     staleTime: 25_000,
   });
@@ -45,6 +45,8 @@ export function MoneyScorecard() {
 
   if (!data) return null;
 
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : new Date().toLocaleTimeString();
+
   return (
     <div className="bg-card border border-border/40 p-5 rounded-xl space-y-4 shadow-lg backdrop-blur-sm bg-opacity-80">
       {/* Header */}
@@ -52,36 +54,48 @@ export function MoneyScorecard() {
         <h3 className="text-xs font-semibold text-emerald-400 tracking-wide uppercase flex items-center gap-2">
           <DollarSign className="w-3.5 h-3.5" />
           Money & Operations Summary
-          <span className="ml-1 text-[10px] text-foreground/40 normal-case tracking-normal">
+          <span className="ml-1 text-[10px] text-foreground/45 normal-case tracking-normal">
             today's pipeline & outstanding revenue
           </span>
         </h3>
-        <span className="text-[10px] bg-emerald-500/15 text-emerald-400 px-2 py-0.5 rounded-full font-bold tracking-wider">
-          LIVE METRICS
+        <span
+          className="text-[9px] bg-emerald-500/15 text-emerald-400 px-2 py-0.5 rounded-full font-bold tracking-wider"
+          title={`ALG mirror last synced at ${lastUpdated}`}
+        >
+          SYNCED: {lastUpdated}
         </span>
       </div>
 
       {/* Outstanding sums grid */}
       <div className="grid grid-cols-3 gap-3">
         <div className="p-3 bg-foreground/[0.02] border border-border/20 rounded-lg">
-          <span className="text-[10px] text-foreground/45 uppercase font-medium tracking-wider">
+          <span className="text-[10px] text-foreground/45 uppercase font-medium tracking-wider block">
             Unpaid Invoices
+          </span>
+          <span className="text-[9px] text-muted-foreground/60 block mt-0.5">
+            (Actual debt owed)
           </span>
           <div className="text-xl font-bold text-red-400 mt-1 tabular-nums">
             {formatCents(data.unpaidInvoicesSum)}
           </div>
         </div>
         <div className="p-3 bg-foreground/[0.02] border border-border/20 rounded-lg">
-          <span className="text-[10px] text-foreground/45 uppercase font-medium tracking-wider">
+          <span className="text-[10px] text-foreground/45 uppercase font-medium tracking-wider block">
             Open Estimates
+          </span>
+          <span className="text-[9px] text-muted-foreground/60 block mt-0.5">
+            (Opportunities)
           </span>
           <div className="text-xl font-bold text-amber-400 mt-1 tabular-nums">
             {formatCents(data.openEstimatesSum)}
           </div>
         </div>
         <div className="p-3 bg-foreground/[0.02] border border-emerald-500/20 rounded-lg bg-emerald-500/[0.02]">
-          <span className="text-[10px] text-emerald-400/70 uppercase font-medium tracking-wider">
-            Total Outstanding
+          <span className="text-[10px] text-emerald-400/70 uppercase font-medium tracking-wider block">
+            Total Pipeline
+          </span>
+          <span className="text-[9px] text-emerald-400/50 block mt-0.5">
+            (Invoices + Estimates)
           </span>
           <div className="text-xl font-bold text-emerald-400 mt-1 tabular-nums">
             {formatCents(data.totalOutstanding)}
