@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatDate } from "../shared";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
@@ -15,10 +16,54 @@ import type {
  *  wave-181.x Customers Phase 1 · removed unused onSmsClick prop ·
  *  was declared but never invoked inside the panel · only existed to
  *  wire setSelectedId on the now-deleted CustomerDetail modal. */
+function GraceButton({ membershipId, onComplete }: { membershipId: number; onComplete: () => void }) {
+  const mutation = trpc.memberships.grantGracePeriod.useMutation({
+    onSuccess: () => {
+      onComplete();
+    },
+  });
+
+  const [loading, setLoading] = useState(false);
+
+  const handleGrant = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLoading(true);
+    try {
+      await mutation.mutateAsync({ membershipId, days: 3 });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleGrant}
+      disabled={loading}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-bold tracking-wider text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded uppercase transition-colors"
+    >
+      {loading ? (
+        <>
+          <Loader2 className="w-2.5 h-2.5 animate-spin" /> Granting...
+        </>
+      ) : (
+        "Grant 3-day Grace Period"
+      )}
+    </button>
+  );
+}
+
 export function Customer360Panel({ customer }: {
   customer: ListedCustomer;
 }) {
   const { data: historyData, isLoading: historyLoading, isError: historyError } = trpc.customers.history.useQuery(
+    { phone: customer.phone },
+    { enabled: !!customer.phone }
+  );
+
+  const { data: membershipData, refetch: refetchMembership } = trpc.memberships.lookupByPhone.useQuery(
     { phone: customer.phone },
     { enabled: !!customer.phone }
   );
@@ -220,8 +265,8 @@ export function Customer360Panel({ customer }: {
             </div>
           </div>
 
-          {/* Vehicle + Risk in a 2-col layout */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Vehicle + Risk + Membership in a 3-col layout */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Vehicle Info */}
             <div className="bg-card border border-border/20 p-3">
               <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">
@@ -237,12 +282,61 @@ export function Customer360Panel({ customer }: {
             </div>
 
             {/* Risk Assessment */}
-            {risk && (
-              <div className={`${risk.bg} border ${risk.border} p-3`}>
-                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">RISK ASSESSMENT</span>
+            <div className={`p-3 border ${risk ? `${risk.bg} ${risk.border}` : "bg-card border-border/20"}`}>
+              <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">RISK ASSESSMENT</span>
+              {risk ? (
                 <span className={`text-sm font-bold ${risk.color}`}>
                   {risk.label}
                 </span>
+              ) : (
+                <span className="text-xs text-foreground/30 italic">No active risk flags</span>
+              )}
+            </div>
+
+            {/* Nonstop Nick Membership */}
+            {membershipData?.found && membershipData.members ? (
+              <div className="bg-card border border-border/20 p-3 flex flex-col justify-between">
+                <div>
+                  <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">
+                    NONSTOP NICK MEMBERSHIP
+                  </span>
+                  {membershipData.members.map((m) => {
+                    const isWarning = m.status === "past_due" || m.status === "incomplete" || m.status === "canceled";
+                    return (
+                      <div key={m.id} className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-foreground truncate">
+                            {m.plan === "nonstop-nick-plus" ? "Plus ($9.99/mo)" : "Base ($7.99/mo)"}
+                          </span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wider uppercase whitespace-nowrap ${
+                            m.isActive
+                              ? "bg-emerald-500/10 text-emerald-400"
+                              : "bg-red-500/10 text-red-400"
+                          }`}>
+                            {m.status}
+                          </span>
+                        </div>
+                        {m.currentPeriodEnd && (
+                          <div className="text-[10px] text-foreground/50">
+                            Period End: {new Date(m.currentPeriodEnd).toLocaleDateString()}
+                          </div>
+                        )}
+                        {isWarning && (
+                          <div className="pt-1">
+                            <GraceButton membershipId={m.id} onComplete={refetchMembership} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-card border border-border/20 p-3">
+                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">
+                  NONSTOP NICK MEMBERSHIP
+                </span>
+                <span className="text-xs text-foreground/30 italic">No membership on file</span>
               </div>
             )}
           </div>
