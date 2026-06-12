@@ -33,9 +33,6 @@ const mocks = vi.hoisted(() => ({
   taskEvent: {
     findMany: vi.fn(),
   },
-  driftAlert: {
-    findMany: vi.fn(),
-  },
   brainMemory: {
     findMany: vi.fn(),
     create: vi.fn(),
@@ -50,7 +47,6 @@ vi.mock("@/lib/prisma", () => ({
     masteryDecision: mocks.masteryDecision,
     decisionReplay: mocks.decisionReplay,
     taskEvent: mocks.taskEvent,
-    driftAlert: mocks.driftAlert,
     brainMemory: mocks.brainMemory,
     commitment: mocks.commitment,
   },
@@ -83,7 +79,6 @@ beforeEach(() => {
   mocks.decisionReplay.update.mockReset();
   mocks.decisionReplay.create.mockReset();
   mocks.taskEvent.findMany.mockReset();
-  mocks.driftAlert.findMany.mockReset();
   mocks.brainMemory.findMany.mockReset();
   mocks.brainMemory.create.mockReset();
   mocks.commitment.findMany.mockReset();
@@ -191,14 +186,15 @@ describe("gatherOutcomeSignals", () => {
       { kind: "completed" },
       { kind: "abandoned" },
     ]);
-    mocks.driftAlert.findMany.mockResolvedValueOnce([
-      { id: "d1", severity: "HIGH" },
-      { id: "d2", severity: "LOW" },
-    ]);
-    mocks.brainMemory.findMany.mockResolvedValueOnce([
-      { id: "m1" },
-      { id: "m2" },
-    ]);
+    mocks.brainMemory.findMany
+      .mockResolvedValueOnce([
+        { id: "d1", metadata: { priority: "P1" } },
+        { id: "d2", metadata: { priority: "P2" } },
+      ])
+      .mockResolvedValueOnce([
+        { id: "m1" },
+        { id: "m2" },
+      ]);
     mocks.commitment.findMany.mockResolvedValueOnce([
       { status: "completed", description: "ship more features by month-end" },
       { status: "broken", description: "ship more features faster" },

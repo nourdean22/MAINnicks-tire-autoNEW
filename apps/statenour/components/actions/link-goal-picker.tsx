@@ -218,7 +218,7 @@ export function LinkGoalPicker({
     try {
       const results = await Promise.allSettled(
         taskIdsWithoutGoal.map((taskId) =>
-          updateTask.mutateAsync({ id: taskId, fields: { goalId: null } }),
+          (updateTask.mutateAsync as any)({ id: taskId, fields: { goalId: null } }),
         ),
       );
       const ok = results.filter((r) => r.status === "fulfilled").length;
@@ -269,7 +269,7 @@ export function LinkGoalPicker({
       // bulk endpoint but Nour's workload is well under.
       const results = await Promise.allSettled(
         taskIdsWithoutGoal.map((taskId) =>
-          updateTask.mutateAsync({ id: taskId, fields: { goalId: goal.id } }),
+          (updateTask.mutateAsync as any)({ id: taskId, fields: { goalId: goal.id } }),
         ),
       );
       const ok = results.filter((r) => r.status === "fulfilled").length;

@@ -142,10 +142,32 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
     // Unresolved drift alerts — v-truth · only RECENT ones. Without the
     // createdAt floor, months-old never-resolved alerts inflated the count
     // into a false "the system is screaming". 14d mirrors stale-data-scanner.
-    prisma.driftAlert.findMany({
-      where: { resolved: false, createdAt: { gte: fourteenDaysAgo } },
-      select: { ruleName: true, severity: true, message: true, createdAt: true },
-    }).catch((): never[] => []),
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "coach_event",
+          key: { startsWith: "coach:drift-recovery:" },
+          createdAt: { gte: fourteenDaysAgo },
+        },
+        select: { key: true, content: true, metadata: true, createdAt: true },
+      })
+      .then((rows) => {
+        const unresolved = rows.filter((r) => {
+          const meta = (r.metadata ?? {}) as Record<string, any>;
+          return !meta.ackedAt;
+        });
+        return unresolved.map((r) => {
+          const meta = (r.metadata ?? {}) as Record<string, any>;
+          const severity = meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "high" : "warning";
+          return {
+            ruleName: r.content,
+            severity,
+            message: typeof meta.body === "string" ? meta.body : "",
+            createdAt: r.createdAt,
+          };
+        });
+      })
+      .catch((): never[] => []),
 
     // Brain dumps mentioning topics without follow-through
     prisma.brainDump.findMany({

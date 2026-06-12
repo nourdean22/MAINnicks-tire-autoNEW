@@ -228,15 +228,17 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
         },
         select: { key: true, content: true },
       }),
-      prisma.driftAlert.findMany({
-        where: { resolved: false },
-        orderBy: { createdAt: "asc" },
-        take: 5,
+      prisma.brainMemory.findMany({
+        where: {
+          category: BRAIN_CATEGORIES.COACH_EVENT,
+          key: { startsWith: "coach:drift-recovery:" },
+        },
+        orderBy: { updatedAt: "asc" },
+        take: 20,
         select: {
-          id: true,
-          ruleName: true,
-          severity: true,
-          message: true,
+          key: true,
+          content: true,
+          metadata: true,
           createdAt: true,
         },
       }),
@@ -536,13 +538,30 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
         severity: t.agedDays >= 10 ? "warning" : "info",
       });
     }
-    for (const a of driftAlerts.slice(0, 2)) {
+    const activeDrifts = driftAlerts
+      .filter((d) => {
+        const meta = (d.metadata ?? {}) as Record<string, unknown>;
+        return !meta.ackedAt;
+      })
+      .map((d) => {
+        const meta = (d.metadata ?? {}) as Record<string, unknown>;
+        const severity = meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "high" : "warning";
+        return {
+          id: d.key,
+          ruleName: d.content,
+          severity,
+          message: typeof meta.body === "string" ? meta.body : "",
+          createdAt: d.createdAt,
+        };
+      });
+
+    for (const a of activeDrifts.slice(0, 2)) {
       const ageDays = Math.floor(
         (Date.now() - a.createdAt.getTime()) / 86400000,
       );
       backlog.push({
         kind: "drift",
-        id: String(a.id),
+        id: a.id,
         title: a.ruleName,
         detail: a.message.slice(0, 80),
         ageDays,

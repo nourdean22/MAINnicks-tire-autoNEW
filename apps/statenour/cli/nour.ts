@@ -29,9 +29,19 @@ async function cmdStatus() {
     prisma.personalDailyLog.findFirst({
       orderBy: { logDate: "desc" },
     }),
-    prisma.driftAlert.count({
-      where: { resolved: false },
-    }),
+    prisma.brainMemory.findMany({
+      where: {
+        category: "coach_event",
+        key: { startsWith: "coach:drift-recovery:" },
+        deletedAt: null,
+      },
+      select: { metadata: true },
+    }).then((rows) =>
+      rows.filter((r) => {
+        const meta = (r.metadata ?? {}) as Record<string, unknown>;
+        return !meta.ackedAt;
+      }).length
+    ).catch(() => 0),
     prisma.task.count({
       where: { status: { in: ["INBOX", "READY", "DOING", "WAITING"] }, loopKind: "ONCE" },
     }),
@@ -58,10 +68,30 @@ async function cmdStatus() {
 }
 
 async function cmdDrift() {
-  const alerts = await prisma.driftAlert.findMany({
-    where: { resolved: false },
+  const alerts = await prisma.brainMemory.findMany({
+    where: {
+      category: "coach_event",
+      key: { startsWith: "coach:drift-recovery:" },
+      deletedAt: null,
+    },
     orderBy: { createdAt: "desc" },
-  });
+    select: { key: true, content: true, metadata: true, createdAt: true },
+  }).then((rows) => {
+    const unresolved = rows.filter((e) => {
+      const meta = (e.metadata ?? {}) as Record<string, unknown>;
+      return !meta.ackedAt;
+    });
+    return unresolved.map((e) => {
+      const meta = (e.metadata ?? {}) as Record<string, unknown>;
+      return {
+        id: e.key,
+        ruleName: e.content,
+        message: typeof meta.body === "string" ? meta.body : "",
+        severity: meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "alert" : "warning",
+        date: new Date(e.createdAt).toLocaleDateString(),
+      };
+    });
+  }).catch(() => []);
 
   if (alerts.length === 0) {
     console.log("\n✅ \x1b[32mNo active drift alerts. System is clear.\x1b[0m\n");

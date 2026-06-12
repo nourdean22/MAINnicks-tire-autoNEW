@@ -248,7 +248,31 @@ export async function analyzeCausalChains(): Promise<{ chains: number }> {
     prisma.patternDetection.findMany({ orderBy: { date: "desc" }, take: 15, select: { patternName: true, evidence: true } }),
     prisma.reflection.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 10, select: { insight: true, category: true } }),
     prisma.contradiction.findMany({ orderBy: { createdAt: "desc" }, take: 5, select: { claim: true, reality: true, gap: true } }),
-    prisma.driftAlert.findMany({ where: { resolved: false }, take: 10, select: { ruleName: true, message: true } }),
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "coach_event",
+          key: { startsWith: "coach:drift-recovery:" },
+          deletedAt: null,
+        },
+        orderBy: { createdAt: "desc" },
+        select: { content: true, metadata: true },
+        take: 30,
+      })
+      .then((rows) => {
+        const unresolved = rows.filter((e) => {
+          const meta = (e.metadata ?? {}) as Record<string, unknown>;
+          return !meta.ackedAt;
+        });
+        return unresolved.slice(0, 10).map((e) => {
+          const meta = (e.metadata ?? {}) as Record<string, unknown>;
+          return {
+            ruleName: e.content,
+            message: typeof meta.body === "string" ? meta.body : "",
+          };
+        });
+      })
+      .catch((): Array<{ ruleName: string; message: string }> => []),
   ]);
 
   const existing = await prisma.causalChain.findMany({ take: 10, select: { effect: true, rootCause: true } });

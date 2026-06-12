@@ -7,6 +7,7 @@ import { HomeOneTapMoves } from "@/components/home/home-one-tap-moves";
 import { HomeStatePulse } from "@/components/home/home-state-pulse";
 import { HomeIdentityHeader } from "@/components/home/home-identity-header";
 import { HomeComposer } from "@/components/home/home-composer";
+import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 
 /**
  * The home route · 2026-05-28 · Wave AC · Sam-led home.
@@ -46,6 +47,7 @@ export default function HomePage() {
   return (
     <div className="space-y-4 max-w-3xl mx-auto px-3 pb-32">
       <HomeIdentityHeader />
+      <CoachEventBanner surface="home" />
       <NicksHomeBrief />
       <HomeCommandStack />
       <InboxTriageCard />

@@ -220,12 +220,32 @@ export async function prefetchIntents(
         "DRIFT + PATTERNS",
         (async () => {
           const [alerts, patterns] = await Promise.all([
-            prisma.driftAlert
+            prisma.brainMemory
               .findMany({
-                where: { resolved: false },
+                where: {
+                  category: "coach_event",
+                  key: { startsWith: "coach:drift-recovery:" },
+                  deletedAt: null,
+                },
                 orderBy: { createdAt: "desc" },
-                select: { id: true, ruleName: true, message: true, severity: true, createdAt: true },
-                take: 5,
+                select: { key: true, content: true, metadata: true, createdAt: true },
+                take: 15,
+              })
+              .then((rows) => {
+                const unresolved = rows.filter((e) => {
+                  const meta = (e.metadata ?? {}) as Record<string, unknown>;
+                  return !meta.ackedAt;
+                });
+                return unresolved.slice(0, 5).map((e) => {
+                  const meta = (e.metadata ?? {}) as Record<string, unknown>;
+                  return {
+                    id: e.key,
+                    ruleName: e.content,
+                    message: typeof meta.body === "string" ? meta.body : "",
+                    severity: meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "alert" : "warning",
+                    createdAt: e.createdAt,
+                  };
+                });
               })
               .catch((): never[] => []),
             prisma.patternDetection

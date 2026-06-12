@@ -27,6 +27,7 @@ const VALID_SURFACES = new Set<CoachEventSurface>([
   "journal",
   "brain",
   "scoreboard",
+  "home",
 ]);
 
 export const GET = apiHandler(

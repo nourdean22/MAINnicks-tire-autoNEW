@@ -162,7 +162,7 @@ export async function resolvePrediction(args: ResolveArgs): Promise<{ resolved: 
         resolvedAt: new Date().toISOString(),
       } as unknown as Parameters<typeof prisma.brainMemory.update>[0]["data"]["metadata"],
     },
-  }).catch(() => {});
+  });
 
   return { resolved: true, predictionId: match.id };
 }
