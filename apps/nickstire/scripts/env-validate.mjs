@@ -114,14 +114,20 @@ function validateTemplate() {
     process.exit(1);
   }
 
-  // Verify that Stripe template keys are present in .env.example (even if commented)
+  // Verify that Stripe and D&K template keys are present in .env.example (even if commented)
   const rawExample = fs.readFileSync(filePath, "utf8");
-  const missingOptional = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"].filter(
-    key => !rawExample.includes(key)
-  );
+  const missingOptional = [
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "GATEWAY_TIRE_USERNAME",
+    "GATEWAY_TIRE_PASSWORD",
+    "GATEWAY_TIRE_SHIP_TO",
+  ].filter(key => !rawExample.includes(key));
 
   if (missingOptional.length > 0) {
-    console.error("[env:validate] Missing optional Stripe keys in .env.example:");
+    console.error(
+      "[env:validate] Missing optional Stripe or Gateway Tire keys in .env.example:"
+    );
     for (const key of missingOptional) console.error(`  - ${key}`);
     process.exit(1);
   }
@@ -177,6 +183,19 @@ function validateRuntime() {
     if (!stripeWebhook || stripeWebhook.trim() === "") {
       console.warn(
         `[env-validate] WARNING: STRIPE_SECRET_KEY is configured but STRIPE_WEBHOOK_SECRET is missing. Stripe API calls may work, but webhook-driven events such as invoice-paid sync, subscription updates, or membership reconciliation may fail.`
+      );
+    }
+  }
+
+  // D&K co-dependency check: warns if one key is present but not all 3
+  const dkUser = process.env.GATEWAY_TIRE_USERNAME;
+  const dkPass = process.env.GATEWAY_TIRE_PASSWORD;
+  const dkShip = process.env.GATEWAY_TIRE_SHIP_TO;
+
+  if (dkUser || dkPass || dkShip) {
+    if (!dkUser || !dkPass || !dkShip) {
+      console.warn(
+        `[env-validate] WARNING: Some Gateway Tire (D&K) credentials are set, but they are incomplete. Ensure GATEWAY_TIRE_USERNAME, GATEWAY_TIRE_PASSWORD, and GATEWAY_TIRE_SHIP_TO are all set. Graceful mock fallbacks will be used.`
       );
     }
   }

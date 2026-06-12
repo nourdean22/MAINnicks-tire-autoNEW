@@ -107,46 +107,58 @@ describe("handleCreateWorkOrder validation tests", () => {
 
   it("rejects an invalid customerId = 0 with an error", async () => {
     const { handleCreateWorkOrder } = await import("../routers/nick/actions");
-    await expect(
-      handleCreateWorkOrder({
+    try {
+      await handleCreateWorkOrder({
         sessionId: 1001,
         customerId: 0,
         priority: "normal",
         autoAssign: true,
-      })
-    ).rejects.toThrow("Invalid customerId: must be a finite positive integer");
+      });
+      throw new Error("Should have thrown");
+    } catch (err: any) {
+      expect(err.message).toBe("Invalid customerId: must be a finite positive integer");
+    }
   });
 
   it("rejects an invalid customerId = NaN with an error", async () => {
     const { handleCreateWorkOrder } = await import("../routers/nick/actions");
-    await expect(
-      handleCreateWorkOrder({
+    try {
+      await handleCreateWorkOrder({
         sessionId: 1001,
         customerId: NaN,
         priority: "normal",
         autoAssign: true,
-      })
-    ).rejects.toThrow("Invalid customerId: must be a finite positive integer");
+      });
+      throw new Error("Should have thrown");
+    } catch (err: any) {
+      expect(err.message).toBe("Invalid customerId: must be a finite positive integer");
+    }
   });
 
   it("rejects a string input that represents a phone or text by throwing (coerced or typed bypassed)", async () => {
     const { handleCreateWorkOrder } = await import("../routers/nick/actions");
-    await expect(
-      handleCreateWorkOrder({
+    try {
+      await handleCreateWorkOrder({
         sessionId: 1001,
         customerId: "WALK-IN" as any,
         priority: "normal",
         autoAssign: true,
-      })
-    ).rejects.toThrow("Invalid customerId: must be a finite positive integer");
+      });
+      throw new Error("Should have thrown");
+    } catch (err: any) {
+      expect(err.message).toBe("Invalid customerId: must be a finite positive integer");
+    }
 
-    await expect(
-      handleCreateWorkOrder({
+    try {
+      await handleCreateWorkOrder({
         sessionId: 1001,
         customerId: "2165551234" as any,
         priority: "normal",
         autoAssign: true,
-      })
-    ).rejects.toThrow("Invalid customerId: must be a finite positive integer");
+      });
+      throw new Error("Should have thrown");
+    } catch (err: any) {
+      expect(err.message).toBe("Invalid customerId: must be a finite positive integer");
+    }
   });
 });

@@ -38,7 +38,9 @@ export type AuditAction =
   | "migrations.ran"
   // 2026-06-11 · refund action types
   | "tireorder.refunded"
-  | "tireorder.refund_failed";
+  | "tireorder.refund_failed"
+  // 2026-06-12 · nonstop nick membership overrides
+  | "membership.grace_period_granted";
 
 // ─── Log an admin action ────────────────────────────
 export async function logAdminAction(data: {

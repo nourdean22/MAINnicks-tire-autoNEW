@@ -236,11 +236,165 @@ function StepPreview({ step, delay, desc }: { step: number; delay: string; desc:
   );
 }
 
+function SafetyGateModal({
+  campaign,
+  messages,
+  onConfirm,
+  onClose,
+  isPending
+}: {
+  campaign: CampaignListItem;
+  messages: CampaignMessage[];
+  onConfirm: () => void;
+  onClose: () => void;
+  isPending: boolean;
+}) {
+  const [check1, setCheck1] = useState(false);
+  const [check2, setCheck2] = useState(false);
+  const [check3, setCheck3] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+
+  const { data: readiness, isLoading: readinessLoading } = trpc.winback.campaignReadiness.useQuery({
+    targetSegment: campaign.targetSegment as any,
+    customMessages: messages.map(m => ({ step: m.step, delayDays: m.delayDays, body: m.body })),
+  });
+
+  const canExecute = check1 && check2 && check3 && confirmText === "CONFIRM";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+      <div className="w-full max-w-xl bg-card border border-border/40 rounded-xl p-6 shadow-2xl space-y-5 flex flex-col max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border/10 pb-3">
+          <h3 className="text-sm font-bold text-red-400 uppercase tracking-wider flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+            Win-back Campaign Safety Gate
+          </h3>
+          <button onClick={onClose} className="text-foreground/40 hover:text-foreground/70 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {readinessLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="space-y-4 text-sm">
+            {/* Readiness Summary */}
+            <div className="grid grid-cols-2 gap-3 p-3 bg-foreground/[0.02] border border-border/10 rounded-lg">
+              <div>
+                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block">NET TARGET AUDIENCE</span>
+                <span className="text-lg font-bold text-foreground tabular-nums">
+                  {readiness?.netTargetCount ?? 0} Customers
+                </span>
+                <span className="text-[10px] text-foreground/45 block mt-0.5">Excludes opted-out numbers</span>
+              </div>
+              <div>
+                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block">PROJECTED CAMPAIGN VALUE</span>
+                <span className="text-lg font-bold text-emerald-400 tabular-nums">
+                  ${Math.round((readiness?.projectedValueCents ?? 0) / 100).toLocaleString()}
+                </span>
+                <span className="text-[10px] text-foreground/45 block mt-0.5">Based on 5% projected conversion</span>
+              </div>
+            </div>
+
+            {/* Live Message Preview */}
+            {readiness?.previewMessages && readiness.previewMessages.length > 0 && (
+              <div className="bg-foreground/[0.01] border border-border/10 p-3 rounded-lg space-y-2">
+                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block">
+                  LIVE MESSAGE PREVIEW (STEP 1 PERSONALIZED)
+                </span>
+                <p className="text-xs text-foreground/80 leading-relaxed bg-card/50 p-2.5 border border-border/5 rounded font-mono">
+                  {readiness.previewMessages[0]?.body}
+                </p>
+              </div>
+            )}
+
+            {/* Safety Checklist */}
+            <div className="space-y-2.5">
+              <span className="font-mono text-[9px] text-foreground/40 tracking-wider block">SAFETY CHECKLIST</span>
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={check1}
+                  onChange={(e) => setCheck1(e.target.checked)}
+                  className="mt-0.5 accent-primary"
+                />
+                <span className="text-xs text-foreground/70">
+                  I verify that the campaign message copy is accurate, professional, and free of double negatives or debug placeholders.
+                </span>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={check2}
+                  onChange={(e) => setCheck2(e.target.checked)}
+                  className="mt-0.5 accent-primary"
+                />
+                <span className="text-xs text-foreground/70">
+                  I confirm that this targets the correct customer segment (<span className="font-semibold text-primary">{campaign.targetSegment}</span>) and respects quiet hours.
+                </span>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={check3}
+                  onChange={(e) => setCheck3(e.target.checked)}
+                  className="mt-0.5 accent-primary"
+                />
+                <span className="text-xs text-foreground/70">
+                  I understand that activating this campaign will queue real outbound SMS sends to <span className="font-semibold text-foreground">{readiness?.netTargetCount ?? 0}</span> customers.
+                </span>
+              </label>
+            </div>
+
+            {/* Confirmation input */}
+            <div className="space-y-2 border-t border-border/10 pt-3.5">
+              <label className="font-mono text-[9px] text-foreground/40 tracking-wide block">
+                TYPE "CONFIRM" TO UNLOCK EXECUTION
+              </label>
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="Type CONFIRM here"
+                className="w-full bg-card border border-border/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-red-500/50 rounded uppercase tracking-wider"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Footer actions */}
+        <div className="flex items-center justify-end gap-2 border-t border-border/10 pt-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 border border-border/20 text-xs font-bold tracking-wide hover:bg-foreground/5 transition-all text-foreground/70"
+          >
+            CANCEL
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!canExecute || isPending}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-5 py-2 font-bold text-xs tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            ACTIVATE CAMPAIGN
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: () => void }) {
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.winback.campaignDetail.useQuery({ id: campaignId });
   const { data: preview } = trpc.winback.preview.useQuery({ campaignId });
   const { data: recentSends } = trpc.winback.recentSends.useQuery({ campaignId, limit: 20 });
+  const [isSafetyGateOpen, setIsSafetyGateOpen] = useState(false);
 
   // 2026-05-23 · 4 mutations send actual SMS to customers. Silent
   // failure here = real money risk (operator believes campaign is
@@ -295,6 +449,21 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
 
   return (
     <div className="space-y-6">
+      {isSafetyGateOpen && (
+        <SafetyGateModal
+          campaign={campaign}
+          messages={messages}
+          isPending={activateMutation.isPending}
+          onClose={() => setIsSafetyGateOpen(false)}
+          onConfirm={() => {
+            activateMutation.mutate({ campaignId }, {
+              onSuccess: () => {
+                setIsSafetyGateOpen(false);
+              }
+            });
+          }}
+        />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -317,20 +486,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
         <div className="flex items-center gap-2">
           {campaign.status === "draft" && (
             <button
-              onClick={async () => {
-                // wave-181.x Outreach Phase 1 · safety gate · activate
-                // locks in target list + begins the multi-step sequence.
-                const targetCount = campaign.targetCount ?? 0;
-                const ok = await confirmDialog({
-                  title: `Activate win-back to ${targetCount} customers?`,
-                  message: `This locks in the target list (${targetCount} customers) and starts the multi-step sequence. The first SMS step will fire as soon as you press SEND PENDING. Sequence respects quiet-hours + opt-out + daily rate limit.`,
-                  confirmLabel: "Activate",
-                  cancelLabel: "Cancel",
-                  tone: "danger",
-                });
-                if (!ok) return;
-                activateMutation.mutate({ campaignId });
-              }}
+              onClick={() => setIsSafetyGateOpen(true)}
               disabled={activateMutation.isPending}
               className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 font-bold text-xs tracking-wide hover:bg-emerald-700 transition-colors disabled:opacity-50"
             >
