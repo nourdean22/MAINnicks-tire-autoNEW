@@ -2,7 +2,16 @@
 
 **Purpose:** Single place to record what must be **true in production** for this repo. Update when you ship behavior or infra changes.
 
-## 🟢 Latest shipped — 2026-06-10 late (Review Replies: claim-safety QA + draft editing — stacked on the #57 posted-confirmation loop)
+## 🟢 Latest shipped — 2026-06-12 (Tires Metadata Alignment & GSC Sitemap Submission)
+
+- **Tires Metadata Alignment**: Modified `apps/nickstire/shared/services.ts` to align the tires page meta description with the SEO-tuned string inside `routes.ts` and `TireFinder.tsx` ("New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005.").
+- **Zero Divergences**: Verified that the meta divergence check reports 0 divergences between route registry and SPA runtime sources.
+- **HTML Prerender Regeneration**: Regenerated all 336 pre-rendered HTML files (`pnpm run regen`) to ensure they carry the aligned metadata in their static output.
+- **GSC Sitemap Submission**: Successfully executed `pnpm tsx scripts/gsc-submit-sitemap.ts` to ping Google Search Console and request immediate re-crawling of `sitemap.xml`, `sitemap-services.xml`, `sitemap-locations.xml`, and `sitemap-images.xml`.
+
+---
+
+## 🟢 Shipped — 2026-06-10 late (Review Replies: claim-safety QA + draft editing — stacked on the #57 posted-confirmation loop)
 
 Two stacked PRs complete the Growth → Review Replies operator loop. **#57 (MERGED, squash `722934c7`)** closed the state machine: `reviewReplies.markPosted` (approved → posted + `postedAt`, only reachable from approved, DB-only owner confirmation — nothing posts to Google), `stats.oldestApprovedAt` rot signal + the approved-backlog amber banner, and the two-tap "Mark posted (DB only)" button. **#58** (this delta, retargeted to main after the #57 merge) adds the QA layer:
 
