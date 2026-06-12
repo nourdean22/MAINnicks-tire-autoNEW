@@ -157,6 +157,14 @@ const CARDS: HubCard[] = [
     chip: () => ({ label: "audit", severity: "info" }),
   },
   {
+    href: "/system/tools",
+    title: "Tools Registry",
+    icon: Search,
+    group: "governance",
+    description: "Inspect and govern agent tool access and permission policies",
+    chip: () => ({ label: "inspect", severity: "info" }),
+  },
+  {
     href: "/system/ai-cost",
     title: "AI Cost",
     icon: DollarSign,
