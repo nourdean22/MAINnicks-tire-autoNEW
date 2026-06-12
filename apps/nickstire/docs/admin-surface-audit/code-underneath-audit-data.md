@@ -19,7 +19,7 @@ Confidence: **CONFIRMED** (proven at file:line) vs **INFERRED** (strong reasonin
 | 1 | **`getTrackingInfo` auth bypass** — phone verification is nested in `if(!isNaN(custId))`; walk-in / AI-chat WOs have a non-numeric `customer_id` (`"WALK-IN"` / phone), so `parseInt`→NaN skips the check and returns full tracking by order-number alone. Order numbers are low-entropy `WO-{Date.now().toString(36)}`. | SECURITY / DATA-INTEGRITY | **Critical** | CONFIRMED | `services/customerMessaging.ts:162-180` + `routers/nick/actions.ts:150,155` |
 | 2 | **`work_orders.customer_id` is a polluted varchar space** — `customers.id` is `int`, but `nick/actions.ts:150` writes `customerData.phone` or the literal `"WALK-IN"`. Every `CAST(c.id AS CHAR)=w.customer_id` reconciliation join MISSES those rows → backlog metrics undercount; declined-recovery can't text those customers (`phone=""`). | DATA-INTEGRITY | **High** | CONFIRMED | `routers/nick/actions.ts:150,155` · `services/customerMetricsRefresh.ts:82` · `dataPipelines.ts:230` · `declinedWorkRecovery.ts:92` |
 | 3 | **`customers.segment` has 3 writers on 3 cadences with divergent logic** — enrich step-7 (`dataPipelines.ts:459`, runs with enrich cron) + weekly recency cron (`cron/jobs/customerSegmentation.ts`) + manual admin override (`customers.ts:672`). Last-writer-wins → the "false healthy" churn divergence. The rich 10-segment `segmentCustomer()` taxonomy can't even fit the 4-value enum. | STALENESS / DATA-INTEGRITY | **High** | CONFIRMED | `dataPipelines.ts:459` · `cron/jobs/customerSegmentation.ts:20-48` · `routers/customers.ts:672` |
-| 4 | **`customer_metrics.totalRevenue / totalJobs / avgSpendPerVisit / daysSinceLastVisit / predictedNextVisit` are NEVER written** — only seeded to 0 on INSERT; `customers.list` SELECTs and returns them anyway (always 0/null). The refresh writes only declined/backlog; `intelligenceEngines` writes only churnRisk/isVip. | DEAD / CORRECTNESS | **High** | CONFIRMED | `customerMetricsRefresh.ts:39-86` · `routers/customers.ts:161-164,827` |
+| 4 | **`customer_metrics.totalRevenue / totalJobs / avgSpendPerVisit / daysSinceLastVisit / predictedNextVisit` are NEVER written** — only seeded to 0 on INSERT; `customers.list` SELECTs and returns them anyway (always 0/null). The refresh writes only declined/backlog; `intelligenceEngines` writes only churnRisk/isVip. *(Note: totalRevenue reads in `vipLookup` and `customerPsychoProfile` have been redirected to `customers.totalSpent` to resolve false zeros.)* | DEAD / CORRECTNESS | **High** | CONFIRMED | `customerMetricsRefresh.ts:39-86` · `routers/customers.ts:161-164` · `services/customerPsychoProfile.ts` |
 | 5 | **`enrichCustomerData` spend/visit match uses the WEAK phone join** `RIGHT(c.phone,10)=RIGHT(i.customerPhone,10)` (no digit-strip) while `customerMetricsRefresh` uses the HARDENED `RIGHT(REGEXP_REPLACE(...),10)`. E.164/punctuated invoice phones mis-slice → `totalSpent`/`totalVisits`/`firstVisitDate` silently undercounted; two surfaces compute spend by different rules. | CORRECTNESS / PERF | **High** | CONFIRMED | `dataPipelines.ts:379,392,405` vs `customerMetricsRefresh.ts:55,63` |
 | 6 | **`churnRisk`/`isVip` are refreshed for only the top-200 customers** — `predictCustomerLTV` writes `scored.slice(0,200)`; everyone else keeps the seeded `churnRisk='low'`/`isVip=0` forever. The `hasBacklog`/`hasDeclined`/churn UI reads stale 'low' for the long tail. | STALENESS | **Med-High** | CONFIRMED | `services/intelligenceEngines.ts:559,568-570` |
 | 7 | **Revenue is computed inconsistently across surfaces** — paid-only vs all-status, by-phone vs by-name, cents-handling, and a `LIMIT 5000` truncation. Same "revenue" number differs by which endpoint renders it. | CORRECTNESS | **Med** | CONFIRMED | `routers/customers.ts:256-263` (no paid filter) vs `dataPipelines.ts:574-603` (paid) · `customerIntelligence.ts:64-67` (LIMIT 5000, by-name) |
@@ -126,19 +126,17 @@ of every `.set(`/`UPDATE customer_metrics`/`INSERT INTO customer_metrics`):
 | `declinedValue`, `declinedCount` | `customerMetricsRefresh.ts:65-67` | OK (cron) |
 | `backlogValueCents`, `backlogCount` | `customerMetricsRefresh.ts:83-85` | OK (cron, but Area 1 undercount) |
 | `churnRisk`, `isVip` | `intelligenceEngines.ts:570` + `crudAutomation.ts:592` (isVip) | **top-200 only** (Area, #6) |
-| `totalRevenue` | — | **DEAD: seeded 0, never updated** |
+| `totalRevenue` | — | **DEAD (partially resolved)**: was seeded 0 and never updated in `customer_metrics`. Reads in `vipLookup` and `customerPsychoProfile` have been redirected to `customers.totalSpent` to fetch live spent data. |
 | `totalJobs` | — | **DEAD: seeded 0, never updated** |
 | `avgSpendPerVisit` | — | **DEAD: seeded 0, never updated** |
 | `daysSinceLastVisit` | — | **DEAD: nullable, never written** |
 | `predictedNextVisit` | — | **DEAD: nullable, never written** |
 
 `routers/customers.ts:161-164` SELECTs `totalRevenue`, `avgSpendPerVisit`, `daysSinceLastVisit`,
-`churnRisk`, `isVip` into the admin customer list, and `customers.ts:827` SELECTs `totalRevenue` again.
-The three dead numerics are returned as a constant 0 to the UI. (Mitigating: the same list also returns
-`customers.totalSpent`, which IS enriched, so the UI *may* render that instead — but the metrics columns
-are wired and dead, which is exactly the kind of silent zero that reads as "false healthy.")
+`churnRisk`, `isVip` into the admin customer list. The other dead metrics are returned as constant 0/null.
+`vipLookup` and `customerPsychoProfile` redirected their `totalRevenue` reads to `customers.totalSpent` (cents spent).
 
-**Proposed fix:** either populate these in `refreshCustomerMetrics` (they're trivially derivable from the
+**Proposed fix:** either populate the remaining dead fields in `refreshCustomerMetrics` (they're trivially derivable from the
 same invoice aggregates the enrich step already computes), or drop them from the SELECT and the schema.
 Don't ship columns the UI reads but nothing writes.
 
