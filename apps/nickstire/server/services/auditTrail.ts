@@ -44,7 +44,10 @@ export type AuditAction =
   // 2026-06-12 · nonstop nick membership overrides
   | "membership.grace_period_granted"
   // 2026-06-12 · database hygiene and cleanup
-  | "database.hygiene_prune";
+  | "database.hygiene_prune"
+  // 2026-06-12 · ShopDriver actions
+  | "shopdriver.force_sync"
+  | "shopdriver.manual_probe";
 
 // ─── Log an admin action ────────────────────────────
 export async function logAdminAction(data: {

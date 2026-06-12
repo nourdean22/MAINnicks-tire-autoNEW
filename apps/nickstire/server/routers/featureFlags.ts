@@ -16,7 +16,17 @@ export const featureFlagsRouter = router({
     .input(z.object({ key: z.string(), value: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        const { setFlag } = await import("../services/featureFlags");
+        const { setFlag, FLAG_DEFINITIONS } = await import("../services/featureFlags");
+        
+        // Validation gate: verify the flag key is defined in FLAG_DEFINITIONS
+        const isValidKey = FLAG_DEFINITIONS.some((f) => f.key === input.key);
+        if (!isValidKey) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Unknown feature flag key: "${input.key}"`,
+          });
+        }
+
         await setFlag(input.key as any, input.value);
         // Audit the flag toggle — the #1 operator control lever (gates bulk
         // SMS, voice, auto-revenue, etc.). Records who flipped what + new

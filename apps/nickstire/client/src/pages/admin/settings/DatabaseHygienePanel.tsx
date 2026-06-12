@@ -16,6 +16,31 @@ type RecordItem = {
   table: "leads" | "bookings" | "callbacks";
 };
 
+function getRelativeTime(date: Date) {
+  const ms = Date.now() - date.getTime();
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+  if (days > 365) {
+    const years = Math.floor(days / 365);
+    return `${years}y ago`;
+  }
+  if (days > 30) {
+    const months = Math.floor(days / 30);
+    return `${months}mo ago`;
+  }
+  if (days > 0) {
+    return `${days}d ago`;
+  }
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  if (hours > 0) {
+    return `${hours}h ago`;
+  }
+  const mins = Math.floor(ms / (1000 * 60));
+  if (mins > 0) {
+    return `${mins}m ago`;
+  }
+  return "just now";
+}
+
 export default function DatabaseHygienePanel() {
   const utils = trpc.useUtils();
   const [selectedFake, setSelectedFake] = useState<Record<number, boolean>>({});
@@ -133,8 +158,9 @@ export default function DatabaseHygienePanel() {
       <input
         type="checkbox"
         checked={isChecked}
+        disabled={pruneMut.isPending}
         onChange={(e) => setChecked(e.target.checked)}
-        className="w-4 h-4 rounded border-border/40 text-primary focus:ring-primary/40 focus:ring-2 accent-primary"
+        className="w-4 h-4 rounded border-border/40 text-primary focus:ring-primary/40 focus:ring-2 accent-primary disabled:opacity-50 disabled:cursor-not-allowed"
       />
     );
   };
@@ -257,7 +283,8 @@ export default function DatabaseHygienePanel() {
               <button
                 type="button"
                 onClick={() => toggleSelectAll(activeTab)}
-                className="text-[10px] font-bold text-primary hover:text-primary/80 transition-colors uppercase tracking-wider"
+                disabled={pruneMut.isPending}
+                className="text-[10px] font-bold text-primary hover:text-primary/80 transition-colors uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isAllActiveSelected ? "Deselect All" : "Select All"}
               </button>
@@ -286,7 +313,9 @@ export default function DatabaseHygienePanel() {
                         )}
                       </div>
                     </div>
-                    <span className="text-[10px] text-foreground/40 whitespace-nowrap">{formatDateTime(new Date(item.createdAt))}</span>
+                    <span className="text-[10px] text-foreground/40 whitespace-nowrap">
+                      {formatDateTime(new Date(item.createdAt))} ({getRelativeTime(new Date(item.createdAt))})
+                    </span>
                   </div>
                 ))}
               </div>
