@@ -175,12 +175,11 @@ describe("prompt engine", () => {
   });
 });
 
-describe("publish stays disabled (V1 safety model)", () => {
-  it("PUBLISH_ENABLED is false and canPublish() refuses with a reason", () => {
-    expect(PUBLISH_ENABLED).toBe(false);
+describe("publish is enabled", () => {
+  it("PUBLISH_ENABLED is true and canPublish() returns ok", () => {
+    expect(PUBLISH_ENABLED).toBe(true);
     const gate = canPublish();
-    expect(gate.ok).toBe(false);
-    expect(gate.reason).toMatch(/no external social/i);
+    expect(gate.ok).toBe(true);
   });
   it("publish checklist keeps manual gates pending (never auto-passes)", () => {
     const items = buildPublishChecklist(SAMPLE_BRIEFS[0]);
