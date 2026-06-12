@@ -295,6 +295,57 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
 ];
 
+// Overrides state cache
+let overridesCache: Record<string, string> = {};
+let lastFetchedAt = 0;
+const CACHE_TTL_MS = 30_000; // 30 seconds
+let isFetchInFlight = false;
+
+/**
+ * Preloads the database-backed feature flag overrides.
+ * This should be called at request/cron entrypoints to ensure overrides are fresh.
+ */
+export async function loadFeatureFlagOverrides(force = false): Promise<void> {
+  const now = Date.now();
+  if (!force && now - lastFetchedAt < CACHE_TTL_MS) {
+    return;
+  }
+
+  // Prevent duplicate concurrent loads
+  if (isFetchInFlight && !force) return;
+  isFetchInFlight = true;
+
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const preferences = await prisma.userPreference.findMany({
+      where: { category: "feature_flags" },
+      select: { key: true, value: true },
+    });
+
+    const nextOverrides: Record<string, string> = {};
+    for (const pref of preferences) {
+      nextOverrides[pref.key] = pref.value;
+    }
+    
+    overridesCache = nextOverrides;
+    lastFetchedAt = now;
+  } catch (err) {
+    console.error("Failed to load feature flag overrides from DB:", err);
+  } finally {
+    isFetchInFlight = false;
+  }
+}
+
+/**
+ * Helper to trigger a non-blocking background refresh if expired.
+ */
+function triggerBackgroundRefresh() {
+  if (isFetchInFlight || Date.now() - lastFetchedAt < CACHE_TTL_MS) return;
+  loadFeatureFlagOverrides().catch((err) => {
+    console.error("Failed to background refresh feature flags:", err);
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Runtime accessors
 // ─────────────────────────────────────────────────────────────────
@@ -309,6 +360,8 @@ export interface ResolvedFlag extends FeatureFlag {
   rawValue: string;
   /** True iff the flag is currently in its "on" state. */
   isOn: boolean;
+  /** Override value set in database (null if using default env). */
+  overrideValue?: string | null;
 }
 
 /**
@@ -319,10 +372,15 @@ export function getFlag(key: string): ResolvedFlag | null {
   const spec = FLAG_REGISTRY.find((f) => f.key === key);
   if (!spec) return null;
 
-  const rawValue = (process.env[key] ?? "").trim();
+  // Trigger background refresh if cache is expired (non-blocking)
+  triggerBackgroundRefresh();
+
+  // Resolve override or environment variable
+  const dbOverride = overridesCache[key];
+  const rawValue = (dbOverride !== undefined ? dbOverride : (process.env[key] ?? "")).trim();
   const isOn = computeIsOn(spec, rawValue);
 
-  return { ...spec, rawValue, isOn };
+  return { ...spec, rawValue, isOn, overrideValue: dbOverride ?? null };
 }
 
 /**
@@ -331,9 +389,11 @@ export function getFlag(key: string): ResolvedFlag | null {
  * full board view.
  */
 export function getAllFlags(): ResolvedFlag[] {
+  triggerBackgroundRefresh();
   return FLAG_REGISTRY.map((spec) => {
-    const rawValue = (process.env[spec.key] ?? "").trim();
-    return { ...spec, rawValue, isOn: computeIsOn(spec, rawValue) };
+    const dbOverride = overridesCache[spec.key];
+    const rawValue = (dbOverride !== undefined ? dbOverride : (process.env[spec.key] ?? "")).trim();
+    return { ...spec, rawValue, isOn: computeIsOn(spec, rawValue), overrideValue: dbOverride ?? null };
   });
 }
 

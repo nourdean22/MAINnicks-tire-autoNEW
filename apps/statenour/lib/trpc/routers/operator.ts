@@ -70,6 +70,11 @@ import { runDriveIngest } from "@/lib/brain/drive-ingest";
 import { getColdMemoryStats } from "@/lib/brain/cold-memory";
 import { ServiceError } from "@/lib/utils/service-error";
 import {
+  getAllFlags,
+  getFlag,
+  loadFeatureFlagOverrides,
+} from "@/lib/feature-flags";
+import {
   aiConfigPatchSchema,
   skillCurationSchema,
 } from "@/lib/validators/settings";
@@ -506,6 +511,53 @@ export const operatorRouter = router({
   resetAiConfig: operatorProcedure.mutation(async () =>
     resetAiConfig("settings_ui"),
   ),
+
+  /**
+   * Expose feature flags snapshot to operator UI dashboard.
+   */
+  featureFlags: operatorProcedure.query(async () => {
+    return { flags: getAllFlags() };
+  }),
+
+  /**
+   * Set a database-backed feature flag override.
+   */
+  setFeatureFlagOverride: operatorProcedure
+    .input(
+      z.object({
+        key: z.string().min(1).max(80),
+        value: z.enum(["true", "false"]).nullable(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { key, value } = input;
+      const prismaModule = await import("@/lib/prisma");
+      const p = prismaModule.prisma;
+
+      if (value === null) {
+        await p.userPreference.deleteMany({
+          where: { key, category: "feature_flags" },
+        });
+      } else {
+        await p.userPreference.upsert({
+          where: { key },
+          create: { key, value, type: "string", category: "feature_flags" },
+          update: { value },
+        });
+      }
+
+      // Sync overrides cache and process.env immediately
+      await loadFeatureFlagOverrides(true).catch(() => {});
+
+      const resolved = getFlag(key);
+      if (!resolved) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Flag ${key} is not registered in the registry.`,
+        });
+      }
+      return { flag: resolved };
+    }),
 
   // ──────────────── Settings · cold memory / Drive sync (UU.2) ────────────────
 
