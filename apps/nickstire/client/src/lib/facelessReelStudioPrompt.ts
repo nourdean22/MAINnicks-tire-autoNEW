@@ -26,6 +26,26 @@ import {
   type CampaignKeyword,
 } from "./facelessReelStudio";
 
+export interface AnonymizedCaseStudy {
+  vehicle: string;
+  symptom: string;
+  failedComponent: string;
+  condition: "yellow" | "red";
+  techNotes: string;
+  recommendedAction: string;
+}
+
+export interface ProprietaryEvidence {
+  recentCaseStudy: AnonymizedCaseStudy | null;
+  localStats: {
+    brakeRustRatioPercent: number;
+    potholeDamageCount: number;
+    commonVehicles: string[];
+    averageMileage: number;
+  };
+  clevelandAngle: string;
+}
+
 export interface ReelPromptOptions {
   mode?: ReelStudioMode;
   topicOverride?: string;
@@ -36,6 +56,7 @@ export interface ReelPromptOptions {
   objectCharacter?: ObjectCharacter;
   avoidRecentTopics?: string[];
   avoidRecentStyles?: string[];
+  proprietaryEvidence?: ProprietaryEvidence;
 }
 
 const listOf = (record: Record<string, { label: string; essence: string }>) =>
@@ -56,6 +77,36 @@ You are the Faceless Reel Director for ${STUDIO_BRAND.name} (${STUDIO_BRAND.hand
 - ${STUDIO_BRAND.reputation}, ${STUDIO_BRAND.reviews}
 - ${STUDIO_BRAND.certification}
 - NO prices in reels. NO offers. NO guarantees. NO stock or wait-time claims.`);
+
+  let evidenceText = `# PROPRIETARY SHOP EVIDENCE`;
+  if (opts.proprietaryEvidence) {
+    const pe = opts.proprietaryEvidence;
+    evidenceText += `
+- Cleveland Repair Stats:
+  - Brake rust/seizure ratio: ${pe.localStats.brakeRustRatioPercent}% of inspected brakes show salt/seizure issues.
+  - Recent pothole/rim damage bookings: ${pe.localStats.potholeDamageCount} incidents recorded.
+  - Common vehicles serviced: ${pe.localStats.commonVehicles.join(", ")}.
+  - Average Cleveland vehicle mileage: ${pe.localStats.averageMileage.toLocaleString()} miles.
+  - Cleveland Road Angle: ${pe.clevelandAngle}`;
+    if (pe.recentCaseStudy) {
+      const cs = pe.recentCaseStudy;
+      evidenceText += `
+- Real Anonymized Shop Case Study (Grounding Evidence):
+  - Vehicle: ${cs.vehicle}
+  - Driver Symptom: ${cs.symptom}
+  - Failed Component: ${cs.failedComponent} (Condition: ${cs.condition.toUpperCase()})
+  - Tech Inspection Notes: ${cs.techNotes}
+  - Recommended Action: ${cs.recommendedAction}`;
+    }
+    evidenceText += `
+- Instructions for LLM:
+  - You MUST dynamically ground the storyboard concept using this real evidence.
+  - Weave the Real Case Study vehicle and inspection notes into the "storyboard beats" (specifically the visual, motion, or on-screen text).
+  - Incorporate the local Cleveland stats (e.g., brake rust ratio or pothole damage counts) into the beat-outline or final caption copy to establish shop authority.`;
+  } else {
+    evidenceText += `\n- [Pending] No proprietary database evidence loaded. Ground your concepts in typical Cleveland freeze-thaw cycles and salt wear.`;
+  }
+  sections.push(evidenceText);
 
   sections.push(`# HIDDEN PERSUASION (how the reel sells without selling)
 The viewer should finish feeling smarter, not advertised to. Authority is implied through specificity (the exact clue, the exact season, the exact Cleveland road behavior), never claimed. The only ask is a soft keyword CTA. Demand without pressure.`);

@@ -167,6 +167,32 @@ describe("prompt engine", () => {
     expect(prompt).toContain("tread depth");
     expect(prompt).toContain("TREAD");
   });
+  it("threads proprietary evidence when provided", () => {
+    const p = buildCarouselStudioSystemPrompt({
+      mode: "draft",
+      proprietaryEvidence: {
+        recentCaseStudy: {
+          vehicle: "2019 Tesla Model 3",
+          symptom: "noise",
+          failedComponent: "control arm",
+          condition: "red",
+          techNotes: "torn bushing",
+          recommendedAction: "replace link",
+        },
+        localStats: {
+          brakeRustRatioPercent: 88,
+          potholeDamageCount: 99,
+          commonVehicles: ["Tesla Model 3"],
+          averageMileage: 50000,
+        },
+        clevelandAngle: "Cleveland winters are brutal.",
+      },
+    });
+    expect(p).toContain("2019 Tesla Model 3");
+    expect(p).toContain("88%");
+    expect(p).toContain("99 incidents");
+    expect(p).toContain("Cleveland winters are brutal.");
+  });
   it("builds a 5-prompt Higgsfield pack with the no-baked-text rule", () => {
     const pack = buildHiggsfieldPromptPack(SAMPLE_BRIEFS[1]);
     for (let i = 1; i <= 5; i++) expect(pack).toContain(`## Slide ${i}`);
