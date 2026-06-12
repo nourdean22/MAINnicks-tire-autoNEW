@@ -22,9 +22,10 @@ import AeoAnswerBlock from "@/components/AeoAnswerBlock";
 // AI-answer-engine citation surface its service-page peers already have.
 import FAQPageSchema, { SERVICES_OVERVIEW_FAQ } from "@/components/FAQPageSchema";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
-import { Phone, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Star, MapPin, Snowflake, Settings, Battery, Wind, Thermometer, ClipboardCheck, Cable, CircleDot } from "lucide-react";
+import { Phone, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Star, MapPin, Snowflake, Settings, Battery, Wind, Thermometer, ClipboardCheck, Cable, CircleDot, Clock } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { SERVICES, type ServiceData } from "@shared/services";
+import TrustBlock from "@/components/TrustBlock";
 
 // Slug → lucide icon map. Lives here (not in canonical) because it's
 // a visual concern that depends on the specific icon set this page
@@ -105,8 +106,8 @@ export default function ServicesOverview() {
           140-155 sweet spot). Aligned with routes.ts so prerender +
           runtime <head> match. */}
       <SEOHead
-        title="Cleveland Auto Repair · You Don't Pay Until You Say Yes"
-        description="Cleveland auto repair without the surprise. Free check, written quote, you don't pay until you say yes. 4.9★ from 1,700+ drivers. Walk in 7 days."
+        title="Auto Repair Cleveland & Euclid · Nick's Tire & Auto"
+        description="Tire & auto repair in Cleveland & Euclid. Brakes, diagnostics, emissions, oil changes. Free check, written quote, you don't pay until you say yes. Walk in!"
         canonicalPath="/services"
       />
       <Breadcrumbs items={[{ label: "Services", href: "/services" }]} />
@@ -175,6 +176,89 @@ export default function ServicesOverview() {
       <AeoAnswerBlock
         answer="Nick's Tire & Auto is a full-service auto repair shop at 17625 Euclid Ave in Cleveland (Euclid), Ohio — brakes, tires, oil changes, engine diagnostics, wheel alignment, and Ohio E-Check emissions for all makes and models, including European. Walk in 7 days a week with no appointment, get a written estimate before any work, and you don't pay until you say yes. Call (216) 862-0005."
       />
+
+      {/* Core Service Pathways & Sunday Availability */}
+      <section className="py-12 bg-background border-b border-border/20">
+        <div className="container">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Left Column: Quick Pathways */}
+            <div className="lg:col-span-8 space-y-6">
+              <h2 className="font-heading font-black text-2xl uppercase tracking-tight text-foreground">
+                Quick Service Pathways
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <Link href="/tires" className="p-4 border border-border/30 rounded-xl bg-card/40 hover:border-primary/40 hover:bg-card/80 transition-all text-center block group">
+                  <span className="font-heading font-extrabold text-sm text-foreground group-hover:text-primary transition-colors block">TIRES</span>
+                  <span className="text-[10px] text-foreground/50 block mt-1">New & Used</span>
+                </Link>
+                <Link href="/brakes" className="p-4 border border-border/30 rounded-xl bg-card/40 hover:border-primary/40 hover:bg-card/80 transition-all text-center block group">
+                  <span className="font-heading font-extrabold text-sm text-foreground group-hover:text-primary transition-colors block">BRAKES</span>
+                  <span className="text-[10px] text-foreground/50 block mt-1">Free Check</span>
+                </Link>
+                <Link href="/diagnostics" className="p-4 border border-border/30 rounded-xl bg-card/40 hover:border-primary/40 hover:bg-card/80 transition-all text-center block group">
+                  <span className="font-heading font-extrabold text-sm text-foreground group-hover:text-primary transition-colors block">DIAGNOSTICS</span>
+                  <span className="text-[10px] text-foreground/50 block mt-1">Check Engine</span>
+                </Link>
+                <Link href="/oil-change" className="p-4 border border-border/30 rounded-xl bg-card/40 hover:border-primary/40 hover:bg-card/80 transition-all text-center block group">
+                  <span className="font-heading font-extrabold text-sm text-foreground group-hover:text-primary transition-colors block">OIL CHANGES</span>
+                  <span className="text-[10px] text-foreground/50 block mt-1">Fast Service</span>
+                </Link>
+                <Link href="/emissions" className="p-4 border border-border/30 rounded-xl bg-card/40 hover:border-primary/40 hover:bg-card/80 transition-all text-center block group">
+                  <span className="font-heading font-extrabold text-sm text-foreground group-hover:text-primary transition-colors block">EMISSIONS</span>
+                  <span className="text-[10px] text-foreground/50 block mt-1">Ohio E-Check</span>
+                </Link>
+                <Link href="/auto-repair-near-me" className="p-4 border border-border/30 rounded-xl bg-card/40 hover:border-primary/40 hover:bg-card/80 transition-all text-center block group">
+                  <span className="font-heading font-extrabold text-sm text-foreground group-hover:text-primary transition-colors block">SUSPENSION</span>
+                  <span className="text-[10px] text-foreground/50 block mt-1">Struts & Shocks</span>
+                </Link>
+                <Link href="/alignment" className="p-4 border border-border/30 rounded-xl bg-card/40 hover:border-primary/40 hover:bg-card/80 transition-all text-center block group">
+                  <span className="font-heading font-extrabold text-sm text-foreground group-hover:text-primary transition-colors block">STEERING</span>
+                  <span className="text-[10px] text-foreground/50 block mt-1">Alignment</span>
+                </Link>
+                <Link href="/financing" className="p-4 border border-border/30 rounded-xl bg-card/40 hover:border-primary/40 hover:bg-card/80 transition-all text-center block group">
+                  <span className="font-heading font-extrabold text-sm text-foreground group-hover:text-primary transition-colors block">FINANCING</span>
+                  <span className="text-[10px] text-foreground/50 block mt-1">$10 Down</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Right Column: Sunday Hours & Drop-off info */}
+            <div className="lg:col-span-4 bg-[#1a1c20] border border-primary/20 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center gap-2 text-primary">
+                <Clock className="w-5 h-5" />
+                <span className="font-heading font-extrabold tracking-wide uppercase text-sm">Sunday Service Available</span>
+              </div>
+              <h3 className="font-heading font-black text-xl text-white uppercase tracking-tight">
+                Open Every Sunday: 9:00 AM – 4:00 PM
+              </h3>
+              <p className="text-xs text-foreground/70 leading-relaxed">
+                Most shops close on Sundays, but Nick's Tire & Auto is fully operational. Stop by for urgent tire repairs, brake checkups, or regular oil changes. Vehicle drop-off options are welcomed, and we'll ensure you get back on the road in no time.
+              </p>
+              <div className="pt-2 border-t border-border/30 flex gap-3">
+                <a href={BUSINESS.phone.href} className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5" /> Call Shop
+                </a>
+                <span className="text-foreground/20">|</span>
+                <Link href="/contact" className="text-xs font-bold text-nick-blue-light hover:underline">
+                  Directions & Drop-off
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Contextual linking text block for SEO */}
+          <div className="mt-8 p-6 bg-card/10 border border-border/20 rounded-xl text-sm text-foreground/75 leading-relaxed space-y-3">
+            <p>
+              Need a quick solution? We offer <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">Tire repair and replacement</Link> and complete <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">Brake repair in Euclid</Link> and Cleveland. Our ASE-trained crew handles advanced <Link href="/diagnostics" className="underline text-primary hover:text-primary-foreground font-semibold">Vehicle diagnostics and troubleshooting</Link>, as well as state-compliant <Link href="/emissions" className="underline text-primary hover:text-primary-foreground font-semibold">E-Check and emissions testing</Link>. Don't postpone critical repairs due to cost — check out our soft-pull <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">Financing options for repairs</Link> with only $10 down. <Link href="/contact" className="underline text-primary hover:text-primary-foreground font-semibold">Contact Nick’s Tire & Auto</Link> today to check line wait times.
+            </p>
+          </div>
+
+          {/* Reusable Trust Block */}
+          <div className="mt-8">
+            <TrustBlock />
+          </div>
+        </div>
+      </section>
 
       {/* Services Grid */}
       <section className="py-16 lg:py-20">

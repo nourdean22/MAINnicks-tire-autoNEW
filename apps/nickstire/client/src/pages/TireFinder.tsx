@@ -8,7 +8,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
 // attribution-wave: trackPhoneClick now comes from the canonical SEO helper
 // (umami + GA4 "phone_click" + Meta Pixel Contact + call_events DB row with
@@ -24,6 +24,7 @@ import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 // citations (ChatGPT/Perplexity/Gemini) for buy-tires-near-me intent.
 import FAQPageSchema, { TIRE_BUYING_FAQ } from "@/components/FAQPageSchema";
 import FinancingCTA from "@/components/FinancingCTA";
+import TrustBlock from "@/components/TrustBlock";
 // Conversion-architecture overlays (Batch 3 of v1.1 spec). Injected as a
 // compact block right after the search hero so visitors see anchor pricing
 // + fear stats before they get lost in size selection.
@@ -1053,8 +1054,8 @@ export default function TireFinder() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Tire Shop Near Me · New & Used · Install Package Included | Cleveland | Nick's"
-        description="Cleveland's neighborhood tire shop on Euclid Ave. New & used tires, install package included in estimate on every set — mount, balance, valve stems, TPMS, alignment check. Walk-ins 7 days, payment programs on the spot. 1,700+ Google reviews, with the gear your kid's Tesla needs. (216) 862-0005"
+        title="Tires Cleveland & Euclid · New & Used Tire Shop | Nick's"
+        description="New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005."
         canonicalPath="/tires"
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}
@@ -1130,7 +1131,7 @@ export default function TireFinder() {
               Tire Estimates & Local Fitting
             </h1>
             <p className="mt-4 text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              Find tires for your vehicle. No card required to request help. Staff confirms availability and fitment before install at our Euclid Ave location.
+              Find new or used tires for your vehicle. Beyond tire fitting, Nick's on Euclid Ave offers same-day <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake repair in Euclid</Link> and fast <Link href="/diagnostics" className="underline text-primary hover:text-primary-foreground font-semibold">check engine light diagnostics</Link>. Walk in 7 days, explore our soft-pull <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing options for repairs</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground font-semibold">contact Nick’s Tire & Auto</Link> today.
             </p>
 
             {/* Value proposition callout */}
@@ -1607,6 +1608,10 @@ export default function TireFinder() {
           </section>
         )}
       </AnimatePresence>
+
+      <div className="container max-w-5xl mx-auto mt-8 mb-12">
+        <TrustBlock />
+      </div>
 
       {/* ─── EMERGENCY FLAT REPAIR ─── */}
       {!activeSearch && (

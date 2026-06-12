@@ -451,8 +451,8 @@ export default function DiagnosePage() {
   return (
     <PageLayout activeHref="/diagnose" showChat={true}>
       <SEOHead
-        title="Cleveland Auto Symptom Checker · Tell Us What's Wrong | Nick's"
-        description="Describe your car problem like you'd explain it to a friend — we'll tell you what's likely wrong, how urgent it is, and what fixing it usually involves."
+        title="Auto Diagnostics Cleveland & Euclid · Nick's Tire & Auto"
+        description="Free check-engine diagnostics in Euclid & Cleveland. Describe symptoms, get likely causes & repairs. You don't pay until you say yes. Call (216) 862-0005."
         canonicalPath="/diagnose"
       />
 
@@ -497,7 +497,7 @@ export default function DiagnosePage() {
                 <span className="text-primary">MY CAR</span>?
               </h1>
               <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
-                Tap an area on the car below to select the problem zone, describe your symptoms, and our AI will provide a preliminary diagnosis in seconds.
+                Tap an area on the car below to select the problem zone, describe your symptoms, and our AI will provide a preliminary diagnosis in seconds. If you have brake squealing or grinding, check out our <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake symptoms list</Link>. For shaking or vibrations, check our <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tire options</Link>, see our <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing options for repairs</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground font-semibold">contact us</Link> directly.
               </p>
             </FadeIn>
           </div>
