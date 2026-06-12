@@ -176,4 +176,173 @@ export const contentAdminRouter = router({
       return [];
     }
   }),
+  saveReelDraft: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      topic: z.string(),
+      brief: z.any(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { syncReelDraftToSheet } = await import("../sheets-sync");
+        const ok = await syncReelDraftToSheet(input.id, input.topic, JSON.stringify(input.brief));
+        return { success: ok };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Save Reel draft failed" });
+      }
+    }),
+  saveCarouselDraft: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      topic: z.string(),
+      brief: z.any(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { syncCarouselDraftToSheet } = await import("../sheets-sync");
+        const ok = await syncCarouselDraftToSheet(input.id, input.topic, JSON.stringify(input.brief));
+        return { success: ok };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Save Carousel draft failed" });
+      }
+    }),
+  allReelDrafts: adminProcedure.query(async () => {
+    try {
+      const { fetchReelDraftsFromSheet } = await import("../sheets-sync");
+      return await fetchReelDraftsFromSheet();
+    } catch (err) {
+      log.warn("allReelDrafts failed", err);
+      return [];
+    }
+  }),
+  allCarouselDrafts: adminProcedure.query(async () => {
+    try {
+      const { fetchCarouselDraftsFromSheet } = await import("../sheets-sync");
+      return await fetchCarouselDraftsFromSheet();
+    } catch (err) {
+      log.warn("allCarouselDrafts failed", err);
+      return [];
+    }
+  }),
+  logReel: adminProcedure
+    .input(z.object({
+      topic: z.string(),
+      verifiedFact: z.string(),
+      sources: z.string(),
+      driverConfusion: z.string(),
+      clevelandAngle: z.string(),
+      campaignKeyword: z.string(),
+      creativeTerritory: z.string(),
+      usefulAbsurdity: z.string(),
+      storyboardOutline: z.string(),
+      captionHook: z.string(),
+      instagramUrl: z.string(),
+      assetPaths: z.string(),
+      score: z.string(),
+      hashtags: z.string(),
+      avoidedRepeats: z.string(),
+      issues: z.string(),
+      insightsChecked: z.string(),
+      facebookCrossPostOff: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { syncReelLogToSheet } = await import("../sheets-sync");
+        const ok = await syncReelLogToSheet(input);
+        return { success: ok };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Log Reel failed" });
+      }
+    }),
+  logCarousel: adminProcedure
+    .input(z.object({
+      topic: z.string(),
+      verifiedFact: z.string(),
+      sources: z.string(),
+      driverConfusion: z.string(),
+      clevelandAngle: z.string(),
+      campaignKeyword: z.string(),
+      creativeTerritory: z.string(),
+      usefulAbsurdity: z.string(),
+      storyboardOutline: z.string(),
+      captionHook: z.string(),
+      instagramUrl: z.string(),
+      assetPaths: z.string(),
+      score: z.string(),
+      hashtags: z.string(),
+      avoidedRepeats: z.string(),
+      issues: z.string(),
+      insightsChecked: z.string(),
+      facebookCrossPostOff: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { syncCarouselLogToSheet } = await import("../sheets-sync");
+        const ok = await syncCarouselLogToSheet(input);
+        return { success: ok };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Log Carousel failed" });
+      }
+    }),
+  allReelLogs: adminProcedure.query(async () => {
+    try {
+      const { fetchReelLogsFromSheet } = await import("../sheets-sync");
+      return await fetchReelLogsFromSheet();
+    } catch (err) {
+      log.warn("allReelLogs failed", err);
+      return [];
+    }
+  }),
+  allCarouselLogs: adminProcedure.query(async () => {
+    try {
+      const { fetchCarouselLogsFromSheet } = await import("../sheets-sync");
+      return await fetchCarouselLogsFromSheet();
+    } catch (err) {
+      log.warn("allCarouselLogs failed", err);
+      return [];
+    }
+  }),
+  publishCarousel: adminProcedure
+    .input(z.object({
+      imageUrls: z.array(z.string()),
+      caption: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { getMetaSocialStatus, postInstagramCarousel } = await import("../services/metaSocial");
+        const status = await getMetaSocialStatus();
+        if (!status.configured || !status.instagramReady) {
+          return { success: false, error: "Meta API credentials are not configured in your .env file.", isSandbox: true };
+        }
+        const res = await postInstagramCarousel({
+          imageUrls: input.imageUrls,
+          caption: input.caption,
+        });
+        return { success: res.success, postId: res.postId, error: res.error, isSandbox: false };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Carousel publishing failed" });
+      }
+    }),
+  publishReel: adminProcedure
+    .input(z.object({
+      videoUrl: z.string(),
+      caption: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { getMetaSocialStatus, postInstagramReel } = await import("../services/metaSocial");
+        const status = await getMetaSocialStatus();
+        if (!status.configured || !status.instagramReady) {
+          return { success: false, error: "Meta API credentials are not configured in your .env file.", isSandbox: true };
+        }
+        const res = await postInstagramReel({
+          videoUrl: input.videoUrl,
+          caption: input.caption,
+        });
+        return { success: res.success, postId: res.postId, error: res.error, isSandbox: false };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Reel publishing failed" });
+      }
+    }),
 });
+

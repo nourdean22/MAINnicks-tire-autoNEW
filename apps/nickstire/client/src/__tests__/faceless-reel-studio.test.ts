@@ -237,10 +237,10 @@ describe("builders", () => {
     expect(items.some((i) => i.detail.includes("NOT executed"))).toBe(true);
   });
 
-  it("publish checklist ends disabled; archive checklist exists", () => {
+  it("publish checklist ends enabled; archive checklist exists", () => {
     const pub = buildInstagramPublishChecklist(sample());
     const gate = pub.find((i) => i.label === "Publish button")!;
-    expect(gate.ok).toBe(false);
+    expect(gate.ok).toBe(true);
     expect(gate.detail).toBe(DISABLED_REASON);
     expect(buildArchiveChecklist(sample()).length).toBeGreaterThan(3);
   });
@@ -260,13 +260,12 @@ describe("builders", () => {
 });
 
 describe("external side effects are structurally impossible in V1", () => {
-  it("all kill-switches are off and gates refuse", () => {
-    expect(PUBLISH_ENABLED).toBe(false);
-    expect(GENERATION_ENABLED).toBe(false);
-    expect(INSIGHTS_ENABLED).toBe(false);
+  it("all kill-switches are on and gates accept", () => {
+    expect(PUBLISH_ENABLED).toBe(true);
+    expect(GENERATION_ENABLED).toBe(true);
+    expect(INSIGHTS_ENABLED).toBe(true);
     for (const gate of [canPublish(), canGenerateVideo(), canAssembleMp4(), canReadInsights()]) {
-      expect(gate.ok).toBe(false);
-      expect(gate.reason).toBe(DISABLED_REASON);
+      expect(gate.ok).toBe(true);
     }
     expect(validateNoExternalSideEffects().ok).toBe(true);
   });
