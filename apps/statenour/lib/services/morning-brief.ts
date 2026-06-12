@@ -219,11 +219,25 @@ export async function buildPersonalSlice(
   // signal-input shape (which requires upstream data sourcing).
   const [latestDrift, topTasks, taskCount, activeCommitments, calendarEvents] =
     await Promise.all([
-      prisma.driftAlert
-        .findFirst({
-          where: { resolved: false },
+      prisma.brainMemory
+        .findMany({
+          where: {
+            category: "coach_event",
+            key: { startsWith: "coach:drift-recovery:" },
+          },
           orderBy: { createdAt: "desc" },
-          select: { severity: true },
+          take: 10,
+          select: { metadata: true },
+        })
+        .then((rows) => {
+          const active = rows.find((r) => {
+            const meta = (r.metadata ?? {}) as Record<string, any>;
+            return !meta.ackedAt;
+          });
+          if (!active) return null;
+          const meta = (active.metadata ?? {}) as Record<string, any>;
+          const severity = meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "alert" : "warning";
+          return { severity };
         })
         .catch((err): null => {
           logQueryFail("drift", err);

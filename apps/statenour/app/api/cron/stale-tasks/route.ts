@@ -4,6 +4,7 @@ import { daysAgo, today } from "@/lib/utils/datetime";
 import { auditUpdate } from "@/lib/db/actor";
 import { logUpdate } from "@/lib/db/entity-audit";
 import { emitDriftFired } from "@/lib/db/brain-bus-emit";
+import { recordCoachEvent } from "@/lib/services/coach-events";
 export const maxDuration = 60;
 
 /**
@@ -58,35 +59,36 @@ export const GET = cronHandler(async () => {
       { source: "cron:stale-tasks", reason: "drift risk auto-bump" },
     );
 
-    // Create drift alert when risk exceeds threshold
-    if (newDriftRisk > 3 && task.driftRisk <= 3) {
-      const severity = newDriftRisk > 5 ? "high" : "medium";
-      const message = `Task "${task.title}" hasn't been touched in ${5 + newDriftRisk - 1} days. Drift risk: ${newDriftRisk}`;
-      const alert = await prisma.driftAlert.create({
-        data: {
-          date: todayStr,
-          ruleId: "stale_task",
-          ruleName: "Stale Task Detection",
-          severity,
-          message,
-        },
-        select: { id: true },
-      });
-      // v10.0.63 · brain-bus producer · emit drift.fired for the
-      // durable replay log. Dedupe key in emit handles same-rule-
-      // same-day so per-task fires within stale-tasks dedupe at the
-      // row level (we only fire when threshold transitions, so this
-      // is naturally bounded).
-      void emitDriftFired({
-        alertId: alert.id,
-        ruleId: "stale_task",
-        ruleName: "Stale Task Detection",
-        severity,
-        message,
-        date: todayStr,
-      });
-      driftAlertsCreated++;
-    }
+      // Create drift alert when risk exceeds threshold
+      if (newDriftRisk > 3 && task.driftRisk <= 3) {
+        const severity = newDriftRisk > 5 ? "high" : "medium";
+        const priority = severity === "high" ? "P0" : "P1";
+        const message = `Task "${task.title}" hasn't been touched in ${5 + newDriftRisk - 1} days. Drift risk: ${newDriftRisk}`;
+        const event = await recordCoachEvent({
+          kind: "drift-recovery",
+          subjectId: `stale_task_${task.id}`,
+          priority,
+          title: "Stale Task Detection",
+          body: message,
+          surfaces: ["tasks", "goals", "journal", "brain", "scoreboard", "home"],
+        });
+        // v10.0.63 · brain-bus producer · emit drift.fired for the
+        // durable replay log. Dedupe key in emit handles same-rule-
+        // same-day so per-task fires within stale-tasks dedupe at the
+        // row level (we only fire when threshold transitions, so this
+        // is naturally bounded).
+        if (event) {
+          void emitDriftFired({
+            alertId: event.eventId,
+            ruleId: "stale_task",
+            ruleName: "Stale Task Detection",
+            severity,
+            message,
+            date: todayStr,
+          });
+          driftAlertsCreated++;
+        }
+      }
   }
 
   // Mark overdue scheduled actions

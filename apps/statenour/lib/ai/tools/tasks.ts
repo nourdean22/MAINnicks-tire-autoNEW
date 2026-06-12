@@ -28,6 +28,7 @@ import { habitsTools } from "@/lib/ai/tools/habits";
 import { healthTools } from "@/lib/ai/tools/health";
 import { financeTools } from "@/lib/ai/tools/finance";
 import { calendarTools } from "@/lib/ai/tools/calendar";
+import { getUnresolvedAlerts } from "@/lib/mastery/drift-engine";
 
 const tasksCoreTools = {
   getMasteryScores: tool({
@@ -51,7 +52,7 @@ const tasksCoreTools = {
     description: "Get unresolved drift alerts",
     inputSchema: z.object({}),
     execute: async () => {
-      return prisma.driftAlert.findMany({ where: { resolved: false }, orderBy: { date: "desc" } }).catch((): never[] => []);
+      return getUnresolvedAlerts().catch((): never[] => []);
     },
   }),
 
@@ -334,9 +335,10 @@ const tasksCoreTools = {
 
   resolveAlert: tool({
     description: "Resolve a drift alert",
-    inputSchema: z.object({ alertId: z.number() }),
+    inputSchema: z.object({ alertId: z.union([z.string(), z.number()]) }),
     execute: async ({ alertId }) => {
-      await prisma.driftAlert.update({ where: { id: alertId }, data: { resolved: true, resolvedDate: today() } });
+      const { resolveAlert } = await import("@/lib/mastery/drift-engine");
+      await resolveAlert(alertId);
       return { resolved: true, alertId };
     },
   }),
@@ -1218,7 +1220,10 @@ const tasksCoreTools = {
           })
           .catch((): null => null),
         prisma.task.findMany({ where: { status: { in: ["READY", "DOING"] }, deletedAt: null }, orderBy: { autoPriority: "desc" }, take: 5 }).catch((): never[] => []),
-        prisma.driftAlert.findMany({ where: { resolved: false } }).catch((): never[] => []),
+        (async () => {
+          const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+          return getUnresolvedAlerts().catch(() => []);
+        })(),
       ]);
 
       return {

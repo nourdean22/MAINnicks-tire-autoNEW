@@ -473,7 +473,10 @@ async function cmdStatus(chatId: string): Promise<void> {
       prisma.task.count({ where: { status: "INBOX" } }).catch(() => 0),
       prisma.task.count({ where: { status: "READY" } }).catch(() => 0),
       prisma.task.count({ where: { status: "DOING" } }).catch(() => 0),
-      prisma.driftAlert.count({ where: { resolved: false } }).catch(() => 0),
+      (async () => {
+        const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+        return (await getUnresolvedAlerts().catch(() => [])).length;
+      })(),
       Promise.resolve(0).catch(() => 0),
       prisma.commitment
         .count({ where: { status: { in: ["active", "in_progress"] } } })

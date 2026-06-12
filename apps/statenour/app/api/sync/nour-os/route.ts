@@ -327,11 +327,34 @@ export const GET = syncHandler(async () => {
       orderBy: { priority: "desc" },
       take: 10,
     }),
-    prisma.driftAlert.findMany({
-      where: { resolved: false },
-      select: { id: true, ruleName: true, severity: true, message: true, date: true },
-      take: 10,
-    }),
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "coach_event",
+          key: { startsWith: "coach:drift-recovery:" },
+          deletedAt: null,
+        },
+        select: { key: true, content: true, metadata: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      })
+      .then((rows) => {
+        const unresolved = rows.filter((e) => {
+          const meta = (e.metadata ?? {}) as Record<string, unknown>;
+          return !meta.ackedAt;
+        });
+        return unresolved.slice(0, 10).map((e) => {
+          const meta = (e.metadata ?? {}) as Record<string, unknown>;
+          return {
+            id: e.key,
+            ruleName: e.content,
+            severity: meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "alert" : "warning",
+            message: typeof meta.body === "string" ? meta.body : "",
+            date: new Date(e.createdAt).toLocaleDateString("en-CA", { timeZone: "America/New_York" }),
+          };
+        });
+      })
+      .catch(() => [] as Array<{ id: string; ruleName: string; severity: string; message: string; date: string }>),
     // Apr 18: OpenLoop retired → Task queue (same shape).
     prisma.task
       .findMany({

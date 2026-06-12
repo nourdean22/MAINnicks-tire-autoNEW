@@ -225,7 +225,21 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       suggestionCount,
     ] = await Promise.all([
       checkDbConnection(),
-      prisma.driftAlert.count({ where: { resolved: false } }),
+      prisma.brainMemory
+        .findMany({
+          where: {
+            category: "coach_event",
+            key: { startsWith: "coach:drift-recovery:" },
+          },
+          select: { metadata: true },
+        })
+        .then((rows) => {
+          return rows.filter((r) => {
+            const meta = (r.metadata ?? {}) as Record<string, any>;
+            return !meta.ackedAt;
+          }).length;
+        })
+        .catch(() => 0),
       prisma.task.groupBy({ by: ["status"], _count: { id: true } }),
       prisma.commitment.count({
         where: { status: { in: ["active", "in_progress"] } },
