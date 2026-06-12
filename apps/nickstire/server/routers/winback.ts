@@ -364,6 +364,34 @@ export const winbackRouter = router({
     };
   }),
 
+  /** Get segment counts for all cohorts in parallel */
+  segmentCounts: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) {
+      return {
+        lapsed: 0,
+        dormant: 0,
+        lost: 0,
+        vip: 0,
+        fleet: 0,
+        recent: 0,
+        tire_customer: 0,
+      };
+    }
+
+    const segments = ["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"] as const;
+    const countPromises = segments.map(async (seg) => {
+      const filter = buildSegmentFilter(seg);
+      const [row] = await d.select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(filter);
+      return { [seg]: row?.count ?? 0 };
+    });
+
+    const results = await Promise.all(countPromises);
+    return Object.assign({}, ...results) as Record<typeof segments[number], number>;
+  }),
+
   /** Create a new win-back campaign */
   create: adminProcedure
     .input(z.object({

@@ -129,6 +129,9 @@ describe("SMS Opt-Out Compliance & Footer Bypass", () => {
   });
 
   it("should verify footer insertion in sendSms via twilio mock", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-12T10:00:00-04:00")); // Force 10:00 AM ET (sending hours)
+
     mockTwilioCreate.mockClear();
 
     process.env.TWILIO_ACCOUNT_SID = "AC_test";
@@ -185,9 +188,10 @@ describe("SMS Opt-Out Compliance & Footer Bypass", () => {
       })
     );
 
-    // Restore env
+    // Restore env & timers
     if (origUser) process.env.SHOP_SMS_GATEWAY_USERNAME = origUser;
     if (origPass) process.env.SHOP_SMS_GATEWAY_PASSWORD = origPass;
+    vi.useRealTimers();
   });
 });
 

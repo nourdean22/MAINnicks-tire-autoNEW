@@ -55,7 +55,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
   const [segment, setSegment] = useState<"lapsed" | "dormant" | "lost" | "vip" | "fleet" | "recent" | "tire_customer">("lapsed");
   const [creating, setCreating] = useState(false);
 
-  const { data: customerStats } = trpc.customers.stats.useQuery();
+  const { data: segmentCounts } = trpc.winback.segmentCounts.useQuery();
   // 2026-05-23 · was bare. Caught by try/catch at the call site
   // (mutateAsync) which is fine for errors, but onSuccess was never
   // invalidating the campaigns list. Created campaign was invisible
@@ -68,9 +68,8 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
   // wave-112 — was `as any`; now honest cast. customers.stats only
   // exposes a few of the win-back segment keys (lapsed, recent). For the
   // others (dormant, lost, vip, fleet) the lookup is undefined → 0.
-  // TODO: add a winback.segmentCounts server route exposing every
-  // selectable segment so the operator sees real counts before launching.
-  const stats = customerStats as Record<string, number> | undefined | null;
+  // Now we use winback.segmentCounts to show real counts.
+  const stats = segmentCounts as Record<string, number> | undefined | null;
   const segmentCount = stats?.[segment] ?? 0;
 
   async function handleCreate() {
@@ -130,7 +129,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
                 fleet: "Fleet/Commercial", recent: "Recent (30-90d)",
                 tire_customer: "Tire (180d+)",
               };
-              const count = customerStats?.[s as keyof typeof customerStats] ?? "?";
+              const count = segmentCounts?.[s as keyof typeof segmentCounts] ?? "?";
               return (
                 <button
                    key={s}

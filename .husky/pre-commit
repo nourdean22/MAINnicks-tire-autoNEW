@@ -33,6 +33,9 @@ if [ "$NICKSTIRE_STAGED" -gt 0 ]; then
   echo "[pre-commit] Hook-after-return lint..."
   (cd apps/nickstire && pnpm run lint:hooks)
 
+  echo "[pre-commit] PII lint (no credentials/phone leaks)..."
+  (cd apps/nickstire && pnpm run lint:pii)
+
   echo "[pre-commit] Route registry validation..."
   (cd apps/nickstire && pnpm run validate:routes)
 

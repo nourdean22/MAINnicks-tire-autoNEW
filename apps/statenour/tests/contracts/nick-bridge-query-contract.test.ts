@@ -51,10 +51,6 @@ const KNOWN_PENDING = new Set<string>([
   "leads_overdue_count",
   "leads_today_count",
   "leads_week_count",
-  "cars_today",
-  "estimates_conversion",
-  "estimates_aging",
-  "drop_off_ratio",
 ]);
 
 /** Parse the live handler keys out of nickstire's QUERY_HANDLERS registry. */
