@@ -15,6 +15,12 @@ vi.mock("@/lib/prisma", () => ({
     brainMemory: {
       findMany: vi.fn(),
     },
+    lifeGoal: {
+      findUnique: vi.fn(),
+    },
+    mission: {
+      findUnique: vi.fn(),
+    },
     $queryRawUnsafe: vi.fn(),
   },
 }));
@@ -66,7 +72,7 @@ describe("proposeTaskRoi heuristics", () => {
     personId: null,
     lastCompletedAt: null,
     streakCount: 0,
-    goalId: "goal-1",
+    goalId: null,
     statHints: [],
     pendingClassification: null,
     parentTaskId: null,
@@ -119,6 +125,47 @@ describe("proposeTaskRoi heuristics", () => {
       proof: null,
     });
     expect(res.classification).toBe("insufficient_evidence");
+  });
+
+  it("applies goal alignment modifier (+10)", async () => {
+    vi.mocked(prisma.lifeGoal.findUnique).mockResolvedValue(null);
+    const res = await proposeTaskRoi({
+      ...baseTask,
+      actualMinutes: 30,
+      completionNote: "Balanced task note",
+      goalId: "goal-1",
+    });
+    // Base is 50, +10 for goalId = 60
+    expect(res.outcomeScore).toBe(60);
+  });
+
+  it("applies goal alignment and long-term horizon modifiers (+15)", async () => {
+    vi.mocked(prisma.lifeGoal.findUnique).mockResolvedValue({
+      horizon: "YEAR",
+    } as any);
+    const res = await proposeTaskRoi({
+      ...baseTask,
+      actualMinutes: 30,
+      completionNote: "Balanced task note",
+      goalId: "goal-long",
+    });
+    // Base is 50, +10 for goalId, +5 for YEAR horizon = 65
+    expect(res.outcomeScore).toBe(65);
+  });
+
+  it("applies business/finance domain mission modifier (+10)", async () => {
+    vi.mocked(prisma.mission.findUnique).mockResolvedValue({
+      domain: "BUSINESS",
+    } as any);
+    const res = await proposeTaskRoi({
+      ...baseTask,
+      actualMinutes: 30,
+      completionNote: "Balanced task note",
+      goalId: null,
+      missionId: "mission-biz",
+    });
+    // Base is 50, +10 for BUSINESS domain = 60
+    expect(res.outcomeScore).toBe(60);
   });
 });
 

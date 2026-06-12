@@ -17,9 +17,29 @@ export const maxDuration = 120; // Pro plan limit
 
 export const GET = cronHandler(async () => {
   const results: Record<string, any> = {
+    prunedLessons: 0,
     predictions: { scanned: 0, created: 0, errors: 0 },
     tasks: { scanned: 0, created: 0, errors: 0 },
   };
+
+  // 0. Prune expired prediction lessons (Lesson Hygiene Pruning)
+  try {
+    const pruneRes = await prisma.brainMemory.updateMany({
+      where: {
+        category: "prediction_lesson",
+        expiresAt: { lte: new Date() },
+        deletedAt: null,
+      },
+      data: { deletedAt: new Date() },
+    });
+    results.prunedLessons = pruneRes.count;
+    log.info("pruned_expired_lessons", { count: pruneRes.count });
+  } catch (err) {
+    results.pruningError = err instanceof Error ? err.message : String(err);
+    log.error("pruning_expired_lessons_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
@@ -109,6 +129,10 @@ export const GET = cronHandler(async () => {
     results.tasks.scanned = completedTasks.length;
 
     for (const task of completedTasks) {
+      // Sample-Quality Gate: Skip tasks that do not meet minimum evidence standards
+      if (!task.completionNote && (!task.actualMinutes || task.actualMinutes === 0) && !task.proof) {
+        continue;
+      }
       try {
         const proposal = await proposeTaskRoi(task);
 
