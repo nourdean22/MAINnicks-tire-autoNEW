@@ -29,6 +29,9 @@ import {
   Clock,
   Search,
   ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  Settings,
 } from "lucide-react";
 import {
   SkeletonKpiGrid,
@@ -62,9 +65,12 @@ import { TransferDestinationCard } from "./voice/TransferDestinationCard";
 import { FollowUpTransferCard } from "./voice/FollowUpTransferCard";
 import { LiveCallsCard } from "./voice/LiveCallsCard";
 import { CallDetailsDrawer } from "./voice/CallDetailsDrawer";
+import { VoiceAchievements } from "./voice/VoiceAchievements";
+import VapiPanel from "./settings/VapiPanel";
 
 // ─── Section ────────────────────────────────────────────────
 export default function VoiceReceptionistSection() {
+  const [showDevSettings, setShowDevSettings] = useState(false);
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
   // Wave-89 — sort + filter state
   const [sortMode, setSortMode] = useState<SortMode>("newest");
@@ -176,6 +182,8 @@ export default function VoiceReceptionistSection() {
           }
         }}
       />
+
+      <VoiceAchievements />
 
       {/* ─── Transfer destination quick-control ─────── */}
       <TransferDestinationCard />
@@ -420,6 +428,30 @@ export default function VoiceReceptionistSection() {
           </div>
         )}
       </Panel>
+
+      {/* ─── System & Developer Settings (Collapsible) ─── */}
+      <div className="space-y-4">
+        <button
+          onClick={() => setShowDevSettings(!showDevSettings)}
+          className="flex items-center justify-between w-full bg-card border border-border/20 px-4 py-3 hover:bg-foreground/[0.02] transition-colors text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Settings className="w-4 h-4 text-foreground/60" />
+            <span className="font-bold text-sm text-foreground">System & Developer Settings</span>
+          </div>
+          {showDevSettings ? (
+            <ChevronUp className="w-4 h-4 text-foreground/50" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-foreground/50" />
+          )}
+        </button>
+
+        {showDevSettings && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+            <VapiPanel />
+          </div>
+        )}
+      </div>
 
       {/* ─── Drawer: full transcript + tool calls ────── */}
       {selectedCallId && (
