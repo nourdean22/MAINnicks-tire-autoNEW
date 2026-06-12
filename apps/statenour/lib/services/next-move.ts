@@ -59,6 +59,47 @@ export interface NextMove {
   criticalFew?: CriticalFewTask[];
 }
 
+// ─── Stat Key to Mission Domain Map ────────────────────────────────
+const STAT_KEY_TO_MISSION_DOMAIN: Record<string, string> = {
+  // BODY
+  physical: "HEALTH",
+  combat: "HEALTH",
+  conditioning: "HEALTH",
+  mobility: "HEALTH",
+  // MIND
+  mental: "PERSONAL",
+  fortitude: "PERSONAL",
+  emotional_intelligence: "PERSONAL",
+  adaptability: "PERSONAL",
+  courage: "PERSONAL",
+  faith: "PERSONAL",
+  self_confidence: "PERSONAL",
+  patience: "PERSONAL",
+  audacity: "PERSONAL",
+  wisdom: "PERSONAL",
+  discipline: "PERSONAL",
+  // EMPIRE
+  business_ops: "BUSINESS",
+  financial: "FINANCE",
+  technical: "BUSINESS",
+  strategy: "BUSINESS",
+  delegation: "BUSINESS",
+  follow_through: "BUSINESS",
+  critical_thinking: "BUSINESS",
+  learning: "BUSINESS",
+  // INFLUENCE
+  sales: "CONTENT",
+  persuasion: "CONTENT",
+  marketing: "CONTENT",
+  leadership: "CONTENT",
+  relationships: "PERSONAL",
+  service: "PERSONAL",
+  languages: "PERSONAL",
+  advertising: "CONTENT",
+  seduction: "PERSONAL",
+  networking: "CONTENT",
+};
+
 export async function buildNextMove(): Promise<NextMove> {
   // 1 · Find the weakest domain · sort mastery scores ascending,
   //     pick the latest row per domain.
@@ -230,9 +271,11 @@ export async function buildNextMove(): Promise<NextMove> {
 
   // 4.2 Weakest Lane
   if (weakestDomain) {
+    const lowestDomainKey = weakestDomain.toLowerCase();
+    const targetLegacyDomain = STAT_KEY_TO_MISSION_DOMAIN[lowestDomainKey] || weakestDomain;
     const weakestLaneTask = openTasks.find((t) => 
       !selectedIds.has(t.id) &&
-      t.mission?.domain?.toUpperCase() === weakestDomain.toUpperCase()
+      t.mission?.domain?.toUpperCase() === targetLegacyDomain.toUpperCase()
     );
     if (weakestLaneTask) {
       selectedIds.add(weakestLaneTask.id);
