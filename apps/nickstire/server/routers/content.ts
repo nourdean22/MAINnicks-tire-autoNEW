@@ -344,5 +344,18 @@ export const contentAdminRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Reel publishing failed" });
       }
     }),
+  getProprietaryEvidence: adminProcedure
+    .input(z.object({ topicKeyword: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      try {
+        const { getProprietaryEvidence } = await import("../services/evidenceEngine");
+        return await getProprietaryEvidence(input?.topicKeyword);
+      } catch (err) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: err instanceof Error ? err.message : "Failed to fetch proprietary evidence",
+        });
+      }
+    }),
 });
 

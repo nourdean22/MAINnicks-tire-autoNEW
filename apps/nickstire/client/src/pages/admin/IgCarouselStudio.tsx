@@ -56,7 +56,7 @@ function copyText(label: string, text: string) {
 
 function Panel({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="border border-border bg-card/40 p-4 space-y-3">
+    <section className="border border-border bg-card/40 rounded-lg p-4 space-y-3">
       <h2 className="flex items-center gap-2 text-sm font-bold tracking-wide text-foreground/90 uppercase">
         {icon} {title}
       </h2>
@@ -86,6 +86,14 @@ export default function IgCarouselStudio() {
 
   const { data: sheetsDrafts, refetch: refetchDrafts } = trpc.contentAdmin.allCarouselDrafts.useQuery();
   const { data: sheetsLogs, refetch: refetchLogs } = trpc.contentAdmin.allCarouselLogs.useQuery();
+
+  const selectedBriefTopic = useMemo(() => {
+    const custom = (sheetsDrafts || []).find((d: any) => d.id === briefId);
+    if (custom) return custom.topic;
+    return SAMPLE_BRIEFS.find((b) => b.id === briefId)?.topic ?? "";
+  }, [sheetsDrafts, briefId]);
+
+  const { data: evidence } = trpc.contentAdmin.getProprietaryEvidence.useQuery({ topicKeyword: selectedBriefTopic });
 
   const saveDraftMutation = trpc.contentAdmin.saveCarouselDraft.useMutation({
     onSuccess: () => {
@@ -158,8 +166,9 @@ export default function IgCarouselStudio() {
         seasonLocalAngle: brief.seasonality,
         avoidTopics: [...reps.recentTopics, ...avoidTopics.split(",").map((s) => s.trim()).filter(Boolean)],
         avoidKeywords: reps.recentKeywords,
+        proprietaryEvidence: evidence,
       }),
-    [mode, brief, topicOverride, keywordOverride, reps, avoidTopics],
+    [mode, brief, topicOverride, keywordOverride, reps, avoidTopics, evidence],
   );
 
   const publishGate = canPublish();
@@ -278,6 +287,39 @@ export default function IgCarouselStudio() {
             ))}
           </ul>
           <p className="text-[11px] text-foreground/40">Pain-point sources show demand; only PROOF sources may back the mechanic truth.</p>
+        </Panel>
+
+        {/* Proprietary Shop Evidence */}
+        <Panel title="Proprietary Shop Evidence" icon={<ShieldCheck className="w-4 h-4 text-primary" />}>
+          {evidence ? (
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="font-bold text-primary">Cleveland Repair Stats:</span>
+                <ul className="list-disc list-inside text-xs text-foreground/85 pl-2 mt-1">
+                  <li>Brake rust/seizure ratio: {evidence.localStats.brakeRustRatioPercent}% of inspected brakes show salt/seizure issues.</li>
+                  <li>Recent pothole/rim damage bookings: {evidence.localStats.potholeDamageCount} incidents.</li>
+                  <li>Common vehicles serviced: {evidence.localStats.commonVehicles.join(", ")}.</li>
+                  <li>Average Cleveland vehicle mileage: {evidence.localStats.averageMileage.toLocaleString()} miles.</li>
+                </ul>
+              </div>
+              {evidence.recentCaseStudy && (
+                <div>
+                  <span className="font-bold text-primary">Real Shop Case Study (Grounding):</span>
+                  <div className="text-xs text-foreground/85 pl-2 border-l border-border mt-1 space-y-1">
+                    <p><span className="text-foreground/50">Vehicle:</span> {evidence.recentCaseStudy.vehicle}</p>
+                    <p><span className="text-foreground/50">Symptom:</span> {evidence.recentCaseStudy.symptom}</p>
+                    <p><span className="text-foreground/50">Failed Component:</span> {evidence.recentCaseStudy.failedComponent} ({evidence.recentCaseStudy.condition})</p>
+                    <p><span className="text-foreground/50">Tech Notes:</span> {evidence.recentCaseStudy.techNotes}</p>
+                    <p><span className="text-foreground/50">Action:</span> {evidence.recentCaseStudy.recommendedAction}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-foreground/50 flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" /> Loading proprietary evidence from database...
+            </p>
+          )}
         </Panel>
 
         {/* 4 · Concept scoreboard */}

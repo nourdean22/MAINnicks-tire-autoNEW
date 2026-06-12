@@ -235,6 +235,7 @@ export default function FacelessReelStudio() {
   }, [sheetsDrafts]);
 
   const brief = allBriefs[briefIndex] || allBriefs[0] || SAMPLE_REEL_BRIEFS[0];
+  const { data: evidence } = trpc.contentAdmin.getProprietaryEvidence.useQuery({ topicKeyword: brief?.topic });
 
   const reps = useMemo(() => {
     const logs = sheetsLogs || [];
@@ -273,6 +274,7 @@ export default function FacelessReelStudio() {
       motionLens: brief.motionLens,
       objectCharacter: brief.objectCharacter,
       avoidRecentTopics: reps.recentTopics.length ? reps.recentTopics : (brief.avoidedForRepetition ? [brief.avoidedForRepetition] : []),
+      proprietaryEvidence: evidence,
     });
 
   return (
@@ -379,6 +381,39 @@ export default function FacelessReelStudio() {
         </ul>
         {brief.sourceNotes.filter((s) => s.kind === "proof").length === 0 && (
           <p className="text-[12px] text-red-400 mt-2">Needs a PROOF source before this brief can pass the gate.</p>
+        )}
+      </SectionCard>
+
+      {/* Proprietary Shop Evidence */}
+      <SectionCard title="PROPRIETARY SHOP EVIDENCE">
+        {evidence ? (
+          <div className="space-y-2 text-[12px]">
+            <div>
+              <span className="font-semibold text-foreground/80">Cleveland Repair Stats:</span>
+              <ul className="list-disc list-inside text-foreground/70 pl-2 mt-1">
+                <li>Brake rust/seizure ratio: {evidence.localStats.brakeRustRatioPercent}% of inspected brakes show salt/seizure issues.</li>
+                <li>Recent pothole/rim damage bookings: {evidence.localStats.potholeDamageCount} incidents.</li>
+                <li>Common vehicles serviced: {evidence.localStats.commonVehicles.join(", ")}.</li>
+                <li>Average Cleveland vehicle mileage: {evidence.localStats.averageMileage.toLocaleString()} miles.</li>
+              </ul>
+            </div>
+            {evidence.recentCaseStudy && (
+              <div className="mt-2">
+                <span className="font-semibold text-foreground/80">Real Shop Case Study (Grounding):</span>
+                <div className="text-foreground/75 pl-2 border-l border-border/40 mt-1 space-y-1">
+                  <p><span className="text-foreground/45">Vehicle:</span> {evidence.recentCaseStudy.vehicle}</p>
+                  <p><span className="text-foreground/45">Symptom:</span> {evidence.recentCaseStudy.symptom}</p>
+                  <p><span className="text-foreground/45">Failed Component:</span> {evidence.recentCaseStudy.failedComponent} ({evidence.recentCaseStudy.condition})</p>
+                  <p><span className="text-foreground/45">Tech Notes:</span> {evidence.recentCaseStudy.techNotes}</p>
+                  <p><span className="text-foreground/45">Action:</span> {evidence.recentCaseStudy.recommendedAction}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-[12px] text-foreground/45 flex items-center gap-1">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading proprietary evidence from database...
+          </p>
         )}
       </SectionCard>
 

@@ -1,48 +1,43 @@
 #!/usr/bin/env sh
-# Husky pre-commit hook — runs fast checks before every commit.
+# Husky pre-commit hook — runs fast parallelized checks before every commit.
 #
-# wave-181.49 — fixed for monorepo cutover (CP1-CP2, May 13). Previously
-# called `pnpm run lint:source` from the root, which broke when those
-# scripts moved into apps/nickstire/package.json. Now delegates per-app.
-#
-# Runs in order of increasing cost: brand-voice (instant, scoped) →
-# source lint (fast) → types (slower). Tests dropped from the pre-commit
-# chain — full suite takes ~45s, too slow for every commit; run via
-# `pnpm test` manually or in CI.
-#
-# To bypass for a legitimate one-off: git commit --no-verify
-#   (use sparingly — bypasses ALL hooks not just brand-voice)
+# Optimized: TypeScript check deferred to pre-push to keep local commits instant.
+# Runs lints and route validation concurrently.
 
 set -e
 
-# Detect whether any nickstire files are staged. If not, skip the
-# nickstire checks entirely (e.g. for statenour-only commits).
+# Detect whether any nickstire files are staged. If not, skip checks.
 NICKSTIRE_STAGED=$(git diff --cached --name-only | grep -c "^apps/nickstire/" || true)
 
 if [ "$NICKSTIRE_STAGED" -gt 0 ]; then
-  echo "[pre-commit] $NICKSTIRE_STAGED nickstire file(s) staged → running nickstire checks"
+  echo "[pre-commit] $NICKSTIRE_STAGED nickstire file(s) staged → running parallel lints"
 
-  # Brand-voice kill list (wave-181.49) — instant, scoped to copy files only.
-  # Backed by .claude/brand-voice-guidelines.md §3.
-  echo "[pre-commit] Brand-voice lint (kill list)..."
-  (cd apps/nickstire && pnpm run lint:brand-voice)
+  # Run all lints concurrently in subshells
+  (cd apps/nickstire && pnpm run lint:brand-voice) &
+  P1=$!
+  
+  (cd apps/nickstire && pnpm run lint:source) &
+  P2=$!
+  
+  (cd apps/nickstire && pnpm run lint:hooks) &
+  P3=$!
+  
+  (cd apps/nickstire && pnpm run lint:pii) &
+  P4=$!
+  
+  (cd apps/nickstire && pnpm run validate:routes) &
+  P5=$!
 
-  echo "[pre-commit] Source lint (console.* in server, etc)..."
-  (cd apps/nickstire && pnpm run lint:source)
+  # Wait for all processes and accumulate exit codes
+  wait $P1 || { echo "[pre-commit] ❌ Brand-voice lint failed"; exit 1; }
+  wait $P2 || { echo "[pre-commit] ❌ Source lint failed"; exit 1; }
+  wait $P3 || { echo "[pre-commit] ❌ Hooks lint failed"; exit 1; }
+  wait $P4 || { echo "[pre-commit] ❌ PII lint failed"; exit 1; }
+  wait $P5 || { echo "[pre-commit] ❌ Route validation failed"; exit 1; }
 
-  echo "[pre-commit] Hook-after-return lint..."
-  (cd apps/nickstire && pnpm run lint:hooks)
-
-  echo "[pre-commit] PII lint (no credentials/phone leaks)..."
-  (cd apps/nickstire && pnpm run lint:pii)
-
-  echo "[pre-commit] Route registry validation..."
-  (cd apps/nickstire && pnpm run validate:routes)
-
-  echo "[pre-commit] TypeScript check..."
-  (cd apps/nickstire && pnpm run check)
+  echo "[pre-commit] All parallel lints passed."
 else
-  echo "[pre-commit] no nickstire files staged → skipping nickstire checks"
+  echo "[pre-commit] no nickstire files staged → skipping checks"
 fi
 
 echo "✓ pre-commit OK"
