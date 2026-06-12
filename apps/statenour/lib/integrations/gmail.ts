@@ -284,6 +284,39 @@ export async function draftReply(args: {
 }
 
 /**
+ * Create a new draft message. Returns the draft id.
+ */
+export async function createDraft(args: {
+  to: string;
+  subject: string;
+  body: string;
+}): Promise<{ draftId: string; messageId: string }> {
+  // Build a RFC 2822 message with To, Subject, Content-Type, and Body
+  const raw = [
+    `To: ${args.to}`,
+    `Subject: ${args.subject}`,
+    "Content-Type: text/plain; charset=utf-8",
+    "",
+    args.body,
+  ].join("\r\n");
+  const rawBase64 = Buffer.from(raw, "utf8").toString("base64url");
+
+  const res = await guardedGmailFetch("/drafts", {
+    method: "POST",
+    body: JSON.stringify({
+      message: {
+        raw: rawBase64,
+      },
+    }),
+  });
+  const data = (await res.json()) as { id: string; message?: { id: string } };
+  return {
+    draftId: data.id,
+    messageId: data.message?.id ?? "",
+  };
+}
+
+/**
  * Send an existing draft. Returns the sent message id.
  */
 export async function sendDraft(draftId: string): Promise<{ messageId: string }> {

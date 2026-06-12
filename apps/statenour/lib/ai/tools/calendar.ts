@@ -80,7 +80,7 @@ export const calendarTools = {
   // proactively warn ("you said X two weeks ago and broke it").
   proposeCalendarEvent: tool({
     description:
-      "Propose a new Google Calendar event. Returns a 'create event' URL with all fields pre-filled. The operator clicks the URL to confirm and create — Nick never writes to the calendar without a human in the loop. Use when Nick suggests scheduling something concrete (a focus block, a meeting, a follow-up).",
+      "Create or propose a new Google Calendar event. If Google Calendar API is configured, writes the event directly to the calendar via the Google Calendar API. If not configured, returns a 'create event' URL with all fields pre-filled for the operator to click and create. Use when Nour wants to schedule something concrete (a focus block, a meeting, a follow-up).",
     inputSchema: z.object({
       title: z.string().min(2).max(120).describe("Event title."),
       startISO: z
@@ -114,7 +114,41 @@ export const calendarTools = {
         if (isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
           return { ok: false, error: "Invalid endISO (must be after startISO)" };
         }
-        // Google Calendar event-compose URL format. dates= uses
+
+        const { isGoogleOauthConfigured } = await import(
+          "@/lib/services/google-oauth"
+        );
+        const { createEvent } = await import(
+          "@/lib/services/calendar-api"
+        );
+        const configured = await isGoogleOauthConfigured();
+
+        if (configured) {
+          try {
+            const created = await createEvent({
+              title,
+              startISO,
+              endISO,
+              location,
+              description,
+              attendees,
+            });
+            return {
+              ok: true,
+              created: true,
+              eventId: created.id,
+              composeUrl: created.htmlLink,
+              summary: title,
+              start: start.toISOString(),
+              end: end.toISOString(),
+              instructions: "Render the composeUrl (event link) in the reply as 'View Event in Google Calendar →'.",
+            };
+          } catch (err) {
+            console.error("Calendar API create failed, falling back to template URL:", err);
+          }
+        }
+
+        // Google Calendar event-compose URL format fallback. dates= uses
         // the YYYYMMDDTHHmmssZ form in UTC.
         const fmt = (d: Date) => d.toISOString().replace(/[-:]|\.\d{3}/g, "");
         const params = new URLSearchParams({
@@ -130,6 +164,7 @@ export const calendarTools = {
         const composeUrl = `https://calendar.google.com/calendar/render?${params.toString()}`;
         return {
           ok: true,
+          created: false,
           composeUrl,
           summary: title,
           start: start.toISOString(),
