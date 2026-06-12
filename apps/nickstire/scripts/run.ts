@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
+import dotenv from "dotenv";
 
 import { fileURLToPath } from "url";
 import { dirname } from "path";
@@ -39,9 +40,6 @@ function main() {
     process.exit(1);
   }
 
-import dotenv from "dotenv";
-
-// At the start of main
   // Load dotenv variables first before running the child process
   dotenv.config({ path: path.resolve(SCRIPTS_DIR, "../.env") });
 
