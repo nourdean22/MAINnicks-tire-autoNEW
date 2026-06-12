@@ -124,6 +124,8 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   home: "overview",
   funnel: "trafficFunnel",
   traffic: "trafficFunnel",
+  tires: "tireOrders",
+  pipeline: "leads",
 
   // wave-181.x Wave 3 (2026-05-24) · Intelligence section retired ·
   // operator bookmarks pointing to ?tab=intelligence land on overview
@@ -540,13 +542,15 @@ export default function Admin() {
                   // split across Leads + Calls). Surfaces total items
                   // needing attention right now.
                   if (item.id === "overview") badge = urgentLeads + newLeads + newBookings + pendingCallbacks;
-                  if (item.id === "revenue") badge = woStats?.active ?? 0;
+                  if (item.id === "leads") badge = newLeads;
+                  if (item.id === "tireOrders") badge = stats?.tires?.new ?? 0;
+                  if (item.id === "memberships") badge = stats?.memberships?.warning ?? 0;
 
                   // wave-129b — badge tone semantics:
                   //   today (red dot)     — urgent / new — high priority
-                  //   revenue (red/amber) — overdue/blocked work
+                  //   memberships (red)   — past due / incomplete
                   //   default (subtle)    — work-in-progress count
-                  const isAlert = (item.id === "overview" && badge > 0) || (item.id === "revenue" && Boolean(woStats?.overdue || woStats?.blocked));
+                  const isAlert = (item.id === "overview" && badge > 0) || (item.id === "memberships" && badge > 0);
                   return (
                     <button
                       key={item.id}
