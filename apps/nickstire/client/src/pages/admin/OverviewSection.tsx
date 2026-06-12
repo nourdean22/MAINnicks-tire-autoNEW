@@ -56,6 +56,7 @@ import { WaveMetricWins } from "./today/WaveMetricWins";
 // derives from the same overviewMediumBundle (cache-shared · no new query).
 import { TodaysMoneyRisks } from "./today/TodaysMoneyRisks";
 import { MoneyScorecard } from "./today/MoneyScorecard";
+import { TopMoneyMoves } from "./today/TopMoneyMoves";
 import type {
   BookingItem, LeadItem, CallbackItem, WorkOrderItem,
   NBAAction, AtRiskWhale, ShopFloorData, ActionItem,
@@ -595,6 +596,8 @@ export default function OverviewSection() {
         priorityQueueLength={priorityQueue.length}
         urgentLeads={urgentLeads}
       />
+
+      <TopMoneyMoves />
 
       <MoneyScorecard />
 

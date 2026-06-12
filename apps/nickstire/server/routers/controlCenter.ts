@@ -7,7 +7,7 @@ import { sql, eq, gte, and, desc } from "drizzle-orm";
 import { exec } from "child_process";
 import { promisify } from "util";
 const execAsync = promisify(exec);
-import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits, invoices, estimatesLog, callEvents, tireOrders, winbackSends } from "../../drizzle/schema";
+import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits, invoices, estimatesLog, callEvents, tireOrders, winbackSends, winbackCampaigns, memberships } from "../../drizzle/schema";
 import { countActionableLeads } from "@shared/leadSource";
 import { getGatewayHealth, getAvailableModels } from "../lib/ai-gateway";
 import { z } from "zod";
@@ -1048,4 +1048,222 @@ export const controlCenterRouter = router({
       const { getCwvReport } = await import("../lib/cwv-telemetry");
       return getCwvReport(input?.windowMinutes ?? 60);
     }),
+
+  topMoneyMoves: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return [];
+
+    const moves: Array<{
+      type: "estimate" | "callback" | "invoice" | "winback" | "membership";
+      title: string;
+      description: string;
+      value: number;
+      id: number;
+      cta: string;
+      targetTab: string;
+      metadata: Record<string, any>;
+      score: number;
+    }> = [];
+
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    try {
+      // 1. Highest open estimate outstanding for > 24 hours
+      const [est] = await d.select({
+        id: estimatesLog.id,
+        name: estimatesLog.name,
+        phone: estimatesLog.phone,
+        service: estimatesLog.service,
+        value: estimatesLog.estimatedAmountCents,
+        createdAt: estimatesLog.createdAt,
+      })
+        .from(estimatesLog)
+        .where(and(
+          eq(estimatesLog.converted, 0),
+          sql`${estimatesLog.estimatedAmountCents} IS NOT NULL`,
+          sql`${estimatesLog.createdAt} < ${twentyFourHoursAgo}`
+        ))
+        .orderBy(desc(estimatesLog.estimatedAmountCents))
+        .limit(1);
+
+      if (est) {
+        const val = (est.value ?? 0) / 100;
+        const phoneTail = est.phone ? est.phone.slice(-4) : "";
+        moves.push({
+          type: "estimate",
+          title: "Follow up on high-value estimate",
+          description: `Customer ${est.name || 'Unknown'} (•••${phoneTail}) has an unconverted estimate for ${est.service || 'services'} worth $${val.toFixed(2)}.`,
+          value: val,
+          id: est.id,
+          cta: "Send Follow-up",
+          targetTab: "leads",
+          metadata: {
+            name: est.name || "Unknown",
+            phoneRedacted: est.phone ? `•••${phoneTail}` : "",
+            service: est.service,
+            amount: val,
+            id: est.id
+          },
+          score: val
+        });
+      }
+    } catch (err) {
+      log.error("[ControlCenter] topMoneyMoves estimate query failed:", err);
+    }
+
+    try {
+      // 2. Missed call / Callback request pending
+      const [cb] = await d.select({
+        id: callbackRequests.id,
+        name: callbackRequests.name,
+        phone: callbackRequests.phone,
+        context: callbackRequests.context,
+        createdAt: callbackRequests.createdAt,
+      })
+        .from(callbackRequests)
+        .where(sql`${callbackRequests.status} IN ('new', 'pending')`)
+        .orderBy(desc(callbackRequests.createdAt))
+        .limit(1);
+
+      if (cb) {
+        const phoneTail = cb.phone ? cb.phone.slice(-4) : "";
+        moves.push({
+          type: "callback",
+          title: "Return missed callback request",
+          description: `Customer ${cb.name || 'Unknown'} (•••${phoneTail}) requested a callback: "${cb.context || 'No details'}"`,
+          value: 0,
+          id: cb.id,
+          cta: "Call Customer",
+          targetTab: "callTrackingView",
+          metadata: {
+            name: cb.name || "Unknown",
+            phoneRedacted: cb.phone ? `•••${phoneTail}` : "",
+            context: cb.context,
+            id: cb.id
+          },
+          score: 500 // missed callbacks have high urgency weight
+        });
+      }
+    } catch (err) {
+      log.error("[ControlCenter] topMoneyMoves callback query failed:", err);
+    }
+
+    try {
+      // 3. Unpaid invoice exceeding a $500 threshold
+      const [inv] = await d.select({
+        id: invoices.id,
+        name: invoices.customerName,
+        phone: invoices.customerPhone,
+        value: invoices.totalAmount,
+        createdAt: invoices.invoiceDate,
+        number: invoices.invoiceNumber,
+      })
+        .from(invoices)
+        .where(and(
+          sql`${invoices.paymentStatus} IN ('pending', 'partial')`,
+          gte(invoices.totalAmount, 50000)
+        ))
+        .orderBy(desc(invoices.totalAmount))
+        .limit(1);
+
+      if (inv) {
+        const val = (inv.value ?? 0) / 100;
+        const phoneTail = inv.phone ? inv.phone.slice(-4) : "";
+        moves.push({
+          type: "invoice",
+          title: "Collect unpaid high-value invoice",
+          description: `Invoice #${inv.number || inv.id} for ${inv.name || 'Customer'} (•••${phoneTail}) is unpaid ($${val.toFixed(2)}).`,
+          value: val,
+          id: inv.id,
+          cta: "Send Invoice Payment Link",
+          targetTab: "revenue",
+          metadata: {
+            name: inv.name || "Customer",
+            phoneRedacted: inv.phone ? `•••${phoneTail}` : "",
+            amount: val,
+            number: inv.number,
+            id: inv.id
+          },
+          score: val
+        });
+      }
+    } catch (err) {
+      log.error("[ControlCenter] topMoneyMoves invoice query failed:", err);
+    }
+
+    try {
+      // 4. Winback campaign in draft status
+      const [camp] = await d.select({
+        id: winbackCampaigns.id,
+        name: winbackCampaigns.name,
+        targetSegment: winbackCampaigns.targetSegment,
+        targetCount: winbackCampaigns.targetCount,
+      })
+        .from(winbackCampaigns)
+        .where(eq(winbackCampaigns.status, "draft"))
+        .orderBy(desc(winbackCampaigns.createdAt))
+        .limit(1);
+
+      if (camp) {
+        moves.push({
+          type: "winback",
+          title: "Approve winback campaign",
+          description: `Outreach campaign "${camp.name}" for segment "${camp.targetSegment}" (${camp.targetCount} targets) is ready for activation.`,
+          value: 0,
+          id: camp.id,
+          cta: "Approve Winback",
+          targetTab: "campaigns",
+          metadata: {
+            name: camp.name,
+            targetSegment: camp.targetSegment,
+            targetCount: camp.targetCount,
+            id: camp.id
+          },
+          score: 300
+        });
+      }
+    } catch (err) {
+      log.error("[ControlCenter] topMoneyMoves winback query failed:", err);
+    }
+
+    try {
+      // 5. Nonstop Nick membership in warning state (past_due or incomplete)
+      const [memb] = await d.select({
+        id: memberships.id,
+        name: memberships.name,
+        phone: memberships.phone,
+        status: memberships.status,
+      })
+        .from(memberships)
+        .where(sql`${memberships.status} IN ('past_due', 'incomplete')`)
+        .orderBy(desc(memberships.createdAt))
+        .limit(1);
+
+      if (memb) {
+        const phoneTail = memb.phone ? memb.phone.slice(-4) : "";
+        moves.push({
+          type: "membership",
+          title: "Overdue Nonstop Nick Membership",
+          description: `Member ${memb.name || 'Unknown'} (•••${phoneTail}) is currently ${memb.status}.`,
+          value: 0,
+          id: memb.id,
+          cta: "Grant Grace Period",
+          targetTab: "memberships",
+          metadata: {
+            name: memb.name || "Unknown",
+            phoneRedacted: memb.phone ? `•••${phoneTail}` : "",
+            status: memb.status,
+            id: memb.id
+          },
+          score: 200
+        });
+      }
+    } catch (err) {
+      log.error("[ControlCenter] topMoneyMoves membership query failed:", err);
+    }
+
+    // Sort by score desc, pick top 3
+    return moves.sort((a, b) => b.score - a.score).slice(0, 3);
+  }),
 });
