@@ -72,6 +72,7 @@ export function CalibrationSection() {
   const [loading, setLoading] = useState(true);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
   
   // Correction state overrides
   const [correctingId, setCorrectingId] = useState<string | null>(null);
@@ -143,7 +144,31 @@ export function CalibrationSection() {
     }
   };
 
-  const startCorrection = (item: CalibrationReviewItem) => {
+  const handleBulkAction = async (action: "approve_low_risk" | "reject_stale") => {
+    setBulkLoading(true);
+    try {
+      const res = await fetch("/api/system/calibration/reviews/bulk-resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to execute bulk action");
+      }
+
+      const data = await res.json();
+      toast.success(`Bulk action completed: processed ${data.processedCount} items`);
+      await load();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to execute bulk action");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const startCorrection = useCallback((item: CalibrationReviewItem) => {
     setCorrectingId(item.id);
     if (item.type === "task_roi") {
       setCorrectionRoi(item.proposedActualOutcome?.outcomeScore || 50);
@@ -151,7 +176,70 @@ export function CalibrationSection() {
       setCorrectionStatus(item.proposedActualOutcome?.status || "confirmed");
       setCorrectionDescription(item.proposedActualOutcome?.outcomeDescription || "");
     }
-  };
+  }, []);
+
+  // Keyboard navigation shortcuts (Tinder-style queue)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (pending.length === 0 || resolvingId !== null || bulkLoading) return;
+
+      // Skip shortcuts when typing in inputs/textareas
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")) {
+        return;
+      }
+
+      const activeCard = pending[0];
+
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        handleResolve(activeCard.id, "approve");
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        handleResolve(activeCard.id, "reject");
+      } else if (e.key === "ArrowUp") {
+        if (activeCard.type === "task_roi") {
+          e.preventDefault();
+          if (correctingId !== activeCard.id) {
+            startCorrection(activeCard);
+          }
+          setCorrectionRoi((prev) => Math.min(100, prev + 5));
+        }
+      } else if (e.key === "ArrowDown") {
+        if (activeCard.type === "task_roi") {
+          e.preventDefault();
+          if (correctingId !== activeCard.id) {
+            startCorrection(activeCard);
+          }
+          setCorrectionRoi((prev) => Math.max(1, prev - 5));
+        }
+      } else if (e.key === "Enter") {
+        if (correctingId === activeCard.id) {
+          e.preventDefault();
+          const outcome = activeCard.type === "task_roi"
+            ? {
+                outcomeScore: correctionRoi,
+                classification: correctionRoi - activeCard.predictedOutcome.roiScore > 10
+                  ? "underestimated"
+                  : activeCard.predictedOutcome.roiScore - correctionRoi > 10
+                  ? "overestimated"
+                  : "accurate",
+                rationale: "Manually overridden by keyboard shortcut"
+              }
+            : {
+                status: correctionStatus,
+                outcomeDescription: correctionDescription || "Manually resolved outcome."
+              };
+          handleResolve(activeCard.id, "correct", outcome);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [pending, correctingId, correctionRoi, correctionStatus, correctionDescription, resolvingId, bulkLoading, handleResolve, startCorrection]);
 
   if (loading) {
     return (
@@ -275,10 +363,35 @@ export function CalibrationSection() {
 
       {/* 2. PENDING DECK */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
-          <span>Pending Calibration Review ({pending.length})</span>
-          {pending.length > 0 && <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />}
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+            <span>Pending Calibration Review ({pending.length})</span>
+            {pending.length > 0 && <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />}
+          </h3>
+
+          {pending.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs border-emerald-500/30 bg-emerald-500/5 text-emerald-300 hover:bg-emerald-500/10 cursor-pointer transition-all duration-300"
+                onClick={() => handleBulkAction("approve_low_risk")}
+                disabled={bulkLoading || resolvingId !== null}
+              >
+                {bulkLoading ? "Processing..." : "Approve Low Risk (±5 ROI)"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs border-rose-500/30 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 cursor-pointer transition-all duration-300"
+                onClick={() => handleBulkAction("reject_stale")}
+                disabled={bulkLoading || resolvingId !== null}
+              >
+                {bulkLoading ? "Processing..." : "Clean Stale (>14d)"}
+              </Button>
+            </div>
+          )}
+        </div>
 
         {pending.length === 0 ? (
           <Card className="border-white/5 bg-white/[0.01]">
@@ -292,29 +405,36 @@ export function CalibrationSection() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-4">
-            {pending.map((item) => {
+            {pending.map((item, idx) => {
               const isTask = item.type === "task_roi";
               const isExpanded = expandedId === item.id;
               const isCorrecting = correctingId === item.id;
+              const isTopCard = idx === 0;
 
               return (
                 <Card 
                   key={item.id} 
                   className={cn(
-                    "border-white/10 bg-white/[0.02] hover:bg-white/[0.03] transition-all relative",
-                    isTask ? "border-l-indigo-500/40 border-l-[3px]" : "border-l-sky-500/40 border-l-[3px]"
+                    "border-white/10 bg-white/[0.02] hover:bg-white/[0.03] transition-all duration-300 relative",
+                    isTask ? "border-l-indigo-500/40 border-l-[3px]" : "border-l-sky-500/40 border-l-[3px]",
+                    isTopCard && "ring-2 ring-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.15)] border-white/20"
                   )}
                 >
                   <CardContent className="pt-4 space-y-4">
                     {/* Header Row */}
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Badge className={cn("text-[9px] uppercase tracking-wider py-0.5", 
                             isTask ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/20" : "bg-sky-500/10 text-sky-300 border-sky-500/20"
                           )}>
                             {isTask ? "Task ROI Estimate" : "System Prediction"}
                           </Badge>
+                          {isTopCard && (
+                            <Badge variant="outline" className="text-[9px] border-indigo-500/30 bg-indigo-500/5 text-indigo-400 font-mono py-0.5">
+                              ⌨️ Active Card (🡄 Reject | 🡆 Approve | 🡡🡣 Adjust)
+                            </Badge>
+                          )}
                           <span className="text-[10px] text-zinc-500 font-mono">
                             ID: {item.sourceId.slice(0, 8)}
                           </span>
