@@ -19,6 +19,7 @@
 import { type FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
+import { loadFeatureFlagOverrides } from "@/lib/feature-flags";
 
 export interface TRPCContext {
   /** Resolved operator session · null when unauthenticated */
@@ -34,6 +35,9 @@ export interface TRPCContext {
 export async function createTRPCContext(
   opts: FetchCreateContextFnOptions,
 ): Promise<TRPCContext> {
+  // Preload DB overrides before resolving any flags in this request
+  await loadFeatureFlagOverrides().catch(() => {});
+
   // requireSession throws ServiceError on missing session · we catch
   // and surface as ctx.session=null. Middleware in trpc.ts decides
   // whether to reject (protectedProcedure) or proceed (publicProcedure).
@@ -55,6 +59,9 @@ export async function createTRPCContext(
  *  Used by Server Components, cron jobs, and anywhere we want a
  *  typed caller without spinning up an HTTP loop. */
 export async function createServerContext(): Promise<TRPCContext> {
+  // Preload DB overrides before resolving any flags in this server context
+  await loadFeatureFlagOverrides().catch(() => {});
+
   // For server-only callers we trust the calling environment to have
   // already authenticated the operator. requireSession here would need
   // a request · we skip it and set a synthetic operator session. This
