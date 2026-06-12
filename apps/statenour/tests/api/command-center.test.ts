@@ -15,6 +15,17 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    auditEvent: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    brainMemory: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+  },
+}));
+
 // Mock the underlying state builder so we exercise the projection +
 // type contract without booting Prisma.
 vi.mock("@/lib/ai/context/command-center-state", async () => {
