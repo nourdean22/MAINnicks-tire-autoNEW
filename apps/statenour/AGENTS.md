@@ -4,7 +4,7 @@
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
 >
-> **Last refreshed:** 2026-06-11 · post the **chat command surface cleanup, missions deep-linking, and subtask-usage audit waves** (PR #74 / PR #76 merged): `/missions?taskId=` deep-linking fallback TRPC query (`trpc.task.byId`), ported `weekly-review` to v2 prompt builder, fixed `journal-brief` UTC rollover cache key to New York local time, and implemented the automated `/api/cron/subtask-usage-audit` self-firing on/after 2026-06-22. Gates at merge: tsc 0 · 244 files/3341 tests · eslint 0 · check:crons clean · prompt size 54.0k chars with 10% headroom. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-06-12 · post the **settings deep-triage audit, security redactions, and runbook integration wave** (PR #103 merged): cron quick links to runbooks in CronControlPanel, recursive `redactSensitive` error tail + metric tag scrubbing (fully tested), strict journal tRPC feed bounds clamping, and Windows Turborepo file lock fixes. Gates at merge: tsc 0 · 3480 tests passed · check:crons clean · prompt size green. Full detail: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 
@@ -14,7 +14,7 @@
 
 **Versioning:** the `v10.0.X` scheme is retired — commits use `fix · statenour · …` / `docs · statenour · …`.
 
-**Tests:** 243 vitest files / 3334 tests (2026-06-11). ALL pass — but the suite EXITS 1 on ~12 pre-existing unhandled-rejection errors + an intermittent `tests/ai/agents/router.test.ts` mock-order flake, so read the vitest summary line NOT `$?`. Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from the repo root) or ~5 strategic-frameworks files fail on import.
+**Tests:** 244 vitest files / 3480 tests (2026-06-12). ALL pass — but the suite EXITS 1 on ~12 pre-existing unhandled-rejection errors + an intermittent `tests/ai/agents/router.test.ts` mock-order flake, so read the vitest summary line NOT `$?`. Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from the repo root) or ~5 strategic-frameworks files fail on import.
 
 ## 2 · How we work
 
