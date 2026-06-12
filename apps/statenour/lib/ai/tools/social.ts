@@ -87,7 +87,7 @@ export const socialTools = {
   // v10.0.374 · spawn N sub-agents in parallel + synthesize
   composeEmail: tool({
     description:
-      "Draft an email for Nour to review and explicitly send. NEVER auto-sends — returns a draft card the user clicks Send on. Use when Nour says 'email X about Y', 'draft a note to ...', or asks for a written follow-up. If subject/body are not provided, the tool uses the `intent` to ask Nick to draft them in his next reply turn (preferred path: Nick writes the draft inline and passes it here as subject + body).",
+      "Draft an email for Nour to review and explicitly send. NEVER auto-sends — returns a draft card the user clicks Send on. If Gmail is configured, also creates a draft in Nour's Gmail drafts directly via the Gmail API. Use when Nour says 'email X about Y', 'draft a note to ...', or asks for a written follow-up. If subject/body are not provided, the tool uses the `intent` to ask Nick to draft them in his next reply turn (preferred path: Nick writes the draft inline and passes it here as subject + body).",
     inputSchema: z.object({
       to: z.string().email().max(254).describe("Recipient email address"),
       subject: z.string().min(1).max(998).describe("Email subject line"),
@@ -98,13 +98,22 @@ export const socialTools = {
         .describe("Tone hint shown on the draft card so Nour can sanity-check at a glance"),
     }),
     execute: async ({ to, subject, body, tone }) => {
-      const payload = JSON.stringify({ to, subject, body, tone });
+      const { createDraft, isGmailConfigured } = await import("@/lib/integrations/gmail");
+      let apiResult = null;
+      if (isGmailConfigured()) {
+        try {
+          apiResult = await createDraft({ to, subject, body });
+        } catch (err) {
+          apiResult = { error: err instanceof Error ? err.message : String(err) };
+        }
+      }
+      const payload = JSON.stringify({ to, subject, body, tone, apiResult });
       return {
         markdown: `\n\`\`\`email-draft\n${payload}\n\`\`\`\n`,
-        summary: `Email drafted to ${to}: "${subject.slice(0, 60)}${subject.length > 60 ? "…" : ""}"`,
-        // Surface for AgentTrace + tool-result stream consumers that
-        // can't render the card.
-        draft: { to, subject, bodyChars: body.length, tone },
+        summary: apiResult && !("error" in apiResult)
+          ? `Gmail draft created via API to ${to}: "${subject.slice(0, 60)}${subject.length > 60 ? "…" : ""}" (Draft ID: ${apiResult.draftId})`
+          : `Email drafted to ${to}: "${subject.slice(0, 60)}${subject.length > 60 ? "…" : ""}"${apiResult?.error ? ` (API Error: ${apiResult.error})` : ""}`,
+        draft: { to, subject, bodyChars: body.length, tone, apiResult },
       };
     },
   }),

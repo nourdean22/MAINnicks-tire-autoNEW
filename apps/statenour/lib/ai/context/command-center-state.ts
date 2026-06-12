@@ -22,6 +22,7 @@ import { Prisma } from "@prisma/client";
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { DOMAINS } from "@/lib/mastery/config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { cached } from "@/lib/utils/cache";
 
 // ── Summaries (every shape stays small + JSON-friendly) ─────────────
 
@@ -332,7 +333,8 @@ function startOfDayUTC(daysAgo = 0): Date {
  * shape.
  */
 export async function buildCommandCenterState(): Promise<CommandCenterState> {
-  const now = new Date();
+  return cached<CommandCenterState>("ultron_command_center_state_v1", 15, async () => {
+    const now = new Date();
   const dayStart = startOfDayUTC(0);
   const sevenDaysAgo = startOfDayUTC(7);
   const oneDayAgo = new Date(Date.now() - 86_400_000);
@@ -847,6 +849,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       failures24h: automationFailures24h,
     },
   };
+  });
 }
 
 // ── Internal types + selectors ───────────────────────────────────────

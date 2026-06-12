@@ -36,6 +36,7 @@ const log = rootLogger.withSurface("services/tasks");
 // keys get invalidated from missions.ts via re-import.
 function invalidateMutationCaches(): void {
   invalidate("dashboard_brief");
+  invalidate("ultron_command_center_state_v1");
 }
 import { softDelete, activeOnly } from "@/lib/db/soft-delete";
 import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";

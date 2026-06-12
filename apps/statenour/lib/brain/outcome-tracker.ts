@@ -178,13 +178,19 @@ export interface AccuracyReport {
  * This is fed into the system prompt so Nick knows his own reliability.
  */
 export async function getAccuracyReport(): Promise<AccuracyReport> {
+  const sixtyDaysAgo = daysAgo(60);
+
   const [confirmed, disproven, pending, recentLessons] = await Promise.all([
     prisma.prediction.findMany({
-      where: { status: "confirmed" },
+      where: { status: "confirmed", createdAt: { gte: sixtyDaysAgo } },
+      take: 100,
+      orderBy: { createdAt: "desc" },
       select: { category: true, confidence: true, createdAt: true },
     }),
     prisma.prediction.findMany({
-      where: { status: "disproven" },
+      where: { status: "disproven", createdAt: { gte: sixtyDaysAgo } },
+      take: 100,
+      orderBy: { createdAt: "desc" },
       select: { category: true, confidence: true, createdAt: true },
     }),
     prisma.prediction.count({ where: { status: "pending" } }),
@@ -221,12 +227,13 @@ export async function getAccuracyReport(): Promise<AccuracyReport> {
     : 0.6;
 
   let calibration = "well-calibrated";
-  if (avgConfidence > overallAccuracy + 0.15) calibration = "overconfident";
-  else if (avgConfidence < overallAccuracy - 0.15) calibration = "underconfident";
+  if (total > 0) {
+    if (avgConfidence > overallAccuracy + 0.15) calibration = "overconfident";
+    else if (avgConfidence < overallAccuracy - 0.15) calibration = "underconfident";
+  }
 
   // Trend: compare last 30 days vs previous 30 days
   const thirtyDaysAgo = daysAgo(30);
-  const sixtyDaysAgo = daysAgo(60);
 
   const recentCorrect = confirmed.filter((p) => p.createdAt >= thirtyDaysAgo).length;
   const recentWrong = disproven.filter((p) => p.createdAt >= thirtyDaysAgo).length;
@@ -237,8 +244,10 @@ export async function getAccuracyReport(): Promise<AccuracyReport> {
   const olderRate = olderCorrect + olderWrong > 0 ? olderCorrect / (olderCorrect + olderWrong) : 0;
 
   let trend = "stable";
-  if (recentRate > olderRate + 0.1) trend = "improving";
-  else if (recentRate < olderRate - 0.1) trend = "degrading";
+  if (recentCorrect + recentWrong > 0 && olderCorrect + olderWrong > 0) {
+    if (recentRate > olderRate + 0.1) trend = "improving";
+    else if (recentRate < olderRate - 0.1) trend = "degrading";
+  }
 
   return {
     totalPredictions: total,
