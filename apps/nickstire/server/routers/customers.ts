@@ -878,7 +878,7 @@ export const customersRouter = router({
         .select({
           phone: customers.phone,
           totalVisits: customers.totalVisits,
-          totalRevenue: customerMetrics.totalRevenue,
+          totalRevenue: customers.totalSpent,
           isVip: customerMetrics.isVip,
           churnRisk: customerMetrics.churnRisk,
         })
