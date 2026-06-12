@@ -851,6 +851,31 @@ ${urls.join("\n")}
         }
       }
 
+      // Out-of-band refund completed directly on Stripe Dashboard
+      if (event.type === "charge.refunded") {
+        const charge = event.data.object as any;
+        const tireOrderNumber = charge.metadata?.tireOrderNumber;
+        const invoiceNumber = charge.metadata?.invoiceNumber;
+        if (tireOrderNumber) {
+          const { getDb } = await import("../db");
+          const { tireOrders, invoices } = await import("../../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          const d = await getDb();
+          if (d) {
+            await d.update(tireOrders)
+              .set({ paymentStatus: "refunded", updatedAt: new Date() })
+              .where(eq(tireOrders.orderNumber, tireOrderNumber));
+
+            if (invoiceNumber) {
+              await d.update(invoices)
+                .set({ paymentStatus: "refunded" })
+                .where(eq(invoices.invoiceNumber, invoiceNumber));
+            }
+            serverLog.info(`[Stripe Webhook] Out-of-band refund recorded for order ${tireOrderNumber}`);
+          }
+        }
+      }
+
       // ─── Nonstop Nick membership (chunk 4/5) ─────────────
       // Subscription lifecycle → memberships.status. The subscription carries
       // our metadata (plan:"nonstop-nick", phone) set in createMembershipCheckout,

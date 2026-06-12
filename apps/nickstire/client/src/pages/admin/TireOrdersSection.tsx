@@ -92,6 +92,37 @@ export default function TireOrdersSection() {
     onError: (e) => toast.error(`Resolve failed: ${e.message}`),
   });
 
+  const refundOrderMutation = trpc.gatewayTire.refundOrder.useMutation({
+    onSuccess: () => {
+      toast.success("Refund processed successfully");
+      refetchOrders();
+      utils.gatewayTire.cancellationRisks.invalidate();
+    },
+    onError: (err) => {
+      toast.error(`Refund failed: ${err.message}`);
+    },
+  });
+
+  const handleRefund = async (orderId: number, orderNumber: string, customerName: string, amount: number) => {
+    const reason = window.prompt(`Enter refund reason for order ${orderNumber} (${customerName}):`, "Customer cancellation");
+    if (reason === null) return;
+    if (!reason.trim()) {
+      toast.error("Refund reason is required");
+      return;
+    }
+
+    const ok = await confirmDialog({
+      title: "Confirm Stripe Refund",
+      message: `Are you sure you want to refund $${amount.toFixed(2)} to ${customerName} for order ${orderNumber}? This will issue a real refund in Stripe and update the database status to refunded.`,
+      confirmLabel: "Issue Refund",
+      tone: "danger",
+    });
+
+    if (!ok) return;
+
+    refundOrderMutation.mutate({ orderId, reason });
+  };
+
   // Mutation for updating order fields
   const updateOrderMutation = trpc.gatewayTire.updateOrder.useMutation({
     onSuccess: () => {
@@ -273,14 +304,23 @@ export default function TireOrdersSection() {
         </div>
       )}
       {risks && risks.refundNeeded.length > 0 && (
-        <div className="mb-4 border border-red-500/40 bg-red-500/10 rounded p-3 space-y-1 text-xs">
+        <div className="mb-4 border border-red-500/40 bg-red-500/10 rounded p-3 space-y-2 text-xs">
           <div className="flex items-center gap-2 text-red-400 font-bold tracking-wider">
             <AlertTriangle className="w-4 h-4" />
-            {risks.refundNeeded.length} CANCELLED ORDER{risks.refundNeeded.length === 1 ? "" : "S"} PAID ONLINE — REFUND VIA STRIPE DASHBOARD
+            {risks.refundNeeded.length} CANCELLED ORDER{risks.refundNeeded.length === 1 ? "" : "S"} PAID ONLINE — AUTO-REFUND AVAILABLE
           </div>
           {risks.refundNeeded.map((r) => (
-            <div key={r.id} className="text-foreground/80">
-              {r.orderNumber} - {r.customerName} - ${r.totalAmount.toFixed(2)} — search the order # in Stripe, then Refund (refunds are NOT automatic)
+            <div key={r.id} className="flex items-center justify-between gap-3 text-foreground/80">
+              <span>
+                {r.orderNumber} - {r.customerName} - ${r.totalAmount.toFixed(2)}
+              </span>
+              <button
+                onClick={() => handleRefund(r.id, r.orderNumber, r.customerName, r.totalAmount)}
+                disabled={refundOrderMutation.isPending}
+                className="shrink-0 px-2.5 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-[10px] font-bold disabled:opacity-50 transition-colors"
+              >
+                AUTO-REFUND
+              </button>
             </div>
           ))}
         </div>
@@ -546,6 +586,8 @@ export default function TireOrdersSection() {
                         nextAction={nextAction}
                         flags={flags}
                         confidence={confidence}
+                        handleRefund={handleRefund}
+                        refundOrderMutation={refundOrderMutation}
                       />
                     </div>
                   )}
@@ -562,7 +604,7 @@ export default function TireOrdersSection() {
           are copies. Supplier tires are NOT auto-ordered and online payment does NOT
           reserve supplier stock: confirm availability with the customer, order from
           Gateway (b2b.dktire.com), record the PO above, and advance the status.
-          Refunds are NOT automatic — process them in the Stripe dashboard.
+          Refunds can be processed via the AUTO-REFUND buttons or from the Stripe dashboard.
         </p>
       </div>
     </Section>
@@ -575,13 +617,17 @@ function OrderFormEdit({
   updateOrderMutation,
   nextAction,
   flags,
-  confidence
+  confidence,
+  handleRefund,
+  refundOrderMutation
 }: {
   order: any;
   updateOrderMutation: any;
   nextAction: any;
   flags: string[];
   confidence: any;
+  handleRefund: (orderId: number, orderNumber: string, customerName: string, amount: number) => Promise<void>;
+  refundOrderMutation: any;
 }) {
   const [status, setStatus] = useState<string>(order.status);
   const [adminNotes, setAdminNotes] = useState<string>(order.adminNotes || "");
@@ -807,28 +853,42 @@ function OrderFormEdit({
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-border/10">
-            <button
-              type="button"
-              onClick={() => {
-                setStatus(order.status);
-                setAdminNotes(order.adminNotes || "");
-                setGatewayOrderRef(order.gatewayOrderRef || "");
-                setExpectedDelivery(order.expectedDelivery ? new Date(order.expectedDelivery).toISOString().substring(0, 16) : "");
-                setInstallationDate(order.installationDate ? new Date(order.installationDate).toISOString().substring(0, 16) : "");
-              }}
-              className="px-4 py-2 border border-border/30 hover:bg-foreground/5 text-foreground/70 rounded text-xs font-semibold transition-colors"
-            >
-              Reset
-            </button>
-            <button
-              type="submit"
-              disabled={updateOrderMutation.isPending}
-              className="flex items-center gap-1.5 bg-primary text-primary-foreground px-5 py-2 rounded text-xs font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {updateOrderMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Save Changes
-            </button>
+          <div className="flex justify-between items-center mt-4 pt-4 border-t border-border/10">
+            <div>
+              {order.status === "cancelled" && order.paymentStatus === "paid" && (
+                <button
+                  type="button"
+                  onClick={() => handleRefund(order.id, order.orderNumber, order.customerName, order.totalAmount)}
+                  disabled={refundOrderMutation.isPending}
+                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  Issue Stripe Refund
+                </button>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setStatus(order.status);
+                  setAdminNotes(order.adminNotes || "");
+                  setGatewayOrderRef(order.gatewayOrderRef || "");
+                  setExpectedDelivery(order.expectedDelivery ? new Date(order.expectedDelivery).toISOString().substring(0, 16) : "");
+                  setInstallationDate(order.installationDate ? new Date(order.installationDate).toISOString().substring(0, 16) : "");
+                }}
+                className="px-4 py-2 border border-border/30 hover:bg-foreground/5 text-foreground/70 rounded text-xs font-semibold transition-colors"
+              >
+                Reset
+              </button>
+              <button
+                type="submit"
+                disabled={updateOrderMutation.isPending}
+                className="flex items-center gap-1.5 bg-primary text-primary-foreground px-5 py-2 rounded text-xs font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {updateOrderMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Save Changes
+              </button>
+            </div>
           </div>
         </Panel>
       </form>

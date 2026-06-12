@@ -1470,6 +1470,37 @@ export const gatewayTireRouter = router({
       if (input?.search) url = `${GATEWAY_PORTAL_BASE}/dashboard?search=${encodeURIComponent(input.search)}`;
       return { url, accountId: process.env.GATEWAY_TIRE_USERNAME || "" };
     }),
+
+  refundOrder: adminProcedure
+    .input(
+      z.object({
+        orderId: z.number().int(),
+        reason: z.string().min(1),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const d = await db();
+      if (!d) return { success: false, error: "Database unavailable" };
+
+      // Look up order by id
+      const [order] = await d.select().from(tireOrders)
+        .where(eq(tireOrders.id, input.orderId)).limit(1);
+
+      if (!order) {
+        return { success: false, error: `Order #${input.orderId} not found` };
+      }
+
+      const actorEmail = ctx.user?.email ?? ctx.user?.name ?? "admin";
+
+      const { refundTireOrderPayment } = await import("../services/payments");
+      const res = await refundTireOrderPayment({
+        orderNumber: order.orderNumber,
+        reason: input.reason,
+        actorEmail,
+      });
+
+      return res;
+    }),
 });
 
 // ─── Status helpers ──────────────────────────────────

@@ -443,3 +443,143 @@ export function getStripeHealth() {
     publishableKey: getStripePublishableKey(),
   });
 }
+
+/**
+ * Refund a paid tire order.
+ * Idempotent: passes an idempotency key to Stripe based on the order number.
+ * Updates paymentStatus to 'refunded' in both tire_orders and invoices tables,
+ * and appends an admin note about the refund.
+ */
+export async function refundTireOrderPayment(params: {
+  orderNumber: string;
+  reason: string;
+  actorEmail: string;
+}): Promise<{ success: boolean; error?: string; refundId?: string }> {
+  const { getDb } = await import("../db");
+  const { tireOrders, invoices } = await import("../../drizzle/schema");
+  const { eq, sql } = await import("drizzle-orm");
+  const { logAdminAction } = await import("./auditTrail");
+
+  const d = await getDb();
+  if (!d) return { success: false, error: "Database unavailable" };
+
+  // 1. Look up the order
+  const [order] = await d.select().from(tireOrders)
+    .where(eq(tireOrders.orderNumber, params.orderNumber)).limit(1);
+
+  if (!order) {
+    return { success: false, error: `Order ${params.orderNumber} not found` };
+  }
+
+  if (order.paymentStatus === "refunded") {
+    return { success: true }; // Already refunded (idempotent success)
+  }
+
+  if (order.paymentStatus !== "paid") {
+    return { success: false, error: `Order ${params.orderNumber} is not paid (status: ${order.paymentStatus})` };
+  }
+
+  if (!order.stripeSessionId) {
+    return { success: false, error: `No Stripe session ID associated with order ${params.orderNumber}` };
+  }
+
+  const stripe = await getStripe();
+  if (!stripe) {
+    return { success: false, error: "Stripe is not configured" };
+  }
+
+  let refundId = "";
+  try {
+    // 2. Retrieve checkout session to get PaymentIntent ID
+    const session = await stripe.checkout.sessions.retrieve(order.stripeSessionId);
+    const paymentIntentId = typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : (session.payment_intent as any)?.id;
+
+    if (!paymentIntentId) {
+      throw new Error("No payment intent found for this order session");
+    }
+
+    // 3. Create the Stripe refund with idempotency key
+    const refund = await stripe.refunds.create({
+      payment_intent: paymentIntentId,
+      reason: "requested_by_customer",
+      metadata: {
+        orderNumber: order.orderNumber,
+        refundReason: params.reason,
+        actor: params.actorEmail,
+      }
+    }, {
+      idempotencyKey: `refund-${order.orderNumber}`,
+    });
+
+    refundId = refund.id;
+
+    // 4. Update the database atomically
+    const [claim] = await d.execute(sql`
+      UPDATE tire_orders
+      SET paymentStatus = 'refunded',
+          updatedAt = NOW()
+      WHERE orderNumber = ${order.orderNumber} AND paymentStatus = 'paid'
+    `);
+
+    // Only append note if the claim succeeded (meaning this invocation flipped it)
+    if (((claim as unknown as { affectedRows?: number }).affectedRows ?? 0) > 0) {
+      const timestamp = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+      const newNote = `[Refund - ${timestamp} by ${params.actorEmail}] Reason: ${params.reason}. Stripe Refund: ${refund.id}`;
+      const updatedNotes = order.adminNotes
+        ? `${order.adminNotes}\n\n${newNote}`
+        : newNote;
+
+      await d.update(tireOrders)
+        .set({ adminNotes: updatedNotes })
+        .where(eq(tireOrders.orderNumber, order.orderNumber));
+
+      if (order.invoiceNumber) {
+        await d.update(invoices)
+          .set({ paymentStatus: "refunded" })
+          .where(eq(invoices.invoiceNumber, order.invoiceNumber));
+      }
+    }
+
+    // 5. Log the action
+    await logAdminAction({
+      action: "tireorder.refunded" as any,
+      entityType: "tire_orders",
+      entityId: order.id,
+      details: `Refunded $${(order.totalAmount / 100).toFixed(2)} for order ${order.orderNumber}. Reason: ${params.reason}. Stripe Refund: ${refund.id}`,
+      actor: params.actorEmail,
+      previousValue: "paid",
+      newValue: "refunded",
+      metadata: {
+        stripeRefundId: refund.id,
+        amountCents: order.totalAmount,
+        reason: params.reason,
+      }
+    });
+
+    log.info(`Tire order ${params.orderNumber} refunded successfully — $${(order.totalAmount / 100).toFixed(2)}`);
+    return { success: true, refundId };
+
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    log.error(`Refund failed for order ${params.orderNumber}:`, err);
+
+    await logAdminAction({
+      action: "tireorder.refund_failed" as any,
+      entityType: "tire_orders",
+      entityId: order.id,
+      details: `Refund failed for order ${order.orderNumber}. Reason: ${params.reason}. Error: ${errorMsg}`,
+      actor: params.actorEmail,
+      previousValue: "paid",
+      newValue: "paid",
+      metadata: {
+        error: errorMsg,
+        amountCents: order.totalAmount,
+        reason: params.reason,
+      }
+    });
+
+    return { success: false, error: errorMsg };
+  }
+}
