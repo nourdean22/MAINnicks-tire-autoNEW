@@ -1020,9 +1020,9 @@ export default function WorkOrdersSection() {
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 400 }}>
           {columns.map(col => (
-            <div key={col.id} className={`flex-1 min-w-[220px] max-w-[300px] border-t-2 ${col.color} rounded-lg`}>
+            <div key={col.id} className={`flex-1 min-w-[220px] max-w-[300px] border-t-2 ${col.color}`}>
               {/* Column header */}
-              <div className={`${col.headerBg} px-3 py-2 rounded-t-lg flex items-center justify-between`}>
+              <div className={`${col.headerBg} px-3 py-2 flex items-center justify-between`}>
                 <span className="text-xs font-semibold">{col.label}</span>
                 <span className="text-[10px] font-bold text-foreground/40">{col.orders.length}</span>
               </div>
@@ -1040,8 +1040,8 @@ export default function WorkOrdersSection() {
 
           {/* On-hold sidebar */}
           {holdOrders.length > 0 && (
-            <div className="min-w-[200px] max-w-[240px] border-t-2 border-amber-500/30 rounded-lg">
-              <div className="bg-amber-500/10 px-3 py-2 rounded-t-lg flex items-center justify-between">
+            <div className="min-w-[200px] max-w-[240px] border-t-2 border-amber-500/30">
+              <div className="bg-amber-500/10 px-3 py-2 flex items-center justify-between">
                 <span className="text-xs font-semibold text-amber-400">Hold / Cancelled</span>
                 <span className="text-[10px] font-bold text-foreground/40">{holdOrders.length}</span>
               </div>

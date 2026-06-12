@@ -454,6 +454,7 @@ export const invoicesRouter = router({
             COALESCE(SUM(laborCost),0) as totalLabor,
             COALESCE(SUM(partsCost),0) as totalParts
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+            AND paymentStatus = 'paid'
         `),
         // 3. Monthly trend (last 12 months regardless of period)
         d.execute(rawSql`
@@ -462,6 +463,7 @@ export const invoicesRouter = router({
                  SUM(laborCost) as labor, SUM(partsCost) as parts,
                  AVG(totalAmount) as avgTicket
           FROM invoices
+          WHERE paymentStatus = 'paid'
           GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
           ORDER BY month DESC LIMIT 24
         `),
@@ -488,12 +490,14 @@ export const invoicesRouter = router({
             COUNT(*) as cnt, SUM(totalAmount) as rev, AVG(totalAmount) as avgTicket
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
             AND serviceDescription IS NOT NULL AND serviceDescription != ''
+            AND paymentStatus = 'paid'
           GROUP BY category ORDER BY rev DESC
         `),
         // 6. Best/worst revenue days
         d.execute(rawSql`
           SELECT DATE(invoiceDate) as day, COUNT(*) as jobs, SUM(totalAmount) as rev
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+            AND paymentStatus = 'paid'
           GROUP BY DATE(invoiceDate) ORDER BY rev DESC LIMIT 10
         `),
         // 7. Revenue by day of week
@@ -501,6 +505,7 @@ export const invoicesRouter = router({
           SELECT DAYNAME(invoiceDate) as dayName, DAYOFWEEK(invoiceDate) as dayNum,
                  COUNT(*) as cnt, SUM(totalAmount) as rev, AVG(totalAmount) as avgTicket
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+            AND paymentStatus = 'paid'
           GROUP BY dayName, dayNum ORDER BY dayNum
         `),
         // 8. Weekly revenue trend (for week-over-week growth)
@@ -512,6 +517,7 @@ export const invoicesRouter = router({
                  AVG(totalAmount) as avgTicket
           FROM invoices
           WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL LEAST(${days}, 365) DAY)
+            AND paymentStatus = 'paid'
           GROUP BY YEARWEEK(invoiceDate, 1)
           ORDER BY yw DESC LIMIT 52
         `),
@@ -525,6 +531,7 @@ export const invoicesRouter = router({
                  SUM(partsCost) as parts
           FROM invoices
           WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+            AND paymentStatus = 'paid'
           GROUP BY DATE(invoiceDate)
           ORDER BY day
         `),

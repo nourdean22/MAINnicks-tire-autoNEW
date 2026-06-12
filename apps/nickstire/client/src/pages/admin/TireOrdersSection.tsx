@@ -447,7 +447,7 @@ export default function TireOrdersSection() {
             <p className="text-xs text-muted-foreground mt-1">Please sync or try again later.</p>
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div className="text-center py-20 border border-border/20 bg-card/40 rounded-lg">
+          <div className="text-center py-20 border border-border/20 bg-card/40">
             <Disc className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="font-semibold text-foreground/60 text-sm">No tire orders found</p>
             <p className="text-xs text-muted-foreground mt-1">Try adjusting your active filters or query.</p>
@@ -464,7 +464,7 @@ export default function TireOrdersSection() {
               return (
                 <div
                   key={order.id}
-                  className={`bg-card border rounded-lg overflow-hidden transition-all duration-200 ${priorityStyle.border} ${priorityStyle.glow}`}
+                  className={`bg-card border overflow-hidden transition-all duration-200 ${priorityStyle.border} ${priorityStyle.glow}`}
                 >
                   {/* Order Card Header */}
                   <div
