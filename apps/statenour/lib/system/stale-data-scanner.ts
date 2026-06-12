@@ -127,20 +127,29 @@ export async function scanStaleData(): Promise<StaleReport> {
     //    cron auto-resolves these but occasionally it falls behind.
     safeQuery(
       async () => {
-        const [count, rows] = await Promise.all([
-          prisma.driftAlert.count({
-            where: { resolved: false, createdAt: { lt: since14d } },
-          }),
-          prisma.driftAlert.findMany({
-            where: { resolved: false, createdAt: { lt: since14d } },
-            orderBy: { createdAt: "asc" },
-            take: 5,
-            select: { id: true, ruleName: true, createdAt: true },
-          }),
-        ]);
-        return { count, rows };
+        const candidates = await prisma.brainMemory.findMany({
+          where: {
+            category: "coach_event",
+            key: { startsWith: "coach:drift-recovery:" },
+            createdAt: { lt: since14d },
+          },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, key: true, content: true, createdAt: true, metadata: true },
+        });
+        const unresolved = candidates.filter((c) => {
+          const meta = (c.metadata ?? {}) as Record<string, unknown>;
+          return !meta.ackedAt;
+        });
+        return {
+          count: unresolved.length,
+          rows: unresolved.slice(0, 5).map((r) => ({
+            id: r.key,
+            ruleName: r.content,
+            createdAt: r.createdAt,
+          })),
+        };
       },
-      { count: 0, rows: [] as Array<{ id: number; ruleName: string; createdAt: Date }> },
+      { count: 0, rows: [] as Array<{ id: string; ruleName: string; createdAt: Date }> },
       { label: "stale.driftAlerts" },
     ),
 

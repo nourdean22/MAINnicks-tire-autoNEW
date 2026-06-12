@@ -44,7 +44,10 @@ export const GET = cronHandler(async (req) => {
         select: { content: true },
       })
       .catch(() => null),
-    prisma.driftAlert.count({ where: { resolved: false } }),
+    (async () => {
+      const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+      return (await getUnresolvedAlerts().catch(() => [])).length;
+    })(),
   ]);
   const openLoops = openLoopsRaw.map((t) => ({
     title: t.title,

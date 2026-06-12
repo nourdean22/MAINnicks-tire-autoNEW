@@ -603,7 +603,21 @@ async function computeEngineInputs(): Promise<EngineInputs> {
     prisma.decisionReplay
       .count({ where: { reviewed: false, reviewAt: { lte: now } } })
       .catch(() => 0),
-    prisma.driftAlert.count({ where: { resolved: false } }).catch(() => 0),
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "coach_event",
+          key: { startsWith: "coach:drift-recovery:" },
+        },
+        select: { metadata: true },
+      })
+      .then((rows) => {
+        return rows.filter((r) => {
+          const meta = (r.metadata ?? {}) as Record<string, any>;
+          return !meta.ackedAt;
+        }).length;
+      })
+      .catch(() => 0),
     prisma.chatMessage
       .findMany({
         where: { role: "user", createdAt: { gte: twoDaysAgo } },

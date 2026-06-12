@@ -249,11 +249,22 @@ export async function gatherOutcomeSignals(
         take: 200,
       })
       .catch((): never[] => []),
-    prisma.driftAlert
+    prisma.brainMemory
       .findMany({
-        where: { createdAt: { gte: winStart, lte: winEnd } },
-        select: { id: true, severity: true },
+        where: {
+          category: "coach_event",
+          key: { startsWith: "coach:drift-recovery:" },
+          createdAt: { gte: winStart, lte: winEnd },
+        },
+        select: { id: true, metadata: true },
         take: 50,
+      })
+      .then((rows) => {
+        return rows.map((r) => {
+          const meta = (r.metadata ?? {}) as Record<string, any>;
+          const severity = meta.priority === "P0" ? "CRITICAL" : meta.priority === "P1" ? "HIGH" : "WARNING";
+          return { id: r.id, severity };
+        });
       })
       .catch((): never[] => []),
     // BrainMemory rows updated in window · narrow by keyword OR via

@@ -127,18 +127,40 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
       brainDigestToday,
       aiErrorBurst,
     ] = await Promise.all([
-      prisma.driftAlert.findMany({
-        where: { resolved: false },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          ruleId: true,
-          ruleName: true,
-          severity: true,
-          message: true,
-          createdAt: true,
-        },
-      }),
+      prisma.brainMemory
+        .findMany({
+          where: {
+            category: "coach_event",
+            key: { startsWith: "coach:drift-recovery:" },
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            key: true,
+            content: true,
+            metadata: true,
+            createdAt: true,
+          },
+        })
+        .then((rows) => {
+          const unresolved = rows.filter((r) => {
+            const meta = (r.metadata ?? {}) as Record<string, any>;
+            return !meta.ackedAt;
+          });
+          return unresolved.map((r) => {
+            const meta = (r.metadata ?? {}) as Record<string, any>;
+            const ruleId = r.key.replace("coach:drift-recovery:", "");
+            const severity = meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "high" : "warning";
+            return {
+              id: r.key,
+              ruleId,
+              ruleName: r.content,
+              severity,
+              message: typeof meta.body === "string" ? meta.body : "",
+              createdAt: r.createdAt,
+            };
+          });
+        })
+        .catch((): Array<{ id: string; ruleId: string; ruleName: string; severity: string; message: string; createdAt: Date }> => []),
       prisma.auditEvent.findMany({
         where: {
           eventType: "brain_insight",

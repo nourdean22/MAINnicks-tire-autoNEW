@@ -191,7 +191,7 @@ export interface MasteryDecisionSummary {
 }
 
 export interface DriftAlertSummary {
-  id: number;
+  id: string | number;
   ruleName: string;
   severity: string;
   message: string;
@@ -616,20 +616,22 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
         _count: { _all: true },
       })
       .catch(() => [] as Array<{ status: string; _count: { _all: number } }>),
-    prisma.driftAlert
+    prisma.brainMemory
       .findMany({
-        where: { resolved: false },
-        orderBy: { createdAt: "desc" },
-        take: 5,
+        where: {
+          category: BRAIN_CATEGORIES.COACH_EVENT,
+          key: { startsWith: "coach:drift-recovery:" },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 20,
         select: {
-          id: true,
-          ruleName: true,
-          severity: true,
-          message: true,
+          key: true,
+          content: true,
+          metadata: true,
           createdAt: true,
         },
       })
-      .catch(() => [] as Array<DriftAlertRow>),
+      .catch(() => [] as any),
     prisma.brainMemory
       .findMany({
         where: {
@@ -805,7 +807,12 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       last7d: week7Proof,
     },
     risks: {
-      driftAlerts: driftAlerts.map(toDriftAlertSummary),
+      driftAlerts: (driftAlerts as any[])
+        .filter((d) => {
+          const meta = (d.metadata ?? {}) as Record<string, unknown>;
+          return !meta.ackedAt;
+        })
+        .map(toDriftAlertSummary),
       brainAlerts: brainAlerts.map((a) => ({
         category: a.category,
         content: a.content,
@@ -889,10 +896,9 @@ type ScheduledRow = {
 };
 
 type DriftAlertRow = {
-  id: number;
-  ruleName: string;
-  severity: string;
-  message: string;
+  key: string;
+  content: string;
+  metadata: any;
   createdAt: Date;
 };
 
@@ -1233,12 +1239,14 @@ function buildTemporalContext(
   };
 }
 
-function toDriftAlertSummary(d: DriftAlertRow): DriftAlertSummary {
+function toDriftAlertSummary(d: any): DriftAlertSummary {
+  const meta = (d.metadata ?? {}) as Record<string, unknown>;
+  const severity = meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "alert" : "warning";
   return {
-    id: d.id,
-    ruleName: d.ruleName,
-    severity: d.severity,
-    message: d.message,
+    id: d.key,
+    ruleName: d.content,
+    severity,
+    message: typeof meta.body === "string" ? meta.body : "",
     createdAt: d.createdAt.toISOString(),
   };
 }

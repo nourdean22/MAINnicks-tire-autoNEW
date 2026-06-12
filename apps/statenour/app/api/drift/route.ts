@@ -24,25 +24,18 @@ export const POST = apiHandler(async (req) => {
   // as a STRING. Prisma throws an unhelpful 500 when it receives a
   // string for an Int column. Accept both shapes + fail cleanly if
   // neither parses so a stale notification can't crash dismiss.
-  const parsedId =
-    typeof body.id === "number"
-      ? body.id
-      : typeof body.id === "string"
-        ? Number(body.id)
-        : NaN;
+  const rawId = body.id;
+  if (rawId === undefined || rawId === null) {
+    throw new ServiceError("Missing id", 400);
+  }
+  const parsedId = typeof rawId === "number" ? rawId : String(rawId);
 
   if (action === "acknowledge") {
-    if (!Number.isFinite(parsedId)) {
-      throw new ServiceError("Invalid id", 400);
-    }
     await acknowledgeAlert(parsedId);
     return { ok: true };
   }
 
   if (action === "resolve") {
-    if (!Number.isFinite(parsedId)) {
-      throw new ServiceError("Invalid id", 400);
-    }
     // Stale localStorage IDs (drift-XXX for rows already resolved or
     // auto-archived by backlog-triage) shouldn't blow up the client.
     // Swallow "Record to update not found" — the UI wants to hide it

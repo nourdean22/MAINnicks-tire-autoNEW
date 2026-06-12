@@ -127,7 +127,6 @@ async function checkEmptyTables() {
   const tables: Array<{ name: string; count: () => Promise<number> }> = [
     { name: "DailyScore",       count: () => prisma.dailyScore.count() },
     { name: "OpenLoop",         count: () => prisma.openLoop.count() },
-    { name: "DriftAlert",       count: () => prisma.driftAlert.count() },
     { name: "Mission",          count: () => prisma.mission.count() },
     { name: "Task",             count: () => prisma.task.count() },
     { name: "Commitment",       count: () => prisma.commitment.count() },

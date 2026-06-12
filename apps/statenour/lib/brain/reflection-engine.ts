@@ -66,10 +66,29 @@ async function gatherDailyContext(daysBack: number = 7) {
         where: { status: { in: ["active", "in_progress"] }, deletedAt: null },
         select: { description: true, status: true, deadline: true },
       }),
-      prisma.driftAlert.findMany({
-        where: { createdAt: { gte: since } },
-        select: { ruleName: true, severity: true, message: true, resolved: true },
-      }),
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "coach_event",
+          key: { startsWith: "coach:drift-recovery:" },
+          createdAt: { gte: since },
+          deletedAt: null,
+        },
+        select: { content: true, metadata: true, createdAt: true },
+      })
+      .then((rows) =>
+        rows.map((r) => {
+          const meta = (r.metadata ?? {}) as Record<string, unknown>;
+          return {
+            ruleName: r.content,
+            severity: meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "alert" : "warning",
+            message: typeof meta.body === "string" ? meta.body : "",
+            resolved: !!meta.ackedAt,
+            createdAt: r.createdAt,
+          };
+        }),
+      )
+      .catch((): Array<{ ruleName: string; severity: string; message: string; resolved: boolean }> => []),
       // Apr 18: OpenLoop retired → read Task INBOX/READY/DOING.
       prisma.task
         .findMany({

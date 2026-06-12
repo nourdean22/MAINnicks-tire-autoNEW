@@ -362,15 +362,10 @@ export const qualityProcedures = {
    * (the legacy route's swallow-on-not-found behaviour).
    */
   resolveDrift: operatorProcedure
-    .input(z.object({ id: z.union([z.string().max(64), z.number()]) }))
+    .input(z.object({ id: z.union([z.string().max(128), z.number()]) }))
     .mutation(async ({ input }) => {
-      const parsedId =
-        typeof input.id === "number" ? input.id : Number(input.id);
-      if (!Number.isFinite(parsedId)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid id" });
-      }
       try {
-        await resolveAlert(parsedId);
+        await resolveAlert(input.id);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (/Record to update not found|not found/i.test(msg)) {

@@ -43,7 +43,7 @@ describe("emitDriftFired", () => {
 
   it("publishes to topic=drift.fired with stable dedupeKey", async () => {
     await emitDriftFired({
-      alertId: 42,
+      alertId: "coach:drift-recovery:stale_task",
       ruleId: "stale_task",
       ruleName: "Stale Task Detection",
       severity: "medium",
@@ -54,13 +54,13 @@ describe("emitDriftFired", () => {
     const [topic, eventType, payload, opts] = publishMock.mock.calls[0];
     expect(topic).toBe("drift.fired");
     expect(eventType).toBe("drift.alert_created");
-    expect((payload as { alertId: number }).alertId).toBe(42);
+    expect((payload as { alertId: string }).alertId).toBe("coach:drift-recovery:stale_task");
     expect(opts.dedupeKey).toBe("drift_stale_task_2026-05-01");
   });
 
   it("dedupeKey is stable for same rule+date (idempotent across calls)", async () => {
     await emitDriftFired({
-      alertId: 1,
+      alertId: "coach:drift-recovery:x",
       ruleId: "x",
       ruleName: "X",
       severity: "low",
@@ -68,7 +68,7 @@ describe("emitDriftFired", () => {
       date: "2026-05-01",
     });
     await emitDriftFired({
-      alertId: 2,
+      alertId: "coach:drift-recovery:y",
       ruleId: "x",
       ruleName: "X",
       severity: "low",
@@ -83,7 +83,7 @@ describe("emitDriftFired", () => {
   it("returns null on publishDurable failure (does not throw)", async () => {
     publishMock.mockRejectedValueOnce(new Error("db down"));
     const result = await emitDriftFired({
-      alertId: 1,
+      alertId: "coach:drift-recovery:x",
       ruleId: "x",
       ruleName: "X",
       severity: "low",
