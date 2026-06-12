@@ -12,6 +12,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
   ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend
 } from "recharts";
+import DatabaseHygienePanel from "./DatabaseHygienePanel";
 
 export default function SiteHealthSection() {
   const { data: health, isLoading, isError, refetch } = trpc.adminDashboard.siteHealth.useQuery();
@@ -544,7 +545,9 @@ export default function SiteHealthSection() {
           ))}
         </div>
       </div>
+
+      {/* Database Hygiene & Cleanup Panel */}
+      <DatabaseHygienePanel />
     </div>
   );
 }
-
