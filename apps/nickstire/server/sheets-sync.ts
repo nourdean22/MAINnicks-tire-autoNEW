@@ -508,3 +508,315 @@ export async function syncDashboardToSheet(metrics: {
     `$${metrics.revenue}`,
   ]);
 }
+
+/**
+ * Upsert a row in a sheet where Column A matches the given ID.
+ * If found, updates the row. Otherwise appends it.
+ */
+async function upsertRow(sheetName: string, id: string, values: string[], retried = false): Promise<boolean> {
+  if (!SPREADSHEET_ID) {
+    log.warn("No GOOGLE_SHEETS_CRM_ID configured, skipping sync");
+    return false;
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    const sanitizedValues = values.map(v => (v || "").replace(/[\r\n]+/g, " ").trim());
+
+    // 1. Fetch all values in Column A
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${sheetName}!A:A`,
+    });
+
+    const rows = res.data.values || [];
+    const rowIndex = rows.findIndex((row: string[]) => row[0] === id);
+
+    if (rowIndex !== -1) {
+      // 2. Update existing row (remember 1-based index)
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${sheetName}!A${rowIndex + 1}:Z${rowIndex + 1}`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [sanitizedValues],
+        },
+      });
+      return true;
+    } else {
+      // 3. Append new row
+      return appendRow(sheetName, values);
+    }
+  } catch (error: any) {
+    if (!retried && (error?.code === 401 || error?.code === 403)) {
+      log.warn("Sheets auth failed, retrying with fresh client");
+      _sheets = null;
+      return upsertRow(sheetName, id, values, true);
+    }
+    if (!retried && error?.code === 429) {
+      log.warn("Sheets quota exceeded (429), backing off 30s + retry once");
+      await new Promise((r) => setTimeout(r, 30_000 + Math.random() * 5_000));
+      return upsertRow(sheetName, id, values, true);
+    }
+    if (isMissingSheetTabError(error)) {
+      log.error(
+        `Sheet tab "${sheetName}" does not exist in the CRM spreadsheet. ` +
+        `FIX: open the spreadsheet, add tab "${sheetName}".`
+      );
+      return false;
+    }
+    log.error(`Failed to upsert row to ${sheetName}:`, {
+      error: error?.message || String(error),
+      code: error?.code,
+    });
+    return false;
+  }
+}
+
+/**
+ * Fetch all rows from a sheet.
+ */
+async function fetchRows(sheetName: string, retried = false): Promise<string[][]> {
+  if (!SPREADSHEET_ID) {
+    log.warn("No GOOGLE_SHEETS_CRM_ID configured, skipping fetch");
+    return [];
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${sheetName}!A:Z`,
+    });
+    return res.data.values || [];
+  } catch (error: any) {
+    if (!retried && (error?.code === 401 || error?.code === 403)) {
+      log.warn("Sheets auth failed, retrying with fresh client");
+      _sheets = null;
+      return fetchRows(sheetName, true);
+    }
+    if (!retried && error?.code === 429) {
+      log.warn("Sheets quota exceeded (429), backing off 30s + retry once");
+      await new Promise((r) => setTimeout(r, 30_000 + Math.random() * 5_000));
+      return fetchRows(sheetName, true);
+    }
+    if (isMissingSheetTabError(error)) {
+      log.error(`Sheet tab "${sheetName}" does not exist in the CRM spreadsheet.`);
+      return [];
+    }
+    log.error(`Failed to fetch rows from ${sheetName}:`, {
+      error: error?.message || String(error),
+      code: error?.code,
+    });
+    return [];
+  }
+}
+
+/**
+ * Sync a Reel draft to Google Sheets.
+ */
+export async function syncReelDraftToSheet(id: string, topic: string, briefJson: string): Promise<boolean> {
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
+  return upsertRow("Reels Drafts", id, [id, topic, now, briefJson]);
+}
+
+/**
+ * Sync a Carousel draft to Google Sheets.
+ */
+export async function syncCarouselDraftToSheet(id: string, topic: string, briefJson: string): Promise<boolean> {
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
+  return upsertRow("Carousel Drafts", id, [id, topic, now, briefJson]);
+}
+
+/**
+ * Fetch all Reel drafts from Google Sheets.
+ */
+export async function fetchReelDraftsFromSheet(): Promise<any[]> {
+  const rows = await fetchRows("Reels Drafts");
+  if (rows.length <= 1) return []; // Ignore header row
+  const drafts: any[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row && row[3]) {
+      try {
+        drafts.push(JSON.parse(row[3]));
+      } catch (e) {
+        log.error("Failed to parse Reel draft JSON", { id: row[0], error: e });
+      }
+    }
+  }
+  return drafts;
+}
+
+/**
+ * Fetch all Carousel drafts from Google Sheets.
+ */
+export async function fetchCarouselDraftsFromSheet(): Promise<any[]> {
+  const rows = await fetchRows("Carousel Drafts");
+  if (rows.length <= 1) return []; // Ignore header row
+  const drafts: any[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row && row[3]) {
+      try {
+        drafts.push(JSON.parse(row[3]));
+      } catch (e) {
+        log.error("Failed to parse Carousel draft JSON", { id: row[0], error: e });
+      }
+    }
+  }
+  return drafts;
+}
+
+/**
+ * Sync a Reel log to Google Sheets.
+ */
+export async function syncReelLogToSheet(logData: {
+  topic: string;
+  verifiedFact: string;
+  sources: string;
+  driverConfusion: string;
+  clevelandAngle: string;
+  campaignKeyword: string;
+  creativeTerritory: string;
+  usefulAbsurdity: string;
+  storyboardOutline: string;
+  captionHook: string;
+  instagramUrl: string;
+  assetPaths: string;
+  score: string;
+  hashtags: string;
+  avoidedRepeats: string;
+  issues: string;
+  insightsChecked: string;
+  facebookCrossPostOff: string;
+}): Promise<boolean> {
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
+  return appendRow("Reels Log", [
+    now,
+    logData.topic,
+    logData.verifiedFact,
+    logData.sources,
+    logData.driverConfusion,
+    logData.clevelandAngle,
+    logData.campaignKeyword,
+    logData.creativeTerritory,
+    logData.usefulAbsurdity,
+    logData.storyboardOutline,
+    logData.captionHook,
+    logData.instagramUrl,
+    logData.assetPaths,
+    logData.score,
+    logData.hashtags,
+    logData.avoidedRepeats,
+    logData.issues,
+    logData.insightsChecked,
+    logData.facebookCrossPostOff,
+  ]);
+}
+
+/**
+ * Sync a Carousel log to Google Sheets.
+ */
+export async function syncCarouselLogToSheet(logData: {
+  topic: string;
+  verifiedFact: string;
+  sources: string;
+  driverConfusion: string;
+  clevelandAngle: string;
+  campaignKeyword: string;
+  creativeTerritory: string;
+  usefulAbsurdity: string;
+  storyboardOutline: string;
+  captionHook: string;
+  instagramUrl: string;
+  assetPaths: string;
+  score: string;
+  hashtags: string;
+  avoidedRepeats: string;
+  issues: string;
+  insightsChecked: string;
+  facebookCrossPostOff: string;
+}): Promise<boolean> {
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
+  return appendRow("Carousel Log", [
+    now,
+    logData.topic,
+    logData.verifiedFact,
+    logData.sources,
+    logData.driverConfusion,
+    logData.clevelandAngle,
+    logData.campaignKeyword,
+    logData.creativeTerritory,
+    logData.usefulAbsurdity,
+    logData.storyboardOutline,
+    logData.captionHook,
+    logData.instagramUrl,
+    logData.assetPaths,
+    logData.score,
+    logData.hashtags,
+    logData.avoidedRepeats,
+    logData.issues,
+    logData.insightsChecked,
+    logData.facebookCrossPostOff,
+  ]);
+}
+
+/**
+ * Fetch all Reel logs from Google Sheets.
+ */
+export async function fetchReelLogsFromSheet(): Promise<any[]> {
+  const rows = await fetchRows("Reels Log");
+  if (rows.length <= 1) return []; // Ignore header row
+  return rows.slice(1).map(row => ({
+    timestamp: row[0] || "",
+    topic: row[1] || "",
+    verifiedFact: row[2] || "",
+    sources: row[3] || "",
+    driverConfusion: row[4] || "",
+    clevelandAngle: row[5] || "",
+    campaignKeyword: row[6] || "",
+    creativeTerritory: row[7] || "",
+    usefulAbsurdity: row[8] || "",
+    storyboardOutline: row[9] || "",
+    captionHook: row[10] || "",
+    instagramUrl: row[11] || "",
+    assetPaths: row[12] || "",
+    score: row[13] || "",
+    hashtags: row[14] || "",
+    avoidedRepeats: row[15] || "",
+    issues: row[16] || "",
+    insightsChecked: row[17] || "",
+    facebookCrossPostOff: row[18] || "",
+  }));
+}
+
+/**
+ * Fetch all Carousel logs from Google Sheets.
+ */
+export async function fetchCarouselLogsFromSheet(): Promise<any[]> {
+  const rows = await fetchRows("Carousel Log");
+  if (rows.length <= 1) return []; // Ignore header row
+  return rows.slice(1).map(row => ({
+    timestamp: row[0] || "",
+    topic: row[1] || "",
+    verifiedFact: row[2] || "",
+    sources: row[3] || "",
+    driverConfusion: row[4] || "",
+    clevelandAngle: row[5] || "",
+    campaignKeyword: row[6] || "",
+    creativeTerritory: row[7] || "",
+    usefulAbsurdity: row[8] || "",
+    storyboardOutline: row[9] || "",
+    captionHook: row[10] || "",
+    instagramUrl: row[11] || "",
+    assetPaths: row[12] || "",
+    score: row[13] || "",
+    hashtags: row[14] || "",
+    avoidedRepeats: row[15] || "",
+    issues: row[16] || "",
+    insightsChecked: row[17] || "",
+    facebookCrossPostOff: row[18] || "",
+  }));
+}
+
