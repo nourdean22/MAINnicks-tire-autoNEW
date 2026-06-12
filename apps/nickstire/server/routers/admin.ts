@@ -1058,6 +1058,330 @@ export const adminDashboardRouter = router({
         return null;
       }
     }),
+
+  dbCleanupScan: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+    const { eq, and, gte, lte } = await import("drizzle-orm");
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const maskPhoneNum = (numString: string) => {
+      const digits = numString.replace(/\D/g, "");
+      return digits.length > 4 ? `***-***-${digits.slice(-4)}` : numString;
+    };
+
+    const maskPersonName = (fullName: string) => {
+      const parts = fullName.split(" ");
+      return parts.map(p => p.slice(0, 1) + ".").join(" ");
+    };
+
+    const isFakePattern = (name: string, phone: string, problemOrMessage: string | null) => {
+      const n = name.toLowerCase();
+      const p = (problemOrMessage || "").toLowerCase();
+      const ph = phone.replace(/\D/g, "");
+
+      // Exclude Vapi AI receptionist logs
+      if (p.includes("[voice-agent]")) {
+        return false;
+      }
+
+      if (
+        n.includes("test") ||
+        n.includes("asdf") ||
+        n.includes("qwerty") ||
+        n.includes("dummy") ||
+        n.includes("demo") ||
+        n.includes("foo bar") ||
+        n === "foo" ||
+        n === "bar" ||
+        n.includes("john doe") ||
+        n.includes("jane doe") ||
+        n.includes("john smith") ||
+        n.includes("jane smith") ||
+        p.includes("this is a test") ||
+        p.includes("test message")
+      ) {
+        return true;
+      }
+
+      if (
+        ph.includes("555") ||
+        ph.length < 7 ||
+        /^(.)\1+$/.test(ph) ||
+        ph === "1234567890" ||
+        ph === "0123456789"
+      ) {
+        return true;
+      }
+
+      if ((n === "caller" || n === "customer") && ph.length < 10) {
+        return true;
+      }
+
+      return false;
+    };
+
+    const dbLeads = await d.select().from(leads);
+    const dbBookings = await d.select().from(bookings);
+    const dbCallbacks = await d.select().from(callbackRequests);
+
+    const fakeLeads: any[] = [];
+    const duplicateLeads: any[] = [];
+    const staleLeads: any[] = [];
+    const processedLeadIds = new Set<number>();
+
+    for (const l of dbLeads) {
+      const isVoiceAgent = (l.problem || "").toLowerCase().includes("[voice-agent]");
+      if (!isVoiceAgent && isFakePattern(l.name, l.phone, l.problem)) {
+        fakeLeads.push({
+          id: l.id,
+          name: maskPersonName(l.name),
+          phone: maskPhoneNum(l.phone),
+          createdAt: l.createdAt,
+          details: l.problem ? l.problem.slice(0, 100) : "",
+          table: "leads"
+        });
+      }
+    }
+
+    const sortedLeads = [...dbLeads].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    for (let i = 0; i < sortedLeads.length; i++) {
+      const leadA = sortedLeads[i];
+      const pA = leadA.phone.replace(/\D/g, "");
+      if (processedLeadIds.has(leadA.id) || fakeLeads.some(f => f.id === leadA.id) || pA.length < 7) continue;
+
+      for (let j = i + 1; j < sortedLeads.length; j++) {
+        const leadB = sortedLeads[j];
+        const pB = leadB.phone.replace(/\D/g, "");
+        if (processedLeadIds.has(leadB.id) || fakeLeads.some(f => f.id === leadB.id) || pB.length < 7) continue;
+
+        if (pA === pB) {
+          const timeDiffHours = Math.abs(leadA.createdAt.getTime() - leadB.createdAt.getTime()) / (1000 * 60 * 60);
+          if (timeDiffHours <= 24) {
+            duplicateLeads.push({
+              id: leadB.id,
+              name: maskPersonName(leadB.name),
+              phone: maskPhoneNum(leadB.phone),
+              createdAt: leadB.createdAt,
+              details: `Duplicate of Lead #${leadA.id} within 24h`,
+              table: "leads"
+            });
+            processedLeadIds.add(leadB.id);
+          }
+        }
+      }
+    }
+
+    for (const l of dbLeads) {
+      if (fakeLeads.some(f => f.id === l.id) || duplicateLeads.some(d => d.id === l.id)) continue;
+      if (l.status === "new" && l.createdAt < ninetyDaysAgo) {
+        staleLeads.push({
+          id: l.id,
+          name: maskPersonName(l.name),
+          phone: maskPhoneNum(l.phone),
+          createdAt: l.createdAt,
+          details: `New lead older than 90 days`,
+          table: "leads"
+        });
+      }
+    }
+
+    const fakeBookings: any[] = [];
+    const duplicateBookings: any[] = [];
+    const staleBookings: any[] = [];
+    const processedBookingIds = new Set<number>();
+
+    for (const b of dbBookings) {
+      const isVoiceAgent = (b.message || "").toLowerCase().includes("[voice-agent]");
+      if (!isVoiceAgent && (isFakePattern(b.name, b.phone, b.message) || (b.phone.replace(/\D/g, "").length < 10 && b.phone.replace(/\D/g, "").length > 0))) {
+        fakeBookings.push({
+          id: b.id,
+          name: maskPersonName(b.name),
+          phone: maskPhoneNum(b.phone),
+          createdAt: b.createdAt,
+          details: b.service || "",
+          table: "bookings"
+        });
+      }
+    }
+
+    const sortedBookings = [...dbBookings].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    for (let i = 0; i < sortedBookings.length; i++) {
+      const bookingA = sortedBookings[i];
+      const pA = bookingA.phone.replace(/\D/g, "");
+      if (processedBookingIds.has(bookingA.id) || fakeBookings.some(f => f.id === bookingA.id) || pA.length < 7) continue;
+
+      for (let j = i + 1; j < sortedBookings.length; j++) {
+        const bookingB = sortedBookings[j];
+        const pB = bookingB.phone.replace(/\D/g, "");
+        if (processedBookingIds.has(bookingB.id) || fakeBookings.some(f => f.id === bookingB.id) || pB.length < 7) continue;
+
+        if (pA === pB) {
+          const timeDiffHours = Math.abs(bookingA.createdAt.getTime() - bookingB.createdAt.getTime()) / (1000 * 60 * 60);
+          if (timeDiffHours <= 24) {
+            duplicateBookings.push({
+              id: bookingB.id,
+              name: maskPersonName(bookingB.name),
+              phone: maskPhoneNum(bookingB.phone),
+              createdAt: bookingB.createdAt,
+              details: `Duplicate booking for phone within 24h`,
+              table: "bookings"
+            });
+            processedBookingIds.add(bookingB.id);
+          }
+        }
+      }
+    }
+
+    for (const b of dbBookings) {
+      if (fakeBookings.some(f => f.id === b.id) || duplicateBookings.some(d => d.id === b.id)) continue;
+      if (b.status === "new" && b.createdAt < ninetyDaysAgo) {
+        staleBookings.push({
+          id: b.id,
+          name: maskPersonName(b.name),
+          phone: maskPhoneNum(b.phone),
+          createdAt: b.createdAt,
+          details: `New booking older than 90 days`,
+          table: "bookings"
+        });
+      }
+    }
+
+    const fakeCallbacks: any[] = [];
+    const duplicateCallbacks: any[] = [];
+    const staleCallbacks: any[] = [];
+    const processedCallbackIds = new Set<number>();
+
+    for (const c of dbCallbacks) {
+      const isVoiceAgent = (c.context || "").toLowerCase().includes("[voice-agent]");
+      if (!isVoiceAgent && isFakePattern(c.name, c.phone, c.context)) {
+        fakeCallbacks.push({
+          id: c.id,
+          name: maskPersonName(c.name),
+          phone: maskPhoneNum(c.phone),
+          createdAt: c.createdAt,
+          details: c.context || "",
+          table: "callbacks"
+        });
+      }
+    }
+
+    const sortedCallbacks = [...dbCallbacks].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    for (let i = 0; i < sortedCallbacks.length; i++) {
+      const callbackA = sortedCallbacks[i];
+      const pA = callbackA.phone.replace(/\D/g, "");
+      if (processedCallbackIds.has(callbackA.id) || fakeCallbacks.some(f => f.id === callbackA.id) || pA.length < 7) continue;
+
+      for (let j = i + 1; j < sortedCallbacks.length; j++) {
+        const callbackB = sortedCallbacks[j];
+        const pB = callbackB.phone.replace(/\D/g, "");
+        if (processedCallbackIds.has(callbackB.id) || fakeCallbacks.some(f => f.id === callbackB.id) || pB.length < 7) continue;
+
+        if (pA === pB) {
+          const timeDiffHours = Math.abs(callbackA.createdAt.getTime() - callbackB.createdAt.getTime()) / (1000 * 60 * 60);
+          if (timeDiffHours <= 24) {
+            duplicateCallbacks.push({
+              id: callbackB.id,
+              name: maskPersonName(callbackB.name),
+              phone: maskPhoneNum(callbackB.phone),
+              createdAt: callbackB.createdAt,
+              details: `Duplicate callback within 24h`,
+              table: "callbacks"
+            });
+            processedCallbackIds.add(callbackB.id);
+          }
+        }
+      }
+    }
+
+    for (const c of dbCallbacks) {
+      if (fakeCallbacks.some(f => f.id === c.id) || duplicateCallbacks.some(d => d.id === c.id)) continue;
+      if ((c.status === "new" || c.status === "pending") && c.createdAt < ninetyDaysAgo) {
+        staleCallbacks.push({
+          id: c.id,
+          name: maskPersonName(c.name),
+          phone: maskPhoneNum(c.phone),
+          createdAt: c.createdAt,
+          details: `New/pending callback older than 90 days`,
+          table: "callbacks"
+        });
+      }
+    }
+
+    return {
+      fake: [...fakeLeads, ...fakeBookings, ...fakeCallbacks],
+      duplicates: [...duplicateLeads, ...duplicateBookings, ...duplicateCallbacks],
+      stale: [...staleLeads, ...staleBookings, ...staleCallbacks],
+    };
+  }),
+
+  dbCleanupPrune: adminProcedure
+    .input(z.object({
+      fakeIds: z.array(z.object({ id: z.number(), table: z.enum(["leads", "bookings", "callbacks"]) })),
+      duplicateIds: z.array(z.object({ id: z.number(), table: z.enum(["leads", "bookings", "callbacks"]) })),
+      staleIds: z.array(z.object({ id: z.number(), table: z.enum(["leads", "bookings", "callbacks"]) })),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      const { eq } = await import("drizzle-orm");
+
+      let deletedCount = 0;
+      let archivedCount = 0;
+
+      for (const item of input.fakeIds) {
+        if (item.table === "leads") {
+          await d.delete(leads).where(eq(leads.id, item.id));
+        } else if (item.table === "bookings") {
+          await d.delete(bookings).where(eq(bookings.id, item.id));
+        } else if (item.table === "callbacks") {
+          await d.delete(callbackRequests).where(eq(callbackRequests.id, item.id));
+        }
+        deletedCount++;
+      }
+
+      for (const item of input.duplicateIds) {
+        if (item.table === "leads") {
+          await d.delete(leads).where(eq(leads.id, item.id));
+        } else if (item.table === "bookings") {
+          await d.delete(bookings).where(eq(bookings.id, item.id));
+        } else if (item.table === "callbacks") {
+          await d.delete(callbackRequests).where(eq(callbackRequests.id, item.id));
+        }
+        deletedCount++;
+      }
+
+      for (const item of input.staleIds) {
+        if (item.table === "leads") {
+          await d.update(leads)
+            .set({ status: "closed", contacted: 0, contactNotes: "[SYSTEM: Closed as stale]" })
+            .where(eq(leads.id, item.id));
+        } else if (item.table === "bookings") {
+          await d.update(bookings)
+            .set({ status: "cancelled", adminNotes: "[SYSTEM: Cancelled as stale]" })
+            .where(eq(bookings.id, item.id));
+        } else if (item.table === "callbacks") {
+          await d.update(callbackRequests)
+            .set({ status: "no-answer", notes: "[SYSTEM: Closed as stale]" })
+            .where(eq(callbackRequests.id, item.id));
+        }
+        archivedCount++;
+      }
+
+      const { logAdminAction } = await import("../services/auditTrail");
+      logAdminAction({
+        action: "database.hygiene_prune",
+        entityType: "system",
+        entityId: 0,
+        details: `Database cleanup: deleted ${deletedCount} records, archived/closed ${archivedCount} stale records.`,
+      }).catch((e) => { log.warn("[routers/admin] audit trail logging failed:", e); });
+
+      return { success: true, deleted: deletedCount, archived: archivedCount };
+    }),
 });
 
 export const analyticsRouter = router({
