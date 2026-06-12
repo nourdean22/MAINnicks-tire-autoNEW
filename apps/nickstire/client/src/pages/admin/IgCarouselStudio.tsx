@@ -55,7 +55,7 @@ function copyText(label: string, text: string) {
 
 function Panel({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="border border-border bg-card/40 rounded-lg p-4 space-y-3">
+    <section className="border border-border bg-card/40 p-4 space-y-3">
       <h2 className="flex items-center gap-2 text-sm font-bold tracking-wide text-foreground/90 uppercase">
         {icon} {title}
       </h2>

@@ -57,7 +57,7 @@ export function TopMoneyMoves() {
 
   if (isLoading) {
     return (
-      <div className="bg-card border border-border/40 p-5 rounded-xl animate-pulse space-y-4">
+      <div className="bg-card border border-border/40 p-5 animate-pulse space-y-4">
         <div className="h-4 bg-muted w-1/4 rounded" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="h-24 bg-muted rounded-lg" />
@@ -95,7 +95,7 @@ export function TopMoneyMoves() {
   };
 
   return (
-    <div className="bg-card border border-border/40 p-5 rounded-xl space-y-4 shadow-sm">
+    <div className="bg-card border border-border/40 p-5 space-y-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="p-1 rounded bg-primary/10">

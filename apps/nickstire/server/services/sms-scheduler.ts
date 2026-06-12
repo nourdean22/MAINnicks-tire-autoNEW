@@ -333,7 +333,7 @@ export async function processScheduledSms() {
     // Appointment-related reminders are transactional — must not be silently
     // dropped by the promo daily-cap/cooldown. Only maintenance-reminder is
     // promotional (stays capped + carries its own STOP footer).
-    const isTransactional = reminder.type !== "maintenance-reminder";
+    const isTransactional = !["maintenance-reminder", "review-request"].includes(reminder.type);
     const result = await sendSms(booking.phone, message, { via: "shop", transactional: isTransactional });
 
     if (result.success) {
