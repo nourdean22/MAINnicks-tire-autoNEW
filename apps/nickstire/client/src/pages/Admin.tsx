@@ -417,7 +417,7 @@ export default function Admin() {
         const url = new URL(window.location.href);
         url.searchParams.set("tab", "customers");
         url.searchParams.set("id", String(detail.customerId));
-        window.history.replaceState({}, "", url.toString());
+        window.history.pushState({}, "", url.toString());
       }
     };
     window.addEventListener("admin:open-customer-drawer", handler);

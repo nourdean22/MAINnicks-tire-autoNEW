@@ -42,6 +42,8 @@ export default defineConfig({
         "server/services/snapFinanceSync.ts",
         "server/services/workOrderAutomation.ts",
         "server/cron/jobs/retentionSequences.ts",
+        "server/services/payments.ts",
+        "server/routers/payments.ts",
         "shared/business.ts",
         "shared/const.ts",
       ],

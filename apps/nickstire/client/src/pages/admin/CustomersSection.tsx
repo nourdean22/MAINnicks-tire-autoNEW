@@ -88,18 +88,39 @@ export default function CustomersSection() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;
     const raw = new URLSearchParams(window.location.search).get("id");
-    return raw ? Number(raw) : null;
+    const num = raw ? Number(raw) : null;
+    return num && !isNaN(num) && num > 0 ? num : null;
   });
+
+  const handleOpenCustomer = (id: number) => {
+    setSelectedCustomerId(id);
+    setActiveTab("customers");
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", "customers");
+      url.searchParams.set("id", String(id));
+      window.history.pushState({}, "", url.toString());
+    }
+  };
 
   // Keep state in sync with URL queries (e.g., when clicking back/forward, or direct event)
   useEffect(() => {
     const handleUrlChange = () => {
       const params = new URLSearchParams(window.location.search);
       const raw = params.get("id");
-      setSelectedCustomerId(raw ? Number(raw) : null);
+      const num = raw ? Number(raw) : null;
+      if (raw && (num === null || isNaN(num) || num <= 0)) {
+        // remove invalid id from URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete("id");
+        window.history.replaceState({}, "", url.toString());
+        setSelectedCustomerId(null);
+      } else {
+        setSelectedCustomerId(num);
+      }
 
       const customersTabParam = params.get("customersTab");
-      if (raw) {
+      if (raw && num !== null && !isNaN(num) && num > 0) {
         setActiveTab("customers");
       } else if (customersTabParam === "loyalty" || customersTabParam === "coupons") {
         setActiveTab(customersTabParam);
@@ -108,12 +129,16 @@ export default function CustomersSection() {
       }
     };
 
+    // Run once on mount to validate/sync initial URL state
+    handleUrlChange();
+
     window.addEventListener("popstate", handleUrlChange);
 
     const handleOpenDrawer = (e: Event) => {
       const detail = (e as CustomEvent<{ customerId: number }>).detail;
-      if (typeof detail?.customerId === "number") {
-        setSelectedCustomerId(detail.customerId);
+      const num = detail?.customerId;
+      if (typeof num === "number" && !isNaN(num) && num > 0) {
+        setSelectedCustomerId(num);
         setActiveTab("customers");
       }
     };
@@ -175,14 +200,14 @@ export default function CustomersSection() {
         selectedCustomerId !== null ? (
           <CustomerProfile customerId={selectedCustomerId} onClose={handleBackToList} />
         ) : (
-          <CustomersList />
+          <CustomersList onOpenCustomer={handleOpenCustomer} />
         )
       )}
     </div>
   );
 }
 
-function CustomersList() {
+function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number) => void }) {
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   // C9 · debounce search before it hits the query. The input stays bound to
@@ -753,7 +778,15 @@ function CustomersList() {
                           ? <ChevronUp className="w-3.5 h-3.5 text-primary shrink-0" />
                           : <ChevronDown className="w-3.5 h-3.5 text-foreground/30 shrink-0" />
                         }
-                        <span className="text-foreground font-medium">{c.firstName} {c.lastName || ""}</span>
+                        <span
+                          className="text-foreground font-medium hover:text-primary transition-colors cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenCustomer(c.id);
+                          }}
+                        >
+                          {c.firstName} {c.lastName || ""}
+                        </span>
                         {c.customerType === "commercial" && <Building2 className="w-3 h-3 text-foreground/50" />}
                         {c.notes && <span title="Has notes"><StickyNote className="w-3 h-3 text-amber-400/60" /></span>}
                       </div>
@@ -903,7 +936,7 @@ function CustomersList() {
                           <WinBackButton customerId={c.id} firstName={c.firstName} phone={c.phone} />
                         )}
                         <button
-                          onClick={() => openCustomerDrawer(c.id)}
+                          onClick={() => onOpenCustomer(c.id)}
                           className="text-foreground/30 hover:text-primary transition-colors"
                           title="View full details"
                         >

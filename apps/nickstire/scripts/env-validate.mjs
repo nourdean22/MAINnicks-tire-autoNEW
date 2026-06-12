@@ -114,6 +114,18 @@ function validateTemplate() {
     process.exit(1);
   }
 
+  // Verify that Stripe template keys are present in .env.example (even if commented)
+  const rawExample = fs.readFileSync(filePath, "utf8");
+  const missingOptional = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"].filter(
+    key => !rawExample.includes(key)
+  );
+
+  if (missingOptional.length > 0) {
+    console.error("[env:validate] Missing optional Stripe keys in .env.example:");
+    for (const key of missingOptional) console.error(`  - ${key}`);
+    process.exit(1);
+  }
+
   console.log("[env:validate] .env.example required key check: PASS");
   console.log(`[env:validate] Required key count: ${allRequiredKeys.length}`);
   console.log(
@@ -155,6 +167,18 @@ function validateRuntime() {
     }
 
     process.exit(1);
+  }
+
+  // Stripe co-dependency check: warns if secret key is present but webhook secret is missing
+  const stripeSecret = process.env.STRIPE_SECRET_KEY;
+  const stripeWebhook = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (stripeSecret && stripeSecret.trim() !== "") {
+    if (!stripeWebhook || stripeWebhook.trim() === "") {
+      console.warn(
+        `[env-validate] WARNING: STRIPE_SECRET_KEY is configured but STRIPE_WEBHOOK_SECRET is missing. Stripe API calls may work, but webhook-driven events such as invoice-paid sync, subscription updates, or membership reconciliation may fail.`
+      );
+    }
   }
 
   console.log("[env:validate] Runtime environment check: PASS");
