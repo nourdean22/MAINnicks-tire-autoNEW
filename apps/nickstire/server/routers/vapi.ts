@@ -929,4 +929,94 @@ export const vapiRouter = router({
       const history = await getCallStateHistory(input.callId);
       return { callId: input.callId, history };
     }),
+
+  /**
+   * Achievements and metrics summary for Nick AI receptionist.
+   * Pulls directly from local DB logs to calculate levels, badges, and streaks.
+   */
+  achievements: adminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+    }
+    const rows = await db
+      .select({
+        createdAt: vapiCallLogs.createdAt,
+        durationSeconds: vapiCallLogs.durationSeconds,
+        endedReason: vapiCallLogs.endedReason,
+        convertedToLead: vapiCallLogs.convertedToLead,
+        evalScore: vapiCallLogs.evalScore,
+        evalOutcome: vapiCallLogs.evalOutcome,
+      })
+      .from(vapiCallLogs);
+
+    let totalCalls = rows.length;
+    let totalDuration = 0;
+    let totalConverted = 0;
+    let totalExemplary = 0;
+    let totalResolved = 0;
+    let totalAfterHours = 0;
+    let sumScore = 0;
+    let countScore = 0;
+
+    for (const r of rows) {
+      totalDuration += r.durationSeconds;
+      if (r.convertedToLead === 1) totalConverted++;
+      if (r.evalScore !== null) {
+        sumScore += r.evalScore;
+        countScore++;
+        if (r.evalScore >= 85) totalExemplary++;
+        if (r.endedReason === "customer-ended-call" && r.evalScore >= 70) totalResolved++;
+      }
+
+      // Cleveland time (America/New_York)
+      try {
+        const localDate = new Date(r.createdAt.toLocaleString("en-US", { timeZone: "America/New_York" }));
+        const hour = localDate.getHours();
+        if (hour < 8 || hour >= 18) {
+          totalAfterHours++;
+        }
+      } catch {
+        // Fallback to UTC hour if timezone translation fails
+        const hour = r.createdAt.getUTCHours();
+        if (hour < 12 || hour >= 22) { // rough offset estimate
+          totalAfterHours++;
+        }
+      }
+    }
+
+    const avgScore = countScore > 0 ? Math.round(sumScore / countScore) : 0;
+
+    // Calculate current streak of successful calls
+    const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    let streak = 0;
+    for (const r of sorted) {
+      const isPass =
+        r.evalOutcome === "PASS" ||
+        (r.evalScore !== null && r.evalScore >= 70) ||
+        r.convertedToLead === 1 ||
+        r.endedReason === "assistant-forwarded-call";
+      const isFail =
+        r.evalOutcome === "FAIL" ||
+        (r.evalScore !== null && r.evalScore < 70);
+
+      if (isPass) {
+        streak++;
+      } else if (isFail) {
+        break;
+      }
+    }
+
+    return {
+      totalCalls,
+      totalDuration,
+      totalConverted,
+      totalExemplary,
+      totalResolved,
+      totalAfterHours,
+      avgScore,
+      streak,
+    };
+  }),
 });
+
