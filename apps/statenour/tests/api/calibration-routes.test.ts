@@ -6,6 +6,7 @@ const { mockPrisma, mockReadRequestJson } = vi.hoisted(() => ({
       findMany: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       upsert: vi.fn(),
     },
     prediction: {
@@ -18,6 +19,7 @@ const { mockPrisma, mockReadRequestJson } = vi.hoisted(() => ({
     },
     brainMemory: {
       findMany: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       upsert: vi.fn().mockResolvedValue({}),
     },
     $queryRawUnsafe: vi.fn(),
@@ -71,6 +73,7 @@ vi.mock("@/lib/brain/calibration-engine", () => ({
 import { GET as cronGet } from "@/app/api/cron/calibration-generator/route";
 import { GET as reviewsGet } from "@/app/api/system/calibration/reviews/route";
 import { POST as resolvePost } from "@/app/api/system/calibration/reviews/[id]/resolve/route";
+import { POST as bulkResolvePost } from "@/app/api/system/calibration/reviews/bulk-resolve/route";
 
 describe("API /api/cron/calibration-generator", () => {
   beforeEach(() => {
@@ -157,6 +160,86 @@ describe("API /api/system/calibration/reviews/[id]/resolve", () => {
         reviewedBy: "owner",
       }),
     });
+    expect(res.success).toBe(true);
+  });
+});
+
+describe("API /api/system/calibration/reviews/bulk-resolve", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("bulk approves low-risk items and returns the processed count", async () => {
+    const pendingItems = [
+      {
+        id: "rev-task",
+        type: "task_roi",
+        status: "pending",
+        sourceId: "task-1",
+        sourceType: "Task",
+        predictedOutcome: { roiScore: 50 },
+        proposedActualOutcome: { outcomeScore: 52, classification: "accurate" },
+      },
+      {
+        id: "rev-pred",
+        type: "prediction",
+        status: "pending",
+        sourceId: "pred-1",
+        sourceType: "Prediction",
+        confidence: 0.8,
+        proposedActualOutcome: { status: "confirmed", outcomeDescription: "Confirmed outcome" },
+      },
+      {
+        id: "rev-high-risk",
+        type: "task_roi",
+        status: "pending",
+        sourceId: "task-2",
+        sourceType: "Task",
+        predictedOutcome: { roiScore: 50 },
+        proposedActualOutcome: { outcomeScore: 65, classification: "underestimated" }, // diff = 15 > 5
+      }
+    ];
+
+    mockPrisma.calibrationReviewItem.findMany.mockResolvedValue(pendingItems);
+    mockPrisma.task.update.mockResolvedValue({ id: "task-1", title: "Task 1" });
+    mockPrisma.prediction.update.mockResolvedValue({ id: "pred-1", prediction: "Pred 1", confidence: 0.8 });
+    mockReadRequestJson.mockResolvedValue({ action: "approve_low_risk" });
+
+    const req = new Request("http://localhost/api/system/calibration/reviews/bulk-resolve", {
+      method: "POST",
+    });
+    const res = await (bulkResolvePost as any)(req);
+
+    // Should update task-1 and pred-1, but not task-2
+    expect(mockPrisma.task.update).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.prediction.update).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.calibrationReviewItem.update).toHaveBeenCalledTimes(2);
+    expect(res.processedCount).toBe(2);
+    expect(res.success).toBe(true);
+  });
+
+  it("bulk rejects stale reviews created more than 14 days ago", async () => {
+    mockPrisma.calibrationReviewItem.updateMany.mockResolvedValue({ count: 4 });
+    mockReadRequestJson.mockResolvedValue({ action: "reject_stale" });
+
+    const req = new Request("http://localhost/api/system/calibration/reviews/bulk-resolve", {
+      method: "POST",
+    });
+    const res = await (bulkResolvePost as any)(req);
+
+    expect(mockPrisma.calibrationReviewItem.updateMany).toHaveBeenCalledWith({
+      where: {
+        status: "pending",
+        createdAt: { lt: expect.any(Date) },
+      },
+      data: {
+        status: "rejected",
+        reviewedAt: expect.any(Date),
+        reviewedBy: "owner",
+        correctionNote: "Bulk rejected (stale >14 days)",
+      },
+    });
+    expect(res.processedCount).toBe(4);
     expect(res.success).toBe(true);
   });
 });
