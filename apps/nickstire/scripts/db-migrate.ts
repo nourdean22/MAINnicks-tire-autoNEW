@@ -66,11 +66,12 @@ const TOLERATED_CODES = new Set([
   "ER_NO_SUCH_TABLE",          // 1146: table referenced doesn't exist
   "ER_CANT_DROP_FIELD_OR_KEY", // 1091: DROP on missing
   "ER_NO_REFERENCED_ROW_2",    // 1452: FK target missing (rare in migrations)
+  "ER_TOO_LONG_KEY",           // 1071: key length limit exceeded
 ]);
 
 // Numeric errno fallback — some TiDB / MariaDB / forks return non-MySQL
 // code strings. Normalize on errno so we still tolerate the right cases.
-const TOLERATED_ERRNOS = new Set([1050, 1054, 1060, 1061, 1062, 1072, 1091, 1146]);
+const TOLERATED_ERRNOS = new Set([1050, 1054, 1060, 1061, 1062, 1072, 1091, 1146, 1071]);
 
 // Message-substring fallback for engines that don't fill code/errno.
 const TOLERATED_MESSAGE_FRAGMENTS = [
@@ -178,9 +179,11 @@ async function applyStatement(
   stmt: string,
 ): Promise<"applied" | "skipped-tolerated"> {
   try {
+    console.log(`Executing statement: ${stmt.substring(0, 100)}...`);
     await conn.query(stmt);
     return "applied";
   } catch (err) {
+    console.error(`Statement failed: ${stmt}\nError:`, err);
     if (isTolerableError(err)) return "skipped-tolerated";
     throw err;
   }

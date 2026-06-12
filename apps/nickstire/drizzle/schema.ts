@@ -1357,6 +1357,12 @@ export const algEstimates = mysqlTable("alg_estimates", {
   /** Link to invoice if converted (matched during sync) */
   matchedInvoiceId: int("matched_invoice_id"),
   matchedAt: timestamp("matched_at"),
+  customerId: int("customer_id"),
+  vin: varchar("vin", { length: 17 }),
+  laborRate: int("labor_rate").default(11500).notNull(),
+  serviceCategory: varchar("service_category", { length: 64 }),
+  estimatedLaborCost: int("estimated_labor_cost").default(0).notNull(),
+  estimatedPartsCost: int("estimated_parts_cost").default(0).notNull(),
   /** Recovery follow-up tracking.
    *
    * wave-181.59 — `*AttemptedAt` columns added for at-most-once delivery.
@@ -1387,6 +1393,7 @@ export const algEstimates = mysqlTable("alg_estimates", {
    *  on first touch and sticky so the sequence stays consistent even
    *  if customer signals shift. Migration 0055. */
   recoveryProfile: varchar("recovery_profile", { length: 8 }),
+  recoveryProfileScore: int("recovery_profile_score").default(0).notNull(),
   /** wave-181.85 · voice recovery escalation (post-D30) · AgentPhone */
   voiceRecoveryAttemptedAt: timestamp("voice_recovery_attempted_at"),
   voiceRecoveryCallId: varchar("voice_recovery_call_id", { length: 64 }),

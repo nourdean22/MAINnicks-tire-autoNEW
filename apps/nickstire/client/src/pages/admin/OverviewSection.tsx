@@ -498,6 +498,16 @@ export default function OverviewSection() {
         dismissable: false,
       });
     }
+    if (algStatus?.staleDays && algStatus.staleDays > 1) {
+      out.push({
+        id: "alg-stale",
+        severity: "crit",
+        message: `ALG (Auto Labor Guide) sync is stale by ${algStatus.staleDays} days. In-store invoice and estimate data may be out of sync.`,
+        href: "/admin?tab=settings&settingsTab=shopdriver",
+        ctaLabel: "Fix",
+        dismissable: false,
+      });
+    }
     if (paymentBacklogCount > 0) {
       out.push({
         id: "payment-backlog",
@@ -513,7 +523,7 @@ export default function OverviewSection() {
       });
     }
     return out;
-  }, [algConnectedForAlerts, paymentBacklogCount]);
+  }, [algConnectedForAlerts, paymentBacklogCount, algStatus]);
 
   if (isLoading || !stats) {
     return <SkeletonOverview />;

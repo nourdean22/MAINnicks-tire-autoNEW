@@ -869,6 +869,7 @@ export const invoicesRouter = router({
           serviceDescription: algEstimates.serviceDescription,
           followUp7dSent: algEstimates.followUp7dSent,
           followUp30dSent: algEstimates.followUp30dSent,
+          recoveryProfile: algEstimates.recoveryProfile,
         })
         .from(algEstimates)
         .where(sql`${algEstimates.id} IN (${sql.join(input.ids.map(id => sql`${id}`), sql`, `)})`);
@@ -907,8 +908,8 @@ export const invoicesRouter = router({
 
         const name = parseFirstName(row.customerName);
         const body = input.tier === "7d"
-          ? buildSevenDayMessage({ name, amountCents: row.estimatedAmount, service: row.serviceDescription })
-          : buildThirtyDayMessage({ name, amountCents: row.estimatedAmount });
+          ? buildSevenDayMessage({ name, amountCents: row.estimatedAmount, service: row.serviceDescription, profile: row.recoveryProfile })
+          : buildThirtyDayMessage({ name, amountCents: row.estimatedAmount, profile: row.recoveryProfile });
 
         try {
           const smsResult = await sendSms(row.customerPhone, body, { via: "shop", transactional: false });
