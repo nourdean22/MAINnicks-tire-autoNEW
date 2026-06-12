@@ -241,6 +241,7 @@ function Router() {
             <Route path={"/admin"} component={Admin} />
             <Route path={"/admin/ig-studio"} component={AdminIgCarouselStudio} />
             <Route path={"/admin/reel-studio"} component={AdminFacelessReelStudio} />
+            <Route path={"/admin/content"}>{() => <Redirect to="/admin?tab=content" />}</Route>
             {/* City-specific landing pages for local SEO */}
             <Route path={"/cleveland-auto-repair"} component={CityPage} />
             <Route path={"/euclid-auto-repair"} component={CityPage} />
