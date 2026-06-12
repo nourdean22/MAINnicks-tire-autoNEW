@@ -73,14 +73,14 @@ export default function ComplianceSection() {
           ) : !loginData ? (
             <LoadingState />
           ) : loginData.successes.length === 0 ? (
-            <div className="rounded-xl border border-border/30 bg-card/50 p-10 text-center">
+            <div className="border border-border/30 bg-card/50 p-10 text-center">
               <LogIn className="w-8 h-8 mx-auto mb-3 text-muted-foreground/60" />
               <p className="text-sm text-muted-foreground">No admin logins yet.</p>
             </div>
           ) : (
             <>
               {loginData.uniqueIpsLast30d.length > 0 && (
-                <div className="rounded-xl border border-border/30 bg-card/50 p-3 text-xs">
+                <div className="border border-border/30 bg-card/50 p-3 text-xs">
                   <div className="flex items-center gap-2 mb-2 text-muted-foreground">
                     <Globe className="w-3.5 h-3.5" />
                     <span className="uppercase tracking-widest text-[10px] font-bold">
@@ -100,7 +100,7 @@ export default function ComplianceSection() {
                   horizontal scroll on phone (Email + IP columns overflow
                   390px viewport). Switched to `overflow-x-auto` so operator
                   can scroll the table on phone to read security audit info. */}
-              <div className="overflow-x-auto rounded-xl border border-border/30 bg-card/50">
+              <div className="overflow-x-auto border border-border/30 bg-card/50">
                 <table className="w-full text-sm">
                   <thead className="bg-background/50 text-[10px] uppercase tracking-widest text-muted-foreground">
                     <tr>
@@ -146,14 +146,14 @@ export default function ComplianceSection() {
           ) : (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+                <div className="border border-emerald-500/30 bg-emerald-500/5 p-4">
                   <div className="flex items-center gap-2 text-emerald-400 mb-1">
                     <UserCheck className="w-4 h-4" />
                     <span className="text-[10px] uppercase tracking-widest font-bold">Opt-ins</span>
                   </div>
                   <div className="font-mono font-black text-3xl text-foreground">{consentData.totalOptIns}</div>
                 </div>
-                <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4">
+                <div className="border border-red-500/30 bg-red-500/5 p-4">
                   <div className="flex items-center gap-2 text-red-400 mb-1">
                     <UserX className="w-4 h-4" />
                     <span className="text-[10px] uppercase tracking-widest font-bold">Opt-outs</span>
@@ -166,7 +166,7 @@ export default function ComplianceSection() {
                 <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
                   Recent consent events
                 </h3>
-                <div className="overflow-hidden rounded-xl border border-border/30 bg-card/50">
+                <div className="overflow-hidden border border-border/30 bg-card/50">
                   <table className="w-full text-xs">
                     <thead className="bg-background/50 text-[10px] uppercase tracking-widest text-muted-foreground">
                       <tr>
@@ -226,14 +226,14 @@ export default function ComplianceSection() {
           ) : !loginData ? (
             <LoadingState />
           ) : loginData.failures.length === 0 ? (
-            <div className="rounded-xl border border-border/30 bg-card/50 p-10 text-center">
+            <div className="border border-border/30 bg-card/50 p-10 text-center">
               <UserCheck className="w-8 h-8 mx-auto mb-3 text-emerald-400/80" />
               <p className="text-sm text-muted-foreground">No failed admin logins. Clean.</p>
             </div>
           ) : (
             // wave-119 — same overflow-hidden→overflow-x-auto fix as the
             // login-history table above. Operator can scroll on phone.
-            <div className="overflow-x-auto rounded-xl border border-red-500/30 bg-red-500/5">
+            <div className="overflow-x-auto border border-red-500/30 bg-red-500/5">
               <table className="w-full text-sm">
                 <thead className="bg-background/50 text-[10px] uppercase tracking-widest text-muted-foreground">
                   <tr>

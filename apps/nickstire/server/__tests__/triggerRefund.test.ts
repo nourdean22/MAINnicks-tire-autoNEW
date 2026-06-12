@@ -107,12 +107,18 @@ describe("tRPC invoices.triggerRefund procedure", () => {
 
     const caller = appRouter.createCaller(createAdminContext());
 
-    await expect(
-      caller.invoices.triggerRefund({
+    let thrownError: any;
+    try {
+      await caller.invoices.triggerRefund({
         invoiceId: 999,
         amountCents: 5000,
-      })
-    ).rejects.toThrow("Invoice ID 999 not found");
+      });
+    } catch (err) {
+      thrownError = err;
+    }
+
+    expect(thrownError).toBeDefined();
+    expect(thrownError.message).toContain("Invoice ID 999 not found");
   });
 
   it("should throw error if invoice status is not paid or partial", async () => {
@@ -130,12 +136,18 @@ describe("tRPC invoices.triggerRefund procedure", () => {
 
     const caller = appRouter.createCaller(createAdminContext());
 
-    await expect(
-      caller.invoices.triggerRefund({
+    let thrownError: any;
+    try {
+      await caller.invoices.triggerRefund({
         invoiceId: 555,
         amountCents: 5000,
-      })
-    ).rejects.toThrow("Invoice payment status is pending, cannot refund");
+      });
+    } catch (err) {
+      thrownError = err;
+    }
+
+    expect(thrownError).toBeDefined();
+    expect(thrownError.message).toContain("Invoice payment status is pending, cannot refund");
   });
 
   it("should issue Stripe refund and call writeback service successfully", async () => {

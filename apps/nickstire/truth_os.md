@@ -2,7 +2,12 @@
 
 **Purpose:** Single place to record what must be **true in production** for this repo. Update when you ship behavior or infra changes.
 
-## 🟢 Latest shipped — 2026-06-12 (Tires Metadata Alignment & GSC Sitemap Submission)
+## 🟢 Latest shipped — 2026-06-12 (Customer Total Spent Fix)
+
+- **Customer Total Spent (dead totalRevenue fix)**: Resolved the bug where `customerMetrics.totalRevenue` was always 0 in the database (never populated) by redirecting reads in both `customersRouter.vipLookup` and `customerPsychoProfile` service to `customers.totalSpent` (the live spent value in cents).
+- **Test Integrity**: Standardized the vitest error assertions in `triggerRefund.test.ts` to run stably without relying on rejects.toThrow string matching issues.
+
+## 🟢 Shipped — 2026-06-12 (Tires Metadata Alignment & GSC Sitemap Submission)
 
 - **Tires Metadata Alignment**: Modified `apps/nickstire/shared/services.ts` to align the tires page meta description with the SEO-tuned string inside `routes.ts` and `TireFinder.tsx` ("New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005.").
 - **Zero Divergences**: Verified that the meta divergence check reports 0 divergences between route registry and SPA runtime sources.

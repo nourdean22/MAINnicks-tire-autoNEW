@@ -64,7 +64,8 @@ export async function classifyCustomer(customerId: number): Promise<{
       vehicleMake: customers.vehicleMake,
       declinedValue: customerMetrics.declinedValue,
       declinedCount: customerMetrics.declinedCount,
-      totalRevenue: customerMetrics.totalRevenue,
+      // Redirect to customers.totalSpent since customer_metrics.totalRevenue is dead (always 0)
+      totalRevenue: customers.totalSpent,
       isVip: customerMetrics.isVip,
     })
     .from(customers)
@@ -163,7 +164,8 @@ export async function classifyAllCustomers(): Promise<ProfileResult> {
         vehicleMake: customers.vehicleMake,
         declinedValue: customerMetrics.declinedValue,
         declinedCount: customerMetrics.declinedCount,
-        totalRevenue: customerMetrics.totalRevenue,
+        // Redirect to customers.totalSpent since customer_metrics.totalRevenue is dead (always 0)
+        totalRevenue: customers.totalSpent,
         isVip: customerMetrics.isVip,
       })
       .from(customers)
