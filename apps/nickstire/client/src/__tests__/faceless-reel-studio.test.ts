@@ -179,6 +179,7 @@ describe("prompt engine", () => {
     for (const section of [
       "# ROLE",
       "# BUSINESS FACTS",
+      "# PROPRIETARY SHOP EVIDENCE",
       "# HIDDEN PERSUASION",
       "# RESEARCH STANDARD",
       "# FORMAT CONTRACT",
@@ -202,6 +203,33 @@ describe("prompt engine", () => {
     }
     expect(p).toContain("FACELESS");
     expect(p).toContain("15-22 seconds");
+  });
+
+  it("threads proprietary evidence when provided", () => {
+    const p = buildFacelessReelSystemPrompt({
+      mode: "draft",
+      proprietaryEvidence: {
+        recentCaseStudy: {
+          vehicle: "2019 Tesla Model 3",
+          symptom: "noise",
+          failedComponent: "control arm",
+          condition: "red",
+          techNotes: "torn bushing",
+          recommendedAction: "replace link",
+        },
+        localStats: {
+          brakeRustRatioPercent: 88,
+          potholeDamageCount: 99,
+          commonVehicles: ["Tesla Model 3"],
+          averageMileage: 50000,
+        },
+        clevelandAngle: "Cleveland winters are brutal.",
+      },
+    });
+    expect(p).toContain("2019 Tesla Model 3");
+    expect(p).toContain("88%");
+    expect(p).toContain("99 incidents");
+    expect(p).toContain("Cleveland winters are brutal.");
   });
 
   it("prompt honors overrides and avoid-lists", () => {
