@@ -28,9 +28,10 @@
     "lint:source": "node scripts/lint-source.mjs",
     "lint:hooks": "node scripts/audit-hook-after-return.mjs",
     "lint:brand-voice": "node scripts/lint-brand-voice.mjs",
+    "lint:pii": "node scripts/lint-pii.mjs",
     "validate:routes": "node scripts/validate-route-registry.mjs",
     "env:validate": "node scripts/env-validate.mjs",
-    "verify": "pnpm run env:validate && pnpm run check && pnpm run lint && pnpm run lint:source && pnpm run lint:hooks && pnpm run lint:brand-voice && pnpm run validate:routes && pnpm run test && pnpm run build"
+    "verify": "pnpm run env:validate && pnpm run check && pnpm run lint && pnpm run lint:source && pnpm run lint:hooks && pnpm run lint:brand-voice && pnpm run lint:pii && pnpm run validate:routes && pnpm run test && pnpm run build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

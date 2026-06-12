@@ -232,7 +232,7 @@ function buildSegmentFilter(segment: string) {
     // Removed from the targetSegment enum; any legacy "declined" campaign
     // falls to the default below → segment='declined' matches ~0 rows (safe).
     case "tire_customer":
-      // tire_customer is revived only when invoice/service evidence proves prior tire work and lastVisitDate is older than 180 days.
+      // tire_customer is revived only when invoice/service evidence proves prior tire purchase (excluding repair/rotation/etc.) or a tire order, and lastVisitDate is older than 180 days.
       return and(
         sql`${customers.lastVisitDate} IS NOT NULL`,
         sql`${customers.lastVisitDate} < ${d180}`,
@@ -240,7 +240,19 @@ function buildSegmentFilter(segment: string) {
         sql`EXISTS (
           SELECT 1 FROM invoices 
           WHERE invoices.customerId = ${customers.id} 
-          AND (invoices.serviceDescription LIKE '%tire%' OR invoices.serviceDescription LIKE '%tires%')
+            AND (invoices.serviceDescription LIKE '%tire%' OR invoices.serviceDescription LIKE '%tires%')
+            AND invoices.serviceDescription NOT LIKE '%repair%'
+            AND invoices.serviceDescription NOT LIKE '%rotation%'
+            AND invoices.serviceDescription NOT LIKE '%rotate%'
+            AND invoices.serviceDescription NOT LIKE '%flat%'
+            AND invoices.serviceDescription NOT LIKE '%patch%'
+            AND invoices.serviceDescription NOT LIKE '%plug%'
+            AND invoices.serviceDescription NOT LIKE '%balance%'
+            AND invoices.serviceDescription NOT LIKE '%mount%'
+        ) OR EXISTS (
+          SELECT 1 FROM tire_orders 
+          WHERE tire_orders.customerId = ${customers.id} 
+            AND (tire_orders.paymentStatus = 'paid' OR tire_orders.status NOT IN ('cancelled', 'received'))
         )`
       )!;
     case "vip":
@@ -362,6 +374,34 @@ export const winbackRouter = router({
       totalFailed: failed?.count ?? 0,
       totalPending: pending?.count ?? 0,
     };
+  }),
+
+  /** Get segment counts for all cohorts in parallel */
+  segmentCounts: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) {
+      return {
+        lapsed: 0,
+        dormant: 0,
+        lost: 0,
+        vip: 0,
+        fleet: 0,
+        recent: 0,
+        tire_customer: 0,
+      };
+    }
+
+    const segments = ["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"] as const;
+    const countPromises = segments.map(async (seg) => {
+      const filter = buildSegmentFilter(seg);
+      const [row] = await d.select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(filter);
+      return { [seg]: row?.count ?? 0 };
+    });
+
+    const results = await Promise.all(countPromises);
+    return Object.assign({}, ...results) as Record<typeof segments[number], number>;
   }),
 
   /** Create a new win-back campaign */
