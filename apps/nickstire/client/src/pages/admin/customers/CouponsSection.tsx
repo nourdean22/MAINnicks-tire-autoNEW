@@ -9,7 +9,7 @@ type Coupon = NonNullable<RouterOutputs["coupons"]["all"]>[number];
 import {
   Calendar, CheckCircle2, Loader2, Power, Star, XCircle, Zap, Gift, TicketCheck
 } from "lucide-react";
-import { PageHeader, LoadingState } from "./shared";
+import { PageHeader, LoadingState } from "../shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 /**

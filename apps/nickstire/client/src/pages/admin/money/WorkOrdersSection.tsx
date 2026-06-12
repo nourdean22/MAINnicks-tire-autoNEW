@@ -5,8 +5,8 @@
 import { useState, useMemo } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
-import { PageHeader, ErrorState } from "./shared";
-import type { ShopFloorData } from "./today/types";
+import { PageHeader, ErrorState } from "../shared";
+import type { ShopFloorData } from "../today/types";
 
 type AdminDashboardStats = RouterOutputs["adminDashboard"]["stats"];
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";

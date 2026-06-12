@@ -39,10 +39,10 @@ import { AUTONOMOUS_OPERATIONS } from "./settings/cronJobs";
 // Lazy-loaded system tabs — Nour's request: "move all system stuff to the settings page"
 // Consolidates System Health, Compliance, and Integrations into this hub so
 // the sidebar stays focused on business work, not admin plumbing.
-const SettingsStatusTab = lazy(() => import("./SettingsStatusTab"));
-const SiteHealthSection = lazy(() => import("./SiteHealthSection"));
-const ComplianceSection = lazy(() => import("./ComplianceSection"));
-const IntegrationsSection = lazy(() => import("./IntegrationsSection"));
+const SettingsStatusTab = lazy(() => import("./settings/SettingsStatusTab"));
+const SiteHealthSection = lazy(() => import("./settings/SiteHealthSection"));
+const ComplianceSection = lazy(() => import("./settings/ComplianceSection"));
+const IntegrationsSection = lazy(() => import("./settings/IntegrationsSection"));
 
 // wave-181.x Phase 2 · "status" tab added as the new DEFAULT landing.
 // The shopdriver tab still exists for sync controls + cron list ·

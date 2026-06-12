@@ -11,7 +11,7 @@ type RecentFollowUp = NonNullable<RouterOutputs["followUps"]["recent"]>[number];
 import {
   Loader2, Send, RefreshCw, CheckCircle2, Clock, MessageSquare, Star, AlertCircle, X, RotateCw
 } from "lucide-react";
-import { PageHeader, formatDate, LoadingState, EmptyState, ErrorState } from "./shared";
+import { PageHeader, formatDate, LoadingState, EmptyState, ErrorState } from "../shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 const TYPE_CONFIG: Record<string, { icon: React.ReactNode; color: string; label: string }> = {

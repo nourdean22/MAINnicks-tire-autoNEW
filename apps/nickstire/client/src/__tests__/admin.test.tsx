@@ -143,7 +143,7 @@ describe("Admin — regression guards", () => {
     trpcState.queries["dispatch.qcStats"] = {
       data: { passRate: 0, qcPending: 0, comebacks30d: 0 },
     };
-    const { default: DispatchSection } = await import("../pages/admin/DispatchSection");
+    const { default: DispatchSection } = await import("../pages/admin/money/DispatchSection");
     render(React.createElement(DispatchSection));
 
     const label = screen.getByText("QC Pass Rate");

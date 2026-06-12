@@ -6,8 +6,8 @@ import { BUSINESS } from "@shared/business";
 import {
   Activity, AlertTriangle, BarChart3, CheckCircle2, ExternalLink, Eye, FileSpreadsheet, Gauge, Globe, Loader2, MapPin, PieChart, RefreshCw, Search, Sparkles, Star, TrendingUp, XCircle, Heart
 } from "lucide-react";
-import { PageHeader, ErrorState, formatDateTime } from "./shared";
-import { deriveSheetsSyncHealth, type SheetsSyncStatus } from "./siteHealth/sheetsSyncHealth";
+import { PageHeader, ErrorState, formatDateTime } from "../shared";
+import { deriveSheetsSyncHealth, type SheetsSyncStatus } from "../siteHealth/sheetsSyncHealth";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
   ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend

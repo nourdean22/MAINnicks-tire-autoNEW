@@ -5,7 +5,7 @@ import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { Loader2, User, MapPin, Play, CheckCircle2, XCircle, Clock, Wrench, Shield, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, ErrorState } from "./shared";
+import { PageHeader, ErrorState } from "../shared";
 
 type Tab = "bays" | "queue" | "qc" | "techs";
 

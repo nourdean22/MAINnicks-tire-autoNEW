@@ -21,7 +21,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 type RecentSend = NonNullable<RouterOutputs["smsPerformance"]["recentSends"]>[number];
 import { useState, useRef } from "react";
 import { BarChart3, MessageSquare, CheckCircle2, XCircle, Loader2 } from "lucide-react";
-import { PageHeader, LoadingState, EmptyState, formatDateTime } from "./shared";
+import { PageHeader, LoadingState, EmptyState, formatDateTime } from "../shared";
 
 function pct(num: number, denom: number): string {
   if (denom === 0) return "—";

@@ -63,22 +63,15 @@ import {
   dispatchRouter,
   controlCenterRouter,
   estimatesRouter,
-  fleetRouter,
-  inventoryRouter,
   nourOsQuoteRouter,
   segmentsRouter,
   serviceMatcherRouter,
   shopStatusRouter,
   specialsRouter,
-  waitlistRouter,
-  warrantiesRouter,
-  pipelinesRouter,
   nickActionsRouter,
   paymentsRouter,
   featureFlagsRouter,
   intelligenceRouter,
-  reEngagementRouter,
-  noShowRouter,
   snapRouter,
   trafficFunnelRouter,
   seoToolsRouter,
@@ -187,20 +180,15 @@ export const appRouter = router({
   // Operations & Inventory
   controlCenter: controlCenterRouter,
   estimates: estimatesRouter,
-  fleet: fleetRouter,
-  inventory: inventoryRouter,
   segments: segmentsRouter,
   serviceMatcher: serviceMatcherRouter,
   shopStatus: shopStatusRouter,
   specials: specialsRouter,
-  waitlist: waitlistRouter,
-  warranties: warrantiesRouter,
 
   // NOUR OS Quote Bridge
   nourOsQuote: nourOsQuoteRouter,
 
-  // Data Pipelines (GBP Reviews, GSC)
-  pipelines: pipelinesRouter,
+
 
   // Nick AI Agent Actions (quotes, work orders, follow-ups, competitor intel)
   nickActions: nickActionsRouter,
@@ -215,13 +203,7 @@ export const appRouter = router({
   // Intelligence Engines (forecast, cross-sell, lead scoring, attribution, LTV, data analyzers)
   intelligence: intelligenceRouter,
 
-  // Re-engagement — tire-life, brake reminders, oil-change nudges.
-  // Powers the dormant-revenue flywheel.
-  reEngagement: reEngagementRouter,
 
-  // No-show prediction — scores upcoming bookings by skip-risk, suggests
-  // admin actions + pre-draft confirmation SMS.
-  noShow: noShowRouter,
 
   // Snap Finance lease-to-own applications (submit + list + summary).
   snap: snapRouter,

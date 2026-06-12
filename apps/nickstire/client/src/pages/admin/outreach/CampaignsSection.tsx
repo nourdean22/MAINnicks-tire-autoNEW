@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { StatCard, formatDate, PageHeader } from "./shared";
+import { StatCard, formatDate, PageHeader } from "../shared";
 // wave-181.x Outreach Phase 1 · safety gate on bulk campaign send.
 // confirmDialog is iOS-PWA-safe (window.confirm is suppressed in
 // standalone mode per nickstire-ios-pwa-primitives skill).

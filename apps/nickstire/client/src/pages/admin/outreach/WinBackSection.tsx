@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { StatCard, PageHeader, useUrlFilter, ErrorState, formatDate, formatDateTime } from "./shared";
+import { StatCard, PageHeader, useUrlFilter, ErrorState, formatDate, formatDateTime } from "../shared";
 // wave-181.x Outreach Phase 1 · confirmDialog on ACTIVATE + SEND
 // PENDING + RESUME (each fires real SMS to potentially hundreds of
 // customers · previously ungated). iOS-PWA-safe primitive.
@@ -649,7 +649,7 @@ export default function WinBackSection() {
   // 2026-05-23 · "preview" dropped from union — see comment on View type.
   const [view, setView] = useUrlFilter<View>(
     "wbView", "list",
-    { validate: (v) => (["list", "create", "detail"].includes(v) ? (v as View) : null) },
+    { validate: (v: string) => (["list", "create", "detail"].includes(v) ? (v as View) : null) },
   );
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
 

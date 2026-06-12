@@ -48,7 +48,7 @@ import {
 } from "lucide-react";
 // wave-181.x bug-fix · removed unused Clock import (Recent Activity
 // panel was deleted due to roadmap-leak in placeholder text).
-import { PageHeader, KpiTile, Panel } from "./shared";
+import { PageHeader, KpiTile, Panel } from "../shared";
 
 // ─── Open Issue types ────────────────────────────────────
 
