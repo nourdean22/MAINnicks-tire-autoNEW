@@ -1572,7 +1572,7 @@ function Chat() {
         let title = "";
         let body = "";
         let confirmLabel = "";
-        let tone: "danger" | "warning" | "default" = "warning";
+        let tone: "danger" | "default" = "default";
 
         if (cmdName === "triage-prune") {
           title = "Run Triage Prune?";
@@ -1583,7 +1583,7 @@ function Chat() {
           title = "Run Database Vacuum?";
           body = "This will run VACUUM on the database to reclaim space and rebuild indexes. It may take a few seconds.";
           confirmLabel = "Vacuum";
-          tone = "warning";
+          tone = "default";
         } else if (cmdName === "run-cron") {
           const jobName = raw.slice(9).trim();
           title = "Run Cron Job?";
@@ -1591,7 +1591,7 @@ function Chat() {
             ? `Are you sure you want to manually execute the cron job "${jobName}"?`
             : "Are you sure you want to manually execute the specified cron job?";
           confirmLabel = "Run Job";
-          tone = "warning";
+          tone = "default";
         }
 
         const ok = await confirm({
