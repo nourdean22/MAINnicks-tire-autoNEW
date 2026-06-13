@@ -88,6 +88,9 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/stale", label: "Stale docs + stale tasks summary", icon: "⏳", prompt: "/stale" },
   { cmd: "/import-session", label: "Import a pasted Claude session log", icon: "📥", prompt: "/import-session " },
   { cmd: "/convert", label: "Convert a thought into a suggested next move", icon: "💡", prompt: "/convert " },
+  { cmd: "/triage-prune", label: "Triage Prune (untouched >14d)", icon: "🧹", prompt: "/triage-prune" },
+  { cmd: "/db-vacuum", label: "Database Vacuum (reclaim space)", icon: "🗄️", prompt: "/db-vacuum" },
+  { cmd: "/run-cron", label: "Run Cron Job (manually)", icon: "⚙️", prompt: "/run-cron " },
 ];
 
 export function useSlashCommands() {
