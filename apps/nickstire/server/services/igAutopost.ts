@@ -41,6 +41,7 @@ import { db } from "../lib/db-helper";
 import { igAutopostLog, algEstimates, smsConversations, smsMessages, specials } from "../../drizzle/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
+import { isEnabled } from "./featureFlags";
 
 const log = createLogger("ig-autopost");
 
@@ -877,7 +878,8 @@ export interface RunIgAutopostOpts {
  */
 export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIgAutopostResult> {
   const now = new Date();
-  const dryRun = opts.dryRun ?? (process.env.IG_AUTOPOST_DRYRUN !== "false");
+  const legacyLive = await isEnabled("legacy_autopost_live");
+  const dryRun = !legacyLive || (opts.dryRun ?? (process.env.IG_AUTOPOST_DRYRUN !== "false"));
   const source: IgSource = opts.source ?? (opts.slot ? "cron" : "admin");
   const slot = opts.slot ?? null;
   const slotDate = etDateKey(now);

@@ -93,6 +93,7 @@ export const FLAG_DEFINITIONS = [
   // Wired into Twilio MMS (NumMedia ≥ 1) + Capevace gateway
   // attachments + admin manual route /api/admin/photo-assess.
   { key: "photo_assess_enabled", description: "Photo-damage MMS pipeline · vision-analyzer + auto-reply. Requires REPLICATE_API_KEY (or HF_API_KEY for fallback). OFF default · enable after testing via /api/admin/photo-assess with skipSmsSend=true to verify model quality on sample photos" },
+  { key: "legacy_autopost_live", description: "Allow live posting for legacy IG/FB autoposter instead of dry-run only" },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
