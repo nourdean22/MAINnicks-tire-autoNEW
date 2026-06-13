@@ -92,6 +92,7 @@ import {
 } from "@/lib/brain/goal-horizon";
 import { classifyStaleness } from "@/lib/brain/goal-staleness";
 import { MilestonesFlow } from "@/components/actions/milestones-flow";
+import { ExecutionCoachSandbox } from "./execution-coach-sandbox";
 
 import { trpc } from "@/lib/trpc/client";
 import { DOMAINS } from "@/lib/mastery/config";
@@ -219,6 +220,7 @@ export function GoalBoard() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [coachingId, setCoachingId] = useState<string | null>(null);
   const [expandedGoal, setExpandedGoal] = useState<string | null>(null);
+  const [showLegacyGoalIds, setShowLegacyGoalIds] = useState<Set<string>>(new Set());
 
   // Apr 27 · GH1 — horizon tab filter. Defaults to "ALL" so the page
   // is never empty. Goals with explicit horizon use it; goals with
@@ -1661,130 +1663,165 @@ export function GoalBoard() {
                 {/* Expanded panel */}
                 {isExpanded && (
                   <div className="px-3 pb-3 space-y-2 border-t border-zinc-800/30">
-                    {/* Coach section — visible when coached, or prompt to coach */}
-                    {latestCoach ? (
-                      <div className="mt-2 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70">
-                            Nick&apos;s read
-                          </p>
+                    {!showLegacyGoalIds.has(g.id) ? (
+                      <div className="mt-2 space-y-2">
+                        <ExecutionCoachSandbox
+                          goal={g}
+                          latestCoach={latestCoach}
+                          onRefresh={load}
+                        />
+                        <div className="flex justify-end pt-1">
                           <button
-                            onClick={() => coachGoal(g.id)}
-                            disabled={coachingId === g.id}
-                            className="text-[8px] text-amber-400/50 hover:text-amber-400 uppercase"
-                          >
-                            {coachingId === g.id ? "thinking…" : "refresh"}
-                          </button>
-                        </div>
-                        <p className="text-[11px] text-zinc-300 leading-relaxed">
-                          {latestCoach.read}
-                        </p>
-                        <div className="flex items-start gap-2 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-                          <Zap size={10} className="text-emerald-400 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400/70">
-                              Next move
-                            </p>
-                            <p className="text-[11px] text-zinc-200">
-                              {latestCoach.nextAction}
-                            </p>
-                          </div>
-                        </div>
-                        {latestCoach.blocker && (
-                          <div className="flex items-start gap-2 text-[10px]">
-                            <AlertTriangle
-                              size={9}
-                              className="text-red-400/60 shrink-0 mt-0.5"
-                            />
-                            <span className="text-zinc-400">
-                              Blocker: {latestCoach.blocker}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => coachGoal(g.id)}
-                        disabled={coachingId === g.id}
-                        className="mt-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors"
-                      >
-                        {coachingId === g.id ? (
-                          <Loader2 size={12} className="animate-spin text-amber-400" />
-                        ) : (
-                          <Brain size={12} className="text-amber-400" />
-                        )}
-                        <span className="text-[10px] font-bold text-amber-300">
-                          {coachingId === g.id
-                            ? "Nick is analyzing…"
-                            : "Ask Nick to analyze this goal"}
-                        </span>
-                      </button>
-                    )}
-
-                    {/* Ambition Engine P3 · sub-goals list (the ladder's
-                        children) — tap to scroll to that goal's card. */}
-                    {(g.ladder?.children.length ?? 0) > 0 && (
-                      <div className="mt-2 space-y-1">
-                        <p className="text-[9px] font-bold uppercase tracking-wider text-sky-400/70">
-                          Sub-goals ({g.ladder!.children.length})
-                        </p>
-                        {g.ladder!.children.map((c) => (
-                          <button
-                            key={c.id}
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setHorizonFilter("ALL");
-                              requestAnimationFrame(() =>
-                                document
-                                  .getElementById(`goal-${c.id}`)
-                                  ?.scrollIntoView({ behavior: "smooth", block: "start" }),
-                              );
+                              setShowLegacyGoalIds((prev) => {
+                                const next = new Set(prev);
+                                next.add(g.id);
+                                return next;
+                              });
                             }}
-                            className="w-full flex items-center gap-2 rounded-md border border-zinc-800/40 bg-zinc-900/40 px-2 py-1 hover:bg-zinc-900/70 transition-colors text-left"
+                            className="text-[8px] text-zinc-600 hover:text-zinc-400 uppercase tracking-wider flex items-center gap-1"
                           >
-                            <span className="text-[9px] font-mono text-zinc-500 w-7 shrink-0 text-right">
-                              {c.progress}%
-                            </span>
-                            <span className="text-[10px] text-zinc-300 truncate flex-1">
-                              {c.title}
-                            </span>
-                            {(c.status === "achieved" || c.status === "completed") && (
-                              <Check size={9} className="text-emerald-400 shrink-0" />
-                            )}
+                            Show Legacy Details
                           </button>
-                        ))}
+                        </div>
                       </div>
-                    )}
+                    ) : (
+                      <>
+                        {/* Coach section — visible when coached, or prompt to coach */}
+                        {latestCoach ? (
+                          <div className="mt-2 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70">
+                                Nick&apos;s read
+                              </p>
+                              <button
+                                onClick={() => coachGoal(g.id)}
+                                disabled={coachingId === g.id}
+                                className="text-[8px] text-amber-400/50 hover:text-amber-400 uppercase"
+                              >
+                                {coachingId === g.id ? "thinking…" : "refresh"}
+                              </button>
+                            </div>
+                            <p className="text-[11px] text-zinc-300 leading-relaxed">
+                              {latestCoach.read}
+                            </p>
+                            <div className="flex items-start gap-2 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                              <Zap size={10} className="text-emerald-400 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400/70">
+                                  Next move
+                                </p>
+                                <p className="text-[11px] text-zinc-200">
+                                  {latestCoach.nextAction}
+                                </p>
+                              </div>
+                            </div>
+                            {latestCoach.blocker && (
+                              <div className="flex items-start gap-2 text-[10px]">
+                                <AlertTriangle
+                                  size={9}
+                                  className="text-red-400/60 shrink-0 mt-0.5"
+                                />
+                                <span className="text-zinc-400">
+                                  Blocker: {latestCoach.blocker}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => coachGoal(g.id)}
+                            disabled={coachingId === g.id}
+                            className="mt-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors"
+                          >
+                            {coachingId === g.id ? (
+                              <Loader2 size={12} className="animate-spin text-amber-400" />
+                            ) : (
+                              <Brain size={12} className="text-amber-400" />
+                            )}
+                            <span className="text-[10px] font-bold text-amber-300">
+                              {coachingId === g.id
+                                ? "Nick is analyzing…"
+                                : "Ask Nick to analyze this goal"}
+                            </span>
+                          </button>
+                        )}
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-3 pt-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startEdit(g);
-                        }}
-                        className="text-[8px] text-zinc-600 hover:text-amber-400 uppercase tracking-wider flex items-center gap-1"
-                      >
-                        <Pencil size={9} />
-                        Edit
-                      </button>
-                      {/* v10.0.529.84 · Wave 28 · A6 · was deleteGoal(g.id) ·
-                          archiveGoal preserves the CoachLog + GoalEvent
-                          history (recoverable from soft-delete) instead
-                          of nuking a goal you might want to reflect on
-                          later. The audit caught this as a real data-
-                          loss risk · the archive function was already
-                          there, just not wired here. */}
-                      <button
-                        onClick={() => archiveGoal(g.id)}
-                        className="text-[8px] text-zinc-700 hover:text-amber-400 uppercase tracking-wider flex items-center gap-1"
-                        title="pauses the goal · history preserved · recoverable"
-                      >
-                        <Trash2 size={9} />
-                        archive
-                      </button>
-                    </div>
+                        {/* Ambition Engine P3 · sub-goals list (the ladder's
+                            children) — tap to scroll to that goal's card. */}
+                        {(g.ladder?.children.length ?? 0) > 0 && (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-sky-400/70">
+                              Sub-goals ({g.ladder!.children.length})
+                            </p>
+                            {g.ladder!.children.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setHorizonFilter("ALL");
+                                  requestAnimationFrame(() =>
+                                    document
+                                      .getElementById(`goal-${c.id}`)
+                                      ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                                  );
+                                }}
+                                className="w-full flex items-center gap-2 rounded-md border border-zinc-800/40 bg-zinc-900/40 px-2 py-1 hover:bg-zinc-900/70 transition-colors text-left"
+                              >
+                                <span className="text-[9px] font-mono text-zinc-500 w-7 shrink-0 text-right">
+                                  {c.progress}%
+                                </span>
+                                <span className="text-[10px] text-zinc-300 truncate flex-1">
+                                  {c.title}
+                                </span>
+                                {(c.status === "achieved" || c.status === "completed") && (
+                                  <Check size={9} className="text-emerald-400 shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-3 pt-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEdit(g);
+                            }}
+                            className="text-[8px] text-zinc-600 hover:text-amber-400 uppercase tracking-wider flex items-center gap-1"
+                          >
+                            <Pencil size={9} />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => archiveGoal(g.id)}
+                            className="text-[8px] text-zinc-700 hover:text-amber-400 uppercase tracking-wider flex items-center gap-1"
+                            title="pauses the goal · history preserved · recoverable"
+                          >
+                            <Trash2 size={9} />
+                            archive
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowLegacyGoalIds((prev) => {
+                                const next = new Set(prev);
+                                next.delete(g.id);
+                                return next;
+                              });
+                            }}
+                            className="ml-auto text-[8px] text-amber-400/60 hover:text-amber-400 uppercase tracking-wider"
+                          >
+                            Show Execution Coach
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
                 </div>
