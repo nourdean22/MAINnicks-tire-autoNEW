@@ -17,8 +17,9 @@ import { useState } from "react";
 import {
   TrendingUp, MapPin, Star, MessageCircleQuestion, Camera, Building2,
   Swords, Sparkles, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
-  ExternalLink, RefreshCw, Lock,
+  ExternalLink, RefreshCw, Lock, ChevronDown, ChevronUp,
 } from "lucide-react";
+import IgAutopostPanel from "./settings/IgAutopostPanel";
 import { Section, Panel } from "./shared";
 import { TabBar } from "./shared/table";
 import { trpc } from "@/lib/trpc";
@@ -644,6 +645,8 @@ function CompetitorsTab() {
 /* ── Social Studios ───────────────────────────────────────────── */
 
 function StudiosTab() {
+  const [showLegacy, setShowLegacy] = useState(false);
+
   return (
     <div className="space-y-4">
       <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2">
@@ -690,6 +693,35 @@ function StudiosTab() {
           and insights stay disabled by design; you shoot and post manually.
         </p>
       </a>
+
+      {/* Collapsible Legacy Automation Section */}
+      <div className="border border-border/30 rounded bg-background/20 p-4">
+        <button
+          onClick={() => setShowLegacy(!showLegacy)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-foreground/50" />
+            <span className="text-sm font-bold text-foreground">Legacy Automation</span>
+          </div>
+          <span className="text-xs text-foreground/50 flex items-center gap-1">
+            {showLegacy ? (
+              <>
+                Collapse <ChevronUp className="w-3.5 h-3.5" />
+              </>
+            ) : (
+              <>
+                Expand <ChevronDown className="w-3.5 h-3.5" />
+              </>
+            )}
+          </span>
+        </button>
+        {showLegacy && (
+          <div className="mt-4 border-t border-border/10 pt-4">
+            <IgAutopostPanel />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

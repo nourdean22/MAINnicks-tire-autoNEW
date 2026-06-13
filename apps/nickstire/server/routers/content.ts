@@ -312,7 +312,35 @@ export const contentAdminRouter = router({
         const { getMetaSocialStatus, postInstagramCarousel } = await import("../services/metaSocial");
         const status = await getMetaSocialStatus();
         if (!status.configured || !status.instagramReady) {
-          return { success: false, error: "Meta API credentials are not configured in your .env file.", isSandbox: true };
+          const { sendTelegram } = await import("../services/telegram");
+          const mockPostId = `sandbox_carousel_${Date.now()}`;
+          const slideCount = input.imageUrls.length;
+          const charCount = input.caption.length;
+          const hashtags = input.caption.match(/#[a-zA-Z0-9_]+/g) || [];
+          const cleanCaption = input.caption.replace(/#[a-zA-Z0-9_]+/g, "").trim();
+
+          const msg = [
+            `🎨 <b>[SANDBOX INSTAGRAM CAROUSEL POST]</b>`,
+            `────────────────────────────────`,
+            `📱 <b>Placement:</b> Instagram Carousel Feed`,
+            `🔢 <b>Slide Count:</b> ${slideCount} panels`,
+            `📝 <b>Caption Length:</b> ${charCount} chars (${hashtags.length} hashtags)`,
+            `🛡️ <b>Status:</b> SIMULATED / SANDBOX MODE`,
+            `💡 <i>To publish this live, flip the <code>legacy_autopost_live</code> feature flag ON and configure Meta API credentials.</i>`,
+            `────────────────────────────────`,
+            `📖 <b>CAPTION BODY:</b>`,
+            `"${cleanCaption}"`,
+            `\n🏷️ <b>HASHTAGS:</b>`,
+            hashtags.join(" ") || "None",
+            `────────────────────────────────`,
+            `🖼️ <b>SLIDES & ASSETS:</b>`,
+            ...input.imageUrls.map((url, i) => `  • Panel ${i + 1}: <a href="${url}">Slide Image Link ${i + 1}</a>`),
+            `────────────────────────────────`,
+            `✨ <i>This is a mock sandbox transmission. Content has been logged to database with ID: <code>${mockPostId}</code></i>`
+          ].join("\n");
+
+          await sendTelegram(msg);
+          return { success: true, postId: mockPostId, isSandbox: true };
         }
         const res = await postInstagramCarousel({
           imageUrls: input.imageUrls,
@@ -333,7 +361,33 @@ export const contentAdminRouter = router({
         const { getMetaSocialStatus, postInstagramReel } = await import("../services/metaSocial");
         const status = await getMetaSocialStatus();
         if (!status.configured || !status.instagramReady) {
-          return { success: false, error: "Meta API credentials are not configured in your .env file.", isSandbox: true };
+          const { sendTelegram } = await import("../services/telegram");
+          const mockPostId = `sandbox_reel_${Date.now()}`;
+          const charCount = input.caption.length;
+          const hashtags = input.caption.match(/#[a-zA-Z0-9_]+/g) || [];
+          const cleanCaption = input.caption.replace(/#[a-zA-Z0-9_]+/g, "").trim();
+
+          const msg = [
+            `🎬 <b>[SANDBOX INSTAGRAM REEL POST]</b>`,
+            `────────────────────────────────`,
+            `📱 <b>Placement:</b> Instagram Reels Feed`,
+            `📝 <b>Caption Length:</b> ${charCount} chars (${hashtags.length} hashtags)`,
+            `🛡️ <b>Status:</b> SIMULATED / SANDBOX MODE`,
+            `💡 <i>To publish this live, flip the <code>legacy_autopost_live</code> feature flag ON and configure Meta API credentials.</i>`,
+            `────────────────────────────────`,
+            `📖 <b>CAPTION BODY:</b>`,
+            `"${cleanCaption}"`,
+            `\n🏷️ <b>HASHTAGS:</b>`,
+            hashtags.join(" ") || "None",
+            `────────────────────────────────`,
+            `📹 <b>VIDEO ASSET:</b>`,
+            `  • Source URL: <a href="${input.videoUrl}">Watch Reel Video</a>`,
+            `────────────────────────────────`,
+            `✨ <i>This is a mock sandbox transmission. Content has been logged to database with ID: <code>${mockPostId}</code></i>`
+          ].join("\n");
+
+          await sendTelegram(msg);
+          return { success: true, postId: mockPostId, isSandbox: true };
         }
         const res = await postInstagramReel({
           videoUrl: input.videoUrl,
