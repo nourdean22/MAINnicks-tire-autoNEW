@@ -10,6 +10,7 @@ const mocks = {
   recordCoachEvent: vi.fn(),
   markVeniceQuotaExhausted: vi.fn(),
   markOllamaQuotaExhausted: vi.fn(),
+  decomposeTaskWithAi: vi.fn(),
   clientConnect: vi.fn(),
   clientQuery: vi.fn(),
   clientEnd: vi.fn(),
@@ -41,6 +42,10 @@ vi.mock("@/lib/services/coach-events", () => ({
   recordCoachEvent: (input: unknown) => mocks.recordCoachEvent(input),
 }));
 
+vi.mock("@/lib/services/ai-tasks", () => ({
+  decomposeTaskWithAi: (taskId: string) => mocks.decomposeTaskWithAi(taskId),
+}));
+
 vi.mock("@/lib/ai/provider", () => ({
   markVeniceQuotaExhausted: () => mocks.markVeniceQuotaExhausted(),
   markOllamaQuotaExhausted: () => mocks.markOllamaQuotaExhausted(),
@@ -62,6 +67,8 @@ vi.mock("@/lib/prisma", () => {
         update: vi.fn(),
       },
       task: {
+        findMany: vi.fn(),
+        update: vi.fn(),
         updateMany: vi.fn(),
       },
       apiRequestLog: {
@@ -125,6 +132,8 @@ describe("services/autonomic-orchestrator", () => {
 
     vi.mocked(prisma.agentTrace.deleteMany).mockResolvedValue({ count: 0 });
     vi.mocked(prisma.workItem.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.task.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.task.update).mockResolvedValue({} as any);
     vi.mocked(prisma.task.updateMany).mockResolvedValue({ count: 0 });
     vi.mocked(prisma.apiRequestLog.deleteMany).mockResolvedValue({ count: 0 });
     vi.mocked(prisma.errorLog.deleteMany).mockResolvedValue({ count: 0 });
@@ -175,12 +184,13 @@ describe("services/autonomic-orchestrator", () => {
     );
   });
 
-  it("Phase 2: vacuums bloated tables and reindexes HNSW on high latency", async () => {
-    // Mock pg stats query returning one bloated table
+  it("Phase 2: vacuums bloated tables and reindexes HNSW on high latency, and vacuums over-50MB tables", async () => {
+    // Mock pg stats query returning one bloated table, one large table
     mocks.clientQuery.mockResolvedValueOnce({
       rows: [
-        { table_name: "CronJobLog", dead_rows: 1500, live_rows: 100 },
-        { table_name: "OkTable", dead_rows: 10, live_rows: 1000 },
+        { table_name: "CronJobLog", dead_rows: 1500, live_rows: 100, total_bytes: 100000 },
+        { table_name: "agent_traces", dead_rows: 10, live_rows: 1000, total_bytes: 60 * 1024 * 1024 }, // 60MB -> triggers vacuum
+        { table_name: "OkTable", dead_rows: 10, live_rows: 1000, total_bytes: 20000 },
       ],
     });
 
@@ -193,8 +203,10 @@ describe("services/autonomic-orchestrator", () => {
     const res = await runAutonomicOrchestrator();
 
     expect(res.vacuumedTables).toContain("CronJobLog");
+    expect(res.vacuumedTables).toContain("agent_traces");
     expect(res.vacuumedTables).not.toContain("OkTable");
-    expect(mocks.clientQuery).toHaveBeenCalledWith('VACUUM "CronJobLog"');
+    expect(mocks.clientQuery).toHaveBeenCalledWith('VACUUM ANALYZE "CronJobLog"');
+    expect(mocks.clientQuery).toHaveBeenCalledWith('VACUUM ANALYZE "agent_traces"');
     expect(res.avgLatencyMs).toBe(180);
     expect(res.indexReindexed).toBe(true);
     expect(mocks.clientQuery).toHaveBeenCalledWith("REINDEX INDEX CONCURRENTLY vector_embeddings_hnsw_1536");
@@ -271,6 +283,32 @@ describe("services/autonomic-orchestrator", () => {
           actor: "cron:data-cleanup",
           eventType: "cron:data_cleanup_completed",
         }),
+      })
+    );
+  });
+
+  it("Phase 5: decomposes stalled Tasks", async () => {
+    vi.mocked(prisma.task.findMany).mockResolvedValueOnce([
+      { id: "task_stalled_1", title: "Write complex database architecture report", status: TaskStatus.DOING, effort: "H1", nextPhysicalAction: "Start outline", context: "DESK" } as any,
+    ]);
+
+    mocks.decomposeTaskWithAi.mockResolvedValueOnce({ ok: true, subtasksCount: 4 });
+
+    const res = await runAutonomicOrchestrator();
+
+    expect(res.decomposedTasksCount).toBe(1);
+    expect(mocks.decomposeTaskWithAi).toHaveBeenCalledWith("task_stalled_1");
+    expect(prisma.task.update).toHaveBeenCalledWith({
+      where: { id: "task_stalled_1" },
+      data: {
+        status: TaskStatus.WAITING,
+        updatedBy: "cron:autonomic-healer",
+      },
+    });
+    expect(mocks.recordCoachEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        priority: "P1",
+        title: 'Task Healed: Decomposed "Write complex database architecture report"',
       })
     );
   });
