@@ -817,6 +817,93 @@ export const journalRouter = router({
   }),
 
   /**
+   * Journal Insights Preview · Rank 10 local-only panel (2026-06-13).
+   * Distills and returns recent journal takeaways (nextAction, idea, challenge)
+   * parsed from the `journal_brain_take` table.
+   */
+  insightsPreview: operatorProcedure.query(async () => {
+    const { prisma } = await import("@/lib/prisma");
+    const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000); // 14d window
+    const takeRows = await prisma.brainMemory.findMany({
+      where: {
+        category: "journal_brain_take",
+        createdAt: { gte: since },
+        deletedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+
+    const parsedTakes = takeRows.map((row) => {
+      const entryId = row.key.replace("journal-take:", "");
+      let parsed: {
+        idea?: string | null;
+        challenge?: string | null;
+        nextAction?: { action?: string; domain?: string | null } | null;
+      } = {};
+      try {
+        parsed = JSON.parse(row.content);
+      } catch {}
+      return {
+        id: row.id,
+        entryId,
+        updatedAt: row.updatedAt,
+        idea: parsed.idea ?? null,
+        challenge: parsed.challenge ?? null,
+        nextAction: parsed.nextAction ?? null,
+      };
+    });
+
+    const entryIds = parsedTakes.map((t) => t.entryId);
+    if (entryIds.length === 0) return [];
+
+    const [dumps, reflections, situations, decisions] = await Promise.all([
+      prisma.brainDump.findMany({
+        where: { id: { in: entryIds } },
+        select: { id: true, summary: true, rawThoughts: true, goalId: true },
+      }),
+      prisma.reflection.findMany({
+        where: { id: { in: entryIds } },
+        select: { id: true, insight: true, goalId: true },
+      }),
+      prisma.situationLog.findMany({
+        where: { id: { in: entryIds } },
+        select: { id: true, situation: true, goalId: true },
+      }),
+      prisma.decisionReplay.findMany({
+        where: { id: { in: entryIds } },
+        select: { id: true, title: true, goalId: true },
+      }),
+    ]);
+
+    const titleMap = new Map<string, string>();
+    const goalMap = new Map<string, string | null>();
+
+    for (const d of dumps) {
+      titleMap.set(d.id, d.summary?.slice(0, 120) || d.rawThoughts.slice(0, 80));
+      goalMap.set(d.id, d.goalId);
+    }
+    for (const r of reflections) {
+      titleMap.set(r.id, r.insight.slice(0, 120));
+      goalMap.set(r.id, r.goalId);
+    }
+    for (const s of situations) {
+      titleMap.set(s.id, s.situation.slice(0, 120));
+      goalMap.set(s.id, s.goalId);
+    }
+    for (const d of decisions) {
+      titleMap.set(d.id, d.title.slice(0, 120));
+      goalMap.set(d.id, d.goalId);
+    }
+
+    return parsedTakes.map((t) => ({
+      ...t,
+      entryTitle: titleMap.get(t.entryId) || "Journal Entry",
+      goalId: goalMap.get(t.entryId) ?? null,
+    }));
+  }),
+
+  /**
    * Journal Brain · confirm or reject a PROPOSED goal/mission link. Accept →
    * linkStatus="confirmed" + (idempotently) bank the grounded XP bonus. Reject
    * → clear the link + linkStatus="rejected". The grounded credit is idempotent
