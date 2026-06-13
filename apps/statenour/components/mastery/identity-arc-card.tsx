@@ -13,6 +13,7 @@ import {
   LineChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { ErrorCard } from "@/components/ui/error-card";
 
 export function IdentityArcCard() {
   const [activeTab, setActiveTab] = useState<"projection" | "growth">("projection");
@@ -34,7 +35,20 @@ export function IdentityArcCard() {
     );
   }
 
-  if (isError) return null;
+  if (isError) {
+    const errorMsg = projQ.error?.message || growthQ.error?.message || "Identity projections failed to load.";
+    return (
+      <ErrorCard
+        title="Failed to load Identity Arc"
+        message={errorMsg}
+        domain="operator:identityProjection"
+        onRetry={() => {
+          if (projQ.error) void projQ.refetch();
+          if (growthQ.error) void growthQ.refetch();
+        }}
+      />
+    );
+  }
 
   const trajectories = projQ.data?.trajectories ?? [];
   const growth = growthQ.data ?? [];
