@@ -208,6 +208,11 @@ export interface SystemHealthView {
     megaJobs: typeof MEGA_JOB_COUNTS;
   };
   braintrust: { status: ReturnType<typeof braintrustWrapStatus> };
+  autonomic: {
+    lastRunAt: string | null;
+    status: string | null;
+    error: string | null;
+  };
 }
 
 /** Composite health probe · 30s-cached. Lifted verbatim from
@@ -223,6 +228,7 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       threadCounts,
       candidateCount,
       suggestionCount,
+      healerLog,
     ] = await Promise.all([
       checkDbConnection(),
       prisma.brainMemory
@@ -271,6 +277,13 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
           },
         })
         .catch(() => 0),
+      prisma.cronJobLog
+        .findFirst({
+          where: { jobName: "cron-healer" },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true, status: true, error: true },
+        })
+        .catch(() => null),
     ]);
 
     const today = new Date().toISOString().slice(0, 10);
@@ -335,6 +348,11 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
         megaJobs: MEGA_JOB_COUNTS,
       },
       braintrust: { status: braintrustWrapStatus() },
+      autonomic: {
+        lastRunAt: healerLog?.createdAt?.toISOString() ?? null,
+        status: healerLog?.status ?? null,
+        error: healerLog?.error ?? null,
+      },
     };
   });
 }

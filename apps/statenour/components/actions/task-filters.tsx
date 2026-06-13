@@ -104,6 +104,25 @@ export function TaskFilters({
             · "All" pill auto-removed when there's nothing to
               contrast against. */}
       {showFilters && (() => {
+        const getSearchPlaceholder = () => {
+          const kindLabel = 
+            kindFilter === "ONCE" ? "tasks" : 
+            kindFilter === "DAILY" ? "routines" : 
+            kindFilter === "PROMISE" ? "promises" : 
+            "items";
+            
+          const count = 
+            kindFilter === "ONCE" ? onceCount : 
+            kindFilter === "DAILY" ? dailyCount : 
+            kindFilter === "PROMISE" ? promiseCount : 
+            activeCount;
+
+          if (domainFilter) {
+            return `Search ${count} ${kindLabel} in ${domainFilter.toLowerCase()}…`;
+          }
+          return `Search ${count} ${kindLabel}…`;
+        };
+
         // Apr 27 · USER-PINNED — Routines (DAILY kind, renamed to
         // human language) + Work (domain) are always visible per
         // Nour's request, so he can pivot to them in one tap even
@@ -348,7 +367,7 @@ export function TaskFilters({
               <div className="flex items-center gap-1.5">
                 <Search size={11} className="text-zinc-600 shrink-0" />
                 <Input
-                  placeholder={`Search ${activeCount} routines…`}
+                  placeholder={getSearchPlaceholder()}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-7 bg-zinc-900/60 border-zinc-800/40 text-[11px] placeholder:text-zinc-700"

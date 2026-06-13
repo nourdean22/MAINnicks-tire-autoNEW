@@ -87,6 +87,10 @@ function MissionsPageInner() {
   const missionsQuery = trpc.task.missions.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
+  const healthQuery = trpc.system.healthSummary.useQuery(undefined, {
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
+  });
 
   // wave-AA-audit · derived arrays wrapped in useMemo so the useCallback
   // dependencies below stay stable across renders. Pre-fix, the bare
@@ -120,6 +124,7 @@ function MissionsPageInner() {
   // swap math + ranks · client just calls (id, direction) + refetches.
   const reorderMissionMut = trpc.task.reorderMission.useMutation();
   const reorderTaskMut = trpc.task.reorderTask.useMutation();
+  const decomposeTask = trpc.task.decompose.useMutation();
 
   // Telemetry · Phase 4 · mark surface-mount + capture mutation events
   // so the 2-week prune analysis has signal. Silent no-op when telemetry
@@ -541,6 +546,23 @@ function MissionsPageInner() {
     [updateTask, refetchAll],
   );
 
+  const handleDecomposeTask = useCallback(
+    async (id: string) => {
+      const task = tasks.find((t) => t.id === id);
+      const promise = decomposeTask.mutateAsync({ taskId: id });
+      
+      toast.promise(promise, {
+        loading: `Decomposing “${task?.title || "task"}” into subtasks...`,
+        success: (res) => {
+          void refetchAll();
+          return `Successfully created ${res.subtasksCount} subtasks!`;
+        },
+        error: (err) => `Failed to decompose task: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    },
+    [decomposeTask, tasks, refetchAll],
+  );
+
   const handleCompleteMission = useCallback(
     (missionId: string) => {
       const mission = missions.find((m) => m.id === missionId);
@@ -889,6 +911,8 @@ function MissionsPageInner() {
         onDeleteTask={handleDeleteTask}
         onCompleteMission={handleCompleteMission}
         onArchiveMission={handleArchiveMission}
+        onDecomposeTask={handleDecomposeTask}
+        autonomicHealth={healthQuery.data?.autonomic}
         onEditMission={(missionId) => {
           const m = missions.find((mm) => mm.id === missionId);
           if (!m) return;
