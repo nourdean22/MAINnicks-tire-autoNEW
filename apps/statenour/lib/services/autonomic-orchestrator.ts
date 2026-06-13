@@ -20,6 +20,7 @@ export interface AutonomicOrchestratorResult {
   rescuedWorkItems: string[];
   prunedLogsCount: number;
   archivedTasksCount: number;
+  decomposedTasksCount: number;
 }
 
 export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorResult> {
@@ -36,6 +37,7 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
     rescuedWorkItems: [],
     prunedLogsCount: 0,
     archivedTasksCount: 0,
+    decomposedTasksCount: 0,
   };
 
   // ---------------------------------------------------------------------------
@@ -110,25 +112,35 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
         try {
           await client.connect();
 
-          // 1. Bloat-Based VACUUM
+          // 1. Bloat and Size-Based VACUUM
           const statsRes = await client.query(`
-            SELECT relname AS table_name, 
-                   n_dead_tup AS dead_rows, 
-                   n_live_tup AS live_rows
-            FROM pg_stat_user_tables
-            WHERE schemaname = 'public';
+            SELECT c.relname AS table_name,
+                   pg_total_relation_size(c.oid)::bigint AS total_bytes,
+                   s.n_dead_tup AS dead_rows,
+                   s.n_live_tup AS live_rows
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            LEFT JOIN pg_stat_user_tables s ON s.relname = c.relname AND s.schemaname = n.nspname
+            WHERE n.nspname = 'public' AND c.relkind = 'r';
           `);
 
+          const targetTables = ["CronJobLog", "system_metrics", "AuditEvent", "api_request_logs", "error_logs", "agent_traces", "provider_pings"];
+          const SIZE_THRESHOLD_BYTES = 50 * 1024 * 1024; // 50MB
+
           for (const row of statsRes.rows) {
-            const deadRows = Number(row.dead_rows);
-            const liveRows = Number(row.live_rows);
+            const tableName = row.table_name;
+            const totalBytes = Number(row.total_bytes || 0);
+            const deadRows = Number(row.dead_rows || 0);
+            const liveRows = Number(row.live_rows || 0);
             const totalRows = deadRows + liveRows;
             const ratio = totalRows > 0 ? deadRows / totalRows : 0;
 
-            if (deadRows > 1000 && ratio > 0.20) {
-              const tableName = row.table_name;
-              log.info("triggering_vacuum", { table: tableName, deadRows, ratio });
-              await client.query(`VACUUM "${tableName}"`);
+            const isBloated = deadRows > 1000 && ratio > 0.20;
+            const isTooLarge = targetTables.includes(tableName) && totalBytes > SIZE_THRESHOLD_BYTES;
+
+            if (isBloated || isTooLarge) {
+              log.info("triggering_vacuum", { table: tableName, deadRows, ratio, totalBytes, isTooLarge });
+              await client.query(`VACUUM ANALYZE "${tableName}"`);
               result.vacuumedTables.push(tableName);
             }
           }
@@ -372,6 +384,53 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
   }
 
   // ---------------------------------------------------------------------------
+  // Phase 5: Task Stalling Healer (Auto-Decomposition of Stalled Tasks)
+  // ---------------------------------------------------------------------------
+  try {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const stalledTasks = await prisma.task.findMany({
+      where: {
+        status: TaskStatus.DOING,
+        updatedAt: { lt: twoHoursAgo },
+        parentTaskId: null,
+        children: { none: {} },
+      },
+      take: 3, // Safe concurrency limit
+    });
+
+    const { decomposeTaskWithAi } = await import("@/lib/services/ai-tasks");
+
+    for (const task of stalledTasks) {
+      log.info("triggering_auto_decomposition", { taskId: task.id, title: task.title });
+      const decompResult = await decomposeTaskWithAi(task.id);
+      
+      if (decompResult.ok) {
+        // Update parent task status to WAITING
+        await prisma.task.update({
+          where: { id: task.id },
+          data: {
+            status: TaskStatus.WAITING,
+            updatedBy: "cron:autonomic-healer",
+          },
+        });
+
+        result.decomposedTasksCount++;
+
+        await recordCoachEvent({
+          kind: "system-alert",
+          subjectId: `task-stall-healed:${task.id}`,
+          priority: "P1",
+          title: `Task Healed: Decomposed "${task.title}"`,
+          body: `Parent task "${task.title}" was stuck in DOING state for over 2 hours. Autonomic Orchestrator automatically decomposed it into ${decompResult.subtasksCount} actionable subtasks.`,
+          surfaces: ["scoreboard", "home"],
+        });
+      }
+    }
+  } catch (stallErr) {
+    log.error("task_stalling_healer_failed", { error: stallErr instanceof Error ? stallErr.message : String(stallErr) });
+  }
+
+  // ---------------------------------------------------------------------------
   // Log Unified P2 Execution Event
   // ---------------------------------------------------------------------------
   try {
@@ -380,13 +439,13 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       subjectId: "autonomic-orchestrator",
       priority: "P2",
       title: "Autonomic Orchestrator Run Completed",
-      body: `Phase 1: Healed ${result.healedCrons.length} crons. Phase 2: Vacuumed ${result.vacuumedTables.length} tables. Index reindexed: ${result.indexReindexed ? "Yes" : "No"}. Phase 3: Venice Quota tripped: ${result.veniceQuotaTripped}, Ollama Quota tripped: ${result.ollamaQuotaTripped}. Rescued ${result.rescuedWorkItems.length} work items. Phase 4: Pruned ${result.prunedLogsCount} log rows. Archived ${result.archivedTasksCount} stale tasks.`,
+      body: `Phase 1: Healed ${result.healedCrons.length} crons. Phase 2: Vacuumed ${result.vacuumedTables.length} tables. Index reindexed: ${result.indexReindexed ? "Yes" : "No"}. Phase 3: Venice Quota tripped: ${result.veniceQuotaTripped}, Ollama Quota tripped: ${result.ollamaQuotaTripped}. Rescued ${result.rescuedWorkItems.length} work items. Phase 4: Pruned ${result.prunedLogsCount} log rows. Archived ${result.archivedTasksCount} stale tasks. Phase 5: Decomposed ${result.decomposedTasksCount} stalled tasks.`,
       surfaces: ["scoreboard", "home"],
     });
   } catch (eventErr) {
     log.error("unified_event_logging_failed", { error: eventErr instanceof Error ? eventErr.message : String(eventErr) });
   }
 
-  log.info("orchestrator_completed", { healed: result.healedCrons.length, vacuumed: result.vacuumedTables.length });
+  log.info("orchestrator_completed", { healed: result.healedCrons.length, vacuumed: result.vacuumedTables.length, decomposed: result.decomposedTasksCount });
   return result;
 }

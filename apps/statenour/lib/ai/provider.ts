@@ -997,7 +997,7 @@ export function classifyProviderFailure(err: unknown): ProviderFailure["failureC
 export async function aiChat(
   messages: AiMessage[],
   taskType: TaskType = "reason",
-  opts: { signal?: AbortSignal } = {},
+  opts: { signal?: AbortSignal; budgetNearingLimit?: boolean } = {},
 ): Promise<AiResponse> {
   // L.1 · external AbortSignal support · when caller passes a signal,
   // every per-provider attempt combines the external + per-attempt
@@ -1022,12 +1022,28 @@ export async function aiChat(
   // themselves before invoking aiChat(). The API chat route does
   // exactly that.
 
+  let orderedProviders = [...PROVIDERS];
+  if (opts.budgetNearingLimit) {
+    log.warn("budget_near_limit_reordering_providers");
+    // Sort so ollama (0 cost) and openai (cheap mini) are tried first
+    orderedProviders = [...PROVIDERS].sort((a, b) => {
+      const costTier = (n: ProviderName) =>
+        n === "ollama" ? 0 : n === "openai" ? 1 : n === "venice" ? 2 : 3;
+      return costTier(a.name) - costTier(b.name);
+    });
+    // Skip anthropic if others are available to save remaining budget
+    const hasCheaper = orderedProviders.some((p) => p.name !== "anthropic" && p.available());
+    if (hasCheaper) {
+      orderedProviders = orderedProviders.filter((p) => p.name !== "anthropic");
+    }
+  }
+
   const toTry: ProviderEntry[] = [];
   if (AI_PROVIDER) {
-    const preferred = PROVIDERS.find((p) => p.name === AI_PROVIDER);
+    const preferred = orderedProviders.find((p) => p.name === AI_PROVIDER);
     if (preferred?.available()) toTry.push(preferred);
   }
-  for (const p of PROVIDERS) {
+  for (const p of orderedProviders) {
     if (p.available() && !toTry.includes(p)) toTry.push(p);
   }
 
