@@ -103,11 +103,15 @@ export async function tracedAiChat(
   //
   // Fail-open on budget-check infra errors (DB unavailable, etc): the
   // cost-cap is a safety net, not an availability dependency.
+  let budgetNearingLimit = false;
   try {
     const { assertWithinBudget, BudgetExceededError } = await import("./budget");
     const budget = await assertWithinBudget();
     if (!budget.ok) {
       throw new BudgetExceededError(budget.status);
+    }
+    if (budget.status.percentUsed >= 80) {
+      budgetNearingLimit = true;
     }
   } catch (err) {
     if (err instanceof Error && err.name === "BudgetExceededError") throw err;
@@ -118,7 +122,7 @@ export async function tracedAiChat(
     // wave-AO follow-up · forward runtime opts (signal, force) so the
     // factory returned by makeTracedAiChat is a true drop-in for bare
     // aiChat (callers passing { signal } no longer fail typecheck).
-    const result = await aiChat(messages, taskType, runtimeOpts);
+    const result = await aiChat(messages, taskType, { ...runtimeOpts, budgetNearingLimit });
     // v10.0.26 — aiChat returns { provider: "none", content: "<sentinel>" }
     // when every provider in the chain failed (graceful-degradation
     // sentinel, not an exception). Pre-v10.0.26 this was recorded as

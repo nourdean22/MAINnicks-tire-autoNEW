@@ -21,8 +21,21 @@ vi.mock("@/lib/ai/provider", () => ({
   aiChat: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/budget", () => ({
+  assertWithinBudget: vi.fn().mockResolvedValue({ ok: true, status: { percentUsed: 0 } }),
+  BudgetExceededError: class extends Error {
+    status: any;
+    constructor(status: any) {
+      super("Budget exceeded");
+      this.status = status;
+      this.name = "BudgetExceededError";
+    }
+  },
+}));
+
 import { prisma } from "@/lib/prisma";
 import { aiChat } from "@/lib/ai/provider";
+import { assertWithinBudget } from "@/lib/ai/budget";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 
 beforeEach(() => {
