@@ -175,9 +175,9 @@ async function startServer() {
   app.use("/api/trpc/emergency.submit", formLimiter);
   app.use("/api/trpc/financing.trackApplication", formLimiter);
   app.use("/api/trpc/chat", aiLimiter);
-  app.use("/api/trpc/public.diagnose", aiLimiter);
-  app.use("/api/trpc/public.askMechanic", aiLimiter);
-  app.use("/api/trpc/public.aiSearch", aiLimiter);
+  app.use("/api/trpc/diagnose.analyze", aiLimiter);
+  app.use("/api/trpc/search.ai", aiLimiter);
+  app.use("/api/trpc/memberships.startCheckout", formLimiter);
   app.use("/api/trpc/laborEstimate.generate", aiLimiter);
   app.use("/api/trpc/costEstimator.estimate", aiLimiter);
   app.use("/api/trpc/estimates.generate", aiLimiter);
@@ -287,7 +287,7 @@ async function startServer() {
     // + 2 standalone: morning brief + daily report (12h)
     import("../cron/scheduler").then(({ startTieredScheduler }) => {
       startTieredScheduler();
-      serverLog.info("Tiered scheduler started");
+      serverLog.info("Tiered Job Scheduler active");
     }).catch(err => console.error("[Scheduler] Failed to start:", err));
 
     // Explicitly start background timers (removed auto-start from module imports)

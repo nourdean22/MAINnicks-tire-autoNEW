@@ -35,35 +35,7 @@ export function registerJob(
 
 /** Start all registered jobs */
 export function startAllJobs(): void {
-  // v1.7 audit fix · MUTEX guard against running alongside the tiered
-  // scheduler. Pre-fix, if anyone wired both startAllJobs() AND
-  // startTieredScheduler(), every job would fire from BOTH timers in
-  // parallel — duplicate SMS sends to real customers being the worst
-  // case. The tiered scheduler in cron/scheduler.ts is now the
-  // canonical entry; this legacy path refuses to run.
-  const schedulerActive = (globalThis as { __nicksTieredSchedulerActive?: boolean })
-    .__nicksTieredSchedulerActive;
-  if (schedulerActive) {
-    log.warn(
-      "startAllJobs() called while tiered scheduler is active — refusing to double-schedule. Use the tiered scheduler only.",
-    );
-    return;
-  }
-
-  registerAllJobs();
-  for (const [name, job] of registeredJobs) {
-    if (!job.enabled) continue;
-
-    // Run immediately on startup
-    runJob(job).catch((err) => log.error(`Cron startup run failed: ${name}`, { error: err.message }));
-
-    // Schedule recurring
-    job.intervalId = setInterval(() => {
-      runJob(job).catch((err) => log.error(`Cron run failed: ${name}`, { error: err.message }));
-    }, job.intervalMs);
-
-    log.info(`Cron job started: ${name}`);
-  }
+  throw new Error("startAllJobs() is decommissioned. Use startTieredScheduler() from cron/scheduler.ts instead.");
 }
 
 /** Stop all jobs */
