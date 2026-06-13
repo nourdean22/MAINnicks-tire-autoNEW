@@ -63,6 +63,14 @@ const stubs: Partial<CommandDeps> = {
       ],
     },
   ],
+  triagePrune: async () => 5,
+  dbVacuum: async () => {},
+  runCron: async (jobName) => {
+    if (jobName === "ingest-gmail") {
+      return { ok: true, status: 200, durationMs: 150 };
+    }
+    return { ok: false, status: 500, durationMs: 50, error: "cron failed" };
+  },
 };
 
 describe("parseCommand", () => {
@@ -160,6 +168,42 @@ describe("runCommand (end-to-end with stubbed services)", () => {
     expect(o.result.text.toLowerCase()).toContain("convert");
   });
 
+  it("runs /triage-prune", async () => {
+    const o = await runCommand("/triage-prune", stubs);
+    expect(o.handled).toBe(true);
+    expect(o.command).toBe("triage-prune");
+    expect(o.result.text).toContain("Archived 5 task(s)");
+  });
+
+  it("runs /db-vacuum", async () => {
+    const o = await runCommand("/db-vacuum", stubs);
+    expect(o.handled).toBe(true);
+    expect(o.command).toBe("db-vacuum");
+    expect(o.result.text).toContain("Database VACUUM completed successfully");
+  });
+
+  it("runs /run-cron with valid job", async () => {
+    const o = await runCommand("/run-cron ingest-gmail", stubs);
+    expect(o.handled).toBe(true);
+    expect(o.command).toBe("run-cron");
+    expect(o.result.text).toContain("ingest-gmail");
+    expect(o.result.text).toContain("completed successfully");
+  });
+
+  it("runs /run-cron with invalid job", async () => {
+    const o = await runCommand("/run-cron bad-cron", stubs);
+    expect(o.handled).toBe(true);
+    expect(o.command).toBe("run-cron");
+    expect(o.result.text).toContain("failed");
+  });
+
+  it("runs /run-cron with no args prompts for job name", async () => {
+    const o = await runCommand("/run-cron", stubs);
+    expect(o.handled).toBe(true);
+    expect(o.command).toBe("run-cron");
+    expect(o.result.text).toContain("Please specify a cron job name");
+  });
+
   it("falls back with suggestions on an unknown command", async () => {
     const o = await runCommand("/frobnicate", stubs);
     expect(o.handled).toBe(false);
@@ -176,7 +220,7 @@ describe("runCommand (end-to-end with stubbed services)", () => {
 describe("registry shape", () => {
   it("has the expected commands with unique names", () => {
     const names = COMMANDS.map((c) => c.name);
-    expect(names).toEqual(expect.arrayContaining(["today", "rescue", "what-changed", "import-session", "receipts", "stale", "convert", "preview-pushes"]));
+    expect(names).toEqual(expect.arrayContaining(["today", "rescue", "what-changed", "import-session", "receipts", "stale", "convert", "preview-pushes", "triage-prune", "db-vacuum", "run-cron"]));
     expect(new Set(names).size).toBe(names.length);
   });
 });
@@ -188,7 +232,7 @@ describe("chat interceptor routing gate (Wire #1)", () => {
   const routes = (t: string) => resolveCommand(t).command !== null;
 
   it("routes every F5 command + alias (with or without args)", () => {
-    for (const t of ["/today", "/rescue", "/what-changed", "/changed", "/receipts", "/stale", "/import-session a log", "/import x", "/convert a thing", "/action a thing"]) {
+    for (const t of ["/today", "/rescue", "/what-changed", "/changed", "/receipts", "/stale", "/import-session a log", "/import x", "/convert a thing", "/action a thing", "/triage-prune", "/db-vacuum", "/run-cron ingest-gmail"]) {
       expect(routes(t), t).toBe(true);
     }
   });
