@@ -4,7 +4,7 @@
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
 >
-> **Last refreshed:** 2026-06-11 · post the **chat command surface cleanup, missions deep-linking, and subtask-usage audit waves** (PR #74 / PR #76 merged): `/missions?taskId=` deep-linking fallback TRPC query (`trpc.task.byId`), ported `weekly-review` to v2 prompt builder, fixed `journal-brief` UTC rollover cache key to New York local time, and implemented the automated `/api/cron/subtask-usage-audit` self-firing on/after 2026-06-22. Gates at merge: tsc 0 · 244 files/3341 tests · eslint 0 · check:crons clean · prompt size 54.0k chars with 10% headroom. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-06-13 · post the **Autonomous Cron Healer & Command Console Bridge waves** (PR #115 merged): implemented automated failed/never-run cron healing, safe console slash commands (`/triage-prune`, `/db-vacuum`, `/run-cron <id>`) intercepts via custom in-DOM `useConfirmDialog` modal, and chat visual kinetics. Gates at merge: tsc 0 · eslint 0 · check:crons clean. Full detail: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 
