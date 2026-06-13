@@ -2,7 +2,7 @@
 
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
-> code win. Last verified **2026-06-09**. When in doubt, **verify in code, git,
+> code win. Last verified **2026-06-13**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
 
 ## Where this runs
