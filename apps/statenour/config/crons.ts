@@ -325,6 +325,15 @@ export const CRONS: CronDef[] = [
     maxDuration: 60,
     addedAt: "2026-06-11",
   },
+  {
+    name: "cron-healer",
+    schedule: null,
+    mode: "folded",
+    category: "hygiene",
+    foldedInto: "mega-evening",
+    description: "FOLDED into mega-evening · Self-healing background agent that checks for failing or never-run crons and triggers API-level runbook resets.",
+    addedAt: "2026-06-13",
+  },
 
   // ── REVIEW ──────────────────────────────────────────────────────────
   {

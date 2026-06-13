@@ -247,7 +247,7 @@ export function ChatMessageList({
                   <div className={cn(
                     "max-w-[92%] sm:max-w-[88%] text-[14.5px] sm:text-[13.5px] leading-[1.55] sm:leading-[1.6] relative",
                     msg.role === "user"
-                      ? "rounded-2xl rounded-br-md px-3.5 py-2.5 sm:py-2 bg-[var(--gold-ghost)] border border-[var(--gold)]/10 text-[var(--text-primary)]"
+                      ? "rounded-2xl rounded-br-md px-3.5 py-2.5 sm:py-2 user-bubble-premium text-[var(--text-primary)]"
                       : "pl-1 border-l-2 border-[var(--gold)]/10 text-[var(--text-secondary)]",
                     isLatestAssistantStreaming && "nick-bubble-latest"
                   )}>

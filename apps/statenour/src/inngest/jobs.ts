@@ -100,6 +100,7 @@ export const EVENING_JOBS: readonly string[] = [
   "/api/cron/daily-report",
   "/api/cron/data-cleanup",
   "/api/cron/subtask-usage-audit",
+  "/api/cron/cron-healer",
   "/api/cron/journal-checkin?slot=evening",
   "/api/cron/intelligence",
   "/api/cron/brain-intelligence",
