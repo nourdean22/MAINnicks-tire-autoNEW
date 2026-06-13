@@ -359,6 +359,54 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
     [forgetMemoryMut],
   );
 
+  const [focusReviewMode, setFocusReviewMode] = useState(false);
+  const [activeReviewIdx, setActiveReviewIdx] = useState(0);
+  const [reviewTimeLeft, setReviewTimeLeft] = useState(45);
+  const [showSummary, setShowSummary] = useState(false);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (focusReviewMode && reviewTimeLeft > 0) {
+      interval = setInterval(() => {
+        setReviewTimeLeft((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [focusReviewMode, reviewTimeLeft]);
+
+  const currentReviewCard = useMemo(() => {
+    if (dueReviews.length === 0) return null;
+    const idx = activeReviewIdx % dueReviews.length;
+    return dueReviews[idx] || dueReviews[0];
+  }, [dueReviews, activeReviewIdx]);
+
+  const handleCompleteActiveReview = useCallback(async (key: string) => {
+    await completeReview(key);
+    if (dueReviews.length <= 1) {
+      setFocusReviewMode(false);
+      toast.success("All due reviews completed! Keep learning.");
+    } else {
+      setReviewTimeLeft(45);
+      setShowSummary(false);
+      setActiveReviewIdx((prev) => {
+        const nextLen = dueReviews.length - 1;
+        return prev >= nextLen ? 0 : prev;
+      });
+    }
+  }, [dueReviews, completeReview]);
+
+  const handleSkipActiveReview = useCallback(() => {
+    if (dueReviews.length <= 1) {
+      setFocusReviewMode(false);
+    } else {
+      setReviewTimeLeft(45);
+      setShowSummary(false);
+      setActiveReviewIdx((prev) => (prev + 1) % dueReviews.length);
+    }
+  }, [dueReviews]);
+
   const run = useCallback(
     async (overrideQuery?: string, overrideTool?: LearnTool) => {
       const q = (overrideQuery || query).trim();
@@ -410,20 +458,151 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
     [query, history, scheduleSpacedReview, teachMut, researchMut]
   );
 
+  const handleDeepDiveActiveReview = useCallback((topic: string, key: string) => {
+    setFocusReviewMode(false);
+    completeReview(key);
+    run(topic, "teach");
+  }, [completeReview, run]);
+
   // Stats
   const totalLearned = history.length;
   const thisWeek = history.filter(
     (h) => Date.now() - h.at < 7 * 86_400_000
   ).length;
 
+  if (focusReviewMode && currentReviewCard) {
+    const timerPercent = Math.max(0, Math.min(100, (reviewTimeLeft / 45) * 100));
+    const isSummaryVisible = showSummary || reviewTimeLeft === 0;
+
+    return (
+      <div className="space-y-4 rounded-xl border border-amber-500/30 bg-zinc-950/80 backdrop-blur-md p-4 animate-fade-in max-w-md mx-auto" id="focus-review-panel">
+        {/* Status Bar */}
+        <div className="flex items-center justify-between pb-2 border-b border-white/5">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
+              Focus Review ({activeReviewIdx + 1} of {dueReviews.length})
+            </span>
+          </div>
+          <button
+            onClick={() => setFocusReviewMode(false)}
+            className="text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            Exit Focus
+          </button>
+        </div>
+
+        {/* Ebbinghaus Countdown Timer */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[10px] font-mono">
+            <span className="text-zinc-500">Ebbinghaus Urgency Countdown</span>
+            <span className={cn(
+              "font-bold",
+              reviewTimeLeft <= 10 ? "text-red-400 animate-pulse" : "text-amber-400"
+            )}>
+              0:{reviewTimeLeft.toString().padStart(2, "0")}
+            </span>
+          </div>
+          <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden border border-white/5">
+            <div
+              className={cn(
+                "h-full transition-all duration-1000 rounded-full",
+                reviewTimeLeft <= 10 ? "bg-red-500" : "bg-amber-500"
+              )}
+              style={{ width: `${timerPercent}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Card Content */}
+        <div className="py-6 px-2 text-center space-y-4">
+          <h2 className="text-lg font-bold text-zinc-100 tracking-tight leading-snug">
+            {currentReviewCard.topic}
+          </h2>
+
+          {!isSummaryVisible ? (
+            <Button
+              onClick={() => setShowSummary(true)}
+              variant="outline"
+              className="mx-auto h-10 px-6 border-violet-500/30 text-violet-300 hover:bg-violet-500/10 hover:text-violet-200 text-xs font-mono"
+            >
+              Show Summary
+            </Button>
+          ) : (
+            <div className="p-3.5 rounded-lg border border-zinc-800 bg-zinc-900/40 text-left text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap animate-fade-in">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                Summary / Insight
+              </p>
+              {currentReviewCard.summary}
+            </div>
+          )}
+        </div>
+
+        {/* Urgency warning on timer expiry */}
+        {reviewTimeLeft === 0 && (
+          <div className="p-2 rounded bg-red-500/10 border border-red-500/20 text-center animate-bounce">
+            <p className="text-[10px] font-bold text-red-400">
+              ⏱️ Time's up! Don't overthink, pick an action below.
+            </p>
+          </div>
+        )}
+
+        {/* Actions Row */}
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={() => handleCompleteActiveReview(currentReviewCard.key)}
+            className="flex-1 min-h-[44px] rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+            aria-label="Mark as remembered"
+            id="got-it-focus-btn"
+          >
+            Got It ✓
+          </button>
+          <button
+            onClick={() => handleDeepDiveActiveReview(currentReviewCard.topic, currentReviewCard.key)}
+            className="flex-1 min-h-[44px] rounded-lg bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500 hover:text-black text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+            aria-label="Deep dive on this topic"
+            id="deep-dive-focus-btn"
+          >
+            Deep Dive
+          </button>
+          <button
+            onClick={handleSkipActiveReview}
+            className="min-h-[44px] px-3.5 rounded-lg bg-zinc-900/60 text-zinc-400 border border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200 text-xs font-medium transition-all"
+            aria-label="Skip to next review card"
+            id="skip-focus-btn"
+          >
+            Skip
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {/* ── Spaced repetition: due review cards ── */}
-      {dueReviews.length > 0 && !active && (
-        <div className="space-y-1.5">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400/80 px-0.5">
-            Remember this? ({dueReviews.length} due)
-          </p>
+      {dueReviews.length > 0 && !active && !focusReviewMode && (
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400/80 px-0.5">
+              Remember this? ({dueReviews.length} due)
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setFocusReviewMode(true);
+                setActiveReviewIdx(0);
+                setReviewTimeLeft(45);
+                setShowSummary(false);
+              }}
+              className="text-[10px] h-7 px-2.5 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 font-mono font-bold flex items-center gap-1.5 animate-pulse"
+              id="adhd-focus-review-btn"
+            >
+              <Zap size={11} className="fill-amber-400/20" />
+              ADHD Focus: Review One Card
+            </Button>
+          </div>
           {dueReviews.slice(0, 3).map((rev) => (
             <div
               key={rev.key}
