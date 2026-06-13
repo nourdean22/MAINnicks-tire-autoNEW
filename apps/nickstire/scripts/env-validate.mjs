@@ -95,6 +95,33 @@ function formatList(items) {
   return items.length === 0 ? "none" : items.map(i => `\n  - ${i}`).join("");
 }
 
+function checkCodependencies(getEnvVal) {
+  // Stripe co-dependency check: warns if secret key is present but webhook secret is missing
+  const stripeSecret = getEnvVal("STRIPE_SECRET_KEY");
+  const stripeWebhook = getEnvVal("STRIPE_WEBHOOK_SECRET");
+
+  if (stripeSecret && stripeSecret.trim() !== "") {
+    if (!stripeWebhook || stripeWebhook.trim() === "") {
+      console.warn(
+        `[env-validate] WARNING: STRIPE_SECRET_KEY is configured but STRIPE_WEBHOOK_SECRET is missing. Stripe API calls may work, but webhook-driven events such as invoice-paid sync, subscription updates, or membership reconciliation may fail.`
+      );
+    }
+  }
+
+  // D&K co-dependency check: warns if one key is present but not all 3
+  const dkUser = getEnvVal("GATEWAY_TIRE_USERNAME");
+  const dkPass = getEnvVal("GATEWAY_TIRE_PASSWORD");
+  const dkShip = getEnvVal("GATEWAY_TIRE_SHIP_TO");
+
+  if (dkUser || dkPass || dkShip) {
+    if (!dkUser || !dkPass || !dkShip) {
+      console.warn(
+        `[env-validate] WARNING: Some Gateway Tire (D&K) credentials are set, but they are incomplete. Ensure GATEWAY_TIRE_USERNAME, GATEWAY_TIRE_PASSWORD, and GATEWAY_TIRE_SHIP_TO are all set. Graceful mock fallbacks will be used.`
+      );
+    }
+  }
+}
+
 function validateTemplate() {
   const filePath = ".env.example";
   if (!fs.existsSync(filePath)) {
@@ -143,6 +170,22 @@ function validateTemplate() {
       `[env:validate] Missing expected section headers:${formatList(missingSections)}`
     );
   }
+
+  // Check local .env file if it exists
+  const localEnvPath = ".env";
+  if (fs.existsSync(localEnvPath)) {
+    try {
+      const { map: localMap } = parseEnvFile(localEnvPath);
+      checkCodependencies(key => localMap.get(key) || process.env[key]);
+    } catch (err) {
+      console.warn(
+        `[env-validate] Failed to parse local .env file: ${err.message}`
+      );
+    }
+  } else {
+    // If local .env doesn't exist, check process.env for warnings (e.g. in build pipeline)
+    checkCodependencies(key => process.env[key]);
+  }
 }
 
 function validateRuntime() {
@@ -175,30 +218,8 @@ function validateRuntime() {
     process.exit(1);
   }
 
-  // Stripe co-dependency check: warns if secret key is present but webhook secret is missing
-  const stripeSecret = process.env.STRIPE_SECRET_KEY;
-  const stripeWebhook = process.env.STRIPE_WEBHOOK_SECRET;
-
-  if (stripeSecret && stripeSecret.trim() !== "") {
-    if (!stripeWebhook || stripeWebhook.trim() === "") {
-      console.warn(
-        `[env-validate] WARNING: STRIPE_SECRET_KEY is configured but STRIPE_WEBHOOK_SECRET is missing. Stripe API calls may work, but webhook-driven events such as invoice-paid sync, subscription updates, or membership reconciliation may fail.`
-      );
-    }
-  }
-
-  // D&K co-dependency check: warns if one key is present but not all 3
-  const dkUser = process.env.GATEWAY_TIRE_USERNAME;
-  const dkPass = process.env.GATEWAY_TIRE_PASSWORD;
-  const dkShip = process.env.GATEWAY_TIRE_SHIP_TO;
-
-  if (dkUser || dkPass || dkShip) {
-    if (!dkUser || !dkPass || !dkShip) {
-      console.warn(
-        `[env-validate] WARNING: Some Gateway Tire (D&K) credentials are set, but they are incomplete. Ensure GATEWAY_TIRE_USERNAME, GATEWAY_TIRE_PASSWORD, and GATEWAY_TIRE_SHIP_TO are all set. Graceful mock fallbacks will be used.`
-      );
-    }
-  }
+  // Check co-dependencies in runtime
+  checkCodependencies(key => process.env[key]);
 
   console.log("[env:validate] Runtime environment check: PASS");
   console.log(
