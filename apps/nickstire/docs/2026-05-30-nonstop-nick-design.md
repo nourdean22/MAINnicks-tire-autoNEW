@@ -36,7 +36,10 @@ No member type loses money on the membership alone: even a heavy user (~$80/yr c
 
 ## 5. ⚙️ Operator Actions (the honest seam — backend dormant until these land)
 1. **Apply migration** `drizzle/0063_nonstop_nick_memberships.sql` to the DB (hand-applied; there is no auto-migrate). Then `pnpm run check` passes at runtime.
-2. **Create the Stripe Price:** in the Stripe dashboard, a recurring **$7.99/mo USD** Price on a "Nonstop Nick" Product → copy the price ID → set env **`STRIPE_NONSTOP_NICK_PRICE_ID`** on Railway.
+2. **Create the Stripe Price:** [COMPLETED 2026-06-13] Stripe Price IDs have been created and configured:
+   - Nonstop Nick ($7.99/mo): `price_1Th8Gp36ZrIwRhqkVzY82ALt` (Product: `prod_UgVH0iSq3o3Trx`)
+   - Nonstop Nick+ ($9.99/mo): `price_1Th8Gq36ZrIwRhqk4FA8B2RW` (Product: `prod_UgVHUd5U3SpTRk`)
+   Set env `STRIPE_NONSTOP_NICK_PRICE_ID` and `STRIPE_NONSTOP_NICK_PLUS_PRICE_ID` in `.env` and `.env.example`.
 3. **Subscribe the webhook** to `customer.subscription.created/updated/deleted` events (the `/api/webhooks/stripe` endpoint + `STRIPE_WEBHOOK_SECRET` already exist). Confirm the endpoint is registered in Stripe.
 
 Until 1-3 land: the page renders + sells, the Join button degrades honestly to "call/walk in to sign up" (true — they CAN sign up in person), and nothing errors.
