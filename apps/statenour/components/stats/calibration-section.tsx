@@ -75,6 +75,7 @@ export function CalibrationSection() {
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [efGradeMode, setEfGradeMode] = useState(false);
   
   // Correction state overrides
   const [correctingId, setCorrectingId] = useState<string | null>(null);
@@ -381,17 +382,37 @@ export function CalibrationSection() {
       {/* 2. PENDING DECK */}
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
-            <span>Pending Calibration Review ({pending.length})</span>
-            {pending.length > 0 && <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />}
-          </h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+              <span>Pending Calibration Review ({pending.length})</span>
+              {pending.length > 0 && <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />}
+            </h3>
+            <button
+              onClick={() => setEfGradeMode(!efGradeMode)}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded border font-mono font-bold transition-all flex items-center gap-1.5",
+                efGradeMode
+                  ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
+                  : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20"
+              )}
+              id="ef-grade-mode-toggle"
+            >
+              <Sliders className={cn("h-3.5 w-3.5", efGradeMode && "text-amber-400 animate-pulse")} />
+              {efGradeMode ? "ADHD Quick-Grade Active" : "ADHD Quick-Grade Mode"}
+            </button>
+          </div>
 
           {pending.length > 0 && (
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
                 variant="outline"
-                className="text-xs border-emerald-500/30 bg-emerald-500/5 text-emerald-300 hover:bg-emerald-500/10 cursor-pointer transition-all duration-300"
+                className={cn(
+                  "text-xs cursor-pointer transition-all duration-300",
+                  efGradeMode
+                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500 hover:text-black font-bold ring-2 ring-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                    : "border-emerald-500/30 bg-emerald-500/5 text-emerald-300 hover:bg-emerald-500/10"
+                )}
                 onClick={() => handleBulkAction("approve_low_risk")}
                 disabled={bulkLoading || resolvingId !== null}
               >
@@ -427,6 +448,132 @@ export function CalibrationSection() {
               const isExpanded = expandedId === item.id;
               const isCorrecting = correctingId === item.id;
               const isTopCard = idx === 0;
+
+              if (efGradeMode) {
+                return (
+                  <Card
+                    key={item.id}
+                    className={cn(
+                      "border-white/10 bg-white/[0.01] hover:bg-white/[0.02] transition-all duration-200",
+                      isTask ? "border-l-indigo-500/20 border-l-[3px]" : "border-l-sky-500/20 border-l-[3px]"
+                    )}
+                  >
+                    <CardContent className="py-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      {/* Left: Metadata & Title */}
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Badge className={cn("text-[8px] uppercase tracking-wider py-0 px-1",
+                            isTask ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/20" : "bg-sky-500/10 text-sky-300 border-sky-500/20"
+                          )}>
+                            {isTask ? "Task ROI" : "Prediction"}
+                          </Badge>
+                          <span className="text-[10px] text-zinc-500 font-mono">
+                            {isTask ? `Est. ROI: ${item.predictedOutcome.roiScore}` : `Conf: ${(item.confidence * 100).toFixed(0)}%`}
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-semibold text-zinc-200 truncate max-w-lg">
+                          {isTask ? item.predictedOutcome.title : item.predictedOutcome.prediction}
+                        </h4>
+                      </div>
+
+                      {/* Right: Quick Action Buttons */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isTask ? (
+                          <>
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => {
+                                const val = Math.min(100, item.predictedOutcome.roiScore + 20);
+                                handleResolve(item.id, "correct", {
+                                  outcomeScore: val,
+                                  classification: "underestimated",
+                                  rationale: "Underestimated via EF Quick-Grade Mode."
+                                });
+                              }}
+                              disabled={resolvingId !== null}
+                              className="text-[10px] h-8 border-purple-500/20 bg-purple-500/[0.04] text-purple-300 hover:bg-purple-500 hover:text-black font-semibold"
+                            >
+                              Underestimated (+20)
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => {
+                                handleResolve(item.id, "correct", {
+                                  outcomeScore: item.predictedOutcome.roiScore,
+                                  classification: "accurate",
+                                  rationale: "Accurate outcome via EF Quick-Grade Mode."
+                                });
+                              }}
+                              disabled={resolvingId !== null}
+                              className="text-[10px] h-8 border-emerald-500/20 bg-emerald-500/[0.04] text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold"
+                            >
+                              Spot On
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => {
+                                const val = Math.max(1, item.predictedOutcome.roiScore - 20);
+                                handleResolve(item.id, "correct", {
+                                  outcomeScore: val,
+                                  classification: "overestimated",
+                                  rationale: "Overestimated via EF Quick-Grade Mode."
+                                });
+                              }}
+                              disabled={resolvingId !== null}
+                              className="text-[10px] h-8 border-rose-500/20 bg-rose-500/[0.04] text-rose-300 hover:bg-rose-500 hover:text-black font-semibold"
+                            >
+                              Overestimated (-20)
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => {
+                                handleResolve(item.id, "correct", {
+                                  status: "confirmed",
+                                  outcomeDescription: "Confirmed via EF Quick-Grade Mode."
+                                });
+                              }}
+                              disabled={resolvingId !== null}
+                              className="text-[10px] h-8 border-emerald-500/20 bg-emerald-500/[0.04] text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold"
+                            >
+                              Confirmed ✅
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => {
+                                handleResolve(item.id, "correct", {
+                                  status: "disproven",
+                                  outcomeDescription: "Disproven via EF Quick-Grade Mode."
+                                });
+                              }}
+                              disabled={resolvingId !== null}
+                              className="text-[10px] h-8 border-rose-500/20 bg-rose-500/[0.04] text-rose-300 hover:bg-rose-500 hover:text-black font-semibold"
+                            >
+                              Disproven ❌
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => handleResolve(item.id, "reject")}
+                          disabled={resolvingId !== null}
+                          className="text-[10px] h-8 text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                        >
+                          Skip
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              }
 
               return (
                 <Card 
