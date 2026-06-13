@@ -204,6 +204,31 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
     [page, data, focus, streaming, turns],
   );
 
+  // Listen for the custom "statenour:open-nick" event to receive pre-filled prompt and submit it.
+  useEffect(() => {
+    function handleOpenNick(e: Event) {
+      const customEvent = e as CustomEvent<{ pendingPrompt: string; submitOnMount?: boolean }>;
+      const prompt = customEvent.detail?.pendingPrompt;
+      if (!prompt) return;
+
+      setInput(prompt);
+      
+      // Auto-focus input
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+
+      if (customEvent.detail.submitOnMount) {
+        // Wait a brief moment to allow side-pane to mount/open and thread state to initialize
+        setTimeout(() => {
+          void send(prompt);
+        }, 300);
+      }
+    }
+    window.addEventListener("statenour:open-nick", handleOpenNick);
+    return () => window.removeEventListener("statenour:open-nick", handleOpenNick);
+  }, [send]);
+
   const clear = useCallback(() => {
     abortRef.current?.abort();
     setTurns([]);

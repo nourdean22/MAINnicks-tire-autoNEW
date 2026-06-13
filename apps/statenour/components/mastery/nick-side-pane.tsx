@@ -94,6 +94,20 @@ export function NickSidePane({
     }
   }, []);
 
+  // Listen for the custom "statenour:open-nick" event to automatically open the side pane.
+  useEffect(() => {
+    function handleOpenNick() {
+      setOpen(true);
+      try {
+        localStorage.setItem(STORAGE_KEY, "1");
+      } catch {
+        /* best-effort */
+      }
+    }
+    window.addEventListener("statenour:open-nick", handleOpenNick);
+    return () => window.removeEventListener("statenour:open-nick", handleOpenNick);
+  }, []);
+
   const toggle = useCallback(() => {
     setOpen((prev) => {
       const next = !prev;
