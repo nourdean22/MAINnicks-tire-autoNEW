@@ -48,7 +48,7 @@ import {
   scoreTaskWithAI,
   WrongLoopKindError,
 } from "@/lib/services/task-actions";
-import { generateAiTasks } from "@/lib/services/ai-tasks";
+import { generateAiTasks, decomposeTaskWithAi } from "@/lib/services/ai-tasks";
 import { backfillProjectTasks } from "@/lib/services/backfill-tasks";
 import { buildTodayCompound } from "@/lib/services/today-compound";
 import { buildNextMove } from "@/lib/services/next-move";
@@ -1304,6 +1304,19 @@ export const taskRouter = router({
         }),
       ]);
       return { ok: true as const, swapped: [a.id, b.id] };
+    }),
+
+  decompose: operatorProcedure
+    .input(z.object({ taskId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await decomposeTaskWithAi(input.taskId);
+      } catch (err) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: err instanceof Error ? err.message : "could not decompose task",
+        });
+      }
     }),
 
   // ─── Power Atlas (people / relationship / ledger / power-balance /

@@ -306,3 +306,93 @@ Return ONLY a JSON array, no commentary:
     model: result.model,
   };
 }
+
+const subtaskShape = z.object({
+  title: z.string().min(1).max(500),
+  nextAction: z.string().min(1).max(500),
+  effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
+  context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
+});
+
+export type AiSubtaskOut = z.infer<typeof subtaskShape>;
+
+export async function decomposeTaskWithAi(taskId: string): Promise<{ ok: boolean; subtasksCount: number }> {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { mission: true },
+  });
+  if (!task) throw new Error("Task not found");
+
+  const result = await tracedAiChat(
+    { label: "task-decompose", source: "tool" },
+    [
+      {
+        role: "system",
+        content:
+          "You are Nick, an AI task planner inside NOUR OS. Decompose the given parent task into smaller, highly actionable, specific physical steps (subtasks). Always return ONLY a valid JSON array — no markdown, no commentary. Be tactical and specific.",
+      },
+      {
+        role: "user",
+        content: `Parent Task: "${task.title}"
+Estimated parent effort: ${task.effort || "not specified"}
+Next physical action: ${task.nextPhysicalAction || "not specified"}
+Context: ${task.context || "ANYWHERE"}
+Mission: ${task.mission?.title || "none"}
+
+Generate a list of 3-6 smaller subtasks that break this down.
+Each subtask must have:
+- title: clear, specific action (e.g., "Draft outline of section 1" instead of "Start document")
+- nextAction: the immediate physical first step
+- effort: M5, M15, M30, H1, or H2PLUS (estimate of time)
+- context: DESK, PHONE, SHOP, CAR, HOME, or ANYWHERE
+
+Return ONLY a JSON array, no commentary:
+[{"title":"...","nextAction":"...","effort":"M30","context":"DESK"}]`,
+      },
+    ],
+    "extract",
+  );
+
+  if (result.provider === "none" || result.provider === "emergency") {
+    return { ok: false, subtasksCount: 0 };
+  }
+
+  const parsedJson = extractJsonArray<unknown>(result.content);
+  if (!parsedJson.ok) {
+    return { ok: false, subtasksCount: 0 };
+  }
+
+  const subtasks: AiSubtaskOut[] = [];
+  for (const raw of parsedJson.value) {
+    const v = subtaskShape.safeParse(raw);
+    if (v.success) subtasks.push(v.data);
+  }
+
+  if (subtasks.length === 0) {
+    return { ok: false, subtasksCount: 0 };
+  }
+
+  // Create subtasks in the database
+  const created = [];
+  for (let i = 0; i < subtasks.length; i++) {
+    const st = subtasks[i];
+    const sub = await prisma.task.create({
+      data: {
+        title: st.title,
+        missionId: task.missionId,
+        parentTaskId: task.id,
+        nextPhysicalAction: st.nextAction,
+        effort: st.effort,
+        context: st.context,
+        status: "READY",
+        roiScore: Math.max(10, (task.roiScore ?? 50) - 5 - i * 5),
+        frictionScore: 30,
+        energyRequired: "MEDIUM",
+        finishCondition: "",
+      },
+    });
+    created.push(sub);
+  }
+
+  return { ok: true, subtasksCount: created.length };
+}

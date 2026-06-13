@@ -75,6 +75,7 @@ export interface MissionCardProps {
    *  snoozedUntil + flips status to WAITING · cron resurfaces when
    *  the timestamp matures. Empty string clears the snooze. */
   onSnoozeTask?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
+  onDecomposeTask?: (id: string) => void | Promise<void>;
 }
 
 export function MissionCard({
@@ -96,6 +97,7 @@ export function MissionCard({
   onMoveMission,
   onMoveTask,
   onSnoozeTask,
+  onDecomposeTask,
 }: MissionCardProps) {
   const canMoveUp =
     onMoveMission != null && typeof index === "number" && index > 0;
@@ -337,6 +339,7 @@ export function MissionCard({
                   totalTasks={sortedOpen.length}
                   onMove={onMoveTask}
                   onSnooze={onSnoozeTask}
+                  onDecompose={onDecomposeTask}
                 />
               </div>
             ))}
