@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ErrorCard } from "@/components/ui/error-card";
 import {
   Check,
   X,
@@ -70,6 +71,7 @@ export function CalibrationSection() {
   const [lessons, setLessons] = useState<BrainMemory[]>([]);
   const [scoreboard, setScoreboard] = useState<Scoreboard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -83,6 +85,7 @@ export function CalibrationSection() {
 
   const load = useCallback(async () => {
     try {
+      setError(null);
       const res = await fetch("/api/system/calibration/reviews");
       if (!res.ok) throw new Error("Failed to fetch calibration data");
       const data = await res.json();
@@ -92,6 +95,7 @@ export function CalibrationSection() {
       setScoreboard(data.scoreboard || null);
     } catch (err) {
       console.error(err);
+      setError(err instanceof Error ? err.message : String(err));
       toast.error("Failed to load calibration details");
     } finally {
       setLoading(false);
@@ -250,6 +254,19 @@ export function CalibrationSection() {
           <div className="h-24 rounded-lg bg-white/[0.02] border border-white/10" />
         </div>
         <div className="h-[300px] rounded-lg bg-white/[0.02] border border-white/10" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="py-6">
+        <ErrorCard
+          title="Calibration failed to load"
+          message={error}
+          domain="system:calibration"
+          onRetry={load}
+        />
       </div>
     );
   }
