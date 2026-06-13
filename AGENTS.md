@@ -10,7 +10,7 @@ Two apps share this repo: `apps/statenour` (Railway → bdnick.info) and `apps/n
   gh pr merge <pr-number> --squash --delete-branch
   ```
   After merging, keep the local repository clean by syncing your local `main` with origin (`git fetch origin main` and `git reset --hard origin/main`).
-- Concurrent agent sessions share this repo — start from a fresh worktree: `git worktree add .worktrees/<name> -b <branch> origin/main`. Worktrees are shared surfaces too: `git log origin/<branch>..HEAD` before AND after pushing; disclose rider commits in the PR body, never rewrite them away. Once merged, clean up the worktree using `git worktree remove .worktrees/<name>` and delete the local branch with `git branch -d <branch>`.
+- Concurrent agent sessions share this repo — start from a fresh worktree using the setup script: `powershell scripts/worktree-setup.ps1 -branchName <branch> -targetDir .worktrees/<name>`. This script automatically copies env files and creates NTFS directory junctions for all `node_modules` instantly, completely bypassing pnpm install to save minutes of setup and gigabytes of disk space. Worktrees are shared surfaces too: `git log origin/<branch>..HEAD` before AND after pushing; disclose rider commits in the PR body, never rewrite them away. Once merged, clean up the worktree using `git worktree remove .worktrees/<name>` and delete the local branch with `git branch -d <branch>`.
 - Stage **only your files by explicit path** — never `git add -A` · never `--no-verify` · never force-push shared history.
 - Scope changes to the assigned task ONLY — no unrelated docs, generated reports, or sibling-session files.
 - Final report: branch · SHA · changed files · checks run · PR link · intentional exclusions.
@@ -23,14 +23,14 @@ Two apps share this repo: `apps/statenour` (Railway → bdnick.info) and `apps/n
 
 - `apps/statenour/**` → read `apps/statenour/AGENTS.md` first. Schema + migrations are hand-applied (`prisma/**`) — one wrong flag silently drops pgvector.
 - `apps/nickstire/**` → read `apps/nickstire/AGENTS.md` first. SMS/VAPI = `server/**` · PWA UI = `client/**`.
-- **Both apps run as standalone iOS PWAs**: `window.confirm/alert/prompt` are silently suppressed on the operator's phone — use in-DOM confirms (two-tap pattern).
+- **Both apps run as standalone iOS PWAs**: window.confirm/alert/prompt are silently suppressed on the operator's phone — use in-DOM confirms (two-tap pattern).
 
 ## Verify gates
 
 - The push gate = repo-root `.husky/pre-push` → `turbo build` for affected apps. Other printed checks (lint-baseline, prompt:size-check) can be RED but are NON-blocking — a green local test run is on you.
 - statenour (from `apps/statenour/`): `pnpm typecheck` · `pnpm lint` · `pnpm test` · full gate `pnpm verify:hard`. Piping vitest to `tail` masks the exit code — read the summary line.
 - nickstire (from `apps/nickstire/`): `pnpm run verify` (master gate). Full suite MUST be serial on Windows: `pnpm exec vitest run --pool=forks --poolOptions.forks.singleFork=true`.
-- Fresh worktrees need `pnpm install --frozen-lockfile --filter "<app>..."` — WITH the `...` suffix (bare `--filter` skips workspace deps → phantom `clsx`/import failures).
+- Fresh worktrees created via `scripts/worktree-setup.ps1` do NOT need `pnpm install` because `node_modules` are automatically junctioned from the root. If dependencies or `pnpm-lock.yaml` change, run `pnpm install --frozen-lockfile --filter "<app>..."` — WITH the `...` suffix (bare `--filter` skips workspace deps → phantom `clsx`/import failures).
 
 ## Commit Attribution
 
