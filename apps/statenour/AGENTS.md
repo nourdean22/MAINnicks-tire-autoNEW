@@ -4,7 +4,7 @@
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
 >
-> **Last refreshed:** 2026-06-13 · post the **Missions UI Polish & Task Decomposition wave** (PR #120 merged): implemented dynamic search placeholders, "Ask Nick" empty state CTA button, live autonomic worker health chip, and inline AI task decomposition triggers. Gates at merge: tsc 0 · eslint 0 · check:crons clean. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-06-13 · post the **Autonomic Self-Healing Upgrades wave** (PR #120 merged): implemented database size-based vacuuming, stalled task auto-decomposition, and budget-aware provider reordering. Gates at merge: tsc 0 · eslint 0 · check:crons clean. Full detail: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 
