@@ -4,11 +4,20 @@ Two apps share this repo: `apps/statenour` (Railway → bdnick.info) and `apps/n
 
 ## Branching — NEVER push `main` (operator rule, 2026-06-11)
 
-- Work on named branches only: `nickstire/<task>` · `statenour/<task>` · `docs/<task>` · `chore/<task>`. Push the branch, open a PR; the **operator merges**. (`~/push-main.sh` is retired for agents.)
-- Concurrent agent sessions share this repo — start from a fresh worktree: `git worktree add .worktrees/<name> -b <branch> origin/main`. Worktrees are shared surfaces too: `git log origin/<branch>..HEAD` before AND after pushing; disclose rider commits in the PR body, never rewrite them away.
+- Work on named branches only: `nickstire/<task>` · `statenour/<task>` · `docs/<task>` · `chore/<task>`. Push the branch, open a PR; the **operator merges**. (`~/push-main.sh` is retired for agents.) If explicitly authorized by the operator to merge and deploy directly, use the `gh` CLI:
+  ```bash
+  gh pr create --head <branch> --title "<message>" --body "<body>"
+  gh pr merge <pr-number> --squash --delete-branch
+  ```
+  After merging, keep the local repository clean by syncing your local `main` with origin (`git fetch origin main` and `git reset --hard origin/main`).
+- Concurrent agent sessions share this repo — start from a fresh worktree: `git worktree add .worktrees/<name> -b <branch> origin/main`. Worktrees are shared surfaces too: `git log origin/<branch>..HEAD` before AND after pushing; disclose rider commits in the PR body, never rewrite them away. Once merged, clean up the worktree using `git worktree remove .worktrees/<name>` and delete the local branch with `git branch -d <branch>`.
 - Stage **only your files by explicit path** — never `git add -A` · never `--no-verify` · never force-push shared history.
 - Scope changes to the assigned task ONLY — no unrelated docs, generated reports, or sibling-session files.
 - Final report: branch · SHA · changed files · checks run · PR link · intentional exclusions.
+
+## Guidelines & Operating Frameworks
+
+- **CIITTY Framework**: Always apply the custom `ciitty` operating framework (defined in the [ciitty skill](file:///C:/Users/nourd/.gemini/config/skills/ciitty/SKILL.md)). Read and follow its rules for deep reasoning, Visual Kinetics UI/UX design aesthetics, resilient database engineering (Prisma, Neon, parameterized queries), and PowerShell command reliability on Windows.
 
 ## Context routing
 
@@ -33,6 +42,7 @@ Co-Authored-By: <model name> <noreply@anthropic.com>
 
 ## Environment (Windows)
 
+- The CLI shell is standard Windows PowerShell. **Do not chain commands using `&&`** as it throws a parser syntax error. Execute chained commands using a semicolon `;` or run them as separate tool calls.
 - Bash cwd resets to `C:\` between calls — prefix every command with `cd /c/Users/nourd/NOURCITY/... &&`.
 - `Edit` old_string containing unicode (arrows, middots, emoji) often fails to match — use ASCII-only anchors from a fresh Read.
 - Pre-push "IO error: provided value is too long when setting link name" / symlink warnings = non-fatal Windows-path noise; the build still passes.
