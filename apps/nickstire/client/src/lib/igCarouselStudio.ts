@@ -20,7 +20,14 @@ export type CarouselBriefStatus =
   | "ready_for_assets"
   | "assets_ready"
   | "published_manual"
-  | "failed";
+  | "failed"
+  | "idea"
+  | "needs_review"
+  | "approved"
+  | "posted"
+  | "archived"
+  | "blocked"
+  | "sandbox_preview_sent";
 
 /** Hard switch for V1. Publishing stays off in this PR regardless of UI state. */
 export const PUBLISH_ENABLED = true;
@@ -304,6 +311,8 @@ export interface CarouselBrief {
   assetPaths: string[]; // filled in Asset Prep workflows later — empty in V1
   instagramUrl: string | null; // filled after MANUAL publish only
   operatorNotes: string;
+  plannedDate?: string;
+  notes?: string;
 }
 
 // ─── Safety pattern banks ──────────────────────────────────────────
