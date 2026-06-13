@@ -40,6 +40,7 @@ import { PageNick } from "@/components/ai/page-nick";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
+import { ErrorCard } from "@/components/ui/error-card";
 
 // Phase XX (2026-05-19 AM) · authedFetch replaced with trpc · 2 sites
 // (timeline read + check-in mutation) on the operator router.
@@ -64,6 +65,7 @@ export function BodySection() {
   const [entries, setEntries] = useState<BodyEntry[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [weight, setWeight] = useState("");
   const [bodyFat, setBodyFat] = useState("");
   const [waist, setWaist] = useState("");
@@ -95,6 +97,7 @@ export function BodySection() {
     const ctrl = new AbortController();
     inflightRef.current = ctrl;
     try {
+      setError(null);
       const view = await utils.operator.bodyTracking.fetch({ range: "90d" });
       if (ctrl.signal.aborted) return;
       // Phase XX · normalize Prisma camelCase → page's snake_case
@@ -128,6 +131,7 @@ export function BodySection() {
       log.error("body_load_exception", {
         error: err instanceof Error ? err.message : String(err),
       });
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -196,6 +200,17 @@ export function BodySection() {
         <ShimmerSkeleton className="h-32 w-full" />
         <ShimmerSkeleton className="h-48 w-full" />
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <ErrorCard
+        title="Failed to load body stats"
+        message={error}
+        domain="operator:bodyTracking"
+        onRetry={load}
+      />
     );
   }
 
