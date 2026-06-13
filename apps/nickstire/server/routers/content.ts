@@ -411,5 +411,16 @@ export const contentAdminRouter = router({
         });
       }
     }),
+  runPromptEvals: adminProcedure.query(async () => {
+    try {
+      const { runPromptEvals } = await import("../../scripts/run-prompt-evals");
+      return await runPromptEvals();
+    } catch (err) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: err instanceof Error ? err.message : "Failed to run prompt evals",
+      });
+    }
+  }),
 });
 

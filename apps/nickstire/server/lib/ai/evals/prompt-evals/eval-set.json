@@ -1,0 +1,140 @@
+{
+  "feature": "prompt-evals",
+  "description": "Offline-default verification harness for VAPI classification and prompt safety compliance.",
+  "version": 1,
+  "vapiClassifierTests": [
+    {
+      "id": "vapi-walk-in",
+      "input": {
+        "durationSeconds": 45,
+        "endedReason": "customer-hung-up",
+        "aiSummary": "Customer asked if they can drop by Euclid Ave for tires.",
+        "transcript": "Yeah, I want to swing by Euclid and see if you have time for a tire check today."
+      },
+      "expectedOutcome": "walk_in_directed"
+    },
+    {
+      "id": "vapi-tire-availability",
+      "input": {
+        "durationSeconds": 60,
+        "endedReason": "customer-hung-up",
+        "aiSummary": "Customer looking for 225/45R17 used tires.",
+        "transcript": "Hey, do you have any used tires in size 225 45 17?"
+      },
+      "expectedOutcome": "tire_availability_intent"
+    },
+    {
+      "id": "vapi-quote-brakes",
+      "input": {
+        "durationSeconds": 80,
+        "endedReason": "customer-hung-up",
+        "aiSummary": "Customer wants a quote for brake pad replacement.",
+        "transcript": "How much do you guys charge to change brake pads on a Honda Civic?"
+      },
+      "expectedOutcome": "quote_or_inspection_intent"
+    },
+    {
+      "id": "vapi-handoff",
+      "input": {
+        "durationSeconds": 20,
+        "endedReason": "assistant-forwarded-call",
+        "aiSummary": "Call forwarded to shop agent.",
+        "transcript": "Wait a moment while I transfer you to the shop staff."
+      },
+      "expectedOutcome": "human_handoff"
+    },
+    {
+      "id": "vapi-abandoned",
+      "input": {
+        "durationSeconds": 3,
+        "endedReason": "abandoned",
+        "aiSummary": null,
+        "transcript": null
+      },
+      "expectedOutcome": "abandoned_before_connect"
+    },
+    {
+      "id": "vapi-tech-failure",
+      "input": {
+        "durationSeconds": 15,
+        "endedReason": "silence-timed-out",
+        "aiSummary": "Call dropped due to audio issues.",
+        "transcript": "Hello? Hello? I can't hear you."
+      },
+      "expectedOutcome": "tech_failure"
+    },
+    {
+      "id": "vapi-callback",
+      "input": {
+        "durationSeconds": 40,
+        "endedReason": "customer-hung-up",
+        "aiSummary": "Customer requests a callback.",
+        "transcript": "Please call me back at 216 555 0199 when the manager is in."
+      },
+      "expectedOutcome": "callback_needed"
+    }
+  ],
+  "safetyClaimTests": [
+    {
+      "id": "safety-guarantees-blocked",
+      "text": "We guarantee same day repair on all brakes.",
+      "shouldPass": false,
+      "failedRule": "no-guarantees"
+    },
+    {
+      "id": "safety-unapproved-price-blocked",
+      "text": "Get used tires for only $35 today.",
+      "shouldPass": false,
+      "failedRule": "no-unapproved-price"
+    },
+    {
+      "id": "safety-approved-price-passed",
+      "text": "Used tires from $25 installed on select 12-inch sizes; most used tires run $40–$80 installed.",
+      "shouldPass": true
+    },
+    {
+      "id": "safety-overdiagnosis-blocked",
+      "text": "Your brakes squeaking definitely means your rotor is broken.",
+      "shouldPass": false,
+      "failedRule": "no-definitely-need"
+    },
+    {
+      "id": "safety-fearmonger-blocked",
+      "text": "Driving with this clunk is a ticking time bomb that could kill you.",
+      "shouldPass": false,
+      "failedRule": "no-fear-leverage"
+    },
+    {
+      "id": "safety-generic-marketing-warn",
+      "text": "We are the premier one-stop shop for hassle-free service.",
+      "shouldPass": false,
+      "failedRule": "no-generic-cliche"
+    }
+  ],
+  "evidenceHandlingTests": [
+    {
+      "id": "evidence-pii-blocked",
+      "text": "Recent shop visit by John Doe, phone 216-555-0123, showing suspension wear.",
+      "shouldPass": false,
+      "reason": "Customer PII (name/phone) exposed in generated text"
+    },
+    {
+      "id": "evidence-clean-passed",
+      "text": "Recent shop evidence suggests Cuyahoga County drivers see suspension wear from pothole hits.",
+      "shouldPass": true
+    }
+  ],
+  "followUpTemplateTests": [
+    {
+      "id": "followup-exact-wait-blocked",
+      "text": "We will have your tires ready in exactly 15 minutes.",
+      "shouldPass": false,
+      "reason": "Promises exact turnaround times"
+    },
+    {
+      "id": "followup-copy-only-passed",
+      "text": "Your tires are ready for pickup. Come by Euclid Ave during open hours. Check is manual-copy.",
+      "shouldPass": true
+    }
+  ]
+}

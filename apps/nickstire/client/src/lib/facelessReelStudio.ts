@@ -27,7 +27,14 @@ export type ReelBriefStatus =
   | "ready_for_assets"
   | "assets_ready"
   | "published_manual"
-  | "failed";
+  | "failed"
+  | "idea"
+  | "needs_review"
+  | "approved"
+  | "posted"
+  | "archived"
+  | "blocked"
+  | "sandbox_preview_sent";
 
 /** Hard switches for V1. These stay off in this PR regardless of UI state. */
 export const PUBLISH_ENABLED = true;
@@ -380,6 +387,8 @@ export interface ReelBrief {
   assetPlan: string; // cover frame + file naming plan — text only in V1
   instagramUrl: string | null; // filled after MANUAL publish only
   operatorNotes: string;
+  plannedDate?: string;
+  notes?: string;
 }
 
 // ─── Safety pattern banks ──────────────────────────────────────────
