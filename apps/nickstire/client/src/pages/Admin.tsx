@@ -674,7 +674,9 @@ export default function Admin() {
             href="/admin?tab=content"
             title="AI Content"
             aria-label="AI Content"
-            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
+            className={`inline-flex items-center justify-center w-9 h-9 hover:text-primary hover:bg-foreground/5 rounded-md transition-colors ${
+              section === "content" ? "text-primary bg-foreground/5" : "text-muted-foreground"
+            }`}
           >
             <Sparkles className="w-4 h-4" />
           </Link>
