@@ -20,6 +20,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:ai-evals": "tsx server/lib/ai/evals/blog-seeder/runner.ts",
+    "eval:prompts": "tsx scripts/run-prompt-evals.ts",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:migrate": "tsx scripts/run.ts db-migrate.ts",
     "gsc:report": "tsx scripts/run.ts gsc-report.ts",

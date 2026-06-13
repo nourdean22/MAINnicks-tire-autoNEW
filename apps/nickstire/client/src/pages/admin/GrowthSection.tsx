@@ -20,6 +20,7 @@ import {
   ExternalLink, RefreshCw, Lock, ChevronDown, ChevronUp,
 } from "lucide-react";
 import IgAutopostPanel from "./settings/IgAutopostPanel";
+import DraftBoardPanel from "./DraftBoardPanel";
 import { Section, Panel } from "./shared";
 import { TabBar } from "./shared/table";
 import { trpc } from "@/lib/trpc";
@@ -648,51 +649,56 @@ function StudiosTab() {
   const [showLegacy, setShowLegacy] = useState(false);
 
   return (
-    <div className="space-y-4">
-      <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2">
-        <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
-        <span>
-          <strong>Draft only.</strong> The studios generate content you copy into
-          Instagram/Facebook yourself. No studio posts anywhere, and the autoposter
-          armed-state on the Local Growth tab shows whether any automation could.
-        </span>
+    <div className="space-y-6">
+      {/* 1. Content Calendar & Draft Board */}
+      <Panel title="Unified Content Draft Board" icon={<Sparkles className="w-4 h-4 text-primary" />}>
+        <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2 mb-4">
+          <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
+          <span>
+            <strong>Editorial Planner:</strong> Plan, schedule, and safety-check Carousel and Reels drafts. 
+            All external publishing steps are manual and claim-safe.
+          </span>
+        </div>
+        <DraftBoardPanel />
+      </Panel>
+
+      {/* 2. Studio Launch Shortcuts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a
+          href="/admin/ig-studio"
+          className="block bg-card border border-border/30 rounded-lg p-4 hover:border-primary/40 transition-colors"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <span className="text-sm font-bold text-foreground">IG Carousel Intelligence Studio</span>
+              <ModeBadge mode="copy-only" />
+            </div>
+            <ExternalLink className="w-4 h-4 text-foreground/40" />
+          </div>
+          <p className="text-[11px] text-foreground/60 mt-1.5 leading-relaxed">
+            Generate carousel concepts, slide copy, and captions for @nicks_tire_euclid —
+            then post them manually from your phone.
+          </p>
+        </a>
+        <a
+          href="/admin/reel-studio"
+          className="block bg-card border border-border/30 rounded-lg p-4 hover:border-primary/40 transition-colors"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Camera className="w-4 h-4 text-primary" />
+              <span className="text-sm font-bold text-foreground">Faceless Reel Intelligence Studio</span>
+              <ModeBadge mode="copy-only" />
+            </div>
+            <ExternalLink className="w-4 h-4 text-foreground/40" />
+          </div>
+          <p className="text-[11px] text-foreground/60 mt-1.5 leading-relaxed">
+            Plan faceless reels (hooks, shot lists, captions) — generation, publishing,
+            and insights stay disabled by design; you shoot and post manually.
+          </p>
+        </a>
       </div>
-      <a
-        href="/admin/ig-studio"
-        className="block bg-background/40 border border-border/30 rounded p-4 hover:border-primary/40 transition-colors"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold text-foreground">IG Carousel Intelligence Studio</span>
-            <ModeBadge mode="copy-only" />
-          </div>
-          <ExternalLink className="w-4 h-4 text-foreground/40" />
-        </div>
-        <p className="text-[11px] text-foreground/60 mt-1.5 leading-relaxed">
-          Generate carousel concepts, slide copy, and captions for @nicks_tire_euclid —
-          then post them manually from your phone.
-        </p>
-      </a>
-      {/* 2026-06-10 · was a disabled NOT BUILT tile; #52 shipped the studio
-        * and #54 wired /admin/reel-studio, so it's live now. */}
-      <a
-        href="/admin/reel-studio"
-        className="block bg-background/40 border border-border/30 rounded p-4 hover:border-primary/40 transition-colors"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Camera className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold text-foreground">Faceless Reel Intelligence Studio</span>
-            <ModeBadge mode="copy-only" />
-          </div>
-          <ExternalLink className="w-4 h-4 text-foreground/40" />
-        </div>
-        <p className="text-[11px] text-foreground/60 mt-1.5 leading-relaxed">
-          Plan faceless reels (hooks, shot lists, captions) — generation, publishing,
-          and insights stay disabled by design; you shoot and post manually.
-        </p>
-      </a>
 
       {/* Collapsible Legacy Automation Section */}
       <div className="border border-border/30 rounded bg-background/20 p-4">

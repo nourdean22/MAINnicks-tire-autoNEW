@@ -18,12 +18,13 @@ import {
   Bell, CheckCircle2, ChevronRight, FileText, Loader2, Newspaper,
   Sparkles, XCircle, TrendingUp, Search, Calendar, Target, Zap,
   ArrowUpRight, Lightbulb, Tag, Trash2, Eye, EyeOff, AlertTriangle,
-  ChevronDown, ChevronUp, RefreshCw, BarChart3
+  ChevronDown, ChevronUp, RefreshCw, BarChart3, ShieldCheck
 } from "lucide-react";
 
 const SpecialsSection = lazy(() => import("./SpecialsSection"));
+const PromptEvalsPanel = lazy(() => import("./PromptEvalsPanel"));
 
-type ContentTab = "manager" | "ideas" | "specials";
+type ContentTab = "manager" | "ideas" | "specials" | "evals";
 
 // Inferred from the tRPC AppRouter — replaces 10 `any` annotations
 // (admin audit §3 follow-up; same pattern as DispatchSection cleanup).
@@ -33,7 +34,7 @@ type ContentTab = "manager" | "ideas" | "specials";
 type Article = NonNullable<RouterOutputs["contentAdmin"]["allArticles"]>[number];
 type Notification = NonNullable<RouterOutputs["contentAdmin"]["allNotifications"]>[number];
 
-const VALID_CONTENT_TABS: ContentTab[] = ["manager", "ideas", "specials"];
+const VALID_CONTENT_TABS: ContentTab[] = ["manager", "ideas", "specials", "evals"];
 
 export default function ContentSection() {
   // 2026-05-23 · URL-persist the inner tab so deep-links + reloads land
@@ -60,6 +61,7 @@ export default function ContentSection() {
           { id: "manager", label: "Content Manager", icon: <FileText className="w-3.5 h-3.5" /> },
           { id: "ideas", label: "AI Ideas Engine", icon: <Lightbulb className="w-3.5 h-3.5" /> },
           { id: "specials", label: "Specials", icon: <Tag className="w-3.5 h-3.5" /> },
+          { id: "evals", label: "Prompt Health", icon: <ShieldCheck className="w-3.5 h-3.5" /> },
         ]}
         activeTab={tab}
         onChange={setTab}
@@ -70,6 +72,11 @@ export default function ContentSection() {
       {tab === "specials" && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
           <SpecialsSection />
+        </Suspense>
+      )}
+      {tab === "evals" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <PromptEvalsPanel />
         </Suspense>
       )}
     </div>
