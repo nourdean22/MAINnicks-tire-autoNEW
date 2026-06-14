@@ -131,4 +131,29 @@ describe("v10.0.26 · tracedAiChat", () => {
     expect(args?.data?.traceId).toBe("t_parent_abc");
     expect(args?.data?.parentId).toBe("t_parent_abc");
   });
+
+  it("passes budgetNearingLimit: true when daily spend is at or above 80%", async () => {
+    vi.mocked(assertWithinBudget).mockResolvedValueOnce({
+      ok: true,
+      status: { percentUsed: 85 } as any,
+    });
+    vi.mocked(aiChat).mockResolvedValueOnce({
+      content: "budget-safe result",
+      provider: "openai",
+      model: "gpt-4o-mini",
+    });
+    vi.mocked(prisma.agentTrace.create).mockResolvedValueOnce({} as never);
+
+    const result = await tracedAiChat(
+      { label: "budget-test", source: "tool" },
+      [{ role: "user", content: "budget query" }],
+    );
+
+    expect(result.content).toBe("budget-safe result");
+    expect(aiChat).toHaveBeenCalledWith(
+      expect.any(Array),
+      "reason",
+      expect.objectContaining({ budgetNearingLimit: true }),
+    );
+  });
 });
