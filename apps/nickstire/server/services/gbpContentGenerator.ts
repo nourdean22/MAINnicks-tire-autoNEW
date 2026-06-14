@@ -26,7 +26,7 @@
  */
 
 import { BUSINESS } from "@shared/business";
-import { OIL_PRICE } from "@shared/pricing";
+import { OIL_PRICE, BRAKE_PRICE, SERVICE_PRICE } from "@shared/pricing";
 import { createLogger } from "../lib/logger";
 import { db } from "../lib/db-helper";
 import { specials, gbpPostLog } from "../../drizzle/schema";
@@ -306,14 +306,14 @@ ${BUSINESS.phone.display} · open 7 days · ${BUSINESS.address.full}`;
 
 const MATH_ARGUMENTS = [
   {
-    today: { amount: "$299", thing: "brake pads on one axle" },
-    later: { amount: "$950", thing: "caliper and rotor replacement if worn to the metal" },
+    today: { amount: `$${BRAKE_PRICE.padsMax}`, thing: "brake pads on one axle" },
+    later: { amount: `$${BRAKE_PRICE.caliperAndRotorReplacementEstimate}`, thing: "caliper and rotor replacement if worn to the metal" },
     explanation: "Cleveland salt eats brake hardware faster than dry-state cars. Catching it early IS the maintenance.",
     finance: "Acima · Snap · Koalafi · $10 down today · pay it down monthly",
-    imageHint: "side-by-side: worn pad ($299) and chewed-up rotor ($950) with prices overlaid in brand yellow",
+    imageHint: `side-by-side: worn pad ($${BRAKE_PRICE.padsMax}) and chewed-up rotor ($${BRAKE_PRICE.caliperAndRotorReplacementEstimate}) with prices overlaid in brand yellow`,
   },
   {
-    today: { amount: "$189", thing: "E-Check fix today" },
+    today: { amount: `$${SERVICE_PRICE.eCheckFixStarting}`, thing: "E-Check fix today" },
     later: { amount: "$0 — but a $150 ticket and impound risk", thing: "in 30 days when registration expires" },
     explanation: "Failed E-Check has a 30-day deadline. Day 31, you're parked. Most failures are exhaust-related and fixable in an afternoon.",
     finance: "$10 down · pay over time · pass guaranteed or we keep working",
@@ -327,11 +327,11 @@ const MATH_ARGUMENTS = [
     imageHint: "drained black oil pan vs clean new oil — same engine, 90 days apart",
   },
   {
-    today: { amount: "$35", thing: "tire patch today" },
+    today: { amount: `$${SERVICE_PRICE.tirePatch}`, thing: "tire patch today" },
     later: { amount: "$1,000+", thing: "for 4 new tires the dealer says you need" },
     explanation: "Most flats are repairable. Most dealers won't tell you that. We will.",
     finance: "25 minutes. Walk in. We show you the nail before we plug it.",
-    imageHint: "a roofing nail on the floor next to a tire — caption: '$35'",
+    imageHint: `a roofing nail on the floor next to a tire — caption: '$${SERVICE_PRICE.tirePatch}'`,
   },
 ];
 
@@ -422,7 +422,7 @@ function pickSeasonalContext(): SeasonalContext {
   // Default mid-season
   return {
     title: "Routine maintenance is cheaper than emergencies.",
-    consequence: `The $50 belt prevents a $500 tow. The $${OIL_PRICE.conventional} oil change prevents a $4,000 engine. Cleveland weather doesn't care about your schedule.`,
+    consequence: `The $${SERVICE_PRICE.beltReplacementStarting} belt prevents a $500 tow. The $${OIL_PRICE.conventional} oil change prevents a $4,000 engine. Cleveland weather doesn't care about your schedule.`,
     service: "Free 27-point check on any visit. No appointment needed.",
     imageHint: "the workshop bay floor with multi-bay activity",
   };
@@ -533,37 +533,55 @@ ${BUSINESS.phone.display} · code ${featuredSpecial.couponCode ?? "—"}`;
   }
 
   // Pick archetype, retry up to 4× if the topic was recent or similarity is too high.
+  let currentForceArchetype = forceArchetype;
   for (let attempt = 0; attempt < 4; attempt++) {
-    const archetype = forceArchetype ?? pickArchetype();
-    const post = await buildPost(archetype);
-    if (isRecentTopic(post.topicHash)) continue;
+    const archetype = currentForceArchetype ?? pickArchetype();
+    try {
+      const post = await buildPost(archetype);
+      if (isRecentTopic(post.topicHash)) continue;
 
-    // Check Jaccard similarity against last 5 posts
-    let tooSimilar = false;
-    for (const oldBody of last5PostBodies) {
-      if (jaccardSimilarity(post.text, oldBody) > 0.75) {
-        tooSimilar = true;
-        break;
+      // Check Jaccard similarity against last 5 posts
+      let tooSimilar = false;
+      for (const oldBody of last5PostBodies) {
+        if (jaccardSimilarity(post.text, oldBody) > 0.75) {
+          tooSimilar = true;
+          break;
+        }
       }
-    }
-    if (tooSimilar) {
-      log.info(`Post too similar to recent post (Jaccard > 0.75), retrying archetype ${archetype}`);
-      continue;
-    }
+      if (tooSimilar) {
+        log.info(`Post too similar to recent post (Jaccard > 0.75), retrying archetype ${archetype}`);
+        continue;
+      }
 
-    validateNoUnsourcedCustomerIdentity(post.text, post.archetype);
-    recordTopic(post.topicHash);
-    assertNoFabrication(post.text);
-    return post;
+      validateNoUnsourcedCustomerIdentity(post.text, post.archetype);
+      recordTopic(post.topicHash);
+      assertNoFabrication(post.text);
+      return post;
+    } catch (err) {
+      log.warn(`Failed to build post for archetype ${archetype}, retrying...`, { err: err instanceof Error ? err.message : String(err) });
+      // If forced archetype failed (e.g. proof fails because Places API is down/empty),
+      // clear it so we can try fallback archetypes on subsequent attempts.
+      currentForceArchetype = undefined;
+    }
   }
 
   // Variety guard exhausted — return whatever we got. Better one repeat
-  // than infinite loop.
-  const fallback = await buildPost(forceArchetype ?? "proof");
-  validateNoUnsourcedCustomerIdentity(fallback.text, fallback.archetype);
-  recordTopic(fallback.topicHash);
-  assertNoFabrication(fallback.text);
-  return fallback;
+  // than infinite loop. If the chosen/forced archetype fails here, fall back
+  // to a guaranteed-safe archetype (like anti or seasonal).
+  try {
+    const fallback = await buildPost(currentForceArchetype ?? "proof");
+    validateNoUnsourcedCustomerIdentity(fallback.text, fallback.archetype);
+    recordTopic(fallback.topicHash);
+    assertNoFabrication(fallback.text);
+    return fallback;
+  } catch (err) {
+    log.warn(`Ultimate fallback failed, trying guaranteed safe anti-post`, { err: err instanceof Error ? err.message : String(err) });
+    const fallback = await buildPost("anti");
+    validateNoUnsourcedCustomerIdentity(fallback.text, fallback.archetype);
+    recordTopic(fallback.topicHash);
+    assertNoFabrication(fallback.text);
+    return fallback;
+  }
 }
 
 async function buildPost(archetype: GBPArchetype): Promise<GeneratedGBPPost> {

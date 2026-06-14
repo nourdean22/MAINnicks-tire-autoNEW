@@ -10,7 +10,7 @@
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, sql, desc, and, lte, isNull } from "drizzle-orm";
-import { customers, invoices, tireOrders } from "../../drizzle/schema";
+import { customers, invoices, tireOrders, serviceHistory } from "../../drizzle/schema";
 import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/schema";
 import { sendSms, withOptOut } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
@@ -67,6 +67,40 @@ export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: nu
     for (const r of orderRows) {
       if (r.customerId !== null) {
         verifiedIds.add(r.customerId);
+      }
+    }
+
+    // 3. Query serviceHistory
+    const serviceHistoryRows = await d
+      .select({ userId: serviceHistory.userId })
+      .from(serviceHistory)
+      .where(
+        and(
+          sql`${serviceHistory.userId} IN (${sql.join(chunk)})`,
+          sql`(${serviceHistory.serviceType} LIKE '%tire%' OR ${serviceHistory.serviceType} LIKE '%tires%' OR ${serviceHistory.description} LIKE '%tire%' OR ${serviceHistory.description} LIKE '%tires%')`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%repair%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%rotation%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%rotate%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%flat%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%patch%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%plug%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%balance%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%mount%'`,
+          sql`(${serviceHistory.description} IS NULL OR (
+            ${serviceHistory.description} NOT LIKE '%repair%'
+            AND ${serviceHistory.description} NOT LIKE '%rotation%'
+            AND ${serviceHistory.description} NOT LIKE '%rotate%'
+            AND ${serviceHistory.description} NOT LIKE '%flat%'
+            AND ${serviceHistory.description} NOT LIKE '%patch%'
+            AND ${serviceHistory.description} NOT LIKE '%plug%'
+            AND ${serviceHistory.description} NOT LIKE '%balance%'
+            AND ${serviceHistory.description} NOT LIKE '%mount%'
+          ))`
+        )
+      );
+    for (const r of serviceHistoryRows) {
+      if (r.userId !== null) {
+        verifiedIds.add(r.userId);
       }
     }
   }
@@ -253,6 +287,28 @@ function buildSegmentFilter(segment: string) {
           SELECT 1 FROM tire_orders 
           WHERE tire_orders.customerId = ${customers.id} 
             AND (tire_orders.paymentStatus = 'paid' OR tire_orders.status NOT IN ('cancelled', 'received'))
+        ) OR EXISTS (
+          SELECT 1 FROM service_history 
+          WHERE service_history.userId = ${customers.id} 
+            AND (service_history.serviceType LIKE '%tire%' OR service_history.serviceType LIKE '%tires%' OR service_history.description LIKE '%tire%' OR service_history.description LIKE '%tires%')
+            AND service_history.serviceType NOT LIKE '%repair%'
+            AND service_history.serviceType NOT LIKE '%rotation%'
+            AND service_history.serviceType NOT LIKE '%rotate%'
+            AND service_history.serviceType NOT LIKE '%flat%'
+            AND service_history.serviceType NOT LIKE '%patch%'
+            AND service_history.serviceType NOT LIKE '%plug%'
+            AND service_history.serviceType NOT LIKE '%balance%'
+            AND service_history.serviceType NOT LIKE '%mount%'
+            AND (service_history.description IS NULL OR (
+              service_history.description NOT LIKE '%repair%'
+              AND service_history.description NOT LIKE '%rotation%'
+              AND service_history.description NOT LIKE '%rotate%'
+              AND service_history.description NOT LIKE '%flat%'
+              AND service_history.description NOT LIKE '%patch%'
+              AND service_history.description NOT LIKE '%plug%'
+              AND service_history.description NOT LIKE '%balance%'
+              AND service_history.description NOT LIKE '%mount%'
+            ))
         )`
       )!;
     case "vip":

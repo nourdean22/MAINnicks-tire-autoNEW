@@ -27,19 +27,14 @@ describe("GBP Generator and Fabrication Guard", () => {
     vi.clearAllMocks();
   });
 
-  it("throws when getGoogleReviews returns null or empty reviews list", async () => {
+  it("gracefully falls back to another archetype when getGoogleReviews returns null or empty reviews list", async () => {
     vi.mocked(getGoogleReviews).mockResolvedValue(null);
-    let caught: any;
-    try {
-      await generateGBPPost("proof");
-    } catch (err) {
-      caught = err;
-    }
-    expect(caught).toBeInstanceOf(Error);
-    expect(caught.message).toMatch("No Google reviews available");
+    const post = await generateGBPPost("proof");
+    expect(post.archetype).not.toBe("proof");
+    expect(post.text).toBeDefined();
   });
 
-  it("throws when no reviews meet the quality threshold (rating >= 4, text >= 10 chars)", async () => {
+  it("gracefully falls back to another archetype when no reviews meet the quality threshold (rating >= 4, text >= 10 chars)", async () => {
     vi.mocked(getGoogleReviews).mockResolvedValue({
       placeId: "test",
       name: "Nick's",
@@ -52,14 +47,9 @@ describe("GBP Generator and Fabrication Guard", () => {
         { authorName: "Tester B", rating: 5, text: "Ok", relativeTime: "1 day ago", time: Date.now() },
       ],
     });
-    let caught: any;
-    try {
-      await generateGBPPost("proof");
-    } catch (err) {
-      caught = err;
-    }
-    expect(caught).toBeInstanceOf(Error);
-    expect(caught.message).toMatch("No qualifying Google reviews");
+    const post = await generateGBPPost("proof");
+    expect(post.archetype).not.toBe("proof");
+    expect(post.text).toBeDefined();
   });
 
   it("successfully creates proof post using real review text when available", async () => {
