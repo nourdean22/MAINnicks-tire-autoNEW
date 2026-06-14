@@ -158,4 +158,77 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
       "venice-uncensored",
     ]);
   });
+
+  describe("Task Routing Matrix", () => {
+    it("routes fast, sql, summary, classify, extract to Gemini first", async () => {
+      vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
+      vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
+      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+      vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
+
+      const { getActiveProviderInfo } = await import("@/lib/ai/provider");
+      expect(getActiveProviderInfo("fast").provider).toBe("gemini");
+      expect(getActiveProviderInfo("sql").provider).toBe("gemini");
+      expect(getActiveProviderInfo("summary").provider).toBe("gemini");
+      expect(getActiveProviderInfo("classify").provider).toBe("gemini");
+      expect(getActiveProviderInfo("extract").provider).toBe("gemini");
+    });
+
+    it("routes reason and vision to Ollama first", async () => {
+      vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
+      vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
+      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+      vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
+
+      const { getActiveProviderInfo } = await import("@/lib/ai/provider");
+      expect(getActiveProviderInfo("reason").provider).toBe("ollama");
+      expect(getActiveProviderInfo("vision").provider).toBe("ollama");
+    });
+
+    it("routes deep to Ollama first, and falls back to Venice if Ollama is unavailable", async () => {
+      vi.stubEnv("OLLAMA_API_KEY", "");
+      vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
+      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+      vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
+
+      const { getActiveProviderInfo } = await import("@/lib/ai/provider");
+      expect(getActiveProviderInfo("deep").provider).toBe("venice");
+    });
+
+    it("routes code to OpenAI then Anthropic if Ollama is unavailable", async () => {
+      vi.stubEnv("OLLAMA_API_KEY", "");
+      vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
+      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+      vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
+
+      const { getActiveProviderInfo } = await import("@/lib/ai/provider");
+      expect(getActiveProviderInfo("code").provider).toBe("openai");
+    });
+
+    it("routes math to OpenAI first", async () => {
+      vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
+      vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
+      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+      vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
+
+      const { getActiveProviderInfo } = await import("@/lib/ai/provider");
+      expect(getActiveProviderInfo("math").provider).toBe("openai");
+    });
+
+    it("routes creative to Venice first", async () => {
+      vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
+      vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
+      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+      vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
+
+      const { getActiveProviderInfo } = await import("@/lib/ai/provider");
+      expect(getActiveProviderInfo("creative").provider).toBe("venice");
+    });
+  });
 });
