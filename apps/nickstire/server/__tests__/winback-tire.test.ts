@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { invoices, tireOrders } from "../../drizzle/schema";
+import { invoices, tireOrders, serviceHistory } from "../../drizzle/schema";
 
 describe("Walk-In Calculator & Win-Back tire_customer Segment", () => {
   it("Used Tire preset has 0 labor hours (no double labor)", async () => {
@@ -62,7 +62,7 @@ describe("Walk-In Calculator & Win-Back tire_customer Segment", () => {
     expect(doubleResult).toBe(result);
   });
 
-  it("getVerifiedTirePurchaseCustomerIds checks both invoices and tire_orders", async () => {
+  it("getVerifiedTirePurchaseCustomerIds checks invoices, tire_orders, and service_history", async () => {
     const { getVerifiedTirePurchaseCustomerIds } = await import("../routers/winback");
 
     // Setup mock DB builder
@@ -81,6 +81,11 @@ describe("Walk-In Calculator & Win-Back tire_customer Segment", () => {
                   { customerId: 2 },
                   { customerId: 3 },
                 ];
+              } else if (table === serviceHistory) {
+                return [
+                  { userId: 4 },
+                  { userId: null },
+                ];
               }
               return [];
             })
@@ -93,12 +98,13 @@ describe("Walk-In Calculator & Win-Back tire_customer Segment", () => {
       select: mockSelect,
     };
 
-    const verifiedSet = await getVerifiedTirePurchaseCustomerIds(mockDb, [1, 2, 3, 4]);
+    const verifiedSet = await getVerifiedTirePurchaseCustomerIds(mockDb, [1, 2, 3, 4, 5]);
     expect(verifiedSet).toBeInstanceOf(Set);
     expect(verifiedSet.has(1)).toBe(true); // From invoices
     expect(verifiedSet.has(2)).toBe(true); // From tireOrders
     expect(verifiedSet.has(3)).toBe(true); // From tireOrders
-    expect(verifiedSet.has(4)).toBe(false); // No purchase
-    expect(verifiedSet.size).toBe(3);
+    expect(verifiedSet.has(4)).toBe(true); // From serviceHistory
+    expect(verifiedSet.has(5)).toBe(false); // No purchase
+    expect(verifiedSet.size).toBe(4);
   });
 });
