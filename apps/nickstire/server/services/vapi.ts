@@ -516,6 +516,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
         transferPlan: {
           mode: "warm-transfer-say-message",
           message: "You've got a customer holding on the Nick's Tire and Auto line. Connecting you now.",
+          sipVerb: "dial",
         },
       },
     ],
