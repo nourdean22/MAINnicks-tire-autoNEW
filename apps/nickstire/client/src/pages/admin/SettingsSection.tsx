@@ -240,7 +240,7 @@ export default function SettingsSection() {
       <div>
         <h3 className="font-bold text-xl text-foreground tracking-wider">SHOPDRIVER COMMAND CENTER</h3>
         <p className="text-foreground/50 text-[12px] mt-1">
-          ALG is the source of truth. Invoices = closed jobs. No website booking = walk-in. Estimates = declined work.
+          ALG is the source of truth. Closed jobs = completed work. No website booking = walk-in. Estimates = declined work.
         </p>
       </div>
 
@@ -272,24 +272,12 @@ export default function SettingsSection() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          label="INVOICES THIS WEEK"
-          value={invoiceStats?.shopFloor?.invoicesThisWeek ?? "—"}
-          icon={<FileText className="w-4 h-4" />}
-          trendLabel={`$${Math.round(invoiceStats?.shopFloor?.revenueThisWeek ?? 0).toLocaleString()} revenue`}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <StatCard
           label="CUSTOMERS"
           value={invoiceStats?.shopFloor?.totalCustomers ?? "—"}
           icon={<Users className="w-4 h-4" />}
           trendLabel={`${invoiceStats?.shopFloor?.vipCustomers ?? 0} VIP (3+ visits)`}
-        />
-        <StatCard
-          label="AVG TICKET"
-          value={`$${Math.round(invoiceStats?.shopFloor?.avgTicket ?? 0)}`}
-          icon={<DollarSign className="w-4 h-4" />}
-          trendLabel="From ALG invoices"
         />
         <StatCard
           label="WEBSITE LEADS"
@@ -316,7 +304,7 @@ export default function SettingsSection() {
         >
           {syncing === "invoices" ? <Loader2 className="w-5 h-5 animate-spin text-primary" /> : <RefreshCw className="w-5 h-5 text-foreground/50 group-hover:text-primary transition-colors" />}
           <div>
-            <span className="font-bold text-sm text-foreground">Sync Invoices</span>
+            <span className="font-bold text-sm text-foreground">Sync Jobs</span>
             <p className="text-foreground/40 text-[11px]">Pull latest from ALG → DB</p>
           </div>
         </button>

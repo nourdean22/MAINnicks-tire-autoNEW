@@ -6,7 +6,6 @@ import {
   Users,
   CalendarClock,
   RotateCcw,
-  FileText,
   ClipboardList,
   ChevronDown,
   ChevronUp,
@@ -27,9 +26,7 @@ export function MoneyScorecard() {
     return (
       <div className="bg-card border border-border/40 p-5 space-y-4 animate-pulse">
         <div className="h-4 w-40 bg-foreground/10 rounded" />
-        <div className="grid grid-cols-3 gap-4">
-          <div className="h-16 bg-foreground/10 rounded" />
-          <div className="h-16 bg-foreground/10 rounded" />
+        <div className="grid grid-cols-1 gap-4">
           <div className="h-16 bg-foreground/10 rounded" />
         </div>
         <div className="grid grid-cols-5 gap-2">
@@ -67,38 +64,16 @@ export function MoneyScorecard() {
       </div>
 
       {/* Outstanding sums grid */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="p-3 bg-foreground/[0.02] border border-border/20 rounded-lg">
-          <span className="text-[10px] text-foreground/45 uppercase font-medium tracking-wider block">
-            Unpaid Invoices
-          </span>
-          <span className="text-[9px] text-muted-foreground/60 block mt-0.5">
-            (Actual debt owed)
-          </span>
-          <div className="text-xl font-bold text-red-400 mt-1 tabular-nums">
-            {formatCents(data.unpaidInvoicesSum)}
-          </div>
-        </div>
-        <div className="p-3 bg-foreground/[0.02] border border-border/20 rounded-lg">
-          <span className="text-[10px] text-foreground/45 uppercase font-medium tracking-wider block">
+      <div className="grid grid-cols-1 gap-3">
+        <div className="p-4 bg-amber-500/[0.02] border border-amber-500/20 rounded-lg">
+          <span className="text-[11px] text-amber-400 uppercase font-bold tracking-wider block">
             Open Estimates
           </span>
-          <span className="text-[9px] text-muted-foreground/60 block mt-0.5">
-            (Opportunities)
+          <span className="text-[10px] text-muted-foreground/60 block mt-0.5">
+            (Total outstanding opportunities)
           </span>
-          <div className="text-xl font-bold text-amber-400 mt-1 tabular-nums">
+          <div className="text-2xl font-bold text-amber-400 mt-1.5 tabular-nums">
             {formatCents(data.openEstimatesSum)}
-          </div>
-        </div>
-        <div className="p-3 bg-foreground/[0.02] border border-emerald-500/20 rounded-lg bg-emerald-500/[0.02]">
-          <span className="text-[10px] text-emerald-400/70 uppercase font-medium tracking-wider block">
-            Total Pipeline
-          </span>
-          <span className="text-[9px] text-emerald-400/50 block mt-0.5">
-            (Invoices + Estimates)
-          </span>
-          <div className="text-xl font-bold text-emerald-400 mt-1 tabular-nums">
-            {formatCents(data.totalOutstanding)}
           </div>
         </div>
       </div>
@@ -147,7 +122,7 @@ export function MoneyScorecard() {
         </div>
       </div>
 
-      {/* Accordion / Table for Top 5 Highest-Value Pending Items */}
+      {/* Accordion / Table for Top 5 Open Estimates */}
       {data.pendingItems.length > 0 && (
         <div className="border-t border-border/20 pt-3">
           <button
@@ -156,7 +131,7 @@ export function MoneyScorecard() {
             className="flex items-center justify-between w-full text-left py-1 text-xs text-foreground/70 hover:text-foreground transition-colors"
           >
             <span className="font-semibold uppercase tracking-wider text-[10px]">
-              Top 5 Outstanding Items ({formatCents(data.pendingItems.reduce((acc, item) => acc + item.value, 0))})
+              Top 5 Open Estimates ({formatCents(data.pendingItems.reduce((acc, item) => acc + item.value, 0))})
             </span>
             <span className="flex items-center gap-1 text-[10px] text-primary">
               {isOpen ? "Hide List" : "Show List"}
@@ -169,26 +144,18 @@ export function MoneyScorecard() {
               {data.pendingItems.map((item) => (
                 <div
                   key={`${item.type}-${item.id}`}
-                  onClick={() => navigateToAdminSection(item.type === "invoice" ? "revenue" : "leads")}
+                  onClick={() => navigateToAdminSection("leads")}
                   className="flex items-center justify-between p-2 bg-foreground/[0.02] hover:bg-foreground/[0.04] border border-border/10 hover:border-primary/20 rounded cursor-pointer transition-all"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    {item.type === "invoice" ? (
-                      <FileText className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                    ) : (
-                      <ClipboardList className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    )}
+                    <ClipboardList className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-semibold text-foreground truncate">
                           {item.name}
                         </span>
-                        <span className={`text-[9px] font-bold tracking-wider px-1 py-0.2 rounded ${
-                          item.type === "invoice"
-                            ? "text-red-400 bg-red-500/10"
-                            : "text-amber-400 bg-amber-500/10"
-                        }`}>
-                          {item.type.toUpperCase()}
+                        <span className="text-[9px] font-bold tracking-wider px-1 py-0.2 rounded text-amber-400 bg-amber-500/10">
+                          ESTIMATE
                         </span>
                       </div>
                       <div className="text-[10px] text-foreground/40 truncate">
@@ -208,3 +175,4 @@ export function MoneyScorecard() {
     </div>
   );
 }
+

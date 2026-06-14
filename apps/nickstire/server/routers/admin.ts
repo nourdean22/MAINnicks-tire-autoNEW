@@ -1181,41 +1181,6 @@ export const adminDashboardRouter = router({
             return null;
           }
           case "revenue": {
-            // MTD pace vs target
-            try {
-              const { invoices } = await import("../../drizzle/schema");
-              const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
-              const dayOfMonth = new Date().getDate();
-              const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-              const [mtd] = await d
-                .select({ total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
-                .from(invoices)
-                .where(and(
-                  gte(invoices.invoiceDate, monthStart),
-                  eq(invoices.paymentStatus, "paid"),
-                ));
-              const mtdRevenue = Number(mtd?.total || 0) / 100;
-              const targetMonthly = 60000; // baseline target
-              const expectedAtThisPoint = (targetMonthly * dayOfMonth) / daysInMonth;
-              const pace = mtdRevenue / expectedAtThisPoint;
-              if (pace < 0.85 && dayOfMonth > 7) {
-                const gap = Math.round(expectedAtThisPoint - mtdRevenue);
-                return {
-                  variant: "warning" as const,
-                  message: `Revenue MTD is below pace for monthly target. Push specials, fire win-back, follow up declined work.`,
-                  metric: `~$${gap.toLocaleString()} behind pace`,
-                  cta: { label: "Open Outreach", section: "campaigns" },
-                };
-              }
-              if (pace > 1.15) {
-                return {
-                  variant: "success" as const,
-                  message: `MTD revenue is running ahead of pace — strong month so far.`,
-                  metric: `+${Math.round((pace - 1) * 100)}% vs target`,
-                  cta: { label: "See Details", section: "revenue" },
-                };
-              }
-            } catch (e) { void e; }
             return null;
           }
           case "leads": {

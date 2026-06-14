@@ -154,10 +154,7 @@ export default function SettingsStatusTab() {
     openIssues,
     alertCount,
     warningCount,
-    todayRevenue,
-    weekRevenue,
-    todayInvoices,
-    weekInvoices,
+
     totalCustomers,
     vipCustomers,
   } = useSettingsStatus();
@@ -179,20 +176,7 @@ export default function SettingsStatusTab() {
       />
 
       {/* ── At-a-glance KPI strip ───────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiTile
-          label="Revenue today"
-          value={`$${Math.round(todayRevenue).toLocaleString()}`}
-          deltaLabel={`${todayInvoices} invoice${todayInvoices === 1 ? "" : "s"}`}
-          icon={<DollarSign className="w-4 h-4" />}
-          accent={todayRevenue > 0 ? "primary" : "neutral"}
-        />
-        <KpiTile
-          label="Revenue this week"
-          value={`$${Math.round(weekRevenue).toLocaleString()}`}
-          deltaLabel={`${weekInvoices} invoice${weekInvoices === 1 ? "" : "s"}`}
-          icon={<TrendingUp className="w-4 h-4" />}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <KpiTile
           label="Customers"
           value={dashStats?.shopFloor?.totalCustomers ?? "—"}

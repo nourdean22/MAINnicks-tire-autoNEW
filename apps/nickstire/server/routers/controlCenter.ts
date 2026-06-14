@@ -100,19 +100,14 @@ export const controlCenterRouter = router({
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const [
-      unpaidInvoices,
       openEstimates,
       callsToday,
       leadsToday,
       bookingsToday,
       tireOrdersToday,
       winbacksToday,
-      pendingInvoicesList,
       pendingEstimatesList,
     ] = await Promise.all([
-      d.select({ sum: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
-        .from(invoices)
-        .where(sql`${invoices.paymentStatus} IN ('pending', 'partial')`),
       d.select({ sum: sql<number>`COALESCE(SUM(${estimatesLog.estimatedAmountCents}), 0)` })
         .from(estimatesLog)
         .where(eq(estimatesLog.converted, 0)),
@@ -132,17 +127,6 @@ export const controlCenterRouter = router({
         .from(winbackSends)
         .where(gte(winbackSends.createdAt, todayStart)),
       d.select({
-        id: invoices.id,
-        name: invoices.customerName,
-        value: invoices.totalAmount,
-        createdAt: invoices.invoiceDate,
-        number: invoices.invoiceNumber,
-      })
-        .from(invoices)
-        .where(sql`${invoices.paymentStatus} IN ('pending', 'partial')`)
-        .orderBy(desc(invoices.totalAmount))
-        .limit(5),
-      d.select({
         id: estimatesLog.id,
         name: estimatesLog.name,
         value: estimatesLog.estimatedAmountCents,
@@ -155,18 +139,9 @@ export const controlCenterRouter = router({
         .limit(5),
     ]);
 
-    const unpaidInvoicesSum = unpaidInvoices[0]?.sum ?? 0;
     const openEstimatesSum = openEstimates[0]?.sum ?? 0;
 
     const combinedPending = [
-      ...pendingInvoicesList.map((inv: { id: number; name: string | null; value: number; createdAt: Date; number: string | null }) => ({
-        id: inv.id,
-        name: inv.name || "Unknown",
-        value: inv.value,
-        type: "invoice" as const,
-        date: inv.createdAt,
-        reference: inv.number || `INV-${inv.id}`,
-      })),
       ...pendingEstimatesList.map((est: { id: number; name: string | null; value: number | null; createdAt: Date; service: string | null }) => ({
         id: est.id,
         name: est.name || "Unknown",
@@ -180,9 +155,9 @@ export const controlCenterRouter = router({
       .slice(0, 5);
 
     return {
-      unpaidInvoicesSum,
+      unpaidInvoicesSum: 0,
       openEstimatesSum,
-      totalOutstanding: unpaidInvoicesSum + openEstimatesSum,
+      totalOutstanding: openEstimatesSum,
       todayMetrics: {
         calls: callsToday[0]?.count ?? 0,
         leads: leadsToday[0]?.count ?? 0,
@@ -1149,48 +1124,7 @@ export const controlCenterRouter = router({
       log.error("[ControlCenter] topMoneyMoves callback query failed:", err);
     }
 
-    try {
-      // 3. Unpaid invoice exceeding a $500 threshold
-      const [inv] = await d.select({
-        id: invoices.id,
-        name: invoices.customerName,
-        phone: invoices.customerPhone,
-        value: invoices.totalAmount,
-        createdAt: invoices.invoiceDate,
-        number: invoices.invoiceNumber,
-      })
-        .from(invoices)
-        .where(and(
-          sql`${invoices.paymentStatus} IN ('pending', 'partial')`,
-          gte(invoices.totalAmount, 50000)
-        ))
-        .orderBy(desc(invoices.totalAmount))
-        .limit(1);
 
-      if (inv) {
-        const val = (inv.value ?? 0) / 100;
-        const phoneTail = inv.phone ? inv.phone.slice(-4) : "";
-        moves.push({
-          type: "invoice",
-          title: "Collect unpaid high-value invoice",
-          description: `Invoice #${inv.number || inv.id} for ${inv.name || 'Customer'} (•••${phoneTail}) is unpaid ($${val.toFixed(2)}).`,
-          value: val,
-          id: inv.id,
-          cta: "Send Invoice Payment Link",
-          targetTab: "revenue",
-          metadata: {
-            name: inv.name || "Customer",
-            phoneRedacted: inv.phone ? `•••${phoneTail}` : "",
-            amount: val,
-            number: inv.number,
-            id: inv.id
-          },
-          score: val
-        });
-      }
-    } catch (err) {
-      log.error("[ControlCenter] topMoneyMoves invoice query failed:", err);
-    }
 
     try {
       // 4. Winback campaign in draft status
