@@ -741,11 +741,18 @@ export const vapiRouter = router({
       // If no number-type exists, prepend a new one and keep the rest.
       const numberIdx = existingDestinations.findIndex((d) => d.type === "number");
       const targetExisting = numberIdx >= 0 ? existingDestinations[numberIdx] : {};
+      const existingPlan = (targetExisting.transferPlan as Record<string, unknown> | undefined) || {};
       const updatedDest = {
         ...targetExisting,
         type: "number",
         number: input.phoneNumber,
         message: input.message || (targetExisting as { message?: string }).message || "Transferring you now.",
+        transferPlan: {
+          mode: "warm-transfer-say-message",
+          message: "You've got a customer holding on the Nick's Tire and Auto line. Connecting you now.",
+          ...existingPlan,
+          sipVerb: "dial",
+        },
       };
       const newDestinations = numberIdx >= 0
         ? existingDestinations.map((d, i) => (i === numberIdx ? updatedDest : d))
