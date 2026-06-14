@@ -15,6 +15,7 @@ vi.mock("wouter", () => ({
   useLocation: () => ["/", vi.fn()],
   useRoute: () => [true, {}],
   useParams: () => ({}),
+  useSearch: () => window.location.search,
 }));
 
 // Mock framer-motion to avoid animation complexity in tests
