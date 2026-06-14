@@ -135,6 +135,31 @@ export default function TireOrdersSection() {
     },
   });
 
+  const deleteOrderMutation = trpc.gatewayTire.deleteOrder.useMutation({
+    onSuccess: () => {
+      toast.success("Order deleted successfully");
+      refetchOrders();
+      refetchStats();
+      setExpandedOrderId(null);
+    },
+    onError: (err) => {
+      toast.error(`Delete failed: ${err.message}`);
+    },
+  });
+
+  const handleDelete = async (orderId: number, orderNumber: string, customerName: string) => {
+    const ok = await confirmDialog({
+      title: "Delete Tire Order?",
+      message: `Are you sure you want to permanently delete order ${orderNumber} for ${customerName}? This action cannot be undone.`,
+      confirmLabel: "Delete Order",
+      tone: "danger",
+    });
+
+    if (!ok) return;
+
+    deleteOrderMutation.mutate({ id: orderId });
+  };
+
   const handleRefresh = () => {
     refetchOrders();
     refetchStats();
@@ -469,32 +494,32 @@ export default function TireOrdersSection() {
                   {/* Order Card Header */}
                   <div
                     onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                    className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 cursor-pointer hover:bg-foreground/[0.01] transition-colors"
+                    className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 cursor-pointer hover:bg-foreground/[0.015] transition-colors"
                   >
-                    <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex-1 min-w-0 space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`px-2 py-0.5 border rounded text-[10px] font-bold uppercase tracking-wider ${priorityStyle.badge}`}>
+                        <span className={`px-2 py-0.5 border rounded text-xs font-extrabold uppercase tracking-wider ${priorityStyle.badge}`}>
                           {nextAction.priority.toUpperCase()}
                         </span>
-                        <span className="text-xs font-semibold text-foreground">{order.orderNumber}</span>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-sm font-bold text-foreground">{order.orderNumber}</span>
+                        <span className="text-xs text-muted-foreground/80">
                           {formatRelativeDate(order.createdAt)}
                         </span>
                         {order.invoiceNumber && (
-                          <span className="text-[10px] bg-foreground/5 border border-border/20 px-2 py-0.5 rounded text-muted-foreground">
+                          <span className="text-xs bg-foreground/5 border border-border/25 px-2 py-0.5 rounded text-muted-foreground font-semibold">
                             Invoice: {order.invoiceNumber}
                           </span>
                         )}
                         {order.gatewayOrderRef && (
-                          <span className="text-[10px] bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded text-indigo-400">
+                          <span className="text-xs bg-indigo-500/10 border border-indigo-500/25 px-2 py-0.5 rounded text-indigo-400 font-semibold">
                             PO: {order.gatewayOrderRef}
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-[13px] font-bold text-foreground flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-foreground/40" />
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h4 className="text-base font-extrabold text-foreground flex items-center gap-1.5">
+                          <User className="w-4 h-4 text-foreground/40" />
                           {order.customerName}
                         </h4>
                         {/* tel: link — most next-actions start with "call the
@@ -503,75 +528,102 @@ export default function TireOrdersSection() {
                         <a
                           href={`tel:${order.customerPhone}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="text-xs text-primary hover:underline"
+                          className="text-sm text-primary hover:underline font-bold"
                         >
                           ({order.customerPhone})
                         </a>
                         {order.vehicleInfo && (
-                          <span className="text-xs text-muted-foreground/80 flex items-center gap-1">
-                            <Car className="w-3.5 h-3.5 text-foreground/30" />
+                          <span className="text-sm text-muted-foreground/90 flex items-center gap-1 font-medium">
+                            <Car className="w-4 h-4 text-foreground/30" />
                             {order.vehicleInfo}
                           </span>
                         )}
                       </div>
 
-                      <div className="text-xs text-foreground/70">
-                        {order.quantity}x <span className="font-semibold text-foreground">{order.tireBrand} {order.tireModel}</span> ({order.tireSize})
+                      <div className="text-sm text-foreground/90 font-medium">
+                        {order.quantity}x <span className="font-bold text-foreground">{order.tireBrand} {order.tireModel}</span> ({order.tireSize})
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0 self-end md:self-auto">
+                    <div className="flex items-center gap-4 shrink-0 self-end md:self-auto">
                       <div className="text-right">
-                        <div className="font-bold text-sm text-foreground">${order.totalAmount.toFixed(2)}</div>
-                        <div className="text-[10px] text-muted-foreground">{order.quantity} tires @ ${order.pricePerTire.toFixed(2)}</div>
+                        <div className="font-extrabold text-base text-foreground">${order.totalAmount.toFixed(2)}</div>
+                        <div className="text-xs text-muted-foreground/80">{order.quantity} tires @ ${order.pricePerTire.toFixed(2)}</div>
                       </div>
 
-                      <div className="flex flex-col items-end gap-1.5">
-                        <div className="flex gap-1.5">
-                          {/* Payment status */}
-                          <span className={`px-2 py-0.5 text-[10px] font-semibold border rounded ${
-                            order.paymentStatus === "paid"
-                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                              : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                          }`}>
-                            {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
-                          </span>
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-2">
+                          {/* Payment status and Quick Action */}
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-2 py-0.5 text-xs font-bold border rounded ${
+                              order.paymentStatus === "paid"
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                            }`}>
+                              {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateOrderMutation.mutate({
+                                  id: order.id,
+                                  paymentStatus: order.paymentStatus === "paid" ? "unpaid" : "paid",
+                                });
+                              }}
+                              disabled={updateOrderMutation.isPending}
+                              className={`px-2 py-0.5 text-[10px] font-extrabold border rounded transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1 ${
+                                order.paymentStatus === "paid"
+                                  ? "bg-amber-500/20 hover:bg-amber-500/35 text-amber-400 border-amber-500/30"
+                                  : "bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-400 border-emerald-500/30"
+                              }`}
+                              title={order.paymentStatus === "paid" ? "Mark as Unpaid" : "Mark as Paid"}
+                            >
+                              {updateOrderMutation.isPending && updateOrderMutation.variables?.id === order.id ? (
+                                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                              ) : order.paymentStatus === "paid" ? (
+                                <X className="w-2.5 h-2.5" />
+                              ) : (
+                                <Check className="w-2.5 h-2.5" />
+                              )}
+                              {order.paymentStatus === "paid" ? "Mark Unpaid" : "Mark Paid"}
+                            </button>
+                          </div>
 
                           {/* Lifecycle status */}
-                          <span className="px-2 py-0.5 text-[10px] font-semibold bg-foreground/5 border border-border/20 rounded text-foreground/75">
+                          <span className="px-2 py-0.5 text-xs font-bold bg-foreground/5 border border-border/20 rounded text-foreground/75">
                             {order.statusLabel}
                           </span>
                         </div>
 
                         {/* Quote confidence */}
-                        <span className={`px-2 py-0.5 text-[9px] font-bold border rounded uppercase ${getConfidenceBadgeStyles(confidence.grade)}`}>
+                        <span className={`px-2 py-0.5 text-xs font-bold border rounded uppercase ${getConfidenceBadgeStyles(confidence.grade)}`}>
                           {confidence.grade} Confidence
                         </span>
                       </div>
 
                       <div className="p-1 text-foreground/40">
-                        {isExpanded ? <ChevronUp className="w-4" /> : <ChevronDown className="w-4" />}
+                        {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                       </div>
                     </div>
                   </div>
 
                   {/* Quick summary strip of Next Action */}
                   <div className="border-t border-border/10 px-4 py-2 bg-foreground/[0.015] flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-sm">
                       <span className="font-semibold text-foreground/80">Next Action:</span>
-                      <span className="text-primary font-bold">{nextAction.label}</span>
-                      <span className="text-muted-foreground/80">— {nextAction.reason}</span>
+                      <span className="text-primary font-extrabold">{nextAction.label}</span>
+                      <span className="text-muted-foreground/95">— {nextAction.reason}</span>
                     </div>
 
                     {flags.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {flags.slice(0, 3).map((f) => (
-                          <span key={f} className={`px-1.5 py-0.5 text-[9px] font-semibold border rounded ${getRiskFlagStyles(f)}`}>
+                          <span key={f} className={`px-1.5 py-0.5 text-xs font-semibold border rounded ${getRiskFlagStyles(f)}`}>
                             {getRiskFlagLabel(f)}
                           </span>
                         ))}
                         {flags.length > 3 && (
-                          <span className="text-[9px] text-muted-foreground font-semibold px-1">+{flags.length - 3} more</span>
+                          <span className="text-xs text-muted-foreground font-semibold px-1">+{flags.length - 3} more</span>
                         )}
                       </div>
                     )}
@@ -588,6 +640,8 @@ export default function TireOrdersSection() {
                         confidence={confidence}
                         handleRefund={handleRefund}
                         refundOrderMutation={refundOrderMutation}
+                        handleDelete={handleDelete}
+                        deleteOrderMutation={deleteOrderMutation}
                       />
                     </div>
                   )}
@@ -619,7 +673,9 @@ function OrderFormEdit({
   flags,
   confidence,
   handleRefund,
-  refundOrderMutation
+  refundOrderMutation,
+  handleDelete,
+  deleteOrderMutation
 }: {
   order: any;
   updateOrderMutation: any;
@@ -628,8 +684,11 @@ function OrderFormEdit({
   confidence: any;
   handleRefund: (orderId: number, orderNumber: string, customerName: string, amount: number) => Promise<void>;
   refundOrderMutation: any;
+  handleDelete: (orderId: number, orderNumber: string, customerName: string) => Promise<void>;
+  deleteOrderMutation: any;
 }) {
   const [status, setStatus] = useState<string>(order.status);
+  const [paymentStatus, setPaymentStatus] = useState<string>(order.paymentStatus);
   const [adminNotes, setAdminNotes] = useState<string>(order.adminNotes || "");
   const [gatewayOrderRef, setGatewayOrderRef] = useState<string>(order.gatewayOrderRef || "");
   const [expectedDelivery, setExpectedDelivery] = useState<string>(
@@ -649,7 +708,7 @@ function OrderFormEdit({
     // unpaid order may still have a payable checkout link. Confirm
     // in-DOM before saving; window.confirm is suppressed in the PWA.
     if (status === "cancelled" && order.status !== "cancelled") {
-      const paid = order.paymentStatus === "paid";
+      const paid = order.paymentStatus === "paid" || paymentStatus === "paid";
       const ok = await confirmDialog({
         title: "Cancel this order?",
         message: paid
@@ -667,6 +726,7 @@ function OrderFormEdit({
       gatewayOrderRef: gatewayOrderRef || undefined,
       expectedDelivery: expectedDelivery || undefined,
       installationDate: installationDate || undefined,
+      paymentStatus: paymentStatus as any,
     });
   };
 
@@ -677,13 +737,13 @@ function OrderFormEdit({
         {/* Risk Alerts list */}
         {flags.length > 0 && (
           <Panel title="Risk Flags" icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}>
-            <div className="space-y-2 mt-1.5">
+            <div className="space-y-3 mt-2">
               {flags.map((f) => (
-                <div key={f} className="flex items-start gap-2 text-xs">
+                <div key={f} className="flex items-start gap-2.5 text-sm">
                   <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 mt-1.5" />
-                  <div className="flex-1">
-                    <span className="font-semibold text-foreground">{f.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}</span>
-                    <p className="text-[10px] text-muted-foreground">
+                  <div className="flex-1 space-y-0.5">
+                    <span className="font-extrabold text-foreground">{f.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}</span>
+                    <p className="text-xs font-medium text-muted-foreground/90 leading-relaxed">
                       {f === "uncommon_size" && "Tire size is not commonly stocked in local Cleveland bays."}
                       {f === "unpaid_balance" && "Payment remains uncollected. Complete checkout or counter payment."}
                       {f === "missing_email" && "No customer email provided. Order confirmations can't be auto-sent."}
@@ -712,21 +772,21 @@ function OrderFormEdit({
 
             {timeline.map((step, idx) => {
               let dotClass = "bg-muted-foreground/20 text-muted-foreground ring-4 ring-card";
-              let textClass = "text-muted-foreground";
+              let textClass = "text-muted-foreground font-medium";
 
               if (step.status === "complete") {
                 dotClass = "bg-emerald-500 text-white ring-4 ring-card";
-                textClass = "text-foreground font-semibold";
+                textClass = "text-foreground font-extrabold";
               } else if (step.status === "current") {
                 dotClass = "bg-primary text-primary-foreground ring-4 ring-card ring-primary/20 animate-pulse";
-                textClass = "text-primary font-bold";
+                textClass = "text-primary font-black";
               } else if (step.status === "blocked") {
                 dotClass = "bg-red-500 text-white ring-4 ring-card";
-                textClass = "text-red-400 font-semibold";
+                textClass = "text-red-400 font-extrabold";
               }
 
               return (
-                <div key={step.key} className="relative flex gap-3 items-start text-xs">
+                <div key={step.key} className="relative flex gap-3 items-start text-sm">
                   {/* Dot */}
                   <div className={`absolute -left-6 top-0.5 w-4.5 h-4.5 rounded-full flex items-center justify-center ${dotClass}`}>
                     {step.status === "complete" ? (
@@ -740,7 +800,7 @@ function OrderFormEdit({
                   <div>
                     <span className={textClass}>{step.label}</span>
                     {step.reason && (
-                      <p className="text-[10px] text-red-400/80 font-medium mt-0.5">{step.reason}</p>
+                      <p className="text-xs text-red-400 font-semibold mt-0.5">{step.reason}</p>
                     )}
                   </div>
                 </div>
@@ -757,28 +817,28 @@ function OrderFormEdit({
           accent={nextAction.priority === "urgent" ? "danger" : nextAction.priority === "high" ? "warning" : "primary"}
           icon={<Wrench className="w-4 h-4" />}
           actions={
-            <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+            <span className="text-xs uppercase font-extrabold tracking-wider text-muted-foreground">
               Confidence Score: {confidence.score}/100
             </span>
           }
         >
           <div className="space-y-3 mt-1">
-            <div className="bg-background/40 border border-border/30 rounded p-3 text-xs leading-relaxed space-y-2">
+            <div className="bg-background/40 border border-border/30 rounded p-3 text-sm leading-relaxed space-y-2">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-foreground">Instruction:</span>
-                <span className="text-primary font-medium">{nextAction.staffInstruction}</span>
+                <span className="font-extrabold text-foreground">Instruction:</span>
+                <span className="text-primary font-bold">{nextAction.staffInstruction}</span>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                <span className="font-semibold text-foreground/80">Context: </span>
+              <p className="text-xs font-semibold text-muted-foreground/90">
+                <span className="font-extrabold text-foreground/80">Context: </span>
                 {confidence.explanation}
               </p>
             </div>
 
             {/* Note details */}
             {order.customerNotes && (
-              <div className="text-xs bg-foreground/[0.015] border border-border/10 p-2.5 rounded">
-                <span className="font-semibold text-foreground">Customer Notes:</span>
-                <p className="text-muted-foreground text-[11px] mt-1 whitespace-pre-wrap">{order.customerNotes}</p>
+              <div className="text-sm bg-foreground/[0.015] border border-border/10 p-2.5 rounded">
+                <span className="font-extrabold text-foreground">Customer Notes:</span>
+                <p className="text-muted-foreground/90 text-xs font-medium mt-1 whitespace-pre-wrap">{order.customerNotes}</p>
               </div>
             )}
           </div>
@@ -788,11 +848,11 @@ function OrderFormEdit({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Status Selector */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-muted-foreground">Order Status</label>
+              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Order Status</label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="bg-background border border-border/40 rounded px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50"
+                className="bg-background border border-border/40 rounded px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-primary/50"
               >
                 <option value="received">Order Received</option>
                 <option value="confirmed">Confirmed</option>
@@ -805,56 +865,77 @@ function OrderFormEdit({
               </select>
             </div>
 
+            {/* Payment Status Selector */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Payment Status</label>
+              <select
+                value={paymentStatus}
+                onChange={(e) => setPaymentStatus(e.target.value)}
+                className="bg-background border border-border/40 rounded px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-primary/50"
+              >
+                <option value="unpaid">Unpaid</option>
+                <option value="paid">Paid</option>
+              </select>
+            </div>
+
             {/* Gateway PO reference */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-muted-foreground">Gateway PO / Order Ref</label>
+              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Gateway PO / Order Ref</label>
               <input
                 type="text"
                 value={gatewayOrderRef}
                 onChange={(e) => setGatewayOrderRef(e.target.value)}
                 placeholder="e.g. PO-89025"
-                className="bg-background border border-border/40 rounded px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50 placeholder:text-foreground/20"
+                className="bg-background border border-border/40 rounded px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-primary/50 placeholder:text-foreground/20"
               />
             </div>
 
             {/* Expected delivery */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-muted-foreground">Expected Supplier Delivery</label>
+              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Expected Supplier Delivery</label>
               <input
                 type="datetime-local"
                 value={expectedDelivery}
                 onChange={(e) => setExpectedDelivery(e.target.value)}
-                className="bg-background border border-border/40 rounded px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50"
+                className="bg-background border border-border/40 rounded px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-primary/50"
               />
             </div>
 
             {/* Installation Date */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-muted-foreground">Scheduled Installation Date</label>
+            <div className="flex flex-col gap-1.5 md:col-span-2">
+              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Scheduled Installation Date</label>
               <input
                 type="datetime-local"
                 value={installationDate}
                 onChange={(e) => setInstallationDate(e.target.value)}
-                className="bg-background border border-border/40 rounded px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50"
+                className="bg-background border border-border/40 rounded px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-primary/50"
               />
             </div>
 
             {/* Admin notes (full width) */}
             <div className="flex flex-col gap-1.5 md:col-span-2">
-              <label className="text-xs font-semibold text-muted-foreground">Admin Notes (internal only)</label>
+              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Admin Notes (internal only)</label>
               <textarea
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
                 rows={3}
                 placeholder="Add notes about supplier updates, customer calls, or tire tracking details..."
-                className="bg-background border border-border/40 rounded px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50 resize-none placeholder:text-foreground/20"
+                className="bg-background border border-border/40 rounded px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-primary/50 resize-none placeholder:text-foreground/20"
               />
             </div>
           </div>
 
           {/* Form Actions */}
           <div className="flex justify-between items-center mt-4 pt-4 border-t border-border/10">
-            <div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => handleDelete(order.id, order.orderNumber, order.customerName)}
+                disabled={deleteOrderMutation.isPending}
+                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/25 border border-red-500/30 text-red-400 rounded text-xs font-semibold transition-colors disabled:opacity-50"
+              >
+                Delete Order
+              </button>
               {order.status === "cancelled" && order.paymentStatus === "paid" && (
                 <button
                   type="button"
@@ -871,6 +952,7 @@ function OrderFormEdit({
                 type="button"
                 onClick={() => {
                   setStatus(order.status);
+                  setPaymentStatus(order.paymentStatus);
                   setAdminNotes(order.adminNotes || "");
                   setGatewayOrderRef(order.gatewayOrderRef || "");
                   setExpectedDelivery(order.expectedDelivery ? new Date(order.expectedDelivery).toISOString().substring(0, 16) : "");

@@ -86,7 +86,7 @@ export default function TrafficFunnelSection() {
     <div className="space-y-6">
       <PageHeader
         title="Traffic → Revenue Funnel"
-        subtitle="From Google search to paid invoice. Each stage shows raw count + conversion from the one above."
+        subtitle="From Google search to booking. Each stage shows raw count + conversion from the one above."
         icon={<TrendingUp className="w-6 h-6" />}
         actions={
           <div className="flex items-center gap-2">

@@ -385,7 +385,7 @@ export default function OverviewSection() {
       out.push({
         id: "alg-offline",
         severity: "crit",
-        message: "ALG (Auto Labor Guide) integration offline. Revenue + invoice numbers are stale.",
+        message: "ALG (Auto Labor Guide) integration offline. Estimate and customer data may be stale.",
         // wave-187 — ALG connection + sync/probe controls live on ShopDriver HQ,
         // not Integrations (which is just the tire/labor calculator). Match the
         // ALG status pill below (settingsTab=shopdriver) so "Fix" lands operator
@@ -399,7 +399,7 @@ export default function OverviewSection() {
       out.push({
         id: "alg-stale",
         severity: "crit",
-        message: `ALG (Auto Labor Guide) sync is stale by ${algStatus.staleDays} days. In-store invoice and estimate data may be out of sync.`,
+        message: `ALG (Auto Labor Guide) sync is stale by ${algStatus.staleDays} days. Estimate and customer data may be out of sync.`,
         href: "/admin?tab=settings&settingsTab=shopdriver",
         ctaLabel: "Fix",
         dismissable: false,
@@ -427,14 +427,9 @@ export default function OverviewSection() {
   }
 
   // ─── DERIVED DATA ────────────────────────────────────
-  // ALG RULES ALL — every money + invoice-count number descends from the
-  // ALG mirror. Unit note: admin-stats.ts converts cents → dollars already.
+  // ALG mirror — estimate counts + customer data.
   const algFloor = (stats as typeof stats & { shopFloor?: ShopFloorData }).shopFloor;
-  const todayRevenue = algFloor?.revenueToday ?? 0;
-  const weekRevenue = algFloor?.revenueThisWeek ?? 0;
-  const monthRevenue = algFloor?.revenueThisMonth ?? 0;
   const jobsClosed = algFloor?.invoicesToday ?? 0;
-  const weekInvoiceCount = algFloor?.invoicesThisWeek ?? 0;
   const activeLeads = stats.leads.new + stats.leads.contacted;
   const urgentLeads = stats.leads.urgent ?? 0;
   const algConnected = algStatus?.connected ?? null;
@@ -510,27 +505,16 @@ export default function OverviewSection() {
 
       {/* ─── 4 STAT PILLS · the always-visible scoreboard ─── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {/* TODAY REV + EOD pace projection */}
+        {/* JOBS CLOSED TODAY */}
         <button
           type="button"
-          onClick={() => openDrilldown({ kind: "revenue_today" })}
+          onClick={() => openDrilldown({ kind: "jobs_closed_today" })}
           className="text-left p-4 bg-card border border-border/40 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-colors"
-          aria-label="Open today's revenue detail"
+          aria-label="Open jobs closed today detail"
         >
-          <div className="text-2xl font-bold text-primary tabular-nums">${Math.round(todayRevenue).toLocaleString()}</div>
-          <div className="text-[10px] text-muted-foreground tracking-wider uppercase mt-1">Today Rev</div>
-          {(() => {
-            const now = new Date();
-            const startHour = 8;
-            const endHour = 18;
-            const totalH = endHour - startHour;
-            const elapsed = Math.max(0.5, Math.min(totalH, now.getHours() + now.getMinutes() / 60 - startHour));
-            if (todayRevenue > 0 && now.getHours() >= startHour && now.getHours() < endHour) {
-              const eod = Math.round((todayRevenue / elapsed) * totalH);
-              return <div className="text-[10px] text-muted-foreground/70 tracking-wider mt-1">~${eod.toLocaleString()} EOD pace</div>;
-            }
-            return null;
-          })()}
+          <div className={`text-2xl font-bold tabular-nums ${jobsClosed > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>{jobsClosed}</div>
+          <div className="text-[10px] text-muted-foreground tracking-wider uppercase mt-1">Jobs Closed</div>
+          <div className="text-[10px] text-muted-foreground/70 tracking-wider mt-1">Today</div>
         </button>
 
         {/* IN SHOP + estimated wait */}
@@ -859,16 +843,15 @@ export default function OverviewSection() {
                 )}
               </div>
 
-              {/* 4 secondary ops stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* 3 secondary ops stats — invoice/revenue removed (separate register system) */}
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => openDrilldown({ kind: "jobs_closed_today" })}
                   className="text-left p-2 rounded hover:bg-emerald-500/5 transition-colors"
                 >
                   <div className="text-lg font-bold text-emerald-400">{jobsClosed}</div>
-                  <div className="text-[9px] text-muted-foreground tracking-wider uppercase">Invoices</div>
-                  <div className="text-[8px] text-muted-foreground/70 tracking-wider mt-0.5">{weekInvoiceCount} wk</div>
+                  <div className="text-[9px] text-muted-foreground tracking-wider uppercase">Jobs Closed</div>
                 </button>
                 <button
                   type="button"
@@ -877,15 +860,6 @@ export default function OverviewSection() {
                 >
                   <div className="text-lg font-bold text-red-400">{shopPulse?.today?.customersWalked ?? 0}</div>
                   <div className="text-[9px] text-muted-foreground tracking-wider uppercase">Walked</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openDrilldown({ kind: "revenue_today" })}
-                  className="text-left p-2 rounded hover:bg-blue-500/5 transition-colors"
-                  aria-label="Open today's revenue detail"
-                >
-                  <div className="text-lg font-bold text-blue-400">${algFloor.avgTicket}</div>
-                  <div className="text-[9px] text-muted-foreground tracking-wider uppercase">Avg Ticket</div>
                 </button>
                 <button
                   type="button"
@@ -901,9 +875,9 @@ export default function OverviewSection() {
                 </button>
               </div>
 
-              {/* Week / Month rollup */}
+              {/* Week summary — no revenue numbers (separate register) */}
               <div className="text-[11px] text-muted-foreground pt-2 border-t border-border/15">
-                Week: {weekInvoiceCount} invoices · ${Math.round(weekRevenue).toLocaleString()} · {algFloor.estimatesThisWeek} walk-in est. · Month: ${Math.round(monthRevenue).toLocaleString()}
+                Week: {algFloor.estimatesThisWeek} walk-in est.
               </div>
 
               {/* wave-181.x Today Phase 4 · AI insights MOVED above-the-fold.

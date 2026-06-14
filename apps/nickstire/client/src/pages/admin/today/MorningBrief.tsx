@@ -27,8 +27,8 @@
  */
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { Sunrise, Phone, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { formatDollars } from "../shared/format";
+import { Phone, AlertTriangle, CheckCircle2 } from "lucide-react";
+
 
 interface MorningBriefProps {
   /** Number of items currently in the priority action queue */
@@ -59,22 +59,7 @@ export function MorningBrief({ priorityQueueLength, urgentLeads }: MorningBriefP
     // adminDashboard.stats doesn't expose yesterday-specific numbers ·
     // use week-to-date as the operator's "what closed since I last
     // looked" anchor (covers Monday-morning use case too).
-    const wRev = dashStats?.shopFloor?.revenueThisWeek ?? 0;
-    const wInv = dashStats?.shopFloor?.invoicesThisWeek ?? 0;
-    const avgTicket = dashStats?.shopFloor?.avgTicket ?? 0;
-    if (wRev > 0 || wInv > 0) {
-      out.push({
-        icon: <Sunrise className="w-3.5 h-3.5 text-amber-400" />,
-        text: `This week: ${formatDollars(wRev)} · ${wInv} invoice${wInv === 1 ? "" : "s"}${avgTicket > 0 ? ` · ${formatDollars(avgTicket)} avg ticket` : ""}`,
-        tone: "good",
-      });
-    } else {
-      out.push({
-        icon: <Sunrise className="w-3.5 h-3.5 text-foreground/30" />,
-        text: "Quiet start · no closed invoices this week",
-        tone: "info",
-      });
-    }
+
 
     // Line 2 · OVERNIGHT SIGNAL (last 24h VAPI calls)
     const calls = callsData?.calls ?? [];

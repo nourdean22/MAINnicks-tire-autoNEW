@@ -94,11 +94,7 @@ export function useSettingsStatus() {
   const alertCount = useMemo(() => openIssues.filter((i) => i.severity === "alert").length, [openIssues]);
   const warningCount = useMemo(() => openIssues.filter((i) => i.severity === "warning").length, [openIssues]);
 
-  // KPI calculations
-  const todayRevenue = dashStats?.shopFloor?.revenueToday ?? 0;
-  const weekRevenue = dashStats?.shopFloor?.revenueThisWeek ?? 0;
-  const todayInvoices = dashStats?.shopFloor?.invoicesToday ?? 0;
-  const weekInvoices = dashStats?.shopFloor?.invoicesThisWeek ?? 0;
+  // KPI calculations — revenue/invoice counts removed (separate register system)
   const totalCustomers = dashStats?.shopFloor?.totalCustomers ?? "—";
   const vipCustomers = dashStats?.shopFloor?.vipCustomers ?? 0;
 
@@ -115,10 +111,7 @@ export function useSettingsStatus() {
     openIssues,
     alertCount,
     warningCount,
-    todayRevenue,
-    weekRevenue,
-    todayInvoices,
-    weekInvoices,
+
     totalCustomers,
     vipCustomers,
   };
