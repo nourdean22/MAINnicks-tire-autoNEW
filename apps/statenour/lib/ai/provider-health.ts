@@ -26,6 +26,7 @@ import { prisma } from "@/lib/prisma";
 import {
   isVeniceQuotaExhausted,
   isOllamaQuotaExhausted,
+  isGeminiQuotaExhausted,
   getProviderStatus,
   type ProviderName,
 } from "./provider";
@@ -90,6 +91,7 @@ function modelToProvider(model: string): ProviderName | null {
   const m = model.toLowerCase();
   if (m.includes("venice") || m.includes("heretic") || m.includes("glm-4") || m.includes("dolphin") || m.includes("llama-3.3") || m.includes("deepseek-r1")) return "venice";
   if (m.includes("qwen3") || m.includes("deepseek-v4") || m.includes("kimi")) return "ollama";
+  if (m.includes("gemini")) return "gemini";
   if (m.includes("gpt") || m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4")) return "openai";
   if (m.includes("claude")) return "anthropic";
   // Image models track separately; we don't bucket them per provider here.
@@ -102,6 +104,7 @@ async function getRecentTelemetry(): Promise<Record<ProviderName, { calls: numbe
   const out: Record<ProviderName, { calls: number; errors: number; avgMs: number }> = {
     venice: { ...empty },
     ollama: { ...empty },
+    gemini: { ...empty },
     openai: { ...empty },
     anthropic: { ...empty },
     emergency: { ...empty },
@@ -181,7 +184,14 @@ export async function getProviderHealth(force = false): Promise<ProviderHealthSn
   const providers: ProviderHealth[] = status.providers.map((p) => {
     const isVenice = p.name === "venice";
     const isOllama = p.name === "ollama";
-    const exhausted = isVenice ? isVeniceQuotaExhausted() : isOllama ? isOllamaQuotaExhausted() : false;
+    const isGemini = p.name === "gemini";
+    const exhausted = isVenice
+      ? isVeniceQuotaExhausted()
+      : isOllama
+        ? isOllamaQuotaExhausted()
+        : isGemini
+          ? isGeminiQuotaExhausted()
+          : false;
     const tel = telemetry[p.name] ?? { calls: 0, errors: 0, avgMs: 0 };
     return {
       name: p.name,

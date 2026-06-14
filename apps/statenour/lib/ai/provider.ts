@@ -35,6 +35,7 @@
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import {
   generateText,
   wrapLanguageModel,
@@ -89,11 +90,15 @@ const OLLAMA_VISION_MODEL =
 const OLLAMA_BASE_URL =
   cleanEnv(process.env.OLLAMA_BASE_URL) || "https://ollama.com";
 
+const GEMINI_API_KEY = cleanEnv(process.env.GEMINI_API_KEY) || cleanEnv(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+const GEMINI_MODEL = cleanEnv(process.env.GEMINI_MODEL) || "gemini-2.5-flash";
+
 const AI_PROVIDER = cleanEnv(process.env.AI_PROVIDER) as
   | "venice"
   | "ollama"
   | "openai"
   | "anthropic"
+  | "gemini"
   | undefined;
 
 export type ProviderName =
@@ -101,6 +106,7 @@ export type ProviderName =
   | "ollama"
   | "openai"
   | "anthropic"
+  | "gemini"
   | "emergency";
 export type TaskType = "fast" | "reason" | "deep" | "vision" | "embed" | "code" | "sql" | "math" | "creative" | "summary" | "classify" | "extract";
 
@@ -521,6 +527,11 @@ function createOpenAIModel(): LanguageModel {
   return openai(OPENAI_MODEL);
 }
 
+function createGoogleModel(): LanguageModel {
+  const google = createGoogleGenerativeAI({ apiKey: GEMINI_API_KEY! });
+  return google(GEMINI_MODEL);
+}
+
 // Apr 28 · Ollama Cloud Pro — uses createOpenAI with custom baseURL
 // since Ollama Cloud exposes an OpenAI-compatible /v1/chat/completions
 // endpoint. The 1M-context models (qwen3-vl:235b-instruct,
@@ -630,6 +641,18 @@ function isOllamaAvailable(): boolean {
   return true;
 }
 
+// June 14 · Gemini — same pattern
+const geminiBreaker = makeQuotaBreaker("gemini", 2 * 60_000);
+export const markGeminiQuotaExhausted = geminiBreaker.mark;
+export const clearGeminiQuotaExhausted = geminiBreaker.clear;
+export const isGeminiQuotaExhausted = geminiBreaker.isExhausted;
+
+function isGeminiAvailable(): boolean {
+  if (!GEMINI_API_KEY) return false;
+  if (isGeminiQuotaExhausted()) return false;
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Ordered provider list
 // ---------------------------------------------------------------------------
@@ -648,6 +671,7 @@ interface ProviderEntry {
 // pin one provider (incident triage).
 const PROVIDERS: ProviderEntry[] = [
   { name: "ollama", available: isOllamaAvailable, create: (t) => createOllamaModel(t), modelId: OLLAMA_MODEL },
+  { name: "gemini", available: isGeminiAvailable, create: () => createGoogleModel(), modelId: GEMINI_MODEL },
   { name: "venice", available: isVeniceAvailable, create: (t) => createVeniceModel(t), modelId: VENICE_MODEL },
   { name: "openai", available: isOpenAIAvailable, create: () => createOpenAIModel(), modelId: OPENAI_MODEL },
   { name: "anthropic", available: isAnthropicAvailable, create: () => createAnthropicModel(), modelId: ANTHROPIC_MODEL },
@@ -755,10 +779,10 @@ export function getModel(
       return 0;
     });
   } else if (opts.preferLargeContext) {
-    // Apr 28 · Reorder when caller wants large context — Ollama goes first.
+    // Apr 28 · Reorder when caller wants large context — Ollama goes first, then Gemini.
     ordered = [...PROVIDERS].sort((a, b) => {
       const pri = (n: ProviderName) =>
-        n === "ollama" ? 0 : n === "venice" ? 1 : n === "openai" ? 2 : 3;
+        n === "ollama" ? 0 : n === "gemini" ? 1 : n === "venice" ? 2 : n === "openai" ? 3 : 4;
       return pri(a.name) - pri(b.name);
     });
   } else {
@@ -953,6 +977,7 @@ const PROVIDER_RATES_PER_1M_TOKENS: Record<
 > = {
   venice: { input: 0.5, output: 1.5 }, // Venice flagship-ish pricing
   ollama: { input: 0.0, output: 0.0 }, // local · zero marginal
+  gemini: { input: 0.075, output: 0.30 }, // Gemini 2.5/3.5 Flash rates
   openai: { input: 2.5, output: 10.0 }, // gpt-4o-mini-ish average
   anthropic: { input: 3.0, output: 15.0 }, // Claude Sonnet-ish average
   none: { input: 0.0, output: 0.0 },
@@ -1025,10 +1050,10 @@ export async function aiChat(
   let orderedProviders = [...PROVIDERS];
   if (opts.budgetNearingLimit) {
     log.warn("budget_near_limit_reordering_providers");
-    // Sort so ollama (0 cost) and openai (cheap mini) are tried first
+    // Sort so ollama (0 cost) and gemini (extremely cheap) are tried first
     orderedProviders = [...PROVIDERS].sort((a, b) => {
       const costTier = (n: ProviderName) =>
-        n === "ollama" ? 0 : n === "openai" ? 1 : n === "venice" ? 2 : 3;
+        n === "ollama" ? 0 : n === "gemini" ? 1 : n === "openai" ? 2 : n === "venice" ? 3 : 4;
       return costTier(a.name) - costTier(b.name);
     });
     // Skip anthropic if others are available to save remaining budget
