@@ -91,7 +91,7 @@ const OLLAMA_BASE_URL =
   cleanEnv(process.env.OLLAMA_BASE_URL) || "https://ollama.com";
 
 const GEMINI_API_KEY = cleanEnv(process.env.GEMINI_API_KEY) || cleanEnv(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
-const GEMINI_MODEL = cleanEnv(process.env.GEMINI_MODEL) || "gemini-2.5-flash";
+const GEMINI_MODEL = cleanEnv(process.env.GEMINI_MODEL) || "gemini-3.5-flash";
 
 const AI_PROVIDER = cleanEnv(process.env.AI_PROVIDER) as
   | "venice"
@@ -527,7 +527,7 @@ function createOpenAIModel(): LanguageModel {
   return openai(OPENAI_MODEL);
 }
 
-function createGoogleModel(): LanguageModel {
+function createGoogleModel(taskType?: TaskType): LanguageModel {
   const google = createGoogleGenerativeAI({ apiKey: GEMINI_API_KEY! });
   return google(GEMINI_MODEL);
 }
@@ -671,7 +671,7 @@ interface ProviderEntry {
 // pin one provider (incident triage).
 const PROVIDERS: ProviderEntry[] = [
   { name: "ollama", available: isOllamaAvailable, create: (t) => createOllamaModel(t), modelId: OLLAMA_MODEL },
-  { name: "gemini", available: isGeminiAvailable, create: () => createGoogleModel(), modelId: GEMINI_MODEL },
+  { name: "gemini", available: isGeminiAvailable, create: (t) => createGoogleModel(t), modelId: GEMINI_MODEL },
   { name: "venice", available: isVeniceAvailable, create: (t) => createVeniceModel(t), modelId: VENICE_MODEL },
   { name: "openai", available: isOpenAIAvailable, create: () => createOpenAIModel(), modelId: OPENAI_MODEL },
   { name: "anthropic", available: isAnthropicAvailable, create: () => createAnthropicModel(), modelId: ANTHROPIC_MODEL },
