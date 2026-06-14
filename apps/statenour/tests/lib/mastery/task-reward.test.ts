@@ -57,4 +57,44 @@ describe("formatReward", () => {
     expect(formatReward(null)).toBeNull();
     expect(formatReward(undefined)).toBeNull();
   });
+
+  it("shows level-up when present", () => {
+    expect(
+      formatReward({
+        xpCredited: 5,
+        goalLifted: false,
+        levelUp: { newLevel: 4, tierName: "Active", tierEmoji: "🔥" },
+      }),
+    ).toBe("✓ +5 XP · 🔥 Level 4!");
+  });
+
+  it("shows level-up alone when no other signals", () => {
+    expect(
+      formatReward({
+        xpCredited: 0,
+        goalLifted: false,
+        levelUp: { newLevel: 7, tierName: "Practitioner", tierEmoji: "⚔️" },
+      }),
+    ).toBe("✓ ⚔️ Level 7!");
+  });
+
+  it("combines XP, goal, streak, and level-up", () => {
+    expect(
+      formatReward({
+        xpCredited: 10,
+        goalLifted: true,
+        streak: 5,
+        levelUp: { newLevel: 10, tierName: "Mastery", tierEmoji: "👑" },
+      }),
+    ).toBe("✓ +10 XP · goal progress logged · 🔥 5-day streak · 👑 Level 10!");
+  });
+
+  it("ignores null/undefined levelUp", () => {
+    expect(
+      formatReward({ xpCredited: 3, goalLifted: false, levelUp: null }),
+    ).toBe("✓ +3 XP");
+    expect(
+      formatReward({ xpCredited: 3, goalLifted: false, levelUp: undefined }),
+    ).toBe("✓ +3 XP");
+  });
 });

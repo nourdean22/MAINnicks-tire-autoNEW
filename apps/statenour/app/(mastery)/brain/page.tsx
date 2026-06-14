@@ -32,6 +32,8 @@ import { MemoryTab } from "@/components/brain/memory-tab";
 import { BoardTab } from "@/components/brain/board-tab";
 import { WisdomTab } from "@/components/brain/wisdom-tab";
 import { ReasonTab } from "@/components/brain/reason-tab";
+import { BrainHealthView } from "@/components/brain/health-view";
+import { BrainContinuityView } from "@/components/brain/continuity-view";
 
 export default function BrainPage() {
   return (
@@ -50,6 +52,8 @@ export default function BrainPage() {
             { key: "board", label: "Board", render: () => <BoardTab /> },
             { key: "wisdom", label: "Wisdom", render: () => <WisdomTab /> },
             { key: "reason", label: "Reason", render: () => <ReasonTab /> },
+            { key: "health", label: "Health", render: () => <BrainHealthView /> },
+            { key: "continuity", label: "Continuity", render: () => <BrainContinuityView /> },
           ]}
         />
       </StandardPage>
