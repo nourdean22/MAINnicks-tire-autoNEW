@@ -8,7 +8,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation, Link, useSearch } from "wouter";
 import PageLayout from "@/components/PageLayout";
 // attribution-wave: trackPhoneClick now comes from the canonical SEO helper
 // (umami + GA4 "phone_click" + Meta Pixel Contact + call_events DB row with
@@ -940,8 +940,11 @@ function OrderTracker() {
 // ─── MAIN PAGE ────────────────────────────────────────
 export default function TireFinder() {
   const [location] = useLocation();
+  const searchString = useSearch();
   // Read ?size= from URL for shareable/bookmarkable searches
-  const urlSize = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("size") : null;
+  const urlSize = useMemo(() => {
+    return new URLSearchParams(searchString).get("size");
+  }, [searchString]);
   const [searchInput, setSearchInput] = useState(urlSize || "");
   const [activeSearch, setActiveSearch] = useState(urlSize || "");
 

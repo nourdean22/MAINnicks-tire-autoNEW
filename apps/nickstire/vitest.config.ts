@@ -47,6 +47,8 @@ export default defineConfig({
         "server/routers/memberships.ts",
         "server/services/refundWriteback.ts",
         "server/routers/gatewayTire.ts",
+        "server/routers/advanced/invoices.ts",
+        "server/services/invoiceReconciliation.ts",
         "shared/business.ts",
         "shared/const.ts",
       ],
