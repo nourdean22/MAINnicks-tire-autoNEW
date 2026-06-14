@@ -162,7 +162,7 @@ const nextConfig: NextConfig = {
     { source: "/cockpit", destination: "/", permanent: false },
     { source: "/system/cockpit", destination: "/", permanent: false },
     // Brain consolidation: 4 sub-pages folded into /brain hub.
-    { source: "/brain/health", destination: "/brain", permanent: false },
+    { source: "/brain/health", destination: "/brain?tab=health", permanent: false },
     { source: "/brain/identity-trajectory", destination: "/brain", permanent: false },
     { source: "/brain/link-review", destination: "/brain", permanent: false },
     { source: "/brain/reflections", destination: "/brain", permanent: false },

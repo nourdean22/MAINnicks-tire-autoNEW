@@ -98,7 +98,7 @@ export function MemoryTab() {
           Everything the system knows about you · learns every day.
         </p>
         <a
-          href="/brain/health"
+          href="/brain?tab=health"
           className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] px-3 py-2 min-h-[44px] inline-flex items-center rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition-colors"
           title="memory rollup · categories · continuity"
         >
