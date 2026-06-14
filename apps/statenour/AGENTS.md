@@ -3,8 +3,7 @@
 > **⚡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
->
-> **Last refreshed:** 2026-06-13 · post the **Autonomic Self-Healing Upgrades wave** (PR #120 merged): implemented database size-based vacuuming, stalled task auto-decomposition, and budget-aware provider reordering. Gates at merge: tsc 0 · eslint 0 · check:crons clean. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-06-14 · post the **Task Routing Matrix & Provider Fallback Hardening wave** (PR #133 merged): default GEMINI_MODEL to gemini-3.5-flash and implement a 12-TaskType routing matrix fallback order. Also merged Dopamine Loops & Brain Tab Consolidation (PR #130) and VAPI/tire order updates (PR #126, #128, #131, #132). Full detail: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 
@@ -14,7 +13,7 @@
 
 **Versioning:** the `v10.0.X` scheme is retired — commits use `fix · statenour · …` / `docs · statenour · …`.
 
-**Tests:** 243 vitest files / 3334 tests (2026-06-11). ALL pass — but the suite EXITS 1 on ~12 pre-existing unhandled-rejection errors + an intermittent `tests/ai/agents/router.test.ts` mock-order flake, so read the vitest summary line NOT `$?`. Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from the repo root) or ~5 strategic-frameworks files fail on import.
+**Tests:** 259 vitest files / 3510 tests (2026-06-14). ALL pass — but the suite EXITS 1 on ~12 pre-existing unhandled-rejection errors + an intermittent `tests/ai/agents/router.test.ts` mock-order flake, so read the vitest summary line NOT `$?`. Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from the repo root) or ~5 strategic-frameworks files fail on import.
 
 ## 2 · How we work
 
