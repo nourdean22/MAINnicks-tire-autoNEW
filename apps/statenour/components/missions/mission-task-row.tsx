@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { Task } from "@/components/actions/shared";
 import { TaskPendingClassificationChip } from "@/components/missions/task-pending-classification-chip";
+import { StreakBadge } from "@/components/missions/streak-badge";
 
 export interface MissionTaskRowProps {
   task: Task;
@@ -233,22 +234,9 @@ export function MissionTaskRow({
               <span className="text-violet-300/80">⏸ {task.waitingOn}</span>
             )}
             {isDaily && (
-              <span className="text-[var(--gold)]">
-                ↻ daily
-                {typeof (task as unknown as { streakCount?: number })
-                  .streakCount === "number" &&
-                (task as unknown as { streakCount?: number }).streakCount! >
-                  0 && (
-                  <>
-                    {" "}
-                    ·{" "}
-                    {
-                      (task as unknown as { streakCount?: number })
-                        .streakCount
-                    }
-                    🔥
-                  </>
-                )}
+              <span className="inline-flex items-center gap-1.5 text-[var(--gold)]">
+                <span>↻ daily</span>
+                <StreakBadge streak={(task as unknown as { streakCount?: number }).streakCount} />
               </span>
             )}
             {/* Wave AV · 2026-05-28 · snooze pill for DAILY tasks.
