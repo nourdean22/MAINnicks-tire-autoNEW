@@ -36,7 +36,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { logger as rootLogger } from "@/lib/logger";
-import { formatReward, type TaskReward } from "@/lib/mastery/task-reward";
+import { formatReward, type TaskReward, type LevelUpPayload } from "@/lib/mastery/task-reward";
+import { LevelUpModal } from "@/components/missions/level-up-modal";
+import { XpParticle } from "@/components/missions/xp-particle";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { OmniCaptureModal } from "@/components/actions/omni-capture-modal";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
@@ -138,6 +140,13 @@ function MissionsPageInner() {
     missionId: string;
     title: string;
   } | null>(null);
+
+  // Dopamine loop · level-up modal state · triggered when a task
+  // completion pushes the operator's overall XP past a level boundary.
+  const [levelUpState, setLevelUpState] = useState<LevelUpPayload | null>(null);
+
+  // Dopamine loop · floating XP particles state
+  const [xpParticle, setXpParticle] = useState<{ xp: number; key: number }>({ xp: 0, key: 0 });
 
   // wave-AB.c · CRUD drawer state · mission edit (and create) + task edit.
   const [missionEditOpen, setMissionEditOpen] = useState(false);
@@ -429,6 +438,7 @@ function MissionsPageInner() {
       const isDaily = loopKind === "DAILY";
       const isWeekly = loopKind === "WEEKLY";
       const isRecurring = isDaily || isWeekly;
+      let xpAdded = 0;
       try {
         telemetry.event("completeTask", { taskId: id, isDaily });
         if (isDaily) {
@@ -455,7 +465,14 @@ function MissionsPageInner() {
             streak: currentStreak + 1,
           };
           const dailyMsg = formatReward(dailyReward);
-          if (dailyMsg) toast.success(dailyMsg);
+          if (dailyMsg) {
+            toast.success(dailyMsg, {
+              duration: 4500,
+              action: { label: "Stats", onClick: () => router.push("/stats") },
+            });
+          }
+          if (dailyReward.levelUp) setLevelUpState(dailyReward.levelUp);
+          if (dailyReward.xpCredited) xpAdded = dailyReward.xpCredited;
         } else if (isWeekly) {
           // 2026-06-09 · WEEKLY completes through the unified task.check service
           // (it computes nextWeekdayOccurrence(recurringDays) + parks the task
@@ -463,7 +480,14 @@ function MissionsPageInner() {
           // lazy-loaded server-side). CheckTaskResult carries the typed reward.
           const res = await checkTaskMut.mutateAsync({ id, action: "complete" });
           const msg = formatReward(res.reward);
-          if (msg) toast.success(msg);
+          if (msg) {
+            toast.success(msg, {
+              duration: 4500,
+              action: { label: "Stats", onClick: () => router.push("/stats") },
+            });
+          }
+          if (res.reward?.levelUp) setLevelUpState(res.reward.levelUp);
+          if (res.reward?.xpCredited) xpAdded = res.reward.xpCredited;
         } else {
           // ONCE/PROMISE → status DONE via updateTask (unchanged semantics). The
           // service attaches `reward` at runtime on the DONE transition (same
@@ -471,7 +495,17 @@ function MissionsPageInner() {
           const res = await updateTask.mutateAsync({ id, fields: { status: "DONE" } });
           const reward = (res as unknown as { reward?: TaskReward }).reward;
           const msg = formatReward(reward);
-          if (msg) toast.success(msg);
+          if (msg) {
+            toast.success(msg, {
+              duration: 4500,
+              action: { label: "Stats", onClick: () => router.push("/stats") },
+            });
+          }
+          if (reward?.levelUp) setLevelUpState(reward.levelUp);
+          if (reward?.xpCredited) xpAdded = reward.xpCredited;
+        }
+        if (xpAdded > 0) {
+          setXpParticle({ xp: xpAdded, key: Date.now() });
         }
         await refetchAll();
 
@@ -1031,6 +1065,23 @@ function MissionsPageInner() {
           void refetchAll();
         }}
       />
+
+      {/* Dopamine loop · level-up celebration modal */}
+      {levelUpState && (
+        <LevelUpModal
+          newLevel={levelUpState.newLevel}
+          tierName={levelUpState.tierName}
+          tierEmoji={levelUpState.tierEmoji}
+          onClose={() => setLevelUpState(null)}
+        />
+      )}
+
+      {/* Dopamine loop · floating XP particle animation overlay */}
+      {xpParticle.xp > 0 && (
+        <div className="fixed inset-0 pointer-events-none z-[9999]" aria-hidden="true">
+          <XpParticle xp={xpParticle.xp} triggerKey={xpParticle.key} />
+        </div>
+      )}
     </div>
   );
 }

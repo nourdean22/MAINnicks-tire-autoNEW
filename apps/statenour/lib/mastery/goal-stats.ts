@@ -23,10 +23,11 @@ import "server-only";
 import { today } from "@/lib/utils/datetime";
 
 import { prisma } from "@/lib/prisma";
-import { creditStatXp } from "./credit";
-import { SIGNAL_XP } from "./leveling";
+import { creditStatXp, xpEventTotals } from "./credit";
+import { SIGNAL_XP, levelFromXp, tierForLevel } from "./leveling";
 import { DOMAINS } from "./config";
 import { taskStatMultiplier, MIN_TASK_STAT_XP } from "./scoring-config";
+import type { LevelUpPayload } from "./task-reward";
 
 export interface ResolvedGoalStat {
   statKey: string;
@@ -168,6 +169,8 @@ export interface TaskCreditResult {
   statsCredited: number;
   /** Real total stat XP credited — sum of the per-stat amounts actually written. */
   xpCredited: number;
+  /** Populated when the credit pushed the operator to a new overall level. */
+  levelUp?: LevelUpPayload | null;
 }
 
 export async function creditTaskStats(
@@ -237,6 +240,13 @@ export async function creditTaskStats(
   });
   const daySuffix = opts.perDay ? `:${opts.dayKey ?? today()}` : "";
 
+  // Snapshot total XP BEFORE credits to detect level transitions.
+  let totalXpBefore = 0;
+  try {
+    const totals = await xpEventTotals();
+    for (const v of totals.values()) totalXpBefore += v;
+  } catch { /* non-fatal */ }
+
   let statsCredited = 0;
   let xpCredited = 0;
   for (const s of stats) {
@@ -259,7 +269,24 @@ export async function creditTaskStats(
       xpCredited += xp;
     }
   }
-  return { statsCredited, xpCredited: Math.round(xpCredited * 10) / 10 };
+
+  // Detect level-up: compare the overall level before and after this credit.
+  const roundedXp = Math.round(xpCredited * 10) / 10;
+  let levelUp: LevelUpPayload | null = null;
+  if (roundedXp > 0) {
+    const levelBefore = levelFromXp(totalXpBefore);
+    const levelAfter = levelFromXp(totalXpBefore + roundedXp);
+    if (levelAfter > levelBefore) {
+      const tier = tierForLevel(levelAfter);
+      levelUp = {
+        newLevel: levelAfter,
+        tierName: tier.name,
+        tierEmoji: tier.emoji,
+      };
+    }
+  }
+
+  return { statsCredited, xpCredited: roundedXp, levelUp };
 }
 
 /**
