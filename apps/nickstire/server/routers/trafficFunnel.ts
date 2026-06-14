@@ -314,17 +314,6 @@ export const trafficFunnelRouter = router({
           severity: bookingsPlusCallbacks > 0 ? "good" : "warn",
           note: "Includes walk-in, phone, and voice-agent paths that don't route through site engagement — no honest % exists against the stage above.",
         },
-        {
-          key: "invoices",
-          label: "Paid Invoices (ALG)",
-          count: invoices,
-          // Don't compute "conversion" from bookings → invoices; most invoices
-          // are walk-ins, not website bookings. Show the count alone.
-          conversionFromPrev: null,
-          sub: `$${Math.round(revenue).toLocaleString()} revenue · $${Math.round(avgTicket)} avg ticket`,
-          severity: invoices > 0 ? "good" : "warn",
-          note: "Invoices are mostly walk-ins. The website's true contribution is the engaged→bookings gap above.",
-        },
       ];
 
       // ─── TOP QUERIES (branded detection inline) ──────
@@ -360,7 +349,7 @@ export const trafficFunnelRouter = router({
         alerts.push({
           level: "critical",
           title: "Call tracking dead",
-          detail: `${clicks} clicks in ${days}d but ZERO phone-click events. The shop is clearly transacting (${invoices} paid invoices in the same window) — the tracking script isn't firing.`,
+          detail: `${clicks} clicks in ${days}d but ZERO phone-click events. The tracking script isn't firing.`,
           fix: "Verify /api/call-events endpoint + the client call-tracking wrapper on every tel: link.",
         });
       }
