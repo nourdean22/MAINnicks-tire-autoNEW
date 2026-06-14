@@ -157,7 +157,7 @@ async function main() {
       const { leads } = await import("../drizzle/schema");
       const { eq, and: andOp } = await import("drizzle-orm");
       const [row] = await d.select().from(leads).where(andOp(eq(leads.phone, testPhone), eq(leads.utmCampaign, "vapi-rack-check"))).limit(1);
-      if (row && row.urgencyScore === 5 && row.problem?.includes("PHYSICAL RACK CHECK REQUESTED")) {
+      if (row && row.urgencyScore === 5 && row.problem?.toLowerCase().includes("physical rack check requested")) {
         record("checkTireStock", true, `lead id=${row.id} urgency=5 utmCampaign=vapi-rack-check`);
         // Clean up the test row
         const { lt } = await import("drizzle-orm");
