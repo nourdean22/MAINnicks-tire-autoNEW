@@ -94,7 +94,7 @@ vi.mock("wouter", () => ({
   useLocation: () => ["/admin", vi.fn()],
   useRoute: () => [true, {}],
   useParams: () => ({}),
-  useSearch: () => "",
+  useSearch: () => window.location.search,
 }));
 
 vi.mock("framer-motion", () => ({
