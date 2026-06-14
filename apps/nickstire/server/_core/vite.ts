@@ -11,6 +11,19 @@ import { SITE_URL } from "../../shared/business";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("_core:vite");
+
+function getPackageRoot(): string {
+  let current = import.meta.dirname;
+  while (current) {
+    if (fs.existsSync(path.join(current, "package.json"))) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return import.meta.dirname;
+}
 /**
  * Inject route-specific meta tags (title, description, canonical, OG) into the HTML template.
  * This is critical for SEO — without it, Google sees the same homepage meta tags on every page,
@@ -110,8 +123,7 @@ export async function setupVite(app: Express, server: Server) {
 
     try {
       const clientTemplate = path.resolve(
-        import.meta.dirname,
-        "../..",
+        getPackageRoot(),
         "client",
         "index.html"
       );
@@ -133,9 +145,10 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
+  const packageRoot = getPackageRoot();
   const distPath =
     process.env.NODE_ENV === "development"
-      ? path.resolve(import.meta.dirname, "../..", "dist", "public")
+      ? path.resolve(packageRoot, "dist", "public")
       : path.resolve(import.meta.dirname, "public");
   if (!fs.existsSync(distPath)) {
     log.error(
