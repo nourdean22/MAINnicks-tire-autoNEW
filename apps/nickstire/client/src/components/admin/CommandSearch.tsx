@@ -53,6 +53,9 @@ const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[]; 
   // here, leaving no way to find Voice Receptionist from the phone.
   { id: "voiceReceptionist", label: "Voice Receptionist (Nick)", keywords: ["vapi", "voice", "nick", "receptionist", "ai", "agent", "incoming calls", "phone agent"], group: "Money" },
   { id: "customers", label: "Customer Database", keywords: ["customer", "client", "database", "lookup", "loyalty", "winback", "referral"], group: "Revenue" },
+  // 2026-06-11 · Nonstop Nick launch — the counter lookup must be findable
+  // from the phone (no sidebar slot yet per the YAGNI call in the design doc).
+  { id: "memberships", label: "Nonstop Nick (member lookup)", keywords: ["membership", "member", "nonstop", "nick", "subscription", "plan", "vehicle", "bind", "7.99", "9.99"], group: "Money" },
 
   // Outreach + Intelligence
   // wave-110 — reEngagement merged into campaigns (Outreach Hub tab)

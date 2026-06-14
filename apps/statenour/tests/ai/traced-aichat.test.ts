@@ -21,8 +21,21 @@ vi.mock("@/lib/ai/provider", () => ({
   aiChat: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/budget", () => ({
+  assertWithinBudget: vi.fn().mockResolvedValue({ ok: true, status: { percentUsed: 0 } }),
+  BudgetExceededError: class extends Error {
+    status: any;
+    constructor(status: any) {
+      super("Budget exceeded");
+      this.status = status;
+      this.name = "BudgetExceededError";
+    }
+  },
+}));
+
 import { prisma } from "@/lib/prisma";
 import { aiChat } from "@/lib/ai/provider";
+import { assertWithinBudget } from "@/lib/ai/budget";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 
 beforeEach(() => {
@@ -117,5 +130,30 @@ describe("v10.0.26 · tracedAiChat", () => {
     const args = vi.mocked(prisma.agentTrace.create).mock.calls[0]?.[0];
     expect(args?.data?.traceId).toBe("t_parent_abc");
     expect(args?.data?.parentId).toBe("t_parent_abc");
+  });
+
+  it("passes budgetNearingLimit: true when daily spend is at or above 80%", async () => {
+    vi.mocked(assertWithinBudget).mockResolvedValueOnce({
+      ok: true,
+      status: { percentUsed: 85 } as any,
+    });
+    vi.mocked(aiChat).mockResolvedValueOnce({
+      content: "budget-safe result",
+      provider: "openai",
+      model: "gpt-4o-mini",
+    });
+    vi.mocked(prisma.agentTrace.create).mockResolvedValueOnce({} as never);
+
+    const result = await tracedAiChat(
+      { label: "budget-test", source: "tool" },
+      [{ role: "user", content: "budget query" }],
+    );
+
+    expect(result.content).toBe("budget-safe result");
+    expect(aiChat).toHaveBeenCalledWith(
+      expect.any(Array),
+      "reason",
+      expect.objectContaining({ budgetNearingLimit: true }),
+    );
   });
 });

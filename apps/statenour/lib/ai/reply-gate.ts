@@ -19,6 +19,7 @@
 
 import type { CriticScore } from "./output-critic";
 import type { TurnSignal } from "./turn-intelligence";
+import type { ResponseContract } from "./response-contract";
 
 export interface GateDecision {
   shouldRegen: boolean;
@@ -134,4 +135,140 @@ export function formatGateSummary(gate: GateDecision): string {
     .map(([k]) => k)
     .join(",");
   return `gate: severity=${gate.severity}${flags ? ` flags=${flags}` : ""}${gate.shouldRegen ? " REGEN" : ""}`;
+}
+
+// ── CONTRACT-AWARE GATE — 2026-06-09 ─────────────────────────────────
+/**
+ * Extends runReplyGate with request-COMPLIANCE checks the base gate +
+ * output-critic don't capture: did the reply honor what Nour explicitly
+ * asked for (concise / a copy-paste prompt / top-N / repo-grounded /
+ * don't-ask)? output-critic scores UNIVERSAL quality; this scores
+ * REQUEST FIT against the per-turn ResponseContract.
+ *
+ * Backward compatible: runReplyGate is untouched; this is a new wrapper.
+ * Pure — same inputs, same decision.
+ */
+export interface ContractGateDecision extends GateDecision {
+  contractSignals: {
+    conciseButBloated: boolean;
+    promptNotCopyable: boolean;
+    rankCountMismatch: boolean;
+    repoGroundedButGeneric: boolean;
+    askedDespiteNoAsk: boolean;
+    vagueNonCompletion: boolean;
+  };
+}
+
+function wordCount(s: string): number {
+  return s.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/** Count numbered or bulleted list items in a reply. */
+function countListItems(reply: string): number {
+  return reply.split(/\n/).filter((l) => /^\s*(\d+[.)]|[-*•])\s+\S/.test(l)).length;
+}
+
+/** Does the reply contain a fenced code block (a copy-pasteable prompt)? */
+function hasFencedBlock(reply: string): boolean {
+  return (reply.match(/```/g)?.length ?? 0) >= 2;
+}
+
+const CLARIFY_RE =
+  /\b(could you (clarify|specify|tell me)|do you want me to|would you like me to|which (one|option|of these)|can you (clarify|confirm)|what (exactly )?do you mean|should i (do|use|pick|go with)|let me know (which|what|if you)|just to (confirm|clarify))\b/i;
+/** Does the reply ask the user a clarifying question? */
+function asksClarifying(reply: string): boolean {
+  return /\?/.test(reply) && CLARIFY_RE.test(reply);
+}
+
+const VAGUE_OFFER_RE =
+  /\b(i can (help|do|assist|look into|take care of)|i'?d be happy to|happy to (help|assist)|let me know if you(?:'?d| would)? (want|like)|would you like me to|i'?m able to)\b/i;
+/** Vague offer instead of doing the work ("I can help with that."). */
+function isVagueNonCompletion(reply: string): boolean {
+  return wordCount(reply) < 45 && VAGUE_OFFER_RE.test(reply);
+}
+
+/** Repo-grounding signals: file paths, code identifiers, dir refs. */
+function hasRepoGrounding(reply: string): boolean {
+  if (/\b[\w/.-]+\.(ts|tsx|js|jsx|prisma|sql|json|md)\b/.test(reply)) return true; // file ext
+  if (/\b(lib|app|components|prisma|scripts|tests)\//.test(reply)) return true; // dir
+  if ((reply.match(/`[^`]+`/g)?.length ?? 0) >= 2) return true; // >=2 code spans
+  return false;
+}
+
+export function runReplyGateWithContract(
+  reply: string,
+  userText: string,
+  critic: CriticScore | null,
+  turnSignal: TurnSignal,
+  contract: ResponseContract,
+): ContractGateDecision {
+  const base = runReplyGate(reply, userText, critic, turnSignal);
+  const text = reply.trim();
+  const wc = wordCount(text);
+  const reasons = [...base.reasons];
+  let severity = base.severity;
+
+  // 1. Concise requested but reply bloated.
+  const conciseCap = contract.length === "ultra_concise" ? 45 : 130;
+  const conciseButBloated =
+    (contract.length === "ultra_concise" || contract.length === "concise") && wc > conciseCap;
+  if (conciseButBloated) {
+    severity = Math.max(severity, 60);
+    reasons.push(`concise requested but reply is ${wc} words (cap ~${conciseCap})`);
+  }
+
+  // 2. Copy-paste prompt requested but reply has no fenced block.
+  const promptNotCopyable = contract.answerMode === "copy_paste_prompt" && !hasFencedBlock(text);
+  if (promptNotCopyable) {
+    severity = Math.max(severity, 70);
+    reasons.push("prompt requested but reply has no copy-paste code block");
+  }
+
+  // 3. Top-N requested but reply item count mismatches.
+  let rankCountMismatch = false;
+  if (contract.rankCount !== null) {
+    const items = countListItems(text);
+    rankCountMismatch = items !== contract.rankCount;
+    if (rankCountMismatch) {
+      severity = Math.max(severity, 55);
+      reasons.push(`top-${contract.rankCount} requested but reply has ${items} list items`);
+    }
+  }
+
+  // 4. Repo-grounded requested but reply is generic.
+  const repoGroundedButGeneric =
+    contract.mustBeRepoGrounded && !hasRepoGrounding(text) && wc > 12;
+  if (repoGroundedButGeneric) {
+    severity = Math.max(severity, 60);
+    reasons.push("repo-grounded requested but reply cites no files/code");
+  }
+
+  // 5. Told not to ask, but the reply asks a clarifying question.
+  const askedDespiteNoAsk = !contract.shouldAskClarifying && asksClarifying(text);
+  if (askedDespiteNoAsk) {
+    severity = Math.max(severity, 65);
+    reasons.push("clarification suppressed but reply asks a clarifying question");
+  }
+
+  // 6. Vague "I can…" non-completion.
+  const vagueNonCompletion = isVagueNonCompletion(text);
+  if (vagueNonCompletion) {
+    severity = Math.max(severity, 55);
+    reasons.push("vague offer instead of completing the ask");
+  }
+
+  return {
+    ...base,
+    severity,
+    reasons,
+    shouldRegen: severity >= 50,
+    contractSignals: {
+      conciseButBloated,
+      promptNotCopyable,
+      rankCountMismatch,
+      repoGroundedButGeneric,
+      askedDespiteNoAsk,
+      vagueNonCompletion,
+    },
+  };
 }

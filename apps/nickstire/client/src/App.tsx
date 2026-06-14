@@ -42,7 +42,8 @@ import Home from "./pages/Home";
 // which reads shared/services.ts and renders via FocusedServicePage.
 const GenericServicePage = lazy(() => import("./pages/GenericServicePage"));
 const Admin = lazy(() => import("./pages/Admin"));
-const AdminContent = lazy(() => import("./pages/AdminContent"));
+const AdminIgCarouselStudio = lazy(() => import("./pages/admin/IgCarouselStudio"));
+const AdminFacelessReelStudio = lazy(() => import("./pages/admin/FacelessReelStudio"));
 const Blog = lazy(() => import("./pages/Blog"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
 const Contact = lazy(() => import("./pages/Contact"));
@@ -238,7 +239,8 @@ function Router() {
             <Route path={"/about"} component={About} />
             {/* Admin dashboard */}
             <Route path={"/admin"} component={Admin} />
-            <Route path={"/admin/content"} component={AdminContent} />
+            <Route path={"/admin/ig-studio"} component={AdminIgCarouselStudio} />
+            <Route path={"/admin/reel-studio"} component={AdminFacelessReelStudio} />
             {/* City-specific landing pages for local SEO */}
             <Route path={"/cleveland-auto-repair"} component={CityPage} />
             <Route path={"/euclid-auto-repair"} component={CityPage} />

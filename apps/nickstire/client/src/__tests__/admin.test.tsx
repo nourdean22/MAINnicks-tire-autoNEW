@@ -143,7 +143,7 @@ describe("Admin — regression guards", () => {
     trpcState.queries["dispatch.qcStats"] = {
       data: { passRate: 0, qcPending: 0, comebacks30d: 0 },
     };
-    const { default: DispatchSection } = await import("../pages/admin/DispatchSection");
+    const { default: DispatchSection } = await import("../pages/admin/money/DispatchSection");
     render(React.createElement(DispatchSection));
 
     const label = screen.getByText("QC Pass Rate");
@@ -224,6 +224,30 @@ describe("Customer site — regression guards", () => {
     // confirming it FAILS for the right reason.
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * REGRESSION TEST: TireFinder search size-duplication & URL sync
+   * Checks that searchInput is updated when the URL ?size parameter changes.
+   */
+  it("TireFinder: syncs searchInput with urlSize parameter changes", async () => {
+    // Stage URL with a size
+    window.history.pushState({}, "", "/tires?size=225/65R17");
+
+    const { default: TireFinder } = await import("../pages/TireFinder");
+    const { rerender } = render(React.createElement(TireFinder));
+
+    const input = screen.getByLabelText("Search tire size") as HTMLInputElement;
+    expect(input.value).toBe("225/65R17");
+
+    // Change URL size parameter and rerender
+    window.history.pushState({}, "", "/tires?size=205/55R16");
+    rerender(React.createElement(TireFinder));
+
+    expect(input.value).toBe("205/55R16");
+
+    // Clean up
+    window.history.pushState({}, "", "/");
   });
 });
 

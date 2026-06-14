@@ -139,7 +139,21 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     prisma.captureInboxItem.count({ where: { status: "active" } }),
     prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }),
     prisma.task.count({ where: { status: "INBOX" } }),
-    prisma.driftAlert.count({ where: { acknowledged: false } }),
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "coach_event",
+          key: { startsWith: "coach:drift-recovery:" },
+        },
+        select: { metadata: true },
+      })
+      .then((rows) => {
+        return rows.filter((r) => {
+          const meta = (r.metadata ?? {}) as Record<string, any>;
+          return !meta.ackedAt;
+        }).length;
+      })
+      .catch(() => 0),
   ]);
 
   // ── Brain signal freshness ──

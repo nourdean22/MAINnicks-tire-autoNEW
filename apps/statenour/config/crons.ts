@@ -239,6 +239,16 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
+    name: "calibration-generator",
+    schedule: "0 3 * * *",
+    mode: "active",
+    category: "brain",
+    description: "Daily evening pass · scans completed tasks/predictions and proposes outcomes for manual calibration.",
+    memory: 512,
+    maxDuration: 120,
+    addedAt: "2026-06-11",
+  },
+  {
     name: "reflect-categories",
     schedule: null,
     mode: "folded",
@@ -305,6 +315,25 @@ export const CRONS: CronDef[] = [
       "FOLDED into mega (morning) · the data-source canary · probes the nickstire bridge + service feeders and writes data_source_probe rows the /system/health operational rollup reads to flag a dead bridge / $0-revenue feeder. Pipeline+reader existed since v10.0.58 but the cron was never wired — it ran zero times, which is why the revenue-$0 regression went uncaught.",
     addedAt: "2026-05-29",
   },
+  {
+    name: "subtask-usage-audit",
+    schedule: "0 3 * * *",
+    mode: "active",
+    category: "hygiene",
+    description: "Daily audit of subtask feature usage per ADR-0017 A1 gate; self-fires on/after 2026-06-22 to clean up files if unused.",
+    memory: 256,
+    maxDuration: 60,
+    addedAt: "2026-06-11",
+  },
+  {
+    name: "cron-healer",
+    schedule: null,
+    mode: "folded",
+    category: "hygiene",
+    foldedInto: "mega-evening",
+    description: "FOLDED into mega-evening · Self-healing background agent that checks for failing or never-run crons and triggers API-level runbook resets.",
+    addedAt: "2026-06-13",
+  },
 
   // ── REVIEW ──────────────────────────────────────────────────────────
   {
@@ -354,10 +383,11 @@ export const CRONS: CronDef[] = [
   },
   {
     name: "anticipate",
-    schedule: "0 7 * * *",
-    mode: "active",
+    schedule: null,
+    mode: "folded",
     category: "review",
-    description: "Daily 7am UTC · forward-look · what should the operator be ready for today (meetings · deadlines · pattern matches).",
+    foldedInto: "mega-evening",
+    description: "FOLDED into mega-evening (~10-11pm ET) · drafts + precomputes tomorrow's 3 anticipated questions · keyed to the BUILD day, so readers fall back to yesterday's key next morning. (Manifest previously claimed a standalone 'Daily 7am UTC' schedule that nothing executed — corrected 2026-06-10.)",
     memory: 512,
     maxDuration: 60,
   },
@@ -494,6 +524,17 @@ export const CRONS: CronDef[] = [
     memory: 256,
     maxDuration: 30,
   },
+  {
+    name: "proactive-push",
+    schedule: "0 * * * *",
+    mode: "active",
+    category: "alert",
+    inngest: true,
+    description: "Hourly · runs hourly to fire slot-based Telegram micro-pushes and nudge pending approvals if any exist.",
+    memory: 256,
+    maxDuration: 60,
+  },
+
 
   // ── ACTION (Wave AG · Nick Action Queue) ────────────────────────────
   // Wave AK · 2026-05-28 · 7am UTC prewarm of the relationships-picks

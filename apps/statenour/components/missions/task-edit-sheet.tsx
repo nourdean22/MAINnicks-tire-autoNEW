@@ -21,7 +21,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Trash2, X } from "lucide-react";
+import { Loader2, Trash2, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
@@ -186,6 +186,28 @@ function TaskEditSheetBody({
       toast.error(err instanceof Error ? err.message : "Delete failed.");
     }
   }, [task, deleteMutation, utils, onSaved, onClose, confirm]);
+
+  const decomposeMutation = trpc.task.decompose.useMutation();
+
+  const isComplex = !task.parentTaskId && (
+    task.effort === "H1" || task.effort === "H2PLUS" ||
+    ["setup", "implement", "create", "build", "refactor", "reengineer", "migrate", "integrate", "analyze", "design", "configure", "deconstruct", "reconcile", "audit", "optimize", "orchestrate", "decomposing", "decomposition"].some(k => (task.title ?? "").toLowerCase().includes(k))
+  );
+
+  const handleDecompose = useCallback(async () => {
+    const promise = decomposeMutation.mutateAsync({ taskId: task.id });
+    toast.promise(promise, {
+      loading: `Decomposing “${task.title}” into subtasks...`,
+      success: (res) => {
+        void utils.task.list.invalidate();
+        void utils.task.missions.invalidate();
+        onSaved?.();
+        onClose();
+        return `Successfully created ${res.subtasksCount} subtasks!`;
+      },
+      error: (err) => `Failed: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }, [task.id, task.title, decomposeMutation, utils, onSaved, onClose]);
 
   return (
     <div
@@ -397,6 +419,17 @@ function TaskEditSheetBody({
             <Trash2 size={11} strokeWidth={1.75} />
             delete
           </button>
+          {isComplex && (
+            <button
+              type="button"
+              onClick={handleDecompose}
+              disabled={submitting || decomposeMutation.isPending}
+              className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/80 hover:text-[var(--gold)] disabled:opacity-50 ml-2"
+            >
+              <Sparkles size={11} strokeWidth={1.75} />
+              decompose
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}

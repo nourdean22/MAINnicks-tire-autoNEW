@@ -47,6 +47,7 @@ import {
   pickWholesaleCost,
   getLastGatewayFailure,
 } from "../services/gatewayClient";
+import { DkClient } from "../services/dkClient";
 
 export const getLastAuthFailure = getLastGatewayFailure;
 
@@ -387,6 +388,8 @@ export const gatewayTireRouter = router({
       let tires: PublicTire[] = catalog.map((item, idx) => {
         const shopPrice = Math.ceil(item.baseCost * (1 + markup / 100) * 100) / 100;
         const pricePerTireCents = Math.round(shopPrice * 100);
+        const partNumber = `CAT-${sizeClean}-${item.brand.slice(0, 3)}-${item.model.replace(/\s+/g, "")}`.toUpperCase();
+        const inStock = DkClient.getStockStatus(partNumber) === "in_stock";
         return {
           id: `cat-${idx}-${item.brand.toLowerCase()}`,
           name: `${item.brand} ${item.model}`,
@@ -400,8 +403,8 @@ export const gatewayTireRouter = router({
           features: item.features,
           speedRating: item.speedRating,
           loadIndex: item.loadIndex,
-          inStock: true,
-          estimatedDelivery: "1-2 business days",
+          inStock,
+          estimatedDelivery: inStock ? "Same day" : "1-2 business days",
         };
       });
 
@@ -1469,6 +1472,37 @@ export const gatewayTireRouter = router({
       let url = GATEWAY_PORTAL_BASE + (input?.path || "/");
       if (input?.search) url = `${GATEWAY_PORTAL_BASE}/dashboard?search=${encodeURIComponent(input.search)}`;
       return { url, accountId: process.env.GATEWAY_TIRE_USERNAME || "" };
+    }),
+
+  refundOrder: adminProcedure
+    .input(
+      z.object({
+        orderId: z.number().int(),
+        reason: z.string().min(1),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const d = await db();
+      if (!d) return { success: false, error: "Database unavailable" };
+
+      // Look up order by id
+      const [order] = await d.select().from(tireOrders)
+        .where(eq(tireOrders.id, input.orderId)).limit(1);
+
+      if (!order) {
+        return { success: false, error: `Order #${input.orderId} not found` };
+      }
+
+      const actorEmail = ctx.user?.email ?? ctx.user?.name ?? "admin";
+
+      const { refundTireOrderPayment } = await import("../services/payments");
+      const res = await refundTireOrderPayment({
+        orderNumber: order.orderNumber,
+        reason: input.reason,
+        actorEmail,
+      });
+
+      return res;
     }),
 });
 

@@ -14,12 +14,17 @@
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { CheckCircle2, ChevronRight, Loader2 } from "lucide-react";
 
 export default function NonstopNickJoin() {
   const [phone, setPhone] = useState("");
   const [plan, setPlan] = useState<"nonstop-nick" | "nonstop-nick-plus">("nonstop-nick");
   const [msg, setMsg] = useState<string | null>(null);
+  // Stripe Checkout returns to /nonstop-nick?joined=1 — show the welcome
+  // state instead of the join form. Guarded for prerender (no window there).
+  const [joined] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("joined") === "1",
+  );
 
   const start = trpc.memberships.startCheckout.useMutation({
     onSuccess: (res) => {
@@ -47,6 +52,31 @@ export default function NonstopNickJoin() {
   };
 
   const price = plan === "nonstop-nick-plus" ? "$9.99" : "$7.99";
+
+  // Post-checkout welcome — Stripe redirected back with ?joined=1. The
+  // webhook is creating/activating the membership row in the background;
+  // nothing else for the member to do until they pull up.
+  if (joined) {
+    return (
+      <section className="bg-[#FDB913]/[0.06] border-y border-[#FDB913]/20 py-10">
+        <div className="container max-w-xl text-center">
+          <CheckCircle2 className="w-10 h-10 text-[#FDB913] mx-auto mb-3" />
+          <h2 className="text-2xl sm:text-3xl font-black text-foreground mb-2">
+            You're in. Pull up when you need us.
+          </h2>
+          <p className="text-foreground/70 text-sm mb-1">
+            We'll look you up by phone at the counter — nothing to print, nothing to carry.
+          </p>
+          <p className="text-foreground/70 text-sm">
+            First visit, we'll register your covered vehicle. Takes a second.
+          </p>
+          <p className="text-foreground/40 text-[12px] mt-4">
+            Questions? Call or text (216) 862-0005 — 17625 Euclid Ave, Cleveland.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="bg-[#FDB913]/[0.06] border-y border-[#FDB913]/20 py-10">

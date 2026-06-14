@@ -5,11 +5,12 @@
  */
 import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
-import { eq, sql } from "drizzle-orm";
+import { eq, asc, desc, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
 import { TRPCError } from "@trpc/server";
 import { buildPlaceDetailsUrl } from "@shared/const";
+import { buildReplyPromptRules, checkReviewReply } from "@shared/reviewReplyQa";
 
 import { db } from "../lib/db-helper";
 
@@ -45,9 +46,11 @@ The customer gave a ${review.rating}-star review with this comment: "${review.te
 Write a warm, professional 2-3 sentence response that:
 1. Thanks them for the feedback
 2. If negative (1-3 stars): Apologizes and offers to make it right
-3. If positive (4-5 stars): Reinforces quality and invites them back
+3. If positive (4-5 stars): Mentions one specific thing that went well and invites them back
 
-Keep it under 160 characters (Google's limit).`;
+${buildReplyPromptRules()}
+
+Keep it under 160 characters.`;
 
   try {
     const result = await invokeLLM({
@@ -132,7 +135,11 @@ export const reviewRepliesRouter = router({
         ? database.select().from(reviewReplies).where(eq(reviewReplies.status, input.status))
         : database.select().from(reviewReplies);
 
-      return query.limit(input.limit);
+      // Operator queue order: worst rating first (angry reviews are the
+      // urgent ones), newest first within a rating.
+      return query
+        .orderBy(asc(reviewReplies.reviewRating), desc(reviewReplies.reviewDate))
+        .limit(input.limit);
     }),
 
   /** Update draft reply text (admin) */
@@ -173,7 +180,18 @@ export const reviewRepliesRouter = router({
         .limit(1);
 
       if (!record.length || !record[0].draftReply) {
-        throw new Error("Review or draft not found");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Review or draft not found" });
+      }
+
+      // Claim-safety gate: a reply with a blocking finding can never be
+      // approved — the operator edits the draft first. Same rule family
+      // the GBP Q&A seeds are test-enforced against.
+      const blockers = checkReviewReply(record[0].draftReply).filter((f) => f.severity === "block");
+      if (blockers.length) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Claim-safety: ${blockers.map((f) => `${f.rule} ("${f.match}")`).join("; ")} — edit the draft first.`,
+        });
       }
 
       await database
@@ -204,23 +222,62 @@ export const reviewRepliesRouter = router({
       return { success: true };
     }),
 
+  /** Owner confirms an approved reply was pasted into Google (admin).
+   *  DB-only — records the outcome; nothing is sent to Google from here.
+   *  Only reachable from "approved" so "posted" always means a final
+   *  reply existed and the owner explicitly confirmed pasting it. */
+  markPosted: adminProcedure
+    .input(z.object({ id: z.number().int() }))
+    .mutation(async ({ input }) => {
+      const { reviewReplies } = await import("../../drizzle/schema");
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      const record = await database
+        .select()
+        .from(reviewReplies)
+        .where(eq(reviewReplies.id, input.id))
+        .limit(1);
+
+      if (!record.length) {
+        throw new Error("Review reply not found");
+      }
+      if (record[0].status !== "approved") {
+        throw new Error("Only approved replies can be marked posted — approve the draft first");
+      }
+
+      await database
+        .update(reviewReplies)
+        .set({ status: "posted", postedAt: new Date() })
+        .where(eq(reviewReplies.id, input.id));
+
+      return { success: true };
+    }),
+
   /** Get stats on review replies (admin) */
   stats: adminProcedure.query(async () => {
     const { reviewReplies } = await import("../../drizzle/schema");
     const database = await db();
     if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-    const [drafts, approved, skipped, posted] = await Promise.all([
+    const [drafts, approved, skipped, posted, oldestApproved] = await Promise.all([
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "draft")),
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "approved")),
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "skipped")),
       database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "posted")),
+      // Backlog rot signal: the oldest approved-but-not-posted reply.
+      database
+        .select({ oldest: sql<Date | string | null>`min(${reviewReplies.approvedAt})` })
+        .from(reviewReplies)
+        .where(eq(reviewReplies.status, "approved")),
     ]);
 
     const d = drafts[0]?.count ?? 0;
     const a = approved[0]?.count ?? 0;
     const s = skipped[0]?.count ?? 0;
     const p = posted[0]?.count ?? 0;
+    const oldestRaw = oldestApproved[0]?.oldest ?? null;
+    const oldestApprovedAt = oldestRaw ? new Date(oldestRaw) : null;
 
     return {
       draft: d,
@@ -228,6 +285,8 @@ export const reviewRepliesRouter = router({
       skipped: s,
       posted: p,
       total: d + a + s + p,
+      /** When the oldest still-unposted approved reply was approved (null if none). */
+      oldestApprovedAt,
     };
   }),
 });

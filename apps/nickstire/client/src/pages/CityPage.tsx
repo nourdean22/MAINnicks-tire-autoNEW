@@ -490,7 +490,7 @@ export default function CityPage() {
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Real Mechanics, Real Experience</h3>
-                    <p className="text-foreground/70 leading-relaxed">We work on everything from daily drivers to trucks and SUVs. Whether it's a <Link href="/check-engine-light-cleveland" className="text-nick-blue-light hover:underline">check engine light</Link>, <Link href="/brakes" className="text-nick-blue-light hover:underline">brake job</Link>, or <Link href="/tires" className="text-nick-blue-light hover:underline">full tire replacement</Link>, we figure out the actual problem — not just the most expensive one.</p>
+                    <p className="text-foreground/70 leading-relaxed">We work on everything from daily drivers to trucks and SUVs. Whether it's a <Link href="/diagnostics" className="text-nick-blue-light hover:underline">check engine light</Link>, <Link href="/brakes" className="text-nick-blue-light hover:underline">brake job</Link>, or <Link href="/tires" className="text-nick-blue-light hover:underline">full tire replacement</Link>, we figure out the actual problem — not just the most expensive one.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -547,7 +547,7 @@ export default function CityPage() {
                 </Link>
               </FadeIn>
               <FadeIn delay={0.3}>
-                <Link href="/suspension-repair-cleveland" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
+                <Link href="/auto-repair-near-me" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
                   <h3 className="font-bold text-foreground mb-2">Suspension & Steering</h3>
                   <p className="text-foreground/60 text-sm leading-relaxed">Hitting Cleveland potholes takes a toll on struts, shocks, tie rods, and ball joints. If your car pulls, bounces, or the steering feels loose, bring it in before it gets worse.</p>
                 </Link>

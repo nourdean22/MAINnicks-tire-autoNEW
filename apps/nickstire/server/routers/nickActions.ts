@@ -39,7 +39,7 @@ export const nickActionsRouter = router({
   createWorkOrder: adminProcedure
     .input(z.object({
       sessionId: z.number(),
-      customerId: z.string().optional(),
+      customerId: z.number().optional(),
       priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
       autoAssign: z.boolean().default(true),
     }))
@@ -227,6 +227,29 @@ export const nickActionsRouter = router({
       }).where(eq(paymentAlertBacklog.id, input.id));
       return { ok: true };
     }),
+
+  // ─── Customer message previews (PREVIEW ONLY) ─────────
+  // 2026-06-10 danger-zone-safe-build · renders the five customer
+  // confirmation templates against a SAMPLE order so the owner can
+  // review exact copy in the Ops Hub. Read-only: no DB, no provider,
+  // no send path exists (sendCustomerMessage always throws — see
+  // services/customerMessageTemplates.ts).
+  customerMessagePreviews: adminProcedure.query(async () => {
+    const { TEMPLATE_BUILDERS } = await import("../services/customerMessageTemplates");
+    const sample = {
+      customerName: "Sample Customer",
+      orderNumber: "TO-SAMPLE-000",
+      quantity: 4,
+      tireBrand: "NEXEN",
+      tireModel: "N'Priz AH5",
+      tireSize: "215/60R16",
+      totalAmount: 544.0,
+    };
+    return Object.entries(TEMPLATE_BUILDERS).map(([key, build]) => {
+      const msg = build(sample);
+      return { key, sms: msg.sms, emailSubject: msg.email.subject, emailBody: msg.email.body };
+    });
+  }),
 
   // ─── Shop Status ──────────────────────────────────────
   shopPulse: adminProcedure.query(async () => handleShopPulse()),

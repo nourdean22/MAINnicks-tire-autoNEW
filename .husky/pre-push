@@ -1,54 +1,36 @@
 #!/usr/bin/env sh
-# Husky pre-push hook — runs `build` for any app touched since origin.
+# Husky pre-push hook — runs typechecking and build for any app touched since origin.
 #
-# Why this exists: 2026-05-19 PM, a Wave 40 push spent 9+ hours bouncing
-# off Railway because /tasks/page.tsx had an unwrapped useSearchParams()
-# that only manifested during Next.js prerender. Pre-commit didn't catch
-# it (typecheck passed · the bug only surfaced at build time). Railway
-# logs were the only diagnostic. This hook catches that class of bug
-# locally · before the push leaves the developer's machine.
+# Why this exists: Catches typechecking and Next.js prerender errors
+# locally before pushing to remote / triggering Railway build pipeline.
 #
-# Strategy: defer to Turborepo's --affected detection. It diffs HEAD
-# against `origin/main` and rebuilds only the apps whose inputs changed
-# (plus anything depending on them via workspace deps). Cache hits are
-# free · cache misses surface real build errors.
-#
-# Cost: ~30s on first push of a session · ~1s on every subsequent push
-# (Turbo cache hit). Worth it vs hours of Railway thrash.
-#
-# Bypass: git push --no-verify (use sparingly · disables ALL hooks)
+# Strategy: runs `check` (TypeScript check) and `build` via Turborepo.
+# Affected detection resolves dependencies since the upstream tracking branch.
 
 set -e
 
 # Skip during initial pushes when no remote tracking exists yet
 if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then
-  echo "[pre-push] no upstream tracking branch · skipping affected-build check"
+  echo "[pre-push] no upstream tracking branch · skipping affected check"
   exit 0
 fi
 
-# Skip if pushing to a tag (no app changes)
+# Skip if pushing to a tag
 while read local_ref local_sha remote_ref remote_sha; do
   case "$remote_ref" in
     refs/tags/*) echo "[pre-push] tag push · skipping"; exit 0 ;;
   esac
 done
 
-echo "[pre-push] running affected build (catches prerender errors before Railway)..."
+echo "[pre-push] running affected typecheck + build..."
 
-# Use the project's own pnpm + turbo so we don't rely on PATH being right
+# Use the project's own pnpm + turbo
 if [ ! -x "./node_modules/.bin/turbo" ]; then
   echo "[pre-push] turbo not found · run 'pnpm install' first"
   exit 1
 fi
 
-# 2026-05-23 · Wave G · self-heal stale .next/lock from a prior aborted
-# build. Two failure modes this fixes:
-#   1. Operator hits Ctrl-C mid-`pnpm build` · the lockfile survives ·
-#      next build hangs forever waiting for a holder PID that no longer
-#      exists.
-#   2. A separate session started a build that died · same hang.
-# Safe to delete · Next.js writes a fresh one on every build start.
-# Match the pattern in Wave A's manual `rm -f .next/lock` invocations.
+# self-heal stale .next/lock from a prior aborted build
 for lock in apps/*/.next/lock; do
   if [ -e "$lock" ]; then
     echo "[pre-push] removing stale lock · $lock"
@@ -56,22 +38,14 @@ for lock in apps/*/.next/lock; do
   fi
 done
 
-# wave-181.91 hardening · was `--affected` which silently missed
-# committed-but-not-pushed changes when the working tree also had
-# unstaged changes (Turbo's affected detection got confused). Now we
-# explicitly compute the changed package set from `git diff @{u}..HEAD`
-# and pass `--filter=...[upstream]` so Turbo includes both directly
-# changed packages AND their workspace dependents.
 UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null)
 
-# turbo run build --filter=...[upstream] · cache-friendly · only
-# rebuilds what changed (or depends on what changed) since upstream HEAD.
-./node_modules/.bin/turbo run build --filter="...[$UPSTREAM]" --output-logs=errors-only || {
+# Run check and build in parallel for affected packages
+./node_modules/.bin/turbo run check build --filter="...[$UPSTREAM]" --output-logs=errors-only || {
   echo ""
-  echo "[pre-push] ❌ affected build FAILED"
-  echo "[pre-push] this would have failed on Railway · push blocked"
-  echo "[pre-push] fix the error above OR push with --no-verify if you know what you're doing"
+  echo "[pre-push] ❌ affected check/build FAILED"
+  echo "[pre-push] fix the type or build errors above before pushing"
   exit 1
 }
 
-echo "✓ pre-push affected build OK"
+echo "✓ pre-push affected checks OK"

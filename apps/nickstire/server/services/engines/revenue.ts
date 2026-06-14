@@ -7,7 +7,7 @@
  */
 
 import { invoices } from "../../../drizzle/schema";
-import { sql, gte, and } from "drizzle-orm";
+import { sql, gte, and, eq } from "drizzle-orm";
 import { RawRow, extractRows, extractOne, db, categorizeService } from "./shared";
 
 // ═══════════════════════════════════════════════════════════
@@ -23,6 +23,7 @@ export async function detectRevenueAnomalies(): Promise<{
       SELECT DATE(invoiceDate) as day, SUM(totalAmount) as dailyRev
       FROM invoices
       WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+        AND paymentStatus = 'paid'
       GROUP BY DATE(invoiceDate)
       ORDER BY day
     `);
@@ -157,6 +158,7 @@ export async function analyzePeakDemandWindows(): Promise<{
         SUM(totalAmount) / COUNT(DISTINCT DATE(invoiceDate)) as avgDailyRev
       FROM invoices
       WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+        AND paymentStatus = 'paid'
       GROUP BY DAYOFWEEK(invoiceDate), HOUR(invoiceDate)
       ORDER BY dow, hr
     `);
@@ -227,6 +229,7 @@ export async function forecastCashFlow(): Promise<{
     const ticketRows = await (await db()).execute(sql`
       SELECT AVG(totalAmount) as avgTicket FROM invoices
       WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND totalAmount > 0
+        AND paymentStatus = 'paid'
     `);
     const avgTicket = Number(extractOne(ticketRows).avgTicket || 0) / 100;
 
@@ -309,7 +312,11 @@ export async function analyzeProfitMargins(): Promise<{
       laborCost: invoices.laborCost,
       serviceDescription: invoices.serviceDescription,
     }).from(invoices)
-      .where(and(gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 6 MONTH)`), sql`${invoices.totalAmount} > 0`));
+      .where(and(
+        gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 6 MONTH)`),
+        sql`${invoices.totalAmount} > 0`,
+        eq(invoices.paymentStatus, "paid")
+      ));
 
     const catTotals: Record<string, { revenue: number; parts: number; labor: number }> = {};
     let overallRev = 0;
@@ -369,6 +376,7 @@ export async function analyzePaymentTrends(): Promise<{
       SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as totalRev
       FROM invoices
       WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+        AND paymentStatus = 'paid'
       GROUP BY paymentMethod
     `);
 
@@ -378,6 +386,7 @@ export async function analyzePaymentTrends(): Promise<{
       FROM invoices
       WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
         AND invoiceDate < DATE_SUB(NOW(), INTERVAL 3 MONTH)
+        AND paymentStatus = 'paid'
       GROUP BY paymentMethod
     `);
 
@@ -440,6 +449,7 @@ export async function analyzeTicketTrend(): Promise<{
       FROM invoices
       WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
         AND totalAmount > 0
+        AND paymentStatus = 'paid'
       GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
       ORDER BY month
     `);
@@ -484,6 +494,7 @@ export async function analyzeRevenueConcentration(): Promise<{
       FROM invoices
       WHERE customerId IS NOT NULL
         AND invoiceDate >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+        AND paymentStatus = 'paid'
       GROUP BY customerId
       ORDER BY custRev DESC
     `);

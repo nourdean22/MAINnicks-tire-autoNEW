@@ -10,8 +10,9 @@
  *   1. CORE/CHAT — just OPS_CARD (~700 chars). Casual "hey" messages.
  *   2. BUSINESS (default) — foundation only: model, voice, pricing,
  *      customer, differentiation, hard rules, seasonal playbook,
- *      revenue funnel, Cleveland identity, equipment authority,
- *      success profile. ~12kc. Plenty of room for memory + tools.
+ *      revenue funnel, success profile. ~8kc. (2026-06-10: Cleveland
+ *      identity + equipment authority + SMS voice moved to content
+ *      mode / the SMS gate — they are content reference cards.)
  *   3. CONTENT MODE — foundation + Master Content Engine v5.0
  *      essentials, plus opt-in DEEP block for strategy / planning
  *      questions. Capped near Venice's 65k system-prompt limit.
@@ -22,6 +23,7 @@
  * than skip the engine when it's needed.
  */
 
+import { detectContentIntentSync } from "@/lib/ai/content-intent";
 import {
   ALGORITHM_PRIORITIES,
   BRAND_VOICE,
@@ -99,9 +101,10 @@ import {
  */
 export function detectContentIntent(message: string | null | undefined): boolean {
   if (!message) return false;
-  // Lazy require so module load order stays clean
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { detectContentIntentSync } = require("../content-intent") as typeof import("../content-intent");
+  // 2026-06-10 · was a lazy require "so module load order stays clean"
+  // — content-intent.ts has ZERO imports (no cycle is possible), and
+  // CJS require of TS modules doesn't resolve under vitest, which made
+  // every real test of this path impossible. Static import is safe.
   return detectContentIntentSync(message).isContent;
 }
 
@@ -122,6 +125,16 @@ export function detectContentDeepIntent(message: string | null | undefined): boo
  * If userMessage is undefined, content mode defaults to false — safe
  * default that keeps the prompt under Venice's 65k limit.
  */
+/**
+ * SMS-drafting intent · its own detector because detectContentIntent's
+ * keyword list has no sms/text entries. Exported so the system-prompt
+ * CACHE KEY can include it — without that, the 300s prompt cache would
+ * serve a non-SMS prompt to an SMS ask (or vice versa) for up to 5min.
+ */
+export function detectSmsIntent(message: string | null | undefined): boolean {
+  return /\b(sms|text(s|ing|ed)?|win.?back)\b/i.test(message ?? "");
+}
+
 export function getBusinessKnowledge(
   tier: KnowledgeTier,
   userMessage?: string | null,
@@ -135,8 +148,8 @@ export function getBusinessKnowledge(
   if (tier === "core" || tier === "chat") return blocks.join("\n\n");
 
   // ═══ BUSINESS FOUNDATION — always loaded for business+ tier ═══
-  // ~12kc total. Identity, model, voice, pricing, customer, hard rules,
-  // funnel, equipment, Cleveland, success profile, seasonal playbook.
+  // ~8kc total. Identity, model, voice, pricing, customer, hard rules,
+  // funnel, success profile, seasonal playbook.
   blocks.push(
     `### THE FOUR PILLARS (operating compass)\n${FOUR_PILLARS}`,
     `### BUSINESS MODEL\n${SHOP_MODEL}`,
@@ -145,9 +158,6 @@ export function getBusinessKnowledge(
     `### DIFFERENTIATION (vs chains, dealers, other indies)\n${SHOP_DIFFERENTIATION}`,
     `### CUSTOMER PROFILE — who walks in\n${CUSTOMER_PROFILE}`,
     `### BRAND VOICE — exact tone calibration\n${BRAND_VOICE}`,
-    `### SMS VOICE — outbound text-message tone\n${SMS_VOICE}`,
-    `### EQUIPMENT AUTHORITY (concrete proof, not bragging)\n${EQUIPMENT_AUTHORITY}`,
-    `### CLEVELAND IDENTITY (local vocab + landmarks)\n${CLEVELAND_IDENTITY}`,
     `### REVENUE FUNNEL — where money lives + dies\n${REVENUE_FUNNEL}`,
     `### HARD RULES (Nour's standing directives)\n${HARD_RULES}`,
     `### SUCCESS / FAILURE PROFILE — what good + bad days look like\n${SUCCESS_PROFILE}`,
@@ -186,6 +196,18 @@ export function getBusinessKnowledge(
   // performance / scoring / 90-day / boost / etc.
 
   const isContentMode = detectContentIntent(userMessage);
+
+  // 2026-06-10 prompt-budget trim · SMS_VOICE / EQUIPMENT_AUTHORITY /
+  // CLEVELAND_IDENTITY are content-creation reference cards, not chat
+  // knowledge — they loaded on EVERY business+ chat (~3.7kc of the
+  // 60k budget). SMS_VOICE keeps its OWN regex gate (not just content
+  // mode) because detectContentIntent's keyword list has no sms/text
+  // entries — an SMS-drafting ask outside content mode still gets the
+  // tone card. The other two ride the content-mode essentials below.
+  if (isContentMode || detectSmsIntent(userMessage)) {
+    blocks.push(`### SMS VOICE — outbound text-message tone\n${SMS_VOICE}`);
+  }
+
   if (isContentMode) {
     // ── ESSENTIALS — leanest possible for one strong post ─────────
     // Apr 28 v3 · Dropped from this tier (moved to DEEP):
@@ -208,6 +230,12 @@ export function getBusinessKnowledge(
       `### DAILY OUTPUT TEMPLATE (14-section format Nick uses for every post)\n${DAILY_OUTPUT_TEMPLATE}`,
       `### NEVER-GENERIC LIST (banned phrases + stronger replacements)\n${NEVER_GENERIC}`,
       `### 20 FINAL MASTER RULES + The Final Standard\n${FINAL_MASTER_RULES}`,
+      // 2026-06-10 · moved here from the always-on foundation — both
+      // exist to feed content generation (equipment citations in posts;
+      // image-anchor rules + rotation vocab). Cross-mode local facts
+      // (potholes, Dead Man's Curve, salt season) stay in CUSTOMER_PROFILE.
+      `### EQUIPMENT AUTHORITY (concrete proof, not bragging)\n${EQUIPMENT_AUTHORITY}`,
+      `### CLEVELAND IDENTITY (local vocab + landmarks)\n${CLEVELAND_IDENTITY}`,
     );
 
     // ── FORMAT-SPECIFIC engines — conditional inject ──────────────

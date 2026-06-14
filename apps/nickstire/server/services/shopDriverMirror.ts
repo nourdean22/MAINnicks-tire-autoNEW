@@ -36,6 +36,16 @@ export function getLastSuccessfulSync(): Date | null {
   return lastSuccessfulSync;
 }
 
+/**
+ * Calculates the number of days since the last successful sync.
+ * Returns 99 if there has never been a successful sync.
+ */
+export function getDataStaleDays(): number {
+  if (!lastSuccessfulSync) return 99;
+  const diffTime = Math.abs(Date.now() - lastSuccessfulSync.getTime());
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+}
+
 // ─── SESSION AUTH ──────────────────────────────────────
 // ShopDriver uses JWT token auth via a GUID-subdomain API.
 // The SPA at secure.autolaborexperts.com calls the GUID API for all data.
@@ -92,7 +102,7 @@ async function isTokenAlive(token: string): Promise<boolean> {
   }
 }
 
-async function getSession(): Promise<string | null> {
+export async function getSession(): Promise<string | null> {
   // Validate cached token before returning — catches shop-login session kicks
   if (mirrorSession && Date.now() < mirrorSession.expiresAt) {
     const alive = await isTokenAlive(mirrorSession.token);
@@ -1057,7 +1067,7 @@ export async function runFullMirror(): Promise<{
     invalidateSession(); // Force re-auth next time — session may be dead
 
     // Check how stale our data actually is
-    const staleDays = await getDataStaleDays();
+    const staleDays = await getDbDataStaleDays();
     const msg = `⚠️ ALG MIRROR: 0 invoices fetched (attempt #${consecutiveFailures}). ` +
       `Session invalidated for retry. ` +
       `${rawCustomers.length > 0 ? `Got ${rawCustomers.length} customers though.` : "0 customers too — auth may be broken."} ` +
@@ -1202,7 +1212,7 @@ async function sendMirrorAlert(msg: string): Promise<void> {
 
 // ─── DATA STALENESS CHECK ──────────────────────────────
 // Check how many days since the most recent invoice in our DB
-async function getDataStaleDays(): Promise<number | null> {
+async function getDbDataStaleDays(): Promise<number | null> {
   try {
     const d = await getDb();
     if (!d) return null;
@@ -1462,7 +1472,7 @@ export async function checkMirrorHealth(): Promise<{
   recordsProcessed: number;
   details: string;
 }> {
-  const staleDays = await getDataStaleDays();
+  const staleDays = await getDbDataStaleDays();
   const status = {
     consecutiveFailures,
     lastSuccessfulSync: lastSuccessfulSync?.toISOString() || "never this session",

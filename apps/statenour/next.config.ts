@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
   // `standalone` produces .next/standalone/server.js with all required
   // node_modules tracing · no `pnpm install` needed in the runtime image.
   // Backward-compatible · Vercel ignores this flag.
-  output: "standalone",
+  output: process.platform === "win32" ? undefined : "standalone",
   // CP7 · Railway build containers can't reach Neon as fast as Vercel's
   // can. Three /api/ultron/* routes (signal · pulse · pulse-digest) run
   // 10+ Prisma queries during prerender and hit the 60s default. Bumping
@@ -203,6 +203,13 @@ const nextConfig: NextConfig = {
     { source: "/system/providers", destination: "/system", permanent: false },
     { source: "/system/power", destination: "/system", permanent: false },
     { source: "/system/ghost-nour", destination: "/system/calibration", permanent: false },
+    // PR #85 cleanup redirects:
+    { source: "/system/approvals", destination: "/system/actions", permanent: false },
+    { source: "/system/digest", destination: "/system", permanent: false },
+    { source: "/system/coach-events", destination: "/system/alerts", permanent: false },
+    { source: "/system/reviews", destination: "/system", permanent: false },
+    { source: "/system/proactive-preview", destination: "/system", permanent: false },
+    { source: "/system/errors", destination: "/system/logs?view=errors", permanent: false },
     // Reason consolidation. Wave 2 (2026-06-03) · /reason itself folded
     // into /brain?tab=reason · these two land there directly (single hop).
     { source: "/reason/history", destination: "/brain?tab=reason", permanent: false },

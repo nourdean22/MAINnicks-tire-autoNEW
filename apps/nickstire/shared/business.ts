@@ -177,9 +177,13 @@ export const BUSINESS = {
   },
 
   // ─── USED TIRES (the "too good to be true" hook) ────
-  // wave-182: was a stale "from $40" — the canonical Tire Haiku + VAPI prompt +
-  // all live copy say "$60 installed". A divergent constant is a landmine if any
-  // copy path pulls from here.
+  // CANONICAL used-tire pricing for the WEBSITE: "from $25 installed" with the
+  // fineprint + typical band below (wave-183, 2026-06). The earlier wave-182
+  // comment here claimed "$60 installed" was canonical — that is STALE and was
+  // the source of a revert trap; do NOT restore it. Note the unresolved channel
+  // split: phone/SMS/IG/voice/AI-validator still quote $60 (see
+  // truth_os.md + docs/NEXT-BEST-ACTIONS.md owner decision). This constant is
+  // the site's source of truth; align other channels to it, not the reverse.
   usedTires: {
     // wave-183: $25 = advertised floor (12-inch economy rims). The fineprint + band
     // MUST travel with the $25 everywhere it shows (honesty/FTC + protects the

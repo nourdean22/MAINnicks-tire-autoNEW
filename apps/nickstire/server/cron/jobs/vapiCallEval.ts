@@ -54,6 +54,7 @@ import { vapiCallLogs } from "../../../drizzle/schema";
 import { sendTelegram } from "../../services/telegram";
 import { getCallStateHistory } from "../../services/voice-call-state";
 import { createLogger } from "../../lib/logger";
+import { classifyCall } from "../../services/vapiCallClassifier";
 
 const log = createLogger("cron:vapi-eval");
 
@@ -76,20 +77,10 @@ interface VapiCallDetail {
   durationSeconds?: number;
   /** VAPI call direction · "inboundPhoneCall" | "outboundPhoneCall" | "webCall" */
   type?: string;
+  transcript?: string;
 }
 
 const LOOKBACK_DAYS = 2; // catch yesterday + today's morning calls
-
-const FRUSTRATED_OUTCOMES = new Set(["escalated", "lost"]);
-const CONVERTED_OUTCOMES = new Set(["booked", "callback_scheduled"]);
-
-// Outcome bucket from score
-function bucketOutcome(score: number): string {
-  if (score >= 85) return "exemplary";
-  if (score >= 70) return "converted";
-  if (score >= 50) return "info_only";
-  return "wasted";
-}
 
 interface ScoredCall {
   vapiCallId: string;
@@ -158,6 +149,9 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       serviceMention: vapiCallLogs.serviceMention,
       convertedToLead: vapiCallLogs.convertedToLead,
       createdAt: vapiCallLogs.createdAt,
+      leadId: vapiCallLogs.leadId,
+      callbackId: vapiCallLogs.callbackId,
+      metadata: vapiCallLogs.metadata,
     })
     .from(vapiCallLogs)
     .where(and(
@@ -188,6 +182,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       // Pull VAPI's analysis (already computed server-side per ANALYSIS_PLAN)
       let analysis: VapiCallDetail["analysis"] = undefined;
       let callType: string | null = null;
+      let transcript: string | null = null;
       if (VAPI_API_KEY) {
         try {
           const resp = await fetch(`${VAPI_BASE}/call/${row.vapiCallId}`, {
@@ -197,6 +192,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
             const detail = await resp.json() as VapiCallDetail;
             analysis = detail.analysis;
             callType = detail.type ?? null;
+            transcript = detail.transcript ?? null;
           }
         } catch (e) {
           log.warn(`[vapi-eval] VAPI fetch failed for ${row.vapiCallId}`, { error: e instanceof Error ? e.message : String(e) });
@@ -245,66 +241,71 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         reachedTool = states.some((s) => s.state === "tool_called" || s.state === "confirmed");
       } catch { /* state trail is optional · score without it */ }
 
-      const outcome = analysis?.structuredData?.outcome ?? "";
-      const sentiment = analysis?.structuredData?.sentiment ?? "";
-      const success = analysis?.successEvaluation ?? "";
-      const duration = row.durationSeconds ?? 0;
+      // Run new classifier service
+      const classificationInput = {
+        durationSeconds: row.durationSeconds ?? 0,
+        endedReason: row.endedReason,
+        aiSummary: row.aiSummary || analysis?.summary || null,
+        transcript: transcript,
+        convertedToLead: row.convertedToLead,
+        leadId: row.leadId,
+        callbackId: row.callbackId,
+        sentiment: analysis?.structuredData?.sentiment,
+        evalOutcome: analysis?.structuredData?.outcome,
+        successEvaluation: analysis?.successEvaluation,
+        reachedTool,
+      };
 
-      // Heuristic scoring
-      let score = 0;
-      const reasons: string[] = [];
+      const result = classifyCall(classificationInput);
+      const score = result.score;
+      const bucketed = result.outcome;
+      const reasoning = result.reasoning;
 
-      if (CONVERTED_OUTCOMES.has(outcome)) {
-        if (reachedTool) {
-          score += 30;
-          reasons.push(`+30 outcome=${outcome} (tool-fire confirmed)`);
+      let queueStatus: string | undefined = undefined;
+      let queueUrgency: number | undefined = undefined;
+
+      const candidates = ["lost_opportunity", "callback_needed", "walk_in_directed", "tech_failure"];
+      if (candidates.includes(result.outcome)) {
+        queueStatus = "pending";
+        // compute urgency
+        if (result.outcome === "callback_needed") {
+          queueUrgency = 9;
+        } else if (result.outcome === "lost_opportunity") {
+          if (result.intents.includes("new_tire") || result.intents.includes("used_tire") || result.intents.includes("brakes")) {
+            queueUrgency = 8;
+          } else if (result.intents.length > 0) {
+            queueUrgency = 7;
+          } else {
+            queueUrgency = 6;
+          }
+        } else if (result.outcome === "walk_in_directed") {
+          queueUrgency = 6;
+        } else if (result.outcome === "tech_failure") {
+          queueUrgency = 5;
         } else {
-          // F3 · claimed conversion with NO write-tool fire = suspect
-          // hallucination. Do NOT credit it — flag for operator review.
-          reasons.push(`⚠ outcome=${outcome} claimed but no write-tool fired — NOT credited (suspect)`);
+          queueUrgency = 4;
         }
       }
-      if (success === "pass") {
-        score += 20;
-        reasons.push("+20 success=pass");
-      }
-      if (sentiment === "positive") {
-        score += 15;
-        reasons.push("+15 sentiment=positive");
-      } else if (sentiment === "negative") {
-        score -= 15;
-        reasons.push("-15 sentiment=negative");
-      }
-      if (duration >= 30 && duration < 360) {
-        score += 15;
-        reasons.push(`+15 productive duration=${duration}s`);
-      } else if (duration >= 360) {
-        score -= 5;
-        reasons.push(`-5 long call duration=${duration}s`);
-      }
-      if (reachedTool) {
-        score += 10;
-        reasons.push("+10 tool_called (engaged · state ground truth)");
-      }
-      if (row.convertedToLead) {
-        score += 10;
-        reasons.push("+10 converted to lead");
-      }
 
-      // Floor + cap
-      if (score < 0) score = 0;
-      if (score > 100) score = 100;
+      const existingMetadata = typeof row.metadata === "string"
+        ? JSON.parse(row.metadata)
+        : (row.metadata || {});
 
-      const bucketed = bucketOutcome(score);
-      const reasoning = `${bucketed.toUpperCase()} (${score}). ${reasons.join(" · ")}.${analysis?.summary ? ` Summary: ${analysis.summary.slice(0, 200)}` : ""}`;
+      const updatedMetadata = {
+        ...existingMetadata,
+        intents: result.intents,
+        ...(queueStatus ? { queueStatus, queueUrgency } : {}),
+      };
 
-      scored.push({
-        vapiCallId: row.vapiCallId,
-        score,
-        outcome: bucketed,
-        reasoning,
-        phoneTail4: (row.phoneNumber ?? "").replace(/\D/g, "").slice(-4),
-      });
+      if (score !== null) {
+        scored.push({
+          vapiCallId: row.vapiCallId,
+          score,
+          outcome: bucketed,
+          reasoning,
+          phoneTail4: (row.phoneNumber ?? "").replace(/\D/g, "").slice(-4),
+        });
+      }
 
       // Persist
       await d
@@ -314,6 +315,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           evalOutcome: bucketed,
           evalReasoning: reasoning,
           evalAt: new Date(),
+          metadata: updatedMetadata,
         })
         .where(eq(vapiCallLogs.id, row.id));
     } catch (e) {

@@ -28,6 +28,7 @@ import {
   Pencil,
   Play,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/components/actions/shared";
@@ -54,6 +55,7 @@ export interface MissionTaskRowProps {
    *  and the existing task-resurface cron flips WAITING→READY when
    *  the timestamp matures. snoozedUntilIso is a wall-clock ISO. */
   onSnooze?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
+  onDecompose?: (id: string) => void | Promise<void>;
 }
 
 /** Tomorrow at 6am local · the resurface cron flips WAITING→READY when
@@ -88,9 +90,10 @@ export function MissionTaskRow({
   totalTasks,
   onMove,
   onSnooze,
+  onDecompose,
 }: MissionTaskRowProps) {
   const [busy, setBusy] = useState<
-    "complete" | "start" | "delete" | "snooze" | null
+    "complete" | "start" | "delete" | "snooze" | "decompose" | null
   >(null);
   // Wave AV · 2026-05-28 · snooze popover · open state local to the row.
   const [snoozeOpen, setSnoozeOpen] = useState(false);
@@ -138,6 +141,21 @@ export function MissionTaskRow({
   const isDoing = task.status === "DOING";
   const isDone = task.status === "DONE";
 
+  const isComplex = (() => {
+    if (indent !== 0 || isDone) return false;
+    if (task.parentTaskId) return false;
+    if (task.effort === "H1" || task.effort === "H2PLUS") return true;
+
+    const complexKeywords = [
+      "setup", "implement", "create", "build", "refactor", 
+      "reengineer", "migrate", "integrate", "analyze", "design", 
+      "configure", "deconstruct", "reconcile", "audit", "optimize", 
+      "orchestrate", "decomposing", "decomposition"
+    ];
+    const titleLower = (task.title ?? "").toLowerCase();
+    return complexKeywords.some(keyword => titleLower.includes(keyword));
+  })();
+
   const dueHint = formatDueHint(task.dueDate);
 
   return (
@@ -149,8 +167,10 @@ export function MissionTaskRow({
       // at the top of /missions and made the operator scan. scroll-mt-24
       // honors the sticky ticker. Closes the orphan-anchor synergy gap.
       className={cn(
-        "group flex items-start gap-2 py-2 px-2.5 rounded-md transition-colors scroll-mt-24",
-        "hover:bg-[var(--bg-raised)]/[0.06]",
+        "group flex items-start gap-2 py-2 px-2.5 rounded-md transition-all scroll-mt-24 border",
+        isDoing
+          ? "border-amber-500/30 bg-amber-500/[0.03] shadow-[0_0_12px_rgba(253,185,19,0.04)] animate-breath"
+          : "border-transparent hover:bg-[var(--bg-raised)]/[0.06]",
         isDone && "opacity-50",
         indent === 1 && "ml-6 border-l border-[var(--border-default)]/40 pl-3",
       )}
@@ -203,10 +223,12 @@ export function MissionTaskRow({
           task.energyRequired ||
           task.effort ||
           isDoing ||
+          isComplex ||
           task.waitingOn ||
           (task as unknown as { loopKind?: string }).loopKind === "DAILY") && (
           <div className="mt-0.5 flex items-center gap-2 text-[9px] font-mono uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
             {isDoing && <span className="text-amber-400">doing</span>}
+            {isComplex && <span className="text-[var(--gold)]/80">✨ complex</span>}
             {task.waitingOn && (
               <span className="text-violet-300/80">⏸ {task.waitingOn}</span>
             )}
@@ -355,6 +377,25 @@ export function MissionTaskRow({
               className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10 active:scale-95 transition-transform"
             >
               <Pencil size={12} strokeWidth={2} />
+            </button>
+          )}
+          {onDecompose && isComplex && (
+            <button
+              type="button"
+              onClick={async () => {
+                setBusy("decompose");
+                try {
+                  await onDecompose(task.id);
+                } finally {
+                  setBusy(null);
+                }
+              }}
+              disabled={busy !== null}
+              aria-label="decompose task"
+              title="Decompose task into subtasks"
+              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10 active:scale-95 transition-transform disabled:opacity-50"
+            >
+              <Sparkles size={12} strokeWidth={2} />
             </button>
           )}
           {onStart && !isDoing && (

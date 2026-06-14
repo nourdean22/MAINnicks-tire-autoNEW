@@ -36,11 +36,18 @@
 
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { StandardPage } from "@/components/layout/standard-page";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 // 2026-05-30 · the mastery leveling engine's face · every stat as an RPG
 // level card + an overall-power hero. Self-hides on error · honest Day-1 zero.
 import { CharacterSheet } from "@/components/mastery/character-sheet";
+// Level-Up Directive (2026-06-10) · the deterministic "level THIS stat
+// today, because X, here's the rep" card. Pure re-rank of data the page
+// already fetches (sheet + goals + body) — supersedes the old in-sheet
+// "Next rep" strip. Honest "Missing data" empty state; self-hides on
+// transient error.
+import { LevelUpDirectiveCard } from "@/components/mastery/level-up-directive-card";
 // The interactive goal surface (LifeGoal ladder + active missions) folded in
 // from the retired /goals page. Self-fetches /api/goals · zero type coupling.
 import { GoalBoard } from "@/components/goals/goal-board";
@@ -73,6 +80,16 @@ const LearningLoop = dynamic(
   { ssr: false, loading: () => <SectionFallback /> },
 );
 
+const IdentityArcCard = dynamic(
+  () => import("@/components/mastery/identity-arc-card").then((m) => m.IdentityArcCard),
+  { ssr: false, loading: () => <div className="h-[200px] rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" /> },
+);
+
+const CalibrationSection = dynamic(
+  () => import("@/components/stats/calibration-section").then((m) => m.CalibrationSection),
+  { ssr: false, loading: () => <SectionFallback /> },
+);
+
 /** Light shimmer matching the character-sheet hero + stat-grid shape, so the
  *  static prerender shell holds the layout until the client subtree hydrates. */
 function StatsBodyFallback() {
@@ -91,42 +108,127 @@ function StatsBodyFallback() {
   );
 }
 
+const TABS = [
+  { id: "mastery", label: "Mastery" },
+  { id: "goals", label: "Goals" },
+  { id: "body", label: "Body" },
+  { id: "learning", label: "Learning" },
+  { id: "calibration", label: "Calibration" },
+];
+
+function StatsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  const activeTab = searchParams.get("tab") || "mastery";
+
+  const handleTabChange = (tabId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tabId);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Premium Glassmorphic Navigation Bar */}
+      <div className="sticky top-16 z-20 -mx-4 px-4 py-2 bg-black/40 backdrop-blur-md border-b border-white/[0.08] sm:mx-0 sm:px-0 sm:rounded-xl sm:border sm:bg-white/[0.02]">
+        <div className="flex space-x-1 p-1 overflow-x-auto scrollbar-none">
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={`
+                  relative px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 whitespace-nowrap outline-none cursor-pointer
+                  ${isActive 
+                    ? "text-white bg-white/[0.08] shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-white/10" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/[0.03] border border-transparent"
+                  }
+                `}
+              >
+                {tab.label}
+                {isActive && (
+                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full shadow-[0_0_8px_#3b82f6]" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Tab content wrapper with smooth transitions */}
+      <div className="mt-4 transition-all duration-300">
+        {activeTab === "mastery" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* ⓪ TODAY'S MOVE & IDENTITY ARC · responsive 2-column layout */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <LevelUpDirectiveCard />
+              <IdentityArcCard />
+            </div>
+
+            {/* ① WHO YOU ARE · the character sheet (the stats — the hero). */}
+            <CharacterSheet />
+          </div>
+        )}
+
+        {activeTab === "goals" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Coach Channel · goal nudges + mission-mode breadcrumb */}
+            <div className="space-y-2">
+              <CoachEventBanner surface="goals" />
+              <MissionBreadcrumb />
+            </div>
+
+            {/* ② WHERE YOU'RE GOING · the goals surface (interactive GoalBoard). */}
+            <section id="goals" className="space-y-3">
+              <MasterySectionLabel label="Goals · what you're climbing toward" />
+              <GoalBoard />
+            </section>
+          </div>
+        )}
+
+        {activeTab === "body" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* ③ BODY · weight + daily health log */}
+            <section id="body" className="space-y-3">
+              <MasterySectionLabel label="Body · health = performance" />
+              <BodySection />
+            </section>
+          </div>
+        )}
+
+        {activeTab === "learning" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* ④ LEARNING · the active AI learning loop */}
+            <section id="learning" className="space-y-3">
+              <MasterySectionLabel label="Learning · the active loop" />
+              <LearningLoop />
+            </section>
+          </div>
+        )}
+
+        {activeTab === "calibration" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* ⑤ CALIBRATION · outcome tracking & prediction scoring */}
+            <section id="calibration" className="space-y-3">
+              <MasterySectionLabel label="Calibration · outcome benchmarking" />
+              <CalibrationSection />
+            </section>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function StatsPage() {
   return (
     <>
       <StandardPage eyebrow="Who you are · where you're going" title="Stats">
         <Suspense fallback={<StatsBodyFallback />}>
-          {/* ① WHO YOU ARE · the character sheet (the stats — the hero). */}
-          <div className="mt-6">
-            <CharacterSheet />
-          </div>
-
-          {/* Coach Channel · goal nudges + mission-mode breadcrumb (compact,
-           *  both self-hide when there's nothing to surface). */}
-          <div className="mt-4 space-y-2">
-            <CoachEventBanner surface="goals" />
-            <MissionBreadcrumb />
-          </div>
-
-          {/* ② WHERE YOU'RE GOING · the goals surface (interactive GoalBoard). */}
-          <section id="goals" className="mt-8 space-y-3 scroll-mt-24">
-            <MasterySectionLabel label="Goals · what you're climbing toward" />
-            <GoalBoard />
-          </section>
-
-          {/* ③ BODY · weight + daily health log (was /body) · lazy-mounted ·
-           *  id="body" so /body → /stats#body lands here. */}
-          <section id="body" className="mt-8 space-y-3 scroll-mt-24">
-            <MasterySectionLabel label="Body · health = performance" />
-            <BodySection />
-          </section>
-
-          {/* ④ LEARNING · the active AI learning loop (was the bottom of
-           *  /learn) · lazy-mounted · id="learning" anchor. */}
-          <section id="learning" className="mt-8 space-y-3 scroll-mt-24">
-            <MasterySectionLabel label="Learning · the active loop" />
-            <LearningLoop />
-          </section>
+          <StatsContent />
         </Suspense>
       </StandardPage>
 
@@ -141,6 +243,8 @@ export default function StatsPage() {
             "What's the fastest way to level up today?",
             "Which goal needs my attention most?",
             "Where am I falling behind this week?",
+            "How calibrated are my prediction outcomes?",
+            "What is my task ROI estimation error?",
           ]}
         />
       </Suspense>

@@ -2,7 +2,61 @@
 
 **Purpose:** Single place to record what must be **true in production** for this repo. Update when you ship behavior or infra changes.
 
-## 🟢 Latest shipped — 2026-06-04 (VAPI receptionist live-bug fixes + SMS pre-launch hardening — receptionist + SMS TURNED ON)
+## 🟢 Latest shipped — 2026-06-12 (Customer Total Spent Fix)
+
+- **Customer Total Spent (dead totalRevenue fix)**: Resolved the bug where `customerMetrics.totalRevenue` was always 0 in the database (never populated) by redirecting reads in both `customersRouter.vipLookup` and `customerPsychoProfile` service to `customers.totalSpent` (the live spent value in cents).
+- **Test Integrity**: Standardized the vitest error assertions in `triggerRefund.test.ts` to run stably without relying on rejects.toThrow string matching issues.
+
+## 🟢 Shipped — 2026-06-12 (Tires Metadata Alignment & GSC Sitemap Submission)
+
+- **Tires Metadata Alignment**: Modified `apps/nickstire/shared/services.ts` to align the tires page meta description with the SEO-tuned string inside `routes.ts` and `TireFinder.tsx` ("New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005.").
+- **Zero Divergences**: Verified that the meta divergence check reports 0 divergences between route registry and SPA runtime sources.
+- **HTML Prerender Regeneration**: Regenerated all 336 pre-rendered HTML files (`pnpm run regen`) to ensure they carry the aligned metadata in their static output.
+- **GSC Sitemap Submission**: Successfully executed `pnpm tsx scripts/gsc-submit-sitemap.ts` to ping Google Search Console and request immediate re-crawling of `sitemap.xml`, `sitemap-services.xml`, `sitemap-locations.xml`, and `sitemap-images.xml`.
+
+---
+
+## 🟢 Shipped — 2026-06-10 late (Review Replies: claim-safety QA + draft editing — stacked on the #57 posted-confirmation loop)
+
+Two stacked PRs complete the Growth → Review Replies operator loop. **#57 (MERGED, squash `722934c7`)** closed the state machine: `reviewReplies.markPosted` (approved → posted + `postedAt`, only reachable from approved, DB-only owner confirmation — nothing posts to Google), `stats.oldestApprovedAt` rot signal + the approved-backlog amber banner, and the two-tap "Mark posted (DB only)" button. **#58** (this delta, retargeted to main after the #57 merge) adds the QA layer:
+
+- **Claim-safety QA** `shared/reviewReplyQa.ts` (same rule family as the GBP Q&A seeds / studio pattern banks): block tier (guarantees, warranty talk, `free` except "free check", self-ranking, wait-time numbers, prices) + warn tier (kill-words, bot phrases, same-day). `approve` refuses server-side on block findings; the Growth UI shows live findings on draft cards and disables Approve until the draft is edited clean.
+- **Both AI draft prompts** (router `fetchNewReviews` + the review-monitor cron) embed `buildReplyPromptRules()` from the same module, so drafts come out clean in the first place.
+- **`updateDraft` now reachable**: the Growth UI gained an in-DOM edit box (the mutation existed with no UI — the operator could only approve-verbatim or skip).
+- **Queue order**: `reviewReplies.list` orders worst rating first, newest first within a rating — angry reviews surface on top.
+- Tests: `server/review-reply-qa.test.ts` (detector blocks/allows incl. the cron fallback templates + a phone-number false-positive guard + prompt/detector lockstep) alongside #57's 7 router tests (`server/__tests__/review-replies.test.ts`). No migration (`status` is varchar(20); `postedAt` already existed). No external side effects added.
+
+---
+
+## 🟢 Shipped — 2026-06-10 (11-PR ship night: tire money path hardened + admin grew Tire Orders / Ops Hub / Growth + both social studios)
+
+Eleven PRs squash-merged to main in one evening (#42, #44, #45, #46, #47, #48, #49, #50, #51 + #52, #53, #54, #55 line; final main `a231e449`). What must now be true in prod:
+
+**Money path (tire checkout — Stripe LIVE):**
+- Online tire checkout hardened (#42): durable webhook dedup (atomic conditional UPDATE), price-tamper guards, collision retry, Sheets sync revival, Telegram per order, cancel/refund-risk alerts. Pay Now stays ENABLED (operator decision).
+- ONE admin cockpit for tire orders (#46): the Money→Tire Orders tab and the #41 command center are consolidated; protection banners (payments.health / refund / stale-session) live there. Old URLs redirect.
+- Google Sheets "Tire Orders" tab exists with the 24 canonical headers (operator-verified live edit). **Watch item: first synced order row not yet observed.**
+- Still NO `stripe.refunds` call anywhere — refunds remain manual by design, pending owner approval of `docs/refund-writeback-design.md`.
+
+**Admin shell — three new top-level sections:**
+- **Ops Hub** (#47): owner-action registry (danger-zone truth), reports corpus, PREVIEW-ONLY customer message templates (no send path exists — it throws by design).
+- **Growth** (#50 systems + #53 wiring): 7 tabs — Local Growth (IG autoposter armed-state booleans + Google reviews/Place-ID health), Review Replies (copy-only drafts; Approve/Skip/Mark-posted are DB-status-only, **nothing posts to Google** — "Mark posted" is the owner's after-the-paste confirmation that sets `postedAt`, and the tab shows an approved-but-unposted backlog banner off real DB state), GBP Q&A (17 claim-safe seeds), Photo Queue (deterministic weekly 6), Entity/Brand (canonical NAP checklist), Competitors (2026-06 baseline, honest gap math), Social Studios.
+- **Studios** (#51 IG carousel, #52+#54 faceless reel, #55 tile): `/admin/ig-studio` + `/admin/reel-studio` + topbar icon links. DRAFT-ONLY — generation/publish/insights kill-switches all OFF.
+- Deep-link aliases: `?tab=gbp|local|localseo|social` → Growth; `?tab=reviews` still → Outreach (review REQUESTS, unchanged).
+
+**Safety/correctness fixes that must hold:**
+- `docs/MIGRATION_AUDIT.md` is REDACTED in HEAD (#49) — but the leaked Stripe secret / TiDB URL / vendor passwords **live in git history → rotation is still owner-urgent**.
+- GSC env-aliasing fixed (#50): `GOOGLE_SEARCH_CONSOLE_KEY` "configured" marker now derives from the service-account creds, NOT the Maps key — deleting the Maps key no longer silently kills Search Console sync.
+- Dead links fixed, CAN-SPAM footer address corrected to 17625 Euclid Ave (#49).
+- Web used-tire pricing stays the approved **"$25 installed (select 12-inch) / most $40-80"**; quoting channels stay $60 (two-tier policy unchanged — see 2026-06-03 section).
+
+**Operator watch items:** post-deploy phone smoke (Admin → Tire Orders / Ops Hub / Growth / both studios) · armed-state card should read DISARMED + dry-run ON · first Sheets order row · credential rotation (rank 0).
+
+Ledger of every item + evidence: `docs/PROJECT-COMPLETION-LEDGER.md` (repo root). Ranked queue: `docs/NEXT-BEST-ACTIONS.md`.
+
+---
+
+## 🟢 Shipped — 2026-06-04 (VAPI receptionist live-bug fixes + SMS pre-launch hardening — receptionist + SMS TURNED ON)
 
 Operator turned the AI receptionist + customer SMS back ON; F25e gateway back online (was ~22h offline). A live-call review caught real bugs the static audit + harness-secret theory both missed; all fixed + deployed; new prompt pushed to the live assistant.
 

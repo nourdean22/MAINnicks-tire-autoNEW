@@ -10,12 +10,103 @@
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, sql, desc, and, lte, isNull } from "drizzle-orm";
-import { customers } from "../../drizzle/schema";
+import { customers, invoices, tireOrders, serviceHistory } from "../../drizzle/schema";
 import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/schema";
 import { sendSms, withOptOut } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 
 import { db } from "../lib/db-helper";
+
+/**
+ * Centrally verify which customer IDs have a verified tire purchase history.
+ * Checks:
+ * 1. Invoices containing 'tire'/'tires' keywords without repair/rotation/flat/patch/plug/balance/mount exclusions.
+ * 2. Tire orders where paymentStatus is 'paid' or status is not 'cancelled'/'received' (meaning in-progress or completed).
+ */
+export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: number[]): Promise<Set<number>> {
+  const verifiedIds = new Set<number>();
+  if (customerIds.length === 0) return verifiedIds;
+
+  for (let i = 0; i < customerIds.length; i += 1000) {
+    const chunk = customerIds.slice(i, i + 1000);
+
+    // 1. Query invoices
+    const invoiceRows = await d
+      .select({ customerId: invoices.customerId })
+      .from(invoices)
+      .where(
+        and(
+          sql`${invoices.customerId} IN (${sql.join(chunk)})`,
+          sql`(${invoices.serviceDescription} LIKE '%tire%' OR ${invoices.serviceDescription} LIKE '%tires%')`,
+          sql`${invoices.serviceDescription} NOT LIKE '%repair%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%rotation%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%rotate%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%flat%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%patch%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%plug%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%balance%'`,
+          sql`${invoices.serviceDescription} NOT LIKE '%mount%'`
+        )
+      );
+    for (const r of invoiceRows) {
+      if (r.customerId !== null) {
+        verifiedIds.add(r.customerId);
+      }
+    }
+
+    // 2. Query tire_orders
+    const orderRows = await d
+      .select({ customerId: tireOrders.customerId })
+      .from(tireOrders)
+      .where(
+        and(
+          sql`${tireOrders.customerId} IN (${sql.join(chunk)})`,
+          sql`(${tireOrders.paymentStatus} = 'paid' OR ${tireOrders.status} NOT IN ('cancelled', 'received'))`
+        )
+      );
+    for (const r of orderRows) {
+      if (r.customerId !== null) {
+        verifiedIds.add(r.customerId);
+      }
+    }
+
+    // 3. Query serviceHistory
+    const serviceHistoryRows = await d
+      .select({ userId: serviceHistory.userId })
+      .from(serviceHistory)
+      .where(
+        and(
+          sql`${serviceHistory.userId} IN (${sql.join(chunk)})`,
+          sql`(${serviceHistory.serviceType} LIKE '%tire%' OR ${serviceHistory.serviceType} LIKE '%tires%' OR ${serviceHistory.description} LIKE '%tire%' OR ${serviceHistory.description} LIKE '%tires%')`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%repair%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%rotation%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%rotate%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%flat%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%patch%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%plug%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%balance%'`,
+          sql`${serviceHistory.serviceType} NOT LIKE '%mount%'`,
+          sql`(${serviceHistory.description} IS NULL OR (
+            ${serviceHistory.description} NOT LIKE '%repair%'
+            AND ${serviceHistory.description} NOT LIKE '%rotation%'
+            AND ${serviceHistory.description} NOT LIKE '%rotate%'
+            AND ${serviceHistory.description} NOT LIKE '%flat%'
+            AND ${serviceHistory.description} NOT LIKE '%patch%'
+            AND ${serviceHistory.description} NOT LIKE '%plug%'
+            AND ${serviceHistory.description} NOT LIKE '%balance%'
+            AND ${serviceHistory.description} NOT LIKE '%mount%'
+          ))`
+        )
+      );
+    for (const r of serviceHistoryRows) {
+      if (r.userId !== null) {
+        verifiedIds.add(r.userId);
+      }
+    }
+  }
+
+  return verifiedIds;
+}
 
 // ─── WIN-BACK MESSAGE TEMPLATES ─────────────────────────
 // Selectable segments: lapsed, dormant, lost, declined, vip, fleet, recent, tire_customer.
@@ -175,7 +266,7 @@ function buildSegmentFilter(segment: string) {
     // Removed from the targetSegment enum; any legacy "declined" campaign
     // falls to the default below → segment='declined' matches ~0 rows (safe).
     case "tire_customer":
-      // tire_customer is revived only when invoice/service evidence proves prior tire work and lastVisitDate is older than 180 days.
+      // tire_customer is revived only when invoice/service evidence proves prior tire purchase (excluding repair/rotation/etc.) or a tire order, and lastVisitDate is older than 180 days.
       return and(
         sql`${customers.lastVisitDate} IS NOT NULL`,
         sql`${customers.lastVisitDate} < ${d180}`,
@@ -183,7 +274,41 @@ function buildSegmentFilter(segment: string) {
         sql`EXISTS (
           SELECT 1 FROM invoices 
           WHERE invoices.customerId = ${customers.id} 
-          AND (invoices.serviceDescription LIKE '%tire%' OR invoices.serviceDescription LIKE '%tires%')
+            AND (invoices.serviceDescription LIKE '%tire%' OR invoices.serviceDescription LIKE '%tires%')
+            AND invoices.serviceDescription NOT LIKE '%repair%'
+            AND invoices.serviceDescription NOT LIKE '%rotation%'
+            AND invoices.serviceDescription NOT LIKE '%rotate%'
+            AND invoices.serviceDescription NOT LIKE '%flat%'
+            AND invoices.serviceDescription NOT LIKE '%patch%'
+            AND invoices.serviceDescription NOT LIKE '%plug%'
+            AND invoices.serviceDescription NOT LIKE '%balance%'
+            AND invoices.serviceDescription NOT LIKE '%mount%'
+        ) OR EXISTS (
+          SELECT 1 FROM tire_orders 
+          WHERE tire_orders.customerId = ${customers.id} 
+            AND (tire_orders.paymentStatus = 'paid' OR tire_orders.status NOT IN ('cancelled', 'received'))
+        ) OR EXISTS (
+          SELECT 1 FROM service_history 
+          WHERE service_history.userId = ${customers.id} 
+            AND (service_history.serviceType LIKE '%tire%' OR service_history.serviceType LIKE '%tires%' OR service_history.description LIKE '%tire%' OR service_history.description LIKE '%tires%')
+            AND service_history.serviceType NOT LIKE '%repair%'
+            AND service_history.serviceType NOT LIKE '%rotation%'
+            AND service_history.serviceType NOT LIKE '%rotate%'
+            AND service_history.serviceType NOT LIKE '%flat%'
+            AND service_history.serviceType NOT LIKE '%patch%'
+            AND service_history.serviceType NOT LIKE '%plug%'
+            AND service_history.serviceType NOT LIKE '%balance%'
+            AND service_history.serviceType NOT LIKE '%mount%'
+            AND (service_history.description IS NULL OR (
+              service_history.description NOT LIKE '%repair%'
+              AND service_history.description NOT LIKE '%rotation%'
+              AND service_history.description NOT LIKE '%rotate%'
+              AND service_history.description NOT LIKE '%flat%'
+              AND service_history.description NOT LIKE '%patch%'
+              AND service_history.description NOT LIKE '%plug%'
+              AND service_history.description NOT LIKE '%balance%'
+              AND service_history.description NOT LIKE '%mount%'
+            ))
         )`
       )!;
     case "vip":
@@ -222,13 +347,21 @@ function buildSegmentFilter(segment: string) {
  * customer NEVER receives a literal "{vehicleInfo}". Must be applied anywhere a
  * personalizedBody is built (activate) or previewed so the two stay in sync.
  */
-function personalizeWinbackBody(
+export function personalizeWinbackBody(
   body: string,
-  customer: Pick<typeof customers.$inferSelect, "firstName" | "vehicleYear" | "vehicleMake" | "vehicleModel">
+  customer: Pick<typeof customers.$inferSelect, "firstName" | "vehicleYear" | "vehicleMake" | "vehicleModel">,
+  hasTirePurchase: boolean = true
 ): string {
+  let finalBody = body;
+  if (!hasTirePurchase) {
+    if (finalBody.includes("free tire rotation") || finalBody.includes("tire service") || finalBody.includes("got tires") || finalBody.includes("tire rotation")) {
+      finalBody = `Still need tires or service? We're here at ${STORE_NAME} whenever you're ready. Pull up any day for a free 27-point check, walk-ins welcome 7 days a week. ${STORE_PHONE}`;
+    }
+  }
+
   const vehicleInfo =
     [customer.vehicleYear, customer.vehicleMake, customer.vehicleModel]
-      .map((p) => (p ?? "").trim())
+      .map((p) => String(p ?? "").trim())
       .filter((p) => p.length > 0)
       .join(" ")
       .trim() || "vehicle";
@@ -236,13 +369,72 @@ function personalizeWinbackBody(
   // Wrap centrally here so all segments + any operator custom message comply
   // (idempotent: withOptOut no-ops if the body already carries a STOP line).
   return withOptOut(
-    body
+    finalBody
       .replace(/{firstName}/g, customer.firstName)
       .replace(/{vehicleInfo}/g, vehicleInfo),
   );
 }
 
 export const winbackRouter = router({
+  /** Calculate campaign readiness metrics */
+  campaignReadiness: adminProcedure
+    .input(z.object({
+      targetSegment: z.enum(["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"]),
+      customMessages: z.array(z.object({
+        step: z.number(),
+        delayDays: z.number(),
+        body: z.string(),
+      })).optional(),
+    }))
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return { netTargetCount: 0, projectedValueCents: 0, previewMessages: [] };
+
+      const segmentFilter = buildSegmentFilter(input.targetSegment);
+      const [stats] = await d.select({
+        count: sql<number>`count(*)`,
+        avgSpent: sql<number>`COALESCE(AVG(${customers.totalSpent}), 0)`,
+      })
+        .from(customers)
+        .where(segmentFilter);
+
+      const netTargetCount = stats?.count ?? 0;
+      // 5% projected conversion rate
+      const projectedValueCents = Math.round(netTargetCount * (stats?.avgSpent ?? 10000) * 0.05);
+
+      const [recentCustomer] = await d.select()
+        .from(customers)
+        .where(segmentFilter)
+        .orderBy(desc(customers.lastVisitDate))
+        .limit(1);
+
+      let previewMessages: Array<{ step: number; body: string }> = [];
+      if (recentCustomer) {
+        const tirePurchaseCustomerIds = await getVerifiedTirePurchaseCustomerIds(d, [recentCustomer.id]);
+        const hasTire = tirePurchaseCustomerIds.has(recentCustomer.id);
+
+        const customMsgs = input.customMessages;
+        if (customMsgs && customMsgs.length > 0) {
+          previewMessages = customMsgs.map((m) => ({
+            step: m.step,
+            body: personalizeWinbackBody(m.body, recentCustomer, hasTire),
+          }));
+        } else {
+          const defaults = WINBACK_TEMPLATES[input.targetSegment] || WINBACK_TEMPLATES.lapsed;
+          previewMessages = defaults.map((tmpl) => ({
+            step: tmpl.step,
+            body: personalizeWinbackBody(tmpl.template, recentCustomer, hasTire),
+          }));
+        }
+      }
+
+      return {
+        netTargetCount,
+        projectedValueCents,
+        previewMessages,
+      };
+    }),
+
   /** List all campaigns */
   campaigns: adminProcedure.query(async () => {
     const d = await db();
@@ -297,6 +489,34 @@ export const winbackRouter = router({
       totalFailed: failed?.count ?? 0,
       totalPending: pending?.count ?? 0,
     };
+  }),
+
+  /** Get segment counts for all cohorts in parallel */
+  segmentCounts: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) {
+      return {
+        lapsed: 0,
+        dormant: 0,
+        lost: 0,
+        vip: 0,
+        fleet: 0,
+        recent: 0,
+        tire_customer: 0,
+      };
+    }
+
+    const segments = ["lapsed", "dormant", "lost", "vip", "fleet", "recent", "tire_customer"] as const;
+    const countPromises = segments.map(async (seg) => {
+      const filter = buildSegmentFilter(seg);
+      const [row] = await d.select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(filter);
+      return { [seg]: row?.count ?? 0 };
+    });
+
+    const results = await Promise.all(countPromises);
+    return Object.assign({}, ...results) as Record<typeof segments[number], number>;
   }),
 
   /** Create a new win-back campaign */
@@ -377,17 +597,27 @@ export const winbackRouter = router({
         .where(buildSegmentFilter(campaign.targetSegment))
         .limit(5);
 
+      const sampleCustomerIds = sampleCustomers.map((c: any) => c.id);
+      const tirePurchaseCustomerIds = await getVerifiedTirePurchaseCustomerIds(d, sampleCustomerIds);
+
       type SampleCustomer = typeof customers.$inferSelect;
       type WinbackMessageRow = typeof winbackMessages.$inferSelect;
-      return sampleCustomers.map((c: SampleCustomer) => ({
-        customer: `${c.firstName} ${c.lastName || ""}`.trim(),
-        phone: c.phone,
-        messages: messages.map((m: WinbackMessageRow) => ({
-          step: m.step,
-          delayDays: m.delayDays,
-          body: personalizeWinbackBody(m.body, c),
-        })),
-      }));
+      return sampleCustomers.map((c: SampleCustomer) => {
+        const hasTirePurchase = tirePurchaseCustomerIds.has(c.id);
+        const qualifiedReason = campaign.targetSegment === "tire_customer"
+          ? (hasTirePurchase ? "Verified tire purchase" : "No verified tire purchase (using fallback generic copy)")
+          : `Qualified by segment: ${campaign.targetSegment}`;
+        return {
+          customer: `${c.firstName} ${c.lastName || ""}`.trim(),
+          phone: c.phone,
+          qualifiedReason,
+          messages: messages.map((m: WinbackMessageRow) => ({
+            step: m.step,
+            delayDays: m.delayDays,
+            body: personalizeWinbackBody(m.body, c, hasTirePurchase),
+          })),
+        };
+      });
     }),
 
   /** Activate a campaign — creates send records for all target customers */
@@ -416,6 +646,9 @@ export const winbackRouter = router({
         .where(buildSegmentFilter(campaign.targetSegment))
         .limit(10_000);
 
+      const targetCustomerIds = targetCustomers.map((c: any) => c.id);
+      const tirePurchaseCustomerIds = await getVerifiedTirePurchaseCustomerIds(d, targetCustomerIds);
+
       const now = new Date();
       let created = 0;
 
@@ -424,6 +657,7 @@ export const winbackRouter = router({
       // 500 rows per insert, ~30 round-trips for the same workload.
       const sendRecords: typeof winbackSends.$inferInsert[] = [];
       for (const customer of targetCustomers) {
+        const hasTirePurchase = tirePurchaseCustomerIds.has(customer.id);
         for (const msg of messages) {
           const scheduledAt = new Date(now.getTime() + msg.delayDays * 24 * 60 * 60 * 1000);
           sendRecords.push({
@@ -432,7 +666,7 @@ export const winbackRouter = router({
             messageId: msg.id,
             step: msg.step,
             phone: customer.phone,
-            personalizedBody: personalizeWinbackBody(msg.body, customer),
+            personalizedBody: personalizeWinbackBody(msg.body, customer, hasTirePurchase),
             scheduledAt,
             status: "pending",
           });

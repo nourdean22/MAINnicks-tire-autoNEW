@@ -83,7 +83,17 @@ export const habitsTools = {
             select: { title: true, streakCount: true },
           })
           .catch((): Array<{ title: string; streakCount: number }> => []),
-        prisma.driftAlert.findMany({ where: { date: { gte: sevenAgo } } }).catch((): never[] => []),
+        prisma.brainMemory
+          .findMany({
+            where: {
+              category: "coach_event",
+              key: { startsWith: "coach:drift-recovery:" },
+              createdAt: { gte: daysAgo(7) },
+              deletedAt: null,
+            },
+            select: { metadata: true },
+          })
+          .catch(() => []),
       ]);
 
       // Parse score snapshots
@@ -111,7 +121,13 @@ export const habitsTools = {
           : null,
         tasks: { completed: tasksCompleted, created: tasksCreated, completionRate: tasksCreated > 0 ? Math.round((tasksCompleted / tasksCreated) * 100) : 0 },
         habits,
-        driftAlerts: { total: alerts.length, resolved: alerts.filter((a: { resolved: boolean }) => a.resolved).length },
+        driftAlerts: {
+          total: alerts.length,
+          resolved: alerts.filter((a) => {
+            const meta = (a.metadata ?? {}) as Record<string, unknown>;
+            return !!meta.ackedAt;
+          }).length,
+        },
       };
     },
   }),
@@ -141,7 +157,14 @@ export const habitsTools = {
           })
           .catch((): Array<{ content: string; updatedAt: Date }> => []),
         prisma.task.count({ where: { status: "DONE", lastTouchedAt: { gte: sevenDaysAgoDate } } }),
-        prisma.driftAlert.count({ where: { createdAt: { gte: sevenDaysAgoDate } } }),
+        prisma.brainMemory.count({
+          where: {
+            category: "coach_event",
+            key: { startsWith: "coach:drift-recovery:" },
+            createdAt: { gte: sevenDaysAgoDate },
+            deletedAt: null,
+          },
+        }),
         prisma.task
           .findMany({
             where: {

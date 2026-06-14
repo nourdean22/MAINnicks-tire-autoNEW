@@ -54,7 +54,7 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
   return (
     // wave-181.x Voice Phase 2 · `voice-live-calls` id targets the
     // VoiceBrief stuck-calls action CTA (scrollIntoView + flash).
-    <div id="voice-live-calls" className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+    <div id="voice-live-calls" className="border border-primary/30 bg-primary/5 p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">

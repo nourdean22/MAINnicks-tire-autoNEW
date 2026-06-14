@@ -38,6 +38,7 @@ import {
   runChatDiagnostic,
   type DiagnoseChatResult,
 } from "@/lib/services/diagnose-chat";
+import { runAutonomicOrchestrator } from "@/lib/services/autonomic-orchestrator";
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
 
 export const healthProcedures = {
@@ -280,4 +281,11 @@ export const healthProcedures = {
 
   // ════════════════ Phase VV · system dashboard widgets ════════════════
 
+  /**
+   * Mutation to manually trigger the full Autonomic Healer pipeline (cron healing,
+   * DB vacuum, work item rescue, logs pruning).
+   */
+  runMaintenance: operatorProcedure.mutation(async () => {
+    return runAutonomicOrchestrator();
+  }),
 };

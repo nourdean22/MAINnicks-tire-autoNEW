@@ -68,15 +68,21 @@ async function computeCommandData() {
         _count: { id: true },
       })
       .catch((): never[] => []),
-    prisma.driftAlert.count({ where: { acknowledged: false } }).catch(() => 0),
-    prisma.driftAlert
-      .findMany({
-        where: { acknowledged: false },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: { id: true, ruleName: true, message: true, severity: true, createdAt: true },
-      })
-      .catch((): never[] => []),
+    (async () => {
+      const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+      return (await getUnresolvedAlerts().catch(() => [])).length;
+    })(),
+    (async () => {
+      const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+      const list = await getUnresolvedAlerts().catch(() => []);
+      return list.slice(0, 5).map((a) => ({
+        id: a.id,
+        ruleName: a.ruleName,
+        message: a.message,
+        severity: a.severity,
+        createdAt: a.createdAt,
+      }));
+    })(),
     prisma.strategicLaw
       .findFirst({
         orderBy: { id: "asc" },

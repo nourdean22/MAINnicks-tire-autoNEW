@@ -18,6 +18,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { sanitizeError, redactSensitive } from "@/lib/utils/sanitize-error";
 
 /**
  * Top-20 most-frequent errors, grouped by message.
@@ -44,7 +45,7 @@ export async function listGroupedErrors(opts?: { level?: string; from?: Date }) 
   });
   return {
     groups: errors.map((e) => ({
-      message: e.message,
+      message: sanitizeError(e.message),
       count: e._count.id,
       lastSeen: e._max.createdAt,
     })),
@@ -74,7 +75,14 @@ export async function listRecentErrors(opts: {
   ]);
 
   return {
-    data,
+    data: data.map((r) => ({
+      id: r.id,
+      level: r.level,
+      message: sanitizeError(r.message),
+      stack: r.stack ? sanitizeError(r.stack) : null,
+      context: redactSensitive(r.context) ?? null,
+      createdAt: r.createdAt,
+    })),
     total,
     page,
     pageSize,

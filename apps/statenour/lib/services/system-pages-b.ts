@@ -42,6 +42,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { sanitizeError, redactSensitive } from "@/lib/utils/sanitize-error";
 import { cached } from "@/lib/utils/cache";
 import { logger as rootLogger } from "@/lib/logger";
 import { ServiceError } from "@/lib/utils/service-error";
@@ -1381,6 +1382,7 @@ export async function buildSystemLogs(opts: {
     stack: string | null;
     context: unknown;
   }>) {
+    const sanitizedMsg = sanitizeError(r.message);
     entries.push({
       id: `err:${r.id}`,
       ts: r.createdAt.toISOString(),
@@ -1391,9 +1393,9 @@ export async function buildSystemLogs(opts: {
           : r.level === "warn"
             ? "warn"
             : "info",
-      label: r.message.slice(0, 140),
-      detail: r.stack?.slice(0, 300) ?? null,
-      meta: { fullMessage: r.message, context: r.context },
+      label: sanitizedMsg.slice(0, 140),
+      detail: r.stack ? sanitizeError(r.stack).slice(0, 300) : null,
+      meta: { fullMessage: sanitizedMsg, context: redactSensitive(r.context) },
     });
   }
 
@@ -1413,7 +1415,7 @@ export async function buildSystemLogs(opts: {
       label: `${r.jobName} · ${r.status}${
         r.duration != null ? ` · ${r.duration}ms` : ""
       }`,
-      detail: r.error,
+      detail: r.error ? sanitizeError(r.error) : null,
       meta: { jobName: r.jobName, status: r.status, durationMs: r.duration },
     });
   }
@@ -1434,7 +1436,7 @@ export async function buildSystemLogs(opts: {
       level: "metric",
       label: `${r.metric} = ${r.value}${r.unit || ""} [${r.source}]`,
       detail: null,
-      meta: { tags: r.tags, source: r.source, unit: r.unit },
+      meta: { tags: redactSensitive(r.tags), source: r.source, unit: r.unit },
     });
   }
 
@@ -1454,7 +1456,7 @@ export async function buildSystemLogs(opts: {
       source: "actions",
       level: failed ? "error" : r.approval === "pending" ? "warn" : "success",
       label: `${r.ruleName} · ${r.actionType} · ${r.result ?? "—"}`,
-      detail: r.error,
+      detail: r.error ? sanitizeError(r.error) : null,
       meta: { ruleName: r.ruleName, approval: r.approval, result: r.result },
     });
   }
@@ -1475,18 +1477,19 @@ export async function buildSystemLogs(opts: {
       : r.statusCode >= 400 || isSlow
         ? "warn"
         : "info";
+    const sanitizedPath = sanitizeError(r.path);
     entries.push({
       id: `req:${r.id}`,
       ts: r.createdAt.toISOString(),
       source: "requests",
       level,
-      label: `${r.method} ${r.path} · ${r.statusCode}${
+      label: `${r.method} ${sanitizedPath} · ${r.statusCode}${
         r.durationMs ? ` · ${r.durationMs}ms${isSlow ? " ⚠ slow" : ""}` : ""
       }`,
-      detail: r.error,
+      detail: r.error ? sanitizeError(r.error) : null,
       meta: {
         method: r.method,
-        path: r.path,
+        path: sanitizedPath,
         statusCode: r.statusCode,
         durationMs: r.durationMs,
       },

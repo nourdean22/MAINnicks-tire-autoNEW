@@ -8,6 +8,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import { useLocation, Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
 // attribution-wave: trackPhoneClick now comes from the canonical SEO helper
 // (umami + GA4 "phone_click" + Meta Pixel Contact + call_events DB row with
@@ -23,6 +24,7 @@ import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 // citations (ChatGPT/Perplexity/Gemini) for buy-tires-near-me intent.
 import FAQPageSchema, { TIRE_BUYING_FAQ } from "@/components/FAQPageSchema";
 import FinancingCTA from "@/components/FinancingCTA";
+import TrustBlock from "@/components/TrustBlock";
 // Conversion-architecture overlays (Batch 3 of v1.1 spec). Injected as a
 // compact block right after the search hero so visitors see anchor pricing
 // + fear stats before they get lost in size selection.
@@ -746,10 +748,18 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
             <span className={`text-[10px] font-medium tracking-wider uppercase px-2 py-0.5 rounded-full ${cat.color}`}>
               {cat.label}
             </span>
-            {tire.inStock && (
-              <span className="text-[10px] font-medium text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <CircleDot className="w-2.5 h-2.5" /> In Stock
+            {tire.inStock ? (
+              <span className="text-[10px] font-medium text-green-400 bg-green-500/10 px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                <CircleDot className="w-2.5 h-2.5 animate-pulse" /> In Stock (Euclid Warehouse)
               </span>
+            ) : (
+              <a
+                href="tel:+12168620005"
+                onClick={(e) => { e.stopPropagation(); trackPhoneClick("tire-finder-stock-availability"); }}
+                className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1 hover:text-amber-300 transition-colors shrink-0"
+              >
+                <CircleDot className="w-2.5 h-2.5 text-amber-500" /> Call for Availability
+              </a>
             )}
           </div>
           <div className="flex items-center gap-3 mt-1">
@@ -804,7 +814,7 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
           <span className="text-[10px] font-semibold text-green-400 uppercase tracking-wider">Installation Package Included</span>
         </div>
         <p className="text-[11px] text-muted-foreground mt-1 ml-5 leading-normal">
-          Mounting, balancing, new valve stems, TPMS reset, and old tire disposal are included in the estimate.
+          Installation package details are included in the estimate before request.
         </p>
       </div>
 
@@ -929,10 +939,16 @@ function OrderTracker() {
 
 // ─── MAIN PAGE ────────────────────────────────────────
 export default function TireFinder() {
+  const [location] = useLocation();
   // Read ?size= from URL for shareable/bookmarkable searches
   const urlSize = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("size") : null;
   const [searchInput, setSearchInput] = useState(urlSize || "");
   const [activeSearch, setActiveSearch] = useState(urlSize || "");
+
+  useEffect(() => {
+    setSearchInput(urlSize || "");
+    setActiveSearch(urlSize || "");
+  }, [urlSize]);
   const [quantity, setQuantity] = useState(4);
   const [sortBy, setSortBy] = useState<SortOption>("price-low");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
@@ -1038,8 +1054,8 @@ export default function TireFinder() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Tire Shop Near Me · New & Used · Free Install | Cleveland | Nick's"
-        description="Cleveland's neighborhood tire shop on Euclid Ave. New & used tires, free install package on every set — mount, balance, valve stems, TPMS, alignment check. Walk-ins 7 days, payment programs on the spot. The shop your grandfather would've trusted, with the gear your kid's Tesla needs. (216) 862-0005"
+        title="Tires Cleveland & Euclid · New & Used Tire Shop | Nick's"
+        description="New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005."
         canonicalPath="/tires"
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}
@@ -1115,7 +1131,7 @@ export default function TireFinder() {
               Tire Estimates & Local Fitting
             </h1>
             <p className="mt-4 text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              Find tires for your vehicle. No card required to request help. Staff confirms availability and fitment before install at our Euclid Ave location.
+              Find new or used tires for your vehicle. Beyond tire fitting, Nick's on Euclid Ave offers same-day <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake repair in Euclid</Link> and fast <Link href="/diagnostics" className="underline text-primary hover:text-primary-foreground font-semibold">check engine light diagnostics</Link>. Walk in 7 days, explore our soft-pull <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing options for repairs</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground font-semibold">contact Nick’s Tire & Auto</Link> today.
             </p>
 
             {/* Value proposition callout */}
@@ -1593,6 +1609,10 @@ export default function TireFinder() {
         )}
       </AnimatePresence>
 
+      <div className="container max-w-5xl mx-auto mt-8 mb-12">
+        <TrustBlock />
+      </div>
+
       {/* ─── EMERGENCY FLAT REPAIR ─── */}
       {!activeSearch && (
         <section className="pb-0">
@@ -1688,7 +1708,7 @@ export default function TireFinder() {
                     Used Tires Cleveland — Inspected, Installed, Honest
                   </h2>
                   <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                    Not everyone needs brand-new rubber. We carry a large selection of quality used tires — every one passes a 4-point exam (tread depth, sidewall, DOT date, plug history) before it earns a spot on your car. Same professional installation, same free mount/balance/valve stems/disposal, same coffee — just a friendlier number on the receipt. Payment programs on the spot if you need them.
+                    Not everyone needs brand-new rubber. We carry a large selection of inspected used tires — every one passes a 4-point exam (tread depth, sidewall, DOT date, plug history) before it earns a spot on your car. Same professional installation, same included mount/balance/valve stems/disposal, same coffee — just a friendlier number on the receipt. Payment programs on the spot if you need them.
                   </p>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">

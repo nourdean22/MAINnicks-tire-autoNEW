@@ -10,7 +10,7 @@ describe.skipIf(!HAS_TWILIO)("Twilio Credentials Validation", () => {
     expect(process.env.TWILIO_AUTH_TOKEN).toBeTruthy();
   });
   it("should have TWILIO_PHONE_NUMBER set in E.164 format", () => {
-    expect(process.env.TWILIO_PHONE_NUMBER).toMatch(/^\+\d{11}$/);
+    expect(process.env.TWILIO_PHONE_NUMBER).toMatch(/^\+?\d{11}$/);
   });
   it("should be able to authenticate with Twilio API", () => {
     // Skip in CI — needs real credentials

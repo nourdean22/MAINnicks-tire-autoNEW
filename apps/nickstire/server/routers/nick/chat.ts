@@ -276,10 +276,17 @@ REVIEW this ${input.contentType} for:
    - Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM
    - Rating: 4.9 stars, 1,700+ reviews
    - Walk-ins welcome, first come first serve, drop-offs encouraged
-2. TONE — Does it match the brand? Direct, honest, no-nonsense, Cleveland proud, not corporate.
-3. ERRORS — Grammar, spelling, broken formatting, missing info.
-4. EFFECTIVENESS — Will this achieve its goal? Would a real customer respond?
-5. RISKS — Anything that could look bad, offend, or create liability?
+2. ESTIMATE-VS-INVOICE VARIANCE (for estimates, invoices, briefs, and general reviews):
+   - Ensure any price variance calculations are mathematically correct and clearly explained (e.g., separating labor hours deviation, parts markup, and service scope expansion).
+   - Verify that estimate totals match their parts + labor components.
+3. SCRIPT WRITING & DYNAMIC SMS COPIES (for replies, scripts, emails, and briefs):
+   - Call scripts and outreach texts must align with the customer's psychographic profile: Broke Brenda (P1 - payment plans), Skeptical Pat (P2 - warranty/trust), or Busy Tim (P3 - speed/drop-off).
+   - Enforce customer language: use "fix" instead of "repair", "check" instead of "inspection", "today" instead of "same-day", "drop it off" instead of "leave it with us".
+   - Messages must close with the Repair Haiku ("you don't pay until you say yes") and include the "STOP" opt-out keyword.
+4. TONE — Does it match the brand? Direct, honest, no-nonsense, Cleveland proud, not corporate.
+5. ERRORS — Grammar, spelling, broken formatting, missing info.
+6. EFFECTIVENESS — Will this achieve its goal? Would a real customer respond?
+7. RISKS — Anything that could look bad, offend, or create liability?
 
 Respond with JSON:
 {

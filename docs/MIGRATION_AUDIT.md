@@ -35,13 +35,13 @@ Operator: please confirm A, B, or C in your reply. Phase 2 work cannot start wit
 
 Verified contents of `C:\Users\nourd\OneDrive\Desktop\nickstire-repo-staging\.env`:
 
-- `STRIPE_SECRET_KEY=sk_live_51TJIiJ...` (live Stripe key, full value)
-- `STRIPE_WEBHOOK_SECRET=whsec_lnJe...` (live webhook secret)
-- `DATABASE_URL=mysql://ZkzpvVpescngQ6y.root:PANSeEn7myeG6xQ3@gateway01.us-east-1.prod.aws.tidbcloud.com:4000/nickstire` (live TiDB Cloud creds in plaintext)
+- `STRIPE_SECRET_KEY=[REDACTED - ROTATE; see NEXT-BEST-ACTIONS.md]` (live Stripe key, full value)
+- `STRIPE_WEBHOOK_SECRET=[REDACTED - ROTATE; see NEXT-BEST-ACTIONS.md]` (live webhook secret)
+- `DATABASE_URL=[REDACTED - ROTATE; see NEXT-BEST-ACTIONS.md]` (live TiDB Cloud creds in plaintext)
 - `GOOGLE_SERVICE_ACCOUNT_KEY` (full RSA private key PEM)
 - `VAPI_API_KEY`, `VAPI_WEBHOOK_SECRET`, `TELEGRAM_BOT_TOKEN`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`
 - `RESEND_API_KEY`, `META_PAGE_ACCESS_TOKEN`, `FB_APP_SECRET`, `GOOGLE_OAUTH_CLIENT_SECRET`
-- Plaintext vendor passwords (`AUTO_LABOR_PASSWORD=Euclid17625!`, `GATEWAY_TIRE_PASSWORD=Moes176259`)
+- Plaintext vendor passwords (`AUTO_LABOR_PASSWORD=[REDACTED]`, `GATEWAY_TIRE_PASSWORD=[REDACTED]`)
 
 `.gitignore:23` correctly excludes `.env*` (except `.env.example`), so this file should not be on the remote. **Verify it never was** — run `git log --all --follow -- .env` on `origin/main`. If a single commit ever included it, every key in that list is compromised and must be rotated.
 

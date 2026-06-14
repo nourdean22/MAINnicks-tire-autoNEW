@@ -68,7 +68,7 @@ export async function getSecondOpinion(question: string): Promise<GrokResponse> 
   return chatWithGrok([
     {
       role: "system",
-      content: "You are a brutally honest business advisor. Nour owns Nick's Tire & Auto in Cleveland OH (4.9 stars, 1683+ reviews). Give direct, contrarian analysis. Challenge assumptions. Name specific risks and opportunities others would miss.",
+      content: "You are a brutally honest business advisor. Nour owns Nick's Tire & Auto in Cleveland OH (4.9 stars, 1,700+ reviews). Give direct, contrarian analysis. Challenge assumptions. Name specific risks and opportunities others would miss.",
     },
     { role: "user", content: question },
   ]);

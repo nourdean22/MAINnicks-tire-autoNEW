@@ -11,16 +11,16 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   Loader2, Shield, XCircle, ArrowLeft, Menu, X, Sparkles, ChevronRight,
+  Images, Clapperboard,
 } from "lucide-react";
 import {
-  AdminSection, NAV_GROUPS, SECTION_TITLES,
+  AdminSection, NAV_GROUPS, SECTION_TITLES, openCustomerDrawer,
 } from "./admin/shared";
 import { CommandSearch } from "@/components/admin/CommandSearch";
 import ThemeToggle from "@/components/admin/ThemeToggle";
 import DensityToggle from "@/components/admin/DensityToggle";
 import ActivityPulse from "@/components/admin/ActivityPulse";
 import WeatherAwareBanner from "@/components/admin/WeatherAwareBanner";
-import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
 import DrilldownDrawer from "@/components/admin/DrilldownDrawer";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import WalkInQuoteDrawer from "@/components/admin/WalkInQuoteDrawer";
@@ -40,6 +40,13 @@ const CallTrackingSection = lazy(() => import("./admin/CallTrackingSection"));
 const CampaignsSection = lazy(() => import("./admin/OutreachHubSection"));
 const MembershipsSection = lazy(() => import("./admin/MembershipsSection"));
 const TireOrdersSection = lazy(() => import("./admin/TireOrdersSection"));
+// 2026-06-10 danger-zone-safe-build · Ops Hub: reports corpus, owner
+// action registry, and PREVIEW-ONLY customer message templates. Read-only.
+const OpsHubSection = lazy(() => import("./admin/OpsHubSection"));
+// 2026-06-10 growth-social wiring · Growth: operator surface for the GBP
+// local-growth systems + social studios. Read/copy/manual only — nothing
+// on it posts, sends, or edits anything outside this app.
+const GrowthSection = lazy(() => import("./admin/GrowthSection"));
 // wave-181.x Intelligence Dispersal Wave 3 (2026-05-24) · Intelligence-
 // Section retired entirely. Signals are dispersed to canonical surfaces:
 // statenour /scoreboard (Wave 1.5 · NickHealthSection) · the various
@@ -57,7 +64,6 @@ const TrafficFunnelSection = lazy(() => import("./admin/TrafficFunnelSection"));
 const VoiceReceptionistSection = lazy(() => import("./admin/VoiceReceptionistSection"));
 // Settings tab sub-sections — kept because they're consumed INSIDE SettingsSection,
 // but not rendered as top-level routes anymore (Settings page handles them).
-// AdminContent.tsx still routes here for /admin/content.
 
 function SectionSpinner() {
   return (
@@ -93,6 +99,8 @@ function SectionContent({ section }: { section: AdminSection }) {
         {section === "voiceReceptionist" && <VoiceReceptionistSection />}
         {section === "memberships" && <MembershipsSection />}
         {section === "tireOrders" && <TireOrdersSection />}
+        {section === "opsHub" && <OpsHubSection />}
+        {section === "growth" && <GrowthSection />}
       </Suspense>
     </AdminSectionBoundary>
   );
@@ -116,6 +124,8 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   home: "overview",
   funnel: "trafficFunnel",
   traffic: "trafficFunnel",
+  tires: "tireOrders",
+  pipeline: "leads",
 
   // wave-181.x Wave 3 (2026-05-24) · Intelligence section retired ·
   // operator bookmarks pointing to ?tab=intelligence land on overview
@@ -149,7 +159,10 @@ const TAB_ALIASES: Record<string, AdminSection> = {
 
   // Settings sub-tabs (the old standalone sections are now Settings tabs)
   health: "settings",
-  sysHealth: "settings",
+  // 2026-06-10 gap-sweep · alias lookup lowercases the input, so a
+  // mixed-case key could never match — staff typing ?tab=sysHealth hit
+  // nothing. Lowercased so the alias actually resolves.
+  syshealth: "settings",
   compliance: "settings",
   integrations: "settings",
   system: "settings",
@@ -210,6 +223,16 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   loyalty: "customers",
   followups: "campaigns",
   tireorders: "tireOrders",
+  opshub: "opsHub",
+  reports: "opsHub",
+  ops: "opsHub",
+  // 2026-06-10 · growth-social wiring. NB `reviews` already aliases to
+  // "campaigns" (review REQUESTS live in Outreach) — left untouched;
+  // review REPLIES are the Growth tab's reviews surface.
+  gbp: "growth",
+  local: "growth",
+  localseo: "growth",
+  social: "growth",
   warranty: "customers",
   inventory: "overview",
   waitlist: "customers",
@@ -228,6 +251,7 @@ const VALID_SECTIONS: ReadonlySet<AdminSection> = new Set<AdminSection>([
   "overview", "leads", "content", "customers",
   "campaigns", "settings", "revenue", "callTrackingView",
   "trafficFunnel", "voiceReceptionist", "memberships", "tireOrders",
+  "opsHub", "growth",
 ]);
 
 // 2026-05-19 MONEY consolidation · compound redirects for old bookmarks.
@@ -296,7 +320,6 @@ export default function Admin() {
   const { user, loading: authLoading } = useAuth();
   const [section, setSection] = useState<AdminSection>(resolveInitialSection);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [drawerCustomerId, setDrawerCustomerId] = useState<number | null>(null);
   // Admin theme -- opt-in "neutral" (Linear/Vercel calm) scoped to .admin-shell.
   // Default "grit" = the live look; zero change until opted in. Preview from a
   // phone via ?adminTheme=neutral (persists to localStorage); revert with =grit.
@@ -319,6 +342,19 @@ export default function Admin() {
     url.searchParams.set("tab", section);
     window.history.replaceState({}, "", url.toString());
   }, [section]);
+
+  // Listen for browser Back/Forward history navigation
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("tab") || params.get("section") || "";
+      const resolved = resolveSection(raw);
+      setSection(resolved ?? "overview");
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const utils = trpc.useUtils();
 
@@ -373,12 +409,17 @@ export default function Admin() {
 
   // wave-115 — listen for direct customer-drawer requests fired from any
   // admin surface (at-risk whales row, top-spenders card, NBA actions, etc.)
-  // via openCustomerDrawer(id) helper in shared.tsx.
+  // via openCustomerDrawer(id) helper in shared.tsx. Now redirects to the
+  // URL-addressable Customer Profile page instead of a side drawer.
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ customerId: number }>).detail;
       if (typeof detail?.customerId === "number") {
-        setDrawerCustomerId(detail.customerId);
+        setSection("customers");
+        const url = new URL(window.location.href);
+        url.searchParams.set("tab", "customers");
+        url.searchParams.set("id", String(detail.customerId));
+        window.history.pushState({}, "", url.toString());
       }
     };
     window.addEventListener("admin:open-customer-drawer", handler);
@@ -501,13 +542,15 @@ export default function Admin() {
                   // split across Leads + Calls). Surfaces total items
                   // needing attention right now.
                   if (item.id === "overview") badge = urgentLeads + newLeads + newBookings + pendingCallbacks;
-                  if (item.id === "revenue") badge = woStats?.active ?? 0;
+                  if (item.id === "leads") badge = newLeads;
+                  if (item.id === "tireOrders") badge = stats?.tires?.new ?? 0;
+                  if (item.id === "memberships") badge = stats?.memberships?.warning ?? 0;
 
                   // wave-129b — badge tone semantics:
                   //   today (red dot)     — urgent / new — high priority
-                  //   revenue (red/amber) — overdue/blocked work
+                  //   memberships (red)   — past due / incomplete
                   //   default (subtle)    — work-in-progress count
-                  const isAlert = (item.id === "overview" && badge > 0) || (item.id === "revenue" && Boolean(woStats?.overdue || woStats?.blocked));
+                  const isAlert = (item.id === "overview" && badge > 0) || (item.id === "memberships" && badge > 0);
                   return (
                     <button
                       key={item.id}
@@ -623,17 +666,35 @@ export default function Admin() {
           <div className="flex-1" />
           <CommandSearch
             onNavigate={(s) => setSection(s)}
-            onSelectCustomer={(id) => setDrawerCustomerId(id)}
+            onSelectCustomer={(id) => openCustomerDrawer(id)}
           />
           <DensityToggle />
           <ThemeToggle />
           <Link
-            href="/admin/content"
+            href="/admin?tab=content"
             title="AI Content"
             aria-label="AI Content"
-            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
+            className={`inline-flex items-center justify-center w-9 h-9 hover:text-primary hover:bg-foreground/5 rounded-md transition-colors ${
+              section === "content" ? "text-primary bg-foreground/5" : "text-muted-foreground"
+            }`}
           >
             <Sparkles className="w-4 h-4" />
+          </Link>
+          <Link
+            href="/admin/ig-studio"
+            title="IG Carousel Studio"
+            aria-label="IG Carousel Studio"
+            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
+          >
+            <Images className="w-4 h-4" />
+          </Link>
+          <Link
+            href="/admin/reel-studio"
+            title="Reel Studio"
+            aria-label="Reel Studio"
+            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
+          >
+            <Clapperboard className="w-4 h-4" />
           </Link>
         </header>
 
@@ -646,19 +707,6 @@ export default function Admin() {
           <SectionContent section={section} />
         </div>
       </main>
-
-      {/* Customer side drawer */}
-      <CustomerDrawer
-        customerId={drawerCustomerId}
-        onClose={() => setDrawerCustomerId(null)}
-        onNavigateToSection={(s) => {
-          // 2026-05-23 · same resolver as the event-bridge — legacy
-          // slugs like "sms"/"workorders" now route correctly instead
-          // of silently blanking the right pane.
-          const resolved = resolveSection(s);
-          if (resolved) setSection(resolved);
-        }}
-      />
 
       {/* 2026-05-06 — Global drilldown drawer (event-bus triggered) */}
       <DrilldownDrawer />

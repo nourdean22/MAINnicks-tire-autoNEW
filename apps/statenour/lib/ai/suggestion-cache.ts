@@ -79,7 +79,7 @@ function extractEntities(text: string): string[] {
   const stop = new Set([
     "I", "Nick", "Nour", "The", "A", "An", "This", "That", "These", "Those",
     "If", "When", "While", "Once", "Today", "Yesterday", "Tomorrow",
-    "Yes", "No", "Sure", "Done", "Total", "Next",
+    "Yes", "No", "Sure", "Done", "Total", "Next", "Hey", "Hi", "Hello", "Okay", "Ok",
     // v10.0.175 · past-participle action verbs that the model emits
     // at the start of fabricated responses ("Added 'X' to today's
     // task list..."). Without these in the stop set, the entity
@@ -87,7 +87,8 @@ function extractEntities(text: string): string[] {
     // suggested "Show Added tasks". They're verbs, not entities.
     "Added", "Created", "Made", "Sent", "Scheduled", "Saved", "Pinned",
     "Linked", "Moved", "Marked", "Completed", "Removed", "Deleted",
-    "Started", "Stopped", "Updated", "Posted", "Published",
+    "Started", "Stopped", "Updated", "Posted", "Published", "Closed",
+    "Opened", "Contacted", "Drafted", "Resolved",
     // v-truth · generic business nouns Nick uses about the operator's OWN
     // shop/metrics — NOT lead/person entities. Pre-fix "Shop status: slow"
     // made the extractor treat "Shop" as a lead -> nonsensical
@@ -135,15 +136,15 @@ export function heuristicSuggestions(assistant: string): string[] {
     if (/task|todo|open loop|commitment|deadline|critical|priority/.test(a)) {
       return [
         `Show ${e} tasks`,
-        `What's next on ${e}?`,
-        `Open ${e} in /tasks`,
+        `Resolve loop ${e}`,
+        `Schedule ${e} for later`,
       ];
     }
     if (/lead|customer|estimate|declined|follow[- ]?up|contact|call/.test(a)) {
       return [
-        `Draft the follow-up for ${e}`,
-        `What's the lead score for ${e}?`,
-        `Open ${e} in /leads`,
+        `Draft follow-up for ${e}`,
+        `Open lead queue`,
+        `Who needs a call today?`,
       ];
     }
     if (/revenue|\$\d|booked|pipeline|invoice|quote|aging/.test(a)) {

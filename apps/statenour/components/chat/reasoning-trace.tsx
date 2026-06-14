@@ -142,16 +142,16 @@ export function ReasoningTrace({ messageId, conversationId, className }: Reasoni
         type="button"
         onClick={toggle}
         className={cn(
-          "inline-flex items-center gap-1 px-1.5 py-0.5",
-          "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-          "transition-colors",
+          "inline-flex items-center gap-1 px-1.5 py-0.5 opacity-60 hover:opacity-100",
+          "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] text-[9.5px]",
+          "transition-all",
         )}
         aria-expanded={open}
         aria-controls={contentsId}
         aria-label="Toggle reasoning trace"
       >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        <span className="font-mono uppercase tracking-wider">why this answer</span>
+        {open ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
+        <span className="font-mono uppercase tracking-wider">Reason</span>
       </button>
 
       {open && (
@@ -183,6 +183,15 @@ export function ReasoningTrace({ messageId, conversationId, className }: Reasoni
                   label="Latency"
                   value={fmtMs(data.totalDurationMs)}
                   align="right"
+                  valueClassName={
+                    data.totalDurationMs
+                      ? data.totalDurationMs > 12000
+                        ? "text-rose-400/80 font-semibold"
+                        : data.totalDurationMs > 5000
+                        ? "text-amber-400"
+                        : "text-emerald-400"
+                      : undefined
+                  }
                 />
                 <Cell
                   label="Cost"
@@ -225,7 +234,10 @@ export function ReasoningTrace({ messageId, conversationId, className }: Reasoni
                             </span>
                           )}
                         </span>
-                        <span className="text-[var(--text-secondary)] shrink-0">
+                        <span className={cn(
+                          "shrink-0",
+                          r.durationMs && r.durationMs > 5000 ? "text-amber-400/80" : "text-[var(--text-secondary)]"
+                        )}>
                           {fmtMs(r.durationMs)}
                         </span>
                       </li>
@@ -300,17 +312,19 @@ function Cell({
   label,
   value,
   align = "left",
+  valueClassName,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   align?: "left" | "right";
+  valueClassName?: string;
 }) {
   return (
     <div className={cn("flex items-baseline gap-1", align === "right" && "justify-end")}>
       <span className="text-[var(--text-secondary)] uppercase tracking-wider">
         {label}
       </span>
-      <span>{value}</span>
+      <span className={valueClassName}>{value}</span>
     </div>
   );
 }

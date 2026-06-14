@@ -57,6 +57,12 @@ export interface MissionFeedProps {
   /** Wave AV · 2026-05-28 · DAILY task snooze · passes through to each
    *  MissionCard → MissionTaskRow · page wires task.update mutation. */
   onSnoozeTask?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
+  onDecomposeTask?: (id: string) => void | Promise<void>;
+  autonomicHealth?: {
+    lastRunAt: string | null;
+    status: string | null;
+    error: string | null;
+  };
 }
 
 export function MissionFeed({
@@ -74,6 +80,8 @@ export function MissionFeed({
   onMoveMission,
   onMoveTask,
   onSnoozeTask,
+  onDecomposeTask,
+  autonomicHealth,
 }: MissionFeedProps) {
   const { activeMissions, tasksByMission, unattached } = useMemo(() => {
     const activeMissions = missions
@@ -190,6 +198,37 @@ export function MissionFeed({
             </span>
           </>
         )}
+        {autonomicHealth && (
+          <div 
+            className={cn(
+              "ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[8px] tracking-[0.1em] font-mono transition-all duration-300",
+              autonomicHealth.status === "success" 
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.1)]"
+                : autonomicHealth.status === "failed"
+                  ? "bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.1)]"
+                  : "bg-zinc-800/40 border-zinc-700/30 text-zinc-500"
+            )}
+            title={
+              autonomicHealth.lastRunAt 
+                ? `Last Maintenance Run: ${formatTimeAgo(autonomicHealth.lastRunAt)} (${new Date(autonomicHealth.lastRunAt).toLocaleTimeString()})${autonomicHealth.error ? `\nError: ${autonomicHealth.error}` : ''}`
+                : "Autonomic Orchestrator: Idle/No Run Found"
+            }
+          >
+            <span 
+              className={cn(
+                "w-1 h-1 rounded-full",
+                autonomicHealth.status === "success" 
+                  ? "bg-emerald-400 animate-pulse" 
+                  : autonomicHealth.status === "failed"
+                    ? "bg-rose-400 animate-ping"
+                    : "bg-zinc-600"
+              )} 
+            />
+            <span>
+              AUTONOMIC: {autonomicHealth.status === "success" ? "ONLINE" : autonomicHealth.status === "failed" ? "DEGRADED" : "OFFLINE"}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Mission cards */}
@@ -218,6 +257,7 @@ export function MissionFeed({
               onMoveMission={onMoveMission}
               onMoveTask={onMoveTask}
               onSnoozeTask={onSnoozeTask}
+              onDecomposeTask={onDecomposeTask}
             />
           ))}
         </div>
@@ -254,6 +294,7 @@ export function MissionFeed({
                 onDelete={onDeleteTask}
                 onEdit={onEditTask}
                 onSnooze={onSnoozeTask}
+                onDecompose={onDecomposeTask}
               />
             ))}
           </div>
@@ -264,6 +305,16 @@ export function MissionFeed({
 }
 
 function EmptyMissions() {
+  const handleAskNick = () => {
+    const customEvent = new CustomEvent("statenour:open-nick", {
+      detail: {
+        pendingPrompt: "Analyze my active goals and suggest 3 high-impact missions to focus on today.",
+        submitOnMount: true,
+      },
+    });
+    window.dispatchEvent(customEvent);
+  };
+
   return (
     <div className="rounded-lg border border-dashed border-[var(--border-default)] bg-[var(--bg-base)] px-4 py-8 text-center">
       <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
@@ -273,6 +324,28 @@ function EmptyMissions() {
         Missions group your tasks toward a goal. Type a mission name in the input
         above (or ask Nick to suggest one) and tasks start flowing into it.
       </p>
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={handleAskNick}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider bg-zinc-800 hover:bg-zinc-700 text-[var(--gold)] border border-zinc-700/60 shadow-lg shadow-black/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
+        >
+          ✨ Ask Nick for Recommendations
+        </button>
+      </div>
     </div>
   );
+}
+
+function formatTimeAgo(isoString: string | null): string {
+  if (!isoString) return "never";
+  const ms = Date.now() - new Date(isoString).getTime();
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return "just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const days = Math.floor(hr / 24);
+  return `${days}d ago`;
 }

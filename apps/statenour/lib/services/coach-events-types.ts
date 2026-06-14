@@ -32,7 +32,7 @@ export type CoachEventKind =
 export type CoachEventPriority = "P0" | "P1" | "P2";
 
 /** Surfaces that read coach events. Closed set · matches the 5 daily-driver pages. */
-export type CoachEventSurface = "tasks" | "goals" | "journal" | "brain" | "scoreboard";
+export type CoachEventSurface = "tasks" | "goals" | "journal" | "brain" | "scoreboard" | "home";
 
 /** Reader output shape · what each surface gets back. */
 export interface CoachEvent {

@@ -181,7 +181,7 @@ export default function ShopStatusWidget({
         <div className="flex items-center gap-2 ml-auto">
           {data.isOpen ? (
             <Link
-              href="/book"
+              href="/booking"
               className="group inline-flex items-center gap-2 bg-[#FDB913] hover:bg-[#e3a811] active:scale-95 text-black font-bold text-xs uppercase tracking-widest px-4 py-2.5 rounded-lg transition-all duration-150"
             >
               Skip the line

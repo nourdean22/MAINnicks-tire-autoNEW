@@ -51,6 +51,7 @@ import { ThreadSuggestions } from "@/components/journal/thread-suggestions";
 import { NicksJournalBrief } from "@/components/journal/nicks-journal-brief";
 import { TodaysPrompt } from "@/components/journal/todays-prompt";
 import { JournalThreadsStrip } from "@/components/journal/journal-threads-strip";
+import { JournalInsightsPreview } from "@/components/journal/journal-insights-preview";
 import {
   TYPE_META,
   type FeedEntry,
@@ -425,6 +426,7 @@ function JournalPageInner() {
             (enrichedAt + extractedItems + linkStatus) · never synthetic ·
             self-hides on a zero week. */}
         <ProofOfBecomingStrip />
+        <JournalInsightsPreview />
       </div>
 
       {/* Mastery Layer Stage B adoption on /journal · 2026-05-26.

@@ -65,11 +65,11 @@ export const CHART_THEME = {
 
 export const SECTION_TITLES: Record<AdminSection, string> = {
   overview: "Today",
-  leads: "Leads & Estimates",
+  leads: "Sales Pipeline",
   content: "Content & AI",
   customers: "Customers",
-  campaigns: "Outreach",
-  settings: "Settings",
+  campaigns: "Winback",
+  settings: "Settings / Safety",
   revenue: "Money",
   callTrackingView: "Call Tracking",
   voiceReceptionist: "Voice Receptionist",
@@ -77,5 +77,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   // URL alias redirects ?tab=intelligence → "overview"
   trafficFunnel: "Traffic → Revenue",
   memberships: "Nonstop Nick",
-  tireOrders: "Tire Orders",
+  tireOrders: "Tires",
+  opsHub: "Reports",
+  growth: "Marketing / Growth",
 };

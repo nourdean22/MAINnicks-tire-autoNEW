@@ -8,7 +8,7 @@
  *   maxRedemptions = 0  → unlimited (no cap)
  *   maxRedemptions > 0  → hard cap; reject when currentRedemptions >= maxRedemptions
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 
 // ─── DB mocks for integration-like unit tests ────────────────────────────────
 const mockSelect = vi.fn();
@@ -179,9 +179,19 @@ describe("Coupon redemption guard", () => {
 });
 
 describe("redeemCouponById Database Fallback", () => {
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.DATABASE_URL = "mysql://dummy:3306/db";
+  });
+
+  afterAll(() => {
+    if (originalDatabaseUrl === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = originalDatabaseUrl;
+    }
   });
 
   it("succeeds when updateResult contains affectedRows = 1", async () => {
@@ -218,7 +228,14 @@ describe("redeemCouponById Database Fallback", () => {
 
     mockUpdate.mockResolvedValue([{ affectedRows: 0 }]);
 
-    await expect(redeemCouponById(123)).rejects.toThrow("COUPON_CAP_REACHED");
+    let caught: any;
+    try {
+      await redeemCouponById(123);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toMatch("COUPON_CAP_REACHED");
   });
 
   it("fails-closed when updateResult is empty array (unknown/empty update result shape)", async () => {
@@ -236,6 +253,13 @@ describe("redeemCouponById Database Fallback", () => {
     // Mock updateResult as empty array or empty object inside array
     mockUpdate.mockResolvedValue([{}]);
 
-    await expect(redeemCouponById(123)).rejects.toThrow("COUPON_CAP_REACHED");
+    let caught: any;
+    try {
+      await redeemCouponById(123);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toMatch("COUPON_CAP_REACHED");
   });
 });

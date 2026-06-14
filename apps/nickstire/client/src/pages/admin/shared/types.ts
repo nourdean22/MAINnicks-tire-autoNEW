@@ -20,7 +20,11 @@ import type React from "react";
 export type AdminSection =
   | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView"
-  | "trafficFunnel" | "voiceReceptionist" | "memberships" | "tireOrders";
+  | "trafficFunnel" | "voiceReceptionist" | "memberships" | "tireOrders"
+  | "opsHub" | "growth";
+// 2026-06-10 · `growth` added — operator surface for the PR #50 local-growth
+// systems (GBP Q&A / photo queue / entity / competitors / armed-state /
+// reviews health) + the PR #51 social studios. Read/copy/manual only.
 // 2026-05-09 — `reEngagement` removed from AdminSection union. Was a zombie
 // top-level route after the wave-103 era half-migration to OutreachHub.
 // Now lives ONLY as the 6th OutreachHub tab (campaigns?outreachTab=reengage).

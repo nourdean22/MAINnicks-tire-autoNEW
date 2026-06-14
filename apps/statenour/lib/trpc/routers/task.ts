@@ -26,7 +26,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
 import { powerAtlasProcedures } from "./task/power-atlas";
-import { listTasks, deleteTask, updateTask } from "@/lib/services/tasks";
+import { listTasks, deleteTask, updateTask, getTaskById } from "@/lib/services/tasks";
 import {
   listMissions,
   createMission,
@@ -48,7 +48,7 @@ import {
   scoreTaskWithAI,
   WrongLoopKindError,
 } from "@/lib/services/task-actions";
-import { generateAiTasks } from "@/lib/services/ai-tasks";
+import { generateAiTasks, decomposeTaskWithAi } from "@/lib/services/ai-tasks";
 import { backfillProjectTasks } from "@/lib/services/backfill-tasks";
 import { buildTodayCompound } from "@/lib/services/today-compound";
 import { buildNextMove } from "@/lib/services/next-move";
@@ -213,6 +213,27 @@ export const taskRouter = router({
         goalId: input?.goalId,
       }),
     ),
+
+  inboxCount: operatorProcedure.query(async () => {
+    return prisma.task.count({
+      where: {
+        status: "INBOX",
+        deletedAt: null,
+      },
+    });
+  }),
+
+  /**
+   * /missions?taskId= deep-link support · owner-only · fetch a single task
+   * with its view model properties by ID.
+   */
+  byId: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const task = await getTaskById(input.id);
+      if (!task) return null;
+      return task;
+    }),
 
   /**
    * Phase PP · owner-only · list missions (active + archived). The
@@ -408,6 +429,8 @@ export const taskRouter = router({
         // children · this flag carries the operator's yes. False or
         // undefined preserves the legacy behavior (parent-only).
         cascadeChildren: z.boolean().optional(),
+        completionNote: z.string().nullable().optional(),
+        outcomeScore: z.number().int().min(1).max(100).nullable().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -416,6 +439,8 @@ export const taskRouter = router({
           id: input.id,
           action: input.action,
           cascadeChildren: input.cascadeChildren,
+          completionNote: input.completionNote,
+          outcomeScore: input.outcomeScore,
         });
       } catch (err) {
         if (err instanceof ServiceError) {
@@ -1279,6 +1304,19 @@ export const taskRouter = router({
         }),
       ]);
       return { ok: true as const, swapped: [a.id, b.id] };
+    }),
+
+  decompose: operatorProcedure
+    .input(z.object({ taskId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await decomposeTaskWithAi(input.taskId);
+      } catch (err) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: err instanceof Error ? err.message : "could not decompose task",
+        });
+      }
     }),
 
   // ─── Power Atlas (people / relationship / ledger / power-balance /

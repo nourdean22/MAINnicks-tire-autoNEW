@@ -13,15 +13,15 @@ import { PageHeader, TabBar, useUrlFilter } from "./shared";
 import { OutreachBrief } from "./outreach/OutreachBrief";
 import GatewayPill from "@/components/admin/GatewayPill";
 
-const SmsSection = lazy(() => import("./SmsSection"));
-const FollowUpsSection = lazy(() => import("./FollowUpsSection"));
-const CampaignsSection = lazy(() => import("./CampaignsSection"));
-const ReviewRequestsSection = lazy(() => import("./ReviewRequestsSection"));
-const WinBackSection = lazy(() => import("./WinBackSection"));
+const SmsSection = lazy(() => import("./outreach/SmsSection"));
+const FollowUpsSection = lazy(() => import("./outreach/FollowUpsSection"));
+const CampaignsSection = lazy(() => import("./outreach/CampaignsSection"));
+const ReviewRequestsSection = lazy(() => import("./outreach/ReviewRequestsSection"));
+const WinBackSection = lazy(() => import("./outreach/WinBackSection"));
 // wave-181.51 — SMS Performance read-out (reply + conversion attribution
 // per outbound send, rolled up per tier). Lives in OutreachHub because
 // it's the analytic counterpart to Messages/Campaigns/Follow-Ups.
-const SmsPerformanceSection = lazy(() => import("./SmsPerformanceSection"));
+const SmsPerformanceSection = lazy(() => import("./outreach/SmsPerformanceSection"));
 
 // 2026-05-19 Elon-cut · `reengage` tab deleted. Win-Back covers the same
 // cohort (lapsed customers receiving SMS); two surfaces was cognitive

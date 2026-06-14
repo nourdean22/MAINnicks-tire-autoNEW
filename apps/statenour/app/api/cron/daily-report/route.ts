@@ -53,7 +53,14 @@ export const GET = cronHandler(async () => {
       _sum: { costCents: true, promptTokens: true, outputTokens: true },
     }),
     prisma.errorLog.count({ where: { createdAt: { gte: startOfDay } } }),
-    prisma.driftAlert.count({ where: { createdAt: { gte: startOfDay } } }),
+    prisma.brainMemory.count({
+      where: {
+        category: "coach_event",
+        key: { startsWith: "coach:drift-recovery:" },
+        createdAt: { gte: startOfDay },
+        deletedAt: null,
+      },
+    }),
   ]);
 
   // Store as empire snapshot

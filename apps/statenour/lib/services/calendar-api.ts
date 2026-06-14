@@ -116,3 +116,83 @@ export async function listEvents(options: {
     htmlLink: e.htmlLink,
   }));
 }
+
+/**
+ * Create a new event on the primary calendar.
+ */
+export async function createEvent(args: {
+  title: string;
+  startISO: string;
+  endISO?: string;
+  location?: string;
+  description?: string;
+  attendees?: string[];
+}): Promise<CalEvent> {
+  const token = await getAccessToken();
+  const start = new Date(args.startISO);
+  if (isNaN(start.getTime())) {
+    throw new Error("Invalid startISO");
+  }
+  const end = args.endISO ? new Date(args.endISO) : new Date(start.getTime() + 60 * 60_000);
+  if (isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
+    throw new Error("Invalid endISO (must be after startISO)");
+  }
+
+  const body = {
+    summary: args.title,
+    location: args.location,
+    description: args.description,
+    start: { dateTime: start.toISOString() },
+    end: { dateTime: end.toISOString() },
+    attendees: args.attendees?.map((email) => ({ email })),
+  };
+
+  const res = await fetch(
+    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
+    }
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new CalendarApiError(
+      res.status,
+      `Calendar create failed: ${res.status} ${text}`,
+    );
+  }
+
+  const e = (await res.json()) as {
+    id: string;
+    summary?: string;
+    description?: string;
+    start?: { dateTime?: string; date?: string };
+    end?: { dateTime?: string; date?: string };
+    attendees?: Array<{ email?: string }>;
+    location?: string;
+    organizer?: { email?: string };
+    status?: string;
+    recurringEventId?: string;
+    htmlLink?: string;
+  };
+
+  return {
+    id: e.id,
+    summary: e.summary,
+    description: e.description,
+    start: e.start?.dateTime || e.start?.date,
+    end: e.end?.dateTime || e.end?.date,
+    attendees: (e.attendees || []).map((a) => a.email || "").filter(Boolean),
+    location: e.location,
+    organizer: e.organizer?.email,
+    status: e.status,
+    recurring: !!e.recurringEventId,
+    htmlLink: e.htmlLink,
+  };
+}

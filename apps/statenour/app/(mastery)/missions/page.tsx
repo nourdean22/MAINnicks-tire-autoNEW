@@ -31,7 +31,8 @@
  * for the data-driven prune.
  */
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { logger as rootLogger } from "@/lib/logger";
@@ -50,7 +51,18 @@ import { MissionRetroModal } from "@/components/missions/mission-retro-modal";
 import { MissionEditDrawer } from "@/components/missions/mission-edit-drawer";
 import { TaskEditSheet } from "@/components/missions/task-edit-sheet";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
-import type { Project, Task } from "@/components/actions/shared";
+import { daysSince, type Project, type Task } from "@/components/actions/shared";
+import { isUserProject } from "@/lib/services/mission-helpers";
+import { ExecutionPanel } from "@/components/missions/execution-panel";
+import { useCustomDomains } from "@/hooks/use-custom-domains";
+import { TaskFilters } from "@/components/actions/task-filters";
+import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
+import { AlertTriangle } from "lucide-react";
+import { HiddenRiskWarning } from "@/components/missions/hidden-risk-warning";
+import { computeHiddenRiskSummary } from "@/lib/tasks/hidden-risk";
+import { cn } from "@/lib/utils";
+
+type KindFilter = "all" | "ONCE" | "DAILY" | "PROMISE";
 
 const log = rootLogger.withSurface("missions/page");
 
@@ -63,12 +75,20 @@ export default function MissionsPage() {
 }
 
 function MissionsPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const taskIdParam = searchParams.get("taskId");
+
   const utils = trpc.useUtils();
   const tasksQuery = trpc.task.list.useQuery(
     {},
     { refetchOnWindowFocus: false },
   );
   const missionsQuery = trpc.task.missions.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+  const healthQuery = trpc.system.healthSummary.useQuery(undefined, {
+    refetchInterval: 30000,
     refetchOnWindowFocus: false,
   });
 
@@ -87,6 +107,11 @@ function MissionsPageInner() {
     [missionsQuery.data],
   );
 
+  const taskDetailQuery = trpc.task.byId.useQuery(
+    { id: taskIdParam ?? "" },
+    { enabled: !!taskIdParam && !tasksQuery.isLoading && !tasks.some((t) => t.id === taskIdParam) }
+  );
+
   const createTask = trpc.task.create.useMutation();
   const updateTask = trpc.task.update.useMutation();
   // WEEKLY completion routes through the unified checkTask service (it
@@ -99,6 +124,7 @@ function MissionsPageInner() {
   // swap math + ranks · client just calls (id, direction) + refetches.
   const reorderMissionMut = trpc.task.reorderMission.useMutation();
   const reorderTaskMut = trpc.task.reorderTask.useMutation();
+  const decomposeTask = trpc.task.decompose.useMutation();
 
   // Telemetry · Phase 4 · mark surface-mount + capture mutation events
   // so the 2-week prune analysis has signal. Silent no-op when telemetry
@@ -121,6 +147,243 @@ function MissionsPageInner() {
   >(undefined);
   const [taskEditOpen, setTaskEditOpen] = useState(false);
   const [taskEditTarget, setTaskEditTarget] = useState<Task | null>(null);
+
+  // Execution Mode state & selectors
+  const [executionModeActive, setExecutionModeActive] = useState(false);
+
+  // ── Search & Filter State ──
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [domainFilter, setDomainFilter] = useState<string | null>(null);
+  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+  const [addingDomain, setAddingDomain] = useState(false);
+  const [newDomainInput, setNewDomainInput] = useState("");
+  const [filterEditMode, setFilterEditMode] = useState(false);
+
+  // Custom domains hook
+  const { customDomains, setCustomDomains } = useCustomDomains();
+
+  // Queue Next focused task ID state
+  const [queuedTaskId, setQueuedTaskId] = useState<string | null>(null);
+
+  const clearTaskIdParam = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("taskId");
+    const newUrl = params.toString() ? `/missions?${params.toString()}` : "/missions";
+    router.replace(newUrl, { scroll: false });
+  }, [router]);
+
+  // Handle deep-linked task from query params
+  useEffect(() => {
+    if (taskIdParam) {
+      if (tasks.length > 0) {
+        const localTask = tasks.find((t) => t.id === taskIdParam);
+        if (localTask) {
+          setTaskEditTarget(localTask);
+          setTaskEditOpen(true);
+          clearTaskIdParam();
+          return;
+        }
+      }
+
+      if (taskDetailQuery.data) {
+        setTaskEditTarget(taskDetailQuery.data as Task);
+        setTaskEditOpen(true);
+        clearTaskIdParam();
+      } else if (taskDetailQuery.isSuccess && !taskDetailQuery.data) {
+        toast.error("Linked task not found.");
+        clearTaskIdParam();
+      } else if (taskDetailQuery.isError) {
+        toast.error("Failed to load linked task.");
+        clearTaskIdParam();
+      }
+    }
+  }, [taskIdParam, tasks, taskDetailQuery.data, taskDetailQuery.isSuccess, taskDetailQuery.isError, clearTaskIdParam]);
+
+  // Memoized selector for the focused task in Execution Mode
+  const focusedTask = useMemo(() => {
+    // 1. First choice: a task that is currently in "DOING" status
+    const doingTask = tasks.find((t) => t.status === "DOING");
+    if (doingTask) return doingTask;
+
+    // 1.5 Second choice: a task queued by the operator (Queue next)
+    if (queuedTaskId) {
+      const queuedTask = tasks.find(
+        (t) =>
+          t.id === queuedTaskId &&
+          t.status !== "DONE" &&
+          t.status !== "WAITING" &&
+          t.status !== "ARCHIVED"
+      );
+      if (queuedTask) return queuedTask;
+    }
+
+    // We only care about open (non-DONE, non-WAITING, non-ARCHIVED) tasks for focus recommendations
+    const openTasks = tasks.filter((t) => t.status !== "DONE" && t.status !== "WAITING" && t.status !== "ARCHIVED");
+    if (openTasks.length === 0) {
+      // Fallback to any tasks that are not DONE or ARCHIVED if nothing else
+      const anyNotDone = tasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED");
+      if (anyNotDone.length > 0) return anyNotDone[0];
+      return null;
+    }
+
+    // Helper: is the project a real user mission?
+    const userMissions = missions.filter((m) => m.status === "ACTIVE" && isUserProject(m));
+
+    // 2. Second choice: first open task of the Top Mission Today
+    const picks = userMissions.map((m) => {
+      const tasksForMission = openTasks.filter((t) => t.missionId === m.id);
+      const days = m.deadline
+        ? Math.round((new Date(m.deadline).getTime() - Date.now()) / 86400000)
+        : null;
+      return {
+        mission: m,
+        openTasks: tasksForMission.length,
+        daysToDeadline: days,
+      };
+    }).filter((p) => p.openTasks > 0);
+
+    if (picks.length > 0) {
+      const sorted = [...picks].sort((a, b) => {
+        const aD = a.daysToDeadline ?? 99_999;
+        const bD = b.daysToDeadline ?? 99_999;
+        if (aD !== bD) return aD - bD;
+        return b.openTasks - a.openTasks;
+      });
+      const topMission = sorted[0]?.mission;
+      if (topMission) {
+        const taskForTop = openTasks.find((t) => t.missionId === topMission.id);
+        if (taskForTop) return taskForTop;
+      }
+    }
+
+    // 3. Third choice: first task of any active user mission
+    for (const mission of userMissions) {
+      const taskForMission = openTasks.find((t) => t.missionId === mission.id);
+      if (taskForMission) return taskForMission;
+    }
+
+    // 4. Fallback: first open task in the general list
+    return openTasks[0] || null;
+  }, [tasks, missions, queuedTaskId]);
+
+  const focusedTaskMission = useMemo(() => {
+    if (!focusedTask || !focusedTask.missionId) return null;
+    return missions.find((m) => m.id === focusedTask.missionId) || null;
+  }, [focusedTask, missions]);
+
+  // ── Filtered Tasks & Missions ──
+  const filteredTasks = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    return tasks.filter((t) => {
+      const mission = missions.find((m) => m.id === t.missionId);
+      const missionTitle = mission?.title.toLowerCase() || t.mission?.title.toLowerCase() || "";
+      const domain = mission?.domain?.toLowerCase() || t.mission?.domain?.toLowerCase() || "other";
+
+      if (query) {
+        const matchesTitle = t.title.toLowerCase().includes(query);
+        const matchesMission = missionTitle.includes(query);
+        if (!matchesTitle && !matchesMission) return false;
+      }
+
+      if (kindFilter !== "all" && t.loopKind !== kindFilter) return false;
+
+      if (domainFilter) {
+        if (domain !== domainFilter.toLowerCase()) return false;
+      }
+
+      return true;
+    });
+  }, [tasks, missions, searchQuery, kindFilter, domainFilter]);
+
+  const filteredMissions = useMemo(() => {
+    const hasActiveFilter = !!(searchQuery.trim() || domainFilter || kindFilter !== "all");
+    if (!hasActiveFilter) return missions;
+
+    return missions.filter((m) => {
+      if (m.status !== "ACTIVE" || !isUserProject(m)) return false;
+
+      if (domainFilter && m.domain?.toLowerCase() !== domainFilter.toLowerCase()) {
+        return false;
+      }
+
+      const query = searchQuery.toLowerCase().trim();
+      const missionTasks = tasks.filter((t) => t.missionId === m.id);
+
+      const missionMatchesSearch = !query || m.title.toLowerCase().includes(query);
+
+      const hasMatchingTask = missionTasks.some((t) => {
+        if (query && !t.title.toLowerCase().includes(query)) return false;
+        if (kindFilter !== "all" && t.loopKind !== kindFilter) return false;
+        return true;
+      });
+
+      return missionMatchesSearch || hasMatchingTask;
+    });
+  }, [missions, tasks, searchQuery, domainFilter, kindFilter]);
+
+  // ── Filter helper counts ──
+  const activeTasks = useMemo(() => tasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED"), [tasks]);
+  const onceCount = useMemo(() => activeTasks.filter((t) => !t.loopKind || t.loopKind === "ONCE").length, [activeTasks]);
+  const dailyCount = useMemo(() => activeTasks.filter((t) => t.loopKind === "DAILY").length, [activeTasks]);
+  const promiseCount = useMemo(() => activeTasks.filter((t) => t.loopKind === "PROMISE").length, [activeTasks]);
+  const activeCount = activeTasks.length;
+
+  const activeDomains = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const t of activeTasks) {
+      const mission = missions.find((m) => m.id === t.missionId);
+      const d = mission?.domain?.toLowerCase() || t.mission?.domain?.toLowerCase() || "other";
+      counts[d] = (counts[d] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  }, [activeTasks, missions]);
+
+  // ── Hidden High-Risk Detection ──
+  const visibleTaskIds = useMemo(() => {
+    const set = new Set<string>();
+    if (executionModeActive) {
+      if (focusedTask) {
+        set.add(focusedTask.id);
+      }
+    } else {
+      for (const t of filteredTasks) {
+        set.add(t.id);
+      }
+    }
+    return set;
+  }, [executionModeActive, focusedTask, filteredTasks]);
+
+  const filtersActive = !!(searchQuery.trim() || domainFilter || kindFilter !== "all");
+  const filterKey = `${searchQuery}-${domainFilter}-${kindFilter}-${executionModeActive}`;
+
+  const hiddenRiskSummary = useMemo(() => {
+    return computeHiddenRiskSummary({
+      allTasks: tasks,
+      visibleTaskIds,
+      filtersActive,
+      executionModeActive,
+      now: new Date(),
+      searchQuery,
+      kindFilter,
+      domainFilter,
+      missions,
+    });
+  }, [tasks, visibleTaskIds, filtersActive, executionModeActive, searchQuery, kindFilter, domainFilter, missions]);
+
+  const handleClearFilters = useCallback(() => {
+    setSearchQuery("");
+    setDomainFilter(null);
+    setKindFilter("all");
+  }, []);
+
+  const handleQueueNext = useCallback((taskId: string) => {
+    setQueuedTaskId(taskId);
+    const task = tasks.find(t => t.id === taskId);
+    toast.success(`Queued “${task?.title || "task"}” next in Execution Mode.`);
+  }, [tasks]);
 
   // ── Mutation wrappers · invalidate task + mission queries on success ──
   const refetchAll = useCallback(async () => {
@@ -270,6 +533,36 @@ function MissionsPageInner() {
     [deleteTaskMut, refetchAll, telemetry],
   );
 
+  const handleUpdateTaskFields = useCallback(
+    async (id: string, fields: any) => {
+      try {
+        await updateTask.mutateAsync({ id, fields });
+        await refetchAll();
+      } catch (err) {
+        log.error("updateTaskFields_failed", { err });
+        toast.error("Could not update task.");
+      }
+    },
+    [updateTask, refetchAll],
+  );
+
+  const handleDecomposeTask = useCallback(
+    async (id: string) => {
+      const task = tasks.find((t) => t.id === id);
+      const promise = decomposeTask.mutateAsync({ taskId: id });
+      
+      toast.promise(promise, {
+        loading: `Decomposing “${task?.title || "task"}” into subtasks...`,
+        success: (res) => {
+          void refetchAll();
+          return `Successfully created ${res.subtasksCount} subtasks!`;
+        },
+        error: (err) => `Failed to decompose task: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    },
+    [decomposeTask, tasks, refetchAll],
+  );
+
   const handleCompleteMission = useCallback(
     (missionId: string) => {
       const mission = missions.find((m) => m.id === missionId);
@@ -389,6 +682,88 @@ function MissionsPageInner() {
     return <MissionsPageSkeleton />;
   }
 
+  if (executionModeActive) {
+    return (
+      <div className="space-y-4 max-w-3xl pb-[env(safe-area-inset-bottom,0px)]">
+        {/* ⌘K omni-capture · kaizen-B kept */}
+        <OmniCaptureModal onCapture={(text) => void handleQuickAdd(text)} />
+
+        {/* Nick chat FAB · kaizen-B kept */}
+        <NickSidePane
+          page="missions"
+          coachSurface="tasks"
+          presets={[
+            "Which mission should I push today?",
+            "Which mission is stalling?",
+            "What's the next move across all my missions?",
+            "Summarize my week so far.",
+          ]}
+        />
+
+        {/* Hidden risk warning banner */}
+        <HiddenRiskWarning
+          summary={hiddenRiskSummary}
+          executionModeActive={executionModeActive}
+          filterKey={filterKey}
+          onClearFilters={handleClearFilters}
+          onExitFocusMode={() => setExecutionModeActive(false)}
+          onQueueNext={handleQueueNext}
+        />
+
+        {focusedTask ? (
+          <ExecutionPanel
+            task={focusedTask}
+            mission={focusedTaskMission}
+            onComplete={handleCompleteTask}
+            onStart={handleStartTask}
+            onDelete={handleDeleteTask}
+            onEdit={(task) => {
+              setTaskEditTarget(task);
+              setTaskEditOpen(true);
+              telemetry.event("editTaskOpen", { taskId: task.id });
+            }}
+            onUpdateTask={handleUpdateTaskFields}
+            onExit={() => setExecutionModeActive(false)}
+          />
+        ) : (
+          <div className="space-y-4 max-w-xl mx-auto py-12 text-center">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-zinc-950 border border-zinc-800 text-zinc-400 text-xl font-bold">
+              ✓
+            </span>
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                All Tasks Completed
+              </h3>
+              <p className="text-xs text-[var(--text-secondary)]">
+                You have no open tasks left to execute. Great work!
+              </p>
+            </div>
+            <button
+              onClick={() => setExecutionModeActive(false)}
+              className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              Exit Focus Mode
+            </button>
+          </div>
+        )}
+
+        {/* task edit sheet · pass live mission list so the
+         *  operator can reassign tasks between missions inline. */}
+        <TaskEditSheet
+          key={taskEditTarget?.id ?? "none"}
+          open={taskEditOpen}
+          onClose={() => setTaskEditOpen(false)}
+          task={taskEditTarget}
+          missions={missions}
+          onSaved={() => {
+            setTaskEditOpen(false);
+            void refetchAll();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 max-w-3xl pb-[env(safe-area-inset-bottom,0px)]">
       {/* ⌘K omni-capture · kaizen-B kept */}
@@ -428,6 +803,16 @@ function MissionsPageInner() {
        *  Self-hides when nothing needs attention. Never moves a task. */}
       <MissionsRescueStrip />
 
+      {/* Hidden risk warning banner */}
+      <HiddenRiskWarning
+        summary={hiddenRiskSummary}
+        executionModeActive={executionModeActive}
+        filterKey={filterKey}
+        onClearFilters={handleClearFilters}
+        onExitFocusMode={() => setExecutionModeActive(false)}
+        onQueueNext={handleQueueNext}
+      />
+
       {/* Single quick-add input at top */}
       <MissionsQuickAdd onSubmit={handleQuickAdd} busy={submitting} />
 
@@ -446,6 +831,28 @@ function MissionsPageInner() {
         >
           + new mission
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            setExecutionModeActive(true);
+            telemetry.event("executionModeOpen", { source: "button" });
+          }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-amber-400 hover:bg-amber-500/10"
+        >
+          ⚡ Execution Mode
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowFilters((v) => !v)}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] transition-colors",
+            showFilters
+              ? "border-amber-500/50 bg-amber-500/10 text-amber-400"
+              : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200"
+          )}
+        >
+          {showFilters ? "✕ Close Filters" : "⚙️ Filters"}
+        </button>
         <span className="text-[10px] font-mono text-[var(--text-tertiary)]/70">
           or type{" "}
           <code className="px-1 rounded bg-[var(--bg-raised)]/10 text-[var(--text-tertiary)]">
@@ -455,16 +862,57 @@ function MissionsPageInner() {
         </span>
       </div>
 
+      {showFilters && (
+        <TaskFilters
+          showFilters={showFilters}
+          kindFilter={kindFilter}
+          setKindFilter={setKindFilter}
+          domainFilter={domainFilter}
+          setDomainFilter={setDomainFilter}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onceCount={onceCount}
+          dailyCount={dailyCount}
+          promiseCount={promiseCount}
+          activeCount={activeCount}
+          activeDomains={activeDomains}
+          customDomains={customDomains}
+          setCustomDomains={setCustomDomains}
+          addingDomain={addingDomain}
+          setAddingDomain={setAddingDomain}
+          newDomainInput={newDomainInput}
+          setNewDomainInput={setNewDomainInput}
+          filterEditMode={filterEditMode}
+          setFilterEditMode={setFilterEditMode}
+        />
+      )}
+
+      {/* Active filters summary chip bar */}
+      {filtersActive && (
+        <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
+          <ActiveFiltersStrip
+            filters={[
+              ...(searchQuery.trim() ? [{ label: `search · "${searchQuery.trim().slice(0, 20)}"`, onRemove: () => setSearchQuery("") }] : []),
+              ...(kindFilter !== "all" ? [{ label: `kind · ${kindFilter}`, onRemove: () => setKindFilter("all") }] : []),
+              ...(domainFilter ? [{ label: `domain · ${domainFilter}`, onRemove: () => setDomainFilter(null) }] : []),
+            ]}
+            onClearAll={handleClearFilters}
+          />
+        </div>
+      )}
+
       {/* Mission cards + unattached section */}
       <MissionFeed
-        missions={missions}
-        tasks={tasks}
+        missions={filteredMissions}
+        tasks={filteredTasks}
         onAddTask={handleAddTask}
         onCompleteTask={handleCompleteTask}
         onStartTask={handleStartTask}
         onDeleteTask={handleDeleteTask}
         onCompleteMission={handleCompleteMission}
         onArchiveMission={handleArchiveMission}
+        onDecomposeTask={handleDecomposeTask}
+        autonomicHealth={healthQuery.data?.autonomic}
         onEditMission={(missionId) => {
           const m = missions.find((mm) => mm.id === missionId);
           if (!m) return;

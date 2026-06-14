@@ -264,51 +264,12 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
               // v9.1.19 · attach actor (resolves to "nick" inside
               // chat ALS scope) + entity-audit log so AI-driven
               // completions appear in the Task's audit trail.
-              const { auditUpdate } = await import("@/lib/db/actor");
-              const { logUpdate } = await import("@/lib/db/entity-audit");
-              const beforeTask = await prisma.task.findUnique({
-                where: { id: match.taskId },
-                select: { id: true, status: true, goalId: true, lastCompletedAt: true, lastTouchedAt: true },
+              const { checkTask } = await import("@/lib/services/task-actions");
+              await checkTask({
+                id: match.taskId,
+                action: "complete",
+                completionNote: `Auto-completed from chat turn: "${match.userPhrase}"`,
               });
-              const afterTask = await prisma.task.update({
-                where: { id: match.taskId },
-                data: {
-                  status: "DONE",
-                  lastCompletedAt: new Date(),
-                  lastTouchedAt: new Date(),
-                  ...auditUpdate(),
-                },
-                select: { id: true, status: true, goalId: true, lastCompletedAt: true, lastTouchedAt: true },
-              });
-              // No .catch — a failed task.update must NOT fall through
-              // to the auditEvent.create below, which would log a false
-              // "Auto-completed" record. A throw lands in the inner
-              // catch as task_completion_detector_failed instead.
-              if (beforeTask) {
-                void logUpdate(
-                  "task",
-                  match.taskId,
-                  beforeTask as Record<string, unknown>,
-                  afterTask as Record<string, unknown>,
-                  {
-                    source: "ai/chat:task-completion-detector",
-                    reason: `auto-complete (${Math.round(match.confidence * 100)}% match)`,
-                  },
-                );
-              }
-              // The raw update above bypasses updateTask, so its completion
-              // fanout never fired — a chat-auto-completed task left both its
-              // character-sheet stat XP and (if linked) its goal progress
-              // untouched. Fire both directly, only on a real (non-DONE →
-              // DONE) transition. Fire-and-forget; never throw.
-              if (beforeTask && beforeTask.status !== "DONE") {
-                const { creditTaskStats } = await import("@/lib/mastery/goal-stats");
-                await creditTaskStats(match.taskId).catch(() => {});
-                if (beforeTask.goalId) {
-                  const { liftGoalOnTaskComplete } = await import("@/lib/services/tasks");
-                  await liftGoalOnTaskComplete(beforeTask.goalId, match.taskId);
-                }
-              }
               await prisma.auditEvent.create({
                 data: {
                   actor: "task_completion_detector",

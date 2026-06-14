@@ -85,7 +85,7 @@ export const SERVICES: ServiceData[] = [
     title: "TIRES",
     shortDesc: "New and used tires. Mounting, balancing, rotation, TPMS sensors, and flat repair. We carry all major brands at fair prices.",
     metaTitle: "Tire Shop Cleveland · Walk-In 7 Days · From $40 | Nick's",
-    metaDescription: "Cleveland tire shop on Euclid Ave — walk in 7 days incl Sundays. Used tires from $25 installed. Stay in car, crew works outside. 4.9★ 1,700+ reviews. (216) 862-0005",
+    metaDescription: "New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005.",
     heroHeadline: "Tires from $40.\nOr whatever your budget says.",
     heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $25, new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
     heroCTA: "GET A TIRE QUOTE",

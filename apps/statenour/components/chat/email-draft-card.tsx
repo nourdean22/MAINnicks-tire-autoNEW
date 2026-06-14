@@ -33,6 +33,7 @@ export interface EmailDraft {
   subject: string;
   body: string;
   tone?: string;
+  apiResult?: { draftId: string; messageId: string } | { error: string } | null;
 }
 
 export function parseEmailDraft(raw: string): EmailDraft | null {
@@ -49,6 +50,7 @@ export function parseEmailDraft(raw: string): EmailDraft | null {
       subject,
       body,
       tone: typeof parsed.tone === "string" ? parsed.tone : undefined,
+      apiResult: parsed.apiResult || undefined,
     };
   } catch {
     return null;
@@ -135,7 +137,7 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
       </div>
 
       <div className="px-3 py-2 border-t border-[var(--border-default)] flex items-center justify-between">
-        <StateLabel state={state} />
+        <StateLabel state={state} apiResult={draft.apiResult} />
         <button
           onClick={send}
           disabled={state.kind === "sending" || state.kind === "sent"}
@@ -162,7 +164,7 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
   );
 }
 
-function StateLabel({ state }: { state: SendState }) {
+function StateLabel({ state, apiResult }: { state: SendState; apiResult?: any }) {
   if (state.kind === "error") {
     return (
       <span className="text-[10px] text-rose-300 font-mono truncate max-w-[60%]">
@@ -174,6 +176,20 @@ function StateLabel({ state }: { state: SendState }) {
     return (
       <span className="text-[10px] text-emerald-300 font-mono">
         ✓ delivered{state.id ? ` · ${state.id.slice(0, 12)}` : ""}
+      </span>
+    );
+  }
+  if (apiResult && !apiResult.error && apiResult.draftId) {
+    return (
+      <span className="text-[10px] text-cyan-300 font-mono">
+        ✓ saved in Gmail drafts (ID: {apiResult.draftId.slice(0, 8)})
+      </span>
+    );
+  }
+  if (apiResult?.error) {
+    return (
+      <span className="text-[10px] text-amber-300 font-mono truncate max-w-[60%]">
+        ⚠ Gmail draft failed: {apiResult.error}
       </span>
     );
   }

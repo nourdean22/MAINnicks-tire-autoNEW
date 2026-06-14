@@ -20,17 +20,20 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:ai-evals": "tsx server/lib/ai/evals/blog-seeder/runner.ts",
+    "eval:prompts": "tsx scripts/run-prompt-evals.ts",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
-    "db:migrate": "tsx scripts/db-migrate.ts",
-    "gsc:report": "tsx scripts/gsc-report.ts",
+    "db:migrate": "tsx scripts/run.ts db-migrate.ts",
+    "gsc:report": "tsx scripts/run.ts gsc-report.ts",
+    "script": "tsx scripts/run.ts",
     "lint": "prettier --check README.md package.json scripts/env-validate.mjs docs/integrations/INTEGRATION_REGISTRY.md docs/operations/LOAD_BEARING_SYSTEMS.md",
     "lint:fix": "prettier --write README.md package.json scripts/env-validate.mjs docs/integrations/INTEGRATION_REGISTRY.md docs/operations/LOAD_BEARING_SYSTEMS.md",
     "lint:source": "node scripts/lint-source.mjs",
     "lint:hooks": "node scripts/audit-hook-after-return.mjs",
     "lint:brand-voice": "node scripts/lint-brand-voice.mjs",
+    "lint:pii": "node scripts/lint-pii.mjs",
     "validate:routes": "node scripts/validate-route-registry.mjs",
     "env:validate": "node scripts/env-validate.mjs",
-    "verify": "pnpm run env:validate && pnpm run check && pnpm run lint && pnpm run lint:source && pnpm run lint:hooks && pnpm run lint:brand-voice && pnpm run validate:routes && pnpm run test && pnpm run build"
+    "verify": "pnpm run env:validate && pnpm run check && pnpm run lint && pnpm run lint:source && pnpm run lint:hooks && pnpm run lint:brand-voice && pnpm run lint:pii && pnpm run validate:routes && pnpm run test && pnpm run build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

@@ -185,6 +185,8 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
           status: { in: ["INBOX", "READY", "DOING"] },
           deletedAt: null,
         },
+        orderBy: { autoPriority: "asc" },
+        take: 50,
         select: {
           id: true,
           title: true,
@@ -212,6 +214,8 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
           status: { in: ["active", "in_progress"] },
           deletedAt: null,
         },
+        orderBy: { id: "asc" },
+        take: 30,
         select: { description: true },
       }),
       prisma.task.count({
@@ -228,15 +232,17 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
         },
         select: { key: true, content: true },
       }),
-      prisma.driftAlert.findMany({
-        where: { resolved: false },
-        orderBy: { createdAt: "asc" },
-        take: 5,
+      prisma.brainMemory.findMany({
+        where: {
+          category: BRAIN_CATEGORIES.COACH_EVENT,
+          key: { startsWith: "coach:drift-recovery:" },
+        },
+        orderBy: { updatedAt: "asc" },
+        take: 20,
         select: {
-          id: true,
-          ruleName: true,
-          severity: true,
-          message: true,
+          key: true,
+          content: true,
+          metadata: true,
           createdAt: true,
         },
       }),
@@ -316,16 +322,86 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
       return false;
     };
 
-    // ── Auto-linker edges ──
-    const taskIds = tasks.map((t) => t.id);
+    // ── Pre-calculate active and queue tasks to restrict edge queries ──
+    const energy = dailyScore?.energyLevel ?? null;
+    const taskDetails = tasks.map((t) => {
+      const agedMs = t.lastTouchedAt
+        ? Date.now() - t.lastTouchedAt.getTime()
+        : 0;
+      const agedDays = Math.floor(agedMs / 86400000);
+      const windowFit = effortFitsWindow(t.effort, window.kind);
+      const energyMatch = effortMatchesEnergy(t.effort, energy);
+      const targetMinutes = EFFORT_MINUTES[t.effort] ?? 30;
+      const predictedMinutes = bandAvg[t.effort] ?? null;
+      const elapsedMinutes = t.startedAt
+        ? Math.max(0, Math.floor((Date.now() - t.startedAt.getTime()) / 60000))
+        : null;
+      const realityGapPercent =
+        predictedMinutes !== null && predictedMinutes > 0
+          ? Math.round(
+              ((predictedMinutes - targetMinutes) / targetMinutes) * 100,
+            )
+          : null;
+
+      return {
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        effort: t.effort,
+        effortLabel: EFFORT_LABEL[t.effort] ?? t.effort,
+        context: t.context,
+        autoPriority: t.autoPriority,
+        autoPriorityExplanation: t.autoPriorityExplanation,
+        missionTitle: t.mission?.title ?? null,
+        missionDomain: t.mission?.domain ?? null,
+        startedAt: t.startedAt?.toISOString() ?? null,
+        lastTouchedAt: t.lastTouchedAt?.toISOString() ?? null,
+        agedDays,
+        windowFit,
+        energyMatch,
+        isCommitment: isCommitmentLinked(t.title),
+        elapsedMinutes,
+        targetMinutes,
+        predictedMinutes,
+        realityGapPercent,
+      };
+    });
+
+    // Composite ranking score — lower is better (like autoPriority).
+    function rank(t: (typeof taskDetails)[number]): number {
+      const base = t.autoPriority ?? 50;
+      let score = base;
+      if (t.windowFit) score -= 10;
+      if (t.energyMatch) score -= 8;
+      if (t.isCommitment) score -= 12;
+      if (t.agedDays >= 10) score += 5;
+      if (t.agedDays >= 30) score += 10;
+      return score;
+    }
+
+    const preActiveTask = taskDetails.find((t) => t.status === "DOING") ?? null;
+    const preQueueable = taskDetails
+      .filter((t) => t.id !== preActiveTask?.id && t.status !== "DOING")
+      .sort((a, b) => rank(a) - rank(b));
+
+    // Queue = top 4 that are NOT aged > 10d (aged stuff goes to backlog)
+    const preFreshQueue = preQueueable.filter((t) => t.agedDays < 10).slice(0, 4);
+
+    // Visible task IDs for edge mapping (at most 5 tasks)
+    const visibleTaskIds = [
+      preActiveTask?.id,
+      ...preFreshQueue.map((t) => t.id),
+    ].filter((id): id is string => typeof id === "string");
+
+    // ── Auto-linker edges (only for visible tasks) ──
     const rawEdges =
-      taskIds.length > 0
+      visibleTaskIds.length > 0
         ? await prisma.memoryEdge
             .findMany({
               where: {
                 OR: [
-                  { sourceType: "task", sourceId: { in: taskIds } },
-                  { targetType: "task", targetId: { in: taskIds } },
+                  { sourceType: "task", sourceId: { in: visibleTaskIds } },
+                  { targetType: "task", targetId: { in: visibleTaskIds } },
                 ],
               },
               orderBy: { strength: "desc" },
@@ -338,7 +414,7 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
                 strength: true,
                 evidence: true,
               },
-              take: 150,
+              take: 50,
             })
             .catch(() => [])
         : [];
@@ -346,7 +422,7 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
     const otherRefs: Record<string, Set<string>> = {};
     for (const e of rawEdges) {
       const [otherType, otherId] =
-        e.sourceType === "task" && taskIds.includes(e.sourceId)
+        e.sourceType === "task" && visibleTaskIds.includes(e.sourceId)
           ? [e.targetType, e.targetId]
           : [e.sourceType, e.sourceId];
       (otherRefs[otherType] ??= new Set()).add(otherId);
@@ -440,7 +516,7 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
     const linksByTask: Record<string, TaskLink[]> = {};
     for (const e of rawEdges) {
       const [thisId, otherType, otherId] =
-        e.sourceType === "task" && taskIds.includes(e.sourceId)
+        e.sourceType === "task" && visibleTaskIds.includes(e.sourceId)
           ? [e.sourceId, e.targetType, e.targetId]
           : [e.targetId, e.sourceType, e.sourceId];
       const label = labelByKey.get(`${otherType}:${otherId}`) ?? otherType;
@@ -456,62 +532,12 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
       }
     }
 
-    // ── Sort tasks: DOING first, then composite score ──
-    const energy = dailyScore?.energyLevel ?? null;
-    const enriched = tasks.map((t) => {
-      const agedMs = t.lastTouchedAt
-        ? Date.now() - t.lastTouchedAt.getTime()
-        : 0;
-      const agedDays = Math.floor(agedMs / 86400000);
-      const windowFit = effortFitsWindow(t.effort, window.kind);
-      const energyMatch = effortMatchesEnergy(t.effort, energy);
-      const targetMinutes = EFFORT_MINUTES[t.effort] ?? 30;
-      const predictedMinutes = bandAvg[t.effort] ?? null;
-      const elapsedMinutes = t.startedAt
-        ? Math.max(0, Math.floor((Date.now() - t.startedAt.getTime()) / 60000))
-        : null;
-      const realityGapPercent =
-        predictedMinutes !== null && predictedMinutes > 0
-          ? Math.round(
-              ((predictedMinutes - targetMinutes) / targetMinutes) * 100,
-            )
-          : null;
+    const enriched = taskDetails.map((t) => {
       return {
-        id: t.id,
-        title: t.title,
-        status: t.status,
-        effort: t.effort,
-        effortLabel: EFFORT_LABEL[t.effort] ?? t.effort,
-        context: t.context,
-        autoPriority: t.autoPriority,
-        autoPriorityExplanation: t.autoPriorityExplanation,
-        missionTitle: t.mission?.title ?? null,
-        missionDomain: t.mission?.domain ?? null,
-        startedAt: t.startedAt?.toISOString() ?? null,
-        lastTouchedAt: t.lastTouchedAt?.toISOString() ?? null,
-        agedDays,
-        windowFit,
-        energyMatch,
-        isCommitment: isCommitmentLinked(t.title),
-        elapsedMinutes,
-        targetMinutes,
-        predictedMinutes,
-        realityGapPercent,
+        ...t,
         links: linksByTask[t.id] ?? [],
       } satisfies DeskTask;
     });
-
-    // Composite ranking score — lower is better (like autoPriority).
-    function rank(t: (typeof enriched)[number]): number {
-      const base = t.autoPriority ?? 50;
-      let score = base;
-      if (t.windowFit) score -= 10;
-      if (t.energyMatch) score -= 8;
-      if (t.isCommitment) score -= 12;
-      if (t.agedDays >= 10) score += 5;
-      if (t.agedDays >= 30) score += 10;
-      return score;
-    }
 
     const activeTask = enriched.find((t) => t.status === "DOING") ?? null;
     const queueable = enriched
@@ -536,13 +562,30 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
         severity: t.agedDays >= 10 ? "warning" : "info",
       });
     }
-    for (const a of driftAlerts.slice(0, 2)) {
+    const activeDrifts = driftAlerts
+      .filter((d) => {
+        const meta = (d.metadata ?? {}) as Record<string, unknown>;
+        return !meta.ackedAt;
+      })
+      .map((d) => {
+        const meta = (d.metadata ?? {}) as Record<string, unknown>;
+        const severity = meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "high" : "warning";
+        return {
+          id: d.key,
+          ruleName: d.content,
+          severity,
+          message: typeof meta.body === "string" ? meta.body : "",
+          createdAt: d.createdAt,
+        };
+      });
+
+    for (const a of activeDrifts.slice(0, 2)) {
       const ageDays = Math.floor(
         (Date.now() - a.createdAt.getTime()) / 86400000,
       );
       backlog.push({
         kind: "drift",
-        id: String(a.id),
+        id: a.id,
         title: a.ruleName,
         detail: a.message.slice(0, 80),
         ageDays,

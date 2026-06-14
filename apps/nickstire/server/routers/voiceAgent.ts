@@ -195,31 +195,7 @@ export const voiceAgentRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const { db } = await import("../lib/db-helper");
-        const { bookings } = await import("../../drizzle/schema");
-        const d = await db();
-        if (!d) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        }
-        const refCode = `VOICE-${Date.now().toString(36).toUpperCase()}`;
-        await d.insert(bookings).values({
-          name: input.name,
-          phone: input.phone.replace(/\D/g, ""),
-          email: null,
-          service: input.service,
-          vehicle: input.vehicle || null,
-          // Tag provenance in message since bookings table has no source col.
-          message: `[VOICE-AGENT]${input.callId ? ` callId=${input.callId}` : ""} — booked via Vapi AI receptionist`,
-          urgency: "whenever",
-          status: "new",
-          preferredDate: input.preferredDay || null,
-          preferredTime: "no-preference",
-          referenceCode: refCode,
-          utmSource: "voice-agent",
-          utmMedium: "phone",
-          utmCampaign: "vapi-receptionist",
-        });
-        log.info("Voice agent booked slot", { refCode, name: input.name, service: input.service });
+        log.info("Voice agent bookSlot called (bypassing DB bookings table)", { name: input.name, service: input.service });
 
         // wave-fix-2026-05-25 (audit #107) · mark this call as converted
         // so VAPI eval scoring + conversion-rate dashboards count it.
@@ -228,11 +204,15 @@ export const voiceAgentRouter = router({
         // noise. Best-effort · failure here doesn't block the booking.
         if (input.callId) {
           try {
-            const { vapiCallLogs } = await import("../../drizzle/schema");
-            const { eq } = await import("drizzle-orm");
-            await d.update(vapiCallLogs)
-              .set({ convertedToLead: 1 })
-              .where(eq(vapiCallLogs.vapiCallId, input.callId));
+            const { db } = await import("../lib/db-helper");
+            const d = await db();
+            if (d) {
+              const { vapiCallLogs } = await import("../../drizzle/schema");
+              const { eq } = await import("drizzle-orm");
+              await d.update(vapiCallLogs)
+                .set({ convertedToLead: 1 })
+                .where(eq(vapiCallLogs.vapiCallId, input.callId));
+            }
           } catch (err) {
             log.warn("Failed to mark vapi_call_logs.convertedToLead=1 for bookSlot", { callId: input.callId, err: err instanceof Error ? err.message : String(err) });
           }
@@ -241,8 +221,9 @@ export const voiceAgentRouter = router({
         // PII projection — never echo caller name/service in returned text; AI has them in context.
         return {
           success: true,
-          reference: refCode,
-          windowStart: input.preferredDay || "next available",
+          reference: "WALKIN-INFO",
+          status: "walk_in_guidance",
+          message: "No appointment was booked. Tell the caller Nick's is first come, first served. They can walk in or drop off during business hours. Send a recap text with the address if helpful.",
         };
       } catch (err) {
         log.error("Voice agent book failed", { err: err instanceof Error ? err.message : String(err) });
@@ -890,13 +871,8 @@ export const voiceAgentRouter = router({
    * 14-day call audit identified 5+ high-intent callers who escalated
    * to a manager because the AI couldn't say "yes we have it" with
    * confidence. Instead of transferring (kills the call), this tool
-   * captures the lead with PHYSICAL RACK CHECK REQUESTED + bumps it
-   * to urgency 5 so the front desk walks the rack within 15 minutes
-   * and texts/calls the result.
-   *
-   * Reuses the tireInquiry pipeline (same leads table, same recovery
-   * flow). The difference is the explicit flag + the 15-min SLA
-   * promised to the caller.
+   * captures the lead with PHYSICAL RACK CHECK REQUESTED (no callback time promised)
+   * and bumps it to urgency 5 so the front desk walks the rack.
    */
   checkTireStock: voiceAgentInternalProcedure
     .input(z.object({
@@ -923,7 +899,7 @@ export const voiceAgentRouter = router({
         // a dedup error must never block capture. The Telegram rack-walk
         // alert below fires regardless of dedup.
         const normalizedPhone = input.phone.replace(/\D/g, "");
-        const rackCheckProblem = `[VOICE-AGENT RACK CHECK]${input.callId ? ` callId=${input.callId}` : ""} — Size: ${input.tireSize}${input.vehicle ? ` · Vehicle: ${input.vehicle}` : ""} · PHYSICAL RACK CHECK REQUESTED — promised 15 min callback`;
+        const rackCheckProblem = `[VOICE-AGENT RACK CHECK]${input.callId ? ` callId=${input.callId}` : ""} — Size: ${input.tireSize}${input.vehicle ? ` · Vehicle: ${input.vehicle}` : ""} · Physical rack check requested (no callback time promised)`;
         let dedupLeadId: number | null = null;
         if (normalizedPhone.length >= 10) {
           try {
@@ -943,7 +919,7 @@ export const voiceAgentRouter = router({
         }
 
         // attribution-holds wave 2026-06 · capture the lead id (same
-        // $returningId pattern as tireInquiry wave-149) so the call->lead
+        // $returningId pattern as tireInquiry wave-149) so the call→lead
         // FK below gets written — checkTireStock previously discarded it,
         // leaving vapi_call_logs.leadId NULL on the newer rack-check path.
         let newLeadId: number | null = dedupLeadId;
@@ -997,13 +973,13 @@ export const voiceAgentRouter = router({
         // Fire-and-forget Telegram so front desk sees it immediately
         import("../services/telegram")
           .then(({ sendTelegram }) =>
-            sendTelegram(`🚨 RACK CHECK · 15-min callback promised · ${input.name} · ${input.phone}\nSize: ${input.tireSize}${input.vehicle ? ` · ${input.vehicle}` : ""}`),
+            sendTelegram(`🚨 RACK CHECK · Stock check requested · ${input.name} · ${input.phone}\nSize: ${input.tireSize}${input.vehicle ? ` · ${input.vehicle}` : ""}`),
           )
           .catch((e) => log.warn("[voiceAgent:checkTireStock] telegram alert failed:", e));
 
         return {
           success: true,
-          message: `Got it — front desk will walk the rack and call you back within 15 minutes with a yes or no on ${input.tireSize}. That way you don't drive over for nothing.`,
+          message: `Got it — front desk will check the physical rack for ${input.tireSize} and follow up as soon as they can.`,
         };
       } catch (err) {
         log.error("Voice agent checkTireStock failed", { err: err instanceof Error ? err.message : String(err) });

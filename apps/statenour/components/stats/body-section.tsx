@@ -40,6 +40,7 @@ import { PageNick } from "@/components/ai/page-nick";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
+import { ErrorCard } from "@/components/ui/error-card";
 
 // Phase XX (2026-05-19 AM) · authedFetch replaced with trpc · 2 sites
 // (timeline read + check-in mutation) on the operator router.
@@ -64,6 +65,7 @@ export function BodySection() {
   const [entries, setEntries] = useState<BodyEntry[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [weight, setWeight] = useState("");
   const [bodyFat, setBodyFat] = useState("");
   const [waist, setWaist] = useState("");
@@ -80,6 +82,12 @@ export function BodySection() {
   // creating duplicate weight entries on mobile.
   const [submitting, setSubmitting] = useState(false);
 
+  // EF Quick-Log states
+  const [efLogMode, setEfLogMode] = useState(false);
+  const [efSleep, setEfSleep] = useState<string | null>(null); // "low" | "restful" | "optimized"
+  const [efStress, setEfStress] = useState<number | null>(null); // 1 | 3 | 5
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   // v10 B.1 FIND-03 · load wrapped in useCallback so the polling
   // interval captures a stable reference. setLoading(false) moved
   // into a finally block so a JSON-parse error or unexpected throw
@@ -95,6 +103,7 @@ export function BodySection() {
     const ctrl = new AbortController();
     inflightRef.current = ctrl;
     try {
+      setError(null);
       const view = await utils.operator.bodyTracking.fetch({ range: "90d" });
       if (ctrl.signal.aborted) return;
       // Phase XX · normalize Prisma camelCase → page's snake_case
@@ -128,6 +137,7 @@ export function BodySection() {
       log.error("body_load_exception", {
         error: err instanceof Error ? err.message : String(err),
       });
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -138,8 +148,8 @@ export function BodySection() {
     // sleep+workout+energy are independent health signals that can
     // be logged without a fresh weight reading.
     const hasAnyField =
-      weight || bodyFat || waist || sleepHours ||
-      workoutDone !== null || energy !== null || notes;
+      weight || bodyFat || waist || sleepHours || efSleep ||
+      workoutDone !== null || energy !== null || efStress !== null || notes;
     if (!hasAnyField) return;
     if (submitting) return; // v10 B.1 FIND-09 · double-tap guard
     setSubmitting(true);
@@ -150,10 +160,13 @@ export function BodySection() {
         weight: weight ? parseFloat(weight) : null,
         body_fat_pct: bodyFat ? parseFloat(bodyFat) : null,
         waist_inches: waist ? parseFloat(waist) : null,
-        sleep_hours: sleepHours ? parseFloat(sleepHours) : null,
+        sleep_hours: efLogMode && efSleep
+          ? (efSleep === "low" ? 5.5 : efSleep === "restful" ? 7.5 : 8.5)
+          : sleepHours ? parseFloat(sleepHours) : null,
         workout_done: workoutDone,
         energy,
-        notes: notes || null,
+        stress: efLogMode && efStress !== null ? efStress : null,
+        notes: notes ? `${notes} (EF Quick-Log)` : (efLogMode ? "EF Quick-Log" : null),
       });
       setWeight("");
       setBodyFat("");
@@ -161,6 +174,8 @@ export function BodySection() {
       setSleepHours("");
       setWorkoutDone(null);
       setEnergy(null);
+      setEfSleep(null);
+      setEfStress(null);
       setNotes("");
       toast.success("Logged");
       load();
@@ -199,12 +214,25 @@ export function BodySection() {
     );
   }
 
+  if (error) {
+    return (
+      <ErrorCard
+        title="Failed to load body stats"
+        message={error}
+        domain="operator:bodyTracking"
+        onRetry={load}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Former StandardPage description + actions, relocated inline. */}
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm text-[var(--text-secondary)]" style={{ maxWidth: "60ch" }}>
-          Body = business performance. When workouts stop, revenue follows within 5 days.
+          {/* 2026-06-10 · honest copy — the old "revenue follows within 5
+              days" line asserted a measured correlation no data backs. */}
+          When sleep, workouts, and energy slip, execution usually follows.
         </p>
         {progress && (
           <div className="text-right flex flex-col items-end gap-1 shrink-0">
@@ -320,105 +348,294 @@ export function BodySection() {
 
       {/* Quick Entry Form */}
       <Card className="border-[var(--border-default)] bg-[var(--bg-raised)]">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm text-[var(--text-tertiary)]">Quick Entry</CardTitle>
+          <Button
+            variant="ghost"
+            size="xs"
+            type="button"
+            onClick={() => {
+              const newMode = !efLogMode;
+              setEfLogMode(newMode);
+              if (newMode) setShowAdvanced(false);
+              // reset inputs
+              setWeight("");
+              setBodyFat("");
+              setWaist("");
+              setSleepHours("");
+              setWorkoutDone(null);
+              setEnergy(null);
+              setEfSleep(null);
+              setEfStress(null);
+              setNotes("");
+            }}
+            className="h-7 text-[10px] font-mono px-2 bg-white/[0.02] border border-white/10 text-zinc-400 hover:text-white"
+          >
+            {efLogMode ? "Normal Mode" : "EF Quick-Log ⚡"}
+          </Button>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-3 stagger-in">
-            <Input
-              type="number"
-              step="0.1"
-              placeholder="Weight (lbs)"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
-            />
-            <Input
-              type="number"
-              step="0.1"
-              placeholder="Body fat %"
-              value={bodyFat}
-              onChange={(e) => setBodyFat(e.target.value)}
-              className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
-            />
-            <Input
-              type="number"
-              step="0.1"
-              placeholder="Waist (in)"
-              value={waist}
-              onChange={(e) => setWaist(e.target.value)}
-              className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
-            />
-            <Input
-              type="number"
-              step="0.5"
-              placeholder="Sleep (h)"
-              value={sleepHours}
-              onChange={(e) => setSleepHours(e.target.value)}
-              className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
-            />
-            <Input
-              type="text"
-              placeholder="Notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]"
-            />
-          </div>
+          {efLogMode ? (
+            <div className="space-y-4 animate-fade-in">
+              {/* Sleep Taps */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16">sleep</span>
+                {[
+                  { label: "deficit (<6h)", key: "low" },
+                  { label: "restful (7.5h)", key: "restful" },
+                  { label: "optimized (8.5h)", key: "optimized" },
+                ].map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setEfSleep(opt.key)}
+                    className={cn(
+                      "min-h-[40px] px-3 rounded-md border text-[11px] transition-all",
+                      efSleep === opt.key
+                        ? opt.key === "low"
+                          ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
+                          : "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
+                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
 
-          {/* v10.0.529.106 · Wave 63b · workout toggle + 1-5 energy chip
-              row · the MODE classifier reads these. Editorial-minimalist
-              chips with 44px tap targets · mobile-first. */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">workout</span>
-            {[
-              { label: "yes", value: true },
-              { label: "no", value: false },
-            ].map((opt) => (
-              <button
-                key={String(opt.value)}
-                type="button"
-                onClick={() => setWorkoutDone(opt.value)}
-                className={cn(
-                  "min-h-[44px] px-3 rounded-md border transition-all",
-                  workoutDone === opt.value
-                    ? opt.value
-                      ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
-                      : "border-zinc-500/40 bg-zinc-500/[0.08] text-zinc-300"
-                    : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
-            <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">energy</span>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setEnergy(n)}
-                className={cn(
-                  "min-h-[44px] w-10 rounded-md border font-mono transition-all",
-                  energy === n
-                    ? n <= 2
-                      ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
-                      : n >= 4
-                      ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
-                      : "border-sky-500/40 bg-sky-500/[0.08] text-sky-200"
-                    : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
-                )}
-                aria-label={`energy ${n} of 5`}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
+              {/* Workout Taps */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16">workout</span>
+                {[
+                  { label: "yes 💪", value: true },
+                  { label: "rest ☕", value: false },
+                ].map((opt) => (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => setWorkoutDone(opt.value)}
+                    className={cn(
+                      "min-h-[40px] px-4 rounded-md border text-[11px] transition-all",
+                      workoutDone === opt.value
+                        ? opt.value
+                          ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
+                          : "border-zinc-500/40 bg-zinc-500/[0.08] text-zinc-300"
+                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Energy Taps */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16">energy</span>
+                {[
+                  { label: "🔋 1", value: 1 },
+                  { label: "🔋 2", value: 2 },
+                  { label: "⚡ 3", value: 3 },
+                  { label: "⚡ 4", value: 4 },
+                  { label: "🔥 5", value: 5 },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setEnergy(opt.value)}
+                    className={cn(
+                      "min-h-[40px] px-3 rounded-md border text-[11px] transition-all",
+                      energy === opt.value
+                        ? opt.value <= 2
+                          ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
+                          : opt.value >= 4
+                          ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
+                          : "border-sky-500/40 bg-sky-500/[0.08] text-sky-200"
+                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Stress Taps */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16">stress</span>
+                {[
+                  { label: "😌 low", value: 1 },
+                  { label: "⚖️ stable", value: 3 },
+                  { label: "⚠️ high", value: 5 },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setEfStress(opt.value)}
+                    className={cn(
+                      "min-h-[40px] px-3.5 rounded-md border text-[11px] transition-all",
+                      efStress === opt.value
+                        ? opt.value === 1
+                          ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
+                          : opt.value === 3
+                          ? "border-sky-500/40 bg-sky-500/[0.08] text-sky-200"
+                          : "border-rose-500/40 bg-rose-500/[0.08] text-rose-200"
+                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Advanced Accordion Toggle */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="text-[10px] font-mono text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-all underline outline-none"
+                >
+                  {showAdvanced ? "Hide advanced fields" : "Show advanced fields (Weight, BF%, Waist, Notes)"}
+                </button>
+              </div>
+
+              {showAdvanced && (
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/5 animate-fade-in">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="Weight (lbs)"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-xs"
+                  />
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="Body fat %"
+                    value={bodyFat}
+                    onChange={(e) => setBodyFat(e.target.value)}
+                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-xs"
+                  />
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="Waist (in)"
+                    value={waist}
+                    onChange={(e) => setWaist(e.target.value)}
+                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono text-xs"
+                  />
+                  <Input
+                    type="text"
+                    placeholder="Notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] text-xs col-span-2"
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4 animate-fade-in">
+              <div className="grid grid-cols-2 gap-3 stagger-in">
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="Weight (lbs)"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
+                />
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="Body fat %"
+                  value={bodyFat}
+                  onChange={(e) => setBodyFat(e.target.value)}
+                  className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
+                />
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="Waist (in)"
+                  value={waist}
+                  onChange={(e) => setWaist(e.target.value)}
+                  className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
+                />
+                <Input
+                  type="number"
+                  step="0.5"
+                  placeholder="Sleep (h)"
+                  value={sleepHours}
+                  onChange={(e) => setSleepHours(e.target.value)}
+                  className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-mono"
+                />
+                <Input
+                  type="text"
+                  placeholder="Notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] col-span-2"
+                />
+              </div>
+
+              {/* v10.0.529.106 · Wave 63b · workout toggle + 1-5 energy chip
+                  row · the MODE classifier reads these. Editorial-minimalist
+                  chips with 44px tap targets · mobile-first. */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16">workout</span>
+                {[
+                  { label: "yes", value: true },
+                  { label: "no", value: false },
+                ].map((opt) => (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => setWorkoutDone(opt.value)}
+                    className={cn(
+                      "min-h-[44px] px-3 rounded-md border transition-all",
+                      workoutDone === opt.value
+                        ? opt.value
+                          ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
+                          : "border-zinc-500/40 bg-zinc-500/[0.08] text-zinc-300"
+                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] w-16 text-center">energy</span>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setEnergy(n)}
+                    className={cn(
+                      "min-h-[44px] w-10 rounded-md border font-mono transition-all",
+                      energy === n
+                        ? n <= 2
+                          ? "border-amber-500/40 bg-amber-500/[0.08] text-amber-200"
+                          : n >= 4
+                          ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-200"
+                          : "border-sky-500/40 bg-sky-500/[0.08] text-sky-200"
+                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/20",
+                    )}
+                    aria-label={`energy ${n} of 5`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <Button
             size="sm"
-            className="mt-3 w-full bg-[#FDB913] text-[#0a0a0a] hover:bg-[#FDB913]/80"
+            className="mt-3 w-full bg-[#FDB913] text-[#0a0a0a] hover:bg-[#FDB913]/80 font-bold uppercase tracking-wider h-10"
             onClick={logWeight}
-            disabled={submitting || (!weight && !bodyFat && !waist && !sleepHours && workoutDone === null && energy === null && !notes)}
+            disabled={submitting || (
+              efLogMode
+                ? (!efSleep && workoutDone === null && energy === null && efStress === null && !weight && !bodyFat && !waist && !notes)
+                : (!weight && !bodyFat && !waist && !sleepHours && workoutDone === null && energy === null && !notes)
+            )}
           >
             {submitting ? "Logging…" : "Log Entry"}
           </Button>

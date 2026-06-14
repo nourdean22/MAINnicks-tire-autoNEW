@@ -11,7 +11,7 @@ import { eq, desc, gte, lte, and, sql, asc, inArray } from "drizzle-orm";
 import {
   jobAssignments, invoices, customerMetrics, kpiSnapshots, portalSessions,
   bookings, customers, technicians, reviewRequests, leads, serviceHistory,
-  algEstimates, shopSettings,
+  algEstimates, shopSettings, tireOrders,
 } from "../../../drizzle/schema";
 
 // wave-115b — dismissed-estimates list lives in shop_settings as a JSON
@@ -52,6 +52,7 @@ async function writeDismissedIds(d: NonNullable<Awaited<ReturnType<typeof db>>>,
 import { db } from "../../lib/db-helper";
 
 import { createLogger } from "../../lib/logger";
+import { logAdminAction } from "../../services/auditTrail";
 
 const log = createLogger("routers:advanced");
 // ─── JOB ASSIGNMENTS ────────────────────────────────────
@@ -453,6 +454,7 @@ export const invoicesRouter = router({
             COALESCE(SUM(laborCost),0) as totalLabor,
             COALESCE(SUM(partsCost),0) as totalParts
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+            AND paymentStatus = 'paid'
         `),
         // 3. Monthly trend (last 12 months regardless of period)
         d.execute(rawSql`
@@ -461,6 +463,7 @@ export const invoicesRouter = router({
                  SUM(laborCost) as labor, SUM(partsCost) as parts,
                  AVG(totalAmount) as avgTicket
           FROM invoices
+          WHERE paymentStatus = 'paid'
           GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
           ORDER BY month DESC LIMIT 24
         `),
@@ -487,12 +490,14 @@ export const invoicesRouter = router({
             COUNT(*) as cnt, SUM(totalAmount) as rev, AVG(totalAmount) as avgTicket
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
             AND serviceDescription IS NOT NULL AND serviceDescription != ''
+            AND paymentStatus = 'paid'
           GROUP BY category ORDER BY rev DESC
         `),
         // 6. Best/worst revenue days
         d.execute(rawSql`
           SELECT DATE(invoiceDate) as day, COUNT(*) as jobs, SUM(totalAmount) as rev
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+            AND paymentStatus = 'paid'
           GROUP BY DATE(invoiceDate) ORDER BY rev DESC LIMIT 10
         `),
         // 7. Revenue by day of week
@@ -500,6 +505,7 @@ export const invoicesRouter = router({
           SELECT DAYNAME(invoiceDate) as dayName, DAYOFWEEK(invoiceDate) as dayNum,
                  COUNT(*) as cnt, SUM(totalAmount) as rev, AVG(totalAmount) as avgTicket
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+            AND paymentStatus = 'paid'
           GROUP BY dayName, dayNum ORDER BY dayNum
         `),
         // 8. Weekly revenue trend (for week-over-week growth)
@@ -511,6 +517,7 @@ export const invoicesRouter = router({
                  AVG(totalAmount) as avgTicket
           FROM invoices
           WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL LEAST(${days}, 365) DAY)
+            AND paymentStatus = 'paid'
           GROUP BY YEARWEEK(invoiceDate, 1)
           ORDER BY yw DESC LIMIT 52
         `),
@@ -524,6 +531,7 @@ export const invoicesRouter = router({
                  SUM(partsCost) as parts
           FROM invoices
           WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+            AND paymentStatus = 'paid'
           GROUP BY DATE(invoiceDate)
           ORDER BY day
         `),
@@ -869,6 +877,7 @@ export const invoicesRouter = router({
           serviceDescription: algEstimates.serviceDescription,
           followUp7dSent: algEstimates.followUp7dSent,
           followUp30dSent: algEstimates.followUp30dSent,
+          recoveryProfile: algEstimates.recoveryProfile,
         })
         .from(algEstimates)
         .where(sql`${algEstimates.id} IN (${sql.join(input.ids.map(id => sql`${id}`), sql`, `)})`);
@@ -907,8 +916,8 @@ export const invoicesRouter = router({
 
         const name = parseFirstName(row.customerName);
         const body = input.tier === "7d"
-          ? buildSevenDayMessage({ name, amountCents: row.estimatedAmount, service: row.serviceDescription })
-          : buildThirtyDayMessage({ name, amountCents: row.estimatedAmount });
+          ? buildSevenDayMessage({ name, amountCents: row.estimatedAmount, service: row.serviceDescription, profile: row.recoveryProfile })
+          : buildThirtyDayMessage({ name, amountCents: row.estimatedAmount, profile: row.recoveryProfile });
 
         try {
           const smsResult = await sendSms(row.customerPhone, body, { via: "shop", transactional: false });
@@ -985,4 +994,185 @@ export const invoicesRouter = router({
       });
       return { ...result, killSwitchOn: false };
     }),
+
+  /**
+   * Trigger refund for a paid online invoice.
+   * Admin only. Issues a refund via Stripe and triggers ShopDriver writeback sync immediately.
+   */
+  triggerRefund: adminProcedure
+    .input(z.object({
+      invoiceId: z.number(),
+      amountCents: z.number().int().min(1),
+      reason: z.string().default("Requested by customer"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const d = await db();
+      if (!d) throw new Error("Database not available");
+
+      // 1. Look up the invoice
+      const [invoice] = await d.select().from(invoices)
+        .where(eq(invoices.id, input.invoiceId)).limit(1);
+
+      if (!invoice) {
+        throw new Error(`Invoice ID ${input.invoiceId} not found`);
+      }
+
+      if (invoice.paymentStatus === "refunded") {
+        return { success: true, message: "Invoice already refunded" };
+      }
+
+      if (invoice.paymentStatus !== "paid" && invoice.paymentStatus !== "partial") {
+        throw new Error(`Invoice payment status is ${invoice.paymentStatus}, cannot refund`);
+      }
+
+      // 2. Find the payment intent / charge ID associated with the invoice.
+      const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeSecretKey) {
+        throw new Error("Stripe is not configured");
+      }
+
+      const { default: Stripe } = await import("stripe");
+      const stripe = new Stripe(stripeSecretKey);
+      let paymentIntentId: string | null = null;
+
+      // a. Check if the invoice is associated with a tire order (tireOrders table)
+      const [tireOrder] = await d.select().from(tireOrders)
+        .where(eq(tireOrders.invoiceNumber, invoice.invoiceNumber!))
+        .limit(1);
+
+      if (tireOrder?.stripeSessionId) {
+        try {
+          const session = await stripe.checkout.sessions.retrieve(tireOrder.stripeSessionId);
+          paymentIntentId = typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : (session.payment_intent as any)?.id || null;
+        } catch (err) {
+          log.warn(`Failed to retrieve Stripe session for tire order: ${err}`);
+        }
+      }
+
+      // b. Check payments table as fallback
+      if (!paymentIntentId) {
+        const { payments } = await import("../../../drizzle/schema");
+        const [payment] = await d.select().from(payments)
+          .where(and(
+            eq(payments.invoiceId, invoice.id),
+            eq(payments.status, "paid")
+          ))
+          .limit(1);
+        if (payment?.stripePaymentIntentId) {
+          paymentIntentId = payment.stripePaymentIntentId;
+        }
+      }
+
+      // c. Search Stripe by metadata.invoiceNumber as last resort
+      if (!paymentIntentId && invoice.invoiceNumber) {
+        try {
+          const searchResults = await stripe.paymentIntents.search({
+            query: `metadata['invoiceNumber']:'${invoice.invoiceNumber}'`,
+          });
+          paymentIntentId = searchResults.data[0]?.id || null;
+        } catch (err) {
+          log.warn(`Stripe search failed for invoice ${invoice.invoiceNumber}: ${err}`);
+        }
+      }
+
+      if (!paymentIntentId) {
+        throw new Error(`Could not locate a Stripe payment for invoice ${invoice.invoiceNumber}`);
+      }
+
+      // 3. Issue Stripe refund with idempotency key
+      let refundId = "";
+      const actorEmail = ctx.user?.email || "admin";
+      try {
+        const refund = await stripe.refunds.create({
+          payment_intent: paymentIntentId,
+          amount: input.amountCents,
+          reason: "requested_by_customer",
+          metadata: {
+            invoiceId: String(invoice.id),
+            invoiceNumber: invoice.invoiceNumber || "",
+            refundReason: input.reason,
+            actor: actorEmail,
+          }
+        }, {
+          idempotencyKey: `refund-inv-${invoice.id}-${input.amountCents}`,
+        });
+
+        refundId = refund.id;
+
+        // 4. Update the database atomically
+        const [claim] = await d.execute(sql`
+          UPDATE invoices
+          SET paymentStatus = 'refunded',
+              updatedAt = NOW()
+          WHERE id = ${invoice.id} AND paymentStatus IN ('paid', 'partial')
+        `);
+
+        if (((claim as unknown as { affectedRows?: number }).affectedRows ?? 0) > 0) {
+          // If invoice is linked to a tire order, also mark tire order refunded
+          if (tireOrder) {
+            await d.update(tireOrders)
+              .set({ paymentStatus: "refunded", updatedAt: new Date() })
+              .where(eq(tireOrders.orderNumber, tireOrder.orderNumber));
+          }
+        }
+
+        log.info(`Stripe refund issued: ${refundId} for invoice ${invoice.invoiceNumber}`);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Stripe refund API call failed: ${errorMsg}`);
+        
+        await logAdminAction({
+          action: "invoice.refund_failed" as any,
+          entityType: "invoices",
+          entityId: invoice.id,
+          details: `Stripe refund API call failed: ${errorMsg}`,
+          actor: actorEmail,
+          previousValue: invoice.paymentStatus,
+          newValue: invoice.paymentStatus,
+          metadata: {
+            error: errorMsg,
+            amountCents: input.amountCents,
+            reason: input.reason,
+          }
+        });
+        throw new Error(`Stripe refund failed: ${errorMsg}`);
+      }
+
+      // 5. Trigger the writeback sync immediately
+      const { processStripeRefundEvent } = await import("../../services/refundWriteback");
+      // Construct a mock Stripe event to pass to processStripeRefundEvent
+      const mockEvent = {
+        data: {
+          object: {
+            id: `ch_mock_for_${paymentIntentId}`,
+            amount_refunded: input.amountCents,
+            metadata: {
+              invoiceNumber: invoice.invoiceNumber,
+              refundReason: input.reason,
+              actor: actorEmail,
+            }
+          }
+        }
+      };
+
+      const syncResult = await processStripeRefundEvent(mockEvent);
+      if (!syncResult.success) {
+        log.warn(`Refund issued successfully but writeback failed: ${syncResult.error}`);
+        return {
+          success: true,
+          refundId,
+          writebackSuccess: false,
+          writebackError: syncResult.error,
+        };
+      }
+
+      return {
+        success: true,
+        refundId,
+        writebackSuccess: true,
+      };
+    }),
 });
+

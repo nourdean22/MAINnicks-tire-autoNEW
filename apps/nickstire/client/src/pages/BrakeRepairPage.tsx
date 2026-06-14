@@ -9,6 +9,7 @@
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { BRAKES_PHOTOS } from "@/components/PhotoRibbon";
 import { Disc, Activity, Wrench } from "lucide-react";
+import { Link } from "wouter";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/brakes",
@@ -16,21 +17,15 @@ const CONFIG: ServicePageConfig = {
   // per PLACEMENT_GUIDE.md "Brakes page" row — brakes are safety-driven,
   // the under-car scene reads serious + mechanical
   heroImage: "/photos/undercar-brake-repair-action.webp",
-  // wave-176 · GSC data: /brakes ranks position 34.8 with 0% CTR over
-  // 544 imp/28d. Diagnosis: title buried "Brake Repair Cleveland" behind
-  // brand-voice tagline; H1 contained ZERO keyword target.
-  //
-  // wave-181.99 · GSC re-check shows 1,678 imp / 0 clicks at pos 30.6.
-  // Position improved, CTR still 0%. Title is correctly keyword-fronted
-  // but lacks a click-differentiator vs. the 100+ "Brake Repair
-  // Cleveland" competitors. Adding the $149/axle price anchor — no
-  // local competitor lists a price in their SERP snippet, so this is
-  // the cheapest way to get the click without ranking improvements.
-  title: "Brake Repair Cleveland · Free Check · No Pay Til Yes | Nick's",
-  description: "Cleveland brake repair without the surprise. Free check, written quote, you don't pay until you say yes. 4.9★ from 1,700+ drivers. Walk in 7 days. (216) 862-0005",
+  title: "Brake Repair Euclid & Cleveland · Nick's Tire & Auto",
+  description: "Brake repair in Euclid & Cleveland. Free inspections, pads & rotors, squeaking/grinding fixes. You don't pay until you say yes. Open 7 days. (216) 862-0005",
   eyebrow: "BRAKE REPAIR CLEVELAND · BRING YOUR EARS",
   h1: "CLEVELAND BRAKE REPAIR\nTHAT HANDS YOU THE FLASHLIGHT.",
-  sub: "Squealing? Grinding? Pedal soft like Cleveland weather in March? Nick's Tire & Auto on Euclid Ave — serving Euclid, Cleveland Heights, Parma, East Cleveland, Lakewood, Lyndhurst, and every neighborhood between. We lift the car, hand you the flashlight, and walk you under it so you SEE what's worn. We don't replace what doesn't need replacing. Free check. Written quote. You don't pay until you say yes. 4.9★ from 1,700+ Cleveland drivers.",
+  sub: (
+    <>
+      Squealing? Grinding? Pedal soft like Cleveland weather in March? Nick's Tire & Auto is your Euclid Ave destination for reliable <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link> and Cleveland. Need to troubleshoot first? Try our <Link href="/diagnose" className="underline text-primary hover:text-primary-foreground">vehicle diagnostics symptom checker</Link>, or browse our complete <Link href="/services" className="underline text-primary hover:text-primary-foreground">services page</Link>. We lift the car, hand you the flashlight, and walk you under it so you see what's worn. Free check, written quote, and you don't pay until you say yes. Check out our <Link href="/financing" className="underline text-primary hover:text-primary-foreground">financing options for repairs</Link>, find <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire repair and replacement services</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> to drop off today.
+    </>
+  ),
   startingPrice: "Free check · written quote · you don't pay until you say yes",
   pricingTitle: "BRAKE SERVICE — THREE LEVELS, ONE PROMISE",
   pricingSub: "Every estimate is written before the wrench moves and explained in human English. We show you the worn part on the lift before we touch the bill.",
@@ -51,17 +46,45 @@ const CONFIG: ServicePageConfig = {
     "Full brake system test drive",
     "12-month / 12,000-mile warranty on parts and labor",
   ],
+  symptomsSection: {
+    heading: "DOES YOUR CAR HAVE THESE BRAKE WARNING SIGNS?",
+    symptoms: [
+      { title: "Squeaking Brakes", desc: "A high-pitched squeak or squeal when applying brakes is usually the wear indicator telling you the pads are getting thin and need inspection." },
+      { title: "Grinding Brakes", desc: "A harsh metal-on-metal grinding sound means the pads are completely worn through and are scoring the rotors. Seek inspection immediately to prevent severe damage." },
+      { title: "Soft or Spongy Brake Pedal", desc: "If the brake pedal feels mushy or goes almost to the floor, you may have air in the brake lines, a hydraulic leak, or low brake fluid. Do not drive on a soft pedal." },
+      { title: "Vehicle Pulling While Braking", desc: "If the vehicle pulls to one side when you brake, it could indicate a seized caliper, uneven pad wear, or a collapsed brake hose." },
+      { title: "Brake Vibration & Shaking", desc: "A pulsating or vibrating sensation in the brake pedal or steering wheel during stops is a classic sign of warped brake rotors." },
+      { title: "Longer Stopping Distances", desc: "If you feel your vehicle is taking longer to halt, your brake pads may have lost their friction capability due to excessive wear or glazing." },
+      { title: "Brake Warning Lights", desc: "An illuminated red brake light or amber ABS light on the dashboard indicates a system diagnostic code or low fluid pressure. Get it scanned." },
+      { title: "Burning Smells", desc: "A sharp, chemical burning smell after heavy braking suggests overheated pads or a seized caliper dragging on the rotor." }
+    ]
+  },
+  diagnosticAuthority: {
+    heading: "CLEVELAND BRAKE REPAIR — REAL VALUE",
+    content: [
+      <>
+        At Nick's Tire & Auto, we don't believe in mystery pricing or surprise fees. When you bring your vehicle in for a brake concern, our ASE-trained crew performs a full visual check of the pads, rotors, calipers, and hydraulic system.
+      </>,
+      <>
+        We use micrometers and digital calipers to measure exact pad wear and rotor thickness against manufacturer minimum specifications. We'll walk you under the lift, show you the measurements, and explain exactly what needs replacement.
+      </>,
+      <>
+        Whether you need a simple pad swap, new rotors, or caliper replacement, we source OE-spec parts and back them with our 12-month / 12,000-mile warranty. If your brakes are squealing or grinding, <Link href="/contact" className="underline text-[#FDB913] hover:text-primary">contact Nick's Tire & Auto</Link> for a free check today.
+      </>
+    ]
+  },
+  showTrustBlock: true,
   faqs: [
-    { q: "How do I know if my brakes need replacing?", a: "Classic signs: squealing or squeaking when you brake (wear indicators), grinding (metal-on-metal, pads fully worn), soft or spongy pedal (air in lines or low fluid), pulsation through the pedal (warped rotors), or the dashboard brake light stays on. If you notice any of these, call us — driving on metal grinds into the rotor and costs way more to fix." },
+    { q: "How often should brakes be inspected?", a: "Brakes should be inspected at least once a year or every 12,000 miles. However, you should get a brake check immediately if you experience squealing, grinding, a soft brake pedal, steering vibration, or if the brake warning light lights up on your dashboard." },
+    { q: "What are the common signs of worn brake pads?", a: "Classic signs include squeaking or squealing when you brake (wear indicators), grinding (metal-on-metal, pads fully worn), soft or spongy pedal (air in lines or low fluid), pulsation through the pedal (warped rotors), or the dashboard brake light stays on." },
+    { q: "Do I always have to replace my rotors when changing brake pads?", a: "Not always. If the rotors are still above the minimum safe thickness and have no deep scoring or warping, we can reuse or resurface them. However, if they are scored, thin, or warped, we must replace them along with the pads to ensure proper stopping power and warranty coverage." },
+    { q: "Why do my brakes make noise, and is it dangerous?", a: "Squeaking can be a warning sign that pads are thin, or from surface rust. Grinding, however, is extremely dangerous as it means metal is rubbing against metal, which significantly increases stopping distances and ruins the rotors. Grinding brakes should be inspected immediately." },
+    { q: "My brake warning light is on — can I drive?", a: "If it's the ABS light only, you can drive cautiously to the shop. If it's the brake warning light (red), that means low brake fluid or a hydraulic problem — pull over and call us. Driving on a failing brake system is how accidents happen." },
+    { q: "How do I schedule a brake inspection at Nick's?", a: "No appointment is needed! Nick's Tire & Auto runs on a first-come, first-served basis. You can walk in 7 days a week (Mon-Sat 8-6, Sun 9-4) at 17625 Euclid Ave, Cleveland. You can also schedule a vehicle drop-off online or call us ahead at (216) 862-0005." },
     { q: "How much does a brake job cost in Cleveland?", a: "It depends on what's worn — pads only is the cheapest fix; pads + rotors is the most common; full brake jobs (calipers, lines) run highest. The free check tells us exactly what's needed. We give you a written quote before any work and explain why each part is being replaced. No upsells, no boilerplate quotes — you don't pay until you say yes." },
     { q: "How long does brake repair take?", a: "Most pad replacements take 60-90 minutes per axle. Pads + rotors usually 90 minutes. If you drop off before 10 AM, it's done same day. Walk-ins welcome but calling ahead at (216) 862-0005 lets us have the right parts ready." },
     { q: "Do you replace brakes on European cars?", a: "Yes — we service BMW, Mercedes, Audi, Volkswagen, Volvo, Porsche, and most European brands. These typically use specific pads and sensors; we stock or source OE-spec parts and reset the wear indicator on your dashboard after service." },
-    { q: "My brake warning light is on — can I drive?", a: "If it's the ABS light only, you can drive cautiously to the shop. If it's the brake warning light (red), that means low brake fluid or a hydraulic problem — pull over and call us. Driving on a failing brake system is how accidents happen." },
-    { q: "Why do new brakes squeak?", a: "New brakes can squeak during the bed-in period (first 200 miles) while the pad material transfers to the rotor. Most squeaks go away on their own. If it's persistent or shrill after 200 miles, bring it back — we check glazing, hardware alignment, and reseat if needed (covered by our warranty)." },
     { q: "Do you offer a warranty on brake work?", a: "Every brake job includes our 12-month / 12,000-mile warranty covering parts and labor. If a pad is defective or fails early, we replace it free. Real warranty — not the 'comes with a sticker but good luck claiming it' kind." },
-    { q: "Why does my car shake or vibrate when I brake?", a: "A shake or shimmy when you brake almost always means a warped rotor. The rotor surface isn't flat anymore, so the pad grabs unevenly and you feel it in the wheel or pedal. Cleveland's stop-and-go traffic and winter heat cycles warp rotors fast. We measure rotor runout on the lift, show you the reading, then resurface or replace - pads plus rotors is the most common fix. Free check at 17625 Euclid Ave, written quote before any work." },
-    { q: "Is it safe to drive with grinding brakes?", a: "No. Grinding means the pads are gone and bare metal is cutting into the rotor, so every stop does more damage and your stopping distance gets longer. Get it checked now - a pads-only job today is far cheaper than the pads, rotors, and caliper job that grinding turns into. We're open 7 days on Euclid Ave. Call (216) 862-0005 or just walk in." },
-    { q: "Where can I get brakes done near me in Cleveland (44112)?", a: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112 - east side, serving Euclid, East Cleveland, Cleveland Heights, South Euclid, and Lyndhurst. First-come-first-served, walk-ins welcome 7 days (Mon-Sat 8-6, Sun 9-4). Free brake check, written quote, and you don't pay until you say yes. 4.9 stars from 1,700+ drivers." },
   ],
   bookingService: "brakes",
   serviceType: "Brake Repair",
@@ -74,7 +97,7 @@ const CONFIG: ServicePageConfig = {
     stakesHook: "Wondering if it can wait? Worn pads draw a line — and every week pushes you past it.",
   },
   ctaHeadline: "BOOK YOUR BRAKE SERVICE",
-  ctaSub: "Free check, written quote, you don't pay until you say yes. Walk in or drop off — 17625 Euclid Ave, Cleveland OH.",
+  ctaSub: "Free check, written quote, you don't pay until you say yes. Walk in or drop off — 17625 Euclid Ave, Euclid/Cleveland OH.",
 
   // ─── CONVERSION ARCHITECTURE ──────────────────────────
   anchorTable: {

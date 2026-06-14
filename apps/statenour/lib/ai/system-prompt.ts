@@ -54,6 +54,7 @@ import { getBlindSpotContext } from "@/lib/brain/blind-spot-detector";
 import { getCounterIntuitiveContext } from "@/lib/brain/counter-intuitive";
 import { getWisdomContext } from "@/lib/brain/wisdom-distiller";
 import { getViolationContext } from "@/lib/brain/violation-context";
+import { getWeeklyReviewContext } from "@/lib/brain/weekly-review-context";
 import { getRelevantSkillsBlock } from "@/lib/skills/skill-context";
 import { getLearningJournalContext } from "@/lib/brain/learning-journal";
 import { getAttentionContext } from "@/lib/brain/attention-tracker";
@@ -247,7 +248,7 @@ function gated<T>(
  * context), we detect the topic and only load the engines relevant
  * to that conversation. Reduces context by ~60% on casual messages.
  *
- *   core     — always loaded (reflections, decisions, wisdom, synthesis, blind spots)
+ *   core     — always loaded (reflections, decisions, wisdom, synthesis, blind spots, weekly review)
  *   business — revenue, pipeline, customers, staff, forecasts
  *   personal — mood, habits, health, learning, attention
  *   strategy — strategic plans, correlations, thinking layers, counter-intuitive
@@ -317,13 +318,16 @@ export async function buildSystemPrompt(
   // contains content-creation signals (post, caption, instagram, etc.).
   // Without this, the first cached prompt of the tier would persist for
   // 5 minutes regardless of subsequent user message intent.
-  const { detectContentIntent, detectContentDeepIntent } = await import("./business-knowledge");
+  const { detectContentIntent, detectContentDeepIntent, detectSmsIntent } = await import("./business-knowledge");
   const contentMode = detectContentIntent(userMessage);
   const deepMode = contentMode && detectContentDeepIntent(userMessage);
-  // Three slots per tier: default · content-basic · content-deep.
+  // Four slots per tier: default · content-basic · content-deep · sms.
   // Without deepMode in the key, "give me a content plan" would re-use
-  // a "give me a post" cache and miss the strategic sections.
-  const slot = deepMode ? "deep" : contentMode ? "content" : "default";
+  // a "give me a post" cache and miss the strategic sections. The sms
+  // slot (2026-06-10) mirrors the SMS_VOICE gate in knowledge/detectors
+  // — without it the 300s cache would serve a non-SMS prompt to an SMS
+  // ask (or pin an SMS prompt for 5min of ordinary turns).
+  const slot = deepMode ? "deep" : contentMode ? "content" : detectSmsIntent(userMessage) ? "sms" : "default";
   const mode = resolvePromptMode();
 
   // v9.1.3 · "on" mode skips v1 entirely. Caches under a separate key
@@ -334,7 +338,7 @@ export async function buildSystemPrompt(
     return cached(cacheKey, 300, async () => {
       const { buildSystemPromptV2 } = await import("./prompt/v2");
       const out = await buildSystemPromptV2();
-      return out.prompt;
+      return trimPromptToBudget(out.prompt, 58000);
     });
   }
 
@@ -469,11 +473,15 @@ export async function buildSystemPromptUncached(
       const { recentScoreSnapshots } = await import("@/lib/brain/legacy-shims");
       return recentScoreSnapshots(7);
     })(),
-    gated(tier, ["business", "personal", "strategy"], () =>
-      prisma.driftAlert.findMany({
-        where: { resolved: false }, orderBy: { severity: "asc" }, take: 5,
-        select: { ruleName: true, severity: true, message: true },
-      }),
+    gated(tier, ["business", "personal", "strategy"], async () => {
+      const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+      const list = await getUnresolvedAlerts();
+      return list.slice(0, 5).map((a) => ({
+        ruleName: a.ruleName,
+        severity: a.severity,
+        message: a.message,
+      }));
+    },
       [] as { ruleName: string; severity: string; message: string }[],
     ),
     // v8.22 RAG · the v8.x BrainMemory alert pipeline. Pulling the
@@ -659,7 +667,13 @@ export async function buildSystemPromptUncached(
     getKnowledgeDigest().catch((): string => ""),
   ]);
 
-  const masteryScores = characterSheet.map(statLine);
+  // 2026-06-10 · the Mastery one-liner was the only UNCAPPED data line
+  // in the prompt (~33-45 stats ≈ 1.7kc). computeCharacterSheet sorts
+  // strongest-first, so the top 15 are the stats Nick actually cites.
+  const masteryScores = characterSheet.slice(0, 15).map(statLine);
+  if (characterSheet.length > 15) {
+    masteryScores.push(`+${characterSheet.length - 15} more (full sheet on /stats)`);
+  }
 
   // Compute habit rates (kept for legacy parity — habit-rate prompt
   // section retired, but the map is referenced by /system/prompt
@@ -702,6 +716,13 @@ export async function buildSystemPromptUncached(
   // after rules so the model knows HOW to answer, not just WHAT.
   const intensity = resolveIntensity();
   const directive = getBehaviorDirective(userMessage, intensity);
+  // 2026-06-10 · BROADEN_AND_SUGGEST retired from v1 entirely: the
+  // directive is its documented replacement (behavior-directive.ts),
+  // and the directive returns EMPTY only when the operator asked for
+  // silence (/strict or persistent MINIMAL intensity) — a fallback
+  // there would inject broadening exactly when it was opted out of
+  // (the pre-trim always-push had the same inversion). v2's
+  // getOperatorPolicyLines still carries the rule (dormant path).
   if (directive) {
     p.push(`## Behavior directive (intensity: ${intensity.toLowerCase()})`);
     p.push(directive);
@@ -987,10 +1008,14 @@ export async function buildSystemPromptUncached(
   // ═══════════════════════════════════════════════════════════════
   p.push(...renderRecentBrainDumps({ recentBrainDumps }));
 
-  // Knowledge digest — capped to 2500ch. Skip on core tier.
+  // Knowledge digest — capped to 1000ch (2026-06-10, was 2500: the
+  // surviving window was byte-verified as a stale 2026-03-25 dossier
+  // copy of identity/business facts the static sections already
+  // state; the corpus stays reachable via searchColdMemory). Skip on
+  // core tier.
   if (knowledgeDigest && tier !== "core") {
     p.push(`# KNOWLEDGE BASE (compiled — call searchColdMemory for more)`);
-    p.push(cap(knowledgeDigest, 2500));
+    p.push(cap(knowledgeDigest, 1000));
     p.push(``);
   }
 
@@ -1003,16 +1028,20 @@ export async function buildSystemPromptUncached(
     }
   }
 
-  const learnedKnowledge = await getLearnedKnowledge();
+  // 2026-06-10 · 20 facts/1500 → 10 facts/800: these are LLM-auto-
+  // extracted one-liners (the lowest-provenance memory tier in the
+  // prompt) overlapping the curated hot rules; fetching 10 keeps the
+  // block ending on a fact boundary instead of cap-truncating.
+  const learnedKnowledge = await getLearnedKnowledge(10);
   if (learnedKnowledge) {
-    p.push(cap(learnedKnowledge, 1500));
+    p.push(cap(learnedKnowledge, 800));
     p.push(``);
   }
 
   // ═══════════════════════════════════════════════════════════════
   // SECTION 8: QUERY-ADAPTIVE INTELLIGENCE ENGINES
   // ═══════════════════════════════════════════════════════════════
-  //   core     → 5 engines  (~5K chars)  — always loaded
+  //   core     → 7 engines  (~6K chars)  — always loaded
   //   business → +8 engines (~8K chars)  — revenue, pipeline, customers
   //   personal → +6 engines (~6K chars)  — mood, habits, health
   //   strategy → +5 engines (~6K chars)  — plans, correlations, thinking
@@ -1026,7 +1055,7 @@ export async function buildSystemPromptUncached(
   const loadReference = tier === "full";
 
   // CORE engines — always loaded regardless of topic
-  const [reflections, decisionPatterns, wisdom, blindSpots, violations, relevantSkills] = await Promise.all([
+  const [reflections, decisionPatterns, wisdom, blindSpots, violations, relevantSkills, weeklyReview] = await Promise.all([
     getRecentReflections().catch((): string => ""),
     getDecisionPatternContext().catch((): string => ""),
     getWisdomContext().catch((): string => ""),
@@ -1035,6 +1064,10 @@ export async function buildSystemPromptUncached(
     // v10.0.434 · top 3 skills semantically relevant to the current
     // operator message (multi-language).
     getRelevantSkillsBlock(userMessage).catch((): string => ""),
+    // 2026-06-10 · cross-week memory — the Sunday weekly review +
+    // ReviewWizard commitment were computed but never deterministically
+    // injected; core tier so casual Monday turns get it too.
+    getWeeklyReviewContext().catch((): string => ""),
   ]);
 
   // OVERSIGHT — predictions + accuracy (business analytics live in
@@ -1086,15 +1119,18 @@ export async function buildSystemPromptUncached(
   // Apr 28 · Engine caps cut ~30% across the board. Net savings: ~6kc
   // on full-tier prompts.
 
-  // Core (always)
-  if (reflections) { p.push(cap(reflections, 800)); p.push(``); }
-  if (decisionPatterns) { p.push(cap(decisionPatterns, 800)); p.push(``); }
-  if (wisdom) { p.push(cap(wisdom, 700)); p.push(``); }
+  // Core (always) · 2026-06-10 — reflections/decisionPatterns/wisdom
+  // caps tightened (800/800/700 → 600/550/550); all three sat AT their
+  // caps truncating mid-sentence, so the tail chars carried fragments.
+  if (reflections) { p.push(cap(reflections, 600)); p.push(``); }
+  if (decisionPatterns) { p.push(cap(decisionPatterns, 550)); p.push(``); }
+  if (wisdom) { p.push(cap(wisdom, 550)); p.push(``); }
   // v10.0.414 · violations sit RIGHT AFTER wisdom · positioning matters.
   if (violations) { p.push(cap(violations, 600)); p.push(``); }
   // v10.0.434 · top 3 relevant skills · 700-char cap.
   if (relevantSkills) { p.push(cap(relevantSkills, 700)); p.push(``); }
   if (blindSpots) { p.push(cap(blindSpots, 700)); p.push(``); }
+  if (weeklyReview) { p.push(cap(weeklyReview, 800)); p.push(``); }
 
   // Strategy (when strategic)
   if (strategicPlan) { p.push(cap(strategicPlan, 1000)); p.push(``); }
@@ -1375,5 +1411,67 @@ export async function buildSystemPromptUncached(
     }
   }
 
-  return p.join("\n");
+  return trimPromptToBudget(p.join("\n"), 58000);
+}
+
+/**
+ * v10.0.600 · Priority-based prompt trimmer regression guard.
+ * Identifies sections by markdown header level and ranks them to drop
+ * lower-priority context blocks if overall size crosses 58K chars,
+ * protecting Venice context budget and preventing truncation of instructions.
+ */
+export function trimPromptToBudget(prompt: string, maxLimit = 58000): string {
+  if (prompt.length <= maxLimit) return prompt;
+
+  const sections = prompt.split(/\n(?=## )/g);
+  
+  const getSectionPriority = (title: string): number => {
+    const t = title.toLowerCase();
+    if (t.includes("behavior directive") || t.includes("how to respond") || t.includes("identity") || t.includes("voice")) return 1;
+    if (t.includes("pinned by") || t.includes("hot rules") || t.includes("anchor")) return 2;
+    if (t.includes("command state") || t.includes("active command") || t.includes("queue")) return 3;
+    if (t.includes("today:") || t.includes("temporal") || t.includes("time-aware")) return 4;
+    if (t.includes("active risk") || t.includes("risks")) return 5;
+    
+    if (t.includes("business —") || t.includes("live shop") || t.includes("metrics") || t.includes("domain")) return 10;
+    if (t.includes("today's proof") || t.includes("proof")) return 11;
+    if (t.includes("missions") || t.includes("goals") || t.includes("why")) return 12;
+    if (t.includes("decisions")) return 13;
+    if (t.includes("unacknowledged insights")) return 14;
+    if (t.includes("follow-ups") || t.includes("anticipated questions")) return 15;
+    
+    if (t.includes("recent brain dumps") || t.includes("brain dump")) return 20;
+    if (t.includes("reflections") || t.includes("insight")) return 21;
+    if (t.includes("learned knowledge") || t.includes("facts") || t.includes("cold memory")) return 22;
+    if (t.includes("knowledge base") || t.includes("chatgpt")) return 23;
+    
+    return 30;
+  };
+
+  const mappedSections = sections.map((sec, idx) => {
+    const firstLine = sec.split("\n")[0] || "";
+    const priority = getSectionPriority(firstLine);
+    return { idx, text: sec, priority };
+  });
+
+  const activeIndices = new Set(mappedSections.map(s => s.idx));
+  const rebuild = () => sections.filter((_, idx) => activeIndices.has(idx)).join("\n");
+
+  const dropCandidates = [...mappedSections].sort((a, b) => {
+    if (b.priority !== a.priority) return b.priority - a.priority;
+    return b.idx - a.idx;
+  });
+
+  for (const candidate of dropCandidates) {
+    if (rebuild().length <= maxLimit) break;
+    if (candidate.priority < 10) continue;
+    activeIndices.delete(candidate.idx);
+  }
+
+  let finalPrompt = rebuild();
+  if (finalPrompt.length > maxLimit) {
+    finalPrompt = finalPrompt.slice(0, maxLimit - 100) + "\n\n[PROMPT TRUNCATED FOR BUDGET HARDENING]\n";
+  }
+
+  return finalPrompt;
 }

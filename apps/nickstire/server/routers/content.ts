@@ -110,7 +110,7 @@ export const contentAdminRouter = router({
           sendNotification({
             category: "content",
             subject: "New AI Content Generated",
-            body: `Article: ${result.article.title}\nNotifications: ${result.notifications.length} generated\nErrors: ${result.errors.length > 0 ? result.errors.join(", ") : "None"}\n\nReview and publish at /admin/content`,
+            body: `Article: ${result.article.title}\nNotifications: ${result.notifications.length} generated\nErrors: ${result.errors.length > 0 ? result.errors.join(", ") : "None"}\n\nReview and publish at /admin?tab=content`,
           }).catch((e) => { log.warn("[routers/content] fire-and-forget failed:", e); });
         }
         return result;
@@ -135,11 +135,16 @@ export const contentAdminRouter = router({
   generateGBPPost: adminProcedure
     .input(z.object({
       forceArchetype: z.enum(["proof", "anti", "math", "seasonal"]).optional(),
+      dryRun: z.boolean().optional(),
+      requiresReview: z.boolean().optional(),
     }).optional())
     .mutation(async ({ input }) => {
       try {
         const { generateOneOffGBPPost } = await import("../services/gbpAutoPost");
-        return await generateOneOffGBPPost(input?.forceArchetype);
+        return await generateOneOffGBPPost(input?.forceArchetype, {
+          dryRun: input?.dryRun,
+          requiresReview: input?.requiresReview,
+        });
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "GBP post generation failed" });
       }
@@ -171,4 +176,251 @@ export const contentAdminRouter = router({
       return [];
     }
   }),
+  saveReelDraft: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      topic: z.string(),
+      brief: z.any(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { syncReelDraftToSheet } = await import("../sheets-sync");
+        const ok = await syncReelDraftToSheet(input.id, input.topic, JSON.stringify(input.brief));
+        return { success: ok };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Save Reel draft failed" });
+      }
+    }),
+  saveCarouselDraft: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      topic: z.string(),
+      brief: z.any(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { syncCarouselDraftToSheet } = await import("../sheets-sync");
+        const ok = await syncCarouselDraftToSheet(input.id, input.topic, JSON.stringify(input.brief));
+        return { success: ok };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Save Carousel draft failed" });
+      }
+    }),
+  allReelDrafts: adminProcedure.query(async () => {
+    try {
+      const { fetchReelDraftsFromSheet } = await import("../sheets-sync");
+      return await fetchReelDraftsFromSheet();
+    } catch (err) {
+      log.warn("allReelDrafts failed", err);
+      return [];
+    }
+  }),
+  allCarouselDrafts: adminProcedure.query(async () => {
+    try {
+      const { fetchCarouselDraftsFromSheet } = await import("../sheets-sync");
+      return await fetchCarouselDraftsFromSheet();
+    } catch (err) {
+      log.warn("allCarouselDrafts failed", err);
+      return [];
+    }
+  }),
+  logReel: adminProcedure
+    .input(z.object({
+      topic: z.string(),
+      verifiedFact: z.string(),
+      sources: z.string(),
+      driverConfusion: z.string(),
+      clevelandAngle: z.string(),
+      campaignKeyword: z.string(),
+      creativeTerritory: z.string(),
+      usefulAbsurdity: z.string(),
+      storyboardOutline: z.string(),
+      captionHook: z.string(),
+      instagramUrl: z.string(),
+      assetPaths: z.string(),
+      score: z.string(),
+      hashtags: z.string(),
+      avoidedRepeats: z.string(),
+      issues: z.string(),
+      insightsChecked: z.string(),
+      facebookCrossPostOff: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { syncReelLogToSheet } = await import("../sheets-sync");
+        const ok = await syncReelLogToSheet(input);
+        return { success: ok };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Log Reel failed" });
+      }
+    }),
+  logCarousel: adminProcedure
+    .input(z.object({
+      topic: z.string(),
+      verifiedFact: z.string(),
+      sources: z.string(),
+      driverConfusion: z.string(),
+      clevelandAngle: z.string(),
+      campaignKeyword: z.string(),
+      creativeTerritory: z.string(),
+      usefulAbsurdity: z.string(),
+      storyboardOutline: z.string(),
+      captionHook: z.string(),
+      instagramUrl: z.string(),
+      assetPaths: z.string(),
+      score: z.string(),
+      hashtags: z.string(),
+      avoidedRepeats: z.string(),
+      issues: z.string(),
+      insightsChecked: z.string(),
+      facebookCrossPostOff: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { syncCarouselLogToSheet } = await import("../sheets-sync");
+        const ok = await syncCarouselLogToSheet(input);
+        return { success: ok };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Log Carousel failed" });
+      }
+    }),
+  allReelLogs: adminProcedure.query(async () => {
+    try {
+      const { fetchReelLogsFromSheet } = await import("../sheets-sync");
+      return await fetchReelLogsFromSheet();
+    } catch (err) {
+      log.warn("allReelLogs failed", err);
+      return [];
+    }
+  }),
+  allCarouselLogs: adminProcedure.query(async () => {
+    try {
+      const { fetchCarouselLogsFromSheet } = await import("../sheets-sync");
+      return await fetchCarouselLogsFromSheet();
+    } catch (err) {
+      log.warn("allCarouselLogs failed", err);
+      return [];
+    }
+  }),
+  publishCarousel: adminProcedure
+    .input(z.object({
+      imageUrls: z.array(z.string()),
+      caption: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { getMetaSocialStatus, postInstagramCarousel } = await import("../services/metaSocial");
+        const status = await getMetaSocialStatus();
+        if (!status.configured || !status.instagramReady) {
+          const { sendTelegram } = await import("../services/telegram");
+          const mockPostId = `sandbox_carousel_${Date.now()}`;
+          const slideCount = input.imageUrls.length;
+          const charCount = input.caption.length;
+          const hashtags = input.caption.match(/#[a-zA-Z0-9_]+/g) || [];
+          const cleanCaption = input.caption.replace(/#[a-zA-Z0-9_]+/g, "").trim();
+
+          const msg = [
+            `🎨 <b>[SANDBOX INSTAGRAM CAROUSEL POST]</b>`,
+            `────────────────────────────────`,
+            `📱 <b>Placement:</b> Instagram Carousel Feed`,
+            `🔢 <b>Slide Count:</b> ${slideCount} panels`,
+            `📝 <b>Caption Length:</b> ${charCount} chars (${hashtags.length} hashtags)`,
+            `🛡️ <b>Status:</b> SIMULATED / SANDBOX MODE`,
+            `💡 <i>To publish this live, flip the <code>legacy_autopost_live</code> feature flag ON and configure Meta API credentials.</i>`,
+            `────────────────────────────────`,
+            `📖 <b>CAPTION BODY:</b>`,
+            `"${cleanCaption}"`,
+            `\n🏷️ <b>HASHTAGS:</b>`,
+            hashtags.join(" ") || "None",
+            `────────────────────────────────`,
+            `🖼️ <b>SLIDES & ASSETS:</b>`,
+            ...input.imageUrls.map((url, i) => `  • Panel ${i + 1}: <a href="${url}">Slide Image Link ${i + 1}</a>`),
+            `────────────────────────────────`,
+            `✨ <i>This is a mock sandbox transmission. Content has been logged to database with ID: <code>${mockPostId}</code></i>`
+          ].join("\n");
+
+          await sendTelegram(msg);
+          return { success: true, postId: mockPostId, isSandbox: true };
+        }
+        const res = await postInstagramCarousel({
+          imageUrls: input.imageUrls,
+          caption: input.caption,
+        });
+        return { success: res.success, postId: res.postId, error: res.error, isSandbox: false };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Carousel publishing failed" });
+      }
+    }),
+  publishReel: adminProcedure
+    .input(z.object({
+      videoUrl: z.string(),
+      caption: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { getMetaSocialStatus, postInstagramReel } = await import("../services/metaSocial");
+        const status = await getMetaSocialStatus();
+        if (!status.configured || !status.instagramReady) {
+          const { sendTelegram } = await import("../services/telegram");
+          const mockPostId = `sandbox_reel_${Date.now()}`;
+          const charCount = input.caption.length;
+          const hashtags = input.caption.match(/#[a-zA-Z0-9_]+/g) || [];
+          const cleanCaption = input.caption.replace(/#[a-zA-Z0-9_]+/g, "").trim();
+
+          const msg = [
+            `🎬 <b>[SANDBOX INSTAGRAM REEL POST]</b>`,
+            `────────────────────────────────`,
+            `📱 <b>Placement:</b> Instagram Reels Feed`,
+            `📝 <b>Caption Length:</b> ${charCount} chars (${hashtags.length} hashtags)`,
+            `🛡️ <b>Status:</b> SIMULATED / SANDBOX MODE`,
+            `💡 <i>To publish this live, flip the <code>legacy_autopost_live</code> feature flag ON and configure Meta API credentials.</i>`,
+            `────────────────────────────────`,
+            `📖 <b>CAPTION BODY:</b>`,
+            `"${cleanCaption}"`,
+            `\n🏷️ <b>HASHTAGS:</b>`,
+            hashtags.join(" ") || "None",
+            `────────────────────────────────`,
+            `📹 <b>VIDEO ASSET:</b>`,
+            `  • Source URL: <a href="${input.videoUrl}">Watch Reel Video</a>`,
+            `────────────────────────────────`,
+            `✨ <i>This is a mock sandbox transmission. Content has been logged to database with ID: <code>${mockPostId}</code></i>`
+          ].join("\n");
+
+          await sendTelegram(msg);
+          return { success: true, postId: mockPostId, isSandbox: true };
+        }
+        const res = await postInstagramReel({
+          videoUrl: input.videoUrl,
+          caption: input.caption,
+        });
+        return { success: res.success, postId: res.postId, error: res.error, isSandbox: false };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Reel publishing failed" });
+      }
+    }),
+  getProprietaryEvidence: adminProcedure
+    .input(z.object({ topicKeyword: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      try {
+        const { getProprietaryEvidence } = await import("../services/evidenceEngine");
+        return await getProprietaryEvidence(input?.topicKeyword);
+      } catch (err) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: err instanceof Error ? err.message : "Failed to fetch proprietary evidence",
+        });
+      }
+    }),
+  runPromptEvals: adminProcedure.query(async () => {
+    try {
+      const { runPromptEvals } = await import("../../scripts/run-prompt-evals");
+      return await runPromptEvals();
+    } catch (err) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: err instanceof Error ? err.message : "Failed to run prompt evals",
+      });
+    }
+  }),
 });
+

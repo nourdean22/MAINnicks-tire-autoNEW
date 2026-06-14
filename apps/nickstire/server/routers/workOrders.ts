@@ -12,7 +12,7 @@ export const workOrdersRouter = router({
   /** Create work order (from estimate or standalone) */
   create: adminProcedure
     .input(z.object({
-      customerId: z.string(),
+      customerId: z.number().nullable(),
       vehicleYear: z.number().optional(),
       vehicleMake: z.string().optional(),
       vehicleModel: z.string().optional(),
@@ -39,7 +39,7 @@ export const workOrdersRouter = router({
       import("../services/eventBus").then(({ dispatch }) =>
         dispatch("booking_created", {
           id: result.id,
-          name: input.customerId,
+          name: input.customerId ? String(input.customerId) : "Walk-in",
           phone: "",
           service: input.serviceDescription || "Work Order",
           vehicle: [input.vehicleMake, input.vehicleModel].filter(Boolean).join(" "),
@@ -55,7 +55,7 @@ export const workOrdersRouter = router({
     .input(z.object({
       status: z.string().optional(),
       priority: z.string().optional(),
-      customerId: z.string().optional(),
+      customerId: z.number().optional(),
       assignedTech: z.string().optional(),
       includeTerminal: z.boolean().default(false),
       limit: z.number().default(50),
@@ -241,7 +241,7 @@ export const workOrdersRouter = router({
 
   /** Get declined work history for a customer */
   declinedWork: adminProcedure
-    .input(z.object({ customerId: z.string() }))
+    .input(z.object({ customerId: z.coerce.number() }))
     .query(async ({ input }) => {
       const { getDeclinedWorkHistory } = await import("../services/workOrderService");
       return getDeclinedWorkHistory(input.customerId);

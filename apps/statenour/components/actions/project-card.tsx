@@ -325,7 +325,7 @@ export function ProjectCard({
                                 try {
                                   await Promise.all(
                                     taskIds.map((tid) =>
-                                      updateTask.mutateAsync({
+                                      (updateTask.mutateAsync as any)({
                                         id: tid,
                                         fields: { goalId: s.goal.id },
                                       }),
@@ -389,7 +389,7 @@ export function ProjectCard({
                           try {
                             const results = await Promise.allSettled(
                               taskIds.map((tid) =>
-                                updateTask.mutateAsync({
+                                (updateTask.mutateAsync as any)({
                                   id: tid,
                                   fields: { goalId: null },
                                 }),

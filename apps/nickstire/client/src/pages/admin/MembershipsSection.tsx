@@ -136,7 +136,9 @@ export default function MembershipsSection() {
                 {m.vehicleDesc && <span className="text-foreground/50">· {m.vehicleDesc}</span>}
               </p>
             ) : bindFor === m.id ? (
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="space-y-2">
+                <p className="text-[12px] text-foreground/50">Vehicle not bound yet — bind at first use. One vehicle per membership.</p>
+                <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   placeholder="Plate"
@@ -163,6 +165,7 @@ export default function MembershipsSection() {
                 >
                   {bind.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Bind"}
                 </button>
+                </div>
               </div>
             ) : (
               <button
@@ -175,6 +178,40 @@ export default function MembershipsSection() {
           </div>
         </div>
       ))}
+
+      {/* Counter quick reference — what the membership does and doesn't cover,
+          so staff never have to guess (and never overpromise) at the counter. */}
+      <div className="border border-border/40 bg-card p-5 text-sm">
+        <p className="font-bold text-foreground mb-3">Counter quick reference</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <p className="font-semibold text-emerald-500 mb-1.5">Covered (active member · bound vehicle · rims up to 19")</p>
+            <ul className="space-y-1 text-foreground/70">
+              <li>Tread-area flat repairs (plug + patch)</li>
+              <li>Rubber valve stems</li>
+              <li>Tire rotation</li>
+              <li>Rim cleans</li>
+              <li>Air top-off + tread check</li>
+              <li>Wiper &amp; bulb swaps — member brings the part</li>
+            </ul>
+          </div>
+          <div>
+            <p className="font-semibold text-red-400 mb-1.5">Not covered (quote as regular work)</p>
+            <ul className="space-y-1 text-foreground/70">
+              <li>Towing</li>
+              <li>Sidewall damage (that's a new tire, not a repair)</li>
+              <li>TPMS sensors + TPMS valve stems</li>
+              <li>Rims over 19"</li>
+              <li>The wiper/bulb part itself</li>
+            </ul>
+          </div>
+        </div>
+        <div className="mt-4 pt-3 border-t border-border/20 space-y-1 text-foreground/60">
+          <p><span className="font-semibold text-foreground/80">Nonstop Nick+ members:</span> 15% off repairs (parts + labor) — the lookup card shows the banner; apply it on the invoice.</p>
+          <p><span className="font-semibold text-foreground/80">Status not Active</span> (past due / canceled / incomplete): no covered work — they can rejoin online or at the counter.</p>
+          <p><span className="font-semibold text-foreground/80">Anything outside the plan:</span> tell the member and quote it before work starts.</p>
+        </div>
+      </div>
     </div>
   );
 }

@@ -59,10 +59,24 @@ export async function computeInputs(): Promise<Inputs> {
       const all = await recentDailyHabits(7);
       return all.map((r) => ({ date: r.date, completed: r.completed }));
     })(),
-    prisma.driftAlert.count({ where: { resolved: false } }).catch((err) => {
-      console.warn("[ultron/timelines] driftAlert.count failed:", err instanceof Error ? err.message : err);
-      return 0;
-    }),
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "coach_event",
+          key: { startsWith: "coach:drift-recovery:" },
+        },
+        select: { metadata: true },
+      })
+      .then((rows) => {
+        return rows.filter((r) => {
+          const meta = (r.metadata ?? {}) as Record<string, any>;
+          return !meta.ackedAt;
+        }).length;
+      })
+      .catch((err) => {
+        console.warn("[ultron/timelines] brainMemory.count for drift-recovery failed:", err instanceof Error ? err.message : err);
+        return 0;
+      }),
     // 2026-05-27 · sleep-tracking wire-up. The legacy `sleepHoursAvg7d`
     // was hardcoded null with "TODO v3 when we have sleep tracking" —
     // but BodyTracking.sleepHours has been live since Wave 63. The
@@ -156,7 +170,7 @@ export function generateTimelines(i: Inputs): Timeline[] {
     items.push({
       id: "drift-accumulating",
       kind: "caution",
-      text: `${i.driftOpen} drift alerts open · each +day = discipline -0.3`,
+      text: `${i.driftOpen} open loops. Close 3 today.`,
       domain: "mind",
       severity: "warn",
     });

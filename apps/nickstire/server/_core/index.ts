@@ -13,9 +13,15 @@ const RECOMMENDED_ENV = [
 if (process.env.GOOGLE_MAPS_API_KEY && !process.env.GOOGLE_PLACES_API_KEY) {
   process.env.GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 }
-if (process.env.GOOGLE_MAPS_API_KEY && !process.env.GOOGLE_SEARCH_CONSOLE_KEY) {
-  // GSC uses service account, not API key — but set for scheduler env check
-  process.env.GOOGLE_SEARCH_CONSOLE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ? "configured" : "";
+// GSC scheduler env-check synthesis. 2026-06-10 gap-sweep fix: this used
+// to be nested inside `if (GOOGLE_MAPS_API_KEY && ...)`, so deleting the
+// Maps key silently stopped Search Console syncing even though GSC auths
+// via the SERVICE ACCOUNT (gsc-data.ts), not the Maps key. Now the
+// "configured" marker derives ONLY from the real GSC credentials, fully
+// independent of the Maps key.
+if (!process.env.GOOGLE_SEARCH_CONSOLE_KEY) {
+  const gscReady = !!(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+  process.env.GOOGLE_SEARCH_CONSOLE_KEY = gscReady ? "configured" : "";
 }
 
 const missingRequired = REQUIRED_ENV.filter(k => !process.env[k]);
@@ -169,9 +175,9 @@ async function startServer() {
   app.use("/api/trpc/emergency.submit", formLimiter);
   app.use("/api/trpc/financing.trackApplication", formLimiter);
   app.use("/api/trpc/chat", aiLimiter);
-  app.use("/api/trpc/public.diagnose", aiLimiter);
-  app.use("/api/trpc/public.askMechanic", aiLimiter);
-  app.use("/api/trpc/public.aiSearch", aiLimiter);
+  app.use("/api/trpc/diagnose.analyze", aiLimiter);
+  app.use("/api/trpc/search.ai", aiLimiter);
+  app.use("/api/trpc/memberships.startCheckout", formLimiter);
   app.use("/api/trpc/laborEstimate.generate", aiLimiter);
   app.use("/api/trpc/costEstimator.estimate", aiLimiter);
   app.use("/api/trpc/estimates.generate", aiLimiter);
@@ -281,7 +287,7 @@ async function startServer() {
     // + 2 standalone: morning brief + daily report (12h)
     import("../cron/scheduler").then(({ startTieredScheduler }) => {
       startTieredScheduler();
-      serverLog.info("Tiered scheduler started");
+      serverLog.info("Tiered Job Scheduler active");
     }).catch(err => console.error("[Scheduler] Failed to start:", err));
 
     // Explicitly start background timers (removed auto-start from module imports)
@@ -769,7 +775,8 @@ ${urls.join("\n")}
     try {
       const { default: Stripe } = await import("stripe");
       const stripe = new Stripe(stripeSecretKey);
-      const event = stripe.webhooks.constructEvent(req.body, sig || "", webhookSecret);
+      const rawBody = (req as express.Request & { rawBody?: Buffer }).rawBody || req.body;
+      const event = stripe.webhooks.constructEvent(rawBody, sig || "", webhookSecret);
 
       if (event.type === "payment_intent.succeeded") {
         const intent = event.data.object as any;
@@ -844,6 +851,28 @@ ${urls.join("\n")}
         }
       }
 
+      // Out-of-band refund completed directly on Stripe Dashboard
+      if (event.type === "charge.refunded") {
+        const charge = event.data.object as any;
+        const tireOrderNumber = charge.metadata?.tireOrderNumber;
+        if (tireOrderNumber) {
+          const { getDb } = await import("../db");
+          const { tireOrders } = await import("../../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          const d = await getDb();
+          if (d) {
+            await d.update(tireOrders)
+              .set({ paymentStatus: "refunded", updatedAt: new Date() })
+              .where(eq(tireOrders.orderNumber, tireOrderNumber));
+            serverLog.info(`[Stripe Webhook] Out-of-band refund recorded for order ${tireOrderNumber}`);
+          }
+        }
+
+        // Delegate invoice status update and ShopDriver sync to the writeback service
+        const { processStripeRefundEvent } = await import("../services/refundWriteback");
+        await processStripeRefundEvent(event);
+      }
+
       // ─── Nonstop Nick membership (chunk 4/5) ─────────────
       // Subscription lifecycle → memberships.status. The subscription carries
       // our metadata (plan:"nonstop-nick", phone) set in createMembershipCheckout,
@@ -857,25 +886,21 @@ ${urls.join("\n")}
       ) {
         const sub = event.data.object as any;
         // Accept any Nonstop Nick tier (base $7.99 or +$9.99 with repair discount).
+        const { isKnownMembershipPlan, mapSubscriptionEventToStatus, normalizeMembershipPhone } =
+          await import("../lib/membership-guards");
         const subPlan = String(sub.metadata?.plan || "");
-        if (subPlan === "nonstop-nick" || subPlan === "nonstop-nick-plus") {
+        if (isKnownMembershipPlan(subPlan)) {
           const { getDb } = await import("../db");
           const { memberships } = await import("../../drizzle/schema");
           const { eq } = await import("drizzle-orm");
           const d = await getDb();
           if (d) {
-            // Map Stripe status → our enum. "active"/"trialing" = active;
-            // "past_due"/"unpaid" = past_due (grace); "canceled" = canceled;
-            // anything else (incomplete/incomplete_expired) = incomplete.
-            const stripeStatus = String(sub.status);
-            const status: "active" | "past_due" | "canceled" | "incomplete" =
-              event.type === "customer.subscription.deleted" ? "canceled"
-              : stripeStatus === "active" || stripeStatus === "trialing" ? "active"
-              : stripeStatus === "past_due" || stripeStatus === "unpaid" ? "past_due"
-              : stripeStatus === "canceled" ? "canceled"
-              : "incomplete";
+            // Stripe status → our enum (tested in membership-guards):
+            // active/trialing = active; past_due/unpaid = past_due (grace);
+            // deleted event or canceled = canceled; else incomplete.
+            const status = mapSubscriptionEventToStatus(event.type, String(sub.status));
             const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
-            const phone = String(sub.metadata?.phone || "").replace(/\D/g, "").slice(-10);
+            const phone = normalizeMembershipPhone(sub.metadata?.phone);
 
             // Upsert by the unique stripeSubscriptionId. Try update first; if no
             // row exists yet (created event arriving before any row), insert.

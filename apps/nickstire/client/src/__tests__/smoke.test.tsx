@@ -3,7 +3,7 @@
  * These catch broken imports, missing providers, and render-time exceptions.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import React from "react";
 
 // Mock wouter so page components don't need a real router
@@ -134,5 +134,17 @@ describe("Smoke Tests — Critical Page Renders", () => {
     const { container } = render(React.createElement(Admin));
     expect(container).toBeTruthy();
     expect(container.innerHTML.length).toBeGreaterThan(0);
+  });
+
+  it("NonstopNickPage renders with the membership join card", async () => {
+    // 2026-06-11 Nonstop Nick launch readiness — /nonstop-nick is a money
+    // page (Stripe membership signup); pin that it renders AND that the
+    // join card (plan picker + phone form) is present. Queries scoped to
+    // this render's container — earlier page renders stay in the document.
+    const { default: NonstopNickPage } = await import("../pages/NonstopNickPage");
+    const { container } = render(React.createElement(NonstopNickPage));
+    const q = within(container);
+    expect(q.getAllByText(/Join Nonstop Nick/i).length).toBeGreaterThan(0);
+    expect(q.getByLabelText(/your phone number/i)).toBeTruthy();
   });
 });

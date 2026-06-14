@@ -5,7 +5,7 @@
  * No DOM, no tRPC, no DB. Safe to run in any environment.
  */
 import { describe, it, expect } from "vitest";
-import { getRedeemState } from "@/pages/admin/CouponsSection";
+import { getRedeemState } from "@/pages/admin/customers/CouponsSection";
 
 const future = new Date(Date.now() + 86400000 * 30);
 const past   = new Date(Date.now() - 86400000 * 1);

@@ -271,7 +271,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               animationFillMode: "forwards",
             }}
           >
-            Cleveland's first-come-first-served shop on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913] font-semibold">$25</span> installed on select 12-inch sizes (most run $40-80 installed). Written estimate before any wrench moves. Payment programs on the spot. <span className="text-[#FDB913] font-semibold">Don't let the problem get bigger.</span>
+            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913] font-semibold">$25</span> installed. Written estimate before any wrench moves. Explore <Link href="/financing" className="underline text-primary hover:text-primary-foreground">financing for repairs</Link>, get <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> today.
           </p>
 
           {/* 2026-05-06 audit fix · 3-CTA stack per HOMEPAGE_MOCKUP:
@@ -1126,8 +1126,8 @@ export default function Home() {
           ~160, cutting off the phone number. Trimmed to 156 chars so the
           phone CTA survives + "$25 used tires" hooks earlier. */}
       <SEOHead
-        title="Nick's Tire & Auto Cleveland · Pull Up for Tires, Drop Off"
-        description="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $25. Walk in 7 days. Free check, written quote, you don't pay until you say yes. (216) 862-0005"
+        title="Nick's Tire & Auto Cleveland · Tires & Auto Repair Euclid"
+        description="Nick's Tire & Auto on Euclid Ave. Tires from $25, brake repair, auto service. Walk in 7 days. Free check, written quote, pay only when satisfied. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
@@ -1275,6 +1275,7 @@ export default function Home() {
             <a href="/euclid-auto-repair" className="text-foreground/70 hover:text-primary transition-colors">Euclid</a>
             <a href="/east-cleveland-auto-repair" className="text-foreground/70 hover:text-primary transition-colors">East Cleveland</a>
             <a href="/areas-served" className="text-foreground/70 hover:text-primary transition-colors">All neighborhoods →</a>
+            <a href="/emissions" className="text-foreground/70 hover:text-primary transition-colors">E-Check & Emissions</a>
             <a href="/specials" className="text-foreground/70 hover:text-primary transition-colors">Specials</a>
             <a href="/about" className="text-foreground/70 hover:text-primary transition-colors">About Us</a>
           </div>

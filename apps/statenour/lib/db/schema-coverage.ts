@@ -140,7 +140,6 @@ const KNOWN_TABLES: Array<{ model: string; table: string }> = [
   { model: "SchemaChangeLedger", table: "schema_change_ledger" },
   { model: "Reflection", table: "Reflection" },
   { model: "Commitment", table: "Commitment" },
-  { model: "DriftAlert", table: "DriftAlert" },
   { model: "Prediction", table: "Prediction" },
   { model: "PatternDetection", table: "PatternDetection" },
   { model: "BrainDump", table: "BrainDump" },

@@ -32,6 +32,7 @@ import { prisma } from "@/lib/prisma";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { queryNick } from "@/lib/nickstire/query";
 
 const log = rootLogger.withSurface("brain/legacy-shims");
 
@@ -191,14 +192,44 @@ export interface LegacyShopQuote {
  * range query). Returns empty + warn-once. Brain consumers degrade
  * to seasonal/heuristic context.
  */
-export async function recentShopJobs(_days = 30): Promise<LegacyShopJob[]> {
-  warnOnce("recentShopJobs", "no nickstire bridge query for jobs over a range; returning empty");
-  return [];
+export async function recentShopJobs(days = 30): Promise<LegacyShopJob[]> {
+  const res = await queryNick<{ invoices: Array<{ id: string; totalAmount: number; invoiceDate: string }> }>(
+    "recent_invoices",
+    { days }
+  );
+  if ("error" in res) {
+    warnOnce("recentShopJobs", `failed to fetch recent invoices: ${res.error}`);
+    return [];
+  }
+  return res.data.invoices.map((inv) => ({
+    serviceCategory: "General",
+    totalRevenue: Number(inv.totalAmount || 0) / 100,
+    jobDate: new Date(inv.invoiceDate),
+    createdAt: new Date(inv.invoiceDate),
+  }));
 }
 
-export async function recentShopLeads(_days = 30): Promise<LegacyShopLead[]> {
-  warnOnce("recentShopLeads", "no nickstire bridge query for leads list; returning empty");
-  return [];
+export async function recentShopLeads(days = 30): Promise<LegacyShopLead[]> {
+  const res = await queryNick<{
+    leads: Array<{
+      id: string;
+      fullName: string;
+      createdAt: string;
+      status: string;
+      urgencyScore: number;
+      source: string;
+    }>;
+  }>("recent_leads", { days });
+  if ("error" in res) {
+    warnOnce("recentShopLeads", `failed to fetch recent leads: ${res.error}`);
+    return [];
+  }
+  return res.data.leads.map((lead) => ({
+    status: lead.status || "new",
+    urgency: Number(lead.urgencyScore || 0) >= 4 ? "urgent" : "normal",
+    createdAt: new Date(lead.createdAt),
+    source: lead.source || "unknown",
+  }));
 }
 
 export async function recentShopQuotes(_days = 30): Promise<LegacyShopQuote[]> {
