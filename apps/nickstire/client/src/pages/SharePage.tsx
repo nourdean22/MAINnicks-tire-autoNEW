@@ -30,13 +30,13 @@ function HealthScoreGauge({ score }: { score: number }) {
   const strokeDashoffset = circumference * (1 - percentage);
 
   // Color based on score
-  let color = "#22c55e"; // green
+  let color = "var(--color-success)"; // green
   let label = "Excellent";
   if (clamped < 40) {
-    color = "#ef4444"; // red
+    color = "var(--color-danger)"; // red
     label = "Needs Attention";
   } else if (clamped < 70) {
-    color = "#eab308"; // yellow
+    color = "var(--color-warning)"; // yellow
     label = "Good";
   }
 

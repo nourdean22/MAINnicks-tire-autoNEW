@@ -353,7 +353,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.9,
     changefreq: "monthly",
     title: "Ohio E-Check Cleveland — Failed Emissions? Pass Same Day | Nick's",
-    description: "Failed your Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. State tests; we get you passing. Same-day diagnosis. (216) 862-0005.",
+    description: "Failed Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. State tests; we get you passing. Same-day diagnosis. (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,
