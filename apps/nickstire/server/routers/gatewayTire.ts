@@ -1141,6 +1141,7 @@ export const gatewayTireRouter = router({
       gatewayOrderRef: z.string().optional(),
       expectedDelivery: z.string().optional(),
       installationDate: z.string().optional(),
+      paymentStatus: z.enum(["paid", "unpaid"]).optional(),
     }))
     .mutation(async ({ input }) => {
       const d = await db();
@@ -1156,6 +1157,14 @@ export const gatewayTireRouter = router({
       if (input.gatewayOrderRef !== undefined) updates.gatewayOrderRef = input.gatewayOrderRef;
       if (input.expectedDelivery) updates.expectedDelivery = new Date(input.expectedDelivery);
       if (input.installationDate) updates.installationDate = new Date(input.installationDate);
+      if (input.paymentStatus) {
+        updates.paymentStatus = input.paymentStatus;
+        if (input.paymentStatus === "paid" && currentOrder.paymentStatus !== "paid") {
+          updates.paidAt = new Date();
+        } else if (input.paymentStatus === "unpaid") {
+          updates.paidAt = null;
+        }
+      }
 
       if (Object.keys(updates).length === 0) return { success: false };
 
@@ -1503,6 +1512,16 @@ export const gatewayTireRouter = router({
       });
 
       return res;
+    }),
+
+  deleteOrder: adminProcedure
+    .input(z.object({ id: z.number().int() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) return { success: false, error: "Database unavailable" };
+
+      await d.delete(tireOrders).where(eq(tireOrders.id, input.id));
+      return { success: true };
     }),
 });
 
