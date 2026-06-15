@@ -60,7 +60,7 @@ const CORE_PAGES: RouteEntry[] = [
     // VAPI repair call. Applied here as V1 Benefit Lead variant per
     // seo-aeo-meta-description-generator skill. Aligned with ServicesOverview.tsx
     // SEOHead so prerender + runtime <head> match.
-    title: "Auto Repair Cleveland & Euclid · Nick's Tire & Auto",
+    title: "Tire Shop & Auto Repair Cleveland · Nick's Tire & Auto",
     description: "Tire & auto repair in Cleveland & Euclid. Brakes, diagnostics, emissions, oil changes. Free check, written quote, you don't pay until you say yes. Walk in!",
     group: "core",
     sitemap: true,
@@ -175,7 +175,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // (both pages led with "Used tires from $25"). /tires now leads
     // with the general tire-shop intent; /used-tires-cleveland keeps
     // its used-tire-specific framing.
-    description: "New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005.",
+    description: "Tire shop on Euclid Ave. New & used tires from $60 installed. Walk in 7 days, payment programs available. Call (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -353,7 +353,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.9,
     changefreq: "monthly",
     title: "Ohio E-Check Cleveland — Failed Emissions? Pass Same Day | Nick's",
-    description: "Failed Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. State tests; we get you passing. Same-day diagnosis. (216) 862-0005.",
+    description: "Failed Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. Walk in 7 days, pass same-day. Call (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -477,6 +477,56 @@ const SERVICE_PAGES: RouteEntry[] = [
   { path: "/pre-purchase-inspection", priority: 0.8, changefreq: "monthly", title: "Pre-Purchase Car Inspection Cleveland — Nick's Tire", description: "Cleveland pre-purchase inspection — the 90-min check that catches what the seller didn't mention. Engine, trans, brakes, frame, tires. Same-day. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/belts-hoses", priority: 0.7, changefreq: "monthly", title: "Belt & Hose Replacement Cleveland — Nick's Tire & Auto", description: "Cleveland belt + hose shop where the squeak gets diagnosed before it becomes a tow truck. Serpentine, timing belt, radiator hose. Same-day. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/starter-alternator", priority: 0.8, changefreq: "monthly", title: "Starter & Alternator Repair Cleveland — Nick's Tire", description: "Cleveland starter + alternator shop where the charging system gets tested before parts get sold. Free voltage drop + load test. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  {
+    path: "/warranties",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "12-Month/12,000-Mile Auto Repair Warranty Cleveland | Nick's",
+    description: "Our 12-month / 12k-mile warranty covers parts and labor. Transparency, trust, and honest service on Euclid Ave. Pull up any day.",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/tire-rebates",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Tire Rebates & Deals Cleveland — Save on Major Brands | Nick's",
+    description: "Find current tire rebates, promotions, and deals on Michelin, Goodyear, Bridgestone, and Cooper tires in Cleveland. Walk in 7 days.",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/tire-storage",
+    priority: 0.7,
+    changefreq: "monthly",
+    title: "Seasonal Tire Storage Cleveland — Climate-Controlled | Nick's",
+    description: "Store your off-season winter or summer tires in our climate-controlled tire hotel. Safe, secure, and ready when you are. Drive in today.",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/wheels",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Custom Wheels & OEM Rims Cleveland — Sales & Install | Nick's",
+    description: "Custom wheels, steel wheels, and wheel+tire packages. Professional mounting, balancing, and fitment. Euclid Ave walk-in shop.",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/hybrid-ev-repair",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Hybrid & EV Repair Cleveland — Tires, Brakes & Battery | Nick's",
+    description: "Cleveland hybrid and EV mechanical service. Tires, brakes, suspensions, alignments, and 12V battery replacements. Walk in 7 days.",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
 ];
 
 // ─── CITY/AREA PAGES ─────────────────────────────────────

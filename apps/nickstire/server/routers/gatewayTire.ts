@@ -28,6 +28,7 @@ import { eq, desc, sql, and } from "drizzle-orm";
 import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
 
 import { db } from "../lib/db-helper";
+import { BUSINESS } from "@shared/business";
 
 import { createLogger } from "../lib/logger";
 
@@ -892,9 +893,9 @@ export const gatewayTireRouter = router({
 
       if (!order) return { error: "Order not found. Check your order number and phone." };
       if (order.paymentStatus === "paid") return { error: "This order is already paid." };
-      if (order.status === "cancelled") return { error: "This order was cancelled — call (216) 862-0005." };
+      if (order.status === "cancelled") return { error: `This order was cancelled — call ${BUSINESS.phone.display}.` };
       if (!order.totalAmount || order.totalAmount < 50) {
-        return { error: "Order total unavailable — please call (216) 862-0005." };
+        return { error: `Order total unavailable — please call ${BUSINESS.phone.display}.` };
       }
 
       const { createTireOrderCheckout, getCheckoutSessionStatus } = await import("../services/payments");

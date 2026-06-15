@@ -3,7 +3,7 @@
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { SITE_URL } from "@shared/business";
+import { SITE_URL, BUSINESS } from "@shared/business";
 import {
   createBooking, getBookings, updateBookingStatus, updateBookingNotes, updateBookingPriority,
   updateBookingStage, getBookingByPhone, getBookingByRef,
@@ -441,7 +441,7 @@ export const bookingRouter = router({
       return { ...result, referenceCode: refCode };
       } catch (err) {
         log.error("[Booking] Create failed:", err);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "We couldn't save your booking. Please call us directly at (216) 862-0005." });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `We couldn't save your booking. Please call us directly at ${BUSINESS.phone.display}.` });
       }
     }),
 
@@ -544,7 +544,7 @@ export const bookingRouter = router({
                 const { sendSms } = await import("../sms");
                 const firstName = (booking.name || "").split(" ")[0] || "there";
                 // Wave-108: appointment-confirmed reminder via shop gateway
-                await sendSms(booking.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto is confirmed. Just drop off when you're ready — no appointment time needed. (216) 862-0005`, { via: "shop" });
+                await sendSms(booking.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto is confirmed. Just drop off when you're ready — no appointment time needed. ${BUSINESS.phone.display}`, { via: "shop" });
               }
             }
           }
@@ -680,7 +680,7 @@ export const bookingRouter = router({
             recipientEmail: booking.email,
             notificationType: "status_update",
             subject: `Vehicle Status Update — ${input.stage === "ready" ? "Ready for Pickup!" : "In Progress"}`,
-            message: `Hi ${booking.name.split(" ")[0]}, your vehicle is ${stageLabels[input.stage] || "being worked on"}. ${input.stage === "ready" ? "You can pick it up anytime during business hours. Call (216) 862-0005 if you have questions." : "We'll keep you updated. Ref: " + (booking.referenceCode || "")}`,
+            message: `Hi ${booking.name.split(" ")[0]}, your vehicle is ${stageLabels[input.stage] || "being worked on"}. ${input.stage === "ready" ? `You can pick it up anytime during business hours. Call ${BUSINESS.phone.display} if you have questions.` : "We'll keep you updated. Ref: " + (booking.referenceCode || "")}`,
           });
 
           if (booking.phone) {

@@ -1047,10 +1047,18 @@ export default function TireFinder() {
       // the confirmCheckout mutation AND duplicates the toast every
       // time the user reloads. replaceState (not pushState) so the
       // back button doesn't return to the dirty URL state.
-      window.history.replaceState({}, "", window.location.pathname);
+      const cleanParams = new URLSearchParams(window.location.search);
+      cleanParams.delete("paid");
+      cleanParams.delete("order");
+      const searchStr = cleanParams.toString();
+      window.history.replaceState({}, "", window.location.pathname + (searchStr ? `?${searchStr}` : ""));
     } else if (paid === "0" && order) {
       toast(`Payment cancelled — order ${order} is still saved. You can pay anytime.`);
-      window.history.replaceState({}, "", window.location.pathname);
+      const cleanParams = new URLSearchParams(window.location.search);
+      cleanParams.delete("paid");
+      cleanParams.delete("order");
+      const searchStr = cleanParams.toString();
+      window.history.replaceState({}, "", window.location.pathname + (searchStr ? `?${searchStr}` : ""));
     }
   }, []);
 
@@ -1058,7 +1066,7 @@ export default function TireFinder() {
     <PageLayout showChat={true}>
       <SEOHead
         title="Tires Cleveland & Euclid · New & Used Tire Shop | Nick's"
-        description="New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005."
+        description="Tire shop on Euclid Ave. New & used tires from $60 installed. Walk in 7 days, payment programs available. Call (216) 862-0005."
         canonicalPath="/tires"
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
 import { sanitizePhone, sanitizeText, sanitizeName } from "../sanitize";
 import { sendSms } from "../sms";
+import { BUSINESS } from "@shared/business";
 
 import { createLogger } from "../lib/logger";
 
@@ -139,12 +140,12 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
 
   // Handle HELP keyword
   if (message === "HELP") {
-    return "Nick's Tire & Auto, Cleveland OH. Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM. Call (216) 862-0005.";
+    return `Nick's Tire & Auto, Cleveland OH. Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM. Call ${BUSINESS.phone.display}.`;
   }
 
   // Rate limit check
   if (!checkRateLimit(phone)) {
-    return "You've sent too many messages. Please call us at (216) 862-0005.";
+    return `You've sent too many messages. Please call us at ${BUSINESS.phone.display}.`;
   }
 
   const conv = getOrCreateConversation(phone);
@@ -192,7 +193,7 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
       log.error("[SMS Bot] Failed to save booking:", err);
     });
 
-    return "Thanks! We've received your booking request. We'll call you shortly to confirm. Call us at (216) 862-0005 for urgent issues.";
+    return `Thanks! We've received your booking request. We'll call you shortly to confirm. Call us at ${BUSINESS.phone.display} for urgent issues.`;
   }
 
   return "";

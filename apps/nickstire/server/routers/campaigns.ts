@@ -14,6 +14,7 @@ import { eq, sql, desc, and, isNull } from "drizzle-orm";
 import { customers, smsCampaigns, smsCampaignSends } from "../../drizzle/schema";
 import { sendSms, isShopGatewayReachable, isShopGatewayConfigured } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
+import { BUSINESS } from "@shared/business";
 
 import { db } from "../lib/db-helper";
 
@@ -24,16 +25,16 @@ const log = createLogger("routers:campaigns");
 
 const CAMPAIGN_TEMPLATES: Record<string, (name: string, customMessage?: string) => string> = {
   maintenance: (_firstName: string) =>
-    `Due for an oil change or a once-over? $49 conventional, $80 synthetic — walk in any day, no appointment. Nick's Tire & Auto, (216) 862-0005`,
+    `Due for an oil change or a once-over? $49 conventional, $80 synthetic — walk in any day, no appointment. Nick's Tire & Auto, ${BUSINESS.phone.display}`,
 
   seasonal: (_firstName: string) =>
-    `Winter's on the way — get your tires checked before the snow. Used tires from $60 installed, walk in any day. Nick's Tire & Auto, (216) 862-0005`,
+    `Winter's on the way — get your tires checked before the snow. Used tires from $60 installed, walk in any day. Nick's Tire & Auto, ${BUSINESS.phone.display}`,
 
   special_offer: (_firstName: string, offer?: string) =>
-    `${offer || "10% off your next visit"} at Nick's Tire & Auto — walk in any day, first-come, first-served. (216) 862-0005`,
+    `${offer || "10% off your next visit"} at Nick's Tire & Auto — walk in any day, first-come, first-served. ${BUSINESS.phone.display}`,
 
   winback: (_firstName: string) =>
-    `It's been a while — come back to Nick's Tire & Auto for 10% off your next visit. Walk in any day, no appointment. (216) 862-0005`,
+    `It's been a while — come back to Nick's Tire & Auto for 10% off your next visit. Walk in any day, no appointment. ${BUSINESS.phone.display}`,
 };
 
 /**

@@ -53,7 +53,7 @@ export default function ShopStatusWidget({
 
   const accentClass =
     accent === "gold"
-      ? "text-[#FDB913] bg-[#FDB913]/10 border-[#FDB913]/30"
+      ? "text-[#FDB913] bg-white/5 border-white/10 backdrop-blur-md shadow-[0_4px_12px_rgba(0,0,0,0.25)]"
       : "text-blue-600 bg-blue-50 border-blue-200";
 
   const statusColor = !data.isOpen

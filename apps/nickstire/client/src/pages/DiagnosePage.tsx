@@ -6,7 +6,7 @@
 
 import PageLayout from "@/components/PageLayout";
 import ResponsivePhoto from "@/components/ResponsivePhoto";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { toast } from "sonner";
@@ -388,14 +388,14 @@ export default function DiagnosePage() {
     }, 100);
   };
 
-  const handleAnalyze = async () => {
-    if (!symptomText.trim()) return;
+  const performAnalysis = async (text: string) => {
+    if (!text.trim()) return;
     setIsAnalyzing(true);
     setShowResults(false);
     setResult(null);
 
     try {
-      const symptoms = [symptomText.trim()];
+      const symptoms = [text.trim()];
       const response = await diagnoseMutation.mutateAsync({
         vehicleYear: vehicle.year || undefined,
         vehicleMake: vehicle.make || undefined,
@@ -435,6 +435,20 @@ export default function DiagnosePage() {
       setIsAnalyzing(false);
     }
   };
+
+  const handleAnalyze = () => performAnalysis(symptomText);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const symptomParam = params.get("symptom");
+    if (symptomParam) {
+      setSymptomText(symptomParam);
+      performAnalysis(symptomParam);
+      setTimeout(() => {
+        formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
+    }
+  }, []);
 
   const handleReset = () => {
     setSelectedZone(null);

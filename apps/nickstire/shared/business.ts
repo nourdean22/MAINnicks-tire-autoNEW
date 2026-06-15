@@ -191,6 +191,7 @@ export const BUSINESS = {
     priceDisplay: "from $25 installed",
     fineprint: "12-inch rims, subject to availability",
     typicalBand: "most sizes $40-80 installed",
+    explanation: "Used tires start at $25 for 12-inch, but most standard passenger sizes are $60 installed",
     turnaround: "Under 20 minutes",
     dailyVolume: "50+ per day",
   },
@@ -204,6 +205,16 @@ export const BUSINESS = {
   newTires: {
     priceDisplay: "from $89 installed",
     positioning: "Any tire, any brand. Nick never says no.",
+  },
+
+  seasonalStorage: {
+    priceDisplay: "$125 per season",
+    description: "Climate-controlled winter/summer tire hotel services",
+  },
+
+  wheelPackages: {
+    priceDisplay: "$499 and up",
+    description: "Custom wheels and wheel+tire packages",
   },
 
   // ─── BRAND TAGLINES ─────────────────────────────────

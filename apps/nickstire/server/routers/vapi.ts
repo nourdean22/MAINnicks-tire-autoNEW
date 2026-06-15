@@ -24,6 +24,7 @@ import { getDb } from "../db";
 import { shopSettings, vapiCallLogs, type VapiCallLog } from "../../drizzle/schema";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { pickReceptionistAssistantId, pickFollowUpAssistantId, SHOP_LANDLINE_E164 } from "../services/vapi";
+import { BUSINESS } from "@shared/business";
 
 const log = createLogger("vapi");
 
@@ -716,7 +717,7 @@ export const vapiRouter = router({
       ) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "Follow-Up Caller destination should stay set to the shop landline (+1 216 862 0005). To override, confirm via the admin and pass acknowledgeNonShopFollowUp=true.",
+          message: `Follow-Up Caller destination should stay set to the shop landline (+1 ${BUSINESS.phone.raw.slice(0, 3)} ${BUSINESS.phone.raw.slice(3, 6)} ${BUSINESS.phone.raw.slice(6)}). To override, confirm via the admin and pass acknowledgeNonShopFollowUp=true.`,
         });
       }
       const assistantId = picked.id;

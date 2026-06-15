@@ -11,6 +11,7 @@ import { shopSettings } from "../../drizzle/schema";
 import { sanitizeText } from "../sanitize";
 
 import { createLogger } from "../lib/logger";
+import { BUSINESS } from "@shared/business";
 
 const log = createLogger("routers:costEstimator");
 const DEFAULT_LABOR_RATE = 115;
@@ -264,7 +265,7 @@ export const costEstimatorRouter = router({
           totalLow: Math.round(totalLow * 100) / 100,
           totalHigh: Math.round(totalHigh * 100) / 100,
           disclaimer:
-            "This is an estimate based on industry averages and may vary based on in-person diagnosis. Call (216) 862-0005 for a precise quote.",
+            `This is an estimate based on industry averages and may vary based on in-person diagnosis. Call ${BUSINESS.phone.display} for a precise quote.`,
           confidence: aiResult.confidence,
         };
 
@@ -301,7 +302,7 @@ export const costEstimatorRouter = router({
           totalLow: DEFAULT_LABOR_RATE * 1.0 + 50,
           totalHigh: DEFAULT_LABOR_RATE * 2.0 + 200,
           disclaimer:
-            "Unable to generate estimate at this time. Please call (216) 862-0005 for a quote.",
+            `Unable to generate estimate at this time. Please call ${BUSINESS.phone.display} for a quote.`,
           confidence: "low" as const,
         };
       }

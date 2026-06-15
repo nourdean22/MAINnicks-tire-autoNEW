@@ -35,9 +35,9 @@ interface ShopStatus {
 
 /**
  * Get current shop status.
- * In v1, this uses heuristics. In v2, will be driven by real-time bay tracking.
+ * Query database for active work orders with active stages.
  */
-export function getShopStatus(activeOrderCount?: number): ShopStatus {
+export async function getShopStatus(activeOrderCount?: number): Promise<ShopStatus> {
   // Use Eastern Time — Railway runs UTC, but business hours are ET
   const now = new Date();
   const hour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
@@ -56,7 +56,33 @@ export function getShopStatus(activeOrderCount?: number): ShopStatus {
   }
 
   // Estimate bay usage from active orders or time of day
-  const jobs = activeOrderCount ?? estimateCurrentJobs(hour, day);
+  let jobs: number;
+  if (activeOrderCount !== undefined) {
+    jobs = activeOrderCount;
+  } else {
+    const d = await db();
+    if (d) {
+      try {
+        const { bookings } = await import("../../drizzle/schema");
+        const { and, inArray } = await import("drizzle-orm");
+        const activeBookings = await d.select({ id: bookings.id })
+          .from(bookings)
+          .where(
+            and(
+              inArray(bookings.stage, ["inspecting", "waiting-parts", "in-progress", "quality-check"]),
+              sql`status != 'cancelled'`
+            )
+          );
+        jobs = activeBookings.length;
+      } catch (dbErr) {
+        log.warn("Failed to query active bookings for shop status:", dbErr);
+        jobs = estimateCurrentJobs(hour, day);
+      }
+    } else {
+      jobs = estimateCurrentJobs(hour, day);
+    }
+  }
+
   const occupiedBays = Math.min(jobs, TOTAL_BAYS);
   const openBays = TOTAL_BAYS - occupiedBays;
 
@@ -75,7 +101,7 @@ export function getShopStatus(activeOrderCount?: number): ShopStatus {
   } else if (openBays >= 1) {
     statusMessage = `${openBays} bay${openBays > 1 ? "s" : ""} available. Short wait possible.`;
   } else {
-    statusMessage = "All bays full — about a 45-minute wait. Call ahead: (216) 862-0005.";
+    statusMessage = `All bays full — about a 45-minute wait. Call ahead: ${BUSINESS.phone.display}.`;
   }
 
   const bays: BayStatus[] = Array.from({ length: TOTAL_BAYS }, (_, i) => ({
