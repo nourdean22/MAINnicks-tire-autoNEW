@@ -367,18 +367,9 @@ export default function OverviewSection() {
       });
   }, [allBookings, todayKey]);
 
-  // 2026-05-23 · payment-alert backlog surface. Unresolved paid-but-
-  // unfulfillable orders show up in the alert bar so the operator can
-  // manually run them through ShopDriver. Empty list = no alert.
-  const { data: paymentBacklog } = trpc.nickActions.paymentAlertBacklog.useQuery(undefined, {
-    refetchInterval: 60_000,
-    staleTime: 50_000,
-  });
-
   // Operational alerts · empty when clear. CRITICAL: useMemo MUST be called
   // above the early-return guard below to keep hook order stable.
   const algConnectedForAlerts = algStatus?.connected ?? null;
-  const paymentBacklogCount = paymentBacklog?.count ?? 0;
   const adminAlerts: AdminAlert[] = useMemo(() => {
     const out: AdminAlert[] = [];
     if (algConnectedForAlerts === false) {
@@ -405,22 +396,8 @@ export default function OverviewSection() {
         dismissable: false,
       });
     }
-    if (paymentBacklogCount > 0) {
-      out.push({
-        id: "payment-backlog",
-        severity: "crit",
-        message: `${paymentBacklogCount} paid tire order${paymentBacklogCount === 1 ? "" : "s"} need shop hand-off — email/Telegram fell through. Click to view.`,
-        // 2026-06-10 cockpit consolidation · lands on the unified
-        // top-level Tire Orders cockpit, which renders the backlog with
-        // MARK HANDLED buttons. (The old Money-tab target now redirects
-        // here too, so stale links still resolve.)
-        href: "/admin?tab=tireOrders",
-        ctaLabel: "View",
-        dismissable: false,
-      });
-    }
     return out;
-  }, [algConnectedForAlerts, paymentBacklogCount, algStatus]);
+  }, [algConnectedForAlerts, algStatus]);
 
   if (isLoading || !stats) {
     return <SkeletonOverview />;
