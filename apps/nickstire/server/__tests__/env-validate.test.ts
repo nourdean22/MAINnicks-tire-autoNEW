@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import path from "path";
 
 const scriptPath = path.resolve(import.meta.dirname, "../../scripts/env-validate.mjs");
@@ -24,28 +24,22 @@ const baseEnv = {
 
 describe("Stripe Env Validate Co-dependency Warning", () => {
   it("warns if STRIPE_SECRET_KEY is present but STRIPE_WEBHOOK_SECRET is missing/empty", () => {
-    try {
-      const output = execSync(`node ${scriptPath} --runtime`, {
-        env: {
-          ...process.env,
-          ...baseEnv,
-          STRIPE_SECRET_KEY: "sk_test_secret_123",
-          STRIPE_WEBHOOK_SECRET: "",
-        },
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      // Should not throw, should output PASS, but also warn on stderr or stdout
-      expect(output).toContain("Runtime environment check: PASS");
-    } catch (err: any) {
-      console.log("stdout:", err.stdout);
-      console.log("stderr:", err.stderr);
-      throw err;
-    }
+    const result = spawnSync("node", [scriptPath, "--runtime"], {
+      env: {
+        ...process.env,
+        ...baseEnv,
+        STRIPE_SECRET_KEY: "sk_test_secret_123",
+        STRIPE_WEBHOOK_SECRET: "",
+      },
+      encoding: "utf8",
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Runtime environment check: PASS");
+    expect(result.stderr).toContain("WARNING: STRIPE_SECRET_KEY is configured but STRIPE_WEBHOOK_SECRET is missing");
   });
 
   it("does not warn if both STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are present", () => {
-    const output = execSync(`node ${scriptPath} --runtime`, {
+    const result = spawnSync("node", [scriptPath, "--runtime"], {
       env: {
         ...process.env,
         ...baseEnv,
@@ -54,12 +48,13 @@ describe("Stripe Env Validate Co-dependency Warning", () => {
       },
       encoding: "utf8",
     });
-    expect(output).toContain("Runtime environment check: PASS");
-    expect(output).not.toContain("WARNING: STRIPE_SECRET_KEY is configured");
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Runtime environment check: PASS");
+    expect(result.stderr).not.toContain("WARNING: STRIPE_SECRET_KEY is configured");
   });
 
   it("does not warn if both STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are missing", () => {
-    const output = execSync(`node ${scriptPath} --runtime`, {
+    const result = spawnSync("node", [scriptPath, "--runtime"], {
       env: {
         ...process.env,
         ...baseEnv,
@@ -68,7 +63,8 @@ describe("Stripe Env Validate Co-dependency Warning", () => {
       },
       encoding: "utf8",
     });
-    expect(output).toContain("Runtime environment check: PASS");
-    expect(output).not.toContain("WARNING: STRIPE_SECRET_KEY is configured");
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Runtime environment check: PASS");
+    expect(result.stderr).not.toContain("WARNING: STRIPE_SECRET_KEY is configured");
   });
 });
