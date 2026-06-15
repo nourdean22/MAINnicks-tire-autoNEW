@@ -76,6 +76,11 @@ import { consumeUndoToken } from "@/lib/services/undo-token";
 // drift structurally impossible.
 import { leaveMission } from "@/lib/services/task-mission";
 
+const pendingInboxCreations = new Map<
+  string,
+  Promise<{ id: string; title: string; domain: string }>
+>();
+
 const TaskEventKindSchema = z.enum([
   "created",
   "started",
@@ -760,24 +765,39 @@ export const taskRouter = router({
       // @@unique on Mission(title, domain) yet (adding it is a gated prod
       // migration — needs a dedup-first pass), so this keeps domainSwap routing
       // to a single mission instead of scattering tasks across accidental dupes.
-      let inbox = await prisma.mission.findFirst({
-        where: { title: inboxTitle, status: "ACTIVE", deletedAt: null },
-        orderBy: { createdAt: "asc" },
-        select: { id: true, title: true, domain: true },
-      });
-      if (!inbox) {
-        inbox = await prisma.mission.create({
-          data: {
-            title: inboxTitle,
-            domain: targetDomain,
-            status: "ACTIVE",
-            priority: 50,
-            roiScore: 50,
-            neglectCost: 30,
-          },
-          select: { id: true, title: true, domain: true },
+      //
+      // To serialize database checks and inserts under concurrent races,
+      // we utilize an in-memory pendingInboxCreations map.
+      let inboxPromise = pendingInboxCreations.get(inboxTitle);
+      if (!inboxPromise) {
+        inboxPromise = (async () => {
+          let ib = await prisma.mission.findFirst({
+            where: { title: inboxTitle, status: "ACTIVE", deletedAt: null },
+            orderBy: { createdAt: "asc" },
+            select: { id: true, title: true, domain: true },
+          });
+          if (!ib) {
+            ib = await prisma.mission.create({
+              data: {
+                title: inboxTitle,
+                domain: targetDomain,
+                status: "ACTIVE",
+                priority: 50,
+                roiScore: 50,
+                neglectCost: 30,
+              },
+              select: { id: true, title: true, domain: true },
+            });
+          }
+          return ib;
+        })();
+        pendingInboxCreations.set(inboxTitle, inboxPromise);
+        inboxPromise.finally(() => {
+          pendingInboxCreations.delete(inboxTitle);
         });
       }
+
+      const inbox = await inboxPromise;
 
       const task = await prisma.task.update({
         where: { id: input.id },

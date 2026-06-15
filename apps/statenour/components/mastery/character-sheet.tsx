@@ -130,8 +130,9 @@ export function CharacterSheet() {
     (best, x) => (x.rising7dXp > (best?.rising7dXp ?? 0) ? x : best),
     null,
   );
-  // Agentic nudge — the stat you're closest to leveling (most progress into
-  // its current level). Null when nothing's on the verge.
+  // 2026-06-10 · the "Next rep" strip (max progressPct) moved out — it's
+  // now the weakest tier ("closest") of <LevelUpDirectiveCard>, mounted
+  // above this sheet on /stats with a reason + an actionable rep link.
   const nextRep = stats.reduce<StatLevel | null>(
     (best, x) => (x.progressPct > (best?.progressPct ?? 0) ? x : best),
     null,
@@ -175,6 +176,7 @@ export function CharacterSheet() {
   const highestNeglected = [...stats]
     .filter((s) => s.rising7dXp === 0)
     .sort((a, b) => b.level - a.level)[0] ?? null;
+
 
   return (
     <section className="mt-6 space-y-4">

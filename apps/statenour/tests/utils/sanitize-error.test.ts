@@ -169,4 +169,33 @@ describe("redactSensitive", () => {
 
     expect(redactSensitive(input)).toEqual(expected);
   });
+
+  it("safely truncates deeply nested subtrees at depth > 3 to [REDACTED_SUBTREE]", () => {
+    const input = {
+      nested: {
+        deep: {
+          deeper: {
+            deepest: {
+              password: "leak-me-not",
+              safe: "value",
+            },
+            secretString: "sk-proj-superSecretKey",
+          }
+        }
+      }
+    };
+
+    const expected = {
+      nested: {
+        deep: {
+          deeper: {
+            deepest: "[REDACTED_SUBTREE]",
+            secretString: "[redacted-api-key]",
+          }
+        }
+      }
+    };
+
+    expect(redactSensitive(input)).toEqual(expected);
+  });
 });
