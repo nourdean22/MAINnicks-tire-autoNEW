@@ -1,6 +1,6 @@
 # Google Search Console Performance Report
 - **Property:** `https://nickstire.org/`
-- **Period:** 2026-03-15 to 2026-06-13 (90 days)
+- **Period:** 2026-03-16 to 2026-06-14 (90 days)
 - **Data Source:** Live Google Search Console API
 
 ## Summary Metrics
@@ -68,4 +68,4 @@
 | https://nickstire.org/blog/car-wont-accelerate-causes | 0 | 5 | 0.0% | 39.0 |
 
 ---
-*Report generated on 6/15/2026, 3:59:05 PM*
+*Report generated on 6/15/2026, 4:04:10 PM*
