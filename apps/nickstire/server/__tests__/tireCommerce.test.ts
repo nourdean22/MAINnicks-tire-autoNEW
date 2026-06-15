@@ -85,10 +85,10 @@ describe("Tire Commerce Command Center Helpers", () => {
       expect(flags).toContain("missing_email");
     });
 
-    it("identifies unpaid_balance", () => {
+    it("does not identify unpaid_balance (payment bypass)", () => {
       const order = { ...baseOrder, paymentStatus: "unpaid" };
       const flags = getRiskFlags(order);
-      expect(flags).toContain("unpaid_balance");
+      expect(flags).not.toContain("unpaid_balance");
     });
 
     it("identifies unconfirmed_availability", () => {
@@ -133,10 +133,10 @@ describe("Tire Commerce Command Center Helpers", () => {
       expect(flags).toContain("invoice_pending");
     });
 
-    it("identifies payment_pending", () => {
+    it("does not identify payment_pending (payment bypass)", () => {
       const order = { ...baseOrder, status: "scheduled", paymentStatus: "unpaid" };
       const flags = getRiskFlags(order);
-      expect(flags).toContain("payment_pending");
+      expect(flags).not.toContain("payment_pending");
     });
   });
 
@@ -148,11 +148,11 @@ describe("Tire Commerce Command Center Helpers", () => {
       expect(next.priority).toBe("low");
     });
 
-    it("maps installed unpaid status to collect_payment with urgent priority", () => {
+    it("maps installed unpaid status directly to invoice verification (payment bypass)", () => {
       const order = { ...baseOrder, status: "installed", paymentStatus: "unpaid" };
       const next = getNextAction(order);
-      expect(next.action).toBe("collect_payment");
-      expect(next.priority).toBe("urgent");
+      expect(next.action).toBe("verify_invoice");
+      expect(next.priority).toBe("high");
     });
 
     it("maps received with fitment issues to confirm_fitment with high priority", () => {
@@ -187,11 +187,10 @@ describe("Tire Commerce Command Center Helpers", () => {
       expect(next.action).toBe("schedule_install");
     });
 
-    it("maps scheduled unpaid status to collect_payment", () => {
+    it("maps scheduled unpaid status directly to mark_ready_for_install (payment bypass)", () => {
       const order = { ...baseOrder, status: "scheduled", paymentStatus: "unpaid" };
       const next = getNextAction(order);
-      expect(next.action).toBe("collect_payment");
-      expect(next.priority).toBe("high");
+      expect(next.action).toBe("mark_ready_for_install");
     });
 
     it("maps scheduled paid status to mark_ready_for_install", () => {
