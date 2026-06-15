@@ -235,7 +235,7 @@ export const emergencyRouter = router({
           () =>
             sendSms(
               phone,
-              `Thanks ${name}! We received your emergency request. Our next available time is ${nextOpenTime}. Call us then at (216) 862-0005. - Nick's Tire & Auto`,
+              `Thanks ${name}! We received your emergency request. Our next available time is ${nextOpenTime}. Call us then at ${BUSINESS.phone.display}. - Nick's Tire & Auto`,
               { via: "shop", transactional: true }
             ),
           { maxRetries: 2, baseDelayMs: 500, label: "emergency-customer-sms" }
@@ -260,7 +260,7 @@ export const emergencyRouter = router({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message:
-            "We couldn't save your emergency request. Please call us immediately at (216) 862-0005.",
+            `We couldn't save your emergency request. Please call us immediately at ${BUSINESS.phone.display}.`,
         });
       }
     }),

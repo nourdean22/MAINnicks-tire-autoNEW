@@ -262,7 +262,7 @@ THE PIT STOP TIRE EXPERIENCE (our secret weapon):
 - 4-5 dedicated tire techs handle tire work OUTSIDE — rain, snow, sun, fog, doesn't matter.
 - Receipt and change brought out to you. You never leave your car. Like a pit stop.
 - Women especially love this — safe, convenient, no lobby wait.
-- Used tires from $60. In and out in under 20 minutes. 50+ tires a day.
+- ${BUSINESS.usedTires.explanation}. In and out in under 20 minutes. 50+ tires a day.
 - If someone asks about tires, this is the pitch: "Just pull up, stay in your car. We come out to you. Most people are in and out in 20 minutes."
 
 INSPECTIONS & ESTIMATES:

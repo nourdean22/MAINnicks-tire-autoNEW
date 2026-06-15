@@ -8,6 +8,7 @@ import { z } from "zod";
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import { generateLaborEstimate, type LaborEstimateResult } from "../laborEstimate";
 import { generateEstimate } from "../services/aiEstimateGenerator";
+import { BUSINESS } from "@shared/business";
 
 import { createLogger } from "../lib/logger";
 
@@ -67,7 +68,7 @@ export const estimatesRouter = router({
               estimatedTime: `${item.laborHours}h labor`,
               explanation: item.notes,
             })),
-            recommendation: `Bring your ${vehicle} to Nick's Tire & Auto for this repair. Estimated total: $${laborResult.grandTotalLow}–$${laborResult.grandTotalHigh}. Call (216) 862-0005 or schedule a drop-off at nickstire.org.`,
+            recommendation: `Bring your ${vehicle} to Nick's Tire & Auto for this repair. Estimated total: $${laborResult.grandTotalLow}–$${laborResult.grandTotalHigh}. Call ${BUSINESS.phone.display} or schedule a drop-off at nickstire.org.`,
             _source: "claude" as const,
           };
         }

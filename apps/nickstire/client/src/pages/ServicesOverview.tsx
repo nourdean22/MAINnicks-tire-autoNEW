@@ -106,7 +106,7 @@ export default function ServicesOverview() {
           140-155 sweet spot). Aligned with routes.ts so prerender +
           runtime <head> match. */}
       <SEOHead
-        title="Auto Repair Cleveland & Euclid · Nick's Tire & Auto"
+        title="Tire Shop & Auto Repair Cleveland · Nick's Tire & Auto"
         description="Tire & auto repair in Cleveland & Euclid. Brakes, diagnostics, emissions, oil changes. Free check, written quote, you don't pay until you say yes. Walk in!"
         canonicalPath="/services"
       />

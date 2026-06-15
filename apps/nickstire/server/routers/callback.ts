@@ -12,7 +12,7 @@ import { leads } from "../../drizzle/schema";
 import { eq, and, gte } from "drizzle-orm";
 import { sanitizeText, sanitizePhone } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
-import { SITE_URL } from "@shared/business";
+import { SITE_URL, BUSINESS } from "@shared/business";
 import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewLead } from "../services/telegram";
 
@@ -191,7 +191,7 @@ export const callbackRouter = router({
       return result;
       } catch (err) {
         log.error("[Callback] Submit failed:", err);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "We couldn't save your callback request. Please call us directly at (216) 862-0005." });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `We couldn't save your callback request. Please call us directly at ${BUSINESS.phone.display}.` });
       }
     }),
 

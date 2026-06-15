@@ -7,7 +7,7 @@ import { getShopStatus, getLineOfCarsToday } from "../services/shopStatus";
 export const shopStatusRouter = router({
   getStatus: publicProcedure.query(async () => {
     const { cached } = await import("../lib/cache");
-    return cached("shop:status", 60, async () => getShopStatus());
+    return cached("shop:status", 60, async () => await getShopStatus());
   }),
 
   /**

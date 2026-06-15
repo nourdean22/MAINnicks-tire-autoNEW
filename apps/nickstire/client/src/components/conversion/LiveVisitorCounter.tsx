@@ -66,7 +66,7 @@ export default function LiveVisitorCounter({
       initial={reduced ? false : { opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={reduced ? { duration: 0 } : { duration: 0.4 }}
-      className={`inline-flex items-center gap-2 text-[11px] font-medium text-foreground/60 ${className}`}
+      className={`inline-flex items-center gap-2 text-[11px] font-medium text-[#D4D4D4] bg-white/5 border border-white/10 backdrop-blur-md rounded-full px-3 py-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.25)] ${className}`}
       aria-live="polite"
     >
       <span className="relative flex h-1.5 w-1.5">

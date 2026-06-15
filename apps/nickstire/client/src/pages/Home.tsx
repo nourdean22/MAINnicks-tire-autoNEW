@@ -4,7 +4,8 @@
  * JetBrains Mono stat numbers, gold accents
  */
 
-import { Link } from "wouter";
+import { useState } from "react";
+import { Link, useLocation } from "wouter";
 import BookingForm from "@/components/BookingForm";
 import FinancingCTA from "@/components/FinancingCTA";
 import LeadPopup from "@/components/LeadPopup";
@@ -41,7 +42,7 @@ import { useConversionTracking } from "@/hooks/useConversionTracking";
 // sign + 3 open bays + tire stacks (the strongest first-impression
 // trust image). Vertical fallback for mobile keeps the sign visible
 // when object-cover crops aggressively on phones.
-const HERO_IMG = "/photos/shop-exterior-hero-wide-sign-bays.webp";
+const HERO_IMG = "/photos/exterior-facade-wide.webp";
 const HERO_IMG_MOBILE = "/photos/shopfront-clear-vertical-sign-bays.webp";
 
 // Service-tile + WhyUs photos — wave-16 placement-guide pull:
@@ -74,6 +75,15 @@ interface HomeReviewData {
 // ─── HERO — Full-viewport cinematic with left content ────
 function Hero({ reviewData }: { reviewData: HomeReviewData }) {
   const { rating, totalReviews } = reviewData;
+  const [symptom, setSymptom] = useState("");
+  const [, setLocation] = useLocation();
+
+  const handleSymptomSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (symptom.trim()) {
+      setLocation(`/diagnose?symptom=${encodeURIComponent(symptom.trim())}`);
+    }
+  };
 
   return (
     <section className="relative min-h-[100svh] flex items-center overflow-hidden hero-stage">
@@ -89,29 +99,15 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             with full sign + open bays. object-position 'center 42%'
             per the placement guide keeps the sign in frame after
             object-cover crop. */}
-        <picture>
-          {/* wave-172: mobile gets the small (320px) variant for fast LCP,
-              medium viewports (≤1024px) get -medium (560px), desktop gets
-              full hero. Saves ~354KB on mobile alone. */}
-          <source media="(max-width: 768px)" srcSet="/photos/shopfront-clear-vertical-sign-bays-small.webp" />
-          <source media="(max-width: 1024px)" srcSet="/photos/shopfront-clear-vertical-sign-bays-medium.webp" />
-          <img
-            src={HERO_IMG}
-            alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
-            // 2026-05-24 PSI/photo audit · object-position is now
-            // viewport-responsive. Mobile (≤md) uses `center 42%` since the
-            // vertical-small variant has the sign centered horizontally in
-            // the frame — pushing right caused it to crop off the edge.
-            // Desktop (md+) keeps `right 42%` (wave-18 headline-readability
-            // fix · the H1 lives on the LEFT, so the bright sign on the
-            // RIGHT keeps the dark sky/trees zone under the headline).
-            className="w-full h-full object-cover [object-position:center_42%] md:[object-position:right_42%]"
-            loading="eager"
-            fetchPriority="high"
-            width="1920"
-            height="1080"
-          />
-        </picture>
+        <img
+          src={HERO_IMG}
+          alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
+          className="w-full h-full object-cover [object-position:center_30%]"
+          loading="eager"
+          fetchPriority="high"
+          width="1920"
+          height="1080"
+        />
         {/* 2026-05-06 wave-18 · Headline-readability fix.
             object-position pushed from "center 42%" to "right 42%" so the
             bright yellow sign sits on the RIGHT side of the frame, leaving
@@ -271,8 +267,41 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               animationFillMode: "forwards",
             }}
           >
-            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913] font-semibold">$25</span> installed. Written estimate before any wrench moves. Explore <Link href="/financing" className="underline text-primary hover:text-primary-foreground">financing for repairs</Link>, get <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> today.
+            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913] font-semibold">$25</span> installed. Written estimate before any wrench moves. Explore <Link href="/financing" className="underline text-primary hover:text-primary-foreground">payment programs for repairs</Link>, get <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> today.
           </p>
+
+          {/* Symptom Search Widget */}
+          <form
+            onSubmit={handleSymptomSearch}
+            className="relative mt-8 max-w-md w-full group motion-safe:animate-[fadeInUp_0.6s_ease-out_0.6s_both]"
+            style={{
+              opacity: 0,
+              animationFillMode: "forwards",
+            }}
+          >
+            {/* Ambient Glow Aura */}
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-[#FDB913]/20 to-red-500/20 rounded-xl blur opacity-35 group-focus-within:opacity-60 transition duration-500" />
+            
+            <div className="relative flex items-center bg-[#0C0F14]/75 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+              <span className="pl-4 text-[#FDB913]">
+                <Activity className="w-5 h-5 animate-pulse" />
+              </span>
+              <input
+                type="text"
+                value={symptom}
+                onChange={(e) => setSymptom(e.target.value)}
+                placeholder="Describe symptom (e.g. shake at 60mph, squeaking brakes)..."
+                className="w-full bg-transparent border-0 text-[#F5F5F5] placeholder-[#A0A0A0]/60 text-sm focus:outline-none focus:ring-0 py-3.5 px-3"
+              />
+              <button
+                type="submit"
+                className="bg-[#FDB913] hover:bg-[#e0a30b] text-[#0A0A0A] font-bold text-sm px-6 py-3.5 transition-colors flex items-center gap-1.5 shrink-0"
+              >
+                DIAGNOSE
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
 
           {/* 2026-05-06 audit fix · 3-CTA stack per HOMEPAGE_MOCKUP:
               Red CALL NOW · Yellow SCHEDULE DROP-OFF · Outline GET DIRECTIONS.

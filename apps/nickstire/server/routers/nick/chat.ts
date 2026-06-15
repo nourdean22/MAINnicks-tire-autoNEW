@@ -8,6 +8,7 @@ import { eq, sql } from "drizzle-orm";
 import { invokeLLM } from "../../_core/llm";
 import type { ShopSetting } from "../../../drizzle/schema";
 import { log, db, type CameraEntry } from "./utils";
+import { BUSINESS } from "@shared/business";
 // ─── Social Post ──────────────────────────────────────
 
 export async function handleSocialPost(input: {
@@ -271,7 +272,7 @@ export async function handleReviewContent(input: {
 
 REVIEW this ${input.contentType} for:
 1. ACCURACY — Are facts, prices, hours, phone numbers correct?
-   - Phone: (216) 862-0005
+   - Phone: ${BUSINESS.phone.display}
    - Address: 17625 Euclid Ave, Cleveland, OH 44112
    - Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM
    - Rating: 4.9 stars, 1,700+ reviews

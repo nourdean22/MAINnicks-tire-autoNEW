@@ -5,6 +5,7 @@
 import { eq } from "drizzle-orm";
 import { workOrders } from "../../../drizzle/schema";
 import { invokeLLM } from "../../_core/llm";
+import { BUSINESS } from "@shared/business";
 import { randomUUID } from "crypto";
 import {
   log, db,
@@ -287,7 +288,7 @@ Rules:
 - Message 2 (value add): Offer something extra — free inspection, coupon, seasonal tip
 - Message 3 (last chance): Urgency without pressure — "spots filling up", "we saved your quote"
 - Messages 4-5 (if requested): Re-engage with new angle — different service angle, seasonal relevance
-- ALWAYS include phone number (216) 862-0005 and nickstire.org
+- ALWAYS include phone number ${BUSINESS.phone.display} and nickstire.org
 - SMS messages: under 160 characters each
 - Email messages: 2-3 short paragraphs max
 - NEVER be pushy or use high-pressure tactics
@@ -382,7 +383,7 @@ Return JSON:
     return scheduled.toISOString();
   }
 
-  const defaultMessage = `Hi! Following up from your chat about your ${vehicleInfo}. We'd love to get you in. Call us at (216) 862-0005 or schedule a drop-off at nickstire.org.`;
+  const defaultMessage = `Hi! Following up from your chat about your \${vehicleInfo}. We'd love to get you in. Call us at \${BUSINESS.phone.display} or schedule a drop-off at nickstire.org.`;
 
   const verifiedChain = Array.isArray(chainData?.chain) ? chainData.chain.map((step: FollowUpStep, i: number) => {
     const stepChannel = step.channel as "sms" | "call" | "email";
