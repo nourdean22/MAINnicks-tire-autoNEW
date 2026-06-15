@@ -19,7 +19,7 @@ import BrandMark from "@/components/BrandMark";
 const NAV_LINKS = [
   { label: "Tires", href: "/tires" },
   { label: "Services", href: "/services" },
-  { label: "Payment Programs", href: "/financing" },
+  { label: "Financing", href: "/financing" },
   { label: "Reviews", href: "/reviews" },
   { label: "Specials", href: "/specials" },
   { label: "About", href: "/about" },
@@ -68,7 +68,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
         </Link>
 
         {/* ─── CENTER NAV ─── */}
-        <div className="hidden lg:flex items-center gap-7">
+        <div className="hidden lg:flex items-center gap-4 xl:gap-7">
           {NAV_LINKS.map((l) => (
             <Link
               key={l.href}
@@ -85,7 +85,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
         </div>
 
         {/* ─── RIGHT ACTIONS ─── */}
-        <div className="hidden lg:flex items-center gap-3">
+        <div className="hidden lg:flex items-center gap-2 xl:gap-3">
           <Link
             href="/diagnose"
             className="text-[13px] font-medium text-primary/80 hover:text-primary transition-colors duration-200"

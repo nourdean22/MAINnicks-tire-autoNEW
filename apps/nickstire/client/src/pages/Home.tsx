@@ -42,7 +42,7 @@ import { useConversionTracking } from "@/hooks/useConversionTracking";
 // sign + 3 open bays + tire stacks (the strongest first-impression
 // trust image). Vertical fallback for mobile keeps the sign visible
 // when object-cover crops aggressively on phones.
-const HERO_IMG = "/photos/exterior-facade-wide.webp";
+const HERO_IMG = "/photos/shop-exterior-hero-wide-sign-bays.webp";
 const HERO_IMG_MOBILE = "/photos/shopfront-clear-vertical-sign-bays.webp";
 
 // Service-tile + WhyUs photos — wave-16 placement-guide pull:
@@ -99,15 +99,29 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             with full sign + open bays. object-position 'center 42%'
             per the placement guide keeps the sign in frame after
             object-cover crop. */}
-        <img
-          src={HERO_IMG}
-          alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
-          className="w-full h-full object-cover [object-position:center_30%]"
-          loading="eager"
-          fetchPriority="high"
-          width="1920"
-          height="1080"
-        />
+        <picture>
+          {/* wave-172: mobile gets the small (320px) variant for fast LCP,
+              medium viewports (≤1024px) get -medium (560px), desktop gets
+              full hero. Saves ~354KB on mobile alone. */}
+          <source media="(max-width: 768px)" srcSet="/photos/shopfront-clear-vertical-sign-bays-small.webp" />
+          <source media="(max-width: 1024px)" srcSet="/photos/shopfront-clear-vertical-sign-bays-medium.webp" />
+          <img
+            src={HERO_IMG}
+            alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
+            // 2026-05-24 PSI/photo audit · object-position is now
+            // viewport-responsive. Mobile (≤md) uses `center 42%` since the
+            // vertical-small variant has the sign centered horizontally in
+            // the frame — pushing right caused it to crop off the edge.
+            // Desktop (md+) keeps `right 42%` (wave-18 headline-readability
+            // fix · the H1 lives on the LEFT, so the bright sign on the
+            // RIGHT keeps the dark sky/trees zone under the headline).
+            className="w-full h-full object-cover [object-position:center_42%] md:[object-position:right_42%]"
+            loading="eager"
+            fetchPriority="high"
+            width="1920"
+            height="1080"
+          />
+        </picture>
         {/* 2026-05-06 wave-18 · Headline-readability fix.
             object-position pushed from "center 42%" to "right 42%" so the
             bright yellow sign sits on the RIGHT side of the frame, leaving
