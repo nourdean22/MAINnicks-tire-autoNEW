@@ -12,7 +12,7 @@ vi.mock("../google-reviews", () => {
 vi.hoisted(() => {
   const query: any = {
     select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockImplementation(function (table) {
+    from: vi.fn().mockImplementation(function (this: any, table) {
       if (table) {
         this.currentTableName = table.name || 
           table._meta?.name || 
@@ -25,7 +25,7 @@ vi.hoisted(() => {
     where: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
-    then: vi.fn().mockImplementation(function (onFulfilled) {
+    then: vi.fn().mockImplementation(function (this: any, onFulfilled) {
       let result: any[] = [];
       const tableName = this.currentTableName;
       this.currentTableName = ""; // reset
