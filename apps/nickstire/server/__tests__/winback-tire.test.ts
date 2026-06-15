@@ -107,4 +107,60 @@ describe("Walk-In Calculator & Win-Back tire_customer Segment", () => {
     expect(verifiedSet.has(5)).toBe(false); // No purchase
     expect(verifiedSet.size).toBe(4);
   });
+
+  it("getVerifiedTirePurchaseCustomerIds SQL query does not contain mount or balance exclusions", async () => {
+    const { getVerifiedTirePurchaseCustomerIds } = await import("../routers/winback");
+    const clauses: any[] = [];
+
+    const mockSelect = vi.fn().mockImplementation(() => {
+      return {
+        from: vi.fn().mockImplementation(() => {
+          return {
+            where: vi.fn().mockImplementation((clause) => {
+              clauses.push(clause);
+              return [];
+            })
+          };
+        })
+      };
+    });
+
+    await getVerifiedTirePurchaseCustomerIds({ select: mockSelect }, [1]);
+
+    function getSqlStrings(obj: any, seen = new Set<any>()): string[] {
+      if (!obj) return [];
+      if (seen.has(obj)) return [];
+      seen.add(obj);
+      
+      let results: string[] = [];
+      if (typeof obj === "string") {
+        results.push(obj);
+      } else if (Array.isArray(obj)) {
+        for (const item of obj) {
+          results.push(...getSqlStrings(item, seen));
+        }
+      } else if (typeof obj === "object") {
+        if ("queryChunks" in obj && Array.isArray(obj.queryChunks)) {
+          results.push(...getSqlStrings(obj.queryChunks, seen));
+        } else if ("chunks" in obj && Array.isArray(obj.chunks)) {
+          results.push(...getSqlStrings(obj.chunks, seen));
+        } else if ("value" in obj) {
+          results.push(...getSqlStrings(obj.value, seen));
+        }
+      }
+      return results;
+    }
+
+    function hasKeyword(obj: any, keyword: string): boolean {
+      const sqlStrings = getSqlStrings(obj);
+      return sqlStrings.some(str => str.toLowerCase().includes(keyword.toLowerCase()));
+    }
+
+    expect(clauses.length).toBeGreaterThan(0);
+    for (const clause of clauses) {
+      expect(hasKeyword(clause, "mount")).toBe(false);
+      expect(hasKeyword(clause, "balance")).toBe(false);
+    }
+  });
 });
+
