@@ -226,7 +226,6 @@ export function HomeCommandStack() {
             </span>
           </Link>
         )}
->>>>>>> origin/main
 
         {/* Right column: Target Stat & Proof */}
         <div className="space-y-3">
