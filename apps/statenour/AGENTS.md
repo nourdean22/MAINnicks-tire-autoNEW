@@ -3,7 +3,7 @@
 > **⚡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-06-15 · post the **Journal Insights Preview Router Tests wave** (PR #138 merged): add comprehensive unit and contract test coverage for the insightsPreview tRPC procedure. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-06-15 · post the **Audit Improvements, Portability & Concurrency Races wave**: implement security redaction hardening, relative path portability, worktree branch-existence setup locks, metadata sync checks, client-side double-submit guards, and server-side serialized creations. Full detail: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 
