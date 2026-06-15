@@ -9,22 +9,60 @@ vi.mock("../google-reviews", () => {
   };
 });
 
+vi.hoisted(() => {
+  const query: any = {
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockImplementation(function (table) {
+      if (table) {
+        this.currentTableName = table.name || 
+          table._meta?.name || 
+          table[Symbol.for('drizzle:Name')] || 
+          table[Symbol.for('drizzle:OriginalName')] || 
+          "";
+      }
+      return this;
+    }),
+    where: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    then: vi.fn().mockImplementation(function (onFulfilled) {
+      let result: any[] = [];
+      const tableName = this.currentTableName;
+      this.currentTableName = ""; // reset
+      
+      if (tableName === "review_pipeline") {
+        result = (global as any).mockReviews || [];
+      } else if (tableName === "specials") {
+        result = (global as any).mockSpecials || [];
+      } else if (tableName === "gbp_post_log") {
+        result = (global as any).mockGbpPostLog || [];
+      }
+      
+      return Promise.resolve(result).then(onFulfilled);
+    }),
+  };
+  (global as any).mockQuery = query;
+  (global as any).mockDb = {
+    select: vi.fn().mockReturnValue(query),
+    insert: vi.fn().mockReturnValue(query),
+    update: vi.fn().mockReturnValue(query),
+    delete: vi.fn().mockReturnValue(query),
+  };
+});
+
 // Mock database helper
 vi.mock("../lib/db-helper", () => {
   return {
-    db: vi.fn().mockResolvedValue({
-      select: vi.fn().mockReturnThis(),
-      from: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      orderBy: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockResolvedValue([]),
-    }),
+    db: vi.fn().mockResolvedValue((global as any).mockDb),
   };
 });
 
 describe("GBP Generator and Fabrication Guard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (global as any).mockReviews = [];
+    (global as any).mockSpecials = [];
+    (global as any).mockGbpPostLog = [];
   });
 
   it("gracefully falls back to another archetype when getGoogleReviews returns null or empty reviews list", async () => {
@@ -77,5 +115,26 @@ describe("GBP Generator and Fabrication Guard", () => {
     expect(post.text).toContain("wonderful experience getting my brakes serviced");
     expect(post.text).not.toContain("Marcus L.");
     expect(post.text).not.toContain("grinding brakes");
+  });
+
+  it("successfully creates proof post using DB-stored reviews when Places API is down/empty", async () => {
+    vi.mocked(getGoogleReviews).mockResolvedValue(null);
+    
+    // Set up mock reviews on the global object for table-aware mockQuery
+    (global as any).mockReviews = [
+      {
+        authorName: "Jane Smith",
+        rating: 5,
+        reviewText: "Great customer service and reasonable prices at Nick's.",
+        reviewTime: 1718474400,
+        relativeTime: "2 days ago",
+      },
+    ];
+
+    const post = await generateGBPPost("proof");
+    expect(post.archetype).toBe("proof");
+    expect(post.text).toContain("Jane S. shared their experience");
+    expect(post.text).toContain("Great customer service and reasonable prices");
+    expect(post.provenance).toBe("real-review");
   });
 });

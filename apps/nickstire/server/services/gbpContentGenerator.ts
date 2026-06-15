@@ -29,7 +29,8 @@ import { BUSINESS } from "@shared/business";
 import { OIL_PRICE, BRAKE_PRICE, SERVICE_PRICE } from "@shared/pricing";
 import { createLogger } from "../lib/logger";
 import { db } from "../lib/db-helper";
-import { specials, gbpPostLog } from "../../drizzle/schema";
+import type { GoogleReview } from "../google-reviews";
+import { specials, gbpPostLog, reviewPipeline } from "../../drizzle/schema";
 import { eq, and, gte, sql, desc } from "drizzle-orm";
 
 const log = createLogger("gbp-content-generator");
@@ -206,19 +207,56 @@ function validateNoUnsourcedCustomerIdentity(text: string, archetype: GBPArchety
 // Real customer review text from Google Reviews cache
 // ─────────────────────────────────────────────────────────
 
+async function getRealReviewsFromDb(): Promise<GoogleReview[]> {
+  try {
+    const d = await db();
+    if (!d) return [];
+
+    const rows = await d
+      .select({
+        authorName: reviewPipeline.authorName,
+        rating: reviewPipeline.rating,
+        reviewText: reviewPipeline.reviewText,
+        reviewTime: reviewPipeline.reviewTime,
+        relativeTime: reviewPipeline.relativeTime,
+      })
+      .from(reviewPipeline)
+      .where(gte(reviewPipeline.rating, 4));
+
+    return rows
+      .filter((r: any) => r.reviewText && r.reviewText.trim().length >= 10)
+      .map((r: any) => ({
+        authorName: r.authorName,
+        rating: r.rating,
+        text: r.reviewText || "",
+        relativeTime: r.relativeTime || "recently",
+        time: r.reviewTime || Math.floor(Date.now() / 1000),
+      }));
+  } catch (err) {
+    log.warn("getRealReviewsFromDb failed", { err: err instanceof Error ? err.message : String(err) });
+    return [];
+  }
+}
+
 async function buildProofPost(): Promise<GeneratedGBPPost> {
   const { getGoogleReviews } = await import("../google-reviews");
   const reviewData = await getGoogleReviews();
-  if (!reviewData || !reviewData.reviews || reviewData.reviews.length === 0) {
-    throw new Error("No Google reviews available");
+  
+  let qualifyingReviews: GoogleReview[] = [];
+  if (reviewData && reviewData.reviews && reviewData.reviews.length > 0) {
+    qualifyingReviews = reviewData.reviews.filter(
+      (r) => r.rating >= 4 && r.text && r.text.trim().length >= 10
+    );
   }
 
-  const qualifyingReviews = reviewData.reviews.filter(
-    (r) => r.rating >= 4 && r.text && r.text.trim().length >= 10
-  );
+  // Fall back to database reviews if Google Places API returns none
+  if (qualifyingReviews.length === 0) {
+    log.info("No qualifying reviews found in Places API cache. Querying review_pipeline table fallback...");
+    qualifyingReviews = await getRealReviewsFromDb();
+  }
 
   if (qualifyingReviews.length === 0) {
-    throw new Error("No qualifying Google reviews (rating >= 4 with text) found");
+    throw new Error("No qualifying Google reviews (rating >= 4 with text) found in Places API or Database");
   }
 
   const seed = weekSeed() + "-proof";
