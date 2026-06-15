@@ -19,8 +19,21 @@ Write-Host "==================================================" -ForegroundColor
 
 # 1. Add Git Worktree
 try {
-    Write-Host "Running: git worktree add $targetAbsPath $branchName" -ForegroundColor Yellow
-    git worktree add $targetAbsPath $branchName
+    # Check if branch exists locally or on remote
+    $null = git rev-parse --verify --quiet $branchName
+    $localExists = ($LASTEXITCODE -eq 0)
+
+    $null = git rev-parse --verify --quiet "origin/$branchName"
+    $remoteExists = ($LASTEXITCODE -eq 0)
+
+    if ($localExists -or $remoteExists) {
+        Write-Host "Running: git worktree add $targetAbsPath $branchName" -ForegroundColor Yellow
+        git worktree add $targetAbsPath $branchName
+    } else {
+        Write-Host "Branch '$branchName' not found locally or on origin. Creating new branch off origin/main." -ForegroundColor Yellow
+        Write-Host "Running: git worktree add -b $branchName $targetAbsPath origin/main" -ForegroundColor Yellow
+        git worktree add -b $branchName $targetAbsPath origin/main
+    }
 } catch {
     Write-Error "Failed to add git worktree: $_"
 }

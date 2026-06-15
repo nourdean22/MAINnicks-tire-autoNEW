@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   Disc, Wrench, Truck, Calendar, DollarSign, AlertTriangle, User, Car,
   Check, X, ChevronDown, ChevronUp, RefreshCw, FileText, CheckCircle2,
@@ -38,7 +38,7 @@ type OrderStatusFilter =
   | "cancelled";
 
 const STATUS_TABS: { id: OrderStatusFilter; label: string; icon: React.ReactNode }[] = [
-  { id: "all", label: "All Orders", icon: <Disc className="w-3.5 h-3.5" /> },
+  { id: "all", label: "Active Orders", icon: <Disc className="w-3.5 h-3.5" /> },
   { id: "received", label: "New Requests", icon: <Clock className="w-3.5 h-3.5" /> },
   { id: "confirmed", label: "Confirmed", icon: <Wrench className="w-3.5 h-3.5" /> },
   { id: "ordered", label: "Ordered", icon: <Truck className="w-3.5 h-3.5" /> },
@@ -52,7 +52,6 @@ const STATUS_TABS: { id: OrderStatusFilter; label: string; icon: React.ReactNode
 export default function TireOrdersSection() {
   const [activeTab, setActiveTab] = useState<OrderStatusFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "unpaid">("all");
   const [confidenceFilter, setConfidenceFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
 
@@ -68,60 +67,6 @@ export default function TireOrdersSection() {
 
   const { data: stats, refetch: refetchStats } = trpc.gatewayTire.orderStats.useQuery(undefined, { refetchInterval: 60_000 });
   const { data: gatewayStatus } = trpc.gatewayTire.status.useQuery();
-
-  // ─── Money-protection surfaces (ported from the retired Money →
-  // Tire Orders tab, 2026-06-10 cockpit consolidation) ───────────────
-  // Payment-infrastructure health (booleans only) — surfaces the silent
-  // half-configured state where Stripe charges succeed but webhook
-  // events are dropped. Env changes need a deploy, so 5 min is plenty.
-  const { data: health } = trpc.payments.health.useQuery(undefined, {
-    refetchInterval: 5 * 60_000,
-  });
-  // Cancelled-order money risks: paid-but-cancelled (refund owed) and
-  // cancelled-with-open-checkout (customer can still pay a dead order).
-  const { data: risks } = trpc.gatewayTire.cancellationRisks.useQuery(undefined, {
-    refetchInterval: 60_000,
-  });
-  // Paid orders whose email AND Telegram hand-off both failed — the
-  // most urgent thing in the shop when non-empty.
-  const { data: backlog } = trpc.nickActions.paymentAlertBacklog.useQuery(undefined, {
-    refetchInterval: 60_000,
-  });
-  const resolveAlert = trpc.nickActions.resolvePaymentAlert.useMutation({
-    onSuccess: () => { utils.nickActions.paymentAlertBacklog.invalidate(); toast.success("Alert resolved"); },
-    onError: (e) => toast.error(`Resolve failed: ${e.message}`),
-  });
-
-  const refundOrderMutation = trpc.gatewayTire.refundOrder.useMutation({
-    onSuccess: () => {
-      toast.success("Refund processed successfully");
-      refetchOrders();
-      utils.gatewayTire.cancellationRisks.invalidate();
-    },
-    onError: (err) => {
-      toast.error(`Refund failed: ${err.message}`);
-    },
-  });
-
-  const handleRefund = async (orderId: number, orderNumber: string, customerName: string, amount: number) => {
-    const reason = window.prompt(`Enter refund reason for order ${orderNumber} (${customerName}):`, "Customer cancellation");
-    if (reason === null) return;
-    if (!reason.trim()) {
-      toast.error("Refund reason is required");
-      return;
-    }
-
-    const ok = await confirmDialog({
-      title: "Confirm Stripe Refund",
-      message: `Are you sure you want to refund $${amount.toFixed(2)} to ${customerName} for order ${orderNumber}? This will issue a real refund in Stripe and update the database status to refunded.`,
-      confirmLabel: "Issue Refund",
-      tone: "danger",
-    });
-
-    if (!ok) return;
-
-    refundOrderMutation.mutate({ orderId, reason });
-  };
 
   // Mutation for updating order fields
   const updateOrderMutation = trpc.gatewayTire.updateOrder.useMutation({
@@ -172,9 +117,10 @@ export default function TireOrdersSection() {
   const filteredOrders = useMemo(() => {
     if (!listData?.orders) return [];
     const filtered = listData.orders.filter((order: any) => {
-      // Payment filter
-      if (paymentFilter === "paid" && order.paymentStatus !== "paid") return false;
-      if (paymentFilter === "unpaid" && order.paymentStatus === "paid") return false;
+      // Default view (Active Orders) should hide completed/cancelled orders
+      if (activeTab === "all") {
+        if (order.status === "cancelled" || order.status === "installed") return false;
+      }
 
       // Confidence filter
       if (confidenceFilter !== "all") {
@@ -190,7 +136,7 @@ export default function TireOrdersSection() {
       if (ra !== rb) return ra - rb;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [listData, paymentFilter, confidenceFilter]);
+  }, [listData, activeTab, confidenceFilter]);
 
   // Priority color borders & text colors
   const getPriorityStyles = (priority: "urgent" | "high" | "normal" | "low") => {
@@ -271,98 +217,7 @@ export default function TireOrdersSection() {
         </div>
       }
     >
-      {/* ─── Money-protection banners (ported from the retired Money →
-          Tire Orders tab). Render ABOVE the metrics: red payment-risk
-          warnings must never sit below the fold. Each appears only when
-          its condition is real — no duplicate or decorative warnings. ─── */}
-      {health?.stripe.halfConfigured && (
-        <div className="mb-4 border border-red-500/40 bg-red-500/10 rounded p-3 flex items-start gap-2 text-xs text-red-300">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
-          <span>
-            <strong>Stripe is half-configured:</strong> STRIPE_SECRET_KEY is set but
-            STRIPE_WEBHOOK_SECRET is missing — customers CAN pay, but paid events are
-            being <strong>dropped</strong> (orders only flip to paid if the customer
-            returns to the site). Set STRIPE_WEBHOOK_SECRET on Railway.
-          </span>
-        </div>
-      )}
-      {health && !health.stripe.secretKeySet && (
-        <div className="mb-4 border border-amber-500/40 bg-amber-500/10 rounded p-3 flex items-start gap-2 text-xs text-amber-200">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-          <span>
-            <strong>Online payment is OFF:</strong> STRIPE_SECRET_KEY is not set —
-            the customer "Pay Now" button degrades to call-to-pay. Orders still work.
-          </span>
-        </div>
-      )}
-      {health && !health.sheetsConfigured && (
-        <div className="mb-4 border border-amber-500/40 bg-amber-500/10 rounded p-3 flex items-start gap-2 text-xs text-amber-200">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-          <span>
-            <strong>Sheets sync is OFF:</strong> GOOGLE_SHEETS_CRM_ID is not set —
-            orders are NOT mirrored to the CRM spreadsheet (this cockpit + the DB
-            remain the source of truth).
-          </span>
-        </div>
-      )}
-      {backlog && backlog.count > 0 && (
-        <div className="mb-4 border border-red-500/40 bg-red-500/10 rounded p-3 space-y-2 text-xs">
-          <div className="flex items-center gap-2 text-red-400 font-bold tracking-wider">
-            <AlertTriangle className="w-4 h-4" />
-            {backlog.count} PAID ORDER{backlog.count === 1 ? "" : "S"} WITH FAILED HAND-OFF — FULFIL MANUALLY
-          </div>
-          {backlog.items.map((b) => (
-            <div key={b.id} className="flex items-start justify-between gap-3 text-foreground/80">
-              <span>
-                {b.tireOrderNumber ? `${b.tireOrderNumber} - ` : ""}{b.summary}
-                <span className="text-foreground/40"> ({b.failureReason})</span>
-              </span>
-              <button
-                onClick={() => resolveAlert.mutate({ id: b.id })}
-                disabled={resolveAlert.isPending}
-                className="shrink-0 px-2 py-1 border border-red-500/40 rounded text-red-300 text-[10px] font-bold hover:bg-red-500/20 disabled:opacity-50"
-              >
-                MARK HANDLED
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      {risks && risks.refundNeeded.length > 0 && (
-        <div className="mb-4 border border-red-500/40 bg-red-500/10 rounded p-3 space-y-2 text-xs">
-          <div className="flex items-center gap-2 text-red-400 font-bold tracking-wider">
-            <AlertTriangle className="w-4 h-4" />
-            {risks.refundNeeded.length} CANCELLED ORDER{risks.refundNeeded.length === 1 ? "" : "S"} PAID ONLINE — AUTO-REFUND AVAILABLE
-          </div>
-          {risks.refundNeeded.map((r) => (
-            <div key={r.id} className="flex items-center justify-between gap-3 text-foreground/80">
-              <span>
-                {r.orderNumber} - {r.customerName} - ${r.totalAmount.toFixed(2)}
-              </span>
-              <button
-                onClick={() => handleRefund(r.id, r.orderNumber, r.customerName, r.totalAmount)}
-                disabled={refundOrderMutation.isPending}
-                className="shrink-0 px-2.5 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-[10px] font-bold disabled:opacity-50 transition-colors"
-              >
-                AUTO-REFUND
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      {risks && risks.staleSessions.length > 0 && (
-        <div className="mb-4 border border-amber-500/40 bg-amber-500/10 rounded p-3 space-y-1 text-xs">
-          <div className="flex items-center gap-2 text-amber-300 font-bold tracking-wider">
-            <AlertTriangle className="w-4 h-4" />
-            {risks.staleSessions.length} CANCELLED ORDER{risks.staleSessions.length === 1 ? "" : "S"} WITH AN OPEN CHECKOUT LINK
-          </div>
-          {risks.staleSessions.map((r) => (
-            <div key={r.id} className="text-foreground/80">
-              {r.orderNumber} - {r.customerName} — the Stripe checkout page may still be payable (~24h); expire the session in Stripe if in doubt
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Stripe and payment backlog banners removed (separate register) */}
 
       {/* Metric Tiles Grid */}
       <MetricGrid cols={6}>
@@ -417,18 +272,7 @@ export default function TireOrdersSection() {
             className="flex-1"
           />
 
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground whitespace-nowrap">Payment:</span>
-            <select
-              value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value as any)}
-              className="bg-card border border-border/30 rounded px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/50"
-            >
-              <option value="all">All Payments</option>
-              <option value="paid">Paid</option>
-              <option value="unpaid">Unpaid</option>
-            </select>
-          </div>
+          {/* Payment filter dropdown removed */}
 
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-muted-foreground whitespace-nowrap">Confidence:</span>
@@ -449,12 +293,10 @@ export default function TireOrdersSection() {
         <FilterChips
           chips={[
             { label: "Status", value: activeTab, default: "all", onClear: () => setActiveTab("all") },
-            { label: "Payment", value: paymentFilter, default: "all", onClear: () => setPaymentFilter("all") },
             { label: "Confidence", value: confidenceFilter, default: "all", onClear: () => setConfidenceFilter("all") },
           ]}
           onClearAll={() => {
             setActiveTab("all");
-            setPaymentFilter("all");
             setConfidenceFilter("all");
           }}
         />
@@ -553,46 +395,28 @@ export default function TireOrdersSection() {
 
                       <div className="flex flex-col items-end gap-2">
                         <div className="flex items-center gap-2">
-                          {/* Payment status and Quick Action */}
-                          <div className="flex items-center gap-1.5">
-                            <span className={`px-2 py-0.5 text-xs font-bold border rounded ${
-                              order.paymentStatus === "paid"
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                            }`}>
-                              {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateOrderMutation.mutate({
-                                  id: order.id,
-                                  paymentStatus: order.paymentStatus === "paid" ? "unpaid" : "paid",
-                                });
-                              }}
-                              disabled={updateOrderMutation.isPending}
-                              className={`px-2 py-0.5 text-[10px] font-extrabold border rounded transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1 ${
-                                order.paymentStatus === "paid"
-                                  ? "bg-amber-500/20 hover:bg-amber-500/35 text-amber-400 border-amber-500/30"
-                                  : "bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-400 border-emerald-500/30"
-                              }`}
-                              title={order.paymentStatus === "paid" ? "Mark as Unpaid" : "Mark as Paid"}
-                            >
-                              {updateOrderMutation.isPending && updateOrderMutation.variables?.id === order.id ? (
-                                <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                              ) : order.paymentStatus === "paid" ? (
-                                <X className="w-2.5 h-2.5" />
-                              ) : (
-                                <Check className="w-2.5 h-2.5" />
-                              )}
-                              {order.paymentStatus === "paid" ? "Mark Unpaid" : "Mark Paid"}
-                            </button>
-                          </div>
-
                           {/* Lifecycle status */}
                           <span className="px-2 py-0.5 text-xs font-bold bg-foreground/5 border border-border/20 rounded text-foreground/75">
                             {order.statusLabel}
                           </span>
+
+                          {/* Quick Delete */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(order.id, order.orderNumber, order.customerName);
+                            }}
+                            disabled={deleteOrderMutation.isPending}
+                            className="px-2 py-0.5 text-[10px] font-extrabold border border-red-500/30 bg-red-500/10 hover:bg-red-500/25 text-red-400 rounded transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1"
+                            title="Delete Order"
+                          >
+                            {deleteOrderMutation.isPending && deleteOrderMutation.variables?.id === order.id ? (
+                              <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                            ) : (
+                              <X className="w-2.5 h-2.5" />
+                            )}
+                            Delete
+                          </button>
                         </div>
 
                         {/* Quote confidence */}
@@ -608,7 +432,10 @@ export default function TireOrdersSection() {
                   </div>
 
                   {/* Quick summary strip of Next Action */}
-                  <div className="border-t border-border/10 px-4 py-2 bg-foreground/[0.015] flex flex-wrap items-center justify-between gap-3">
+                  <div
+                    onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                    className="border-t border-border/10 px-4 py-2 bg-foreground/[0.015] flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-foreground/[0.03] transition-colors"
+                  >
                     <div className="flex items-center gap-2 text-sm">
                       <span className="font-semibold text-foreground/80">Next Action:</span>
                       <span className="text-primary font-extrabold">{nextAction.label}</span>
@@ -638,8 +465,6 @@ export default function TireOrdersSection() {
                         nextAction={nextAction}
                         flags={flags}
                         confidence={confidence}
-                        handleRefund={handleRefund}
-                        refundOrderMutation={refundOrderMutation}
                         handleDelete={handleDelete}
                         deleteOrderMutation={deleteOrderMutation}
                       />
@@ -672,8 +497,6 @@ function OrderFormEdit({
   nextAction,
   flags,
   confidence,
-  handleRefund,
-  refundOrderMutation,
   handleDelete,
   deleteOrderMutation
 }: {
@@ -682,13 +505,10 @@ function OrderFormEdit({
   nextAction: any;
   flags: string[];
   confidence: any;
-  handleRefund: (orderId: number, orderNumber: string, customerName: string, amount: number) => Promise<void>;
-  refundOrderMutation: any;
   handleDelete: (orderId: number, orderNumber: string, customerName: string) => Promise<void>;
   deleteOrderMutation: any;
 }) {
   const [status, setStatus] = useState<string>(order.status);
-  const [paymentStatus, setPaymentStatus] = useState<string>(order.paymentStatus);
   const [adminNotes, setAdminNotes] = useState<string>(order.adminNotes || "");
   const [gatewayOrderRef, setGatewayOrderRef] = useState<string>(order.gatewayOrderRef || "");
   const [expectedDelivery, setExpectedDelivery] = useState<string>(
@@ -698,22 +518,20 @@ function OrderFormEdit({
     order.installationDate ? new Date(order.installationDate).toISOString().substring(0, 16) : ""
   );
 
+  const statusRef = useRef<HTMLSelectElement>(null);
+  const gatewayRef = useRef<HTMLInputElement>(null);
+  const deliveryRef = useRef<HTMLInputElement>(null);
+  const installRef = useRef<HTMLInputElement>(null);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
   const timeline = getFulfillmentTimeline(order);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Cancel guard (ported from the retired Money tab, 2026-06-10):
-    // cancelling is the one transition with money consequences — a PAID
-    // order needs a manual Stripe refund (no refund API exists), and an
-    // unpaid order may still have a payable checkout link. Confirm
-    // in-DOM before saving; window.confirm is suppressed in the PWA.
     if (status === "cancelled" && order.status !== "cancelled") {
-      const paid = order.paymentStatus === "paid" || paymentStatus === "paid";
       const ok = await confirmDialog({
         title: "Cancel this order?",
-        message: paid
-          ? `Customer PAID $${Number(order.totalAmount).toFixed(2)} online. Cancelling does NOT refund them — refund manually in the Stripe dashboard (search ${order.orderNumber}).`
-          : `${order.orderNumber} — ${order.customerName}. If a checkout link was issued it may stay payable ~24h; expire it in Stripe if in doubt. This can be undone by setting a new status.`,
+        message: `Are you sure you want to cancel order ${order.orderNumber} for ${order.customerName}? This can be undone by setting a new status.`,
         confirmLabel: "Cancel order",
         tone: "danger",
       });
@@ -726,8 +544,37 @@ function OrderFormEdit({
       gatewayOrderRef: gatewayOrderRef || undefined,
       expectedDelivery: expectedDelivery || undefined,
       installationDate: installationDate || undefined,
-      paymentStatus: paymentStatus as any,
     });
+  };
+
+  const handleInstructionClick = () => {
+    switch (nextAction.action) {
+      case "confirm_availability":
+        statusRef.current?.focus();
+        break;
+      case "confirm_fitment":
+        notesRef.current?.focus();
+        break;
+      case "order_from_gateway":
+        gatewayRef.current?.focus();
+        break;
+      case "await_delivery":
+      case "track_package":
+        deliveryRef.current?.focus();
+        break;
+      case "schedule_install":
+      case "mark_ready_for_install":
+        installRef.current?.focus();
+        break;
+      case "verify_invoice":
+        notesRef.current?.focus();
+        break;
+      case "close_order":
+        statusRef.current?.focus();
+        break;
+      default:
+        break;
+    }
   };
 
   return (
@@ -745,13 +592,11 @@ function OrderFormEdit({
                     <span className="font-extrabold text-foreground">{f.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}</span>
                     <p className="text-xs font-medium text-muted-foreground/90 leading-relaxed">
                       {f === "uncommon_size" && "Tire size is not commonly stocked in local Cleveland bays."}
-                      {f === "unpaid_balance" && "Payment remains uncollected. Complete checkout or counter payment."}
                       {f === "missing_email" && "No customer email provided. Order confirmations can't be auto-sent."}
                       {f === "fitment_needs_confirmation" && "Verify customer vehicle fits tire size before ordering."}
                       {f === "missing_gateway_reference" && "Gateway PO reference is missing for order confirmation."}
                       {f === "manual_supplier_order_required" && "Operator action required: place order manually in Gateway portal."}
                       {f === "ready_for_install" && "Tires are delivered. Confirm appointment schedule with customer."}
-                      {f === "payment_pending" && "Installation done or scheduled but balance remains unpaid."}
                       {f === "invoice_pending" && "No invoice number linked to the Sheets ledger."}
                       {f === "unconfirmed_availability" && "Order request is unconfirmed with customer/supplier."}
                       {f === "high_quantity" && "Quantity exceeds standard 4-tire set capacity."}
@@ -823,10 +668,13 @@ function OrderFormEdit({
           }
         >
           <div className="space-y-3 mt-1">
-            <div className="bg-background/40 border border-border/30 rounded p-3 text-sm leading-relaxed space-y-2">
+            <div
+              onClick={handleInstructionClick}
+              className="bg-background/40 border border-border/30 rounded p-3 text-sm leading-relaxed space-y-2 cursor-pointer hover:bg-foreground/[0.02] active:scale-[0.99] transition-all"
+            >
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-foreground">Instruction:</span>
-                <span className="text-primary font-bold">{nextAction.staffInstruction}</span>
+                <span className="text-primary font-bold hover:underline">{nextAction.staffInstruction}</span>
               </div>
               <p className="text-xs font-semibold text-muted-foreground/90">
                 <span className="font-extrabold text-foreground/80">Context: </span>
@@ -850,6 +698,7 @@ function OrderFormEdit({
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Order Status</label>
               <select
+                ref={statusRef}
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 className="bg-background border border-border/40 rounded px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-primary/50"
@@ -865,23 +714,11 @@ function OrderFormEdit({
               </select>
             </div>
 
-            {/* Payment Status Selector */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Payment Status</label>
-              <select
-                value={paymentStatus}
-                onChange={(e) => setPaymentStatus(e.target.value)}
-                className="bg-background border border-border/40 rounded px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-primary/50"
-              >
-                <option value="unpaid">Unpaid</option>
-                <option value="paid">Paid</option>
-              </select>
-            </div>
-
             {/* Gateway PO reference */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Gateway PO / Order Ref</label>
               <input
+                ref={gatewayRef}
                 type="text"
                 value={gatewayOrderRef}
                 onChange={(e) => setGatewayOrderRef(e.target.value)}
@@ -894,6 +731,7 @@ function OrderFormEdit({
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Expected Supplier Delivery</label>
               <input
+                ref={deliveryRef}
                 type="datetime-local"
                 value={expectedDelivery}
                 onChange={(e) => setExpectedDelivery(e.target.value)}
@@ -902,9 +740,10 @@ function OrderFormEdit({
             </div>
 
             {/* Installation Date */}
-            <div className="flex flex-col gap-1.5 md:col-span-2">
+            <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Scheduled Installation Date</label>
               <input
+                ref={installRef}
                 type="datetime-local"
                 value={installationDate}
                 onChange={(e) => setInstallationDate(e.target.value)}
@@ -916,6 +755,7 @@ function OrderFormEdit({
             <div className="flex flex-col gap-1.5 md:col-span-2">
               <label className="text-xs font-bold text-foreground/85 tracking-wide uppercase">Admin Notes (internal only)</label>
               <textarea
+                ref={notesRef}
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
                 rows={3}
@@ -936,23 +776,12 @@ function OrderFormEdit({
               >
                 Delete Order
               </button>
-              {order.status === "cancelled" && order.paymentStatus === "paid" && (
-                <button
-                  type="button"
-                  onClick={() => handleRefund(order.id, order.orderNumber, order.customerName, order.totalAmount)}
-                  disabled={refundOrderMutation.isPending}
-                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-semibold transition-colors disabled:opacity-50"
-                >
-                  Issue Stripe Refund
-                </button>
-              )}
             </div>
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => {
                   setStatus(order.status);
-                  setPaymentStatus(order.paymentStatus);
                   setAdminNotes(order.adminNotes || "");
                   setGatewayOrderRef(order.gatewayOrderRef || "");
                   setExpectedDelivery(order.expectedDelivery ? new Date(order.expectedDelivery).toISOString().substring(0, 16) : "");

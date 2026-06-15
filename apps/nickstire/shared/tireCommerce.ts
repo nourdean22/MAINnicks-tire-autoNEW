@@ -121,10 +121,7 @@ export function getRiskFlags(order: TireOrderLike): TireRiskFlag[] {
     flags.push("missing_email");
   }
 
-  // 3. Unpaid balance
-  if (order.paymentStatus !== "paid") {
-    flags.push("unpaid_balance");
-  }
+  // 3. Unpaid balance (removed: payment is done via separate register)
 
   // 4. Unconfirmed availability
   if (order.status === "received") {
@@ -157,7 +154,7 @@ export function getRiskFlags(order: TireOrderLike): TireRiskFlag[] {
   }
 
   // 9. Ready for install
-  if (["delivered", "scheduled"].includes(order.status) && order.paymentStatus === "paid") {
+  if (["delivered", "scheduled"].includes(order.status)) {
     flags.push("ready_for_install");
   }
 
@@ -166,10 +163,7 @@ export function getRiskFlags(order: TireOrderLike): TireRiskFlag[] {
     flags.push("invoice_pending");
   }
 
-  // 11. Payment pending
-  if (order.paymentStatus !== "paid" && ["installed", "scheduled"].includes(order.status)) {
-    flags.push("payment_pending");
-  }
+  // 11. Payment pending (removed: payment is done via separate register)
 
   return flags;
 }
@@ -194,17 +188,6 @@ export function getNextAction(order: TireOrderLike): {
   const cleanSize = order.tireSize.replace(/[^0-9]/g, "");
   const isCommon = POPULAR_SIZES.includes(cleanSize);
   const flags = getRiskFlags(order);
-
-  // High urgency checks
-  if (order.status === "installed" && order.paymentStatus !== "paid") {
-    return {
-      action: "collect_payment",
-      priority: "urgent",
-      label: "Collect Payment",
-      reason: "Tires are installed but balance is unpaid.",
-      staffInstruction: "Process card/cash/financing at counter and update payment status.",
-    };
-  }
 
   if (order.status === "received") {
     if (flags.includes("fitment_needs_confirmation")) {
@@ -275,20 +258,11 @@ export function getNextAction(order: TireOrderLike): {
   }
 
   if (order.status === "scheduled") {
-    if (order.paymentStatus !== "paid") {
-      return {
-        action: "collect_payment",
-        priority: "high",
-        label: "Collect Pre-payment",
-        reason: "Appointment scheduled, payment pending.",
-        staffInstruction: "Collect payment via Stripe, call customer, or process at arrival.",
-      };
-    }
     return {
       action: "mark_ready_for_install",
       priority: "normal",
       label: "Mark Ready for Install",
-      reason: "Payment verified, appointment set.",
+      reason: "Appointment set.",
       staffInstruction: "Confirm bays are prepped and tires are set aside for the vehicle.",
     };
   }
@@ -307,7 +281,7 @@ export function getNextAction(order: TireOrderLike): {
       action: "close_order",
       priority: "low",
       label: "Close Order File",
-      reason: "Fulfillment complete and invoice paid.",
+      reason: "Fulfillment complete.",
       staffInstruction: "Reconcile Sheets and close out order folder.",
     };
   }

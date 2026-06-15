@@ -168,6 +168,7 @@ function MissionsPageInner() {
   const [addingDomain, setAddingDomain] = useState(false);
   const [newDomainInput, setNewDomainInput] = useState("");
   const [filterEditMode, setFilterEditMode] = useState(false);
+  const [isAddingTask, setIsAddingTask] = useState(false);
 
   // Custom domains hook
   const { customDomains, setCustomDomains } = useCustomDomains();
@@ -404,6 +405,8 @@ function MissionsPageInner() {
 
   const handleAddTask = useCallback(
     async ({ title, missionId }: { title: string; missionId: string }) => {
+      if (isAddingTask) return;
+      setIsAddingTask(true);
       try {
         telemetry.event("addTask", { missionId, source: "card" });
         await createTask.mutateAsync({
@@ -416,9 +419,11 @@ function MissionsPageInner() {
       } catch (err) {
         log.error("addTask_failed", { err });
         toast.error("Could not add task. Try again.");
+      } finally {
+        setIsAddingTask(false);
       }
     },
-    [createTask, refetchAll, telemetry],
+    [createTask, refetchAll, telemetry, isAddingTask],
   );
 
   const handleCompleteTask = useCallback(
@@ -654,6 +659,7 @@ function MissionsPageInner() {
   const [submitting, setSubmitting] = useState(false);
   const handleQuickAdd = useCallback(
     async (text: string) => {
+      if (submitting) return;
       setSubmitting(true);
       try {
         const isMissionRequest =
@@ -708,7 +714,7 @@ function MissionsPageInner() {
         setSubmitting(false);
       }
     },
-    [createTask, createMission, refetchAll, telemetry],
+    [createTask, createMission, refetchAll, telemetry, submitting],
   );
 
   // ── Loading ──
