@@ -5,6 +5,9 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { BUSINESS } from "@shared/business";
+import { OIL_PRICE, BRAKE_PRICE } from "@shared/pricing";
+
 const log = createLogger("content-gen");
 
 export type ContentType = "blog-post" | "instagram-caption" | "gbp-post" | "email-campaign" | "sms-blast" | "faq-answer" | "service-description" | "city-page-intro";
@@ -34,9 +37,9 @@ const BRAND_VOICE = `Nick's Tire & Auto brand voice:
 - Working-class respect — we treat every car like it's our own
 - Not salesy, not corporate, not fake
 - Confident without being arrogant
-- 1,700+ reviews at 4.9 stars — let the work speak for itself
-- Phone: (216) 862-0005 | Website: nickstire.org
-- Address: 17625 Euclid Ave, Euclid OH 44112`;
+- ${BUSINESS.reviews.countDisplay} reviews at ${BUSINESS.reviews.rating} stars — let the work speak for itself
+- Phone: ${BUSINESS.phone.display} | Website: ${BUSINESS.urls.website.replace("https://", "")}
+- Address: ${BUSINESS.address.full}`;
 
 const TYPE_SPECS: Record<ContentType, { maxWords: number; format: string }> = {
   "blog-post": { maxWords: 800, format: "600-800 words with H2 subheadings. SEO-friendly. Internal links to /tires, /brakes, /oil-change, /diagnostics." },
@@ -55,7 +58,7 @@ const TYPE_SPECS: Record<ContentType, { maxWords: number; format: string }> = {
  */
 export function buildContentPrompt(request: ContentRequest): string {
   const spec = TYPE_SPECS[request.type];
-  const cta = request.includeCTA ? "\nInclude CTA: Call (216) 862-0005 or book at nickstire.org" : "";
+  const cta = request.includeCTA ? `\nInclude CTA: Call ${BUSINESS.phone.display} or book at ${BUSINESS.urls.website.replace("https://", "")}` : "";
   const keywords = request.includeKeywords?.length ? `\nTarget keywords: ${request.includeKeywords.join(", ")}` : "";
 
   return `${BRAND_VOICE}
@@ -77,18 +80,18 @@ export function generateStaticContent(request: ContentRequest): ContentOutput | 
     const topic = request.topic.toLowerCase();
     if (topic.includes("oil change")) {
       // keep in sync with OIL_PRICE
-      return { content: `Oil change special at Nick's! Conventional $49, synthetic $80. Walk-ins welcome. (216) 862-0005. Reply STOP to opt out` };
+      return { content: `Oil change special at Nick's! Conventional $${OIL_PRICE.conventional}, synthetic $${OIL_PRICE.fullSynthetic}. Walk-ins welcome. ${BUSINESS.phone.display}. Reply STOP to opt out` };
     }
     if (topic.includes("brake")) {
-      return { content: `Brakes squealing? Free inspection at Nick's Tire & Auto. Pads from $89. (216) 862-0005. Reply STOP to opt out` };
+      return { content: `Brakes squealing? Free inspection at Nick's Tire & Auto. Pads from $${BRAKE_PRICE.padsStarting}. ${BUSINESS.phone.display}. Reply STOP to opt out` };
     }
     if (topic.includes("tire")) {
-      return { content: `New & used tires from $60 at Nick's. Free mounting & balancing. Walk-ins 7 days. (216) 862-0005. Reply STOP to opt out` };
+      return { content: `New tires ${BUSINESS.newTires.priceDisplay}. Used tires ${BUSINESS.usedTires.priceDisplay} (${BUSINESS.usedTires.typicalBand}). Walk-ins 7 days. ${BUSINESS.phone.display}. Reply STOP to opt out` };
     }
   }
 
   if (request.type === "faq-answer") {
-    return { content: `For ${request.topic}, call us at (216) 862-0005 or visit nickstire.org. Walk-ins welcome Mon-Sat 8-6, Sun 9-4. Free estimates on all services.` };
+    return { content: `For ${request.topic}, call us at ${BUSINESS.phone.display} or visit ${BUSINESS.urls.website.replace("https://", "")}. Walk-ins welcome ${BUSINESS.hours.shortDisplay}. Free estimates on all services.` };
   }
 
   return null; // Need AI for this content type
