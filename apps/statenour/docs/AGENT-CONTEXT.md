@@ -1,7 +1,7 @@
 # AGENT-CONTEXT.md — Statenour OS (NOUR OS)
 > Quick-load context for Antigravity and any AI agent working on `apps/statenour/`.
 > For full context, read `AGENTS.md` in this directory. For one-screen reality check,
-> read `docs/CURRENT-TRUTH.md`. For monorepo rules, read root `AGENT-OPERATING-PROFILE.md` and the [CIITTY framework](file:///c:/Users/nourd/.gemini/config/skills/ciitty/SKILL.md).
+> read `docs/CURRENT-TRUTH.md`. For monorepo rules, read root `AGENT-OPERATING-PROFILE.md` and the [CIITTY framework](.agents/frameworks/ciitty/SKILL.md).
 >
 > Last verified: 2026-06-10 · Post chat-error closeout + Journey Engine wave
 

@@ -17,7 +17,7 @@ Two apps share this repo: `apps/statenour` (Railway → bdnick.info) and `apps/n
 
 ## Guidelines & Operating Frameworks
 
-- **CIITTY Framework**: Always apply the custom `ciitty` operating framework (defined in the [ciitty skill](file:///C:/Users/nourd/.gemini/config/skills/ciitty/SKILL.md)). Read and follow its rules for deep reasoning, Visual Kinetics UI/UX design aesthetics, resilient database engineering (Prisma, Neon, parameterized queries), and PowerShell command reliability on Windows.
+- **CIITTY Framework**: Always apply the custom `ciitty` operating framework (defined in the [ciitty skill](.agents/frameworks/ciitty/SKILL.md)). Read and follow its rules for deep reasoning, Visual Kinetics UI/UX design aesthetics, resilient database engineering (Prisma, Neon, parameterized queries), and PowerShell command reliability on Windows.
 
 ## Context routing
 

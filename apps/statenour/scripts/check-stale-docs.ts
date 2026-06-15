@@ -159,6 +159,62 @@ function collectMarkdown(dir: string, acc: string[]): void {
   }
 }
 
+function checkDateSynchronization(cwd: string): Finding[] {
+  const findings: Finding[] = [];
+  const agentsPath = path.join(cwd, "AGENTS.md");
+  const reconPath = path.join(cwd, "docs/RECONCILIATION.md");
+
+  if (!fs.existsSync(agentsPath) || !fs.existsSync(reconPath)) {
+    return [];
+  }
+
+  const agentsContent = fs.readFileSync(agentsPath, "utf8");
+  const reconContent = fs.readFileSync(reconPath, "utf8");
+
+  const agentsMatch = /Last refreshed:(?:\*\*|\s)*(\d{4}-\d{2}-\d{2})/i.exec(agentsContent);
+  const reconMatch = /Last verified:(?:\*\*|\s)*(\d{4}-\d{2}-\d{2})/i.exec(reconContent);
+
+  if (!agentsMatch) {
+    findings.push({
+      file: "AGENTS.md",
+      line: 1,
+      term: "Last refreshed",
+      severity: "warn",
+      recommendation: "Please add a 'Last refreshed: YYYY-MM-DD' stamp to AGENTS.md.",
+      text: "Could not find last refreshed date stamp in AGENTS.md",
+    });
+  }
+
+  if (!reconMatch) {
+    findings.push({
+      file: "docs/RECONCILIATION.md",
+      line: 1,
+      term: "Last verified",
+      severity: "warn",
+      recommendation: "Please add a 'Last verified: YYYY-MM-DD' stamp to docs/RECONCILIATION.md.",
+      text: "Could not find last verified date stamp in docs/RECONCILIATION.md",
+    });
+  }
+
+  if (agentsMatch && reconMatch) {
+    const agentsDate = agentsMatch[1];
+    const reconDate = reconMatch[1];
+
+    if (agentsDate !== reconDate) {
+      findings.push({
+        file: "AGENTS.md",
+        line: 1,
+        term: "Date mismatch",
+        severity: "critical",
+        recommendation: `Update AGENTS.md Last refreshed date (${agentsDate}) to match docs/RECONCILIATION.md Last verified date (${reconDate}).`,
+        text: `AGENTS.md last refreshed date (${agentsDate}) does not match docs/RECONCILIATION.md last verified date (${reconDate}).`,
+      });
+    }
+  }
+
+  return findings;
+}
+
 function main(): void {
   const cwd = process.cwd();
   const strict = process.env.STALE_DOCS_STRICT === "1";
@@ -192,6 +248,9 @@ function main(): void {
     const content = fs.readFileSync(file, "utf8");
     all.push(...scanContent(rel, content));
   }
+
+  // Check date synchronization between AGENTS.md and docs/RECONCILIATION.md
+  all.push(...checkDateSynchronization(cwd));
 
   const criticals = all.filter((f) => f.severity === "critical");
   const warns = all.filter((f) => f.severity === "warn");

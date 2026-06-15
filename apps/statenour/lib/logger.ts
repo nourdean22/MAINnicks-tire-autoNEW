@@ -27,7 +27,13 @@ const SENSITIVE_KEYS = new Set([
 ]);
 
 function redactSensitive(obj: unknown, depth = 0): unknown {
-  if (depth > 3 || obj === null || obj === undefined) return obj;
+  if (obj === null || obj === undefined) return obj;
+  if (depth > 3) {
+    if (typeof obj === "object") {
+      return "[REDACTED_SUBTREE]";
+    }
+    return obj;
+  }
   if (typeof obj === "string") return obj;
   if (Array.isArray(obj)) return obj.map((v) => redactSensitive(v, depth + 1));
   if (typeof obj === "object") {
