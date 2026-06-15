@@ -49,7 +49,7 @@ export function createSpecialPost(special: { title: string; description: string;
     type: "offer",
     text: text.slice(0, 1500),
     callToAction: "BOOK",
-    ctaUrl: gbpUrl("https://nickstire.org/booking", "special"),
+    ctaUrl: gbpUrl(`${BUSINESS.urls.website}/booking`, "special"),
     status: "draft",
     createdAt: new Date(),
   };
@@ -57,13 +57,13 @@ export function createSpecialPost(special: { title: string; description: string;
 
 /** Create a GBP post from blog content */
 export function createBlogPost(blog: { title: string; excerpt: string; slug: string }): GBPPost {
-  const text = `📝 New on our blog: ${blog.title}\n\n${blog.excerpt}\n\nRead more at nickstire.org/blog/${blog.slug}`;
+  const text = `📝 New on our blog: ${blog.title}\n\n${blog.excerpt}\n\nRead more at ${BUSINESS.urls.website.replace("https://", "")}/blog/${blog.slug}`;
   return {
     id: randomUUID(),
     type: "update",
     text: text.slice(0, 1500),
     callToAction: "LEARN_MORE",
-    ctaUrl: gbpUrl(`https://nickstire.org/blog/${blog.slug}`, "blog"),
+    ctaUrl: gbpUrl(`${BUSINESS.urls.website}/blog/${blog.slug}`, "blog"),
     status: "draft",
     createdAt: new Date(),
   };
@@ -72,13 +72,13 @@ export function createBlogPost(blog: { title: string; excerpt: string; slug: str
 /** Create a seasonal GBP post */
 export function createSeasonalPost(season: { title: string; services: string[]; promoIdea: string }): GBPPost {
   const serviceList = season.services.slice(0, 3).join(", ");
-  const text = `${season.title}\n\n${season.promoIdea}\n\nTop services this month: ${serviceList}\n\n📍 Walk-ins welcome 7 days a week\n📞 (216) 862-0005`;
+  const text = `${season.title}\n\n${season.promoIdea}\n\nTop services this month: ${serviceList}\n\n📍 Walk-ins welcome 7 days a week\n📞 ${BUSINESS.phone.display}`;
   return {
     id: randomUUID(),
     type: "update",
     text: text.slice(0, 1500),
     callToAction: "CALL",
-    ctaUrl: "tel:2168620005",
+    ctaUrl: BUSINESS.phone.href,
     status: "draft",
     createdAt: new Date(),
   };
