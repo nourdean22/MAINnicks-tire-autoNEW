@@ -12,6 +12,8 @@ const APP_ROOT = process.cwd(); // statenour-os app root
 const LOCAL_PRIORITY_FILES = [
   // Tier 0: Comprehensive dossier (697 lines, synthesized from all archives)
   { path: "lib/ai/nour-knowledge-base.md", maxLen: 6000, tier: 0 },
+  // Tier 1: Operator Biography & Context Backfill (distilled from historical chat/notes logs)
+  { path: "docs/OPERATOR-BIOGRAPHY.md", maxLen: 8000, tier: 1 },
 ];
 
 /**
