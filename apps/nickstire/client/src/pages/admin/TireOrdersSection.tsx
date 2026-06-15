@@ -517,6 +517,45 @@ function OrderFormEdit({
   const [installationDate, setInstallationDate] = useState<string>(
     order.installationDate ? new Date(order.installationDate).toISOString().substring(0, 16) : ""
   );
+  const [refundReason, setRefundReason] = useState("");
+
+  const utils = trpc.useUtils();
+  const refundOrderMutation = trpc.gatewayTire.refundOrder.useMutation({
+    onSuccess: (res) => {
+      if (res.success) {
+        toast.success(`Refund processed successfully: ${res.refundId}`);
+        utils.gatewayTire.listOrders.invalidate();
+        utils.gatewayTire.orderStats.invalidate();
+        setRefundReason("");
+      } else {
+        toast.error(`Refund failed: ${res.error || "Unknown error"}`);
+      }
+    },
+    onError: (err) => {
+      toast.error(`Refund failed: ${err.message}`);
+    },
+  });
+
+  const handleRefund = async () => {
+    if (!refundReason.trim()) {
+      toast.error("Refund reason is required.");
+      return;
+    }
+
+    const ok = await confirmDialog({
+      title: "Refund Tire Order?",
+      message: `Are you sure you want to issue a full refund of $${order.totalAmount.toFixed(2)} for order ${order.orderNumber} (${order.customerName})? This will return the payment via Stripe.`,
+      confirmLabel: "Confirm Refund",
+      tone: "danger",
+    });
+
+    if (!ok) return;
+
+    refundOrderMutation.mutate({
+      orderId: order.id,
+      reason: refundReason.trim(),
+    });
+  };
 
   const statusRef = useRef<HTMLSelectElement>(null);
   const gatewayRef = useRef<HTMLInputElement>(null);
@@ -763,6 +802,50 @@ function OrderFormEdit({
                 className="bg-background border border-border/40 rounded px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-primary/50 resize-none placeholder:text-foreground/20"
               />
             </div>
+
+            {/* Refund Options / Status Banners */}
+            {order.paymentStatus === "paid" && (
+              <div className="flex flex-col gap-2.5 p-3.5 bg-red-500/[0.02] border border-red-500/15 rounded-lg md:col-span-2 shadow-[0_1px_3px_rgba(239,68,68,0.02)]">
+                <h5 className="text-xs font-black uppercase tracking-wider text-red-400 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4" />
+                  Online Stripe Payment Refund
+                </h5>
+                <p className="text-xs font-medium text-muted-foreground/90 leading-relaxed">
+                  This order has been paid online. If the order is cancelled or customer needs their money back, you can issue a full refund directly to the original card.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 mt-1 items-stretch sm:items-end">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[10px] font-black text-foreground/75 tracking-wider uppercase">Refund Reason (required)</label>
+                    <input
+                      type="text"
+                      value={refundReason}
+                      onChange={(e) => setRefundReason(e.target.value)}
+                      placeholder="e.g. Customer cancelled / duplicate order / size unavailable"
+                      className="bg-background border border-border/40 rounded px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-red-500/40 placeholder:text-foreground/20"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRefund}
+                    disabled={refundOrderMutation.isPending || !refundReason.trim()}
+                    className="shrink-0 px-5 py-2 bg-red-500 text-white rounded text-xs font-bold hover:bg-red-600 transition-colors disabled:opacity-40 select-none active:scale-[0.98] flex items-center justify-center gap-1.5"
+                  >
+                    {refundOrderMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Refund Order
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {order.paymentStatus === "refunded" && (
+              <div className="flex items-center gap-3 p-3.5 bg-emerald-500/[0.02] border border-emerald-500/15 rounded-lg md:col-span-2 text-emerald-400 shadow-[0_1px_3px_rgba(16,185,129,0.02)]">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <div className="text-xs font-medium">
+                  <span className="font-extrabold block text-foreground">Order Refunded</span>
+                  <span className="text-muted-foreground/85 block mt-0.5">Stripe payment has been returned, and status has been written back to the invoice database.</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Form Actions */}
