@@ -43,9 +43,7 @@ export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: nu
           sql`${invoices.serviceDescription} NOT LIKE '%rotate%'`,
           sql`${invoices.serviceDescription} NOT LIKE '%flat%'`,
           sql`${invoices.serviceDescription} NOT LIKE '%patch%'`,
-          sql`${invoices.serviceDescription} NOT LIKE '%plug%'`,
-          sql`${invoices.serviceDescription} NOT LIKE '%balance%'`,
-          sql`${invoices.serviceDescription} NOT LIKE '%mount%'`
+          sql`${invoices.serviceDescription} NOT LIKE '%plug%'`
         )
       );
     for (const r of invoiceRows) {
@@ -84,8 +82,6 @@ export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: nu
           sql`${serviceHistory.serviceType} NOT LIKE '%flat%'`,
           sql`${serviceHistory.serviceType} NOT LIKE '%patch%'`,
           sql`${serviceHistory.serviceType} NOT LIKE '%plug%'`,
-          sql`${serviceHistory.serviceType} NOT LIKE '%balance%'`,
-          sql`${serviceHistory.serviceType} NOT LIKE '%mount%'`,
           sql`(${serviceHistory.description} IS NULL OR (
             ${serviceHistory.description} NOT LIKE '%repair%'
             AND ${serviceHistory.description} NOT LIKE '%rotation%'
@@ -93,8 +89,6 @@ export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: nu
             AND ${serviceHistory.description} NOT LIKE '%flat%'
             AND ${serviceHistory.description} NOT LIKE '%patch%'
             AND ${serviceHistory.description} NOT LIKE '%plug%'
-            AND ${serviceHistory.description} NOT LIKE '%balance%'
-            AND ${serviceHistory.description} NOT LIKE '%mount%'
           ))`
         )
       );
@@ -281,8 +275,6 @@ function buildSegmentFilter(segment: string) {
             AND invoices.serviceDescription NOT LIKE '%flat%'
             AND invoices.serviceDescription NOT LIKE '%patch%'
             AND invoices.serviceDescription NOT LIKE '%plug%'
-            AND invoices.serviceDescription NOT LIKE '%balance%'
-            AND invoices.serviceDescription NOT LIKE '%mount%'
         ) OR EXISTS (
           SELECT 1 FROM tire_orders 
           WHERE tire_orders.customerId = ${customers.id} 
@@ -297,8 +289,6 @@ function buildSegmentFilter(segment: string) {
             AND service_history.serviceType NOT LIKE '%flat%'
             AND service_history.serviceType NOT LIKE '%patch%'
             AND service_history.serviceType NOT LIKE '%plug%'
-            AND service_history.serviceType NOT LIKE '%balance%'
-            AND service_history.serviceType NOT LIKE '%mount%'
             AND (service_history.description IS NULL OR (
               service_history.description NOT LIKE '%repair%'
               AND service_history.description NOT LIKE '%rotation%'
@@ -306,8 +296,6 @@ function buildSegmentFilter(segment: string) {
               AND service_history.description NOT LIKE '%flat%'
               AND service_history.description NOT LIKE '%patch%'
               AND service_history.description NOT LIKE '%plug%'
-              AND service_history.description NOT LIKE '%balance%'
-              AND service_history.description NOT LIKE '%mount%'
             ))
         )`
       )!;
