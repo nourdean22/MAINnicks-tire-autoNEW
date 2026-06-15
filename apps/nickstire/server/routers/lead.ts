@@ -254,7 +254,7 @@ export const leadRouter = router({
 
       // Send SMS: financing pre-approval gets a special message
       if (input.source === "financing_preapproval") {
-        const financingSms = `$10 down and a soft check (no credit-score ding) at Nick's Tire & Auto — Acima, Snap, Koalafi, American First. Walk in any day, bring your ID. (216) 862-0005`;
+        const financingSms = `$10 down and a soft check (no credit-score ding) at Nick's Tire \u0026 Auto — Acima, Snap, Koalafi, American First. Walk in any day, bring your ID. ${BUSINESS.phone.display}`;
         withRetry(
           // Wave-108: financing preapproval via shop gateway (transactional)
           () => sendSms(input.phone, financingSms, { via: "shop" }),
@@ -316,7 +316,7 @@ export const leadRouter = router({
       };
       } catch (err) {
         log.error("[Lead] Submit failed:", err);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "We couldn't save your information. Please call us at (216) 862-0005." });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `We couldn't save your information. Please call us at ${BUSINESS.phone.display}.` });
       }
     }),
 
@@ -472,7 +472,7 @@ Rules:
 - Include a rough price range if the service is identifiable
 - Keep it under 150 words for SMS, or 200 words for call script
 - Tone: warm, knowledgeable, not salesy
-- Always include: (216) 862-0005
+- Always include: ${BUSINESS.phone.display}
 - Business hours: Mon-Sat 8am-6pm
 - End with a clear next step`,
           },

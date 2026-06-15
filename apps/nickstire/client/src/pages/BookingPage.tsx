@@ -20,8 +20,8 @@ export default function BookingPage() {
   return (
     <PageLayout activeHref="/booking">
       <SEOHead
-        title="Drop Off · No Appointments · Nick's Tire & Auto Cleveland"
-        description="No appointments at Nick's Tire & Auto. We work first come first served. Pull up at 17625 Euclid Ave. Drop off if you can't wait — we text when ready."
+        title="Drop-Off Cleveland · No Appointment, No Reservation | Nick's Tire & Auto"
+        description="Drop your car off at Nick's on Euclid Ave any day we're open. First-come-first-served. A master tech calls back within 15 min with a written estimate. (216) 862-0005"
         canonicalPath="/booking"
       />
 

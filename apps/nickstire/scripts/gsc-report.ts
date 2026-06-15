@@ -21,8 +21,8 @@ async function main(): Promise<void> {
     }
   }
 
-  // GSC data lags ~2 days; end the window there and span N days back.
-  const end = new Date(Date.now() - 2 * 86400000);
+  // GSC data lags ~1 day; end the window there and span N days back.
+  const end = new Date(Date.now() - 1 * 86400000);
   const start = new Date(end.getTime() - days * 86400000);
   const range = {
     startDate: start.toISOString().slice(0, 10),

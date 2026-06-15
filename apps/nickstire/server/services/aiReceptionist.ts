@@ -5,12 +5,13 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { BUSINESS } from "@shared/business";
 
 const log = createLogger("ai-receptionist");
 
-const STORE_PHONE = "(216) 862-0005";
-const STORE_ADDRESS = "17625 Euclid Ave, Euclid, Ohio 44112";
-const HOURS = "Monday through Saturday 8 AM to 6 PM, and Sunday 9 AM to 4 PM";
+const STORE_PHONE = BUSINESS.phone.display;
+const STORE_ADDRESS = BUSINESS.address.full;
+const HOURS = BUSINESS.hours.fullDisplay;
 
 interface VoiceIntent {
   intent: "hours" | "appointment" | "pricing" | "location" | "status" | "transfer";
@@ -53,7 +54,7 @@ export function classifyVoiceIntent(speech: string): VoiceIntent {
     return {
       intent: "pricing",
       // oil price: keep in sync with OIL_PRICE
-      message: "Our pricing depends on the service and vehicle. Oil changes start at $49, brake pads from $89, and used tires from $60. For an exact quote, visit nickstire dot org or call us during business hours at 216-862-0005.",
+      message: `Our pricing depends on the service and vehicle. Oil changes start at $49, brake pads from $89, and ${BUSINESS.usedTires.explanation}. For an exact quote, visit nickstire dot org or call us during business hours at ${BUSINESS.phone.dashed}.`,
     };
   }
 
@@ -61,14 +62,14 @@ export function classifyVoiceIntent(speech: string): VoiceIntent {
   if (/status|my car|ready|pick up|done|finished/i.test(lower)) {
     return {
       intent: "status",
-      message: "I can't check vehicle status after hours, but you can call us during business hours at 216-862-0005 and we'll give you an update right away.",
+      message: `I can't check vehicle status after hours, but you can call us during business hours at ${BUSINESS.phone.dashed} and we'll give you an update right away.`,
     };
   }
 
   // Default: transfer intent
   return {
     intent: "transfer",
-    message: "I'd like to connect you with our team so they can help you directly. Please call us during business hours at 216-862-0005, or leave your name and number and we'll call you first thing.",
+    message: `I'd like to connect you with our team so they can help you directly. Please call us during business hours at ${BUSINESS.phone.dashed}, or leave your name and number and we'll call you first thing.`,
   };
 }
 
@@ -85,7 +86,7 @@ export function generateGreetingTwiML(): string {
   <Say voice="Polly.Matthew">I didn't catch that. Please tell me what you need, or press 0 to leave a message.</Say>
   <Gather input="speech dtmf" timeout="5" action="/api/v1/webhooks/voice/process" method="POST">
   </Gather>
-  <Say voice="Polly.Matthew">Thank you for calling. Please call us during business hours at 216-862-0005. Have a great day!</Say>
+  <Say voice="Polly.Matthew">Thank you for calling. Please call us during business hours at ${BUSINESS.phone.dashed}. Have a great day!</Say>
 </Response>`;
 }
 

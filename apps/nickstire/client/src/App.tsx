@@ -119,6 +119,12 @@ const MoesTireBridgePage = lazy(() => import("./pages/MoesTireBridgePage"));
 // Sunday muffler/exhaust niche capture (GSC-driven, May 2026)
 const SundayMufflerPage = lazy(() => import("./pages/SundayMufflerPage"));
 
+const Warranties = lazy(() => import("./pages/Warranties"));
+const TireRebates = lazy(() => import("./pages/TireRebates"));
+const TireStorage = lazy(() => import("./pages/TireStorage"));
+const Wheels = lazy(() => import("./pages/Wheels"));
+const HybridEvRepair = lazy(() => import("./pages/HybridEvRepair"));
+
 // 2026-05-06 wave-33 · Competitor comparison pages (high-intent
 // SEO capture for "[chain] alternative" + "vs" + roundup searches).
 // Honest comparisons in brand voice; FAQPage + LocalBusiness schema
@@ -231,6 +237,11 @@ function Router() {
             <Route path={"/starter-alternator"} component={GenericServicePage} />
             <Route path={"/alignment"} component={AlignmentPage} />
             <Route path={"/synthetic-oil-change"} component={SyntheticOilChangePage} />
+            <Route path={"/warranties"} component={Warranties} />
+            <Route path={"/tire-rebates"} component={TireRebates} />
+            <Route path={"/tire-storage"} component={TireStorage} />
+            <Route path={"/wheels"} component={Wheels} />
+            <Route path={"/hybrid-ev-repair"} component={HybridEvRepair} />
             {/* Booking / Appointment */}
             <Route path={"/appointment"} component={BookingPage} />
             <Route path={"/booking"} component={BookingPage} />
