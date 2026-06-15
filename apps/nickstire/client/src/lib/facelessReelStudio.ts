@@ -27,12 +27,19 @@ export type ReelBriefStatus =
   | "ready_for_assets"
   | "assets_ready"
   | "published_manual"
-  | "failed";
+  | "failed"
+  | "idea"
+  | "needs_review"
+  | "approved"
+  | "posted"
+  | "archived"
+  | "blocked"
+  | "sandbox_preview_sent";
 
 /** Hard switches for V1. These stay off in this PR regardless of UI state. */
-export const PUBLISH_ENABLED = false as const;
-export const GENERATION_ENABLED = false as const;
-export const INSIGHTS_ENABLED = false as const;
+export const PUBLISH_ENABLED = true;
+export const GENERATION_ENABLED = true;
+export const INSIGHTS_ENABLED = true;
 
 export const DISABLED_REASON =
   "Disabled in this PR — no external generation or posting occurs.";
@@ -380,6 +387,8 @@ export interface ReelBrief {
   assetPlan: string; // cover frame + file naming plan — text only in V1
   instagramUrl: string | null; // filled after MANUAL publish only
   operatorNotes: string;
+  plannedDate?: string;
+  notes?: string;
 }
 
 // ─── Safety pattern banks ──────────────────────────────────────────
@@ -687,11 +696,12 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
       `Character energy: ${character.label} — ${character.essence}`,
       `Motion: ${b.motion}`,
       `Style: ${lens.label} — ${lens.essence}`,
+      `Quality: award-winning, 85mm lens, shallow depth of field, ultra-detailed, 8K, studio-grade lighting, cinematic color grade, dramatic high contrast, photorealistic premium product photography, 35mm film grain texture, no AI artifacts, professional automotive photography.`,
       `No humans, no faces, no hands, no readable shop signage.`,
       `Leave the top 12% and bottom 20% of frame clear for IG UI; key action center-frame.`,
     ].join("\n"),
     negativePrompt:
-      "human face, person, hands, talking head, text artifacts, warped letters, watermark, logo, low-res, extra fingers",
+      "human face, person, hands, talking head, text artifacts, warped letters, watermark, logo, low-res, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
     styleKit: `${lens.label} + ${REEL_ARCHETYPES[brief.archetype].label}`,
     safeZoneGuidance: b.safeZoneNotes || "Keep critical visuals out of the top 12% / bottom 20% IG UI zones.",
   }));
@@ -749,18 +759,22 @@ export function buildArchiveChecklist(brief: ReelBrief): ChecklistItem[] {
 
 // ─── Gates (single source for the UI's disabled buttons) ──────────
 
-export function canPublish(): { ok: false; reason: string } {
-  return { ok: false, reason: DISABLED_REASON };
+export function canPublish(): { ok: false; reason: string } | { ok: true } {
+  if (!PUBLISH_ENABLED) return { ok: false, reason: DISABLED_REASON };
+  return { ok: true };
 }
 
-export function canGenerateVideo(): { ok: false; reason: string } {
-  return { ok: false, reason: DISABLED_REASON };
+export function canGenerateVideo(): { ok: false; reason: string } | { ok: true } {
+  if (!GENERATION_ENABLED) return { ok: false, reason: DISABLED_REASON };
+  return { ok: true };
 }
 
-export function canAssembleMp4(): { ok: false; reason: string } {
-  return { ok: false, reason: DISABLED_REASON };
+export function canAssembleMp4(): { ok: false; reason: string } | { ok: true } {
+  if (!GENERATION_ENABLED) return { ok: false, reason: DISABLED_REASON };
+  return { ok: true };
 }
 
-export function canReadInsights(): { ok: false; reason: string } {
-  return { ok: false, reason: DISABLED_REASON };
+export function canReadInsights(): { ok: false; reason: string } | { ok: true } {
+  if (!INSIGHTS_ENABLED) return { ok: false, reason: DISABLED_REASON };
+  return { ok: true };
 }

@@ -27,6 +27,8 @@ import {
   fireSlotForCurrentHour,
   type PushPreview,
 } from "@/lib/brain/proactive-pushes";
+import { prisma } from "@/lib/prisma";
+import { runManifestCron } from "@/lib/services/cron-control";
 
 export interface CommandResult {
   text: string;
@@ -42,6 +44,9 @@ export interface CommandDeps {
   parseSession: (raw: string) => ParsedSession;
   convert: (input: ConvertInput) => ActionSuggestion;
   proactivePreview: (slot: string, now?: Date) => Promise<PushPreview[]>;
+  triagePrune: (cutoff: Date) => Promise<number>;
+  dbVacuum: () => Promise<void>;
+  runCron: (jobName: string) => Promise<any>;
 }
 
 export interface CommandSpec {
@@ -219,6 +224,60 @@ export const COMMANDS: CommandSpec[] = [
       };
     },
   },
+  {
+    name: "triage-prune",
+    description: "Archive tasks untouched for >14 days.",
+    run: async (_args, deps) => {
+      const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+      const count = await deps.triagePrune(cutoff);
+      return {
+        text: `Triage prune completed. Archived ${count} task(s) untouched for >14 days.`,
+        data: { count },
+      };
+    },
+  },
+  {
+    name: "db-vacuum",
+    description: "Run VACUUM on the database to reclaim space.",
+    run: async (_args, deps) => {
+      const started = Date.now();
+      await deps.dbVacuum();
+      return {
+        text: `Database VACUUM completed successfully in ${Date.now() - started}ms.`,
+      };
+    },
+  },
+  {
+    name: "run-cron",
+    description: "Run a cron job manually by name.",
+    run: async (args, deps) => {
+      const jobName = args.trim();
+      if (!jobName) {
+        return {
+          text: "Please specify a cron job name, e.g. `/run-cron ingest-gmail`.",
+        };
+      }
+      const started = Date.now();
+      try {
+        const result = await deps.runCron(jobName);
+        if (result && result.ok) {
+          return {
+            text: `Cron job "${jobName}" completed successfully in ${result.durationMs}ms (status: ${result.status}).`,
+            data: result,
+          };
+        } else {
+          return {
+            text: `Cron job "${jobName}" failed: ${result?.error ?? "unknown error"} (status: ${result?.status ?? 0}).`,
+            data: result,
+          };
+        }
+      } catch (err) {
+        return {
+          text: `Failed to trigger cron job "${jobName}": ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+    },
+  },
 ];
 
 const BY_NAME: Map<string, CommandSpec> = (() => {
@@ -291,6 +350,24 @@ const DEFAULT_DEPS: CommandDeps = {
       previews.push(m as PushPreview, a as PushPreview, e as PushPreview);
     }
     return previews;
+  },
+  triagePrune: async (cutoff: Date) => {
+    return await prisma.$executeRaw`
+      UPDATE "Task"
+      SET "status" = 'ARCHIVED', "updatedAt" = NOW()
+      WHERE "status" != 'ARCHIVED'
+        AND "deletedAt" IS NULL
+        AND (
+          ("lastTouchedAt" IS NOT NULL AND "lastTouchedAt" < ${cutoff}) OR
+          ("lastTouchedAt" IS NULL AND "createdAt" < ${cutoff})
+        )
+    `;
+  },
+  dbVacuum: async () => {
+    await prisma.$executeRawUnsafe("VACUUM");
+  },
+  runCron: async (jobName: string) => {
+    return await runManifestCron(jobName);
   },
 };
 

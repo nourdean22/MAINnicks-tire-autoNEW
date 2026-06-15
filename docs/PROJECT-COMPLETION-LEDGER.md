@@ -39,6 +39,7 @@ DANGEROUS_DO_NOT_AUTOMATE_YET
 | Google Reviews API / Place ID reliability | PARTIAL (surface live, prod read pending) | `localGrowth.reviewsHealth` (#50) + Growth tab card (#53) report key-presence + live-reachability + fallback honestly | Health card live / nobody has READ it against prod yet | low | open Admin → Growth → Local Growth on the deployed site — the card answers this row | — | 1-min check |
 | Building Blue redesign | UNKNOWN_NEEDS_VERIFICATION | No branch/doc named "Building Blue" found in repo | Unclear what this refers to / definition | ? | owner: define or drop the item | no | yes |
 | Repo/runtime/CI/governance hardening | PARTIAL | `.github/workflows` (affected build, used by PR CI), husky pre-commit/pre-push chains, PROTECTED-CORE.md | Strong local gates + CI / coverage excludes money-path files; STRIPE_WEBHOOK_SECRET not in env-validate required keys | med | add env-validate warn + coverage include (separate PR) | yes | no |
+| Vitest test suite greenup | DONE_MERGED | PR #69 (`43e420c9`) | Fixes all 8 pre-existing test failures on main due to error wrapping / matcher serialization quirks | low | — | — | no |
 | Credential rotation | MANUAL_OWNER_TASK | [CREDENTIAL_ROTATION.md](file:///C:/Users/nourd/NOURCITY/docs/operator/CREDENTIAL_ROTATION.md) | Zero-downtime runbook prepared for all 15 leaked keys / Actual key rotations pending owner execution | high | owner: rotate keys manually using runbook when ready | — | **yes** |
 | Brand/entity cleanup (external NAP) | MANUAL_OWNER_TASK | No automation possible without platform logins | — / every external listing | med | owner checklist (`apps/nickstire/docs/entity-cleanup-checklist.md`, ops-hub PR) | checklist only | **yes** |
 
@@ -50,8 +51,13 @@ DANGEROUS_DO_NOT_AUTOMATE_YET
 | Deeper journal upgrades (spec A–G) | DONE_MERGED | Journey Engine wave A–G shipped 2026-06-10 (main `9184c714`+`fb851113`); journal-advancement spec marked FULLY EXECUTED in session memory | Spec items A–G / — | low | — | — | no |
 | Journal intelligence feed into broader STATENOUR | PARTIAL | Journey Engine + morning-brief producer + proof-stack (`b98a85ba`) | Feeds exist / insights-preview panel (theme/action extraction) not built | med | audit-first, small preview panel as separate PR (not in this pass) | later | review |
 | Push preview / dry-run safety | DONE_MERGED | #40 preview console; HOLD flags operator-only | Preview before push / — | low | — | — | no |
+| UI/UX Wow Pass character sheet layout | DONE_MERGED | PR #66 (`401c19a5`) | Restores nextRep leveling algorithm on RPG sheet, fixes safety script line-endings and contract test timeout | low | — | — | no |
 | Report/insight viewer | PARTIAL | `/system/digest` 3 read-only cards; `docs/audits/*` | System digest exists / no doc-corpus viewer | low | out of scope this pass (nickstire hub first) | later | no |
 | OpenWeb-style UI | NOT_STARTED | No evidence | — | low | only if operator wants it | later | yes |
+| Gap 5 — Semantic Memory Deduplication | DONE_MERGED | PR #79 (bcb5f64c); `save.ts` + `brain-save.test.ts` | pgvector cosine distance < 0.05 and JS fallback similarity > 0.95 deduplication; 18 tests passing / — | low | — | — | no |
+| Gap 6 — Outcomes and Predictions | DONE_MERGED | PR #79 (bcb5f64c); `task-actions.ts` + REST/tRPC routes + `task-actions-cascade.test.ts` | Shared runtime validation parity (outcomeScore 1-100, completionNote limit); calibration tests passing / — | low | — | — | no |
+| Gap 7 — Business Data Island | DONE_MERGED | PR #79 (bcb5f64c); `businessData.ts` + Nick's Tire query handlers | Drizzle-based query handlers and Statenour shims mapping; 12 tests passing / — | low | — | — | no |
+| Clarity Gate Operations Runbooks | DONE_MERGED | PR #79 (bcb5f64c); `DB_BACKUPS_CLEANUP.md`, `META_TOKEN_RENEWAL.md`, `CALIBRATION_TODO.md` | YAML frontmatter, verified hashes, and clear owner approval hitl-claims / — | low | — | — | no |
 
 ---
 

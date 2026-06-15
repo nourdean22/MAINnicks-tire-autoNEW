@@ -26,7 +26,7 @@
  */
 
 import { BUSINESS } from "@shared/business";
-import { OIL_PRICE } from "@shared/pricing";
+import { OIL_PRICE, BRAKE_PRICE, SERVICE_PRICE } from "@shared/pricing";
 import { createLogger } from "../lib/logger";
 import { db } from "../lib/db-helper";
 import { specials, gbpPostLog } from "../../drizzle/schema";
@@ -40,6 +40,7 @@ const log = createLogger("gbp-content-generator");
 
 export type GBPArchetype = "proof" | "anti" | "math" | "seasonal";
 export type GBPCallToAction = "BOOK" | "CALL" | "LEARN_MORE" | "ORDER";
+export type GBPProvenance = "real-review" | "real-service-catalog" | "real-offer" | "generic-educational";
 
 export interface GeneratedGBPPost {
   archetype: GBPArchetype;
@@ -48,6 +49,7 @@ export interface GeneratedGBPPost {
   ctaUrl: string;
   imageHint: string;            // suggested photo for the post
   topicHash: string;            // for variety guard
+  provenance: GBPProvenance;
 }
 
 // Variety guard. Hybrid: DB (durable, survives deploys) + in-memory cache
@@ -158,6 +160,47 @@ function assertNoFabrication(text: string): void {
   }
 }
 
+function getWords(str: string): Set<string> {
+  const words = str.toLowerCase().match(/\b\w+\b/g) || [];
+  return new Set(words);
+}
+
+export function jaccardSimilarity(str1: string, str2: string): number {
+  const words1 = getWords(str1);
+  const words2 = getWords(str2);
+  if (words1.size === 0 && words2.size === 0) return 1;
+  
+  let intersectionSize = 0;
+  for (const word of words1) {
+    if (words2.has(word)) {
+      intersectionSize++;
+    }
+  }
+  const unionSize = words1.size + words2.size - intersectionSize;
+  return unionSize === 0 ? 0 : intersectionSize / unionSize;
+}
+
+function validateNoUnsourcedCustomerIdentity(text: string, archetype: GBPArchetype): void {
+  if (archetype === "proof") return;
+  
+  const lower = text.toLowerCase();
+  if (
+    lower.includes("customer said") || 
+    lower.includes("client said") || 
+    lower.includes("customer mentioned") || 
+    lower.includes("he said") || 
+    lower.includes("she said")
+  ) {
+    throw new Error(`Fabrication guard triggered: non-proof archetype contains unsourced customer quote/attribution.`);
+  }
+  
+  // Match Name LastInitial pattern (e.g. John D. or John D)
+  const nameInitialRegex = /\b[A-Z][a-z]+\s+[A-Z]\b\.?/g;
+  if (nameInitialRegex.test(text)) {
+    throw new Error(`Fabrication guard triggered: non-proof archetype contains name with last initial pattern.`);
+  }
+}
+
 // ─────────────────────────────────────────────────────────
 // ARCHETYPE 1 — PROOF POST
 // Real customer review text from Google Reviews cache
@@ -198,6 +241,7 @@ ${BUSINESS.address.full} · ${BUSINESS.phone.display}`;
     ctaUrl: BUSINESS.phone.href,
     imageHint: "photo of our service bays or a happy customer's car",
     topicHash: `proof-${review.authorName.slice(0, 10)}-${review.time}`,
+    provenance: "real-review",
   };
 }
 
@@ -251,6 +295,7 @@ ${BUSINESS.phone.display} · open 7 days · ${BUSINESS.address.full}`;
     ctaUrl: BUSINESS.phone.href,
     imageHint: set.imageHint,
     topicHash: `anti-${set.promises[0].slice(0, 25)}`,
+    provenance: "generic-educational",
   };
 }
 
@@ -261,14 +306,14 @@ ${BUSINESS.phone.display} · open 7 days · ${BUSINESS.address.full}`;
 
 const MATH_ARGUMENTS = [
   {
-    today: { amount: "$299", thing: "brake pads on one axle" },
-    later: { amount: "$950", thing: "caliper and rotor replacement if worn to the metal" },
+    today: { amount: `$${BRAKE_PRICE.padsMax}`, thing: "brake pads on one axle" },
+    later: { amount: `$${BRAKE_PRICE.caliperAndRotorReplacementEstimate}`, thing: "caliper and rotor replacement if worn to the metal" },
     explanation: "Cleveland salt eats brake hardware faster than dry-state cars. Catching it early IS the maintenance.",
     finance: "Acima · Snap · Koalafi · $10 down today · pay it down monthly",
-    imageHint: "side-by-side: worn pad ($299) and chewed-up rotor ($950) with prices overlaid in brand yellow",
+    imageHint: `side-by-side: worn pad ($${BRAKE_PRICE.padsMax}) and chewed-up rotor ($${BRAKE_PRICE.caliperAndRotorReplacementEstimate}) with prices overlaid in brand yellow`,
   },
   {
-    today: { amount: "$189", thing: "E-Check fix today" },
+    today: { amount: `$${SERVICE_PRICE.eCheckFixStarting}`, thing: "E-Check fix today" },
     later: { amount: "$0 — but a $150 ticket and impound risk", thing: "in 30 days when registration expires" },
     explanation: "Failed E-Check has a 30-day deadline. Day 31, you're parked. Most failures are exhaust-related and fixable in an afternoon.",
     finance: "$10 down · pay over time · pass guaranteed or we keep working",
@@ -282,11 +327,11 @@ const MATH_ARGUMENTS = [
     imageHint: "drained black oil pan vs clean new oil — same engine, 90 days apart",
   },
   {
-    today: { amount: "$35", thing: "tire patch today" },
+    today: { amount: `$${SERVICE_PRICE.tirePatch}`, thing: "tire patch today" },
     later: { amount: "$1,000+", thing: "for 4 new tires the dealer says you need" },
     explanation: "Most flats are repairable. Most dealers won't tell you that. We will.",
     finance: "25 minutes. Walk in. We show you the nail before we plug it.",
-    imageHint: "a roofing nail on the floor next to a tire — caption: '$35'",
+    imageHint: `a roofing nail on the floor next to a tire — caption: '$${SERVICE_PRICE.tirePatch}'`,
   },
 ];
 
@@ -309,6 +354,7 @@ ${BUSINESS.phone.display}`;
     ctaUrl: `${BUSINESS.urls.website}/financing?utm_source=gbp&utm_medium=organic&utm_campaign=math-post&utm_content=archetype-math`,
     imageHint: m.imageHint,
     topicHash: `math-${m.today.amount}-vs-${m.later.amount}`,
+    provenance: "real-service-catalog",
   };
 }
 
@@ -376,7 +422,7 @@ function pickSeasonalContext(): SeasonalContext {
   // Default mid-season
   return {
     title: "Routine maintenance is cheaper than emergencies.",
-    consequence: `The $50 belt prevents a $500 tow. The $${OIL_PRICE.conventional} oil change prevents a $4,000 engine. Cleveland weather doesn't care about your schedule.`,
+    consequence: `The $${SERVICE_PRICE.beltReplacementStarting} belt prevents a $500 tow. The $${OIL_PRICE.conventional} oil change prevents a $4,000 engine. Cleveland weather doesn't care about your schedule.`,
     service: "Free 27-point check on any visit. No appointment needed.",
     imageHint: "the workshop bay floor with multi-bay activity",
   };
@@ -398,6 +444,7 @@ Open 7 days · ${BUSINESS.address.full} · ${BUSINESS.phone.display}`;
     ctaUrl: BUSINESS.phone.href,
     imageHint: ctx.imageHint,
     topicHash: `seasonal-${ctx.title.slice(0, 25)}`,
+    provenance: "generic-educational",
   };
 }
 
@@ -432,7 +479,24 @@ export async function generateGBPPost(forceArchetype?: GBPArchetype): Promise<Ge
   // Pull recent topics from DB once per generation cycle (cached 5 min).
   await hydrateRecentTopicsFromDb();
 
-  // If a special is active, prefer to feature it (highest signal/conversion).
+  // Fetch last 5 post bodies to check similarity
+  let last5PostBodies: string[] = [];
+  try {
+    const d = await db();
+    if (d) {
+      const rows = await d
+        .select({ postBody: gbpPostLog.postBody })
+        .from(gbpPostLog)
+        .orderBy(desc(gbpPostLog.postedAt))
+        .limit(5);
+      last5PostBodies = rows.map((r: { postBody: string }) => r.postBody);
+    }
+  } catch (err) {
+    log.warn("Failed to fetch last 5 posts for Jaccard check", { err });
+  }
+
+  // If a special is active, prefer to feature it (highest signal/conversion),
+  // but only if it's not too similar to recent postings.
   const featuredSpecial = await getFeaturedActiveSpecial();
   if (featuredSpecial && !forceArchetype) {
     const text = `${featuredSpecial.title}
@@ -441,35 +505,83 @@ ${featuredSpecial.description ?? ""}
 
 Walk in 7 days · ${BUSINESS.address.full}
 ${BUSINESS.phone.display} · code ${featuredSpecial.couponCode ?? "—"}`;
-    const post: GeneratedGBPPost = {
-      archetype: "math",
-      text: text.slice(0, 1500),
-      callToAction: "BOOK",
-      ctaUrl: `${BUSINESS.urls.website}/specials?utm_source=gbp&utm_medium=organic&utm_campaign=special-${featuredSpecial.couponCode ?? "active"}&utm_content=archetype-special`,
-      imageHint: "the actual special — service-specific photo",
-      topicHash: `special-${featuredSpecial.id}`,
-    };
-    assertNoFabrication(post.text);
-    return post;
+
+    let tooSimilar = false;
+    for (const oldBody of last5PostBodies) {
+      if (jaccardSimilarity(text, oldBody) > 0.75) {
+        tooSimilar = true;
+        break;
+      }
+    }
+
+    if (!tooSimilar) {
+      const post: GeneratedGBPPost = {
+        archetype: "math",
+        text: text.slice(0, 1500),
+        callToAction: "BOOK",
+        ctaUrl: `${BUSINESS.urls.website}/specials?utm_source=gbp&utm_medium=organic&utm_campaign=special-${featuredSpecial.couponCode ?? "active"}&utm_content=archetype-special`,
+        imageHint: "the actual special — service-specific photo",
+        topicHash: `special-${featuredSpecial.id}`,
+        provenance: "real-offer",
+      };
+      validateNoUnsourcedCustomerIdentity(post.text, post.archetype);
+      assertNoFabrication(post.text);
+      return post;
+    } else {
+      log.info(`Active special "${featuredSpecial.title}" is too similar to recent posts (Jaccard > 0.75), falling back to other archetypes.`);
+    }
   }
 
-  // Pick archetype, retry up to 4× if the topic was recent.
+  // Pick archetype, retry up to 4× if the topic was recent or similarity is too high.
+  let currentForceArchetype = forceArchetype;
   for (let attempt = 0; attempt < 4; attempt++) {
-    const archetype = forceArchetype ?? pickArchetype();
-    const post = await buildPost(archetype);
-    if (!isRecentTopic(post.topicHash)) {
+    const archetype = currentForceArchetype ?? pickArchetype();
+    try {
+      const post = await buildPost(archetype);
+      if (isRecentTopic(post.topicHash)) continue;
+
+      // Check Jaccard similarity against last 5 posts
+      let tooSimilar = false;
+      for (const oldBody of last5PostBodies) {
+        if (jaccardSimilarity(post.text, oldBody) > 0.75) {
+          tooSimilar = true;
+          break;
+        }
+      }
+      if (tooSimilar) {
+        log.info(`Post too similar to recent post (Jaccard > 0.75), retrying archetype ${archetype}`);
+        continue;
+      }
+
+      validateNoUnsourcedCustomerIdentity(post.text, post.archetype);
       recordTopic(post.topicHash);
       assertNoFabrication(post.text);
       return post;
+    } catch (err) {
+      log.warn(`Failed to build post for archetype ${archetype}, retrying...`, { err: err instanceof Error ? err.message : String(err) });
+      // If forced archetype failed (e.g. proof fails because Places API is down/empty),
+      // clear it so we can try fallback archetypes on subsequent attempts.
+      currentForceArchetype = undefined;
     }
   }
 
   // Variety guard exhausted — return whatever we got. Better one repeat
-  // than infinite loop.
-  const fallback = await buildPost(forceArchetype ?? "proof");
-  recordTopic(fallback.topicHash);
-  assertNoFabrication(fallback.text);
-  return fallback;
+  // than infinite loop. If the chosen/forced archetype fails here, fall back
+  // to a guaranteed-safe archetype (like anti or seasonal).
+  try {
+    const fallback = await buildPost(currentForceArchetype ?? "proof");
+    validateNoUnsourcedCustomerIdentity(fallback.text, fallback.archetype);
+    recordTopic(fallback.topicHash);
+    assertNoFabrication(fallback.text);
+    return fallback;
+  } catch (err) {
+    log.warn(`Ultimate fallback failed, trying guaranteed safe anti-post`, { err: err instanceof Error ? err.message : String(err) });
+    const fallback = await buildPost("anti");
+    validateNoUnsourcedCustomerIdentity(fallback.text, fallback.archetype);
+    recordTopic(fallback.topicHash);
+    assertNoFabrication(fallback.text);
+    return fallback;
+  }
 }
 
 async function buildPost(archetype: GBPArchetype): Promise<GeneratedGBPPost> {

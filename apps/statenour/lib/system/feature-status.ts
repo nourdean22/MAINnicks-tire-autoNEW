@@ -129,7 +129,7 @@ export const FEATURE_REGISTRY: FeatureMeta[] = [
   },
   {
     name: "Memory health rollup UI",
-    endpoint: "/brain/health (consumes /api/brain/memory-health)",
+    endpoint: "/brain?tab=health (consumes /api/brain/memory-health)",
     status: "LIVE",
     notes: "v10.0.100 page · per-category vectorization% · decay flags · dormant-30d markers · sibling to /brain/categories.",
   },

@@ -272,6 +272,104 @@ export async function getGscReport(dateRange: DateRange): Promise<{
 }
 
 /**
+ * Fallback to query GSC data from local TiDB/MySQL database table `search_performance`.
+ * Replicates the exact schema/structure and units returned by getGscReport.
+ */
+export async function getGscDbReport(dateRange: DateRange): Promise<{
+  summary: { clicks: number; impressions: number; ctr: number; position: number };
+  topQueries: Array<{ key: string; clicks: number; impressions: number; ctr: number; position: number }>;
+  topPages: Array<{ key: string; clicks: number; impressions: number; ctr: number; position: number }>;
+}> {
+  const d = await db();
+  if (!d) {
+    throw new Error("Database not available");
+  }
+
+  // 1. Fetch total/summary from DB
+  const summaryRows = await d
+    .select({
+      clicks: sql<number>`COALESCE(SUM(${searchPerformance.clicks}), 0)`,
+      impressions: sql<number>`COALESCE(SUM(${searchPerformance.impressions}), 0)`,
+      posSum: sql<number>`COALESCE(SUM(${searchPerformance.position} * ${searchPerformance.impressions}), 0)`,
+    })
+    .from(searchPerformance)
+    .where(sql`${searchPerformance.date} BETWEEN ${dateRange.startDate} AND ${dateRange.endDate}`);
+
+  const s = summaryRows[0] ?? { clicks: 0, impressions: 0, posSum: 0 };
+  const summaryClicks = Number(s.clicks);
+  const summaryImpressions = Number(s.impressions);
+  const posSum = Number(s.posSum);
+  const summaryCtr = summaryImpressions > 0 ? (summaryClicks / summaryImpressions) : 0;
+  const summaryPosition = summaryImpressions > 0 ? (posSum / summaryImpressions) / 100 : 0;
+
+  // 2. Fetch top queries from DB
+  const queryRows = await d
+    .select({
+      key: searchPerformance.query,
+      clicks: sql<number>`SUM(${searchPerformance.clicks})`,
+      impressions: sql<number>`SUM(${searchPerformance.impressions})`,
+      posSum: sql<number>`SUM(${searchPerformance.position} * ${searchPerformance.impressions})`,
+    })
+    .from(searchPerformance)
+    .where(sql`${searchPerformance.date} BETWEEN ${dateRange.startDate} AND ${dateRange.endDate}`)
+    .groupBy(searchPerformance.query)
+    .orderBy(sql`SUM(${searchPerformance.clicks}) DESC`)
+    .limit(25);
+
+  const topQueries = queryRows.map((q: any) => {
+    const cl = Number(q.clicks);
+    const imp = Number(q.impressions);
+    const posS = Number(q.posSum);
+    return {
+      key: q.key,
+      clicks: cl,
+      impressions: imp,
+      ctr: imp > 0 ? cl / imp : 0,
+      position: imp > 0 ? (posS / imp) / 100 : 0,
+    };
+  });
+
+  // 3. Fetch top pages from DB
+  const pageRows = await d
+    .select({
+      key: searchPerformance.page,
+      clicks: sql<number>`SUM(${searchPerformance.clicks})`,
+      impressions: sql<number>`SUM(${searchPerformance.impressions})`,
+      posSum: sql<number>`SUM(${searchPerformance.position} * ${searchPerformance.impressions})`,
+    })
+    .from(searchPerformance)
+    .where(sql`${searchPerformance.date} BETWEEN ${dateRange.startDate} AND ${dateRange.endDate}`)
+    .groupBy(searchPerformance.page)
+    .orderBy(sql`SUM(${searchPerformance.clicks}) DESC`)
+    .limit(25);
+
+  const topPages = pageRows.map((p: any) => {
+    const cl = Number(p.clicks);
+    const imp = Number(p.impressions);
+    const posS = Number(p.posSum);
+    return {
+      key: p.key || "",
+      clicks: cl,
+      impressions: imp,
+      ctr: imp > 0 ? cl / imp : 0,
+      position: imp > 0 ? (posS / imp) / 100 : 0,
+    };
+  });
+
+  return {
+    summary: {
+      clicks: summaryClicks,
+      impressions: summaryImpressions,
+      ctr: summaryCtr,
+      position: summaryPosition,
+    },
+    topQueries,
+    topPages,
+  };
+}
+
+
+/**
  * Fetch and store GSC data for a date range.
  */
 export async function syncSearchPerformance(dateRange: DateRange): Promise<{

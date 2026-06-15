@@ -72,11 +72,10 @@ export const POST = apiHandler(
     // Return live intelligence so the caller can surface it on the
     // nickstire side without a second round trip.
     const [recentAlerts, recentInsights] = await Promise.all([
-      prisma.driftAlert.findMany({
-        where: { resolved: false },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      }),
+      (async () => {
+        const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+        return getUnresolvedAlerts().catch(() => []);
+      })(),
       prisma.auditEvent.findMany({
         where: {
           eventType: {

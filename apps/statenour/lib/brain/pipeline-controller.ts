@@ -620,7 +620,10 @@ export async function runBrainCycle(): Promise<{ alerts: string[]; patterns: str
       prisma.auditEvent.count({
         where: { eventType: "conversation_summary", createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
       }).catch(() => 0),
-      prisma.driftAlert.count({ where: { acknowledged: false } }),
+      (async () => {
+        const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+        return (await getUnresolvedAlerts().catch(() => [])).length;
+      })(),
       prisma.auditEvent.findFirst({
         where: { eventType: "business_metrics_sync" },
         orderBy: { createdAt: "desc" },

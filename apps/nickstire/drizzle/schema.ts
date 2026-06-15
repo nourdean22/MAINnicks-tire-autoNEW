@@ -1357,6 +1357,12 @@ export const algEstimates = mysqlTable("alg_estimates", {
   /** Link to invoice if converted (matched during sync) */
   matchedInvoiceId: int("matched_invoice_id"),
   matchedAt: timestamp("matched_at"),
+  customerId: int("customer_id"),
+  vin: varchar("vin", { length: 17 }),
+  laborRate: int("labor_rate").default(11500).notNull(),
+  serviceCategory: varchar("service_category", { length: 64 }),
+  estimatedLaborCost: int("estimated_labor_cost").default(0).notNull(),
+  estimatedPartsCost: int("estimated_parts_cost").default(0).notNull(),
   /** Recovery follow-up tracking.
    *
    * wave-181.59 — `*AttemptedAt` columns added for at-most-once delivery.
@@ -1387,6 +1393,7 @@ export const algEstimates = mysqlTable("alg_estimates", {
    *  on first touch and sticky so the sequence stays consistent even
    *  if customer signals shift. Migration 0055. */
   recoveryProfile: varchar("recovery_profile", { length: 8 }),
+  recoveryProfileScore: int("recovery_profile_score").default(0).notNull(),
   /** wave-181.85 · voice recovery escalation (post-D30) · AgentPhone */
   voiceRecoveryAttemptedAt: timestamp("voice_recovery_attempted_at"),
   voiceRecoveryCallId: varchar("voice_recovery_call_id", { length: 64 }),
@@ -1904,7 +1911,7 @@ export const appointmentReminders = mysqlTable("appointment_reminders", {
  */
 export const vehicles = mysqlTable("vehicles", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  customerId: varchar("customer_id", { length: 36 }).notNull(),
+  customerId: int("customer_id").notNull(),
   year: int("year"),
   make: varchar("make", { length: 50 }),
   model: varchar("model", { length: 50 }),
@@ -1931,7 +1938,7 @@ export const vehicles = mysqlTable("vehicles", {
 export const workOrders = mysqlTable("work_orders", {
   id: varchar("id", { length: 36 }).primaryKey(),
   orderNumber: varchar("order_number", { length: 20 }).notNull(),
-  customerId: varchar("customer_id", { length: 36 }).notNull(),
+  customerId: int("customer_id"),
   vehicleId: varchar("vehicle_id", { length: 36 }),
   /** Full lifecycle status */
   status: varchar("status", { length: 30 }).default("draft").notNull(),
@@ -2085,7 +2092,7 @@ export const specials = mysqlTable("specials", {
 export const warranties = mysqlTable("warranties", {
   id: varchar("id", { length: 36 }).primaryKey(),
   workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
-  customerId: varchar("customer_id", { length: 36 }).notNull(),
+  customerId: int("customer_id"),
   vehicleId: varchar("vehicle_id", { length: 36 }),
   serviceDescription: varchar("service_description", { length: 500 }),
   warrantyMonths: int("warranty_months").notNull(),
@@ -2470,7 +2477,7 @@ export const auditLog = mysqlTable("audit_log", {
  */
 export const serviceAffinityPredictions = mysqlTable("service_affinity_predictions", {
   id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
-  customerId: bigint("customer_id", { mode: "number" }).notNull(),
+  customerId: int("customer_id").notNull(),
   predictedService: varchar("predicted_service", { length: 64 }).notNull(),
   confidence: decimal("confidence", { precision: 5, scale: 4 }).notNull(),
   featuresJson: json("features_json").notNull(),
@@ -2523,7 +2530,7 @@ export const predictionOutcomes = mysqlTable("prediction_outcomes", {
  */
 export const pushSubscriptions = mysqlTable("push_subscriptions", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  customerId: varchar("customer_id", { length: 36 }),
+  customerId: int("customer_id"),
   endpoint: text("endpoint").notNull(),
   p256dh: varchar("p256dh", { length: 255 }).notNull(),
   auth: varchar("auth_key", { length: 255 }).notNull(),
@@ -2676,7 +2683,7 @@ export const comebacks = mysqlTable("comebacks", {
   id: int("id").autoincrement().primaryKey(),
   originalWorkOrderId: varchar("original_work_order_id", { length: 36 }).notNull(),
   comebackWorkOrderId: varchar("comeback_work_order_id", { length: 36 }),
-  customerId: varchar("customer_id", { length: 36 }).notNull(),
+  customerId: int("customer_id"),
   serviceType: varchar("service_type", { length: 100 }),
   originalTechId: int("original_tech_id"),
   daysSinceOriginal: int("days_since_original"),
@@ -2702,7 +2709,7 @@ export type InsertComeback = typeof comebacks.$inferInsert;
 export const customerStatusMessages = mysqlTable("customer_status_messages", {
   id: int("id").autoincrement().primaryKey(),
   workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
-  customerId: varchar("customer_id", { length: 36 }),
+  customerId: int("customer_id"),
   trigger: varchar("trigger", { length: 30 }).notNull(), // status that triggered the message
   channel: varchar("channel", { length: 10 }).notNull(), // sms | email
   recipient: varchar("recipient", { length: 100 }).notNull(),

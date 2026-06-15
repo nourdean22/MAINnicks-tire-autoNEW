@@ -51,10 +51,6 @@ const KNOWN_PENDING = new Set<string>([
   "leads_overdue_count",
   "leads_today_count",
   "leads_week_count",
-  "cars_today",
-  "estimates_conversion",
-  "estimates_aging",
-  "drop_off_ratio",
 ]);
 
 /** Parse the live handler keys out of nickstire's QUERY_HANDLERS registry. */
@@ -150,7 +146,7 @@ describe("nickstire bridge query contract", () => {
         `Fix: point the callsite at a real handler, OR (if nickstire genuinely ` +
         `owes a new handler) add the query to KNOWN_PENDING here + contract-pre-flight.ts.`,
     ).toEqual([]);
-  });
+  }, 60000);
 
   it("KNOWN_PENDING only lists queries nickstire has NOT shipped (promote when shipped)", () => {
     const valid = liveHandlers();

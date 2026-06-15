@@ -27,18 +27,42 @@ export const localGrowthRouter = router({
 
     // The durable token: present in the app_secret_kv row even if env is unset.
     let durableTokenPresent = false;
+    let expiresAt: string | null = process.env.META_PAGE_ACCESS_TOKEN_EXPIRES_AT || null;
+    let warning: string | null = null;
+    let tokenStatus: "expired" | "expiring_soon" | "valid" = "valid";
+
     try {
       const { db } = await import("../lib/db-helper");
       const d = await db();
       if (d) {
         const { appSecretKv } = await import("../../drizzle/schema");
         const { eq } = await import("drizzle-orm");
-        const rows = await d.select().from(appSecretKv).where(eq(appSecretKv.k, "meta_page_access_token")).limit(1);
-        durableTokenPresent = rows.length > 0 && !!rows[0]?.v;
+        
+        const rowsToken = await d.select().from(appSecretKv).where(eq(appSecretKv.k, "meta_page_access_token")).limit(1);
+        durableTokenPresent = rowsToken.length > 0 && !!rowsToken[0]?.v;
+
+        const rowsExpires = await d.select().from(appSecretKv).where(eq(appSecretKv.k, "meta_page_access_token_expires_at")).limit(1);
+        if (rowsExpires.length > 0 && rowsExpires[0]?.v) {
+          expiresAt = rowsExpires[0].v;
+        }
       }
     } catch {
-      // schema/table absent or read failed — leave false; never throw on a read surface
-      durableTokenPresent = false;
+      // schema/table absent or read failed — leave false/null; never throw on a read surface
+    }
+
+    if (expiresAt) {
+      const expDate = new Date(expiresAt);
+      if (!isNaN(expDate.getTime())) {
+        const diffMs = expDate.getTime() - Date.now();
+        const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+        if (diffDays <= 0) {
+          tokenStatus = "expired";
+          warning = `❌ Meta Page Access Token is expired (expired on ${expDate.toLocaleDateString()}). Please renew the token to prevent automated posting failure.`;
+        } else if (diffDays <= 14) {
+          tokenStatus = "expiring_soon";
+          warning = `⚠️ Meta Page Access Token is set to expire in ${diffDays} day${diffDays === 1 ? "" : "s"} (on ${expDate.toLocaleDateString()}). Please renew the token to prevent automated posting failure.`;
+        }
+      }
     }
 
     const igCouldPostLive = !igDryRun && (envTokenPresent || durableTokenPresent) && igUserIdPresent;
@@ -50,6 +74,9 @@ export const localGrowthRouter = router({
         durableTokenPresent,
         igUserIdPresent,
         couldPostLiveNow: igCouldPostLive,
+        tokenExpiresAt: expiresAt,
+        tokenExpirationWarning: warning,
+        tokenStatus,
       },
       // GBP posting can't go direct — the Posts API was deprecated 2024;
       // gbpAutoPost only generates copy-paste text via Telegram.

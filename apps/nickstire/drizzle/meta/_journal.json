@@ -1,349 +1,363 @@
 {
-	"version": "7",
-	"dialect": "mysql",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "5",
-			"when": 1773607242336,
-			"tag": "0000_charming_squirrel_girl",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "5",
-			"when": 1773607303149,
-			"tag": "0001_gigantic_miracleman",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "5",
-			"when": 1773609285445,
-			"tag": "0002_lethal_raider",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "5",
-			"when": 1773610169405,
-			"tag": "0003_flashy_chat",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "5",
-			"when": 1773851978888,
-			"tag": "0004_fluffy_runaways",
-			"breakpoints": true
-		},
-		{
-			"idx": 5,
-			"version": "5",
-			"when": 1773853917763,
-			"tag": "0005_light_spyke",
-			"breakpoints": true
-		},
-		{
-			"idx": 6,
-			"version": "5",
-			"when": 1773940678968,
-			"tag": "0006_harsh_jack_flag",
-			"breakpoints": true
-		},
-		{
-			"idx": 7,
-			"version": "5",
-			"when": 1773961811615,
-			"tag": "0007_awesome_vanisher",
-			"breakpoints": true
-		},
-		{
-			"idx": 8,
-			"version": "5",
-			"when": 1773963483713,
-			"tag": "0008_easy_senator_kelly",
-			"breakpoints": true
-		},
-		{
-			"idx": 9,
-			"version": "5",
-			"when": 1773965679083,
-			"tag": "0009_smooth_the_executioner",
-			"breakpoints": true
-		},
-		{
-			"idx": 10,
-			"version": "5",
-			"when": 1773974062566,
-			"tag": "0010_lyrical_queen_noir",
-			"breakpoints": true
-		},
-		{
-			"idx": 11,
-			"version": "5",
-			"when": 1773978675482,
-			"tag": "0011_mute_carnage",
-			"breakpoints": true
-		},
-		{
-			"idx": 12,
-			"version": "5",
-			"when": 1773983203970,
-			"tag": "0012_useful_paper_doll",
-			"breakpoints": true
-		},
-		{
-			"idx": 13,
-			"version": "5",
-			"when": 1774008917022,
-			"tag": "0013_tired_pet_avengers",
-			"breakpoints": true
-		},
-		{
-			"idx": 14,
-			"version": "5",
-			"when": 1774016127126,
-			"tag": "0014_talented_black_tarantula",
-			"breakpoints": true
-		},
-		{
-			"idx": 15,
-			"version": "5",
-			"when": 1774035519931,
-			"tag": "0015_mature_sheva_callister",
-			"breakpoints": true
-		},
-		{
-			"idx": 16,
-			"version": "5",
-			"when": 1774703125665,
-			"tag": "0016_past_stone_men",
-			"breakpoints": true
-		},
-		{
-			"idx": 17,
-			"version": "5",
-			"when": 1774716008603,
-			"tag": "0017_sms_campaigns",
-			"breakpoints": true
-		},
-		{
-			"idx": 18,
-			"version": "5",
-			"when": 1774716008603,
-			"tag": "0018_performance_indexes",
-			"breakpoints": true
-		},
-		{
-			"idx": 19,
-			"version": "5",
-			"when": 1774716300000,
-			"tag": "0019_add_scheduled_for",
-			"breakpoints": true
-		},
-		{
-			"idx": 20,
-			"version": "5",
-			"when": 1774718200000,
-			"tag": "0020_add_sms_opt_out",
-			"breakpoints": true
-		},
-		{
-			"idx": 21,
-			"version": "5",
-			"when": 1774900000000,
-			"tag": "0021_daily_execution",
-			"breakpoints": true
-		},
-		{
-			"idx": 22,
-			"version": "5",
-			"when": 1774910000000,
-			"tag": "0022_conversation_memory",
-			"breakpoints": true
-		},
-		{
-			"idx": 23,
-			"version": "5",
-			"when": 1774920000000,
-			"tag": "0023_customer_enrichment_columns",
-			"breakpoints": true
-		},
-		{
-			"idx": 24,
-			"version": "5",
-			"when": 1775779100000,
-			"tag": "0024_retention_tracking_columns",
-			"breakpoints": true
-		},
-		{
-			"idx": 25,
-			"version": "5",
-			"when": 1775779200000,
-			"tag": "0025_booking_confirmation_tracking",
-			"breakpoints": true
-		},
-		{
-			"idx": 26,
-			"version": "5",
-			"when": 1775971657075,
-			"tag": "0026_gigantic_human_cannonball",
-			"breakpoints": true
-		},
-		{
-			"idx": 27,
-			"version": "5",
-			"when": 1776905832134,
-			"tag": "0027_alg_estimates",
-			"breakpoints": true
-		},
-		{
-			"idx": 28,
-			"version": "5",
-			"when": 1779739200000,
-			"tag": "0028_gbp_post_log",
-			"breakpoints": true
-		},
-		{
-			"idx": 29,
-			"version": "5",
-			"when": 1779843600000,
-			"tag": "0029_alg_probe_log",
-			"breakpoints": true
-		},
-		{
-			"idx": 30,
-			"version": "5",
-			"when": 1778073645869,
-			"tag": "0030_flat_xavin",
-			"breakpoints": true
-		},
-		{
-			"idx": 31,
-			"version": "5",
-			"when": 1778270400000,
-			"tag": "0031_wave97_invoice_alg_indexes",
-			"breakpoints": true
-		},
-		{
-			"idx": 32,
-			"version": "5",
-			"when": 1778280000000,
-			"tag": "0032_wave99_invoice_alg_ticket_id",
-			"breakpoints": true
-		},
-		{
-			"idx": 33,
-			"version": "5",
-			"when": 1778290000000,
-			"tag": "0033_wave100_customer_metrics_aggregates",
-			"breakpoints": true
-		},
-		{
-			"idx": 34,
-			"version": "5",
-			"when": 1778357677664,
-			"tag": "0034_wave116_customer_phone_unique",
-			"breakpoints": true
-		},
-		{
-			"idx": 35,
-			"version": "5",
-			"when": 1778357678664,
-			"tag": "0035_wave121_perf_indexes",
-			"breakpoints": true
-		},
-		{
-			"idx": 36,
-			"version": "5",
-			"when": 1778359137085,
-			"tag": "0036_wave125_lead_pipeline",
-			"breakpoints": true
-		},
-		{
-			"idx": 37,
-			"version": "5",
-			"when": 1778900000000,
-			"tag": "0037_wave168_cron_locks",
-			"breakpoints": true
-		},
-		{
-			"idx": 41,
-			"version": "5",
-			"when": 1779152083079,
-			"tag": "0041_wave181_sms_sending_status",
-			"breakpoints": true
-		},
-		{
-			"idx": 42,
-			"version": "5",
-			"when": 1779200000000,
-			"tag": "0042_wave181_declined_recovery_attempted_at",
-			"breakpoints": true
-		},
-		{
-			"idx": 43,
-			"version": "5",
-			"when": 1779153346502,
-			"tag": "0040_wave181_otp_attempts_durable",
-			"breakpoints": true
-		},
-		{
-			"idx": 44,
-			"version": "5",
-			"when": 1779191988806,
-			"tag": "0043_wave181_sms_rate_limit_durable",
-			"breakpoints": true
-		},
-		{
-			"idx": 45,
-			"version": "5",
-			"when": 1779192366851,
-			"tag": "0044_wave181_cron_alerts_fired",
-			"breakpoints": true
-		},
-		{
-			"idx": 46,
-			"version": "5",
-			"when": 1779197229340,
-			"tag": "0045_wave181_drip_enrollments_unique",
-			"breakpoints": true
-		},
-		{
-			"idx": 47,
-			"version": "5",
-			"when": 1779211731711,
-			"tag": "0047_wave181_cron_tier_skip_state",
-			"breakpoints": true
-		},
-		{
-			"idx": 48,
-			"version": "5",
-			"when": 1779211958151,
-			"tag": "0048_wave181_confirmation_calls",
-			"breakpoints": true
-		},
-		{
-			"idx": 49,
-			"version": "5",
-			"when": 1779212305780,
-			"tag": "0049_wave181_voice_recovery",
-			"breakpoints": true
-		},
-		{
-			"idx": 50,
-			"version": "5",
-			"when": 1779817200000,
-			"tag": "0050_wave_audit_unique_pred_surface",
-			"breakpoints": true
-		},
-		{
-			"idx": 51,
-			"version": "5",
-			"when": 1781098906020,
-			"tag": "0069_expand_winback_target_segment",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1773607242336,
+      "tag": "0000_charming_squirrel_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1773607303149,
+      "tag": "0001_gigantic_miracleman",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1773609285445,
+      "tag": "0002_lethal_raider",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1773610169405,
+      "tag": "0003_flashy_chat",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1773851978888,
+      "tag": "0004_fluffy_runaways",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1773853917763,
+      "tag": "0005_light_spyke",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1773940678968,
+      "tag": "0006_harsh_jack_flag",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1773961811615,
+      "tag": "0007_awesome_vanisher",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1773963483713,
+      "tag": "0008_easy_senator_kelly",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1773965679083,
+      "tag": "0009_smooth_the_executioner",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1773974062566,
+      "tag": "0010_lyrical_queen_noir",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1773978675482,
+      "tag": "0011_mute_carnage",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1773983203970,
+      "tag": "0012_useful_paper_doll",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1774008917022,
+      "tag": "0013_tired_pet_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1774016127126,
+      "tag": "0014_talented_black_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1774035519931,
+      "tag": "0015_mature_sheva_callister",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1774703125665,
+      "tag": "0016_past_stone_men",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1774716008603,
+      "tag": "0017_sms_campaigns",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1774716008603,
+      "tag": "0018_performance_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1774716300000,
+      "tag": "0019_add_scheduled_for",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1774718200000,
+      "tag": "0020_add_sms_opt_out",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1774900000000,
+      "tag": "0021_daily_execution",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1774910000000,
+      "tag": "0022_conversation_memory",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1774920000000,
+      "tag": "0023_customer_enrichment_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1775779100000,
+      "tag": "0024_retention_tracking_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1775779200000,
+      "tag": "0025_booking_confirmation_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1775971657075,
+      "tag": "0026_gigantic_human_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1776905832134,
+      "tag": "0027_alg_estimates",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1779739200000,
+      "tag": "0028_gbp_post_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1779843600000,
+      "tag": "0029_alg_probe_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1778073645869,
+      "tag": "0030_flat_xavin",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1778270400000,
+      "tag": "0031_wave97_invoice_alg_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1778280000000,
+      "tag": "0032_wave99_invoice_alg_ticket_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1778290000000,
+      "tag": "0033_wave100_customer_metrics_aggregates",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1778357677664,
+      "tag": "0034_wave116_customer_phone_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1778357678664,
+      "tag": "0035_wave121_perf_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1778359137085,
+      "tag": "0036_wave125_lead_pipeline",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1778900000000,
+      "tag": "0037_wave168_cron_locks",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1779152083079,
+      "tag": "0041_wave181_sms_sending_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1779200000000,
+      "tag": "0042_wave181_declined_recovery_attempted_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "5",
+      "when": 1779153346502,
+      "tag": "0040_wave181_otp_attempts_durable",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "5",
+      "when": 1779191988806,
+      "tag": "0043_wave181_sms_rate_limit_durable",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "5",
+      "when": 1779192366851,
+      "tag": "0044_wave181_cron_alerts_fired",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "5",
+      "when": 1779197229340,
+      "tag": "0045_wave181_drip_enrollments_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1779211731711,
+      "tag": "0047_wave181_cron_tier_skip_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "5",
+      "when": 1779211958151,
+      "tag": "0048_wave181_confirmation_calls",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "5",
+      "when": 1779212305780,
+      "tag": "0049_wave181_voice_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1779817200000,
+      "tag": "0050_wave_audit_unique_pred_surface",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "5",
+      "when": 1781098906020,
+      "tag": "0069_expand_winback_target_segment",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "5",
+      "when": 1781268056519,
+      "tag": "0052_safe_joystick",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "5",
+      "when": 1781268179770,
+      "tag": "0053_shallow_otto_octavius",
+      "breakpoints": true
+    }
+  ]
 }

@@ -36,8 +36,8 @@ const CORE_PAGES: RouteEntry[] = [
     path: "/",
     priority: 1.0,
     changefreq: "weekly",
-    title: "Tire Shop & Auto Repair Cleveland · Walk-Ins 7 Days | Nick's",
-    description: "Cleveland tire shop + auto repair. New & used tires, free install. Brakes, diagnostics, oil. 4.9★ · 1,700+ reviews. Walk-ins 7 days. (216) 862-0005",
+    title: "Nick's Tire & Auto Cleveland · Tires & Auto Repair Euclid",
+    description: "Nick's Tire & Auto on Euclid Ave. Tires from $25, brake repair, auto service. Walk in 7 days. Free check, written quote, pay only when satisfied. (216) 862-0005",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -60,8 +60,8 @@ const CORE_PAGES: RouteEntry[] = [
     // VAPI repair call. Applied here as V1 Benefit Lead variant per
     // seo-aeo-meta-description-generator skill. Aligned with ServicesOverview.tsx
     // SEOHead so prerender + runtime <head> match.
-    title: "Cleveland Auto Repair · You Don't Pay Until You Say Yes",
-    description: "Cleveland auto repair without the surprise. Free check, written quote, you don't pay until you say yes. 4.9★ from 1,700+ drivers. Walk in 7 days.",
+    title: "Auto Repair Cleveland & Euclid · Nick's Tire & Auto",
+    description: "Tire & auto repair in Cleveland & Euclid. Brakes, diagnostics, emissions, oil changes. Free check, written quote, you don't pay until you say yes. Walk in!",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -95,8 +95,8 @@ const CORE_PAGES: RouteEntry[] = [
     // wave-181.48 — Added the Repair Haiku tail to description so the
     // /contact SERP snippet carries the same promise as /services and the
     // VAPI prompt. Title stays as the SERP answer (high zero-click intent).
-    title: "Nick's Tire & Auto · (216) 862-0005 · 17625 Euclid Ave",
-    description: "Call (216) 862-0005 or walk in to 17625 Euclid Ave, Cleveland OH. Mon-Sat 8a-6p, Sun 9a-4p. Free check, written quote, you don't pay until you say yes.",
+    title: "Contact Nick's Tire & Auto · Cleveland & Euclid Auto Shop",
+    description: "Contact Nick's Tire & Auto in Euclid/Cleveland. Hours: Mon-Sat 8-6, Sun 9-4. First come, first served. Vehicle drop-off welcome. Call (216) 862-0005.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -169,13 +169,13 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/tires",
     priority: 1.0,
     changefreq: "weekly",
-    title: "Tire Shop Cleveland · New & Used · Free Install | Nick's",
+    title: "Tires Cleveland & Euclid · New & Used Tire Shop | Nick's",
     // wave-181.7 · differentiate from /used-tires-cleveland which was
     // getting zero impressions due to meta-description cannibalization
     // (both pages led with "Used tires from $25"). /tires now leads
     // with the general tire-shop intent; /used-tires-cleveland keeps
     // its used-tire-specific framing.
-    description: "Cleveland tire shop on Euclid Ave — walk in 7 days incl Sundays. Used tires from $25 installed. Stay in car, crew works outside. 4.9★ 1,700+ reviews. (216) 862-0005",
+    description: "New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -353,7 +353,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.9,
     changefreq: "monthly",
     title: "Ohio E-Check Cleveland — Failed Emissions? Pass Same Day | Nick's",
-    description: "Failed your Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. State tests; we get you passing. Same-day diagnosis. (216) 862-0005.",
+    description: "Failed Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. State tests; we get you passing. Same-day diagnosis. (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -439,7 +439,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.9,
     changefreq: "monthly",
     title: "Nonstop Nick — $7.99/mo Tire Membership | Nick's Tire & Auto",
-    description: "Pull up, we got it. $7.99/month and a flat is never your problem again — repairs, valve stems, rotation, air-ups. No appointment. Euclid Ave. (216) 862-0005",
+    description: "Pull up, we got it. $7.99/mo covers the little tire stuff on one registered vehicle — flat repairs, valve stems, rotation, air-ups. No appointment. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -488,8 +488,8 @@ const CITY_PAGES: RouteEntry[] = [
     // wave-181.6 · CTR-crisis · "auto repair near me" was ranking pos
     // 24.4 with 79 impr/mo but 0% CTR. Improved title leads with the
     // literal search intent + walk-in + price-anchor signal.
-    title: "Auto Repair Near Me · Cleveland · Walk-In Today · 1,700★ | Nick's",
-    description: "Cleveland auto shop on Euclid Ave where the worn part comes out of your car and onto the counter before you pay. 7 years, 1,700+ five-star reviews. Walk-ins 7 days.",
+    title: "Auto Repair Cleveland OH · Nick's Tire & Auto Shop",
+    description: "Cleveland auto shop on Euclid Ave. Brakes, tires, diagnostics. We show you the worn parts before you pay. 4.9★, 1,700+ reviews. Open 7 days. (216) 862-0005.",
     group: "city",
     sitemap: true,
     prerender: true,
@@ -924,8 +924,8 @@ const UTILITY_PAGES: RouteEntry[] = [
     path: "/financing",
     priority: 0.8,
     changefreq: "weekly",
-    title: "Auto Repair Financing Cleveland — Nick's Tire & Auto",
-    description: "Auto repair payment programs in Cleveland. $10 down, drive today. Acima, Koalafi, Snap Finance, American First. All credit welcome. Apply in minutes.",
+    title: "Auto Repair Payment Programs Cleveland & Euclid · Nick's",
+    description: "Cleveland & Euclid auto repair payment programs. $10 down, no hard credit pull, soft check pre-qualification. Easy weekly payments. Call (216) 862-0005.",
     group: "utility",
     sitemap: true,
     prerender: true,
@@ -948,8 +948,8 @@ const UTILITY_PAGES: RouteEntry[] = [
     path: "/diagnose",
     priority: 0.7,
     changefreq: "monthly",
-    title: "AI Car Diagnostic Tool · Free Symptom Check Cleveland | Nick's",
-    description: "Describe your car problem and get an instant AI diagnosis. Free online tool from Nick's Tire & Auto, Cleveland. Know before you go.",
+    title: "Auto Diagnostics Cleveland & Euclid · Nick's Tire & Auto",
+    description: "Free check-engine diagnostics in Euclid & Cleveland. Describe symptoms, get likely causes & repairs. You don't pay until you say yes. Call (216) 862-0005.",
     group: "utility",
     sitemap: true,
     prerender: true,

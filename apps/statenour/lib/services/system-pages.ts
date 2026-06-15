@@ -208,6 +208,11 @@ export interface SystemHealthView {
     megaJobs: typeof MEGA_JOB_COUNTS;
   };
   braintrust: { status: ReturnType<typeof braintrustWrapStatus> };
+  autonomic: {
+    lastRunAt: string | null;
+    status: string | null;
+    error: string | null;
+  };
 }
 
 /** Composite health probe · 30s-cached. Lifted verbatim from
@@ -223,9 +228,24 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       threadCounts,
       candidateCount,
       suggestionCount,
+      healerLog,
     ] = await Promise.all([
       checkDbConnection(),
-      prisma.driftAlert.count({ where: { resolved: false } }),
+      prisma.brainMemory
+        .findMany({
+          where: {
+            category: "coach_event",
+            key: { startsWith: "coach:drift-recovery:" },
+          },
+          select: { metadata: true },
+        })
+        .then((rows) => {
+          return rows.filter((r) => {
+            const meta = (r.metadata ?? {}) as Record<string, any>;
+            return !meta.ackedAt;
+          }).length;
+        })
+        .catch(() => 0),
       prisma.task.groupBy({ by: ["status"], _count: { id: true } }),
       prisma.commitment.count({
         where: { status: { in: ["active", "in_progress"] } },
@@ -257,6 +277,13 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
           },
         })
         .catch(() => 0),
+      prisma.cronJobLog
+        .findFirst({
+          where: { jobName: "cron-healer" },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true, status: true, error: true },
+        })
+        .catch(() => null),
     ]);
 
     const today = new Date().toISOString().slice(0, 10);
@@ -321,6 +348,11 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
         megaJobs: MEGA_JOB_COUNTS,
       },
       braintrust: { status: braintrustWrapStatus() },
+      autonomic: {
+        lastRunAt: healerLog?.createdAt?.toISOString() ?? null,
+        status: healerLog?.status ?? null,
+        error: healerLog?.error ?? null,
+      },
     };
   });
 }

@@ -3,6 +3,7 @@ import { apiHandler } from "@/lib/utils/http";
 import { today } from "@/lib/utils/datetime";
 import { processShopEvent, type ShopEvent } from "@/lib/brain/pipeline-controller";
 import { emitDriftFired } from "@/lib/db/brain-bus-emit";
+import { recordCoachEvent } from "@/lib/services/coach-events";
 
 /**
  * POST /api/sync/events
@@ -42,54 +43,50 @@ export const POST = apiHandler(
         if (event.type === "nickstire:review" && (event.data?.rating as number) <= 3) {
           const today_ = today();
           const message = `${event.data?.rating}★ review from ${event.data?.author ?? "customer"}: ${String(event.data?.text ?? "").substring(0, 120)}`;
-          const alert = await prisma.driftAlert.create({
-            data: {
-              date: today_,
+          const coachEvent = await recordCoachEvent({
+            kind: "drift-recovery",
+            subjectId: "negative_review",
+            priority: "P0",
+            title: "Negative Google Review",
+            body: message,
+            surfaces: ["tasks", "goals", "journal", "brain", "scoreboard", "home"],
+          });
+          if (coachEvent) {
+            // v10.0.63 · brain-bus producer
+            void emitDriftFired({
+              alertId: coachEvent.eventId,
               ruleId: "negative_review",
               ruleName: "Negative Google Review",
               severity: "critical",
               message,
-              acknowledged: false,
-              resolved: false,
-            },
-            select: { id: true },
-          });
-          // v10.0.63 · brain-bus producer
-          void emitDriftFired({
-            alertId: alert.id,
-            ruleId: "negative_review",
-            ruleName: "Negative Google Review",
-            severity: "critical",
-            message,
-            date: today_,
-          });
+              date: today_,
+            });
+          }
         }
 
         // Create drift alert for callback overdue
         if (event.type === "nickstire:callback") {
           const today_ = today();
           const message = `Callback: ${event.data?.name ?? "Unknown"} — ${event.data?.phone ?? "no phone"}`;
-          const alert = await prisma.driftAlert.create({
-            data: {
-              date: today_,
+          const coachEvent = await recordCoachEvent({
+            kind: "drift-recovery",
+            subjectId: "callback_requested",
+            priority: "P2",
+            title: "Customer Callback Requested",
+            body: message,
+            surfaces: ["tasks", "goals", "journal", "brain", "scoreboard", "home"],
+          });
+          if (coachEvent) {
+            // v10.0.63 · brain-bus producer
+            void emitDriftFired({
+              alertId: coachEvent.eventId,
               ruleId: "callback_requested",
               ruleName: "Customer Callback Requested",
               severity: "warning",
               message,
-              acknowledged: false,
-              resolved: false,
-            },
-            select: { id: true },
-          });
-          // v10.0.63 · brain-bus producer
-          void emitDriftFired({
-            alertId: alert.id,
-            ruleId: "callback_requested",
-            ruleName: "Customer Callback Requested",
-            severity: "warning",
-            message,
-            date: today_,
-          });
+              date: today_,
+            });
+          }
         }
       } catch (alertErr) {
         console.warn("[sync/events] Alert write failed:", alertErr);

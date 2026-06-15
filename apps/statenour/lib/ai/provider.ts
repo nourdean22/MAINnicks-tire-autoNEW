@@ -35,6 +35,7 @@
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import {
   generateText,
   wrapLanguageModel,
@@ -89,11 +90,15 @@ const OLLAMA_VISION_MODEL =
 const OLLAMA_BASE_URL =
   cleanEnv(process.env.OLLAMA_BASE_URL) || "https://ollama.com";
 
+const GEMINI_API_KEY = cleanEnv(process.env.GEMINI_API_KEY) || cleanEnv(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+const GEMINI_MODEL = cleanEnv(process.env.GEMINI_MODEL) || "gemini-3.5-flash";
+
 const AI_PROVIDER = cleanEnv(process.env.AI_PROVIDER) as
   | "venice"
   | "ollama"
   | "openai"
   | "anthropic"
+  | "gemini"
   | undefined;
 
 export type ProviderName =
@@ -101,6 +106,7 @@ export type ProviderName =
   | "ollama"
   | "openai"
   | "anthropic"
+  | "gemini"
   | "emergency";
 export type TaskType = "fast" | "reason" | "deep" | "vision" | "embed" | "code" | "sql" | "math" | "creative" | "summary" | "classify" | "extract";
 
@@ -521,6 +527,11 @@ function createOpenAIModel(): LanguageModel {
   return openai(OPENAI_MODEL);
 }
 
+function createGoogleModel(taskType?: TaskType): LanguageModel {
+  const google = createGoogleGenerativeAI({ apiKey: GEMINI_API_KEY! });
+  return google(GEMINI_MODEL);
+}
+
 // Apr 28 · Ollama Cloud Pro — uses createOpenAI with custom baseURL
 // since Ollama Cloud exposes an OpenAI-compatible /v1/chat/completions
 // endpoint. The 1M-context models (qwen3-vl:235b-instruct,
@@ -630,6 +641,18 @@ function isOllamaAvailable(): boolean {
   return true;
 }
 
+// June 14 · Gemini — same pattern
+const geminiBreaker = makeQuotaBreaker("gemini", 2 * 60_000);
+export const markGeminiQuotaExhausted = geminiBreaker.mark;
+export const clearGeminiQuotaExhausted = geminiBreaker.clear;
+export const isGeminiQuotaExhausted = geminiBreaker.isExhausted;
+
+function isGeminiAvailable(): boolean {
+  if (!GEMINI_API_KEY) return false;
+  if (isGeminiQuotaExhausted()) return false;
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Ordered provider list
 // ---------------------------------------------------------------------------
@@ -648,6 +671,7 @@ interface ProviderEntry {
 // pin one provider (incident triage).
 const PROVIDERS: ProviderEntry[] = [
   { name: "ollama", available: isOllamaAvailable, create: (t) => createOllamaModel(t), modelId: OLLAMA_MODEL },
+  { name: "gemini", available: isGeminiAvailable, create: (t) => createGoogleModel(t), modelId: GEMINI_MODEL },
   { name: "venice", available: isVeniceAvailable, create: (t) => createVeniceModel(t), modelId: VENICE_MODEL },
   { name: "openai", available: isOpenAIAvailable, create: () => createOpenAIModel(), modelId: OPENAI_MODEL },
   { name: "anthropic", available: isAnthropicAvailable, create: () => createAnthropicModel(), modelId: ANTHROPIC_MODEL },
@@ -739,6 +763,31 @@ export interface GetModelOptions {
   forceProviderFirst?: ProviderName;
 }
 
+export function getPreferredOrderForTask(taskType: TaskType): ProviderName[] {
+  switch (taskType) {
+    case "fast":
+    case "sql":
+    case "summary":
+    case "classify":
+    case "extract":
+      return ["gemini", "ollama", "venice", "openai", "anthropic"];
+    case "reason":
+    case "vision":
+      return ["ollama", "gemini", "venice", "openai", "anthropic"];
+    case "deep":
+      return ["ollama", "venice", "openai", "anthropic", "gemini"];
+    case "code":
+      return ["ollama", "openai", "anthropic", "gemini", "venice"];
+    case "math":
+      return ["openai", "gemini", "ollama", "venice", "anthropic"];
+    case "creative":
+      return ["venice", "ollama", "gemini", "openai", "anthropic"];
+    case "embed":
+    default:
+      return ["ollama", "gemini", "venice", "openai", "anthropic"];
+  }
+}
+
 export function getModel(
   taskType: TaskType = "reason",
   opts: GetModelOptions = {},
@@ -746,24 +795,21 @@ export function getModel(
   // v10.0.512 · forceProviderFirst takes precedence over preferLargeContext
   // when the caller has classified the turn as needing a specific provider
   // (e.g. factual intent → Anthropic for tool-call compliance).
-  let ordered: ProviderEntry[];
+  let preferred: ProviderName[];
   if (opts.forceProviderFirst) {
     const pinned = opts.forceProviderFirst;
-    ordered = [...PROVIDERS].sort((a, b) => {
-      if (a.name === pinned && b.name !== pinned) return -1;
-      if (b.name === pinned && a.name !== pinned) return 1;
-      return 0;
-    });
+    const taskOrder = getPreferredOrderForTask(taskType);
+    preferred = [pinned, ...taskOrder.filter((p) => p !== pinned)];
   } else if (opts.preferLargeContext) {
-    // Apr 28 · Reorder when caller wants large context — Ollama goes first.
-    ordered = [...PROVIDERS].sort((a, b) => {
-      const pri = (n: ProviderName) =>
-        n === "ollama" ? 0 : n === "venice" ? 1 : n === "openai" ? 2 : 3;
-      return pri(a.name) - pri(b.name);
-    });
+    // Apr 28 · Reorder when caller wants large context — Ollama goes first, then Gemini.
+    preferred = ["ollama", "gemini", "venice", "openai", "anthropic"];
   } else {
-    ordered = PROVIDERS;
+    preferred = getPreferredOrderForTask(taskType);
   }
+
+  const ordered = [...PROVIDERS].sort((a, b) => {
+    return preferred.indexOf(a.name) - preferred.indexOf(b.name);
+  });
 
   if (AI_PROVIDER) {
     const entry = ordered.find((p) => p.name === AI_PROVIDER);
@@ -820,14 +866,19 @@ function activeModelIdFor(entry: ProviderEntry, taskType: TaskType): string {
 }
 
 export function getActiveProviderInfo(taskType: TaskType = "reason"): { provider: ProviderName; modelId: string } {
+  const preferred = getPreferredOrderForTask(taskType);
+  const ordered = [...PROVIDERS].sort((a, b) => {
+    return preferred.indexOf(a.name) - preferred.indexOf(b.name);
+  });
+
   if (AI_PROVIDER) {
-    const entry = PROVIDERS.find((p) => p.name === AI_PROVIDER);
+    const entry = ordered.find((p) => p.name === AI_PROVIDER);
     if (entry?.available() && !isProviderRecentlyFailed(entry.name)) {
       return { provider: entry.name, modelId: activeModelIdFor(entry, taskType) };
     }
   }
 
-  for (const entry of PROVIDERS) {
+  for (const entry of ordered) {
     if (entry.available() && !isProviderRecentlyFailed(entry.name)) {
       return { provider: entry.name, modelId: activeModelIdFor(entry, taskType) };
     }
@@ -836,7 +887,7 @@ export function getActiveProviderInfo(taskType: TaskType = "reason"): { provider
   // All-flagged fallback — same semantics as getModel()'s last-resort
   // path. Better to return SOMETHING than throw on a transient
   // global outage.
-  for (const entry of PROVIDERS) {
+  for (const entry of ordered) {
     if (entry.available()) {
       return { provider: entry.name, modelId: activeModelIdFor(entry, taskType) };
     }
@@ -953,6 +1004,7 @@ const PROVIDER_RATES_PER_1M_TOKENS: Record<
 > = {
   venice: { input: 0.5, output: 1.5 }, // Venice flagship-ish pricing
   ollama: { input: 0.0, output: 0.0 }, // local · zero marginal
+  gemini: { input: 0.075, output: 0.30 }, // Gemini 2.5/3.5 Flash rates
   openai: { input: 2.5, output: 10.0 }, // gpt-4o-mini-ish average
   anthropic: { input: 3.0, output: 15.0 }, // Claude Sonnet-ish average
   none: { input: 0.0, output: 0.0 },
@@ -997,7 +1049,7 @@ export function classifyProviderFailure(err: unknown): ProviderFailure["failureC
 export async function aiChat(
   messages: AiMessage[],
   taskType: TaskType = "reason",
-  opts: { signal?: AbortSignal } = {},
+  opts: { signal?: AbortSignal; budgetNearingLimit?: boolean } = {},
 ): Promise<AiResponse> {
   // L.1 · external AbortSignal support · when caller passes a signal,
   // every per-provider attempt combines the external + per-attempt
@@ -1022,12 +1074,28 @@ export async function aiChat(
   // themselves before invoking aiChat(). The API chat route does
   // exactly that.
 
+  let orderedProviders = [...PROVIDERS];
+  if (opts.budgetNearingLimit) {
+    log.warn("budget_near_limit_reordering_providers");
+    // Sort so ollama (0 cost) and gemini (extremely cheap) are tried first
+    orderedProviders = [...PROVIDERS].sort((a, b) => {
+      const costTier = (n: ProviderName) =>
+        n === "ollama" ? 0 : n === "gemini" ? 1 : n === "openai" ? 2 : n === "venice" ? 3 : 4;
+      return costTier(a.name) - costTier(b.name);
+    });
+    // Skip anthropic if others are available to save remaining budget
+    const hasCheaper = orderedProviders.some((p) => p.name !== "anthropic" && p.available());
+    if (hasCheaper) {
+      orderedProviders = orderedProviders.filter((p) => p.name !== "anthropic");
+    }
+  }
+
   const toTry: ProviderEntry[] = [];
   if (AI_PROVIDER) {
-    const preferred = PROVIDERS.find((p) => p.name === AI_PROVIDER);
+    const preferred = orderedProviders.find((p) => p.name === AI_PROVIDER);
     if (preferred?.available()) toTry.push(preferred);
   }
-  for (const p of PROVIDERS) {
+  for (const p of orderedProviders) {
     if (p.available() && !toTry.includes(p)) toTry.push(p);
   }
 

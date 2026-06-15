@@ -224,7 +224,9 @@ export default function FeatureFlagsPanel() {
                     title={isCustomerFacingFlag(flag.key) ? "Customer-facing flag · flipping ON asks for confirmation" : undefined}
                   >
                     <span className="shrink-0">
-                      {flag.value ? (
+                      {toggleMut.isPending && toggleMut.variables?.key === flag.key ? (
+                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                      ) : flag.value ? (
                         <ToggleRight className="w-6 h-6 text-emerald-400" />
                       ) : (
                         <ToggleLeft className="w-6 h-6 text-foreground/30" />

@@ -26,6 +26,13 @@
 import { and, eq, gte, lte, isNull, sql } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
 import { createLogger } from "../../lib/logger";
+import {
+  pickProfile,
+  buildSequenceMessage,
+  TOUCH_ORDER,
+  touchToDays,
+  variantKey
+} from "../../services/declinedRecoverySequence";
 
 const log = createLogger("cron:declined-recovery");
 
@@ -66,11 +73,21 @@ function formatMoney(cents: number): string {
 //     this time?) so the relief mechanism lands hardest here.
 //   - "Still on the fence" softened to customer-language phrasing
 //   - Quote-honoring made the explicit hook (sunk-cost recovery)
-export function buildSevenDayMessage(_params: {
+export function buildSevenDayMessage(params: {
   name: string;
   amountCents: number;
   service: string | null;
+  profile?: string | null;
 }): string {
+  if (params.profile === "P1" || params.profile === "P2" || params.profile === "P3") {
+    return buildSequenceMessage({
+      touch: "7d",
+      profile: params.profile,
+      name: params.name,
+      amountCents: params.amountCents,
+      serviceDescription: params.service,
+    });
+  }
   return (
     `Hey — Nick's Tire & Auto. That quote we wrote up is still good this week. ` +
     `Free re-check, no charge, you don't pay until you say yes. ` +
@@ -78,10 +95,20 @@ export function buildSevenDayMessage(_params: {
   );
 }
 
-export function buildThirtyDayMessage(_params: {
+export function buildThirtyDayMessage(params: {
   name: string;
   amountCents: number;
+  profile?: string | null;
 }): string {
+  if (params.profile === "P1" || params.profile === "P2" || params.profile === "P3") {
+    return buildSequenceMessage({
+      touch: "30d",
+      profile: params.profile,
+      name: params.name,
+      amountCents: params.amountCents,
+      serviceDescription: null,
+    });
+  }
   return (
     `Hey — it's been about a month. We'll still honor that quote, ` +
     `free re-check first, and you don't pay until you say yes. ` +
@@ -145,8 +172,17 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       serviceDescription: algEstimates.serviceDescription,
       estimatedAmount: algEstimates.estimatedAmount,
       estimateDate: algEstimates.estimateDate,
+      followUp3dSent: algEstimates.followUp3dSent,
+      followUp3dAttemptedAt: algEstimates.followUp3dAttemptedAt,
       followUp7dSent: algEstimates.followUp7dSent,
+      followUp7dAttemptedAt: algEstimates.followUp7dAttemptedAt,
+      followUp14dSent: algEstimates.followUp14dSent,
+      followUp14dAttemptedAt: algEstimates.followUp14dAttemptedAt,
       followUp30dSent: algEstimates.followUp30dSent,
+      followUp30dAttemptedAt: algEstimates.followUp30dAttemptedAt,
+      followUp45dSent: algEstimates.followUp45dSent,
+      followUp45dAttemptedAt: algEstimates.followUp45dAttemptedAt,
+      recoveryProfile: algEstimates.recoveryProfile,
     })
     .from(algEstimates)
     .where(
@@ -299,8 +335,6 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
   // rows naturally roll forward to subsequent runs.
   const { scoreEstimateForRecovery } = await import("../../services/recoveryTargeting");
   // wave-181.110 · 5×3 sequence (3d/7d/14d/30d/45d × 3 profiles)
-  const { pickProfile, buildSequenceMessage, TOUCH_ORDER, touchToDays, variantKey } =
-    await import("../../services/declinedRecoverySequence");
   type EstRow = typeof unmatched[number];
   type Ranked = { est: EstRow; customer: CustomerCtx | null; score: number };
   const ranked: Ranked[] = unmatched

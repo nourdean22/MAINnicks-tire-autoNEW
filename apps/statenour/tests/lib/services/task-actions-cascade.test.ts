@@ -238,3 +238,121 @@ describe("checkTask · cascade · graceful degradation", () => {
     expect(result.childrenCascaded).toBe(0);
   });
 });
+
+describe("checkTask · outcomes", () => {
+  it("saves completionNote and outcomeScore for ONCE loops", async () => {
+    setupOnceParent();
+    
+    await checkTask({
+      id: "parent-1",
+      action: "complete",
+      completionNote: "Excellent outcome note",
+      outcomeScore: 92,
+    });
+
+    expect(mocks.task.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "parent-1" },
+        data: expect.objectContaining({
+          completionNote: "Excellent outcome note",
+          outcomeScore: 92,
+        }),
+      }),
+    );
+  });
+
+  it("saves completionNote and outcomeScore for DAILY loops", async () => {
+    setupOnceParent({ loopKind: "DAILY" });
+
+    await checkTask({
+      id: "parent-1",
+      action: "complete",
+      completionNote: "Daily loop note",
+      outcomeScore: 75,
+    });
+
+    expect(mocks.task.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "parent-1" },
+        data: expect.objectContaining({
+          completionNote: "Daily loop note",
+          outcomeScore: 75,
+        }),
+      }),
+    );
+  });
+
+  it("accepts boundary values for outcomeScore", async () => {
+    // Valid minimum
+    setupOnceParent();
+    await checkTask({ id: "parent-1", action: "complete", outcomeScore: 1 });
+    expect(mocks.task.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ outcomeScore: 1 }),
+      })
+    );
+
+    // Valid maximum
+    setupOnceParent();
+    await checkTask({ id: "parent-1", action: "complete", outcomeScore: 100 });
+    expect(mocks.task.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ outcomeScore: 100 }),
+      })
+    );
+  });
+
+  it("rejects invalid outcomeScore values", async () => {
+    setupOnceParent();
+
+    // 0 is too small
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", outcomeScore: 0 })
+    ).rejects.toThrow(/must be an integer between 1 and 100/i);
+
+    // 101 is too large
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", outcomeScore: 101 })
+    ).rejects.toThrow(/must be an integer between 1 and 100/i);
+
+    // String "100" is rejected due to strict typecheck
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", outcomeScore: "100" as any })
+    ).rejects.toThrow(/must be an integer between 1 and 100/i);
+
+    // Non-integer is rejected
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", outcomeScore: 85.5 })
+    ).rejects.toThrow(/must be an integer between 1 and 100/i);
+  });
+
+  it("accepts null for outcomeScore and completionNote", async () => {
+    setupOnceParent();
+
+    await checkTask({
+      id: "parent-1",
+      action: "complete",
+      outcomeScore: null,
+      completionNote: null,
+    });
+
+    expect(mocks.task.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          outcomeScore: null,
+          completionNote: null,
+        }),
+      })
+    );
+  });
+
+  it("rejects excessively long completionNote", async () => {
+    setupOnceParent();
+    const longNote = "a".repeat(1001);
+
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", completionNote: longNote })
+    ).rejects.toThrow(/must not exceed 1000 characters/i);
+  });
+});
+

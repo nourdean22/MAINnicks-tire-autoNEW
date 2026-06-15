@@ -49,25 +49,25 @@ const ACTIONS: ActionSpec[] = [
   // ── Business landscape primary metrics ────────────────────────────
   {
     query: "cars_today",
-    tier: "primary-metric",
+    tier: "production",
     consumer: "<CarsTodayCard> HQ surface",
   },
   {
     query: "estimates_conversion",
     filters: { window: "7d" },
-    tier: "primary-metric",
+    tier: "production",
     consumer: "HQ conversion tracker",
   },
   {
     query: "estimates_aging",
     filters: { olderThanHours: 48 },
-    tier: "primary-metric",
+    tier: "production",
     consumer: "Aging-estimate leaderboard",
   },
   {
     query: "drop_off_ratio",
     filters: { window: "today" },
-    tier: "primary-metric",
+    tier: "production",
     consumer: "Business DNA metric #5",
   },
 

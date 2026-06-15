@@ -33,6 +33,7 @@ export async function buildSystemHub() {
     aiStats,
     powerSettings,
     pulsePriority,
+    governanceCount,
   ] = await Promise.all([
     scanCronHealth().catch(() => null),
     scanStaleData().catch(() => null),
@@ -128,6 +129,17 @@ export async function buildSystemHub() {
       0,
       { label: "hub.pulse" },
     ),
+
+    safeQuery(
+      async () => {
+        const count = await prisma.autonomousAction.count({
+          where: { approval: "pending" },
+        });
+        return count;
+      },
+      0,
+      { label: "hub.governance" }
+    ),
   ]);
 
   return {
@@ -149,6 +161,9 @@ export async function buildSystemHub() {
     ai: aiStats,
     power: {
       paused: powerSettings?.pauseAllCrons ?? false,
+    },
+    governance: {
+      pendingCount: governanceCount,
     },
     generatedAt: new Date().toISOString(),
   };

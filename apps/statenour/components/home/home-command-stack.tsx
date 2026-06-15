@@ -6,6 +6,7 @@ import { trpc } from "@/lib/trpc/client";
 import { ArrowRight, Flame, ShieldAlert, Zap, Target, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/components/actions/shared";
+import type { CriticalFewTask } from "@/lib/services/next-move";
 
 interface StatLevel {
   key: string;
@@ -26,13 +27,17 @@ export function HomeCommandStack() {
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
   });
+  const nextMoveQuery = trpc.task.nextMove.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 60 * 1000,
+  });
 
   const tasks = (tasksQuery.data ?? []) as Task[];
   const stats = (statsQuery.data ?? []) as StatLevel[];
   const journalAction = journalActionQuery.data;
 
   const summary = useMemo(() => {
-    if (tasksQuery.isLoading || statsQuery.isLoading) return null;
+    if (tasksQuery.isLoading || statsQuery.isLoading || nextMoveQuery.isLoading) return null;
 
     // 1. Compute Mode
     const doingTask = tasks.find((t) => t.status === "DOING");
@@ -111,8 +116,10 @@ export function HomeCommandStack() {
       nextRep,
       risks,
       completedToday,
+      criticalFew: nextMoveQuery.data?.criticalFew || null,
+      nextMoveData: nextMoveQuery.data || null,
     };
-  }, [tasks, stats, journalAction, tasksQuery.isLoading, statsQuery.isLoading]);
+  }, [tasks, stats, journalAction, nextMoveQuery.data, tasksQuery.isLoading, statsQuery.isLoading, nextMoveQuery.isLoading]);
 
   if (!summary) {
     return (
@@ -120,7 +127,7 @@ export function HomeCommandStack() {
     );
   }
 
-  const { mode, nextMove, nextRep, risks, completedToday } = summary;
+  const { mode, nextMove, nextRep, risks, completedToday, criticalFew, nextMoveData } = summary;
 
   return (
     <div className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border-white/10 p-4 shadow-xl space-y-4 animate-fade-in-scale">
@@ -153,23 +160,73 @@ export function HomeCommandStack() {
 
       {/* Bento content grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Left column: Next Move Card */}
-        <Link 
-          href={nextMove.href}
-          className="flex flex-col justify-between p-3 rounded-lg border border-white/5 bg-white/[0.01] hover:bg-white/[0.03] hover:border-[var(--gold)]/30 transition group"
-        >
-          <div className="space-y-1">
-            <span className="text-[8px] font-mono uppercase tracking-wider text-white/40 group-hover:text-[var(--gold)]/80 transition-colors">
-              next move · {nextMove.src}
-            </span>
-            <p className="text-[13px] font-semibold text-white/90 leading-snug truncate-2-lines">
-              {nextMove.title}
-            </p>
+        {/* Left column: Next Move Card or Critical Few */}
+        {criticalFew && criticalFew.length > 0 ? (
+          <div className="flex flex-col justify-between p-3 rounded-lg border border-white/5 bg-white/[0.01] space-y-2.5">
+            <div>
+              <span className="text-[8px] font-mono uppercase tracking-wider text-white/40 block mb-2">
+                today's critical few
+              </span>
+              <div className="space-y-1.5">
+                {criticalFew.map((task) => {
+                  const laneColors: Record<string, string> = {
+                    focus: "text-amber-400 border-amber-500/30 bg-amber-500/5",
+                    weakest: "text-cyan-400 border-cyan-500/30 bg-cyan-500/5",
+                    quick: "text-emerald-400 border-emerald-500/30 bg-emerald-500/5",
+                  };
+                  const laneLabels: Record<string, string> = {
+                    focus: "Focus",
+                    weakest: "Weakest",
+                    quick: "Quick",
+                  };
+                  return (
+                    <Link
+                      key={task.id}
+                      href={`/missions#task-${task.id}`}
+                      className="flex items-center justify-between gap-2 p-1.5 rounded border border-white/5 hover:border-[var(--gold)]/30 hover:bg-white/[0.02] transition group min-w-0"
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className={cn(
+                          "inline-flex items-center px-1 py-0.5 rounded border text-[8px] font-mono uppercase tracking-wider shrink-0",
+                          laneColors[task.lane]
+                        )}>
+                          {laneLabels[task.lane]}
+                        </span>
+                        <p className="text-[11.5px] font-medium text-white/90 leading-tight truncate">
+                          {task.title}
+                        </p>
+                      </div>
+                      <ArrowRight size={10} className="text-[var(--gold)] shrink-0 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+            {nextMoveData?.weakestDomain && (
+              <span className="text-[8px] font-mono text-white/35 truncate">
+                Weak axis: {nextMoveData.weakestDomain.toLowerCase()} · {nextMoveData.weakestScore}/100
+              </span>
+            )}
           </div>
-          <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-mono text-[var(--gold)] hover:underline">
-            execute now <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
-          </span>
-        </Link>
+        ) : (
+          <Link 
+            href={nextMove.href}
+            className="flex flex-col justify-between p-3 rounded-lg border border-white/5 bg-white/[0.01] hover:bg-white/[0.03] hover:border-[var(--gold)]/30 transition group"
+          >
+            <div className="space-y-1">
+              <span className="text-[8px] font-mono uppercase tracking-wider text-white/40 group-hover:text-[var(--gold)]/80 transition-colors">
+                next move · {nextMove.src}
+              </span>
+              <p className="text-[13px] font-semibold text-white/90 leading-snug truncate-2-lines">
+                {nextMove.title}
+              </p>
+            </div>
+            <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-mono text-[var(--gold)] hover:underline">
+              execute now <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </Link>
+        )}
+>>>>>>> origin/main
 
         {/* Right column: Target Stat & Proof */}
         <div className="space-y-3">

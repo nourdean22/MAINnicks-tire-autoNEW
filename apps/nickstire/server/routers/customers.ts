@@ -878,7 +878,7 @@ export const customersRouter = router({
         .select({
           phone: customers.phone,
           totalVisits: customers.totalVisits,
-          totalRevenue: customerMetrics.totalRevenue,
+          totalRevenue: customers.totalSpent,
           isVip: customerMetrics.isVip,
           churnRisk: customerMetrics.churnRisk,
         })
@@ -1024,8 +1024,11 @@ export const customersRouter = router({
           paymentStatus: invoices.paymentStatus,
           paymentMethod: invoices.paymentMethod,
           invoiceDate: invoices.invoiceDate,
+          estimateAmount: algEstimates.estimatedAmount,
+          estimateExternalId: algEstimates.externalId,
         })
         .from(invoices)
+        .leftJoin(algEstimates, eq(invoices.id, algEstimates.matchedInvoiceId))
         .where(eq(invoices.customerPhone, input.phone))
         .orderBy(desc(invoices.invoiceDate))
         .limit(10);

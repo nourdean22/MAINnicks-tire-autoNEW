@@ -124,6 +124,8 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   home: "overview",
   funnel: "trafficFunnel",
   traffic: "trafficFunnel",
+  tires: "tireOrders",
+  pipeline: "leads",
 
   // wave-181.x Wave 3 (2026-05-24) · Intelligence section retired ·
   // operator bookmarks pointing to ?tab=intelligence land on overview
@@ -417,7 +419,7 @@ export default function Admin() {
         const url = new URL(window.location.href);
         url.searchParams.set("tab", "customers");
         url.searchParams.set("id", String(detail.customerId));
-        window.history.replaceState({}, "", url.toString());
+        window.history.pushState({}, "", url.toString());
       }
     };
     window.addEventListener("admin:open-customer-drawer", handler);
@@ -540,13 +542,15 @@ export default function Admin() {
                   // split across Leads + Calls). Surfaces total items
                   // needing attention right now.
                   if (item.id === "overview") badge = urgentLeads + newLeads + newBookings + pendingCallbacks;
-                  if (item.id === "revenue") badge = woStats?.active ?? 0;
+                  if (item.id === "leads") badge = newLeads;
+                  if (item.id === "tireOrders") badge = stats?.tires?.new ?? 0;
+                  if (item.id === "memberships") badge = stats?.memberships?.warning ?? 0;
 
                   // wave-129b — badge tone semantics:
                   //   today (red dot)     — urgent / new — high priority
-                  //   revenue (red/amber) — overdue/blocked work
+                  //   memberships (red)   — past due / incomplete
                   //   default (subtle)    — work-in-progress count
-                  const isAlert = (item.id === "overview" && badge > 0) || (item.id === "revenue" && Boolean(woStats?.overdue || woStats?.blocked));
+                  const isAlert = (item.id === "overview" && badge > 0) || (item.id === "memberships" && badge > 0);
                   return (
                     <button
                       key={item.id}
@@ -670,7 +674,9 @@ export default function Admin() {
             href="/admin?tab=content"
             title="AI Content"
             aria-label="AI Content"
-            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
+            className={`inline-flex items-center justify-center w-9 h-9 hover:text-primary hover:bg-foreground/5 rounded-md transition-colors ${
+              section === "content" ? "text-primary bg-foreground/5" : "text-muted-foreground"
+            }`}
           >
             <Sparkles className="w-4 h-4" />
           </Link>

@@ -45,6 +45,7 @@ import {
   SUGGEST_GOAL_HORIZONS,
 } from "@/lib/services/ai-suggest-goals";
 import { runCoachGoal, CoachGoalError } from "@/lib/services/ai-coach-goal";
+import { runDeconstructTask } from "@/lib/services/ai-deconstruct";
 
 /**
  * THE TS2589 FIREWALL · the shallow wire shape `ai.planProject` returns.
@@ -276,5 +277,16 @@ export const aiRouter = router({
         }
         throw err;
       }
+    }),
+
+  deconstructTask: operatorProcedure
+    .input(
+      z.object({
+        taskTitle: z.string().min(1).max(500),
+        goalTitle: z.string().max(500).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      return runDeconstructTask(input);
     }),
 });

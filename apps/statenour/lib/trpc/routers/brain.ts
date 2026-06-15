@@ -105,6 +105,8 @@ import {
   removeEntry,
 } from "@/lib/brain/qualitative-identity";
 import { getToolStats, getProblemTools } from "@/lib/ai/tool-telemetry";
+import { TOOL_CATALOG, getToolRiskClass } from "@/lib/ai/tools/catalog";
+import { nourTools } from "@/lib/ai/tools";
 import { runWisdomEvolution } from "@/lib/brain/wisdom-evolution";
 import { recordMetric } from "@/lib/services/metrics";
 import { ingestJournal } from "@/lib/brain/journal-ingest";
@@ -884,14 +886,107 @@ export const brainRouter = router({
    */
   toolTelemetry: operatorProcedure.query(async () => {
     const [stats, problem] = await Promise.all([
-      getToolStats(100),
+      getToolStats(200),
       getProblemTools(),
     ]);
+
+    const statsMap = new Map(stats.map((s) => [s.toolName, s]));
+    const liveTools = new Set(Object.keys(nourTools));
+
+    const missingEnvKeysSet = new Set<string>();
+    const enrichedStats = TOOL_CATALOG.map((meta) => {
+      const name = meta.name;
+      const liveInToolset = liveTools.has(name);
+      const telemetry = statsMap.get(name);
+
+      const requiredEnv = meta.requiredEnv ?? [];
+      const missingEnv = requiredEnv.filter((k) => !process.env[k]);
+
+      // Calculate missing env keys across all active/live tools
+      if (liveInToolset) {
+        for (const k of missingEnv) {
+          missingEnvKeysSet.add(k);
+        }
+      }
+
+      // Calculate dynamic status
+      let status: "active" | "restricted_active" | "scaffolded" | "inert" | "blocked" = "active";
+      if (!liveInToolset) {
+        status = "scaffolded";
+      } else if (missingEnv.length > 0) {
+        status = "inert";
+      } else if (meta.sideEffecting) {
+        status = "restricted_active";
+      }
+
+      const riskClass = getToolRiskClass(name, meta);
+
+      return {
+        toolName: name,
+        category: meta.category,
+        description: (nourTools as any)[name]?.description ?? `No description in catalog for ${name}`,
+        mutates: meta.sideEffecting ?? false,
+        riskClass,
+        status,
+        requiredEnv,
+        missingEnv,
+        totalCalls: telemetry?.totalCalls ?? 0,
+        successRate: telemetry?.successRate ?? 0,
+        avgDurationMs: telemetry?.avgDurationMs ?? 0,
+        failCount: telemetry?.failCount ?? 0,
+        lastCallAt: telemetry?.lastCallAt,
+        lastErrors: telemetry?.lastErrors ?? [],
+        registered: true,
+        liveInToolset,
+      };
+    });
+
+    // Handle drift: tools in nourTools but missing from TOOL_CATALOG
+    const regKeys = new Set(TOOL_CATALOG.map((t) => t.name));
+    const missingFromRegistry = [...liveTools].filter((k) => !regKeys.has(k));
+    const missingFromTools = [...regKeys].filter((k) => !liveTools.has(k));
+
+    // Append any live tools missing from registry to the stats list so they still show up
+    for (const name of missingFromRegistry) {
+      const telemetry = statsMap.get(name);
+      enrichedStats.push({
+        toolName: name,
+        category: "meta" as any,
+        description: (nourTools as any)[name]?.description ?? "(missing from tool catalog registry)",
+        mutates: false,
+        riskClass: "medium",
+        status: "active",
+        requiredEnv: [],
+        missingEnv: [],
+        totalCalls: telemetry?.totalCalls ?? 0,
+        successRate: telemetry?.successRate ?? 0,
+        avgDurationMs: telemetry?.avgDurationMs ?? 0,
+        failCount: telemetry?.failCount ?? 0,
+        lastCallAt: telemetry?.lastCallAt,
+        lastErrors: telemetry?.lastErrors ?? [],
+        registered: false,
+        liveInToolset: true,
+      });
+    }
+
+    // Sort enrichedStats by totalCalls descending
+    enrichedStats.sort((a, b) => {
+      if (a.totalCalls !== b.totalCalls) {
+        return b.totalCalls - a.totalCalls;
+      }
+      return a.toolName.localeCompare(b.toolName);
+    });
+
     return {
       ok: true as const,
-      total: stats.length,
+      total: enrichedStats.length,
       problem,
-      stats,
+      stats: enrichedStats,
+      drift: {
+        inToolsetMissingFromRegistry: missingFromRegistry,
+        inRegistryMissingFromToolset: missingFromTools,
+      },
+      missingEnvKeys: Array.from(missingEnvKeysSet),
     };
   }),
 

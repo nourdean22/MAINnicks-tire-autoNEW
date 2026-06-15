@@ -24,6 +24,7 @@ import { prisma } from "@/lib/prisma";
 import { detectBlindSpots, type BlindSpot } from "@/lib/brain/blind-spot-detector";
 import { cached } from "@/lib/utils/cache";
 import { daysAgo } from "@/lib/utils/datetime";
+import { getUrgentLeads } from "@/lib/services/leads";
 
 export interface LaneChip {
   domain: string;
@@ -112,8 +113,18 @@ export async function checkLane(args: LaneCheckArgs): Promise<LaneCheckResult> {
   let chip: LaneChip | null = null;
 
   if (blindSpots.length > 0) {
+    const urgentLeads = await getUrgentLeads().catch(() => []);
+    const hasUrgentLeads = urgentLeads.length > 0;
+
     const adjacent = blindSpots
       .filter((b) => !currentDomain || b.domain.toLowerCase() !== currentDomain)
+      .filter((b) => {
+        if (hasUrgentLeads) {
+          const personalDomains = ["body", "marriage", "relationships", "family", "spiritual", "health", "mental", "mind", "general"];
+          return !personalDomains.includes(b.domain.toLowerCase());
+        }
+        return true;
+      })
       .sort((a, b) => {
         const sev = { critical: 0, high: 1, medium: 2, low: 3 };
         return sev[a.severity] - sev[b.severity];

@@ -13,11 +13,13 @@
  *     records the plate the first time the member pulls up.
  */
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { eq, like, desc } from "drizzle-orm";
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
 import { memberships, type Membership } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
 import { sanitizePhone } from "../sanitize";
+import { normalizeMembershipPhone, sortMembersActiveFirst } from "../lib/membership-guards";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:memberships");
@@ -33,8 +35,8 @@ export const membershipsRouter = router({
       plan: z.enum(["nonstop-nick", "nonstop-nick-plus"]).optional(),
     }))
     .mutation(async ({ input }) => {
-      const phone = sanitizePhone(input.phone).replace(/\D/g, "").slice(-10);
-      if (phone.length !== 10) {
+      const phone = normalizeMembershipPhone(input.phone);
+      if (!phone) {
         return { url: null as string | null, error: "Please enter a valid 10-digit phone number." };
       }
       const { createMembershipCheckout } = await import("../services/payments");
@@ -61,14 +63,16 @@ export const membershipsRouter = router({
       if (!d) return { found: false as const };
       const phone = sanitizePhone(input.phone).replace(/\D/g, "").slice(-10);
       // LIKE on the last digits so a partial entry at the counter still matches.
-      const rows = await d.select().from(memberships)
+      const rows: Membership[] = await d.select().from(memberships)
         .where(like(memberships.phone, `%${phone}`))
         .orderBy(desc(memberships.createdAt))
         .limit(5);
       if (rows.length === 0) return { found: false as const };
+      // Active members first — the counter's actual question is "are they
+      // active?", so a canceled row must never bury the live one.
       return {
         found: true as const,
-        members: rows.map((m: Membership) => ({
+        members: sortMembersActiveFirst(rows).map((m: Membership) => ({
           id: m.id,
           name: m.name,
           phone: m.phone,
@@ -95,10 +99,55 @@ export const membershipsRouter = router({
     .mutation(async ({ input }) => {
       const d = await db();
       if (!d) throw new Error("Database unavailable");
+      // Honest failure: binding a non-existent membership must error, not
+      // report success after a 0-row UPDATE (launch-readiness audit).
+      const [existing] = await d.select().from(memberships)
+        .where(eq(memberships.id, input.membershipId)).limit(1);
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No membership with that ID — look the member up again." });
+      }
       await d.update(memberships)
         .set({ vehiclePlate: input.vehiclePlate.toUpperCase().trim(), vehicleDesc: input.vehicleDesc })
         .where(eq(memberships.id, input.membershipId));
       log.info(`Nonstop Nick membership ${input.membershipId} bound to ${input.vehiclePlate}`);
       return { success: true };
+    }),
+
+  /** Grant 3-day grace period override for membership status (admin). */
+  grantGracePeriod: adminProcedure
+    .input(z.object({
+      membershipId: z.number().int(),
+      days: z.number().int().default(3),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new Error("Database unavailable");
+      const [existing] = await d.select().from(memberships)
+        .where(eq(memberships.id, input.membershipId)).limit(1);
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No membership with that ID" });
+      }
+
+      const newPeriodEnd = new Date(Date.now() + input.days * 24 * 60 * 60 * 1000);
+      await d.update(memberships)
+        .set({
+          status: "active",
+          currentPeriodEnd: newPeriodEnd,
+        })
+        .where(eq(memberships.id, input.membershipId));
+
+      const { logAdminAction } = await import("../services/auditTrail");
+      await logAdminAction({
+        action: "membership.grace_period_granted",
+        entityType: "membership",
+        entityId: input.membershipId,
+        details: `Granted ${input.days}-day grace period override. New currentPeriodEnd: ${newPeriodEnd.toISOString()}`,
+        previousValue: existing.status,
+        newValue: "active",
+        metadata: { days: input.days },
+      });
+
+      log.info(`Grace period granted for membership ID ${input.membershipId} until ${newPeriodEnd.toISOString()}`);
+      return { success: true, currentPeriodEnd: newPeriodEnd };
     }),
 });

@@ -126,3 +126,32 @@ export function prettyReason(reason: string | null | undefined): { label: string
   // through to the "Other" bucket via the unknown entry.
   return REASON_PRETTY[reason] ?? REASON_PRETTY.unknown;
 }
+
+export function maskPhone(num: string | null): string {
+  if (!num) return "Anonymous";
+  const digits = num.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `(${digits.slice(1, 4)}) ***-${digits.slice(7)}`;
+  }
+  return num.slice(0, -4) + "****";
+}
+
+export const OUTCOME_PRETTY: Record<string, { label: string; color: string; bg: string }> = {
+  hard_conversion:            { label: "Hard Conversion",            color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
+  walk_in_directed:           { label: "Walk-In Directed",           color: "text-teal-400",    bg: "bg-teal-500/10 border-teal-500/20" },
+  human_handoff:              { label: "Human Handoff",              color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20" },
+  callback_needed:            { label: "Callback Needed",            color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20" },
+  tire_availability_intent:   { label: "Tire Stock Inquiry",         color: "text-indigo-400",  bg: "bg-indigo-500/10 border-indigo-500/20" },
+  quote_or_inspection_intent: { label: "Quote Inquiry",              color: "text-purple-400",  bg: "bg-purple-500/10 border-purple-500/20" },
+  resolved_info:              { label: "Resolved Info",              color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20" },
+  lost_opportunity:           { label: "Lost Opportunity",           color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20" },
+  spam_or_wrong_number:       { label: "Spam / Wrong Number",        color: "text-foreground/30", bg: "bg-foreground/5 border-foreground/10" },
+  abandoned_before_connect:   { label: "Abandoned Call",             color: "text-foreground/30", bg: "bg-foreground/5 border-foreground/10" },
+  tech_failure:               { label: "Technical Failure",          color: "text-red-400",     bg: "bg-red-500/10 border-red-500/20" },
+  unknown:                    { label: "Unknown",                    color: "text-foreground/45", bg: "bg-foreground/5 border-foreground/10" },
+};
+
+export function prettyOutcome(outcome: string | null | undefined): { label: string; color: string; bg: string } {
+  if (!outcome) return OUTCOME_PRETTY.unknown;
+  return OUTCOME_PRETTY[outcome] ?? { label: outcome.replace(/_/g, " "), color: "text-foreground/50", bg: "bg-foreground/5 border-foreground/10" };
+}

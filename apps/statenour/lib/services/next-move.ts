@@ -39,13 +39,66 @@ export interface NextMoveSuggestion {
   reason: string;
 }
 
+export interface CriticalFewTask {
+  id: string;
+  title: string;
+  roiScore: number;
+  effort: string;
+  energyRequired: string;
+  domain: string;
+  lane: "focus" | "weakest" | "quick";
+  reason: string;
+}
+
 export interface NextMove {
   weakestDomain: string | null;
   weakestScore?: number;
   weakestDelta?: number;
   rationale: string | null;
   suggestions: NextMoveSuggestion[];
+  criticalFew?: CriticalFewTask[];
 }
+
+// ─── Stat Key to Mission Domain Map ────────────────────────────────
+const STAT_KEY_TO_MISSION_DOMAIN: Record<string, string> = {
+  // BODY
+  physical: "HEALTH",
+  combat: "HEALTH",
+  conditioning: "HEALTH",
+  mobility: "HEALTH",
+  // MIND
+  mental: "PERSONAL",
+  fortitude: "PERSONAL",
+  emotional_intelligence: "PERSONAL",
+  adaptability: "PERSONAL",
+  courage: "PERSONAL",
+  faith: "PERSONAL",
+  self_confidence: "PERSONAL",
+  patience: "PERSONAL",
+  audacity: "PERSONAL",
+  wisdom: "PERSONAL",
+  discipline: "PERSONAL",
+  // EMPIRE
+  business_ops: "BUSINESS",
+  financial: "FINANCE",
+  technical: "BUSINESS",
+  strategy: "BUSINESS",
+  delegation: "BUSINESS",
+  follow_through: "BUSINESS",
+  critical_thinking: "BUSINESS",
+  learning: "BUSINESS",
+  // INFLUENCE
+  sales: "CONTENT",
+  persuasion: "CONTENT",
+  marketing: "CONTENT",
+  leadership: "CONTENT",
+  relationships: "PERSONAL",
+  service: "PERSONAL",
+  languages: "PERSONAL",
+  advertising: "CONTENT",
+  seduction: "PERSONAL",
+  networking: "CONTENT",
+};
 
 export async function buildNextMove(): Promise<NextMove> {
   // 1 · Find the weakest domain · sort mastery scores ascending,
@@ -169,11 +222,103 @@ export async function buildNextMove(): Promise<NextMove> {
     });
   }
 
+  // 4 · Find the "Critical Few" open tasks
+  const openTasks = await prisma.task.findMany({
+    where: {
+      status: { in: ["INBOX", "READY", "DOING"] },
+      deletedAt: null,
+    },
+    include: {
+      mission: {
+        select: { domain: true },
+      },
+    },
+    orderBy: [
+      { roiScore: "desc" },
+      { lastTouchedAt: "desc" },
+    ],
+  }).catch(() => [] as any[]);
+
+  const criticalFew: CriticalFewTask[] = [];
+  const selectedIds = new Set<string>();
+
+  // 4.1 Focus Lane
+  let focusTask = openTasks.find((t) => t.status === "DOING");
+  let focusReason = "Currently in progress";
+
+  if (!focusTask) {
+    focusTask = openTasks.find((t) => t.loopKind !== "DAILY" && t.loopKind !== "WEEKLY");
+    focusReason = focusTask ? `Highest ROI strategic target (ROI ${focusTask.roiScore})` : "";
+  }
+  if (!focusTask && openTasks.length > 0) {
+    focusTask = openTasks[0];
+    focusReason = focusTask ? `Highest ROI target (ROI ${focusTask.roiScore})` : "";
+  }
+
+  if (focusTask) {
+    selectedIds.add(focusTask.id);
+    criticalFew.push({
+      id: focusTask.id,
+      title: focusTask.title,
+      roiScore: focusTask.roiScore,
+      effort: focusTask.effort,
+      energyRequired: focusTask.energyRequired,
+      domain: focusTask.mission?.domain || "PERSONAL",
+      lane: "focus",
+      reason: focusReason,
+    });
+  }
+
+  // 4.2 Weakest Lane
+  if (weakestDomain) {
+    const lowestDomainKey = weakestDomain.toLowerCase();
+    const targetLegacyDomain = STAT_KEY_TO_MISSION_DOMAIN[lowestDomainKey] || weakestDomain;
+    const weakestLaneTask = openTasks.find((t) => 
+      !selectedIds.has(t.id) &&
+      t.mission?.domain?.toUpperCase() === targetLegacyDomain.toUpperCase()
+    );
+    if (weakestLaneTask) {
+      selectedIds.add(weakestLaneTask.id);
+      criticalFew.push({
+        id: weakestLaneTask.id,
+        title: weakestLaneTask.title,
+        roiScore: weakestLaneTask.roiScore,
+        effort: weakestLaneTask.effort,
+        energyRequired: weakestLaneTask.energyRequired,
+        domain: weakestLaneTask.mission?.domain || weakestDomain,
+        lane: "weakest",
+        reason: `Lifts your weakest axis: ${weakestDomain}`,
+      });
+    }
+  }
+
+  // 4.3 Quick Lane
+  const quickLaneTask = openTasks.find((t) => 
+    !selectedIds.has(t.id) &&
+    (t.effort === "M5" || t.effort === "M15") &&
+    t.energyRequired === "LOW"
+  );
+
+  if (quickLaneTask) {
+    selectedIds.add(quickLaneTask.id);
+    criticalFew.push({
+      id: quickLaneTask.id,
+      title: quickLaneTask.title,
+      roiScore: quickLaneTask.roiScore,
+      effort: quickLaneTask.effort,
+      energyRequired: quickLaneTask.energyRequired,
+      domain: quickLaneTask.mission?.domain || "PERSONAL",
+      lane: "quick",
+      reason: "Low effort, low energy — build momentum",
+    });
+  }
+
   return {
     weakestDomain,
     weakestScore: weakestData.score,
     weakestDelta: weakestData.delta,
     rationale,
     suggestions: suggestions.slice(0, 3),
+    criticalFew,
   };
 }

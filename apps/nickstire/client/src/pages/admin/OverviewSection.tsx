@@ -55,6 +55,8 @@ import { WaveMetricWins } from "./today/WaveMetricWins";
 // wave-2 money-visibility · "what's at risk before it costs money today" ·
 // derives from the same overviewMediumBundle (cache-shared · no new query).
 import { TodaysMoneyRisks } from "./today/TodaysMoneyRisks";
+import { MoneyScorecard } from "./today/MoneyScorecard";
+import { TopMoneyMoves } from "./today/TopMoneyMoves";
 import type {
   BookingItem, LeadItem, CallbackItem, WorkOrderItem,
   NBAAction, AtRiskWhale, ShopFloorData, ActionItem,
@@ -63,110 +65,7 @@ import type {
 // row is the SAME person as the callback item pushed below; skip it so the
 // queue doesn't list one caller twice. Voice leads (callbackId null) stay.
 import { isCallbackDuplicateLead } from "@shared/leadSource";
-
-// ─── WHAT TO DO NOW — Server-Driven Next Best Actions ─────
-const NBA_TYPE_CONFIG: Record<string, { icon: React.ReactNode; color: string; bgColor: string; label: string }> = {
-  hot_lead: { icon: <Users className="w-3.5 h-3.5" />, color: "text-amber-400", bgColor: "bg-amber-500/10", label: "LEAD" },
-  pending_invoice: { icon: <FileText className="w-3.5 h-3.5" />, color: "text-emerald-400", bgColor: "bg-emerald-500/10", label: "INVOICE" },
-  callback: { icon: <PhoneCall className="w-3.5 h-3.5" />, color: "text-blue-400", bgColor: "bg-blue-500/10", label: "CALLBACK" },
-  vip_winback: { icon: <Star className="w-3.5 h-3.5" />, color: "text-amber-400", bgColor: "bg-amber-500/10", label: "VIP" },
-};
-
-// 2026-05-19 · canonical palette · was bg-yellow-500 for urgency 3 ·
-// folded into amber (the only warning color in the palette).
-const URGENCY_DOTS: Record<number, string> = {
-  5: "bg-red-500",
-  4: "bg-amber-500",
-  3: "bg-amber-400",
-  2: "bg-foreground/40",
-  1: "bg-foreground/30",
-};
-
-function NextBestActions() {
-  const { data, isLoading } = trpc.intelligence.nextBestActions.useQuery(undefined, {
-    refetchInterval: 30000,
-    staleTime: 25_000, // wave-171: prevent stale=true on every refetch tick
-  });
-
-  if (isLoading) return null;
-  if (!data?.actions?.length) return null;
-
-  return (
-    <div className="bg-card border-2 border-red-500/30 p-5">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-1.5 rounded bg-red-500/15">
-          <Zap className="w-4 h-4 text-red-400" />
-        </div>
-        <h3 className="text-xs font-black tracking-widest text-red-400 uppercase">
-          What To Do Now
-        </h3>
-        <span className="ml-1 text-[10px] bg-red-500/15 text-red-400 px-2 py-0.5 rounded-full font-bold">
-          {data.actions.length}
-        </span>
-      </div>
-
-      <div className="space-y-1.5">
-        {data.actions.map((action: NBAAction, i: number) => {
-          const cfg = NBA_TYPE_CONFIG[action.type] || NBA_TYPE_CONFIG.hot_lead;
-          return (
-            <div
-              key={`${action.type}-${i}`}
-              className="flex items-center gap-3 px-3 py-2.5 bg-background/50 border border-border/20 hover:border-primary/30 transition-all group"
-            >
-              {/* Urgency dot */}
-              <span className={`w-2 h-2 rounded-full shrink-0 ${URGENCY_DOTS[action.urgency] || URGENCY_DOTS[1]} ${action.urgency >= 4 ? "animate-pulse" : ""}`} />
-
-              {/* Type icon */}
-              <div className={`shrink-0 ${cfg.color}`}>{cfg.icon}</div>
-
-              {/* Message */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-foreground truncate">{action.message}</span>
-                  <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded shrink-0 ${cfg.color} ${cfg.bgColor}`}>
-                    {cfg.label}
-                  </span>
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-60 sm:group-hover:opacity-100 transition-opacity">
-                {action.phone && (
-                  <a
-                    href={`tel:${action.phone}`}
-                    className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded transition-all"
-                    title="Call"
-                    aria-label="Call customer"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                  </a>
-                )}
-                {action.phone && (
-                  <MessageCustomerLink
-                    phone={action.phone}
-                    className="p-1.5 text-blue-400 hover:bg-blue-500/10 rounded transition-all"
-                    title="Open in-admin SMS chat"
-                    ariaLabel="Send text message via in-admin SMS chat"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                  </MessageCustomerLink>
-                )}
-                <Link
-                  href={action.actionUrl}
-                  className="p-1.5 text-foreground/30 hover:text-primary hover:bg-primary/10 rounded transition-all"
-                  title="View"
-                  aria-label="View details"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+import { NextBestActions } from "./today/NextBestActions";
 
 export default function OverviewSection() {
   const utils = trpc.useUtils();
@@ -486,11 +385,21 @@ export default function OverviewSection() {
       out.push({
         id: "alg-offline",
         severity: "crit",
-        message: "ALG (Auto Labor Guide) integration offline. Revenue + invoice numbers are stale.",
+        message: "ALG (Auto Labor Guide) integration offline. Estimate and customer data may be stale.",
         // wave-187 — ALG connection + sync/probe controls live on ShopDriver HQ,
         // not Integrations (which is just the tire/labor calculator). Match the
         // ALG status pill below (settingsTab=shopdriver) so "Fix" lands operator
         // on the actual reconnect controls.
+        href: "/admin?tab=settings&settingsTab=shopdriver",
+        ctaLabel: "Fix",
+        dismissable: false,
+      });
+    }
+    if (algStatus?.staleDays && algStatus.staleDays > 1) {
+      out.push({
+        id: "alg-stale",
+        severity: "crit",
+        message: `ALG (Auto Labor Guide) sync is stale by ${algStatus.staleDays} days. Estimate and customer data may be out of sync.`,
         href: "/admin?tab=settings&settingsTab=shopdriver",
         ctaLabel: "Fix",
         dismissable: false,
@@ -511,21 +420,16 @@ export default function OverviewSection() {
       });
     }
     return out;
-  }, [algConnectedForAlerts, paymentBacklogCount]);
+  }, [algConnectedForAlerts, paymentBacklogCount, algStatus]);
 
   if (isLoading || !stats) {
     return <SkeletonOverview />;
   }
 
   // ─── DERIVED DATA ────────────────────────────────────
-  // ALG RULES ALL — every money + invoice-count number descends from the
-  // ALG mirror. Unit note: admin-stats.ts converts cents → dollars already.
+  // ALG mirror — estimate counts + customer data.
   const algFloor = (stats as typeof stats & { shopFloor?: ShopFloorData }).shopFloor;
-  const todayRevenue = algFloor?.revenueToday ?? 0;
-  const weekRevenue = algFloor?.revenueThisWeek ?? 0;
-  const monthRevenue = algFloor?.revenueThisMonth ?? 0;
   const jobsClosed = algFloor?.invoicesToday ?? 0;
-  const weekInvoiceCount = algFloor?.invoicesThisWeek ?? 0;
   const activeLeads = stats.leads.new + stats.leads.contacted;
   const urgentLeads = stats.leads.urgent ?? 0;
   const algConnected = algStatus?.connected ?? null;
@@ -595,36 +499,29 @@ export default function OverviewSection() {
         urgentLeads={urgentLeads}
       />
 
+      <TopMoneyMoves />
+
+      <MoneyScorecard />
+
       {/* ─── 4 STAT PILLS · the always-visible scoreboard ─── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {/* TODAY REV + EOD pace projection */}
+        {/* JOBS CLOSED TODAY */}
         <button
           type="button"
-          onClick={() => openDrilldown({ kind: "revenue_today" })}
-          className="text-left p-4 rounded-lg bg-card border border-border/40 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-colors"
-          aria-label="Open today's revenue detail"
+          onClick={() => openDrilldown({ kind: "jobs_closed_today" })}
+          className="text-left p-4 bg-card border border-border/40 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-colors"
+          aria-label="Open jobs closed today detail"
         >
-          <div className="text-2xl font-bold text-primary tabular-nums">${Math.round(todayRevenue).toLocaleString()}</div>
-          <div className="text-[10px] text-muted-foreground tracking-wider uppercase mt-1">Today Rev</div>
-          {(() => {
-            const now = new Date();
-            const startHour = 8;
-            const endHour = 18;
-            const totalH = endHour - startHour;
-            const elapsed = Math.max(0.5, Math.min(totalH, now.getHours() + now.getMinutes() / 60 - startHour));
-            if (todayRevenue > 0 && now.getHours() >= startHour && now.getHours() < endHour) {
-              const eod = Math.round((todayRevenue / elapsed) * totalH);
-              return <div className="text-[10px] text-muted-foreground/70 tracking-wider mt-1">~${eod.toLocaleString()} EOD pace</div>;
-            }
-            return null;
-          })()}
+          <div className={`text-2xl font-bold tabular-nums ${jobsClosed > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>{jobsClosed}</div>
+          <div className="text-[10px] text-muted-foreground tracking-wider uppercase mt-1">Jobs Closed</div>
+          <div className="text-[10px] text-muted-foreground/70 tracking-wider mt-1">Today</div>
         </button>
 
         {/* IN SHOP + estimated wait */}
         <button
           type="button"
           onClick={() => openDrilldown({ kind: "cars_in_shop" })}
-          className="text-left p-4 rounded-lg bg-card border border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+          className="text-left p-4 bg-card border border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-colors"
           aria-label="Open cars in shop detail"
         >
           <div className={`text-2xl font-bold tabular-nums ${carsInShop > 0 ? "text-primary" : "text-muted-foreground"}`}>{carsInShop}</div>
@@ -648,7 +545,7 @@ export default function OverviewSection() {
               setTimeout(() => target.classList.remove("ring-2", "ring-primary/60"), 1500);
             }
           }}
-          className="text-left p-4 rounded-lg bg-card border border-border/40 hover:border-red-500/40 hover:bg-red-500/5 transition-colors"
+          className="text-left p-4 bg-card border border-border/40 hover:border-red-500/40 hover:bg-red-500/5 transition-colors"
           aria-label="Scroll to priority action queue"
         >
           <div className={`text-2xl font-bold tabular-nums ${priorityQueue.length > 0 ? "text-red-400" : "text-emerald-400"}`}>{priorityQueue.length}</div>
@@ -660,7 +557,7 @@ export default function OverviewSection() {
         <button
           type="button"
           onClick={() => openDrilldown({ kind: "fresh_leads" })}
-          className="text-left p-4 rounded-lg bg-card border border-border/40 hover:border-blue-500/40 hover:bg-blue-500/5 transition-colors"
+          className="text-left p-4 bg-card border border-border/40 hover:border-blue-500/40 hover:bg-blue-500/5 transition-colors"
           aria-label="Open hot leads detail"
         >
           <div className={`text-2xl font-bold tabular-nums ${urgentLeads > 0 ? "text-red-400" : activeLeads > 0 ? "text-blue-400" : "text-muted-foreground"}`}>{activeLeads}</div>
@@ -946,16 +843,15 @@ export default function OverviewSection() {
                 )}
               </div>
 
-              {/* 4 secondary ops stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* 3 secondary ops stats — invoice/revenue removed (separate register system) */}
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => openDrilldown({ kind: "jobs_closed_today" })}
                   className="text-left p-2 rounded hover:bg-emerald-500/5 transition-colors"
                 >
                   <div className="text-lg font-bold text-emerald-400">{jobsClosed}</div>
-                  <div className="text-[9px] text-muted-foreground tracking-wider uppercase">Invoices</div>
-                  <div className="text-[8px] text-muted-foreground/70 tracking-wider mt-0.5">{weekInvoiceCount} wk</div>
+                  <div className="text-[9px] text-muted-foreground tracking-wider uppercase">Jobs Closed</div>
                 </button>
                 <button
                   type="button"
@@ -964,15 +860,6 @@ export default function OverviewSection() {
                 >
                   <div className="text-lg font-bold text-red-400">{shopPulse?.today?.customersWalked ?? 0}</div>
                   <div className="text-[9px] text-muted-foreground tracking-wider uppercase">Walked</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openDrilldown({ kind: "revenue_today" })}
-                  className="text-left p-2 rounded hover:bg-blue-500/5 transition-colors"
-                  aria-label="Open today's revenue detail"
-                >
-                  <div className="text-lg font-bold text-blue-400">${algFloor.avgTicket}</div>
-                  <div className="text-[9px] text-muted-foreground tracking-wider uppercase">Avg Ticket</div>
                 </button>
                 <button
                   type="button"
@@ -988,9 +875,9 @@ export default function OverviewSection() {
                 </button>
               </div>
 
-              {/* Week / Month rollup */}
+              {/* Week summary — no revenue numbers (separate register) */}
               <div className="text-[11px] text-muted-foreground pt-2 border-t border-border/15">
-                Week: {weekInvoiceCount} invoices · ${Math.round(weekRevenue).toLocaleString()} · {algFloor.estimatesThisWeek} walk-in est. · Month: ${Math.round(monthRevenue).toLocaleString()}
+                Week: {algFloor.estimatesThisWeek} walk-in est.
               </div>
 
               {/* wave-181.x Today Phase 4 · AI insights MOVED above-the-fold.

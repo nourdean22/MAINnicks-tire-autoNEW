@@ -31,11 +31,14 @@
  * for the data-driven prune.
  */
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { logger as rootLogger } from "@/lib/logger";
-import { formatReward, type TaskReward } from "@/lib/mastery/task-reward";
+import { formatReward, type TaskReward, type LevelUpPayload } from "@/lib/mastery/task-reward";
+import { LevelUpModal } from "@/components/missions/level-up-modal";
+import { XpParticle } from "@/components/missions/xp-particle";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { OmniCaptureModal } from "@/components/actions/omni-capture-modal";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
@@ -74,12 +77,20 @@ export default function MissionsPage() {
 }
 
 function MissionsPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const taskIdParam = searchParams.get("taskId");
+
   const utils = trpc.useUtils();
   const tasksQuery = trpc.task.list.useQuery(
     {},
     { refetchOnWindowFocus: false },
   );
   const missionsQuery = trpc.task.missions.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+  const healthQuery = trpc.system.healthSummary.useQuery(undefined, {
+    refetchInterval: 30000,
     refetchOnWindowFocus: false,
   });
 
@@ -98,6 +109,11 @@ function MissionsPageInner() {
     [missionsQuery.data],
   );
 
+  const taskDetailQuery = trpc.task.byId.useQuery(
+    { id: taskIdParam ?? "" },
+    { enabled: !!taskIdParam && !tasksQuery.isLoading && !tasks.some((t) => t.id === taskIdParam) }
+  );
+
   const createTask = trpc.task.create.useMutation();
   const updateTask = trpc.task.update.useMutation();
   // WEEKLY completion routes through the unified checkTask service (it
@@ -110,6 +126,7 @@ function MissionsPageInner() {
   // swap math + ranks · client just calls (id, direction) + refetches.
   const reorderMissionMut = trpc.task.reorderMission.useMutation();
   const reorderTaskMut = trpc.task.reorderTask.useMutation();
+  const decomposeTask = trpc.task.decompose.useMutation();
 
   // Telemetry · Phase 4 · mark surface-mount + capture mutation events
   // so the 2-week prune analysis has signal. Silent no-op when telemetry
@@ -123,6 +140,13 @@ function MissionsPageInner() {
     missionId: string;
     title: string;
   } | null>(null);
+
+  // Dopamine loop · level-up modal state · triggered when a task
+  // completion pushes the operator's overall XP past a level boundary.
+  const [levelUpState, setLevelUpState] = useState<LevelUpPayload | null>(null);
+
+  // Dopamine loop · floating XP particles state
+  const [xpParticle, setXpParticle] = useState<{ xp: number; key: number }>({ xp: 0, key: 0 });
 
   // wave-AB.c · CRUD drawer state · mission edit (and create) + task edit.
   const [missionEditOpen, setMissionEditOpen] = useState(false);
@@ -150,6 +174,40 @@ function MissionsPageInner() {
 
   // Queue Next focused task ID state
   const [queuedTaskId, setQueuedTaskId] = useState<string | null>(null);
+
+  const clearTaskIdParam = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("taskId");
+    const newUrl = params.toString() ? `/missions?${params.toString()}` : "/missions";
+    router.replace(newUrl, { scroll: false });
+  }, [router]);
+
+  // Handle deep-linked task from query params
+  useEffect(() => {
+    if (taskIdParam) {
+      if (tasks.length > 0) {
+        const localTask = tasks.find((t) => t.id === taskIdParam);
+        if (localTask) {
+          setTaskEditTarget(localTask);
+          setTaskEditOpen(true);
+          clearTaskIdParam();
+          return;
+        }
+      }
+
+      if (taskDetailQuery.data) {
+        setTaskEditTarget(taskDetailQuery.data as Task);
+        setTaskEditOpen(true);
+        clearTaskIdParam();
+      } else if (taskDetailQuery.isSuccess && !taskDetailQuery.data) {
+        toast.error("Linked task not found.");
+        clearTaskIdParam();
+      } else if (taskDetailQuery.isError) {
+        toast.error("Failed to load linked task.");
+        clearTaskIdParam();
+      }
+    }
+  }, [taskIdParam, tasks, taskDetailQuery.data, taskDetailQuery.isSuccess, taskDetailQuery.isError, clearTaskIdParam]);
 
   // Memoized selector for the focused task in Execution Mode
   const focusedTask = useMemo(() => {
@@ -380,6 +438,7 @@ function MissionsPageInner() {
       const isDaily = loopKind === "DAILY";
       const isWeekly = loopKind === "WEEKLY";
       const isRecurring = isDaily || isWeekly;
+      let xpAdded = 0;
       try {
         telemetry.event("completeTask", { taskId: id, isDaily });
         if (isDaily) {
@@ -406,7 +465,14 @@ function MissionsPageInner() {
             streak: currentStreak + 1,
           };
           const dailyMsg = formatReward(dailyReward);
-          if (dailyMsg) toast.success(dailyMsg);
+          if (dailyMsg) {
+            toast.success(dailyMsg, {
+              duration: 4500,
+              action: { label: "Stats", onClick: () => router.push("/stats") },
+            });
+          }
+          if (dailyReward.levelUp) setLevelUpState(dailyReward.levelUp);
+          if (dailyReward.xpCredited) xpAdded = dailyReward.xpCredited;
         } else if (isWeekly) {
           // 2026-06-09 · WEEKLY completes through the unified task.check service
           // (it computes nextWeekdayOccurrence(recurringDays) + parks the task
@@ -414,7 +480,14 @@ function MissionsPageInner() {
           // lazy-loaded server-side). CheckTaskResult carries the typed reward.
           const res = await checkTaskMut.mutateAsync({ id, action: "complete" });
           const msg = formatReward(res.reward);
-          if (msg) toast.success(msg);
+          if (msg) {
+            toast.success(msg, {
+              duration: 4500,
+              action: { label: "Stats", onClick: () => router.push("/stats") },
+            });
+          }
+          if (res.reward?.levelUp) setLevelUpState(res.reward.levelUp);
+          if (res.reward?.xpCredited) xpAdded = res.reward.xpCredited;
         } else {
           // ONCE/PROMISE → status DONE via updateTask (unchanged semantics). The
           // service attaches `reward` at runtime on the DONE transition (same
@@ -422,7 +495,17 @@ function MissionsPageInner() {
           const res = await updateTask.mutateAsync({ id, fields: { status: "DONE" } });
           const reward = (res as unknown as { reward?: TaskReward }).reward;
           const msg = formatReward(reward);
-          if (msg) toast.success(msg);
+          if (msg) {
+            toast.success(msg, {
+              duration: 4500,
+              action: { label: "Stats", onClick: () => router.push("/stats") },
+            });
+          }
+          if (reward?.levelUp) setLevelUpState(reward.levelUp);
+          if (reward?.xpCredited) xpAdded = reward.xpCredited;
+        }
+        if (xpAdded > 0) {
+          setXpParticle({ xp: xpAdded, key: Date.now() });
         }
         await refetchAll();
 
@@ -495,6 +578,23 @@ function MissionsPageInner() {
       }
     },
     [updateTask, refetchAll],
+  );
+
+  const handleDecomposeTask = useCallback(
+    async (id: string) => {
+      const task = tasks.find((t) => t.id === id);
+      const promise = decomposeTask.mutateAsync({ taskId: id });
+      
+      toast.promise(promise, {
+        loading: `Decomposing “${task?.title || "task"}” into subtasks...`,
+        success: (res) => {
+          void refetchAll();
+          return `Successfully created ${res.subtasksCount} subtasks!`;
+        },
+        error: (err) => `Failed to decompose task: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    },
+    [decomposeTask, tasks, refetchAll],
   );
 
   const handleCompleteMission = useCallback(
@@ -845,6 +945,8 @@ function MissionsPageInner() {
         onDeleteTask={handleDeleteTask}
         onCompleteMission={handleCompleteMission}
         onArchiveMission={handleArchiveMission}
+        onDecomposeTask={handleDecomposeTask}
+        autonomicHealth={healthQuery.data?.autonomic}
         onEditMission={(missionId) => {
           const m = missions.find((mm) => mm.id === missionId);
           if (!m) return;
@@ -963,6 +1065,23 @@ function MissionsPageInner() {
           void refetchAll();
         }}
       />
+
+      {/* Dopamine loop · level-up celebration modal */}
+      {levelUpState && (
+        <LevelUpModal
+          newLevel={levelUpState.newLevel}
+          tierName={levelUpState.tierName}
+          tierEmoji={levelUpState.tierEmoji}
+          onClose={() => setLevelUpState(null)}
+        />
+      )}
+
+      {/* Dopamine loop · floating XP particle animation overlay */}
+      {xpParticle.xp > 0 && (
+        <div className="fixed inset-0 pointer-events-none z-[9999]" aria-hidden="true">
+          <XpParticle xp={xpParticle.xp} triggerKey={xpParticle.key} />
+        </div>
+      )}
     </div>
   );
 }

@@ -250,9 +250,19 @@ export const shopdriverRouter = router({
    * gate. Use when Nour needs fresh data and understands this will kick the
    * shop counter out of ShopDriver.
    */
-  forceSyncNow: adminProcedure.mutation(async () => {
+  forceSyncNow: adminProcedure.mutation(async ({ ctx }) => {
     const { runFullMirror } = await import("../services/shopDriverMirror");
     const result = await runFullMirror();
+
+    const { logAdminAction } = await import("../services/auditTrail");
+    logAdminAction({
+      action: "shopdriver.force_sync",
+      entityType: "system",
+      entityId: 0,
+      details: "Manual full-mirror sync triggered — ShopDriver credentials session refreshed.",
+      actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
+    }).catch(() => {});
+
     return { ...result, note: "Manual full-mirror run — shop counter session may have been kicked." };
   }),
 
@@ -274,12 +284,25 @@ export const shopdriverRouter = router({
       detail: z.string().max(200).optional(),
       force: z.boolean().default(false),
     }).optional())
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { requestAlgProbe } = await import("../services/algProbeBudget");
-      return requestAlgProbe(input?.reason ?? "manual_refresh", {
+      const res = await requestAlgProbe(input?.reason ?? "manual_refresh", {
         detail: input?.detail,
         force: input?.force,
       });
+
+      if ((input?.reason ?? "manual_refresh") === "manual_refresh") {
+        const { logAdminAction } = await import("../services/auditTrail");
+        logAdminAction({
+          action: "shopdriver.manual_probe",
+          entityType: "system",
+          entityId: 0,
+          details: `Manual live API probe requested: ${input?.detail ?? "No details provided"} (force: ${input?.force ?? false})`,
+          actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
+        }).catch(() => {});
+      }
+
+      return res;
     }),
 
   /**

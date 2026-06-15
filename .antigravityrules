@@ -1,0 +1,18 @@
+# Antigravity Rules — NOURCITY Monorepo
+# This file is loaded by the Antigravity IDE agent on startup.
+
+# Directives:
+# 1. ALWAYS read and follow C:\Users\nourd\NOURCITY\docs\ANTIGRAVITY-PROFILE.md (Operating Profile)
+# 2. ALWAYS read and follow C:\Users\nourd\NOURCITY\docs\ANTIGRAVITY-RULES.md (Specific Constraints)
+# 3. Read AGENT-OPERATING-PROFILE.md first before touching anything.
+# 4. Check for app-specific AGENTS.md in apps/statenour/AGENTS.md or apps/nickstire/AGENTS.md depending on the active task.
+# 5. ALWAYS read and apply the CIITTY operating framework skill: C:\Users\nourd\.gemini\config\skills\ciitty\SKILL.md
+
+# Core Antigravity Rules Checklist:
+# - Branch: NEVER commit/push directly to main. Use branches: nickstire/<task>, statenour/<task>, docs/<task>, chore/<task>.
+# - App Isolation: Do not edit both apps in the same session. Stage only files from the app you are assigned.
+# - Verification: Run pnpm verify:hard for Statenour, pnpm run verify for Nick's Tire.
+# - Timezone: Nick's Tire operates in Cleveland Eastern Time (America/New_York).
+# - Safety: Never trigger live side effects (VAPI, SMS, GBP, Meta, Stripe) or mutate production data.
+# - Secrets: Never read or commit .env files, API keys, or DB credentials.
+# - PR Body: Must contain Summary, Files Changed, Verification, Safety Notes, Risks, and Owner Decisions Needed.

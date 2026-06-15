@@ -87,7 +87,7 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
   try {
     const { getDb } = await import("../db");
     const { customers, smsMessages, smsConversations } = await import("../../drizzle/schema");
-    const { sendSms } = await import("../sms");
+    const { sendSms, withOptOut } = await import("../sms");
     const { logOutboundSms } = await import("./smsInstrumentation");
     const { sql, and, isNotNull, eq, gte, like } = await import("drizzle-orm");
 
@@ -134,7 +134,7 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
       if (recent.length > 0) continue;
 
       const firstName = c.firstName || "there";
-      const msg = template.replace("{name}", firstName);
+      const msg = withOptOut(template.replace("{name}", firstName));
       try {
         const result = await sendSms(c.phone, msg, { via: "shop", skipPersist: true, variantKey });
         // Log with the weather variantKey so the cooldown above sees this

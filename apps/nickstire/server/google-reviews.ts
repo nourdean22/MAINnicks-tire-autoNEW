@@ -12,6 +12,7 @@ import { makeRequest, type PlaceDetailsResult, type PlacesSearchResult } from ".
 import { eq } from "drizzle-orm";
 import { shopSettings } from "../drizzle/schema";
 import { BUSINESS, resolveReviewDisplay } from "@shared/business";
+import { GOOGLE_PLACE_ID } from "../shared/const";
 
 import { createLogger } from "./lib/logger";
 
@@ -142,21 +143,26 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
   }
 
   try {
-    // Step 1: Find the business via text search
-    const search = await makeRequest<PlacesSearchResult>(
-      "/maps/api/place/textsearch/json",
-      {
-        query: "Nick's Tire And Auto 17625 Euclid Ave Cleveland OH 44112",
-      }
-    );
+    let placeId = GOOGLE_PLACE_ID;
 
-    if (search.status !== "OK" || !search.results?.length) {
-      log.warn("[GoogleReviews] Text search returned:", search.status);
-      failCount++;
-      return cachedData || await buildFallbackData();
+    if (!placeId || !placeId.startsWith("ChIJ")) {
+      // Step 1: Find the business via text search fallback
+      const search = await makeRequest<PlacesSearchResult>(
+        "/maps/api/place/textsearch/json",
+        {
+          query: "Nick's Tire And Auto 17625 Euclid Ave Cleveland OH 44112",
+        }
+      );
+
+      if (search.status !== "OK" || !search.results?.length) {
+        log.warn("[GoogleReviews] Text search returned:", search.status);
+        failCount++;
+        return cachedData || await buildFallbackData();
+      }
+
+      placeId = search.results[0].place_id;
     }
 
-    const placeId = search.results[0].place_id;
     const dbStats = await getReviewStatsFromDb();
 
     // Step 2: Get full details using the discovered Place ID

@@ -44,7 +44,7 @@ async function sendEmail() {
       <li>Click <strong>Tools</strong> tab</li>
       <li>Find <code>transferCall</code> in the list</li>
       <li>Expand it → Destinations → first entry</li>
-      <li>Edit the Number field (E.164 format: <code>+14404442383</code>)</li>
+      <li>Edit the Number field (E.164 format: <code>+12168620005</code>)</li>
       <li><strong>Click SAVE / PUBLISH at the top</strong> — this is the step that's easy to miss</li>
     </ol>
     <p>Most likely your earlier edit didn't stick because the publish button wasn't clicked. The dashboard keeps drafts separate from live until publish.</p>

@@ -93,14 +93,14 @@ function CarSilhouette({
   onZoneLeave: () => void;
 }) {
   const zoneColor = (id: string) => {
-    if (activeZone === id) return "#FDB913";
-    if (hoveredZone === id) return "rgba(253,185,19,0.45)";
-    return "rgba(255,255,255,0.08)";
+    if (activeZone === id) return "var(--primary)";
+    if (hoveredZone === id) return "var(--brand-yellow-glow)";
+    return "var(--ring-neutral)";
   };
 
   const zoneStroke = (id: string) => {
-    if (activeZone === id || hoveredZone === id) return "#FDB913";
-    return "rgba(255,255,255,0.2)";
+    if (activeZone === id || hoveredZone === id) return "var(--primary)";
+    return "var(--ring-neutral-strong)";
   };
 
   return (
@@ -134,12 +134,12 @@ function CarSilhouette({
       <line x1="140" y1="210" x2="690" y2="210" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
 
       {/* Front wheel */}
-      <circle cx="220" cy="210" r="35" fill="#0A0A0A" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" />
+      <circle cx="220" cy="210" r="35" fill="var(--background)" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" />
       <circle cx="220" cy="210" r="22" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
       <circle cx="220" cy="210" r="8" fill="rgba(255,255,255,0.1)" />
 
       {/* Rear wheel */}
-      <circle cx="610" cy="210" r="35" fill="#0A0A0A" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" />
+      <circle cx="610" cy="210" r="35" fill="var(--background)" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" />
       <circle cx="610" cy="210" r="22" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
       <circle cx="610" cy="210" r="8" fill="rgba(255,255,255,0.1)" />
 
@@ -165,7 +165,7 @@ function CarSilhouette({
           strokeWidth="1.5"
           fillOpacity={activeZone === "front" ? 0.18 : 0.6}
         />
-        <text x="180" y="158" textAnchor="middle" fill={activeZone === "front" || hoveredZone === "front" ? "#FDB913" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
+        <text x="180" y="158" textAnchor="middle" fill={activeZone === "front" || hoveredZone === "front" ? "var(--primary)" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
           ENGINE
         </text>
       </g>
@@ -185,7 +185,7 @@ function CarSilhouette({
           strokeWidth="1.5"
           fillOpacity={activeZone === "front-wheels" ? 0.18 : 0.6}
         />
-        <text x="220" y="240" textAnchor="middle" fill={activeZone === "front-wheels" || hoveredZone === "front-wheels" ? "#FDB913" : "rgba(255,255,255,0.5)"} fontSize="11" fontWeight="600">
+        <text x="220" y="240" textAnchor="middle" fill={activeZone === "front-wheels" || hoveredZone === "front-wheels" ? "var(--primary)" : "rgba(255,255,255,0.5)"} fontSize="11" fontWeight="600">
           BRAKES/TIRES
         </text>
       </g>
@@ -205,7 +205,7 @@ function CarSilhouette({
           strokeWidth="1.5"
           fillOpacity={activeZone === "cabin" ? 0.18 : 0.6}
         />
-        <text x="415" y="98" textAnchor="middle" fill={activeZone === "cabin" || hoveredZone === "cabin" ? "#FDB913" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
+        <text x="415" y="98" textAnchor="middle" fill={activeZone === "cabin" || hoveredZone === "cabin" ? "var(--primary)" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
           AC / ELECTRICAL
         </text>
       </g>
@@ -225,7 +225,7 @@ function CarSilhouette({
           strokeWidth="1.5"
           fillOpacity={activeZone === "rear" ? 0.18 : 0.6}
         />
-        <text x="647" y="158" textAnchor="middle" fill={activeZone === "rear" || hoveredZone === "rear" ? "#FDB913" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
+        <text x="647" y="158" textAnchor="middle" fill={activeZone === "rear" || hoveredZone === "rear" ? "var(--primary)" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
           EXHAUST
         </text>
       </g>
@@ -245,7 +245,7 @@ function CarSilhouette({
           strokeWidth="1.5"
           fillOpacity={activeZone === "underneath" ? 0.18 : 0.6}
         />
-        <text x="440" y="240" textAnchor="middle" fill={activeZone === "underneath" || hoveredZone === "underneath" ? "#FDB913" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
+        <text x="440" y="240" textAnchor="middle" fill={activeZone === "underneath" || hoveredZone === "underneath" ? "var(--primary)" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
           SUSPENSION / STEERING
         </text>
       </g>
@@ -256,8 +256,8 @@ function CarSilhouette({
         if (!zone) return null;
         return (
           <g>
-            <rect x="250" y="280" width="300" height="32" rx="6" fill="#1a1a1a" stroke="#FDB913" strokeWidth="1" />
-            <text x="400" y="301" textAnchor="middle" fill="#FDB913" fontSize="12" fontWeight="500">
+            <rect x="250" y="280" width="300" height="32" rx="6" fill="var(--bg-card-elevated)" stroke="var(--primary)" strokeWidth="1" />
+            <text x="400" y="301" textAnchor="middle" fill="var(--primary)" fontSize="12" fontWeight="500">
               {zone.label} — {zone.description}
             </text>
           </g>
@@ -273,19 +273,19 @@ function ScanAnimation() {
   return (
     <div className="relative w-full max-w-2xl mx-auto my-12">
       {/* Car outline ghost */}
-      <div className="relative h-48 bg-card rounded-xl border border-[#2A2A2A] overflow-hidden flex items-center justify-center">
+      <div className="relative h-48 bg-card rounded-xl border border-border overflow-hidden flex items-center justify-center">
         <Car className="w-24 h-24 text-foreground/10" />
         {/* Sweeping gold line */}
         <motion.div
           className="absolute top-0 left-0 w-1 h-full"
-          style={{ background: "linear-gradient(180deg, transparent, #FDB913, transparent)", boxShadow: "0 0 20px 4px rgba(253,185,19,0.3)" }}
+          style={{ background: "linear-gradient(180deg, transparent, var(--primary), transparent)", boxShadow: "0 0 20px 4px var(--ring-yellow)" }}
           animate={{ x: [0, 600, 0] }}
           transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
         />
         {/* Horizontal scan line */}
         <motion.div
           className="absolute left-0 right-0 h-0.5"
-          style={{ background: "linear-gradient(90deg, transparent 0%, #FDB913 30%, #FDB913 70%, transparent 100%)", boxShadow: "0 0 12px 2px rgba(253,185,19,0.4)" }}
+          style={{ background: "linear-gradient(90deg, transparent 0%, var(--primary) 30%, var(--primary) 70%, transparent 100%)", boxShadow: "0 0 12px 2px var(--brand-yellow-glow)" }}
           animate={{ y: [-80, 80, -80] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         />
@@ -318,40 +318,40 @@ function getSeverityStyle(urgency: string) {
   switch (urgency) {
     case "low":
       return {
-        border: "border-[#4CAF50]/40",
-        bg: "bg-[#4CAF50]/8",
-        badge: "bg-[#4CAF50]/20 text-[#4CAF50]",
+        border: "border-success/40",
+        bg: "bg-success/8",
+        badge: "bg-success/20 text-success",
         badgeText: "LOW RISK — MONITOR",
-        icon: "text-[#4CAF50]",
-        dot: "#4CAF50",
+        icon: "text-success",
+        dot: "var(--color-success)",
       };
     case "moderate":
       return {
-        border: "border-[#FF9800]/40",
-        bg: "bg-[#FF9800]/8",
-        badge: "bg-[#FF9800]/20 text-[#FF9800]",
+        border: "border-warning/40",
+        bg: "bg-warning/8",
+        badge: "bg-warning/20 text-warning",
         badgeText: "NEEDS ATTENTION SOON",
-        icon: "text-[#FF9800]",
-        dot: "#FF9800",
+        icon: "text-warning",
+        dot: "var(--color-warning)",
       };
     case "high":
     case "critical":
       return {
-        border: "border-[#F44336]/40",
-        bg: "bg-[#F44336]/8",
-        badge: "bg-[#F44336]/20 text-[#F44336]",
+        border: "border-danger/40",
+        bg: "bg-danger/8",
+        badge: "bg-danger/20 text-danger",
         badgeText: "URGENT — ADDRESS IMMEDIATELY",
-        icon: "text-[#F44336]",
-        dot: "#F44336",
+        icon: "text-danger",
+        dot: "var(--color-danger)",
       };
     default:
       return {
-        border: "border-[#FF9800]/40",
-        bg: "bg-[#FF9800]/8",
-        badge: "bg-[#FF9800]/20 text-[#FF9800]",
+        border: "border-warning/40",
+        bg: "bg-warning/8",
+        badge: "bg-warning/20 text-warning",
         badgeText: "NEEDS ATTENTION",
-        icon: "text-[#FF9800]",
-        dot: "#FF9800",
+        icon: "text-warning",
+        dot: "var(--color-warning)",
       };
   }
 }
@@ -451,8 +451,8 @@ export default function DiagnosePage() {
   return (
     <PageLayout activeHref="/diagnose" showChat={true}>
       <SEOHead
-        title="Cleveland Auto Symptom Checker · Tell Us What's Wrong | Nick's"
-        description="Describe your car problem like you'd explain it to a friend — we'll tell you what's likely wrong, how urgent it is, and what fixing it usually involves."
+        title="Auto Diagnostics Cleveland & Euclid · Nick's Tire & Auto"
+        description="Free check-engine diagnostics in Euclid & Cleveland. Describe symptoms, get likely causes & repairs. You don't pay until you say yes. Call (216) 862-0005."
         canonicalPath="/diagnose"
       />
 
@@ -476,24 +476,8 @@ export default function DiagnosePage() {
               "name": "Automotive Diagnostics Service",
               "description": "Tell us the symptom, we tell you what's likely wrong + how urgent.",
               "provider": {
-                "@type": "LocalBusiness",
-                "name": BUSINESS.name,
-                "telephone": `+1-${BUSINESS.phone.dashed}`,
-                "address": {
-                  "@type": "PostalAddress",
-                  "streetAddress": BUSINESS.address.street,
-                  "addressLocality": BUSINESS.address.city,
-                  "addressRegion": BUSINESS.address.state,
-                  "postalCode": BUSINESS.address.zip,
-                  "addressCountry": "US"
-                },
-                "aggregateRating": {
-                  "@type": "AggregateRating",
-                  "ratingValue": BUSINESS.reviews.rating,
-                  "reviewCount": BUSINESS.reviews.count,
-                  "bestRating": "5"
-                },
-                "url": BUSINESS.urls.website
+                "@type": "AutoRepair",
+                "@id": `${BUSINESS.urls.website}/#localbusiness`
               },
               "areaServed": {
                 "@type": "City",
@@ -513,7 +497,7 @@ export default function DiagnosePage() {
                 <span className="text-primary">MY CAR</span>?
               </h1>
               <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
-                Tap an area on the car below to select the problem zone, describe your symptoms, and our AI will provide a preliminary diagnosis in seconds.
+                Tap an area on the car below to select the problem zone, describe your symptoms, and our AI will provide a preliminary diagnosis in seconds. If you have brake squealing or grinding, check out our <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake symptoms list</Link>. For shaking or vibrations, check our <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tire options</Link>, see our <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing options for repairs</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground font-semibold">contact us</Link> directly.
               </p>
             </FadeIn>
           </div>
@@ -547,7 +531,7 @@ export default function DiagnosePage() {
                     className={`px-4 py-2 rounded-full text-xs font-heading tracking-wider transition-all border ${
                       selectedZone === zone.id
                         ? "bg-primary/15 border-primary text-primary"
-                        : "bg-card border-[#2A2A2A] text-foreground/50 hover:border-primary/50 hover:text-primary/70"
+                        : "bg-card border-border text-foreground/50 hover:border-primary/50 hover:text-primary/70"
                     }`}
                   >
                     {zone.label}
@@ -562,7 +546,7 @@ export default function DiagnosePage() {
         <section ref={formRef} className="bg-background py-12 lg:py-16">
           <div className="container max-w-3xl">
             <FadeIn>
-              <div className="bg-card border border-[#2A2A2A] rounded-xl p-6 lg:p-8 space-y-6">
+              <div className="bg-card border border-border rounded-xl p-6 lg:p-8 space-y-6">
                 {/* Vehicle Info (collapsible) */}
                 <div>
                   <h3 className="font-heading text-lg text-foreground tracking-tight mb-1">
@@ -573,7 +557,7 @@ export default function DiagnosePage() {
                     <select
                       value={vehicle.year}
                       onChange={(e) => setVehicle({ ...vehicle, year: e.target.value })}
-                      className="bg-background border border-[#2A2A2A] text-foreground px-3 py-2.5 text-sm rounded-md focus:outline-none focus:border-primary/50"
+                      className="bg-background border border-border text-foreground px-3 py-2.5 text-sm rounded-md focus:outline-none focus:border-primary/50"
                     >
                       <option value="">Year</option>
                       {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
@@ -581,7 +565,7 @@ export default function DiagnosePage() {
                     <select
                       value={vehicle.make}
                       onChange={(e) => setVehicle({ ...vehicle, make: e.target.value })}
-                      className="bg-background border border-[#2A2A2A] text-foreground px-3 py-2.5 text-sm rounded-md focus:outline-none focus:border-primary/50"
+                      className="bg-background border border-border text-foreground px-3 py-2.5 text-sm rounded-md focus:outline-none focus:border-primary/50"
                     >
                       <option value="">Make</option>
                       {MAKES.map(m => <option key={m} value={m}>{m}</option>)}
@@ -591,7 +575,7 @@ export default function DiagnosePage() {
                       value={vehicle.model}
                       onChange={(e) => setVehicle({ ...vehicle, model: e.target.value })}
                       placeholder="Model"
-                      className="bg-background border border-[#2A2A2A] text-foreground px-3 py-2.5 text-sm rounded-md placeholder:text-foreground/25 focus:outline-none focus:border-primary/50"
+                      className="bg-background border border-border text-foreground px-3 py-2.5 text-sm rounded-md placeholder:text-foreground/25 focus:outline-none focus:border-primary/50"
                     />
                     <input
                       type="text"
@@ -599,13 +583,13 @@ export default function DiagnosePage() {
                       value={vehicle.mileage}
                       onChange={(e) => setVehicle({ ...vehicle, mileage: e.target.value })}
                       placeholder="Mileage"
-                      className="bg-background border border-[#2A2A2A] text-foreground px-3 py-2.5 text-sm rounded-md placeholder:text-foreground/25 focus:outline-none focus:border-primary/50"
+                      className="bg-background border border-border text-foreground px-3 py-2.5 text-sm rounded-md placeholder:text-foreground/25 focus:outline-none focus:border-primary/50"
                     />
                   </div>
                 </div>
 
                 {/* Divider */}
-                <div className="border-t border-[#2A2A2A]" />
+                <div className="border-t border-border" />
 
                 {/* Symptom text area */}
                 <div>
@@ -622,7 +606,7 @@ export default function DiagnosePage() {
                     onChange={(e) => setSymptomText(e.target.value)}
                     rows={5}
                     placeholder="Example: My brakes are squealing loudly when I slow down, especially going downhill. It started about a week ago and seems to be getting worse..."
-                    className="w-full bg-background border border-[#2A2A2A] text-foreground px-4 py-3 text-sm rounded-md placeholder:text-foreground/25 focus:outline-none focus:border-primary/50 resize-none leading-relaxed"
+                    className="w-full bg-background border border-border text-foreground px-4 py-3 text-sm rounded-md placeholder:text-foreground/25 focus:outline-none focus:border-primary/50 resize-none leading-relaxed"
                   />
                 </div>
 
@@ -725,10 +709,10 @@ export default function DiagnosePage() {
                   {result.likelyCauses.map((cause, i) => {
                     // Assign severity color per cause based on likelihood
                     const causeStyle = cause.likelihood === "High"
-                      ? { border: "border-[#F44336]/30", bg: "bg-[#F44336]/5", dot: "#F44336" }
+                      ? { border: "border-danger/30", bg: "bg-danger/5", dot: "var(--color-danger)" }
                       : cause.likelihood === "Medium"
-                      ? { border: "border-[#FF9800]/30", bg: "bg-[#FF9800]/5", dot: "#FF9800" }
-                      : { border: "border-[#4CAF50]/30", bg: "bg-[#4CAF50]/5", dot: "#4CAF50" };
+                      ? { border: "border-warning/30", bg: "bg-warning/5", dot: "var(--color-warning)" }
+                      : { border: "border-success/30", bg: "bg-success/5", dot: "var(--color-success)" };
 
                     return (
                       <motion.div
@@ -773,7 +757,7 @@ export default function DiagnosePage() {
                     </div>
                     <p className="font-heading text-foreground tracking-wider">{result.recommendedService}</p>
                   </div>
-                  <div className="bg-card border border-[#2A2A2A] rounded-xl p-5">
+                  <div className="bg-card border border-border rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
                       <CircleDot className="w-4 h-4 text-foreground/40" />
                       <span className="text-xs text-foreground/50 tracking-wide">Estimated Cost Range</span>
@@ -799,7 +783,7 @@ export default function DiagnosePage() {
                 </div>
 
                 {/* Disclaimer */}
-                <div className="bg-card/50 border border-[#2A2A2A] rounded-xl p-4">
+                <div className="bg-card/50 border border-border rounded-xl p-4">
                   <p className="text-xs text-foreground/40 leading-relaxed">
                     <Shield className="w-3.5 h-3.5 inline mr-1 text-foreground/30" />
                     This is a preliminary read based on the symptoms you described. For the real answer we want the car in front of us. ASE-certified hands, OBD-II tools, written quote before anyone touches a wrench.

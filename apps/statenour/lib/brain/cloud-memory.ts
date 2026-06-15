@@ -63,7 +63,10 @@ export async function createBrainSnapshot(): Promise<BrainSnapshot> {
       take: 50,
       select: { category: true, key: true, content: true, confidence: true },
     }),
-    prisma.driftAlert.count({ where: { acknowledged: false } }),
+    (async () => {
+      const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+      return (await getUnresolvedAlerts().catch(() => [])).length;
+    })(),
     prisma.task.count({ where: { deletedAt: null, status: { in: ["INBOX", "READY", "DOING"] } } }),
     prisma.commitment.count({ where: { deletedAt: null, status: { in: ["active", "in_progress"] } } }),
     // v10.0.55 · scores slot — typed to match the legacy DailyScore
@@ -185,7 +188,10 @@ export async function getBrainContinuitySummary(): Promise<string | null> {
   try {
     const [currentLoops, currentAlerts, currentCommitments] = await Promise.all([
       prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] } } }).catch(() => 0),
-      prisma.driftAlert.count({ where: { resolved: false } }).catch(() => 0),
+      (async () => {
+        const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+        return (await getUnresolvedAlerts().catch(() => [])).length;
+      })(),
       prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }).catch(() => 0),
     ]);
 

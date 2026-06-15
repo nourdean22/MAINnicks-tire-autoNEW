@@ -224,6 +224,9 @@ const FIXTURE: NickPrimeContext = {
     ai: { recentCallCount: 47, recentErrorRate: 0 },
     memory: { lastBrainCycleAt: null, embeddingCoveragePct: 87.4 },
   },
+  weeklyReview: "── WEEKLY REVIEWS (cross-week memory · last 14d) ──\nWins: Closed DK Tire",
+  followUps: [],
+  anticipatedQuestions: [],
 };
 
 const EMPTY_FIXTURE: NickPrimeContext = {
@@ -274,6 +277,8 @@ const EMPTY_FIXTURE: NickPrimeContext = {
     ai: { recentCallCount: 0, recentErrorRate: 0 },
     memory: { lastBrainCycleAt: null, embeddingCoveragePct: 0 },
   },
+  followUps: [],
+  anticipatedQuestions: [],
 };
 
 beforeEach(() => {
@@ -330,6 +335,8 @@ describe("v9.0-beta · prompt-v2 renderer", () => {
     // non-actionable goes to "Background". Fixture has 1 of each.
     expect(sections.recentThinking).toContain("Background Reflections (1)");
     expect(sections.recentThinking).toContain("Better focus mornings");
+    expect(sections.recentThinking).toContain("── WEEKLY REVIEWS (cross-week memory · last 14d) ──");
+    expect(sections.recentThinking).toContain("Wins: Closed DK Tire");
 
     expect(sections.domainSnapshot).toContain("LIVE DOMAIN SNAPSHOT");
     expect(sections.domainSnapshot).toContain("$20K/mo target");

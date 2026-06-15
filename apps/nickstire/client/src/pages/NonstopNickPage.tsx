@@ -23,10 +23,10 @@ const CONFIG: ServicePageConfig = {
   canonicalPath: "/nonstop-nick",
   title: "Nonstop Nick — $7.99/mo Tire Membership | Nick's Tire & Auto",
   description:
-    "Pull up, we got it. $7.99/month and a flat is never your problem again — repairs, valve stems, rotation, air-ups. No appointment. Euclid Ave. (216) 862-0005",
+    "Pull up, we got it. $7.99/mo covers the little tire stuff on one registered vehicle — flat repairs, valve stems, rotation, air-ups. No appointment. (216) 862-0005",
   eyebrow: "NONSTOP NICK · $7.99/MO",
   h1: "PULL UP.\nWE GOT IT.",
-  sub: "Flat on the way to work? Slow leak that's been bugging you for weeks? With Nonstop Nick, you pull into Nick's on Euclid Ave, hand us the keys, and you're back on the road in minutes. No appointment. No quote. No bill. $7.99 a month and the little tire stuff stops being your problem. 4.9★ from 1,700+ Cleveland drivers.",
+  sub: "Flat on the way to work? Slow leak that's been bugging you for weeks? With Nonstop Nick, you pull into Nick's on Euclid Ave, hand us the keys, and we handle it. No appointment. If it's in the plan, it's covered — and if something's outside the plan, we tell you before any work moves forward. $7.99 a month and the little tire stuff stops being your problem. 4.9★ from 1,700+ Cleveland drivers.",
   // Non-dollar startingPrice → shows as a draw chip (not a price-at-the-door).
   startingPrice: "Members: pull up anytime",
 
@@ -37,7 +37,7 @@ const CONFIG: ServicePageConfig = {
       name: "The Stuff That Ruins Your Morning",
       price: "Covered",
       sub: "flat repairs · rubber valve stems · slow leaks",
-      use: "Nail, screw, slow leak? Tread-area puncture plugged and patched, valve stem swapped — done while you wait. The worry just… goes away.",
+      use: "Nail, screw, slow leak? Tread-area puncture plugged and patched, valve stem swapped. The worry just… goes away.",
     },
     {
       name: "The Keep-It-Rolling Stuff",

@@ -24,6 +24,7 @@ import { prisma } from "@/lib/prisma";
 import { today as todayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { getDismissedSuggestionIds } from "@/lib/brain/suggestion-loop";
+import { getUrgentLeads } from "@/lib/services/leads";
 
 export interface NickSuggestion {
   id: string;
@@ -81,6 +82,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
     brokenPromises,
     stalePins,
     dismissedIds,
+    urgentLeads,
   ] = await Promise.all([
     prisma.masteryScore
       .findMany({
@@ -245,10 +247,11 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
       ),
 
     getDismissedSuggestionIds(7).catch(() => new Set<string>()),
+    getUrgentLeads().catch(() => []),
   ]);
 
   // ─── 1 · Weakest mastery axis (high-leverage)
-  if (latestScores.length > 0) {
+  if (latestScores.length > 0 && (!urgentLeads || urgentLeads.length === 0)) {
     const latestByDomain = new Map<string, { score: number; delta: number }>();
     for (const row of latestScores) {
       if (!latestByDomain.has(row.domain)) {
@@ -267,7 +270,7 @@ export async function buildNickSuggestions(): Promise<NickSuggestionsView> {
         id: `weak-axis-${weakest[0]}`,
         kind: "weak-axis",
         severity: weakest[1].score < 30 ? "high" : "med",
-        label: `${weakest[0]} at ${weakest[1].score}/100 · biggest growth lever today`,
+        label: `lift ${weakest[0]} axis · biggest growth lever today`,
         seedPrompt: `what 3 ${weakest[0]} tasks would lift my mastery axis fastest? suggest them and add them to today if i say yes`,
         actionHint: "ask · or tap to plan it",
         sourceContext: { domain: weakest[0], score: weakest[1].score },

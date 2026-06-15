@@ -226,26 +226,16 @@ export async function syncVisitDatesFromInvoices(): Promise<{ recordsProcessed: 
     //      this query threw "Unknown column" every run — swallowed by the outer
     //      try/catch and reported "Failed", meaning visit dates were NEVER
     //      synced from work orders. Corrected to the real column names.
-    //  (b) work_orders.customer_id is polymorphic — a numeric customers.id, a
-    //      raw phone string (AI-chat / walk-in WOs), or the "WALK-IN" sentinel.
-    //      The old `CAST(customer_id AS UNSIGNED)` join matched ONLY the numeric
-    //      form, silently dropping every phone-keyed WO. Resolve each WO to its
-    //      customer by numeric id OR last-10-digit phone match, then group by
-    //      the resolved id.
+    //  (b) Post-migration 0070: work_orders.customer_id is now a canonical int column.
+    //      We perform a direct integer join on w.customer_id = c.id, removing the
+    //      polymorphic REGEXP/CAST conditions.
     const [woResult] = await db.execute(sql`
       UPDATE customers c
       INNER JOIN (
-        SELECT cust.id AS cid, MAX(w.completed_at) AS latestCompleted
+        SELECT w.customer_id AS cid, MAX(w.completed_at) AS latestCompleted
         FROM work_orders w
-        JOIN customers cust ON (
-          (w.customer_id REGEXP '^[0-9]+$' AND cust.id = CAST(w.customer_id AS UNSIGNED))
-          OR (w.customer_id NOT REGEXP '^[0-9]+$'
-              AND CHAR_LENGTH(REGEXP_REPLACE(w.customer_id, '[^0-9]', '')) >= 10
-              AND RIGHT(REGEXP_REPLACE(cust.phone, '[^0-9]', ''), 10)
-                = RIGHT(REGEXP_REPLACE(w.customer_id, '[^0-9]', ''), 10))
-        )
-        WHERE w.completed_at IS NOT NULL
-        GROUP BY cust.id
+        WHERE w.completed_at IS NOT NULL AND w.customer_id IS NOT NULL
+        GROUP BY w.customer_id
       ) wo ON c.id = wo.cid
       SET c.lastVisitDate = wo.latestCompleted
       WHERE c.lastVisitDate IS NULL OR c.lastVisitDate < wo.latestCompleted

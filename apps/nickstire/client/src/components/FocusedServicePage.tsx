@@ -59,6 +59,7 @@ import FearCalibrationBlock, { type FearStat } from "./conversion/FearCalibratio
 import LossAversionStat from "./conversion/LossAversionStat";
 import ServiceTriageCard from "./conversion/ServiceTriageCard";
 import TextMeQuote from "./conversion/TextMeQuote";
+import TrustBlock from "./TrustBlock";
 
 // Default hero swapped from CloudFront stock → real shop storefront (May 2026).
 // This propagates the real photo to every service page using FocusedServicePage
@@ -123,7 +124,7 @@ export interface ServicePageConfig {
   /** H1 text */
   h1: string;
   /** Hero subhead paragraph */
-  sub: string;
+  sub: string | React.ReactNode;
   /** AEO extractable-answer block — a self-contained, declarative answer
    *  (~40-60 words) rendered as the first body content for AI-answer-engine
    *  (ChatGPT/Perplexity/Google-AIO) + featured-snippet extraction. Per the
@@ -228,6 +229,24 @@ export interface ServicePageConfig {
    *  page, above pricing). Used by membership-style pages (Nonstop Nick) to put a
    *  one-tap Join card near the fold. Omit → page renders exactly as today. */
   signupSlot?: React.ReactNode;
+
+  /** Optional symptoms section */
+  symptomsSection?: {
+    heading: string;
+    symptoms: Array<{
+      title: string;
+      desc: string;
+    }>;
+  };
+
+  /** Optional diagnostic authority section */
+  diagnosticAuthority?: {
+    heading: string;
+    content: (string | React.ReactNode)[];
+  };
+
+  /** Whether to render the TrustBlock component */
+  showTrustBlock?: boolean;
 }
 
 function Hero({ config }: { config: ServicePageConfig }) {
@@ -564,6 +583,87 @@ function CrossSellSection({ config }: { config: ServicePageConfig }) {
   );
 }
 
+function SymptomsSection({ config }: { config: ServicePageConfig }) {
+  if (!config.symptomsSection) return null;
+  return (
+    <section className="py-16 bg-card/20 border-y border-border/20">
+      <div className="container max-w-4xl">
+        <FadeIn>
+          <span className="font-mono text-primary text-sm tracking-wide">Warning Signs & Symptoms</span>
+          <h2 className="font-bold text-3xl sm:text-4xl text-foreground mt-3 tracking-tight">
+            {config.symptomsSection.heading}
+          </h2>
+          <p className="mt-4 text-foreground/60 leading-relaxed text-sm">
+            Problems starting, warning lights, unusual sounds or behaviors? Don't wait until a minor symptom turns into a major breakdown.
+          </p>
+        </FadeIn>
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {config.symptomsSection.symptoms.map((s, i) => (
+            <FadeIn key={i} delay={i * 0.05}>
+              <div className="bg-background/40 border border-border/30 rounded-lg p-5 hover:border-primary/20 transition-colors">
+                <h3 className="font-bold text-foreground mb-2 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0 animate-pulse" />
+                  {s.title}
+                </h3>
+                <p className="text-foreground/70 text-xs leading-relaxed">{s.desc}</p>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DiagnosticAuthoritySection({ config }: { config: ServicePageConfig }) {
+  if (!config.diagnosticAuthority) return null;
+  return (
+    <section className="py-16 bg-background">
+      <div className="container max-w-4xl">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div className="lg:col-span-7">
+            <FadeIn>
+              <span className="font-mono text-nick-blue-light text-sm tracking-wide">Professional Diagnostics</span>
+              <h2 className="font-bold text-3xl text-foreground mt-3 tracking-tight">
+                {config.diagnosticAuthority.heading}
+              </h2>
+            </FadeIn>
+            <div className="mt-6 space-y-4">
+              {config.diagnosticAuthority.content.map((p, i) => (
+                <FadeIn key={i} delay={i * 0.1}>
+                  <p className="text-foreground/75 text-sm leading-relaxed">{p}</p>
+                </FadeIn>
+              ))}
+            </div>
+          </div>
+          <div className="lg:col-span-5 bg-card border border-border/30 rounded-xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-8 -mt-8" />
+            <h3 className="font-bold text-foreground text-lg mb-4">Our Evaluation Standard</h3>
+            <ul className="space-y-3 text-xs text-foreground/80">
+              <li className="flex items-start gap-2.5">
+                <span className="font-mono text-primary font-bold">01.</span>
+                <span>Visual examination of all components</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="font-mono text-primary font-bold">02.</span>
+                <span>Precise wear measurements using calipers & gauges</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="font-mono text-primary font-bold">03.</span>
+                <span>Hydraulic line and fluid condition testing</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="font-mono text-primary font-bold">04.</span>
+                <span>Physical parts shown to you on the lift before you pay</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function FocusedServicePage({ config }: { config: ServicePageConfig }) {
   return (
     <PageLayout showChat={true}>
@@ -619,17 +719,7 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
             image: `https://nickstire.org${config.heroImage || HERO_IMAGE_DEFAULT}`,
             provider: {
               "@type": "AutoRepair",
-              name: "Nick's Tire & Auto",
-              telephone: "+1-216-862-0005",
-              url: `https://nickstire.org${config.canonicalPath}`,
-              address: {
-                "@type": "PostalAddress",
-                streetAddress: "17625 Euclid Ave",
-                addressLocality: "Euclid",
-                addressRegion: "OH",
-                postalCode: "44112",
-                addressCountry: "US",
-              },
+              "@id": `${BUSINESS.urls.website}/#localbusiness`,
             },
             areaServed: [
               { "@type": "City", name: "Cleveland" },
@@ -679,6 +769,20 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
       <AeoAnswer config={config} />
       {/* Optional signup slot (membership pages) — one-tap Join near the fold. */}
       {config.signupSlot}
+
+      {/* Optional symptoms section */}
+      {config.symptomsSection && (
+        <RiseInView className="parallax-rise">
+          <SymptomsSection config={config} />
+        </RiseInView>
+      )}
+
+      {/* Optional diagnostic authority section */}
+      {config.diagnosticAuthority && (
+        <RiseInView className="parallax-rise">
+          <DiagnosticAuthoritySection config={config} />
+        </RiseInView>
+      )}
       {/* 2026-05-06 visual wave 4: each major section is wrapped in
           RiseInView (Framer fade-and-rise on viewport entry, all
           browsers) + .parallax-rise (CSS scroll-driven drift, modern
@@ -737,6 +841,15 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           serviceTitle={config.serviceType ?? config.h1}
         />
       </RiseInView>
+
+      {config.showTrustBlock && (
+        <RiseInView className="parallax-rise">
+          <div className="container max-w-4xl py-6">
+            <TrustBlock />
+          </div>
+        </RiseInView>
+      )}
+
       {/* Loss-aversion BEFORE FAQ — animated on scroll-in, last conversion
           push before the cooldown FAQ section. */}
       <RiseInView className="parallax-rise"><LossSection config={config} /></RiseInView>

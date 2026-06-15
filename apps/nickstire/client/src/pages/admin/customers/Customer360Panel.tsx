@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatDate } from "../shared";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
@@ -15,10 +16,58 @@ import type {
  *  wave-181.x Customers Phase 1 · removed unused onSmsClick prop ·
  *  was declared but never invoked inside the panel · only existed to
  *  wire setSelectedId on the now-deleted CustomerDetail modal. */
+function GraceButton({ membershipId, onComplete }: { membershipId: number; onComplete: () => void }) {
+  const mutation = trpc.memberships.grantGracePeriod.useMutation({
+    onSuccess: () => {
+      onComplete();
+    },
+  });
+
+  const [loading, setLoading] = useState(false);
+
+  const handleGrant = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLoading(true);
+    try {
+      await mutation.mutateAsync({ membershipId, days: 3 });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleGrant}
+      disabled={loading}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-bold tracking-wider text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded uppercase transition-colors"
+    >
+      {loading ? (
+        <>
+          <Loader2 className="w-2.5 h-2.5 animate-spin" /> Granting...
+        </>
+      ) : (
+        "Grant 3-day Grace Period"
+      )}
+    </button>
+  );
+}
+
 export function Customer360Panel({ customer }: {
   customer: ListedCustomer;
 }) {
+  const [selectedProfile, setSelectedProfile] = useState<string>(
+    customer.psychoProfile || "busy_tim"
+  );
+
   const { data: historyData, isLoading: historyLoading, isError: historyError } = trpc.customers.history.useQuery(
+    { phone: customer.phone },
+    { enabled: !!customer.phone }
+  );
+
+  const { data: membershipData, refetch: refetchMembership } = trpc.memberships.lookupByPhone.useQuery(
     { phone: customer.phone },
     { enabled: !!customer.phone }
   );
@@ -220,8 +269,8 @@ export function Customer360Panel({ customer }: {
             </div>
           </div>
 
-          {/* Vehicle + Risk in a 2-col layout */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Vehicle + Risk + Membership in a 3-col layout */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Vehicle Info */}
             <div className="bg-card border border-border/20 p-3">
               <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">
@@ -237,14 +286,145 @@ export function Customer360Panel({ customer }: {
             </div>
 
             {/* Risk Assessment */}
-            {risk && (
-              <div className={`${risk.bg} border ${risk.border} p-3`}>
-                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">RISK ASSESSMENT</span>
+            <div className={`p-3 border ${risk ? `${risk.bg} ${risk.border}` : "bg-card border-border/20"}`}>
+              <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">RISK ASSESSMENT</span>
+              {risk ? (
                 <span className={`text-sm font-bold ${risk.color}`}>
                   {risk.label}
                 </span>
+              ) : (
+                <span className="text-xs text-foreground/30 italic">No active risk flags</span>
+              )}
+            </div>
+
+            {/* Nonstop Nick Membership */}
+            {membershipData?.found && membershipData.members ? (
+              <div className="bg-card border border-border/20 p-3 flex flex-col justify-between">
+                <div>
+                  <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">
+                    NONSTOP NICK MEMBERSHIP
+                  </span>
+                  {membershipData.members.map((m) => {
+                    const isWarning = m.status === "past_due" || m.status === "incomplete" || m.status === "canceled";
+                    return (
+                      <div key={m.id} className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-foreground truncate">
+                            {m.plan === "nonstop-nick-plus" ? "Plus ($9.99/mo)" : "Base ($7.99/mo)"}
+                          </span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wider uppercase whitespace-nowrap ${
+                            m.isActive
+                              ? "bg-emerald-500/10 text-emerald-400"
+                              : "bg-red-500/10 text-red-400"
+                          }`}>
+                            {m.status}
+                          </span>
+                        </div>
+                        {m.currentPeriodEnd && (
+                          <div className="text-[10px] text-foreground/50">
+                            Period End: {new Date(m.currentPeriodEnd).toLocaleDateString()}
+                          </div>
+                        )}
+                        {isWarning && (
+                          <div className="pt-1">
+                            <GraceButton membershipId={m.id} onComplete={refetchMembership} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-card border border-border/20 p-3">
+                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">
+                  NONSTOP NICK MEMBERSHIP
+                </span>
+                <span className="text-xs text-foreground/30 italic">No membership on file</span>
               </div>
             )}
+          </div>
+
+          {/* NICK AI ASSISTANT DRAWER */}
+          <div className="bg-card border border-primary/25 p-4 space-y-4">
+            <div className="flex items-center justify-between border-b border-border/20 pb-3 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <span className="font-mono text-xs font-bold text-foreground tracking-wider uppercase">
+                  Nick AI Cashier Assistant
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-background/50 p-1 border border-border/15 rounded">
+                <span className="text-[10px] text-foreground/40 font-mono px-2">OUTREACH PROFILE:</span>
+                {[
+                  { id: "broke_brenda", label: "Broke Brenda (P1)" },
+                  { id: "skeptical_pat", label: "Skeptical Pat (P2)" },
+                  { id: "busy_tim", label: "Busy Tim (P3)" }
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSelectedProfile(p.id)}
+                    className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${
+                      selectedProfile === p.id
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-foreground/60 hover:text-foreground hover:bg-card"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Call Script Column */}
+              <div className="bg-background/40 border border-border/10 p-3.5 rounded space-y-2">
+                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block uppercase">
+                  Personalized Call Script
+                </span>
+                <p className="text-[11.5px] leading-relaxed text-foreground/80 italic">
+                  {(() => {
+                    const firstName = customer.firstName || "Customer";
+                    const declinedSvc = historyData?.declinedEstimates?.[0]?.serviceDescription || "recommended maintenance";
+                    
+                    if (selectedProfile === "broke_brenda") {
+                      return `"Hey ${firstName}, this is the team at Nick's Tire. I was looking over your vehicle's checkup and noticed we recommended some work on ${declinedSvc} that wasn't completed yet. We know budget can be tight, so we offer Snap Finance and easy payment plans to let you pay over time. We can also prioritize just the safety items today. Would you like to check out some payment options?"`;
+                    }
+                    if (selectedProfile === "skeptical_pat") {
+                      return `"Hey ${firstName}, this is the team at Nick's Tire. Just following up on the ${declinedSvc} quote we did. Our work is fully backed by our 24-month warranty, and we guarantee the lowest price in Cleveland. We do a completely transparent digital inspection, so you see exactly what we see. Can we get you set up to take a look?"`;
+                    }
+                    // default / busy_tim
+                    return `"Hey ${firstName}, this is the team at Nick's Tire. Following up on the ${declinedSvc} quote. We know your time is valuable, so we can get this done in under 45 minutes if we schedule an early slot. You can also use our secure drop-off box or we can give you a ride to work. What time this week works best to drop the car off?"`;
+                  })()}
+                </p>
+              </div>
+
+              {/* Objection Rebuttal Column */}
+              <div className="bg-background/40 border border-border/10 p-3.5 rounded space-y-3">
+                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block uppercase">
+                  Service Rebuttals (Brakes & Tires)
+                </span>
+                <div className="space-y-2.5">
+                  <div>
+                    <span className="text-[10px] font-bold text-amber-400 block mb-0.5">Brakes & Rotors Objection:</span>
+                    <p className="text-[11px] text-foreground/60 leading-normal">
+                      {selectedProfile === "broke_brenda" && "“I understand it's a stretch. If we just replace the brake pads today, we can get you safe on the road for half the cost, and do the rotors next month.”"}
+                      {selectedProfile === "skeptical_pat" && "“All our pads come with a lifetime warranty. We also show you the exact digital measurements (e.g. 2mm left) so you see the wear yourself.”"}
+                      {selectedProfile === "busy_tim" && "“We pre-order the exact pad and rotor match based on your VIN so they're in the bay when you arrive. In and out in 45 mins.”"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-blue-400 block mb-0.5">Tire Replacements Objection:</span>
+                    <p className="text-[11px] text-foreground/60 leading-normal">
+                      {selectedProfile === "broke_brenda" && "“Cleveland winter weather makes bald tires highly dangerous. We have budget brands starting at $65 and instant financing approvals.”"}
+                      {selectedProfile === "skeptical_pat" && "“Our tire quotes include free lifetime rotations, flat repairs, and alignment checks. There are no hidden fees or surprise costs.”"}
+                      {selectedProfile === "busy_tim" && "“We can mount, balance, and align all four tires in under 35 minutes if you take our first morning slot. You won't miss a meeting.”"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Service History */}
@@ -291,6 +471,32 @@ export function Customer360Panel({ customer }: {
                         </td>
                         <td className="py-1.5 pr-3 text-right font-mono text-emerald-400 whitespace-nowrap">
                           ${Math.round(inv.totalAmount / 100).toLocaleString()}
+                          {inv.estimateAmount !== undefined && inv.estimateAmount !== null && (
+                            (() => {
+                              const variance = inv.totalAmount - inv.estimateAmount;
+                              const varianceInDollars = Math.round(variance / 100);
+                              if (varianceInDollars < 0) {
+                                return (
+                                  <span 
+                                    className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400"
+                                    title={`Under estimate by $${Math.abs(varianceInDollars)}. Quoted: $${Math.round(inv.estimateAmount / 100)}`}
+                                  >
+                                    -${Math.abs(varianceInDollars)}
+                                  </span>
+                                );
+                              } else if (varianceInDollars > 0) {
+                                return (
+                                  <span 
+                                    className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400"
+                                    title={`Over estimate by $${varianceInDollars}. Quoted: $${Math.round(inv.estimateAmount / 100)}`}
+                                  >
+                                    +${varianceInDollars}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()
+                          )}
                         </td>
                         <td className="py-1.5">
                           <span className={`text-[9px] tracking-wider font-bold px-1.5 py-0.5 ${

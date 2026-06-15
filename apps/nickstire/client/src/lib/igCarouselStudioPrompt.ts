@@ -24,6 +24,26 @@ import {
   STUDIO_DEFAULTS,
 } from "./igCarouselStudio";
 
+export interface AnonymizedCaseStudy {
+  vehicle: string;
+  symptom: string;
+  failedComponent: string;
+  condition: "yellow" | "red";
+  techNotes: string;
+  recommendedAction: string;
+}
+
+export interface ProprietaryEvidence {
+  recentCaseStudy: AnonymizedCaseStudy | null;
+  localStats: {
+    brakeRustRatioPercent: number;
+    potholeDamageCount: number;
+    commonVehicles: string[];
+    averageMileage: number;
+  };
+  clevelandAngle: string;
+}
+
 export interface MasterPromptOptions {
   mode: CarouselStudioMode;
   topicOverride?: string;
@@ -32,12 +52,14 @@ export interface MasterPromptOptions {
   seasonLocalAngle?: string;
   avoidTopics?: string[];
   avoidKeywords?: string[];
+  proprietaryEvidence?: ProprietaryEvidence;
 }
 
 /** Section headers the tests assert on — keep stable. */
 export const MASTER_PROMPT_SECTIONS = [
   "## ROLE",
   "## BUSINESS FACTS",
+  "## PROPRIETARY SHOP EVIDENCE",
   "## HIDDEN PERSUASION LAYER",
   "## RESEARCH STANDARD",
   "## CONCEPT IDEATION",
@@ -74,6 +96,33 @@ export function buildCarouselStudioSystemPrompt(opts: MasterPromptOptions): stri
   lines.push(`- ${STUDIO_BRAND.reputation} · ${STUDIO_BRAND.reviews} · ${STUDIO_BRAND.certification}`);
   lines.push(`- Services you may reference: ${ALLOWED_SERVICES.join(", ")}.`);
   lines.push(`- The ONLY approved price wording (use only when relevant): "${APPROVED_USED_TIRE_PRICE_LINE}"`);
+  lines.push("");
+
+  lines.push("## PROPRIETARY SHOP EVIDENCE");
+  if (opts.proprietaryEvidence) {
+    const pe = opts.proprietaryEvidence;
+    lines.push("- Cleveland Repair Stats:");
+    lines.push(`  - Brake rust/seizure ratio: ${pe.localStats.brakeRustRatioPercent}% of inspected brakes show salt/seizure issues.`);
+    lines.push(`  - Recent pothole/rim damage bookings: ${pe.localStats.potholeDamageCount} incidents recorded.`);
+    lines.push(`  - Common vehicles serviced: ${pe.localStats.commonVehicles.join(", ")}.`);
+    lines.push(`  - Average Cleveland vehicle mileage: ${pe.localStats.averageMileage.toLocaleString()} miles.`);
+    lines.push(`  - Cleveland Road Angle: ${pe.clevelandAngle}`);
+    if (pe.recentCaseStudy) {
+      const cs = pe.recentCaseStudy;
+      lines.push("- Real Anonymized Shop Case Study (Grounding Evidence):");
+      lines.push(`  - Vehicle: ${cs.vehicle}`);
+      lines.push(`  - Driver Symptom: ${cs.symptom}`);
+      lines.push(`  - Failed Component: ${cs.failedComponent} (Condition: ${cs.condition.toUpperCase()})`);
+      lines.push(`  - Tech Inspection Notes: ${cs.techNotes}`);
+      lines.push(`  - Recommended Action: ${cs.recommendedAction}`);
+    }
+    lines.push("- Instructions for LLM:");
+    lines.push("  - You MUST dynamically ground the storyboard concept using this real evidence.");
+    lines.push("  - Weave the Real Case Study vehicle, symptom, and inspection findings directly into the \"3 · The Clue\" slide outline.");
+    lines.push("  - Incorporate the local Cleveland stats (e.g., brake rust ratio, pothole counts, or Cleveland average mileage) into the \"2 · Plain-English Truth\" slide or final caption copy to establish local shop authority.");
+  } else {
+    lines.push("- [Pending] No proprietary database evidence loaded. Ground your concepts in typical Cleveland freeze-thaw cycles and salt wear.");
+  }
   lines.push("");
 
   lines.push("## HIDDEN PERSUASION LAYER");
@@ -122,6 +171,7 @@ export function buildCarouselStudioSystemPrompt(opts: MasterPromptOptions): stri
   lines.push("- Consistent visual world across all 5 slides (same territory, palette, lighting).");
   lines.push("- Headline text is added as OVERLAY by the operator — prompts must request clean negative space, and AVOID baked-in text (AI-warped text is an automatic reject).");
   lines.push("- Each prompt states: scene, subject, mood, camera/composition, lighting, and the negative-space zone for the overlay.");
+  lines.push("- Each prompt MUST include premium cinematic descriptors: 'award-winning, 85mm lens, shallow depth of field, ultra-detailed, 8K, studio-grade lighting, cinematic color grade, dramatic high contrast, photorealistic premium product photography, 35mm film grain texture, no AI artifacts, professional automotive photography'.");
   lines.push("");
 
   lines.push("## CAPTION REQUIREMENTS");
@@ -170,10 +220,14 @@ export function buildHiggsfieldPromptPack(brief: CarouselBrief): string {
   out.push("- 4:5 portrait · 1080×1350 px · consistent world across all 5 slides");
   out.push("- NO baked-in text or lettering of any kind (overlay added manually; AI text = reject)");
   out.push("- Leave clean negative space where noted for the headline overlay");
+  out.push("- Quality keywords: award-winning, 85mm lens, shallow depth of field, ultra-detailed, 8K, studio-grade lighting, cinematic color grade, dramatic high contrast, photorealistic premium product photography, 35mm film grain texture, no AI artifacts, professional automotive photography");
   out.push("");
   brief.slides.forEach((s, i) => {
     out.push(`## Slide ${s.slideNumber} — ${SLIDE_ROLES[i]?.label ?? s.role}`);
-    out.push(s.visualPrompt);
+    const basePrompt = s.visualPrompt.trim();
+    const premiumSuffix = "award-winning, 85mm lens, shallow depth of field, ultra-detailed, 8K, studio-grade lighting, cinematic color grade, dramatic high contrast, photorealistic premium product photography, 35mm film grain texture, no AI artifacts, professional automotive photography.";
+    const fullPrompt = basePrompt.endsWith(".") ? `${basePrompt} ${premiumSuffix}` : `${basePrompt}. ${premiumSuffix}`;
+    out.push(fullPrompt);
     out.push(`Overlay plan: ${s.textOverlayPlan}`);
     out.push("");
   });

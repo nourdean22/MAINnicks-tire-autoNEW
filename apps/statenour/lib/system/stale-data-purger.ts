@@ -29,18 +29,44 @@ export interface PurgeResult {
 
 async function purgeDriftAlerts(): Promise<PurgeResult> {
   const since14d = new Date(Date.now() - 14 * 86400_000);
-  const today = new Date().toISOString().slice(0, 10);
-  const result = await prisma.driftAlert.updateMany({
-    where: { resolved: false, createdAt: { lt: since14d } },
-    data: {
-      resolved: true,
-      resolvedDate: today,
+  const candidates = await prisma.brainMemory.findMany({
+    where: {
+      category: "coach_event",
+      key: { startsWith: "coach:drift-recovery:" },
+      createdAt: { lt: since14d },
     },
+    select: { id: true, metadata: true },
   });
+
+  const toAck = candidates.filter((c) => {
+    const meta = (c.metadata ?? {}) as Record<string, unknown>;
+    return !meta.ackedAt;
+  });
+
+  if (toAck.length === 0) {
+    return {
+      category: "drift_alerts_unresolved_14d",
+      purged: 0,
+      note: "No stale unresolved drift alerts found",
+    };
+  }
+
+  const nowIso = new Date().toISOString();
+  await prisma.$transaction(
+    toAck.map((c) => {
+      const meta = (c.metadata ?? {}) as Record<string, unknown>;
+      const nextMeta = { ...meta, ackedAt: nowIso };
+      return prisma.brainMemory.update({
+        where: { id: c.id },
+        data: { metadata: nextMeta as object },
+      });
+    })
+  );
+
   return {
     category: "drift_alerts_unresolved_14d",
-    purged: result.count,
-    note: `Marked ${result.count} alerts resolved (>14d old)`,
+    purged: toAck.length,
+    note: `Marked ${toAck.length} alerts resolved (>14d old)`,
   };
 }
 

@@ -78,6 +78,7 @@ History:   apps/statenour/docs/RECONCILIATION.md (top entry only)
 ```
 [REPO_ROOT]/AGENT-OPERATING-PROFILE.md    ← this is the master
 [REPO_ROOT]/CLAUDE.md                     ← always-must-know gotchas
+C:\Users\nourd\.gemini\config\skills\ciitty\SKILL.md  ← CIITTY Operating Rules
 ```
 
 ---

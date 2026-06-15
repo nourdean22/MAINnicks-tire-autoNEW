@@ -22,7 +22,7 @@ import { TRPCError } from "@trpc/server";
 import { createLogger } from "../lib/logger";
 import { getDb } from "../db";
 import { shopSettings, vapiCallLogs, type VapiCallLog } from "../../drizzle/schema";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { pickReceptionistAssistantId, pickFollowUpAssistantId, SHOP_LANDLINE_E164 } from "../services/vapi";
 
 const log = createLogger("vapi");
@@ -231,92 +231,149 @@ export const vapiRouter = router({
     .query(async ({ input }) => {
       const sinceISO = input?.sinceISO;
       const untilISO = input?.untilISO;
-      // Cache key includes range so different windows don't collide
       const key = `metrics_${sinceISO || "today"}_${untilISO || "now"}`;
+
       return memoize(key, async () => {
         const since = sinceISO ? new Date(sinceISO) : startOfDay(new Date());
-        const sinceQ = since.toISOString();
-        const untilQ = untilISO ? `&createdAtLe=${encodeURIComponent(untilISO)}` : "";
+        const db = await getDb();
+        if (!db) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        }
 
-      // Wave BG/BH.b · LIVE-FIRST, local-fallback. Try VAPI live (accurate
-      // type + endedReason breakdown · works for today/7d). Only if live
-      // times out (it caps pagination ~>7d → "unreachable") fall back to
-      // the local vapi_call_logs mirror so the range still returns a count.
-      // Local breakdown is limited to whatever the webhook stored (older
-      // rows have null endedReason → "unknown") — count reliable, breakdown
-      // best-effort. This keeps today/7d breakdowns accurate (live) while
-      // fixing the 30d "VAPI unreachable" total failure (local count).
-      try {
-        const calls = await vapiApiFetch<VapiCallSummary[]>(
-          `/call?createdAtGe=${encodeURIComponent(sinceQ)}${untilQ}&limit=500`,
-        );
-        const total = calls.length;
-        const inbound = calls.filter((c) => c.type === "inboundPhoneCall").length;
-        const outbound = calls.filter((c) => c.type === "outboundPhoneCall").length;
-        const web = calls.filter((c) => c.type === "webCall").length;
+        const conds = [gte(vapiCallLogs.createdAt, since)];
+        if (untilISO) conds.push(lte(vapiCallLogs.createdAt, new Date(untilISO)));
 
-        const durations = calls.map(durationSeconds).filter((d) => d > 0);
-        const totalSeconds = durations.reduce((s, d) => s + d, 0);
+        const rows = await db
+          .select({
+            id: vapiCallLogs.id,
+            durationSeconds: vapiCallLogs.durationSeconds,
+            endedReason: vapiCallLogs.endedReason,
+            convertedToLead: vapiCallLogs.convertedToLead,
+            evalScore: vapiCallLogs.evalScore,
+            evalOutcome: vapiCallLogs.evalOutcome,
+            createdAt: vapiCallLogs.createdAt,
+            metadata: vapiCallLogs.metadata,
+          })
+          .from(vapiCallLogs)
+          .where(and(...conds));
+
+        const inboundRows = rows.filter((r: any) => r.evalOutcome !== "outbound");
+        const outboundRows = rows.filter((r: any) => r.evalOutcome === "outbound");
+        
+        const EXCLUDED_OUTCOMES = new Set(["abandoned_before_connect", "spam_or_wrong_number", "tech_failure", "outbound"]);
+        const validConversations = rows.filter((r: any) => r.evalOutcome && !EXCLUDED_OUTCOMES.has(r.evalOutcome));
+        
+        const validScores = validConversations.map((r: any) => r.evalScore).filter((s: any): s is number => s !== null);
+        const avgScore = validScores.length > 0 ? Math.round(validScores.reduce((a: any, b: any) => a + b, 0) / validScores.length) : 0;
+
+        const hardConversions = rows.filter((r: any) => r.evalOutcome === "hard_conversion").length;
+        const walkInDirected = rows.filter((r: any) => r.evalOutcome === "walk_in_directed").length;
+        
+        const ACTIONABLE_OUTCOMES = new Set([
+          "hard_conversion",
+          "walk_in_directed",
+          "callback_needed",
+          "tire_availability_intent",
+          "quote_or_inspection_intent",
+          "human_handoff"
+        ]);
+        const actionableOutcomes = rows.filter((r: any) => r.evalOutcome && ACTIONABLE_OUTCOMES.has(r.evalOutcome)).length;
+
+        const total = rows.length;
+        const legacyConversionRate = total > 0 ? (hardConversions / total) * 100 : 0;
+        const revisedHardConversionRate = validConversations.length > 0 ? (hardConversions / validConversations.length) * 100 : 0;
+        const actionableRate = validConversations.length > 0 ? (actionableOutcomes / validConversations.length) * 100 : 0;
+
+        const durations = rows.map((r: any) => r.durationSeconds).filter((d: any) => d > 0);
+        const totalSeconds = durations.reduce((s: any, d: any) => s + d, 0);
         const avgSeconds = durations.length > 0 ? totalSeconds / durations.length : 0;
 
         const endReasons: Record<string, number> = {};
-        for (const c of calls) {
-          const r = c.endedReason || "unknown";
-          endReasons[r] = (endReasons[r] || 0) + 1;
+        for (const r of rows) {
+          const k = r.endedReason || "unknown";
+          endReasons[k] = (endReasons[k] || 0) + 1;
         }
 
-        const forwarded = endReasons["assistant-forwarded-call"] || 0;
-        const customerEnded = endReasons["customer-ended-call"] || 0;
-        const assistantEnded = endReasons["assistant-ended-call"] || 0;
+        const getClevelandSunday = (date: Date): string => {
+          const localDate = new Date(date.toLocaleString("en-US", { timeZone: "America/New_York" }));
+          const day = localDate.getDay();
+          const diff = localDate.getDate() - day;
+          const sunday = new Date(localDate.setDate(diff));
+          return `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+        };
+
+        // Compute weekly trend
+        const trend: Record<string, { total: number; valid: number; conversions: number }> = {};
+        for (const r of rows) {
+          if (r.evalOutcome === "outbound") continue;
+          const weekKey = getClevelandSunday(r.createdAt);
+          if (!trend[weekKey]) {
+            trend[weekKey] = { total: 0, valid: 0, conversions: 0 };
+          }
+          trend[weekKey].total++;
+          if (r.evalOutcome && !EXCLUDED_OUTCOMES.has(r.evalOutcome)) {
+            trend[weekKey].valid++;
+          }
+          if (r.evalOutcome === "hard_conversion") {
+            trend[weekKey].conversions++;
+          }
+        }
+        const weeklyTrend = Object.entries(trend).map(([week, stats]) => ({
+          week,
+          ...stats,
+        })).sort((a, b) => a.week.localeCompare(b.week));
+
+        // Compute outcome breakdown
+        const outcomeBreakdown: Record<string, number> = {};
+        for (const r of rows) {
+          if (r.evalOutcome === "outbound") continue;
+          const outcome = r.evalOutcome || "unevaluated";
+          outcomeBreakdown[outcome] = (outcomeBreakdown[outcome] || 0) + 1;
+        }
+
+        // Compute intent distribution
+        const distribution: Record<string, number> = {};
+        for (const r of rows) {
+          if (r.evalOutcome === "outbound") continue;
+          const metadata = typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata;
+          const intents: string[] = metadata?.intents || [];
+          for (const intent of intents) {
+            distribution[intent] = (distribution[intent] || 0) + 1;
+          }
+        }
+        const intentDistribution = Object.entries(distribution).map(([intent, count]) => ({
+          intent,
+          count,
+        })).sort((a, b) => b.count - a.count);
 
         return {
           ok: true as const,
-          total, inbound, outbound, web,
-          forwarded, customerEnded, assistantEnded,
+          total: rows.length,
+          inbound: inboundRows.length,
+          outbound: outboundRows.length,
+          web: 0,
+          forwarded: endReasons["assistant-forwarded-call"] || 0,
+          customerEnded: endReasons["customer-ended-call"] || 0,
+          assistantEnded: endReasons["assistant-ended-call"] || 0,
           totalSeconds: Math.round(totalSeconds),
           avgSeconds: Math.round(avgSeconds),
           endReasons,
+          // New metrics
+          validConversationsCount: validConversations.length,
+          hardConversionsCount: hardConversions,
+          walkInDirectedCount: walkInDirected,
+          actionableOutcomesCount: actionableOutcomes,
+          legacyConversionRate: Math.round(legacyConversionRate),
+          revisedHardConversionRate: Math.round(revisedHardConversionRate),
+          actionableRate: Math.round(actionableRate),
+          avgScore,
+          weeklyTrend,
+          outcomeBreakdown,
+          intentDistribution,
         };
-      } catch (err) {
-        log.warn("metrics live failed — trying local mirror", { error: err instanceof Error ? err.message : String(err) });
-        try {
-          const rows = await readLocalCallRows(sinceQ, untilISO);
-          const durations = rows.map((r) => r.durationSeconds).filter((d) => d > 0);
-          const totalSeconds = durations.reduce((s, d) => s + d, 0);
-          const avgSeconds = durations.length > 0 ? totalSeconds / durations.length : 0;
-          const endReasons: Record<string, number> = {};
-          for (const r of rows) {
-            const k = r.endedReason || "unknown";
-            endReasons[k] = (endReasons[k] || 0) + 1;
-          }
-          return {
-            ok: true as const,
-            total: rows.length, inbound: rows.length, outbound: 0, web: 0,
-            forwarded: endReasons["assistant-forwarded-call"] || 0,
-            customerEnded: endReasons["customer-ended-call"] || 0,
-            assistantEnded: endReasons["assistant-ended-call"] || 0,
-            totalSeconds: Math.round(totalSeconds),
-            avgSeconds: Math.round(avgSeconds),
-            endReasons,
-          };
-        } catch (localErr) {
-          log.warn("metrics local fallback also failed", { error: localErr instanceof Error ? localErr.message : String(localErr) });
-          return {
-            ok: false as const, error: "VAPI API unreachable",
-            total: 0, inbound: 0, outbound: 0, web: 0,
-            forwarded: 0, customerEnded: 0, assistantEnded: 0,
-            totalSeconds: 0, avgSeconds: 0,
-            endReasons: {} as Record<string, number>,
-          };
-        }
-      }
       });
     }),
 
-  /**
-   * Call list for the selected range (max 200, newest first).
-   * Default range = today only. Pass sinceISO + untilISO to widen.
-   */
   todayCalls: adminProcedure
     .input(z.object({
       sinceISO: z.string().datetime().optional(),
@@ -326,71 +383,179 @@ export const vapiRouter = router({
       const sinceISO = input?.sinceISO;
       const untilISO = input?.untilISO;
       const key = `calls_${sinceISO || "today"}_${untilISO || "now"}`;
+
       return memoize(key, async () => {
         const since = sinceISO ? new Date(sinceISO) : startOfDay(new Date());
-        const sinceQ = since.toISOString();
-        const untilQ = untilISO ? `&createdAtLe=${encodeURIComponent(untilISO)}` : "";
+        const db = await getDb();
+        if (!db) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        }
 
-      // Wave BG/BH.b · LIVE-FIRST, local-fallback (mirrors todayMetrics).
-      // Live gives the richest rows (type, cost, real successEvaluation) and
-      // works for today/7d. Only when live times out (>7d pagination cap →
-      // "unreachable") fall back to the local vapi_call_logs mirror so the
-      // range still lists. Local rows map to the same shape · type defaults
-      // inboundPhoneCall (all receptionist calls inbound) · cost unstored
-      // (null) · started/endedAt unused (table renders off createdAt+dur).
-      try {
-        const calls = await vapiApiFetch<VapiCallSummary[]>(
-          `/call?createdAtGe=${encodeURIComponent(sinceQ)}${untilQ}&limit=200`,
-        );
-        const sorted = [...calls].sort(
-          (a, b) =>
-            new Date(b.createdAt || 0).getTime() -
-            new Date(a.createdAt || 0).getTime(),
-        );
-        return sorted.map((c) => ({
-          id: c.id,
-          type: c.type || "unknown",
-          createdAt: c.createdAt || null,
-          startedAt: c.startedAt || null,
-          endedAt: c.endedAt || null,
-          durationSeconds: Math.round(durationSeconds(c)),
-          endedReason: c.endedReason || "unknown",
-          customerNumber: c.customer?.number || null,
-          customerName: c.customer?.name || null,
-          cost: c.cost ?? null,
-          summary: c.summary || c.analysis?.summary || null,
-          successEvaluation: c.analysis?.successEvaluation || null,
+        const conds = [gte(vapiCallLogs.createdAt, since)];
+        if (untilISO) conds.push(lte(vapiCallLogs.createdAt, new Date(untilISO)));
+
+        const rows = await db
+          .select({
+            id: vapiCallLogs.vapiCallId,
+            createdAt: vapiCallLogs.createdAt,
+            durationSeconds: vapiCallLogs.durationSeconds,
+            endedReason: vapiCallLogs.endedReason,
+            customerNumber: vapiCallLogs.phoneNumber,
+            customerName: vapiCallLogs.customerName,
+            summary: vapiCallLogs.aiSummary,
+            successEvaluation: vapiCallLogs.evalOutcome,
+            evalScore: vapiCallLogs.evalScore,
+            evalOutcome: vapiCallLogs.evalOutcome,
+            evalReasoning: vapiCallLogs.evalReasoning,
+            metadata: vapiCallLogs.metadata,
+          })
+          .from(vapiCallLogs)
+          .where(and(...conds, sql`${vapiCallLogs.evalOutcome} != 'outbound' OR ${vapiCallLogs.evalOutcome} IS NULL`))
+          .orderBy(desc(vapiCallLogs.createdAt))
+          .limit(200);
+
+        return rows.map((r: any) => ({
+          id: r.id,
+          type: "inboundPhoneCall",
+          createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
+          startedAt: null as string | null,
+          endedAt: null as string | null,
+          durationSeconds: r.durationSeconds,
+          endedReason: r.endedReason || "unknown",
+          customerNumber: r.customerNumber,
+          customerName: r.customerName,
+          cost: null as number | null,
+          summary: r.summary,
+          successEvaluation: r.successEvaluation,
+          evalScore: r.evalScore,
+          evalOutcome: r.evalOutcome,
+          evalReasoning: r.evalReasoning,
+          metadata: typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata,
         }));
-      } catch (err) {
-        log.warn("calls list live failed — trying local mirror", { error: err instanceof Error ? err.message : String(err) });
-        try {
-          const rows = await readLocalCallRows(sinceQ, untilISO);
-          return rows.map((r) => ({
-            id: r.vapiCallId,
-            type: "inboundPhoneCall",
-            createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
-            startedAt: null as string | null,
-            endedAt: null as string | null,
-            durationSeconds: r.durationSeconds,
-            endedReason: r.endedReason || "unknown",
-            customerNumber: r.phoneNumber,
-            customerName: r.customerName,
-            cost: null as number | null,
-            summary: r.aiSummary,
-            successEvaluation: r.evalOutcome ?? null,
-          }));
-        } catch (localErr) {
-          log.warn("calls list local fallback also failed", { error: localErr instanceof Error ? localErr.message : String(localErr) });
-          return [] as Array<{
-            id: string; type: string; createdAt: string | null;
-            startedAt: string | null; endedAt: string | null;
-            durationSeconds: number; endedReason: string;
-            customerNumber: string | null; customerName: string | null;
-            cost: number | null; summary: string | null; successEvaluation: string | null;
-          }>;
+      });
+    }),
+
+  getMissedRevenueQueue: adminProcedure
+    .input(z.object({
+      status: z.enum(["pending", "reviewed", "converted", "came_in", "ignored", "all"]).default("pending"),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const candidates = ["lost_opportunity", "callback_needed", "walk_in_directed", "tech_failure"];
+      
+      const rows = await db
+        .select({
+          id: vapiCallLogs.id,
+          vapiCallId: vapiCallLogs.vapiCallId,
+          phoneNumber: vapiCallLogs.phoneNumber,
+          customerName: vapiCallLogs.customerName,
+          durationSeconds: vapiCallLogs.durationSeconds,
+          endedReason: vapiCallLogs.endedReason,
+          aiSummary: vapiCallLogs.aiSummary,
+          evalScore: vapiCallLogs.evalScore,
+          evalOutcome: vapiCallLogs.evalOutcome,
+          createdAt: vapiCallLogs.createdAt,
+          metadata: vapiCallLogs.metadata,
+        })
+        .from(vapiCallLogs)
+        .where(and(
+          gte(vapiCallLogs.createdAt, cutoff),
+          sql`${vapiCallLogs.evalOutcome} IN (${sql.raw(candidates.map(c => `'${c}'`).join(','))})`
+        ))
+        .orderBy(desc(vapiCallLogs.createdAt));
+
+      // Calculate repeat callers
+      const phoneCounts: Record<string, number> = {};
+      for (const r of rows) {
+        if (r.phoneNumber) {
+          phoneCounts[r.phoneNumber] = (phoneCounts[r.phoneNumber] || 0) + 1;
         }
       }
+
+      const queueItems = rows.map((r: any) => {
+        const meta = typeof r.metadata === "string" ? JSON.parse(r.metadata) : (r.metadata || {});
+        const qStatus = meta.queueStatus || "pending";
+        const qUrgency = meta.queueUrgency || 4;
+        const intents = meta.intents || [];
+        const isRepeatCaller = r.phoneNumber ? (phoneCounts[r.phoneNumber] > 1) : false;
+        const priorityScore = qUrgency + (isRepeatCaller ? 3 : 0);
+
+        return {
+          id: r.id,
+          vapiCallId: r.vapiCallId,
+          phoneNumber: r.phoneNumber,
+          customerName: r.customerName,
+          durationSeconds: r.durationSeconds,
+          endedReason: r.endedReason,
+          aiSummary: r.aiSummary,
+          evalScore: r.evalScore,
+          evalOutcome: r.evalOutcome,
+          createdAt: r.createdAt,
+          intents,
+          queueStatus: qStatus,
+          queueUrgency: qUrgency,
+          priorityScore,
+          isRepeatCaller,
+          notes: meta.notes || "",
+        };
       });
+
+      const filtered = input.status === "all" 
+        ? queueItems 
+        : queueItems.filter((item: any) => item.queueStatus === input.status);
+
+      filtered.sort((a: any, b: any) => {
+        if (b.priorityScore !== a.priorityScore) {
+          return b.priorityScore - a.priorityScore;
+        }
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      });
+
+      return filtered;
+    }),
+
+  updateQueueStatus: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      status: z.enum(["pending", "reviewed", "converted", "came_in", "ignored"]),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const [row] = await db
+        .select({ metadata: vapiCallLogs.metadata })
+        .from(vapiCallLogs)
+        .where(eq(vapiCallLogs.id, input.id))
+        .limit(1);
+
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Call log not found" });
+      }
+
+      const existingMetadata = typeof row.metadata === "string"
+        ? JSON.parse(row.metadata)
+        : (row.metadata || {});
+
+      const updatedMetadata = {
+        ...existingMetadata,
+        queueStatus: input.status,
+        ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        queueUpdatedAt: new Date().toISOString(),
+      };
+
+      await db
+        .update(vapiCallLogs)
+        .set({
+          metadata: updatedMetadata,
+        })
+        .where(eq(vapiCallLogs.id, input.id));
+
+      return { success: true };
     }),
 
   /**
@@ -576,11 +741,18 @@ export const vapiRouter = router({
       // If no number-type exists, prepend a new one and keep the rest.
       const numberIdx = existingDestinations.findIndex((d) => d.type === "number");
       const targetExisting = numberIdx >= 0 ? existingDestinations[numberIdx] : {};
+      const existingPlan = (targetExisting.transferPlan as Record<string, unknown> | undefined) || {};
       const updatedDest = {
         ...targetExisting,
         type: "number",
         number: input.phoneNumber,
         message: input.message || (targetExisting as { message?: string }).message || "Transferring you now.",
+        transferPlan: {
+          mode: "warm-transfer-say-message",
+          message: "You've got a customer holding on the Nick's Tire and Auto line. Connecting you now.",
+          ...existingPlan,
+          sipVerb: "dial",
+        },
       };
       const newDestinations = numberIdx >= 0
         ? existingDestinations.map((d, i) => (i === numberIdx ? updatedDest : d))
@@ -929,4 +1101,94 @@ export const vapiRouter = router({
       const history = await getCallStateHistory(input.callId);
       return { callId: input.callId, history };
     }),
+
+  /**
+   * Achievements and metrics summary for Nick AI receptionist.
+   * Pulls directly from local DB logs to calculate levels, badges, and streaks.
+   */
+  achievements: adminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+    }
+    const rows = await db
+      .select({
+        createdAt: vapiCallLogs.createdAt,
+        durationSeconds: vapiCallLogs.durationSeconds,
+        endedReason: vapiCallLogs.endedReason,
+        convertedToLead: vapiCallLogs.convertedToLead,
+        evalScore: vapiCallLogs.evalScore,
+        evalOutcome: vapiCallLogs.evalOutcome,
+      })
+      .from(vapiCallLogs);
+
+    let totalCalls = rows.length;
+    let totalDuration = 0;
+    let totalConverted = 0;
+    let totalExemplary = 0;
+    let totalResolved = 0;
+    let totalAfterHours = 0;
+    let sumScore = 0;
+    let countScore = 0;
+
+    for (const r of rows) {
+      totalDuration += r.durationSeconds;
+      if (r.convertedToLead === 1) totalConverted++;
+      if (r.evalScore !== null) {
+        sumScore += r.evalScore;
+        countScore++;
+        if (r.evalScore >= 85) totalExemplary++;
+        if (r.endedReason === "customer-ended-call" && r.evalScore >= 70) totalResolved++;
+      }
+
+      // Cleveland time (America/New_York)
+      try {
+        const localDate = new Date(r.createdAt.toLocaleString("en-US", { timeZone: "America/New_York" }));
+        const hour = localDate.getHours();
+        if (hour < 8 || hour >= 18) {
+          totalAfterHours++;
+        }
+      } catch {
+        // Fallback to UTC hour if timezone translation fails
+        const hour = r.createdAt.getUTCHours();
+        if (hour < 12 || hour >= 22) { // rough offset estimate
+          totalAfterHours++;
+        }
+      }
+    }
+
+    const avgScore = countScore > 0 ? Math.round(sumScore / countScore) : 0;
+
+    // Calculate current streak of successful calls
+    const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    let streak = 0;
+    for (const r of sorted) {
+      const isPass =
+        r.evalOutcome === "PASS" ||
+        (r.evalScore !== null && r.evalScore >= 70) ||
+        r.convertedToLead === 1 ||
+        r.endedReason === "assistant-forwarded-call";
+      const isFail =
+        r.evalOutcome === "FAIL" ||
+        (r.evalScore !== null && r.evalScore < 70);
+
+      if (isPass) {
+        streak++;
+      } else if (isFail) {
+        break;
+      }
+    }
+
+    return {
+      totalCalls,
+      totalDuration,
+      totalConverted,
+      totalExemplary,
+      totalResolved,
+      totalAfterHours,
+      avgScore,
+      streak,
+    };
+  }),
 });
+

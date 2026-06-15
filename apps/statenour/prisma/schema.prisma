@@ -428,6 +428,8 @@ model Task {
   recurringDays           Int[]       @default([]) @map("recurring_days")
   /// v7.9 · Apr 29 · Universal soft-delete.
   deletedAt               DateTime?   @map("deleted_at")
+  completionNote          String?     @map("completion_note")
+  outcomeScore            Int?        @map("outcome_score")
   /// v9.0-rc · Apr 30 · Proof attachment.
   /// Shape: { urls?: string[]; screenshots?: string[]; metrics?: Record<string,number>; notes?: string; observedAt?: string }
   /// Marking DONE without proof is allowed (soft enforcement) but the
@@ -784,6 +786,7 @@ model WorkResult {
   errorMessage String?
   completedAt  DateTime       @default(now())
   createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   @@index([workItemId])
   @@index([createdAt])
@@ -939,28 +942,11 @@ model MasteryScore {
   evidence  String?  @db.Text
   delta     Float    @default(0)
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([date, domain])
   @@index([createdAt])
   @@map("mastery_scores")
-}
-
-model DriftAlert {
-  id           Int      @id @default(autoincrement())
-  date         String
-  ruleId       String   @map("rule_id")
-  ruleName     String   @map("rule_name")
-  severity     String
-  message      String   @db.Text
-  acknowledged Boolean  @default(false)
-  resolved     Boolean  @default(false)
-  resolvedDate String?  @map("resolved_date")
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  @@index([resolved, date])
-  @@index([date, ruleId])
-  @@index([createdAt])
-  @@map("drift_alerts")
 }
 
 model MasteryDecision {
@@ -1061,6 +1047,7 @@ model BodyTracking {
   workoutDone Boolean? @map("workout_done")
   energy      Int?     @db.SmallInt
   stress      Int?     @db.SmallInt
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@index([createdAt])
   @@map("body_tracking")
@@ -1079,6 +1066,7 @@ model FinancialSnapshot {
   savingsRatePct   Float?   @map("savings_rate_pct")
   notes            String?  @db.Text
   createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@index([createdAt])
   @@map("financial_snapshots")
@@ -1278,6 +1266,7 @@ model BrainDump {
   /// v7.9 · Apr 29 · Universal soft-delete.
   deletedAt      DateTime? @map("deleted_at")
   createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   // Journal Brain (2026-06-01) — grounding/scoring spine · docs/journal-brain-redesign.md
   entryType      String?   @map("entry_type")
@@ -2671,6 +2660,7 @@ model VectorEmbedding {
   embedding_vec_1536 Unsupported("vector(1536)")?
   embedding_dim      Int?
   model              String?                      @db.VarChar(64)
+  updatedAt          DateTime                     @updatedAt
 
   @@index([sourceType, sourceId]) // composite — fixes slow lookup queries
   @@index([sourceType])
@@ -2912,3 +2902,72 @@ model VoiceLatencyEvent {
   @@index([assistantId, stage, createdAt])
   @@map("voice_latency_events")
 }
+
+model CalibrationReviewItem {
+  id                    String    @id @default(cuid())
+  type                  String    @db.VarChar(32) // "prediction" | "task_roi" | "business_projection"
+  sourceId              String    @map("source_id")
+  sourceType            String    @map("source_type") @db.VarChar(32) // "Prediction" | "Task"
+  status                String    @default("pending") // pending | approved | corrected | rejected | needs_more_evidence | auto_resolved_low_risk
+  predictedOutcome      Json      @map("predicted_outcome")
+  proposedActualOutcome Json?     @map("proposed_actual_outcome")
+  approvedActualOutcome Json?     @map("approved_actual_outcome")
+  confidence            Float     @default(0.5)
+  evidence              Json?     // e.g. { taskNote: "...", clicks: 10, revenue: 100 }
+  evidenceFreshness     DateTime? @map("evidence_freshness")
+  reviewedBy            String?   @map("reviewed_by") @db.VarChar(64)
+  reviewedAt            DateTime? @map("reviewed_at")
+  correctionNote        String?   @map("correction_note") @db.Text
+  accuracyScore         Float?    @map("accuracy_score")
+  calibrationImpact     Json?     @map("calibration_impact")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@unique([sourceId, sourceType], map: "calibration_review_items_source_uniq")
+  @@index([status, type])
+  @@index([createdAt])
+  @@map("calibration_review_items")
+}
+
+model ApprovalRequest {
+  id               String           @id @default(cuid())
+  actionType       String           @map("action_type")
+  toolId           String           @map("tool_id")
+  status           String           @default("pending_approval")
+  riskClass        String           @map("risk_class")
+  payload          Json
+  resultPayload    Json?            @map("result_payload")
+  requestedBy      String           @map("requested_by")
+  reason           String           @db.Text
+  expiresAt        DateTime         @map("expires_at")
+  approvedAt       DateTime?        @map("approved_at")
+  approvedBy       String?          @map("approved_by")
+  executedAt       DateTime?        @map("executed_at")
+  screenshotUrl    String?          @map("screenshot_url")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("approval_requests")
+}
+
+model MemoryInboxItem {
+  id                String           @id @default(cuid())
+  sourceUrl         String?          @map("source_url")
+  sourceType        String           @map("source_type")
+  rawTextFenced     String           @map("raw_text_fenced")
+  extractedClaims   Json             @map("extracted_claims")
+  contradictionLogs Json?            @map("contradiction_logs")
+  privacyClass      String           @map("privacy_class")
+  status            String           @default("quarantined")
+  reviewedBy        String?          @map("reviewed_by")
+  reviewedAt        DateTime?        @map("reviewed_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("memory_inbox_items")
+}
+

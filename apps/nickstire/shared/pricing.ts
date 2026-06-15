@@ -4,3 +4,16 @@ export const OIL_PRICE = {
   conventional: 49, // also synthetic-blend
   fullSynthetic: 80,
 } as const;
+
+export const BRAKE_PRICE = {
+  padsStarting: 149,
+  padsMax: 299,
+  caliperAndRotorReplacementEstimate: 950,
+} as const;
+
+export const SERVICE_PRICE = {
+  tirePatch: 35,
+  eCheckFixStarting: 189,
+  beltReplacementStarting: 50,
+} as const;
+

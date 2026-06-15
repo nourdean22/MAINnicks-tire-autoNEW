@@ -28,6 +28,8 @@ import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { BRANCHES } from "@/lib/mastery/config";
 import { ShieldAlert } from "lucide-react";
+import { ErrorCard } from "@/components/ui/error-card";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface StatLevel {
   key: string;
@@ -85,8 +87,36 @@ export function CharacterSheet() {
 
   // Cold load: render nothing (the scoreboard already has plenty above).
   if (query.isLoading && stats.length === 0) return null;
-  // Transient error: self-hide rather than break the page.
-  if (query.error || stats.length === 0) return null;
+
+  // Render error card if the query fails.
+  if (query.error) {
+    return (
+      <section className="mt-6 space-y-4">
+        <MasterySectionLabel label="Mastery · character sheet" />
+        <ErrorCard
+          title="Failed to load character sheet"
+          message={query.error.message || "Stats data is unavailable right now."}
+          domain="operator:characterSheet"
+          onRetry={() => query.refetch()}
+        />
+      </section>
+    );
+  }
+
+  // Render empty state if query succeeded but there's no stats recorded.
+  if (stats.length === 0) {
+    return (
+      <section className="mt-6 space-y-4">
+        <MasterySectionLabel label="Mastery · character sheet" />
+        <EmptyState
+          icon={ShieldAlert}
+          title="No stats recorded yet"
+          why="Stats populate as daily reps and goal events are logged."
+          unlock="Log a workout, weight entry, or complete a mission task."
+        />
+      </section>
+    );
+  }
 
   // Total level — the classic RPG aggregate. Sum, not average, so every
   // level in every stat visibly counts toward one number.
@@ -100,9 +130,12 @@ export function CharacterSheet() {
     (best, x) => (x.rising7dXp > (best?.rising7dXp ?? 0) ? x : best),
     null,
   );
-  // 2026-06-10 · the "Next rep" strip (max progressPct) moved out — it's
-  // now the weakest tier ("closest") of <LevelUpDirectiveCard>, mounted
-  // above this sheet on /stats with a reason + an actionable rep link.
+  // Agentic nudge — the stat you're closest to leveling (most progress into
+  // its current level). Null when nothing's on the verge.
+  const nextRep = stats.reduce<StatLevel | null>(
+    (best, x) => (x.progressPct > (best?.progressPct ?? 0) ? x : best),
+    null,
+  );
 
   // Compute branch level summaries for the Identity Build Card
   const branchLevels = stats.reduce<Record<string, number>>((acc, s) => {
@@ -142,6 +175,7 @@ export function CharacterSheet() {
   const highestNeglected = [...stats]
     .filter((s) => s.rising7dXp === 0)
     .sort((a, b) => b.level - a.level)[0] ?? null;
+
 
   return (
     <section className="mt-6 space-y-4">

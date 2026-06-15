@@ -21,6 +21,15 @@ import { checkTask } from "@/lib/services/task-actions";
 
 export const POST = apiHandler(async (req, { params }) => {
   const { id } = await params!;
-  const body = (await req.json().catch(() => ({}))) as { action?: string };
-  return checkTask({ id, action: body.action });
+  const body = (await req.json().catch(() => ({}))) as {
+    action?: string;
+    completionNote?: string | null;
+    outcomeScore?: number | null;
+  };
+  return checkTask({
+    id,
+    action: body.action,
+    completionNote: body.completionNote,
+    outcomeScore: body.outcomeScore,
+  });
 }, { auth: "owner" });

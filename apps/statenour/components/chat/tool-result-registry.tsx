@@ -582,7 +582,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Pulling brain velocity + signals…",
     icon: HeartPulse,
     color: "emerald",
-    link: { href: "/brain/health", label: "Brain health" },
+    link: { href: "/brain?tab=health", label: "Brain health" },
     subtitle: (out) => {
       const o = out as { velocity?: number; status?: string; healthScore?: number } | null;
       if (!o) return null;

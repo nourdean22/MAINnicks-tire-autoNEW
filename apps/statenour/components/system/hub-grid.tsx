@@ -62,6 +62,7 @@ interface HubPayload {
   pulse: { priorityCount: number };
   ai: { calls24h: number; costCents7d: number };
   power: { paused: boolean };
+  governance: { pendingCount: number };
   generatedAt: string;
 }
 
@@ -91,14 +92,6 @@ interface HubCard {
 // Hardcoded "114 tools"/"1,423 skills" count chips went with their
 // (now-dead) cards.
 const CARDS: HubCard[] = [
-  {
-    href: "/system/digest",
-    title: "Digest",
-    icon: FileText,
-    group: "ai",
-    description: "What changed · truth scoreboard · recent action receipts (read-only)",
-    chip: () => ({ label: "view", severity: "info" }),
-  },
   {
     href: "/system/health",
     title: "Diagnostics",
@@ -156,20 +149,6 @@ const CARDS: HubCard[] = [
     chip: () => ({ label: "browse", severity: "info" }),
   },
   {
-    // Wave AW · 2026-05-28 · discoverability for the Wave AU viewer.
-    // Without this tile the operator would need to type the URL — the
-    // 9-writer Coach Channel had a write side + 5 read banners but the
-    // historical viewer was orphaned. Mirrors the Alerts Inspector
-    // shape · same group · sibling observability surface.
-    href: "/system/coach-events",
-    title: "Coach Channel",
-    icon: Radio,
-    group: "health",
-    description:
-      "Historical viewer · 9 detectors → 5 surfaces · filter + audit acked",
-    chip: () => ({ label: "browse", severity: "info" }),
-  },
-  {
     href: "/system/actions",
     title: "Autonomous Actions",
     icon: Bot,
@@ -178,14 +157,12 @@ const CARDS: HubCard[] = [
     chip: () => ({ label: "audit", severity: "info" }),
   },
   {
-    href: "/system/approvals",
-    title: "Approval Queue",
-    icon: AlertCircle,
+    href: "/system/tools",
+    title: "Tools Registry",
+    icon: Search,
     group: "governance",
-    description:
-      "Pending autonomous actions awaiting operator review · approve / reject",
-    chip: () => ({ label: "queue", severity: "info" }),
-    featured: true,
+    description: "Inspect and govern agent tool access and permission policies",
+    chip: () => ({ label: "inspect", severity: "info" }),
   },
   {
     href: "/system/ai-cost",
@@ -234,16 +211,6 @@ const CARDS: HubCard[] = [
     group: "ai",
     description: "Prediction accuracy, judge-eval, drift + coverage",
     chip: () => ({ label: "eval", severity: "info" }),
-  },
-  {
-    // v-truth · /system/reviews is the sanitized error-lookup page (look
-    // up an error by its short ID), NOT a review-request surface.
-    href: "/system/reviews",
-    title: "Error Lookup",
-    icon: Search,
-    group: "data",
-    description: "Look up a sanitized error by its ID",
-    chip: () => ({ label: "lookup", severity: "info" }),
   },
   {
     href: "/system/proactive-preview",

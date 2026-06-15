@@ -27,6 +27,7 @@ import { invalidate } from "@/lib/utils/cache";
 // v9.1.23 · cache invalidation hook (matches tasks.ts pattern).
 function invalidateMutationCaches(): void {
   invalidate("dashboard_brief");
+  invalidate("ultron_command_center_state_v1");
 }
 
 type DbClient = PrismaClient | Prisma.TransactionClient;

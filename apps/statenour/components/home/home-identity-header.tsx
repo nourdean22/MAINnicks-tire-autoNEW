@@ -20,6 +20,7 @@
 
 import { Brain } from "lucide-react";
 import { today } from "@/lib/utils/datetime";
+import { trpc } from "@/lib/trpc/client";
 
 export function HomeIdentityHeader() {
   // Client-render the date string in a stable timezone-aware fashion.
@@ -27,6 +28,11 @@ export function HomeIdentityHeader() {
   // need an i18n decision. The ISO date alone is the operator-grade
   // marker (matches the rest of the OS).
   const todayStr = today();
+  
+  const { data: inboxCount = 0 } = trpc.task.inboxCount.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+
   return (
     <section
       aria-label="home identity"
@@ -44,6 +50,14 @@ export function HomeIdentityHeader() {
       <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
         {todayStr}
       </span>
+      {inboxCount >= 10 && (
+        <>
+          <span className="text-[var(--text-tertiary)]/40">·</span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.25 rounded bg-rose-500/10 border border-rose-500/20 text-[9px] font-semibold text-rose-400 animate-pulse uppercase tracking-wider font-mono">
+            inbox backlog ({inboxCount})
+          </span>
+        </>
+      )}
       <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-mono text-[var(--text-tertiary)]">
         <span
           aria-hidden

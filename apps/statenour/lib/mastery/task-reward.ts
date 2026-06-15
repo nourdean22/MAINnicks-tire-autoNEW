@@ -13,6 +13,12 @@
  * See docs/project/ORGANIZATION-WIRING-AUDIT.md + docs/RECONCILIATION.md.
  */
 
+export interface LevelUpPayload {
+  newLevel: number;
+  tierName: string;
+  tierEmoji: string;
+}
+
 export interface TaskReward {
   /**
    * Real total stat XP credited (creditTaskStats().xpCredited). `null` ⇒ the
@@ -26,6 +32,8 @@ export interface TaskReward {
   goalLifted: boolean;
   /** Streak count after a DAILY completion (null/absent for one-shots). */
   streak?: number | null;
+  /** Populated when the XP credit pushed the operator to a new level. */
+  levelUp?: LevelUpPayload | null;
 }
 
 /** Integers print plainly; fractional XP (stat weights can be e.g. 1.4) to 1dp. */
@@ -49,6 +57,7 @@ export function formatReward(r: TaskReward | null | undefined): string | null {
   }
   if (r.goalLifted) parts.push("goal progress logged");
   if (typeof r.streak === "number" && r.streak >= 2) parts.push(`🔥 ${r.streak}-day streak`);
+  if (r.levelUp) parts.push(`${r.levelUp.tierEmoji} Level ${r.levelUp.newLevel}!`);
   if (parts.length === 0) return null;
   return `✓ ${parts.join(" · ")}`;
 }

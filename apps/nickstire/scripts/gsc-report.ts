@@ -1,20 +1,7 @@
-/**
- * One-command GSC report — `pnpm gsc:report`.
- *
- * Pulls a 90-day Google Search Console performance report (totals +
- * top queries + top pages) live from the Search Console API and prints
- * it. Read-only — no DB writes — safe to run anytime.
- *
- * Auth: the teezy-491218 service account (GOOGLE_SERVICE_ACCOUNT_EMAIL
- * / GOOGLE_SERVICE_ACCOUNT_KEY in .env), already registered as
- * siteOwner on the https://nickstire.org/ property. Same credentials
- * the GSC pipeline + sitemap-submit script use.
- *
- * Run: pnpm gsc:report   (or: pnpm tsx scripts/gsc-report.ts)
- */
 import dotenv from "dotenv";
 import { resolve } from "path";
-import { getGscReport } from "../server/pipelines/gsc-data";
+import fs from "fs";
+import { getGscReport, getGscDbReport } from "../server/pipelines/gsc-data";
 
 // The populated .env lives at the monorepo root, not apps/nickstire/
 // (which has no .env) — same resolution the inspect-vapi-* scripts use.
@@ -24,19 +11,41 @@ const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
 const pos = (n: number) => n.toFixed(1);
 
 async function main(): Promise<void> {
-  // GSC data lags ~2 days; end the window there and span 90 days back.
+  const args = process.argv.slice(2);
+  let days = 90;
+  const daysIdx = args.indexOf("--days");
+  if (daysIdx !== -1 && args[daysIdx + 1]) {
+    const parsed = parseInt(args[daysIdx + 1], 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      days = parsed;
+    }
+  }
+
+  // GSC data lags ~2 days; end the window there and span N days back.
   const end = new Date(Date.now() - 2 * 86400000);
-  const start = new Date(end.getTime() - 90 * 86400000);
+  const start = new Date(end.getTime() - days * 86400000);
   const range = {
     startDate: start.toISOString().slice(0, 10),
     endDate: end.toISOString().slice(0, 10),
   };
 
-  const r = await getGscReport(range);
+  let source = "Live Google Search Console API";
+  let r;
+  try {
+    r = await getGscReport(range);
+  } catch (e) {
+    console.warn(
+      `\n[Notice: GSC Live API failed or unconfigured, falling back to local database]:`,
+      e instanceof Error ? e.message : e,
+    );
+    source = "Local Database Cache (TiDB/MySQL)";
+    r = await getGscDbReport(range);
+  }
 
   console.log(
-    `\n=== GSC · nickstire.org · ${range.startDate} -> ${range.endDate} (90 days) ===\n`,
+    `\n=== GSC · nickstire.org · ${range.startDate} -> ${range.endDate} (${days} days) ===`,
   );
+  console.log(`Source: ${source}\n`);
   console.log(
     `Clicks ${r.summary.clicks}  ·  Impressions ${r.summary.impressions}  ·  ` +
       `CTR ${pct(r.summary.ctr)}  ·  Avg position ${pos(r.summary.position)}\n`,
@@ -58,6 +67,35 @@ async function main(): Promise<void> {
     );
   }
   console.log("");
+
+  const markdownContent = `# Google Search Console Performance Report
+- **Property:** \`https://nickstire.org/\`
+- **Period:** ${range.startDate} to ${range.endDate} (${days} days)
+- **Data Source:** ${source}
+
+## Summary Metrics
+- **Total Clicks:** ${r.summary.clicks.toLocaleString()}
+- **Total Impressions:** ${r.summary.impressions.toLocaleString()}
+- **Average CTR:** ${pct(r.summary.ctr)}
+- **Average Position:** ${pos(r.summary.position)}
+
+## Top Queries (Top ${r.topQueries.length})
+| Query | Clicks | Impressions | CTR | Position |
+| :--- | :---: | :---: | :---: | :---: |
+${r.topQueries.map((q) => `| ${q.key} | ${q.clicks.toLocaleString()} | ${q.impressions.toLocaleString()} | ${pct(q.ctr)} | ${pos(q.position)} |`).join("\n")}
+
+## Top Pages (Top ${r.topPages.length})
+| Page | Clicks | Impressions | CTR | Position |
+| :--- | :---: | :---: | :---: | :---: |
+${r.topPages.map((p) => `| ${p.key || "/"} | ${p.clicks.toLocaleString()} | ${p.impressions.toLocaleString()} | ${pct(p.ctr)} | ${pos(p.position)} |`).join("\n")}
+
+---
+*Report generated on ${new Date().toLocaleString()}*
+`;
+
+  const reportPath = resolve(process.cwd(), "gsc-performance-report.md");
+  await fs.promises.writeFile(reportPath, markdownContent, "utf8");
+  console.log(`Markdown report written to: ${reportPath}`);
 }
 
 main().catch((e) => {

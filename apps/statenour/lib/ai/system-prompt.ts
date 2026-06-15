@@ -338,7 +338,7 @@ export async function buildSystemPrompt(
     return cached(cacheKey, 300, async () => {
       const { buildSystemPromptV2 } = await import("./prompt/v2");
       const out = await buildSystemPromptV2();
-      return out.prompt;
+      return trimPromptToBudget(out.prompt, 58000);
     });
   }
 
@@ -473,11 +473,15 @@ export async function buildSystemPromptUncached(
       const { recentScoreSnapshots } = await import("@/lib/brain/legacy-shims");
       return recentScoreSnapshots(7);
     })(),
-    gated(tier, ["business", "personal", "strategy"], () =>
-      prisma.driftAlert.findMany({
-        where: { resolved: false }, orderBy: { severity: "asc" }, take: 5,
-        select: { ruleName: true, severity: true, message: true },
-      }),
+    gated(tier, ["business", "personal", "strategy"], async () => {
+      const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
+      const list = await getUnresolvedAlerts();
+      return list.slice(0, 5).map((a) => ({
+        ruleName: a.ruleName,
+        severity: a.severity,
+        message: a.message,
+      }));
+    },
       [] as { ruleName: string; severity: string; message: string }[],
     ),
     // v8.22 RAG · the v8.x BrainMemory alert pipeline. Pulling the
@@ -1407,5 +1411,67 @@ export async function buildSystemPromptUncached(
     }
   }
 
-  return p.join("\n");
+  return trimPromptToBudget(p.join("\n"), 58000);
+}
+
+/**
+ * v10.0.600 · Priority-based prompt trimmer regression guard.
+ * Identifies sections by markdown header level and ranks them to drop
+ * lower-priority context blocks if overall size crosses 58K chars,
+ * protecting Venice context budget and preventing truncation of instructions.
+ */
+export function trimPromptToBudget(prompt: string, maxLimit = 58000): string {
+  if (prompt.length <= maxLimit) return prompt;
+
+  const sections = prompt.split(/\n(?=## )/g);
+  
+  const getSectionPriority = (title: string): number => {
+    const t = title.toLowerCase();
+    if (t.includes("behavior directive") || t.includes("how to respond") || t.includes("identity") || t.includes("voice")) return 1;
+    if (t.includes("pinned by") || t.includes("hot rules") || t.includes("anchor")) return 2;
+    if (t.includes("command state") || t.includes("active command") || t.includes("queue")) return 3;
+    if (t.includes("today:") || t.includes("temporal") || t.includes("time-aware")) return 4;
+    if (t.includes("active risk") || t.includes("risks")) return 5;
+    
+    if (t.includes("business —") || t.includes("live shop") || t.includes("metrics") || t.includes("domain")) return 10;
+    if (t.includes("today's proof") || t.includes("proof")) return 11;
+    if (t.includes("missions") || t.includes("goals") || t.includes("why")) return 12;
+    if (t.includes("decisions")) return 13;
+    if (t.includes("unacknowledged insights")) return 14;
+    if (t.includes("follow-ups") || t.includes("anticipated questions")) return 15;
+    
+    if (t.includes("recent brain dumps") || t.includes("brain dump")) return 20;
+    if (t.includes("reflections") || t.includes("insight")) return 21;
+    if (t.includes("learned knowledge") || t.includes("facts") || t.includes("cold memory")) return 22;
+    if (t.includes("knowledge base") || t.includes("chatgpt")) return 23;
+    
+    return 30;
+  };
+
+  const mappedSections = sections.map((sec, idx) => {
+    const firstLine = sec.split("\n")[0] || "";
+    const priority = getSectionPriority(firstLine);
+    return { idx, text: sec, priority };
+  });
+
+  const activeIndices = new Set(mappedSections.map(s => s.idx));
+  const rebuild = () => sections.filter((_, idx) => activeIndices.has(idx)).join("\n");
+
+  const dropCandidates = [...mappedSections].sort((a, b) => {
+    if (b.priority !== a.priority) return b.priority - a.priority;
+    return b.idx - a.idx;
+  });
+
+  for (const candidate of dropCandidates) {
+    if (rebuild().length <= maxLimit) break;
+    if (candidate.priority < 10) continue;
+    activeIndices.delete(candidate.idx);
+  }
+
+  let finalPrompt = rebuild();
+  if (finalPrompt.length > maxLimit) {
+    finalPrompt = finalPrompt.slice(0, maxLimit - 100) + "\n\n[PROMPT TRUNCATED FOR BUDGET HARDENING]\n";
+  }
+
+  return finalPrompt;
 }

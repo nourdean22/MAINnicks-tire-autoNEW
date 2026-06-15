@@ -370,7 +370,7 @@ export async function findReturningCustomer(d: NonNullable<Awaited<ReturnType<ty
       .where(like(customers.phone, `%${phoneNorm}%`)).limit(1);
     if (cust) {
       pastOrders = await d.select().from(workOrders)
-        .where(eq(workOrders.customerId, String(cust.id)))
+        .where(eq(workOrders.customerId, cust.id))
         .orderBy(desc(workOrders.createdAt))
         .limit(10);
     }

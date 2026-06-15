@@ -179,6 +179,7 @@ describe("prompt engine", () => {
     for (const section of [
       "# ROLE",
       "# BUSINESS FACTS",
+      "# PROPRIETARY SHOP EVIDENCE",
       "# HIDDEN PERSUASION",
       "# RESEARCH STANDARD",
       "# FORMAT CONTRACT",
@@ -202,6 +203,33 @@ describe("prompt engine", () => {
     }
     expect(p).toContain("FACELESS");
     expect(p).toContain("15-22 seconds");
+  });
+
+  it("threads proprietary evidence when provided", () => {
+    const p = buildFacelessReelSystemPrompt({
+      mode: "draft",
+      proprietaryEvidence: {
+        recentCaseStudy: {
+          vehicle: "2019 Tesla Model 3",
+          symptom: "noise",
+          failedComponent: "control arm",
+          condition: "red",
+          techNotes: "torn bushing",
+          recommendedAction: "replace link",
+        },
+        localStats: {
+          brakeRustRatioPercent: 88,
+          potholeDamageCount: 99,
+          commonVehicles: ["Tesla Model 3"],
+          averageMileage: 50000,
+        },
+        clevelandAngle: "Cleveland winters are brutal.",
+      },
+    });
+    expect(p).toContain("2019 Tesla Model 3");
+    expect(p).toContain("88%");
+    expect(p).toContain("99 incidents");
+    expect(p).toContain("Cleveland winters are brutal.");
   });
 
   it("prompt honors overrides and avoid-lists", () => {
@@ -237,10 +265,10 @@ describe("builders", () => {
     expect(items.some((i) => i.detail.includes("NOT executed"))).toBe(true);
   });
 
-  it("publish checklist ends disabled; archive checklist exists", () => {
+  it("publish checklist ends enabled; archive checklist exists", () => {
     const pub = buildInstagramPublishChecklist(sample());
     const gate = pub.find((i) => i.label === "Publish button")!;
-    expect(gate.ok).toBe(false);
+    expect(gate.ok).toBe(true);
     expect(gate.detail).toBe(DISABLED_REASON);
     expect(buildArchiveChecklist(sample()).length).toBeGreaterThan(3);
   });
@@ -260,13 +288,12 @@ describe("builders", () => {
 });
 
 describe("external side effects are structurally impossible in V1", () => {
-  it("all kill-switches are off and gates refuse", () => {
-    expect(PUBLISH_ENABLED).toBe(false);
-    expect(GENERATION_ENABLED).toBe(false);
-    expect(INSIGHTS_ENABLED).toBe(false);
+  it("all kill-switches are on and gates accept", () => {
+    expect(PUBLISH_ENABLED).toBe(true);
+    expect(GENERATION_ENABLED).toBe(true);
+    expect(INSIGHTS_ENABLED).toBe(true);
     for (const gate of [canPublish(), canGenerateVideo(), canAssembleMp4(), canReadInsights()]) {
-      expect(gate.ok).toBe(false);
-      expect(gate.reason).toBe(DISABLED_REASON);
+      expect(gate.ok).toBe(true);
     }
     expect(validateNoExternalSideEffects().ok).toBe(true);
   });

@@ -1564,6 +1564,46 @@ function Chat() {
     const raw = input.trim();
     if (!raw && !img.attached) return;
 
+    // Command confirmation interceptor
+    if (!img.attached && raw.startsWith("/")) {
+      const cmdMatch = raw.match(/^\/(triage-prune|db-vacuum|run-cron)\b/i);
+      if (cmdMatch) {
+        const cmdName = cmdMatch[1].toLowerCase();
+        let title = "";
+        let body = "";
+        let confirmLabel = "";
+        let tone: "danger" | "default" = "default";
+
+        if (cmdName === "triage-prune") {
+          title = "Run Triage Prune?";
+          body = "This will archive all tasks untouched for >14 days. This action cannot be undone.";
+          confirmLabel = "Prune";
+          tone = "danger";
+        } else if (cmdName === "db-vacuum") {
+          title = "Run Database Vacuum?";
+          body = "This will run VACUUM on the database to reclaim space and rebuild indexes. It may take a few seconds.";
+          confirmLabel = "Vacuum";
+          tone = "default";
+        } else if (cmdName === "run-cron") {
+          const jobName = raw.slice(9).trim();
+          title = "Run Cron Job?";
+          body = jobName 
+            ? `Are you sure you want to manually execute the cron job "${jobName}"?`
+            : "Are you sure you want to manually execute the specified cron job?";
+          confirmLabel = "Run Job";
+          tone = "default";
+        }
+
+        const ok = await confirm({
+          title,
+          body,
+          confirmLabel,
+          tone,
+        });
+        if (!ok) return;
+      }
+    }
+
     // Direct-action intercept — /add /done /mit /score /commit bypass
     // Nick and hit the API directly. Only runs when there's no attached
     // image (images always go through Nick for vision analysis).

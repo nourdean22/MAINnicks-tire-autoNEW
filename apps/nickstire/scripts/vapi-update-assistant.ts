@@ -63,9 +63,12 @@ async function main(): Promise<void> {
           // config) so a code re-push does not silently revert transfers
           // to a blind transfer — which does not connect from a Vapi
           // number. Fall back to the code default's transferPlan.
-          const transferPlan =
-            (d.transferPlan as { mode: string; message?: string } | undefined) ??
+          const rawPlan =
+            (d.transferPlan as { mode: string; message?: string; sipVerb?: string } | undefined) ??
             codeTool.destinations[0]?.transferPlan;
+          const transferPlan = rawPlan
+            ? { ...rawPlan, sipVerb: "dial" as const }
+            : undefined;
           return {
             type: (d.type as "number") || "number",
             number: d.number as string,

@@ -165,7 +165,7 @@ export function SinceLastVisitCard({ limit = 50 }: Props) {
           </span>
         </div>
         <a
-          href="/brain/health?view=continuity"
+          href="/brain?tab=continuity"
           className="text-[10px] font-mono text-emerald-300/70 hover:text-emerald-200"
         >
           full feed →

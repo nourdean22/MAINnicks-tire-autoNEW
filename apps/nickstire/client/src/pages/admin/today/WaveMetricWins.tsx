@@ -60,7 +60,7 @@ export function WaveMetricWins() {
   if (measurements.length === 0) return null;
 
   return (
-    <div className="stat-card !p-5 !border-emerald-500/20 transition-all rounded-xl">
+    <div className="stat-card !p-5 !border-emerald-500/20 transition-all">
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <h3 className="text-xs font-semibold text-emerald-400 tracking-wide uppercase flex items-center gap-2">
           <Target className="w-3.5 h-3.5" />

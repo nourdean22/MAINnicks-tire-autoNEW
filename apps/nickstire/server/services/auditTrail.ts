@@ -35,7 +35,19 @@ export type AuditAction =
   // 2026-05-30 · control-plane actions (operator levers, not entity CRUD)
   | "flag.toggled"
   | "customer.sms_manual_send"
-  | "migrations.ran";
+  | "migrations.ran"
+  // 2026-06-11 · refund action types
+  | "tireorder.refunded"
+  | "tireorder.refund_failed"
+  | "invoice.refunded"
+  | "invoice.refund_failed"
+  // 2026-06-12 · nonstop nick membership overrides
+  | "membership.grace_period_granted"
+  // 2026-06-12 · database hygiene and cleanup
+  | "database.hygiene_prune"
+  // 2026-06-12 · ShopDriver actions
+  | "shopdriver.force_sync"
+  | "shopdriver.manual_probe";
 
 // ─── Log an admin action ────────────────────────────
 export async function logAdminAction(data: {

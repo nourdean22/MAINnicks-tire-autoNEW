@@ -30,8 +30,6 @@ import { confirmDialog } from "@/components/admin/ConfirmDialog";
 // catalog were extracted into ./settings/* (pure verbatim move). This
 // file is now a lean tab host.
 import AlgProbeBudgetPanel from "./settings/AlgProbeBudgetPanel";
-import VapiPanel from "./settings/VapiPanel";
-import IgAutopostPanel from "./settings/IgAutopostPanel";
 import DeclinedRecoveryPanel from "./settings/DeclinedRecoveryPanel";
 import FeatureFlagsPanel from "./settings/FeatureFlagsPanel";
 import { AUTONOMOUS_OPERATIONS } from "./settings/cronJobs";
@@ -39,10 +37,10 @@ import { AUTONOMOUS_OPERATIONS } from "./settings/cronJobs";
 // Lazy-loaded system tabs — Nour's request: "move all system stuff to the settings page"
 // Consolidates System Health, Compliance, and Integrations into this hub so
 // the sidebar stays focused on business work, not admin plumbing.
-const SettingsStatusTab = lazy(() => import("./SettingsStatusTab"));
-const SiteHealthSection = lazy(() => import("./SiteHealthSection"));
-const ComplianceSection = lazy(() => import("./ComplianceSection"));
-const IntegrationsSection = lazy(() => import("./IntegrationsSection"));
+const SettingsStatusTab = lazy(() => import("./settings/SettingsStatusTab"));
+const SiteHealthSection = lazy(() => import("./settings/SiteHealthSection"));
+const ComplianceSection = lazy(() => import("./settings/ComplianceSection"));
+const IntegrationsSection = lazy(() => import("./settings/IntegrationsSection"));
 
 // wave-181.x Phase 2 · "status" tab added as the new DEFAULT landing.
 // The shopdriver tab still exists for sync controls + cron list ·
@@ -242,7 +240,7 @@ export default function SettingsSection() {
       <div>
         <h3 className="font-bold text-xl text-foreground tracking-wider">SHOPDRIVER COMMAND CENTER</h3>
         <p className="text-foreground/50 text-[12px] mt-1">
-          ALG is the source of truth. Invoices = closed jobs. No website booking = walk-in. Estimates = declined work.
+          ALG is the source of truth. Closed jobs = completed work. No website booking = walk-in. Estimates = declined work.
         </p>
       </div>
 
@@ -274,24 +272,12 @@ export default function SettingsSection() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          label="INVOICES THIS WEEK"
-          value={invoiceStats?.shopFloor?.invoicesThisWeek ?? "—"}
-          icon={<FileText className="w-4 h-4" />}
-          trendLabel={`$${Math.round(invoiceStats?.shopFloor?.revenueThisWeek ?? 0).toLocaleString()} revenue`}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <StatCard
           label="CUSTOMERS"
           value={invoiceStats?.shopFloor?.totalCustomers ?? "—"}
           icon={<Users className="w-4 h-4" />}
           trendLabel={`${invoiceStats?.shopFloor?.vipCustomers ?? 0} VIP (3+ visits)`}
-        />
-        <StatCard
-          label="AVG TICKET"
-          value={`$${Math.round(invoiceStats?.shopFloor?.avgTicket ?? 0)}`}
-          icon={<DollarSign className="w-4 h-4" />}
-          trendLabel="From ALG invoices"
         />
         <StatCard
           label="WEBSITE LEADS"
@@ -318,7 +304,7 @@ export default function SettingsSection() {
         >
           {syncing === "invoices" ? <Loader2 className="w-5 h-5 animate-spin text-primary" /> : <RefreshCw className="w-5 h-5 text-foreground/50 group-hover:text-primary transition-colors" />}
           <div>
-            <span className="font-bold text-sm text-foreground">Sync Invoices</span>
+            <span className="font-bold text-sm text-foreground">Sync Jobs</span>
             <p className="text-foreground/40 text-[11px]">Pull latest from ALG → DB</p>
           </div>
         </button>
@@ -376,15 +362,6 @@ export default function SettingsSection() {
       {/* wave-181.x · removed Import History panel (Phase 1).
           CSV imports were a one-time bulk-load tool · no imports
           have happened in months · the panel was just empty space. */}
-
-      {/* 2026-05-05 — VAPI VOICE RECEPTIONIST */}
-      {/* wave-181.x · VapiPanel STAYS here through Phase 1.
-          Properly relocates to /admin VoiceReceptionistSection in
-          Phase 4 (Integrations consolidation). */}
-      <VapiPanel />
-
-      {/* 2026-06-01 — IG + FB AUTOPOST (content brain + Fire Now) */}
-      <IgAutopostPanel />
 
       {/* wave-181.x · removed EstimateEndpointDiagnosticPanel (Phase 1).
           Vendor-blocked since 2026-05-05 (19+ days) · ShopDriver

@@ -22,6 +22,15 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { getEmbedding } from "@/lib/ai/provider";
+import {
+  isPgvectorAvailable,
+  vectorLiteral,
+  padToVectorDim,
+  assertSafeVectorLiteral,
+  VECTOR_DIM_1536,
+} from "@/lib/db/pgvector";
+import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 
 export type SaveCategory =
   | "decision"
@@ -124,6 +133,107 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
   const confidence = typeof input.confidence === "number" ? input.confidence : 0.85;
   const source = input.source ?? "user_save";
 
+  // Get embedding for duplicate checking
+  const vec = await getEmbedding(trimmed).catch(() => [] as number[]);
+  
+  let duplicateId: string | null = null;
+  let duplicateKey: string | null = null;
+  let duplicateContent: string | null = null;
+
+  if (vec && vec.length > 0) {
+    if (await isPgvectorAvailable()) {
+      try {
+        const lit = vectorLiteral(vec);
+        assertSafeVectorLiteral(lit);
+        // Query pgvector for duplicate in same category (distance < 0.05)
+        const duplicates = await prisma.$queryRawUnsafe<Array<{ id: string; key: string; content: string; distance: number }>>(
+          `SELECT bm.id, bm.key, bm.content,
+                  (ve.embedding_vec <=> '${lit}'::vector)::float8 AS distance
+           FROM vector_embeddings ve
+           JOIN brain_memories bm ON ve."sourceId" = bm.id
+           WHERE ve."sourceType" = 'brain_memory'
+             AND bm.category = $1
+             AND bm.deleted_at IS NULL
+             AND ve.embedding_vec IS NOT NULL
+             AND (ve.embedding_vec <=> '${lit}'::vector) < 0.05
+           ORDER BY (ve.embedding_vec <=> '${lit}'::vector) ASC
+           LIMIT 1`,
+          category,
+        );
+        if (duplicates && duplicates.length > 0) {
+          duplicateId = duplicates[0].id;
+          duplicateKey = duplicates[0].key;
+          duplicateContent = duplicates[0].content;
+        }
+      } catch (err) {
+        console.warn("[saveToBrain] pgvector similarity check failed, falling back:", err);
+      }
+    }
+
+    // JS Cosine Fallback if pgvector is off or duplicate not found via pgvector
+    if (!duplicateId) {
+      // Fetch last 100 BrainMemory rows of same category
+      const lastMemories = await prisma.brainMemory.findMany({
+        where: { category, deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: { id: true, key: true, content: true },
+      });
+      if (lastMemories.length > 0) {
+        const memoryIds = lastMemories.map((m) => m.id);
+        const embeddings = await prisma.vectorEmbedding.findMany({
+          where: { sourceType: "brain_memory", sourceId: { in: memoryIds } },
+          select: { sourceId: true, embedding: true },
+        });
+
+        let maxSimilarity = -1;
+        let bestMatch: typeof lastMemories[number] | null = null;
+
+        for (const emb of embeddings) {
+          try {
+            const otherVec = JSON.parse(emb.embedding) as number[];
+            const sim = cosineSimilarity(vec, otherVec);
+            if (sim > 0.95 && sim > maxSimilarity) {
+              maxSimilarity = sim;
+              bestMatch = lastMemories.find((m) => m.id === emb.sourceId) || null;
+            }
+          } catch {
+            // skip malformed
+          }
+        }
+
+        if (bestMatch) {
+          duplicateId = bestMatch.id;
+          duplicateKey = bestMatch.key;
+          duplicateContent = bestMatch.content;
+        }
+      }
+    }
+  }
+
+  if (duplicateId && duplicateKey && duplicateContent) {
+    // Duplicate found: update seenCount and lastSeen
+    await prisma.brainMemory.update({
+      where: { id: duplicateId },
+      data: {
+        seenCount: { increment: 1 },
+        lastSeen: new Date(),
+      },
+    });
+
+    const previewLength = 120;
+    const preview = duplicateContent.length > previewLength ? `${duplicateContent.slice(0, previewLength)}…` : duplicateContent;
+    const summary = `Saved as ${category} · ${preview}`;
+
+    return {
+      id: duplicateId,
+      category,
+      key: duplicateKey,
+      summary,
+    };
+  }
+
+  // Not a duplicate: create new BrainMemory and write VectorEmbedding row
   const row = await prisma.brainMemory.create({
     data: {
       category,
@@ -135,6 +245,40 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
     },
     select: { id: true },
   });
+
+  // Write VectorEmbedding row if we have the embedding
+  if (vec && vec.length > 0) {
+    try {
+      const createdEmbedding = await prisma.vectorEmbedding.create({
+        data: {
+          sourceType: "brain_memory",
+          sourceId: row.id,
+          content: trimmed,
+          embedding: JSON.stringify(vec),
+        },
+      });
+
+      // Dual write pgvector column
+      if (await isPgvectorAvailable()) {
+        const lit = vectorLiteral(vec);
+        await prisma.$executeRawUnsafe(
+          `UPDATE vector_embeddings SET embedding_vec = '${lit}'::vector WHERE id = $1`,
+          createdEmbedding.id,
+        );
+        try {
+          const lit1536 = vectorLiteral(padToVectorDim(vec, VECTOR_DIM_1536));
+          await prisma.$executeRawUnsafe(
+            `UPDATE vector_embeddings SET embedding_vec_1536 = '${lit1536}'::vector(${VECTOR_DIM_1536}) WHERE id = $1`,
+            createdEmbedding.id,
+          );
+        } catch (err1536) {
+          // ignore
+        }
+      }
+    } catch (err) {
+      console.warn("[saveToBrain] failed to write VectorEmbedding:", err);
+    }
+  }
 
   // Build a short summary line for the caller to display.
   const previewLength = 120;

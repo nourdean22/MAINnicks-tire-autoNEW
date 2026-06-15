@@ -22,6 +22,7 @@ import { Prisma } from "@prisma/client";
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { DOMAINS } from "@/lib/mastery/config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { cached } from "@/lib/utils/cache";
 
 // ── Summaries (every shape stays small + JSON-friendly) ─────────────
 
@@ -191,7 +192,7 @@ export interface MasteryDecisionSummary {
 }
 
 export interface DriftAlertSummary {
-  id: number;
+  id: string | number;
   ruleName: string;
   severity: string;
   message: string;
@@ -332,7 +333,8 @@ function startOfDayUTC(daysAgo = 0): Date {
  * shape.
  */
 export async function buildCommandCenterState(): Promise<CommandCenterState> {
-  const now = new Date();
+  return cached<CommandCenterState>("ultron_command_center_state_v1", 15, async () => {
+    const now = new Date();
   const dayStart = startOfDayUTC(0);
   const sevenDaysAgo = startOfDayUTC(7);
   const oneDayAgo = new Date(Date.now() - 86_400_000);
@@ -616,20 +618,22 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
         _count: { _all: true },
       })
       .catch(() => [] as Array<{ status: string; _count: { _all: number } }>),
-    prisma.driftAlert
+    prisma.brainMemory
       .findMany({
-        where: { resolved: false },
-        orderBy: { createdAt: "desc" },
-        take: 5,
+        where: {
+          category: BRAIN_CATEGORIES.COACH_EVENT,
+          key: { startsWith: "coach:drift-recovery:" },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 20,
         select: {
-          id: true,
-          ruleName: true,
-          severity: true,
-          message: true,
+          key: true,
+          content: true,
+          metadata: true,
           createdAt: true,
         },
       })
-      .catch(() => [] as Array<DriftAlertRow>),
+      .catch(() => [] as any),
     prisma.brainMemory
       .findMany({
         where: {
@@ -805,7 +809,12 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       last7d: week7Proof,
     },
     risks: {
-      driftAlerts: driftAlerts.map(toDriftAlertSummary),
+      driftAlerts: (driftAlerts as any[])
+        .filter((d) => {
+          const meta = (d.metadata ?? {}) as Record<string, unknown>;
+          return !meta.ackedAt;
+        })
+        .map(toDriftAlertSummary),
       brainAlerts: brainAlerts.map((a) => ({
         category: a.category,
         content: a.content,
@@ -840,6 +849,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       failures24h: automationFailures24h,
     },
   };
+  });
 }
 
 // ── Internal types + selectors ───────────────────────────────────────
@@ -889,10 +899,9 @@ type ScheduledRow = {
 };
 
 type DriftAlertRow = {
-  id: number;
-  ruleName: string;
-  severity: string;
-  message: string;
+  key: string;
+  content: string;
+  metadata: any;
   createdAt: Date;
 };
 
@@ -1233,12 +1242,14 @@ function buildTemporalContext(
   };
 }
 
-function toDriftAlertSummary(d: DriftAlertRow): DriftAlertSummary {
+function toDriftAlertSummary(d: any): DriftAlertSummary {
+  const meta = (d.metadata ?? {}) as Record<string, unknown>;
+  const severity = meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "alert" : "warning";
   return {
-    id: d.id,
-    ruleName: d.ruleName,
-    severity: d.severity,
-    message: d.message,
+    id: d.key,
+    ruleName: d.content,
+    severity,
+    message: typeof meta.body === "string" ? meta.body : "",
     createdAt: d.createdAt.toISOString(),
   };
 }

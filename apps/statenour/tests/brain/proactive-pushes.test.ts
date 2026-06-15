@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockFindUnique = vi.fn();
 const mockUpsert = vi.fn();
 const mockBodyTrackingFindUnique = vi.fn().mockResolvedValue(null);
+const mockApprovalRequestCount = vi.fn().mockResolvedValue(0);
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -14,6 +15,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     bodyTracking: {
       findUnique: () => mockBodyTrackingFindUnique(),
+    },
+    approvalRequest: {
+      count: () => mockApprovalRequestCount(),
     },
   },
 }));
@@ -60,6 +64,7 @@ beforeEach(() => {
   mockUpsert.mockReset();
   mockBodyTrackingFindUnique.mockReset().mockResolvedValue(null);
   mockSendTelegram.mockReset();
+  mockApprovalRequestCount.mockReset().mockResolvedValue(0);
   mockAnticipatedQuestions = [{ question: "What is Nour's target today?" }];
   mockCurrentConcerns = {
     threads: [{ text: "Resolve memory leak check", sourceLastAt: new Date().toISOString(), kind: "question" }],

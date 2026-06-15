@@ -397,8 +397,8 @@ export const CITIES: CityData[] = [
     // title is generic "top-rated 4.9★" — every shop in town claims
     // that. New title applies operator 4 (anti-pattern: most shops
     // don't show the worn part) + operator 1 (specificity: 7 years).
-    metaTitle: "Auto Repair Cleveland · We Show You The Worn Part | Nick's",
-    metaDescription: "Cleveland auto shop on Euclid Ave where the worn part comes out of your car and onto the counter before you pay. 7 years, 1,700+ five-star reviews. Walk-ins 7 days.",
+    metaTitle: "Auto Repair Cleveland OH · Nick's Tire & Auto Shop",
+    metaDescription: "Cleveland auto shop on Euclid Ave. Brakes, tires, diagnostics. We show you the worn parts before you pay. 4.9★, 1,700+ reviews. Open 7 days. (216) 862-0005.",
     heroHeadline: "CLEVELAND'S AUTO SHOP\nWHERE THE WORN PART HITS THE COUNTER.",
     heroSubline: "We're not Cleveland's biggest shop. We're not the cheapest. We're the one that puts the worn brake pad, the cracked CV boot, the seized caliper on the counter so you can see what you paid for. 1,700+ five-star reviews from drivers who came in skeptical and left with the part in their hand. Free estimates. No mystery line items. Open every day we're awake.",
     distance: "0 miles",

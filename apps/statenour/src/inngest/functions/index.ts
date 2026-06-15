@@ -25,3 +25,5 @@ export {
 export { industryPull } from "./industry-pull";
 // 2026-06-03 · v-truth · event-driven proactivity (NICK_EVENT_TRIGGERS · fail-closed)
 export { nickEventTriggers } from "./event-triggers";
+// Gap 1: proactive-push cron runner
+export { proactivePushCron } from "./proactive-push";

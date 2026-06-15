@@ -29,6 +29,7 @@
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { AiSettingsPanel } from "@/components/settings/ai-settings-panel";
+import { IntelligenceFlagsPanel } from "@/components/settings/intelligence-flags-panel";
 import { PeopleScoringPanel } from "@/components/settings/people-scoring-panel";
 import { JournalBrainPanel } from "@/components/settings/journal-brain-panel";
 import { CronControlPanel } from "@/components/settings/cron-control-panel";
@@ -82,6 +83,7 @@ export default function SettingsPage() {
       {/* ═══ AI — live-mutable config + cold memory + tool blocklist ═══ */}
       <GroupHeading>AI</GroupHeading>
       <AiSettingsPanel />
+      <IntelligenceFlagsPanel />
 
       {/* ═══ SCORING — operator-tunable XP weights ═══
           JournalBrain (baseline XP · anti-gaming floor · grounded bonus ·

@@ -598,12 +598,12 @@ button:active, [role="button"]:active {
 .pulse-live { animation: pulse-dot 2s ease-in-out infinite; }
 
 /* Fade in up */
-.animate-in {
+.scroll-animate-in {
   opacity: 0;
   transform: translateY(12px);
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
-.animate-in.visible {
+.scroll-animate-in.visible {
   opacity: 1;
   transform: translateY(0);
 }
@@ -2210,3 +2210,32 @@ select.pwa-select:focus {
   outline: none;
 }
 
+/* Premium User Bubble Gradient Glow & Border (Wave visual kinetics) */
+.user-bubble-premium {
+  position: relative;
+  background: var(--bg-void);
+  border: 1px solid rgba(253, 185, 19, 0.1);
+  background-clip: padding-box;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.user-bubble-premium::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--gold) 0%, var(--status-ai) 100%);
+  opacity: 0.08;
+  transition: opacity 0.25s ease;
+}
+
+.user-bubble-premium:hover {
+  border-color: rgba(253, 185, 19, 0.25);
+  box-shadow: 0 4px 20px rgba(253, 185, 19, 0.05), 0 0 10px rgba(168, 85, 247, 0.03);
+}
+
+.user-bubble-premium:hover::before {
+  opacity: 0.16;
+}

@@ -86,10 +86,31 @@ export const GET = cronHandler(async () => {
         select: { title: true, streakCount: true, lastCompletedAt: true },
       })
       .catch(() => [] as Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }>),
-    prisma.driftAlert.findMany({
-      where: { createdAt: { gte: new Date(sevenDaysAgo) }, resolved: false },
-      select: { ruleName: true, severity: true, message: true },
-    }),
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "coach_event",
+          key: { startsWith: "coach:drift-recovery:" },
+          createdAt: { gte: new Date(sevenDaysAgo) },
+          deletedAt: null,
+        },
+        select: { content: true, metadata: true },
+      })
+      .then((rows) => {
+        const unresolved = rows.filter((e) => {
+          const meta = (e.metadata ?? {}) as Record<string, unknown>;
+          return !meta.ackedAt;
+        });
+        return unresolved.map((e) => {
+          const meta = (e.metadata ?? {}) as Record<string, unknown>;
+          return {
+            ruleName: e.content,
+            severity: meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "alert" : "warning",
+            message: typeof meta.body === "string" ? meta.body : "",
+          };
+        });
+      })
+      .catch(() => [] as Array<{ ruleName: string; severity: string; message: string }>),
     fetchFromAPI("/api/health"),
     fetchFromAPI("/api/ai/weekly-review"),
   ]);

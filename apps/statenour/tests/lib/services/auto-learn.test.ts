@@ -168,6 +168,30 @@ describe("runAutoLearn · knowledge engine learning detection", () => {
     expect(report.knowledge?.content).toContain("Postgres");
   });
 
+  it("forwards outcomeScore and completionNote to enrichInsightAsync when present", async () => {
+    const report = await runAutoLearn({
+      taskId: "t5-outcome",
+      task: {
+        title: "learned Postgres index strategy",
+        finishCondition: null,
+        mission: { title: "Eng", domain: "BUSINESS" },
+        goal: null,
+        outcomeScore: 85,
+        completionNote: "Successful indexing optimize",
+      },
+    });
+
+    expect(report.knowledge).not.toBeNull();
+    expect(mocks.enrichInsightAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        task: expect.objectContaining({
+          outcomeScore: 85,
+          completionNote: "Successful indexing optimize",
+        }),
+      })
+    );
+  });
+
   it("does NOT capture knowledge for a plain action title", async () => {
     const report = await runAutoLearn({
       taskId: "t6",

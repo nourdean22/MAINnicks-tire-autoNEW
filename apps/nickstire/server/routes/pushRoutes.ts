@@ -54,7 +54,22 @@ export function registerPushRoutes(app: Express): void {
         await db.update(pushSubscriptions).set({ p256dh: keys.p256dh, auth: keys.auth }).where(eq(pushSubscriptions.id, existing[0].id));
         res.json({ success: true, action: "updated" });
       } else {
-        await db.insert(pushSubscriptions).values({ id: nanoid(), endpoint, p256dh: keys.p256dh, auth: keys.auth, isAdmin: isAdminVerified, customerId: customerId || null });
+        let cleanCustomerId: number | null = null;
+        if (customerId !== undefined && customerId !== null) {
+          const parsed = Number(customerId);
+          if (Number.isInteger(parsed) && parsed > 0 && Number.isFinite(parsed)) {
+            cleanCustomerId = parsed;
+          }
+        }
+
+        await db.insert(pushSubscriptions).values({
+          id: nanoid(),
+          endpoint,
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+          isAdmin: isAdminVerified,
+          customerId: cleanCustomerId
+        });
         res.json({ success: true, action: "created" });
       }
     } catch (err) {

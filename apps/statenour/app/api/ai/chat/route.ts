@@ -25,7 +25,7 @@ import { checkAiRateLimit } from "@/lib/rate-limit";
 import { logger as rootLogger } from "@/lib/logger";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
-import { getFlag } from "@/lib/feature-flags";
+import { getFlag, loadFeatureFlagOverrides } from "@/lib/feature-flags";
 // hooks-lib REST→tRPC slice (2026-05-22) · the conversation-list read ·
 // also called by the new `chat.list` tRPC procedure · drift impossible.
 import { listConversations } from "@/lib/services/chat-conversation-read";
@@ -35,6 +35,9 @@ const log = rootLogger.withSurface("api/ai/chat");
 export const maxDuration = 120; // Pro plan: up to 300s
 
 export async function POST(req: Request) {
+  // Preload DB overrides before running the chat turn
+  await loadFeatureFlagOverrides().catch(() => {});
+
   await requireSession(req);
   // v9.1.19 · AI rate-limit gate. The chat route is session-gated so
   // only Nour can hit it, but a runaway client (e.g. a polling loop
