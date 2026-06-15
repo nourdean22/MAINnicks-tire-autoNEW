@@ -266,6 +266,7 @@ At end of every session, your report must include:
 4. `apps/statenour/docs/RECONCILIATION.md` (top entry = latest wave)
 5. `apps/statenour/.remember/now.md` (session buffer)
 6. `apps/statenour/docs/AGENT-CONTEXT.md` (quick context for Antigravity)
+7. `apps/statenour/docs/OPERATOR-BIOGRAPHY.md` (operator biography & context backfill)
 
 **Cross-cutting:**
 - Root `CLAUDE.md` — always-must-know gotchas
