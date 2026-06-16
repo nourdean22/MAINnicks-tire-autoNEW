@@ -398,6 +398,71 @@ export const contentAdminRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Reel publishing failed" });
       }
     }),
+  generateCarouselImages: adminProcedure
+    .input(z.object({
+      briefId: z.string(),
+      prompts: z.array(z.string()),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { generateCarouselSlideImage } = await import("../services/higgsfieldStudio");
+        const { storagePut } = await import("../storage");
+
+        log.info(`Generating ${input.prompts.length} Carousel images in parallel...`);
+        const hgUrls = await Promise.all(
+          input.prompts.map((prompt) => generateCarouselSlideImage(prompt))
+        );
+
+        log.info("Downloading and persisting generated Carousel images to S3/storage...");
+        const imageUrls = await Promise.all(
+          hgUrls.map(async (url, i) => {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`Failed to download slide ${i + 1} from Higgsfield`);
+            const buffer = Buffer.from(await res.arrayBuffer());
+            const key = `carousel-studio/${Date.now()}-${i}.jpg`;
+            const upload = await storagePut(key, buffer, "image/jpeg");
+            return upload.url;
+          })
+        );
+
+        return { success: true, imageUrls };
+      } catch (err) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: err instanceof Error ? err.message : "Carousel image generation failed"
+        });
+      }
+    }),
+  generateReelVideo: adminProcedure
+    .input(z.object({
+      briefId: z.string(),
+      prompts: z.array(z.string()),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { generateReelClipVideo, stitchVideos } = await import("../services/higgsfieldStudio");
+        const { storagePut } = await import("../storage");
+
+        log.info(`Generating ${input.prompts.length} Reel clips in parallel...`);
+        const hgUrls = await Promise.all(
+          input.prompts.map((prompt) => generateReelClipVideo(prompt))
+        );
+
+        log.info("Stitching clips into single MP4...");
+        const stitchedBuffer = await stitchVideos(hgUrls);
+
+        log.info("Uploading final stitched MP4 to storage...");
+        const key = `reels-studio/${Date.now()}-stitched.mp4`;
+        const upload = await storagePut(key, stitchedBuffer, "video/mp4");
+
+        return { success: true, videoUrl: upload.url };
+      } catch (err) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: err instanceof Error ? err.message : "Reel video generation failed"
+        });
+      }
+    }),
   getProprietaryEvidence: adminProcedure
     .input(z.object({ topicKeyword: z.string().optional() }).optional())
     .query(async ({ input }) => {
