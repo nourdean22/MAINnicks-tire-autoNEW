@@ -2,7 +2,7 @@
 
 Companion to [PROJECT-COMPLETION-LEDGER.md](./PROJECT-COMPLETION-LEDGER.md).
 The ledger says what's true; this says what to do, in order. Scores 1-10
-(higher = more). Updated 2026-06-11 after PR merges and owner feedback.
+(higher = more). Updated 2026-06-15 after PR merges and owner feedback.
 
 | Rank | Action | Domain | Impact | Danger | Effort | Owner needed | Why |
 |---:|---|---|---:|---:|---:|---|---|
@@ -15,11 +15,12 @@ The ledger says what's true; this says what to do, in order. Scores 1-10
 | 7 | **Entity cleanup** — work Admin → Growth → Entity/Brand top-to-bottom (GBP → Yelp → FB first) | local SEO | 6 | 1 | 2 (owner) | **yes — logins** | Checklist now lives in the admin with canonical NAP + copy buttons. Nothing automatable; compounds quietly. |
 | 8 | **Env-validate hardening** (warn when STRIPE_SECRET_KEY set without STRIPE_WEBHOOK_SECRET) + coverage include for money-path files | devops | 5 | 1 | 2 | no | The admin banner covers runtime; this catches it pre-deploy too. Coverage thresholds still exclude every money-path file — false comfort. |
 | 9 | **Repo hygiene: close stale PRs** — #43 (superseded by #44/#45 unless rebased), railway zombies #14-#16; review dependabot #38/#39 + CI bumps | repo | 3 | 1 | 0 | **yes — close calls** | Open-PR list should equal real work in flight. Five minutes. |
-| 10 | **STATENOUR journal insights preview** (local-only panel) | statenour | 5 | 2 | 4 | review | Audit-first, own session, statenour-verify gates. No sends, no diagnosis language. |
+| 10 | **Audit and optimize secondary low-CTR pages** | local SEO | 6 | 1 | 3 | no | Initial 4 low-CTR pages rewritten in PR #152; expand optimizations to secondary pages. |
 | 11 | **Studio enablement waves** (reel/carousel generation → publish → insights, each gated) | content | 6 | 5 (gated) | 5+ | **yes — per wave** | Both studios are deliberately draft-only. Each kill-switch flip is its own approval + PR; nothing flips silently. |
 
-## Done since last update (2026-06-10 late night)
-Old rank 1 (merge stack) — **all 11 PRs merged**. Old rank 3 (size-duplication fix) — **fixed**. Old rank 4 (verify GBP/IG
+## Done since last update (2026-06-15)
+- **PR #152 merged** (Honesty Enforcement canClaimDone verification, Task Inbox Triage Card UI & triage mutation, promoteNextAction journal seam, Google OAuth diagnostics & operational guide, and 4 low-CTR SEO page title/meta optimizations).
+- Old rank 1 (merge stack) — **all 11 PRs merged**. Old rank 3 (size-duplication fix) — **fixed**. Old rank 4 (verify GBP/IG
 enablement) — collapsed into rank 1's armed-state card read. Old rank 11
 (GBP draft queues) — **built** (#50 + #53). Old rank 13 (safe-fix sweep) —
 **merged** (#49). Review-replies operator loop — **#57 merged** (`722934c7`:

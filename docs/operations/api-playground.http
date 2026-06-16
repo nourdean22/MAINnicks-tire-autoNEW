@@ -52,3 +52,29 @@ Content-Type: application/json
     "dryRun": true
   }
 }
+
+
+###
+# ==========================================
+# 3. Statenour tRPC API Mutations
+# ==========================================
+
+### Promote Journal Take to Action
+# Enforces single-execution idempotency by updating the take metadata
+POST {{statenour_host}}/api/trpc/journal.promoteNextAction
+Content-Type: application/json
+
+{
+  "takeId": "your-take-uuid-here"
+}
+
+### Triage Inbox Task
+# Triages a task via one of the 6 decisions (today, schedule, anytime, someday, snooze, kill)
+POST {{statenour_host}}/api/trpc/task.triage
+Content-Type: application/json
+
+{
+  "taskId": "your-task-uuid-here",
+  "decision": "today"
+}
+
