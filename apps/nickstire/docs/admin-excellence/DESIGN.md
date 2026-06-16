@@ -119,9 +119,9 @@ Rebased onto sibling's statenour commits (nickstire-only, no conflicts). Railway
 engine_* flags are gone from the live DB; code no longer seeds them; UI prefix-guard
 retained as defense-in-depth.
 
-### Deferred follow-ups (next session)
-- **Y1** gbpContentGenerator fabricated testimonials/prices → Google (FTC risk) — deeper look (rewrite to real reviews+pricing OR gate to verified-data-only).
-- **Y8** winback `tire_customer` segment has no tire signal.
-- **Y9** WalkIn oil presets quote ~$82 vs advertised $49.
-- **Y12** CommandCenterSection (439 lines) nav-dead zombie — delete or restore.
-- **Y13** coupon `maxRedemptions` cap never enforced.
+### Completed follow-ups
+- **Y1**: Reworked `gbpContentGenerator.ts` to pull verified reviews via `getRealReviewsFromDb()` and added strict formatting + Jaccard similarity/fabrication assertions (`assertNoFabrication()` / `validateNoUnsourcedCustomerIdentity()`) to prevent mock data leakage.
+- **Y8**: Added real tire signal verification via `EXISTS` subqueries across database tables (`invoices`, `tire_orders`, `service_history`) to the `tire_customer` segment, along with text fallback.
+- **Y9**: Recalibrated oil presets in `WalkInCalculatorSection.tsx` to set `laborHours: 0` so they compute exactly to $49/$80.
+- **Y12**: Deleted the nav-dead `CommandCenterSection.tsx` and retired all code imports.
+- **Y13**: Implemented atomic concurrency-safe coupon cap validation and increment logic in `redeemCouponById()` inside `db.ts` and `services.ts`.
