@@ -7,7 +7,11 @@ import { toast } from "sonner";
 import { Inbox, Check, X, Clock, Archive, Sparkles, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function InboxTriageCard() {
+interface InboxTriageCardProps {
+  isNested?: boolean;
+}
+
+export function InboxTriageCard({ isNested = false }: InboxTriageCardProps) {
   const utils = trpc.useUtils();
   
   // Queries
@@ -114,29 +118,8 @@ export function InboxTriageCard() {
     }
   };
 
-  return (
-    <section
-      aria-label="inbox triage ritual"
-      className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border border-white/10 rounded-xl p-4 shadow-xl space-y-4"
-    >
-      <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-2xl pointer-events-none" />
-
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/5 pb-2">
-        <div className="flex items-center gap-2">
-          <Inbox size={14} className="text-rose-400" />
-          <h3 className="text-xs font-mono uppercase tracking-[0.16em] text-white/95">
-            inbox triage ritual
-          </h3>
-          <span className="px-1.5 py-0.25 rounded bg-rose-500/10 border border-rose-500/20 text-[9px] font-semibold text-rose-400 font-mono">
-            {findings.length} ISSUE{findings.length > 1 ? "S" : ""}
-          </span>
-        </div>
-        <span className="text-[10px] text-white/40 font-mono">
-          quick-cleanup actions
-        </span>
-      </div>
-
+  const innerContent = (
+    <div className="space-y-4">
       {/* Findings List */}
       <div className="space-y-4">
         {displayedFindings.map((f) => {
@@ -288,6 +271,37 @@ export function InboxTriageCard() {
           </a>
         </div>
       )}
+    </div>
+  );
+
+  if (isNested) {
+    return innerContent;
+  }
+
+  return (
+    <section
+      aria-label="inbox triage ritual"
+      className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border border-white/10 rounded-xl p-4 shadow-xl space-y-4"
+    >
+      <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-2xl pointer-events-none" />
+
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/5 pb-2">
+        <div className="flex items-center gap-2">
+          <Inbox size={14} className="text-rose-400" />
+          <h3 className="text-xs font-mono uppercase tracking-[0.16em] text-white/95">
+            inbox triage ritual
+          </h3>
+          <span className="px-1.5 py-0.25 rounded bg-rose-500/10 border border-rose-500/20 text-[9px] font-semibold text-rose-400 font-mono">
+            {findings.length} ISSUE{findings.length > 1 ? "S" : ""}
+          </span>
+        </div>
+        <span className="text-[10px] text-white/40 font-mono">
+          quick-cleanup actions
+        </span>
+      </div>
+
+      {innerContent}
     </section>
   );
 }
