@@ -31,7 +31,7 @@
  * See docs/runbooks/hf-embeddings-cutover.md.
  */
 
-const HF_INFERENCE_URL = "https://api-inference.huggingface.co/models";
+const HF_INFERENCE_URL = "https://router.huggingface.co/hf-inference/models";
 const DEFAULT_MODEL = "intfloat/multilingual-e5-large";
 const DEFAULT_TIMEOUT_MS = 8_000;
 

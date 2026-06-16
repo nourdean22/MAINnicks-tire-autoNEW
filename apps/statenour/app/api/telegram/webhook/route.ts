@@ -1013,7 +1013,7 @@ async function handleVoice(
 
     if (hfKey) {
       const whisperRes = await fetch(
-        "https://api-inference.huggingface.co/models/openai/whisper-large-v3-turbo",
+        "https://router.huggingface.co/hf-inference/models/openai/whisper-large-v3-turbo",
         {
           method: "POST",
           headers: { Authorization: `Bearer ${hfKey}` },
