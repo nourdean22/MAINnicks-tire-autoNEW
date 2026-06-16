@@ -118,6 +118,41 @@ export const socialTools = {
     },
   }),
 
+  triggerInstagramAutopost: tool({
+    description: "Run the Instagram Autopost pipeline immediately. Supports triggering dry-runs (evaluates but doesn't post) or live publishes. Optionally steer with a specific content archetype.",
+    inputSchema: z.object({
+      dryRun: z.boolean().default(true).describe("If true, only generates and evaluates. If false, posts live to Instagram/Facebook immediately."),
+      forceArchetype: z.enum(["educational", "promo", "behind_scenes", "testimonial", "meme", "tips", "showcase"]).optional().describe("Force a content archetype angle for the generated post."),
+    }),
+    execute: async ({ dryRun, forceArchetype }) => {
+      const { queryNick } = await import("@/lib/nickstire/query");
+      const result = await queryNick("instagram_autopost_run", { dryRun, forceArchetype });
+      return result;
+    },
+  }),
+
+  getInstagramAutopostStatus: tool({
+    description: "Get the current status of the Instagram/Facebook autopost system, including the active configuration and a history of the 5 most recent posts (statuses, scores, captions, errors, and image URLs).",
+    inputSchema: z.object({}),
+    execute: async () => {
+      const { queryNick } = await import("@/lib/nickstire/query");
+      const result = await queryNick("instagram_autopost_status");
+      return result;
+    },
+  }),
+
+  setInstagramAutopostConfig: tool({
+    description: "Enable or disable the global Instagram/Facebook live autoposter configuration.",
+    inputSchema: z.object({
+      enabled: z.boolean().describe("Set to true to allow scheduled live autoposting, or false to restrict to dry-runs only."),
+    }),
+    execute: async ({ enabled }) => {
+      const { queryNick } = await import("@/lib/nickstire/query");
+      const result = await queryNick("instagram_autopost_set_config", { enabled });
+      return result;
+    },
+  }),
+
   // ── BUSINESS-OVERSIGHT TOOLS (read-only) ──
   // v7 cleanup · Apr 28 · sendSMS / sendBulkSMS / triggerFollowUp /
   // createPaymentLink were MUTATING business actions — those belong on

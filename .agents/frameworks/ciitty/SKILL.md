@@ -153,6 +153,36 @@ Enhance system stability by acting as your own toughest critic:
 
 ---
 
+## 11.1 Cross-Ring Integration, GenAI Autoposting, & Grounding
+Ensure reliable execution of multi-platform automation, media generation pipelines, and grounding:
+*   **Cross-Ring Bridge Queries:** Bridge communications across domains securely using structured actions (e.g., via `/api/nour-os/query`) instead of direct DB queries. Enable manual overrides that temporarily toggle configurations (like `legacy_autopost_live`) inside a secure `try...finally` block.
+*   **Fail-Safe Generative Media:** Design media generation pipelines (e.g. Higgsfield video reels, image generation) with graceful fallbacks (e.g., falling back to Venice/OpenAI for images) and return localized error payloads to client UI studios instead of throwing HTTP 500 errors. Use ffmpeg copy demuxing (`-c copy`) for instant clip stitching without server re-encoding overhead.
+*   **Typo-Resilient Chat Pruning:** Always configure chat-mode tool pruner keyword matchers to cover common spelling errors and shorthand variations (e.g., `scheduale`, `publis`, `generat`, `ig`, `insta`) so critical tools are never pruned out when a user misspells a command.
+*   **Real-time Web Grounding:** Use AI SDK tool integration to run search engines (like Google Search Grounding `google.tools.googleSearch({})`) to provide real-time facts and citations, preventing model hallucinations.
+
+---
+
+## 11.2 Google Services Ecosystem & Memory Grounding (The Google Power Stack)
+Maximize the $200/month Google AI Ultra subscription, 20TB Google Drive, Gmail, Calendar, GBP, and GSC integrations:
+*   **Google Drive Ingest Heuristics:** Document ingestion crons (`ingest-drive`) must parse files into structured categories within long-term `BrainMemory` based on name and content:
+    *   `brand_rules`: Guidelines, style manuals, and voice briefs.
+    *   `business_context`: Standard operating procedures (SOPs), supplier docs, and operation guides.
+    *   `marketing_context`: Ad creatives, campaign targets, and audience logs.
+    *   `revenue_playbook`: Sales scripts, pricing tiers, and conversions.
+*   **Multi-Account Gmail Triage & Drafts:** Classify incoming emails on schedules and alert the operator for high-priority items. When composing email responses, write directly to the Gmail Drafts folder using `proposeDraft` interfaces so the user can easily review and send.
+*   **Google Calendar Automation:** Event lookup and creation tools (`proposeCalendarEvent`) must respect the operator's timezone (Cleveland ET). Always check for double-bookings and propose focus blocks.
+*   **GBP & GSC Marketing Ingestion:** Generate Google Business Profile (GBP) posts rotating weekly through structural themes: Proof, Anti, Math, and Seasonal. Run Search Console (`GSC`) keyword reports to ground marketing suggestions in real search query volumes.
+
+---
+
+## 11.3 iOS PWA Visual Dynamics & suppressed Confirms
+Both Statenour OS and Nick's Tire run as standalone iOS PWAs:
+*   **suppressed Native Dialogs:** Standard browser native methods (`window.confirm`, `window.alert`, `window.prompt`) are silently blocked by the iOS PWA container.
+*   **Two-Tap DOM Pattern:** Never use native confirm modals. Always implement custom, in-DOM sliding dialogs, two-tap buttons, or custom drawer overlays for destructive actions (e.g., delete confirmation, live posting overrides).
+*   **Tactile Aesthetics:** Ensure touch targets are at least 48x48px. Maintain visual feedback using active tap scales (`active:scale-95`) and glassmorphic micro-animations.
+
+---
+
 ## 12. Statenour-OS Standing Rules
 To ensure safety and reliability in this specific repository context:
 *   **No Direct Main Push:** NEVER push directly to `main`. Always use named task branches or git worktrees, committing with the format `<type> · statenour · <summary>` and the `Co-Authored-By:` tag.
