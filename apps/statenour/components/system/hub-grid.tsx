@@ -220,6 +220,14 @@ const CARDS: HubCard[] = [
     description: "Preview morning/afternoon/evening proactive pushes and risk telemetry",
     chip: () => ({ label: "preview", severity: "info" }),
   },
+  {
+    href: "/system/cockpit-observability",
+    title: "Cockpit Observability",
+    icon: Brain,
+    group: "ai",
+    description: "Live metrics, execution traces, memory decay, and prompt versions for Nick",
+    chip: () => ({ label: "observing", severity: "healthy" }),
+  },
 ];
 
 const SEVERITY_PALETTE: Record<

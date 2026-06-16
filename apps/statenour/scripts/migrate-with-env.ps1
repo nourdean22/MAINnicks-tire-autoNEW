@@ -9,8 +9,8 @@ param(
 )
 
 # Try script-relative path first, fall back to current directory
-$envFile = Join-Path $PSScriptRoot ".." ".env.local"
-if (-not (Test-Path $envFile)) {
+$envFile = Join-Path (Join-Path $PSScriptRoot "..") ".env.local"
+if (-not $envFile -or -not (Test-Path $envFile)) {
     $envFile = Join-Path (Get-Location) ".env.local"
 }
 

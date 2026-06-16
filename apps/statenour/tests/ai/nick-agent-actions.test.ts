@@ -1,5 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
+vi.mock("@/lib/ai/runtime/approval-gate", () => ({
+  checkApprovalGate: vi.fn().mockResolvedValue({ approved: true }),
+}));
+
 // Mock out the individual handlers to prevent actual network/DB execution in unit tests
 vi.mock("@/lib/ai/agent-actions/google-actions", () => ({
   handleGoogleGetSchedule: vi.fn().mockResolvedValue({ action: "google.getSchedule", success: true, result: { events: [] } }),
@@ -29,8 +33,8 @@ vi.mock("@/lib/brain/pipeline-controller", () => ({
 }));
 
 import { parseActions, executeActions } from "../../lib/ai/nick-agent";
-import * as googleHandlers from "../../lib/ai/agent-actions/google-actions";
-import * as arsenalHandlers from "../../lib/ai/agent-actions/arsenal-actions";
+import * as googleHandlers from "@/lib/ai/agent-actions/google-actions";
+import * as arsenalHandlers from "@/lib/ai/agent-actions/arsenal-actions";
 
 beforeEach(() => {
   vi.clearAllMocks();

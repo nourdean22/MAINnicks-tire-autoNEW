@@ -108,6 +108,7 @@ export interface BuildOnFinishInput {
   // ─── context for memory ───────────────────────────────────────
   messages: ReadonlyArray<unknown>;
   topicTier: string;
+  onWorkComplete?: () => void;
 }
 
 /**
@@ -1746,5 +1747,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         messages,
         createdAssistantId,
       });
+
+      deps.onWorkComplete?.();
     };
 }
