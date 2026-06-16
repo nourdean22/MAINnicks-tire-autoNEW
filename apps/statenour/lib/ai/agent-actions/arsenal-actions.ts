@@ -195,7 +195,7 @@ export async function handleArsenalFindLeads(params: ActionParams, type: string)
   });
   return { action: type, success: !!result, result: {
     count: result?.contacts?.length ?? 0,
-    contacts: result?.contacts?.slice(0, 5).map((c: any) => `${c.firstName} ${c.lastName} — ${c.title} at ${c.company}`),
+    contacts: (result?.contacts ?? []).slice(0, 5).map((c: { firstName?: string; lastName?: string; title?: string; company?: string }) => `${c.firstName ?? ""} ${c.lastName ?? ""} — ${c.title ?? ""} at ${c.company ?? ""}`),
   }};
 }
 
@@ -330,7 +330,7 @@ export async function handleArsenalBrowserExtract(params: ActionParams, type: st
   }
 
   // Construct dynamic zod schema
-  const schemaObj: Record<string, any> = {};
+  const schemaObj: Record<string, import("zod").ZodTypeAny> = {};
   for (const key of keys) {
     schemaObj[key] = z.string().describe(`The extracted value for ${key}`);
   }
