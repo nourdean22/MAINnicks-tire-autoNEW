@@ -38,7 +38,8 @@ interface PulseItem {
   kind:
     | "capture" | "mit" | "tomorrow" | "narrator" | "commitment" | "reflection"
     | "win" | "insight" | "idle"
-    | "contradiction" | "mind" | "life" | "wisdom";
+    | "contradiction" | "mind" | "life" | "wisdom"
+    | "market" | "macro" | "industry" | "local" | "timeline" | "mode" | "shop" | "brain";
   glyph: string;
   label: string;
   text: string;
@@ -73,13 +74,55 @@ export function BottomPulseTicker() {
     refetchInterval: 300_000,
     retry: false,
   });
+  const { data: topData } = trpc.operator.ticker.useQuery(undefined, {
+    refetchInterval: 300_000,
+    retry: false,
+  });
   const { dismissed, dismiss } = useDismissedTicker();
   const s = useNourState();
 
   const items = useMemo<PulseItem[]>(() => {
-    const live = (data?.items ?? []).filter((it) => !dismissed.has(it.id));
+    const personalItems = (data?.items ?? []) as PulseItem[];
+
+    // Map top ticker items to PulseItem shape
+    const topItems = (topData?.items ?? []).map((it: any) => {
+      let tone: PulseItem["tone"] = "info";
+      if (it.severity === "warn") tone = "warn";
+      else if (it.severity === "win") tone = "win";
+
+      const GLYPH: Record<string, string> = {
+        timeline: "◆",
+        shop: "●",
+        mode: "▲",
+        brain: "◉",
+      };
+      const glyph = GLYPH[it.category] || "◆";
+
+      const labelText = it.symbol
+        ? it.label.replace(new RegExp(`^${it.symbol}\\s*`), "")
+        : it.label;
+      const delta = it.deltaPct;
+      const deltaStr =
+        delta == null
+          ? ""
+          : ` ${delta > 0 ? "▲" : delta < 0 ? "▼" : "·"}${Math.abs(delta).toFixed(1)}%`;
+      const text = `${labelText}${deltaStr}`;
+
+      return {
+        id: it.id,
+        kind: it.category,
+        glyph,
+        label: it.symbol || it.category.toUpperCase(),
+        text,
+        tone,
+        href: it.href,
+      } as PulseItem;
+    });
+
+    const combined = [...personalItems, ...topItems];
+    const live = combined.filter((it) => !dismissed.has(it.id));
     return [...live].sort((a, b) => (TONE_RANK[a.tone] ?? 9) - (TONE_RANK[b.tone] ?? 9));
-  }, [data, dismissed]);
+  }, [data, topData, dismissed]);
 
   const [idx, setIdx] = useState(0);
   const [open, setOpen] = useState(false);
@@ -102,10 +145,7 @@ export function BottomPulseTicker() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const hasP0P1 = s.staleLeads > 0 || s.pendingCallbacks > 0 || s.driftAlerts > 0 || s.overdueCommitments > 0 || s.agingCritical > 0;
-  if (!open && hasP0P1) return null;
-
-  if (!data || items.length === 0) return null;
+  if ((!data && !topData) || items.length === 0) return null;
 
   const safeIdx = idx % items.length;
   const current = items[safeIdx];
