@@ -1331,35 +1331,37 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
   },
 
   "instagram_autopost_test_hf": async () => {
-    const apiKey = process.env.HF_API_KEY;
-    const model = "black-forest-labs/FLUX.1-schnell";
-    const url = `https://api-inference.huggingface.co/models/${model}`;
-    const result: any = {
-      apiKeyExists: !!apiKey,
-      apiKeyLength: apiKey ? apiKey.length : 0,
-      apiKeyFirstChars: apiKey ? apiKey.slice(0, 4) : "",
-      apiKeyLastChars: apiKey ? apiKey.slice(-4) : "",
-      url,
-    };
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ inputs: "test prompt" })
-      });
-      result.ok = res.ok;
-      result.status = res.status;
-      result.statusText = res.statusText;
-      result.body = await res.text().catch(e => String(e));
-    } catch (err) {
-      result.error = err instanceof Error ? err.message : String(err);
-      result.stack = err instanceof Error ? err.stack : undefined;
-      result.cause = err && typeof err === 'object' && 'cause' in err ? String((err as any).cause) : undefined;
+    const dns = await import("dns");
+    const util = await import("util");
+    const lookup = util.promisify(dns.lookup);
+    
+    const hosts = ["google.com", "graph.facebook.com", "api-inference.huggingface.co", "huggingface.co"];
+    const dnsResults: Record<string, any> = {};
+    for (const host of hosts) {
+      try {
+        const res = await lookup(host);
+        dnsResults[host] = { address: res.address, family: res.family };
+      } catch (err) {
+        dnsResults[host] = { error: err instanceof Error ? err.message : String(err) };
+      }
     }
-    return result;
+
+    const urls = ["https://google.com", "https://huggingface.co", "https://api-inference.huggingface.co"];
+    const fetchResults: Record<string, any> = {};
+    for (const url of urls) {
+      try {
+        const start = Date.now();
+        const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(5000) });
+        fetchResults[url] = { status: res.status, statusText: res.statusText, durationMs: Date.now() - start };
+      } catch (err) {
+        fetchResults[url] = { error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+
+    return {
+      dnsResults,
+      fetchResults,
+    };
   },
 };
 
