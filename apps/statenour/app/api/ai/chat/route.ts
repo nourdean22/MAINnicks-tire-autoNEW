@@ -1080,7 +1080,7 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           const reasoning = await reasonStreaming(
             {
               question: userContent,
-              brainContext: (liveSnapshot + finalSystemPrompt).slice(0, 8000),
+              brainContext: (liveSnapshot + finalSystemPrompt).slice(0, 24000),
             },
             () => {},
           );

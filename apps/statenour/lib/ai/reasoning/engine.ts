@@ -482,7 +482,7 @@ If the context is empty or contradicts itself, say so explicitly and proceed wit
       brainContext
         ? {
             role: "system" as const,
-            content: `Operator's current context:\n${brainContext.slice(0, 2000)}`,
+            content: `Operator's current context:\n${brainContext.slice(0, 16000)}`,
           }
         : null,
       {
@@ -501,6 +501,7 @@ If the context is empty or contradicts itself, say so explicitly and proceed wit
 async function runCritique(
   question: string,
   draft: string,
+  brainContext?: string,
   acc?: CostAccumulator,
   signal?: AbortSignal,
 ): Promise<{ issues: string[]; suggestions: string[]; verdict: "ship" | "refine" }> {
@@ -512,7 +513,15 @@ async function runCritique(
     [
       {
         role: "system",
-        content: `You are an adversarial critic. Given a question + a draft answer, list the MOST IMPORTANT issues. Be specific not generic. Output JSON only:
+        content: `You are an adversarial critic. Given a question + a draft answer, list the MOST IMPORTANT issues. Be specific not generic.
+
+CRITIQUE RULES:
+1. No sycophancy: Ensure Nick doesn't just agree or flatter the operator.
+2. Brevity & Punch: Check if the response is too verbose or contains fluff.
+3. Truth Rule: Nick must not fabricate tools or action blocks he cannot run, and must only mention tools/actions that are real.
+4. Willpower vs. Environment: If the draft accepts or agrees with the operator simply "trying harder next time" or relying on discipline/willpower, issue a "refine" verdict and suggest recommending a system/environment change instead (e.g. SOP, calendar block, physical constraints).
+
+Output JSON only:
 {
   "issues": ["..."],
   "suggestions": ["..."],
@@ -521,14 +530,17 @@ async function runCritique(
 
 "verdict" is "ship" if the answer is good enough · "refine" if material issues exist.`,
       },
-      // SAFE: question + draft are operator-owned content · the critic
-      // is a sub-LLM reasoning about Nick's own output · no untrusted
-      // external input enters this prompt. PI-001 false positive.
+      brainContext
+        ? {
+            role: "system" as const,
+            content: `Operator's context & rules:\n${brainContext.slice(0, 4000)}`,
+          }
+        : null,
       {
         role: "user",
         content: `QUESTION:\n${question}\n\nDRAFT:\n${draft}`,
       },
-    ],
+    ].filter((m): m is { role: "system" | "user" | "assistant"; content: string } => m !== null),
     "fast",
     { signal },
   );
@@ -556,6 +568,7 @@ async function runRefine(
   question: string,
   draft: string,
   critique: { issues: string[]; suggestions: string[] },
+  brainContext?: string,
   acc?: CostAccumulator,
   signal?: AbortSignal,
 ): Promise<string> {
@@ -572,16 +585,21 @@ async function runRefine(
         role: "system",
         content: `You are Nick. A critic flagged issues in your draft answer. Fix THE MATERIAL ones · do not over-correct cosmetic issues. Re-write the answer to address the issues + apply the relevant suggestions.
 
+Preserve Nick's character and strict guidelines (no sycophancy, default brevity, truth rule, willpower-vs-environment check).
+
 OUTPUT: the refined answer only · no commentary · no preamble.`,
       },
-      // SAFE: question + draft are operator-owned · critique.issues +
-      // .suggestions came from our own runCritique call · the model is
-      // refining its own prior output · PI-001 false positive.
+      brainContext
+        ? {
+            role: "system" as const,
+            content: `Operator's context & rules:\n${brainContext.slice(0, 4000)}`,
+          }
+        : null,
       {
         role: "user",
         content: `QUESTION:\n${question}\n\nORIGINAL DRAFT:\n${draft}\n\nISSUES:\n${critique.issues.map((i) => `- ${i}`).join("\n")}\n\nSUGGESTIONS:\n${critique.suggestions.map((s) => `- ${s}`).join("\n")}`,
       },
-    ],
+    ].filter((m): m is { role: "system" | "user" | "assistant"; content: string } => m !== null),
     "reason",
     { signal },
   );
@@ -1081,7 +1099,7 @@ async function runReasoningEngine(
   if (TIER_CONFIG[tier].hasCritique && TIER_CONFIG[tier].hasRefine) {
     try {
       const t = Date.now();
-      const critique = await runCritique(request.question, draft, acc);
+      const critique = await runCritique(request.question, draft, request.brainContext, acc);
       callCount += 1;
       rec.push(
         "critique",
@@ -1093,7 +1111,7 @@ async function runReasoningEngine(
       );
       if (critique.verdict === "refine") {
         const tr = Date.now();
-        final = await runRefine(request.question, draft, critique, acc);
+        final = await runRefine(request.question, draft, critique, request.brainContext, acc);
         callCount += 1;
         rec.push(
           "refine",
@@ -1120,7 +1138,7 @@ async function runReasoningEngine(
     // catch) — do not merge them.
     try {
       const t = Date.now();
-      const critique = await runCritique(request.question, draft, acc);
+      const critique = await runCritique(request.question, draft, request.brainContext, acc);
       callCount += 1;
       rec.push(
         "critique",
