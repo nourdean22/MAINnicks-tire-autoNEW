@@ -160,6 +160,31 @@ export const GET = cronHandler(async () => {
       result.errors.push(`inbox listing: ${(err as Error).message.slice(0, 120)}`);
     }
 
+    // ─── Notes (Apple Notes synced to Gmail folder 'Notes') ───
+    try {
+      const notesQuery = "label:notes newer_than:14d";
+      const noteIds = await listMessages(notesQuery, 50, acct.accountKey);
+
+      for (const m of noteIds) {
+        try {
+          const full = await getMessage(m.id, acct.accountKey);
+          const body = (full.body || full.snippet || "").trim();
+          if (body.length === 0) continue;
+
+          await storeMessage(full, BRAIN_CATEGORIES.PERSONAL_DEVELOPMENT, {
+            accountKey: acct.accountKey,
+            accountEmail: acct.email,
+          });
+          result.inboundStored++;
+        } catch (err) {
+          result.errors.push(`note ${m.id}: ${(err as Error).message.slice(0, 120)}`);
+        }
+      }
+    } catch (err) {
+      // label:notes may not exist if notes syncing is not active on this account
+      log.info(`No notes label found or error scanning notes for account ${acct.email}: ${(err as Error).message.slice(0, 120)}`);
+    }
+
     perAccount.push(result);
   }
 
