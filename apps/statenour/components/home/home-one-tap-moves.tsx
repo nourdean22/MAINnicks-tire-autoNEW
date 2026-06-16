@@ -60,7 +60,11 @@ const KIND_META: Record<
   },
 };
 
-export function HomeOneTapMoves() {
+interface HomeOneTapMovesProps {
+  isNested?: boolean;
+}
+
+export function HomeOneTapMoves({ isNested = false }: HomeOneTapMovesProps) {
   const [moves, setMoves] = useState<OneTapMove[] | null>(null);
   const telemetry = useMissionSurfaceTelemetry("home");
 
@@ -84,32 +88,89 @@ export function HomeOneTapMoves() {
   }, []);
 
   if (moves === null) {
+    const loadingList = (
+      <div className="space-y-2">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] p-3"
+          >
+            <div className="flex items-start gap-3">
+              <div className="h-7 w-16 shrink-0 animate-pulse rounded-md bg-[var(--bg-elevated)]" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-3/4 animate-pulse rounded bg-[var(--bg-elevated)]" />
+                <div className="h-2 w-1/2 animate-pulse rounded bg-[var(--bg-elevated)]" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+
+    if (isNested) {
+      return loadingList;
+    }
+
     return (
       <section aria-label="one-tap moves" aria-busy="true" className="space-y-2">
         <div className="flex items-center gap-2 px-1 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
           <span>one-tap moves</span>
         </div>
-        <div className="space-y-2">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] p-3"
-            >
-              <div className="flex items-start gap-3">
-                <div className="h-7 w-16 shrink-0 animate-pulse rounded-md bg-[var(--bg-elevated)]" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 w-3/4 animate-pulse rounded bg-[var(--bg-elevated)]" />
-                  <div className="h-2 w-1/2 animate-pulse rounded bg-[var(--bg-elevated)]" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        {loadingList}
       </section>
     );
   }
 
   if (moves.length === 0) return null;
+
+  const innerContent = (
+    <div className="space-y-2">
+      {moves.map((move, i) => {
+        const meta = KIND_META[move.kind];
+        const Icon = meta.Icon;
+        return (
+          <Link
+            key={`${move.kind}-${i}`}
+            href={move.href}
+            onClick={() =>
+              telemetry.event("oneTapMoveTapped", { kind: move.kind })
+            }
+            className={cn(
+              "block rounded-lg border bg-[var(--bg-base)] p-3 transition-colors hover:bg-[var(--bg-raised)] hover:border-[var(--gold)]/40 active:scale-[0.99]",
+              "border-[var(--border-default)]",
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <span
+                className={cn(
+                  "shrink-0 inline-flex h-7 items-center gap-1 rounded-md border px-1.5 text-[9px] font-mono uppercase tracking-[0.15em]",
+                  meta.tint,
+                )}
+              >
+                <Icon size={10} strokeWidth={1.75} />
+                {meta.label}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium text-[var(--text-primary)] leading-snug break-words">
+                  {move.title}
+                </p>
+                <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)] leading-snug">
+                  {move.rationale}
+                </p>
+              </div>
+              <span className="shrink-0 self-center text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)]">
+                {move.cta} →
+              </span>
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+
+  if (isNested) {
+    return innerContent;
+  }
 
   return (
     <section aria-label="one-tap moves" className="space-y-2">
@@ -119,48 +180,7 @@ export function HomeOneTapMoves() {
         <span className="text-[var(--gold)] tabular-nums">{moves.length}</span>
       </div>
 
-      <div className="space-y-2">
-        {moves.map((move, i) => {
-          const meta = KIND_META[move.kind];
-          const Icon = meta.Icon;
-          return (
-            <Link
-              key={`${move.kind}-${i}`}
-              href={move.href}
-              onClick={() =>
-                telemetry.event("oneTapMoveTapped", { kind: move.kind })
-              }
-              className={cn(
-                "block rounded-lg border bg-[var(--bg-base)] p-3 transition-colors hover:bg-[var(--bg-raised)] hover:border-[var(--gold)]/40 active:scale-[0.99]",
-                "border-[var(--border-default)]",
-              )}
-            >
-              <div className="flex items-start gap-3">
-                <span
-                  className={cn(
-                    "shrink-0 inline-flex h-7 items-center gap-1 rounded-md border px-1.5 text-[9px] font-mono uppercase tracking-[0.15em]",
-                    meta.tint,
-                  )}
-                >
-                  <Icon size={10} strokeWidth={1.75} />
-                  {meta.label}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-[var(--text-primary)] leading-snug break-words">
-                    {move.title}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)] leading-snug">
-                    {move.rationale}
-                  </p>
-                </div>
-                <span className="shrink-0 self-center text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)]">
-                  {move.cta} →
-                </span>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+      {innerContent}
     </section>
   );
 }
