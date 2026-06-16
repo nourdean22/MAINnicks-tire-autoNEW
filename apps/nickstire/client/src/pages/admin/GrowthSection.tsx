@@ -17,10 +17,11 @@ import { useState } from "react";
 import {
   TrendingUp, MapPin, Star, MessageCircleQuestion, Camera, Building2,
   Swords, Sparkles, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
-  ExternalLink, RefreshCw, Lock, ChevronDown, ChevronUp,
+  ExternalLink, RefreshCw, Lock, ChevronDown, ChevronUp, Instagram,
 } from "lucide-react";
 import IgAutopostPanel from "./settings/IgAutopostPanel";
 import DraftBoardPanel from "./DraftBoardPanel";
+import InstagramTab from "./InstagramTab";
 import { Section, Panel } from "./shared";
 import { TabBar } from "./shared/table";
 import { trpc } from "@/lib/trpc";
@@ -35,7 +36,7 @@ import {
 } from "@/lib/competitorGbpMonitor";
 import { RANK_KEYWORDS } from "@/lib/localRankKeywords";
 
-type GrowthTab = "local" | "reviews" | "qa" | "photos" | "entity" | "competitors" | "studios";
+type GrowthTab = "local" | "reviews" | "qa" | "photos" | "entity" | "competitors" | "instagram" | "studios";
 
 const GROWTH_TABS: { id: GrowthTab; label: string; icon: React.ReactNode }[] = [
   { id: "local", label: "Local Growth", icon: <MapPin className="w-3.5 h-3.5" /> },
@@ -44,6 +45,7 @@ const GROWTH_TABS: { id: GrowthTab; label: string; icon: React.ReactNode }[] = [
   { id: "photos", label: "Photo Queue", icon: <Camera className="w-3.5 h-3.5" /> },
   { id: "entity", label: "Entity / Brand", icon: <Building2 className="w-3.5 h-3.5" /> },
   { id: "competitors", label: "Competitors", icon: <Swords className="w-3.5 h-3.5" /> },
+  { id: "instagram", label: "Instagram", icon: <Instagram className="w-3.5 h-3.5" /> },
   { id: "studios", label: "Social Studios", icon: <Sparkles className="w-3.5 h-3.5" /> },
 ];
 
@@ -111,6 +113,7 @@ export default function GrowthSection() {
         {tab === "photos" && <PhotoQueueTab />}
         {tab === "entity" && <EntityTab />}
         {tab === "competitors" && <CompetitorsTab />}
+        {tab === "instagram" && <InstagramTab />}
         {tab === "studios" && <StudiosTab />}
       </div>
     </Section>
