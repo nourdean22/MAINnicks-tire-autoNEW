@@ -256,7 +256,7 @@ export function buildSearchableContent(parts: MessagePart[] | null | undefined, 
     if (p.type === "text" && p.text) chunks.push(p.text);
     else if (p.type === "reasoning" && p.text) chunks.push(`[reasoning] ${p.text}`);
     else if (p.type === "tool-result" && p.result != null) {
-      const summary = typeof p.result === "string" ? p.result : JSON.stringify(p.result).slice(0, 800);
+      const summary = typeof p.result === "string" ? p.result : (JSON.stringify(p.result) ?? "undefined").slice(0, 800);
       chunks.push(`[tool:${p.toolName ?? "?"}] ${summary}`);
     } else if (p.type === "tool-call" && p.toolName) {
       chunks.push(`[call:${p.toolName}]`);

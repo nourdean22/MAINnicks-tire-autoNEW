@@ -405,7 +405,7 @@ export async function executeActions(actions: AgentAction[]): Promise<ActionResu
     results.push(result);
 
     // Circular feedback: every action feeds back into the memory system
-    feedbackLoop(action.type, result.result, JSON.stringify(action.params).slice(0, 200)).catch((err) =>
+    feedbackLoop(action.type, result.result, (JSON.stringify(action.params) ?? "{}").slice(0, 200)).catch((err) =>
       recordError("ai:agent-feedback", err, { actionType: action.type }),
     );
   }

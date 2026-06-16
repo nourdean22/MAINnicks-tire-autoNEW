@@ -542,7 +542,7 @@ export async function feedbackLoop(actionType: string, actionResult: unknown, co
   await brainMemory.remember(
     "action_outcome",
     memoryKey,
-    `Action: ${actionType} | Result: ${JSON.stringify(actionResult).slice(0, 200)} | Context: ${context.slice(0, 100)}`,
+    `Action: ${actionType} | Result: ${(JSON.stringify(actionResult) ?? "undefined").slice(0, 200)} | Context: ${context.slice(0, 100)}`,
     "feedback_loop"
   );
 
