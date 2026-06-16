@@ -1,25 +1,6 @@
-/**
- * buildChatResponse · May 02 · chat-route extract chunk 2
- *
- * Lifted verbatim from app/api/ai/chat/route.ts (the response assembly
- * block at lines 2216-2277). Owns the final transport shape:
- *
- *   1. Pull headers off the AI-SDK toUIMessageStreamResponse() Response
- *   2. Stamp 12 X-* telemetry headers (conv id, trace id, mode source,
- *      deeper-context counts/types, brain-block fire flags, persona,
- *      turn-signal: complexity/intent/shape/urgency/temp/CoT/critique)
- *   3. Wrap the stream body with the 7s SSE heartbeat (`: ping-<ts>\n\n`
- *      keepalive frames) so Cloudflare's 10s idle-kill + mobile Safari's
- *      background-fetch reaper don't drop the socket during slow tool
- *      calls (arsenal research, Venice cold-starts).
- *
- * Pure function over the inputs — no I/O, no closure capture, fully
- * testable. Mock toUIMessageStreamResponse() return shape and assert
- * the headers + body wrapping.
- */
-
 import { withHeartbeat } from "@/lib/streaming/heartbeat";
 import type { ChatMode } from "@/lib/ai/chat-mode";
+import { createCockpitSseStream } from "@/lib/ai/runtime/sse-stream";
 
 // Subset of the turn classifier output that response headers care about.
 // Mirroring the upstream type via structural typing avoids a re-export.
@@ -59,6 +40,16 @@ export interface BuildChatResponseInput {
   contextBlocksFired: ContextBlocksFired;
   /** Heartbeat interval in ms. Default 7000 — keeps Cloudflare + mobile happy. */
   heartbeatMs?: number;
+  classification?: {
+    intent: string;
+    mode: "fast" | "operator" | "engineer";
+    model: string;
+    provider: string;
+    targets: string[];
+  };
+  recalledMemories?: Array<{ id: string; content: string; similarity: number; category: string }>;
+  contradictions?: Array<{ id: string; claim: string; reality: string; severity: string }>;
+  onFinishPromise?: Promise<void>;
 }
 
 export function buildChatResponse(input: BuildChatResponseInput): Response {
@@ -74,9 +65,16 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
     deeperContextTypes,
     contextBlocksFired,
     heartbeatMs = 7_000,
+    classification,
+    recalledMemories = [],
+    contradictions = [],
+    onFinishPromise = Promise.resolve(),
   } = input;
 
   const headers = new Headers(streamResponse.headers);
+  headers.set("Content-Type", "text/event-stream");
+  headers.set("Cache-Control", "no-cache, no-transform");
+  headers.set("Connection", "keep-alive");
   headers.set("X-Conversation-Id", convId);
   // v10.0.28 — surface the AgentTrace traceId so the chat client
   // can let the operator click "this turn" and jump to
@@ -127,14 +125,25 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
     headers.set("X-Deeper-Context-Types", deeperContextTypes.join(","));
   }
 
-  // B4 · Wrap the protocol stream with a 7s heartbeat. SSE comment
-  // frames (`: ping-<ts>\n\n`) are spec-mandated ignored bytes — the
-  // client parser sees nothing, but the socket stays hot through
-  // slow tool calls (arsenal research, Venice cold-starts) that
-  // would otherwise trigger Cloudflare's 10s idle-kill or mobile
-  // Safari's background-fetch reaper.
-  return new Response(withHeartbeat(streamResponse.body, heartbeatMs), {
+  // Construct the custom cockpit SSE event stream
+  const sseStream = createCockpitSseStream({
+    aiSdkStream: streamResponse.body || new ReadableStream(),
+    traceId,
+    classification: classification || {
+      intent: turnSignal.intent,
+      mode: mode === "deep" ? "operator" : "fast",
+      model: "unknown",
+      provider: "unknown",
+      targets: ["general"],
+    },
+    recalledMemories,
+    contradictions,
+    onFinishPromise,
+  });
+
+  return new Response(withHeartbeat(sseStream, heartbeatMs), {
     status: streamResponse.status,
     headers,
   });
 }
+

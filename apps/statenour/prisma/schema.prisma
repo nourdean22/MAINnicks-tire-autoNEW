@@ -2971,3 +2971,72 @@ model MemoryInboxItem {
   @@map("memory_inbox_items")
 }
 
+model PromptVersion {
+  id             String        @id @default(cuid())
+  version        Int
+  systemPrompt   String        @db.Text
+  userPrompt     String?       @db.Text
+  tags           String[]      @default([])
+  active         Boolean       @default(false)
+  createdBy      String        @default("user")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  runs           AgentRun[]
+
+  @@unique([version])
+  @@index([active])
+  @@map("prompt_versions")
+}
+
+model AgentRun {
+  id              String           @id @default(cuid())
+  traceId         String           @unique
+  conversationId  String?
+  promptVersionId String?
+  promptVersion   PromptVersion?   @relation(fields: [promptVersionId], references: [id])
+  status          String           @default("success") // success | errored | cancelled
+  model           String
+  provider        String
+  inputTokens     Int              @default(0)
+  outputTokens    Int              @default(0)
+  costCents       Float            @default(0.0)
+  durationMs      Int              @default(0)
+  errorClass      String?
+  errorMessage    String?          @db.Text
+  feedback        AgentFeedback?
+  memoryHits      AgentMemoryHit[]
+  createdAt       DateTime         @default(now())
+
+  @@index([createdAt])
+  @@index([model])
+  @@index([provider])
+  @@map("agent_runs")
+}
+
+model AgentMemoryHit {
+  id         String      @id @default(cuid())
+  agentRunId String
+  agentRun   AgentRun    @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  memoryId   String
+  category   String
+  similarity Float
+  usedInTurn Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+
+  @@index([agentRunId])
+  @@index([memoryId])
+  @@map("agent_memory_hits")
+}
+
+model AgentFeedback {
+  id         String    @id @default(cuid())
+  agentRunId String    @unique
+  agentRun   AgentRun  @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  score      Int       @db.SmallInt // 1 = thumbs_up, -1 = thumbs_down
+  note       String?   @db.Text
+  corrected  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+
+  @@map("agent_feedbacks")
+}
+

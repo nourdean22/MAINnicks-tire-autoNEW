@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Paperclip, Mic, Square, FileAudio, Phone, Image as ImageIcon, Plus, X } from "lucide-react";
+import { Paperclip, Mic, Square, FileAudio, Phone, Image as ImageIcon, Plus, X, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ModePersonaChip, type PersonaMode } from "@/components/chat/mode-persona-chip";
 
@@ -48,6 +48,8 @@ export function ComposerToolbar({
   onOpenCamera,
   onOpenAudio,
   onOpenVoiceMode,
+  memoryInspectorOpen,
+  onToggleMemoryInspector,
 }: {
   voice: VoiceState;
   isStreaming: boolean;
@@ -67,6 +69,8 @@ export function ComposerToolbar({
   onOpenCamera: () => void;
   onOpenAudio: () => void;
   onOpenVoiceMode: () => void;
+  memoryInspectorOpen?: boolean;
+  onToggleMemoryInspector?: () => void;
 }) {
   // v10.0.529.96 · Wave 40 · overflow consolidation. Operator feedback:
   // "way too many buttons down there. Fix that shit." Pre-Wave-40 had
@@ -208,6 +212,20 @@ export function ComposerToolbar({
           >
             <Phone size={14} />
           </button>
+
+          {onToggleMemoryInspector && (
+            <button
+              onClick={onToggleMemoryInspector}
+              className={cn(
+                "shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all active:scale-90",
+                memoryInspectorOpen ? "text-[var(--gold)] bg-[var(--bg-elevated)]" : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
+              )}
+              title="Memory Inspector"
+              aria-label="Toggle Memory Inspector"
+            >
+              <Brain size={14} />
+            </button>
+          )}
 
           <button
             onClick={onOpenAudio}

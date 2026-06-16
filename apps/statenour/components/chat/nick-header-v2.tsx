@@ -46,6 +46,7 @@ import {
   // v10.0.529.59 · audit Wave 8 follow-up · Star / Archive / BellOff /
   // Trash2 removed from imports — those 4 controls relocated from the
   // header overflow menu to per-row actions in ConversationDrawer.
+  Brain,
 } from "lucide-react";
 import { ProviderHealthPill } from "@/components/chat/provider-health-pill";
 // v10.0.351 · LiveHudBar retired · its metrics (tasks/score/cost)
@@ -95,17 +96,13 @@ interface NickHeaderV2Props {
   onToggleHistory?: () => void;
   onNewChat?: () => void;
   onInspectPrompt?: () => void;
+  /** Memory Inspector toggle */
+  memoryInspectorOpen?: boolean;
+  onToggleMemoryInspector?: () => void;
   /** Apr 20 — current conversation id so the overflow menu can expose
    *  the markdown/json export without sending Nour to Cmd+F first. */
   conversationId?: string | null;
   veniceHealthy?: boolean;
-  // v10.0.529.59 · audit Wave 8 follow-up · conversationStarred /
-  // Archived / Muted + onToggle* / onDeleteConversation REMOVED.
-  // Those 4 low-frequency flag controls relocated to per-row actions
-  // in ConversationDrawer (each row has Star · Mute · Archive ·
-  // Delete next to Pin, Trash). 99% of sessions never touched these
-  // from the header; identifying a convo by row is the natural
-  // operator gesture anyway.
 }
 
 export function NickHeaderV2({
@@ -131,6 +128,8 @@ export function NickHeaderV2({
   onToggleHistory,
   onNewChat,
   onInspectPrompt,
+  memoryInspectorOpen,
+  onToggleMemoryInspector,
   conversationId,
   veniceHealthy = true,
 }: NickHeaderV2Props) {
@@ -414,6 +413,21 @@ export function NickHeaderV2({
               >
                 <Eye size={12} />
                 Inspect prompt
+              </button>
+            )}
+            {onToggleMemoryInspector && (
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onToggleMemoryInspector();
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-[var(--bg-raised)] transition-colors",
+                  memoryInspectorOpen ? "text-[var(--gold)]" : "text-[var(--text-primary)]"
+                )}
+              >
+                <Brain size={12} />
+                Memory Inspector
               </button>
             )}
             {conversationId && messageCount > 0 && (

@@ -104,6 +104,10 @@ import {
   handleCameraGetPlates,
 } from "@/lib/ai/agent-actions/camera-actions";
 
+import { checkApprovalGate } from "@/lib/ai/runtime/approval-gate";
+
+import { publishCockpitEvent } from "@/lib/ai/runtime/event-protocol";
+
 export interface AgentAction {
   type: string;
   params: Record<string, unknown>;
@@ -147,12 +151,71 @@ export function parseActions(text: string): AgentAction[] {
 }
 
 /**
- * Execute a single agent action against the system.
+ * Execute a single agent action with event logging and gate checking.
  */
 async function executeAction(action: AgentAction): Promise<ActionResult> {
   const { type, params } = action;
+  const actionId = Math.random().toString(36).slice(2, 9);
 
   try {
+    // Check approval gate for high-risk actions
+    const gateResult = await checkApprovalGate(type, params);
+    if (!gateResult.approved) {
+      publishCockpitEvent({
+        type: "approval.required",
+        payload: {
+          approvalId: gateResult.approvalId!,
+          toolName: type,
+          params,
+          reason: "High risk action requires operator approval"
+        }
+      });
+      return {
+        action: type,
+        success: false,
+        error: `GATED: Operator approval required (ID: ${gateResult.approvalId})`,
+        result: { approvalId: gateResult.approvalId, gated: true }
+      };
+    }
+
+    publishCockpitEvent({
+      type: "tool.execution_started",
+      payload: { actionId, toolName: type }
+    });
+
+    const result = await executeActionWithoutTracing(action);
+
+    if (result.success) {
+      publishCockpitEvent({
+        type: "tool.execution_succeeded",
+        payload: { actionId, toolName: type, result: result.result }
+      });
+    } else {
+      publishCockpitEvent({
+        type: "tool.execution_failed",
+        payload: { actionId, toolName: type, error: result.error || "Unknown error" }
+      });
+    }
+
+    return result;
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Unknown error";
+    publishCockpitEvent({
+      type: "tool.execution_failed",
+      payload: { actionId, toolName: type, error: errorMsg }
+    });
+    return { action: type, success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Raw action dispatcher mapping action types to domain handlers.
+ */
+async function executeActionWithoutTracing(action: AgentAction): Promise<ActionResult> {
+  const { type, params } = action;
+
+  try {
+
     // 2026-06-02 · Structural split · the giant case-body switch was
     // decomposed into per-domain handler modules under
     // lib/ai/agent-actions/. This dispatcher delegates VERBATIM —

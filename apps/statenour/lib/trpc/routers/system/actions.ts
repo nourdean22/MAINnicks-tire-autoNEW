@@ -21,7 +21,7 @@ export const actionsProcedures = {
   }),
 
   approveApprovalRequest: operatorProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: z.string(), editedPayload: z.any().optional() }))
     .mutation(async ({ input, ctx }) => {
       const request = await prisma.approvalRequest.findUnique({
         where: { id: input.id },
@@ -42,14 +42,26 @@ export const actionsProcedures = {
         });
       }
 
+      const updateData: any = {
+        status: "approved",
+        approvedAt: new Date(),
+        approvedBy: ctx.session.email ?? "Operator",
+      };
+
+      if (input.editedPayload) {
+        updateData.payload = input.editedPayload;
+        // Import pendingExecutions dynamically or at top-level
+        const { pendingExecutions } = await import("@/lib/tools/guardian");
+        const pending = pendingExecutions.get(input.id);
+        if (pending) {
+          pending.args = [input.editedPayload];
+        }
+      }
+
       // Transition state to approved
       await prisma.approvalRequest.update({
         where: { id: input.id },
-        data: {
-          status: "approved",
-          approvedAt: new Date(),
-          approvedBy: ctx.session.email ?? "Operator",
-        },
+        data: updateData,
       });
 
       // Spawn background tool execution

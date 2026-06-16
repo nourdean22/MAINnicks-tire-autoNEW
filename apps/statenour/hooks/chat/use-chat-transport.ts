@@ -200,6 +200,75 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
           ) {
             lastPersonaHeaderRef.current = personaHeader;
           }
+          
+          // ── SSE Cockpit Event Parsing ──────────────────────────────────────
+          const contentType = res.headers.get("content-type");
+          if (contentType?.includes("text/event-stream") && res.body) {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            const sseStream = new ReadableStream({
+              async start(controller) {
+                try {
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                      controller.close();
+                      break;
+                    }
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    // Keep the last partial line in buffer
+                    buffer = lines.pop() || "";
+
+                    let currentEvent = "";
+                    for (const line of lines) {
+                      const trimmed = line.trim();
+                      if (trimmed.startsWith("event:")) {
+                        currentEvent = trimmed.slice(6).trim();
+                      } else if (trimmed.startsWith("data:")) {
+                        const dataVal = trimmed.slice(5).trim();
+                        if (currentEvent === "chunk") {
+                          // Base64 decode to get raw bytes of the AI SDK chunk
+                          const binaryString = atob(dataVal);
+                          const len = binaryString.length;
+                          const bytes = new Uint8Array(len);
+                          for (let i = 0; i < len; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                          }
+                          controller.enqueue(bytes);
+                        } else if (currentEvent) {
+                          try {
+                            const parsed = JSON.parse(dataVal);
+                            const ev = new CustomEvent("cockpit-event", {
+                              detail: { type: currentEvent, payload: parsed },
+                            });
+                            window.dispatchEvent(ev);
+                          } catch (e) {
+                            console.error("[use-chat-transport] Failed to parse SSE event data:", e);
+                          }
+                        }
+                      } else if (trimmed === "") {
+                        currentEvent = "";
+                      }
+                    }
+                  }
+                } catch (err) {
+                  controller.error(err);
+                } finally {
+                  reader.releaseLock();
+                }
+              },
+            });
+
+            return new Response(sseStream, {
+              status: res.status,
+              statusText: res.statusText,
+              headers: res.headers,
+            });
+          }
 
           return res;
         },

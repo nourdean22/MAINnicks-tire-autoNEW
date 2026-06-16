@@ -63,6 +63,7 @@ DANGEROUS_DO_NOT_AUTOMATE_YET
 | Journal-to-Action Seam | DONE_MERGED | PR #152; `journal.ts` | Implements `promoteNextAction` mutation with single-execution idempotency | low | — | — | no |
 | Task Inbox Triage Flow | DONE_MERGED | PR #152; `task.ts`, `inbox-tasks-triage.tsx`, `page.tsx` | Implements `triage` mutation + iOS PWA two-tap confirm triage UI card | low | — | — | no |
 | Google OAuth Diagnostics | DONE_MERGED | PR #152; `google-oauth-diagnostics.ts`, `google-oauth-reauth.md` | Multi-account diagnostics CLI script + operations runbook | low | — | — | no |
+| Cockpit Upgrade | DONE_MERGED | branch `statenour/cockpit-upgrade` | Operator-grade cockpit UI (SSE streaming, approval gate intercept, contradiction inspector, durable workflows, telemetry dashboard) | low | — | — | no |
 
 ---
 
