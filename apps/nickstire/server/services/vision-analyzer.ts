@@ -295,7 +295,7 @@ async function analyzeViaHf(args: {
     const mimeType = imgResp.headers.get("content-type") ?? "image/jpeg";
 
     const resp = await withTimeout(
-      fetch(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`, {
+      fetch(`https://router.huggingface.co/hf-inference/models/${encodeURIComponent(model)}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,

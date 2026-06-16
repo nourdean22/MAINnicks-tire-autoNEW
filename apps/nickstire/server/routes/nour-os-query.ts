@@ -1335,7 +1335,7 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const util = await import("util");
     const lookup = util.promisify(dns.lookup);
     
-    const hosts = ["google.com", "graph.facebook.com", "api-inference.huggingface.co", "huggingface.co"];
+    const hosts = ["google.com", "graph.facebook.com", "router.huggingface.co", "huggingface.co"];
     const dnsResults: Record<string, any> = {};
     for (const host of hosts) {
       try {
@@ -1346,7 +1346,7 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
       }
     }
 
-    const urls = ["https://google.com", "https://huggingface.co", "https://api-inference.huggingface.co"];
+    const urls = ["https://google.com", "https://huggingface.co", "https://router.huggingface.co"];
     const fetchResults: Record<string, any> = {};
     for (const url of urls) {
       try {

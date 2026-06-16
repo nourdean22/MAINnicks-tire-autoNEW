@@ -807,7 +807,7 @@ async function generateImageHuggingFace(prompt: string): Promise<string> {
   if (!apiKey) throw new Error("HF_API_KEY is not configured");
 
   const model = "black-forest-labs/FLUX.1-schnell";
-  const url = `https://api-inference.huggingface.co/models/${model}`;
+  const url = `https://router.huggingface.co/hf-inference/models/${model}`;
 
   log.info("Generating image via Hugging Face...", { model, prompt });
   const response = await fetch(url, {

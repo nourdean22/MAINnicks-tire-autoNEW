@@ -32,7 +32,7 @@ import { withTimeout } from "@nour/utils";
 
 const log = createLogger("classifiers");
 
-const HF_INFERENCE_URL = "https://api-inference.huggingface.co/models";
+const HF_INFERENCE_URL = "https://router.huggingface.co/hf-inference/models";
 const DEFAULT_TIMEOUT_MS = 5000;
 
 // ─── Prompt-injection screening ──────────────────────────────
