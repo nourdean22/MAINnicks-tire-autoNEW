@@ -631,18 +631,147 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype): P
  * convert the generated PNG to JPEG and re-host it, then hand the JPEG url
  * to Instagram. Facebook tolerates either; we use the same JPEG for both.
  */
+async function generatePostImageHiggsfield(prompt: string): Promise<string> {
+  const { spawn } = await import("child_process");
+  const { createRequire } = await import("module");
+  const fs = await import("fs");
+  const path = await import("path");
+  const os = await import("os");
+
+  return new Promise<string>((resolve, reject) => {
+    try {
+      const require = createRequire(import.meta.url);
+      const cliJsPath = require.resolve("@higgsfield/cli/bin/higgsfield.js");
+      
+      const spawnEnv: NodeJS.ProcessEnv = { ...process.env };
+      let tempCredsFile: string | null = null;
+
+      // If HIGGSFIELD_CREDENTIALS_JSON is set in env, write it to a temp file and point the CLI to it
+      if (process.env.HIGGSFIELD_CREDENTIALS_JSON) {
+        try {
+          const tempDir = os.tmpdir();
+          tempCredsFile = path.join(tempDir, `hg-creds-${Date.now()}.json`);
+          fs.writeFileSync(tempCredsFile, process.env.HIGGSFIELD_CREDENTIALS_JSON, "utf8");
+          spawnEnv.HIGGSFIELD_CREDENTIALS_PATH = tempCredsFile;
+          log.info("wired HIGGSFIELD_CREDENTIALS_PATH via temp file from HIGGSFIELD_CREDENTIALS_JSON");
+        } catch (err) {
+          log.warn("failed to write HIGGSFIELD_CREDENTIALS_JSON to temp file", { err: err instanceof Error ? err.message : String(err) });
+        }
+      }
+
+      log.info("generating image via higgsfield...", { prompt });
+      
+      const child = spawn(process.execPath, [
+        cliJsPath,
+        "generate",
+        "create",
+        "gpt_image_2",
+        "--prompt",
+        prompt,
+        "--aspect_ratio",
+        "1:1",
+        "--resolution",
+        "2k",
+        "--wait",
+        "--json"
+      ], {
+        env: spawnEnv
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+
+      child.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      child.on("close", (code) => {
+        // Cleanup temp file if created
+        if (tempCredsFile && fs.existsSync(tempCredsFile)) {
+          try {
+            fs.unlinkSync(tempCredsFile);
+          } catch (_) {}
+        }
+
+        if (code !== 0) {
+          reject(new Error(`Higgsfield CLI exited with code ${code}. Stderr: ${stderr.trim()}`));
+          return;
+        }
+
+        // Try parsing JSON output
+        try {
+          const parsed = JSON.parse(stdout);
+          const urls: string[] = [];
+          const findUrls = (obj: any) => {
+            if (!obj) return;
+            if (typeof obj === "string") {
+              if (obj.startsWith("http://") || obj.startsWith("https://")) {
+                urls.push(obj);
+              }
+            } else if (Array.isArray(obj)) {
+              obj.forEach(findUrls);
+            } else if (typeof obj === "object") {
+              Object.values(obj).forEach(findUrls);
+            }
+          };
+          findUrls(parsed);
+          
+          const imageOrVideoUrl = urls.find(u => 
+            u.endsWith(".png") || u.endsWith(".jpg") || u.endsWith(".jpeg") || u.endsWith(".webp") || u.includes("cloudfront.net")
+          );
+          if (imageOrVideoUrl) {
+            resolve(imageOrVideoUrl);
+            return;
+          }
+        } catch (_) {}
+
+        // Regex fallback
+        const urlRegex = /https?:\/\/[^\s"',]+/g;
+        const matches = stdout.match(urlRegex) || [];
+        const imageOrVideoUrl = matches.find(u => 
+          u.endsWith(".png") || u.endsWith(".jpg") || u.endsWith(".jpeg") || u.endsWith(".webp") || u.includes("cloudfront.net")
+        );
+        if (imageOrVideoUrl) {
+          resolve(imageOrVideoUrl);
+          return;
+        }
+
+        reject(new Error(`Could not extract image URL from Higgsfield stdout: ${stdout}`));
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
+ * Generate a post image and return a PUBLIC JPEG url.
+ *
+ * Provider switch via IG_AUTOPOST_IMAGE_PROVIDER (default "openai" → the
+ * OpenAI-compatible/Venice endpoint behind server/_core/imageGeneration.ts,
+ * which hosts a PNG).
+ *
+ * IG REQUIREMENT: the Meta IG media container rejects PNG, so we always
+ * convert the generated PNG to JPEG and re-host it, then hand the JPEG url
+ * to Instagram. Facebook tolerates either; we use the same JPEG for both.
+ */
 export async function generatePostImage(prompt: string): Promise<{ url: string; format: "jpeg" }> {
   const provider = (process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai").toLowerCase();
 
+  let pngUrl: string;
   if (provider === "higgsfield") {
-    // Intentional hard stop until the Higgsfield server client is wired.
-    // Swapping providers is then a single env-var flip.
-    throw new Error("IG_AUTOPOST_IMAGE_PROVIDER=higgsfield: set HIGGSFIELD_API_KEY + wire server client");
+    pngUrl = await generatePostImageHiggsfield(prompt);
+  } else {
+    const { generateImage } = await import("../_core/imageGeneration");
+    const res = await generateImage({ prompt });
+    if (!res.url) throw new Error("image generation returned no url");
+    pngUrl = res.url;
   }
 
-  const { generateImage } = await import("../_core/imageGeneration");
-  const { url: pngUrl } = await generateImage({ prompt });
-  if (!pngUrl) throw new Error("image generation returned no url");
   const jpegUrl = await convertHostedPngToJpeg(pngUrl);
   return { url: jpegUrl, format: "jpeg" };
 }

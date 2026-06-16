@@ -61,6 +61,7 @@ import { requireAdminApiKey, registerAdminRoutes } from "../routes/adminRoutes";
 import { registerPushRoutes } from "../routes/pushRoutes";
 import { runServerMigrations } from "../services/migrations";
 import { apiLimiter, formLimiter, aiLimiter, uploadLimiter } from "../middleware/rateLimiters";
+import { securityHeaders } from "../middleware/securityHeaders";
 import { healthHandler, pingHandler, readyHandler, recoverHandler } from "../lib/health";
 import { startSelfHealing, recordRequest } from "../lib/self-healing";
 import { createLogger } from "../lib/logger";
@@ -117,6 +118,7 @@ async function startServer() {
     },
   }));
   app.use(express.urlencoded({ limit: "2mb", extended: true }));
+  app.use("/generated", express.static(path.join(process.cwd(), "data", "generated")));
 
   // ─── Request ID + Duration Tracking ──────────────────
   // Generates a UUID per request, attaches to res.locals and response header.
@@ -156,7 +158,7 @@ async function startServer() {
 
   // Security headers — uses the centralized middleware from securityHeaders.ts
   // (includes CSP with all allowed domains: ahrefs, GA, Meta, etc.)
-  app.use((await import("../middleware/securityHeaders")).securityHeaders);
+  app.use(securityHeaders);
   // Request tracking for self-healing anomaly detection (non-blocking, ~0ms)
   app.use((_req, _res, next) => { recordRequest(); next(); });
 
@@ -1135,6 +1137,6 @@ process.on("SIGTERM", () => {
 });
 
 startServer().catch((err) => {
-  serverLog.fatal("Server failed to start", { error: err instanceof Error ? err.message : String(err) });
+  serverLog.fatal("Server failed to start", { error: err instanceof Error ? err.stack : String(err) });
   process.exit(1);
 });
