@@ -1329,7 +1329,40 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     await setFlag("legacy_autopost_live", enabled);
     return { success: true, livePostingEnabled: enabled };
   },
+
+  "instagram_autopost_test_hf": async () => {
+    const apiKey = process.env.HF_API_KEY;
+    const model = "black-forest-labs/FLUX.1-schnell";
+    const url = `https://api-inference.huggingface.co/models/${model}`;
+    const result: any = {
+      apiKeyExists: !!apiKey,
+      apiKeyLength: apiKey ? apiKey.length : 0,
+      apiKeyFirstChars: apiKey ? apiKey.slice(0, 4) : "",
+      apiKeyLastChars: apiKey ? apiKey.slice(-4) : "",
+      url,
+    };
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ inputs: "test prompt" })
+      });
+      result.ok = res.ok;
+      result.status = res.status;
+      result.statusText = res.statusText;
+      result.body = await res.text().catch(e => String(e));
+    } catch (err) {
+      result.error = err instanceof Error ? err.message : String(err);
+      result.stack = err instanceof Error ? err.stack : undefined;
+      result.cause = err && typeof err === 'object' && 'cause' in err ? String((err as any).cause) : undefined;
+    }
+    return result;
+  },
 };
+
 
 export function registerNourOsQueryRoute(app: Express): void {
   app.post("/api/nour-os/query", async (req: Request, res: Response) => {
