@@ -510,7 +510,7 @@ export default function FacelessReelStudio() {
             <p className="text-xs font-bold text-foreground mb-2 flex items-center gap-1.5">
               <Film className="w-3.5 h-3.5 text-primary" /> Generated Stitched Video Preview
             </p>
-            <div className="relative max-w-xs mx-auto border border-border/30 rounded overflow-hidden aspect-[9/16]">
+            <div className="relative max-w-xs mx-auto border border-border/30 rounded overflow-hidden aspect-9/16">
               <video
                 src={generatedVideo}
                 controls
@@ -627,7 +627,7 @@ export default function FacelessReelStudio() {
             type="button"
             onClick={handleGenerateVideo}
             disabled={generateVideoMutation.isPending}
-            className="text-[11px] font-semibold px-2.5 py-1.5 rounded border border-primary/40 text-foreground hover:bg-primary/10 disabled:opacity-50 inline-flex items-center gap-1 font-bold animate-pulse-once"
+            className="text-[11px] font-semibold px-2.5 py-1.5 rounded border border-primary/40 text-foreground hover:bg-primary/10 disabled:opacity-50 inline-flex items-center gap-1 animate-pulse-once"
           >
             {generateVideoMutation.isPending ? (
               <>
@@ -643,7 +643,7 @@ export default function FacelessReelStudio() {
           <button
             type="button"
             onClick={handleAssembleMp4}
-            className="text-[11px] font-semibold px-2.5 py-1.5 rounded border border-primary/40 text-foreground hover:bg-primary/10 inline-flex items-center gap-1 font-bold"
+            className="text-[11px] font-semibold px-2.5 py-1.5 rounded border border-primary/40 text-foreground hover:bg-primary/10 inline-flex items-center gap-1"
           >
             <Film className="w-3 h-3 text-primary" /> Assemble MP4
           </button>
@@ -658,7 +658,7 @@ export default function FacelessReelStudio() {
               });
             }}
             disabled={publishReelMutation.isPending}
-            className="text-[11px] font-semibold px-2.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 inline-flex items-center gap-1 font-bold"
+            className="text-[11px] font-semibold px-2.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 inline-flex items-center gap-1"
           >
             {publishReelMutation.isPending ? (
               <>
@@ -675,7 +675,7 @@ export default function FacelessReelStudio() {
             type="button"
             onClick={handleReadInsights}
             disabled={isReadingInsights}
-            className="text-[11px] font-semibold px-2.5 py-1.5 rounded border border-primary/40 text-foreground hover:bg-primary/10 disabled:opacity-50 inline-flex items-center gap-1 font-bold"
+            className="text-[11px] font-semibold px-2.5 py-1.5 rounded border border-primary/40 text-foreground hover:bg-primary/10 disabled:opacity-50 inline-flex items-center gap-1"
           >
             {isReadingInsights ? (
               <>
