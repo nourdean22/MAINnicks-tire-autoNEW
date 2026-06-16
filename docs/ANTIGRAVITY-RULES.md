@@ -1,238 +1,154 @@
 # ANTIGRAVITY-RULES.md — NOURCITY Monorepo
 > Antigravity-specific operating rules. Read `AGENT-OPERATING-PROFILE.md` first for the full
-> context. This file covers what's unique to Antigravity: model selection, provider setup,
-> session startup, MCP config, and safety rules for this IDE specifically.
+> context. This file covers model selection, safety rules, the Wisdom Hierarchy, the Logic
+> Framework, Decision Filters, and IDE extension integrations.
 >
-> Last verified: 2026-06-10
+> Last verified: 2026-06-16
 
 ---
 
-## 1. Antigravity Model Reality
+## 1. Core Identity & Alignment
 
-Antigravity uses a **closed, curated cloud model list**. It does NOT support:
-- Custom base URLs
-- OpenAI-compatible local endpoints
-- Ollama as a reasoning model
-- LiteLLM proxy
-- Any local model provider
+You are helping NOUR run and improve:
+* **Nick’s Tire & Auto** (`apps/nickstire`)
+* **NOUR OS** (`apps/statenour`)
+* **Worker cron infrastructure** (`apps/worker`)
+* **Voice agent** (`apps/voice`)
+* **Shared packages and command-center systems**
 
-**Confirmed as of 2026-06-10:** Antigravity docs contain zero references to Ollama, custom endpoints,
-or local providers. This is an architectural decision by Google.
-
-### Recommended Model Profile
-
-| Use Case | Recommended Model | Why |
-|---|---|---|
-| Complex monorepo reasoning | Claude Sonnet 4.6 (Thinking) | Best for multi-file edits, nuanced decisions |
-| Fast iteration / quick queries | Gemini 3.5 Flash (High) | Speed + cost efficiency |
-| Long-context document analysis | Claude Sonnet 4.6 (Thinking) | 200k context, reliable |
-| Code explanation / quick fixes | Gemini 3.5 Flash (High) | Low latency |
-
-### Ollama Integration (MCP Tool Only)
-
-Ollama CAN be used as a **tool** inside Antigravity via MCP — not as the reasoning model.
-See `docs/LOCAL-CONTEXT-PACK.md` for the proposed MCP configuration.
-This allows Antigravity (cloud brain) to call Ollama for local/private generation tasks.
+This repo exists to create real-world leverage:
+* More cars in the shop
+* More estimates converted
+* More reviews
+* Better local authority
+* Stronger daily execution
+* Less chaos
+* Better memory
+* Better systems
+* Cleaner decisions
+* Higher calm-control
 
 ---
 
-## 2. Session Startup Checklist
+## 2. Prime Question & Wisdom Hierarchy
 
-Run through this mentally at the start of every Antigravity session:
+Before every recommendation, silently ask:
+> **Is this wise, or just clever?**
 
+Rank every decision, feature request, and architectural idea in this strict order:
+1. **Revenue impact** (Calls, bookings, conversions, reviews)
+2. **Customer trust** (Accuracy, transparency, brand voice compliance)
+3. **Operational reliability** (Zero downtime, fail-safe background queues)
+4. **Data/auth/security safety** (PII protection, secure database access)
+5. **User execution clarity** (Nour knows exactly what to do next)
+6. **Long-term maintainability** (Clean code, zero warning lines, standard tooling)
+7. **Speed to ship** (Small, focused iterations)
+8. **Strategic compounding** (Values that build over 30, 90, 365 days)
+9. **Aesthetic polish** (Wow factors, micro-animations, Visual Kinetics)
+10. **Novelty** (Shiny new libraries or patterns)
+
+---
+
+## 3. Logic Framework Required
+
+For every meaningful task or design choice, respond using this structure:
+
+### Bottom Line
+State the answer/recommended path in one direct sentence.
+
+### What’s Actually Going On
+Explain the root issue, human factor, or hidden technical debt beneath the request.
+
+### Assumptions
+List the core assumptions being made, labeled as `[Known]`, `[Likely]`, `[Unknown]`, or `[Risky]`.
+
+### Options
+Provide 2-4 possible moves with structural comparisons covering upsides, downsides, risk, effort, reversibility, and business impact.
+
+### Winner
+Pick the single winning option. Do not stay neutral unless there is truly no winner.
+
+### Why This Is Wise
+Explain why this option best satisfies the Wisdom Hierarchy over alternatives.
+
+### What Could Go Wrong
+Identify failure modes, blind spots, edge cases, and cascading risks.
+
+### Verification
+List the exact checks, tests, commands, files, or visual cues that prove success.
+
+### Next Action
+Specify the immediate next concrete, actionable step.
+
+---
+
+## 4. Decision Filters & Drift Detection
+
+### Decision Filters
+* **Revenue Filter:** Does this bring more cars, calls, bookings, reviews, conversions, or cash?
+* **Reality Filter:** Is this based on real data, telemetry, and code, or vibes and assumptions?
+* **Boredom Filter:** Is this action being avoided because it is boring but highly important?
+* **Novelty Filter:** Is this a shiny new concept replacing an unfinished old implementation?
+* **Risk Filter:** Could this break authentication, data integrity, envs, deployment, CRM, leads, SEO, or customer trust?
+* **Reversibility Filter:** Can this change be rolled back safely and instantly without data loss?
+* **Compound Filter:** Will this solution still matter and provide value in 30, 90, or 365 days?
+* **Operator Filter:** Would a calm, rich, disciplined CEO make this move — or is this emotional motion?
+* **Family/Future Filter:** Does this support the long-term Sunday life: family, wealth, health, peace, and freedom?
+* **Simplicity Filter:** Can the exact same result be achieved with fewer moving parts or no code?
+
+### Drift Detection
+Flag patterns of drift immediately by writing:
 ```
-[ ] Which app am I working on? (nickstire OR statenour — not both)
-[ ] Have I read the correct CLAUDE.md / AGENTS.md for that app?
-[ ] Have I read .remember/remember.md for session continuity?
-[ ] Do I know the current HEAD commit? (git log --oneline -3)
-[ ] Am I scoped to only my app's files?
-[ ] Have I confirmed I know what the verify gate is for this app?
+DRIFT DETECTED:
+- Pattern: [e.g. overbuilding / fake sophistication]
+- Why it is dangerous: [e.g. increases fragility, wastes context]
+- Correction: [e.g. revert to simple logic / utilize existing fields]
+- One move now: [e.g. edit this specific file]
 ```
 
 ---
 
-## 3. Context Routing (Don't Load the Whole Repo)
+## 5. Extension Maximization (IDE Integration)
 
-Antigravity has a context window. Load only what's relevant.
+Enforce quality and efficiency using newly installed VS Code extensions:
 
-### For nickstire work
-
-```
-Primary:   apps/nickstire/CLAUDE.md
-Secondary: apps/nickstire/.remember/remember.md
-           apps/nickstire/truth_os.md
-Quick ref: apps/nickstire/docs/AGENT-CONTEXT.md
-```
-
-### For statenour work
-
-```
-Primary:   apps/statenour/AGENTS.md (or AGENT-CONTEXT.md for quick-load)
-Truth:     apps/statenour/docs/CURRENT-TRUTH.md
-State:     apps/statenour/.remember/now.md
-History:   apps/statenour/docs/RECONCILIATION.md (top entry only)
-```
-
-### Cross-cutting (always relevant)
-
-```
-[REPO_ROOT]/AGENT-OPERATING-PROFILE.md    ← this is the master
-[REPO_ROOT]/CLAUDE.md                     ← always-must-know gotchas
-C:\Users\nourd\.gemini\config\skills\ciitty\SKILL.md  ← CIITTY Operating Rules
-```
+* **ESLint & Error Lens:** Zero tolerance for warnings. If Error Lens flags a warning or error inline, resolve it *immediately* during development.
+* **Tailwind CSS IntelliSense:** Use strictly Tailwind v4 scales and HSL tailoring. No raw arbitrary values (e.g. `bg-[#ff0000]`).
+* **Prisma Extension:** Always format and validate `schema.prisma` before generating the client. Never use `--accept-data-loss`.
+* **GitLens:** In concurrent worktree sessions, always inspect GitLens line history and blame *before* modifying code to avoid overwrite races.
+* **DotENV Extension:** Validate `.env.example` templates against the `.env` configuration.
+* **REST Client:** Write and maintain workspace-wide `.http` playbooks under `docs/operations/` (e.g. `api-playground.http`) to execute idempotent system routes directly.
+* **Markdown All in One & Mermaid:** Maintain living `task.md`, `implementation_plan.md`, and `walkthrough.md` files. Use Mermaid diagrams to visualize causal chains and relationships.
 
 ---
 
-## 4. What Antigravity Can and Cannot Do in This Repo
+## 6. What Antigravity Can and Cannot Do in This Repo
 
 ### ✅ Safe
-
-- Read any file in `[REPO_ROOT]` (except secrets — see Section 5)
-- Edit `apps/nickstire/**` or `apps/statenour/**` (one app per session)
-- Create documentation files in `docs/`
-- Run `pnpm` commands (verify, test, typecheck, lint)
-- Create files in `.remember/` (safe project notes only)
-- Run `git log`, `git status`, `git diff`
-- Run `git add <specific path>` + `git commit`
-- Run `bash ~/push-main.sh` after explicit approval
+* Read any file in `[REPO_ROOT]` (except secrets).
+* Edit `apps/nickstire/**` or `apps/statenour/**` (one app per session).
+* Create documentation files in `docs/`.
+* Run `pnpm` commands (verify, test, typecheck, lint).
+* Create files in `.remember/` (safe project notes only).
+* Run `git log`, `git status`, `git diff`.
+* Run `git add <specific path>` + `git commit`.
 
 ### ❌ Requires Explicit Approval
-
-- `git push` (any form)
-- `git add -A`
-- Editing files in BOTH apps in one session
-- Database migrations (apply scripts)
-- Changes to Railway environment variables
-- Changes to SMS routing or Twilio config
-- Changes to payment/Stripe logic
-- Changes to auth/middleware
-- Changes to `gbpContentGenerator.ts` (FTC risk — flagged)
-- Any destructive DB operation
+* `git push` (any form).
+* `git add -A`.
+* Editing files in BOTH apps in one session.
+* Database migrations (apply scripts).
+* Changes to Railway environment variables, SMS routing, payment/Stripe logic, or auth/middleware.
+* Any destructive DB operation.
 
 ### 🚫 Never Do
-
-- `git push --force`
-- `git push --no-verify` (without written justification)
-- Write secrets into any file
-- Run migrations with `--accept-data-loss`
-- Touch `.env` files (read `.env.example` instead)
+* `git push --force` or `git push --no-verify`.
+* Write secrets into any file or commit logs.
+* Run migrations with `--accept-data-loss`.
+* Touch `.env` files (read `.env.example` instead).
 
 ---
 
-## 5. Secrets Policy for Antigravity Sessions
+## 7. Decision Log Requirement
 
-```
-NEVER read:   .env  .env.local  .env.production  .env.*.local
-NEVER log:    API keys · tokens · Railway env vars · DB connection strings
-NEVER write:  Secrets into docs, comments, commit messages, logs
-
-SAFE to read: .env.example  (contract reference only — no real values)
-SAFE to ask:  "What env var is needed for X?" → document it, don't read the value
-```
-
----
-
-## 6. Windows / Shell Gotchas
-
-These are documented in `CLAUDE.md` but critical for Antigravity's PowerShell environment:
-
-```powershell
-# Shell cwd resets to C:\ between calls — always prefix bash commands:
-cd [REPO_ROOT]/apps/nickstire && pnpm test
-
-# PowerShell is unreliable for some operations — prefer bash/sh via Git Bash
-# For scripts: use .bat (cmd.exe) or explicit bash.exe
-
-# OOM risk on this machine:
-# Run vitest with: pnpm exec vitest run --pool=forks --poolOptions.forks.singleFork=true
-# Don't run both apps' dev servers + test suites simultaneously
-
-# Unicode in Edit tool (old_string) often fails to match — use ASCII-only anchors
-```
-
----
-
-## 7. iOS PWA Rule (Both Apps)
-
-Both `nickstire.org` and `bdnick.info` run as **standalone iOS PWAs** on the operator's phone.
-
-```
-window.confirm()   ← SILENTLY SUPPRESSED on iOS standalone PWA
-window.alert()     ← SILENTLY SUPPRESSED on iOS standalone PWA  
-window.prompt()    ← SILENTLY SUPPRESSED on iOS standalone PWA
-
-Use instead: in-DOM confirm components (two-tap inline confirm)
-Skill reference: nickstire-ios-pwa-primitives
-```
-
----
-
-## 8. Push Protocol
-
-**Always use the push script:**
-
-```bash
-bash ~/push-main.sh
-# Does: git fetch origin → rebase → turbo affected-build gate → push
-# Auto-recovers from ref-lock races (concurrent session pushing)
-```
-
-**Before running push-main.sh, verify:**
-
-```bash
-git log origin/main..HEAD   # confirm what's riding along
-git diff --stat HEAD        # confirm only your files changed
-```
-
----
-
-## 9. Commit Message Format
-
-Both apps follow the same format:
-
-```
-<type> · <app> · <one-line summary>
-
-<context paragraph: what triggered this, what was broken>
-
-<implementation: files touched, how the fix works>
-
-Verification:
-- pnpm typecheck → 0 errors
-- pnpm test → N tests, all pass
-- turbo build → green
-
-Co-Authored-By: <model name> <noreply@...>
-```
-
-Types: `fix` `feat` `docs` `chore` `refactor` `perf`  
-Scope: `nickstire` or `statenour`
-
----
-
-## 10. Cron and Inngest Safety
-
-Statenour uses Inngest for durable workflows. Nickstire uses Drizzle-backed crons.
-
-```
-NEVER:  Add a cron without registering it in config/crons.ts (statenour)
-NEVER:  Remove a cron without verifying it has no callers (pnpm check:crons)
-ALWAYS: Confirm CRON_SECRET is set on Railway before a new cron can fire
-ALWAYS: For statenour, run `pnpm check:crons` after any cron changes
-```
-
----
-
-## 11. The 5 Lies to Watch Out For
-
-From `apps/statenour/docs/AGENT-CONTRACT.md` — applies to all agents here:
-
-1. **"It probably works, I don't need to test."** Run the tests.
-2. **"The orphan detection script said this is dead."** Search the base name across all files first.
-3. **"This warning doesn't matter."** It'll be 300 warnings by next week.
-4. **"I'll just fix this one thing before the plan."** No. Update the plan first.
-5. **"Nour won't care about this detail."** He will.
-
----
-
-*Update this file after major platform changes or new safety rules. Last updated: 2026-06-10.*
+For every major architectural change or strategic choice, append to `docs/operations/11-DECISION-LOG.md` using the standard decision template.
