@@ -1259,6 +1259,76 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
       },
     };
   },
+
+  // ─── Instagram Autopost ──────────────────────────────────────────
+  "instagram_autopost_status": async () => {
+    const { isEnabled } = await import("../services/featureFlags");
+    const { getDb } = await import("../db");
+    const { igAutopostLog } = await import("../../drizzle/schema");
+    const { desc } = await import("drizzle-orm");
+    
+    const db = await getDb();
+    const livePostingEnabled = await isEnabled("legacy_autopost_live");
+    
+    let latestLogs: any[] = [];
+    if (db) {
+      latestLogs = await db
+        .select({
+          id: igAutopostLog.id,
+          archetype: igAutopostLog.archetype,
+          conceptKey: igAutopostLog.conceptKey,
+          status: igAutopostLog.status,
+          caption: igAutopostLog.caption,
+          imageUrl: igAutopostLog.imageUrl,
+          overallScore: igAutopostLog.overallScore,
+          source: igAutopostLog.source,
+          createdAt: igAutopostLog.createdAt,
+          error: igAutopostLog.error,
+        })
+        .from(igAutopostLog)
+        .orderBy(desc(igAutopostLog.createdAt))
+        .limit(5);
+    }
+    
+    return {
+      livePostingEnabled,
+      latestLogs,
+    };
+  },
+
+  "instagram_autopost_run": async (filters) => {
+    const { runIgAutopost } = await import("../services/igAutopost");
+    const { isEnabled, setFlag } = await import("../services/featureFlags");
+    
+    const dryRun = filters.dryRun !== false;
+    const forceArchetype = filters.forceArchetype as any;
+    
+    const initialFlag = await isEnabled("legacy_autopost_live");
+    
+    if (!initialFlag && !dryRun) {
+      await setFlag("legacy_autopost_live", true);
+    }
+    
+    try {
+      const result = await runIgAutopost({
+        dryRun,
+        forceArchetype,
+        source: "admin",
+      });
+      return result;
+    } finally {
+      if (!initialFlag && !dryRun) {
+        await setFlag("legacy_autopost_live", false);
+      }
+    }
+  },
+
+  "instagram_autopost_set_config": async (filters) => {
+    const { setFlag } = await import("../services/featureFlags");
+    const enabled = filters.enabled === true;
+    await setFlag("legacy_autopost_live", enabled);
+    return { success: true, livePostingEnabled: enabled };
+  },
 };
 
 export function registerNourOsQueryRoute(app: Express): void {

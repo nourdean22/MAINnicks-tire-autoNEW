@@ -167,7 +167,7 @@ function toolsBlock(): string {
     // (respondToLead retired Apr 18; getRevenuePace/getRevenueAging/
     // getCustomerLTV were never built — advertising uncallable tools
     // is fabrication bait).
-    "Tools are attached per-turn with full schemas. Frequent ones: setMit, createTask, completeTask, scheduleFollowUp, triageStaleLead, getBlindSpots, rankNextActions, findCustomer, classifyThought, renderInlineChart, composeEmail.",
+    "Tools are attached per-turn with full schemas. Frequent ones: setMit, createTask, completeTask, scheduleFollowUp, triageStaleLead, getBlindSpots, rankNextActions, findCustomer, classifyThought, renderInlineChart, composeEmail, triggerInstagramAutopost, getInstagramAutopostStatus, setInstagramAutopostConfig.",
     "",
     "**NL shortcuts** (server-intercepted — don't try to handle these yourself, they bypass the model):",
     "- image generation (\"draw X\", \"make me an image of...\")",

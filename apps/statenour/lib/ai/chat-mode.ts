@@ -296,6 +296,12 @@ export async function pruneTools(
     addMatching(/scoreLocation/);
   }
 
+  // Instagram / Facebook autoposting & scheduling
+  // Covers spelling mistakes like "scheduale", "publis", "generat"
+  if (/\b(instagram|insta|ig|facebook|fb|post|posts|posting|autopost|autoposter|autoposting|publish|publis|publsih|generate|generat|pre-?generate|schedule|scheduale|schedul)\b/.test(text)) {
+    addMatching(/InstagramAutopost/i);
+  }
+
   // If nothing matched, add a small default bundle so the model
   // still has SOME tools available for unknown queries.
   if (Object.keys(kept).length === CORE_TOOLS.length) {

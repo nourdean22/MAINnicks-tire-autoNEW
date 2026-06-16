@@ -153,7 +153,7 @@ export function renderToolsCatalog(): string[] {
   p.push(`  getDecisionReplays · reviewDecisionReplay · syncDriveMemory`);
   p.push(``);
   p.push(`CROSS-RING (Nick's Tire business):`);
-  p.push(`  queryNickstire · compareLiveRevenue`);
+  p.push(`  queryNickstire · compareLiveRevenue · triggerInstagramAutopost · getInstagramAutopostStatus · setInstagramAutopostConfig`);
   p.push(``);
   // v10.0.389 · research-tool selection guidance. (2026-06-10: the
   // separate STRATEGIC INTELLIGENCE name list was merged in here —
