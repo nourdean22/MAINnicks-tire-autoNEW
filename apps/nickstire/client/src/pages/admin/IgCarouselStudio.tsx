@@ -104,9 +104,17 @@ export default function IgCarouselStudio() {
 
   const generateImagesMutation = trpc.contentAdmin.generateCarouselImages.useMutation({
     onSuccess: (res) => {
-      if (res.success && res.imageUrls) {
-        setGeneratedImages(res.imageUrls);
-        toast.success("Slide images generated successfully!");
+      if (res.success) {
+        if (res.imageUrls && res.imageUrls.length > 0) {
+          setGeneratedImages(res.imageUrls);
+        }
+        if (res.warning) {
+          toast.warning(`Slide images generated with warnings: ${res.warning}`, { duration: 8000 });
+        } else {
+          toast.success("Slide images generated successfully!");
+        }
+      } else {
+        toast.error(`Image generation failed: ${res.error || "Unknown error occurred"}`);
       }
     },
     onError: (err) => {

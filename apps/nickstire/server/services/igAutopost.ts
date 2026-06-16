@@ -764,7 +764,18 @@ export async function generatePostImage(prompt: string): Promise<{ url: string; 
 
   let pngUrl: string;
   if (provider === "higgsfield") {
-    pngUrl = await generatePostImageHiggsfield(prompt);
+    try {
+      pngUrl = await generatePostImageHiggsfield(prompt);
+    } catch (err) {
+      log.warn("Higgsfield image generation failed, falling back to openai provider", {
+        err: err instanceof Error ? err.message : String(err),
+        prompt
+      });
+      const { generateImage } = await import("../_core/imageGeneration");
+      const res = await generateImage({ prompt });
+      if (!res.url) throw new Error("Fallback image generation (openai) returned no url");
+      pngUrl = res.url;
+    }
   } else {
     const { generateImage } = await import("../_core/imageGeneration");
     const res = await generateImage({ prompt });
