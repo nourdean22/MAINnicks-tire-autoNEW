@@ -1,8 +1,6 @@
 "use client";
 
 import { ActionClaimWarning } from "@/components/chat/action-claim-warning";
-import { LaneCorrectionChip } from "@/components/chat/lane-correction-chip";
-import { SmartReplies } from "@/components/chat/smart-replies";
 import { extractMessageText } from "@/lib/chat/extract-message-text";
 
 /**
@@ -68,19 +66,6 @@ export function SmartRepliesCluster({
           hidden={!inputIsEmpty}
         />
       )}
-      <LaneCorrectionChip
-        messageId={last.id}
-        userMessage={userText}
-        assistantMessage={assistantText}
-        hidden={!inputIsEmpty}
-      />
-      <SmartReplies
-        messageId={last.id}
-        userMessage={userText}
-        assistantMessage={assistantText}
-        hidden={!inputIsEmpty}
-        onPick={onPick}
-      />
     </>
   );
 }
