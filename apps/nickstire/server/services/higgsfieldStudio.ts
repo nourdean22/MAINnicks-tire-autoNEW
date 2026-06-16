@@ -1,27 +1,11 @@
 import { spawn } from "child_process";
-import { createRequire } from "module";
 import fs from "fs";
 import path from "path";
 import os from "os";
 import { createLogger } from "../lib/logger";
+import { ensureHiggsfieldBinary } from "./higgsfieldBinary";
 
 const log = createLogger("services:higgsfield-studio");
-
-function getCliPath(): string {
-  try {
-    const require = createRequire(import.meta.url);
-    return require.resolve("@higgsfield/cli/bin/higgsfield.js");
-  } catch (err) {
-    // Fallback search in pnpm node_modules structure
-    const pnpmPath = path.resolve(
-      "c:/Users/nourd/NOURCITY/node_modules/.pnpm/@higgsfield+cli@0.2.2/node_modules/@higgsfield/cli/bin/higgsfield.js"
-    );
-    if (fs.existsSync(pnpmPath)) {
-      return pnpmPath;
-    }
-    throw new Error("Higgsfield CLI not found. Make sure @higgsfield/cli is installed.");
-  }
-}
 
 function getSpawnEnv(): { env: NodeJS.ProcessEnv; tempCredsFile: string | null } {
   const spawnEnv: NodeJS.ProcessEnv = { ...process.env };
@@ -80,16 +64,15 @@ function parseResultUrl(stdout: string): string {
  * Generate a single image using gpt_image_2 model
  */
 export async function generateCarouselSlideImage(prompt: string): Promise<string> {
-  const cliJsPath = getCliPath();
+  const binPath = await ensureHiggsfieldBinary();
   const { env, tempCredsFile } = getSpawnEnv();
 
   log.info("Generating slide image via Higgsfield...", { prompt });
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(
-      process.execPath,
+      binPath,
       [
-        cliJsPath,
         "generate",
         "create",
         "gpt_image_2",
@@ -102,7 +85,13 @@ export async function generateCarouselSlideImage(prompt: string): Promise<string
         "--wait",
         "--json"
       ],
-      { env }
+      {
+        env: {
+          ...env,
+          HIGGSFIELD_INSTALL_METHOD: "npm",
+          HIGGSFIELD_PACKAGE_MANAGER: "pnpm",
+        }
+      }
     );
 
     let stdout = "";
@@ -136,16 +125,15 @@ export async function generateCarouselSlideImage(prompt: string): Promise<string
  * Generate a 5-second video clip using wan2_6 model
  */
 export async function generateReelClipVideo(prompt: string): Promise<string> {
-  const cliJsPath = getCliPath();
+  const binPath = await ensureHiggsfieldBinary();
   const { env, tempCredsFile } = getSpawnEnv();
 
   log.info("Generating Reel clip video via Higgsfield...", { prompt });
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(
-      process.execPath,
+      binPath,
       [
-        cliJsPath,
         "generate",
         "create",
         "wan2_6",
@@ -158,7 +146,13 @@ export async function generateReelClipVideo(prompt: string): Promise<string> {
         "--wait",
         "--json"
       ],
-      { env }
+      {
+        env: {
+          ...env,
+          HIGGSFIELD_INSTALL_METHOD: "npm",
+          HIGGSFIELD_PACKAGE_MANAGER: "pnpm",
+        }
+      }
     );
 
     let stdout = "";
