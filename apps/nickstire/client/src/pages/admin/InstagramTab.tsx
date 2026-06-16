@@ -18,8 +18,11 @@ import {
   Instagram, Loader2, RefreshCw, AlertTriangle, CheckCircle2, KeyRound,
   TrendingUp, TrendingDown, Minus, Clock, BarChart3, Trophy, ExternalLink,
   Wand2, Heart, MessageCircle, Send, ShieldCheck, Sparkles,
+  Camera, Lock, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Panel } from "./shared";
+import IgAutopostPanel from "./settings/IgAutopostPanel";
+import DraftBoardPanel from "./DraftBoardPanel";
 import { trpc } from "@/lib/trpc";
 import { checkReviewReply } from "@shared/reviewReplyQa";
 
@@ -40,8 +43,16 @@ function Bool({ value, trueLabel, falseLabel, trueIsBad = false }: {
 const MODE_CLS = {
   "read-only": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   "db-only": "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "copy-only": "bg-blue-500/10 text-blue-400 border-blue-500/20",
   live: "bg-pink-500/10 text-pink-400 border-pink-500/20",
 } as const;
+
+const SUBTABS = [
+  { id: "inbox", label: "Inbox", Icon: MessageCircle },
+  { id: "create", label: "Create", Icon: Wand2 },
+  { id: "analytics", label: "Analytics", Icon: BarChart3 },
+  { id: "settings", label: "Settings", Icon: KeyRound },
+] as const;
 
 function ModeBadge({ mode }: { mode: keyof typeof MODE_CLS }) {
   return (
@@ -52,21 +63,109 @@ function ModeBadge({ mode }: { mode: keyof typeof MODE_CLS }) {
 }
 
 export default function InstagramTab() {
+  const [sub, setSub] = useState<(typeof SUBTABS)[number]["id"]>("inbox");
   return (
     <div className="space-y-4">
       <div className="border border-pink-500/40 bg-pink-500/10 rounded p-3 text-xs text-pink-200 flex items-start gap-2">
         <Instagram className="w-4 h-4 shrink-0 mt-0.5 text-pink-400" />
         <span>
-          <strong>Instagram command center.</strong> Connection health, content
-          analytics, and (below) the AI co-pilot + comment moderation for
-          @nicks_tire_euclid. Drafting rich carousels/reels still lives in the{" "}
-          <strong>Social Studios</strong> tab — this is account management + quick actions.
+          <strong>Instagram command center for @nicks_tire_euclid.</strong> Everything in one place —
+          reply to comments (Inbox), generate and plan content (Create), read performance
+          (Analytics), manage the connection (Settings). Nothing here posts autonomously; every
+          external action is an explicit, claim-safe owner action.
         </span>
       </div>
-      <ConnectionPanel />
-      <CommentsPanel />
+
+      <div className="flex flex-wrap gap-1.5">
+        {SUBTABS.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setSub(s.id)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold rounded border transition-colors ${
+              sub === s.id ? "bg-primary/15 text-primary border-primary/40" : "text-foreground/50 border-border/30 hover:text-foreground/80"
+            }`}
+          >
+            <s.Icon className="w-3.5 h-3.5" />{s.label}
+          </button>
+        ))}
+      </div>
+
+      <div>
+        {sub === "inbox" && <CommentsPanel />}
+        {sub === "create" && <CreateSection />}
+        {sub === "analytics" && <AnalyticsPanel />}
+        {sub === "settings" && <ConnectionPanel />}
+      </div>
+    </div>
+  );
+}
+
+/* ── Create: AI co-pilot + content studios (folded in from Social Studios) ── */
+
+function CreateSection() {
+  const [showLegacy, setShowLegacy] = useState(false);
+  return (
+    <div className="space-y-4">
       <CopilotPanel />
-      <AnalyticsPanel />
+
+      <Panel title="Content draft board" icon={<Sparkles className="w-4 h-4 text-primary" />}>
+        <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2 mb-4">
+          <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
+          <span>
+            <strong>Editorial planner:</strong> plan, schedule, and safety-check Carousel and Reels
+            drafts. All external publishing steps are manual and claim-safe.
+          </span>
+        </div>
+        <DraftBoardPanel />
+      </Panel>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a href="/admin/ig-studio" className="block bg-card border border-border/30 rounded-lg p-4 hover:border-primary/40 transition-colors">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <span className="text-sm font-bold text-foreground">IG Carousel Intelligence Studio</span>
+              <ModeBadge mode="copy-only" />
+            </div>
+            <ExternalLink className="w-4 h-4 text-foreground/40" />
+          </div>
+          <p className="text-[11px] text-foreground/60 mt-1.5 leading-relaxed">
+            Generate carousel concepts, slide copy, and captions for @nicks_tire_euclid —
+            then post them manually from your phone.
+          </p>
+        </a>
+        <a href="/admin/reel-studio" className="block bg-card border border-border/30 rounded-lg p-4 hover:border-primary/40 transition-colors">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Camera className="w-4 h-4 text-primary" />
+              <span className="text-sm font-bold text-foreground">Faceless Reel Intelligence Studio</span>
+              <ModeBadge mode="copy-only" />
+            </div>
+            <ExternalLink className="w-4 h-4 text-foreground/40" />
+          </div>
+          <p className="text-[11px] text-foreground/60 mt-1.5 leading-relaxed">
+            Plan faceless reels (hooks, shot lists, captions) — generation, publishing,
+            and insights stay disabled by design; you shoot and post manually.
+          </p>
+        </a>
+      </div>
+
+      <div className="border border-border/30 rounded bg-background/20 p-4">
+        <button onClick={() => setShowLegacy(!showLegacy)} className="flex items-center justify-between w-full text-left">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-foreground/50" />
+            <span className="text-sm font-bold text-foreground">Legacy Automation</span>
+          </div>
+          <span className="text-xs text-foreground/50 flex items-center gap-1">
+            {showLegacy ? (<>Collapse <ChevronUp className="w-3.5 h-3.5" /></>) : (<>Expand <ChevronDown className="w-3.5 h-3.5" /></>)}
+          </span>
+        </button>
+        {showLegacy && (
+          <div className="mt-4 border-t border-border/10 pt-4">
+            <IgAutopostPanel />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
