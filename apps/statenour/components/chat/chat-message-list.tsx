@@ -315,7 +315,6 @@ export function ChatMessageList({
                             model={extractModel(msg)}
                             messageId={msg.id}
                             conversationId={activeId ?? undefined}
-                            onFork={msg.id && activeId ? () => handleFork(msg.id!) : undefined}
                           />
                           </AssistantMessageShell>
                         ) : editingMsgId === msg.id ? (

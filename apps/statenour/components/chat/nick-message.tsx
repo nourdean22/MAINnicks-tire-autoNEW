@@ -30,7 +30,6 @@ import { alreadyHasGeneratedImage, looksLikeMarketingContent } from "@/lib/chat/
 import { trpc } from "@/lib/trpc/client";
 import { InlineChart, parseChartSpec } from "@/components/chat/inline-chart";
 import { EmailDraftCard, parseEmailDraft } from "@/components/chat/email-draft-card";
-import { ReasoningTrace } from "@/components/chat/reasoning-trace";
 import { ImageWithUpscale } from "@/components/chat/image-with-upscale";
 
 // v10.0.49 · Helper for the rich-render <pre> intercept. Streamdown
@@ -86,8 +85,6 @@ interface NickMessageProps {
   timing?: MessageTiming;
   /** Whether to render the timing ribbon when timing is provided. */
   showTiming?: boolean;
-  /** Fork button (#4) — provided by the chat page. */
-  onFork?: () => void;
   /** Message ID for feedback tracking */
   messageId?: string;
   /**
@@ -110,7 +107,6 @@ export function NickMessage({
   streaming = false,
   timing,
   showTiming = false,
-  onFork,
   messageId,
   conversationId,
   model,
@@ -338,15 +334,7 @@ export function NickMessage({
               {qa.label}
             </button>
           ))}
-          {onFork && (
-            <button
-              onClick={onFork}
-              className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-violet-500/40 hover:text-violet-300 transition-all"
-              title="Fork conversation from this point"
-            >
-              ⑂ Fork
-            </button>
-          )}
+
         </div>
       )}
 
@@ -357,9 +345,7 @@ export function NickMessage({
           conversationId so the by-message route can fall back to
           latest-assistant when the SDK-minted msg.id doesn't match
           the DB cuid yet (fresh-stream timing). */}
-      {!streaming && messageId && clean.length > 10 && (
-        <ReasoningTrace messageId={messageId} conversationId={conversationId} />
-      )}
+
 
       {showTiming && timing && timing.endedAt && (
         <div className="flex items-center gap-2 mt-1.5 pt-1 border-t border-[var(--border-default)]/30 text-[8px] font-mono text-[var(--text-tertiary)] tabular-nums">
@@ -472,11 +458,7 @@ function detectQuickActions(text: string): QuickAction[] {
   if (lower.includes("decision") || lower.includes("choose") || lower.includes("should i")) {
     actions.push({ label: "Log this decision", prompt: "Log this decision in my decision journal with the reasoning" });
   }
-  // General — always offer a deeper dig
-  if (actions.length === 0) {
-    actions.push({ label: "Tell me more", prompt: "Expand on that — give me the data behind it" });
-    actions.push({ label: "What am I missing?", prompt: "What am I missing that I should know about right now?" });
-  }
+
 
   return actions.slice(0, 3);
 }

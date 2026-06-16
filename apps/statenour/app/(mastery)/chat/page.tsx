@@ -393,6 +393,20 @@ function Chat() {
   // the hook.
   const { timingRef, showSpeedRibbon, setShowSpeedRibbon } = useChatSpeedRibbon();
 
+  // Telemetry Bar (ConversationPulse) state persisted in localStorage
+  const [showConversationPulse, setShowConversationPulseState] = useState(false);
+  useEffect(() => {
+    try {
+      setShowConversationPulseState(localStorage.getItem("nour:chat:show-pulse") === "1");
+    } catch {}
+  }, []);
+  const setShowConversationPulse = useCallback((next: boolean) => {
+    setShowConversationPulseState(next);
+    try {
+      localStorage.setItem("nour:chat:show-pulse", next ? "1" : "0");
+    } catch {}
+  }, []);
+
   // ── Optimistic prefetch: warm the lambda while user is typing.
   // Debounced 300ms, min 8 chars, min 2s between fires. Zero cost
   // to the UI — pure background warmup for first-token speed. ──
@@ -1898,6 +1912,8 @@ function Chat() {
         onToggleAmbient={ambient.toggle}
         showSpeedRibbon={showSpeedRibbon}
         onToggleSpeedRibbon={() => setShowSpeedRibbon(!showSpeedRibbon)}
+        showConversationPulse={showConversationPulse}
+        onToggleConversationPulse={() => setShowConversationPulse(!showConversationPulse)}
         providerOverride={overrides.provider}
         onCycleProvider={() =>
           setOverrides((o) => {
@@ -1945,7 +1961,7 @@ function Chat() {
           telemetry from the active conversation. Sparkline + cost
           counter + provider badge. Silent when there's no telemetry
           (legacy convs without Batch A data). */}
-      {!isEmpty && (
+      {!isEmpty && showConversationPulse && (
         // v10.0.529.54 · cut AiPulse Spline mesh · audit flagged as
         // pure vanity (data props default-on · not wired to real
         // provider/latency · burns a WebGL context on every chat open).
@@ -2459,6 +2475,7 @@ function Chat() {
         onSaveToBrain={() => { if (actionSheetMsg) nickMessageActions.onSaveToBrain(actionSheetMsg.text); }}
         onPinToPrompt={() => { if (actionSheetMsg) nickMessageActions.onPinToMemory(actionSheetMsg.text); }}
         onFeedback={(positive) => { if (actionSheetMsg) postFeedback({ messageId: actionSheetMsg.id, positive, snippet: actionSheetMsg.text, conversationId: activeId }); }}
+        onFork={actionSheetMsg ? () => handleFork(actionSheetMsg.id) : undefined}
       />
 
       {/* v10.0.360 · BDI reasoning trace modal · "show reasoning"
