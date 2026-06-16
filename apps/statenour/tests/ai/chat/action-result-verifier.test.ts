@@ -20,7 +20,7 @@ import { describe, it, expect } from "vitest";
 import {
   detectFailedActionClaims,
   MUTATION_ACTIONS,
-} from "@/lib/ai/chat/action-result-verifier";
+} from "../../../lib/ai/chat/action-result-verifier";
 
 const FAIL = (action: string, error = "boom") => ({ action, success: false, error });
 const OK = (action: string) => ({ action, success: true });
@@ -77,7 +77,7 @@ describe("detectFailedActionClaims", () => {
       "Added the task and sent you a push notification.",
     );
     expect(claims).toHaveLength(2);
-    const verbs = claims.map((c) => c.verb).sort();
+    const verbs = claims.map((c: any) => c.verb).sort();
     expect(verbs).toEqual(["task.create", "telegram.send"]);
   });
 

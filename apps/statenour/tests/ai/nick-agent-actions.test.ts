@@ -28,9 +28,9 @@ vi.mock("@/lib/brain/pipeline-controller", () => ({
   feedbackLoop: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { parseActions, executeActions } from "@/lib/ai/nick-agent";
-import * as googleHandlers from "@/lib/ai/agent-actions/google-actions";
-import * as arsenalHandlers from "@/lib/ai/agent-actions/arsenal-actions";
+import { parseActions, executeActions } from "../../lib/ai/nick-agent";
+import * as googleHandlers from "../../lib/ai/agent-actions/google-actions";
+import * as arsenalHandlers from "../../lib/ai/agent-actions/arsenal-actions";
 
 beforeEach(() => {
   vi.clearAllMocks();
