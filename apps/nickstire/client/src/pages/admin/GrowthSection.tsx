@@ -16,11 +16,10 @@
 import { useState } from "react";
 import {
   TrendingUp, MapPin, Star, MessageCircleQuestion, Camera, Building2,
-  Swords, Sparkles, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
-  ExternalLink, RefreshCw, Lock, ChevronDown, ChevronUp,
+  Swords, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
+  RefreshCw, Lock, Instagram,
 } from "lucide-react";
-import IgAutopostPanel from "./settings/IgAutopostPanel";
-import DraftBoardPanel from "./DraftBoardPanel";
+import InstagramTab from "./InstagramTab";
 import { Section, Panel } from "./shared";
 import { TabBar } from "./shared/table";
 import { trpc } from "@/lib/trpc";
@@ -35,7 +34,7 @@ import {
 } from "@/lib/competitorGbpMonitor";
 import { RANK_KEYWORDS } from "@/lib/localRankKeywords";
 
-type GrowthTab = "local" | "reviews" | "qa" | "photos" | "entity" | "competitors" | "studios";
+type GrowthTab = "local" | "reviews" | "qa" | "photos" | "entity" | "competitors" | "instagram";
 
 const GROWTH_TABS: { id: GrowthTab; label: string; icon: React.ReactNode }[] = [
   { id: "local", label: "Local Growth", icon: <MapPin className="w-3.5 h-3.5" /> },
@@ -44,7 +43,7 @@ const GROWTH_TABS: { id: GrowthTab; label: string; icon: React.ReactNode }[] = [
   { id: "photos", label: "Photo Queue", icon: <Camera className="w-3.5 h-3.5" /> },
   { id: "entity", label: "Entity / Brand", icon: <Building2 className="w-3.5 h-3.5" /> },
   { id: "competitors", label: "Competitors", icon: <Swords className="w-3.5 h-3.5" /> },
-  { id: "studios", label: "Social Studios", icon: <Sparkles className="w-3.5 h-3.5" /> },
+  { id: "instagram", label: "Instagram", icon: <Instagram className="w-3.5 h-3.5" /> },
 ];
 
 type Mode = "read-only" | "copy-only" | "manual" | "db-only";
@@ -111,7 +110,7 @@ export default function GrowthSection() {
         {tab === "photos" && <PhotoQueueTab />}
         {tab === "entity" && <EntityTab />}
         {tab === "competitors" && <CompetitorsTab />}
-        {tab === "studios" && <StudiosTab />}
+        {tab === "instagram" && <InstagramTab />}
       </div>
     </Section>
   );
@@ -639,95 +638,6 @@ function CompetitorsTab() {
           those snapshots is the documented next step.
         </p>
       </Panel>
-    </div>
-  );
-}
-
-/* ── Social Studios ───────────────────────────────────────────── */
-
-function StudiosTab() {
-  const [showLegacy, setShowLegacy] = useState(false);
-
-  return (
-    <div className="space-y-6">
-      {/* 1. Content Calendar & Draft Board */}
-      <Panel title="Unified Content Draft Board" icon={<Sparkles className="w-4 h-4 text-primary" />}>
-        <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2 mb-4">
-          <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
-          <span>
-            <strong>Editorial Planner:</strong> Plan, schedule, and safety-check Carousel and Reels drafts. 
-            All external publishing steps are manual and claim-safe.
-          </span>
-        </div>
-        <DraftBoardPanel />
-      </Panel>
-
-      {/* 2. Studio Launch Shortcuts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <a
-          href="/admin/ig-studio"
-          className="block bg-card border border-border/30 rounded-lg p-4 hover:border-primary/40 transition-colors"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm font-bold text-foreground">IG Carousel Intelligence Studio</span>
-              <ModeBadge mode="copy-only" />
-            </div>
-            <ExternalLink className="w-4 h-4 text-foreground/40" />
-          </div>
-          <p className="text-[11px] text-foreground/60 mt-1.5 leading-relaxed">
-            Generate carousel concepts, slide copy, and captions for @nicks_tire_euclid —
-            then post them manually from your phone.
-          </p>
-        </a>
-        <a
-          href="/admin/reel-studio"
-          className="block bg-card border border-border/30 rounded-lg p-4 hover:border-primary/40 transition-colors"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Camera className="w-4 h-4 text-primary" />
-              <span className="text-sm font-bold text-foreground">Faceless Reel Intelligence Studio</span>
-              <ModeBadge mode="copy-only" />
-            </div>
-            <ExternalLink className="w-4 h-4 text-foreground/40" />
-          </div>
-          <p className="text-[11px] text-foreground/60 mt-1.5 leading-relaxed">
-            Plan faceless reels (hooks, shot lists, captions) — generation, publishing,
-            and insights stay disabled by design; you shoot and post manually.
-          </p>
-        </a>
-      </div>
-
-      {/* Collapsible Legacy Automation Section */}
-      <div className="border border-border/30 rounded bg-background/20 p-4">
-        <button
-          onClick={() => setShowLegacy(!showLegacy)}
-          className="flex items-center justify-between w-full text-left"
-        >
-          <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-foreground/50" />
-            <span className="text-sm font-bold text-foreground">Legacy Automation</span>
-          </div>
-          <span className="text-xs text-foreground/50 flex items-center gap-1">
-            {showLegacy ? (
-              <>
-                Collapse <ChevronUp className="w-3.5 h-3.5" />
-              </>
-            ) : (
-              <>
-                Expand <ChevronDown className="w-3.5 h-3.5" />
-              </>
-            )}
-          </span>
-        </button>
-        {showLegacy && (
-          <div className="mt-4 border-t border-border/10 pt-4">
-            <IgAutopostPanel />
-          </div>
-        )}
-      </div>
     </div>
   );
 }

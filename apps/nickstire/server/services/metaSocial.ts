@@ -11,7 +11,10 @@
  *   POST /{page-id}/feed → post ID
  *
  * Required env vars:
- *   META_PAGE_ACCESS_TOKEN — Long-lived Page Access Token (pages_manage_posts, instagram_content_publish)
+ *   META_PAGE_ACCESS_TOKEN — Long-lived Page Access Token (pages_manage_posts,
+ *     instagram_content_publish, instagram_manage_comments — the last is
+ *     required for getMediaComments/replyToComment; without it the Graph API
+ *     returns 403 on the comment edges even though posting still works)
  *   META_PAGE_ID — Facebook Page ID
  *   META_IG_USER_ID — Instagram Business Account ID (linked to FB page)
  */
@@ -534,4 +537,113 @@ export async function socialPost(params: {
   }
 
   return { results };
+}
+
+// ─── Comment Moderation (read + reply) ────────────────
+// Live Graph reads/writes for the admin Instagram console. The 4 fetch
+// helpers the original plan wanted to ADD already exist as cache readers
+// (server/instagram.ts getInstagramPosts/getInstagramAccount); only the
+// comment-moderation pair is genuinely new, and it belongs here next to
+// the token + Graph plumbing it depends on.
+
+export interface IgComment {
+  id: string;
+  text: string;
+  username: string;
+  timestamp: string;
+  likeCount: number;
+}
+
+/**
+ * Fetch recent comments on one of our own IG media objects.
+ * Read-only. Returns ok:false (never throws) so the router/UI can render
+ * a clear "not configured / Graph error" state instead of a 500.
+ */
+export async function getMediaComments(
+  mediaId: string,
+): Promise<{ ok: boolean; comments: IgComment[]; error?: string }> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  if (!token) {
+    return { ok: false, comments: [], error: "Instagram not configured (need META_PAGE_ACCESS_TOKEN)" };
+  }
+
+  try {
+    const url =
+      `${GRAPH_URL}/${encodeURIComponent(mediaId)}/comments` +
+      `?fields=id,text,username,timestamp,like_count&limit=50`;
+    const res = await fetch(url, {
+      headers: { "Authorization": `Bearer ${token}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      const errMsg = data?.error?.message || `HTTP ${res.status}`;
+      log.error("Instagram comments fetch failed:", { error: errMsg });
+      return { ok: false, comments: [], error: errMsg };
+    }
+
+    const rows: unknown[] = Array.isArray(data.data) ? data.data : [];
+    const comments: IgComment[] = rows.map((raw) => {
+      const c = raw as Record<string, unknown>;
+      return {
+        id: String(c.id ?? ""),
+        text: typeof c.text === "string" ? c.text : "",
+        username: typeof c.username === "string" ? c.username : "",
+        timestamp: typeof c.timestamp === "string" ? c.timestamp : "",
+        likeCount: typeof c.like_count === "number" ? c.like_count : 0,
+      };
+    });
+    return { ok: true, comments };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error("Instagram comments error:", { error: errMsg });
+    return { ok: false, comments: [], error: errMsg };
+  }
+}
+
+/**
+ * Post a reply to a specific comment on our own media. LIVE Graph write,
+ * so callers MUST claim-safety-check the message and gate it behind an
+ * explicit per-action admin confirmation (see instagramAdminRouter.postReply).
+ */
+export async function replyToComment(
+  commentId: string,
+  message: string,
+): Promise<{ success: boolean; replyId?: string; error?: string }> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  if (!token) {
+    return { success: false, error: "Instagram not configured (need META_PAGE_ACCESS_TOKEN)" };
+  }
+  const text = message.trim();
+  if (!text) return { success: false, error: "Reply message is empty" };
+
+  try {
+    const res = await fetch(`${GRAPH_URL}/${encodeURIComponent(commentId)}/replies`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ message: text }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      const errMsg = data?.error?.message || `HTTP ${res.status}`;
+      log.error("Instagram comment reply failed:", { error: errMsg });
+      return { success: false, error: errMsg };
+    }
+
+    const replyId = typeof data.id === "string" ? data.id : undefined;
+    log.info(`Instagram comment reply posted: ${replyId}`);
+    return { success: true, replyId };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error("Instagram comment reply error:", { error: errMsg });
+    return { success: false, error: errMsg };
+  }
 }
