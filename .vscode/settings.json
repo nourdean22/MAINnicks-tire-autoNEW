@@ -1,0 +1,36 @@
+{
+  // --- Formatting and Styling ---
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+  // --- ESLint Integration ---
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.workingDirectories": [
+    "./apps/nickstire",
+    "./apps/statenour",
+    "./apps/worker"
+  ],
+
+  // --- Prisma Schema Formatting ---
+  "[prisma]": {
+    "editor.defaultFormatter": "Prisma.prisma"
+  },
+
+  // --- Tailwind CSS IntelliSense ---
+  "tailwindCSS.emmetCompletions": true,
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+
+  // --- Error Lens Diagnostic Customization ---
+  "errorLens.fontStyle": "italic",
+  "errorLens.gutterIconsEnabled": true,
+  "errorLens.gutterIconSet": "emoji",
+  "errorLens.exclude": [
+    "todo",
+    "fixme"
+  ]
+}

@@ -1,0 +1,54 @@
+# NOURCITY Monorepo API Playground
+# Use this playground with the VS Code "REST Client" extension to test local services.
+# Make sure your local servers are running (e.g. pnpm run dev).
+
+@nickstire_host = http://localhost:3000
+@statenour_host = http://localhost:3001
+
+###
+# ==========================================
+# 1. Nick's Tire & Auto (Express API)
+# ==========================================
+
+### Get Active Specials / Coupons
+GET {{nickstire_host}}/api/specials
+Accept: application/json
+
+### Get Reviews / Feedbacks
+GET {{nickstire_host}}/api/reviews
+Accept: application/json
+
+### Mock SMS Incoming Message (Twilio Webhook Hook)
+POST {{nickstire_host}}/api/webhooks/twilio
+Content-Type: application/x-www-form-urlencoded
+
+Body=I need to book an oil change for tomorrow morning.&From=%2B12165550199
+
+### Check Tire Finder Results
+GET {{nickstire_host}}/api/tires/search?width=225&ratio=65&rim=17
+Accept: application/json
+
+
+###
+# ==========================================
+# 2. Statenour (Next.js & tRPC / Inngest)
+# ==========================================
+
+### Check Next.js App Status
+GET {{statenour_host}}/
+Accept: text/html
+
+### Inngest Dev Server Heartbeat
+GET {{statenour_host}}/api/inngest
+Accept: application/json
+
+### Mock Inngest Incoming Event (Triggering a Workflow)
+POST {{statenour_host}}/api/inngest
+Content-Type: application/json
+
+{
+  "name": "system/logs-cleanup",
+  "data": {
+    "dryRun": true
+  }
+}
