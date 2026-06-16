@@ -597,8 +597,8 @@ export default function Financing() {
           operator voice rules. Renamed to "Payment Programs" —
           same lender stack, same product, FCFS-affirming wording. */}
       <SEOHead
-        title="Auto Repair Payment Programs Cleveland & Euclid · Nick's"
-        description="Cleveland & Euclid auto repair payment programs. $10 down, no hard credit pull, soft check pre-qualification. Easy weekly payments. Call (216) 862-0005."
+        title="$10 Down Payment Programs Cleveland · Nick's Tire & Auto"
+        description="Get auto repairs today with $10 down. Explore flexible auto repair payment programs at Nick's Tire & Auto in Cleveland. 60-second soft check pre-qualification."
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Payment Programs", href: "/financing" }]} />

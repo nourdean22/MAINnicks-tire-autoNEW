@@ -49,7 +49,7 @@ import { recordInteraction } from "@/lib/ai/memory";
 import { messageContentToText } from "@/lib/ai/chat/message-text";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
 import { detectFailedActionClaims } from "@/lib/ai/chat/action-result-verifier";
-import { toReceipt } from "@/lib/ai/receipts/action-receipt";
+import { canClaimDone, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { emptyResponseFallback } from "@/lib/ai/chat/empty-response-fallback";
 import { processConversation } from "@/lib/brain/pipeline-controller";
 import { summarizeAndStoreConversation } from "@/lib/brain/conversation-memory";
@@ -171,6 +171,7 @@ interface DeferredBackgroundCtx {
   /** Raw stripped model text (pre-sanitize) — used for action parsing + cache warm. */
   text: string;
   messages: ReadonlyArray<unknown>;
+  createdAssistantId: string | null;
 }
 
 /**
@@ -198,10 +199,12 @@ async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
     topicTier,
     startedAt,
     userContent,
-    cleanedText,
+    cleanedText: originalCleanedText,
     text,
     messages,
+    createdAssistantId,
   } = ctx;
+  let cleanedText = originalCleanedText;
 
   // Substance gates — derived here (was passed via ctx). Same threshold
   // expressions as the original onFinish call site.
@@ -477,6 +480,79 @@ async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                     .catch(() => {}),
                 ),
             );
+
+            // Action-write verifier receipts check
+            const actionReceipts = results.map((r) => toReceipt({ toolName: r.action, ok: r.success, error: r.error }));
+            const actionVerdict = canClaimDone(actionReceipts);
+            if (!actionVerdict.ok) {
+              const marker = "[VERIFIER · v10.0.162]";
+              if (!cleanedText.startsWith(marker)) {
+                const verbs = [...new Set(actionVerdict.offenders.map((o) => o.label || o.toolName))].slice(0, 3);
+                const verbList = verbs.join(", ");
+                const banner = [
+                  `${marker} ⚠ The response below claimed action(s) (${verbList}) but tool call(s) failed. Treat the claim as **unverified**. If you want the action actually performed, ask me to retry — I'll fire the tool this time.`,
+                  "",
+                  "_Original response (unverified):_",
+                  "",
+                ].join("\n");
+                cleanedText = `${banner}${cleanedText}`;
+              }
+
+              // Log to brainMemory with key action-done-fail-${traceId}
+              await prisma.brainMemory.create({
+                data: {
+                  category: "chat_claim_warn",
+                  key: `action-done-fail-${traceId}`,
+                  content: `Action did not complete · expected tools: ${actionVerdict.offenders.map((o) => o.toolName).join(", ")}`,
+                  confidence: 0.95,
+                  source: "action-result-verifier",
+                  metadata: {
+                    conversationId: convId,
+                    traceId,
+                    offenders: actionVerdict.offenders.map((o) => ({
+                      toolName: o.toolName,
+                      status: o.status,
+                      label: o.label,
+                      errorSafeMessage: o.errorSafeMessage,
+                    })),
+                    textPreview: cleanedText.slice(0, 200),
+                  },
+                } as Parameters<typeof prisma.brainMemory.create>[0]["data"],
+              }).catch(() => undefined);
+
+              // If createdAssistantId is present, patch the database row
+              if (createdAssistantId) {
+                const existingMsg = await prisma.chatMessage.findUnique({
+                  where: { id: createdAssistantId },
+                  select: { parts: true }
+                }).catch(() => null);
+                let existingReasoningText: string | undefined;
+                if (existingMsg?.parts && Array.isArray(existingMsg.parts)) {
+                  const reasoningPart = (existingMsg.parts as any[]).find((p) => p.type === "reasoning");
+                  if (reasoningPart && typeof reasoningPart.text === "string") {
+                    existingReasoningText = reasoningPart.text;
+                  }
+                }
+                const { partsArray: patchedParts, searchableContent: patchedSearchable } =
+                  await buildMessageParts(cleanedText, existingReasoningText, true);
+                await prisma.chatMessage.update({
+                  where: { id: createdAssistantId },
+                  data: {
+                    content: cleanedText,
+                    parts: patchedParts
+                      ? (patchedParts as unknown as Parameters<typeof prisma.chatMessage.update>[0]["data"]["parts"])
+                      : undefined,
+                    searchableContent: patchedSearchable ?? undefined,
+                  },
+                }).catch((err) => {
+                  log.warn("action_receipts_rewrite_persist_failed", {
+                    conversationId: convId,
+                    messageId: createdAssistantId,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                });
+              }
+            }
 
             // Action-write verifier · the action-block analog of the
             // SDK-tool fabrication guard. executeActions runs here in
@@ -1097,6 +1173,43 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           }
         }
 
+        // Honesty Enforcement: SDK Tool Call Check
+        const receipts = capturedToolCalls.map((t) => toReceipt({ toolName: t.name, ok: t.ok }));
+        const verdict = canClaimDone(receipts);
+        if (!verdict.ok) {
+          const verbs = [...new Set(verdict.offenders.map((o) => o.label || o.toolName))].slice(0, 3);
+          const verbList = verbs.join(", ");
+          const banner = [
+            `[VERIFIER · v10.0.162] ⚠ The response below claimed action(s) (${verbList}) but tool call(s) failed. Treat the claim as **unverified**. If you want the action actually performed, ask me to retry — I'll fire the tool this time.`,
+            "",
+            "_Original response (unverified):_",
+            "",
+          ].join("\n");
+          cleanedText = `${banner}${cleanedText}`;
+
+          // Log warning to brainMemory with key sdk-fail-${traceId}
+          await prisma.brainMemory.create({
+            data: {
+              category: "chat_claim_warn",
+              key: `sdk-fail-${traceId}`,
+              content: `SDK tool call failed · expected tools: ${verdict.offenders.map((o) => o.toolName).join(", ")}`,
+              confidence: 0.95,
+              source: "action-receipt-verifier",
+              metadata: {
+                conversationId: convId,
+                traceId,
+                offenders: verdict.offenders.map((o) => ({
+                  toolName: o.toolName,
+                  status: o.status,
+                  label: o.label,
+                  errorSafeMessage: o.errorSafeMessage,
+                })),
+                textPreview: cleanedText.slice(0, 200),
+              },
+            } as Parameters<typeof prisma.brainMemory.create>[0]["data"],
+          }).catch(() => undefined);
+        }
+
         const { partsArray, searchableContent } = await buildMessageParts(
           cleanedText,
           reasoningText,
@@ -1631,6 +1744,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         cleanedText,
         text,
         messages,
+        createdAssistantId,
       });
     };
 }

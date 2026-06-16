@@ -617,18 +617,22 @@ export const journalRouter = router({
       let take: {
         idea: string | null;
         challenge: string | null;
-        nextAction: { action: string; domain: string | null } | null;
+        nextAction: { action: string; domain: string | null; nextActionPromoted?: boolean } | null;
       } | null = null;
       if (takeRow?.content) {
         try {
           const p = JSON.parse(takeRow.content) as {
             idea?: string | null;
             challenge?: string | null;
-            nextAction?: { action?: string; domain?: string | null } | null;
+            nextAction?: { action?: string; domain?: string | null; nextActionPromoted?: boolean } | null;
           };
           const na =
             p.nextAction && typeof p.nextAction.action === "string"
-              ? { action: p.nextAction.action, domain: p.nextAction.domain ?? null }
+              ? {
+                  action: p.nextAction.action,
+                  domain: p.nextAction.domain ?? null,
+                  nextActionPromoted: p.nextAction.nextActionPromoted ?? false,
+                }
               : null;
           if (p.idea || p.challenge || na)
             take = { idea: p.idea ?? null, challenge: p.challenge ?? null, nextAction: na };
@@ -797,9 +801,9 @@ export const journalRouter = router({
     for (const r of rows) {
       try {
         const p = JSON.parse(r.content) as {
-          nextAction?: { action?: string; domain?: string | null } | null;
+          nextAction?: { action?: string; domain?: string | null; nextActionPromoted?: boolean } | null;
         };
-        if (p.nextAction && typeof p.nextAction.action === "string") {
+        if (p.nextAction && typeof p.nextAction.action === "string" && p.nextAction.nextActionPromoted !== true) {
           return {
             action: p.nextAction.action,
             domain: p.nextAction.domain ?? null,
@@ -960,5 +964,105 @@ export const journalRouter = router({
     .mutation(async ({ input }) => {
       const results = await backfillJournalBrain(input);
       return { ok: true as const, dryRun: input.dryRun, results };
+    }),
+
+  /**
+   * Journal-to-Action Seam (P0) · promoteNextAction
+   *
+   * Promotes a journal next action to a real task inside the mastery system.
+   * Enforces single-execution idempotency using the nextActionPromoted flag.
+   */
+  promoteNextAction: operatorProcedure
+    .input(z.object({ entryId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const { createTask } = await import("@/lib/services/tasks");
+      const { resolveInboxMissionId, resolveGeneralAnchorId } = await import("@/lib/services/missions");
+
+      const takeRow = await prisma.brainMemory.findUnique({
+        where: {
+          category_key: {
+            category: "journal_brain_take",
+            key: `journal-take:${input.entryId}`,
+          },
+        },
+      });
+
+      if (!takeRow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Journal take not found",
+        });
+      }
+
+      let content: {
+        idea?: string | null;
+        challenge?: string | null;
+        nextAction?: { action?: string; domain?: string | null; nextActionPromoted?: boolean } | null;
+      } = {};
+
+      try {
+        content = JSON.parse(takeRow.content);
+      } catch {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Malformed journal take content",
+        });
+      }
+
+      const nextAction = content.nextAction;
+      if (!nextAction || !nextAction.action) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No next action defined in this journal take",
+        });
+      }
+
+      if (nextAction.nextActionPromoted === true) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Next action already promoted to task",
+        });
+      }
+
+      let missionId: string;
+      if (nextAction.domain) {
+        try {
+          const anchorId = await resolveGeneralAnchorId(nextAction.domain as any);
+          missionId = anchorId ?? (await resolveInboxMissionId());
+        } catch {
+          missionId = await resolveInboxMissionId();
+        }
+      } else {
+        missionId = await resolveInboxMissionId();
+      }
+
+      const task = await createTask({
+        title: nextAction.action,
+        missionId,
+        status: "INBOX",
+      });
+
+      if (!task) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create task",
+        });
+      }
+
+      nextAction.nextActionPromoted = true;
+      await prisma.brainMemory.update({
+        where: {
+          category_key: {
+            category: "journal_brain_take",
+            key: `journal-take:${input.entryId}`,
+          },
+        },
+        data: {
+          content: JSON.stringify(content),
+        },
+      });
+
+      return { ok: true, taskId: task.id };
     }),
 });
