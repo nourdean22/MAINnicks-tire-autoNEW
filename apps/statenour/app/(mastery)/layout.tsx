@@ -10,7 +10,6 @@ import { NourStateProvider } from "@/lib/state/nour-state";
 import { BrainDumpModal } from "@/components/brain-dump-modal";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { BottomPulseTicker } from "@/components/ultron/bottom-pulse-ticker";
-import { GlobalTopTicker } from "@/components/hud/global-top-ticker";
 // Phase H.2 (2026-05-18 PM) · DeepModeNudge · global watcher that
 // surfaces a tiny gold chip when the focused input matches the
 // reasoning classifier at tier ≥ deep · one-tap to /reason pre-filled.
@@ -53,7 +52,6 @@ export default function MasteryLayout({
           alerts now flow through the GlobalTopTicker; ambient brain
           signals flow through the BottomPulseTicker. /system/health
           remains the canonical surface for true incident triage. */}
-      <GlobalTopTicker />
       {/* Session-expiry pre-warning — polls /api/auth/session and
           surfaces a fixed banner 10min before expiry so mid-capture
           401s + bounce-to-sign-in don't eat work in progress. Silent
