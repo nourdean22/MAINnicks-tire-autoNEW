@@ -17,6 +17,7 @@ import { useState } from "react";
 import {
   Instagram, Loader2, RefreshCw, AlertTriangle, CheckCircle2, KeyRound,
   TrendingUp, TrendingDown, Minus, Clock, BarChart3, Trophy, ExternalLink,
+  Wand2, Heart, MessageCircle, Send, ShieldCheck, Sparkles,
 } from "lucide-react";
 import { Panel } from "./shared";
 import { trpc } from "@/lib/trpc";
@@ -61,6 +62,7 @@ export default function InstagramTab() {
         </span>
       </div>
       <ConnectionPanel />
+      <CopilotPanel />
       <AnalyticsPanel />
     </div>
   );
@@ -301,6 +303,189 @@ function AnalyticsPanel() {
           </div>
         </div>
       )}
+    </Panel>
+  );
+}
+
+/* ── AI co-pilot (generate + eval — dry-run / Telegram-preview safe) ── */
+
+const ARCHETYPES: { id: "auto" | "proof" | "anti" | "math" | "seasonal" | "question" | "process"; label: string }[] = [
+  { id: "auto", label: "Auto" },
+  { id: "proof", label: "Proof" },
+  { id: "anti", label: "Anti-promise" },
+  { id: "math", label: "Math" },
+  { id: "seasonal", label: "Seasonal" },
+  { id: "question", label: "Q&A" },
+  { id: "process", label: "Process" },
+];
+
+function scoreColor(v: number): string {
+  return v >= 0.7 ? "text-emerald-400" : v >= 0.5 ? "text-amber-400" : "text-red-400";
+}
+
+function StatusPill({ status }: { status: string }) {
+  const cls =
+    status === "posted" ? "text-emerald-400 border-emerald-500/30"
+    : status === "dryrun" ? "text-blue-400 border-blue-500/30"
+    : status === "aborted" ? "text-amber-400 border-amber-500/30"
+    : "text-red-400 border-red-500/30";
+  return <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase ${cls}`}>{status}</span>;
+}
+
+function PhoneMockup({ username, latest }: {
+  username: string;
+  latest?: { caption: string; imageUrl: string | null; status: string };
+}) {
+  return (
+    <div className="mx-auto w-full max-w-[240px] bg-black rounded-[1.4rem] border-4 border-neutral-800 overflow-hidden shadow-xl">
+      <div className="flex items-center gap-2 px-3 py-2 bg-neutral-950">
+        <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-500 to-pink-500" />
+        <span className="text-[11px] font-semibold text-white">{username}</span>
+        <span className="ml-auto text-white/40 text-xs">···</span>
+      </div>
+      <div className="aspect-square bg-neutral-900 flex items-center justify-center">
+        {latest?.imageUrl ? (
+          <img src={latest.imageUrl} alt="generated draft" className="w-full h-full object-cover" />
+        ) : (
+          <div className="text-center text-white/30 text-[10px] px-4">
+            <Instagram className="w-8 h-8 mx-auto mb-1 opacity-40" />
+            Generate a draft to preview it here
+          </div>
+        )}
+      </div>
+      <div className="px-3 py-2 bg-neutral-950 space-y-1.5">
+        <div className="flex items-center gap-3 text-white/80">
+          <Heart className="w-4 h-4" /><MessageCircle className="w-4 h-4" /><Send className="w-4 h-4" />
+        </div>
+        {latest && (
+          <p className="text-[10px] text-white/70 leading-relaxed max-h-24 overflow-hidden whitespace-pre-wrap">
+            <span className="font-semibold text-white">{username} </span>{latest.caption}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CopilotPanel() {
+  const utils = trpc.useUtils();
+  const { data: account } = trpc.instagramAdmin.getAccountInfo.useQuery();
+  const { data: recent } = trpc.instagramAdmin.getRecentGenerations.useQuery({ limit: 6 });
+  const [archetype, setArchetype] = useState<(typeof ARCHETYPES)[number]["id"]>("auto");
+  const generate = trpc.instagramAdmin.generatePost.useMutation({
+    onSuccess: () => utils.instagramAdmin.getRecentGenerations.invalidate(),
+  });
+
+  const latest = recent?.[0];
+  const username = account?.username || "nicks_tire_euclid";
+  const result = generate.data;
+  const scores = result?.scores;
+
+  return (
+    <Panel title="AI co-pilot" icon={<Wand2 className="w-4 h-4" />}>
+      <div className="flex items-center gap-2 mb-2">
+        <ModeBadge mode="db-only" />
+        <span className="text-[10px] text-foreground/40">
+          drafts + previews to Telegram — live posting stays governed by the autopost kill-switch
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
+        {ARCHETYPES.map((a) => (
+          <button
+            key={a.id}
+            onClick={() => setArchetype(a.id)}
+            className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors ${
+              archetype === a.id
+                ? "bg-primary/15 text-primary border-primary/40"
+                : "text-foreground/50 border-border/30 hover:text-foreground/80"
+            }`}
+          >
+            {a.label}
+          </button>
+        ))}
+        <button
+          onClick={() => generate.mutate(archetype === "auto" ? {} : { archetype })}
+          disabled={generate.isPending}
+          className="inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold rounded border border-primary/40 text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+        >
+          {generate.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+          {generate.isPending ? "Generating…" : "Generate"}
+        </button>
+      </div>
+
+      {result && (
+        <div className="mb-3 space-y-2">
+          <div className={`rounded p-2.5 text-[11px] flex items-start gap-2 border ${
+            result.status === "posted" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+            : result.status === "dryrun" ? "border-blue-500/40 bg-blue-500/10 text-blue-200"
+            : result.status === "aborted" ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+            : "border-red-500/40 bg-red-500/10 text-red-200"
+          }`}>
+            {result.status === "aborted" || result.status === "failed"
+              ? <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              : <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />}
+            <span>{result.details}</span>
+          </div>
+
+          {scores && (
+            <div className="bg-background/40 border border-border/30 rounded p-2.5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold text-foreground/70 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-primary" /> Score gate
+                </span>
+                <span className={`text-[11px] font-bold ${scores.passed ? "text-emerald-400" : "text-red-400"}`}>
+                  {(scores.overall * 100).toFixed(0)} {scores.passed ? "· PASS" : "· BELOW GATE"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {([
+                  ["Viral shape", scores.caption.viralShape],
+                  ["Voice", scores.caption.voice],
+                  ["Price-safe", scores.caption.priceCompliance],
+                  ["Novelty", scores.caption.novelty],
+                  ["No fabrication", scores.caption.noFabrication],
+                ] as const).map(([label, v]) => (
+                  <div key={label} className="flex items-center justify-between text-[10px]">
+                    <span className="text-foreground/50">{label}</span>
+                    <span className={scoreColor(v)}>{(v * 100).toFixed(0)}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-foreground/50">Image</span>
+                  <span className={scores.image.skipped ? "text-foreground/40" : scoreColor(scores.image.proLook ?? 0)}>
+                    {scores.image.skipped ? "skipped" : (((scores.image.proLook ?? 0)) * 100).toFixed(0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <PhoneMockup username={username} latest={latest} />
+        <div>
+          <div className="text-[11px] font-semibold text-foreground/70 mb-1.5">Recent drafts</div>
+          {!recent?.length ? (
+            <p className="text-[11px] text-foreground/40">No generations yet — pick an angle and tap Generate.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {recent.map((g) => (
+                <div key={g.id} className="flex items-center justify-between gap-2 text-[10px] bg-background/40 border border-border/30 rounded px-2 py-1.5">
+                  <span className="font-semibold text-foreground/70 capitalize truncate">{g.archetype}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {typeof g.overallScore === "number" && (
+                      <span className={scoreColor(g.overallScore / 100)}>{g.overallScore}</span>
+                    )}
+                    <StatusPill status={g.status} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </Panel>
   );
 }

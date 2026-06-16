@@ -72,5 +72,20 @@ describe("instagramAdmin router", () => {
       const caller = appRouter.createCaller(ctx("admin"));
       await expect(caller.instagramAdmin.getComments({ mediaId: "" })).rejects.toBeTruthy();
     });
+
+    it("rejects postReply with a non-numeric commentId", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(
+        caller.instagramAdmin.postReply({ commentId: "abc", message: "Thanks!" }),
+      ).rejects.toBeTruthy();
+    });
+  });
+
+  describe("getRecentGenerations (admin)", () => {
+    it("returns an array without throwing", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      const rows = await caller.instagramAdmin.getRecentGenerations({ limit: 5 });
+      expect(Array.isArray(rows)).toBe(true);
+    });
   });
 });

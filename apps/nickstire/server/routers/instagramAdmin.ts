@@ -19,10 +19,12 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { desc } from "drizzle-orm";
 import { router, adminProcedure } from "../_core/trpc";
 import { checkReviewReply, buildReplyPromptRules, hasBlockingFindings } from "@shared/reviewReplyQa";
 import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
+import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:instagramAdmin");
@@ -159,5 +161,36 @@ Keep it under 200 characters.`;
     .mutation(async ({ input }) => {
       const { runIgAutopostOneOff } = await import("../services/igAutopost");
       return runIgAutopostOneOff(input?.archetype);
+    }),
+
+  /** Recent AI generations (from ig_autopost_log) so the composer can show
+   *  the actual draft the co-pilot produced — generatePost returns scores +
+   *  status but not the caption/image (those go to the log + Telegram). */
+  getRecentGenerations: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(25).default(8) }).optional())
+    .query(async ({ input }): Promise<Array<{
+      id: number; archetype: string; conceptKey: string; status: string;
+      caption: string; imageUrl: string | null; overallScore: number | null;
+      source: string; createdAt: Date; error: string | null;
+    }>> => {
+      const database = await db();
+      if (!database) return [];
+      const { igAutopostLog } = await import("../../drizzle/schema");
+      return database
+        .select({
+          id: igAutopostLog.id,
+          archetype: igAutopostLog.archetype,
+          conceptKey: igAutopostLog.conceptKey,
+          status: igAutopostLog.status,
+          caption: igAutopostLog.caption,
+          imageUrl: igAutopostLog.imageUrl,
+          overallScore: igAutopostLog.overallScore,
+          source: igAutopostLog.source,
+          createdAt: igAutopostLog.createdAt,
+          error: igAutopostLog.error,
+        })
+        .from(igAutopostLog)
+        .orderBy(desc(igAutopostLog.createdAt))
+        .limit(input?.limit ?? 8);
     }),
 });
