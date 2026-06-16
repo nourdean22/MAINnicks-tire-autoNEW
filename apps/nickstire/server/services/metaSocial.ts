@@ -220,6 +220,7 @@ export async function postToFacebook(params: {
   link?: string;
   imageUrl?: string;
 }): Promise<{ success: boolean; postId?: string; error?: string }> {
+  await ensurePageTokenLoaded();
   const token = getPageToken();
   const pageId = getPageId();
 
@@ -288,6 +289,7 @@ export async function postToInstagram(params: {
   imageUrl: string;
   caption: string;
 }): Promise<{ success: boolean; postId?: string; error?: string }> {
+  await ensurePageTokenLoaded();
   const token = getPageToken();
   const igUserId = getIgUserId();
 
@@ -326,7 +328,48 @@ export async function postToInstagram(params: {
       return { success: false, error: "No container ID returned from Meta" };
     }
 
-    // Step 2: Publish the container
+    // Step 2: Poll container status until it is FINISHED (or ERROR)
+    let isReady = false;
+    let attempts = 0;
+    const maxAttempts = 12; // 12 attempts * 5s = 60 seconds (1 minute)
+
+    while (!isReady && attempts < maxAttempts) {
+      attempts++;
+      // Wait 5 seconds between checks
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      const statusRes = await fetch(
+        `${GRAPH_URL}/${creationId}?fields=status_code&access_token=${encodeURIComponent(token)}`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+
+      const statusData = await statusRes.json().catch(() => null);
+      if (!statusRes.ok || !statusData) {
+        const errMsg = statusData?.error?.message || `HTTP ${statusRes.status}`;
+        log.warn(`Failed to check container status (attempt ${attempts}): ${errMsg}`);
+        continue;
+      }
+
+      if (statusData.error) {
+        log.warn(`Meta status check returned error: ${statusData.error.message}`);
+        continue;
+      }
+
+      const statusCode = statusData.status_code;
+      log.info(`Instagram container status check (attempt ${attempts}): ${statusCode}`);
+
+      if (statusCode === "FINISHED") {
+        isReady = true;
+      } else if (statusCode === "ERROR") {
+        return { success: false, error: "Meta image processing failed (status_code: ERROR)" };
+      }
+    }
+
+    if (!isReady) {
+      return { success: false, error: "Meta image processing timed out (still IN_PROGRESS after 60s)" };
+    }
+
+    // Step 3: Publish the container
     const publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
       method: "POST",
       headers: authHeaders,
