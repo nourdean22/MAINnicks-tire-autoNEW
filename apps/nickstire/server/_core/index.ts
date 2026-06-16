@@ -118,6 +118,7 @@ async function startServer() {
     },
   }));
   app.use(express.urlencoded({ limit: "2mb", extended: true }));
+  app.use("/generated", express.static(path.join(process.cwd(), "data", "generated")));
 
   // ─── Request ID + Duration Tracking ──────────────────
   // Generates a UUID per request, attaches to res.locals and response header.

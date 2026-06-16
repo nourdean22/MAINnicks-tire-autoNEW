@@ -26,10 +26,28 @@ export async function storagePut(
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
+  const bucket = process.env.S3_BUCKET;
+  const key = normalizeKey(relKey);
+
+  if (!bucket) {
+    const fs = await import("fs");
+    const path = await import("path");
+    const localDir = path.join(process.cwd(), "data", "generated");
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+    const filename = path.basename(key);
+    const localPath = path.join(localDir, filename);
+    const body = typeof data === "string" ? Buffer.from(data) : data;
+    fs.writeFileSync(localPath, body);
+
+    const siteUrl = process.env.SITE_URL || "https://nickstire.org";
+    const url = `${siteUrl}/generated/${filename}`;
+    return { key, url };
+  }
+
   const { PutObjectCommand, GetObjectCommand } = await import("@aws-sdk/client-s3");
   const s3 = await getS3Client();
-  const bucket = getBucket();
-  const key = normalizeKey(relKey);
 
   const body = typeof data === "string" ? Buffer.from(data) : data;
 
@@ -54,10 +72,19 @@ export async function storagePut(
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
+  const bucket = process.env.S3_BUCKET;
+  const key = normalizeKey(relKey);
+
+  if (!bucket) {
+    const path = await import("path");
+    const filename = path.basename(key);
+    const siteUrl = process.env.SITE_URL || "https://nickstire.org";
+    const url = `${siteUrl}/generated/${filename}`;
+    return { key, url };
+  }
+
   const { GetObjectCommand } = await import("@aws-sdk/client-s3");
   const s3 = await getS3Client();
-  const bucket = getBucket();
-  const key = normalizeKey(relKey);
 
   const cdnDomain = process.env.CLOUDFRONT_DOMAIN;
   if (cdnDomain) {
