@@ -434,8 +434,8 @@ export default function SpecialsPage() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Auto Repair Specials & Coupons Cleveland · Honest Discounts | Nick's"
-        description="Cleveland auto-repair specials that don't read like fine print. Current discounts on oil change, brakes, check-engine light, tires, AC, alignment. Walk-ins 7 days, payment programs on the spot. (216) 862-0005"
+        title="Nick's Tire & Auto Specials · Cleveland Auto Repair Coupons"
+        description="Save on your next auto service with coupons & specials at Nick's Tire & Auto in Cleveland. Current deals on oil changes, brakes, tires, and check engine lights."
         canonicalPath="/specials"
       />
 

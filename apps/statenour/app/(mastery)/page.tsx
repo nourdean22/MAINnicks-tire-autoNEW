@@ -3,6 +3,7 @@ import { HomeCommandStack } from "@/components/home/home-command-stack";
 import { HomeJournalDirective } from "@/components/home/home-journal-directive";
 import { JournalNextMove } from "@/components/home/journal-next-move";
 import { InboxTriageCard } from "@/components/home/inbox-triage-card";
+import { InboxTasksTriage } from "@/components/home/inbox-tasks-triage";
 import { HomeOneTapMoves } from "@/components/home/home-one-tap-moves";
 import { HomeStatePulse } from "@/components/home/home-state-pulse";
 import { HomeIdentityHeader } from "@/components/home/home-identity-header";
@@ -24,12 +25,13 @@ import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
  *                                 page is /home even on quiet mornings
  *   1. NicksHomeBrief         · cross-surface 2-3 sentence brief
  *   2. HomeCommandStack       · Today's Command Stack (Mode, next move, stat, proof)
- *   3. InboxTriageCard        · task rescue / inbox hygiene triage list (Gap 4)
- *   4. HomeJournalDirective   · thin one-line journal directive
- *   5. JournalNextMove        · next move from journal
- *   6. HomeOneTapMoves        · 3 proposed actions (mission · outreach · journal)
- *   7. HomeStatePulse         · thin one-line state strip
- *   8. HomeComposer           · simple textarea · routes to /chat on send
+ *   3. InboxTasksTriage       · Things-style inbox triage card (one-at-a-time)
+ *   4. InboxTriageCard        · task rescue / inbox hygiene triage list (Gap 4)
+ *   5. HomeJournalDirective   · thin one-line journal directive
+ *   6. JournalNextMove        · next move from journal
+ *   7. HomeOneTapMoves        · 3 proposed actions (mission · outreach · journal)
+ *   8. HomeStatePulse         · thin one-line state strip
+ *   9. HomeComposer           · simple textarea · routes to /chat on send
  *
  * Wave AC.c fix · 2026-05-28 · the prior implementation embedded the full
  * <ChatPage /> below the home content, but ChatPage's outer wrapper is
@@ -50,6 +52,7 @@ export default function HomePage() {
       <CoachEventBanner surface="home" />
       <NicksHomeBrief />
       <HomeCommandStack />
+      <InboxTasksTriage />
       <InboxTriageCard />
       {/* Delivery-layer pass (2026-06-10) · the journal's 4-line operator
           directive (item F: COMPOUNDING / STALLED / WATCH / MOVE) was
