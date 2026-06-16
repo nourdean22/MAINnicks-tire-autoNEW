@@ -31,7 +31,7 @@
 
 import { withGuardian, GuardianError } from "@/lib/tools/guardian";
 
-const BGE_RERANK_URL = "https://api-inference.huggingface.co/models";
+const BGE_RERANK_URL = "https://router.huggingface.co/hf-inference/models";
 const DEFAULT_MODEL = "BAAI/bge-reranker-v2-m3";
 
 export interface BgeRerankCandidate<T> {
