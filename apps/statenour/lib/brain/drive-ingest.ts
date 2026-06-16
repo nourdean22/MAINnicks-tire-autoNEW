@@ -95,10 +95,11 @@ export async function runDriveIngest(
           continue;
         }
 
-        const content = await getFileContent(
+        const rawContent = await getFileContent(
           file.id,
           file.mimeType || "application/vnd.google-apps.document"
         );
+        const content = rawContent.replace(/\u0000/g, "");
         if (content.trim().length < 100) {
           skippedCount++;
           continue;
