@@ -443,7 +443,16 @@ function JournalPageInner() {
 
       {/* Tab Selector Switcher */}
       <div className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border border-white/10 rounded-xl p-3 shadow-xl flex items-center justify-between border-b border-white/5 pb-2.5">
-        <div className="flex items-center gap-1.5 md:gap-3">
+        {/* Background ambient glow matching active tab */}
+        <div 
+          className={cn(
+            "absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl pointer-events-none transition-all duration-500",
+            activeTab === "feed" && "bg-[var(--gold)]/5",
+            activeTab === "insights" && "bg-emerald-500/5",
+            activeTab === "reflect" && "bg-violet-500/5"
+          )}
+        />
+        <div className="flex items-center gap-1.5 md:gap-3 z-10">
           {[
             { id: "feed" as const, label: "Feed", Icon: NotebookPen, activeColor: "text-[var(--gold)]", activeBorder: "bg-[var(--gold)]", hoverColor: "hover:text-[var(--gold)]/80" },
             { id: "insights" as const, label: "Insights", Icon: Sparkles, activeColor: "text-emerald-400", activeBorder: "bg-emerald-400", hoverColor: "hover:text-emerald-400/80" },
@@ -458,8 +467,13 @@ function JournalPageInner() {
                 className={cn(
                   "relative flex items-center gap-1.5 py-1 px-2.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all [@media(pointer:coarse)]:min-h-[44px]",
                   isActive 
-                    ? "bg-white/5 text-white font-medium border border-white/10" 
-                    : cn("text-white/45 hover:text-white/80 hover:bg-white/[0.02]", tab.hoverColor)
+                    ? cn(
+                        "text-white font-medium border",
+                        tab.id === "feed" && "bg-[var(--gold)]/5 border-[var(--gold)]/20 shadow-[0_0_8px_rgba(212,163,89,0.1)]",
+                        tab.id === "insights" && "bg-emerald-500/5 border-emerald-500/20 shadow-[0_0_8px_rgba(16,185,129,0.1)]",
+                        tab.id === "reflect" && "bg-violet-500/5 border-violet-500/20 shadow-[0_0_8px_rgba(139,92,246,0.1)]"
+                      )
+                    : cn("text-white/45 hover:text-white/80 hover:bg-white/[0.02] border-transparent", tab.hoverColor)
                 )}
               >
                 <Icon size={12} className={cn(isActive && tab.activeColor)} />
@@ -471,7 +485,7 @@ function JournalPageInner() {
             );
           })}
         </div>
-        <span className="hidden sm:inline text-[9px] font-mono text-white/30 tracking-wider">
+        <span className="hidden sm:inline text-[9px] font-mono text-white/30 tracking-wider z-10">
           JOURNAL COCKPIT
         </span>
       </div>
@@ -668,6 +682,116 @@ function JournalPageInner() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === "insights" && (
+        <div className="space-y-5 animate-fade-in">
+          <NicksJournalBrief />
+          <TodaysPrompt />
+          <JournalThreadsStrip />
+          <ProofOfBecomingStrip />
+          <JournalInsightsPreview />
+          <ThreadRadar onThreadCreated={() => setThreadRefresh((n) => n + 1)} />
+          <ThreadRail refreshSignal={threadRefresh} />
+          <ThreadSuggestions
+            refreshSignal={threadRefresh}
+            onActioned={() => setThreadRefresh((n) => n + 1)}
+          />
+          <BrainSignalsChip />
+        </div>
+      )}
+
+      {activeTab === "reflect" && (
+        <div className="space-y-5 animate-fade-in">
+          <MasteryContextDrawer
+            surface="journal"
+            label="Reflection signals"
+            hint="learning velocity · weekly memoir"
+          >
+            <div className="space-y-4">
+              <LearningVelocityTicker />
+              <WeeklyMemoirBlock />
+            </div>
+          </MasteryContextDrawer>
+
+          {meta && (
+            <div className="rounded-xl border border-[var(--gold)]/20 bg-gradient-to-br from-[var(--gold)]/[0.04] to-transparent p-4 space-y-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--gold)]/80">
+                    Metacognition
+                  </span>
+                  <span className="text-[10px] text-[var(--text-tertiary)]">
+                    · {meta.date}
+                  </span>
+                </div>
+                <span
+                  className={cn(
+                    "text-[10px] font-medium tabular-nums",
+                    meta.learningRate.trend === "accelerating" && "text-emerald-400",
+                    meta.learningRate.trend === "steady" && "text-[var(--text-secondary)]",
+                    meta.learningRate.trend === "decelerating" && "text-amber-400",
+                  )}
+                >
+                  {meta.learningRate.trend}
+                </span>
+              </div>
+
+              {meta.selfAssessment && (
+                <p className="text-[12.5px] leading-relaxed text-[var(--text-primary)] italic">
+                  &ldquo;{meta.selfAssessment}&rdquo;
+                </p>
+              )}
+
+              <div className="flex items-center gap-3 pt-1 text-[11px] font-mono text-[var(--text-secondary)]">
+                <span className="text-[9px] uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+                  calibration
+                </span>
+                <span className="text-[15px] font-semibold tabular-nums text-[var(--text-primary)]">
+                  {Math.round(meta.predictionCalibration.calibrationScore * 100)}%
+                </span>
+              </div>
+
+              {meta.weakSpots.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--text-tertiary)] mr-1">
+                    Weak spots
+                  </span>
+                  {meta.weakSpots.slice(0, 2).map((spot) => (
+                    <Badge
+                      key={spot.domain}
+                      variant="outline"
+                      className="text-[10px] border-amber-400/30 text-amber-300 bg-amber-400/[0.04]"
+                    >
+                      {spot.domain} · {spot.daysSinceLastLearning}d stale
+                    </Badge>
+                  ))}
+                  {meta.weakSpots.length > 2 && (
+                    <span
+                      className="text-[10px] font-mono text-amber-400/60"
+                      title={meta.weakSpots
+                        .slice(2)
+                        .map((s) => `${s.domain} (${s.daysSinceLastLearning}d)`)
+                        .join(" · ")}
+                    >
+                      +{meta.weakSpots.length - 2} more
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {meta.stagnationAlert && (
+                <div className="text-[11.5px] leading-relaxed text-red-300 border-l-2 border-red-400/40 pl-3 mt-2">
+                  {meta.stagnationAlert}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div id="journal-reflect-composer">
+            <ReflectComposer />
+          </div>
         </div>
       )}
     </div>
