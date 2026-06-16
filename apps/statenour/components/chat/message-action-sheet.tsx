@@ -29,7 +29,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Copy, Pin, PinOff, Pencil, Trash2, BookOpen, ClipboardCheck, X, Brain, ListChecks, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Copy, Pin, PinOff, Pencil, Trash2, BookOpen, ClipboardCheck, X, Brain, ListChecks, ThumbsUp, ThumbsDown, GitFork } from "lucide-react";
 
 export interface MessageActionSheetProps {
   open: boolean;
@@ -49,6 +49,7 @@ export interface MessageActionSheetProps {
   onSaveToBrain?: () => void;
   onPinToPrompt?: () => void;
   onFeedback?: (positive: boolean) => void;
+  onFork?: () => void;
   /** Apr 27 — caller passes whether this message is currently pinned
    *  so the sheet can show Pin / Unpin instead of always Pin. */
   isPinned?: boolean;
@@ -115,6 +116,7 @@ export function MessageActionSheet({
   onSaveToBrain,
   onPinToPrompt,
   onFeedback,
+  onFork,
   isPinned = false,
 }: MessageActionSheetProps) {
   // Drag-to-dismiss state. Tracks vertical translation while the user
@@ -326,6 +328,15 @@ export function MessageActionSheet({
                 delay={next()}
               />
             </>
+          )}
+          {onFork && (
+            <ActionRow
+              onClick={fireAndClose(onFork)}
+              icon={<GitFork size={16} />}
+              label="Fork conversation"
+              tone="neutral"
+              delay={next()}
+            />
           )}
           {onDelete && (
             <ActionRow

@@ -88,6 +88,8 @@ interface NickHeaderV2Props {
    *  need to memorize the Cmd+Shift+V shortcut. */
   showSpeedRibbon?: boolean;
   onToggleSpeedRibbon?: () => void;
+  showConversationPulse?: boolean;
+  onToggleConversationPulse?: () => void;
   providerOverride?: string;
   onCycleProvider?: () => void;
   onToggleHistory?: () => void;
@@ -122,6 +124,8 @@ export function NickHeaderV2({
   onToggleAmbient,
   showSpeedRibbon,
   onToggleSpeedRibbon,
+  showConversationPulse,
+  onToggleConversationPulse,
   providerOverride,
   onCycleProvider,
   onToggleHistory,
@@ -347,6 +351,27 @@ export function NickHeaderV2({
                   </div>
                 </div>
                 {showSpeedRibbon && <Check size={10} className="text-[var(--gold)]" />}
+              </button>
+            )}
+            {onToggleConversationPulse && (
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onToggleConversationPulse();
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-[var(--bg-raised)] transition-colors",
+                  showConversationPulse ? "text-[var(--gold)]" : "text-[var(--text-primary)]",
+                )}
+              >
+                {showConversationPulse ? <Zap size={12} /> : <ZapOff size={12} />}
+                <div className="flex-1 text-left">
+                  <div>{showConversationPulse ? "Telemetry bar on" : "Telemetry bar off"}</div>
+                  <div className="text-[9px] text-[var(--text-tertiary)]">
+                    sparkline + cost + latency
+                  </div>
+                </div>
+                {showConversationPulse && <Check size={10} className="text-[var(--gold)]" />}
               </button>
             )}
             {/* v10.0.529.58 · Provider override cycle · mirrors the
