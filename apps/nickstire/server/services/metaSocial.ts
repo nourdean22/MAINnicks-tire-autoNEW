@@ -476,7 +476,47 @@ export async function postInstagramReel(params: {
 
     const creationId = containerData.id;
 
-    // Step 2: Publish the Reel container
+    // Step 2: Poll container status until it is FINISHED (or ERROR)
+    let isReady = false;
+    let attempts = 0;
+    const maxAttempts = 30; // 30 attempts * 5s = 150 seconds (2.5 minutes)
+
+    while (!isReady && attempts < maxAttempts) {
+      attempts++;
+      // Wait 5 seconds between checks
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      const statusRes = await fetch(
+        `${GRAPH_URL}/${creationId}?fields=status_code&access_token=${encodeURIComponent(token)}`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+
+      const statusData = await statusRes.json().catch(() => null);
+      if (!statusRes.ok || !statusData) {
+        const errMsg = statusData?.error?.message || `HTTP ${statusRes.status}`;
+        log.warn(`Failed to check Reel container status (attempt ${attempts}): ${errMsg}`);
+        continue;
+      }
+
+      if (statusData.error) {
+        return { success: false, error: `Meta status check failed: ${statusData.error.message}` };
+      }
+
+      const statusCode = statusData.status_code;
+      log.info(`Reel container status check (attempt ${attempts}): ${statusCode}`);
+
+      if (statusCode === "FINISHED") {
+        isReady = true;
+      } else if (statusCode === "ERROR") {
+        return { success: false, error: "Meta video processing failed (status_code: ERROR)" };
+      }
+    }
+
+    if (!isReady) {
+      return { success: false, error: "Meta video processing timed out (still IN_PROGRESS after 150s)" };
+    }
+
+    // Step 3: Publish the Reel container
     const publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
       method: "POST",
       headers: authHeaders,
