@@ -265,3 +265,90 @@ export async function handleArsenalGetMeetings(params: ActionParams, type: strin
   const result = await getRecentTranscripts(Number(params.limit ?? 5));
   return { action: type, success: !!result, result };
 }
+
+export async function handleArsenalRunPython(params: ActionParams, type: string): Promise<ActionResult> {
+  const { runPython } = await import("@/lib/integrations/e2b");
+  const code = String(params.code || "");
+  if (!code) {
+    return { action: type, success: false, error: "code parameter required" };
+  }
+  const result = await runPython(code);
+  return { action: type, success: result.ok, result };
+}
+
+export async function handleArsenalBrowserCreateSession(params: ActionParams, type: string): Promise<ActionResult> {
+  const { createSession } = await import("@/lib/integrations/browserbase");
+  const keepAlive = params.keepAlive === true;
+  const result = await createSession({ keepAlive });
+  return { action: type, success: result.ok, result: result.ok ? result.data : { error: result.error } };
+}
+
+export async function handleArsenalBrowserCloseSession(params: ActionParams, type: string): Promise<ActionResult> {
+  const { closeSession } = await import("@/lib/integrations/browserbase");
+  const sessionId = String(params.sessionId || "");
+  if (!sessionId) {
+    return { action: type, success: false, error: "sessionId required" };
+  }
+  const result = await closeSession(sessionId);
+  return { action: type, success: result.ok, result: result.ok ? result.data : { error: result.error } };
+}
+
+export async function handleArsenalBrowserNavigate(params: ActionParams, type: string): Promise<ActionResult> {
+  const { navigate } = await import("@/lib/integrations/stagehand");
+  const sessionId = String(params.sessionId || "");
+  const url = String(params.url || "");
+  const waitUntil = (params.waitUntil as "load" | "domcontentloaded" | "networkidle" | undefined) ?? "networkidle";
+  
+  if (!sessionId || !url) {
+    return { action: type, success: false, error: "sessionId and url parameters required" };
+  }
+  const result = await navigate({ sessionId, url, waitUntil });
+  return { action: type, success: result.ok, result: result.ok ? result.data : { error: result.error } };
+}
+
+export async function handleArsenalBrowserAct(params: ActionParams, type: string): Promise<ActionResult> {
+  const { act } = await import("@/lib/integrations/stagehand");
+  const sessionId = String(params.sessionId || "");
+  const instruction = String(params.instruction || "");
+  
+  if (!sessionId || !instruction) {
+    return { action: type, success: false, error: "sessionId and instruction parameters required" };
+  }
+  const result = await act({ sessionId, instruction });
+  return { action: type, success: result.ok, result: result.ok ? result.data : { error: result.error } };
+}
+
+export async function handleArsenalBrowserExtract(params: ActionParams, type: string): Promise<ActionResult> {
+  const { extract } = await import("@/lib/integrations/stagehand");
+  const { z } = await import("zod");
+  const sessionId = String(params.sessionId || "");
+  const instruction = String(params.instruction || "");
+  const keys = Array.isArray(params.keys) ? params.keys.map(String) : ["data"];
+
+  if (!sessionId || !instruction) {
+    return { action: type, success: false, error: "sessionId and instruction parameters required" };
+  }
+
+  // Construct dynamic zod schema
+  const schemaObj: Record<string, any> = {};
+  for (const key of keys) {
+    schemaObj[key] = z.string().describe(`The extracted value for ${key}`);
+  }
+  const schema = z.object(schemaObj);
+
+  const result = await extract({ sessionId, instruction, schema });
+  return { action: type, success: result.ok, result: result.ok ? result.data : { error: result.error } };
+}
+
+export async function handleArsenalBrowserObserve(params: ActionParams, type: string): Promise<ActionResult> {
+  const { observe } = await import("@/lib/integrations/stagehand");
+  const sessionId = String(params.sessionId || "");
+  const instruction = params.instruction ? String(params.instruction) : undefined;
+  
+  if (!sessionId) {
+    return { action: type, success: false, error: "sessionId parameter required" };
+  }
+  const result = await observe({ sessionId, instruction });
+  return { action: type, success: result.ok, result: result.ok ? result.data : { error: result.error } };
+}
+
