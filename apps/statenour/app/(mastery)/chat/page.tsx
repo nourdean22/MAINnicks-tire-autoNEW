@@ -156,6 +156,9 @@ import type { ChatModeOverride } from "@/lib/chat/types";
 import { DeeperContextBadge } from "@/components/chat/deeper-context-badge";
 import { PromptInspector } from "@/components/chat/prompt-inspector";
 import { ToolCallLogPanel } from "@/components/chat/tool-call-log-panel";
+import { ToolExecutionTimeline } from "@/components/chat/tool-execution-timeline";
+import { ApprovalCard } from "@/components/chat/approval-card";
+import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sidebar";
 // v10.0.529.55 · GlitchCaptureButton import + component deleted ·
 // audit Wave 9 flagged the always-visible floating chrome as cut ·
 // the underlying glitch_capture workflow can be re-surfaced via
@@ -412,7 +415,21 @@ function Chat() {
   // to the UI — pure background warmup for first-token speed. ──
   useChatPrefetch(input);
   const sessionStartRef = useRef<number>(Date.now());
-  // showHelp + showHistorySearch hoisted into useChatModalToggles above.
+
+  // ── Cockpit Engine State ──
+  const [recalledHits, setRecalledHits] = useState<any[]>([]);
+  const [contradictions, setContradictions] = useState<any[]>([]);
+  const [cockpitEvents, setCockpitEvents] = useState<any[]>([]);
+  const [activeApproval, setActiveApproval] = useState<{
+    approvalId: string;
+    toolName: string;
+    params: Record<string, any>;
+    reason: string;
+  } | null>(null);
+  const [memoryInspectorOpen, setMemoryInspectorOpen] = useState(false);
+  const [showLiveTimeline, setShowLiveTimeline] = useState(false);
+
+
 
   // ── Refs ──
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -677,6 +694,157 @@ function Chat() {
   // keyboard handlers) can reference them without a TDZ error.
   const isStreaming = status === "streaming" || status === "submitted";
   const isEmpty = messages.length === 0;
+
+  const approveMutation = trpc.system.approveApprovalRequest.useMutation();
+  const rejectMutation = trpc.system.rejectApprovalRequest.useMutation();
+
+  // Reset cockpit state when streaming starts (new turn)
+  useEffect(() => {
+    if (isStreaming) {
+      setCockpitEvents([]);
+      setRecalledHits([]);
+      setContradictions([]);
+      setActiveApproval(null);
+      // Auto-expand timeline during live streaming (as per option 2 recommendation)
+      setShowLiveTimeline(true);
+      return;
+    } else {
+      // Transition timeline to summary/collapse on completion (after a small delay to let visual settle)
+      const t = setTimeout(() => {
+        setShowLiveTimeline(false);
+      }, 3000);
+      return () => clearTimeout(t);
+    }
+  }, [isStreaming]);
+
+  // Listen for Server-Sent Events from the chat transport
+  useEffect(() => {
+    const handleCockpitEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ type: string; payload: any }>;
+      const { type, payload } = customEvent.detail;
+
+      if (type === "intent.classified") {
+        setCockpitEvents((prev) => [
+          ...prev,
+          {
+            id: `intent-${Date.now()}`,
+            type: "intent" as const,
+            status: "success" as const,
+            label: "Intent Classified",
+            detail: `Intent: ${payload.intent}\nMode: ${payload.mode}\nModel: ${payload.model}\nProvider: ${payload.provider}\nTargets: ${payload.targets.join(", ")}`,
+            timestamp: Date.now(),
+          },
+        ]);
+      } else if (type === "memory.recalled") {
+        setRecalledHits(payload.hits || []);
+        setContradictions(payload.contradictions || []);
+        setCockpitEvents((prev) => [
+          ...prev,
+          {
+            id: `memory-${Date.now()}`,
+            type: "memory" as const,
+            status: "success" as const,
+            label: `Memory Recalled (${payload.hits?.length ?? 0} hits)`,
+            detail: `Recalled ${payload.hits?.length ?? 0} beliefs.\nDetected ${payload.contradictions?.length ?? 0} contradictions.`,
+            timestamp: Date.now(),
+          },
+        ]);
+      } else if (type === "tool.plan_created") {
+        setCockpitEvents((prev) => [
+          ...prev,
+          {
+            id: `plan-${Date.now()}`,
+            type: "tool_plan" as const,
+            status: "success" as const,
+            label: "Tool Execution Plan Created",
+            detail: payload.actions
+              .map(
+                (act: any) =>
+                  `- ${act.type} (risk: ${act.riskClass})`
+              )
+              .join("\n"),
+            timestamp: Date.now(),
+          },
+        ]);
+      } else if (type === "tool.execution_started") {
+        setCockpitEvents((prev) => [
+          ...prev,
+          {
+            id: payload.actionId,
+            type: "tool_exec" as const,
+            status: "running" as const,
+            label: `Executing Tool: ${payload.toolName}`,
+            timestamp: Date.now(),
+          },
+        ]);
+      } else if (type === "tool.execution_succeeded") {
+        setCockpitEvents((prev) =>
+          prev.map((evt) =>
+            evt.id === payload.actionId
+              ? {
+                  ...evt,
+                  status: "success" as const,
+                  detail: `Result:\n${JSON.stringify(payload.result, null, 2)}`,
+                }
+              : evt
+          )
+        );
+      } else if (type === "tool.execution_failed") {
+        setCockpitEvents((prev) =>
+          prev.map((evt) =>
+            evt.id === payload.actionId
+              ? {
+                  ...evt,
+                  status: "error" as const,
+                  detail: `Error: ${payload.error}`,
+                }
+              : evt
+          )
+        );
+      } else if (type === "approval.required") {
+        setActiveApproval({
+          approvalId: payload.approvalId,
+          toolName: payload.toolName,
+          params: payload.params,
+          reason: payload.reason,
+        });
+        setCockpitEvents((prev) => [
+          ...prev,
+          {
+            id: payload.approvalId,
+            type: "tool_exec" as const,
+            status: "gated" as const,
+            label: `Approval Required: ${payload.toolName}`,
+            detail: `Reason: ${payload.reason}`,
+            timestamp: Date.now(),
+          },
+        ]);
+      }
+    };
+
+    window.addEventListener("cockpit-event", handleCockpitEvent);
+    return () => window.removeEventListener("cockpit-event", handleCockpitEvent);
+  }, []);
+
+  const handleApprove = async (id: string, editedPayload?: any) => {
+    try {
+      await approveMutation.mutateAsync({ id, editedPayload });
+      setActiveApproval(null);
+      toast.success("Action approved and queued for execution");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to approve action");
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    try {
+      await rejectMutation.mutateAsync({ id });
+      setActiveApproval(null);
+      toast.success("Action rejected");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reject action");
+    }
+  };
 
   // v8.16 B3 · Lazy-render gate for long conversations. Below 80
   // messages this is a no-op pass-through; above the threshold only
@@ -1940,6 +2108,8 @@ function Chat() {
           try { localStorage.setItem("nour:nick-personality", p); } catch {}
         }}
         veniceHealthy={veniceHealthy}
+        memoryInspectorOpen={memoryInspectorOpen}
+        onToggleMemoryInspector={() => setMemoryInspectorOpen(!memoryInspectorOpen)}
       />
 
       {/* ─── Context Rail removed 2026-05-09 — operator: crowding screen ─── */}
@@ -2100,6 +2270,26 @@ function Chat() {
           handleAutoFireProceed={handleAutoFireProceed}
           handleAutoFireCancel={handleAutoFireCancel}
         />
+
+        {/* Cockpit Upgrade: Tool Execution Timeline & Gated Approval Card */}
+        {showLiveTimeline && cockpitEvents.length > 0 && (
+          <div className="mx-auto w-full max-w-3xl px-3 sm:px-4 py-2">
+            <ToolExecutionTimeline events={cockpitEvents} />
+          </div>
+        )}
+
+        {activeApproval && (
+          <div className="mx-auto w-full max-w-3xl px-3 sm:px-4 py-2">
+            <ApprovalCard
+              approvalId={activeApproval.approvalId}
+              toolName={activeApproval.toolName}
+              params={activeApproval.params}
+              reason={activeApproval.reason}
+              onApprove={handleApprove}
+              onReject={handleReject}
+            />
+          </div>
+        )}
 
         {/* v10.0.529.106 · Wave 83 · ~55 LOC of conditional retry +
             error + diagnostic JSX lifted into ErrorDiagnosticPanel.
@@ -2392,6 +2582,8 @@ function Chat() {
           longPressTimerRef={longPressTimerRef}
           slash={slash}
           mentions={mentions}
+          memoryInspectorOpen={memoryInspectorOpen}
+          onToggleMemoryInspector={() => setMemoryInspectorOpen(!memoryInspectorOpen)}
         />
 
         {/* v10.0.529.xx · Center stop-bar removed. Audit Wave 8 flagged
@@ -2489,6 +2681,14 @@ function Chat() {
 
       {/* ─── System Prompt Inspector (Cmd+I) ─── */}
       <PromptInspector open={inspectorOpen} onClose={() => setInspectorOpen(false)} />
+
+      {/* ─── Memory Inspector Sidebar ─── */}
+      <MemoryInspectorSidebar
+        open={memoryInspectorOpen}
+        onClose={() => setMemoryInspectorOpen(false)}
+        hits={recalledHits}
+        contradictions={contradictions}
+      />
 
       {/* ─── Tool Call Log Panel (Cmd+Shift+L) ─── */}
       <ToolCallLogPanel

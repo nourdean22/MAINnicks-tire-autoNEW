@@ -27,3 +27,7 @@ export { industryPull } from "./industry-pull";
 export { nickEventTriggers } from "./event-triggers";
 // Gap 1: proactive-push cron runner
 export { proactivePushCron } from "./proactive-push";
+
+// Cockpit Upgrade durable workflows
+export { diagnoseCronFailure } from "./diagnose-cron-failure";
+export { auditTodaysLeads } from "./audit-todays-leads";

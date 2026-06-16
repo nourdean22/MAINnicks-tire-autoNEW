@@ -201,6 +201,8 @@ async function chatPostInner(req: Request) {
   // soon-to-be-extracted onFinish) can read AND write through the
   // same object reference.
   const __partialRef = { text: "" };
+  let recalledHits: any[] = [];
+  let detectedContradictions: any[] = [];
   // Provider override is tracked for logging + future provider switcher.
   void providerOverride;
 
@@ -210,8 +212,12 @@ async function chatPostInner(req: Request) {
   //   2. Global default from the AI config (Settings page)
   //   3. Automatic detection via detectChatMode
   const aiConfig = await getAiConfig().catch((): null => null);
+  const { classifyIntent } = await import("@/lib/ai/runtime/intent-router");
+  const classification = await classifyIntent(userContent, __traceId);
   const mode: ChatMode =
-    modeOverride || aiConfig?.defaultMode || detectChatMode(userContent, messages.length);
+    modeOverride ||
+    aiConfig?.defaultMode ||
+    (classification.mode === "engineer" || classification.mode === "operator" ? "deep" : "standard");
   const t0 = Date.now();
 
   // ═══ CRITICAL FIX: map chat mode → Venice task type ═══
@@ -546,6 +552,7 @@ async function chatPostInner(req: Request) {
               limit: mode === "deep" ? 8 : 5,
             });
             if (report.hits.length === 0) return null;
+            recalledHits = report.hits; // Populate raw hits!
             return {
               promptBlock: formatRecallForPrompt(report.hits),
               hitCount: report.hits.length,
@@ -675,6 +682,7 @@ async function chatPostInner(req: Request) {
       conversationId: convId,
     });
     if (hit) {
+      detectedContradictions = [hit]; // Populate raw contradictions!
       systemPrompt += `\n\n${buildContradictionAlertBlock(hit)}`;
       log.info("contradiction_alert_injected", {
         contradictionKey: hit.key,
@@ -785,6 +793,8 @@ async function chatPostInner(req: Request) {
   const strategicLawCount = __finalized.strategicLawCount;
 
   let result;
+  let resolveOnFinish: () => void = () => {};
+  let onFinishPromise: Promise<void> = Promise.resolve();
   try {
   // For Venice (small context), use just the truncated system prompt — it already has Nick's identity
   // For Anthropic (large context), append the full chat-layer identity + Greene laws
@@ -1193,6 +1203,10 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
             deeperContextCount,
             deeperContextTypes,
             contextBlocksFired,
+            classification,
+            recalledMemories: recalledHits,
+            contradictions: detectedContradictions,
+            onFinishPromise: Promise.resolve(),
           });
         }
         // empty winner → fall through to the normal streamText path
@@ -1234,6 +1248,10 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   // Currently those errors fall through to onError + the v9.1.22
   // stub-message logic, which preserves the partial reply but doesn't
   // resume from a different provider mid-stream.
+  onFinishPromise = new Promise<void>((resolve) => {
+    resolveOnFinish = resolve;
+  });
+
   const { streamWithFallback, inferProviderName } = await import("@/lib/ai/stream-with-fallback");
   const __sameTurnFallback = streamWithFallback({
     taskType: finalTaskType,
@@ -1409,6 +1427,7 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
       recordTrace,
       messages,
       topicTier,
+      onWorkComplete: resolveOnFinish,
     }) as Parameters<typeof streamText>[0]["onFinish"],
   }) as never),
   });
@@ -1459,6 +1478,10 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     deeperContextCount,
     deeperContextTypes,
     contextBlocksFired,
+    classification,
+    recalledMemories: recalledHits,
+    contradictions: detectedContradictions,
+    onFinishPromise,
   });
 }
 

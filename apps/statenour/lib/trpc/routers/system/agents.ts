@@ -245,4 +245,138 @@ export const agentsProcedures = {
       buildTireStockRequests({ days: input?.days }),
     ),
 
+  /**
+   * Cockpit Observability stats. Pulls cost, TTFT averages, memory decay aggregates,
+   * recent runs, and prompt versions table.
+   */
+  cockpitStats: operatorProcedure.query(async () => {
+    const { prisma } = await import("@/lib/prisma");
+
+    // 1. KPI Metrics
+    const costAgg = await prisma.agentRun.aggregate({
+      _sum: { costCents: true },
+      _avg: { durationMs: true },
+    });
+
+    const totalCostCents = costAgg._sum.costCents ?? 0;
+    const avgDurationMs = costAgg._avg.durationMs ?? 0;
+
+    // Fetch durMs for p95
+    const durations = await prisma.agentRun.findMany({
+      select: { durationMs: true },
+      orderBy: { durationMs: "asc" },
+    });
+    const p95Idx = Math.floor(durations.length * 0.95);
+    const p95TtftMs = durations[p95Idx]?.durationMs ?? 0;
+
+    const feedbackAgg = await prisma.agentFeedback.aggregate({
+      _avg: { score: true },
+    });
+    const averageFeedback = feedbackAgg._avg.score ?? 0;
+
+    const pendingApprovalsCount = await prisma.approvalRequest.count({
+      where: { status: "pending_approval" },
+    });
+
+    // 2. Timeline of recent runs
+    const recentRuns = await prisma.agentRun.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      include: {
+        feedback: {
+          select: { score: true, note: true },
+        },
+      },
+    });
+
+    // 3. Memory Category usage (for Decay Visualizer)
+    const memoryHits = await prisma.agentMemoryHit.groupBy({
+      by: ["category"],
+      _count: { _all: true },
+      where: {
+        createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }, // Last 7 days
+      },
+    });
+
+    // 4. Prompt versions table
+    const promptVersionsRaw = await prisma.promptVersion.findMany({
+      orderBy: { version: "desc" },
+      include: {
+        runs: {
+          select: {
+            feedback: { select: { score: true } },
+          },
+        },
+      },
+    });
+
+    const promptVersions = promptVersionsRaw.map((pv) => {
+      const runsWithFeedback = pv.runs.filter((r) => r.feedback !== null);
+      const avgScore =
+        runsWithFeedback.length > 0
+          ? runsWithFeedback.reduce((acc, r) => acc + (r.feedback?.score ?? 0), 0) /
+            runsWithFeedback.length
+          : 0;
+
+      return {
+        id: pv.id,
+        version: pv.version,
+        active: pv.active,
+        systemPrompt: pv.systemPrompt.slice(0, 100) + "...",
+        createdAt: pv.createdAt.toISOString(),
+        totalRuns: pv.runs.length,
+        averageFeedback: avgScore,
+      };
+    });
+
+    return {
+      kpis: {
+        totalCostCents,
+        p95TtftMs,
+        averageFeedback,
+        pendingApprovalsCount,
+        avgDurationMs,
+      },
+      recentRuns: recentRuns.map((r) => ({
+        id: r.id,
+        traceId: r.traceId,
+        model: r.model,
+        provider: r.provider,
+        status: r.status,
+        costCents: r.costCents,
+        durationMs: r.durationMs,
+        feedback: r.feedback,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      memoryDecay: memoryHits.map((mh) => ({
+        category: mh.category,
+        count: mh._count._all,
+      })),
+      promptVersions,
+    };
+  }),
+
+  /**
+   * Set specific prompt version active and disable other versions.
+   */
+  setActivePromptVersion: operatorProcedure
+    .input(z.object({ version: z.number().int() }))
+    .mutation(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+
+      // Set all other prompt versions to active = false
+      await prisma.promptVersion.updateMany({
+        where: { active: true },
+        data: { active: false },
+      });
+
+      // Set the specified version to active = true
+      await prisma.promptVersion.update({
+        where: { version: input.version },
+        data: { active: true },
+      });
+
+      return { success: true };
+    }),
+
 };

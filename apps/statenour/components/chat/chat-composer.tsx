@@ -83,6 +83,9 @@ interface ChatComposerProps {
   // ── Slash + mention dropdowns get input-change events ──
   slash: ReturnType<typeof useSlashCommands>;
   mentions: ReturnType<typeof useMentionSuggestions>;
+  // ── Memory Inspector ──
+  memoryInspectorOpen?: boolean;
+  onToggleMemoryInspector?: () => void;
 }
 
 export function ChatComposer({
@@ -105,6 +108,8 @@ export function ChatComposer({
   longPressTimerRef,
   slash,
   mentions,
+  memoryInspectorOpen,
+  onToggleMemoryInspector,
 }: ChatComposerProps) {
   return (
     // Input row — Apr 27 · COMPOSER chrome.
@@ -153,6 +158,8 @@ export function ChatComposer({
           onOpenCamera={img.openCamera}
           onOpenAudio={() => audioInputRef.current?.click()}
           onOpenVoiceMode={onOpenVoiceMode}
+          memoryInspectorOpen={memoryInspectorOpen}
+          onToggleMemoryInspector={onToggleMemoryInspector}
         />
 
         {/* Textarea (with voice waveform overlay during recording) */}
