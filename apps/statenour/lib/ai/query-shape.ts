@@ -70,7 +70,7 @@ export function detectQueryShape(message: string): ShapeResult {
 
   // Casual first — short greetings get the smallest budget
   if (CASUAL_PATTERN.test(text) && len < 40) {
-    return { shape: "casual", tokenBudget: 80, needsTool: false, factualHints: [] };
+    return { shape: "casual", tokenBudget: 300, needsTool: false, factualHints: [] };
   }
 
   // Factual data questions — strong match: tool-first
@@ -92,7 +92,7 @@ export function detectQueryShape(message: string): ShapeResult {
   if (YES_NO_PATTERN.test(text) || YES_NO_CHOICE.test(text)) {
     return {
       shape: "yes_no",
-      tokenBudget: 150,
+      tokenBudget: 400,
       needsTool: familyHits.length > 0,
       factualHints: familyHits,
     };
