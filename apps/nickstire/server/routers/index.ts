@@ -58,3 +58,4 @@ export { conversionRouter } from "./conversion";
 export { seoToolsRouter } from "./seoTools";
 export { smsPerformanceRouter } from "./smsPerformance";
 export { localGrowthRouter } from "./localGrowth";
+export { instagramAdminRouter } from "./instagramAdmin";
