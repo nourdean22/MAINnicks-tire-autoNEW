@@ -1,8 +1,8 @@
 # Project Completion Ledger
 
 Source-grounded truth about what is actually done, partial, or untouched.
-Updated 2026-06-10 (late night) against main `a231e449` — after the
-11-PR ship (#46-#55 all squash-merged). Every status cites evidence — a
+Updated 2026-06-15 against main `e0c4507b` — after the
+12-PR ship (#152 merged). Every status cites evidence — a
 merged PR, a file path, or an explicit operator action. If a row says
 UNKNOWN, nobody has verified it; do not treat it as done.
 
@@ -37,6 +37,7 @@ DANGEROUS_DO_NOT_AUTOMATE_YET
 | OpenWeb/OpenWeb-style interface · custom reports · report viewer | DONE_MERGED (registry form) | PR #47 Reports tab (registry-backed doc corpus with paths) | Report hub live / docs render as paths, not inline viewer (deliberate) | low | — | — | no |
 | Website audit cleanup | PARTIAL | Frontface audit 3 waves shipped 2026-06-03 (`docs/frontface-audit/`); warranty/founding/pricing fixed | Major truth fixes done / `/emissions` desc-length warn; phone/SMS/voice "$60 used" channel decision; chrome/PageLayout + hex-hygiene items open | med | status doc in ops-hub PR; owner price decision | partial | yes |
 | Google Reviews API / Place ID reliability | PARTIAL (surface live, prod read pending) | `localGrowth.reviewsHealth` (#50) + Growth tab card (#53) report key-presence + live-reachability + fallback honestly | Health card live / nobody has READ it against prod yet | low | open Admin → Growth → Local Growth on the deployed site — the card answers this row | — | 1-min check |
+| Low-CTR SEO Page Optimizations | DONE_MERGED | PR #152; `ReviewsPage.tsx`, `SpecialsPage.tsx`, `Financing.tsx`, `TireFinder.tsx` | Rewrote title tags and meta descriptions for low-CTR pages to optimize search click-through rate | low | — | — | no |
 | Building Blue redesign | UNKNOWN_NEEDS_VERIFICATION | No branch/doc named "Building Blue" found in repo | Unclear what this refers to / definition | ? | owner: define or drop the item | no | yes |
 | Repo/runtime/CI/governance hardening | PARTIAL | `.github/workflows` (affected build, used by PR CI), husky pre-commit/pre-push chains, PROTECTED-CORE.md | Strong local gates + CI / coverage excludes money-path files; STRIPE_WEBHOOK_SECRET not in env-validate required keys | med | add env-validate warn + coverage include (separate PR) | yes | no |
 | Vitest test suite greenup | DONE_MERGED | PR #69 (`43e420c9`) | Fixes all 8 pre-existing test failures on main due to error wrapping / matcher serialization quirks | low | — | — | no |
@@ -58,6 +59,10 @@ DANGEROUS_DO_NOT_AUTOMATE_YET
 | Gap 6 — Outcomes and Predictions | DONE_MERGED | PR #79 (bcb5f64c); `task-actions.ts` + REST/tRPC routes + `task-actions-cascade.test.ts` | Shared runtime validation parity (outcomeScore 1-100, completionNote limit); calibration tests passing / — | low | — | — | no |
 | Gap 7 — Business Data Island | DONE_MERGED | PR #79 (bcb5f64c); `businessData.ts` + Nick's Tire query handlers | Drizzle-based query handlers and Statenour shims mapping; 12 tests passing / — | low | — | — | no |
 | Clarity Gate Operations Runbooks | DONE_MERGED | PR #79 (bcb5f64c); `DB_BACKUPS_CLEANUP.md`, `META_TOKEN_RENEWAL.md`, `CALIBRATION_TODO.md` | YAML frontmatter, verified hashes, and clear owner approval hitl-claims / — | low | — | — | no |
+| Honesty Enforcement (canClaimDone) | DONE_MERGED | PR #152; `persist-assistant-turn.ts` | Intercepts SDK tool failures synchronously and deferred background task failures asynchronously to rewrite claim messages | low | — | — | no |
+| Journal-to-Action Seam | DONE_MERGED | PR #152; `journal.ts` | Implements `promoteNextAction` mutation with single-execution idempotency | low | — | — | no |
+| Task Inbox Triage Flow | DONE_MERGED | PR #152; `task.ts`, `inbox-tasks-triage.tsx`, `page.tsx` | Implements `triage` mutation + iOS PWA two-tap confirm triage UI card | low | — | — | no |
+| Google OAuth Diagnostics | DONE_MERGED | PR #152; `google-oauth-diagnostics.ts`, `google-oauth-reauth.md` | Multi-account diagnostics CLI script + operations runbook | low | — | — | no |
 
 ---
 
