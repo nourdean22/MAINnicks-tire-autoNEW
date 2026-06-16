@@ -1339,6 +1339,151 @@ export const taskRouter = router({
       }
     }),
 
+  /**
+   * Task Inbox Triage Flow (P0) · triage
+   *
+   * Triages a task from the Inbox using a Things-style workflow decision.
+   * Supports today, schedule, anytime, someday, snooze, and kill.
+   */
+  triage: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        decision: z.enum(["today", "schedule", "anytime", "someday", "kill", "snooze"]),
+        date: z.string().optional(),
+        snoozeDays: z.number().int().min(1).max(365).optional(),
+        missionId: z.string().max(64).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const { deleteTask, syncTaskPriorities } = await import("@/lib/services/tasks");
+      const { emitTaskEvent } = await import("@/lib/brain/task-events");
+
+      const task = await prisma.task.findUnique({
+        where: { id: input.id },
+      });
+
+      if (!task) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Task not found",
+        });
+      }
+
+      if (input.decision === "kill") {
+        await deleteTask(input.id);
+        return { ok: true };
+      }
+
+      let data: Record<string, any> = {};
+
+      if (input.decision === "today") {
+        let targetDate = new Date();
+        if (input.date) {
+          targetDate = new Date(input.date);
+        } else {
+          targetDate.setHours(0, 0, 0, 0);
+        }
+        data = {
+          status: "READY",
+          dueDate: targetDate,
+          snoozedUntil: null,
+          lastTouchedAt: new Date(),
+        };
+      } else if (input.decision === "schedule") {
+        if (!input.date) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Scheduling requires a date",
+          });
+        }
+        data = {
+          status: "READY",
+          dueDate: new Date(input.date),
+          snoozedUntil: null,
+          lastTouchedAt: new Date(),
+        };
+      } else if (input.decision === "anytime") {
+        let finalMissionId = input.missionId;
+        if (!finalMissionId && task.pendingClassification) {
+          try {
+            const pc = task.pendingClassification as any;
+            if (pc && typeof pc.missionId === "string") {
+              finalMissionId = pc.missionId;
+            }
+          } catch {}
+        }
+
+        data = {
+          status: "READY",
+          dueDate: null,
+          snoozedUntil: null,
+          pendingClassification: null,
+          lastTouchedAt: new Date(),
+          ...(finalMissionId ? { missionId: finalMissionId } : {}),
+        };
+      } else if (input.decision === "someday") {
+        data = {
+          status: "WAITING",
+          dueDate: null,
+          snoozedUntil: null,
+          manualPriorityOverride: 70,
+          lastTouchedAt: new Date(),
+        };
+      } else if (input.decision === "snooze") {
+        let snoozedUntil: Date;
+        if (input.date) {
+          snoozedUntil = new Date(input.date);
+        } else if (input.snoozeDays) {
+          const d = new Date();
+          d.setDate(d.getDate() + input.snoozeDays);
+          d.setHours(0, 0, 0, 0);
+          snoozedUntil = d;
+        } else {
+          const d = new Date();
+          d.setDate(d.getDate() + 1);
+          d.setHours(0, 0, 0, 0);
+          snoozedUntil = d;
+        }
+
+        data = {
+          status: "WAITING",
+          snoozedUntil,
+          dueDate: null,
+          lastTouchedAt: new Date(),
+        };
+      }
+
+      const updatedTask = await prisma.task.update({
+        where: { id: input.id },
+        data,
+      });
+
+      await syncTaskPriorities();
+
+      const { invalidate } = await import("@/lib/utils/cache");
+      invalidate("dashboard_brief");
+      invalidate("ultron_command_center_state_v1");
+
+      if (input.decision === "snooze") {
+        await emitTaskEvent({
+          taskId: input.id,
+          kind: "snoozed",
+          source: "triage:snooze",
+          payload: { snoozedUntil: data.snoozedUntil?.toISOString() },
+        });
+      } else {
+        await emitTaskEvent({
+          taskId: input.id,
+          kind: "reframed",
+          source: `triage:${input.decision}`,
+        });
+      }
+
+      return { ok: true, taskId: updatedTask.id };
+    }),
+
   // ─── Power Atlas (people / relationship / ledger / power-balance /
   // alpha-moment / power-play) · moved VERBATIM to ./task/power-atlas.ts
   // (2026-06-04 mechanical split) · spread keeps paths FLAT as
