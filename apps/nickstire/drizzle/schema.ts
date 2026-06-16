@@ -2809,15 +2809,26 @@ export const searchPerformance = mysqlTable("search_performance", {
   position: int("position").default(0).notNull(),
   /** Date of the data point (YYYY-MM-DD) */
   date: varchar("date", { length: 10 }).notNull(),
+  /** Device type (e.g. desktop, mobile, tablet) */
+  device: varchar("device", { length: 20 }).default("desktop").notNull(),
+  /** Country code (e.g. usa) */
+  country: varchar("country", { length: 10 }).default("usa").notNull(),
+  /** Search type (e.g. web, discover) */
+  searchType: varchar("searchType", { length: 20 }).default("web").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("idx_search_perf_query").on(table.query),
   index("idx_search_perf_date").on(table.date),
   index("idx_search_perf_page").on(table.page),
-  // 2026-05-27 · migration 0062 · unique (date, query, page) so the
-  // gsc-pipeline upsert collapses re-syncs of the same cell instead of
-  // duplicating. NULL pages get normalized to "" in the same migration.
-  uniqueIndex("uq_search_perf_date_query_page").on(table.date, table.query, table.page),
+  // 2026-06-16 · unique index including device, country, and searchType to avoid duplicates
+  uniqueIndex("uq_search_perf_date_query_page_device_country_type").on(
+    table.date,
+    table.query,
+    table.page,
+    table.device,
+    table.country,
+    table.searchType
+  ),
 ]);
 
 // ─── PIPELINE RUNS ──────────────────────────────────────

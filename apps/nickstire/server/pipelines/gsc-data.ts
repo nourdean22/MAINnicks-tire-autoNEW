@@ -34,6 +34,9 @@ export interface SearchPerformanceRow {
   ctr: number;    // percentage (e.g. 5.5)
   position: number; // average position (e.g. 3.2)
   date: string;   // YYYY-MM-DD
+  device: string;
+  country: string;
+  searchType: string;
 }
 
 export interface DateRange {
@@ -153,6 +156,7 @@ async function getAccessToken(): Promise<string> {
  */
 export async function fetchSearchPerformance(
   dateRange: DateRange,
+  searchType: "web" | "discover" = "web",
 ): Promise<SearchPerformanceRow[]> {
   if (!hasGscCredentials()) {
     log.warn("[GSC Pipeline] Service account credentials not configured — skipping fetch");
@@ -161,6 +165,11 @@ export async function fetchSearchPerformance(
 
   try {
     const token = await getAccessToken();
+
+    const dimensions =
+      searchType === "web"
+        ? ["query", "page", "date", "device", "country"]
+        : ["page", "date", "device", "country"];
 
     const response = await fetch(
       `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(GSC_SITE_URL)}/searchAnalytics/query`,
@@ -173,10 +182,11 @@ export async function fetchSearchPerformance(
         body: JSON.stringify({
           startDate: dateRange.startDate,
           endDate: dateRange.endDate,
-          dimensions: ["query", "page", "date"],
-          rowLimit: 1000,
+          dimensions,
+          type: searchType,
+          rowLimit: 25000,
         }),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(45000),
       },
     );
 
@@ -195,17 +205,43 @@ export async function fetchSearchPerformance(
       }>;
     };
 
-    return (data.rows || []).map((row) => ({
-      query: row.keys[0],
-      page: row.keys[1],
-      clicks: row.clicks,
-      impressions: row.impressions,
-      ctr: Math.round(row.ctr * 10000), // 0.055 -> 550 (5.5%)
-      position: Math.round(row.position * 100), // 3.2 -> 320
-      date: row.keys[2],
-    }));
+    return (data.rows || []).map((row) => {
+      let query = "";
+      let page = "";
+      let date = "";
+      let device = "desktop";
+      let country = "usa";
+
+      if (searchType === "web") {
+        query = row.keys[0] || "";
+        page = row.keys[1] || "";
+        date = row.keys[2] || "";
+        device = row.keys[3] || "desktop";
+        country = row.keys[4] || "usa";
+      } else {
+        // Discover: dimensions are [page, date, device, country]
+        query = "";
+        page = row.keys[0] || "";
+        date = row.keys[1] || "";
+        device = row.keys[2] || "desktop";
+        country = row.keys[3] || "usa";
+      }
+
+      return {
+        query,
+        page,
+        clicks: row.clicks,
+        impressions: row.impressions,
+        ctr: Math.round(row.ctr * 10000), // 0.055 -> 550 (5.5%)
+        position: Math.round(row.position * 100), // 3.2 -> 320
+        date,
+        device,
+        country,
+        searchType,
+      };
+    });
   } catch (error) {
-    log.error("[GSC Pipeline] Fetch failed:", error);
+    log.error(`[GSC Pipeline] Fetch failed for ${searchType}:`, error);
     return [];
   }
 }
@@ -285,7 +321,7 @@ export async function getGscDbReport(dateRange: DateRange): Promise<{
     throw new Error("Database not available");
   }
 
-  // 1. Fetch total/summary from DB
+  // 1. Fetch total/summary from DB (filter to searchType = 'web' to match default API report)
   const summaryRows = await d
     .select({
       clicks: sql<number>`COALESCE(SUM(${searchPerformance.clicks}), 0)`,
@@ -293,7 +329,12 @@ export async function getGscDbReport(dateRange: DateRange): Promise<{
       posSum: sql<number>`COALESCE(SUM(${searchPerformance.position} * ${searchPerformance.impressions}), 0)`,
     })
     .from(searchPerformance)
-    .where(sql`${searchPerformance.date} BETWEEN ${dateRange.startDate} AND ${dateRange.endDate}`);
+    .where(
+      and(
+        sql`${searchPerformance.date} BETWEEN ${dateRange.startDate} AND ${dateRange.endDate}`,
+        eq(searchPerformance.searchType, "web"),
+      ),
+    );
 
   const s = summaryRows[0] ?? { clicks: 0, impressions: 0, posSum: 0 };
   const summaryClicks = Number(s.clicks);
@@ -302,7 +343,7 @@ export async function getGscDbReport(dateRange: DateRange): Promise<{
   const summaryCtr = summaryImpressions > 0 ? (summaryClicks / summaryImpressions) : 0;
   const summaryPosition = summaryImpressions > 0 ? (posSum / summaryImpressions) / 100 : 0;
 
-  // 2. Fetch top queries from DB
+  // 2. Fetch top queries from DB (web searchType only)
   const queryRows = await d
     .select({
       key: searchPerformance.query,
@@ -311,7 +352,12 @@ export async function getGscDbReport(dateRange: DateRange): Promise<{
       posSum: sql<number>`SUM(${searchPerformance.position} * ${searchPerformance.impressions})`,
     })
     .from(searchPerformance)
-    .where(sql`${searchPerformance.date} BETWEEN ${dateRange.startDate} AND ${dateRange.endDate}`)
+    .where(
+      and(
+        sql`${searchPerformance.date} BETWEEN ${dateRange.startDate} AND ${dateRange.endDate}`,
+        eq(searchPerformance.searchType, "web"),
+      ),
+    )
     .groupBy(searchPerformance.query)
     .orderBy(sql`SUM(${searchPerformance.clicks}) DESC`)
     .limit(25);
@@ -329,7 +375,7 @@ export async function getGscDbReport(dateRange: DateRange): Promise<{
     };
   });
 
-  // 3. Fetch top pages from DB
+  // 3. Fetch top pages from DB (web searchType only)
   const pageRows = await d
     .select({
       key: searchPerformance.page,
@@ -338,7 +384,12 @@ export async function getGscDbReport(dateRange: DateRange): Promise<{
       posSum: sql<number>`SUM(${searchPerformance.position} * ${searchPerformance.impressions})`,
     })
     .from(searchPerformance)
-    .where(sql`${searchPerformance.date} BETWEEN ${dateRange.startDate} AND ${dateRange.endDate}`)
+    .where(
+      and(
+        sql`${searchPerformance.date} BETWEEN ${dateRange.startDate} AND ${dateRange.endDate}`,
+        eq(searchPerformance.searchType, "web"),
+      ),
+    )
     .groupBy(searchPerformance.page)
     .orderBy(sql`SUM(${searchPerformance.clicks}) DESC`)
     .limit(25);
@@ -379,40 +430,59 @@ export async function syncSearchPerformance(dateRange: DateRange): Promise<{
   const d = await db();
   if (!d) throw new Error("Database not available");
 
-  const rows = await fetchSearchPerformance(dateRange);
-  let stored = 0;
+  // Generate list of dates to query day-by-day to avoid sampling and truncation
+  const dates: string[] = [];
+  let current = new Date(dateRange.startDate);
+  const end = new Date(dateRange.endDate);
+  while (current <= end) {
+    dates.push(current.toISOString().slice(0, 10));
+    current.setDate(current.getDate() + 1);
+  }
 
-  for (const row of rows) {
-    try {
-      // 2026-05-27 · audit #79 fix · upsert on the unique (date, query, page)
-      // key added by migration 0062. Prior code did plain INSERT which
-      // duplicated every row on every cron run (~30-60× inflation observed
-      // in prod). Now: same row gets overwritten with the latest GSC
-      // numbers (clicks/impressions/CTR/position may shift as the 2-day
-      // delay settles), single canonical row per (date, query, page).
-      await d.insert(searchPerformance).values({
-        query: row.query,
-        page: row.page || "",
-        clicks: row.clicks,
-        impressions: row.impressions,
-        ctr: row.ctr,
-        position: row.position,
-        date: row.date,
-      }).onDuplicateKeyUpdate({
-        set: {
+  let totalFetched = 0;
+  let totalStored = 0;
+
+  for (const dateStr of dates) {
+    const dailyRange = { startDate: dateStr, endDate: dateStr };
+    
+    // Fetch both web and discover in parallel for this day
+    const [webRows, discoverRows] = await Promise.all([
+      fetchSearchPerformance(dailyRange, "web"),
+      fetchSearchPerformance(dailyRange, "discover"),
+    ]);
+
+    const allRows = [...webRows, ...discoverRows];
+    totalFetched += allRows.length;
+
+    for (const row of allRows) {
+      try {
+        await d.insert(searchPerformance).values({
+          query: row.query,
+          page: row.page || "",
           clicks: row.clicks,
           impressions: row.impressions,
           ctr: row.ctr,
           position: row.position,
-        },
-      });
-      stored++;
-    } catch (error) {
-      log.error("[GSC Pipeline] Upsert error:", error);
+          date: row.date,
+          device: row.device,
+          country: row.country,
+          searchType: row.searchType,
+        }).onDuplicateKeyUpdate({
+          set: {
+            clicks: row.clicks,
+            impressions: row.impressions,
+            ctr: row.ctr,
+            position: row.position,
+          },
+        });
+        totalStored++;
+      } catch (error) {
+        log.error("[GSC Pipeline] Upsert error:", error);
+      }
     }
   }
 
-  return { fetched: rows.length, stored };
+  return { fetched: totalFetched, stored: totalStored };
 }
 
 // ─── QUERY FUNCTIONS ─────────────────────────────────────
@@ -424,6 +494,7 @@ export async function getTopQueries(opts?: {
   startDate?: string;
   endDate?: string;
   limit?: number;
+  searchType?: string;
 }): Promise<Array<{ query: string; clicks: number; impressions: number; ctr: number; avgPosition: number }>> {
   const d = await db();
   if (!d) return [];
@@ -431,11 +502,15 @@ export async function getTopQueries(opts?: {
   const limit = opts?.limit ?? 20;
   const startDate = opts?.startDate ?? getDefaultStartDate();
   const endDate = opts?.endDate;
+  const searchType = opts?.searchType ?? "web";
 
   // Build WHERE: start always present, end only if supplied
-  const whereClause = endDate
-    ? sql`${searchPerformance.date} BETWEEN ${startDate} AND ${endDate}`
-    : gte(searchPerformance.date, startDate);
+  const whereClause = and(
+    endDate
+      ? sql`${searchPerformance.date} BETWEEN ${startDate} AND ${endDate}`
+      : gte(searchPerformance.date, startDate),
+    eq(searchPerformance.searchType, searchType),
+  );
 
   const rows = await d
     .select({
@@ -472,6 +547,7 @@ export async function getTopQueries(opts?: {
 export async function getGscSummary(opts: {
   startDate: string;
   endDate?: string;
+  searchType?: string;
 }): Promise<{
   from: string;
   to: string;
@@ -484,6 +560,7 @@ export async function getGscSummary(opts: {
   const today = new Date().toISOString().slice(0, 10);
   const from = opts.startDate;
   const to = opts.endDate ?? today;
+  const searchType = opts.searchType ?? "web";
   if (!d) return { from, to, totalClicks: 0, totalImpressions: 0, avgCtr: 0, avgPosition: 0 };
 
   const rows = await d
@@ -494,7 +571,12 @@ export async function getGscSummary(opts: {
       posSum: sql<number>`COALESCE(SUM(${searchPerformance.position} * ${searchPerformance.impressions}), 0)`,
     })
     .from(searchPerformance)
-    .where(sql`${searchPerformance.date} BETWEEN ${from} AND ${to}`);
+    .where(
+      and(
+        sql`${searchPerformance.date} BETWEEN ${from} AND ${to}`,
+        eq(searchPerformance.searchType, searchType),
+      )
+    );
 
   const r = rows[0] || { totalClicks: 0, totalImpressions: 0, posSum: 0 };
   const totalClicks = Number(r.totalClicks);
@@ -512,12 +594,14 @@ export async function getGscSummary(opts: {
 export async function getPagePerformance(opts?: {
   startDate?: string;
   limit?: number;
+  searchType?: string;
 }): Promise<Array<{ page: string; clicks: number; impressions: number; avgCtr: number }>> {
   const d = await db();
   if (!d) return [];
 
   const limit = opts?.limit ?? 20;
   const startDate = opts?.startDate ?? getDefaultStartDate();
+  const searchType = opts?.searchType ?? "web";
 
   const rows = await d
     .select({
@@ -527,7 +611,12 @@ export async function getPagePerformance(opts?: {
       avgCtr: sql<number>`ROUND(AVG(${searchPerformance.ctr}) / 100, 1)`,
     })
     .from(searchPerformance)
-    .where(gte(searchPerformance.date, startDate))
+    .where(
+      and(
+        gte(searchPerformance.date, startDate),
+        eq(searchPerformance.searchType, searchType),
+      )
+    )
     .groupBy(searchPerformance.page)
     .orderBy(sql`SUM(${searchPerformance.clicks}) DESC`)
     .limit(limit);
@@ -546,11 +635,12 @@ export async function getPagePerformance(opts?: {
  * Group search queries into thematic clusters using AI.
  * Helps identify which topics drive the most traffic.
  */
-export async function clusterQueries(opts?: { startDate?: string }): Promise<QueryCluster[]> {
+export async function clusterQueries(opts?: { startDate?: string; searchType?: string }): Promise<QueryCluster[]> {
   const d = await db();
   if (!d) return [];
 
   const startDate = opts?.startDate ?? getDefaultStartDate();
+  const searchType = opts?.searchType ?? "web";
 
   // Get all queries with aggregated metrics
   const rows = await d
@@ -561,7 +651,12 @@ export async function clusterQueries(opts?: { startDate?: string }): Promise<Que
       avgPosition: sql<number>`ROUND(AVG(${searchPerformance.position}) / 100, 1)`,
     })
     .from(searchPerformance)
-    .where(gte(searchPerformance.date, startDate))
+    .where(
+      and(
+        gte(searchPerformance.date, startDate),
+        eq(searchPerformance.searchType, searchType),
+      )
+    )
     .groupBy(searchPerformance.query)
     .orderBy(sql`SUM(${searchPerformance.impressions}) DESC`)
     .limit(100);
@@ -662,12 +757,14 @@ Aim for 4-8 clusters. Don't create clusters with only 1 query unless it's truly 
 export async function detectRankingChanges(opts?: {
   minDelta?: number;
   limit?: number;
+  searchType?: string;
 }): Promise<RankingChange[]> {
   const d = await db();
   if (!d) return [];
 
   const minDelta = opts?.minDelta ?? 300; // 3 positions (stored * 100)
   const limit = opts?.limit ?? 30;
+  const searchType = opts?.searchType ?? "web";
 
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
@@ -681,7 +778,12 @@ export async function detectRankingChanges(opts?: {
       avgPosition: sql<number>`AVG(${searchPerformance.position})`,
     })
     .from(searchPerformance)
-    .where(gte(searchPerformance.date, sevenDaysAgo))
+    .where(
+      and(
+        gte(searchPerformance.date, sevenDaysAgo),
+        eq(searchPerformance.searchType, searchType),
+      )
+    )
     .groupBy(searchPerformance.query, searchPerformance.page);
 
   // Previous period average positions
@@ -695,6 +797,7 @@ export async function detectRankingChanges(opts?: {
     .where(and(
       gte(searchPerformance.date, fourteenDaysAgo),
       lte(searchPerformance.date, sevenDaysAgo),
+      eq(searchPerformance.searchType, searchType),
     ))
     .groupBy(searchPerformance.query, searchPerformance.page);
 
@@ -742,6 +845,7 @@ export async function findCtrOpportunities(opts?: {
   startDate?: string;
   minImpressions?: number;
   limit?: number;
+  searchType?: string;
 }): Promise<CtrOpportunity[]> {
   const d = await db();
   if (!d) return [];
@@ -749,6 +853,7 @@ export async function findCtrOpportunities(opts?: {
   const startDate = opts?.startDate ?? getDefaultStartDate();
   const minImpressions = opts?.minImpressions ?? 50;
   const limit = opts?.limit ?? 15;
+  const searchType = opts?.searchType ?? "web";
 
   const rows = await d
     .select({
@@ -760,7 +865,12 @@ export async function findCtrOpportunities(opts?: {
       avgPosition: sql<number>`AVG(${searchPerformance.position})`,
     })
     .from(searchPerformance)
-    .where(gte(searchPerformance.date, startDate))
+    .where(
+      and(
+        gte(searchPerformance.date, startDate),
+        eq(searchPerformance.searchType, searchType),
+      )
+    )
     .groupBy(searchPerformance.query, searchPerformance.page)
     .having(sql`SUM(${searchPerformance.impressions}) >= ${minImpressions}`)
     .orderBy(sql`AVG(${searchPerformance.ctr}) ASC`)
@@ -815,12 +925,14 @@ export async function findCtrOpportunities(opts?: {
 export async function detectCannibalization(opts?: {
   startDate?: string;
   limit?: number;
+  searchType?: string;
 }): Promise<CannibalizationIssue[]> {
   const d = await db();
   if (!d) return [];
 
   const startDate = opts?.startDate ?? getDefaultStartDate();
   const limit = opts?.limit ?? 15;
+  const searchType = opts?.searchType ?? "web";
 
   // Find queries that have multiple distinct pages ranking
   const rows = await d
@@ -832,7 +944,12 @@ export async function detectCannibalization(opts?: {
       avgPosition: sql<number>`ROUND(AVG(${searchPerformance.position}) / 100, 1)`,
     })
     .from(searchPerformance)
-    .where(gte(searchPerformance.date, startDate))
+    .where(
+      and(
+        gte(searchPerformance.date, startDate),
+        eq(searchPerformance.searchType, searchType),
+      )
+    )
     .groupBy(searchPerformance.query, searchPerformance.page)
     .orderBy(searchPerformance.query, sql`SUM(${searchPerformance.clicks}) DESC`);
 
@@ -884,6 +1001,7 @@ export async function detectCannibalization(opts?: {
  */
 export async function detectSeasonalPatterns(opts?: {
   limit?: number;
+  searchType?: string;
 }): Promise<{
   comparisons: SeasonalComparison[];
   overallTrend: "growing" | "declining" | "stable";
@@ -895,6 +1013,7 @@ export async function detectSeasonalPatterns(opts?: {
   if (!d) return { comparisons: [], overallTrend: "stable", totalCurrentClicks: 0, totalPreviousClicks: 0, changePercent: 0 };
 
   const limit = opts?.limit ?? 20;
+  const searchType = opts?.searchType ?? "web";
 
   // Current period: last 28 days
   const now = new Date();
@@ -911,7 +1030,11 @@ export async function detectSeasonalPatterns(opts?: {
       clicks: sql<number>`SUM(${searchPerformance.clicks})`,
     })
       .from(searchPerformance)
-      .where(and(gte(searchPerformance.date, currentStart), lte(searchPerformance.date, currentEnd)))
+      .where(and(
+        gte(searchPerformance.date, currentStart), 
+        lte(searchPerformance.date, currentEnd),
+        eq(searchPerformance.searchType, searchType),
+      ))
       .groupBy(searchPerformance.query)
       .orderBy(sql`SUM(${searchPerformance.clicks}) DESC`)
       .limit(200),
@@ -920,7 +1043,11 @@ export async function detectSeasonalPatterns(opts?: {
       clicks: sql<number>`SUM(${searchPerformance.clicks})`,
     })
       .from(searchPerformance)
-      .where(and(gte(searchPerformance.date, previousStart), lte(searchPerformance.date, previousEnd)))
+      .where(and(
+        gte(searchPerformance.date, previousStart), 
+        lte(searchPerformance.date, previousEnd),
+        eq(searchPerformance.searchType, searchType),
+      ))
       .groupBy(searchPerformance.query),
   ]);
 
@@ -999,8 +1126,8 @@ export async function runGscPipeline(): Promise<{
 }> {
   // Default to last 7 days for sync
   const now = new Date();
-  const endDate = new Date(now.getTime() - 2 * 86400000).toISOString().slice(0, 10); // GSC data has 2-day delay
-  const startDate = new Date(now.getTime() - 9 * 86400000).toISOString().slice(0, 10);
+  const endDate = new Date(now.getTime() - 1 * 86400000).toISOString().slice(0, 10); // GSC data has 1-day lag
+  const startDate = new Date(now.getTime() - 8 * 86400000).toISOString().slice(0, 10);
 
   const sync = await syncSearchPerformance({ startDate, endDate });
 
