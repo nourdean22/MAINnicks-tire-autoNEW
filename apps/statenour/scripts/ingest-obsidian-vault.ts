@@ -1,8 +1,9 @@
 /**
- * Ingest Obsidian Vault Notes → BrainMemory · 2026-06-16
+ * Ingest Obsidian Vault & iCloud Notes → BrainMemory · 2026-06-16
  *
- * Reads markdown files from the local Obsidian Vault folder,
- * classifies them into categories, and upserts them to the BrainMemory table.
+ * Reads markdown and text files from both the Obsidian Vault folder
+ * and the iCloud Shortcuts directory, classifies them into categories,
+ * and upserts them to the Statenour BrainMemory table.
  *
  * Run: pnpm tsx scripts/ingest-obsidian-vault.ts
  */
@@ -10,27 +11,36 @@
 import fs from "fs";
 import path from "path";
 import { prisma } from "../lib/prisma";
-import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
-import { brainMemory } from "@/lib/brain/memory-manager";
+import { BRAIN_CATEGORIES } from "../lib/brain/categories";
+import { brainMemory } from "../lib/brain/memory-manager";
 
 async function main() {
   console.log("");
   console.log("═══════════════════════════════════════════════════════════");
-  console.log("  INGEST OBSIDIAN VAULT NOTES → BRAIN");
+  console.log("  INGEST LOCAL NOTES (OBSIDIAN & ICLOUD) → BRAIN");
   console.log("═══════════════════════════════════════════════════════════");
 
-  const vaultPath = "C:\\Users\\nourd\\OneDrive\\Documents\\Obsidian Vault";
-  if (!fs.existsSync(vaultPath)) {
-    console.error(`❌ Vault directory not found at: ${vaultPath}`);
-    process.exit(1);
-  }
+  const scanTargets = [
+    {
+      name: "Obsidian Vault",
+      path: "C:\\Users\\nourd\\OneDrive\\Documents\\Obsidian Vault",
+      prefix: "obsidian_",
+      filter: (f: string) => f.endsWith(".md") && f !== "README.md",
+    },
+    {
+      name: "iCloud Shortcuts Folder",
+      path: "C:\\Users\\nourd\\iCloudDrive\\iCloud~is~workflow~my~workflows",
+      prefix: "icloud_shortcut_",
+      filter: (f: string) => (f.endsWith(".md") || f.endsWith(".txt")) && f !== "README.md",
+    },
+  ];
 
   // Helper to clean file names into unique DB keys
-  const toKey = (filename: string) => {
+  const toKey = (filename: string, prefix: string) => {
     return (
-      "obsidian_" +
+      prefix +
       filename
-        .replace(/\.md$/, "")
+        .replace(/\.(md|txt)$/, "")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_+|_+$/g, "")
@@ -41,7 +51,7 @@ async function main() {
   const getCategoryAndTitle = (filename: string) => {
     const name = filename.toLowerCase();
     let category = BRAIN_CATEGORIES.PERSONAL_DEVELOPMENT;
-    let title = filename.replace(/\.md$/, "");
+    let title = filename.replace(/\.(md|txt)$/, "");
 
     if (
       name.includes("goals") ||
@@ -92,77 +102,95 @@ async function main() {
     return { category, title };
   };
 
-  // Read all markdown files from the vault
-  const files = fs
-    .readdirSync(vaultPath)
-    .filter((f) => f.endsWith(".md") && f !== "README.md");
+  let totalProcessed = 0;
+  let totalSynced = 0;
 
-  console.log(`  Found ${files.length} markdown notes to process...`);
-  console.log("");
-
-  let successCount = 0;
-
-  for (const file of files) {
-    const filePath = path.join(vaultPath, file);
-    let content = fs.readFileSync(filePath, "utf-8").trim();
-
-    if (!content) {
-      console.log(`  Skipping empty file: ${file}`);
+  for (const target of scanTargets) {
+    console.log(`Checking ${target.name} at: ${target.path}...`);
+    if (!fs.existsSync(target.path)) {
+      console.log(`  ⚠️ Path does not exist or is inactive, skipping.`);
+      console.log("");
       continue;
     }
 
-    const { category, title } = getCategoryAndTitle(file);
-    const key = toKey(file);
+    const files = fs.readdirSync(target.path).filter(target.filter);
+    console.log(`  Found ${files.length} notes to process.`);
+    console.log("");
 
-    // Clean up content: strip markdown frontmatter if present (lines between first --- and second ---)
-    if (content.startsWith("---")) {
-      const parts = content.split("---");
-      if (parts.length >= 3) {
-        content = parts.slice(2).join("---").trim();
+    for (const file of files) {
+      totalProcessed++;
+      const filePath = path.join(target.path, file);
+      let content = fs.readFileSync(filePath, "utf-8").trim();
+
+      if (!content) {
+        console.log(`  Skipping empty file: ${file}`);
+        continue;
       }
-    }
 
-    // Prefix with title for search clarity
-    const fullContent = `[${title}]\n${content}`;
+      const { category, title } = getCategoryAndTitle(file);
+      const key = toKey(file, target.prefix);
 
-    console.log(`  Processing: ${file}`);
-    console.log(`    └─ Category: ${category}`);
-    console.log(`    └─ Key: ${key}`);
-    console.log(`    └─ Size: ${fullContent.length} chars`);
-
-    try {
-      // Ingest note using the native memory-manager (handles embeddings generation via OpenAI)
-      await brainMemory.remember(
-        category,
-        key,
-        fullContent,
-        "skill_ingestion",
-        {
-          origin: "obsidian-vault",
-          filename: file,
-          title,
-          syncedAt: new Date().toISOString(),
+      // Clean up content: strip markdown frontmatter if present (lines between first --- and second ---)
+      if (content.startsWith("---")) {
+        const parts = content.split("---");
+        if (parts.length >= 3) {
+          content = parts.slice(2).join("---").trim();
         }
-      );
-
-      // Lock confidence to 1.0 (prevents decay)
-      const record = await prisma.brainMemory.findFirst({
-        where: { category, key },
-      });
-      if (record) {
-        await brainMemory.confirm(record.id);
       }
 
-      console.log(`    └─ ✅ Success`);
-      successCount++;
-    } catch (err) {
-      console.error(`    └─ ❌ Failed to ingest ${file}:`, err);
+      // Prefix with title for search clarity
+      const fullContent = `[${title}]\n${content}`;
+
+      // Deduplication check: skip if identical content is already stored
+      const existing = await prisma.brainMemory.findFirst({
+        where: { category, key },
+        select: { content: true },
+      });
+
+      if (existing && existing.content === fullContent) {
+        console.log(`  [Skip] "${file}" is already synced and unchanged.`);
+        continue;
+      }
+
+      console.log(`  [Processing] ${file}`);
+      console.log(`    └─ Target Key: ${key}`);
+      console.log(`    └─ Category:   ${category}`);
+      console.log(`    └─ Size:       ${fullContent.length} chars`);
+
+      try {
+        // Ingest note using the native memory-manager (handles embeddings generation via OpenAI)
+        await brainMemory.remember(
+          category,
+          key,
+          fullContent,
+          "skill_ingestion",
+          {
+            origin: target.name.toLowerCase().replace(/ /g, "-"),
+            filename: file,
+            title,
+            syncedAt: new Date().toISOString(),
+          }
+        );
+
+        // Lock confidence to 1.0 (prevents decay)
+        const record = await prisma.brainMemory.findFirst({
+          where: { category, key },
+        });
+        if (record) {
+          await brainMemory.confirm(record.id);
+        }
+
+        console.log(`    └─ ✅ Success`);
+        totalSynced++;
+      } catch (err) {
+        console.error(`    └─ ❌ Failed to ingest ${file}:`, err);
+      }
     }
+    console.log("");
   }
 
-  console.log("");
   console.log("═══════════════════════════════════════════════════════════");
-  console.log(`  🎉 Ingestion complete: ${successCount}/${files.length} notes synced.`);
+  console.log(`  🎉 Ingestion complete: ${totalSynced}/${totalProcessed} new/modified notes synced.`);
   console.log("═══════════════════════════════════════════════════════════");
   console.log("");
 
@@ -170,6 +198,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("❌ Obsidian Ingestion failed:", err);
+  console.error("❌ Notes Ingestion failed:", err);
   process.exit(1);
 });
