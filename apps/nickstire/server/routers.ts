@@ -77,6 +77,7 @@ import {
   seoToolsRouter,
   conversionRouter,
   smsPerformanceRouter,
+  instagramAdminRouter,
 } from "./routers/index";
 import { voiceAgentRouter } from "./routers/voiceAgent";
 import { vapiRouter } from "./routers/vapi";
@@ -98,6 +99,9 @@ export const appRouter = router({
   weather: weatherRouter,
   reviews: reviewsRouter,
   instagram: instagramRouter,
+  // Admin Instagram console — connection, feed, analytics, comment
+  // moderation, AI co-pilot. Owner-gated wrapper over existing IG services.
+  instagramAdmin: instagramAdminRouter,
   search: searchRouter,
   diagnose: diagnoseRouter,
   laborEstimate: laborEstimateRouter,
