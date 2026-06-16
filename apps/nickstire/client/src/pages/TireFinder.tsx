@@ -1065,8 +1065,8 @@ export default function TireFinder() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Tires Cleveland & Euclid · New & Used Tire Shop | Nick's"
-        description="Tire shop on Euclid Ave. New & used tires from $60 installed. Walk in 7 days, payment programs available. Call (216) 862-0005."
+        title="New & Used Tires Cleveland & Euclid · Nick's Tire & Auto"
+        description="Shop new and used tires in Cleveland & Euclid at Nick's Tire & Auto. Used tires from $25 installed. Mount, balance, and lifetime rotation package included!"
         canonicalPath="/tires"
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}
