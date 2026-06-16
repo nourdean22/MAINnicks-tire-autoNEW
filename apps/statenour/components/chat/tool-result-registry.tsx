@@ -6,6 +6,7 @@ import {
   Flame, ChevronRight, Search, Brain, ListChecks, DollarSign, Users, Activity,
   Eye, TrendingUp, BookOpen, Loader2, Clock, Archive, Pin, NotebookPen,
   AlertTriangle, RotateCcw, Cog, Wrench, HeartPulse, Scale, BarChart3, Sun, Moon,
+  Calendar, Mail, Send, Star, Terminal, Globe, MessageSquare,
 } from "lucide-react";
 
 interface ToolConfig {
@@ -995,6 +996,177 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
       }
       if (o.mit) parts.push(`MIT · "${o.mit.slice(0, 40)}"`);
       return parts.join(" · ") || null;
+    },
+  },
+  "google.getSchedule": {
+    label: "Reading calendar",
+    doneLabel: "Schedule loaded",
+    runningLabel: "Fetching Google Calendar events…",
+    icon: Calendar,
+    color: "blue",
+    link: { href: "/missions", label: "Actions" },
+    subtitle: (out) => {
+      const o = out as { count?: number; events?: unknown[] } | null;
+      const count = o?.count ?? o?.events?.length;
+      return typeof count === "number" ? `${count} event${count === 1 ? "" : "s"} found` : null;
+    },
+  },
+  "google.proposeEvent": {
+    label: "Scheduling event",
+    doneLabel: "Event proposed",
+    runningLabel: "Scheduling Google Calendar event…",
+    icon: Calendar,
+    color: "gold",
+    link: { href: "/missions", label: "Actions" },
+    subtitle: (out) => {
+      const o = out as { summary?: string; created?: boolean } | null;
+      if (o?.summary) return `${o.created ? "booked" : "draft link generated"} · "${o.summary}"`;
+      return null;
+    },
+  },
+  "gmail.draftReply": {
+    label: "Drafting reply",
+    doneLabel: "Reply drafted",
+    runningLabel: "Creating email draft reply…",
+    icon: Mail,
+    color: "blue",
+    subtitle: (out) => {
+      const o = out as { id?: string } | null;
+      return o?.id ? `draft ID: ${o.id.slice(0, 10)}…` : null;
+    },
+  },
+  "gmail.createDraft": {
+    label: "Creating draft",
+    doneLabel: "Draft created",
+    runningLabel: "Creating email draft…",
+    icon: Mail,
+    color: "blue",
+    subtitle: (out) => {
+      const o = out as { id?: string; to?: string } | null;
+      return o?.to ? `to: ${o.to}` : null;
+    },
+  },
+  "gmail.sendDraft": {
+    label: "Sending email",
+    doneLabel: "Email sent",
+    runningLabel: "Sending email draft…",
+    icon: Send,
+    color: "emerald",
+    subtitle: (out) => {
+      const o = out as { id?: string } | null;
+      return o?.id ? `message ID: ${o.id.slice(0, 10)}…` : null;
+    },
+  },
+  "google.getReviewStats": {
+    label: "Loading review stats",
+    doneLabel: "Review stats loaded",
+    runningLabel: "Fetching review aggregates…",
+    icon: Star,
+    color: "gold",
+    link: { href: "/business", label: "Business" },
+    subtitle: (out) => {
+      const o = out as { averageRating?: number; totalCount?: number } | null;
+      return o?.averageRating ? `${o.averageRating}★ average rating (${o.totalCount} reviews)` : null;
+    },
+  },
+  "google.getUnrespondedReviews": {
+    label: "Fetching reviews",
+    doneLabel: "Unresponded reviews loaded",
+    runningLabel: "Scanning reviews needing attention…",
+    icon: MessageSquare,
+    color: "amber",
+    link: { href: "/business", label: "Business" },
+    subtitle: (out) => {
+      const o = out as { count?: number } | null;
+      return typeof o?.count === "number" ? `${o.count} review${o.count === 1 ? "" : "s"} need response` : null;
+    },
+  },
+  "google.draftReviewResponse": {
+    label: "Drafting review response",
+    doneLabel: "Response drafted",
+    runningLabel: "Drafting response with Grok…",
+    icon: MessageSquare,
+    color: "gold",
+    link: { href: "/missions", label: "Actions" },
+    subtitle: (out) => {
+      const o = out as { reviewerName?: string; rating?: number } | null;
+      return o?.reviewerName ? `drafted for ${o.reviewerName} (${o.rating}★)` : null;
+    },
+  },
+  "google.markReviewResponded": {
+    label: "Marking review responded",
+    doneLabel: "Review marked responded",
+    runningLabel: "Marking review…",
+    icon: CheckCircle2,
+    color: "emerald",
+    subtitle: (out) => {
+      const o = out as { reviewId?: string } | null;
+      return o?.reviewId ? `marked responded in local DB` : null;
+    },
+  },
+  "arsenal.runPython": {
+    label: "Running code",
+    doneLabel: "Code executed",
+    runningLabel: "Running Python script in sandbox…",
+    icon: Terminal,
+    color: "blue",
+    subtitle: (out) => {
+      const o = out as { error?: string; returnCode?: number; ok?: boolean } | null;
+      return o?.error ? `Failed: ${o.error}` : "Executed successfully";
+    },
+  },
+  "arsenal.browserCreateSession": {
+    label: "Starting browser",
+    doneLabel: "Browser started",
+    runningLabel: "Creating headless browser session…",
+    icon: Globe,
+    color: "blue",
+    subtitle: (out) => {
+      const o = out as { sessionId?: string } | null;
+      return o?.sessionId ? `session: ${o.sessionId.slice(0, 8)}…` : null;
+    },
+  },
+  "arsenal.browserCloseSession": {
+    label: "Closing browser",
+    doneLabel: "Browser closed",
+    runningLabel: "Closing browser session…",
+    icon: Globe,
+    color: "amber",
+  },
+  "arsenal.browserNavigate": {
+    label: "Navigating browser",
+    doneLabel: "Navigated successfully",
+    runningLabel: "Navigating to URL…",
+    icon: Globe,
+    color: "blue",
+    subtitle: (out) => {
+      const o = out as { url?: string } | null;
+      return o?.url ? `to ${o.url.slice(0, 40)}…` : null;
+    },
+  },
+  "arsenal.browserAct": {
+    label: "Browser action",
+    doneLabel: "Action completed",
+    runningLabel: "Interacting with page elements…",
+    icon: Globe,
+    color: "blue",
+  },
+  "arsenal.browserExtract": {
+    label: "Extracting data",
+    doneLabel: "Data extracted",
+    runningLabel: "Extracting structured text…",
+    icon: Globe,
+    color: "purple",
+  },
+  "arsenal.browserObserve": {
+    label: "Observing page",
+    doneLabel: "Page observed",
+    runningLabel: "Scanning interactive elements…",
+    icon: Globe,
+    color: "blue",
+    subtitle: (out) => {
+      const o = out as { elementsCount?: number } | null;
+      return o?.elementsCount ? `${o.elementsCount} elements observed` : null;
     },
   },
 };
