@@ -32,5 +32,29 @@
   "errorLens.exclude": [
     "todo",
     "fixme"
+  ],
+
+  // --- Spell Checker ---
+  "cSpell.words": [
+    "advertisable",
+    "autopost",
+    "autoposter",
+    "bbrak",
+    "creds",
+    "diagnos",
+    "dryrun",
+    "evals",
+    "higgsfield",
+    "huggingface",
+    "nickstire",
+    "nourcity",
+    "nourd",
+    "openrouter",
+    "photoreal",
+    "photoshoot",
+    "qwen",
+    "rotat",
+    "schnell",
+    "vapi"
   ]
 }
