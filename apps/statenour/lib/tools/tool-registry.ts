@@ -81,7 +81,7 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
   "web.search.verified": {
     id: "web.search.verified",
     label: "Web Search (Verified)",
-    description: "Cross-verified web search across Perplexity, Tavily, and Exa. Returns consensus when sources agree.",
+    description: "Cross-verified web search across Perplexity, Tavily, Exa, and Google Grounding. Returns consensus when sources agree.",
     category: "web",
     status: "active",
     riskClass: "low",
@@ -90,8 +90,8 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     externalMutation: false,
     memoryWriteAllowed: false,
     approvalPolicy: "none",
-    requiredEnv: ["PERPLEXITY_API_KEY"],
-    optionalEnv: ["TAVILY_API_KEY", "EXA_API_KEY"],
+    requiredEnv: [],
+    optionalEnv: ["PERPLEXITY_API_KEY", "TAVILY_API_KEY", "EXA_API_KEY", "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
     auditLogRequired: false,
     currentLimitations: ["Requires active third-party API keys.", "Can be slow due to multi-source consensus checking."],
     costClass: "medium",
@@ -100,7 +100,7 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
   "web.search.arsenal": {
     id: "web.search.arsenal",
     label: "Web Search (Arsenal)",
-    description: "Single-source Perplexity web search with AI-powered summarization.",
+    description: "Single-source Perplexity/Google web search with AI-powered summarization.",
     category: "web",
     status: "active",
     riskClass: "low",
@@ -109,7 +109,8 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     externalMutation: false,
     memoryWriteAllowed: false,
     approvalPolicy: "none",
-    requiredEnv: ["PERPLEXITY_API_KEY"],
+    requiredEnv: [],
+    optionalEnv: ["PERPLEXITY_API_KEY", "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
     auditLogRequired: false,
     currentLimitations: ["No cross-source verification."],
     costClass: "low"

@@ -18,11 +18,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-/* ----- mocks: stub the three integration adapters BEFORE importing the orchestrator ----- */
+/* ----- mocks: stub the four integration adapters BEFORE importing the orchestrator ----- */
 
 const mockPerplexity = vi.fn();
 const mockTavily = vi.fn();
 const mockExa = vi.fn();
+const mockGoogle = vi.fn();
 
 vi.mock("@/lib/integrations/perplexity", () => ({
   askPerplexity: (...args: unknown[]) => mockPerplexity(...args),
@@ -33,8 +34,11 @@ vi.mock("@/lib/integrations/tavily", () => ({
 vi.mock("@/lib/integrations/exa", () => ({
   askExa: (...args: unknown[]) => mockExa(...args),
 }));
+vi.mock("@/lib/integrations/google-search", () => ({
+  askGoogleSearch: (...args: unknown[]) => mockGoogle(...args),
+}));
 
-import { multiSourceSearch, __test__ } from "@/lib/ai/multi-search";
+import { multiSourceSearch, __test__ } from "../../lib/ai/multi-search";
 
 const { tokenize, jaccardSimilarity, dedupCitations, AGREEMENT_THRESHOLD } = __test__;
 
@@ -47,9 +51,11 @@ beforeEach(() => {
   process.env.PERPLEXITY_API_KEY = "test-pplx";
   process.env.TAVILY_API_KEY = "test-tav";
   process.env.EXA_API_KEY = "test-exa";
+  process.env.GEMINI_API_KEY = "test-gemini";
   mockPerplexity.mockReset();
   mockTavily.mockReset();
   mockExa.mockReset();
+  mockGoogle.mockReset();
 });
 
 afterEach(() => {
@@ -120,10 +126,10 @@ describe("v10.0.524 · multi-search pure helpers", () => {
       },
     ]);
     expect(merged).toHaveLength(3);
-    const a = merged.find((m) => m.url.includes("/a"));
+    const a = merged.find((m: any) => m.url.includes("/a"));
     // First-seen source wins (perplexity here).
     expect(a?.source).toBe("perplexity");
-    expect(merged.map((m) => m.url).sort()).toEqual([
+    expect(merged.map((m: any) => m.url).sort()).toEqual([
       "https://example.com/a",
       "https://example.com/b/",
       "https://example.com/c",
@@ -243,8 +249,31 @@ describe("v10.0.524 · multiSourceSearch orchestrator", () => {
     expect(mockExa).toHaveBeenCalledTimes(0);
     expect(result.sources).toHaveLength(1);
     expect(result.sources[0].name).toBe("perplexity");
-    // Single-source · 1/3 quorum.
-    expect(result.confidence).toBeCloseTo(1 / 3, 2);
+    // Single-source · 1/4 quorum.
+    expect(result.confidence).toBeCloseTo(1 / 4, 2);
+  });
+
+  it("uses Google search grounding when Perplexity/Tavily/Exa keys are missing but Gemini key is present", async () => {
+    delete process.env.PERPLEXITY_API_KEY;
+    delete process.env.TAVILY_API_KEY;
+    delete process.env.EXA_API_KEY;
+    process.env.GEMINI_API_KEY = "test-gemini";
+    
+    mockGoogle.mockResolvedValue({
+      content: "Google search grounding answer.",
+      citations: [{ url: "https://google.com" }],
+      model: "gemini-2.0-flash",
+    });
+
+    const result = await multiSourceSearch("test query");
+
+    expect(mockGoogle).toHaveBeenCalledTimes(1);
+    expect(mockPerplexity).toHaveBeenCalledTimes(0);
+    expect(mockTavily).toHaveBeenCalledTimes(0);
+    expect(mockExa).toHaveBeenCalledTimes(0);
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0].name).toBe("google");
+    expect(result.consensus).toBe("Google search grounding answer.");
   });
 
   it("handles per-source timeout without poisoning other sources", async () => {
@@ -268,7 +297,7 @@ describe("v10.0.524 · multiSourceSearch orchestrator", () => {
     const result = await multiSourceSearch("widget query", { timeoutMs: 50 });
 
     // Perplexity timed out · only Tavily + Exa in sources.
-    expect(result.sources.map((s) => s.name).sort()).toEqual(["exa", "tavily"]);
+    expect(result.sources.map((s: any) => s.name).sort()).toEqual(["exa", "tavily"]);
     expect(result.sources).toHaveLength(2);
     // Still produced something usable.
     expect(result.citations.length).toBeGreaterThan(0);
@@ -301,7 +330,7 @@ describe("v10.0.524 · multiSourceSearch orchestrator", () => {
 
     // 4 unique URLs across 5 citations · ipcc and nytimes deduped.
     expect(result.citations).toHaveLength(3);
-    const urls = result.citations.map((c) => c.url.replace(/\/$/, "").toLowerCase()).sort();
+    const urls = result.citations.map((c: any) => c.url.replace(/\/$/, "").toLowerCase()).sort();
     expect(urls).toEqual([
       "https://ipcc.ch/report",
       "https://nytimes.com/climate-2025",
@@ -313,6 +342,8 @@ describe("v10.0.524 · multiSourceSearch orchestrator", () => {
     delete process.env.PERPLEXITY_API_KEY;
     delete process.env.TAVILY_API_KEY;
     delete process.env.EXA_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
     const result = await multiSourceSearch("any query");
 
@@ -341,7 +372,7 @@ describe("v10.0.524 · multiSourceSearch orchestrator", () => {
     const result = await multiSourceSearch("any query");
 
     expect(result.sources).toHaveLength(2);
-    expect(result.sources.map((s) => s.name).sort()).toEqual(["exa", "tavily"]);
+    expect(result.sources.map((s: any) => s.name).sort()).toEqual(["exa", "tavily"]);
     // We got a quorum of 2/3 · confidence is non-zero.
     expect(result.confidence).toBeGreaterThan(0);
   });

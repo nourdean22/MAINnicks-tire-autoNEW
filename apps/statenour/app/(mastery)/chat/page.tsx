@@ -1872,7 +1872,7 @@ function Chat() {
         // inline · not possible · so we just use the larger value
         // (32px) · costs desktop 11px of vertical space · acceptable
         // trade for mobile usability.
-        top: "calc(21px + env(safe-area-inset-top, 0px))",
+        top: "env(safe-area-inset-top, 0px)",
         bottom: "calc(32px + env(safe-area-inset-bottom, 0px))",
         overscrollBehavior: "none",
       }}
