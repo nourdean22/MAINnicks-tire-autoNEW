@@ -33,6 +33,7 @@
 import { askPerplexity, type PerplexityResponse } from "@/lib/integrations/perplexity";
 import { askTavily, type TavilyResponse } from "@/lib/integrations/tavily";
 import { askExa, type ExaResponse } from "@/lib/integrations/exa";
+import { askGoogleSearch } from "@/lib/integrations/google-search";
 // v10.0.525 · #12 silent-failure-hunter H1 fix · the all-sources-
 // failed path was returning empty without any log surface, which
 // risks the very fabrication searchWebVerified exists to prevent.
@@ -40,7 +41,7 @@ import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("ai/multi-search");
 
-export type SourceName = "perplexity" | "tavily" | "exa";
+export type SourceName = "perplexity" | "tavily" | "exa" | "google";
 
 export interface MultiSourceCitation {
   url: string;
@@ -82,7 +83,7 @@ export interface MultiSourceOptions {
 /* ---------- internals ---------- */
 
 const DEFAULT_TIMEOUT_MS = 8_000;
-const ALL_SOURCES: SourceName[] = ["perplexity", "tavily", "exa"];
+const ALL_SOURCES: SourceName[] = ["perplexity", "tavily", "exa", "google"];
 
 /**
  * Race a promise against a timeout. Resolves to the promise's
@@ -105,6 +106,7 @@ function hasApiKey(source: SourceName): boolean {
   if (source === "perplexity") return Boolean(process.env.PERPLEXITY_API_KEY);
   if (source === "tavily") return Boolean(process.env.TAVILY_API_KEY);
   if (source === "exa") return Boolean(process.env.EXA_API_KEY);
+  if (source === "google") return Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY);
   return false;
 }
 
@@ -253,11 +255,24 @@ export async function multiSourceSearch(
         model: r.model,
       };
     }
-    // exa
-    const r: ExaResponse = await withTimeout(
-      askExa(query, baseOpts),
+    if (name === "exa") {
+      const r: ExaResponse = await withTimeout(
+        askExa(query, baseOpts),
+        timeoutMs,
+        "exa",
+      );
+      return {
+        name,
+        content: r.content,
+        citations: r.citations,
+        model: r.model,
+      };
+    }
+    // google search grounding
+    const r = await withTimeout(
+      askGoogleSearch(query),
       timeoutMs,
-      "exa",
+      "google",
     );
     return {
       name,

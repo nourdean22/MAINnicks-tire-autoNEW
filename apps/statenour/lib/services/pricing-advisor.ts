@@ -66,7 +66,7 @@ export interface OutlierCategory extends WinRateRow {
 
 export interface CompetitorPrice {
   /** Provider that surfaced this datum. */
-  source: "perplexity" | "tavily" | "exa" | "unknown";
+  source: "perplexity" | "tavily" | "exa" | "google" | "unknown";
   /** Snippet / quoted price observation. */
   snippet: string;
   /** Citation URL. */

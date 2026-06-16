@@ -94,7 +94,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "ingestDocumentFromUrl",        category: "research",                      cost: "cheap", riskClass: "low" },
   // v10.0.524 · #1 Cross-conversation recall + #4 multi-source search
   { name: "findRelatedConversations",     category: "brain",          battle: true,  cost: "cheap", riskClass: "low" },
-  { name: "searchWebVerified",            category: "research",                      cost: "medium", riskClass: "low", requiredEnv: ["PERPLEXITY_API_KEY"] },
+  { name: "searchWebVerified",            category: "research",                      cost: "medium", riskClass: "low" },
   // v10.0.524 · #6 skill suggestion + #10 anti-pattern surface
   { name: "suggestSkills",                category: "brain",          battle: true,  cost: "cheap", riskClass: "low" },
   { name: "surfaceAntiPatterns",          category: "brain",          battle: true,  cost: "free", riskClass: "low" },
