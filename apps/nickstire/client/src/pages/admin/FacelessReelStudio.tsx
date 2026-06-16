@@ -162,6 +162,8 @@ export default function FacelessReelStudio() {
       if (res.success && res.videoUrl) {
         setGeneratedVideo(res.videoUrl);
         copied("Reel video generated and stitched successfully!");
+      } else {
+        copied(`Video generation failed: ${res.error || "Unknown error"}`);
       }
     },
     onError: (err) => {

@@ -404,33 +404,78 @@ export const contentAdminRouter = router({
       prompts: z.array(z.string()),
     }))
     .mutation(async ({ input }) => {
+      let hgUrls: string[] = [];
+      let isFallback = false;
+      let fallbackWarning = "";
+
       try {
         const { generateCarouselSlideImage } = await import("../services/higgsfieldStudio");
-        const { storagePut } = await import("../storage");
-
-        log.info(`Generating ${input.prompts.length} Carousel images in parallel...`);
-        const hgUrls = await Promise.all(
+        log.info(`Generating ${input.prompts.length} Carousel images via Higgsfield in parallel...`);
+        hgUrls = await Promise.all(
           input.prompts.map((prompt) => generateCarouselSlideImage(prompt))
         );
-
-        log.info("Downloading and persisting generated Carousel images to S3/storage...");
-        const imageUrls = await Promise.all(
-          hgUrls.map(async (url, i) => {
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`Failed to download slide ${i + 1} from Higgsfield`);
-            const buffer = Buffer.from(await res.arrayBuffer());
-            const key = `carousel-studio/${Date.now()}-${i}.jpg`;
-            const upload = await storagePut(key, buffer, "image/jpeg");
-            return upload.url;
-          })
-        );
-
-        return { success: true, imageUrls };
       } catch (err) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: err instanceof Error ? err.message : "Carousel image generation failed"
+        log.warn("Higgsfield Carousel image generation failed, trying OpenAI/Venice fallback...", {
+          err: err instanceof Error ? err.message : String(err)
         });
+        isFallback = true;
+        fallbackWarning = `Higgsfield CLI error: ${err instanceof Error ? err.message : String(err)}. Fell back to Venice/OpenAI.`;
+      }
+
+      try {
+        const { storagePut } = await import("../storage");
+        let imageUrls: string[];
+
+        if (isFallback) {
+          const { generateImage } = await import("../_core/imageGeneration");
+          const pngUrls = await Promise.all(
+            input.prompts.map(async (prompt) => {
+              const res = await generateImage({ prompt });
+              if (!res.url) throw new Error("Fallback image generation returned no URL");
+              return res.url;
+            })
+          );
+
+          log.info("Persisting fallback OpenAI/Venice images to S3/storage...");
+          imageUrls = await Promise.all(
+            pngUrls.map(async (url, i) => {
+              const res = await fetch(url);
+              if (!res.ok) throw new Error(`Failed to download slide ${i + 1} from fallback provider`);
+              const buffer = Buffer.from(await res.arrayBuffer());
+              
+              const sharp = (await import("sharp")).default;
+              const jpegBuf = await sharp(buffer)
+                .flatten({ background: { r: 255, g: 255, b: 255 } })
+                .jpeg({ quality: 90 })
+                .toBuffer();
+
+              const key = `carousel-studio/${Date.now()}-${i}.jpg`;
+              const upload = await storagePut(key, jpegBuf, "image/jpeg");
+              return upload.url;
+            })
+          );
+        } else {
+          log.info("Downloading and persisting generated Carousel images to S3/storage...");
+          imageUrls = await Promise.all(
+            hgUrls.map(async (url, i) => {
+              const res = await fetch(url);
+              if (!res.ok) throw new Error(`Failed to download slide ${i + 1} from Higgsfield`);
+              const buffer = Buffer.from(await res.arrayBuffer());
+              const key = `carousel-studio/${Date.now()}-${i}.jpg`;
+              const upload = await storagePut(key, buffer, "image/jpeg");
+              return upload.url;
+            })
+          );
+        }
+
+        return { success: true, imageUrls, warning: fallbackWarning || undefined };
+      } catch (err) {
+        log.error("Carousel image generation failed completely", { err: err instanceof Error ? err.message : String(err) });
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : "Carousel image generation failed",
+          imageUrls: []
+        };
       }
     }),
   generateReelVideo: adminProcedure
@@ -457,10 +502,12 @@ export const contentAdminRouter = router({
 
         return { success: true, videoUrl: upload.url };
       } catch (err) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: err instanceof Error ? err.message : "Reel video generation failed"
-        });
+        log.error("Reel video generation failed", { err: err instanceof Error ? err.message : String(err) });
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : "Reel video generation failed",
+          videoUrl: null
+        };
       }
     }),
   getProprietaryEvidence: adminProcedure
