@@ -1,7 +1,7 @@
 /**
- * Ingest Obsidian Vault & iCloud Notes → BrainMemory · 2026-06-16
+ * Ingest Obsidian Vault & iCloud Notes (Recursive) → BrainMemory · 2026-06-16
  *
- * Reads markdown and text files from both the Obsidian Vault folder
+ * Recursively reads markdown and text files from both the Obsidian Vault folder
  * and the iCloud Shortcuts directory, classifies them into categories,
  * and upserts them to the Statenour BrainMemory table.
  *
@@ -13,6 +13,27 @@ import path from "path";
 import { prisma } from "../lib/prisma";
 import { BRAIN_CATEGORIES } from "../lib/brain/categories";
 import { brainMemory } from "../lib/brain/memory-manager";
+
+// Helper to recursively find files in a directory matching a filter
+function getFilesRecursive(dir: string, filter: (f: string) => boolean): string[] {
+  let results: string[] = [];
+  if (!fs.existsSync(dir)) return results;
+
+  const list = fs.readdirSync(dir);
+  for (const file of list) {
+    const filePath = path.join(dir, file);
+    const stat = fs.statSync(filePath);
+    if (stat && stat.isDirectory()) {
+      // Skip system or ignored folders
+      if (file !== ".obsidian" && file !== "node_modules" && file !== ".git") {
+        results = results.concat(getFilesRecursive(filePath, filter));
+      }
+    } else if (filter(file)) {
+      results.push(filePath);
+    }
+  }
+  return results;
+}
 
 async function main() {
   console.log("");
@@ -113,13 +134,13 @@ async function main() {
       continue;
     }
 
-    const files = fs.readdirSync(target.path).filter(target.filter);
-    console.log(`  Found ${files.length} notes to process.`);
+    const filePaths = getFilesRecursive(target.path, target.filter);
+    console.log(`  Found ${filePaths.length} notes recursively.`);
     console.log("");
 
-    for (const file of files) {
+    for (const filePath of filePaths) {
       totalProcessed++;
-      const filePath = path.join(target.path, file);
+      const file = path.basename(filePath);
       let content = fs.readFileSync(filePath, "utf-8").trim();
 
       if (!content) {
@@ -153,6 +174,7 @@ async function main() {
       }
 
       console.log(`  [Processing] ${file}`);
+      console.log(`    └─ Path:       ${filePath}`);
       console.log(`    └─ Target Key: ${key}`);
       console.log(`    └─ Category:   ${category}`);
       console.log(`    └─ Size:       ${fullContent.length} chars`);
