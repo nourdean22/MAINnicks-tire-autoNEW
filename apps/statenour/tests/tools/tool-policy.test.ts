@@ -65,6 +65,8 @@ describe("Environment & Health Probes", () => {
     vi.stubEnv("PERPLEXITY_API_KEY", "test-perplexity-key");
     vi.stubEnv("TAVILY_API_KEY", "test-tavily-key");
     vi.stubEnv("EXA_API_KEY", "test-exa-key");
+    vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "test-google-key");
     vi.stubEnv("BROWSERBASE_API_KEY", "");
     vi.stubEnv("BROWSERBASE_PROJECT_ID", "");
     vi.stubEnv("E2B_API_KEY", "test-e2b-key");
