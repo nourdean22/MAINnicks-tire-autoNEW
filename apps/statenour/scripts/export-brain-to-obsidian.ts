@@ -9,7 +9,29 @@
 
 import fs from "fs";
 import path from "path";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "../lib/prisma";
+
+interface GoalShape {
+  title: string;
+  horizon?: string;
+  description?: string;
+  status?: string;
+  createdAt: Date;
+}
+
+interface MissionShape {
+  title: string;
+  description?: string;
+  status?: string;
+  targetDate?: string | Date;
+  createdAt: Date;
+}
+
+interface ReflectionShape {
+  content: string;
+  kind?: string;
+  createdAt: Date;
+}
 
 async function main() {
   console.log("");
@@ -42,10 +64,10 @@ async function main() {
   // 1. Export Active Life Goals
   console.log("  Processing: Life Goals...");
   try {
-    const goals = await prisma.lifeGoal.findMany({
+    const goals = (await prisma.lifeGoal.findMany({
       where: { deletedAt: null },
       orderBy: { horizon: "asc" },
-    });
+    })) as unknown as GoalShape[];
 
     let goalsMarkdown = `# 🎯 Statenour Active Life Goals\n\n`;
     goalsMarkdown += `*Last Synced: ${new Date().toLocaleString()}*\n\n`;
@@ -54,16 +76,16 @@ async function main() {
       let currentHorizon = "";
       for (const goal of goals) {
         // Group by horizon if present
-        const horizon = (goal as any).horizon || "General";
+        const horizon = goal.horizon || "General";
         if (horizon !== currentHorizon) {
           currentHorizon = horizon;
           goalsMarkdown += `## Horizon: ${currentHorizon}\n\n`;
         }
         goalsMarkdown += `### ${goal.title}\n`;
-        if ((goal as any).description) {
-          goalsMarkdown += `${(goal as any).description}\n\n`;
+        if (goal.description) {
+          goalsMarkdown += `${goal.description}\n\n`;
         }
-        goalsMarkdown += `- **Status:** ${(goal as any).status || "Active"}\n`;
+        goalsMarkdown += `- **Status:** ${goal.status || "Active"}\n`;
         goalsMarkdown += `- **Created At:** ${goal.createdAt.toLocaleDateString()}\n\n`;
       }
     } else {
@@ -79,10 +101,10 @@ async function main() {
   // 2. Export Active Missions
   console.log("  Processing: Active Missions...");
   try {
-    const missions = await prisma.mission.findMany({
+    const missions = (await prisma.mission.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: "desc" },
-    });
+    })) as unknown as MissionShape[];
 
     let missionsMarkdown = `# 📂 Statenour Active Missions\n\n`;
     missionsMarkdown += `*Last Synced: ${new Date().toLocaleString()}*\n\n`;
@@ -90,11 +112,11 @@ async function main() {
     if (missions.length > 0) {
       for (const mission of missions) {
         missionsMarkdown += `## ${mission.title}\n\n`;
-        if ((mission as any).description) {
-          missionsMarkdown += `${(mission as any).description}\n\n`;
+        if (mission.description) {
+          missionsMarkdown += `${mission.description}\n\n`;
         }
-        missionsMarkdown += `- **Status:** ${(mission as any).status || "In Progress"}\n`;
-        missionsMarkdown += `- **Target Date:** ${(mission as any).targetDate ? new Date((mission as any).targetDate).toLocaleDateString() : "None"}\n`;
+        missionsMarkdown += `- **Status:** ${mission.status || "In Progress"}\n`;
+        missionsMarkdown += `- **Target Date:** ${mission.targetDate ? new Date(mission.targetDate).toLocaleDateString() : "None"}\n`;
         missionsMarkdown += `- **Created:** ${mission.createdAt.toLocaleDateString()}\n\n`;
       }
     } else {
@@ -110,10 +132,10 @@ async function main() {
   // 3. Export Reflections
   console.log("  Processing: Reflections...");
   try {
-    const reflections = await prisma.reflection.findMany({
+    const reflections = (await prisma.reflection.findMany({
       take: 50,
       orderBy: { createdAt: "desc" },
-    });
+    })) as unknown as ReflectionShape[];
 
     let exportedReflections = 0;
     for (const ref of reflections) {
@@ -121,7 +143,7 @@ async function main() {
       const timeStr = ref.createdAt.toTimeString().split(" ")[0].replace(/:/g, "-");
       const filename = `${dateStr}_${timeStr}_reflection.md`;
 
-      const kind = (ref as any).kind || "General";
+      const kind = ref.kind || "General";
       let refMarkdown = `# 💭 Statenour Reflection (${kind})\n\n`;
       refMarkdown += `- **Date:** ${ref.createdAt.toLocaleString()}\n`;
       refMarkdown += `- **Kind:** ${kind}\n\n`;

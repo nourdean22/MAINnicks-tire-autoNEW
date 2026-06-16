@@ -9,7 +9,7 @@
 
 import fs from "fs";
 import path from "path";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "../lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { brainMemory } from "@/lib/brain/memory-manager";
 
