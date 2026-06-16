@@ -42,6 +42,7 @@ import { igAutopostLog, algEstimates, smsConversations, smsMessages, specials } 
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { isEnabled } from "./featureFlags";
+import { ensureHiggsfieldBinary } from "./higgsfieldBinary";
 
 const log = createLogger("ig-autopost");
 
@@ -633,16 +634,13 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype): P
  */
 async function generatePostImageHiggsfield(prompt: string): Promise<string> {
   const { spawn } = await import("child_process");
-  const { createRequire } = await import("module");
   const fs = await import("fs");
   const path = await import("path");
   const os = await import("os");
 
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<string>(async (resolve, reject) => {
     try {
-      const require = createRequire(import.meta.url);
-      const cliJsPath = require.resolve("@higgsfield/cli/bin/higgsfield.js");
-      
+      const binPath = await ensureHiggsfieldBinary();
       const spawnEnv: NodeJS.ProcessEnv = { ...process.env };
       let tempCredsFile: string | null = null;
 
@@ -661,8 +659,7 @@ async function generatePostImageHiggsfield(prompt: string): Promise<string> {
 
       log.info("generating image via higgsfield...", { prompt });
       
-      const child = spawn(process.execPath, [
-        cliJsPath,
+      const child = spawn(binPath, [
         "generate",
         "create",
         "gpt_image_2",
@@ -675,7 +672,11 @@ async function generatePostImageHiggsfield(prompt: string): Promise<string> {
         "--wait",
         "--json"
       ], {
-        env: spawnEnv
+        env: {
+          ...spawnEnv,
+          HIGGSFIELD_INSTALL_METHOD: "npm",
+          HIGGSFIELD_PACKAGE_MANAGER: "pnpm",
+        }
       });
 
       let stdout = "";
@@ -771,20 +772,67 @@ export async function generatePostImage(prompt: string): Promise<{ url: string; 
         err: err instanceof Error ? err.message : String(err),
         prompt
       });
-      const { generateImage } = await import("../_core/imageGeneration");
-      const res = await generateImage({ prompt });
-      if (!res.url) throw new Error("Fallback image generation (openai) returned no url");
-      pngUrl = res.url;
+      pngUrl = await generatePostImageFallback(prompt);
     }
   } else {
-    const { generateImage } = await import("../_core/imageGeneration");
-    const res = await generateImage({ prompt });
-    if (!res.url) throw new Error("image generation returned no url");
-    pngUrl = res.url;
+    pngUrl = await generatePostImageFallback(prompt);
   }
 
   const jpegUrl = await convertHostedPngToJpeg(pngUrl);
   return { url: jpegUrl, format: "jpeg" };
+}
+
+async function generatePostImageFallback(prompt: string): Promise<string> {
+  const isOpenRouter = (process.env.OPENAI_BASE_URL || "").includes("openrouter.ai");
+  const hasHF = !!process.env.HF_API_KEY;
+
+  if (isOpenRouter && hasHF) {
+    try {
+      log.info("OpenAI base URL is OpenRouter (no image support). Using Hugging Face fallback...");
+      return await generateImageHuggingFace(prompt);
+    } catch (err) {
+      log.error("Hugging Face image generation fallback failed", { err: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  // Otherwise, default to the existing OpenAI generator
+  const { generateImage } = await import("../_core/imageGeneration");
+  const res = await generateImage({ prompt });
+  if (!res.url) throw new Error("Fallback image generation (openai) returned no url");
+  return res.url;
+}
+
+async function generateImageHuggingFace(prompt: string): Promise<string> {
+  const apiKey = process.env.HF_API_KEY;
+  if (!apiKey) throw new Error("HF_API_KEY is not configured");
+
+  const model = "black-forest-labs/FLUX.1-schnell";
+  const url = `https://api-inference.huggingface.co/models/${model}`;
+
+  log.info("Generating image via Hugging Face...", { model, prompt });
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ inputs: prompt }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Hugging Face image generation failed (${response.status} ${response.statusText}): ${errorText}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const { storagePut } = await import("../storage");
+  const { url: uploadedUrl } = await storagePut(
+    `generated/${Date.now()}.png`,
+    buffer,
+    "image/png"
+  );
+  if (!uploadedUrl) throw new Error("storagePut returned no url for HF image");
+  return uploadedUrl;
 }
 
 /**
