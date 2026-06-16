@@ -77,7 +77,25 @@ import {
   handleArsenalCompetitorInsight,
   handleArsenalDailyBrief,
   handleArsenalGetMeetings,
+  handleArsenalRunPython,
+  handleArsenalBrowserCreateSession,
+  handleArsenalBrowserCloseSession,
+  handleArsenalBrowserNavigate,
+  handleArsenalBrowserAct,
+  handleArsenalBrowserExtract,
+  handleArsenalBrowserObserve,
 } from "@/lib/ai/agent-actions/arsenal-actions";
+import {
+  handleGoogleGetSchedule,
+  handleGoogleProposeEvent,
+  handleGmailDraftReply,
+  handleGmailCreateDraft,
+  handleGmailSendDraft,
+  handleGoogleGetReviewStats,
+  handleGoogleGetUnrespondedReviews,
+  handleGoogleDraftReviewResponse,
+  handleGoogleMarkReviewResponded,
+} from "@/lib/ai/agent-actions/google-actions";
 import {
   handleTelegramSend,
   handleCameraGetIntelligence,
@@ -283,6 +301,58 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
       case "arsenal.getMeetings":
         return await handleArsenalGetMeetings(params, type);
 
+      case "arsenal.runPython":
+        return await handleArsenalRunPython(params, type);
+
+      case "arsenal.browserCreateSession":
+        return await handleArsenalBrowserCreateSession(params, type);
+
+      case "arsenal.browserCloseSession":
+        return await handleArsenalBrowserCloseSession(params, type);
+
+      case "arsenal.browserNavigate":
+        return await handleArsenalBrowserNavigate(params, type);
+
+      case "arsenal.browserAct":
+        return await handleArsenalBrowserAct(params, type);
+
+      case "arsenal.browserExtract":
+        return await handleArsenalBrowserExtract(params, type);
+
+      case "arsenal.browserObserve":
+        return await handleArsenalBrowserObserve(params, type);
+
+      // ═══════════════════════════════════════════
+      // GOOGLE INTEGRATIONS: Calendar, Gmail, Reviews
+      // ═══════════════════════════════════════════
+
+      case "google.getSchedule":
+        return await handleGoogleGetSchedule(params, type);
+
+      case "google.proposeEvent":
+        return await handleGoogleProposeEvent(params, type);
+
+      case "gmail.draftReply":
+        return await handleGmailDraftReply(params, type);
+
+      case "gmail.createDraft":
+        return await handleGmailCreateDraft(params, type);
+
+      case "gmail.sendDraft":
+        return await handleGmailSendDraft(params, type);
+
+      case "google.getReviewStats":
+        return await handleGoogleGetReviewStats(params, type);
+
+      case "google.getUnrespondedReviews":
+        return await handleGoogleGetUnrespondedReviews(params, type);
+
+      case "google.draftReviewResponse":
+        return await handleGoogleDraftReviewResponse(params, type);
+
+      case "google.markReviewResponded":
+        return await handleGoogleMarkReviewResponded(params, type);
+
       // ═══════════════════════════════════════════
       // CAMERA: Direct camera system actions
       // ═══════════════════════════════════════════
@@ -406,6 +476,26 @@ Available actions:
 | arsenal.competitorInsight | competitorName, details? | CHAIN: Grok analyzes competitor → ClickUp action items |
 | arsenal.dailyBrief | summary | CHAIN: Grok generates brief + tomorrow's priorities → ClickUp tasks |
 | arsenal.getMeetings | limit? | Fireflies — fetch recent meeting transcripts |
+| arsenal.runPython | code | Execute Python code in an isolated E2B cloud sandbox. Returns stdout, stderr, returnValue, and base64 PNG charts. |
+| arsenal.browserCreateSession | keepAlive? | Create a Browserbase headless Chrome session. Returns sessionId and liveViewUrl. |
+| arsenal.browserCloseSession | sessionId | Close a Browserbase session. |
+| arsenal.browserNavigate | sessionId, url, waitUntil? | Navigate the browser session to a URL. |
+| arsenal.browserAct | sessionId, instruction | Perform a natural-language action on the page (e.g. "click login", "type email"). |
+| arsenal.browserExtract | sessionId, instruction, keys[] | Extract structured text data from the page for the list of keys provided. |
+| arsenal.browserObserve | sessionId, instruction? | Find visible selectors and actionable elements on the page. |
+
+### Google Integrations (Calendar, Gmail, Reviews)
+| Action | Params | What It Does |
+|--------|--------|-------------|
+| google.getSchedule | daysAhead? | Fetch operator's Google Calendar schedule. |
+| google.proposeEvent | title, startISO, endISO?, location?, description?, attendees[] | Schedule/propose a calendar event. Direct booking if authorized, else returns Add Event URL. |
+| gmail.draftReply | threadId, body, subject? | Draft a reply in a Gmail email thread. |
+| gmail.createDraft | to, subject, body | Create a new standalone Gmail draft. |
+| gmail.sendDraft | draftId | Send an existing Gmail draft. |
+| google.getReviewStats | (none) | Get aggregated rating stats & response counts from Google reviews. |
+| google.getUnrespondedReviews | minRating?, maxRating? | List unresponded Google reviews (default ratings 1-3★). |
+| google.draftReviewResponse | reviewerName, rating, reviewText, platform?, clickupListId? | Generate review response with Grok and add to ClickUp approval queue. |
+| google.markReviewResponded | reviewId, responseText | Mark a review in the local database as responded. |
 
 ### Camera System (surveillance + intelligence)
 | Action | Params | What It Does |

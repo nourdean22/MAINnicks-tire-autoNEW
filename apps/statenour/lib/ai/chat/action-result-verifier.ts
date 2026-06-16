@@ -67,6 +67,16 @@ export const MUTATION_ACTIONS: ReadonlySet<string> = new Set([
   "mission.plan",
   // Camera writes
   "camera.resolveAlert",
+  // Google / Gmail / Reviews writes
+  "google.proposeEvent",
+  "gmail.draftReply",
+  "gmail.createDraft",
+  "gmail.sendDraft",
+  "google.draftReviewResponse",
+  "google.markReviewResponded",
+  // Browser writes
+  "arsenal.browserCreateSession",
+  "arsenal.browserCloseSession",
 ]);
 
 /** The success/error shape executeActions() returns per action. */
