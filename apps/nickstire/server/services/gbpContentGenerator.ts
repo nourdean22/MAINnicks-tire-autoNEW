@@ -239,24 +239,10 @@ async function getRealReviewsFromDb(): Promise<GoogleReview[]> {
 }
 
 async function buildProofPost(): Promise<GeneratedGBPPost> {
-  const { getGoogleReviews } = await import("../google-reviews");
-  const reviewData = await getGoogleReviews();
-  
-  let qualifyingReviews: GoogleReview[] = [];
-  if (reviewData && reviewData.reviews && reviewData.reviews.length > 0) {
-    qualifyingReviews = reviewData.reviews.filter(
-      (r) => r.rating >= 4 && r.text && r.text.trim().length >= 10
-    );
-  }
-
-  // Fall back to database reviews if Google Places API returns none
-  if (qualifyingReviews.length === 0) {
-    log.info("No qualifying reviews found in Places API cache. Querying review_pipeline table fallback...");
-    qualifyingReviews = await getRealReviewsFromDb();
-  }
+  const qualifyingReviews = await getRealReviewsFromDb();
 
   if (qualifyingReviews.length === 0) {
-    throw new Error("No qualifying Google reviews (rating >= 4 with text) found in Places API or Database");
+    throw new Error("No qualifying Google reviews (rating >= 4 with text) found in Database");
   }
 
   const seed = weekSeed() + "-proof";
@@ -347,28 +333,28 @@ const MATH_ARGUMENTS = [
     today: { amount: `$${BRAKE_PRICE.padsMax}`, thing: "brake pads on one axle" },
     later: { amount: `$${BRAKE_PRICE.caliperAndRotorReplacementEstimate}`, thing: "caliper and rotor replacement if worn to the metal" },
     explanation: "Cleveland salt eats brake hardware faster than dry-state cars. Catching it early IS the maintenance.",
-    finance: "Acima · Snap · Koalafi · $10 down today · pay it down monthly",
+    paymentProgram: "Payment Programs: Acima · Snap · Koalafi · $10 down today · pay it down monthly",
     imageHint: `side-by-side: worn pad ($${BRAKE_PRICE.padsMax}) and chewed-up rotor ($${BRAKE_PRICE.caliperAndRotorReplacementEstimate}) with prices overlaid in brand yellow`,
   },
   {
     today: { amount: `$${SERVICE_PRICE.eCheckFixStarting}`, thing: "E-Check fix today" },
     later: { amount: "$0 — but a $150 ticket and impound risk", thing: "in 30 days when registration expires" },
     explanation: "Failed E-Check has a 30-day deadline. Day 31, you're parked. Most failures are exhaust-related and fixable in an afternoon.",
-    finance: "$10 down · pay over time · pass guaranteed or we keep working",
+    paymentProgram: "Payment programs: $10 down · pay over time · pass promise/assistance or we keep working",
     imageHint: "the actual E-Check repair certificate next to a state-issued failed-test letter",
   },
   {
     today: { amount: `$${OIL_PRICE.fullSynthetic}`, thing: "synthetic oil change today" },
     later: { amount: "$4,000+", thing: "engine rebuild in 60K miles if you skip oil changes" },
     explanation: "Sludge from old oil destroys engines. The math is brutal but the maintenance is cheap.",
-    finance: "Walk in any day. 30 minutes. Free 27-point check while you wait.",
+    paymentProgram: "Walk in any day. 30 minutes. Free 27-point check while you wait.",
     imageHint: "drained black oil pan vs clean new oil — same engine, 90 days apart",
   },
   {
     today: { amount: `$${SERVICE_PRICE.tirePatch}`, thing: "tire patch today" },
     later: { amount: "$1,000+", thing: "for 4 new tires the dealer says you need" },
     explanation: "Most flats are repairable. Most dealers won't tell you that. We will.",
-    finance: "25 minutes. Walk in. We show you the nail before we plug it.",
+    paymentProgram: "25 minutes. Walk in. We show you the nail before we plug it.",
     imageHint: `a roofing nail on the floor next to a tire — caption: '$${SERVICE_PRICE.tirePatch}'`,
   },
 ];
@@ -381,7 +367,7 @@ ${m.later.amount} ${m.later.thing}.
 
 ${m.explanation}
 
-${m.finance}.
+${m.paymentProgram}.
 ${BUSINESS.phone.display}`;
   return {
     archetype: "math",
