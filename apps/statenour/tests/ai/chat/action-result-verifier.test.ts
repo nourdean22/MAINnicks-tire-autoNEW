@@ -20,7 +20,7 @@ import { describe, it, expect } from "vitest";
 import {
   detectFailedActionClaims,
   MUTATION_ACTIONS,
-} from "@/lib/ai/chat/action-result-verifier";
+} from "../../../lib/ai/chat/action-result-verifier";
 
 const FAIL = (action: string, error = "boom") => ({ action, success: false, error });
 const OK = (action: string) => ({ action, success: true });
@@ -77,7 +77,7 @@ describe("detectFailedActionClaims", () => {
       "Added the task and sent you a push notification.",
     );
     expect(claims).toHaveLength(2);
-    const verbs = claims.map((c) => c.verb).sort();
+    const verbs = claims.map((c: any) => c.verb).sort();
     expect(verbs).toEqual(["task.create", "telegram.send"]);
   });
 
@@ -86,12 +86,23 @@ describe("detectFailedActionClaims", () => {
   });
 
   it("treats the canonical write actions as mutations", () => {
-    for (const a of ["task.create", "person.create", "telegram.send", "decision.log"]) {
-      expect(MUTATION_ACTIONS.has(a)).toBe(true);
+    const mutations = [
+      "task.create", "person.create", "telegram.send", "decision.log",
+      "google.proposeEvent", "gmail.draftReply", "gmail.createDraft",
+      "gmail.sendDraft", "google.draftReviewResponse", "google.markReviewResponded",
+      "arsenal.browserCreateSession", "arsenal.browserCloseSession"
+    ];
+    for (const a of mutations) {
+      expect(MUTATION_ACTIONS.has(a), `${a} should be a mutation`).toBe(true);
     }
     // Pure reads are NOT mutations
-    for (const a of ["task.status", "shop.getRevenue", "system.health", "memory.search"]) {
-      expect(MUTATION_ACTIONS.has(a)).toBe(false);
+    const reads = [
+      "task.status", "shop.getRevenue", "system.health", "memory.search",
+      "google.getSchedule", "google.getReviewStats", "google.getUnrespondedReviews",
+      "arsenal.runPython", "arsenal.browserNavigate", "arsenal.browserObserve"
+    ];
+    for (const a of reads) {
+      expect(MUTATION_ACTIONS.has(a), `${a} should not be a mutation`).toBe(false);
     }
   });
 });
