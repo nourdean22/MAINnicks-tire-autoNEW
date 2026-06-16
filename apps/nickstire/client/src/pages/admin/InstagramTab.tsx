@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Panel } from "./shared";
 import { trpc } from "@/lib/trpc";
+import { checkReviewReply } from "@shared/reviewReplyQa";
 
 /* ── local mini-helpers (kept tiny so the tab stays self-contained) ── */
 
@@ -39,6 +40,7 @@ function Bool({ value, trueLabel, falseLabel, trueIsBad = false }: {
 const MODE_CLS = {
   "read-only": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   "db-only": "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  live: "bg-pink-500/10 text-pink-400 border-pink-500/20",
 } as const;
 
 function ModeBadge({ mode }: { mode: keyof typeof MODE_CLS }) {
@@ -62,6 +64,7 @@ export default function InstagramTab() {
         </span>
       </div>
       <ConnectionPanel />
+      <CommentsPanel />
       <CopilotPanel />
       <AnalyticsPanel />
     </div>
@@ -486,6 +489,147 @@ function CopilotPanel() {
           )}
         </div>
       </div>
+    </Panel>
+  );
+}
+
+/* ── Comment moderation (live replies — claim-safety gated) ───── */
+
+interface IgCommentVM { id: string; text: string; username: string; timestamp: string; likeCount: number }
+
+function CommentModerationRow({ comment }: { comment: IgCommentVM }) {
+  const [draft, setDraft] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const suggest = trpc.instagramAdmin.suggestReply.useMutation({
+    onSuccess: (r) => setDraft(r.draft),
+  });
+  const reply = trpc.instagramAdmin.postReply.useMutation({
+    onSuccess: () => { setDraft(""); setConfirming(false); },
+  });
+  const findings = draft ? checkReviewReply(draft) : [];
+  const blockers = findings.filter((f) => f.severity === "block");
+  const isQuestion = comment.text.includes("?");
+
+  return (
+    <div className="bg-background/40 border border-border/30 rounded p-3 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-bold text-foreground">@{comment.username || "user"}</span>
+        {isQuestion && (
+          <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-blue-500/10 text-blue-400 border-blue-500/20">QUESTION</span>
+        )}
+        <span className="text-[10px] text-foreground/40">{comment.likeCount} likes</span>
+      </div>
+      <p className="text-[11px] text-foreground/70 leading-relaxed">{comment.text}</p>
+
+      <div className="bg-background/60 border border-border/30 rounded p-2 space-y-1.5">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={2}
+          maxLength={2000}
+          placeholder="Write a reply, or tap Suggest…"
+          className="w-full bg-background/80 border border-border/40 rounded p-2 text-[11px] text-foreground/90 leading-relaxed focus:outline-none focus:border-primary/50"
+        />
+        {findings.map((f) => (
+          <p key={`${f.rule}-${f.match}`} className={`text-[10px] leading-relaxed flex items-start gap-1 ${f.severity === "block" ? "text-red-400" : "text-amber-400"}`}>
+            <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+            <span><strong>{f.severity === "block" ? "BLOCKED" : "CHECK"}</strong> · {f.rule} ("{f.match}") — {f.fix}</span>
+          </p>
+        ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => suggest.mutate({ commentText: comment.text })}
+            disabled={suggest.isPending}
+            className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded border border-border/40 text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
+          >
+            {suggest.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            Suggest
+          </button>
+          <button
+            onClick={() => {
+              if (confirming) reply.mutate({ commentId: comment.id, message: draft.trim() });
+              else setConfirming(true);
+            }}
+            disabled={reply.isPending || !draft.trim() || blockers.length > 0}
+            title={blockers.length ? "Fix the blocked wording first" : undefined}
+            className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded border transition-colors disabled:opacity-50 ${
+              confirming ? "bg-pink-500/20 text-pink-300 border-pink-500/50" : "text-pink-400 border-pink-500/30 hover:bg-pink-500/10"
+            }`}
+          >
+            {reply.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+            {blockers.length ? "Blocked — edit first" : confirming ? "Tap again — posts to Instagram" : "Reply (live)"}
+          </button>
+        </div>
+        {reply.error && (
+          <p className="text-[10px] text-red-400 flex items-start gap-1">
+            <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{reply.error.message}
+          </p>
+        )}
+        {reply.data?.success && <p className="text-[10px] text-emerald-400">Reply posted to Instagram.</p>}
+      </div>
+    </div>
+  );
+}
+
+function CommentsPanel() {
+  const { data: feed } = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 12 });
+  const [mediaId, setMediaId] = useState<string | null>(null);
+  const { data: commentsRes, isLoading } = trpc.instagramAdmin.getComments.useQuery(
+    { mediaId: mediaId ?? "" },
+    { enabled: !!mediaId },
+  );
+
+  // Questions first — a cheap, honest triage (no faked sentiment scoring):
+  // a follower asking a question is the highest-value reply to not miss.
+  const comments = [...(commentsRes?.comments ?? [])].sort(
+    (a, b) => Number(b.text.includes("?")) - Number(a.text.includes("?")),
+  );
+
+  return (
+    <Panel title="Comment moderation" icon={<MessageCircle className="w-4 h-4" />}>
+      <div className="flex items-center gap-2 mb-2">
+        <ModeBadge mode="live" />
+        <span className="text-[10px] text-foreground/40">replies post to Instagram — claim-safety-gated, two-tap to confirm</span>
+      </div>
+      {!feed?.length ? (
+        <p className="text-xs text-muted-foreground py-3">No posts in the cache yet — tap <strong>Sync feed</strong> above.</p>
+      ) : (
+        <>
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-2">
+            {feed.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setMediaId(p.id)}
+                className={`shrink-0 w-16 h-16 rounded border overflow-hidden relative ${mediaId === p.id ? "border-primary" : "border-border/30"}`}
+              >
+                {p.thumbnailUrl || p.mediaUrl ? (
+                  <img src={p.thumbnailUrl || p.mediaUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-neutral-800 flex items-center justify-center"><Instagram className="w-4 h-4 text-white/30" /></div>
+                )}
+                <span className="absolute bottom-0 right-0 bg-black/70 text-white text-[8px] px-1 rounded-tl flex items-center gap-0.5">
+                  <MessageCircle className="w-2 h-2" />{p.comments}
+                </span>
+              </button>
+            ))}
+          </div>
+          {!mediaId ? (
+            <p className="text-[11px] text-foreground/40">Pick a post above to load its comments.</p>
+          ) : isLoading ? (
+            <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          ) : commentsRes && !commentsRes.ok ? (
+            <p className="text-[11px] text-amber-400 flex items-start gap-1">
+              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{commentsRes.error}
+            </p>
+          ) : !comments.length ? (
+            <p className="text-[11px] text-foreground/40">No comments on this post.</p>
+          ) : (
+            <div className="space-y-2">
+              {comments.map((c) => <CommentModerationRow key={c.id} comment={c} />)}
+            </div>
+          )}
+        </>
+      )}
     </Panel>
   );
 }
