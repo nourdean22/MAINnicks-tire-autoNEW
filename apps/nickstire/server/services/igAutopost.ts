@@ -842,9 +842,34 @@ async function generateImageHuggingFace(prompt: string): Promise<string> {
  * would otherwise go black).
  */
 async function convertHostedPngToJpeg(pngUrl: string): Promise<string> {
-  const resp = await fetch(pngUrl, { signal: AbortSignal.timeout(20000) });
-  if (!resp.ok) throw new Error(`failed to fetch generated image: HTTP ${resp.status}`);
-  const pngBuf = Buffer.from(await resp.arrayBuffer());
+  let pngBuf: Buffer;
+
+  if (pngUrl.includes("/generated/")) {
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const filename = path.basename(pngUrl);
+      const localPath = path.join(process.cwd(), "data", "generated", filename);
+      if (fs.existsSync(localPath)) {
+        pngBuf = fs.readFileSync(localPath);
+      } else {
+        const resp = await fetch(pngUrl, { signal: AbortSignal.timeout(20000) });
+        if (!resp.ok) throw new Error(`failed to fetch generated image: HTTP ${resp.status}`);
+        pngBuf = Buffer.from(await resp.arrayBuffer());
+      }
+    } catch (err) {
+      log.warn("Failed to read generated PNG locally, falling back to fetch...", {
+        err: err instanceof Error ? err.message : String(err)
+      });
+      const resp = await fetch(pngUrl, { signal: AbortSignal.timeout(20000) });
+      if (!resp.ok) throw new Error(`failed to fetch generated image: HTTP ${resp.status}`);
+      pngBuf = Buffer.from(await resp.arrayBuffer());
+    }
+  } else {
+    const resp = await fetch(pngUrl, { signal: AbortSignal.timeout(20000) });
+    if (!resp.ok) throw new Error(`failed to fetch generated image: HTTP ${resp.status}`);
+    pngBuf = Buffer.from(await resp.arrayBuffer());
+  }
 
   const sharp = (await import("sharp")).default;
   const jpegBuf = await sharp(pngBuf)
