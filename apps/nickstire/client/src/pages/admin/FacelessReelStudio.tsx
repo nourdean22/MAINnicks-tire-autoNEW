@@ -10,7 +10,7 @@
  * being edited by the IG Carousel Studio session and PRs #47/#49. Wiring is
  * a deliberate follow-up (see docs/faceless-reel-intelligence-studio.md).
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
@@ -134,8 +134,6 @@ export default function FacelessReelStudio() {
   const [mode, setMode] = useState<ReelStudioMode>("draft");
   const [toast, setToast] = useState<string | null>(null);
   const [igUrl, setIgUrl] = useState("");
-  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-  const [isAssemblingMp4, setIsAssemblingMp4] = useState(false);
   const [isReadingInsights, setIsReadingInsights] = useState(false);
   const [reelInsights, setReelInsights] = useState<{
     views: number;
@@ -143,32 +141,50 @@ export default function FacelessReelStudio() {
     saves: number;
     dms: number;
   } | null>(null);
+  const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
+
+  const { data: sheetsDrafts, refetch: refetchDrafts } = trpc.contentAdmin.allReelDrafts.useQuery();
+  const { data: sheetsLogs, refetch: refetchLogs } = trpc.contentAdmin.allReelLogs.useQuery();
+
+  const allBriefs = useMemo((): ReelBrief[] => {
+    const custom = (sheetsDrafts || []).map((d: any) => ({ ...d, isSample: false } as ReelBrief));
+    return [...SAMPLE_REEL_BRIEFS, ...custom];
+  }, [sheetsDrafts]);
+
+  const brief = allBriefs[briefIndex] || allBriefs[0] || SAMPLE_REEL_BRIEFS[0];
+
+  useEffect(() => {
+    setGeneratedVideo((brief as any).videoUrl || null);
+  }, [briefIndex, brief]);
+
+  const generateVideoMutation = trpc.contentAdmin.generateReelVideo.useMutation({
+    onSuccess: (res) => {
+      if (res.success && res.videoUrl) {
+        setGeneratedVideo(res.videoUrl);
+        copied("Reel video generated and stitched successfully!");
+      }
+    },
+    onError: (err) => {
+      copied(`Video generation failed: ${err.message}`);
+    }
+  });
+
+  const { data: evidence } = trpc.contentAdmin.getProprietaryEvidence.useQuery({ topicKeyword: brief?.topic });
 
   const handleGenerateVideo = () => {
-    setIsGeneratingVideo(true);
-    copied("Connecting to Higgsfield AI engine...");
-    setTimeout(() => {
-      copied("Generating storyboard beat 1 & 2...");
-      setTimeout(() => {
-        copied("Generating storyboard beat 3, 4 & 5...");
-        setTimeout(() => {
-          setIsGeneratingVideo(false);
-          copied("Higgsfield AI video generation completed! 5 clips prepped (mock URLs loaded).");
-        }, 1000);
-      }, 1000);
-    }, 1000);
+    const prompts = promptPack.map(p => p.prompt);
+    generateVideoMutation.mutate({
+      briefId: brief.id,
+      prompts
+    });
   };
 
   const handleAssembleMp4 = () => {
-    setIsAssemblingMp4(true);
-    copied("Launching local ffmpeg multiplexer...");
-    setTimeout(() => {
-      copied("Applying H.264 MP4 codec render + faststart...");
-      setTimeout(() => {
-        setIsAssemblingMp4(false);
-        copied(`MP4 Assembled: apps/nickstire/assets/reels/reel_${brief.campaignKeyword.toLowerCase()}.mp4`);
-      }, 1000);
-    }, 1000);
+    if (generatedVideo) {
+      copied(`MP4 already assembled & hosted: ${generatedVideo}`);
+    } else {
+      copied("Please run Generate Video first to create the clips and automatically stitch them.");
+    }
   };
 
   const handleReadInsights = () => {
@@ -205,9 +221,6 @@ export default function FacelessReelStudio() {
     }
   });
 
-  const { data: sheetsDrafts, refetch: refetchDrafts } = trpc.contentAdmin.allReelDrafts.useQuery();
-  const { data: sheetsLogs, refetch: refetchLogs } = trpc.contentAdmin.allReelLogs.useQuery();
-
   const saveDraftMutation = trpc.contentAdmin.saveReelDraft.useMutation({
     onSuccess: () => {
       copied("Draft saved to Google Sheets");
@@ -228,14 +241,6 @@ export default function FacelessReelStudio() {
       copied(`Logging failed: ${err.message}`);
     }
   });
-
-  const allBriefs = useMemo((): ReelBrief[] => {
-    const custom = (sheetsDrafts || []).map((d: any) => ({ ...d, isSample: false } as ReelBrief));
-    return [...SAMPLE_REEL_BRIEFS, ...custom];
-  }, [sheetsDrafts]);
-
-  const brief = allBriefs[briefIndex] || allBriefs[0] || SAMPLE_REEL_BRIEFS[0];
-  const { data: evidence } = trpc.contentAdmin.getProprietaryEvidence.useQuery({ topicKeyword: brief?.topic });
 
   const reps = useMemo(() => {
     const logs = sheetsLogs || [];
@@ -495,9 +500,26 @@ export default function FacelessReelStudio() {
       </SectionCard>
 
       {/* 7 · Assembly Plan */}
-      <SectionCard title="ASSEMBLY PLAN (FFMPEG — PLAN ONLY, NEVER EXECUTED HERE)">
+      <SectionCard title="ASSEMBLY PLAN & STITCHING ENGINE">
         <ChecklistBlock items={ffmpegItems} />
         <p className="text-[12px] text-foreground/55 mt-3">{brief.ffmpegAssemblyNotes}</p>
+        {generatedVideo && (
+          <div className="mt-4 border border-border/30 rounded p-3 bg-background/50">
+            <p className="text-xs font-bold text-foreground mb-2 flex items-center gap-1.5">
+              <Film className="w-3.5 h-3.5 text-primary" /> Generated Stitched Video Preview
+            </p>
+            <div className="relative max-w-xs mx-auto border border-border/30 rounded overflow-hidden aspect-[9/16]">
+              <video
+                src={generatedVideo}
+                controls
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <p className="text-[10px] text-foreground/45 text-center mt-2">
+              Stitched MP4 URL: <a href={generatedVideo} target="_blank" rel="noreferrer" className="underline hover:text-primary">{generatedVideo}</a>
+            </p>
+          </div>
+        )}
       </SectionCard>
 
       {/* 8 · Caption Studio */}
@@ -602,10 +624,10 @@ export default function FacelessReelStudio() {
           <button
             type="button"
             onClick={handleGenerateVideo}
-            disabled={isGeneratingVideo}
-            className="text-[11px] font-semibold px-2.5 py-1.5 rounded border border-primary/40 text-foreground hover:bg-primary/10 disabled:opacity-50 inline-flex items-center gap-1 font-bold"
+            disabled={generateVideoMutation.isPending}
+            className="text-[11px] font-semibold px-2.5 py-1.5 rounded border border-primary/40 text-foreground hover:bg-primary/10 disabled:opacity-50 inline-flex items-center gap-1 font-bold animate-pulse-once"
           >
-            {isGeneratingVideo ? (
+            {generateVideoMutation.isPending ? (
               <>
                 <Loader2 className="w-3 h-3 animate-spin" /> Generating...
               </>
@@ -619,25 +641,17 @@ export default function FacelessReelStudio() {
           <button
             type="button"
             onClick={handleAssembleMp4}
-            disabled={isAssemblingMp4}
-            className="text-[11px] font-semibold px-2.5 py-1.5 rounded border border-primary/40 text-foreground hover:bg-primary/10 disabled:opacity-50 inline-flex items-center gap-1 font-bold"
+            className="text-[11px] font-semibold px-2.5 py-1.5 rounded border border-primary/40 text-foreground hover:bg-primary/10 inline-flex items-center gap-1 font-bold"
           >
-            {isAssemblingMp4 ? (
-              <>
-                <Loader2 className="w-3 h-3 animate-spin" /> Assembling...
-              </>
-            ) : (
-              <>
-                <Film className="w-3 h-3 text-primary" /> Assemble MP4
-              </>
-            )}
+            <Film className="w-3 h-3 text-primary" /> Assemble MP4
           </button>
           
           <button
             type="button"
             onClick={() => {
+              const urlToPublish = generatedVideo || `https://nickstire.org/assets/reels/reel_${brief.campaignKeyword.toLowerCase()}.mp4`;
               publishReelMutation.mutate({
-                videoUrl: `https://nickstire.org/assets/reels/reel_${brief.campaignKeyword.toLowerCase()}.mp4`,
+                videoUrl: urlToPublish,
                 caption: `${brief.selectedCaption}\n\n${brief.hashtags.join(" ")}`,
               });
             }}
@@ -705,10 +719,14 @@ export default function FacelessReelStudio() {
             <button
               type="button"
               onClick={() => {
+                const updatedBrief = {
+                  ...brief,
+                  videoUrl: generatedVideo
+                };
                 saveDraftMutation.mutate({
                   id: brief.id,
                   topic: brief.topic,
-                  brief,
+                  brief: updatedBrief,
                 });
               }}
               disabled={saveDraftMutation.isPending}
@@ -750,7 +768,7 @@ export default function FacelessReelStudio() {
                     storyboardOutline: brief.storyboardBeats.map(b => b.onScreenText).join(" | "),
                     captionHook: brief.captionHooks[0] || "",
                     instagramUrl: igUrl,
-                    assetPaths: brief.assetPlan,
+                    assetPaths: generatedVideo || brief.assetPlan || "",
                     score: String(gate.score),
                     hashtags: brief.hashtags.join(", "),
                     avoidedRepeats: brief.avoidedForRepetition || "",

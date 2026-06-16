@@ -9,7 +9,7 @@
  * Everything below is local computation + clipboard.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -83,9 +83,36 @@ export default function IgCarouselStudio() {
   const [topicOverride, setTopicOverride] = useState("");
   const [keywordOverride, setKeywordOverride] = useState("");
   const [igUrl, setIgUrl] = useState("");
+  const [generatedImages, setGeneratedImages] = useState<string[]>([]);
 
   const { data: sheetsDrafts, refetch: refetchDrafts } = trpc.contentAdmin.allCarouselDrafts.useQuery();
   const { data: sheetsLogs, refetch: refetchLogs } = trpc.contentAdmin.allCarouselLogs.useQuery();
+
+  const allBriefs = useMemo((): CarouselBrief[] => {
+    const custom = (sheetsDrafts || []).map((d: any) => ({ ...d, isSample: false } as CarouselBrief));
+    return [...SAMPLE_BRIEFS, ...custom];
+  }, [sheetsDrafts]);
+
+  const brief: CarouselBrief = useMemo(
+    () => allBriefs.find((b) => b.id === briefId) ?? allBriefs[0] ?? SAMPLE_BRIEFS[0],
+    [briefId, allBriefs],
+  );
+
+  useEffect(() => {
+    setGeneratedImages(brief.assetPaths || []);
+  }, [briefId, brief.assetPaths]);
+
+  const generateImagesMutation = trpc.contentAdmin.generateCarouselImages.useMutation({
+    onSuccess: (res) => {
+      if (res.success && res.imageUrls) {
+        setGeneratedImages(res.imageUrls);
+        toast.success("Slide images generated successfully!");
+      }
+    },
+    onError: (err) => {
+      toast.error(`Image generation failed: ${err.message}`);
+    }
+  });
 
   const selectedBriefTopic = useMemo(() => {
     const custom = (sheetsDrafts || []).find((d: any) => d.id === briefId);
@@ -134,16 +161,6 @@ export default function IgCarouselStudio() {
       toast.error(`Publish failed: ${err.message}`);
     }
   });
-
-  const allBriefs = useMemo((): CarouselBrief[] => {
-    const custom = (sheetsDrafts || []).map((d: any) => ({ ...d, isSample: false } as CarouselBrief));
-    return [...SAMPLE_BRIEFS, ...custom];
-  }, [sheetsDrafts]);
-
-  const brief: CarouselBrief = useMemo(
-    () => allBriefs.find((b) => b.id === briefId) ?? allBriefs[0] ?? SAMPLE_BRIEFS[0],
-    [briefId, allBriefs],
-  );
 
   const reps = useMemo(() => {
     const logs = sheetsLogs || [];
@@ -365,6 +382,15 @@ export default function IgCarouselStudio() {
                 <p className="text-[11px] text-foreground/50">Visual: {s.visualPrompt}</p>
                 <p className="text-[11px] text-foreground/50">Overlay: {s.textOverlayPlan}</p>
                 {s.qaNotes && <p className="text-[11px] text-amber-400/70">QA: {s.qaNotes}</p>}
+                {generatedImages[s.slideNumber - 1] && (
+                  <div className="mt-2 relative max-w-xs border border-border rounded overflow-hidden">
+                    <img
+                      src={generatedImages[s.slideNumber - 1]}
+                      alt={`Slide ${s.slideNumber}`}
+                      className="w-full h-auto object-cover aspect-square"
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -481,10 +507,14 @@ export default function IgCarouselStudio() {
             </button>
             <button
               onClick={() => {
+                const updatedBrief = {
+                  ...brief,
+                  assetPaths: generatedImages
+                };
                 saveDraftMutation.mutate({
                   id: brief.id,
                   topic: brief.topic,
-                  brief,
+                  brief: updatedBrief,
                 });
               }}
               disabled={saveDraftMutation.isPending}
@@ -494,9 +524,36 @@ export default function IgCarouselStudio() {
             </button>
             <button
               onClick={() => {
-                const imageUrls = brief.assetPaths && brief.assetPaths.length >= 2
-                  ? brief.assetPaths
-                  : brief.slides.map((_, i) => `https://nickstire.org/assets/carousel/mock_slide_${i + 1}.jpg`);
+                const prompts = brief.slides.map((s) => s.visualPrompt);
+                generateImagesMutation.mutate({
+                  briefId: brief.id,
+                  prompts,
+                });
+              }}
+              disabled={generateImagesMutation.isPending}
+              className={`inline-flex items-center gap-1 px-3 py-2 text-xs font-bold rounded border transition-colors ${
+                generateImagesMutation.isPending
+                  ? "bg-primary/20 border-primary/45 text-foreground/75 cursor-wait"
+                  : "bg-blue-600 border-blue-500 hover:bg-blue-500 text-white"
+              }`}
+            >
+              {generateImagesMutation.isPending ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" /> Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3 h-3" /> Generate Carousel Images
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                const imageUrls = generatedImages.length >= 2
+                  ? generatedImages
+                  : (brief.assetPaths && brief.assetPaths.length >= 2
+                    ? brief.assetPaths
+                    : brief.slides.map((_, i) => `https://nickstire.org/assets/carousel/mock_slide_${i + 1}.jpg`));
 
                 publishCarouselMutation.mutate({
                   imageUrls,
