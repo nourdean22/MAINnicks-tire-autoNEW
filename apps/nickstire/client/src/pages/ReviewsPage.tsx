@@ -330,8 +330,8 @@ export default function ReviewsPage() {
   return (
     <PageLayout activeHref="/reviews" showChat={true}>
       <SEOHead
-        title={`Cleveland Auto Repair Reviews · 4.9★ Across ${BUSINESS.reviews.countDisplay} | Nick's Tire & Auto`}
-        description={`Read ${BUSINESS.reviews.countDisplay} real Google reviews from Cleveland drivers. The pattern: pulled up, walked under the lift, written quote, paid less than the dealer. Free check — you don't pay until you say yes. ${BUSINESS.phone.display}`}
+        title="Nick's Tire & Auto Reviews · 4.9★ Rated Cleveland Shop"
+        description="Read real customer reviews for Nick's Tire & Auto in Cleveland. See why local drivers trust us for honest prices, fast tire service, and reliable auto repair."
         canonicalPath="/reviews"
       />
       <script
