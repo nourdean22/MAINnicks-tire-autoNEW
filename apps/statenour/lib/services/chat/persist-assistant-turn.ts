@@ -765,9 +765,30 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         }
       }
 
+      // Check if this turn contains tool calls (either at top-level event or inside steps)
+      let hasToolCalls = false;
+      const topEvent = event as unknown as { toolCalls?: unknown[]; toolResults?: unknown[] };
+      if ((topEvent.toolCalls && topEvent.toolCalls.length > 0) || (topEvent.toolResults && topEvent.toolResults.length > 0)) {
+        hasToolCalls = true;
+      } else if (Array.isArray(ev.steps)) {
+        interface StepWithTools {
+          toolCalls?: unknown[];
+          toolResults?: unknown[];
+        }
+        for (const step of ev.steps) {
+          if (step && typeof step === "object") {
+            const s = step as StepWithTools;
+            if ((s.toolCalls && s.toolCalls.length > 0) || (s.toolResults && s.toolResults.length > 0)) {
+              hasToolCalls = true;
+              break;
+            }
+          }
+        }
+      }
+
       // EMPTY RESPONSE GUARD — if the stream closes with no content
-      // (after stripping think tags), log it to ai_errors so we can
-      // see the pattern in /system/audit. Common causes:
+      // (after stripping think tags) AND there are no tool calls, log it
+      // to ai_errors so we can see the pattern in /system/audit. Common causes:
       //   - Venice reasoning ate the entire output token budget
       //   - disable_thinking: false + model decided to only think
       //   - Prompt too close to context ceiling
@@ -777,7 +798,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // When detected, we log the rawText head (500 chars) so we can
       // see WHAT the model actually emitted before the strip — that
       // tells us if it was all <think> or genuinely nothing.
-      if (!text || text.trim().length === 0) {
+      if ((!text || text.trim().length === 0) && !hasToolCalls) {
         recordError("chat:stream", new Error("Empty assistant response after every salvage path"), {
           rawTextLength: rawText.length,
           rawTextHead: rawText.slice(0, 500),
@@ -1110,7 +1131,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // block far below can patch the persisted assistant row. Stays
       // null when the response had no content (block never assigns it).
       let createdAssistantId: string | null = null;
-      if (hasContent) {
+      if (hasContent || hasToolCalls) {
         // v7.6 · Apr 29 · ChatMessage Batch A · C2 — assistant message persistence.
         const finishedAt = Date.now();
         const latencyMs = finishedAt - startedAt;
@@ -1392,7 +1413,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       }
 
       // Nothing downstream should run when the response was empty.
-      if (!hasContent) return;
+      if (!hasContent && !hasToolCalls) return;
 
       // Track generation stats — 5s cap. Always runs.
       // v10.0.529.106 · Wave 59 · pass conversationId so cost-slo

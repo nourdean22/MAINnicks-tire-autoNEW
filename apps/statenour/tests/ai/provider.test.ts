@@ -41,6 +41,7 @@ beforeEach(() => {
   vi.resetModules();
   vi.restoreAllMocks();
   generateTextMock.mockReset();
+  vi.stubEnv("RETIRE_VENICE", "false");
 });
 
 afterEach(() => {

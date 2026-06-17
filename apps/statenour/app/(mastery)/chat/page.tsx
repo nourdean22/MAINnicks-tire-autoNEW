@@ -964,7 +964,7 @@ function Chat() {
         // the exhausted state will surface the error card eventually.
       }
     },
-    { maxAttempts: 1 },
+    { maxAttempts: 1, isStreaming },
   );
   // Apr 19 · Venice health — feeds the header dot. Amber when Venice
   // is unreachable / rate-limited, silent gold-idle when fine.
