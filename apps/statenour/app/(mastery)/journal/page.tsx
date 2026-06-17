@@ -764,7 +764,7 @@ function JournalPageInner() {
                       variant="outline"
                       className="text-[10px] border-amber-400/30 text-amber-300 bg-amber-400/[0.04]"
                     >
-                      {spot.domain} · {spot.daysSinceLastLearning}d stale
+                      {spot.domain} · {spot.daysSinceLastLearning >= 999 ? "never" : `${spot.daysSinceLastLearning}d stale`}
                     </Badge>
                   ))}
                   {meta.weakSpots.length > 2 && (
@@ -772,7 +772,7 @@ function JournalPageInner() {
                       className="text-[10px] font-mono text-amber-400/60"
                       title={meta.weakSpots
                         .slice(2)
-                        .map((s) => `${s.domain} (${s.daysSinceLastLearning}d)`)
+                        .map((s) => `${s.domain} (${s.daysSinceLastLearning >= 999 ? "never" : `${s.daysSinceLastLearning}d`})`)
                         .join(" · ")}
                     >
                       +{meta.weakSpots.length - 2} more
