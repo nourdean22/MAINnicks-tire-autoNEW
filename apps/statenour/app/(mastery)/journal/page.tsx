@@ -682,7 +682,7 @@ function JournalPageInner() {
                 <div key={date}>
                   <div className="flex items-center gap-2 mb-2">
                     <Calendar size={11} className="text-(--text-tertiary)" />
-                    <span className="text-[10px] font-(--font-display) font-bold uppercase tracking-[0.22em] text-(--text-tertiary)">
+                    <span className="text-[10px] font-display font-bold uppercase tracking-[0.22em] text-(--text-tertiary)">
                       {formatDay(date)}
                     </span>
                     <div className="h-px flex-1 bg-zinc-800/50" />
@@ -1169,7 +1169,7 @@ function ProofOfBecomingStrip() {
                 {d.label}
               </span>
               {hasProof ? (
-                <span className="font-(--font-display) text-[17px] font-bold tabular-nums leading-none text-(--text-primary)">
+                <span className="font-display text-[17px] font-bold tabular-nums leading-none text-(--text-primary)">
                   {d.count}
                   <span className="ml-1 text-[8.5px] font-mono font-normal uppercase tracking-wider text-(--text-tertiary)">
                     {d.count === 1 ? "entry" : "entries"}
