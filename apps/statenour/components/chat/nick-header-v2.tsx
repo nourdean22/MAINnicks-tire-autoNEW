@@ -149,10 +149,10 @@ export function NickHeaderV2({
   const dotColor = hasError
     ? "bg-red-500"
     : isStreaming
-      ? "bg-[var(--gold)] nick-orb-streaming"
+      ? "bg-(--gold) nick-orb-streaming"
       : !veniceHealthy
         ? "bg-amber-400"
-        : "bg-[var(--gold)] nick-orb-idle";
+        : "bg-(--gold) nick-orb-idle";
 
   // Minutes since session start — shown tiny, only when >0.
   // Apr 27 · COMPILER-FIX — was Date.now() in render which the React
@@ -173,7 +173,7 @@ export function NickHeaderV2({
   // live dot + NICK label + chevron + minutes count have real space;
   // reverts to the tight 36px on desktop where the cursor is precise.
   return (
-    <div className="flex items-center justify-between gap-2 px-3 h-11 sm:h-9 border-b border-[var(--border-default)]">
+    <div className="flex items-center justify-between gap-2 px-3 h-11 sm:h-9 border-b border-(--border-default)">
       {/* Left: NICK + live dot + chevron for history */}
       <button
         onClick={onToggleHistory}
@@ -181,18 +181,18 @@ export function NickHeaderV2({
         aria-label="Toggle conversation history"
       >
         <div className={cn("w-2 h-2 rounded-full shrink-0", dotColor)} />
-        <span className="font-bold uppercase tracking-[0.18em] text-[13px] leading-none text-[var(--text-primary)]">
+        <span className="font-bold uppercase tracking-[0.18em] text-[13px] leading-none text-(--text-primary)">
           NICK
         </span>
         <ChevronDown
           size={11}
           className={cn(
-            "text-[var(--text-tertiary)] transition-transform",
+            "text-(--text-tertiary) transition-transform",
             historyOpen && "rotate-180",
           )}
         />
         {messageCount > 0 && minutes > 0 && (
-          <span className="text-[9px] font-mono text-[var(--text-tertiary)] tabular-nums">
+          <span className="text-[9px] font-mono text-(--text-tertiary) tabular-nums">
             {messageCount}·{minutes < 60 ? `${minutes}m` : `${Math.round(minutes / 60)}h`}
           </span>
         )}
@@ -210,14 +210,14 @@ export function NickHeaderV2({
       <div className="relative shrink-0" ref={menuRef}>
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          className="w-9 h-9 sm:w-7 sm:h-7 rounded-md flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-raised)] transition-colors active:scale-90"
+          className="w-9 h-9 sm:w-7 sm:h-7 rounded-md flex items-center justify-center text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--bg-raised) transition-colors active:scale-90"
           aria-label="Chat options"
           aria-expanded={menuOpen}
         >
           <MoreHorizontal size={14} />
         </button>
         {menuOpen && (
-          <div className="absolute top-full right-0 mt-1 w-56 rounded-lg border border-[var(--border-default)] bg-[var(--bg-void)] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden z-50">
+          <div className="absolute top-full right-0 mt-1 w-56 rounded-lg border border-(--border-default) bg-(--bg-void) backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden z-50">
             {/* Apr 21 · Persona picker restored. Auto-inference is
                 still the default — server sets X-Persona header per
                 turn and the client syncs. But Nour asked "where did
@@ -228,7 +228,7 @@ export function NickHeaderV2({
                 auto-inference running when he doesn't touch it. */}
             {onPersonalityChange && (
               <>
-                <div className="px-3 pt-2 pb-1 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                <div className="px-3 pt-2 pb-1 text-[9px] font-mono uppercase tracking-wider text-(--text-tertiary)">
                   Mode
                 </div>
                 {([
@@ -243,19 +243,19 @@ export function NickHeaderV2({
                       onPersonalityChange(key);
                     }}
                     className={cn(
-                      "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-[var(--bg-raised)] transition-colors",
-                      personality === key ? "text-[var(--gold)]" : "text-[var(--text-primary)]"
+                      "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
+                      personality === key ? "text-(--gold)" : "text-(--text-primary)"
                     )}
                   >
                     <Icon size={12} />
                     <div className="flex-1 text-left">
                       <div>{label}</div>
-                      <div className="text-[9px] text-[var(--text-tertiary)]">{desc}</div>
+                      <div className="text-[9px] text-(--text-tertiary)">{desc}</div>
                     </div>
-                    {personality === key && <Check size={10} className="text-[var(--gold)]" />}
+                    {personality === key && <Check size={10} className="text-(--gold)" />}
                   </button>
                 ))}
-                <div className="h-px bg-[var(--border-default)]/60 my-1" />
+                <div className="h-px bg-(--border-default)/60 my-1" />
               </>
             )}
 
@@ -265,7 +265,7 @@ export function NickHeaderV2({
                 setMenuOpen(false);
                 onNewChat?.();
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-[var(--text-primary)] hover:bg-[var(--bg-raised)] transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
             >
               <Plus size={12} />
               New chat
@@ -275,7 +275,7 @@ export function NickHeaderV2({
                 setMenuOpen(false);
                 onToggleHistory?.();
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-[var(--text-primary)] hover:bg-[var(--bg-raised)] transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
             >
               <History size={12} />
               History
@@ -286,7 +286,7 @@ export function NickHeaderV2({
                   setMenuOpen(false);
                   onToggleTTS();
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-[var(--text-primary)] hover:bg-[var(--bg-raised)] transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
               >
                 {ttsEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
                 {ttsEnabled ? "Voice on" : "Voice off"}
@@ -298,7 +298,7 @@ export function NickHeaderV2({
                   setMenuOpen(false);
                   onToggleWakeWord();
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-[var(--text-primary)] hover:bg-[var(--bg-raised)] transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
               >
                 {wakeWordActive ? <Mic size={12} /> : <MicOff size={12} />}
                 {wakeWordActive ? "Wake word on" : "Wake word off"}
@@ -313,18 +313,18 @@ export function NickHeaderV2({
                   onToggleAmbient();
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-[var(--bg-raised)] transition-colors",
-                  ambientActive ? "text-[var(--gold)]" : "text-[var(--text-primary)]",
+                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
+                  ambientActive ? "text-(--gold)" : "text-(--text-primary)",
                 )}
               >
                 <Radio size={12} className={ambientActive ? "animate-pulse" : ""} />
                 <div className="flex-1 text-left">
                   <div>{ambientActive ? "Ambient mode on" : "Ambient mode off"}</div>
-                  <div className="text-[9px] text-[var(--text-tertiary)]">
+                  <div className="text-[9px] text-(--text-tertiary)">
                     {ambientActive ? "phone on counter · hands-free" : "wake word + TTS + audio-duck"}
                   </div>
                 </div>
-                {ambientActive && <Check size={10} className="text-[var(--gold)]" />}
+                {ambientActive && <Check size={10} className="text-(--gold)" />}
               </button>
             )}
             {/* v10.0.529.58 · Speed ribbon toggle · per-message TTFT
@@ -338,18 +338,18 @@ export function NickHeaderV2({
                   onToggleSpeedRibbon();
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-[var(--bg-raised)] transition-colors",
-                  showSpeedRibbon ? "text-[var(--gold)]" : "text-[var(--text-primary)]",
+                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
+                  showSpeedRibbon ? "text-(--gold)" : "text-(--text-primary)",
                 )}
               >
                 {showSpeedRibbon ? <Zap size={12} /> : <ZapOff size={12} />}
                 <div className="flex-1 text-left">
                   <div>{showSpeedRibbon ? "Speed ribbon on" : "Speed ribbon off"}</div>
-                  <div className="text-[9px] text-[var(--text-tertiary)]">
+                  <div className="text-[9px] text-(--text-tertiary)">
                     per-message token timing
                   </div>
                 </div>
-                {showSpeedRibbon && <Check size={10} className="text-[var(--gold)]" />}
+                {showSpeedRibbon && <Check size={10} className="text-(--gold)" />}
               </button>
             )}
             {onToggleConversationPulse && (
@@ -359,18 +359,18 @@ export function NickHeaderV2({
                   onToggleConversationPulse();
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-[var(--bg-raised)] transition-colors",
-                  showConversationPulse ? "text-[var(--gold)]" : "text-[var(--text-primary)]",
+                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
+                  showConversationPulse ? "text-(--gold)" : "text-(--text-primary)",
                 )}
               >
                 {showConversationPulse ? <Zap size={12} /> : <ZapOff size={12} />}
                 <div className="flex-1 text-left">
                   <div>{showConversationPulse ? "Telemetry bar on" : "Telemetry bar off"}</div>
-                  <div className="text-[9px] text-[var(--text-tertiary)]">
+                  <div className="text-[9px] text-(--text-tertiary)">
                     sparkline + cost + latency
                   </div>
                 </div>
-                {showConversationPulse && <Check size={10} className="text-[var(--gold)]" />}
+                {showConversationPulse && <Check size={10} className="text-(--gold)" />}
               </button>
             )}
             {/* v10.0.529.58 · Provider override cycle · mirrors the
@@ -383,10 +383,10 @@ export function NickHeaderV2({
                   onCycleProvider();
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-[var(--bg-raised)] transition-colors",
+                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
                   providerOverride && providerOverride !== "auto"
-                    ? "text-[var(--gold)]"
-                    : "text-[var(--text-primary)]",
+                    ? "text-(--gold)"
+                    : "text-(--text-primary)",
                 )}
               >
                 <Shuffle size={12} />
@@ -394,12 +394,12 @@ export function NickHeaderV2({
                   <div>
                     Provider{providerOverride && providerOverride !== "auto" ? `: ${providerOverride}` : ": auto"}
                   </div>
-                  <div className="text-[9px] text-[var(--text-tertiary)]">
+                  <div className="text-[9px] text-(--text-tertiary)">
                     Cmd+Shift+V · auto → ollama → venice → openai
                   </div>
                 </div>
                 {providerOverride && providerOverride !== "auto" && (
-                  <Check size={10} className="text-[var(--gold)]" />
+                  <Check size={10} className="text-(--gold)" />
                 )}
               </button>
             )}
@@ -409,7 +409,7 @@ export function NickHeaderV2({
                   setMenuOpen(false);
                   onInspectPrompt();
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-[var(--text-primary)] hover:bg-[var(--bg-raised)] transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
               >
                 <Eye size={12} />
                 Inspect prompt
@@ -422,8 +422,8 @@ export function NickHeaderV2({
                   onToggleMemoryInspector();
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-[var(--bg-raised)] transition-colors",
-                  memoryInspectorOpen ? "text-[var(--gold)]" : "text-[var(--text-primary)]"
+                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
+                  memoryInspectorOpen ? "text-(--gold)" : "text-(--text-primary)"
                 )}
               >
                 <Brain size={12} />
@@ -432,7 +432,7 @@ export function NickHeaderV2({
             )}
             {conversationId && messageCount > 0 && (
               <>
-                <div className="h-px bg-[var(--border-default)]/60 my-1" />
+                <div className="h-px bg-(--border-default)/60 my-1" />
                 <button
                   onClick={() => {
                     setMenuOpen(false);
@@ -441,7 +441,7 @@ export function NickHeaderV2({
                       "_blank"
                     );
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-[var(--text-primary)] hover:bg-[var(--bg-raised)] transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
                   title="Download this conversation as markdown"
                 >
                   <Download size={12} />
@@ -455,7 +455,7 @@ export function NickHeaderV2({
                       "_blank"
                     );
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-[var(--text-primary)] hover:bg-[var(--bg-raised)] transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
                   title="Download this conversation as JSON (raw + metadata)"
                 >
                   <FileJson size={12} />
