@@ -140,9 +140,11 @@ function JournalPageInner() {
   const [search, setSearch] = useState(initialSearch);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"feed" | "insights" | "reflect">("feed");
+  const initialDeepLinkHandledRef = useRef(false);
 
   // Dynamic heuristics to set the default active tab on load/mount
   useEffect(() => {
+    if (initialDeepLinkHandledRef.current) return;
     const hash = window.location.hash || "";
     const hasSearchParam = searchParams?.get("search");
     let t: ReturnType<typeof setTimeout> | undefined;
@@ -151,6 +153,7 @@ function JournalPageInner() {
         setActiveTab("feed");
       }, 0);
     }
+    initialDeepLinkHandledRef.current = true;
     return () => {
       if (t) clearTimeout(t);
     };
