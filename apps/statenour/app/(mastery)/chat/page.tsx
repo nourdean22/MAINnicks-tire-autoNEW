@@ -274,7 +274,7 @@ const PLAN_TRIGGERING_TOOLS = new Set([
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="w-1.5 h-1.5 rounded-full bg-[var(--gold)] animate-pulse" /></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="w-1.5 h-1.5 rounded-full bg-(--gold) animate-pulse" /></div>}>
       <Chat />
     </Suspense>
   );
@@ -2031,7 +2031,7 @@ function Chat() {
         // the chat content never slides under either chrome on mobile.
         // The 21px is each ticker's h-5 + 1px border.
         "fixed inset-x-0 z-10",
-        "flex flex-col bg-[var(--bg-void)]",
+        "flex flex-col bg-(--bg-void)",
         "state-aura",
         `state-aura-${s.currentState}`,
         // Apr 27 · MOBILE — block pull-to-refresh at the page root
@@ -2327,7 +2327,7 @@ function Chat() {
             className={cn(
               "absolute right-4 bottom-4 z-10 flex items-center gap-1.5",
               "rounded-full px-3 py-1.5 text-[11px] font-medium",
-              "bg-[var(--gold)] text-black shadow-[0_8px_24px_rgba(0,0,0,0.45)]",
+              "bg-(--gold) text-black shadow-[0_8px_24px_rgba(0,0,0,0.45)]",
               "animate-fade-in-scale",
             )}
             aria-label="Jump to latest"
@@ -2348,7 +2348,7 @@ function Chat() {
           row (further down) gets a real composer chrome so the
           buttons read as one unit, not scattered icons. */}
       <div
-        className="shrink-0 border-t border-[var(--border-default)] bg-[var(--bg-void)]"
+        className="shrink-0 border-t border-(--border-default) bg-(--bg-void)"
       >
       <div className="mx-auto w-full max-w-3xl">
 

@@ -72,18 +72,18 @@ function ActionRow({
   destructive?: boolean;
 }) {
   const toneClass = {
-    gold: "bg-[var(--gold)]/10 text-[var(--gold)]",
+    gold: "bg-(--gold)/10 text-(--gold)",
     blue: "bg-blue-500/10 text-blue-400",
     emerald: "bg-emerald-500/10 text-emerald-400",
-    neutral: "bg-[var(--bg-raised)] text-[var(--text-secondary)]",
+    neutral: "bg-(--bg-raised) text-(--text-secondary)",
     rose: "bg-rose-500/10 text-rose-400",
   }[tone];
   return (
     <button
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-3 px-4 py-3.5 transition-colors active:scale-[0.99] active:bg-[var(--bg-raised)]/60",
-        destructive ? "text-rose-300 hover:bg-rose-500/10" : "text-[var(--text-primary)] hover:bg-[var(--bg-raised)]",
+        "w-full flex items-center gap-3 px-4 py-3.5 transition-colors active:scale-[0.99] active:bg-(--bg-raised)/60",
+        destructive ? "text-rose-300 hover:bg-rose-500/10" : "text-(--text-primary) hover:bg-(--bg-raised)",
       )}
       style={{ animation: `fadeSlideUp 0.32s ${delay}ms ease-out both` }}
     >
@@ -179,14 +179,14 @@ export function MessageActionSheet({
       {/* Backdrop */}
       <div
         onClick={onClose}
-        className="fixed inset-0 z-[120] bg-black/65 backdrop-blur-[2px] animate-fade-in"
+        className="fixed inset-0 z-120 bg-black/65 backdrop-blur-[2px] animate-fade-in"
       />
       {/* Sheet */}
       <div
         ref={sheetRef}
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-[121]",
-          "bg-[var(--bg-void)] border-t border-[var(--border-default)]",
+          "fixed bottom-0 left-0 right-0 z-121",
+          "bg-(--bg-void) border-t border-(--border-default)",
           "rounded-t-2xl shadow-[0_-20px_60px_rgba(0,0,0,0.7)]",
           "max-h-[78vh] overflow-y-auto",
         )}
@@ -206,15 +206,15 @@ export function MessageActionSheet({
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          <div className="w-10 h-1 rounded-full bg-[var(--text-tertiary)]/40" />
+          <div className="w-10 h-1 rounded-full bg-(--text-tertiary)/40" />
         </div>
 
         {/* Message preview */}
-        <div className="px-4 py-2.5 border-b border-[var(--border-default)]">
-          <p className="text-[9px] font-mono uppercase tracking-[0.22em] text-[var(--text-tertiary)] mb-1">
+        <div className="px-4 py-2.5 border-b border-(--border-default)">
+          <p className="text-[9px] font-mono uppercase tracking-[0.22em] text-(--text-tertiary) mb-1">
             {role === "user" ? "your message" : "nick's reply"}
           </p>
-          <p className="text-[12.5px] text-[var(--text-secondary)] line-clamp-3 leading-relaxed">
+          <p className="text-[12.5px] text-(--text-secondary) line-clamp-3 leading-relaxed">
             {text.slice(0, 240)}
             {text.length > 240 && "…"}
           </p>
@@ -353,7 +353,7 @@ export function MessageActionSheet({
         {/* Cancel — also large for thumb */}
         <button
           onClick={onClose}
-          className="w-full flex items-center justify-center gap-1.5 py-3.5 border-t border-[var(--border-default)] text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-[0.98] transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 py-3.5 border-t border-(--border-default) text-[11px] font-mono uppercase tracking-[0.18em] text-(--text-tertiary) hover:text-(--text-primary) active:scale-[0.98] transition-colors"
           style={{ animation: `fadeSlideUp 0.32s ${delayCounter.current}ms ease-out both` }}
         >
           <X size={12} /> Close

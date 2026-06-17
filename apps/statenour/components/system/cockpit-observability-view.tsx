@@ -162,7 +162,7 @@ export function CockpitObservabilityView() {
       {/* Main Dashboard section: Memory decay + Recent Runs */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
         {/* Left Side: Memory Decay / Hit Rate */}
-        <Panel className="md:col-span-4 border border-zinc-800/60 bg-zinc-900/[0.04] p-4 flex flex-col justify-between">
+        <Panel className="md:col-span-4 border border-zinc-800/60 bg-zinc-900/4 p-4 flex flex-col justify-between">
           <div>
             <div className="flex items-center space-x-2 border-b border-zinc-800/50 pb-2.5 mb-3.5">
               <Brain className="w-4 h-4 text-gold" />
@@ -191,7 +191,7 @@ export function CockpitObservabilityView() {
                       </div>
                       <div className="h-2 w-full bg-zinc-950 rounded-full overflow-hidden border border-zinc-900">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-gold/40 to-gold/90 transition-all duration-500"
+                          className="h-full rounded-full bg-linear-to-r from-gold/40 to-gold/90 transition-all duration-500"
                           style={{ width: `${pctOfMax}%` }}
                         />
                       </div>
@@ -211,7 +211,7 @@ export function CockpitObservabilityView() {
         </Panel>
 
         {/* Right Side: Timeline of Recent Runs */}
-        <Panel className="md:col-span-8 border border-zinc-800/60 bg-zinc-900/[0.04] p-4">
+        <Panel className="md:col-span-8 border border-zinc-800/60 bg-zinc-900/4 p-4">
           <div className="flex items-center justify-between border-b border-zinc-800/50 pb-2.5 mb-3.5">
             <div className="flex items-center space-x-2">
               <Layers className="w-4 h-4 text-sky-400" />
@@ -241,7 +241,7 @@ export function CockpitObservabilityView() {
                 </thead>
                 <tbody className="divide-y divide-zinc-900">
                   {recentRuns.map((run) => (
-                    <tr key={run.id} className="hover:bg-white/[0.02] transition-colors group">
+                    <tr key={run.id} className="hover:bg-white/2 transition-colors group">
                       <td className="py-2.5 pr-2 font-mono text-zinc-400 whitespace-nowrap">
                         <Link
                           href={`/system/logs?trace=${run.traceId}`}
@@ -299,7 +299,7 @@ export function CockpitObservabilityView() {
       </div>
 
       {/* Bottom Section: Prompt Versions Table */}
-      <Panel className="border border-zinc-800/60 bg-zinc-900/[0.04] p-4">
+      <Panel className="border border-zinc-800/60 bg-zinc-900/4 p-4">
         <div className="flex items-center justify-between border-b border-zinc-800/50 pb-2.5 mb-3.5">
           <div className="flex items-center space-x-2">
             <Settings className="w-4 h-4 text-emerald-400" />
@@ -330,7 +330,7 @@ export function CockpitObservabilityView() {
               </thead>
               <tbody className="divide-y divide-zinc-900">
                 {promptVersions.map((pv) => (
-                  <tr key={pv.id} className="hover:bg-white/[0.02] transition-colors">
+                  <tr key={pv.id} className="hover:bg-white/2 transition-colors">
                     <td className="py-3 pr-2 font-bold font-mono text-zinc-200">
                       v{pv.version}
                     </td>

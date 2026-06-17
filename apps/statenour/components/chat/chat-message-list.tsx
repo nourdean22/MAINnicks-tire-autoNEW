@@ -198,7 +198,7 @@ export function ChatMessageList({
               <button
                 type="button"
                 onClick={showOlder}
-                className="mx-auto block w-full max-w-md rounded-full border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-[var(--gold)]/80 hover:border-[var(--gold)]/50 hover:bg-[var(--gold)]/[0.08] hover:text-[var(--gold)] transition-colors"
+                className="mx-auto block w-full max-w-md rounded-full border border-(--gold)/30 bg-(--gold)/4 px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-(--gold)/80 hover:border-(--gold)/50 hover:bg-(--gold)/8 hover:text-(--gold) transition-colors"
                 title="Reveal older messages — kept hidden by default to keep the page snappy"
               >
                 ↑ show {hiddenCount} older message{hiddenCount === 1 ? "" : "s"}
@@ -247,17 +247,17 @@ export function ChatMessageList({
                   <div className={cn(
                     "max-w-[92%] sm:max-w-[88%] text-[14.5px] sm:text-[13.5px] leading-[1.55] sm:leading-[1.6] relative",
                     msg.role === "user"
-                      ? "rounded-2xl rounded-br-md px-3.5 py-2.5 sm:py-2 user-bubble-premium text-[var(--text-primary)]"
-                      : "pl-1 border-l-2 border-[var(--gold)]/10 text-[var(--text-secondary)]",
+                      ? "rounded-2xl rounded-br-md px-3.5 py-2.5 sm:py-2 user-bubble-premium text-(--text-primary)"
+                      : "pl-1 border-l-2 border-(--gold)/10 text-(--text-secondary)",
                     isLatestAssistantStreaming && "nick-bubble-latest"
                   )}>
                     {/* Timestamp — shown on role changes and periodically */}
                     {showTimestamp && timeLabel && (
                       <div className={cn(
                         "text-[10px] font-mono uppercase tracking-wider mb-0.5",
-                        msg.role === "user" ? "text-[var(--gold)]/40 text-right" : "text-[var(--text-tertiary)]/50"
+                        msg.role === "user" ? "text-(--gold)/40 text-right" : "text-(--text-tertiary)/50"
                       )}>
-                        {msg.role === "assistant" && <span className="text-[var(--gold)]/30 mr-1">Nick</span>}
+                        {msg.role === "assistant" && <span className="text-(--gold)/30 mr-1">Nick</span>}
                         {timeLabel}
                       </div>
                     )}

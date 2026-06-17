@@ -235,34 +235,34 @@ const SEVERITY_PALETTE: Record<
   { bg: string; border: string; dot: string; text: string }
 > = {
   healthy: {
-    bg: "bg-emerald-500/[0.06]",
+    bg: "bg-emerald-500/6",
     border: "border-emerald-500/30",
     dot: "bg-emerald-400",
     text: "text-emerald-300",
   },
   warning: {
-    bg: "bg-amber-500/[0.06]",
+    bg: "bg-amber-500/6",
     border: "border-amber-500/30",
     dot: "bg-amber-400",
     text: "text-amber-300",
   },
   critical: {
-    bg: "bg-rose-500/[0.08]",
+    bg: "bg-rose-500/8",
     border: "border-rose-500/40",
     dot: "bg-rose-400 animate-pulse",
     text: "text-rose-300",
   },
   info: {
-    bg: "bg-sky-500/[0.05]",
+    bg: "bg-sky-500/5",
     border: "border-sky-500/25",
     dot: "bg-sky-400",
     text: "text-sky-300",
   },
   unknown: {
-    bg: "bg-white/[0.02]",
+    bg: "bg-white/2",
     border: "border-white/10",
     dot: "bg-zinc-500",
-    text: "text-[var(--text-muted)]",
+    text: "text-(--text-muted)",
   },
 };
 
@@ -297,15 +297,15 @@ function GroupHeader({
       <h3
         className={cn(
           "text-[10px] font-semibold uppercase tracking-[0.14em]",
-          tone === "alert" ? "text-amber-300" : "text-[var(--text-tertiary)]",
+          tone === "alert" ? "text-amber-300" : "text-(--text-tertiary)",
         )}
       >
         {label}
       </h3>
-      <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
+      <span className="text-[10px] tabular-nums text-(--text-muted)">
         {count}
       </span>
-      <span className="h-px flex-1 bg-[var(--border-default)]" />
+      <span className="h-px flex-1 bg-(--border-default)" />
     </div>
   );
 }
@@ -323,10 +323,10 @@ function HubCardLink({
     <Link
       href={card.href}
       className={cn(
-        "group relative rounded-xl border p-3 transition-colors hover:bg-white/[0.04]",
+        "group relative rounded-xl border p-3 transition-colors hover:bg-white/4",
         pal.bg,
         pal.border,
-        card.featured && "ring-1 ring-[var(--gold)]/20",
+        card.featured && "ring-1 ring-(--gold)/20",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -335,10 +335,10 @@ function HubCardLink({
             className={cn(
               "h-4 w-4 shrink-0",
               pal.text,
-              "group-hover:text-[var(--text-primary)]",
+              "group-hover:text-(--text-primary)",
             )}
           />
-          <span className="text-sm font-semibold text-[var(--text-primary)]">
+          <span className="text-sm font-semibold text-(--text-primary)">
             {card.title}
           </span>
         </div>
@@ -353,7 +353,7 @@ function HubCardLink({
           {chip.label}
         </span>
       </div>
-      <p className="mt-1.5 text-[11px] leading-snug text-[var(--text-secondary)]">
+      <p className="mt-1.5 text-[11px] leading-snug text-(--text-secondary)">
         {card.description}
       </p>
     </Link>
