@@ -121,6 +121,53 @@ export function MissionFeed({
     return { activeMissions, tasksByMission, unattached };
   }, [missions, tasks]);
 
+  // Drag and drop states for Missions
+  const [draggedMissionIdx, setDraggedMissionIdx] = useState<number | null>(null);
+  const [draggedOverMissionIdx, setDraggedOverMissionIdx] = useState<number | null>(null);
+
+  const handleMissionDragStart = (e: React.DragEvent, idx: number) => {
+    setDraggedMissionIdx(idx);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleMissionDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (draggedMissionIdx === null || draggedMissionIdx === idx) return;
+    setDraggedOverMissionIdx(idx);
+  };
+
+  const handleMissionDragLeave = () => {
+    setDraggedOverMissionIdx(null);
+  };
+
+  const handleMissionDrop = async (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    const sourceIndex = draggedMissionIdx;
+    setDraggedMissionIdx(null);
+    setDraggedOverMissionIdx(null);
+
+    if (sourceIndex === null || sourceIndex === targetIndex) return;
+
+    const mission = activeMissions[sourceIndex];
+    if (!mission) return;
+
+    try {
+      if (targetIndex < sourceIndex) {
+        // Moving up
+        for (let i = sourceIndex; i > targetIndex; i--) {
+          await onMoveMission?.(mission.id, "up");
+        }
+      } else {
+        // Moving down
+        for (let i = sourceIndex; i < targetIndex; i++) {
+          await onMoveMission?.(mission.id, "down");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to reorder mission via drag & drop", err);
+    }
+  };
+
   // wave-AA-audit · React 19's react-hooks/purity rule flags Date.now()
   // calls inside useMemo as impure. Hoist the timestamps into render-
   // state seeded once per render via lazy state (a tick-by-tick refresh
@@ -258,6 +305,11 @@ export function MissionFeed({
               onMoveTask={onMoveTask}
               onSnoozeTask={onSnoozeTask}
               onDecomposeTask={onDecomposeTask}
+              isDraggedOver={draggedOverMissionIdx === missionIdx}
+              onDragStart={(e) => handleMissionDragStart(e, missionIdx)}
+              onDragOver={(e) => handleMissionDragOver(e, missionIdx)}
+              onDragLeave={handleMissionDragLeave}
+              onDrop={(e) => handleMissionDrop(e, missionIdx)}
             />
           ))}
         </div>
