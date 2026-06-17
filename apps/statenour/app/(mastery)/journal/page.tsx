@@ -145,17 +145,20 @@ function JournalPageInner() {
   useEffect(() => {
     const hash = window.location.hash || "";
     const hasSearchParam = searchParams?.get("search");
+    let t: ReturnType<typeof setTimeout> | undefined;
     if ((hash.startsWith("#bd-") || hasSearchParam) && activeTab !== "feed") {
-      const t = setTimeout(() => {
+      t = setTimeout(() => {
         setActiveTab("feed");
       }, 0);
-      return () => clearTimeout(t);
     }
+    return () => {
+      if (t) clearTimeout(t);
+    };
   }, [searchParams, activeTab]);
 
   // Handle the focus-composer custom event dispatched by TodaysPrompt
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined") return () => {};
     const handleFocusComposer = () => {
       setActiveTab("reflect");
       requestAnimationFrame(() => {
@@ -257,7 +260,10 @@ function JournalPageInner() {
   }, [source, type, utils]);
 
   useEffect(() => {
-    load();
+    const t = setTimeout(() => {
+      load();
+    }, 0);
+    return () => clearTimeout(t);
   }, [load]);
 
   // v10.0.529.24 · fetch metacognition once on mount. Fire-and-forget ·
@@ -285,16 +291,17 @@ function JournalPageInner() {
   // runs post-commit, so the initial mount staggers and every
   // subsequent load (filter switch / data-change) jumps straight.
   useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined;
     if (entries.length > 0 && !hasLoadedOnce) {
       // Defer to the next tick so the current animation can run
       // before we flip the gate for future loads.
-      const t = setTimeout(() => {
+      t = setTimeout(() => {
         setHasLoadedOnce(true);
       }, 100);
-      return () => clearTimeout(t);
     }
-    // No-op return so the effect's cleanup-return type is unified.
-    return undefined;
+    return () => {
+      if (t) clearTimeout(t);
+    };
   }, [entries, hasLoadedOnce]);
 
   // Cross-surface refresh — when a brain dump or decision gets
@@ -332,22 +339,28 @@ function JournalPageInner() {
   // Has to fire after entries load since the DOM node doesn't exist yet
   // on the first render when the feed is still fetching.
   useEffect(() => {
-    if (entries.length === 0) return;
-    const hash = window.location.hash || "";
-    if (!hash.startsWith("#bd-")) return;
-    const id = hash.slice(4);
-    const el = document.getElementById(`bd-${id}`);
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.classList.add("ring-2", "ring-[var(--gold)]/60");
-    // v10.0.30 — cleanup: cancel the timer on unmount or entries change
-    // so we don't fire setTimeout against a node React already
-    // reconciled away. Pre-v10.0.30 this could mutate a detached
-    // element after navigation.
-    const t = setTimeout(() => {
-      el.classList.remove("ring-2", "ring-[var(--gold)]/60");
-    }, 2500);
-    return () => clearTimeout(t);
+    let t: ReturnType<typeof setTimeout> | undefined;
+    if (entries.length > 0) {
+      const hash = window.location.hash || "";
+      if (hash.startsWith("#bd-")) {
+        const id = hash.slice(4);
+        const el = document.getElementById(`bd-${id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("ring-2", "ring-[var(--gold)]/60");
+          // v10.0.30 — cleanup: cancel the timer on unmount or entries change
+          // so we don't fire setTimeout against a node React already
+          // reconciled away. Pre-v10.0.30 this could mutate a detached
+          // element after navigation.
+          t = setTimeout(() => {
+            el.classList.remove("ring-2", "ring-[var(--gold)]/60");
+          }, 2500);
+        }
+      }
+    }
+    return () => {
+      if (t) clearTimeout(t);
+    };
   }, [entries]);
 
   // Apply the client-side text filter before grouping. The filter
