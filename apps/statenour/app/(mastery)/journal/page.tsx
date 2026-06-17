@@ -180,16 +180,22 @@ function JournalPageInner() {
   }, []);
   // v10.0.436 · sort key · localStorage-persisted · 6 modes
   type JournalSort = "newest" | "oldest" | "alpha-asc" | "alpha-desc" | "longest" | "shortest";
-  const [sortKey, setSortKey] = useState<JournalSort>(() => {
-    if (typeof window === "undefined") return "newest";
+  const [sortKey, setSortKey] = useState<JournalSort>("newest");
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
     const saved = window.localStorage.getItem("journal:sortKey");
     const valid: JournalSort[] = ["newest", "oldest", "alpha-asc", "alpha-desc", "longest", "shortest"];
-    return saved && valid.includes(saved as JournalSort) ? (saved as JournalSort) : "newest";
-  });
+    if (saved && valid.includes(saved as JournalSort)) {
+      setSortKey(saved as JournalSort);
+    }
+  }, []);
+
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!isMounted) return;
     window.localStorage.setItem("journal:sortKey", sortKey);
-  }, [sortKey]);
+  }, [sortKey, isMounted]);
   // v10.0.30 — error state. Pre-v10.0.30 the load() catch silently
   // reset entries to [], so a 401 / 429 / 500 looked identical to a
   // legitimately empty filter. Now: distinct error banner + preserved
@@ -443,7 +449,7 @@ function JournalPageInner() {
   return (
     <div className="min-h-screen text-zinc-100 space-y-5" data-no-deep-nudge>
       <SectionHeader
-        icon={<NotebookPen size={16} className="text-[var(--gold)]" />}
+        icon={<NotebookPen size={16} className="text-(--gold)" />}
         label="Journal"
         subtitle="thinking · reasoning · insights · decisions · reflections"
         accent="gold"
@@ -461,19 +467,19 @@ function JournalPageInner() {
       <CoachEventBanner surface="journal" />
 
       {/* Tab Selector Switcher */}
-      <div className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border border-white/10 rounded-xl p-3 shadow-xl flex items-center justify-between border-b border-white/5 pb-2.5">
+      <div className="glass-card relative overflow-hidden bg-linear-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border border-white/10 border-b-white/5 rounded-xl p-3 shadow-xl flex items-center justify-between pb-2.5">
         {/* Background ambient glow matching active tab */}
         <div 
           className={cn(
             "absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl pointer-events-none transition-all duration-500",
-            activeTab === "feed" && "bg-[var(--gold)]/5",
+            activeTab === "feed" && "bg-(--gold)/5",
             activeTab === "insights" && "bg-emerald-500/5",
             activeTab === "reflect" && "bg-violet-500/5"
           )}
         />
         <div className="flex items-center gap-1.5 md:gap-3 z-10">
           {[
-            { id: "feed" as const, label: "Feed", Icon: NotebookPen, activeColor: "text-[var(--gold)]", activeBorder: "bg-[var(--gold)]", hoverColor: "hover:text-[var(--gold)]/80" },
+            { id: "feed" as const, label: "Feed", Icon: NotebookPen, activeColor: "text-(--gold)", activeBorder: "bg-(--gold)", hoverColor: "hover:text-(--gold)/80" },
             { id: "insights" as const, label: "Insights", Icon: Sparkles, activeColor: "text-emerald-400", activeBorder: "bg-emerald-400", hoverColor: "hover:text-emerald-400/80" },
             { id: "reflect" as const, label: "Reflect", Icon: Brain, activeColor: "text-violet-400", activeBorder: "bg-violet-400", hoverColor: "hover:text-violet-400/80" }
           ].map((tab) => {
@@ -484,21 +490,21 @@ function JournalPageInner() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "relative flex items-center gap-1.5 py-1 px-2.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all [@media(pointer:coarse)]:min-h-[44px]",
+                  "relative flex items-center gap-1.5 py-1 px-2.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all pointer-coarse:min-h-[44px]",
                   isActive 
                     ? cn(
                         "text-white font-medium border",
-                        tab.id === "feed" && "bg-[var(--gold)]/5 border-[var(--gold)]/20 shadow-[0_0_8px_rgba(212,163,89,0.1)]",
+                        tab.id === "feed" && "bg-(--gold)/5 border-(--gold)/20 shadow-[0_0_8px_rgba(212,163,89,0.1)]",
                         tab.id === "insights" && "bg-emerald-500/5 border-emerald-500/20 shadow-[0_0_8px_rgba(16,185,129,0.1)]",
                         tab.id === "reflect" && "bg-violet-500/5 border-violet-500/20 shadow-[0_0_8px_rgba(139,92,246,0.1)]"
                       )
-                    : cn("text-white/45 hover:text-white/80 hover:bg-white/[0.02] border-transparent", tab.hoverColor)
+                    : cn("text-white/45 hover:text-white/80 hover:bg-white/2 border-transparent", tab.hoverColor)
                 )}
               >
                 <Icon size={12} className={cn(isActive && tab.activeColor)} />
                 <span>{tab.label}</span>
                 {isActive && (
-                  <span className={cn("absolute -bottom-[11px] left-0 right-0 h-[2px] rounded-full", tab.activeBorder)} />
+                  <span className={cn("absolute bottom-[-11px] left-0 right-0 h-[2px] rounded-full", tab.activeBorder)} />
                 )}
               </button>
             );
@@ -521,19 +527,19 @@ function JournalPageInner() {
             <div className="relative flex-1 min-w-0">
               <Search
                 size={12}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-(--text-tertiary)"
               />
               <input
                 type="text"
                 placeholder="Search journal — titles, body, summary, tags..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-8 py-2 min-h-[44px] sm:min-h-0 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--gold)]/40 transition-colors"
+                className="w-full pl-8 pr-8 py-2 min-h-[44px] sm:min-h-0 rounded-lg bg-(--bg-elevated) border border-(--border-default) text-[12px] text-(--text-primary) placeholder:text-(--text-tertiary) outline-none focus:border-(--gold)/40 transition-colors"
               />
               {search.length > 0 && (
                 <button
                   onClick={() => setSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-raised)]"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--bg-raised)"
                   aria-label="Clear search"
                 >
                   <XIcon size={12} />
@@ -618,7 +624,7 @@ function JournalPageInner() {
 
           {/* v10.0.30 — error banner. */}
           {error && (
-            <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/[0.05] px-3 py-2 text-[12px] text-rose-200 flex items-center justify-between gap-3">
+            <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-200 flex items-center justify-between gap-3">
               <span className="font-mono text-[11px]">{error}</span>
               <button
                 onClick={() => {
@@ -640,18 +646,18 @@ function JournalPageInner() {
               ))}
             </div>
           ) : filteredEntries.length === 0 ? (
-            <div className="text-center py-12 rounded-xl border border-[var(--gold)]/20 bg-gradient-to-b from-[var(--gold)]/5 to-zinc-900/40">
-              <NotebookPen size={24} className="text-[var(--gold)]/60 mx-auto mb-3" />
+            <div className="text-center py-12 rounded-xl border border-(--gold)/20 bg-linear-to-b from-(--gold)/5 to-zinc-900/40">
+              <NotebookPen size={24} className="text-(--gold)/60 mx-auto mb-3" />
               {q ? (
                 <>
-                  <p className="text-[13px] font-semibold text-[var(--text-secondary)]">
+                  <p className="text-[13px] font-semibold text-(--text-secondary)">
                     No matches for &ldquo;{search}&rdquo;.
                   </p>
-                  <p className="text-[11px] text-[var(--text-tertiary)] mt-2 max-w-[380px] mx-auto">
+                  <p className="text-[11px] text-(--text-tertiary) mt-2 max-w-[380px] mx-auto">
                     {entries.length} entries loaded. Try different keywords, or{" "}
                     <button
                       onClick={() => setSearch("")}
-                      className="text-[var(--gold)] hover:underline"
+                      className="text-(--gold) hover:underline"
                     >
                       clear search
                     </button>
@@ -660,12 +666,12 @@ function JournalPageInner() {
                 </>
               ) : (
                 <>
-                  <p className="text-[13px] font-semibold text-[var(--text-secondary)]">
+                  <p className="text-[13px] font-semibold text-(--text-secondary)">
                     No thoughts captured yet in this filter.
                   </p>
-                  <p className="text-[11px] text-[var(--text-tertiary)] mt-2 max-w-[380px] mx-auto">
+                  <p className="text-[11px] text-(--text-tertiary) mt-2 max-w-[380px] mx-auto">
                     Use <kbd className="font-mono text-[10px] px-1 rounded bg-zinc-800/80 border border-zinc-700/50">⌘⇧J</kbd> to capture anywhere, open{" "}
-                    <span className="text-[var(--gold)]">/chat?mode=flow</span> for a guided dump, or send a Telegram message.
+                    <span className="text-(--gold)">/chat?mode=flow</span> for a guided dump, or send a Telegram message.
                   </p>
                 </>
               )}
@@ -675,12 +681,12 @@ function JournalPageInner() {
               {byDate.map(([date, dayEntries]) => (
                 <div key={date}>
                   <div className="flex items-center gap-2 mb-2">
-                    <Calendar size={11} className="text-[var(--text-tertiary)]" />
-                    <span className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--text-tertiary)]">
+                    <Calendar size={11} className="text-(--text-tertiary)" />
+                    <span className="text-[10px] font-(--font-display) font-bold uppercase tracking-[0.22em] text-(--text-tertiary)">
                       {formatDay(date)}
                     </span>
                     <div className="h-px flex-1 bg-zinc-800/50" />
-                    <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+                    <span className="text-[9px] font-mono text-(--text-tertiary)">
                       {dayEntries.length} {dayEntries.length === 1 ? "entry" : "entries"}
                     </span>
                   </div>
@@ -735,13 +741,13 @@ function JournalPageInner() {
           </MasteryContextDrawer>
 
           {meta && (
-            <div className="rounded-xl border border-[var(--gold)]/20 bg-gradient-to-br from-[var(--gold)]/[0.04] to-transparent p-4 space-y-3">
+            <div className="rounded-xl border border-(--gold)/20 bg-linear-to-br from-(--gold)/4 to-transparent p-4 space-y-3">
               <div className="flex items-baseline justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--gold)]/80">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-(--gold)/80">
                     Metacognition
                   </span>
-                  <span className="text-[10px] text-[var(--text-tertiary)]">
+                  <span className="text-[10px] text-(--text-tertiary)">
                     · {meta.date}
                   </span>
                 </div>
@@ -749,7 +755,7 @@ function JournalPageInner() {
                   className={cn(
                     "text-[10px] font-medium tabular-nums",
                     meta.learningRate.trend === "accelerating" && "text-emerald-400",
-                    meta.learningRate.trend === "steady" && "text-[var(--text-secondary)]",
+                    meta.learningRate.trend === "steady" && "text-(--text-secondary)",
                     meta.learningRate.trend === "decelerating" && "text-amber-400",
                   )}
                 >
@@ -758,30 +764,30 @@ function JournalPageInner() {
               </div>
 
               {meta.selfAssessment && (
-                <p className="text-[12.5px] leading-relaxed text-[var(--text-primary)] italic">
+                <p className="text-[12.5px] leading-relaxed text-(--text-primary) italic">
                   &ldquo;{meta.selfAssessment}&rdquo;
                 </p>
               )}
 
-              <div className="flex items-center gap-3 pt-1 text-[11px] font-mono text-[var(--text-secondary)]">
-                <span className="text-[9px] uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+              <div className="flex items-center gap-3 pt-1 text-[11px] font-mono text-(--text-secondary)">
+                <span className="text-[9px] uppercase tracking-[0.18em] text-(--text-tertiary)">
                   calibration
                 </span>
-                <span className="text-[15px] font-semibold tabular-nums text-[var(--text-primary)]">
+                <span className="text-[15px] font-semibold tabular-nums text-(--text-primary)">
                   {Math.round(meta.predictionCalibration.calibrationScore * 100)}%
                 </span>
               </div>
 
               {meta.weakSpots.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--text-tertiary)] mr-1">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-(--text-tertiary) mr-1">
                     Weak spots
                   </span>
                   {meta.weakSpots.slice(0, 2).map((spot) => (
                     <Badge
                       key={spot.domain}
                       variant="outline"
-                      className="text-[10px] border-amber-400/30 text-amber-300 bg-amber-400/[0.04]"
+                      className="text-[10px] border-amber-400/30 text-amber-300 bg-amber-400/4"
                     >
                       {spot.domain} · {spot.daysSinceLastLearning >= 999 ? "never" : `${spot.daysSinceLastLearning}d stale`}
                     </Badge>
@@ -877,7 +883,7 @@ function FilterChipRow<K extends string>({
 }: FilterChipRowProps<K>) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--text-tertiary)] mr-1">
+      <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-(--text-tertiary) mr-1">
         {label}
       </span>
       {keys.map((key) => {
@@ -905,11 +911,11 @@ function FilterChipRow<K extends string>({
               // on touch devices. Pre-fix the chips were ~20-24px tall ·
               // operator on iPhone had to thumb a 4-line-tall area to
               // reliably hit one. Tailwind v4 arbitrary variant syntax.
-              "[@media(pointer:coarse)]:min-h-[44px]",
+              "pointer-coarse:min-h-[44px]",
               isActive
                 ? meta
                   ? `${meta.bg} ${meta.border} ${meta.color}`
-                  : "bg-[var(--gold)]/15 border-[var(--gold)]/40 text-[var(--gold)]"
+                  : "bg-(--gold)/15 border-(--gold)/40 text-(--gold)"
                 : meta
                 ? "bg-transparent border-transparent text-zinc-600 hover:text-zinc-400"
                 : "bg-transparent border-zinc-800 text-zinc-500 hover:text-zinc-300"
@@ -968,8 +974,8 @@ function LearningVelocityTicker() {
   if (!hasSignal) return null;
   const deltaSign = data.memoriesDelta > 0 ? "+" : "";
   return (
-    <div className="flex items-center gap-3 text-[10px] font-mono text-[var(--text-tertiary)] py-1">
-      <span className="font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+    <div className="flex items-center gap-3 text-[10px] font-mono text-(--text-tertiary) py-1">
+      <span className="font-bold uppercase tracking-[0.18em] text-(--text-secondary)">
         velocity
       </span>
       <span className="tabular-nums">
@@ -994,7 +1000,7 @@ function LearningVelocityTicker() {
       {data.wisdomPromotions > 0 && (
         <span className="tabular-nums">· {data.wisdomPromotions} wisdom</span>
       )}
-      <span className="ml-auto text-[var(--text-tertiary)]/60">
+      <span className="ml-auto text-(--text-tertiary)/60">
         brain {data.healthScore}/100
       </span>
     </div>
@@ -1017,28 +1023,28 @@ function BrainSignalsChip() {
   const { emotionalArc: arc, drift } = data;
   if (!arc && !drift) return null;
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-void)]/40 px-3 py-2 text-[10px]">
-      <span className="font-bold uppercase tracking-[0.22em] text-[var(--text-tertiary)]">
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-(--border-default) bg-(--bg-void)/40 px-3 py-2 text-[10px]">
+      <span className="font-bold uppercase tracking-[0.22em] text-(--text-tertiary)">
         right now
       </span>
       {arc && (
         <>
           <span className="font-mono">
-            <span className="text-[var(--text-tertiary)]">trajectory ·</span>{" "}
+            <span className="text-(--text-tertiary)">trajectory ·</span>{" "}
             <span
               className={cn(
                 "font-medium",
                 arc.trajectory === "rising" && "text-emerald-300",
                 arc.trajectory === "falling" && "text-rose-300",
                 arc.trajectory === "volatile" && "text-amber-300",
-                arc.trajectory === "stable" && "text-[var(--text-secondary)]",
+                arc.trajectory === "stable" && "text-(--text-secondary)",
               )}
             >
               {arc.trajectory}
             </span>
           </span>
           {arc.dominantState && (
-            <span className="font-mono text-[var(--text-secondary)]">
+            <span className="font-mono text-(--text-secondary)">
               · {arc.dominantState.toLowerCase()}
             </span>
           )}
@@ -1052,7 +1058,7 @@ function BrainSignalsChip() {
       {drift && (
         <>
           <span className="font-mono">
-            <span className="text-[var(--text-tertiary)]">drift ·</span>{" "}
+            <span className="text-(--text-tertiary)">drift ·</span>{" "}
             <span
               className={cn(
                 "font-medium tabular-nums",
@@ -1066,7 +1072,7 @@ function BrainSignalsChip() {
           </span>
           {drift.topConcern && (
             <span
-              className="font-mono text-[var(--text-secondary)] truncate max-w-[200px]"
+              className="font-mono text-(--text-secondary) truncate max-w-[200px]"
               title={drift.topConcern}
             >
               · {drift.topConcern}
@@ -1076,7 +1082,7 @@ function BrainSignalsChip() {
       )}
       {arc?.intervention && (
         <span
-          className="ml-auto truncate max-w-[280px] text-[var(--gold)]/70 italic"
+          className="ml-auto truncate max-w-[280px] text-(--gold)/70 italic"
           title={arc.intervention}
         >
           → {arc.intervention.slice(0, 60)}
@@ -1105,16 +1111,16 @@ function ProofOfBecomingStrip() {
   const filed = data.becomingDomains.filter((d) => d.count > 0).length;
   return (
     <section
-      className="rounded-lg border border-[var(--gold)]/20 bg-[var(--gold)]/[0.03] px-3 py-2.5 space-y-2.5"
+      className="rounded-lg border border-(--gold)/20 bg-(--gold)/3 px-3 py-2.5 space-y-2.5"
       aria-label="This week's proof stack — your evidence file"
     >
       {/* Trend header — kept from the original strip: total this week vs
           last, plus goal-linked count. Every number is from real rows. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
-        <span className="font-bold uppercase tracking-[0.22em] text-[var(--gold)]/80">
+        <span className="font-bold uppercase tracking-[0.22em] text-(--gold)/80">
           becoming
         </span>
-        <span className="font-mono tabular-nums text-[var(--text-primary)]">
+        <span className="font-mono tabular-nums text-(--text-primary)">
           {data.weekTotal} proof{data.weekTotal === 1 ? "" : "s"} this week
           {delta !== 0 && (
             <span className={cn("ml-1", delta > 0 ? "text-emerald-400/80" : "text-rose-400/70")}>
@@ -1128,7 +1134,7 @@ function ProofOfBecomingStrip() {
             · {data.grounded} goal-linked
           </span>
         )}
-        <span className="ml-auto font-mono tabular-nums text-[var(--text-tertiary)]">
+        <span className="ml-auto font-mono tabular-nums text-(--text-tertiary)">
           {filed}/{data.becomingDomains.length} domains
         </span>
       </div>
@@ -1143,10 +1149,10 @@ function ProofOfBecomingStrip() {
             <li
               key={d.key}
               className={cn(
-                "flex flex-col gap-0.5 rounded-md border px-2.5 py-2 [@media(pointer:coarse)]:min-h-[44px]",
+                "flex flex-col gap-0.5 rounded-md border px-2.5 py-2 pointer-coarse:min-h-[44px]",
                 hasProof
-                  ? "border-[var(--gold)]/35 bg-[var(--gold)]/[0.06]"
-                  : "border-[var(--border-default)] bg-[var(--bg-raised)]/60",
+                  ? "border-(--gold)/35 bg-(--gold)/6"
+                  : "border-(--border-default) bg-(--bg-raised)/60",
               )}
               title={
                 hasProof
@@ -1157,20 +1163,20 @@ function ProofOfBecomingStrip() {
               <span
                 className={cn(
                   "text-[8.5px] font-bold uppercase tracking-[0.16em] leading-tight",
-                  hasProof ? "text-[var(--gold)]/85" : "text-[var(--text-tertiary)]",
+                  hasProof ? "text-(--gold)/85" : "text-(--text-tertiary)",
                 )}
               >
                 {d.label}
               </span>
               {hasProof ? (
-                <span className="font-[var(--font-display)] text-[17px] font-bold tabular-nums leading-none text-[var(--text-primary)]">
+                <span className="font-(--font-display) text-[17px] font-bold tabular-nums leading-none text-(--text-primary)">
                   {d.count}
-                  <span className="ml-1 text-[8.5px] font-mono font-normal uppercase tracking-wider text-[var(--text-tertiary)]">
+                  <span className="ml-1 text-[8.5px] font-mono font-normal uppercase tracking-wider text-(--text-tertiary)">
                     {d.count === 1 ? "entry" : "entries"}
                   </span>
                 </span>
               ) : (
-                <span className="text-[9px] font-mono italic leading-tight text-[var(--text-tertiary)]/70">
+                <span className="text-[9px] font-mono italic leading-tight text-(--text-tertiary)/70">
                   no proof logged
                 </span>
               )}
@@ -1197,12 +1203,12 @@ function WeeklyMemoirBlock() {
   });
   if (!data || data.length < 2) return null;
   return (
-    <div className="rounded-xl border border-[var(--gold)]/15 bg-[var(--gold)]/[0.02] p-3 space-y-1.5">
+    <div className="rounded-xl border border-(--gold)/15 bg-(--gold)/2 p-3 space-y-1.5">
       <div className="flex items-center gap-2">
-        <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--gold)]/70">
+        <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-(--gold)/70">
           this week
         </span>
-        <span className="text-[10px] text-[var(--text-tertiary)]">
+        <span className="text-[10px] text-(--text-tertiary)">
           · distilled from your last 7 days
         </span>
       </div>
@@ -1210,9 +1216,9 @@ function WeeklyMemoirBlock() {
         {data.map((item) => (
           <li
             key={item.id}
-            className="text-[11.5px] leading-relaxed text-[var(--text-primary)]"
+            className="text-[11.5px] leading-relaxed text-(--text-primary)"
           >
-            <span className="text-[var(--gold)]/40 mr-1.5">·</span>
+            <span className="text-(--gold)/40 mr-1.5">·</span>
             {item.text}
           </li>
         ))}
