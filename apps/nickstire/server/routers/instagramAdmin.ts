@@ -167,11 +167,14 @@ Keep it under 200 characters.`;
    *  the actual draft the co-pilot produced — generatePost returns scores +
    *  status but not the caption/image (those go to the log + Telegram). */
   getRecentGenerations: adminProcedure
-    .input(z.object({ limit: z.number().int().min(1).max(25).default(8) }).optional())
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(25) }).optional())
     .query(async ({ input }): Promise<Array<{
       id: number; archetype: string; conceptKey: string; status: string;
       caption: string; imageUrl: string | null; overallScore: number | null;
       source: string; createdAt: Date; error: string | null;
+      evalScoresJson: string | null;
+      igPostId: string | null;
+      fbPostId: string | null;
     }>> => {
       const database = await db();
       if (!database) return [];
@@ -188,9 +191,45 @@ Keep it under 200 characters.`;
           source: igAutopostLog.source,
           createdAt: igAutopostLog.createdAt,
           error: igAutopostLog.error,
+          evalScoresJson: igAutopostLog.evalScoresJson,
         })
         .from(igAutopostLog)
         .orderBy(desc(igAutopostLog.createdAt))
-        .limit(input?.limit ?? 8);
+        .limit(input?.limit ?? 25);
+    }),
+
+  /** Publish a custom image or Reel to Instagram directly. */
+  publishPost: adminProcedure
+    .input(z.object({
+      caption: z.string().min(1).max(2200),
+      imageUrl: z.string().url().optional(),
+      videoUrl: z.string().url().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { postToInstagram, postInstagramReel } = await import("../services/metaSocial");
+      if (input.videoUrl) {
+        const result = await postInstagramReel({ videoUrl: input.videoUrl, caption: input.caption });
+        if (!result.success) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: result.error || "Failed to publish Reel to Instagram",
+          });
+        }
+        return result;
+      } else if (input.imageUrl) {
+        const result = await postToInstagram({ imageUrl: input.imageUrl, caption: input.caption });
+        if (!result.success) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: result.error || "Failed to publish image to Instagram",
+          });
+        }
+        return result;
+      } else {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Must provide either an imageUrl or videoUrl to publish on Instagram",
+        });
+      }
     }),
 });

@@ -35,6 +35,7 @@ import {
 } from "@/lib/social/buffer";
 import {
   publishToInstagram,
+  publishReelToInstagram,
   publishToFacebook,
   type PublishResult,
 } from "@/lib/social/meta-publish";
@@ -177,6 +178,7 @@ export class SocialImageUrlUnresolvedError extends Error {
 export interface PublishSocialInput {
   platforms: Array<"instagram" | "facebook">;
   imageUrl?: string;
+  videoUrl?: string;
   caption?: string;
   message?: string;
   linkUrl?: string;
@@ -208,25 +210,41 @@ export async function publishSocialPost(
   if (!input.caption && !input.message) {
     throw new SocialPublishInputError("missing_text");
   }
-  if (platforms.includes("instagram") && !input.imageUrl) {
-    throw new SocialPublishInputError("instagram_requires_image");
+  if (platforms.includes("instagram") && !input.imageUrl && !input.videoUrl) {
+    throw new SocialPublishInputError("instagram_requires_media");
   }
 
-  const resolved = resolveImageUrl(input.imageUrl, requestHost);
-  if (resolved.unresolved) {
+  const resolvedImg = resolveImageUrl(input.imageUrl, requestHost);
+  if (resolvedImg.unresolved) {
     throw new SocialImageUrlUnresolvedError();
   }
-  const absoluteImageUrl = resolved.url;
+  const absoluteImageUrl = resolvedImg.url;
+
+  const resolvedVid = resolveImageUrl(input.videoUrl, requestHost);
+  if (resolvedVid.unresolved) {
+    throw new SocialImageUrlUnresolvedError();
+  }
+  const absoluteVideoUrl = resolvedVid.url;
 
   // Run publishes in parallel — IG and FB are independent paths.
   const tasks: Promise<PublishResult>[] = [];
   if (platforms.includes("instagram")) {
-    tasks.push(
-      publishToInstagram({
-        imageUrl: absoluteImageUrl!,
-        caption: input.caption || input.message || "",
-      }),
-    );
+    if (absoluteVideoUrl) {
+      tasks.push(
+        publishReelToInstagram({
+          videoUrl: absoluteVideoUrl,
+          caption: input.caption || input.message || "",
+          coverUrl: absoluteImageUrl,
+        }),
+      );
+    } else {
+      tasks.push(
+        publishToInstagram({
+          imageUrl: absoluteImageUrl!,
+          caption: input.caption || input.message || "",
+        }),
+      );
+    }
   }
   if (platforms.includes("facebook")) {
     tasks.push(
@@ -258,6 +276,7 @@ export async function publishSocialPost(
             permalink: r.permalink,
             error: r.error,
             caption: (input.caption ?? input.message ?? "").slice(0, 500),
+            videoUrl: input.videoUrl ? input.videoUrl.slice(0, 500) : undefined,
           },
         },
       })
