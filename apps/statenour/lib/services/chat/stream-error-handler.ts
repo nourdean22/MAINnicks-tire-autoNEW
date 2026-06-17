@@ -137,7 +137,7 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
             : "";
         // Heuristic: provider name appears in the modelId. Match
         // against the known provider names we manage in PROVIDERS.
-        const { markProviderFailed } = await import("@/lib/ai/provider");
+        const { markProviderFailed, markGeminiQuotaExhausted } = await import("@/lib/ai/provider");
         if (modelInfo.includes("venice") || modelInfo.includes("Venice"))
           markProviderFailed("venice");
         else if (modelInfo.includes("ollama") || modelInfo.includes("Ollama"))
@@ -146,6 +146,12 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
           markProviderFailed("openai");
         else if (modelInfo.includes("claude") || modelInfo.includes("anthropic"))
           markProviderFailed("anthropic");
+        else if (modelInfo.includes("gemini") || modelInfo.includes("google") || modelInfo.includes("Google")) {
+          markProviderFailed("gemini");
+          if (/quota|exhausted|budget|spending.*cap|billing|limit/i.test(errMsg)) {
+            markGeminiQuotaExhausted();
+          }
+        }
       } catch {
         /* swallow — don't let provider-marking crash onError */
       }

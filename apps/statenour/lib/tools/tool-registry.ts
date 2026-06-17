@@ -618,9 +618,249 @@ export function getToolCapabilities(): ToolCapability[] {
   return Object.values(TOOL_REGISTRY);
 }
 
+function generateDynamicCapability(id: string): ToolCapability | null {
+  const parts = id.split('.');
+  if (parts.length < 2) return null;
+  const prefix = parts[0];
+  const suffix = parts.slice(1).join('.');
+
+  const systemPrefixes = ["task", "loop", "commitment", "decision", "score", "alert", "habit", "simulation", "mission"];
+
+  if (systemPrefixes.includes(prefix)) {
+    return {
+      id,
+      label: `Dynamic ${prefix.charAt(0).toUpperCase() + prefix.slice(1)} Action (${suffix})`,
+      description: `Dynamically resolved system capability for ${prefix}.${suffix}`,
+      category: "system",
+      status: "active",
+      riskClass: "medium",
+      readAccess: true,
+      writeAccess: true,
+      externalMutation: false,
+      memoryWriteAllowed: false,
+      approvalPolicy: "none",
+      requiredEnv: [],
+      auditLogRequired: true,
+      currentLimitations: []
+    };
+  }
+
+  if (prefix === "person") {
+    return {
+      id,
+      label: `Dynamic Person Action (${suffix})`,
+      description: `Dynamically resolved relationship capability for person.${suffix}`,
+      category: "system",
+      status: "active",
+      riskClass: "medium",
+      readAccess: true,
+      writeAccess: true,
+      externalMutation: false,
+      memoryWriteAllowed: false,
+      approvalPolicy: "none",
+      requiredEnv: [],
+      auditLogRequired: true,
+      currentLimitations: []
+    };
+  }
+
+  if (prefix === "memory") {
+    const isWrite = /pin|write|log|resolve|create|update|delete/i.test(suffix);
+    const isResolve = /resolve/i.test(suffix);
+    return {
+      id,
+      label: `Dynamic Memory Action (${suffix})`,
+      description: `Dynamically resolved memory capability for memory.${suffix}`,
+      category: "memory",
+      status: "active",
+      riskClass: "medium",
+      readAccess: true,
+      writeAccess: true,
+      externalMutation: false,
+      memoryWriteAllowed: isWrite,
+      approvalPolicy: isWrite ? (isResolve ? "memory_review_required" : "owner_required") : "none",
+      requiredEnv: [],
+      auditLogRequired: true,
+      currentLimitations: []
+    };
+  }
+
+  if (prefix === "system") {
+    return {
+      id,
+      label: `Dynamic System Action (${suffix})`,
+      description: `Dynamically resolved system control capability for system.${suffix}`,
+      category: "system",
+      status: "active",
+      riskClass: "high",
+      readAccess: true,
+      writeAccess: true,
+      externalMutation: false,
+      memoryWriteAllowed: false,
+      approvalPolicy: "owner_required",
+      requiredEnv: [],
+      auditLogRequired: true,
+      currentLimitations: []
+    };
+  }
+
+  if (prefix === "shop") {
+    const isWrite = /send|update|create|delete|post|mutation|write|sms/i.test(suffix);
+    return {
+      id,
+      label: `Dynamic Shop Action (${suffix})`,
+      description: `Dynamically resolved business capability for shop.${suffix}`,
+      category: "system",
+      status: "active",
+      riskClass: "high",
+      readAccess: true,
+      writeAccess: true,
+      externalMutation: isWrite,
+      memoryWriteAllowed: false,
+      approvalPolicy: isWrite ? "owner_required" : "none",
+      requiredEnv: [],
+      auditLogRequired: true,
+      currentLimitations: []
+    };
+  }
+
+  if (prefix === "google" || prefix === "gmail") {
+    const isWrite = /send|update|create|delete|post|mutation|write|draft|propose|schedule/i.test(suffix);
+    return {
+      id,
+      label: `Dynamic ${prefix.charAt(0).toUpperCase() + prefix.slice(1)} Action (${suffix})`,
+      description: `Dynamically resolved Google API capability for ${prefix}.${suffix}`,
+      category: prefix === "google" ? "calendar" : "communication",
+      status: "active",
+      riskClass: "high",
+      readAccess: true,
+      writeAccess: true,
+      externalMutation: isWrite,
+      memoryWriteAllowed: false,
+      approvalPolicy: isWrite ? "owner_required" : "none",
+      requiredEnv: [],
+      auditLogRequired: true,
+      currentLimitations: []
+    };
+  }
+
+  if (prefix === "telegram") {
+    return {
+      id,
+      label: `Dynamic Telegram Action (${suffix})`,
+      description: `Dynamically resolved Telegram communication capability for telegram.${suffix}`,
+      category: "communication",
+      status: "active",
+      riskClass: "high",
+      readAccess: true,
+      writeAccess: true,
+      externalMutation: true,
+      memoryWriteAllowed: false,
+      approvalPolicy: "owner_required",
+      requiredEnv: [],
+      auditLogRequired: true,
+      currentLimitations: []
+    };
+  }
+
+  if (prefix === "camera") {
+    return {
+      id,
+      label: `Dynamic Camera Action (${suffix})`,
+      description: `Dynamically resolved media capability for camera.${suffix}`,
+      category: "media",
+      status: "active",
+      riskClass: "medium",
+      readAccess: true,
+      writeAccess: true,
+      externalMutation: false,
+      memoryWriteAllowed: false,
+      approvalPolicy: "none",
+      requiredEnv: [],
+      auditLogRequired: true,
+      currentLimitations: []
+    };
+  }
+
+  if (prefix === "arsenal") {
+    const lowerSuffix = suffix.toLowerCase();
+    if (lowerSuffix.includes("browser")) {
+      return {
+        id,
+        label: `Dynamic Arsenal Browser Action (${suffix})`,
+        description: `Dynamically resolved browser automation capability for arsenal.${suffix}`,
+        category: "browser",
+        status: "active",
+        riskClass: "high",
+        readAccess: true,
+        writeAccess: true,
+        externalMutation: true,
+        memoryWriteAllowed: false,
+        approvalPolicy: "screenshot_required",
+        requiredEnv: [],
+        auditLogRequired: true,
+        currentLimitations: []
+      };
+    } else if (lowerSuffix.includes("runpython") || lowerSuffix.includes("runjs") || lowerSuffix.includes("run_python") || lowerSuffix.includes("run_js")) {
+      return {
+        id,
+        label: `Dynamic Arsenal Code Action (${suffix})`,
+        description: `Dynamically resolved sandboxed code execution capability for arsenal.${suffix}`,
+        category: "code",
+        status: "active",
+        riskClass: "critical",
+        readAccess: true,
+        writeAccess: true,
+        externalMutation: false,
+        memoryWriteAllowed: false,
+        approvalPolicy: "manual_only",
+        requiredEnv: [],
+        auditLogRequired: true,
+        currentLimitations: []
+      };
+    } else if (lowerSuffix.includes("websearch") || lowerSuffix.includes("research") || lowerSuffix.includes("search")) {
+      return {
+        id,
+        label: `Dynamic Arsenal Search Action (${suffix})`,
+        description: `Dynamically resolved web search capability for arsenal.${suffix}`,
+        category: "web",
+        status: "active",
+        riskClass: "low",
+        readAccess: true,
+        writeAccess: false,
+        externalMutation: false,
+        memoryWriteAllowed: false,
+        approvalPolicy: "none",
+        requiredEnv: [],
+        auditLogRequired: false,
+        currentLimitations: []
+      };
+    } else {
+      return {
+        id,
+        label: `Dynamic Arsenal Action (${suffix})`,
+        description: `Dynamically resolved capability for arsenal.${suffix}`,
+        category: "system",
+        status: "active",
+        riskClass: "medium",
+        readAccess: true,
+        writeAccess: true,
+        externalMutation: false,
+        memoryWriteAllowed: false,
+        approvalPolicy: "none",
+        requiredEnv: [],
+        auditLogRequired: true,
+        currentLimitations: []
+      };
+    }
+  }
+
+  return null;
+}
+
 /** Get capability definition for a specific tool ID. */
 export function getToolCapability(id: string): ToolCapability | null {
-  return TOOL_REGISTRY[id] ?? null;
+  return TOOL_REGISTRY[id] ?? generateDynamicCapability(id);
 }
 
 /** Get list of required env keys that are missing in the current process. */
