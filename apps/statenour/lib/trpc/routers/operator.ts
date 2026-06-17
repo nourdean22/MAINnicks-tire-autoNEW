@@ -827,6 +827,7 @@ export const operatorRouter = router({
       z.object({
         platforms: z.array(z.enum(["instagram", "facebook"])).min(1).max(2),
         imageUrl: z.string().max(2000).optional(),
+        videoUrl: z.string().max(2000).optional(),
         caption: z.string().max(4000).optional(),
         message: z.string().max(4000).optional(),
         linkUrl: z.string().max(2000).optional(),

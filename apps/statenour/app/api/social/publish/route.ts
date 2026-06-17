@@ -31,6 +31,7 @@ export const maxDuration = 60;
 interface PublishBody {
   platforms?: Array<"instagram" | "facebook">;
   imageUrl?: string;
+  videoUrl?: string;
   caption?: string;
   /** FB-only — for text-without-image posts */
   message?: string;
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
       {
         platforms: body.platforms ?? [],
         imageUrl: body.imageUrl,
+        videoUrl: body.videoUrl,
         caption: body.caption,
         message: body.message,
         linkUrl: body.linkUrl,

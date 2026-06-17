@@ -24,7 +24,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Panel } from "@/components/panel";
 import { cn } from "@/lib/utils/cn";
-import { Send, Calendar, Loader2, CheckCircle, AlertCircle, Image as ImageIcon, Globe } from "lucide-react";
+import { Send, Calendar, Loader2, CheckCircle, AlertCircle, Image as ImageIcon, Globe, Video } from "lucide-react";
 
 // misc-pages slice (2026-05-22) · the two mount reads + the publish /
 // schedule actions moved off authedFetch onto trpc.operator.* —
@@ -77,6 +77,7 @@ export function PublishTab() {
 
   const [caption, setCaption] = useState(initialCaption);
   const [imageUrl, setImageUrl] = useState(initialImageUrl);
+  const [videoUrl, setVideoUrl] = useState("");
   const [platforms, setPlatforms] = useState(initialPlatforms);
   const [scheduleMode, setScheduleMode] = useState<"now" | "next-slot" | "datetime">("next-slot");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -130,8 +131,8 @@ export function PublishTab() {
       setError("Pick at least one platform");
       return;
     }
-    if (targets.includes("instagram") && !imageUrl) {
-      setError("Instagram requires an image");
+    if (targets.includes("instagram") && !imageUrl && !videoUrl) {
+      setError("Instagram requires an image or video URL");
       return;
     }
     const ok = await confirm({
@@ -147,7 +148,8 @@ export function PublishTab() {
       // v10.0.33 manual res.ok-before-.json() guard).
       const json = await publishMutation.mutateAsync({
         platforms: targets,
-        imageUrl,
+        imageUrl: imageUrl || undefined,
+        videoUrl: videoUrl || undefined,
         caption,
         message: caption,
       });
@@ -156,6 +158,7 @@ export function PublishTab() {
         setSuccess(`Published to ${json.succeeded} channel${json.succeeded === 1 ? "" : "s"}`);
         setCaption("");
         setImageUrl("");
+        setVideoUrl("");
       } else {
         setError(`${json.failed} failed · ${json.succeeded} succeeded`);
       }
@@ -164,7 +167,7 @@ export function PublishTab() {
     } finally {
       setPublishing(false);
     }
-  }, [caption, imageUrl, platforms, publishMutation, confirm]);
+  }, [caption, imageUrl, videoUrl, platforms, publishMutation, confirm]);
 
   const handleSchedule = useCallback(async () => {
     setError(null);
@@ -267,46 +270,74 @@ export function PublishTab() {
           />
         </Panel>
 
-        {/* Image picker */}
+        {/* Media Assets picker */}
         <Panel>
-          <h2 className="mb-2 text-sm font-semibold text-white flex items-center gap-1">
-            <ImageIcon className="h-4 w-4" /> Image (required for IG)
-          </h2>
-          <input
-            type="text"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="/api/images/abc123 or https://..."
-            className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/25 font-mono"
-          />
-          {recentImages.length > 0 && (
-            <div className="mt-3">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">recent generated</div>
-              <div className="flex gap-1.5 flex-wrap">
-                {recentImages.slice(0, 8).map((img) => (
-                  <button
-                    key={img.id}
-                    type="button"
-                    onClick={() => setImageUrl(`/api/images/${img.id}`)}
-                    className={cn(
-                      "h-12 w-12 rounded border overflow-hidden hover:opacity-80 transition-opacity",
-                      imageUrl === `/api/images/${img.id}` ? "border-emerald-500" : "border-white/10",
-                    )}
-                    title={img.detail.slice(0, 100)}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/api/images/${img.id}`} alt="" className="h-full w-full object-cover" />
-                  </button>
-                ))}
+          <div className="space-y-4">
+            <div>
+              <h2 className="mb-2 text-sm font-semibold text-white flex items-center gap-1">
+                <ImageIcon className="h-4 w-4" /> Image URL (required for IG Image post, optional cover for Reels)
+              </h2>
+              <input
+                type="text"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="/api/images/abc123 or https://..."
+                className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/25 font-mono"
+              />
+            </div>
+
+            <div>
+              <h2 className="mb-2 text-sm font-semibold text-white flex items-center gap-1">
+                <Video className="h-4 w-4" /> Video URL (for Instagram Reels) - must be a public HTTPS URL
+              </h2>
+              <input
+                type="text"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://..."
+                className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/25 font-mono"
+              />
+            </div>
+
+            {recentImages.length > 0 && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">recent generated images</div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {recentImages.slice(0, 8).map((img) => (
+                    <button
+                      key={img.id}
+                      type="button"
+                      onClick={() => setImageUrl(`/api/images/${img.id}`)}
+                      className={cn(
+                        "h-12 w-12 rounded border overflow-hidden hover:opacity-80 transition-opacity",
+                        imageUrl === `/api/images/${img.id}` ? "border-emerald-500" : "border-white/10",
+                      )}
+                      title={img.detail.slice(0, 100)}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={`/api/images/${img.id}`} alt="" className="h-full w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
               </div>
+            )}
+
+            <div className="flex flex-wrap gap-4">
+              {imageUrl && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Image Preview</div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imageUrl} alt="preview" className="rounded-md max-h-48 border border-white/10" />
+                </div>
+              )}
+              {videoUrl && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Video Preview</div>
+                  <video src={videoUrl} controls className="rounded-md max-h-48 border border-white/10" />
+                </div>
+              )}
             </div>
-          )}
-          {imageUrl && (
-            <div className="mt-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt="preview" className="rounded-md max-h-48 border border-white/10" />
-            </div>
-          )}
+          </div>
         </Panel>
 
         {/* Direct publish */}
