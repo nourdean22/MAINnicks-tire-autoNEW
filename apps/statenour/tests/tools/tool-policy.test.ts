@@ -194,4 +194,58 @@ describe("Permission Policy Engine Rules", () => {
     expect(res.decision).toBe("deny");
     expect(res.reason).toContain("destructive actions are disabled");
   });
+
+  describe("Dynamic Prefix Tools Evaluation", () => {
+    it("resolves dynamic system tools (e.g. task.create) as low-risk/medium allow", () => {
+      const cap = getToolCapability("task.create");
+      expect(cap).not.toBeNull();
+      expect(cap?.id).toBe("task.create");
+      expect(cap?.category).toBe("system");
+      expect(cap?.riskClass).toBe("medium");
+
+      const res = evaluateToolAction({ toolId: "task.create", actionType: "execute" });
+      expect(res.decision).toBe("allow");
+    });
+
+    it("resolves dynamic memory writes and requires owner approval", () => {
+      const cap = getToolCapability("memory.pin_idea");
+      expect(cap).not.toBeNull();
+      expect(cap?.memoryWriteAllowed).toBe(true);
+
+      const res = evaluateToolAction({
+        toolId: "memory.pin_idea",
+        actionType: "write",
+        memoryWriteRequested: true
+      });
+      // Normal write request requires owner approval
+      expect(res.decision).toBe("require_owner");
+      expect(res.requiredApproval).toBe("owner_required");
+    });
+
+    it("resolves telegram tools and requires owner approval for mutations", () => {
+      const cap = getToolCapability("telegram.sendMessage");
+      expect(cap).not.toBeNull();
+      expect(cap?.externalMutation).toBe(true);
+
+      const res = evaluateToolAction({
+        toolId: "telegram.sendMessage",
+        actionType: "send"
+      });
+      expect(res.decision).toBe("require_owner");
+      expect(res.requiredApproval).toBe("owner_required");
+    });
+
+    it("resolves arsenal code execution as critical risk requiring owner", () => {
+      const cap = getToolCapability("arsenal.runPython");
+      expect(cap).not.toBeNull();
+      expect(cap?.riskClass).toBe("critical");
+
+      const res = evaluateToolAction({
+        toolId: "arsenal.runPython",
+        actionType: "execute"
+      });
+      expect(res.decision).toBe("require_owner");
+      expect(res.requiredApproval).toBe("owner_required");
+    });
+  });
 });

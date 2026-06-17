@@ -60,7 +60,8 @@ import { ProviderHealthPill } from "@/components/chat/provider-health-pill";
 // Nick infers both per-turn automatically. Programmatic override
 // still works via lib/ai/intent-classifier.ts setPersonaOverride().
 export type ChatPersonality = "master" | "builder" | "friend";
-export type ChatMode = "standard" | "deep" | "quick";
+export type ChatMode = "auto" | "standard" | "deep";
+export type ProviderOverride = "auto" | "ollama" | "gemini" | "venice" | "openai" | "anthropic";
 
 interface NickHeaderV2Props {
   hasError?: boolean;
@@ -68,39 +69,28 @@ interface NickHeaderV2Props {
   messageCount?: number;
   sessionStartTime?: number;
   historyOpen?: boolean;
-  /** Retained for API compatibility but no longer renders. */
   personality?: ChatPersonality;
   onPersonalityChange?: (p: ChatPersonality) => void;
-  /** Retained for API compatibility but no longer renders. */
   mode?: ChatMode;
   onModeChange?: (m: ChatMode) => void;
   ttsEnabled?: boolean;
   onToggleTTS?: () => void;
   wakeWordActive?: boolean;
   onToggleWakeWord?: () => void;
-  /** v11.1 D2 · ambient / speaker mode toggle — composes wake-word +
-   *  TTS + audio-ducking. Renders as a distinct row above the
-   *  individual TTS / wake-word toggles. */
   ambientActive?: boolean;
   onToggleAmbient?: () => void;
-  /** v10.0.529.58 · 2 NEW settings-tier toggles relocated to the
-   *  ⋯ overflow menu per audit Wave 8 finding. Speed ribbon +
-   *  provider override now visible from the menu so Nour doesn't
-   *  need to memorize the Cmd+Shift+V shortcut. */
   showSpeedRibbon?: boolean;
   onToggleSpeedRibbon?: () => void;
   showConversationPulse?: boolean;
   onToggleConversationPulse?: () => void;
   providerOverride?: string;
+  onProviderChange?: (p: ProviderOverride) => void;
   onCycleProvider?: () => void;
   onToggleHistory?: () => void;
   onNewChat?: () => void;
   onInspectPrompt?: () => void;
-  /** Memory Inspector toggle */
   memoryInspectorOpen?: boolean;
   onToggleMemoryInspector?: () => void;
-  /** Apr 20 — current conversation id so the overflow menu can expose
-   *  the markdown/json export without sending Nour to Cmd+F first. */
   conversationId?: string | null;
   veniceHealthy?: boolean;
 }
@@ -113,6 +103,8 @@ export function NickHeaderV2({
   historyOpen,
   personality,
   onPersonalityChange,
+  mode = "auto",
+  onModeChange,
   ttsEnabled,
   onToggleTTS,
   wakeWordActive,
@@ -124,6 +116,7 @@ export function NickHeaderV2({
   showConversationPulse,
   onToggleConversationPulse,
   providerOverride,
+  onProviderChange,
   onCycleProvider,
   onToggleHistory,
   onNewChat,
@@ -155,11 +148,6 @@ export function NickHeaderV2({
         : "bg-(--gold) nick-orb-idle";
 
   // Minutes since session start — shown tiny, only when >0.
-  // Apr 27 · COMPILER-FIX — was Date.now() in render which the React
-  // Compiler flags as impure (different value every render = no
-  // memoization possible). Now ticks once a minute via a state set
-  // by an interval — initial state is 0 (deterministic SSR), then
-  // mounts and starts ticking. Same UX, no impurity in render.
   const [minutes, setMinutes] = useState(0);
   useEffect(() => {
     if (!sessionStartTime) return;
@@ -169,9 +157,6 @@ export function NickHeaderV2({
     return () => clearInterval(id);
   }, [sessionStartTime]);
 
-  // Apr 27 · MOBILE-FLUIDITY — header height bumped on mobile so the
-  // live dot + NICK label + chevron + minutes count have real space;
-  // reverts to the tight 36px on desktop where the cursor is precise.
   return (
     <div className="flex items-center justify-between gap-2 px-3 h-11 sm:h-9 border-b border-(--border-default)">
       {/* Left: NICK + live dot + chevron for history */}
@@ -198,241 +183,290 @@ export function NickHeaderV2({
         )}
       </button>
 
-      {/* v10.0.351 · LiveHudBar removed · its metrics now ride in the
-          global ticker (TASKS/SCORE/AI$ as ops items). The center grows
-          to fill the space the HUD used to occupy. */}
       <div className="flex-1" />
 
-      {/* provider-health pill — silent when all green, surfaces when amber/red */}
       <ProviderHealthPill className="hidden sm:inline-flex" />
 
       {/* Right: overflow menu only */}
       <div className="relative shrink-0" ref={menuRef}>
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          className="w-9 h-9 sm:w-7 sm:h-7 rounded-md flex items-center justify-center text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--bg-raised) transition-colors active:scale-90"
+          className="w-9 h-9 sm:w-7 sm:h-7 rounded-md flex items-center justify-center text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--bg-raised) transition-colors active:scale-95"
           aria-label="Chat options"
           aria-expanded={menuOpen}
         >
           <MoreHorizontal size={14} />
         </button>
         {menuOpen && (
-          <div className="absolute top-full right-0 mt-1 w-56 rounded-lg border border-(--border-default) bg-(--bg-void) backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden z-50">
-            {/* Apr 21 · Persona picker restored. Auto-inference is
-                still the default — server sets X-Persona header per
-                turn and the client syncs. But Nour asked "where did
-                the coder go?" when Builder mode was invisible. Having
-                an explicit row lets him force BUILDER (which opens the
-                BuilderSandbox deploy/repo panel on desktop), force
-                FRIEND (warm tone, no metrics), or lock MASTER. Keeps
-                auto-inference running when he doesn't touch it. */}
+          <div className="absolute top-full right-0 mt-2 w-80 max-h-[85vh] overflow-y-auto rounded-xl border border-white/10 bg-neutral-950/90 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.75)] p-4 flex flex-col gap-4 z-50 text-white transition-all duration-200 animate-in fade-in slide-in-from-top-2">
+            
+            {/* 1. Persona Selector */}
             {onPersonalityChange && (
-              <>
-                <div className="px-3 pt-2 pb-1 text-[9px] font-mono uppercase tracking-wider text-(--text-tertiary)">
-                  Mode
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 mb-2 flex items-center justify-between">
+                  <span>Persona</span>
+                  <span className="text-[9px] text-(--gold) font-semibold uppercase">
+                    {personality}
+                  </span>
                 </div>
-                {([
-                  { key: "master" as const, label: "Master", icon: Crown, desc: "operator + strategist" },
-                  { key: "builder" as const, label: "Builder", icon: Terminal, desc: "code + deploy · opens sandbox" },
-                  { key: "friend" as const, label: "Friend", icon: Heart, desc: "casual · no metrics" },
-                ]).map(({ key, label, icon: Icon, desc }) => (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onPersonalityChange(key);
-                    }}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
-                      personality === key ? "text-(--gold)" : "text-(--text-primary)"
-                    )}
-                  >
-                    <Icon size={12} />
-                    <div className="flex-1 text-left">
-                      <div>{label}</div>
-                      <div className="text-[9px] text-(--text-tertiary)">{desc}</div>
-                    </div>
-                    {personality === key && <Check size={10} className="text-(--gold)" />}
-                  </button>
-                ))}
-                <div className="h-px bg-(--border-default)/60 my-1" />
-              </>
+                <div className="grid grid-cols-3 gap-1 bg-white/5 p-1 rounded-lg">
+                  {(["master", "builder", "friend"] as const).map((p) => {
+                    const isActive = personality === p;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => {
+                          onPersonalityChange(p);
+                        }}
+                        className={cn(
+                          "h-9 rounded-md text-xs font-medium transition-all duration-150 active:scale-95 capitalize",
+                          isActive
+                            ? "bg-(--gold) text-black font-semibold shadow-sm"
+                            : "text-neutral-400 hover:text-white hover:bg-white/5"
+                        )}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="text-[9px] text-neutral-400 mt-1.5 px-1 min-h-[12px]">
+                  {personality === "master" && "Operator & strategist mode — terse and actionable."}
+                  {personality === "builder" && "Technical coding mode — opens repository sandboxes."}
+                  {personality === "friend" && "Casual, supportive conversational companion."}
+                </div>
+              </div>
             )}
 
-            {/* Actions */}
-            <button
-              onClick={() => {
-                setMenuOpen(false);
-                onNewChat?.();
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
-            >
-              <Plus size={12} />
-              New chat
-            </button>
-            <button
-              onClick={() => {
-                setMenuOpen(false);
-                onToggleHistory?.();
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
-            >
-              <History size={12} />
-              History
-            </button>
-            {onToggleTTS && (
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  onToggleTTS();
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
-              >
-                {ttsEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
-                {ttsEnabled ? "Voice on" : "Voice off"}
-              </button>
+            {/* 2. Routing Mode Selector */}
+            {onModeChange && (
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 mb-2 flex items-center justify-between">
+                  <span>Routing Mode</span>
+                  <span className="text-[9px] text-(--gold) font-semibold uppercase">
+                    {mode}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1 bg-white/5 p-1 rounded-lg">
+                  {(["auto", "standard", "deep"] as const).map((m) => {
+                    const isActive = mode === m;
+                    return (
+                      <button
+                        key={m}
+                        onClick={() => {
+                          onModeChange(m);
+                        }}
+                        className={cn(
+                          "h-9 rounded-md text-xs font-medium transition-all duration-150 active:scale-95 capitalize",
+                          isActive
+                            ? "bg-(--gold) text-black font-semibold shadow-sm"
+                            : "text-neutral-400 hover:text-white hover:bg-white/5"
+                        )}
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
-            {onToggleWakeWord && (
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  onToggleWakeWord();
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
-              >
-                {wakeWordActive ? <Mic size={12} /> : <MicOff size={12} />}
-                {wakeWordActive ? "Wake word on" : "Wake word off"}
-              </button>
+
+            {/* 3. Provider Override Selector */}
+            {onProviderChange && (
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 mb-2 flex items-center justify-between">
+                  <span>Provider Override</span>
+                  <span className="text-[9px] text-(--gold) font-semibold uppercase">
+                    {providerOverride || "auto"}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <div className="grid grid-cols-3 gap-1 bg-white/5 p-1 rounded-lg">
+                    {(["auto", "ollama", "gemini"] as const).map((p) => {
+                      const isActive = (providerOverride || "auto") === p;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => {
+                            onProviderChange(p);
+                          }}
+                          className={cn(
+                            "h-9 rounded-md text-[11px] font-medium transition-all duration-150 active:scale-95 capitalize",
+                            isActive
+                              ? "bg-(--gold) text-black font-semibold shadow-sm"
+                              : "text-neutral-400 hover:text-white hover:bg-white/5"
+                          )}
+                        >
+                          {p === "ollama" ? "Ollama" : p === "gemini" ? "Gemini" : p}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 bg-white/5 p-1 rounded-lg">
+                    {(["venice", "openai", "anthropic"] as const).map((p) => {
+                      const isActive = (providerOverride || "auto") === p;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => {
+                            onProviderChange(p);
+                          }}
+                          className={cn(
+                            "h-9 rounded-md text-[11px] font-medium transition-all duration-150 active:scale-95 capitalize",
+                            isActive
+                              ? "bg-(--gold) text-black font-semibold shadow-sm"
+                              : "text-neutral-400 hover:text-white hover:bg-white/5"
+                          )}
+                        >
+                          {p === "openai" ? "OpenAI" : p === "anthropic" ? "Claude" : p}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             )}
-            {/* v11.1 D2 · Ambient / speaker mode. Composes wake-word +
-                TTS + audio-ducking for hands-free ops. */}
+
+            <div className="h-px bg-white/10" />
+
+            {/* 4. Ambient / Voice Toggle */}
             {onToggleAmbient && (
               <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  onToggleAmbient();
-                }}
+                onClick={onToggleAmbient}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
-                  ambientActive ? "text-(--gold)" : "text-(--text-primary)",
+                  "h-11 w-full rounded-lg border flex items-center gap-3 px-3 transition-all duration-150 active:scale-95",
+                  ambientActive
+                    ? "border-(--gold)/30 bg-(--gold)/10 text-(--gold)"
+                    : "border-white/5 bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white"
                 )}
               >
-                <Radio size={12} className={ambientActive ? "animate-pulse" : ""} />
+                <Radio size={14} className={cn(ambientActive && "animate-pulse")} />
                 <div className="flex-1 text-left">
-                  <div>{ambientActive ? "Ambient mode on" : "Ambient mode off"}</div>
-                  <div className="text-[9px] text-(--text-tertiary)">
-                    {ambientActive ? "phone on counter · hands-free" : "wake word + TTS + audio-duck"}
+                  <div className="text-[11px] font-medium">Ambient Hands-Free</div>
+                  <div className="text-[8px] text-neutral-400 leading-tight">
+                    Wake word + speech output + phone counter mode
                   </div>
                 </div>
                 {ambientActive && <Check size={10} className="text-(--gold)" />}
               </button>
             )}
-            {/* v10.0.529.58 · Speed ribbon toggle · per-message TTFT
-                timing under each reply · persists to localStorage via
-                useChatSpeedRibbon. Surfaces a state that pre-this-commit
-                only existed as a keyboard-shortcut-less hook. */}
-            {onToggleSpeedRibbon && (
+
+            {/* 5. Toggles Grid */}
+            <div className="grid grid-cols-2 gap-2">
+              {onToggleTTS && (
+                <button
+                  onClick={onToggleTTS}
+                  className={cn(
+                    "h-11 rounded-lg border flex items-center gap-2.5 px-3 transition-all duration-150 active:scale-95 text-[11px] font-medium",
+                    ttsEnabled
+                      ? "border-(--gold)/30 bg-(--gold)/5 text-(--gold)"
+                      : "border-white/5 bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  {ttsEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
+                  Voice Out
+                </button>
+              )}
+              {onToggleWakeWord && (
+                <button
+                  onClick={onToggleWakeWord}
+                  className={cn(
+                    "h-11 rounded-lg border flex items-center gap-2.5 px-3 transition-all duration-150 active:scale-95 text-[11px] font-medium",
+                    wakeWordActive
+                      ? "border-(--gold)/30 bg-(--gold)/5 text-(--gold)"
+                      : "border-white/5 bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  {wakeWordActive ? <Mic size={13} /> : <MicOff size={13} />}
+                  Wake Word
+                </button>
+              )}
+              {onToggleSpeedRibbon && (
+                <button
+                  onClick={onToggleSpeedRibbon}
+                  className={cn(
+                    "h-11 rounded-lg border flex items-center gap-2.5 px-3 transition-all duration-150 active:scale-95 text-[11px] font-medium",
+                    showSpeedRibbon
+                      ? "border-(--gold)/30 bg-(--gold)/5 text-(--gold)"
+                      : "border-white/5 bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  <Zap size={13} />
+                  Speed Ribbon
+                </button>
+              )}
+              {onToggleConversationPulse && (
+                <button
+                  onClick={onToggleConversationPulse}
+                  className={cn(
+                    "h-11 rounded-lg border flex items-center gap-2.5 px-3 transition-all duration-150 active:scale-95 text-[11px] font-medium",
+                    showConversationPulse
+                      ? "border-(--gold)/30 bg-(--gold)/5 text-(--gold)"
+                      : "border-white/5 bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  <Radio size={13} />
+                  Telemetry Bar
+                </button>
+              )}
+            </div>
+
+            {/* 6. Inspectors Grid */}
+            <div className="grid grid-cols-2 gap-2">
+              {onInspectPrompt && (
+                <button
+                  onClick={onInspectPrompt}
+                  className="h-11 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white flex items-center justify-center gap-2 text-[11px] font-medium active:scale-95 transition-all"
+                >
+                  <Eye size={13} />
+                  Inspect Prompt
+                </button>
+              )}
+              {onToggleMemoryInspector && (
+                <button
+                  onClick={onToggleMemoryInspector}
+                  className={cn(
+                    "h-11 rounded-lg border flex items-center justify-center gap-2 text-[11px] font-medium active:scale-95 transition-all",
+                    memoryInspectorOpen
+                      ? "border-(--gold)/30 bg-(--gold)/5 text-(--gold)"
+                      : "border-white/5 bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  <Brain size={13} />
+                  Memory Ins.
+                </button>
+              )}
+            </div>
+
+            <div className="h-px bg-white/10" />
+
+            {/* 7. Action Buttons */}
+            <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => {
                   setMenuOpen(false);
-                  onToggleSpeedRibbon();
+                  onNewChat?.();
                 }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
-                  showSpeedRibbon ? "text-(--gold)" : "text-(--text-primary)",
-                )}
+                className="h-11 rounded-lg bg-(--gold) hover:opacity-95 text-black flex items-center justify-center gap-2 text-[11px] font-semibold active:scale-95 transition-all"
               >
-                {showSpeedRibbon ? <Zap size={12} /> : <ZapOff size={12} />}
-                <div className="flex-1 text-left">
-                  <div>{showSpeedRibbon ? "Speed ribbon on" : "Speed ribbon off"}</div>
-                  <div className="text-[9px] text-(--text-tertiary)">
-                    per-message token timing
-                  </div>
-                </div>
-                {showSpeedRibbon && <Check size={10} className="text-(--gold)" />}
+                <Plus size={13} />
+                New Chat
               </button>
-            )}
-            {onToggleConversationPulse && (
               <button
                 onClick={() => {
                   setMenuOpen(false);
-                  onToggleConversationPulse();
+                  onToggleHistory?.();
                 }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
-                  showConversationPulse ? "text-(--gold)" : "text-(--text-primary)",
-                )}
+                className="h-11 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white flex items-center justify-center gap-2 text-[11px] font-medium active:scale-95 transition-all"
               >
-                {showConversationPulse ? <Zap size={12} /> : <ZapOff size={12} />}
-                <div className="flex-1 text-left">
-                  <div>{showConversationPulse ? "Telemetry bar on" : "Telemetry bar off"}</div>
-                  <div className="text-[9px] text-(--text-tertiary)">
-                    sparkline + cost + latency
-                  </div>
-                </div>
-                {showConversationPulse && <Check size={10} className="text-(--gold)" />}
+                <History size={13} />
+                History
               </button>
-            )}
-            {/* v10.0.529.58 · Provider override cycle · mirrors the
-                Cmd+Shift+V keyboard shortcut. Surfaces the active
-                override inline so Nour sees it without keystrokes. */}
-            {onCycleProvider && (
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  onCycleProvider();
-                }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
-                  providerOverride && providerOverride !== "auto"
-                    ? "text-(--gold)"
-                    : "text-(--text-primary)",
-                )}
-              >
-                <Shuffle size={12} />
-                <div className="flex-1 text-left">
-                  <div>
-                    Provider{providerOverride && providerOverride !== "auto" ? `: ${providerOverride}` : ": auto"}
-                  </div>
-                  <div className="text-[9px] text-(--text-tertiary)">
-                    Cmd+Shift+V · auto → ollama → venice → openai
-                  </div>
-                </div>
-                {providerOverride && providerOverride !== "auto" && (
-                  <Check size={10} className="text-(--gold)" />
-                )}
-              </button>
-            )}
-            {onInspectPrompt && (
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  onInspectPrompt();
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
-              >
-                <Eye size={12} />
-                Inspect prompt
-              </button>
-            )}
-            {onToggleMemoryInspector && (
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  onToggleMemoryInspector();
-                }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-(--bg-raised) transition-colors",
-                  memoryInspectorOpen ? "text-(--gold)" : "text-(--text-primary)"
-                )}
-              >
-                <Brain size={12} />
-                Memory Inspector
-              </button>
-            )}
+            </div>
+
+            {/* 8. Export Buttons */}
             {conversationId && messageCount > 0 && (
-              <>
-                <div className="h-px bg-(--border-default)/60 my-1" />
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
                     setMenuOpen(false);
@@ -441,11 +475,10 @@ export function NickHeaderV2({
                       "_blank"
                     );
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
-                  title="Download this conversation as markdown"
+                  className="h-11 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white flex items-center justify-center gap-2 text-[11px] font-medium active:scale-95 transition-all"
                 >
-                  <Download size={12} />
-                  Export as Markdown
+                  <Download size={13} />
+                  Markdown
                 </button>
                 <button
                   onClick={() => {
@@ -455,19 +488,12 @@ export function NickHeaderV2({
                       "_blank"
                     );
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-(--text-primary) hover:bg-(--bg-raised) transition-colors"
-                  title="Download this conversation as JSON (raw + metadata)"
+                  className="h-11 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white flex items-center justify-center gap-2 text-[11px] font-medium active:scale-95 transition-all"
                 >
-                  <FileJson size={12} />
-                  Export as JSON
+                  <FileJson size={13} />
+                  JSON Raw
                 </button>
-                {/* v10.0.529.59 · audit Wave 8 follow-up · Star /
-                    Archive / Mute / Delete relocated to per-row actions
-                    in ConversationDrawer. The header's overflow menu
-                    is no longer the right home for conversation-level
-                    actions — operators identify a conversation by its
-                    row, not by switching to it and opening this menu. */}
-              </>
+              </div>
             )}
           </div>
         )}
