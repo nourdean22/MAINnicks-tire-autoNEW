@@ -672,9 +672,9 @@ interface ProviderEntry {
 const PROVIDERS: ProviderEntry[] = [
   { name: "ollama", available: isOllamaAvailable, create: (t) => createOllamaModel(t), modelId: OLLAMA_MODEL },
   { name: "gemini", available: isGeminiAvailable, create: (t) => createGoogleModel(t), modelId: GEMINI_MODEL },
-  { name: "venice", available: isVeniceAvailable, create: (t) => createVeniceModel(t), modelId: VENICE_MODEL },
   { name: "openai", available: isOpenAIAvailable, create: () => createOpenAIModel(), modelId: OPENAI_MODEL },
   { name: "anthropic", available: isAnthropicAvailable, create: () => createAnthropicModel(), modelId: ANTHROPIC_MODEL },
+  { name: "venice", available: isVeniceAvailable, create: (t) => createVeniceModel(t), modelId: VENICE_MODEL },
 ];
 
 // ---------------------------------------------------------------------------
@@ -770,21 +770,21 @@ export function getPreferredOrderForTask(taskType: TaskType): ProviderName[] {
     case "summary":
     case "classify":
     case "extract":
-      return ["gemini", "ollama", "venice", "openai", "anthropic"];
+      return ["gemini", "ollama", "openai", "anthropic", "venice"];
     case "reason":
     case "vision":
-      return ["ollama", "gemini", "venice", "openai", "anthropic"];
+      return ["ollama", "gemini", "openai", "anthropic", "venice"];
     case "deep":
-      return ["ollama", "venice", "openai", "anthropic", "gemini"];
+      return ["ollama", "openai", "anthropic", "gemini", "venice"];
     case "code":
       return ["ollama", "openai", "anthropic", "gemini", "venice"];
     case "math":
-      return ["openai", "gemini", "ollama", "venice", "anthropic"];
+      return ["openai", "gemini", "ollama", "anthropic", "venice"];
     case "creative":
-      return ["venice", "ollama", "gemini", "openai", "anthropic"];
+      return ["ollama", "gemini", "openai", "anthropic", "venice"];
     case "embed":
     default:
-      return ["ollama", "gemini", "venice", "openai", "anthropic"];
+      return ["ollama", "gemini", "openai", "anthropic", "venice"];
   }
 }
 

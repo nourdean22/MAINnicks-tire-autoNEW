@@ -33,6 +33,7 @@ import {
   Flag,
   Pencil,
   Plus,
+  GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Project, Task } from "@/components/actions/shared";
@@ -76,6 +77,13 @@ export interface MissionCardProps {
    *  the timestamp matures. Empty string clears the snooze. */
   onSnoozeTask?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
   onDecomposeTask?: (id: string) => void | Promise<void>;
+
+  isDraggedOver?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragLeave?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
 }
 
 export function MissionCard({
@@ -98,6 +106,12 @@ export function MissionCard({
   onMoveTask,
   onSnoozeTask,
   onDecomposeTask,
+  isDraggedOver,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }: MissionCardProps) {
   const canMoveUp =
     onMoveMission != null && typeof index === "number" && index > 0;
@@ -111,10 +125,15 @@ export function MissionCard({
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Drag and drop states
+  const [isMissionDraggable, setIsMissionDraggable] = useState(false);
+  const [draggedTaskIdx, setDraggedTaskIdx] = useState<number | null>(null);
+  const [draggedOverTaskIdx, setDraggedOverTaskIdx] = useState<number | null>(null);
+
   const { openTasks, doneTasks, progress, deadlineLabel, deadlineTone } =
     useMemo(() => derivedMetrics(mission, tasks), [mission, tasks]);
 
-  // Sort: Nick's pick first, then DOING, then by due date (urgent first),
+  // Sort: Nick's pick first, then DOING, then autoPriority, then by due date (urgent first),
   // then by createdAt. Done tasks sink to the bottom (visible but dimmed).
   const sortedOpen = useMemo(() => {
     return [...openTasks].sort((a, b) => {
@@ -122,11 +141,67 @@ export function MissionCard({
       if (nicksPickTaskId === b.id) return 1;
       if (a.status === "DOING" && b.status !== "DOING") return -1;
       if (b.status === "DOING" && a.status !== "DOING") return 1;
+
+      const aPri = a.autoPriority ?? Infinity;
+      const bPri = b.autoPriority ?? Infinity;
+      if (aPri !== bPri) {
+        return aPri - bPri;
+      }
+
       const aDue = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
       const bDue = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
-      return aDue - bDue;
+      if (aDue !== bDue) {
+        return aDue - bDue;
+      }
+
+      const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return aCreated - bCreated;
     });
   }, [openTasks, nicksPickTaskId]);
+
+  const handleTaskDragStart = (e: React.DragEvent, taskIndex: number) => {
+    setDraggedTaskIdx(taskIndex);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleTaskDragOver = (e: React.DragEvent, taskIndex: number) => {
+    e.preventDefault();
+    if (draggedTaskIdx === null || draggedTaskIdx === taskIndex) return;
+    setDraggedOverTaskIdx(taskIndex);
+  };
+
+  const handleTaskDragLeave = () => {
+    setDraggedOverTaskIdx(null);
+  };
+
+  const handleTaskDrop = async (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    const sourceIndex = draggedTaskIdx;
+    setDraggedTaskIdx(null);
+    setDraggedOverTaskIdx(null);
+
+    if (sourceIndex === null || sourceIndex === targetIndex) return;
+
+    const task = sortedOpen[sourceIndex];
+    if (!task) return;
+
+    try {
+      if (targetIndex < sourceIndex) {
+        // Moving up
+        for (let i = sourceIndex; i > targetIndex; i--) {
+          await onMoveTask?.(task.id, "up");
+        }
+      } else {
+        // Moving down
+        for (let i = sourceIndex; i < targetIndex; i++) {
+          await onMoveTask?.(task.id, "down");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to reorder task via drag & drop", err);
+    }
+  };
 
   const handleAdd = async () => {
     const trimmed = newTaskTitle.trim();
@@ -144,14 +219,24 @@ export function MissionCard({
   return (
     <article
       id={`mission-${mission.id}`}
+      draggable={isMissionDraggable}
+      onDragStart={onDragStart}
+      onDragEnd={() => {
+        setIsMissionDraggable(false);
+        onDragEnd?.();
+      }}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       // Wave AR · 2026-05-28 · row anchor · TopMissionToday CTA points
       // at #mission-<id> · MissionsHealthStrip chips link here too ·
       // smooth-scroll lands the operator on the right card.
       className={cn(
-        "rounded-lg border bg-[var(--bg-base)] scroll-mt-24",
+        "rounded-lg border bg-[var(--bg-base)] scroll-mt-24 transition-all duration-200",
         expanded
           ? "border-[var(--gold)]/30 shadow-[0_0_20px_rgba(253,185,19,0.05)]"
           : "border-[var(--border-default)]",
+        isDraggedOver && "border-[var(--gold)]/60 bg-[var(--gold)]/[0.02]"
       )}
     >
       {/* Header · tap to toggle */}
@@ -162,6 +247,25 @@ export function MissionCard({
         aria-label={`${expanded ? "collapse" : "expand"} mission ${mission.title}`}
         className="w-full flex items-center gap-2 px-3 py-3 text-left active:scale-[0.995] transition-transform"
       >
+        {onMoveMission && (
+          <div
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsMissionDraggable(true);
+            }}
+            onMouseUp={(e) => {
+              e.stopPropagation();
+              setIsMissionDraggable(false);
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+            className="p-1 cursor-grab active:cursor-grabbing text-zinc-500 hover:text-[var(--gold)] transition-colors shrink-0"
+            aria-label="Drag to reorder mission"
+          >
+            <GripVertical size={14} />
+          </div>
+        )}
         {expanded ? (
           <ChevronDown
             size={14}
@@ -340,6 +444,11 @@ export function MissionCard({
                   onMove={onMoveTask}
                   onSnooze={onSnoozeTask}
                   onDecompose={onDecomposeTask}
+                  onDragStart={(e) => handleTaskDragStart(e, taskIdx)}
+                  onDragOver={(e) => handleTaskDragOver(e, taskIdx)}
+                  onDragLeave={handleTaskDragLeave}
+                  onDrop={(e) => handleTaskDrop(e, taskIdx)}
+                  isDraggedOver={draggedOverTaskIdx === taskIdx}
                 />
               </div>
             ))}
