@@ -760,6 +760,127 @@ async function generatePostImageHiggsfield(prompt: string): Promise<string> {
  * convert the generated PNG to JPEG and re-host it, then hand the JPEG url
  * to Instagram. Facebook tolerates either; we use the same JPEG for both.
  */
+async function generatePostImageGeminiDirect(prompt: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+
+  const model = "gemini-2.5-flash-image";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+  log.info("Generating image via Gemini Direct...", { model, prompt });
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [{ text: prompt }],
+        },
+      ],
+      generationConfig: {
+        responseModalities: ["IMAGE"],
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Gemini Direct image generation failed (${response.status} ${response.statusText}): ${errorText}`);
+  }
+
+  const data = (await response.json()) as any;
+  const parts = data.candidates?.[0]?.content?.parts ?? [];
+  let b64: string | undefined;
+  let mimeType = "image/png";
+  for (const p of parts) {
+    if (p.inlineData?.data) {
+      b64 = p.inlineData.data;
+      if (p.inlineData.mimeType) mimeType = p.inlineData.mimeType;
+      break;
+    }
+  }
+
+  if (!b64) {
+    throw new Error("Gemini Direct image generation failed: no inlineData in response");
+  }
+
+  const buffer = Buffer.from(b64, "base64");
+  const { storagePut } = await import("../storage");
+  const { url: uploadedUrl } = await storagePut(
+    `generated/${Date.now()}.png`,
+    buffer,
+    mimeType
+  );
+  if (!uploadedUrl) throw new Error("storagePut returned no url for Gemini image");
+  return uploadedUrl;
+}
+
+async function generateImageOpenRouter(prompt: string): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
+
+  const model = "google/gemini-2.5-flash-image";
+  const url = "https://openrouter.ai/api/v1/chat/completions";
+
+  log.info("Generating image via OpenRouter...", { model, prompt });
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "user", content: prompt }
+      ],
+      modalities: ["image"]
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`OpenRouter image generation failed (${response.status} ${response.statusText}): ${errorText}`);
+  }
+
+  const data = (await response.json()) as any;
+  const message = data.choices?.[0]?.message;
+  const images = message?.images ?? [];
+  let base64Url: string | undefined;
+
+  for (const img of images) {
+    if (img.image_url?.url && img.image_url.url.startsWith("data:image/")) {
+      base64Url = img.image_url.url;
+      break;
+    }
+  }
+
+  if (!base64Url) {
+    throw new Error("OpenRouter response did not contain image data");
+  }
+
+  const match = base64Url.match(/^data:([^;]+);base64,(.*)$/);
+  if (!match) {
+    throw new Error("Invalid base64 URL format from OpenRouter");
+  }
+  const mimeType = match[1];
+  const b64Data = match[2];
+  const buffer = Buffer.from(b64Data, "base64");
+
+  const { storagePut } = await import("../storage");
+  const { url: uploadedUrl } = await storagePut(
+    `generated/${Date.now()}.png`,
+    buffer,
+    mimeType
+  );
+
+  if (!uploadedUrl) throw new Error("storagePut returned no url for OpenRouter image");
+  return uploadedUrl;
+}
+
 export async function generatePostImage(prompt: string): Promise<{ url: string; format: "jpeg" }> {
   const provider = (process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai").toLowerCase();
 
@@ -769,6 +890,28 @@ export async function generatePostImage(prompt: string): Promise<{ url: string; 
       pngUrl = await generatePostImageHiggsfield(prompt);
     } catch (err) {
       log.warn("Higgsfield image generation failed, falling back to openai provider", {
+        err: err instanceof Error ? err.message : String(err),
+        prompt
+      });
+      pngUrl = await generatePostImageFallback(prompt);
+    }
+  } else if (provider === "gemini") {
+    try {
+      if (process.env.GEMINI_API_KEY) {
+        try {
+          pngUrl = await generatePostImageGeminiDirect(prompt);
+        } catch (geminiErr) {
+          log.warn("Gemini Direct image generation failed, falling back to OpenRouter", {
+            err: geminiErr instanceof Error ? geminiErr.message : String(geminiErr),
+            prompt
+          });
+          pngUrl = await generateImageOpenRouter(prompt);
+        }
+      } else {
+        pngUrl = await generateImageOpenRouter(prompt);
+      }
+    } catch (err) {
+      log.warn("Gemini/OpenRouter image generation failed, falling back to fallback provider", {
         err: err instanceof Error ? err.message : String(err),
         prompt
       });
@@ -784,18 +927,26 @@ export async function generatePostImage(prompt: string): Promise<{ url: string; 
 
 async function generatePostImageFallback(prompt: string): Promise<string> {
   const isOpenRouter = (process.env.OPENAI_BASE_URL || "").includes("openrouter.ai");
-  const hasHF = !!process.env.HF_API_KEY;
 
-  if (isOpenRouter && hasHF) {
+  if (isOpenRouter) {
     try {
-      log.info("OpenAI base URL is OpenRouter (no image support). Using Hugging Face fallback...");
-      return await generateImageHuggingFace(prompt);
+      log.info("OpenAI base URL is OpenRouter (no image support). Using OpenRouter Gemini fallback...");
+      return await generateImageOpenRouter(prompt);
     } catch (err) {
-      log.error("Hugging Face image generation fallback failed", { err: err instanceof Error ? err.message : String(err) });
+      log.error("OpenRouter Gemini image generation fallback failed", { err: err instanceof Error ? err.message : String(err) });
+    }
+
+    if (process.env.HF_API_KEY) {
+      try {
+        log.info("Trying Hugging Face fallback...");
+        return await generateImageHuggingFace(prompt);
+      } catch (err) {
+        log.error("Hugging Face image generation fallback failed", { err: err instanceof Error ? err.message : String(err) });
+      }
     }
   }
 
-  // Otherwise, default to the existing OpenAI generator
+  // Otherwise, default to the existing OpenAI generator (DALL-E 3)
   const { generateImage } = await import("../_core/imageGeneration");
   const res = await generateImage({ prompt });
   if (!res.url) throw new Error("Fallback image generation (openai) returned no url");
