@@ -88,4 +88,25 @@ describe("instagramAdmin router", () => {
       expect(Array.isArray(rows)).toBe(true);
     });
   });
+
+  describe("publishPost input validation", () => {
+    it("rejects empty or invalid URLs", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(
+        caller.instagramAdmin.publishPost({
+          caption: "Check out this post",
+          imageUrl: "invalid-url",
+        })
+      ).rejects.toBeTruthy();
+    });
+
+    it("rejects when no media is provided", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(
+        caller.instagramAdmin.publishPost({
+          caption: "Check out this post",
+        })
+      ).rejects.toBeTruthy();
+    });
+  });
 });

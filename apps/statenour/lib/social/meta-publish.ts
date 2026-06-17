@@ -166,6 +166,161 @@ export async function publishToInstagram(args: {
 }
 
 /**
+ * Publish a Reel to Instagram. Reels publishing is asynchronous on Meta:
+ *   1. Create media container with media_type=REELS and video_url (and optionally cover_url)
+ *   2. Poll the container status code until it is FINISHED
+ *   3. Publish the container
+ */
+export async function publishReelToInstagram(args: {
+  videoUrl: string;
+  caption: string;
+  coverUrl?: string;
+}): Promise<PublishResult> {
+  const creds = getCreds();
+  if (!creds.instagramAccountId) {
+    return {
+      ok: false,
+      platform: "instagram",
+      error: "META_INSTAGRAM_ACCOUNT_ID not set",
+    };
+  }
+  const { videoUrl, caption, coverUrl } = args;
+
+  try {
+    // Step 1 — create Reels media container
+    const payload: Record<string, any> = {
+      media_type: "REELS",
+      video_url: videoUrl,
+      caption,
+      access_token: creds.pageAccessToken,
+    };
+    if (coverUrl) {
+      payload.cover_url = coverUrl;
+    }
+
+    const containerRes = await fetch(
+      `${GRAPH_BASE}/${creds.instagramAccountId}/media`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(30_000),
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!containerRes.ok) {
+      const errText = await containerRes.text();
+      return {
+        ok: false,
+        platform: "instagram",
+        error: `Reel container failed (${containerRes.status}): ${errText.slice(0, 200)}`,
+      };
+    }
+    const containerData = await containerRes.json();
+    const containerId = containerData.id;
+    if (!containerId) {
+      return {
+        ok: false,
+        platform: "instagram",
+        error: "No container ID returned from Meta",
+      };
+    }
+
+    // Step 2 — poll container status until FINISHED
+    let isReady = false;
+    let attempts = 0;
+    const maxAttempts = 30; // 30 attempts * 5s = 150s (2.5 minutes)
+
+    while (!isReady && attempts < maxAttempts) {
+      attempts++;
+      // Wait 5 seconds
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      const statusRes = await fetch(
+        `${GRAPH_BASE}/${containerId}?fields=status_code&access_token=${creds.pageAccessToken}`,
+        { signal: AbortSignal.timeout(10_000) }
+      );
+      const statusData = await statusRes.json().catch(() => null);
+      if (!statusRes.ok || !statusData) {
+        continue;
+      }
+      if (statusData.error) {
+        return {
+          ok: false,
+          platform: "instagram",
+          error: `Meta Reel status check error: ${statusData.error.message}`,
+        };
+      }
+      const statusCode = statusData.status_code;
+      if (statusCode === "FINISHED") {
+        isReady = true;
+      } else if (statusCode === "ERROR") {
+        return {
+          ok: false,
+          platform: "instagram",
+          error: "Meta video processing failed (status_code: ERROR)",
+        };
+      }
+    }
+
+    if (!isReady) {
+      return {
+        ok: false,
+        platform: "instagram",
+        error: "Meta video processing timed out (still IN_PROGRESS after 150s)",
+      };
+    }
+
+    // Step 3 — publish container
+    const publishRes = await fetch(
+      `${GRAPH_BASE}/${creds.instagramAccountId}/media_publish`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(15_000),
+        body: JSON.stringify({
+          creation_id: containerId,
+          access_token: creds.pageAccessToken,
+        }),
+      },
+    );
+    if (!publishRes.ok) {
+      const errText = await publishRes.text();
+      return {
+        ok: false,
+        platform: "instagram",
+        error: `Reel publish failed (${publishRes.status}): ${errText.slice(0, 200)}`,
+      };
+    }
+    const publishData = await publishRes.json();
+    const postId = publishData.id;
+
+    // Optional: fetch permalink
+    const permalinkRes = await fetch(
+      `${GRAPH_BASE}/${postId}?fields=permalink&access_token=${creds.pageAccessToken}`,
+      { signal: AbortSignal.timeout(10_000) },
+    );
+    let permalink: string | undefined;
+    if (permalinkRes.ok) {
+      const data = await permalinkRes.json();
+      permalink = data.permalink;
+    }
+
+    return {
+      ok: true,
+      platform: "instagram",
+      postId,
+      permalink,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      platform: "instagram",
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
  * Publish to Facebook Page. Single-step (no container required).
  * Supports text-only posts (no link/image), text+image, and text+link.
  */
