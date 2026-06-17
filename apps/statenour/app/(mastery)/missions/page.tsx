@@ -63,6 +63,7 @@ import { AlertTriangle } from "lucide-react";
 import { HiddenRiskWarning } from "@/components/missions/hidden-risk-warning";
 import { computeHiddenRiskSummary } from "@/lib/tasks/hidden-risk";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/ui";
 
 type KindFilter = "all" | "ONCE" | "DAILY" | "PROMISE";
 
@@ -92,6 +93,9 @@ function MissionsPageInner() {
   const healthQuery = trpc.system.healthSummary.useQuery(undefined, {
     refetchInterval: 30000,
     refetchOnWindowFocus: false,
+  });
+  const statsQuery = trpc.operator.characterSheet.useQuery(undefined, {
+    staleTime: 60_000,
   });
 
   // wave-AA-audit · derived arrays wrapped in useMemo so the useCallback
@@ -237,45 +241,45 @@ function MissionsPageInner() {
       return null;
     }
 
-    // Helper: is the project a real user mission?
-    const userMissions = missions.filter((m) => m.status === "ACTIVE" && isUserProject(m));
+    // Sort candidate open tasks using the new multi-factor priority: Overdue > Due Date > autoPriority > oldest
+    const now = Date.now();
+    const sortedOpen = [...openTasks].sort((a, b) => {
+      const isOverdueA = a.dueDate ? new Date(a.dueDate).getTime() < now : false;
+      const isOverdueB = b.dueDate ? new Date(b.dueDate).getTime() < now : false;
 
-    // 2. Second choice: first open task of the Top Mission Today
-    const picks = userMissions.map((m) => {
-      const tasksForMission = openTasks.filter((t) => t.missionId === m.id);
-      const days = m.deadline
-        ? Math.round((new Date(m.deadline).getTime() - Date.now()) / 86400000)
-        : null;
-      return {
-        mission: m,
-        openTasks: tasksForMission.length,
-        daysToDeadline: days,
-      };
-    }).filter((p) => p.openTasks > 0);
-
-    if (picks.length > 0) {
-      const sorted = [...picks].sort((a, b) => {
-        const aD = a.daysToDeadline ?? 99_999;
-        const bD = b.daysToDeadline ?? 99_999;
-        if (aD !== bD) return aD - bD;
-        return b.openTasks - a.openTasks;
-      });
-      const topMission = sorted[0]?.mission;
-      if (topMission) {
-        const taskForTop = openTasks.find((t) => t.missionId === topMission.id);
-        if (taskForTop) return taskForTop;
+      if (isOverdueA !== isOverdueB) {
+        return isOverdueA ? -1 : 1;
       }
-    }
+      if (isOverdueA && isOverdueB) {
+        const timeA = new Date(a.dueDate!).getTime();
+        const timeB = new Date(b.dueDate!).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+      }
 
-    // 3. Third choice: first task of any active user mission
-    for (const mission of userMissions) {
-      const taskForMission = openTasks.find((t) => t.missionId === mission.id);
-      if (taskForMission) return taskForMission;
-    }
+      const hasDueA = !!a.dueDate;
+      const hasDueB = !!b.dueDate;
+      if (hasDueA !== hasDueB) {
+        return hasDueA ? -1 : 1;
+      }
+      if (hasDueA && hasDueB) {
+        const timeA = new Date(a.dueDate!).getTime();
+        const timeB = new Date(b.dueDate!).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+      }
 
-    // 4. Fallback: first open task in the general list
-    return openTasks[0] || null;
-  }, [tasks, missions, queuedTaskId]);
+      const priA = a.autoPriority ?? Infinity;
+      const priB = b.autoPriority ?? Infinity;
+      if (priA !== priB) {
+        return priA - priB;
+      }
+
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeA - timeB;
+    });
+
+    return sortedOpen[0] || null;
+  }, [tasks, queuedTaskId]);
 
   const focusedTaskMission = useMemo(() => {
     if (!focusedTask || !focusedTask.missionId) return null;
@@ -400,6 +404,7 @@ function MissionsPageInner() {
     await Promise.all([
       utils.task.list.invalidate(),
       utils.task.missions.invalidate(),
+      utils.operator.characterSheet.invalidate(),
     ]);
   }, [utils]);
 
@@ -804,8 +809,45 @@ function MissionsPageInner() {
     );
   }
 
+  const stats = statsQuery.data ?? [];
+  const totalLevel = stats.reduce((s: number, x: any) => s + (x.level || 0), 0);
+  const totalXp = Math.round(stats.reduce((s: number, x: any) => s + (x.xp || 0), 0));
+
+  const dailyTasks = tasks.filter(
+    (t) => t.loopKind === "DAILY" && t.status !== "DONE" && t.status !== "ARCHIVED"
+  );
+  const maxStreak = dailyTasks.length > 0
+    ? Math.max(...dailyTasks.map((t) => (t as any).streakCount ?? 0))
+    : 0;
+
   return (
     <div className="space-y-4 max-w-3xl pb-[env(safe-area-inset-bottom,0px)]">
+      <PageHeader
+        eyebrow="Mastery Loop"
+        title="Missions & Tasks"
+        description="Deploy your focus, complete active campaigns, and level up your character sheet."
+        actions={
+          statsQuery.isLoading ? (
+            <div className="h-8 w-32 rounded bg-zinc-900/50 animate-pulse border border-zinc-800" />
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg border border-[var(--gold)]/20 bg-[var(--gold)]/[0.03] backdrop-blur-md px-3 py-1.5 text-xs font-mono text-[var(--gold)]/90 shadow-[0_0_15px_rgba(212,175,55,0.05)] transition-all hover:border-[var(--gold)]/40 hover:bg-[var(--gold)]/[0.06] hover:shadow-[0_0_20px_rgba(212,175,55,0.1)]">
+              <div className="flex items-center gap-1.5 pr-2 border-r border-[var(--gold)]/10">
+                <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Lvl</span>
+                <span className="font-bold tabular-nums text-white">{totalLevel}</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-0.5 pr-2 border-r border-[var(--gold)]/10">
+                <span className="text-[10px] text-zinc-500 uppercase tracking-wider">XP</span>
+                <span className="font-bold tabular-nums text-white">{totalXp.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-amber-500 animate-pulse">🔥</span>
+                <span className="font-bold tabular-nums text-white">{maxStreak}d</span>
+              </div>
+            </div>
+          )
+        }
+      />
+
       {/* ⌘K omni-capture · kaizen-B kept */}
       <OmniCaptureModal onCapture={(text) => void handleQuickAdd(text)} />
 

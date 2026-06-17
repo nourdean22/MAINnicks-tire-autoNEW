@@ -29,6 +29,7 @@ import {
   Play,
   Trash2,
   Sparkles,
+  GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/components/actions/shared";
@@ -57,6 +58,13 @@ export interface MissionTaskRowProps {
    *  the timestamp matures. snoozedUntilIso is a wall-clock ISO. */
   onSnooze?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
   onDecompose?: (id: string) => void | Promise<void>;
+
+  isDraggedOver?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragLeave?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
 }
 
 /** Tomorrow at 6am local · the resurface cron flips WAITING→READY when
@@ -92,6 +100,12 @@ export function MissionTaskRow({
   onMove,
   onSnooze,
   onDecompose,
+  isDraggedOver,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }: MissionTaskRowProps) {
   const [busy, setBusy] = useState<
     "complete" | "start" | "delete" | "snooze" | "decompose" | null
@@ -123,6 +137,21 @@ export function MissionTaskRow({
       document.removeEventListener("keydown", onKey);
     };
   }, [snoozeOpen]);
+
+  // Sparkles & Drag state
+  const [showSparkles, setShowSparkles] = useState(false);
+  const [isDraggable, setIsDraggable] = useState(false);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (showSparkles) {
+      timer = setTimeout(() => setShowSparkles(false), 800);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [showSparkles]);
+
   const isDaily =
     (task as unknown as { loopKind?: string }).loopKind === "DAILY";
   const snoozedUntil = (task as unknown as { snoozedUntil?: string | null })
@@ -162,6 +191,23 @@ export function MissionTaskRow({
   return (
     <div
       id={`task-${task.id}`}
+      draggable={!isDone && isDraggable}
+      onDragStart={(e) => {
+        onDragStart?.(e);
+      }}
+      onDragEnd={() => {
+        setIsDraggable(false);
+        onDragEnd?.();
+      }}
+      onDragOver={(e) => {
+        onDragOver?.(e);
+      }}
+      onDragLeave={(e) => {
+        onDragLeave?.(e);
+      }}
+      onDrop={(e) => {
+        onDrop?.(e);
+      }}
       // Wave BF · 2026-05-29 · row anchor · /home "START →" + operator-pulse
       // emit /missions#task-<id> deep-links · Wave AR shipped mission-card
       // + goal anchors but never the task row · clicking a home CTA landed
@@ -174,12 +220,28 @@ export function MissionTaskRow({
           : "border-transparent hover:bg-[var(--bg-raised)]/[0.06]",
         isDone && "opacity-50",
         indent === 1 && "ml-6 border-l border-[var(--border-default)]/40 pl-3",
+        isDraggedOver && "border-[var(--gold)]/40 bg-[var(--gold)]/[0.02]"
       )}
     >
+      {/* Drag handle */}
+      {!isDone ? (
+        <div
+          onMouseDown={() => setIsDraggable(true)}
+          onMouseUp={() => setIsDraggable(false)}
+          className="p-1 cursor-grab active:cursor-grabbing text-zinc-500 hover:text-[var(--gold)] transition-colors shrink-0 flex items-center h-10 self-center"
+          aria-label="Drag to reorder task"
+        >
+          <GripVertical size={12} />
+        </div>
+      ) : (
+        <div className="w-5 shrink-0" />
+      )}
+
       {/* Checkbox circle · tap to complete */}
       <button
         type="button"
         onClick={async () => {
+          setShowSparkles(true);
           setBusy("complete");
           try {
             await onComplete(task.id);
@@ -195,7 +257,7 @@ export function MissionTaskRow({
         // via outer button padding · the visible circle stays small
         // but the ENTIRE 44pt area is the click region.
         className={cn(
-          "shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] -m-2 p-2 rounded-full transition-colors active:scale-95",
+          "shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] -m-2 p-2 rounded-full transition-colors active:scale-95 relative",
           "[&>span]:h-5 [&>span]:w-5 [&>span]:rounded-full [&>span]:border",
           isDone
             ? "[&>span]:bg-[var(--gold)]/30 [&>span]:border-[var(--gold)]/60 text-[var(--bg-void)]"
@@ -208,6 +270,45 @@ export function MissionTaskRow({
         <span className="flex items-center justify-center">
           {isDone && <Check size={12} strokeWidth={3} />}
         </span>
+
+        {/* Checkbox Completion Sparkles */}
+        {showSparkles && (
+          <div className="absolute pointer-events-none w-10 h-10 flex items-center justify-center z-50">
+            <style>{`
+              @keyframes sparkle-burst-${task.id} {
+                0% {
+                  transform: translate(0, 0) scale(0.2) rotate(0deg);
+                  opacity: 1;
+                }
+                50% {
+                  opacity: 0.9;
+                }
+                100% {
+                  transform: translate(var(--x), var(--y)) scale(1.2) rotate(45deg);
+                  opacity: 0;
+                }
+              }
+            `}</style>
+            {[...Array(8)].map((_, i) => {
+              const angle = (i * 360) / 8;
+              const rad = (angle * Math.PI) / 180;
+              const distance = 20;
+              const x = Math.cos(rad) * distance;
+              const y = Math.sin(rad) * distance;
+              return (
+                <div
+                  key={i}
+                  className="absolute w-1 h-1 bg-[var(--gold)] rounded-sm"
+                  style={{
+                    "--x": `${x}px`,
+                    "--y": `${y}px`,
+                    animation: `sparkle-burst-${task.id} 0.6s cubic-bezier(0.1, 0.8, 0.3, 1) forwards`,
+                  } as React.CSSProperties}
+                />
+              );
+            })}
+          </div>
+        )}
       </button>
 
       {/* Title + meta */}

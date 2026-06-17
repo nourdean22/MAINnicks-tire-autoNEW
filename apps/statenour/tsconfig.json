@@ -48,6 +48,7 @@
     "node_modules",
     "tests",
     "scripts",
+    "scratch",
     "prisma/seeds",
     "prisma/seed.ts",
     "playwright.config.ts",
