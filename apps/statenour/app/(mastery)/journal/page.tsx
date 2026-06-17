@@ -145,10 +145,13 @@ function JournalPageInner() {
   useEffect(() => {
     const hash = window.location.hash || "";
     const hasSearchParam = searchParams?.get("search");
-    if (hash.startsWith("#bd-") || hasSearchParam) {
-      setActiveTab("feed");
+    if ((hash.startsWith("#bd-") || hasSearchParam) && activeTab !== "feed") {
+      const t = setTimeout(() => {
+        setActiveTab("feed");
+      }, 0);
+      return () => clearTimeout(t);
     }
-  }, [searchParams]);
+  }, [searchParams, activeTab]);
 
   // Handle the focus-composer custom event dispatched by TodaysPrompt
   useEffect(() => {
@@ -194,7 +197,7 @@ function JournalPageInner() {
   // (delay = i * 40ms), so entry 99 waited ~4s to appear after a
   // filter switch — perceived as freezing. Only animate on initial
   // mount; subsequent loads jump straight to position.
-  const hasLoadedOnceRef = useRef(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   // v10.0.529.24 · metacognition · loads the latest learning-journal
   // entry the evening cron produces. Surfaces Nick's nightly
@@ -282,17 +285,17 @@ function JournalPageInner() {
   // runs post-commit, so the initial mount staggers and every
   // subsequent load (filter switch / data-change) jumps straight.
   useEffect(() => {
-    if (entries.length > 0 && !hasLoadedOnceRef.current) {
+    if (entries.length > 0 && !hasLoadedOnce) {
       // Defer to the next tick so the current animation can run
       // before we flip the gate for future loads.
       const t = setTimeout(() => {
-        hasLoadedOnceRef.current = true;
+        setHasLoadedOnce(true);
       }, 100);
       return () => clearTimeout(t);
     }
     // No-op return so the effect's cleanup-return type is unified.
     return undefined;
-  }, [entries]);
+  }, [entries, hasLoadedOnce]);
 
   // Cross-surface refresh — when a brain dump or decision gets
   // captured anywhere (chat NL interceptor, global capture, telegram,
@@ -674,7 +677,7 @@ function JournalPageInner() {
                         onToggle={() =>
                           setExpandedId((curr) => (curr === entry.id ? null : entry.id))
                         }
-                        delay={hasLoadedOnceRef.current ? 0 : i * 40}
+                        delay={hasLoadedOnce ? 0 : i * 40}
                       />
                     ))}
                   </div>
