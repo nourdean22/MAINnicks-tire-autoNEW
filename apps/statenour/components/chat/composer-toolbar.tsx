@@ -113,8 +113,8 @@ export function ComposerToolbar({
             : voice.isRecording
             ? "bg-red-500/15 text-red-400 border border-red-500/30 animate-pulse"
             : voice.transcribing
-              ? "bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"
-              : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
+              ? "bg-(--bg-elevated) text-(--text-tertiary)"
+              : "text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--bg-elevated)"
         )}
         title={voice.continuous ? "Release to send" : voice.isRecording ? "Tap to stop" : voice.transcribing ? "Transcribing..." : "Tap or hold to talk"}
         // v10.0.529.18 a11y · dynamic aria-label that matches the
@@ -136,7 +136,7 @@ export function ComposerToolbar({
         {voice.isRecording || voice.continuous ? (
           <Square size={12} />
         ) : voice.transcribing ? (
-          <div className="w-3 h-3 border-[1.5px] border-[var(--text-tertiary)] border-t-transparent rounded-full animate-spin" />
+          <div className="w-3 h-3 border-[1.5px] border-(--text-tertiary) border-t-transparent rounded-full animate-spin" />
         ) : (
           <Mic size={14} />
         )}
@@ -169,7 +169,7 @@ export function ComposerToolbar({
       <button
         onClick={onOpenGallery}
         // v10.0.528 · a11y A2 · mobile w-10 → w-11 (40 → 44px Apple HIG).
-        className="shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90"
+        className="shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--bg-elevated) transition-all active:scale-90"
         title="Attach file (image, PDF, text, CSV, markdown, JSON)"
         aria-label="Attach file"
       >
@@ -185,8 +185,8 @@ export function ComposerToolbar({
         className={cn(
           "shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all active:scale-90",
           overflowOpen
-            ? "bg-[var(--bg-elevated)] text-[var(--gold)]"
-            : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]",
+            ? "bg-(--bg-elevated) text-(--gold)"
+            : "text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--bg-elevated)",
         )}
         title={overflowOpen ? "Collapse extras" : "More · persona · voice · audio"}
         aria-label={overflowOpen ? "Collapse extras" : "Show more composer actions"}
@@ -206,7 +206,7 @@ export function ComposerToolbar({
 
           <button
             onClick={onOpenVoiceMode}
-            className="shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90"
+            className="shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-(--text-tertiary) hover:text-(--gold) hover:bg-(--bg-elevated) transition-all active:scale-90"
             title="Talk to Nick (voice mode · OpenAI Realtime)"
             aria-label="Open voice mode to talk to Nick"
           >
@@ -218,7 +218,7 @@ export function ComposerToolbar({
               onClick={onToggleMemoryInspector}
               className={cn(
                 "shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all active:scale-90",
-                memoryInspectorOpen ? "text-[var(--gold)] bg-[var(--bg-elevated)]" : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
+                memoryInspectorOpen ? "text-(--gold) bg-(--bg-elevated)" : "text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--bg-elevated)"
               )}
               title="Memory Inspector"
               aria-label="Toggle Memory Inspector"
@@ -233,14 +233,14 @@ export function ComposerToolbar({
             className={cn(
               "hidden sm:flex shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-lg items-center justify-center transition-all active:scale-90",
               audioTranscribing
-                ? "bg-[var(--bg-elevated)] text-[var(--text-tertiary)] cursor-wait"
-                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]",
+                ? "bg-(--bg-elevated) text-(--text-tertiary) cursor-wait"
+                : "text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--bg-elevated)",
             )}
             title="Drop audio · transcribe to text (mp3/wav/m4a/webm/ogg, ≤50MB)"
             aria-label={audioTranscribing ? "Transcribing audio" : "Attach audio file for transcription"}
           >
             {audioTranscribing ? (
-              <div className="w-3 h-3 border-[1.5px] border-[var(--text-tertiary)] border-t-transparent rounded-full animate-spin" />
+              <div className="w-3 h-3 border-[1.5px] border-(--text-tertiary) border-t-transparent rounded-full animate-spin" />
             ) : (
               <FileAudio size={14} />
             )}
@@ -248,7 +248,7 @@ export function ComposerToolbar({
 
           <button
             onClick={onOpenCamera}
-            className="shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90 hidden sm:flex md:hidden"
+            className="shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--bg-elevated) transition-all active:scale-90 hidden sm:flex md:hidden"
             title="Take photo"
             aria-label="Take photo"
           >

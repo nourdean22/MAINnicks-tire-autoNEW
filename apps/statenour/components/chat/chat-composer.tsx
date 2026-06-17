@@ -123,7 +123,7 @@ export function ChatComposer({
       className="p-2 sm:p-2"
       style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
     >
-      <div className="flex items-end gap-1.5 sm:gap-1 px-2 py-1.5 sm:py-1 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)]/40 focus-within:border-[var(--gold)]/40 transition-colors">
+      <div className="flex items-end gap-1.5 sm:gap-1 px-2 py-1.5 sm:py-1 rounded-2xl border border-(--border-default) bg-(--bg-elevated)/40 focus-within:border-(--gold)/40 transition-colors">
         {/* v10.0.529.106 · Wave 83 · ~130 LOC of mic / paperclip /
             persona-chip / audio / phone / camera button JSX +
             hidden file inputs lifted into ComposerToolbar. Voice
@@ -227,9 +227,9 @@ export function ChatComposer({
               // HIG target the composer buttons now hit · bumped
               // desktop to 36 so the textarea visually anchors to the
               // taller Send chip (sm:h-9 = 36).
-              "w-full text-[16px] sm:text-[13.5px] leading-[1.5] resize-none px-2 py-2 sm:py-1.5 min-h-[44px] sm:min-h-[36px] max-h-[96px] sm:max-h-[160px]",
-              "bg-transparent border-0 text-[var(--text-primary)]",
-              "placeholder:text-[var(--text-tertiary)] outline-none",
+              "w-full text-[16px] sm:text-[13.5px] leading-normal resize-none px-2 py-2 sm:py-1.5 min-h-[44px] sm:min-h-[36px] max-h-[96px] sm:max-h-[160px]",
+              "bg-transparent border-0 text-(--text-primary)",
+              "placeholder:text-(--text-tertiary) outline-none",
             )}
             /* v11.1 Tier-1 · input stays live during stream. Nour can
                type the NEXT turn while Nick finishes the current one.

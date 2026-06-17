@@ -21,7 +21,7 @@ export const ToolExecutionTimeline: React.FC<ToolExecutionTimelineProps> = ({ ev
     <div className="flex flex-col space-y-4 py-2 pl-4 border-l border-zinc-800">
       {events.map((evt) => (
         <div key={evt.id} className="relative flex items-start space-x-3">
-          <div className="absolute -left-[21px] mt-1 bg-zinc-950 rounded-full p-0.5 border border-zinc-800">
+          <div className="absolute left-[-21px] mt-1 bg-zinc-950 rounded-full p-0.5 border border-zinc-800">
             {evt.status === "success" && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
             {evt.status === "error" && <AlertCircle className="w-3 h-3 text-rose-500" />}
             {evt.status === "running" && <Play className="w-3 h-3 text-gold animate-pulse" />}
