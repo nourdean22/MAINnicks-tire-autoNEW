@@ -2082,10 +2082,13 @@ function Chat() {
         onToggleSpeedRibbon={() => setShowSpeedRibbon(!showSpeedRibbon)}
         showConversationPulse={showConversationPulse}
         onToggleConversationPulse={() => setShowConversationPulse(!showConversationPulse)}
+        mode={overrides.mode}
+        onModeChange={(m) => setOverrides((o) => ({ ...o, mode: m }))}
         providerOverride={overrides.provider}
+        onProviderChange={(p) => setOverrides((o) => ({ ...o, provider: p }))}
         onCycleProvider={() =>
           setOverrides((o) => {
-            const chain = ["auto", "ollama", "venice", "openai", "anthropic"] as const;
+            const chain = ["auto", "ollama", "gemini", "venice", "openai", "anthropic"] as const;
             const idx = chain.indexOf(o.provider as typeof chain[number]);
             return { ...o, provider: chain[(idx + 1) % chain.length] };
           })
