@@ -231,14 +231,33 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
                       } else if (trimmed.startsWith("data:")) {
                         const dataVal = trimmed.slice(5).trim();
                         if (currentEvent === "chunk") {
-                          // Base64 decode to get raw bytes of the AI SDK chunk
-                          const binaryString = atob(dataVal);
-                          const len = binaryString.length;
-                          const bytes = new Uint8Array(len);
-                          for (let i = 0; i < len; i++) {
-                            bytes[i] = binaryString.charCodeAt(i);
+                          try {
+                            // The server sends the base64 string serialized as JSON (via JSON.stringify)
+                            let base64Str = dataVal;
+                            if (dataVal.startsWith('"') && dataVal.endsWith('"')) {
+                              try {
+                                base64Str = JSON.parse(dataVal);
+                              } catch (_) {
+                                // fallback to stripping quotes if parsing fails
+                                base64Str = dataVal.slice(1, -1);
+                              }
+                            }
+                            // Normalize base64 encoding (e.g. convert URL-safe to standard, correct padding)
+                            const cleanBase64 = base64Str.replace(/-/g, "+").replace(/_/g, "/");
+                            const paddedBase64 = cleanBase64.padEnd(
+                              cleanBase64.length + ((4 - (cleanBase64.length % 4)) % 4),
+                              "="
+                            );
+                            const binaryString = atob(paddedBase64);
+                            const len = binaryString.length;
+                            const bytes = new Uint8Array(len);
+                            for (let i = 0; i < len; i++) {
+                              bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            controller.enqueue(bytes);
+                          } catch (err) {
+                            console.error("[use-chat-transport] Failed to decode chunk:", err, "dataVal:", dataVal);
                           }
-                          controller.enqueue(bytes);
                         } else if (currentEvent) {
                           try {
                             const parsed = JSON.parse(dataVal);
