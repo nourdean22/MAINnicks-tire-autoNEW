@@ -274,7 +274,7 @@ const PLAN_TRIGGERING_TOOLS = new Set([
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="w-1.5 h-1.5 rounded-full bg-[var(--gold)] animate-pulse" /></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="w-1.5 h-1.5 rounded-full bg-(--gold) animate-pulse" /></div>}>
       <Chat />
     </Suspense>
   );
