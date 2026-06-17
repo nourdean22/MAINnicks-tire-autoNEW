@@ -22,6 +22,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 interface UseSilentRetryOptions {
   maxAttempts?: number;
   baseDelayMs?: number;
+  isStreaming?: boolean;
 }
 
 export function useSilentRetry(
@@ -29,7 +30,7 @@ export function useSilentRetry(
   onRetry: () => void,
   options: UseSilentRetryOptions = {},
 ) {
-  const { maxAttempts = 3, baseDelayMs = 800 } = options;
+  const { maxAttempts = 3, baseDelayMs = 800, isStreaming = false } = options;
   const [attemptCount, setAttemptCount] = useState(0);
   const [retrying, setRetrying] = useState(false);
 
@@ -65,14 +66,14 @@ export function useSilentRetry(
   // changing. That sidesteps the "cascading render" lint warning by
   // making the effect a no-op when state is already at the rest value.
   useEffect(() => {
-    if (!error) {
+    if (!error && !isStreaming) {
       sessionErrorRef.current = null;
       retryingRef.current = false;
       setAttemptCount((prev) => (prev === 0 ? prev : 0));
       setRetrying((prev) => (prev === false ? prev : false));
       clearTimer();
     }
-  }, [error, clearTimer]);
+  }, [error, isStreaming, clearTimer]);
 
   // Schedule retry on new distinct error. We gate on sessionErrorRef so
   // the same error doesn't re-arm the effect across unrelated re-renders.

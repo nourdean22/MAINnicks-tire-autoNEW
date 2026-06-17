@@ -612,6 +612,9 @@ export const clearVeniceQuotaExhausted = veniceBreaker.clear;
 export const isVeniceQuotaExhausted = veniceBreaker.isExhausted;
 
 function isVeniceAvailable(): boolean {
+  // Venice is retired for chat/completions (operator directive)
+  if (process.env.RETIRE_VENICE !== "false") return false;
+
   if (!VENICE_API_KEY || VENICE_API_KEY === "your-new-key-here") return false;
   // Skip Venice while the quota-exhausted cooldown is active so getModel
   // falls through to the next provider in the chain.

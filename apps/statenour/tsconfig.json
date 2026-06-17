@@ -53,6 +53,7 @@
     "playwright.config.ts",
     ".next/dev/types",
     ".next/dev/dev/types",
-    ".next-prod/dev/types"
+    ".next-prod/dev/types",
+    "scratch"
   ]
 }
