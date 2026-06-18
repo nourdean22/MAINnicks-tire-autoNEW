@@ -114,7 +114,11 @@ interface ApiHandlerOptions {
  * - Query count tracking (N+1 detection)
  */
 export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {}) {
-  return async (req: Request, routeCtx?: { params?: Promise<Record<string, string>> }) => {
+  // Next 15's generated .next/types/validator.ts requires every route handler to
+  // accept `context: { params: Promise<unknown> }`. Match that contract here so
+  // `tsc --noEmit` (which type-checks the generated validator) stays green; the
+  // richer Record<string,string> shape is restored at the single boundary below.
+  return async (req: Request, routeCtx?: { params: Promise<unknown> }) => {
     const requestId = nanoid(12);
     const start = Date.now();
     const url = new URL(req.url);
@@ -165,7 +169,7 @@ export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {
               ? "user"
               : resolveActor(req);
       const result = await withActor(actor, () =>
-        handler(req, { params: routeCtx?.params, requestId }),
+        handler(req, { params: routeCtx?.params as Promise<Record<string, string>> | undefined, requestId }),
       );
 
       const duration_ms = Date.now() - start;
