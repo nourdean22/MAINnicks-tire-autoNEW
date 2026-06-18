@@ -1398,7 +1398,7 @@ function AutopostLogsPanel() {
 
 /* ── Comment moderation (live replies — claim-safety gated) ───── */
 
-interface IgCommentVM { id: string; text: string; username: string; timestamp: string; likeCount: number }
+interface IgCommentVM { id: string; text: string; username: string; timestamp: string; likeCount: number; replyCount: number; replied: boolean }
 
 /** Claim-safe quick-reply starters for the Inbox — filled into the draft, then
  *  still run through the claim-safety gate before sending. No prices/guarantees/
@@ -1431,6 +1431,9 @@ function CommentModerationRow({ comment }: { comment: IgCommentVM }) {
         <span className="text-xs font-bold text-foreground">@{comment.username || "user"}</span>
         {badge && (
           <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded ${badge.className}`}>{badge.label}</span>
+        )}
+        {comment.replied && (
+          <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-emerald-500/10 text-emerald-400 border-emerald-500/20">✓ REPLIED</span>
         )}
         <span className="text-[10px] text-foreground/40">{comment.likeCount} likes</span>
       </div>
@@ -2433,11 +2436,12 @@ function CommentsPanel() {
   }, [feed, mediaId]);
 
   const comments = useMemo(() => {
-    // Triage order: complaints + questions first, spam last (service recovery
-    // and real questions are the urgent, human-needed ones).
-    return [...(commentsRes?.comments ?? [])].sort(
-      (a, b) => classifyComment(b.text).priority - classifyComment(a.text).priority,
-    );
+    // Unanswered first; then triage order (complaints + questions on top, spam
+    // last). Comments we've already replied to sink to the bottom.
+    return [...(commentsRes?.comments ?? [])].sort((a, b) => {
+      if (!!a.replied !== !!b.replied) return a.replied ? 1 : -1;
+      return classifyComment(b.text).priority - classifyComment(a.text).priority;
+    });
   }, [commentsRes]);
 
   const { data: account } = trpc.instagramAdmin.getAccountInfo.useQuery();
