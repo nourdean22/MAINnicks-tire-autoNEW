@@ -745,7 +745,7 @@ function PhoneMockup({ username, caption, mediaUrl }: {
   return (
     <div className="mx-auto w-full max-w-[240px] bg-black rounded-[1.4rem] border-4 border-neutral-800 overflow-hidden shadow-xl relative">
       <div className="flex items-center gap-2 px-3 py-2 bg-neutral-950">
-        <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-500 to-pink-500" />
+        <div className="w-6 h-6 rounded-full bg-linear-to-tr from-amber-500 to-pink-500" />
         <span className="text-[11px] font-semibold text-white">{username}</span>
         <span className="ml-auto text-white/40 text-xs">···</span>
       </div>
@@ -1407,7 +1407,7 @@ function VideoPlayer({ src, poster }: { src: string; poster?: string }) {
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent p-3 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -1445,7 +1445,7 @@ function FeedPostCard({ post, username }: { post: any; username: string }) {
   return (
     <div className="bg-card border border-border/30 rounded-xl overflow-hidden shadow-sm hover:border-border/60 transition-all">
       <div className="flex items-center gap-3 p-3 bg-neutral-900/10 border-b border-border/10">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 via-red-500 to-pink-500 p-0.5 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full bg-linear-to-tr from-amber-500 via-red-500 to-pink-500 p-0.5 flex items-center justify-center">
           <div className="w-full h-full rounded-full bg-background flex items-center justify-center text-[10px] font-bold">
             IG
           </div>
@@ -1462,7 +1462,7 @@ function FeedPostCard({ post, username }: { post: any; username: string }) {
             href={post.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1 hover:text-primary transition-colors text-foreground/60 hover:text-foreground"
+            className="p-1 hover:text-primary transition-colors text-foreground/60"
             title="View on Instagram"
           >
             <ExternalLink className="w-3.5 h-3.5" />
@@ -1657,7 +1657,7 @@ function ReelCard({
             className="w-full h-full object-cover"
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/75 pointer-events-none" />
+        <div className="absolute inset-0 bg-linear-to-b from-black/20 via-transparent to-black/75 pointer-events-none" />
       </div>
 
       <div className="absolute top-3 inset-x-3 z-10 flex items-center justify-between pointer-events-none">
@@ -1676,7 +1676,7 @@ function ReelCard({
       </div>
 
       <div className="absolute right-3 bottom-16 z-10 flex flex-col items-center gap-4 text-white">
-        <div className="w-8 h-8 rounded-full border border-white/20 bg-gradient-to-tr from-amber-500 to-pink-500 p-0.5 shadow-lg">
+        <div className="w-8 h-8 rounded-full border border-white/20 bg-linear-to-tr from-amber-500 to-pink-500 p-0.5 shadow-lg">
           <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-[9px] font-black uppercase text-pink-400">
             NT
           </div>
@@ -1785,7 +1785,7 @@ function ReelsFeedExplorer({ feed, username }: { feed: any[]; username: string }
   const [isMuted, setIsMuted] = useState(true);
 
   return (
-    <div className="relative w-full max-w-[340px] aspect-[9/16] bg-black rounded-[2rem] border-8 border-neutral-800 overflow-hidden shadow-2xl mx-auto flex flex-col">
+    <div className="relative w-full max-w-[340px] aspect-9/16 bg-black rounded-4xl border-8 border-neutral-800 overflow-hidden shadow-2xl mx-auto flex flex-col">
       <div 
         className="flex-1 overflow-y-auto snap-y snap-mandatory h-full w-full scrollbar-none"
         style={{ scrollSnapType: "y mandatory", scrollbarWidth: "none" }}
