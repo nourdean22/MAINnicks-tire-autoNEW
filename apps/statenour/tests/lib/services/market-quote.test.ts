@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fetchQuoteCents } from "@/lib/services/market-quote";
 
 type FakeRes = { ok: boolean; json?: () => Promise<unknown>; text?: () => Promise<string> };
@@ -10,13 +10,29 @@ function mockFetch(handler: (url: string) => FakeRes) {
   );
 }
 
+beforeEach(() => {
+  // Default: no keyed provider — exercises the keyless fallbacks.
+  vi.stubEnv("FINNHUB_API_KEY", "");
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
 describe("fetchQuoteCents", () => {
-  it("returns cents from Yahoo for an equity", async () => {
+  it("uses Finnhub when FINNHUB_API_KEY is set", async () => {
+    vi.stubEnv("FINNHUB_API_KEY", "test-key");
+    mockFetch((url) =>
+      url.includes("finnhub.io") ? { ok: true, json: async () => ({ c: 297.34 }) } : { ok: false },
+    );
+    const q = await fetchQuoteCents("AAPL");
+    expect(q.priceCents).toBe(29734);
+    expect(q.source).toBe("finnhub");
+  });
+
+  it("returns cents from Yahoo for an equity (no key)", async () => {
     mockFetch((url) =>
       url.includes("finance.yahoo.com")
         ? { ok: true, json: async () => ({ chart: { result: [{ meta: { regularMarketPrice: 297.34 } }] } }) }
