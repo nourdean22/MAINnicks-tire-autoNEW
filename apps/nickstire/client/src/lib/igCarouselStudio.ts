@@ -5,9 +5,11 @@
  * Everything here is testable in isolation and consumed by the admin-only
  * Studio page (client/src/pages/admin/IgCarouselStudio.tsx).
  *
- * V1 is DRAFT/PREVIEW ONLY: nothing in this module (or its consumers) calls
- * Instagram, Facebook, Higgsfield, or any image/LLM API. Publish paths are
- * structurally disabled — see PUBLISH_ENABLED below.
+ * This pure lib makes no external calls itself. Generation is LIVE via its
+ * consumers (the Studio page + server procs generate briefs and images).
+ * Publishing is gated upstream (admin-only procs + caption claim-safety; reels
+ * additionally require the server REEL_PUBLISH_ENABLED flag, default off).
+ * PUBLISH_ENABLED below is a client-side UI affordance only.
  */
 
 // ─── Modes & statuses ─────────────────────────────────────────────
@@ -464,15 +466,15 @@ export function validateSourceGrounding(brief: Pick<CarouselBrief, "sourceNotes"
 }
 
 /**
- * Structural attestation for V1: the Studio performs no external calls.
- * This is asserted in tests by checking PUBLISH_ENABLED and the publish
- * checklist gate — there is intentionally NO code path that could post.
+ * Attests that THIS pure module performs no external calls. It does NOT attest
+ * about consumers: the Studio page and server procs DO generate images and
+ * publish (admin-gated + caption claim-safety). Not a publish kill-switch.
  */
 export function validateNoExternalSideEffects(): { ok: true; attestation: string } {
   return {
     ok: true,
     attestation:
-      "V1 Studio is draft/preview only: no Instagram, Facebook, Higgsfield, image-generation, or credential-bearing calls exist in this module or its consumers.",
+      "This pure module performs no external calls. Its consumers generate images and publish via admin-only procs with caption claim-safety.",
   };
 }
 

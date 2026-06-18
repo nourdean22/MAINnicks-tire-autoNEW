@@ -182,13 +182,16 @@ export async function generateCarouselSlideImage(prompt: string): Promise<string
 }
 
 /**
- * Generate a 5-second video clip using wan2_6 model
+ * Generate a 4-second 9:16 1080p video clip using Seedance 1.5 Pro.
+ * Switched from wan2_6 (13 cr) to seedance1_5 (12 cr, better + cheaper) per the
+ * production-verified reel pipeline (scratch/gen-reel1-assets.ts). 4s source
+ * clips are trimmed per storyboard beat at assembly time.
  */
 export async function generateReelClipVideo(prompt: string): Promise<string> {
   const binPath = await ensureHiggsfieldBinary();
   const { env, tempCredsFile } = await getSpawnEnv();
 
-  log.info("Generating Reel clip video via Higgsfield...", { prompt });
+  log.info("Generating Reel clip video via Higgsfield (seedance1_5)...", { prompt });
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(
@@ -196,13 +199,15 @@ export async function generateReelClipVideo(prompt: string): Promise<string> {
       [
         "generate",
         "create",
-        "wan2_6",
+        "seedance1_5",
         "--prompt",
         prompt,
         "--aspect_ratio",
         "9:16",
         "--duration",
-        "5",
+        "4",
+        "--resolution",
+        "1080p",
         "--wait",
         "--json"
       ],
@@ -239,6 +244,52 @@ export async function generateReelClipVideo(prompt: string): Promise<string> {
         reject(err);
       }
     });
+  });
+}
+
+/**
+ * Probe Higgsfield account health via the CLI (`hf account status`). Read-only —
+ * spends no credits. Surfacing this in the IG Settings panel prevents the silent
+ * failure mode where STALE creds quietly kill autopost/reel generation.
+ * - credsValid: the CLI session authenticated (exit 0).
+ * - balanceCredits: best-effort parse of the remaining balance (the CLI's exact
+ *   text isn't a stable contract, so this is regex-extracted; null if unparsed).
+ */
+export async function getHiggsfieldAccountHealth(): Promise<{
+  credsValid: boolean;
+  balanceCredits: number | null;
+  raw: string;
+}> {
+  let binPath: string;
+  try {
+    binPath = await ensureHiggsfieldBinary();
+  } catch (err) {
+    return { credsValid: false, balanceCredits: null, raw: `binary unavailable: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  const { env, tempCredsFile } = await getSpawnEnv();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let stdout = "";
+    let stderr = "";
+    const child = spawn(binPath, ["account", "status"], {
+      env: { ...env, HIGGSFIELD_INSTALL_METHOD: "npm", HIGGSFIELD_PACKAGE_MANAGER: "pnpm" },
+    });
+    const finish = (credsValid: boolean) => {
+      if (settled) return;
+      settled = true;
+      cleanupTempFile(tempCredsFile);
+      const raw = `${stdout}${stderr}`.trim();
+      const m = raw.match(/([\d][\d,]*)\s*(?:credits?|\bcr\b)/i) || raw.match(/balance["':\s]+([\d][\d,]*)/i);
+      const parsed = m ? Number(m[1].replace(/,/g, "")) : NaN;
+      resolve({ credsValid, balanceCredits: Number.isFinite(parsed) ? parsed : null, raw: raw.slice(0, 500) });
+    };
+    child.stdout.on("data", (d) => (stdout += d.toString()));
+    child.stderr.on("data", (d) => (stderr += d.toString()));
+    child.on("close", (code) => finish(code === 0));
+    child.on("error", () => finish(false));
+    // Never hang the health panel — abort the probe after 15s.
+    setTimeout(() => { try { child.kill(); } catch (_) {} finish(false); }, 15000);
   });
 }
 

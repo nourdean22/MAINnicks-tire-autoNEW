@@ -222,6 +222,13 @@ Keep it under 200 characters.`;
    *  (often out-of-quota) OpenAI key and posts fail with a 429. Plus the recent
    *  autopost pass/fail rate + last error. Key-presence based (no live API ping)
    *  so it's cheap and honest. */
+  /** Higgsfield (reels) account health for the Settings panel — creds validity
+   *  + remaining credit balance. Runs the CLI (~1-15s) so it's its own query
+   *  with its own loading state, not folded into the fast getProviderHealth. */
+  getHiggsfieldHealth: adminProcedure.query(async () => {
+    const { getHiggsfieldAccountHealth } = await import("../services/higgsfieldStudio");
+    return getHiggsfieldAccountHealth();
+  }),
   getProviderHealth: adminProcedure.query(async () => {
     // Text LLM (server/_core/llm.ts) prefers GEMINI_API_KEY, else OPENAI_API_KEY.
     const geminiKey = !!process.env.GEMINI_API_KEY;

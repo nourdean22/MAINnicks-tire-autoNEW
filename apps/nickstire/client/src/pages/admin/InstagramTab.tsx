@@ -474,6 +474,11 @@ function MetaConfigPanel() {
     },
   });
 
+  // Reel/Higgsfield creds health — lazy (the CLI probe takes ~1-15s), triggered
+  // by the operator. Detects creds that are SET but STALE (the silent failure
+  // mode that quietly kills reel + autopost image generation).
+  const higgsfieldHealth = trpc.instagramAdmin.getHiggsfieldHealth.useQuery(undefined, { enabled: false });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!appId.trim() || !pageId.trim() || !igUserId.trim()) {
@@ -601,6 +606,28 @@ function MetaConfigPanel() {
             />
           </div>
         )}
+
+        <div className="space-y-1 pt-2 border-t border-border/30">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold">Reel engine (Higgsfield)</label>
+            <button
+              type="button"
+              onClick={() => higgsfieldHealth.refetch()}
+              disabled={higgsfieldHealth.isFetching}
+              className="text-[10px] px-2 py-1 rounded border border-border/40 hover:bg-card disabled:opacity-50 inline-flex items-center gap-1 cursor-pointer"
+            >
+              {higgsfieldHealth.isFetching ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              Check health
+            </button>
+          </div>
+          {higgsfieldHealth.data && (
+            <p className={`text-[10px] ${higgsfieldHealth.data.credsValid ? "text-green-400" : "text-red-400"}`}>
+              {higgsfieldHealth.data.credsValid
+                ? `✓ Creds valid${higgsfieldHealth.data.balanceCredits != null ? ` · ~${higgsfieldHealth.data.balanceCredits.toLocaleString()} credits` : ""}`
+                : "⚠ Creds STALE or unreachable — reel + autopost generation will fail. Refresh via `hf auth login` then redeploy."}
+            </p>
+          )}
+        </div>
 
         <div className="pt-2">
           <button
