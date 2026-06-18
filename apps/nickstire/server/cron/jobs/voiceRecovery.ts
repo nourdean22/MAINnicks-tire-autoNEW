@@ -50,12 +50,23 @@ export async function runVoiceRecovery(): Promise<RunResult> {
 
   const maxCalls = Math.min(Number(process.env.VAPI_RECOVERY_BATCH_SIZE) || 5, 20);
 
+  // Quiet-hours guard — cold-quote recovery should only call during prime
+  // phone hours (10 AM-5 PM ET). Not too early (people are busy), not too
+  // late (dinner/evening). Tighter than the cadence 9-18 window because
+  // these are cold leads who didn't respond to SMS.
+  const etHourPart = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false })
+    .formatToParts(new Date()).find((p) => p.type === "hour")?.value ?? "0";
+  const etHour = parseInt(etHourPart, 10);
+  if (etHour < 10 || etHour >= 17) {
+    return { recordsProcessed: 0, details: `Outside recovery window (Cleveland ${etHour}:00, window 10-17)` };
+  }
+
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "No DB" };
 
   const { algEstimates, customers } = await import("../../../drizzle/schema");
-  const { placeVapiOutboundCall, buildOutboundRecoveryPrompt } = await import("../../services/vapi");
+  const { placeVapiOutboundCall, buildOutboundRecoveryPrompt, buildRecoveryVoicemail } = await import("../../services/vapi");
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
@@ -141,12 +152,17 @@ export async function runVoiceRecovery(): Promise<RunResult> {
       service,
       amountDollars: dollars,
     });
-    const firstMessage = `Hi ${firstName}, this is Nick's Tire & Auto · just checking in on that ${service} quote from a few weeks back. Do you have a sec?`;
+    const voicemailMsg = buildRecoveryVoicemail({
+      customerName: firstName,
+      service,
+    });
+    const firstMessage = `Hey ${firstName}, it's Nick's Tire — you had a quote with us for ${service} a few weeks back. That still on your radar?`;
 
     const call = await placeVapiOutboundCall({
       customerNumber: e164,
       firstMessageOverride: firstMessage,
       systemPromptOverride: systemPrompt,
+      voicemailMessage: voicemailMsg,
       maxDurationSeconds: 90,
     });
 
