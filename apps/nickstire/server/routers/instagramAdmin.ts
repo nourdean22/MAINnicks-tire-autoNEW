@@ -213,6 +213,79 @@ Keep it under 200 characters.`;
         .limit(input?.limit ?? 25);
     }),
 
+  /** Provider + autopost run health. Surfaces WHICH AI provider is actually
+   *  active and whether its key is present — the root cause of silent
+   *  generation failures: when GEMINI_API_KEY is absent, llm.ts falls back to a
+   *  (often out-of-quota) OpenAI key and posts fail with a 429. Plus the recent
+   *  autopost pass/fail rate + last error. Key-presence based (no live API ping)
+   *  so it's cheap and honest. */
+  getProviderHealth: adminProcedure.query(async () => {
+    // Text LLM (server/_core/llm.ts) prefers GEMINI_API_KEY, else OPENAI_API_KEY.
+    const geminiKey = !!process.env.GEMINI_API_KEY;
+    const openaiKey = !!process.env.OPENAI_API_KEY;
+    const textProvider: "gemini" | "openai" | "none" = geminiKey ? "gemini" : openaiKey ? "openai" : "none";
+
+    let imageProvider = (process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai").toLowerCase();
+    let higgsfieldCreds = !!process.env.HIGGSFIELD_CREDENTIALS_JSON;
+    let recentRuns = 0;
+    let recentFailures = 0;
+    let lastError: string | null = null;
+    let lastErrorAt: Date | null = null;
+
+    try {
+      const database = await db();
+      if (database) {
+        const { appSecretKv, igAutopostLog } = await import("../../drizzle/schema");
+        const { inArray } = await import("drizzle-orm");
+        const kv = await database
+          .select()
+          .from(appSecretKv)
+          .where(inArray(appSecretKv.k, ["ig_autopost_image_provider", "higgsfield_credentials_json"]));
+        for (const r of kv) {
+          if (r.k === "ig_autopost_image_provider" && r.v) imageProvider = r.v.toLowerCase();
+          if (r.k === "higgsfield_credentials_json" && r.v) higgsfieldCreds = true;
+        }
+        const runs = await database
+          .select({ status: igAutopostLog.status, error: igAutopostLog.error, createdAt: igAutopostLog.createdAt })
+          .from(igAutopostLog)
+          .orderBy(desc(igAutopostLog.createdAt))
+          .limit(10);
+        recentRuns = runs.length;
+        // runs are ordered newest-first, so the first failed row we hit is the
+        // most recent failure (for-of avoids the dynamic-import any-inference).
+        for (const r of runs) {
+          if (r.status === "failed") {
+            recentFailures++;
+            if (!lastError && r.error) {
+              lastError = r.error;
+              lastErrorAt = r.createdAt;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      log.error("getProviderHealth failed:", err);
+    }
+
+    // Is the ACTIVE image provider's credential actually present?
+    const imageHealthy =
+      imageProvider === "higgsfield" ? higgsfieldCreds : imageProvider.includes("gemini") ? geminiKey : openaiKey;
+
+    return {
+      text: {
+        provider: textProvider,
+        configured: textProvider !== "none",
+        openaiFallback: !geminiKey && openaiKey,
+      },
+      image: {
+        provider: imageProvider,
+        configured: imageHealthy,
+        higgsfieldCreds,
+      },
+      autopost: { recentRuns, recentFailures, lastError, lastErrorAt },
+    };
+  }),
+
   /** Publish a custom image or Reel to Instagram directly. */
   publishPost: adminProcedure
     .input(z.object({

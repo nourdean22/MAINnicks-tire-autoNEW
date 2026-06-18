@@ -233,6 +233,7 @@ function ConnectionPanel() {
       utils.instagramAdmin.getAccountInfo.invalidate();
     },
   });
+  const { data: health } = trpc.instagramAdmin.getProviderHealth.useQuery();
 
   return (
     <Panel title="Connection" icon={<KeyRound className="w-4 h-4" />}>
@@ -268,6 +269,38 @@ function ConnectionPanel() {
           <p className="text-[10px] text-foreground/40">
             Page ID: {status.pageId ?? "—"} · IG user ID: {status.igUserId ?? "—"}
           </p>
+        </div>
+      )}
+
+      {/* AI provider health — surfaces the root cause of silent generation
+          failures (no Gemini key -> dead OpenAI fallback) + autopost run health */}
+      {health && (
+        <div className="mt-3 pt-3 border-t border-border/20 space-y-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold">AI provider health</span>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <Bool value={health.text.configured} trueLabel={`Text: ${health.text.provider}`} falseLabel="Text: no LLM key" />
+            <Bool value={health.image.configured} trueLabel={`Image: ${health.image.provider}`} falseLabel={`Image: ${health.image.provider} key missing`} />
+            {health.autopost.recentRuns > 0 && health.autopost.recentFailures === 0 && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400">
+                <CheckCircle2 className="w-3 h-3" />all {health.autopost.recentRuns} recent runs OK
+              </span>
+            )}
+          </div>
+          {health.text.openaiFallback && (
+            <p className="text-[10px] text-amber-400 flex items-start gap-1">
+              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+              No GEMINI_API_KEY set — text generation is falling back to OpenAI, which is often out of quota (the silent cause of FAILED posts). Set GEMINI_API_KEY in Railway to fix.
+            </p>
+          )}
+          {health.autopost.recentFailures > 0 && (
+            <p className="text-[10px] text-red-400 flex items-start gap-1">
+              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+              <span>
+                {health.autopost.recentFailures}/{health.autopost.recentRuns} recent autopost runs failed
+                {health.autopost.lastError ? ` — last error: ${health.autopost.lastError.slice(0, 140)}` : ""}
+              </span>
+            </p>
+          )}
         </div>
       )}
 
@@ -937,17 +970,22 @@ function CopilotPanel() {
                   <button
                     key={g.id}
                     onClick={() => setSelectedDraftId(g.id)}
-                    className={`w-full text-left flex items-center justify-between gap-2 text-[10px] bg-background/40 border rounded px-2.5 py-1.5 transition-all hover:bg-background/60 hover:border-primary/40 ${
+                    className={`w-full text-left flex flex-col gap-1 text-[10px] bg-background/40 border rounded px-2.5 py-1.5 transition-all hover:bg-background/60 hover:border-primary/40 ${
                       isActive ? "border-primary bg-primary/5 text-foreground" : "border-border/30 text-foreground/70"
                     }`}
                   >
-                    <span className="font-semibold capitalize truncate">{g.archetype}</span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {typeof g.overallScore === "number" && (
-                        <span className={scoreColor(g.overallScore / 100)}>{g.overallScore}</span>
-                      )}
-                      <StatusPill status={g.status} />
+                    <div className="flex items-center justify-between gap-2 w-full">
+                      <span className="font-semibold capitalize truncate">{g.archetype}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {typeof g.overallScore === "number" && (
+                          <span className={scoreColor(g.overallScore / 100)}>{g.overallScore}</span>
+                        )}
+                        <StatusPill status={g.status} />
+                      </div>
                     </div>
+                    {g.error && (g.status === "failed" || g.status === "aborted") && (
+                      <p className="text-[9px] text-red-400 italic line-clamp-2 w-full">{g.error}</p>
+                    )}
                   </button>
                 );
               })}
