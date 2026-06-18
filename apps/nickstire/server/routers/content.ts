@@ -415,11 +415,11 @@ export const contentAdminRouter = router({
           input.prompts.map((prompt) => generateCarouselSlideImage(prompt))
         );
       } catch (err) {
-        log.warn("Higgsfield Carousel image generation failed, trying OpenAI/Venice fallback...", {
+        log.warn("Higgsfield Carousel image generation failed, trying Gemini/OpenRouter fallback...", {
           err: err instanceof Error ? err.message : String(err)
         });
         isFallback = true;
-        fallbackWarning = `Higgsfield CLI error: ${err instanceof Error ? err.message : String(err)}. Fell back to Venice/OpenAI.`;
+        fallbackWarning = `Higgsfield CLI error: ${err instanceof Error ? err.message : String(err)}. Fell back to Gemini/OpenRouter.`;
       }
 
       try {
@@ -436,7 +436,7 @@ export const contentAdminRouter = router({
             })
           );
 
-          log.info("Persisting fallback OpenAI/Venice images to S3/storage...");
+          log.info("Persisting fallback Gemini/OpenRouter images to S3/storage...");
           imageUrls = await Promise.all(
             pngUrls.map(async (url, i) => {
               const res = await fetch(url);
