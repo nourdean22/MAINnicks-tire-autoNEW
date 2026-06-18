@@ -28,6 +28,7 @@ import IgAutopostPanel from "./settings/IgAutopostPanel";
 import DraftBoardPanel from "./DraftBoardPanel";
 import { trpc } from "@/lib/trpc";
 import { checkReviewReply } from "@shared/reviewReplyQa";
+import { classifyComment, COMMENT_KIND_BADGE } from "@/lib/commentTriage";
 
 interface CaptionEval {
   viralShape: number;
@@ -1295,14 +1296,14 @@ function CommentModerationRow({ comment }: { comment: IgCommentVM }) {
   });
   const findings = draft ? checkReviewReply(draft) : [];
   const blockers = findings.filter((f) => f.severity === "block");
-  const isQuestion = comment.text.includes("?");
+  const badge = COMMENT_KIND_BADGE[classifyComment(comment.text).kind];
 
   return (
     <div className="bg-background/40 border border-border/30 rounded p-3 space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-bold text-foreground">@{comment.username || "user"}</span>
-        {isQuestion && (
-          <span className="px-1.5 py-0.5 text-[9px] font-bold border rounded bg-blue-500/10 text-blue-400 border-blue-500/20">QUESTION</span>
+        {badge && (
+          <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded ${badge.className}`}>{badge.label}</span>
         )}
         <span className="text-[10px] text-foreground/40">{comment.likeCount} likes</span>
       </div>
@@ -2140,8 +2141,10 @@ function CommentsPanel() {
   }, [feed, mediaId]);
 
   const comments = useMemo(() => {
+    // Triage order: complaints + questions first, spam last (service recovery
+    // and real questions are the urgent, human-needed ones).
     return [...(commentsRes?.comments ?? [])].sort(
-      (a, b) => Number(b.text.includes("?")) - Number(a.text.includes("?")),
+      (a, b) => classifyComment(b.text).priority - classifyComment(a.text).priority,
     );
   }, [commentsRes]);
 
