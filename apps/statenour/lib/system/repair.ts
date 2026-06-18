@@ -21,7 +21,9 @@ export function getRepairActionLabel(action: RepairAction) {
 
 export function getRepairActionForService(service: string | null | undefined): RepairAction | null {
   switch (service) {
-    case "venice":
+    case "gemini":
+    case "openrouter":
+    case "openai":
       return "warm_ai";
     case "ale":
     case "ale_session":

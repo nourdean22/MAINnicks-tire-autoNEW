@@ -24,7 +24,6 @@
 
 import { prisma } from "@/lib/prisma";
 import {
-  isVeniceQuotaExhausted,
   isOllamaQuotaExhausted,
   isGeminiQuotaExhausted,
   getProviderStatus,
@@ -89,7 +88,6 @@ function approxCooldownMs(exhausted: boolean): number {
 function modelToProvider(model: string): ProviderName | null {
   if (!model) return null;
   const m = model.toLowerCase();
-  if (m.includes("venice") || m.includes("heretic") || m.includes("glm-4") || m.includes("dolphin") || m.includes("llama-3.3") || m.includes("deepseek-r1")) return "venice";
   if (m.includes("qwen3") || m.includes("deepseek-v4") || m.includes("kimi")) return "ollama";
   if (m.includes("gemini")) return "gemini";
   if (m.includes("gpt") || m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4")) return "openai";
@@ -102,7 +100,6 @@ async function getRecentTelemetry(): Promise<Record<ProviderName, { calls: numbe
   const since = new Date(Date.now() - 60 * 60 * 1000);
   const empty = { calls: 0, errors: 0, avgMs: 0 };
   const out: Record<ProviderName, { calls: number; errors: number; avgMs: number }> = {
-    venice: { ...empty },
     ollama: { ...empty },
     gemini: { ...empty },
     openai: { ...empty },
@@ -182,12 +179,9 @@ export async function getProviderHealth(force = false): Promise<ProviderHealthSn
   const rateLimit = await readRateLimitState();
 
   const providers: ProviderHealth[] = status.providers.map((p) => {
-    const isVenice = p.name === "venice";
     const isOllama = p.name === "ollama";
     const isGemini = p.name === "gemini";
-    const exhausted = isVenice
-      ? isVeniceQuotaExhausted()
-      : isOllama
+    const exhausted = isOllama
         ? isOllamaQuotaExhausted()
         : isGemini
           ? isGeminiQuotaExhausted()
@@ -212,7 +206,7 @@ export async function getProviderHealth(force = false): Promise<ProviderHealthSn
   // green = at least venice OR ollama up.
   const anyAvailable = providers.some((p) => p.available);
   const primaryDown = providers
-    .filter((p) => p.name === "venice" || p.name === "ollama")
+    .filter((p) => p.name === "ollama" || p.name === "gemini")
     .some((p) => p.configured && !p.available);
   const overallTone: "green" | "amber" | "red" = !anyAvailable
     ? "red"

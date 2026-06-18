@@ -28,7 +28,7 @@ import {
   buildSystemCosts,
   buildDeploymentTruth,
 } from "@/lib/services/system-pages";
-import { probeVeniceStatus } from "@/lib/services/venice-status";
+
 import { getProviderHealth } from "@/lib/ai/provider-health";
 import {
   buildSystemPulse,
@@ -211,7 +211,9 @@ export const healthProcedures = {
    * throws — a missing key / network failure resolves to
    * `{ ok: false, error }` so the consumer's health dot just goes amber.
    */
-  veniceStatus: operatorProcedure.query(async () => probeVeniceStatus()),
+  veniceStatus: operatorProcedure.query(async () => {
+    return { ok: false, error: "Venice retired" };
+  }),
 
   /**
    * Cross-domain residuals slice · owner-only · the full multi-provider

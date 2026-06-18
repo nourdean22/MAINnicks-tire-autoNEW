@@ -57,13 +57,12 @@ async function persistLog(entry: Record<string, unknown>) {
 }
 
 // ─── Configuration ───────────────────────────────────
-const VENICE_BASE = process.env.VENICE_BASE_URL?.replace(/\/$/, "") || "https://api.venice.ai/api/v1";
 const OPENAI_BASE = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
 
 // Note: Ollama was removed when the stack migrated to Venice/OpenAI cloud.
 // The "ollama" provider type and env vars have been stripped from runtime code.
 // The `codex/ollama-local` git branch name is kept for historical reasons.
-export type AIProvider = "venice" | "openai";
+export type AIProvider = "openai";
 
 export type TaskType =
   | "chat"           // General conversation / operator chat
@@ -89,56 +88,41 @@ type ModelConfig = {
 };
 
 // ─── Model routing table ─────────────────────────────
-// Venice is primary for all LLM tasks. OpenAI is fallback.
-// Embeddings use OpenAI primary (Venice doesn't support embeddings).
+// OpenAI is the sole provider.
 const ROUTING_TABLE: Record<TaskType, ModelConfig> = {
   chat: {
-    provider: "venice",
-    model: process.env.VENICE_MODEL || "llama-3.3-70b",
-    fallbackProvider: "openai",
-    fallbackModel: process.env.LLM_MODEL || "gpt-4o-mini",
+    provider: "openai",
+    model: process.env.LLM_MODEL || "gpt-4o-mini",
     timeoutMs: 30_000,
   },
   classify: {
-    provider: "venice",
-    model: process.env.VENICE_MODEL || "llama-3.3-70b",
-    fallbackProvider: "openai",
-    fallbackModel: "gpt-4o-mini",
+    provider: "openai",
+    model: "gpt-4o-mini",
     timeoutMs: 10_000,
   },
   generate: {
-    provider: "venice",
-    model: process.env.VENICE_MODEL || "llama-3.3-70b",
-    fallbackProvider: "openai",
-    fallbackModel: process.env.LLM_MODEL || "gpt-4o-mini",
+    provider: "openai",
+    model: process.env.LLM_MODEL || "gpt-4o-mini",
     timeoutMs: 60_000,
   },
   summarize: {
-    provider: "venice",
-    model: process.env.VENICE_MODEL || "llama-3.3-70b",
-    fallbackProvider: "openai",
-    fallbackModel: "gpt-4o-mini",
+    provider: "openai",
+    model: "gpt-4o-mini",
     timeoutMs: 30_000,
   },
   extract: {
-    provider: "venice",
-    model: process.env.VENICE_MODEL || "llama-3.3-70b",
-    fallbackProvider: "openai",
-    fallbackModel: "gpt-4o-mini",
+    provider: "openai",
+    model: "gpt-4o-mini",
     timeoutMs: 15_000,
   },
   sql: {
-    provider: "venice",
-    model: process.env.VENICE_MODEL || "llama-3.3-70b",
-    fallbackProvider: "openai",
-    fallbackModel: "gpt-4o-mini",
+    provider: "openai",
+    model: "gpt-4o-mini",
     timeoutMs: 20_000,
   },
   code: {
-    provider: "venice",
-    model: process.env.VENICE_MODEL || "llama-3.3-70b",
-    fallbackProvider: "openai",
-    fallbackModel: process.env.LLM_MODEL || "gpt-4o-mini",
+    provider: "openai",
+    model: process.env.LLM_MODEL || "gpt-4o-mini",
     timeoutMs: 30_000,
   },
   embed: {
@@ -147,161 +131,58 @@ const ROUTING_TABLE: Record<TaskType, ModelConfig> = {
     timeoutMs: 10_000,
   },
   receptionist: {
-    provider: "venice",
-    model: process.env.VENICE_MODEL || "llama-3.3-70b",
-    fallbackProvider: "openai",
-    fallbackModel: process.env.LLM_MODEL || "gpt-4o-mini",
+    provider: "openai",
+    model: process.env.LLM_MODEL || "gpt-4o-mini",
     timeoutMs: 15_000,
   },
   estimate: {
-    provider: "venice",
-    model: process.env.VENICE_MODEL || "llama-3.3-70b",
-    fallbackProvider: "openai",
-    fallbackModel: process.env.LLM_MODEL || "gpt-4o-mini",
+    provider: "openai",
+    model: process.env.LLM_MODEL || "gpt-4o-mini",
     timeoutMs: 30_000,
   },
   "sms-response": {
-    provider: "venice",
-    model: process.env.VENICE_MODEL || "llama-3.3-70b",
-    fallbackProvider: "openai",
-    fallbackModel: "gpt-4o-mini",
+    provider: "openai",
+    model: "gpt-4o-mini",
     timeoutMs: 10_000,
   },
 };
 
-// ─── Health tracking + Circuit Breaker ──────────────
-let veniceHealthy = true;
-let lastHealthCheck = 0;
-const HEALTH_CHECK_INTERVAL = 60_000; // 1 minute
-
-// Circuit breaker: after N consecutive failures, skip Venice for COOLDOWN period → OpenAI takeover
-let consecutiveVeniceFailures = 0;
-let circuitOpenUntil = 0;
-const CIRCUIT_FAILURE_THRESHOLD = 3;
-const CIRCUIT_COOLDOWN_MS = 120_000; // 2 minutes
-
-function isCircuitOpen(): boolean {
-  if (Date.now() < circuitOpenUntil) return true;
-  // Reset if cooldown expired
-  if (consecutiveVeniceFailures >= CIRCUIT_FAILURE_THRESHOLD) {
-    consecutiveVeniceFailures = 0;
-    log.info("Circuit breaker reset — retrying Venice");
-  }
-  return false;
-}
-
-function recordVeniceSuccess() {
-  consecutiveVeniceFailures = 0;
-  veniceHealthy = true;
-}
-
-function recordVeniceFailure() {
-  consecutiveVeniceFailures++;
-  if (consecutiveVeniceFailures >= CIRCUIT_FAILURE_THRESHOLD) {
-    circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
-    veniceHealthy = false;
-    log.warn(`Circuit breaker OPEN — skipping Venice for ${CIRCUIT_COOLDOWN_MS / 1000}s after ${consecutiveVeniceFailures} failures`);
-  }
-}
-
-async function checkVeniceHealth(): Promise<boolean> {
-  if (isCircuitOpen()) return false;
-
-  const now = Date.now();
-  if (now - lastHealthCheck < HEALTH_CHECK_INTERVAL) return veniceHealthy;
-
-  const apiKey = process.env.VENICE_API_KEY;
-  if (!apiKey) {
-    veniceHealthy = false;
-    lastHealthCheck = now;
-    return false;
-  }
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5_000);
-    const res = await fetch(`${VENICE_BASE}/models`, {
-      headers: { "Authorization": `Bearer ${apiKey}` },
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    veniceHealthy = res.ok;
-    if (res.ok) consecutiveVeniceFailures = 0;
-  } catch (err) {
-    veniceHealthy = false;
-    log.debug("Venice health check failed", { error: err instanceof Error ? (err as Error).message : String(err) });
-  }
-  lastHealthCheck = now;
-  return veniceHealthy;
-}
-
 // ─── Provider request functions ──────────────────────
 
-async function callVenice(model: string, messages: ChatMessage[], timeoutMs: number): Promise<GatewayResponse> {
-  const apiKey = process.env.VENICE_API_KEY;
-  if (!apiKey) throw new Error("VENICE_API_KEY not configured");
-
-  const start = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const res = await fetch(`${VENICE_BASE}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ model, messages, max_tokens: 4096 }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`Venice ${res.status}: ${body}`);
-    }
-
-    const data = await res.json();
-    const latency = Date.now() - start;
-
-    return {
-      content: data.choices?.[0]?.message?.content || "",
-      model: data.model || model,
-      provider: "venice",
-      latencyMs: latency,
-      tokensUsed: data.usage?.total_tokens,
-      wasFallback: false,
-    };
-  } catch (err) {
-    clearTimeout(timeout);
-    throw err;
-  }
-}
-
 async function callOpenAI(model: string, messages: ChatMessage[], timeoutMs: number): Promise<GatewayResponse> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
+  let apiKey = process.env.OPENAI_API_KEY;
+  let baseUrl = OPENAI_BASE;
+  let resolvedModel = model;
+
+  if (process.env.GEMINI_API_KEY) {
+    apiKey = process.env.GEMINI_API_KEY;
+    baseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
+    if (!model || model.includes("gpt-") || model.includes("llama-") || model.includes("claude-")) {
+      resolvedModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    }
+  }
+
+  if (!apiKey) throw new Error("Neither OPENAI_API_KEY nor GEMINI_API_KEY configured");
 
   const start = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(`${OPENAI_BASE}/v1/chat/completions`, {
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ model, messages, max_tokens: 4096 }),
+      body: JSON.stringify({ model: resolvedModel, messages, max_tokens: 4096 }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`OpenAI ${res.status}: ${body}`);
+      throw new Error(`AI Gateway ${res.status}: ${body}`);
     }
 
     const data = await res.json();
@@ -309,7 +190,7 @@ async function callOpenAI(model: string, messages: ChatMessage[], timeoutMs: num
 
     return {
       content: data.choices?.[0]?.message?.content || "",
-      model: data.model || model,
+      model: data.model || resolvedModel,
       provider: "openai",
       latencyMs: latency,
       tokensUsed: data.usage?.total_tokens,
@@ -325,6 +206,7 @@ async function callOpenAI(model: string, messages: ChatMessage[], timeoutMs: num
 
 type ChatMessage = { role: string; content: string };
 
+// Request and response interfaces are kept OpenAI-compatible
 export type GatewayRequest = {
   task: TaskType;
   messages: ChatMessage[];
@@ -377,7 +259,6 @@ type LatencyTracker = {
 
 let dailyStats: DailyStats = makeDailyStats();
 const providerLatency: Record<AIProvider, LatencyTracker> = {
-  venice: { totalMs: 0, count: 0 },
   openai: { totalMs: 0, count: 0 },
 };
 
@@ -393,7 +274,6 @@ function ensureDailyReset() {
   const today = getTodayET();
   if (dailyStats.date !== today) {
     dailyStats = makeDailyStats();
-    providerLatency.venice = { totalMs: 0, count: 0 };
     providerLatency.openai = { totalMs: 0, count: 0 };
   }
 }
@@ -407,8 +287,7 @@ function logRequest(entry: RequestLogEntry) {
   // Update daily stats
   ensureDailyReset();
   dailyStats.total++;
-  if (entry.provider === "venice") dailyStats.venice++;
-  else if (entry.provider === "openai") dailyStats.openai++;
+  if (entry.provider === "openai") dailyStats.openai++;
   if (!entry.success) dailyStats.failures++;
   if (entry.fallbackUsed) dailyStats.fallbacks++;
 
@@ -454,55 +333,16 @@ export async function aiGateway(request: GatewayRequest): Promise<GatewayRespons
   const provider = request.overrideProvider || config.provider;
   const model = request.overrideModel || config.model;
 
-  // Venice primary attempt
-  if (provider === "venice") {
-    const veniceAvailable = await checkVeniceHealth();
-
-    if (veniceAvailable) {
-      try {
-        const result = await callVenice(model, request.messages, config.timeoutMs);
-        recordVeniceSuccess();
-        logRequest({ timestamp: Date.now(), task: request.task, provider: "venice", model, latencyMs: result.latencyMs, success: true, fallbackUsed: false });
-        log.info(`[${request.task}] Venice ${model} → ${result.latencyMs}ms`);
-        return { ...result, wasFallback: false };
-      } catch (err: unknown) {
-        recordVeniceFailure();
-        const failureReason = classifyError(err);
-        log.warn(`[${request.task}] Venice failed (${failureReason}): ${(err as Error).message}`);
-        logRequest({ timestamp: Date.now(), task: request.task, provider: "venice", model, latencyMs: 0, success: false, fallbackUsed: false, error: (err as Error).message });
-
-        // Fallback to OpenAI
-        if (config.fallbackProvider === "openai" && config.fallbackModel) {
-          log.info(`[${request.task}] Triggering fallback: venice/${model} → openai/${config.fallbackModel} (reason: ${failureReason})`);
-          try {
-            const fallbackResult = await callOpenAI(config.fallbackModel, request.messages, config.timeoutMs);
-            logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: fallbackResult.latencyMs, success: true, fallbackUsed: true, originalError: `${failureReason}: ${(err as Error).message}` });
-            log.info(`[${request.task}] Fallback OpenAI ${config.fallbackModel} → ${fallbackResult.latencyMs}ms`);
-            return { ...fallbackResult, fallbackUsed: true, wasFallback: true };
-          } catch (fallbackErr: any) {
-            logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: 0, success: false, fallbackUsed: true, error: fallbackErr.message, originalError: `${failureReason}: ${(err as Error).message}` });
-            throw new Error(`Both Venice and OpenAI failed. Primary (${failureReason}): ${(err as Error).message}. Fallback: ${fallbackErr.message}`);
-          }
-        }
-        throw err;
-      }
-    }
-
-    // Venice unavailable (circuit open or health check failed) — use OpenAI fallback
-    if (config.fallbackProvider === "openai" && config.fallbackModel) {
-      log.info(`[${request.task}] Venice unavailable (circuit open or health check failed), using OpenAI fallback → ${config.fallbackModel}`);
-      const result = await callOpenAI(config.fallbackModel, request.messages, config.timeoutMs);
-      logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: result.latencyMs, success: true, fallbackUsed: true, originalError: "venice_unavailable: health check failed" });
-      return { ...result, fallbackUsed: true, wasFallback: true };
-    }
-  }
-
-  // Direct OpenAI (used for embeds and any openai-primary tasks)
   if (provider === "openai") {
-    const result = await callOpenAI(model, request.messages, config.timeoutMs);
-    logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model, latencyMs: result.latencyMs, success: true, fallbackUsed: false });
-    log.info(`[${request.task}] OpenAI ${model} → ${result.latencyMs}ms`);
-    return { ...result, wasFallback: false };
+    try {
+      const result = await callOpenAI(model, request.messages, config.timeoutMs);
+      logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model, latencyMs: result.latencyMs, success: true, fallbackUsed: false });
+      log.info(`[${request.task}] OpenAI ${model} → ${result.latencyMs}ms`);
+      return { ...result, wasFallback: false };
+    } catch (err: unknown) {
+      logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model, latencyMs: 0, success: false, fallbackUsed: false, error: (err as Error).message });
+      throw err;
+    }
   }
 
   throw new Error(`Provider ${provider} unavailable and no fallback configured for task ${request.task}`);
@@ -512,29 +352,19 @@ export async function aiGateway(request: GatewayRequest): Promise<GatewayRespons
 
 export function getGatewayHealth() {
   const recent = requestLog.filter(r => r.timestamp > Date.now() - 300_000); // last 5 min
-  const veniceRequests = recent.filter(r => r.provider === "venice");
   const openaiRequests = recent.filter(r => r.provider === "openai");
   const failures = recent.filter(r => !r.success);
   const fallbacks = recent.filter(r => r.fallbackUsed);
 
   ensureDailyReset();
 
-  const veniceLatency = providerLatency.venice;
   const openaiLatency = providerLatency.openai;
 
   return {
-    veniceHealthy,
-    veniceBase: VENICE_BASE,
-    circuitBreaker: {
-      open: isCircuitOpen(),
-      consecutiveFailures: consecutiveVeniceFailures,
-      cooldownUntil: circuitOpenUntil > Date.now() ? new Date(circuitOpenUntil).toISOString() : null,
-    },
     lastRequestAt: lastRequestAt ? new Date(lastRequestAt).toISOString() : null,
     stats: {
       last5min: {
         total: recent.length,
-        venice: veniceRequests.length,
         openai: openaiRequests.length,
         failures: failures.length,
         fallbacks: fallbacks.length,
@@ -543,7 +373,6 @@ export function getGatewayHealth() {
     },
     todayStats: { ...dailyStats },
     providerLatency: {
-      venice: veniceLatency.count > 0 ? Math.round(veniceLatency.totalMs / veniceLatency.count) : 0,
       openai: openaiLatency.count > 0 ? Math.round(openaiLatency.totalMs / openaiLatency.count) : 0,
     },
     recentRequests: requestLog.slice(-10).reverse(),
@@ -563,28 +392,9 @@ export function getGatewayHealth() {
 export async function getAvailableModels(): Promise<{ provider: AIProvider; models: string[] }[]> {
   const result: { provider: AIProvider; models: string[] }[] = [];
 
-  // Venice models
-  const veniceKey = process.env.VENICE_API_KEY;
-  if (veniceKey) {
-    try {
-      const res = await fetch(`${VENICE_BASE}/models`, {
-        headers: { "Authorization": `Bearer ${veniceKey}` },
-        signal: AbortSignal.timeout(5_000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        result.push({ provider: "venice", models: data.data?.map((m: any) => m.id) || [process.env.VENICE_MODEL || "llama-3.3-70b"] });
-      } else {
-        result.push({ provider: "venice", models: [process.env.VENICE_MODEL || "llama-3.3-70b"] });
-      }
-    } catch (err) {
-      log.debug("Venice model discovery failed", { error: err instanceof Error ? (err as Error).message : String(err) });
-      result.push({ provider: "venice", models: [process.env.VENICE_MODEL || "llama-3.3-70b"] });
-    }
-  }
-
-  // OpenAI is always available if key exists
-  if (process.env.OPENAI_API_KEY) {
+  if (process.env.GEMINI_API_KEY) {
+    result.push({ provider: "openai", models: [process.env.GEMINI_MODEL || "gemini-2.5-flash", "text-embedding-3-small"] });
+  } else if (process.env.OPENAI_API_KEY) {
     result.push({ provider: "openai", models: [process.env.LLM_MODEL || "gpt-4o-mini", "text-embedding-3-small"] });
   }
 

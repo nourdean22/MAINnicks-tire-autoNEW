@@ -20,8 +20,56 @@ export type GenerateImageResponse = {
 export async function generateImage(
   options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (geminiKey) {
+    const model = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiKey,
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: options.prompt }],
+          },
+        ],
+        generationConfig: {
+          responseModalities: ["IMAGE"],
+        },
+      }),
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as any;
+      const parts = data.candidates?.[0]?.content?.parts ?? [];
+      let b64: string | undefined;
+      let mimeType = "image/png";
+      for (const p of parts) {
+        if (p.inlineData?.data) {
+          b64 = p.inlineData.data;
+          if (p.inlineData.mimeType) mimeType = p.inlineData.mimeType;
+          break;
+        }
+      }
+
+      if (b64) {
+        const buffer = Buffer.from(b64, "base64");
+        const { url: storageUrl } = await storagePut(
+          `generated/${Date.now()}.png`,
+          buffer,
+          mimeType
+        );
+        return { url: storageUrl };
+      }
+    }
+  }
+
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not configured");
+    throw new Error("Neither GEMINI_API_KEY nor OPENAI_API_KEY is configured for image generation");
   }
 
   const baseUrl = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";

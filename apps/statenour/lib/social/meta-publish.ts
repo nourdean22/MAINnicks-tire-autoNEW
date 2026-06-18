@@ -67,6 +67,8 @@ export interface PublishResult {
   postId?: string;
   permalink?: string;
   error?: string;
+  mediaType?: "image" | "video" | "reel" | "post";
+  containerId?: string;
 }
 
 /**
@@ -153,6 +155,8 @@ export async function publishToInstagram(args: {
     return {
       ok: true,
       platform: "instagram",
+      mediaType: "image",
+      containerId,
       postId,
       permalink,
     };
@@ -175,6 +179,7 @@ export async function publishReelToInstagram(args: {
   videoUrl: string;
   caption: string;
   coverUrl?: string;
+  pollIntervalMs?: number;
 }): Promise<PublishResult> {
   const creds = getCreds();
   if (!creds.instagramAccountId) {
@@ -184,7 +189,7 @@ export async function publishReelToInstagram(args: {
       error: "META_INSTAGRAM_ACCOUNT_ID not set",
     };
   }
-  const { videoUrl, caption, coverUrl } = args;
+  const { videoUrl, caption, coverUrl, pollIntervalMs } = args;
 
   try {
     // Step 1 — create Reels media container
@@ -232,8 +237,8 @@ export async function publishReelToInstagram(args: {
 
     while (!isReady && attempts < maxAttempts) {
       attempts++;
-      // Wait 5 seconds
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      // Wait 5 seconds or custom poll interval
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs ?? 5000));
 
       const statusRes = await fetch(
         `${GRAPH_BASE}/${containerId}?fields=status_code&access_token=${creds.pageAccessToken}`,
@@ -308,6 +313,8 @@ export async function publishReelToInstagram(args: {
     return {
       ok: true,
       platform: "instagram",
+      mediaType: "reel",
+      containerId,
       postId,
       permalink,
     };

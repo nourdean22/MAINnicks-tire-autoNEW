@@ -39,9 +39,9 @@ import {
 
 describe("aiConfigPatchSchema · AiSettingsPanel patch contract", () => {
   it("accepts a provider-only patch (segmented select)", () => {
-    // patch({ defaultProvider: "venice" }) when a non-"auto" option picked
-    const r = aiConfigPatchSchema.parse({ defaultProvider: "venice" });
-    expect(r.defaultProvider).toBe("venice");
+    // patch({ defaultProvider: "gemini" }) when a non-"auto" option picked
+    const r = aiConfigPatchSchema.parse({ defaultProvider: "gemini" });
+    expect(r.defaultProvider).toBe("gemini");
   });
 
   it("accepts a mode-cleared patch (the 'auto' branch sends the field absent)", () => {

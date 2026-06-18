@@ -16,7 +16,7 @@
  * type stable regardless.
  */
 
-import { generateVeniceImage } from "@/lib/ai/venice-image";
+import { generateImageWithFallback } from "@/lib/ai/gemini-image";
 import { trackGeneration } from "@/lib/ai/track";
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 
@@ -282,7 +282,7 @@ export async function improvePhoto(
   if ((mode === "rebrand" || mode === "both") && analysis?.rebrandPrompt) {
     try {
       const rebrandT0 = Date.now();
-      const result = await generateVeniceImage(analysis.rebrandPrompt, {
+      const result = await generateImageWithFallback(analysis.rebrandPrompt, {
         autoAspect: true,
       });
       rebrandedImageUrl = result.imageUrl;

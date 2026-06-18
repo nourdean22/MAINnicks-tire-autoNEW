@@ -869,6 +869,7 @@ export const operatorRouter = router({
       z.object({
         text: z.string().min(1).max(4000),
         imageUrl: z.string().max(2000).optional(),
+        videoUrl: z.string().max(2000).optional(),
         linkUrl: z.string().max(2000).optional(),
         profileIds: z.array(z.string().min(1).max(64)).max(20).optional(),
         scheduledAt: z.string().max(64).optional(),

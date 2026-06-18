@@ -151,12 +151,11 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     expect(result.provider).toBe("emergency");
 
     // Check the order of models called:
-    // Prio: ollama (0 cost) -> gemini (1) -> openai (2) -> venice (3). anthropic (4) is skipped because hasCheaper is true.
+    // Prio: ollama (0 cost) -> gemini (1) -> openai (2). anthropic (3) is skipped because hasCheaper is true.
     expect(attemptedModels).toEqual([
       "qwen3-vl:235b-instruct",
       "gemini-3.5-flash",
       "gpt-4o-mini",
-      "venice-uncensored",
     ]);
   });
 
