@@ -169,10 +169,13 @@ Keep it under 200 characters.`;
    *  Telegram preview); only posts live when the legacy_autopost_live flag
    *  is enabled — so this is safe to expose without a live-publish toggle. */
   generatePost: adminProcedure
-    .input(z.object({ archetype: z.enum(ARCHETYPES).optional() }).optional())
+    .input(z.object({
+      archetype: z.enum(ARCHETYPES).optional(),
+      customConcept: z.string().trim().max(1000).optional(),
+    }).optional())
     .mutation(async ({ input }) => {
       const { runIgAutopostOneOff } = await import("../services/igAutopost");
-      return runIgAutopostOneOff(input?.archetype);
+      return runIgAutopostOneOff(input?.archetype, input?.customConcept);
     }),
 
   /** Recent AI generations (from ig_autopost_log) so the composer can show
@@ -213,35 +216,153 @@ Keep it under 200 characters.`;
   /** Publish a custom image or Reel to Instagram directly. */
   publishPost: adminProcedure
     .input(z.object({
+      platforms: z.array(z.enum(["facebook", "instagram"])).min(1, "Select at least one platform"),
       caption: z.string().min(1).max(2200),
       imageUrl: z.string().url().optional(),
       videoUrl: z.string().url().optional(),
     }))
     .mutation(async ({ input }) => {
-      const { postToInstagram, postInstagramReel } = await import("../services/metaSocial");
-      if (input.videoUrl) {
-        const result = await postInstagramReel({ videoUrl: input.videoUrl, caption: input.caption });
-        if (!result.success) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: result.error || "Failed to publish Reel to Instagram",
-          });
+      const results: Array<{ platform: "facebook" | "instagram"; success: boolean; postId?: string; error?: string }> = [];
+
+      if (input.platforms.includes("facebook")) {
+        const { postToFacebook } = await import("../services/metaSocial");
+        const fbRes = await postToFacebook({
+          message: input.caption,
+          imageUrl: input.imageUrl,
+        });
+        results.push({ platform: "facebook", ...fbRes });
+      }
+
+      if (input.platforms.includes("instagram")) {
+        const { postToInstagram, postInstagramReel } = await import("../services/metaSocial");
+        if (input.videoUrl) {
+          const igRes = await postInstagramReel({ videoUrl: input.videoUrl, caption: input.caption });
+          results.push({ platform: "instagram", ...igRes });
+        } else if (input.imageUrl) {
+          const igRes = await postToInstagram({ imageUrl: input.imageUrl, caption: input.caption });
+          results.push({ platform: "instagram", ...igRes });
+        } else {
+          results.push({ platform: "instagram", success: false, error: "Instagram requires media (imageUrl or videoUrl)" });
         }
-        return result;
-      } else if (input.imageUrl) {
-        const result = await postToInstagram({ imageUrl: input.imageUrl, caption: input.caption });
-        if (!result.success) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: result.error || "Failed to publish image to Instagram",
-          });
-        }
-        return result;
-      } else {
+      }
+
+      const errors = results.filter((r) => !r.success);
+      if (errors.length === results.length) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Must provide either an imageUrl or videoUrl to publish on Instagram",
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Publish failed: ${results.map((r) => `${r.platform}: ${r.error}`).join("; ")}`,
         });
       }
+
+      const igResult = results.find((r) => r.platform === "instagram" && r.success);
+
+      return {
+        success: true,
+        results,
+        postId: igResult?.postId,
+      };
+    }),
+
+  /** Get Meta integration configuration parameters (env defaults + database overrides). */
+  getMetaConfig: adminProcedure.query(async () => {
+    const { getAppId, getPageId, getIgUserId, getAppSecret } = await import("../services/metaSocial");
+    const [appId, pageId, igUserId, appSecret] = await Promise.all([
+      getAppId(),
+      getPageId(),
+      getIgUserId(),
+      getAppSecret(),
+    ]);
+
+    let imageProvider = "";
+    let hasHiggsfieldCreds = false;
+    try {
+      const database = await db();
+      if (database) {
+        const { appSecretKv } = await import("../../drizzle/schema");
+        const { inArray } = await import("drizzle-orm");
+        const rows = await database
+          .select()
+          .from(appSecretKv)
+          .where(
+            inArray(appSecretKv.k, [
+              "ig_autopost_image_provider",
+              "higgsfield_credentials_json",
+            ])
+          );
+        for (const r of rows) {
+          if (r.k === "ig_autopost_image_provider") imageProvider = r.v;
+          if (r.k === "higgsfield_credentials_json" && r.v) hasHiggsfieldCreds = true;
+        }
+      }
+    } catch (err) {
+      log.error("Failed to load image provider / higgsfield credentials meta:", err);
+    }
+
+    if (!imageProvider) {
+      imageProvider = process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai";
+    }
+
+    return {
+      appId: appId ?? "",
+      pageId: pageId ?? "",
+      igUserId: igUserId ?? "",
+      hasSecret: !!appSecret,
+      imageProvider,
+      hasHiggsfieldCreds,
+    };
+  }),
+
+  /** Update Meta integration configuration overrides in database secrets KV. */
+  updateMetaConfig: adminProcedure
+    .input(z.object({
+      appId: z.string().trim().min(1, "App ID cannot be empty"),
+      pageId: z.string().trim().min(1, "Page ID cannot be empty"),
+      igUserId: z.string().trim().min(1, "Instagram User ID cannot be empty"),
+      appSecret: z.string().trim().optional(),
+      imageProvider: z.enum(["openai", "gemini", "higgsfield"]).optional(),
+      higgsfieldCredentialsJson: z.string().trim().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const database = await db();
+      if (!database) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database not connected",
+        });
+      }
+      const { appSecretKv } = await import("../../drizzle/schema");
+
+      const updates = [
+        { k: "meta_app_id", v: input.appId },
+        { k: "meta_page_id", v: input.pageId },
+        { k: "meta_ig_user_id", v: input.igUserId },
+      ];
+
+      if (input.appSecret) {
+        updates.push({ k: "meta_app_secret", v: input.appSecret });
+      }
+
+      if (input.imageProvider) {
+        updates.push({ k: "ig_autopost_image_provider", v: input.imageProvider });
+      }
+
+      if (input.higgsfieldCredentialsJson) {
+        updates.push({ k: "higgsfield_credentials_json", v: input.higgsfieldCredentialsJson });
+      }
+
+      for (const item of updates) {
+        await database
+          .insert(appSecretKv)
+          .values({ k: item.k, v: item.v })
+          .onDuplicateKeyUpdate({ set: { v: item.v } });
+      }
+
+      const { clearRuntimeMetaConfigCache } = await import("../services/metaSocial");
+      clearRuntimeMetaConfigCache();
+
+      const { clearRuntimeHiggsfieldCache } = await import("../services/higgsfieldStudio");
+      clearRuntimeHiggsfieldCache();
+
+      return { success: true };
     }),
 });
