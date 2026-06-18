@@ -358,7 +358,7 @@ export const contentAdminRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const { getMetaSocialStatus, postInstagramReel } = await import("../services/metaSocial");
+        const { getMetaSocialStatus } = await import("../services/metaSocial");
         const status = await getMetaSocialStatus();
         if (!status.configured || !status.instagramReady) {
           const { sendTelegram } = await import("../services/telegram");
@@ -389,11 +389,18 @@ export const contentAdminRouter = router({
           await sendTelegram(msg);
           return { success: true, postId: mockPostId, isSandbox: true };
         }
-        const res = await postInstagramReel({
-          videoUrl: input.videoUrl,
+        // Route the LIVE post through the single gated choke point
+        // (REEL_PUBLISH_ENABLED + reel claim-safety) — never call
+        // postInstagramReel directly. The sandbox preview branch above is
+        // unchanged.
+        const { publishToSocial } = await import("../services/socialPublish");
+        const { results } = await publishToSocial({
+          platforms: ["instagram"],
           caption: input.caption,
+          videoUrl: input.videoUrl,
         });
-        return { success: res.success, postId: res.postId, error: res.error, isSandbox: false };
+        const ig = results.find((r) => r.platform === "instagram");
+        return { success: !!ig?.success, postId: ig?.postId, error: ig?.error, isSandbox: false };
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Reel publishing failed" });
       }
