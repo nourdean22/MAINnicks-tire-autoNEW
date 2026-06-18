@@ -30,9 +30,22 @@ const GRAPH_URL = `https://graph.facebook.com/${API_VERSION}`;
 // server-side token exchange. Takes precedence over the env var so a
 // freshly-minted token works immediately, without waiting on a redeploy.
 let runtimePageToken: string | null = null;
+let metaPageId: string | null = null;
+let metaIgUserId: string | null = null;
+let metaAppId: string | null = null;
+let metaAppSecret: string | null = null;
+let configLoadAttempted = false;
 
 export function setRuntimePageToken(token: string): void {
   runtimePageToken = token;
+}
+
+export function clearRuntimeMetaConfigCache(): void {
+  configLoadAttempted = false;
+  metaPageId = null;
+  metaIgUserId = null;
+  metaAppId = null;
+  metaAppSecret = null;
 }
 
 function getPageToken(): string | null {
@@ -80,6 +93,58 @@ async function ensurePageTokenLoaded(): Promise<void> {
   }
 }
 
+async function ensureMetaConfigLoaded(): Promise<void> {
+  if (configLoadAttempted) return;
+  configLoadAttempted = true;
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (!d) return;
+    const { appSecretKv } = await import("../../drizzle/schema");
+    const { inArray } = await import("drizzle-orm");
+    const rows = await d
+      .select()
+      .from(appSecretKv)
+      .where(
+        inArray(appSecretKv.k, [
+          "meta_page_id",
+          "meta_ig_user_id",
+          "meta_app_id",
+          "meta_app_secret",
+        ])
+      );
+    for (const r of rows) {
+      if (r.k === "meta_page_id") metaPageId = r.v;
+      if (r.k === "meta_ig_user_id") metaIgUserId = r.v;
+      if (r.k === "meta_app_id") metaAppId = r.v;
+      if (r.k === "meta_app_secret") metaAppSecret = r.v;
+    }
+    log.info("Loaded persisted Meta configuration from database");
+  } catch (err) {
+    log.error("Failed to load persisted Meta config:", { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+export async function getPageId(): Promise<string | null> {
+  await ensureMetaConfigLoaded();
+  return metaPageId || process.env.META_PAGE_ID || null;
+}
+
+export async function getIgUserId(): Promise<string | null> {
+  await ensureMetaConfigLoaded();
+  return metaIgUserId || process.env.META_IG_USER_ID || null;
+}
+
+export async function getAppId(): Promise<string | null> {
+  await ensureMetaConfigLoaded();
+  return metaAppId || process.env.META_APP_ID || null;
+}
+
+export async function getAppSecret(): Promise<string | null> {
+  await ensureMetaConfigLoaded();
+  return metaAppSecret || process.env.META_APP_SECRET || process.env.FB_APP_SECRET || null;
+}
+
 /**
  * Verification helper — confirms a token round-tripped through app_secret_kv.
  * Returns only a fingerprint (length + last 6 chars), never the token itself.
@@ -99,14 +164,6 @@ export async function getPersistedTokenMeta(): Promise<{ present: boolean; len: 
   }
 }
 
-function getPageId(): string | null {
-  return process.env.META_PAGE_ID || null;
-}
-
-function getIgUserId(): string | null {
-  return process.env.META_IG_USER_ID || null;
-}
-
 // ─── Status Check ─────────────────────────────────────
 
 export async function getMetaSocialStatus(): Promise<{
@@ -119,8 +176,8 @@ export async function getMetaSocialStatus(): Promise<{
 }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
-  const pageId = getPageId();
-  const igUserId = getIgUserId();
+  const pageId = await getPageId();
+  const igUserId = await getIgUserId();
 
   if (!token) {
     return {
@@ -166,9 +223,9 @@ export async function reconnectMetaFromUserToken(userToken: string): Promise<{
   pageToken?: string;
   error?: string;
 }> {
-  const appId = process.env.META_APP_ID;
-  const appSecret = process.env.META_APP_SECRET || process.env.FB_APP_SECRET;
-  const pageId = getPageId();
+  const appId = await getAppId();
+  const appSecret = await getAppSecret();
+  const pageId = await getPageId();
 
   if (!appId || !appSecret) return { ok: false, error: "META_APP_ID / META_APP_SECRET not set" };
   if (!pageId) return { ok: false, error: "META_PAGE_ID not set" };
@@ -222,7 +279,7 @@ export async function postToFacebook(params: {
 }): Promise<{ success: boolean; postId?: string; error?: string }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
-  const pageId = getPageId();
+  const pageId = await getPageId();
 
   if (!token || !pageId) {
     return { success: false, error: "Facebook posting not configured (need META_PAGE_ACCESS_TOKEN + META_PAGE_ID)" };
@@ -291,7 +348,7 @@ export async function postToInstagram(params: {
 }): Promise<{ success: boolean; postId?: string; error?: string }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
-  const igUserId = getIgUserId();
+  const igUserId = await getIgUserId();
 
   if (!token || !igUserId) {
     return { success: false, error: "Instagram posting not configured (need META_PAGE_ACCESS_TOKEN + META_IG_USER_ID)" };
@@ -405,7 +462,7 @@ export async function postInstagramCarousel(params: {
 }): Promise<{ success: boolean; postId?: string; error?: string }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
-  const igUserId = getIgUserId();
+  const igUserId = await getIgUserId();
 
   if (!token || !igUserId) {
     return { success: false, error: "Instagram not configured" };
@@ -488,7 +545,7 @@ export async function postInstagramReel(params: {
 }): Promise<{ success: boolean; postId?: string; error?: string }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
-  const igUserId = getIgUserId();
+  const igUserId = await getIgUserId();
 
   if (!token || !igUserId) {
     return { success: false, error: "Instagram posting not configured (need META_PAGE_ACCESS_TOKEN + META_IG_USER_ID)" };
