@@ -19,6 +19,41 @@ const log = createLogger("services:reel-pipeline");
 
 const MAX_ATTEMPTS = 3;
 
+/** Per-clip Higgsfield gen timeout. seedance renders take minutes, so this is
+ *  generous — its only job is to cap a HUNG CLI poll (the failure mode that
+ *  otherwise parks a job in `generating` forever) so it rejects into the normal
+ *  retry path instead of wedging the pipeline. Env-overridable. */
+const GEN_CLIP_TIMEOUT_MS = Number(process.env.REEL_GEN_CLIP_TIMEOUT_MS) || 6 * 60_000;
+/** Re-host fetch of an already-finished Higgsfield clip — short; it exists. */
+const CLIP_FETCH_TIMEOUT_MS = Number(process.env.REEL_CLIP_FETCH_TIMEOUT_MS) || 90_000;
+/** How long a job may sit in a working status (`generating`/`assembling`)
+ *  WITHOUT a progress write before the sweeper treats it as orphaned and
+ *  requeues it. Covers a hung call that escapes the per-call timeout AND the
+ *  un-catchable case — a process restart mid-stage, where no try/catch runs and
+ *  the row is stranded forever. Longer than one clip's gen timeout + margin so a
+ *  healthy job (it heartbeats after every clip) is never killed mid-flight. */
+const STUCK_JOB_MS = Number(process.env.REEL_STUCK_JOB_MS) || 12 * 60_000;
+
+/** Reject `p` if it doesn't settle within `ms`. Clears the timer on either
+ *  outcome so a resolved promise never leaks a dangling handle. NOTE: this
+ *  unblocks the JOB, not the underlying op — a timed-out Higgsfield CLI
+ *  subprocess keeps running until it exits on its own; we just stop awaiting it. */
+export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 /** Minimal structural view of a client ReelBrief — only the fields gen needs. */
 export interface ReelJobBrief {
   id?: string;
@@ -117,11 +152,18 @@ export async function processNextReelJob(): Promise<{
       const prompt =
         brief.higgsfieldPromptPack?.find((p) => p.beatNumber === beat.beatNumber)?.prompt ?? beat.visual;
       if (!prompt || !prompt.trim()) throw new Error(`beat ${beat.beatNumber} has no prompt`);
-      const hgUrl = await generateReelClipVideo(prompt);
+      // Timeout-guarded: a hung seedance poll otherwise blocks here forever with
+      // the job parked in `generating` (no catch ever fires). On timeout it
+      // rejects into the catch below and retries on the next pulse.
+      const hgUrl = await withTimeout(
+        generateReelClipVideo(prompt),
+        GEN_CLIP_TIMEOUT_MS,
+        `gen beat ${beat.beatNumber}`,
+      );
       // Re-host the Higgsfield clip to our own public storage — HF URLs are
       // temporary, and storagePut falls back to the public /generated route
       // when S3 isn't configured, so the clip is always fetchable from us.
-      const resp = await fetch(hgUrl);
+      const resp = await withTimeout(fetch(hgUrl), CLIP_FETCH_TIMEOUT_MS, `fetch beat ${beat.beatNumber}`);
       if (!resp.ok) throw new Error(`failed to fetch clip for beat ${beat.beatNumber}: HTTP ${resp.status}`);
       const buf = Buffer.from(await resp.arrayBuffer());
       // Unique basename per (job, beat): the no-S3 fallback serves by basename
@@ -129,7 +171,11 @@ export async function processNextReelJob(): Promise<{
       // so job N's clip-0 can't overwrite job M's before assembly downloads it.
       const put = await storagePut(`reels/clip-${job.id}-${beat.beatNumber}.mp4`, buf, "video/mp4");
       clipUrls.push(put.url);
-      log.info("reel clip generated", { jobId: job.id, beat: beat.beatNumber });
+      // Heartbeat: bump updatedAt after each clip so the stuck-job sweeper can
+      // tell an actively-progressing sequential gen from a hung one (updatedAt is
+      // otherwise frozen at claim time for the entire multi-minute gen loop).
+      await d.update(reelJobs).set({ updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
+      log.info("reel clip generated", { jobId: job.id, beat: beat.beatNumber, of: beats.length });
     }
 
     await d
@@ -217,4 +263,61 @@ export async function processNextAssemblyJob(): Promise<{
     log.warn("reel assembly failed", { jobId: job.id, attempt, nextStatus, error: msg });
     return { processed: true, jobId: job.id, status: nextStatus, error: msg };
   }
+}
+
+/**
+ * Requeue reel jobs orphaned in a working status. A job lands here when its
+ * stage stops making progress: a hung Higgsfield/ffmpeg call that somehow
+ * escapes the per-call timeout, or — the un-catchable case — a process restart
+ * mid-stage, where no try/catch runs and the row is stranded in `generating`/
+ * `assembling` forever (the stage claimers only ever pick up `queued`/
+ * `assets_ready`, never a working status).
+ *
+ * `generating` -> `queued` (clips aren't persisted until `assets_ready`, so a
+ * re-gen is required). `assembling` -> `assets_ready` (clips already exist — we
+ * never re-gen and never re-spend Higgsfield credits). Honors MAX_ATTEMPTS so a
+ * job that keeps wedging is parked `failed` instead of looping. The status-
+ * guarded UPDATE makes it idempotent and safe against a worker that revives the
+ * job between our SELECT and UPDATE.
+ *
+ * SAFETY: same REEL_GENERATION_ENABLED kill-switch — never touches the DB when off.
+ */
+export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
+  if (process.env.REEL_GENERATION_ENABLED !== "true") return { recovered: 0 };
+
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) return { recovered: 0 };
+
+  const { reelJobs } = await import("../../drizzle/schema");
+  const { eq, and, lt, inArray } = await import("drizzle-orm");
+
+  const cutoff = new Date(Date.now() - STUCK_JOB_MS);
+  const stuck = await d
+    .select()
+    .from(reelJobs)
+    .where(and(inArray(reelJobs.status, ["generating", "assembling"]), lt(reelJobs.updatedAt, cutoff)));
+
+  let recovered = 0;
+  for (const job of stuck) {
+    const attempts = job.attempts ?? 0;
+    const requeue = job.status === "assembling" ? "assets_ready" : "queued";
+    const nextStatus = attempts >= MAX_ATTEMPTS ? "failed" : requeue;
+    const res = await d
+      .update(reelJobs)
+      .set({
+        status: nextStatus,
+        error: `recovered from stuck '${job.status}' (no progress >${Math.round(STUCK_JOB_MS / 60_000)}m)`,
+      })
+      .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, job.status)));
+    const flipped =
+      (res as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows ??
+      (res as unknown as { affectedRows?: number; rowsAffected?: number })?.rowsAffected ??
+      0;
+    if (flipped === 1) {
+      recovered++;
+      log.warn("recovered stuck reel job", { jobId: job.id, from: job.status, to: nextStatus, attempts });
+    }
+  }
+  return { recovered };
 }
