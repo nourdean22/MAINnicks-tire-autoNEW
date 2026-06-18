@@ -212,7 +212,7 @@ describe("publish is enabled", () => {
     const manual = items.filter((i) => i.ok === null);
     expect(manual.length).toBeGreaterThanOrEqual(4); // warped-text, account, FB cross-post, human review
   });
-  it("module attests to zero external side effects", () => {
+  it("pure module attests it makes no external calls itself (publish safety is server-side)", () => {
     expect(validateNoExternalSideEffects().ok).toBe(true);
   });
 });

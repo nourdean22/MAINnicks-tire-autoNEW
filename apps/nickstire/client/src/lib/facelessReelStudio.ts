@@ -11,10 +11,12 @@
  * rewrite — but this module is self-contained on purpose: the Carousel PR is
  * unmerged and this PR must not depend on it.
  *
- * V1 is DRAFT/PREVIEW ONLY: nothing in this module (or its consumers) calls
- * Instagram, Facebook, Higgsfield, ffmpeg, or any image/video/LLM API.
- * Publish and generation paths are structurally disabled — see
- * PUBLISH_ENABLED / GENERATION_ENABLED below.
+ * This pure lib makes no external calls itself. Generation is LIVE via its
+ * consumers (the Studio page + server procs generate briefs, images, and reel
+ * clips). Live PUBLISHING is gated SERVER-SIDE by REEL_PUBLISH_ENABLED
+ * (default OFF) + full caption claim-safety — see server/services/socialPublish.ts.
+ * The PUBLISH_ENABLED / GENERATION_ENABLED flags below are client-side UI
+ * affordances only; they cannot reach Instagram on their own.
  */
 
 // ─── Modes & statuses ─────────────────────────────────────────────
@@ -36,7 +38,9 @@ export type ReelBriefStatus =
   | "blocked"
   | "sandbox_preview_sent";
 
-/** Hard switches for V1. These stay off in this PR regardless of UI state. */
+/** Client-side UI affordances for the Studio — NOT the publish safety gate.
+ *  Live reel publishing is enforced server-side (REEL_PUBLISH_ENABLED, default
+ *  off) + claim-safety regardless of these flags. */
 export const PUBLISH_ENABLED = true;
 export const GENERATION_ENABLED = true;
 export const INSIGHTS_ENABLED = true;
@@ -558,16 +562,17 @@ export function validateSourceGrounding(brief: Pick<ReelBrief, "sourceNotes" | "
 }
 
 /**
- * Structural attestation for V1: the Studio performs no external calls.
- * Asserted in tests via PUBLISH_ENABLED/GENERATION_ENABLED and the gate
- * functions below — there is intentionally NO code path that could post,
- * generate, or assemble.
+ * Attests that THIS pure module performs no external calls (no network, storage,
+ * or process execution). It does NOT attest about consumers: the Studio page and
+ * server procs DO generate assets and publish. Live reel publishing is gated
+ * server-side by REEL_PUBLISH_ENABLED (default OFF) + full claim-safety
+ * (server/services/socialPublish.ts) — this is not a publish kill-switch.
  */
 export function validateNoExternalSideEffects(): { ok: true; attestation: string } {
   return {
     ok: true,
     attestation:
-      "V1 Reel Studio is draft/preview only: no Instagram, Facebook, Higgsfield, ffmpeg-execution, video-generation, or credential-bearing calls exist in this module or its consumers.",
+      "This pure module performs no external calls. Its consumers generate assets and publish; live reel publishing is gated server-side by REEL_PUBLISH_ENABLED (default off) plus full claim-safety.",
   };
 }
 

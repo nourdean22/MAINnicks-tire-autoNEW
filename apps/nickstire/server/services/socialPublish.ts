@@ -47,8 +47,23 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
       const r = await postInstagramCarousel({ imageUrls: input.imageUrls, caption: input.caption });
       results.push({ platform: "instagram", ...r });
     } else if (input.videoUrl) {
-      const r = await postInstagramReel({ videoUrl: input.videoUrl, caption: input.caption });
-      results.push({ platform: "instagram", ...r });
+      // Reels are the most dangerous publish path (autonomously assembled video).
+      // publishToSocial is the ONE gated door to postInstagramReel — never call
+      // that directly. Two gates enforced here, at the choke point:
+      //  1. an explicit, default-OFF kill switch (REEL_PUBLISH_ENABLED), and
+      //  2. full caption claim-safety INCLUDING no-price-talk — unlike ad
+      //     captions, reels never allow price claims.
+      if (process.env.REEL_PUBLISH_ENABLED !== "true") {
+        results.push({ platform: "instagram", success: false, error: "Reel publishing is disabled (set REEL_PUBLISH_ENABLED=true to arm)." });
+      } else {
+        const reelBlockers = checkReviewReply(input.caption).filter((f) => f.severity === "block");
+        if (reelBlockers.length) {
+          results.push({ platform: "instagram", success: false, error: `Reel caption blocked by claim-safety: ${reelBlockers.map((b) => b.rule).join(", ")}` });
+        } else {
+          const r = await postInstagramReel({ videoUrl: input.videoUrl, caption: input.caption });
+          results.push({ platform: "instagram", ...r });
+        }
+      }
     } else if (input.imageUrl) {
       const r = await postToInstagram({ imageUrl: input.imageUrl, caption: input.caption });
       results.push({ platform: "instagram", ...r });
