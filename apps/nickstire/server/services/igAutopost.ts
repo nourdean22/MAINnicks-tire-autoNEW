@@ -607,7 +607,11 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype, cu
       { role: "system", content: buildGenSystemPrompt() },
       { role: "user", content: buildGenUserPrompt(brief, dials, customConcept) },
     ],
-    max_tokens: 1200,
+    // gemini-2.5-flash spends a large, variable share of tokens on internal
+    // "thinking" BEFORE emitting output. With the full system+brief prompt,
+    // 1200 truncated the caption JSON mid-object ("```json {" -> JSON.parse
+    // failure). 4096 leaves ample headroom for thinking + the completed JSON.
+    max_tokens: 4096,
   });
 
   const content = res.choices?.[0]?.message?.content;
@@ -1133,7 +1137,9 @@ async function evalCaption(post: GeneratedPost, brief: SignalBrief): Promise<Cap
         ].join("\n"),
       },
     ],
-    max_tokens: 600,
+    // 600 truncated the eval JSON under gemini-2.5-flash's thinking overhead
+    // (same root cause as generatePost) — give it the same headroom.
+    max_tokens: 4096,
   });
   const content = res.choices?.[0]?.message?.content;
   if (!content || typeof content !== "string") {
