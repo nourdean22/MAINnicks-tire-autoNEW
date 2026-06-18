@@ -2454,6 +2454,7 @@ function PublishPanel({
   const [caption, setCaption] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [carouselUrls, setCarouselUrls] = useState("");
+  const [imgPrompt, setImgPrompt] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [pubStatus, setPubStatus] = useState<{ type: "success" | "error" | null; msg: string }>({ type: null, msg: "" });
 
@@ -2506,6 +2507,15 @@ function PublishPanel({
         type: "error",
         msg: `Publish failed: ${err.message}`,
       });
+    },
+  });
+
+  const regenImage = trpc.instagramAdmin.regenerateImage.useMutation({
+    onSuccess: (r) => {
+      if (r.ok) {
+        setMediaUrl(r.url);
+        setPubStatus({ type: null, msg: "" });
+      }
     },
   });
 
@@ -2680,6 +2690,31 @@ function PublishPanel({
                 <p className="text-[10px] text-foreground/40 leading-normal">
                   Meta fetches the media server-side. The file must be a public HTTPS URL (JPG/JPEG for images, MP4/MOV for reels).
                 </p>
+                {mediaType === "image" && (
+                  <div className="flex items-center gap-2 pt-1.5">
+                    <input
+                      type="text"
+                      value={imgPrompt}
+                      onChange={(e) => setImgPrompt(e.target.value)}
+                      placeholder="…or describe an image and generate one with AI"
+                      className="flex-1 bg-background/80 border border-border/40 rounded p-2 text-xs text-foreground/90 focus:outline-none focus:border-primary/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => regenImage.mutate({ prompt: imgPrompt.trim() })}
+                      disabled={regenImage.isPending || imgPrompt.trim().length < 3}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-2 text-[10px] font-semibold rounded border border-border/40 text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50 shrink-0"
+                    >
+                      {regenImage.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-pink-400" />}
+                      Generate
+                    </button>
+                  </div>
+                )}
+                {regenImage.data && !regenImage.data.ok && (
+                  <p className="text-[10px] text-red-400 flex items-start gap-1">
+                    <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{regenImage.data.error}
+                  </p>
+                )}
               </>
             )}
           </div>
