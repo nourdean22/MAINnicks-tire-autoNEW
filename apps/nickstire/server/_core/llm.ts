@@ -60,6 +60,9 @@ export type InvokeParams = {
   tool_choice?: ToolChoice;
   maxTokens?: number;
   max_tokens?: number;
+  /** Per-call abort timeout in ms (default 30000). Large structured
+   *  generations — full carousel/reel briefs — routinely need more. */
+  timeoutMs?: number;
   outputSchema?: OutputSchema;
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
@@ -328,7 +331,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       authorization: `Bearer ${resolveApiKey()}`,
     },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(30000), // 30s timeout — don't hang forever
+    signal: AbortSignal.timeout(params.timeoutMs ?? 30000), // default 30s; heavy generations override
   });
 
   if (!response.ok) {

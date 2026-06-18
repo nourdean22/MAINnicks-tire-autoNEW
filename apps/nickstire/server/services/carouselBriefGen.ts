@@ -130,6 +130,8 @@ export async function generateCarouselBriefAI(
     // The brief is large and gemini-2.5-flash spends heavily on internal
     // thinking before output; generous headroom so the JSON completes.
     maxTokens: 8192,
+    // Full-brief generation routinely exceeds the default 30s LLM timeout.
+    timeoutMs: 120000,
     outputSchema: CAROUSEL_BRIEF_SCHEMA,
   });
 
