@@ -101,7 +101,7 @@ export const FEATURE_REGISTRY: FeatureMeta[] = [
     name: "Test-connection per integration",
     endpoint: "POST /api/integrations/[name]/test",
     status: "LIVE",
-    notes: "Provider-specific fallbacks for telegram, openai, venice, anthropic, resend, stripe, twilio.",
+    notes: "Provider-specific fallbacks for telegram, openai, openrouter, anthropic, resend, stripe, twilio.",
   },
   {
     name: "Health digest 7d trend",
@@ -159,8 +159,8 @@ export const FEATURE_REGISTRY: FeatureMeta[] = [
     name: "Photo embedding + KNN search",
     endpoint: "/api/brain/photo-embed",
     status: "PARTIAL",
-    activationTrigger: "Generate any image via /api/ai/image — auto-embed hook wired in venice-image (v10.0.94). Activates on first generation.",
-    notes: "Pipeline ready: qwen3-vl describe → Venice embed → vector_embeddings (sourceType=photo) with HNSW. Auto-fires per generation; the prompt itself is used as description (skips qwen3-vl round-trip).",
+    activationTrigger: "Generate any image via /api/ai/image — auto-embed hook wired in gemini-image (v10.0.94). Activates on first generation.",
+    notes: "Pipeline ready: qwen3-vl describe → OpenAI embed → vector_embeddings (sourceType=photo) with HNSW. Auto-fires per generation; the prompt itself is used as description (skips qwen3-vl round-trip).",
   },
   {
     name: "Calibrated confidence (advice → past accuracy)",
@@ -181,7 +181,7 @@ export const FEATURE_REGISTRY: FeatureMeta[] = [
     endpoint: "/api/system/integration-quotas",
     status: "PARTIAL",
     activationTrigger: "Set provider API keys (TWILIO, STRIPE, RESEND tokens)",
-    notes: "Venice probe works (147ms). Resend errored (token issue). Twilio/Stripe return 'missing' until keys set.",
+    notes: "OpenRouter probe works (147ms). Resend errored (token issue). Twilio/Stripe return 'missing' until keys set.",
   },
 ];
 

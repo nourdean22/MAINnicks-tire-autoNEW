@@ -27,7 +27,6 @@ describe("cron/cron-healer route", () => {
       vacuumedTables: ["CronJobLog"],
       indexReindexed: false,
       avgLatencyMs: 45,
-      veniceQuotaTripped: false,
       ollamaQuotaTripped: false,
       rescuedWorkItems: [],
       prunedLogsCount: 150,
