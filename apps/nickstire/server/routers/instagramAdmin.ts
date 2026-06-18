@@ -91,12 +91,24 @@ export const instagramAdminRouter = router({
    *  nothing is posted. The draft is run through the same claim-safety
    *  detector the operator's send gate uses, so a clean draft also passes. */
   suggestReply: adminProcedure
-    .input(z.object({ commentText: z.string().min(1).max(2000) }))
+    .input(z.object({
+      commentText: z.string().min(1).max(2000),
+      tone: z.enum(["warm", "professional", "witty", "promo"]).optional().default("warm"),
+    }))
     .mutation(async ({ input }) => {
+      let toneGuideline = "Write a warm, human, 1-2 sentence public reply that sounds like the shop owner, not a brand.";
+      if (input.tone === "professional") {
+        toneGuideline = "Write a professional, polite, and direct 1-2 sentence reply focused on customer service and help.";
+      } else if (input.tone === "witty") {
+        toneGuideline = "Write a witty, lighthearted, and friendly 1-2 sentence reply with a touch of neighborhood humor.";
+      } else if (input.tone === "promo") {
+        toneGuideline = "Write a warm 1-2 sentence reply that casually invites them to check out our shop deals, book an appointment, or visit nickstire.org.";
+      }
+
       const prompt = `You manage the Instagram account for Nick's Tire & Auto, a neighborhood Cleveland-area shop.
 A follower left this comment on one of our posts: "${input.commentText}"
 
-Write a warm, human, 1-2 sentence public reply that sounds like the shop owner, not a brand.
+${toneGuideline}
 ${buildReplyPromptRules()}
 Keep it under 200 characters.`;
 
