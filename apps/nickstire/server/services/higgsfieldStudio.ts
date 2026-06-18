@@ -7,18 +7,49 @@ import { ensureHiggsfieldBinary } from "./higgsfieldBinary";
 
 const log = createLogger("services:higgsfield-studio");
 
-function getSpawnEnv(): { env: NodeJS.ProcessEnv; tempCredsFile: string | null } {
+let cachedHiggsfieldCredentialsJson: string | null = null;
+let credentialsLoadAttempted = false;
+
+export function clearRuntimeHiggsfieldCache(): void {
+  cachedHiggsfieldCredentialsJson = null;
+  credentialsLoadAttempted = false;
+}
+
+export async function getHiggsfieldCredentialsJson(): Promise<string | null> {
+  if (credentialsLoadAttempted) {
+    return cachedHiggsfieldCredentialsJson || process.env.HIGGSFIELD_CREDENTIALS_JSON || null;
+  }
+  credentialsLoadAttempted = true;
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (d) {
+      const { appSecretKv } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const rows = await d.select().from(appSecretKv).where(eq(appSecretKv.k, "higgsfield_credentials_json")).limit(1);
+      if (rows.length && rows[0].v) {
+        cachedHiggsfieldCredentialsJson = rows[0].v;
+      }
+    }
+  } catch (err) {
+    log.error("failed to load Higgsfield credentials from database:", err);
+  }
+  return cachedHiggsfieldCredentialsJson || process.env.HIGGSFIELD_CREDENTIALS_JSON || null;
+}
+
+async function getSpawnEnv(): Promise<{ env: NodeJS.ProcessEnv; tempCredsFile: string | null }> {
   const spawnEnv: NodeJS.ProcessEnv = { ...process.env };
   let tempCredsFile: string | null = null;
+  const credentialsJson = await getHiggsfieldCredentialsJson();
 
-  if (process.env.HIGGSFIELD_CREDENTIALS_JSON) {
+  if (credentialsJson) {
     try {
       const tempDir = os.tmpdir();
       tempCredsFile = path.join(tempDir, `hg-creds-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.json`);
-      fs.writeFileSync(tempCredsFile, process.env.HIGGSFIELD_CREDENTIALS_JSON, "utf8");
+      fs.writeFileSync(tempCredsFile, credentialsJson, "utf8");
       spawnEnv.HIGGSFIELD_CREDENTIALS_PATH = tempCredsFile;
     } catch (err) {
-      log.warn("failed to write HIGGSFIELD_CREDENTIALS_JSON to temp file", {
+      log.warn("failed to write Higgsfield credentials to temp file", {
         err: err instanceof Error ? err.message : String(err)
       });
     }
@@ -65,7 +96,7 @@ function parseResultUrl(stdout: string): string {
  */
 export async function generateCarouselSlideImage(prompt: string): Promise<string> {
   const binPath = await ensureHiggsfieldBinary();
-  const { env, tempCredsFile } = getSpawnEnv();
+  const { env, tempCredsFile } = await getSpawnEnv();
 
   log.info("Generating slide image via Higgsfield...", { prompt });
 
@@ -126,7 +157,7 @@ export async function generateCarouselSlideImage(prompt: string): Promise<string
  */
 export async function generateReelClipVideo(prompt: string): Promise<string> {
   const binPath = await ensureHiggsfieldBinary();
-  const { env, tempCredsFile } = getSpawnEnv();
+  const { env, tempCredsFile } = await getSpawnEnv();
 
   log.info("Generating Reel clip video via Higgsfield...", { prompt });
 

@@ -15,7 +15,7 @@
  */
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
-  Instagram, Loader2, RefreshCw, AlertTriangle, CheckCircle2, KeyRound,
+  Instagram, Loader2, RefreshCw, AlertTriangle, CheckCircle2, KeyRound, Settings2,
   TrendingUp, TrendingDown, Minus, Clock, BarChart3, Trophy, ExternalLink,
   Wand2, Heart, MessageCircle, Send, ShieldCheck, Sparkles,
   Camera, Lock, ChevronDown, ChevronUp, Film,
@@ -87,6 +87,8 @@ function ModeBadge({ mode }: { mode: keyof typeof MODE_CLS }) {
 
 export default function InstagramTab() {
   const [sub, setSub] = useState<(typeof SUBTABS)[number]["id"]>("feed");
+  const [activeModalPost, setActiveModalPost] = useState<any | null>(null);
+
   return (
     <div className="space-y-4">
       <div className="border border-pink-500/40 bg-pink-500/10 rounded p-3 text-xs text-pink-200 flex items-start gap-2">
@@ -114,13 +116,28 @@ export default function InstagramTab() {
       </div>
 
       <div>
-        {sub === "feed" && <FeedExplorerPanel />}
+        {sub === "feed" && (
+          <FeedExplorerPanel
+            activeModalPost={activeModalPost}
+            setActiveModalPost={setActiveModalPost}
+          />
+        )}
         {sub === "inbox" && <CommentsPanel />}
         {sub === "create" && <CreateSection />}
-        {sub === "publish" && <PublishPanel />}
+        {sub === "publish" && (
+          <PublishPanel
+            setSub={setSub}
+            setActiveModalPost={setActiveModalPost}
+          />
+        )}
         {sub === "logs" && <AutopostLogsPanel />}
         {sub === "analytics" && <AnalyticsPanel />}
-        {sub === "settings" && <ConnectionPanel />}
+        {sub === "settings" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <ConnectionPanel />
+            <MetaConfigPanel />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -299,6 +316,183 @@ function ConnectionPanel() {
           </p>
         )}
       </div>
+    </Panel>
+  );
+}
+
+function MetaConfigPanel() {
+  const utils = trpc.useUtils();
+  const { data: config, isLoading } = trpc.instagramAdmin.getMetaConfig.useQuery();
+  const [appId, setAppId] = useState("");
+  const [pageId, setPageId] = useState("");
+  const [igUserId, setIgUserId] = useState("");
+  const [appSecret, setAppSecret] = useState("");
+  const [imageProvider, setImageProvider] = useState<"openai" | "gemini" | "higgsfield">("openai");
+  const [higgsfieldJson, setHiggsfieldJson] = useState("");
+
+  useEffect(() => {
+    if (config) {
+      setAppId(config.appId);
+      setPageId(config.pageId);
+      setIgUserId(config.igUserId);
+      setImageProvider(config.imageProvider as any || "openai");
+      setAppSecret("");
+      setHiggsfieldJson("");
+    }
+  }, [config]);
+
+  const update = trpc.instagramAdmin.updateMetaConfig.useMutation({
+    onSuccess: () => {
+      toast.success("Social manager settings updated successfully");
+      setAppSecret("");
+      setHiggsfieldJson("");
+      utils.instagramAdmin.getConnectionStatus.invalidate();
+      utils.instagramAdmin.getMetaConfig.invalidate();
+    },
+    onError: (err) => {
+      toast.error("Failed to update settings: " + err.message);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!appId.trim() || !pageId.trim() || !igUserId.trim()) {
+      toast.error("App ID, Page ID, and Instagram User ID are required");
+      return;
+    }
+    update.mutate({
+      appId: appId.trim(),
+      pageId: pageId.trim(),
+      igUserId: igUserId.trim(),
+      appSecret: appSecret.trim() || undefined,
+      imageProvider,
+      higgsfieldCredentialsJson: higgsfieldJson.trim() || undefined,
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <Panel title="Social Media Manager Config" icon={<Settings2 className="w-4 h-4 text-pink-400" />}>
+        <div className="flex justify-center py-8">
+          <Loader2 className="w-5 h-5 animate-spin text-primary" />
+        </div>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="Social Media Manager Config" icon={<Settings2 className="w-4 h-4 text-pink-400" />}>
+      <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold block">
+              Meta App ID
+            </label>
+            <input
+              type="text"
+              value={appId}
+              onChange={(e) => setAppId(e.target.value)}
+              className="w-full bg-background/80 border border-border/40 rounded px-2.5 py-1.5 focus:outline-none focus:border-primary/50 text-foreground"
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold block">
+              Meta App Secret
+            </label>
+            <input
+              type="password"
+              value={appSecret}
+              onChange={(e) => setAppSecret(e.target.value)}
+              placeholder={config?.hasSecret ? "•••••••••••• (saved)" : "Enter app secret"}
+              className="w-full bg-background/80 border border-border/40 rounded px-2.5 py-1.5 focus:outline-none focus:border-primary/50 text-foreground"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold block">
+              Facebook Page ID
+            </label>
+            <input
+              type="text"
+              value={pageId}
+              onChange={(e) => setPageId(e.target.value)}
+              className="w-full bg-background/80 border border-border/40 rounded px-2.5 py-1.5 focus:outline-none focus:border-primary/50 text-foreground"
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold block">
+              Instagram Business ID
+            </label>
+            <input
+              type="text"
+              value={igUserId}
+              onChange={(e) => setIgUserId(e.target.value)}
+              className="w-full bg-background/80 border border-border/40 rounded px-2.5 py-1.5 focus:outline-none focus:border-primary/50 text-foreground"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5 pt-1.5 border-t border-border/20">
+          <label className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold block">
+            AI Image Generator Provider
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {(["openai", "gemini", "higgsfield"] as const).map((prov) => {
+              const labelMap = { openai: "DALL-E 3 (OpenAI)", gemini: "Gemini Image", higgsfield: "Higgsfield CLI" };
+              const isSelected = imageProvider === prov;
+              return (
+                <button
+                  key={prov}
+                  type="button"
+                  onClick={() => setImageProvider(prov)}
+                  className={`py-1.5 text-[10px] font-bold border rounded transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-primary/15 text-primary border-primary/40 shadow-sm"
+                      : "text-foreground/50 border-border/30 hover:text-foreground/75 hover:bg-neutral-900/10"
+                  }`}
+                >
+                  {labelMap[prov]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {imageProvider === "higgsfield" && (
+          <div className="space-y-1 pt-1 animate-fadeIn">
+            <label className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold block">
+              Higgsfield Credentials JSON
+            </label>
+            <textarea
+              value={higgsfieldJson}
+              onChange={(e) => setHiggsfieldJson(e.target.value)}
+              rows={3}
+              placeholder={
+                config?.hasHiggsfieldCreds
+                  ? "(Credentials JSON is saved. Enter a new JSON payload here only to override.)"
+                  : '{"api_key": "...", "private_key": "..."}'
+              }
+              className="w-full bg-background/80 border border-border/40 rounded px-2.5 py-1.5 focus:outline-none focus:border-primary/50 text-foreground font-mono text-[10px] leading-relaxed"
+            />
+          </div>
+        )}
+
+        <div className="pt-2">
+          <button
+            type="submit"
+            disabled={update.isPending}
+            className="w-full py-2 bg-primary/20 hover:bg-primary/30 text-primary border border-primary/45 rounded font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-95 cursor-pointer"
+          >
+            {update.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            Save Settings Override
+          </button>
+        </div>
+      </form>
     </Panel>
   );
 }
@@ -597,6 +791,7 @@ function CopilotPanel() {
   const { data: account } = trpc.instagramAdmin.getAccountInfo.useQuery();
   const { data: recent } = trpc.instagramAdmin.getRecentGenerations.useQuery({ limit: 6 });
   const [archetype, setArchetype] = useState<(typeof ARCHETYPES)[number]["id"]>("auto");
+  const [customConcept, setCustomConcept] = useState("");
   const [selectedDraftId, setSelectedDraftId] = useState<number | null>(null);
   const generate = trpc.instagramAdmin.generatePost.useMutation({
     onSuccess: () => {
@@ -625,6 +820,29 @@ function CopilotPanel() {
         </span>
       </div>
 
+      <div className="space-y-2 mb-4 bg-background/25 border border-border/20 rounded p-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold">
+            Custom Steering (Mood / Theme / Idea)
+          </span>
+          <span className={`px-1.5 py-0.2 text-[8px] font-bold border rounded uppercase ${
+            customConcept.trim() ? "bg-primary/10 text-primary border-primary/20" : "bg-neutral-800 text-foreground/40 border-border/10"
+          }`}>
+            {customConcept.trim() ? "Custom Mode" : "Auto Mode"}
+          </span>
+        </div>
+        <input
+          type="text"
+          value={customConcept}
+          onChange={(e) => setCustomConcept(e.target.value)}
+          placeholder="E.g. Write a post about East Side potholes, dark catalog style, warn about winter alignments"
+          className="w-full bg-background border border-border/45 rounded px-2.5 py-1.5 text-xs text-foreground placeholder-foreground/30 focus:outline-none focus:border-primary/50"
+        />
+        <p className="text-[10px] text-foreground/40 leading-normal">
+          If filled, the AI co-pilot will build the copy hook and visual prompts directly around this theme, overriding default template Signal generation.
+        </p>
+      </div>
+
       <div className="flex flex-wrap items-center gap-1.5 mb-3">
         {ARCHETYPES.map((a) => (
           <button
@@ -640,9 +858,12 @@ function CopilotPanel() {
           </button>
         ))}
         <button
-          onClick={() => generate.mutate(archetype === "auto" ? {} : { archetype })}
+          onClick={() => generate.mutate({
+            archetype: archetype === "auto" ? undefined : archetype,
+            customConcept: customConcept.trim() || undefined,
+          })}
           disabled={generate.isPending}
-          className="inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold rounded border border-primary/40 text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold rounded border border-primary/40 text-primary hover:bg-primary/10 transition-colors disabled:opacity-50 cursor-pointer"
         >
           {generate.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
           {generate.isPending ? "Generating…" : "Generate"}
@@ -1583,7 +1804,13 @@ function ReelsFeedExplorer({ feed, username }: { feed: any[]; username: string }
   );
 }
 
-function FeedExplorerPanel() {
+function FeedExplorerPanel({
+  activeModalPost,
+  setActiveModalPost,
+}: {
+  activeModalPost: any | null;
+  setActiveModalPost: (post: any) => void;
+}) {
   const [layout, setLayout] = useState<"grid" | "scroll" | "reels">("scroll");
   const { data: feed, isLoading, refetch } = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 30 });
   const { data: account } = trpc.instagramAdmin.getAccountInfo.useQuery();
@@ -1602,8 +1829,6 @@ function FeedExplorerPanel() {
       toast.error("Failed to sync feed: " + err.message);
     }
   });
-
-  const [activeModalPost, setActiveModalPost] = useState<any | null>(null);
 
   const filteredFeed = useMemo(() => {
     if (!feed) return [];
@@ -1982,25 +2207,61 @@ function CommentsPanel() {
   );
 }
 
-function PublishPanel() {
+function PublishPanel({
+  setSub,
+  setActiveModalPost,
+}: {
+  setSub: (sub: any) => void;
+  setActiveModalPost: (post: any) => void;
+}) {
+  const [platforms, setPlatforms] = useState<("facebook" | "instagram")[]>(["instagram"]);
   const [mediaType, setMediaType] = useState<"image" | "video">("image");
   const [caption, setCaption] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [pubStatus, setPubStatus] = useState<{ type: "success" | "error" | null; msg: string }>({ type: null, msg: "" });
 
+  const utils = trpc.useUtils();
+  const { data: status } = trpc.instagramAdmin.getConnectionStatus.useQuery();
   const { data: account } = trpc.instagramAdmin.getAccountInfo.useQuery();
   const username = account?.username || "nicks_tire_euclid";
 
+  const sync = trpc.instagramAdmin.syncFeed.useMutation({
+    onSuccess: () => {
+      utils.instagramAdmin.getLiveFeed.invalidate();
+      utils.instagramAdmin.getLiveFeed.fetch({ limit: 30 }).then((feedPosts) => {
+        const posts = feedPosts || [];
+        const matched = posts.find(
+          (p: any) =>
+            p.id === publishMutation.data?.postId ||
+            (p.caption && p.caption.includes(caption.slice(0, 30)))
+        ) || posts[0];
+
+        if (matched) {
+          setSub("feed");
+          setActiveModalPost(matched);
+        } else {
+          setSub("feed");
+        }
+      });
+    },
+    onError: (err) => {
+      toast.error("Publish succeeded but feed sync failed: " + err.message);
+      setSub("feed");
+    }
+  });
+
   const publishMutation = trpc.instagramAdmin.publishPost.useMutation({
-    onSuccess: (data) => {
+    onSuccess: () => {
       setConfirming(false);
       setCaption("");
       setMediaUrl("");
       setPubStatus({
         type: "success",
-        msg: `Successfully published custom post live to Instagram! Post ID: ${data.postId || "unknown"}`,
+        msg: `Successfully published post! Syncing feed in background...`,
       });
+      toast.success("Published! Syncing live feed...");
+      sync.mutate();
     },
     onError: (err) => {
       setConfirming(false);
@@ -2011,7 +2272,10 @@ function PublishPanel() {
     },
   });
 
-  const isValid = caption.trim().length > 0 && mediaUrl.trim().startsWith("http");
+  const isValid =
+    platforms.length > 0 &&
+    caption.trim().length > 0 &&
+    (!platforms.includes("instagram") || mediaUrl.trim().startsWith("http"));
 
   return (
     <Panel title="Direct Publisher" icon={<Send className="w-4 h-4" />}>
@@ -2040,6 +2304,47 @@ function PublishPanel() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Side: Form (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
+          {/* Target Platforms */}
+          <div className="space-y-2 bg-neutral-900/10 border border-border/20 rounded p-3">
+            <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold block">
+              0. Target Platforms
+            </span>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={platforms.includes("instagram")}
+                  disabled={status && !status.instagramReady}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setPlatforms([...platforms, "instagram"]);
+                    } else {
+                      setPlatforms(platforms.filter((p) => p !== "instagram"));
+                    }
+                  }}
+                  className="rounded border-border/40 text-primary focus:ring-0 focus:ring-offset-0 bg-background/80 w-3.5 h-3.5 cursor-pointer"
+                />
+                <span>Instagram {status && !status.instagramReady && <span className="text-[10px] text-amber-500 font-normal">(Not Ready)</span>}</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={platforms.includes("facebook")}
+                  disabled={status && !status.facebookReady}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setPlatforms([...platforms, "facebook"]);
+                    } else {
+                      setPlatforms(platforms.filter((p) => p !== "facebook"));
+                    }
+                  }}
+                  className="rounded border-border/40 text-primary focus:ring-0 focus:ring-offset-0 bg-background/80 w-3.5 h-3.5 cursor-pointer"
+                />
+                <span>Facebook Page {status && !status.facebookReady && <span className="text-[10px] text-amber-500 font-normal">(Not Ready)</span>}</span>
+              </label>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold block">
               1. Media Type
@@ -2120,7 +2425,7 @@ function PublishPanel() {
                 setPubStatus({ type: null, msg: "" });
               }}
               rows={6}
-              className="w-full bg-background/80 border border-border/40 rounded p-2.5 text-xs text-foreground/95 leading-relaxed focus:outline-none focus:border-primary/50"
+              className="w-full bg-background/80 border border-border/45 rounded p-2.5 text-xs text-foreground/95 leading-relaxed focus:outline-none focus:border-primary/50"
             />
           </div>
 
@@ -2131,6 +2436,7 @@ function PublishPanel() {
                 if (!isValid) return;
                 if (confirming) {
                   publishMutation.mutate({
+                    platforms,
                     caption,
                     imageUrl: mediaType === "image" ? mediaUrl : undefined,
                     videoUrl: mediaType === "video" ? mediaUrl : undefined,
@@ -2139,32 +2445,32 @@ function PublishPanel() {
                   setConfirming(true);
                 }
               }}
-              disabled={!isValid || publishMutation.isPending}
-              className={`w-full py-2.5 rounded font-bold text-xs border transition-all duration-200 ${
+              disabled={!isValid || publishMutation.isPending || sync.isPending}
+              className={`w-full py-2.5 rounded font-bold text-xs border transition-all duration-200 cursor-pointer ${
                 !isValid
                   ? "bg-neutral-800 text-neutral-500 border-neutral-700 cursor-not-allowed"
-                  : publishMutation.isPending
-                  ? "bg-neutral-900 border-neutral-800 text-neutral-400"
+                  : publishMutation.isPending || sync.isPending
+                  ? "bg-neutral-900 border-neutral-800 text-neutral-400 cursor-wait"
                   : confirming
                   ? "bg-pink-600 text-white border-pink-500 animate-pulse hover:bg-pink-700"
                   : "bg-primary/20 text-primary border-primary/40 hover:bg-primary/30"
               }`}
             >
-              {publishMutation.isPending ? (
+              {publishMutation.isPending || sync.isPending ? (
                 <span className="flex items-center justify-center gap-1.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Publishing (polls up to 150s)...
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> {publishMutation.isPending ? "Publishing (polls up to 150s)..." : "Synchronizing feed..."}
                 </span>
               ) : !isValid ? (
-                "Fill in caption and valid URL to publish"
+                "Select platform, caption and URL to publish"
               ) : confirming ? (
-                "Tap again to confirm - publishes live to @instagram"
+                `Tap again to confirm - posts live to @${platforms.join(" & @")}`
               ) : (
-                "Publish Live to Instagram"
+                "Publish Live"
               )}
             </button>
             {confirming && (
               <p className="text-[10px] text-pink-400 text-center mt-1.5 font-medium">
-                Warning: This posts live to the Euclid shop Instagram feed immediately.
+                Warning: This posts live immediately.
               </p>
             )}
           </div>

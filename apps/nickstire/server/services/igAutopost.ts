@@ -496,9 +496,11 @@ function buildGenSystemPrompt(): string {
   ].join("\n");
 }
 
-function buildGenUserPrompt(brief: SignalBrief, dials: {
-  angle: string; visualConcept: string; hookStyle: string; clevelandHook: string; tone: string;
-}): string {
+function buildGenUserPrompt(
+  brief: SignalBrief,
+  dials: { angle: string; visualConcept: string; hookStyle: string; clevelandHook: string; tone: string },
+  customConcept?: string
+): string {
   const reviewLines = brief.reviews.length
     ? brief.reviews.map((r) => `- "${r.text}" (${r.rating}star, real Google review — may be quoted verbatim)`).join("\n")
     : "- (no fresh reviews available — do NOT invent one)";
@@ -509,9 +511,21 @@ function buildGenUserPrompt(brief: SignalBrief, dials: {
     : "(none active)";
   const avoid = brief.recentConceptKeys.length ? brief.recentConceptKeys.join(" | ") : "(none yet)";
 
-  return [
+  const promptParts = [
     "Write ONE Instagram post for Nick's Tire & Auto. Ground it in the shop's real signals below. Be original — this must not resemble any recent post.",
     "",
+  ];
+
+  if (customConcept) {
+    promptParts.push(
+      "CRITICAL DIRECTIVE FROM THE OPERATOR (steer the post around this custom mood, theme, or idea):",
+      `>>> CUSTOM IDEA: ${customConcept} <<<`,
+      "You MUST write the caption's hook, story angle, and art-direction/image prompt directly centered around this custom idea while still maintaining the playbook voice guidelines and advertisable price compliance.",
+      ""
+    );
+  }
+
+  promptParts.push(
     "CREATIVE DIALS for THIS post (combine them; do not name them in the copy):",
     `- Angle: ${dials.angle}`,
     `- Hook style: ${dials.hookStyle}`,
@@ -538,8 +552,10 @@ function buildGenUserPrompt(brief: SignalBrief, dials: {
     "- caption: the full IG caption (hook → proof → turn → take-away). 60-150 words. Include the phone number and a walk-in line. No hashtags inside the caption.",
     "- hashtags: array of 8-12 lowercase hashtags WITHOUT the # sign (mix Cleveland-local + auto-service + a couple broad). No banned words.",
     "- imagePrompt: a vivid art-direction prompt for an image generator that realizes the visual concept above. Professional craft: cinematic or studio lighting, sharp focus, clean composition. NO text/words rendered in the image, NO photoreal human faces/hands/crowds. 1-3 sentences.",
-    "- conceptKey: a short 3-6 word kebab-case slug capturing THIS post's unique idea (for dedupe), e.g. 'salt-eats-brake-lines-winter'.",
-  ].join("\n");
+    "- conceptKey: a short 3-6 word kebab-case slug capturing THIS post's unique idea (for dedupe), e.g. 'salt-eats-brake-lines-winter'."
+  );
+
+  return promptParts.join("\n");
 }
 
 const GEN_SCHEMA = {
@@ -575,7 +591,7 @@ function parseJsonObject<T>(raw: string): T {
   return JSON.parse(s) as T;
 }
 
-async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype): Promise<GeneratedPost> {
+async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype, customConcept?: string): Promise<GeneratedPost> {
   const angle = forceArchetype ? angleForArchetype(forceArchetype) : pick(DIALS.angle);
   const visualConcept = pick(DIALS.visualConcept);
   const dials = {
@@ -589,7 +605,7 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype): P
   const res = await invokeLLM({
     messages: [
       { role: "system", content: buildGenSystemPrompt() },
-      { role: "user", content: buildGenUserPrompt(brief, dials) },
+      { role: "user", content: buildGenUserPrompt(brief, dials, customConcept) },
     ],
     max_tokens: 1200,
   });
@@ -644,16 +660,19 @@ async function generatePostImageHiggsfield(prompt: string): Promise<string> {
       const spawnEnv: NodeJS.ProcessEnv = { ...process.env };
       let tempCredsFile: string | null = null;
 
-      // If HIGGSFIELD_CREDENTIALS_JSON is set in env, write it to a temp file and point the CLI to it
-      if (process.env.HIGGSFIELD_CREDENTIALS_JSON) {
+      // Resolve dynamic credentials override or fall back to env
+      const { getHiggsfieldCredentialsJson } = await import("./higgsfieldStudio");
+      const credentialsJson = await getHiggsfieldCredentialsJson();
+
+      if (credentialsJson) {
         try {
           const tempDir = os.tmpdir();
-          tempCredsFile = path.join(tempDir, `hg-creds-${Date.now()}.json`);
-          fs.writeFileSync(tempCredsFile, process.env.HIGGSFIELD_CREDENTIALS_JSON, "utf8");
+          tempCredsFile = path.join(tempDir, `hg-creds-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.json`);
+          fs.writeFileSync(tempCredsFile, credentialsJson, "utf8");
           spawnEnv.HIGGSFIELD_CREDENTIALS_PATH = tempCredsFile;
-          log.info("wired HIGGSFIELD_CREDENTIALS_PATH via temp file from HIGGSFIELD_CREDENTIALS_JSON");
+          log.info("wired HIGGSFIELD_CREDENTIALS_PATH via temp file from Higgsfield credentials");
         } catch (err) {
-          log.warn("failed to write HIGGSFIELD_CREDENTIALS_JSON to temp file", { err: err instanceof Error ? err.message : String(err) });
+          log.warn("failed to write Higgsfield credentials to temp file", { err: err instanceof Error ? err.message : String(err) });
         }
       }
 
@@ -882,7 +901,27 @@ async function generateImageOpenRouter(prompt: string): Promise<string> {
 }
 
 export async function generatePostImage(prompt: string): Promise<{ url: string; format: "jpeg" }> {
-  const provider = (process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai").toLowerCase();
+  let provider = "openai";
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (d) {
+      const { appSecretKv } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const rows = await d.select().from(appSecretKv).where(eq(appSecretKv.k, "ig_autopost_image_provider")).limit(1);
+      if (rows.length && rows[0].v) {
+        provider = rows[0].v;
+      } else {
+        provider = process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai";
+      }
+    } else {
+      provider = process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai";
+    }
+  } catch (err) {
+    log.warn("failed to load image provider from db overrides, using env fallback", { err });
+    provider = process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai";
+  }
+  provider = provider.toLowerCase();
 
   let pngUrl: string;
   if (provider === "higgsfield") {
@@ -1233,6 +1272,8 @@ export interface RunIgAutopostOpts {
   /** Force a content angle/archetype (admin "Fire Now" can steer). */
   forceArchetype?: IgArchetype;
   source?: IgSource;
+  /** Custom mood, theme, or idea to steer the co-pilot post generation. */
+  customConcept?: string;
 }
 
 /**
@@ -1257,7 +1298,7 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     let lastPost: GeneratedPost | null = null;
 
     for (let attempt = 0; attempt <= MAX_REGEN_ATTEMPTS; attempt++) {
-      const post = await generatePost(brief, opts.forceArchetype);
+      const post = await generatePost(brief, opts.forceArchetype, opts.customConcept);
       lastPost = post;
       const image = await generatePostImage(post.imagePrompt);
       const [captionEval, imageEval] = await Promise.all([
@@ -1382,9 +1423,9 @@ export async function runIgAutopostCron(): Promise<{ recordsProcessed: number; d
   return { recordsProcessed: res.recordsProcessed, details: `[${slot}] ${res.details}` };
 }
 
-/** Admin "Fire Now" entrypoint. One-off, optionally steered to an archetype. */
-export async function runIgAutopostOneOff(forceArchetype?: IgArchetype): Promise<RunIgAutopostResult> {
-  return runIgAutopost({ forceArchetype, source: "admin" });
+/** Admin "Fire Now" entrypoint. One-off, optionally steered to an archetype and custom concept. */
+export async function runIgAutopostOneOff(forceArchetype?: IgArchetype, customConcept?: string): Promise<RunIgAutopostResult> {
+  return runIgAutopost({ forceArchetype, customConcept, source: "admin" });
 }
 
 // ─────────────────────────────────────────────────────────
