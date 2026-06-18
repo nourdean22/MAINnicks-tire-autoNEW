@@ -60,7 +60,10 @@ Keep it under 160 characters.`;
           content: prompt,
         },
       ],
-      maxTokens: 256,
+      // gemini-2.5-flash's thinking overhead ate the 256 budget -> empty reply
+      // -> the generic "Thank you for your review!" fallback fired every time.
+      // 2048 leaves room for the thinking plus a short personalized reply.
+      maxTokens: 2048,
     });
 
     const content = result.choices?.[0]?.message?.content;

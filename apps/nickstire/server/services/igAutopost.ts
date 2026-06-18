@@ -168,6 +168,15 @@ const DIALS = {
     "plainspoken neighbor giving real advice",
     "deadpan, slightly absurd but genuinely useful",
   ],
+  // ONE call-to-action per post — never stacked. IG captions can't carry a
+  // clickable link, so saves/sends/DMs/calls/bio-link are the real moves.
+  cta: [
+    "SAVE trigger: end with a 'save this for the next cold snap / when that light comes on' line, then a soft drop-offs-welcome",
+    "SEND trigger: end with 'send this to the friend whose car makes that noise', then a walk-in line",
+    "DM driver: invite a DM with their year/make/model + the symptom for a straight, no-pressure answer",
+    "CALL driver: a direct call-now line using the shop's phone number, tied to the exact problem it solves",
+    "BIO-LINK: point to the booking/estimate link in bio, plus drop-offs welcome",
+  ],
 };
 
 // ─────────────────────────────────────────────────────────
@@ -479,10 +488,12 @@ function buildGenSystemPrompt(): string {
     "- No LLM tells: no 'let's dive in', 'here's the thing', 'in conclusion', 'feel free to', 'furthermore', 'unlock/unleash/elevate your'.",
     "",
     "VIRAL SHAPE (the post must have all four, in order):",
-    "1. HOOK — first sentence: a specific, concrete, surprising claim. NOT a question, NOT a teaser.",
+    "1. HOOK — first sentence: a specific, concrete, surprising claim. NOT a question, NOT a teaser. It MUST land inside the first ~125 characters (Instagram hides the rest behind '...more'), so put the hook AND its most surprising specific up top — no slow build.",
     "2. PROOF — the body: specific, named, sourced. Numbers, the situation, the part, the contrast.",
     "3. TURN — one near-the-end sentence that re-contextualizes the proof (the line someone repeats at dinner).",
-    "4. TAKE-AWAY — one final line: a concrete action with friction removed (walk in, free check, you don't pay until you say yes).",
+    "4. TAKE-AWAY — ONE call-to-action, never stacked: execute the CTA / engagement move given in the brief (save, send, DM, call, or link-in-bio), with friction removed (drop-offs welcome, free check, you don't pay until you say yes).",
+    "",
+    "REACH: include at least one line worth SAVING or SENDING — a keep-it/forward-it payoff (a number, a checklist beat, a 'screenshot this'). On a local feed, saves and shares are what actually spread a post.",
     "",
     "PRICE RULES (hard):",
     `- The ONLY prices you may state are: ${ADVERTISABLE_PRICES.join("; ")}.`,
@@ -498,7 +509,7 @@ function buildGenSystemPrompt(): string {
 
 function buildGenUserPrompt(
   brief: SignalBrief,
-  dials: { angle: string; visualConcept: string; hookStyle: string; clevelandHook: string; tone: string },
+  dials: { angle: string; visualConcept: string; hookStyle: string; clevelandHook: string; tone: string; cta: string },
   customConcept?: string
 ): string {
   const reviewLines = brief.reviews.length
@@ -531,6 +542,7 @@ function buildGenUserPrompt(
     `- Hook style: ${dials.hookStyle}`,
     `- Cleveland hook: ${dials.clevelandHook}`,
     `- Tone: ${dials.tone}`,
+    `- CTA / engagement move (use exactly one, do not stack): ${dials.cta}`,
     `- Visual concept for the image: ${dials.visualConcept}`,
     "",
     "SHOP SIGNALS (real data — use what fits the angle):",
@@ -549,9 +561,9 @@ function buildGenUserPrompt(
     `- Advertisable prices ONLY: ${ADVERTISABLE_PRICES.join("; ")}.`,
     "",
     "Return JSON with exactly these fields:",
-    "- caption: the full IG caption (hook → proof → turn → take-away). 60-150 words. Include the phone number and a walk-in line. No hashtags inside the caption.",
-    "- hashtags: array of 8-12 lowercase hashtags WITHOUT the # sign (mix Cleveland-local + auto-service + a couple broad). No banned words.",
-    "- imagePrompt: a vivid art-direction prompt for an image generator that realizes the visual concept above. Professional craft: cinematic or studio lighting, sharp focus, clean composition. NO text/words rendered in the image, NO photoreal human faces/hands/crowds. 1-3 sentences.",
+    "- caption: the full IG caption (hook -> proof -> turn -> take-away). 60-150 words. FRONT-LOAD: the hook AND its single most surprising/useful specific MUST land in the first ~125 characters — Instagram hides everything after that behind '...more'. Include at least one save-worthy or send-worthy line (a number, a beat someone would screenshot or forward). End with exactly ONE call-to-action, executed per the CTA / engagement move dial above — do NOT stack CTAs. No hashtags inside the caption.",
+    "- hashtags: array of 6-10 lowercase hashtags WITHOUT the # sign. Mix: 2-3 Cleveland-local (e.g. cleveland, euclidohio, clevelandcars), 2-3 service tags specific to THIS post's topic, 1-2 broad auto tags, and ALWAYS include the branded tag 'nickstireauto'. No banned words.",
+    "- imagePrompt: a vivid art-direction prompt for an image generator that realizes the visual concept above. Professional craft: cinematic or studio lighting, sharp focus, clean composition. If (and only if) the visual concept is the editorial-poster style, you MAY render ONE short bold text element — a single number or one word, spelled exactly, integrated as design; for every other concept keep the image text-free. NEVER render sentences/paragraphs/captions in the image, and NO photoreal human faces/hands/crowds. 1-3 sentences.",
     "- conceptKey: a short 3-6 word kebab-case slug capturing THIS post's unique idea (for dedupe), e.g. 'salt-eats-brake-lines-winter'."
   );
 
@@ -600,6 +612,7 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype, cu
     hookStyle: pick(DIALS.hookStyle),
     clevelandHook: pick(DIALS.clevelandHook),
     tone: pick(DIALS.tone),
+    cta: pick(DIALS.cta),
   };
 
   const res = await invokeLLM({
@@ -1086,7 +1099,7 @@ function buildEvalSystemPrompt(): string {
     "You are a strict social-content judge for Nick's Tire & Auto. Score an Instagram caption on five dimensions, each 0.0 to 1.0. Be harsh — most drafts should not score above 0.8 unless they are genuinely strong.",
     "",
     "DIMENSIONS:",
-    "1. viralShape — does it have, in order: a concrete surprising HOOK (not a question), specific PROOF with numbers/specifics, a TURN that re-contextualizes, and a friction-removed TAKE-AWAY? Missing one element caps this at 0.5.",
+    "1. viralShape — does it have, in order: a concrete surprising HOOK that lands within the first ~125 characters (not a question), specific PROOF with numbers/specifics, a TURN that re-contextualizes, and a TAKE-AWAY that is exactly ONE friction-removed call-to-action (not stacked)? Bonus: is there a clearly save-worthy or send-worthy line? Missing any of the four ordered elements caps this at 0.5.",
     "2. voice — does it surprise + specify + reveal a human voice? Concrete numbers, named services, real places? Score 0.0 if it contains ANY banned word (trusted, expert, quality, premium, hassle-free, best, #1, certified technicians, reliable, top-notch) or an LLM tell.",
     "3. priceCompliance — 1.0 ONLY if every price stated is one of the allowed prices and NO repair price is quoted. If it quotes a price for brakes/diagnostics/AC/battery/alignment/exhaust or any non-allowed price, score 0.0. Allowed prices: used tires from $60 installed; oil change $49; synthetic oil change $80. No price stated at all = 1.0.",
     "4. novelty — is the core idea clearly distinct from the supplied recent concept-keys? Near-duplicate of a recent idea = below 0.4.",

@@ -116,7 +116,10 @@ Keep it under 200 characters.`;
       try {
         const result = await invokeLLM({
           messages: [{ role: "user", content: prompt }],
-          maxTokens: 200,
+          // gemini-2.5-flash spends ~500-1000 tokens on internal thinking before
+          // output; 200 left ~nothing for the reply -> empty drafts. 2048 covers
+          // the thinking overhead plus a short 1-2 sentence reply.
+          maxTokens: 2048,
         });
         const content = result.choices?.[0]?.message?.content;
         draft = typeof content === "string" ? sanitizeText(content) : "";
