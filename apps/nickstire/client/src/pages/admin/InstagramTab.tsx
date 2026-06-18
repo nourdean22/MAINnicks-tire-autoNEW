@@ -2494,6 +2494,7 @@ function PublishPanel({
   const [mediaUrl, setMediaUrl] = useState("");
   const [carouselUrls, setCarouselUrls] = useState("");
   const [imgPrompt, setImgPrompt] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [pubStatus, setPubStatus] = useState<{ type: "success" | "error" | null; msg: string }>({ type: null, msg: "" });
 
@@ -2556,6 +2557,25 @@ function PublishPanel({
         setPubStatus({ type: null, msg: "" });
       }
     },
+  });
+
+  const { data: scheduledQueueRaw } = trpc.instagramAdmin.listScheduled.useQuery({ limit: 25 });
+  const queue = (scheduledQueueRaw ?? []) as Array<{
+    id: number; status: string; scheduledAt: string | Date; platforms: string[]; caption: string; error: string | null;
+  }>;
+  const schedule = trpc.instagramAdmin.schedulePost.useMutation({
+    onSuccess: () => {
+      setScheduledAt("");
+      setCaption("");
+      setMediaUrl("");
+      setCarouselUrls("");
+      setPubStatus({ type: "success", msg: "Scheduled — the queue will publish it at the set time." });
+      utils.instagramAdmin.listScheduled.invalidate();
+    },
+    onError: (err) => setPubStatus({ type: "error", msg: `Schedule failed: ${err.message}` }),
+  });
+  const cancelSchedule = trpc.instagramAdmin.cancelScheduled.useMutation({
+    onSuccess: () => utils.instagramAdmin.listScheduled.invalidate(),
   });
 
   const carouselList = carouselUrls.split(/[\n,]/).map((s) => s.trim()).filter((s) => s.startsWith("http"));
@@ -2826,6 +2846,41 @@ function PublishPanel({
               </p>
             )}
           </div>
+
+          {/* Schedule for later */}
+          <div className="space-y-1.5 bg-neutral-900/10 border border-border/20 rounded p-3">
+            <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold block">
+              Or schedule for later
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="flex-1 bg-background/80 border border-border/40 rounded px-2 py-1.5 text-xs text-foreground/90 focus:outline-none focus:border-primary/50"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isValid || !scheduledAt) return;
+                  schedule.mutate({
+                    platforms,
+                    caption,
+                    imageUrl: mediaType === "image" ? mediaUrl : undefined,
+                    videoUrl: mediaType === "video" ? mediaUrl : undefined,
+                    imageUrls: mediaType === "carousel" ? carouselList : undefined,
+                    scheduledAt: new Date(scheduledAt).toISOString(),
+                  });
+                }}
+                disabled={!isValid || !scheduledAt || schedule.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold rounded border border-border/40 text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50 shrink-0"
+              >
+                {schedule.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clock className="w-3.5 h-3.5" />}
+                Schedule
+              </button>
+            </div>
+            <p className="text-[10px] text-foreground/40">Publishes automatically at the set time (your local time). Needs the same media + caption as a live post.</p>
+          </div>
         </div>
 
         {/* Right Side: Live Feed Preview (5 cols) */}
@@ -2840,6 +2895,39 @@ function PublishPanel({
           />
         </div>
       </div>
+
+      {queue.length > 0 && (
+        <div className="mt-4 border-t border-border/20 pt-3 space-y-2">
+          <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold">Scheduled queue</span>
+          {queue.map((s) => (
+            <div key={s.id} className="flex items-center justify-between gap-2 bg-background/40 border border-border/30 rounded p-2 text-[11px]">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase ${
+                    s.status === "pending" ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                      : s.status === "posted" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      : s.status === "failed" ? "bg-red-500/10 text-red-400 border-red-500/20"
+                      : "bg-foreground/5 text-foreground/40 border-border/20"
+                  }`}>{s.status}</span>
+                  <span className="text-foreground/50">{new Date(s.scheduledAt).toLocaleString()}</span>
+                  <span className="text-foreground/30">· {(s.platforms ?? []).join(", ")}</span>
+                </div>
+                <p className="text-foreground/60 truncate mt-0.5">{s.caption}</p>
+                {s.error && <p className="text-[10px] text-red-400 truncate">{s.error}</p>}
+              </div>
+              {s.status === "pending" && (
+                <button
+                  onClick={() => cancelSchedule.mutate({ id: s.id })}
+                  disabled={cancelSchedule.isPending}
+                  className="shrink-0 px-2 py-1 text-[10px] font-semibold rounded border border-border/30 text-foreground/50 hover:text-red-400 hover:border-red-500/40 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </Panel>
   );
 }
