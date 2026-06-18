@@ -14,6 +14,8 @@ import { createLogger } from "../lib/logger";
 import { buildCarouselStudioSystemPrompt } from "../../client/src/lib/igCarouselStudioPrompt";
 import {
   SLIDE_ROLES,
+  CREATIVE_TERRITORIES,
+  CAMPAIGN_KEYWORDS,
   type CarouselBrief,
   type CarouselSlide,
   type CampaignKeyword,
@@ -92,6 +94,24 @@ export function parseBriefJson(raw: string): Record<string, unknown> {
 const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
 
+/** Models often return the human label ("Myth Courtroom") or an off value
+ *  instead of the enum key ("myth_courtroom"). Coerce to a valid key — by key,
+ *  then by label — so the Studio UI's CREATIVE_TERRITORIES[key].label lookup
+ *  (and the rest) never dereferences undefined and crashes the page. */
+function coerceTerritory(v: string): CreativeTerritory {
+  if (v in CREATIVE_TERRITORIES) return v as CreativeTerritory;
+  const hit = (Object.entries(CREATIVE_TERRITORIES) as [CreativeTerritory, { label: string }][]).find(
+    ([k, t]) => k.toLowerCase() === v.toLowerCase() || t.label.toLowerCase() === v.toLowerCase(),
+  );
+  return hit ? hit[0] : "cleveland_survival_guide";
+}
+function coerceKeyword(v: string): CampaignKeyword {
+  const up = v.trim().toUpperCase();
+  return (CAMPAIGN_KEYWORDS as readonly string[]).includes(up)
+    ? (up as CampaignKeyword)
+    : (CAMPAIGN_KEYWORDS[0] as CampaignKeyword);
+}
+
 /**
  * Generate a ready-to-review CarouselBrief from the Studio's master prompt.
  * Optionally grounds the brief in real shop evidence when available.
@@ -169,8 +189,8 @@ export async function generateCarouselBriefAI(
     clevelandAngle: str(parsed.clevelandAngle),
     seasonality: str(parsed.seasonality),
     sourceNotes: [],
-    campaignKeyword: str(parsed.campaignKeyword) as CampaignKeyword,
-    creativeTerritory: str(parsed.creativeTerritory) as CreativeTerritory,
+    campaignKeyword: coerceKeyword(str(parsed.campaignKeyword)),
+    creativeTerritory: coerceTerritory(str(parsed.creativeTerritory)),
     usefulAbsurdity: str(parsed.usefulAbsurdity),
     concepts: [],
     winningConceptId: null,
