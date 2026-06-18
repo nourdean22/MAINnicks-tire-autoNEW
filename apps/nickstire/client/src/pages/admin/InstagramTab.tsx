@@ -20,7 +20,7 @@ import {
   Wand2, Heart, MessageCircle, Send, ShieldCheck, Sparkles,
   Camera, Lock, ChevronDown, ChevronUp, Film,
   Grid, List, Play, Pause, Volume2, VolumeX, X,
-  Image, Search, SlidersHorizontal, ArrowUpDown,
+  Image, Search, SlidersHorizontal, ArrowUpDown, Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Panel } from "./shared";
@@ -2361,6 +2361,65 @@ function ModalCommentsList({ mediaId }: { mediaId: string }) {
   );
 }
 
+/** Tiny copy-to-clipboard button (in-DOM feedback; window.* dialogs are dead in the PWA). */
+function InlineCopy({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}
+      className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded border border-border/40 text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors shrink-0"
+    >
+      {copied ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Sparkles className="w-3 h-3" />}
+      {copied ? "Copied" : "Copy draft"}
+    </button>
+  );
+}
+
+/** Unified-inbox section: Google reviews awaiting a reply, worst-rating first,
+ *  shown beside IG comments so one screen covers both channels. Copy-only — the
+ *  full approve/post workflow stays in the Review Replies tab; the AI draft is
+ *  claim-safety-checked here so the operator sees blockers before pasting. */
+function ReviewInboxSection() {
+  const { data: drafts } = trpc.reviewReplies.list.useQuery({ status: "draft", limit: 20 });
+  const rows = ((drafts ?? []) as Array<{ id: number; reviewerName: string; reviewRating: number; reviewText: string | null; draftReply: string | null }>)
+    .sort((a, b) => (a.reviewRating ?? 5) - (b.reviewRating ?? 5));
+  if (!rows.length) return null;
+  return (
+    <div className="mb-4 border border-amber-500/30 bg-amber-500/5 rounded p-3 space-y-2">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground/70 flex-wrap">
+        <Star className="w-3.5 h-3.5 text-amber-400" /> Google reviews awaiting a reply ({rows.length})
+        <span className="text-[10px] text-foreground/40 font-normal">— worst first · copy the draft, paste in Google Business</span>
+      </div>
+      {rows.slice(0, 5).map((r) => {
+        const blockers = r.draftReply ? checkReviewReply(r.draftReply).filter((f) => f.severity === "block") : [];
+        return (
+          <div key={r.id} className="bg-background/40 border border-border/30 rounded p-2 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-amber-400">{"★".repeat(r.reviewRating ?? 5)}{"☆".repeat(Math.max(0, 5 - (r.reviewRating ?? 5)))}</span>
+              <span className="text-[11px] font-bold text-foreground/80">{r.reviewerName}</span>
+            </div>
+            {r.reviewText && <p className="text-[11px] text-foreground/60 italic line-clamp-2">"{r.reviewText}"</p>}
+            {r.draftReply && (
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[11px] text-foreground/80 leading-relaxed">{r.draftReply}</p>
+                <InlineCopy text={r.draftReply} />
+              </div>
+            )}
+            {blockers.length > 0 && (
+              <p className="text-[10px] text-red-400 flex items-start gap-1">
+                <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+                Edit before posting: {blockers.map((f) => f.rule).join(", ")}
+              </p>
+            )}
+          </div>
+        );
+      })}
+      {rows.length > 5 && <p className="text-[10px] text-foreground/40">+{rows.length - 5} more in the Review Replies tab.</p>}
+    </div>
+  );
+}
+
 function CommentsPanel() {
   const { data: feed } = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 12 });
   const [mediaId, setMediaId] = useState<string | null>(null);
@@ -2385,11 +2444,13 @@ function CommentsPanel() {
   const username = account?.username || "nicks_tire_euclid";
 
   return (
-    <Panel title="Comment moderation" icon={<MessageCircle className="w-4 h-4 text-pink-400" />}>
+    <Panel title="Unified inbox — comments + reviews" icon={<MessageCircle className="w-4 h-4 text-pink-400" />}>
       <div className="flex items-center gap-2 mb-2">
         <ModeBadge mode="live" />
-        <span className="text-[10px] text-foreground/40">replies post to Instagram — claim-safety-gated, two-tap to confirm</span>
+        <span className="text-[10px] text-foreground/40">IG replies post live (claim-safety-gated, two-tap); Google review drafts are copy-only</span>
       </div>
+
+      <ReviewInboxSection />
       {!feed?.length ? (
         <p className="text-xs text-muted-foreground py-3">No posts in the cache yet — tap <strong>Sync feed</strong> above.</p>
       ) : (
