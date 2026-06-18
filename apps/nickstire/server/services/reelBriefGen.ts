@@ -13,6 +13,11 @@ import { invokeLLM, type OutputSchema } from "../_core/llm";
 import { createLogger } from "../lib/logger";
 import { buildFacelessReelSystemPrompt } from "../../client/src/lib/facelessReelStudioPrompt";
 import {
+  CAMPAIGN_KEYWORDS,
+  FACT_BUCKETS,
+  REEL_ARCHETYPES,
+  MOTION_LENSES,
+  OBJECT_CHARACTERS,
   type ReelBrief,
   type StoryboardBeat,
   type CampaignKeyword,
@@ -101,6 +106,24 @@ const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" 
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
+/** Coerce a model-returned value (key OR human label OR off value) to a valid
+ *  enum key so the Studio UI's RECORD[key].label lookups never crash. Falls
+ *  back to the record's first key. */
+function coerceEnum<T extends string>(v: string, record: Record<string, { label: string }>): T {
+  if (v in record) return v as T;
+  const lo = v.trim().toLowerCase();
+  const hit = Object.entries(record).find(
+    ([k, val]) => k.toLowerCase() === lo || val.label.toLowerCase() === lo,
+  );
+  return (hit ? hit[0] : Object.keys(record)[0]) as T;
+}
+function coerceKeyword(v: string): CampaignKeyword {
+  const up = v.trim().toUpperCase();
+  return (CAMPAIGN_KEYWORDS as readonly string[]).includes(up)
+    ? (up as CampaignKeyword)
+    : (CAMPAIGN_KEYWORDS[0] as CampaignKeyword);
+}
+
 /** Generate a ready-to-review ReelBrief from the Studio's master prompt. */
 export async function generateReelBriefAI(
   input: GenerateReelBriefInput,
@@ -173,11 +196,11 @@ export async function generateReelBriefAI(
     driverConfusion: str(parsed.driverConfusion),
     clevelandAngle: str(parsed.clevelandAngle),
     sourceNotes: [],
-    factBucket: str(parsed.factBucket) as FactBucket,
-    campaignKeyword: str(parsed.campaignKeyword) as CampaignKeyword,
-    archetype: str(parsed.archetype) as ReelArchetype,
-    motionLens: str(parsed.motionLens) as MotionLens,
-    objectCharacter: str(parsed.objectCharacter) as ObjectCharacter,
+    factBucket: coerceEnum<FactBucket>(str(parsed.factBucket), FACT_BUCKETS),
+    campaignKeyword: coerceKeyword(str(parsed.campaignKeyword)),
+    archetype: coerceEnum<ReelArchetype>(str(parsed.archetype), REEL_ARCHETYPES),
+    motionLens: coerceEnum<MotionLens>(str(parsed.motionLens), MOTION_LENSES),
+    objectCharacter: coerceEnum<ObjectCharacter>(str(parsed.objectCharacter), OBJECT_CHARACTERS),
     usefulAbsurdity: str(parsed.usefulAbsurdity),
     concepts: [],
     winningConceptId: null,
