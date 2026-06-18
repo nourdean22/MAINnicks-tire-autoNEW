@@ -1306,6 +1306,17 @@ function AutopostLogsPanel() {
 
 interface IgCommentVM { id: string; text: string; username: string; timestamp: string; likeCount: number }
 
+/** Claim-safe quick-reply starters for the Inbox — filled into the draft, then
+ *  still run through the claim-safety gate before sending. No prices/guarantees/
+ *  wait-times (the "We're on it" one is for service-recovery on complaints). */
+const SAVED_REPLIES: { label: string; text: string }[] = [
+  { label: "Thanks", text: "Thanks for the love — we appreciate you!" },
+  { label: "Pull up", text: "Come pull up, we'll take good care of you." },
+  { label: "Call us", text: "Give us a call at (216) 862-0005 and we'll get you sorted." },
+  { label: "Send size", text: "Send us your tire size and we'll check what we've got." },
+  { label: "We're on it", text: "Appreciate you flagging this — we want to make it right. Please give us a call so we can help." },
+];
+
 function CommentModerationRow({ comment }: { comment: IgCommentVM }) {
   const [draft, setDraft] = useState("");
   const [tone, setTone] = useState<"warm" | "professional" | "witty" | "promo">("warm");
@@ -1340,6 +1351,18 @@ function CommentModerationRow({ comment }: { comment: IgCommentVM }) {
           placeholder="Write a reply, or tap Suggest…"
           className="w-full bg-background/80 border border-border/40 rounded p-2 text-[11px] text-foreground/90 leading-relaxed focus:outline-none focus:border-primary/50"
         />
+        <div className="flex flex-wrap gap-1.5">
+          {SAVED_REPLIES.map((s) => (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => setDraft(s.text)}
+              className="px-2 py-0.5 text-[9px] rounded-full border border-border/30 text-foreground/55 hover:text-foreground hover:border-primary/40 transition-colors"
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
         {findings.map((f) => (
           <p key={`${f.rule}-${f.match}`} className={`text-[10px] leading-relaxed flex items-start gap-1 ${f.severity === "block" ? "text-red-400" : "text-amber-400"}`}>
             <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
