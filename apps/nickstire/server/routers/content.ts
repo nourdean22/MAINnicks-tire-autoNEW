@@ -534,6 +534,29 @@ export const contentAdminRouter = router({
         };
       }
     }),
+  /** One-click: generate a ready-to-review ReelBrief via the Studio's master
+   *  prompt + the funded Gemini. Generation only — no video render, no posting. */
+  generateReelBrief: adminProcedure
+    .input(z.object({
+      topic: z.string().max(300).optional(),
+      campaignKeyword: z.string().max(40).optional(),
+      factBucket: z.string().max(40).optional(),
+      archetype: z.string().max(40).optional(),
+      avoidTopics: z.array(z.string().max(200)).max(50).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { generateReelBriefAI } = await import("../services/reelBriefGen");
+        const { brief } = await generateReelBriefAI(input);
+        return { success: true as const, brief };
+      } catch (err) {
+        log.error("generateReelBrief failed", { err: err instanceof Error ? err.message : String(err) });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: err instanceof Error ? err.message : "Reel brief generation failed",
+        });
+      }
+    }),
   getProprietaryEvidence: adminProcedure
     .input(z.object({ topicKeyword: z.string().optional() }).optional())
     .query(async ({ input }) => {
