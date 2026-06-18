@@ -2411,9 +2411,10 @@ function PublishPanel({
   setActiveModalPost: (post: any) => void;
 }) {
   const [platforms, setPlatforms] = useState<("facebook" | "instagram")[]>(["instagram"]);
-  const [mediaType, setMediaType] = useState<"image" | "video">("image");
+  const [mediaType, setMediaType] = useState<"image" | "video" | "carousel">("image");
   const [caption, setCaption] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
+  const [carouselUrls, setCarouselUrls] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [pubStatus, setPubStatus] = useState<{ type: "success" | "error" | null; msg: string }>({ type: null, msg: "" });
 
@@ -2452,6 +2453,7 @@ function PublishPanel({
       setConfirming(false);
       setCaption("");
       setMediaUrl("");
+      setCarouselUrls("");
       setPubStatus({
         type: "success",
         msg: `Successfully published post! Syncing feed in background...`,
@@ -2468,10 +2470,14 @@ function PublishPanel({
     },
   });
 
+  const carouselList = carouselUrls.split(/[\n,]/).map((s) => s.trim()).filter((s) => s.startsWith("http"));
   const isValid =
     platforms.length > 0 &&
     caption.trim().length > 0 &&
-    (!platforms.includes("instagram") || mediaUrl.trim().startsWith("http"));
+    (!platforms.includes("instagram") ||
+      (mediaType === "carousel"
+        ? carouselList.length >= 2 && carouselList.length <= 10
+        : mediaUrl.trim().startsWith("http")));
 
   return (
     <Panel title="Direct Publisher" icon={<Send className="w-4 h-4" />}>
@@ -2576,6 +2582,21 @@ function PublishPanel({
               >
                 Video / Reel
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMediaType("carousel");
+                  setConfirming(false);
+                  setPubStatus({ type: null, msg: "" });
+                }}
+                className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                  mediaType === "carousel"
+                    ? "bg-primary/20 text-primary"
+                    : "text-foreground/40 hover:text-foreground/60"
+                }`}
+              >
+                Carousel
+              </button>
             </div>
           </div>
 
@@ -2583,24 +2604,45 @@ function PublishPanel({
             <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-semibold block">
               2. Media URL (Public HTTPS only)
             </span>
-            <input
-              type="url"
-              placeholder={
-                mediaType === "image"
-                  ? "https://example.com/image.jpg"
-                  : "https://example.com/video.mp4"
-              }
-              value={mediaUrl}
-              onChange={(e) => {
-                setMediaUrl(e.target.value);
-                setConfirming(false);
-                setPubStatus({ type: null, msg: "" });
-              }}
-              className="w-full bg-background/80 border border-border/40 rounded p-2 text-xs text-foreground/90 focus:outline-none focus:border-primary/50"
-            />
-            <p className="text-[10px] text-foreground/40 leading-normal">
-              Meta fetches the media server-side. The file must be a public HTTPS URL (JPG/JPEG for images, MP4/MOV for reels).
-            </p>
+            {mediaType === "carousel" ? (
+              <>
+                <textarea
+                  placeholder={"https://example.com/slide1.jpg\nhttps://example.com/slide2.jpg\n…(2–10 public HTTPS image URLs, one per line)"}
+                  value={carouselUrls}
+                  onChange={(e) => {
+                    setCarouselUrls(e.target.value);
+                    setConfirming(false);
+                    setPubStatus({ type: null, msg: "" });
+                  }}
+                  rows={4}
+                  className="w-full bg-background/80 border border-border/40 rounded p-2 text-xs text-foreground/90 focus:outline-none focus:border-primary/50"
+                />
+                <p className="text-[10px] text-foreground/40 leading-normal">
+                  2–10 public HTTPS image URLs, one per line. {carouselList.length} valid URL{carouselList.length === 1 ? "" : "s"} detected.
+                </p>
+              </>
+            ) : (
+              <>
+                <input
+                  type="url"
+                  placeholder={
+                    mediaType === "image"
+                      ? "https://example.com/image.jpg"
+                      : "https://example.com/video.mp4"
+                  }
+                  value={mediaUrl}
+                  onChange={(e) => {
+                    setMediaUrl(e.target.value);
+                    setConfirming(false);
+                    setPubStatus({ type: null, msg: "" });
+                  }}
+                  className="w-full bg-background/80 border border-border/40 rounded p-2 text-xs text-foreground/90 focus:outline-none focus:border-primary/50"
+                />
+                <p className="text-[10px] text-foreground/40 leading-normal">
+                  Meta fetches the media server-side. The file must be a public HTTPS URL (JPG/JPEG for images, MP4/MOV for reels).
+                </p>
+              </>
+            )}
           </div>
 
           <div className="space-y-1">
@@ -2636,6 +2678,7 @@ function PublishPanel({
                     caption,
                     imageUrl: mediaType === "image" ? mediaUrl : undefined,
                     videoUrl: mediaType === "video" ? mediaUrl : undefined,
+                    imageUrls: mediaType === "carousel" ? carouselList : undefined,
                   });
                 } else {
                   setConfirming(true);

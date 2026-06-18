@@ -292,6 +292,7 @@ Keep it under 200 characters.`;
       platforms: z.array(z.enum(["facebook", "instagram"])).min(1, "Select at least one platform"),
       caption: z.string().min(1).max(2200),
       imageUrl: z.string().url().optional(),
+      imageUrls: z.array(z.string().url()).min(2).max(10).optional(),
       videoUrl: z.string().url().optional(),
     }))
     .mutation(async ({ input }) => {
@@ -320,14 +321,17 @@ Keep it under 200 characters.`;
         const { postToFacebook } = await import("../services/metaSocial");
         const fbRes = await postToFacebook({
           message: input.caption,
-          imageUrl: input.imageUrl,
+          imageUrl: input.imageUrl ?? input.imageUrls?.[0],
         });
         results.push({ platform: "facebook", ...fbRes });
       }
 
       if (input.platforms.includes("instagram")) {
-        const { postToInstagram, postInstagramReel } = await import("../services/metaSocial");
-        if (input.videoUrl) {
+        const { postToInstagram, postInstagramReel, postInstagramCarousel } = await import("../services/metaSocial");
+        if (input.imageUrls && input.imageUrls.length >= 2) {
+          const igRes = await postInstagramCarousel({ imageUrls: input.imageUrls, caption: input.caption });
+          results.push({ platform: "instagram", ...igRes });
+        } else if (input.videoUrl) {
           const igRes = await postInstagramReel({ videoUrl: input.videoUrl, caption: input.caption });
           results.push({ platform: "instagram", ...igRes });
         } else if (input.imageUrl) {
