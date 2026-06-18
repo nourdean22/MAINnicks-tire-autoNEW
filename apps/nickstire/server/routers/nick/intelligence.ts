@@ -629,7 +629,20 @@ export async function handleRunMigrations() {
         // Drizzle wraps the real driver error inside `err.cause` \u00b7 we need
         // it to diagnose. Check both layers for already-applied markers.
         const combined = `${msg} | ${causeMsg}`;
-        if (combined.includes("already exists") || combined.includes("Duplicate")) {
+        const code = e?.code || cause?.code || "";
+        // "Already-applied" wording varies by engine/object:
+        //   MySQL: "...already exists" / "Duplicate key name"
+        //   TiDB:  "index already exist <name>; a background job is trying to
+        //          add the same index" (note "already exist", no trailing 's',
+        //          and no "Duplicate"). The "already exist" substring covers
+        //          both spellings; the duplicate-object error codes make
+        //          re-runs no-ops regardless of the driver's prose.
+        const alreadyApplied =
+          combined.includes("already exist") ||
+          combined.includes("Duplicate") ||
+          code === "ER_DUP_KEYNAME" ||
+          code === "ER_DUP_ENTRY";
+        if (alreadyApplied) {
           skipped++;
         } else {
           skipped++;
