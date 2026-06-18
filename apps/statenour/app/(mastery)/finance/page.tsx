@@ -211,7 +211,7 @@ export default function FinancePage() {
               onClick={handleSyncCSV}
               className="text-xs uppercase tracking-wider"
             >
-              {syncing ? "Syncing..." : "Process &amp; Load"}
+              {syncing ? "Syncing..." : "Process & Load"}
             </Button>
           )}
         </div>
@@ -250,7 +250,9 @@ export default function FinancePage() {
                   return (
                     <tr key={tx.id} className="hover:bg-zinc-900/20 transition-all">
                       <td className="p-3 font-mono text-[var(--text-secondary)]">
-                        {new Date(tx.date).toLocaleDateString()}
+                        {/* Render in UTC: CSV dates are stored as UTC midnight (see finance.ts dedup hash),
+                            so a local-tz render shifts them back a calendar day in negative offsets (e.g. ET). */}
+                        {new Date(tx.date).toLocaleDateString("en-US", { timeZone: "UTC" })}
                       </td>
                       <td className="p-3 font-semibold text-[var(--text-primary)]">
                         {tx.payee}
