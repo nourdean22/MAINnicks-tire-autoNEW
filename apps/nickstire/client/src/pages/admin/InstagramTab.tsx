@@ -1306,8 +1306,272 @@ function FeedPostCard({ post, username }: { post: any; username: string }) {
   );
 }
 
+function ReelCommentsList({ mediaId }: { mediaId: string }) {
+  const { data: commentsRes, isLoading } = trpc.instagramAdmin.getComments.useQuery({ mediaId });
+  const comments = commentsRes?.comments ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="py-8 text-center text-xs text-white/40 flex items-center justify-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin text-primary" /> Loading comments...
+      </div>
+    );
+  }
+
+  if (commentsRes && !commentsRes.ok) {
+    return (
+      <p className="text-[10px] text-amber-400 py-4 text-center">
+        {commentsRes.error}
+      </p>
+    );
+  }
+
+  if (comments.length === 0) {
+    return (
+      <p className="text-[10px] text-white/40 py-8 text-center italic">
+        No comments yet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {comments.map((c: any) => (
+        <CommentModerationRow key={c.id} comment={c} />
+      ))}
+    </div>
+  );
+}
+
+function ReelCard({ 
+  post, 
+  username, 
+  isMuted, 
+  onMuteToggle 
+}: { 
+  post: any; 
+  username: string; 
+  isMuted: boolean; 
+  onMuteToggle: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [isCaptionExpanded, setIsCaptionExpanded] = useState(false);
+
+  const isVideo = post.type === "VIDEO" || post.mediaUrl?.includes("video") || post.mediaUrl?.endsWith(".mp4");
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !isVideo) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.play().then(() => {
+            setIsPlaying(true);
+          }).catch((err) => console.log("Reel autoplay blocked:", err));
+        } else {
+          el.pause();
+          setIsPlaying(false);
+        }
+      },
+      { threshold: 0.6 }
+    );
+
+    observer.observe(el);
+    return () => {
+      observer.unobserve(el);
+    };
+  }, [isVideo]);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
+
+  const handleVideoTap = () => {
+    if (!videoRef.current || !isVideo) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      videoRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch(() => {});
+    }
+  };
+
+  return (
+    <div className="w-full h-full snap-start relative bg-neutral-950 flex flex-col justify-between scroll-snap-align-start shrink-0">
+      <div className="absolute inset-0 z-0 flex items-center justify-center" onClick={handleVideoTap}>
+        {isVideo ? (
+          <video
+            ref={videoRef}
+            src={post.mediaUrl}
+            poster={post.thumbnailUrl}
+            loop
+            muted={isMuted}
+            playsInline
+            className="w-full h-full object-cover cursor-pointer"
+          />
+        ) : (
+          <img 
+            src={post.thumbnailUrl || post.mediaUrl} 
+            alt="" 
+            className="w-full h-full object-cover"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/75 pointer-events-none" />
+      </div>
+
+      <div className="absolute top-3 inset-x-3 z-10 flex items-center justify-between pointer-events-none">
+        <span className="px-2 py-0.5 bg-black/40 backdrop-blur-md rounded text-[9px] font-bold text-white/90 border border-white/10 uppercase tracking-wider">
+          {post.type}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onMuteToggle();
+          }}
+          className="pointer-events-auto p-1.5 bg-black/40 backdrop-blur-md rounded-full text-white border border-white/10 hover:bg-black/60 transition-colors"
+        >
+          {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+
+      <div className="absolute right-3 bottom-16 z-10 flex flex-col items-center gap-4 text-white">
+        <div className="w-8 h-8 rounded-full border border-white/20 bg-gradient-to-tr from-amber-500 to-pink-500 p-0.5 shadow-lg">
+          <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-[9px] font-black uppercase text-pink-400">
+            NT
+          </div>
+        </div>
+
+        <button className="flex flex-col items-center gap-0.5 group">
+          <div className="p-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 group-hover:bg-black/60 transition-all">
+            <Heart className="w-4 h-4 fill-white" />
+          </div>
+          <span className="text-[10px] font-bold tracking-wider text-white shadow-sm drop-shadow">{post.likes}</span>
+        </button>
+
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowComments(true);
+          }}
+          className="flex flex-col items-center gap-0.5 group"
+        >
+          <div className="p-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 group-hover:bg-black/60 transition-all">
+            <MessageCircle className="w-4 h-4 fill-white/10" />
+          </div>
+          <span className="text-[10px] font-bold tracking-wider text-white shadow-sm drop-shadow">{post.comments}</span>
+        </button>
+
+        <a 
+          href={post.link} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="p-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 hover:bg-black/60 transition-all text-white"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </a>
+      </div>
+
+      <div className="absolute left-3 bottom-3 right-14 z-10 text-white space-y-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold">@{username}</span>
+          <span className="text-[9px] text-white/60 font-mono">
+            {new Date(post.posted).toLocaleDateString()}
+          </span>
+        </div>
+        {post.caption && (
+          <div className="text-[11px] leading-snug max-h-20 overflow-y-auto text-white/90 drop-shadow pr-1">
+            <span className="whitespace-pre-wrap">
+              {isCaptionExpanded ? post.caption : `${post.caption.slice(0, 80)}${post.caption.length > 80 ? "..." : ""}`}
+            </span>
+            {post.caption.length > 80 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsCaptionExpanded(!isCaptionExpanded);
+                }}
+                className="text-pink-400 hover:underline font-bold text-[9px] ml-1 focus:outline-none"
+              >
+                {isCaptionExpanded ? "less" : "more"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {!isPlaying && isVideo && (
+        <div className="absolute inset-0 flex items-center justify-center z-5 bg-black/10 pointer-events-none">
+          <div className="p-3 bg-black/50 rounded-full text-white backdrop-blur-sm">
+            <Play className="w-6 h-6 fill-white" />
+          </div>
+        </div>
+      )}
+
+      {showComments && (
+        <div 
+          className="absolute inset-0 z-30 bg-black/50 backdrop-blur-[2px] flex flex-col justify-end"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowComments(false);
+          }}
+        >
+          <div 
+            className="w-full bg-neutral-950 border-t border-white/10 rounded-t-2xl p-4 flex flex-col h-[75%] select-text"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+              <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1">
+                <MessageCircle className="w-3.5 h-3.5" /> Comments ({post.comments})
+              </span>
+              <button 
+                onClick={() => setShowComments(false)}
+                className="p-1 hover:bg-neutral-800 rounded text-white/50 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto pr-1">
+              <ReelCommentsList mediaId={post.id} />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReelsFeedExplorer({ feed, username }: { feed: any[]; username: string }) {
+  const [isMuted, setIsMuted] = useState(true);
+
+  return (
+    <div className="relative w-full max-w-[340px] aspect-[9/16] bg-black rounded-[2rem] border-8 border-neutral-800 overflow-hidden shadow-2xl mx-auto flex flex-col">
+      <div 
+        className="flex-1 overflow-y-auto snap-y snap-mandatory h-full w-full scrollbar-none"
+        style={{ scrollSnapType: "y mandatory", scrollbarWidth: "none" }}
+      >
+        {feed.map((post) => (
+          <ReelCard 
+            key={post.id} 
+            post={post} 
+            username={username} 
+            isMuted={isMuted} 
+            onMuteToggle={() => setIsMuted(!isMuted)} 
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FeedExplorerPanel() {
-  const [layout, setLayout] = useState<"grid" | "scroll">("scroll");
+  const [layout, setLayout] = useState<"grid" | "scroll" | "reels">("scroll");
   const { data: feed, isLoading, refetch } = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 30 });
   const { data: account } = trpc.instagramAdmin.getAccountInfo.useQuery();
   const username = account?.username || "nicks_tire_euclid";
@@ -1365,6 +1629,15 @@ function FeedExplorerPanel() {
             >
               <List className="w-3.5 h-3.5" />
             </button>
+            <button
+              onClick={() => setLayout("reels")}
+              className={`p-1.5 rounded text-xs font-bold transition-all ${
+                layout === "reels" ? "bg-primary/20 text-primary" : "text-foreground/40 hover:text-foreground/60"
+              }`}
+              title="Reels View"
+            >
+              <Film className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           <button
@@ -1411,6 +1684,8 @@ function FeedExplorerPanel() {
             </div>
           ))}
         </div>
+      ) : layout === "reels" ? (
+        <ReelsFeedExplorer feed={feed} username={username} />
       ) : (
         <div className="max-w-xl mx-auto space-y-6">
           {feed.map((post) => (
