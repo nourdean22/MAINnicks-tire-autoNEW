@@ -3040,3 +3040,164 @@ model AgentFeedback {
   @@map("agent_feedbacks")
 }
 
+// === 1. CMS / E-Learning (Replaces Payload CMS) ===
+model ContentNode {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  body        String    @db.Text // MDX or plain Markdown
+  published   Boolean   @default(false)
+  category    String    @db.VarChar(64) // e.g. "lesson", "blog", "program_info"
+  metadata    Json?     // SEO meta, reading duration, required level
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([category, published])
+  @@map("content_nodes")
+}
+
+// === 2. CRM / Audience (Replaces Twenty CRM) ===
+model Contact {
+  id           String      @id @default(cuid())
+  name         String
+  email        String?     @unique
+  phone        String?     @unique
+  role         String      @db.VarChar(32) // "coaching_client", "lead", "sponsor", "partner"
+  status       String      @default("active") // "lead", "active", "dormant"
+  notes        String?     @db.Text
+  psychProfile Json?       // AI-extracted motivations, goals, pain points
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  bookings     Booking[]
+  agreements   Agreement[]
+  orders       Order[]
+
+  @@index([role, status])
+  @@map("contacts")
+}
+
+// === 3. Scheduling (Replaces Cal.com Self-Hosted) ===
+model Booking {
+  id         String   @id @default(cuid())
+  contactId  String   @map("contact_id")
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  title      String
+  startTime  DateTime @map("start_time")
+  endTime    DateTime @map("end_time")
+  status     String   @default("scheduled") // "scheduled", "completed", "cancelled"
+  calEventId String?  @map("cal_event_id") // ID from external provider if synced
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([contactId])
+  @@index([startTime])
+  @@map("bookings")
+}
+
+// === 4. Legal / Waivers (Replaces Documenso Self-Hosted) ===
+model Agreement {
+  id                String    @id @default(cuid())
+  contactId         String    @map("contact_id")
+  contact           Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  title             String
+  documentUrl       String    @map("document_url") // S3 PDF link
+  status            String    @default("pending") // "pending", "signed", "expired"
+  signedAt          DateTime? @map("signed_at")
+  signatureMetadata Json?     @map("signature_metadata") // IP, user agent, SMS hash
+  createdAt         DateTime  @default(now())
+
+  @@index([contactId])
+  @@map("agreements")
+}
+
+// === 5. Commerce (Replaces Medusa) ===
+model Product {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  name           String
+  description    String?  @db.Text
+  priceCents     Int      @map("price_cents")
+  stripePriceId  String?  @map("stripe_price_id")
+  active         Boolean  @default(true)
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  orders         Order[]
+
+  @@map("products")
+}
+
+model Order {
+  id              String   @id @default(cuid())
+  contactId       String   @map("contact_id")
+  contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  productId       String   @map("product_id")
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  stripeSessionId String?  @map("stripe_session_id")
+  amountCents     Int      @map("amount_cents")
+  status          String   @default("pending") // "pending", "paid", "refunded"
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([contactId])
+  @@map("orders")
+}
+
+// === 6. Financial Ledger (Replaces Actual Budget & OpenBB) ===
+model FinancialTransaction {
+  id                    String   @id @default(cuid())
+  date                  DateTime @db.Date
+  amountCents           Int      @map("amount_cents") // positive = income, negative = expense
+  payee                 String
+  category              String   @db.VarChar(64)
+  pending               Boolean  @default(false)
+  plaidTransactionId    String?  @unique @map("plaid_transaction_id")
+  manualOverrideCategory String?  @map("manual_override_category")
+  notes                 String?  @db.Text
+  createdAt             DateTime @default(now())
+
+  @@index([date, category])
+  @@map("financial_transactions")
+}
+
+model InvestmentHolding {
+  id              String   @id @default(cuid())
+  symbol          String   @unique
+  name            String
+  shares          Decimal  @db.Decimal(12, 4)
+  costBasisCents  Int      @map("cost_basis_cents")
+  currentPriceCents Int    @map("current_price_cents")
+  lastUpdatedAt   DateTime @map("last_updated_at")
+  createdAt       DateTime @default(now())
+
+  @@map("investment_holdings")
+}
+
+// === 7. Link Attribution (Replaces Dub) ===
+model ShortLink {
+  id         String      @id // Represents the code/slug e.g. "coaching"
+  url        String      @db.Text
+  campaign   String?     @db.VarChar(64) // utm_campaign
+  medium     String?     @db.VarChar(64) // utm_medium
+  source     String?     @db.VarChar(64) // utm_source
+  clickCount Int         @default(0) @map("click_count")
+  createdAt  DateTime    @default(now())
+  clicks     LinkClick[]
+
+  @@map("short_links")
+}
+
+model LinkClick {
+  id          String    @id @default(cuid())
+  shortLinkId String    @map("short_link_id")
+  shortLink   ShortLink @relation(fields: [shortLinkId], references: [id], onDelete: Cascade)
+  ipHash      String    @map("ip_hash") @db.VarChar(64) // anonymized hash for privacy
+  userAgent   String?   @map("user_agent") @db.Text
+  referrer    String?   @map("referrer") @db.Text
+  clickedAt   DateTime  @default(now()) @map("clicked_at")
+
+  @@index([shortLinkId, clickedAt])
+  @@map("link_clicks")
+}
+
+
