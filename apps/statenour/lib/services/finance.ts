@@ -35,6 +35,62 @@ function parseCSVLine(line: string): string[] {
 }
 
 /**
+ * Normalizes a bank-statement date string to UTC midnight of the intended
+ * calendar date, so it survives storage + a UTC-rendered display regardless of
+ * the viewer's timezone. Handles ISO (YYYY-MM-DD), YYYY/MM/DD, and slashed or
+ * dashed D/M/Y / M/D/Y (with a >12 heuristic, US default), plus a Date()
+ * fallback for spelled-out months. Returns null for unparseable input.
+ */
+export function parseStatementDate(raw: string): Date | null {
+  const s = (raw || "").trim();
+  if (!s) return null;
+
+  const mk = (y: number, m: number, d: number): Date | null => {
+    if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+    const dt = new Date(Date.UTC(y < 100 ? 2000 + y : y, m - 1, d));
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  };
+
+  let m: RegExpMatchArray | null;
+  // ISO: 2026-06-18 (optionally with a time suffix)
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return mk(+m[1], +m[2], +m[3]);
+  // YYYY/MM/DD
+  if ((m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/))) return mk(+m[1], +m[2], +m[3]);
+  // D/M/Y or M/D/Y (slash or dash). Disambiguate by the >12 rule, default US.
+  if ((m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/))) {
+    const a = +m[1];
+    const b = +m[2];
+    const y = +m[3];
+    if (a > 12 && b <= 12) return mk(y, b, a); // DD/MM
+    return mk(y, a, b); // MM/DD (US default)
+  }
+  // Fallback: let Date() try (e.g. "Jun 18 2026"); keep its calendar date in UTC.
+  const fallback = new Date(s);
+  if (Number.isNaN(fallback.getTime())) return null;
+  return mk(fallback.getFullYear(), fallback.getMonth() + 1, fallback.getDate());
+}
+
+/**
+ * Parses a money string to a number. Handles currency symbols, thousands
+ * separators, leading +/-, and accounting-style parentheses for negatives
+ * (e.g. "(5.75)" -> -5.75). Returns null if no numeric value is present.
+ */
+export function parseAmount(raw: string): number | null {
+  let s = (raw || "").trim();
+  if (!s) return null;
+  let negative = false;
+  if (/^\(.*\)$/.test(s)) {
+    negative = true;
+    s = s.slice(1, -1);
+  }
+  s = s.replace(/[^0-9.\-+]/g, ""); // drop currency symbols, commas, spaces
+  if (s === "" || s === "-" || s === "+") return null;
+  const val = parseFloat(s);
+  if (!Number.isFinite(val)) return null;
+  return negative ? -Math.abs(val) : val;
+}
+
+/**
  * Parses bank statement CSV text and returns structured CSVTransaction objects.
  */
 export function parseCSV(csvText: string): CSVTransaction[] {
@@ -62,37 +118,27 @@ export function parseCSV(csvText: string): CSVTransaction[] {
     const columns = parseCSVLine(lines[i]);
     if (columns.length < Math.max(dateIdx, payeeIdx) + 1) continue;
 
-    // Parse Date
-    const rawDate = columns[dateIdx];
-    const parsedDate = new Date(rawDate);
-    if (isNaN(parsedDate.getTime())) continue; // Skip malformed dates
+    // Parse Date (normalized to UTC midnight of the calendar date)
+    const parsedDate = parseStatementDate(columns[dateIdx]);
+    if (!parsedDate) continue; // Skip malformed dates
 
     // Parse Payee
     const payee = columns[payeeIdx] || "Unknown Payee";
 
-    // Parse Amount Cents
+    // Parse Amount Cents (single amount col, else debit/credit pair)
     let amountCents = 0;
     if (amountIdx !== -1 && columns[amountIdx]) {
-      const amountVal = parseFloat(columns[amountIdx].replace(/[$,]/g, ""));
-      if (!isNaN(amountVal)) {
+      const amountVal = parseAmount(columns[amountIdx]);
+      if (amountVal !== null) {
         amountCents = Math.round(amountVal * 100);
       }
     } else {
-      // Debit/Credit columns
-      let debit = 0;
-      let credit = 0;
-      if (debitIdx !== -1 && columns[debitIdx]) {
-        const val = parseFloat(columns[debitIdx].replace(/[$,]/g, ""));
-        if (!isNaN(val)) debit = val;
-      }
-      if (creditIdx !== -1 && columns[creditIdx]) {
-        const val = parseFloat(columns[creditIdx].replace(/[$,]/g, ""));
-        if (!isNaN(val)) credit = val;
-      }
-      if (credit > 0) {
-        amountCents = Math.round(credit * 100);
-      } else if (debit > 0) {
-        amountCents = Math.round(-debit * 100);
+      const debit = debitIdx !== -1 ? parseAmount(columns[debitIdx]) : null;
+      const credit = creditIdx !== -1 ? parseAmount(columns[creditIdx]) : null;
+      if (credit !== null && credit !== 0) {
+        amountCents = Math.round(Math.abs(credit) * 100);
+      } else if (debit !== null && debit !== 0) {
+        amountCents = Math.round(-Math.abs(debit) * 100);
       }
     }
 
