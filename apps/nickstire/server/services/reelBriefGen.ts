@@ -134,6 +134,8 @@ export async function generateReelBriefAI(
     ],
     // Large brief + gemini-2.5-flash thinking overhead — generous headroom.
     maxTokens: 8192,
+    // Full-brief generation routinely exceeds the default 30s LLM timeout.
+    timeoutMs: 120000,
     outputSchema: REEL_BRIEF_SCHEMA,
   });
 
