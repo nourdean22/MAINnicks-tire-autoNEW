@@ -480,21 +480,29 @@ export function startTieredScheduler(): void {
         name: "reel-pipeline",
         requiresEnv: "REEL_GENERATION_ENABLED",
         handler: async () => {
-          const { processNextReelJob, processNextAssemblyJob } = await import("../services/reelPipeline");
+          const { processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs } = await import(
+            "../services/reelPipeline"
+          );
           // Settle each stage independently: a pre-try DB rejection in the gen
           // stage must not skip assembly this pulse (the job simply retries on the
           // next pulse). Both stages share the same one-job-per-pulse cadence.
           type StageResult = { processed: boolean; jobId?: number; status?: string; error?: string };
           const settle = (p: Promise<StageResult>): Promise<StageResult> =>
             p.catch((e) => ({ processed: true, status: "error", error: e instanceof Error ? e.message : String(e) }));
+          // First: requeue any orphaned in-flight jobs (hung CLI / process restart
+          // mid-stage) so a stuck row can't silently wedge the pipeline forever.
+          const recovered = await recoverStuckReelJobs()
+            .then((r) => r.recovered)
+            .catch(() => 0);
           const gen = await settle(processNextReelJob());
           const asm = await settle(processNextAssemblyJob());
           const details = [
+            recovered ? `recovered ${recovered}` : null,
             gen.processed ? `gen ${gen.jobId ?? "?"}: ${gen.status}` : null,
             asm.processed ? `assemble ${asm.jobId ?? "?"}: ${asm.status}` : null,
           ].filter(Boolean).join("; ");
           return {
-            recordsProcessed: (gen.processed ? 1 : 0) + (asm.processed ? 1 : 0),
+            recordsProcessed: recovered + (gen.processed ? 1 : 0) + (asm.processed ? 1 : 0),
             details: details || "no reel jobs to process",
           };
         },
