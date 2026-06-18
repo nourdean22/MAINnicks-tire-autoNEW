@@ -1,7 +1,7 @@
 /**
  * Global AI Configuration — live-mutable settings for the chat pipeline.
  *
- * Item #11 from the excellence marathon. Every hardcoded Venice param
+ * Item #11 from the excellence marathon. Every hardcoded LLM param
  * (temperature, reasoning_effort, web_search), every default mode
  * selection, every tool opt-in/opt-out is now editable at runtime from
  * the Settings page. No redeploy needed — mutate the config, the next
@@ -15,7 +15,7 @@
  * Write path: updateAiConfig(patch) → merge → upsert → invalidate cache
  *
  * The chat route reads this config on each request via getAiConfig()
- * and applies it when building the Venice request body + pruning tools.
+ * and applies it when building the LLM request body + pruning tools.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -31,7 +31,7 @@ export interface AiConfig {
   defaultMode?: ChatMode;
   defaultTaskType?: TaskType;
 
-  // ── Venice parameters (override hardcoded defaults in provider.ts) ──
+  // ── LLM generation parameters (override hardcoded defaults in provider.ts) ──
   temperature?: number; // 0.0 - 2.0
   reasoningEffort?: "none" | "low" | "medium" | "high" | "max";
   repetitionPenalty?: number; // 1.0 - 2.0
@@ -57,7 +57,7 @@ export interface AiConfig {
   toolEmbeddingsEnabled?: boolean; // default true
 
   // ── System prompt budget ──
-  maxSystemChars?: number; // default 65000 for Venice
+  maxSystemChars?: number; // default 65000 for LLM
 
   // ── Metadata ──
   updatedAt?: string;
