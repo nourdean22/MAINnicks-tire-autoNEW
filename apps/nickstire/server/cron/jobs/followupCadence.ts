@@ -191,9 +191,12 @@ export async function runFollowupCadence(): Promise<RunResult> {
       failed++; continue;
     }
 
+    const voicemailMsg = `Hey ${firstName}, Nick's Tire \u2014 checking in after your ${b.service}. Everything running smooth, no need to call back. Something feels off, hit us at 216-862-0005. Drive safe.`;
+
     const call = await placeVapiOutboundCall({
       customerNumber: e164,
       variableValues: { name: firstName, lastService: b.service },
+      voicemailMessage: voicemailMsg,
       maxDurationSeconds: 180,
     });
 

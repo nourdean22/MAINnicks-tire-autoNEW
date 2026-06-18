@@ -48,6 +48,15 @@ export async function runConfirmationCalls(): Promise<RunResult> {
 
   const maxCalls = Math.min(Number(process.env.VAPI_CONFIRMATION_BATCH_SIZE) || 20, 50);
 
+  // Quiet-hours guard — confirmations fire 3-6 PM ET (afternoon before
+  // tomorrow's visit). Calling at 3 AM or 9 AM to confirm tomorrow is rude.
+  const etHourPart = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false })
+    .formatToParts(new Date()).find((p) => p.type === "hour")?.value ?? "0";
+  const etHour = parseInt(etHourPart, 10);
+  if (etHour < 15 || etHour >= 18) {
+    return { recordsProcessed: 0, details: `Outside confirmation window (Cleveland ${etHour}:00, window 15-18)` };
+  }
+
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "No DB" };
@@ -107,7 +116,7 @@ export async function runConfirmationCalls(): Promise<RunResult> {
       .map((c: { bookingId: number }) => c.bookingId),
   );
 
-  const { placeVapiOutboundCall, buildOutboundConfirmationPrompt } = await import("../../services/vapi");
+  const { placeVapiOutboundCall, buildOutboundConfirmationPrompt, buildConfirmationVoicemail } = await import("../../services/vapi");
 
   let placed = 0;
   let skipped = 0;
@@ -158,12 +167,18 @@ export async function runConfirmationCalls(): Promise<RunResult> {
       preferredDay: "tomorrow",
       vehicleRef,
     });
-    const firstMessage = `Hi ${firstName}, this is Nick's Tire & Auto · just confirming your ${b.service} appointment tomorrow. Does that still work for you?`;
+    const voicemailMsg = buildConfirmationVoicemail({
+      customerName: firstName,
+      service: b.service,
+      preferredDay: "tomorrow",
+    });
+    const firstMessage = `Hey ${firstName}, it's Nick's Tire — you still good for that ${b.service} tomorrow?`;
 
     const call = await placeVapiOutboundCall({
       customerNumber: e164,
       firstMessageOverride: firstMessage,
       systemPromptOverride: systemPrompt,
+      voicemailMessage: voicemailMsg,
       maxDurationSeconds: 90,
     });
 
