@@ -196,8 +196,8 @@ describe("providerOf · classification", () => {
     expect(providerOf("claude-sonnet-4-6")).toBe("anthropic");
     expect(providerOf("gpt-4o-mini")).toBe("openai");
     expect(providerOf("qwen3-vl")).toBe("ollama");
-    expect(providerOf("venice-uncensored")).toBe("venice");
-    expect(providerOf("flux-2-pro")).toBe("venice");
+    expect(providerOf("venice-uncensored")).toBe("openrouter");
+    expect(providerOf("flux-2-pro")).toBe("openrouter");
     expect(providerOf("rerank-multilingual-v3")).toBe("cohere");
     expect(providerOf("some-unknown-model")).toBe("other");
   });
@@ -212,9 +212,9 @@ describe("costByProvider · provider rollup", () => {
     ]);
     const rolled = await costByProvider(7);
     const anthropic = rolled.find((p) => p.provider === "anthropic");
-    const venice = rolled.find((p) => p.provider === "venice");
+    const openrouter = rolled.find((p) => p.provider === "openrouter");
     expect(anthropic?.costCents).toBe(500);
-    expect(venice?.costCents).toBe(500); // 100 chat + 400 image
-    expect(venice?.byFeature).toHaveLength(2);
+    expect(openrouter?.costCents).toBe(500); // 100 chat + 400 image
+    expect(openrouter?.byFeature).toHaveLength(2);
   });
 });
