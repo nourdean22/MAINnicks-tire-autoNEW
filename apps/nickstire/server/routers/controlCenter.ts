@@ -930,7 +930,7 @@ export const controlCenterRouter = router({
       ],
       truthSources: {
         database: "TiDB Cloud via Drizzle ORM",
-        ai: "Venice primary, OpenAI fallback via ai-gateway.ts",
+        ai: "Gemini / OpenRouter via ai-gateway.ts",
         auth: "Google OAuth via GOOGLE_OAUTH_CLIENT_ID",
         config: ".env + Railway env vars",
         schema: "drizzle/schema.ts (68 tables, 22 migrations)",

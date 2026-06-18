@@ -4,7 +4,7 @@
  * This isn't just numbers. Nick AI analyzes everything, spots patterns,
  * and sends Nour a brief that covers business + life + execution.
  *
- * Uses Venice AI (llama-3.3-70b) to generate the actual brief content
+ * Uses Gemini / OpenRouter to generate the actual brief content
  * so it reads like a chief of staff wrote it, not a database query.
  */
 import { createLogger } from "../../lib/logger";
