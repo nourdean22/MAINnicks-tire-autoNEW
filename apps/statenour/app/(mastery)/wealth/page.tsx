@@ -107,9 +107,15 @@ export default function WealthPage() {
       const res = await fetch("/api/wealth/refresh-prices", { method: "POST" });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Refresh failed");
-      const { updated, total, failed } = json.data as { updated: number; total: number; failed: string[] };
+      const { updated, total, failed, hint } = json.data as {
+        updated: number;
+        total: number;
+        failed: string[];
+        hint?: string;
+      };
       let msg = `Updated ${updated} of ${total} holding${total === 1 ? "" : "s"} from live quotes.`;
       if (failed && failed.length) msg += ` Couldn't price: ${failed.join(", ")}.`;
+      if (hint) msg += ` ${hint}`;
       setRefreshMsg(msg);
       fetchData();
     } catch (e) {
