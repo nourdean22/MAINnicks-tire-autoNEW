@@ -455,6 +455,17 @@ export function startTieredScheduler(): void {
           return runIgAutopostCron();
         },
       },
+      {
+        // Publish-later queue: fires owner-scheduled posts at their due time
+        // (deferred execution of an explicit owner action, not autonomous AI
+        // posting). No-op until migration 0071 (scheduled_posts) is applied.
+        name: "scheduled-posts",
+        requiresEnv: "META_IG_USER_ID",
+        handler: async () => {
+          const { runScheduledPosts } = await import("../services/scheduledPosts");
+          return runScheduledPosts();
+        },
+      },
     ],
     running: false,
     lastRun: null,
