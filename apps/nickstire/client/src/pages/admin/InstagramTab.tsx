@@ -171,7 +171,7 @@ export default function InstagramTab() {
           />
         )}
         {sub === "inbox" && <CommentsPanel />}
-        {sub === "create" && <CreateSection seedConcept={seedConcept} onSeedConsumed={() => setSeedConcept(null)} />}
+        {sub === "create" && <CreateSection seedConcept={seedConcept} onSeedConsumed={() => setSeedConcept(null)} onSeed={setSeedConcept} />}
         {sub === "publish" && (
           <PublishPanel
             setSub={setSub}
@@ -193,11 +193,50 @@ export default function InstagramTab() {
 
 /* ── Create: AI co-pilot + content studios (folded in from Social Studios) ── */
 
-function CreateSection({ seedConcept, onSeedConsumed }: { seedConcept?: string | null; onSeedConsumed?: () => void }) {
+/** Cross-promote: turn a strong Google review into an IG post draft by seeding
+ *  the co-pilot. Paraphrase-only instruction + the eval gate keep it honest. */
+function ReviewToPost({ onSeed }: { onSeed: (concept: string) => void }) {
+  const { data: reviews } = trpc.reviewReplies.list.useQuery({ limit: 50 });
+  const positives = ((reviews ?? []) as Array<{ id: number; reviewRating: number | null; reviewText: string | null }>)
+    .filter((r) => (r.reviewRating ?? 0) >= 4 && !!r.reviewText && r.reviewText.length > 20)
+    .slice(0, 4);
+  if (!positives.length) return null;
+  return (
+    <Panel title="Turn a 5★ review into a post" icon={<Sparkles className="w-4 h-4 text-amber-400" />}>
+      <p className="text-[10px] text-foreground/40 mb-2">
+        Cross-promote your best Google reviews to Instagram — the co-pilot paraphrases the sentiment
+        (no fabrication, eval-gated).
+      </p>
+      <div className="space-y-2">
+        {positives.map((r) => (
+          <div key={r.id} className="flex items-start justify-between gap-2 bg-background/40 border border-border/30 rounded p-2">
+            <div className="min-w-0">
+              <div className="text-[10px] text-amber-400">{"★".repeat(r.reviewRating ?? 5)}</div>
+              <p className="text-[11px] text-foreground/70 line-clamp-2 italic">"{r.reviewText}"</p>
+            </div>
+            <button
+              onClick={() =>
+                onSeed(
+                  `Turn this happy customer's Google review into an Instagram post — paraphrase the sentiment, do NOT fabricate or quote verbatim: "${(r.reviewText || "").slice(0, 240)}"`,
+                )
+              }
+              className="shrink-0 inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Wand2 className="w-3 h-3" /> Use
+            </button>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function CreateSection({ seedConcept, onSeedConsumed, onSeed }: { seedConcept?: string | null; onSeedConsumed?: () => void; onSeed: (concept: string) => void }) {
   const [showLegacy, setShowLegacy] = useState(false);
   return (
     <div className="space-y-4">
       <CopilotPanel seedConcept={seedConcept} onSeedConsumed={onSeedConsumed} />
+      <ReviewToPost onSeed={onSeed} />
 
       <Panel title="Content draft board" icon={<Sparkles className="w-4 h-4 text-primary" />}>
         <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2 mb-4">
