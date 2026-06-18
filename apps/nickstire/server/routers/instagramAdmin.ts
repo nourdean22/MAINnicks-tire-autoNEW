@@ -286,6 +286,21 @@ Keep it under 200 characters.`;
     };
   }),
 
+  /** Regenerate an image from a prompt (re-roll the visual while keeping a
+   *  winning caption, or generate one for a custom post). Wraps the autopost
+   *  image generator (which throws) into an ok/error result. */
+  regenerateImage: adminProcedure
+    .input(z.object({ prompt: z.string().min(3).max(1000) }))
+    .mutation(async ({ input }) => {
+      const { generatePostImage } = await import("../services/igAutopost");
+      try {
+        const res = await generatePostImage(input.prompt);
+        return { ok: true as const, url: res.url };
+      } catch (err) {
+        return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+      }
+    }),
+
   /** Publish a custom image or Reel to Instagram directly. */
   publishPost: adminProcedure
     .input(z.object({

@@ -147,4 +147,18 @@ describe("instagramAdmin router", () => {
       ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
     });
   });
+
+  describe("regenerateImage", () => {
+    it("rejects non-admin callers (before any image generation)", async () => {
+      const caller = appRouter.createCaller(ctx("user"));
+      await expect(
+        caller.instagramAdmin.regenerateImage({ prompt: "a tire on a studio podium" }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects a too-short prompt at input validation (no image call)", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(caller.instagramAdmin.regenerateImage({ prompt: "ab" })).rejects.toBeTruthy();
+    });
+  });
 });
