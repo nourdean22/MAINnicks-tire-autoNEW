@@ -820,6 +820,16 @@ function PhoneMockup({ username, caption, mediaUrl }: {
   );
 }
 
+/** One-tap Cleveland-seasonal steering presets for the co-pilot. Themes only —
+ *  the eval gate still enforces claim-safety/price-compliance on the output. */
+const SEASONAL_PRESETS: { label: string; concept: string }[] = [
+  { label: "Road salt", concept: "Cleveland road-salt season — undercarriage rust/corrosion inspection and rustproofing" },
+  { label: "Pothole season", concept: "Post-thaw pothole season on Cleveland streets — alignment and tire/wheel damage checks" },
+  { label: "First hot day", concept: "First 90-degree day — AC and cooling-system checks before the heat" },
+  { label: "Winter prep", concept: "Before the first Cleveland snow — winter tires, battery test, tread checks" },
+  { label: "Oil change", concept: "Oil change special — quick, no appointment needed" },
+];
+
 function CopilotPanel() {
   const utils = trpc.useUtils();
   const { data: account } = trpc.instagramAdmin.getAccountInfo.useQuery();
@@ -872,6 +882,18 @@ function CopilotPanel() {
           placeholder="E.g. Write a post about East Side potholes, dark catalog style, warn about winter alignments"
           className="w-full bg-background border border-border/45 rounded px-2.5 py-1.5 text-xs text-foreground placeholder-foreground/30 focus:outline-none focus:border-primary/50"
         />
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {SEASONAL_PRESETS.map((s) => (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => setCustomConcept(s.concept)}
+              className="px-2 py-0.5 text-[10px] rounded-full border border-border/30 text-foreground/60 hover:text-foreground hover:border-primary/40 transition-colors"
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
         <p className="text-[10px] text-foreground/40 leading-normal">
           If filled, the AI co-pilot will build the copy hook and visual prompts directly around this theme, overriding default template Signal generation.
         </p>
@@ -1886,6 +1908,17 @@ function FeedExplorerPanel({
       });
   }, [feed, searchQuery, filterType, sortBy]);
 
+  // Top performers by engagement, derived from the synced feed (honest — only
+  // shown when posts actually have engagement; no dependency on the analytics
+  // table, which is empty until a sync has built history).
+  const winners = useMemo(() => {
+    if (!feed) return [];
+    return [...feed]
+      .filter((p) => (p.likes ?? 0) + (p.comments ?? 0) > 0)
+      .sort((a, b) => (b.likes + b.comments) - (a.likes + a.comments))
+      .slice(0, 5);
+  }, [feed]);
+
   if (isLoading) {
     return (
       <Panel title="Instagram Feed Explorer" icon={<Film className="w-4 h-4 text-pink-400" />}>
@@ -1995,6 +2028,34 @@ function FeedExplorerPanel({
           </select>
         </div>
       </div>
+
+      {winners.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground/70 mb-1.5">
+            <Trophy className="w-3.5 h-3.5 text-amber-400" /> Your winners
+            <span className="text-[10px] text-foreground/40 font-normal">— most engagement in the synced feed</span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {winners.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setActiveModalPost(p)}
+                title={`${p.likes} likes · ${p.comments} comments`}
+                className="shrink-0 w-16 h-16 rounded border border-amber-500/30 overflow-hidden relative hover:border-amber-400/60 transition-all"
+              >
+                {p.thumbnailUrl || p.mediaUrl ? (
+                  <img src={p.thumbnailUrl || p.mediaUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-neutral-800 flex items-center justify-center"><Instagram className="w-4 h-4 text-white/30" /></div>
+                )}
+                <span className="absolute bottom-0 inset-x-0 bg-black/70 text-white text-[8px] px-1 py-0.5 flex items-center justify-center gap-0.5 font-bold">
+                  <Heart className="w-2 h-2" />{p.likes}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!filteredFeed.length ? (
         <div className="text-center py-20 border border-border/30 bg-card rounded-lg space-y-3">
