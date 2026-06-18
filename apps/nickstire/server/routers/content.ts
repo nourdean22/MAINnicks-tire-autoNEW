@@ -478,6 +478,30 @@ export const contentAdminRouter = router({
         };
       }
     }),
+  /** One-click: generate a ready-to-review CarouselBrief via the Studio's own
+   *  master prompt + the funded Gemini. Generation only — no posting. The
+   *  existing generateCarouselImages/save/publish procs handle the rest. */
+  generateCarouselBrief: adminProcedure
+    .input(z.object({
+      topic: z.string().max(300).optional(),
+      campaignKeyword: z.string().max(40).optional(),
+      territory: z.string().max(60).optional(),
+      seasonLocalAngle: z.string().max(300).optional(),
+      avoidTopics: z.array(z.string().max(200)).max(50).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { generateCarouselBriefAI } = await import("../services/carouselBriefGen");
+        const { brief } = await generateCarouselBriefAI(input);
+        return { success: true as const, brief };
+      } catch (err) {
+        log.error("generateCarouselBrief failed", { err: err instanceof Error ? err.message : String(err) });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: err instanceof Error ? err.message : "Carousel brief generation failed",
+        });
+      }
+    }),
   generateReelVideo: adminProcedure
     .input(z.object({
       briefId: z.string(),
