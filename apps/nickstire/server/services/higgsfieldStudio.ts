@@ -37,6 +37,29 @@ export async function getHiggsfieldCredentialsJson(): Promise<string | null> {
   return cachedHiggsfieldCredentialsJson || process.env.HIGGSFIELD_CREDENTIALS_JSON || null;
 }
 
+let staleCredsSwept = false;
+
+/**
+ * Defense-in-depth: delete Higgsfield temp credential files left behind by a
+ * crashed/orphaned prior run. The normal path cleans up on the spawn `close`
+ * event, but a killed child (timeout, OOM, process exit) can leak the creds
+ * JSON on disk. Swept once, lazily, the first time creds are used (not at
+ * import time, to keep test/startup I/O out of the hot path).
+ */
+function sweepStaleHiggsfieldCreds(): void {
+  try {
+    const dir = os.tmpdir();
+    const cutoff = Date.now() - 60 * 60 * 1000; // older than 1h = definitely orphaned
+    for (const name of fs.readdirSync(dir)) {
+      if (!name.startsWith("hg-creds-") || !name.endsWith(".json")) continue;
+      const fp = path.join(dir, name);
+      try {
+        if (fs.statSync(fp).mtimeMs < cutoff) fs.unlinkSync(fp);
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
 async function getSpawnEnv(): Promise<{ env: NodeJS.ProcessEnv; tempCredsFile: string | null }> {
   const spawnEnv: NodeJS.ProcessEnv = { ...process.env };
   let tempCredsFile: string | null = null;
@@ -44,9 +67,15 @@ async function getSpawnEnv(): Promise<{ env: NodeJS.ProcessEnv; tempCredsFile: s
 
   if (credentialsJson) {
     try {
+      if (!staleCredsSwept) {
+        staleCredsSwept = true;
+        sweepStaleHiggsfieldCreds();
+      }
       const tempDir = os.tmpdir();
       tempCredsFile = path.join(tempDir, `hg-creds-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.json`);
-      fs.writeFileSync(tempCredsFile, credentialsJson, "utf8");
+      // mode 0o600: owner read/write only — if cleanup is ever missed, the
+      // leaked credentials file is still not readable by other local users.
+      fs.writeFileSync(tempCredsFile, credentialsJson, { encoding: "utf8", mode: 0o600 });
       spawnEnv.HIGGSFIELD_CREDENTIALS_PATH = tempCredsFile;
     } catch (err) {
       log.warn("failed to write Higgsfield credentials to temp file", {

@@ -222,6 +222,25 @@ Keep it under 200 characters.`;
       videoUrl: z.string().url().optional(),
     }))
     .mutation(async ({ input }) => {
+      // Claim-safety parity with postReply: a public caption gets the same
+      // detector gate as a comment reply, so the Direct Publisher can't push
+      // "guaranteed", a fabricated wait-time, a warranty promise, or a "#1/best"
+      // self-ranking to a live brand account. EXCEPTION: advertised prices are
+      // legitimate on IG (the shop runs "from $60 installed"), so the
+      // no-price-talk rule — which is correct for Google review replies but not
+      // for ad captions — is excluded here.
+      const captionBlockers = checkReviewReply(input.caption).filter(
+        (f) => f.severity === "block" && f.rule !== "no-price-talk",
+      );
+      if (captionBlockers.length) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Claim-safety: ${captionBlockers
+            .map((f) => `${f.rule} ("${f.match}")`)
+            .join("; ")} — edit the caption before publishing.`,
+        });
+      }
+
       const results: Array<{ platform: "facebook" | "instagram"; success: boolean; postId?: string; error?: string }> = [];
 
       if (input.platforms.includes("facebook")) {

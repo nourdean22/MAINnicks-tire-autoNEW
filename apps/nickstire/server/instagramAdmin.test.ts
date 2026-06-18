@@ -109,4 +109,29 @@ describe("instagramAdmin router", () => {
       ).rejects.toBeTruthy();
     });
   });
+
+  describe("publishPost claim-safety gate (parity with postReply)", () => {
+    it("blocks a caption with a banned claim BEFORE publishing (BAD_REQUEST)", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(
+        caller.instagramAdmin.publishPost({
+          platforms: ["instagram"],
+          caption: "We guarantee the best tire deal in Cleveland",
+          imageUrl: "https://example.com/tire.jpg",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("ALLOWS an advertised price ($) — no-price-talk is excluded for IG captions", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      // The caption passes the claim-safety gate, then fails on the missing-media
+      // path (INTERNAL_SERVER_ERROR) — proving the price did NOT trip BAD_REQUEST.
+      await expect(
+        caller.instagramAdmin.publishPost({
+          platforms: ["instagram"],
+          caption: "Used tires from $60 installed — pull up!",
+        }),
+      ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+    });
+  });
 });
