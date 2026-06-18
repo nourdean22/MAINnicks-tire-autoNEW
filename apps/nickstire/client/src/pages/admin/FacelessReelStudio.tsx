@@ -142,6 +142,7 @@ export default function FacelessReelStudio() {
     dms: number;
   } | null>(null);
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
+  const [aiReelBrief, setAiReelBrief] = useState<ReelBrief | null>(null);
 
   const { data: sheetsDrafts, refetch: refetchDrafts } = trpc.contentAdmin.allReelDrafts.useQuery();
   const { data: sheetsLogs, refetch: refetchLogs } = trpc.contentAdmin.allReelLogs.useQuery();
@@ -151,11 +152,15 @@ export default function FacelessReelStudio() {
     return [...SAMPLE_REEL_BRIEFS, ...custom];
   }, [sheetsDrafts]);
 
-  const brief = allBriefs[briefIndex] || allBriefs[0] || SAMPLE_REEL_BRIEFS[0];
+  // An AI-generated brief takes precedence until the operator selects another.
+  const brief = aiReelBrief ?? (allBriefs[briefIndex] || allBriefs[0] || SAMPLE_REEL_BRIEFS[0]);
 
   useEffect(() => {
     setGeneratedVideo((brief as any).videoUrl || null);
   }, [briefIndex, brief]);
+
+  // Selecting a saved/sample reel clears any AI-generated override.
+  useEffect(() => { setAiReelBrief(null); }, [briefIndex]);
 
   const generateVideoMutation = trpc.contentAdmin.generateReelVideo.useMutation({
     onSuccess: (res) => {
@@ -172,6 +177,18 @@ export default function FacelessReelStudio() {
   });
 
   const { data: evidence } = trpc.contentAdmin.getProprietaryEvidence.useQuery({ topicKeyword: brief?.topic });
+
+  const generateReelBriefMutation = trpc.contentAdmin.generateReelBrief.useMutation({
+    onSuccess: (res) => {
+      if (res.success && res.brief) {
+        setAiReelBrief(res.brief as ReelBrief);
+        copied("AI reel brief generated — review the storyboard below.");
+      } else {
+        copied("Brief generation returned no content.");
+      }
+    },
+    onError: (err) => copied(`Brief generation failed: ${err.message}`),
+  });
 
   const handleGenerateVideo = () => {
     const prompts = promptPack.map(p => p.prompt);
@@ -612,6 +629,18 @@ export default function FacelessReelStudio() {
       {/* 10 · Operator Actions */}
       <SectionCard title="OPERATOR ACTIONS">
         <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => generateReelBriefMutation.mutate({
+              factBucket: brief.factBucket,
+              archetype: brief.archetype,
+              avoidTopics: reps.recentTopics,
+            })}
+            disabled={generateReelBriefMutation.isPending}
+            className="text-[11px] font-semibold px-2.5 py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {generateReelBriefMutation.isPending ? "Generating brief…" : "Generate Brief with AI"}
+          </button>
           <CopyButton label="Copy Master Reel Prompt" getText={masterPrompt} onCopied={copied} />
           <CopyButton
             label="Copy Higgsfield Prompt Pack"
