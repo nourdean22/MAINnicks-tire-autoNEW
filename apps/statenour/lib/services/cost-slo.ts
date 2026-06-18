@@ -313,7 +313,7 @@ export function providerOf(model: string): string {
   if (m.includes("claude") || m.includes("anthropic")) return "anthropic";
   if (m.includes("gpt") || m.includes("openai") || m.startsWith("o1") || m.startsWith("o3")) return "openai";
   if (m.includes("qwen") || m.includes("deepseek-v4") || m.includes("kimi")) return "ollama";
-  if (m.includes("venice") || m.includes("heretic") || m.includes("glm") || m.includes("dolphin")) return "venice";
+  if (m.includes("venice") || m.includes("heretic") || m.includes("glm") || m.includes("dolphin")) return "openrouter";
   if (m.includes("cohere") || m.includes("rerank")) return "cohere";
   if (
     m.includes("flux") ||
@@ -323,7 +323,7 @@ export function providerOf(model: string): string {
     m.includes("nano-banana") ||
     m.includes("qwen-image")
   ) {
-    return "venice"; // image models route through venice
+    return "openrouter"; // image models route through openrouter
   }
   return "other";
 }
