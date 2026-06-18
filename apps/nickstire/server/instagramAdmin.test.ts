@@ -89,6 +89,19 @@ describe("instagramAdmin router", () => {
     });
   });
 
+  describe("getProviderHealth (admin)", () => {
+    it("returns text/image/autopost health shape without throwing", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      const h = await caller.instagramAdmin.getProviderHealth();
+      expect(h.text).toHaveProperty("provider");
+      expect(typeof h.text.configured).toBe("boolean");
+      expect(typeof h.text.openaiFallback).toBe("boolean");
+      expect(h.image).toHaveProperty("provider");
+      expect(typeof h.autopost.recentFailures).toBe("number");
+      expect(typeof h.autopost.recentRuns).toBe("number");
+    });
+  });
+
   describe("publishPost input validation", () => {
     it("rejects empty or invalid URLs", async () => {
       const caller = appRouter.createCaller(ctx("admin"));
