@@ -22,6 +22,7 @@ import {
   Radar,
   Search,
   Users,
+  Link2,
 } from "lucide-react";
 
 export type NavItem = {
@@ -130,6 +131,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/business?tab=funnel", label: "Funnel",          icon: Filter },
   { href: "/market?tab=radar",  label: "Radar",           icon: Radar },
   { href: "/market?tab=search", label: "SEO",             icon: Search },
+  { href: "/links",             label: "Short Links",     icon: Link2 },
 
   // Wave AD · 2026-05-28 · /system/data-source-health deleted ·
   // folded into /system/health. next.config redirects in place.

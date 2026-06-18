@@ -45,6 +45,8 @@ export default function WealthPage() {
   const [costBasis, setCostBasis] = useState("");
   const [currentPrice, setCurrentPrice] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -98,6 +100,25 @@ export default function WealthPage() {
     }
   };
 
+  const handleRefreshPrices = async () => {
+    setRefreshing(true);
+    setRefreshMsg(null);
+    try {
+      const res = await fetch("/api/wealth/refresh-prices", { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Refresh failed");
+      const { updated, total, failed } = json.data as { updated: number; total: number; failed: string[] };
+      let msg = `Updated ${updated} of ${total} holding${total === 1 ? "" : "s"} from live quotes.`;
+      if (failed && failed.length) msg += ` Couldn't price: ${failed.join(", ")}.`;
+      setRefreshMsg(msg);
+      fetchData();
+    } catch (e) {
+      setRefreshMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleDeleteHolding = async (id: string, symbol: string) => {
     if (!confirm(`Are you sure you want to delete ${symbol} from your portfolio?`)) return;
 
@@ -127,20 +148,38 @@ export default function WealthPage() {
       rhythm="comfortable"
       loading={loading && !data}
       actions={
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="text-[11px] font-mono uppercase tracking-wider"
-        >
-          {showAddForm ? "Cancel" : "+ Add Asset"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={refreshing || !data?.holdings.length}
+            onClick={handleRefreshPrices}
+            className="text-[11px] font-mono uppercase tracking-wider"
+          >
+            {refreshing ? "Refreshing..." : "Refresh Prices"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="text-[11px] font-mono uppercase tracking-wider"
+          >
+            {showAddForm ? "Cancel" : "+ Add Asset"}
+          </Button>
+        </div>
       }
     >
       {error && (
         <div className="rounded-lg border border-rose-500/20 bg-rose-500/[0.05] p-4 text-sm text-rose-300">
           Error loading portfolio: {error}
+        </div>
+      )}
+
+      {refreshMsg && (
+        <div className="rounded-lg border border-[var(--gold)]/20 bg-[var(--gold)]/[0.04] px-4 py-2 text-xs font-mono text-[var(--text-secondary)]">
+          {refreshMsg}
         </div>
       )}
 

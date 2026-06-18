@@ -60,6 +60,7 @@ export default function CrmPage() {
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState("lead");
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Fetch data
   const fetchData = async () => {
@@ -86,18 +87,18 @@ export default function CrmPage() {
     if (!name) return;
 
     setSubmitting(true);
+    setFormError(null);
     try {
-      const res = await fetch("/api/webhooks/inbound-crm?secret=f1a8e2b8c9d4e5f6a7b8c9d0e1f2a3b4", {
+      const res = await fetch("/api/crm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: email || phone || name,
-          body: `Hi, my name is ${name}. I am interested in coaching. Role: ${role}.`,
-          subject: "Coaching inquiry",
-        }),
+        body: JSON.stringify({ name, email: email || null, phone: phone || null, role }),
       });
 
-      if (!res.ok) throw new Error("Failed to create contact");
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Failed to create contact");
+      }
       setName("");
       setEmail("");
       setPhone("");
@@ -105,7 +106,9 @@ export default function CrmPage() {
       setShowAddForm(false);
       fetchData();
     } catch (e) {
-      alert("Error adding contact: " + (e instanceof Error ? e.message : String(e)));
+      // window.alert is silently suppressed in the iOS PWA shell — surface the error in-DOM.
+      setFormError(e instanceof Error ? e.message : String(e));
+      log.error("add_contact_failed", { error: String(e) });
     } finally {
       setSubmitting(false);
     }
@@ -124,7 +127,10 @@ export default function CrmPage() {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => setShowAddForm(!showAddForm)}
+          onClick={() => {
+            setShowAddForm(!showAddForm);
+            setFormError(null);
+          }}
           className="text-[11px] font-mono uppercase tracking-wider"
         >
           {showAddForm ? "Cancel" : "+ Add Contact"}
@@ -145,8 +151,13 @@ export default function CrmPage() {
           className="rounded-lg border border-[var(--gold)]/20 bg-[var(--bg-raised)] p-4 space-y-3"
         >
           <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--gold)]">
-            Create Contact (AI-Analyzed)
+            Create Contact
           </h3>
+          {formError && (
+            <p className="text-xs text-rose-300 bg-rose-500/[0.05] border border-rose-500/20 rounded px-3 py-2">
+              {formError}
+            </p>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] mb-1">
@@ -206,7 +217,7 @@ export default function CrmPage() {
             disabled={submitting}
             className="text-xs uppercase tracking-wider bg-[var(--gold)] text-black hover:bg-[var(--gold)]/80"
           >
-            {submitting ? "Processing..." : "Add & Parse with AI"}
+            {submitting ? "Saving..." : "Add Contact"}
           </Button>
         </form>
       )}
