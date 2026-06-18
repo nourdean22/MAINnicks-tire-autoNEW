@@ -89,6 +89,13 @@ function ModeBadge({ mode }: { mode: keyof typeof MODE_CLS }) {
 export default function InstagramTab() {
   const [sub, setSub] = useState<(typeof SUBTABS)[number]["id"]>("feed");
   const [activeModalPost, setActiveModalPost] = useState<any | null>(null);
+  const [seedConcept, setSeedConcept] = useState<string | null>(null);
+
+  const repurpose = (caption: string) => {
+    setSeedConcept(`Rework this proven post for a fresh angle: ${(caption || "").slice(0, 280)}`);
+    setActiveModalPost(null);
+    setSub("create");
+  };
 
   return (
     <div className="space-y-4">
@@ -121,10 +128,11 @@ export default function InstagramTab() {
           <FeedExplorerPanel
             activeModalPost={activeModalPost}
             setActiveModalPost={setActiveModalPost}
+            onRepurpose={repurpose}
           />
         )}
         {sub === "inbox" && <CommentsPanel />}
-        {sub === "create" && <CreateSection />}
+        {sub === "create" && <CreateSection seedConcept={seedConcept} onSeedConsumed={() => setSeedConcept(null)} />}
         {sub === "publish" && (
           <PublishPanel
             setSub={setSub}
@@ -146,11 +154,11 @@ export default function InstagramTab() {
 
 /* ── Create: AI co-pilot + content studios (folded in from Social Studios) ── */
 
-function CreateSection() {
+function CreateSection({ seedConcept, onSeedConsumed }: { seedConcept?: string | null; onSeedConsumed?: () => void }) {
   const [showLegacy, setShowLegacy] = useState(false);
   return (
     <div className="space-y-4">
-      <CopilotPanel />
+      <CopilotPanel seedConcept={seedConcept} onSeedConsumed={onSeedConsumed} />
 
       <Panel title="Content draft board" icon={<Sparkles className="w-4 h-4 text-primary" />}>
         <div className="border border-blue-500/40 bg-blue-500/10 rounded p-3 text-xs text-blue-200 flex items-start gap-2 mb-4">
@@ -830,12 +838,20 @@ const SEASONAL_PRESETS: { label: string; concept: string }[] = [
   { label: "Oil change", concept: "Oil change special — quick, no appointment needed" },
 ];
 
-function CopilotPanel() {
+function CopilotPanel({ seedConcept, onSeedConsumed }: { seedConcept?: string | null; onSeedConsumed?: () => void }) {
   const utils = trpc.useUtils();
   const { data: account } = trpc.instagramAdmin.getAccountInfo.useQuery();
   const { data: recent } = trpc.instagramAdmin.getRecentGenerations.useQuery({ limit: 6 });
   const [archetype, setArchetype] = useState<(typeof ARCHETYPES)[number]["id"]>("auto");
   const [customConcept, setCustomConcept] = useState("");
+  // Seeded from "Repurpose" on a feed post — fill the steering box once, then clear.
+  useEffect(() => {
+    if (seedConcept) {
+      setCustomConcept(seedConcept);
+      onSeedConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedConcept]);
   const [selectedDraftId, setSelectedDraftId] = useState<number | null>(null);
   const generate = trpc.instagramAdmin.generatePost.useMutation({
     onSuccess: () => {
@@ -1891,9 +1907,11 @@ function ReelsFeedExplorer({ feed, username }: { feed: any[]; username: string }
 function FeedExplorerPanel({
   activeModalPost,
   setActiveModalPost,
+  onRepurpose,
 }: {
   activeModalPost: any | null;
   setActiveModalPost: (post: any) => void;
+  onRepurpose: (caption: string) => void;
 }) {
   const [layout, setLayout] = useState<"grid" | "scroll" | "reels">("scroll");
   const { data: feed, isLoading, refetch } = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 30 });
@@ -2207,6 +2225,25 @@ function FeedExplorerPanel({
                 <div className="flex items-center gap-4 text-xs font-bold text-foreground/75">
                   <span className="flex items-center gap-1"><Heart className="w-4 h-4 text-pink-500 fill-pink-500/10" /> {activeModalPost.likes} likes</span>
                   <span className="flex items-center gap-1"><MessageCircle className="w-4 h-4 text-primary" /> {activeModalPost.comments} comments</span>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => onRepurpose(activeModalPost.caption || "")}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    <Wand2 className="w-3.5 h-3.5" /> Repurpose in Create
+                  </button>
+                  {activeModalPost.link && (
+                    <a
+                      href={activeModalPost.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded border border-border/40 text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Open on Instagram
+                    </a>
+                  )}
                 </div>
 
                 <div className="space-y-3">
