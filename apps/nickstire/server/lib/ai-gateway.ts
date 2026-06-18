@@ -1,14 +1,12 @@
 /**
- * AI Gateway — Unified routing layer for Venice (primary) + OpenAI (fallback)
+ * AI Gateway — Unified routing layer for OpenAI / OpenRouter Gemini
  *
  * Routes AI requests to the best available provider based on:
  * - Task type (classification, generation, embeddings, SQL, code)
- * - Provider availability (Venice health check + circuit breaker)
- * - Fallback policy (Venice-first with OpenAI fallback)
  * - Timeout handling
  *
- * Venice is OpenAI-compatible at https://api.venice.ai/api/v1.
- * OpenAI is the fallback for all tasks. Embeddings use OpenAI as primary (text-embedding-3-small).
+ * OpenAI/OpenRouter serves as the primary provider for LLM completions.
+ * Embeddings use OpenAI (text-embedding-3-small) as primary.
  *
  * NOTE: Ollama was the original local-dev provider but was removed when the
  * stack migrated fully to cloud AI. The `codex/ollama-local` git branch name
