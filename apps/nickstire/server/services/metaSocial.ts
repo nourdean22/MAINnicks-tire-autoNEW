@@ -692,6 +692,12 @@ export interface IgComment {
   username: string;
   timestamp: string;
   likeCount: number;
+  /** Number of replies on this comment (0 if the Graph didn't return the edge). */
+  replyCount: number;
+  /** True if WE (the connected IG account) have replied. Graceful: false when
+   *  the replies edge or from-id isn't available, so it never shows a false
+   *  "answered". */
+  replied: boolean;
 }
 
 /**
@@ -711,7 +717,7 @@ export async function getMediaComments(
   try {
     const url =
       `${GRAPH_URL}/${encodeURIComponent(mediaId)}/comments` +
-      `?fields=id,text,username,timestamp,like_count&limit=50`;
+      `?fields=id,text,username,timestamp,like_count,replies{id,from}&limit=50`;
     const res = await fetch(url, {
       headers: { "Authorization": `Bearer ${token}` },
       signal: AbortSignal.timeout(15000),
@@ -724,15 +730,27 @@ export async function getMediaComments(
       return { ok: false, comments: [], error: errMsg };
     }
 
+    // Our own account id, to detect comments WE've already replied to.
+    const ourId = await getIgUserId();
     const rows: unknown[] = Array.isArray(data.data) ? data.data : [];
     const comments: IgComment[] = rows.map((raw) => {
       const c = raw as Record<string, unknown>;
+      const repliesData = (c.replies as { data?: unknown[] } | undefined)?.data;
+      const replyArr = Array.isArray(repliesData) ? repliesData : [];
+      const replied = ourId
+        ? replyArr.some((rep) => {
+            const from = (rep as Record<string, unknown>)?.from as Record<string, unknown> | undefined;
+            return from?.id != null && String(from.id) === String(ourId);
+          })
+        : false;
       return {
         id: String(c.id ?? ""),
         text: typeof c.text === "string" ? c.text : "",
         username: typeof c.username === "string" ? c.username : "",
         timestamp: typeof c.timestamp === "string" ? c.timestamp : "",
         likeCount: typeof c.like_count === "number" ? c.like_count : 0,
+        replyCount: replyArr.length,
+        replied,
       };
     });
     return { ok: true, comments };
