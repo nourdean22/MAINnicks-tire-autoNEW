@@ -83,8 +83,8 @@ META_PAGE_ACCESS_TOKEN_EXPIRES_AT="YYYY-MM-DD"
 ```
 *(Replace `YYYY-MM-DD` with the actual token expiration date if applicable, or set it to 60 days from today to receive timely warnings in the admin console.)*
 
-### Option B: Update the Durable Database Record (Durable)
-To update the token directly in the database key-value store, execute the following SQL query on your TiDB instance:
+### Option B: Update the Durable Database Record (SQL)
+To update the token directly in the database key-value store, execute the following SQL query on your database instance:
 
 ```sql
 INSERT INTO app_secret_kv (k, v, updatedAt) 
@@ -95,6 +95,14 @@ INSERT INTO app_secret_kv (k, v, updatedAt)
 VALUES ('meta_page_access_token_expires_at', 'YYYY-MM-DD', NOW())
 ON DUPLICATE KEY UPDATE v = VALUES(v), updatedAt = NOW();
 ```
+
+### Option C: Admin Console UI Configuration (Recommended)
+You can configure and renew the Meta Page Access Token and other variables directly in the Admin Console Settings:
+1. Log into the **Nick's Tire Admin Console**.
+2. Select the **Settings** sub-tab under the **Instagram/Social** section.
+3. Use the **Meta Social Config** panel to update the Page ID, App ID, App Secret, Instagram User ID, and the newly minted access token (which is secure-persisted directly to `app_secret_kv`).
+4. You can also configure the active **Image Generator Provider** (DALL-E, Gemini Direct, or Higgsfield CLI) and set/verify the **Higgsfield Credentials JSON** payload directly from the UI.
+5. Saving the configuration automatically flushes runtime caches so the changes take effect instantly.
 
 ---
 
