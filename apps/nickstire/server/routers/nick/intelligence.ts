@@ -573,11 +573,14 @@ export async function handleRunMigrations() {
       // dedup above):
       //   1. Normalize NULL pages so the unique key covers every row
       //   2. Dedupe · keep only MAX(id) per (date, query, page)
-      //   3. Add UNIQUE KEY IF NOT EXISTS (TiDB v5+ supports IF NOT EXISTS)
+      //   3. Add UNIQUE KEY (plain). TiDB/MySQL do NOT support IF NOT EXISTS
+      //      in the ADD {INDEX|KEY} clause — it's an ER_PARSE_ERROR, so the
+      //      index was never created while this carried IF NOT EXISTS.
       //
-      // The catch block above recognizes "already exists" + "Duplicate" so
-      // re-runs are no-ops. If TiDB rejects IF NOT EXISTS on a specific
-      // version, the duplicate-key add-error gets caught by Duplicate.
+      // Idempotency comes from the catch block above: once the index exists
+      // TiDB throws ER_DUP_KEYNAME ("Duplicate key name '...'"), whose message
+      // the "Duplicate" substring match catches -> skipped. The dedupe in
+      // step 2 protects the first creation from an ER_DUP_ENTRY violation.
       `UPDATE search_performance SET page = '' WHERE page IS NULL`,
       `DELETE FROM search_performance WHERE id NOT IN (SELECT * FROM (SELECT MAX(id) FROM search_performance GROUP BY date, query, page) AS keepers)`,
       // TiDB / MySQL hard cap on InnoDB index keys: 3072 bytes. The
@@ -586,7 +589,7 @@ export async function handleRunMigrations() {
       // down to a safe combined index footprint. 255 for query + 500 for
       // page covers all real-world GSC values (queries are short ·
       // pages are URLs typically <300 chars on this site).
-      `ALTER TABLE search_performance ADD UNIQUE KEY IF NOT EXISTS uq_search_perf_date_query_page (date, query(255), page(500))`,
+      `ALTER TABLE search_performance ADD UNIQUE KEY uq_search_perf_date_query_page (date, query(255), page(500))`,
       // 2026-05-30 · drizzle/0063_nonstop_nick_memberships.sql — Nonstop Nick
       // $7.99/mo tire membership. status mirrors the Stripe subscription (set by
       // the /api/webhooks/stripe subscription handler) so the counter verifies a
