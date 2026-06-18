@@ -2481,6 +2481,23 @@ function CommentsPanel() {
   );
 }
 
+/** Next future occurrence of a (dayOfWeek 0-6, hour) in local time. */
+function nextOccurrence(dayOfWeek: number, hour: number): Date {
+  const now = new Date();
+  const d = new Date(now);
+  d.setHours(hour, 0, 0, 0);
+  let days = (dayOfWeek - now.getDay() + 7) % 7;
+  if (days === 0 && d.getTime() <= now.getTime()) days = 7;
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+/** Format a Date as a datetime-local input value (local time). */
+function toLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function PublishPanel({
   setSub,
   setActiveModalPost,
@@ -2577,6 +2594,8 @@ function PublishPanel({
   const cancelSchedule = trpc.instagramAdmin.cancelScheduled.useMutation({
     onSuccess: () => utils.instagramAdmin.listScheduled.invalidate(),
   });
+  const { data: analytics } = trpc.instagramAdmin.getAnalytics.useQuery();
+  const bestTime = analytics?.bestPostingTimes?.[0];
 
   const carouselList = carouselUrls.split(/[\n,]/).map((s) => s.trim()).filter((s) => s.startsWith("http"));
   const isValid =
@@ -2880,6 +2899,15 @@ function PublishPanel({
               </button>
             </div>
             <p className="text-[10px] text-foreground/40">Publishes automatically at the set time (your local time). Needs the same media + caption as a live post.</p>
+            {bestTime && (
+              <button
+                type="button"
+                onClick={() => setScheduledAt(toLocalInput(nextOccurrence(bestTime.dayOfWeek, bestTime.hourOfDay)))}
+                className="text-[10px] text-primary hover:underline"
+              >
+                ✨ Use your best time — {bestTime.dayName} {bestTime.hourOfDay % 12 === 0 ? 12 : bestTime.hourOfDay % 12}{bestTime.hourOfDay >= 12 ? "pm" : "am"}
+              </button>
+            )}
           </div>
         </div>
 
