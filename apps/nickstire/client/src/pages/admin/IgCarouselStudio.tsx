@@ -84,6 +84,7 @@ export default function IgCarouselStudio() {
   const [keywordOverride, setKeywordOverride] = useState("");
   const [igUrl, setIgUrl] = useState("");
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [aiBrief, setAiBrief] = useState<CarouselBrief | null>(null);
 
   const { data: sheetsDrafts, refetch: refetchDrafts } = trpc.contentAdmin.allCarouselDrafts.useQuery();
   const { data: sheetsLogs, refetch: refetchLogs } = trpc.contentAdmin.allCarouselLogs.useQuery();
@@ -93,14 +94,19 @@ export default function IgCarouselStudio() {
     return [...SAMPLE_BRIEFS, ...custom];
   }, [sheetsDrafts]);
 
+  // An AI-generated brief (from generateCarouselBrief) takes precedence over
+  // the selected saved/sample brief until the operator picks another one.
   const brief: CarouselBrief = useMemo(
-    () => allBriefs.find((b) => b.id === briefId) ?? allBriefs[0] ?? SAMPLE_BRIEFS[0],
-    [briefId, allBriefs],
+    () => aiBrief ?? allBriefs.find((b) => b.id === briefId) ?? allBriefs[0] ?? SAMPLE_BRIEFS[0],
+    [aiBrief, briefId, allBriefs],
   );
 
   useEffect(() => {
     setGeneratedImages(brief.assetPaths || []);
   }, [briefId, brief.assetPaths]);
+
+  // Selecting a saved/sample brief clears any AI-generated override.
+  useEffect(() => { setAiBrief(null); }, [briefId]);
 
   const generateImagesMutation = trpc.contentAdmin.generateCarouselImages.useMutation({
     onSuccess: (res) => {
@@ -120,6 +126,21 @@ export default function IgCarouselStudio() {
     onError: (err) => {
       toast.error(`Image generation failed: ${err.message}`);
     }
+  });
+
+  const generateBriefMutation = trpc.contentAdmin.generateCarouselBrief.useMutation({
+    onSuccess: (res) => {
+      if (res.success && res.brief) {
+        setAiBrief(res.brief as CarouselBrief);
+        setGeneratedImages([]);
+        toast.success("AI brief generated — review it below, then Generate Carousel Images.");
+      } else {
+        toast.error("Brief generation returned no content.");
+      }
+    },
+    onError: (err) => {
+      toast.error(`Brief generation failed: ${err.message}`);
+    },
   });
 
   const selectedBriefTopic = useMemo(() => {
@@ -498,7 +519,21 @@ export default function IgCarouselStudio() {
         {/* 9 · Operator actions */}
         <Panel title="Operator Actions" icon={<Copy className="w-4 h-4 text-primary" />}>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => copyText("Master creative prompt", masterPrompt)} className="px-3 py-2 text-xs font-bold rounded bg-primary text-primary-foreground hover:bg-primary/90">
+            <button
+              onClick={() => generateBriefMutation.mutate({
+                topic: topicOverride.trim() || undefined,
+                campaignKeyword: keywordOverride.trim() || undefined,
+                territory: brief.creativeTerritory,
+                seasonLocalAngle: brief.seasonality || undefined,
+                avoidTopics: [...reps.recentTopics, ...avoidTopics.split(",").map((s) => s.trim()).filter(Boolean)],
+              })}
+              disabled={generateBriefMutation.isPending}
+              className="px-3 py-2 text-xs font-bold rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60 inline-flex items-center gap-1"
+            >
+              {generateBriefMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+              {generateBriefMutation.isPending ? "Generating brief…" : "Generate Brief with AI"}
+            </button>
+            <button onClick={() => copyText("Master creative prompt", masterPrompt)} className="px-3 py-2 text-xs font-bold rounded border border-border hover:bg-card">
               Copy Master Creative Prompt
             </button>
             <button onClick={() => copyText("Higgsfield prompt pack", buildHiggsfieldPromptPack(brief))} className="px-3 py-2 text-xs font-bold rounded border border-border hover:bg-card">
