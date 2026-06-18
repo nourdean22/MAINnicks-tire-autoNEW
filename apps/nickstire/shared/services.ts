@@ -507,9 +507,9 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Oil Change Cleveland · From $49 · Same-Day Walk-In | Nick's",
     metaDescription: "Cleveland oil change from $49 (full synthetic from $80) — new filter + free multi-point check, in and out before your coffee's cold. Walk-ins 7 days. (216) 862-0005",
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
-    heroSubline: "Looking for an oil change in Cleveland? Conventional or synthetic, with filter replacement and a free multi-point inspection. In and out before your coffee's cold. Walk-ins welcome — no appointment needed.",
-    heroCTA: "SCHEDULE OIL CHANGE",
-    turnaround: "Most oil changes done in under 30 minutes. No appointment needed.",
+    heroSubline: "Looking for an oil change in Cleveland? Conventional or synthetic-blend just $49 with coupon code OIL2999. Full synthetic from $80. New filter, free multi-point inspection. In and out before your coffee's cold. Walk-ins welcome, no appointment needed.",
+    heroCTA: "GET YOUR OIL CHANGED",
+    turnaround: "Most oil changes done in 15 minutes. No appointment needed. We're the fastest in the city — check our reviews.",
     pricingNote: "Free multi-point inspection with every oil change · Correct oil weight per manufacturer spec",
     signs: [
       "Oil change reminder light or maintenance required indicator",
@@ -561,7 +561,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does an oil change cost in Cleveland?",
-        answer: "At Nick's Tire & Auto, a conventional or synthetic-blend oil change starts at $49 and a full synthetic starts at $80, plus tax — depending on your vehicle's oil capacity. Every oil change includes a new filter and a free multi-point check. Call (216) 862-0005."
+        answer: "At Nick's Tire & Auto, a conventional or synthetic-blend oil change is $49 with coupon code OIL2999, and full synthetic starts at $80, plus tax. Every oil change includes a new filter and a free multi-point check. Mention the code when you arrive. Call (216) 862-0005."
       },
       {
         question: "What is the difference between synthetic and conventional oil?",
@@ -573,7 +573,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I get an oil change near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers oil changes starting at $49 for conventional/synthetic-blend and $80 for full synthetic, plus tax. Every oil change includes a free multi-point check. Walk-ins welcome 7 days a week, most done in under 30 minutes. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers oil changes: $49 conventional/blend with coupon code OIL2999, $80 full synthetic, plus tax. Every oil change includes a free multi-point check. Walk-ins welcome 7 days a week, most done in 15 minutes. Call (216) 862-0005."
       }
     ],
     includedItems: [
@@ -585,7 +585,7 @@ export const SERVICES: ServiceData[] = [
       "Oil life monitor reset",
     ],
     pricingTiers: [
-      { label: "Conventional / synthetic blend", range: "From $49" },
+      { label: "Conventional / synthetic blend (coupon OIL2999)", range: "$49" },
       { label: "Full synthetic", range: "From $80" },
     ],
     duration: "15-30 min",
