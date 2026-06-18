@@ -15,7 +15,7 @@ const PUBLIC_PREFIXES = [
   "/api/images",      // Generated image serving (public, cached)
   "/api/cron",        // Cron jobs (own CRON_SECRET auth)
   "/api/sync",        // Bridge sync (own Bearer auth)
-  "/api/short",       // Public short-link redirector (own 404; logs anonymized clicks). Anonymous visitors MUST reach it.
+  "/api/short/",      // Public short-link redirector /api/short/<code> (own 404; logs anonymized clicks). Trailing slash keeps the owner-gated collection route /api/short protected.
   // 2026-05-17 · WAVE-200 Phase 3 follow-up · Inngest serve endpoint.
   // Same pattern as /api/telegram · Inngest hits this with their own
   // HMAC-signed requests, validated by inngest/next's serve() handler

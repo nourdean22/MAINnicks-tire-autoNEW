@@ -21,7 +21,15 @@ export const POST = apiHandler(
     const secret = searchParams.get("secret");
     const expectedSecret = process.env.STATENOUR_SYNC_KEY || process.env.BRIDGE_API_KEY;
 
-    if (expectedSecret && secret !== expectedSecret) {
+    // Fail CLOSED: never process an inbound webhook when no secret is configured.
+    // The old `expectedSecret && ...` guard skipped the check entirely when the env
+    // was unset, leaving this endpoint open to unauthenticated contact/task creation
+    // + AI spend. A missing secret is a misconfiguration, not an open door.
+    if (!expectedSecret) {
+      log.error("inbound_crm_secret_unconfigured");
+      throw new ServiceError("Webhook authentication is not configured.", 503);
+    }
+    if (secret !== expectedSecret) {
       log.warn("inbound_crm_unauthorized");
       throw new ServiceError("Unauthorized", 401);
     }
