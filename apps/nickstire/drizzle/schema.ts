@@ -3009,6 +3009,32 @@ export const igAutopostLog = mysqlTable("ig_autopost_log", {
 export type IgAutopostLogRow = typeof igAutopostLog.$inferSelect;
 export type InsertIgAutopostLog = typeof igAutopostLog.$inferInsert;
 
+/**
+ * Scheduled Instagram/Facebook posts — the publish-later queue. The
+ * scheduled-posts cron fires due rows (status='pending' AND scheduledAt<=now)
+ * through services/socialPublish. Migration: drizzle/0071_scheduled_posts.sql
+ * (hand-applied — no auto-migrate).
+ */
+export const scheduledPosts = mysqlTable("scheduled_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  platforms: json("platforms").$type<("facebook" | "instagram")[]>().notNull(),
+  caption: text("caption").notNull(),
+  imageUrl: varchar("imageUrl", { length: 1000 }),
+  videoUrl: varchar("videoUrl", { length: 1000 }),
+  imageUrls: json("imageUrls").$type<string[]>(),
+  scheduledAt: timestamp("scheduledAt").notNull(),
+  /** pending | posted | failed | canceled */
+  status: varchar("status", { length: 16 }).default("pending").notNull(),
+  postedAt: timestamp("postedAt"),
+  igPostId: varchar("igPostId", { length: 64 }),
+  error: varchar("error", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_scheduled_due").on(table.status, table.scheduledAt),
+]);
+export type ScheduledPostRow = typeof scheduledPosts.$inferSelect;
+export type InsertScheduledPost = typeof scheduledPosts.$inferInsert;
+
 // ─── ALG PROBE LOG ──────────────────────────────────────
 /**
  * Demand-driven ALG probe scheduler.

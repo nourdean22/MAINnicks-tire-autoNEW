@@ -311,67 +311,90 @@ Keep it under 200 characters.`;
       videoUrl: z.string().url().optional(),
     }))
     .mutation(async ({ input }) => {
-      // Claim-safety parity with postReply: a public caption gets the same
-      // detector gate as a comment reply, so the Direct Publisher can't push
-      // "guaranteed", a fabricated wait-time, a warranty promise, or a "#1/best"
-      // self-ranking to a live brand account. EXCEPTION: advertised prices are
-      // legitimate on IG (the shop runs "from $60 installed"), so the
-      // no-price-talk rule — which is correct for Google review replies but not
-      // for ad captions — is excluded here.
-      const captionBlockers = checkReviewReply(input.caption).filter(
-        (f) => f.severity === "block" && f.rule !== "no-price-talk",
-      );
-      if (captionBlockers.length) {
+      const { captionClaimBlockers, publishToSocial } = await import("../services/socialPublish");
+      const blockers = captionClaimBlockers(input.caption);
+      if (blockers.length) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Claim-safety: ${captionBlockers
-            .map((f) => `${f.rule} ("${f.match}")`)
-            .join("; ")} — edit the caption before publishing.`,
+          message: `Claim-safety: ${blockers.map((f) => `${f.rule} ("${f.match}")`).join("; ")} — edit the caption before publishing.`,
         });
       }
-
-      const results: Array<{ platform: "facebook" | "instagram"; success: boolean; postId?: string; error?: string }> = [];
-
-      if (input.platforms.includes("facebook")) {
-        const { postToFacebook } = await import("../services/metaSocial");
-        const fbRes = await postToFacebook({
-          message: input.caption,
-          imageUrl: input.imageUrl ?? input.imageUrls?.[0],
-        });
-        results.push({ platform: "facebook", ...fbRes });
-      }
-
-      if (input.platforms.includes("instagram")) {
-        const { postToInstagram, postInstagramReel, postInstagramCarousel } = await import("../services/metaSocial");
-        if (input.imageUrls && input.imageUrls.length >= 2) {
-          const igRes = await postInstagramCarousel({ imageUrls: input.imageUrls, caption: input.caption });
-          results.push({ platform: "instagram", ...igRes });
-        } else if (input.videoUrl) {
-          const igRes = await postInstagramReel({ videoUrl: input.videoUrl, caption: input.caption });
-          results.push({ platform: "instagram", ...igRes });
-        } else if (input.imageUrl) {
-          const igRes = await postToInstagram({ imageUrl: input.imageUrl, caption: input.caption });
-          results.push({ platform: "instagram", ...igRes });
-        } else {
-          results.push({ platform: "instagram", success: false, error: "Instagram requires media (imageUrl or videoUrl)" });
-        }
-      }
-
-      const errors = results.filter((r) => !r.success);
-      if (errors.length === results.length) {
+      const { results, igPostId } = await publishToSocial(input);
+      if (results.length > 0 && results.every((r) => !r.success)) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: `Publish failed: ${results.map((r) => `${r.platform}: ${r.error}`).join("; ")}`,
         });
       }
+      return { success: true, results, postId: igPostId };
+    }),
 
-      const igResult = results.find((r) => r.platform === "instagram" && r.success);
+  /** Schedule a post for later. The scheduled-posts cron fires it at scheduledAt.
+   *  Same claim-safety gate as publishPost, applied now at schedule time. */
+  schedulePost: adminProcedure
+    .input(z.object({
+      platforms: z.array(z.enum(["facebook", "instagram"])).min(1),
+      caption: z.string().min(1).max(2200),
+      imageUrl: z.string().url().optional(),
+      imageUrls: z.array(z.string().url()).min(2).max(10).optional(),
+      videoUrl: z.string().url().optional(),
+      scheduledAt: z.string().datetime(),
+    }))
+    .mutation(async ({ input }) => {
+      const { captionClaimBlockers } = await import("../services/socialPublish");
+      const blockers = captionClaimBlockers(input.caption);
+      if (blockers.length) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Claim-safety: ${blockers.map((f) => `${f.rule} ("${f.match}")`).join("; ")} — edit the caption first.`,
+        });
+      }
+      const when = new Date(input.scheduledAt);
+      if (when.getTime() <= Date.now()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Scheduled time must be in the future." });
+      }
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      const { scheduledPosts } = await import("../../drizzle/schema");
+      await database.insert(scheduledPosts).values({
+        platforms: input.platforms,
+        caption: input.caption,
+        imageUrl: input.imageUrl ?? null,
+        videoUrl: input.videoUrl ?? null,
+        imageUrls: input.imageUrls ?? null,
+        scheduledAt: when,
+        status: "pending",
+      });
+      return { ok: true, scheduledAt: when.toISOString() };
+    }),
 
-      return {
-        success: true,
-        results,
-        postId: igResult?.postId,
-      };
+  /** List scheduled posts, newest scheduled time first. */
+  listScheduled: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional())
+    .query(async ({ input }) => {
+      const database = await db();
+      if (!database) return [];
+      const { scheduledPosts } = await import("../../drizzle/schema");
+      return database
+        .select()
+        .from(scheduledPosts)
+        .orderBy(desc(scheduledPosts.scheduledAt))
+        .limit(input?.limit ?? 50);
+    }),
+
+  /** Cancel a still-pending scheduled post (DB-only — nothing posts). */
+  cancelScheduled: adminProcedure
+    .input(z.object({ id: z.number().int() }))
+    .mutation(async ({ input }) => {
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      const { scheduledPosts } = await import("../../drizzle/schema");
+      const { eq, and } = await import("drizzle-orm");
+      await database
+        .update(scheduledPosts)
+        .set({ status: "canceled" })
+        .where(and(eq(scheduledPosts.id, input.id), eq(scheduledPosts.status, "pending")));
+      return { ok: true };
     }),
 
   /** Get Meta integration configuration parameters (env defaults + database overrides). */
