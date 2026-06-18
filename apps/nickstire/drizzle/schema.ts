@@ -3007,6 +3007,41 @@ export const igAutopostLog = mysqlTable("ig_autopost_log", {
 ]);
 
 export type IgAutopostLogRow = typeof igAutopostLog.$inferSelect;
+
+/**
+ * reel_jobs · durable status table for the Faceless Reel pipeline.
+ * Enqueued by the admin; processed by the tiered cron's pulse tier (gated by
+ * REEL_GENERATION_ENABLED) so minutes-long gen runs as a BACKGROUND job —
+ * never a synchronous request, which dies on Railway's gateway timeout.
+ * Migration: handleRunMigrations() in server/routers/nick/intelligence.ts.
+ */
+export const reelJobs = mysqlTable("reel_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  briefId: varchar("briefId", { length: 64 }).notNull(),
+  /** Full ReelBrief as JSON (the generation input). */
+  payload: text("payload").notNull(),
+  /** queued | generating | assets_ready | assembling | uploading | publishing | posted | failed */
+  status: varchar("status", { length: 20 }).default("queued").notNull(),
+  /** JSON array of re-hosted source clip URLs, one per storyboard beat. */
+  clipUrlsJson: text("clipUrlsJson"),
+  voUrl: varchar("voUrl", { length: 1000 }),
+  musicUrl: varchar("musicUrl", { length: 1000 }),
+  /** Final assembled reel MP4 public URL. */
+  mp4Url: varchar("mp4Url", { length: 1000 }),
+  igPostId: varchar("igPostId", { length: 64 }),
+  caption: text("caption"),
+  attempts: int("attempts").default(0).notNull(),
+  error: varchar("error", { length: 1000 }),
+  /** Trigger source: admin | cron */
+  source: varchar("source", { length: 16 }).default("admin").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_reel_jobs_status").on(table.status),
+  index("idx_reel_jobs_created").on(table.createdAt),
+]);
+
+export type ReelJobRow = typeof reelJobs.$inferSelect;
 export type InsertIgAutopostLog = typeof igAutopostLog.$inferInsert;
 
 /**

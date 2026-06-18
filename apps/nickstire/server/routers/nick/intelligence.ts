@@ -489,6 +489,11 @@ export async function handleRunMigrations() {
       // never-expiring Page access token server-side so socialPost survives
       // pod restarts without re-minting. Read/written only server-side.
       `CREATE TABLE IF NOT EXISTS app_secret_kv (k VARCHAR(64) PRIMARY KEY, v TEXT NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`,
+      // 2026-06-18 · reel_jobs — durable status table for the Faceless Reel
+      // pipeline. Gen->assemble->publish runs as a background cron job (pulse
+      // tier, REEL_GENERATION_ENABLED-gated), never a synchronous request.
+      // Drizzle def: drizzle/schema.ts reelJobs.
+      `CREATE TABLE IF NOT EXISTS reel_jobs (id INT AUTO_INCREMENT PRIMARY KEY, briefId VARCHAR(64) NOT NULL, payload TEXT NOT NULL, status VARCHAR(20) NOT NULL DEFAULT 'queued', clipUrlsJson TEXT, voUrl VARCHAR(1000), musicUrl VARCHAR(1000), mp4Url VARCHAR(1000), igPostId VARCHAR(64), caption TEXT, attempts INT NOT NULL DEFAULT 0, error VARCHAR(1000), source VARCHAR(16) NOT NULL DEFAULT 'admin', createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_reel_jobs_status (status), INDEX idx_reel_jobs_created (createdAt))`,
       // 2026-05-23 · drizzle/0052_payment_alert_backlog.sql — paid-but-unfulfillable recovery
       `CREATE TABLE IF NOT EXISTS payment_alert_backlog (id INT AUTO_INCREMENT PRIMARY KEY, tireOrderNumber VARCHAR(64) DEFAULT NULL, invoiceNumber VARCHAR(64) DEFAULT NULL, amountCents INT NOT NULL, summary VARCHAR(500) NOT NULL, failureReason ENUM('email_failed', 'telegram_failed', 'both_failed') NOT NULL, resolvedAt TIMESTAMP NULL DEFAULT NULL, resolvedBy VARCHAR(255) DEFAULT NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_payment_alert_backlog_unresolved (resolvedAt, createdAt DESC), INDEX idx_payment_alert_backlog_tire_order (tireOrderNumber), INDEX idx_payment_alert_backlog_invoice (invoiceNumber))`,
       // 2026-05-23 · drizzle/0053_event_dlq_lifecycle.sql — persistent DLQ

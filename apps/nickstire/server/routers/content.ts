@@ -405,6 +405,27 @@ export const contentAdminRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Reel publishing failed" });
       }
     }),
+  // Enqueue a reel for BACKGROUND generation. Reel gen is minutes-long and dies
+  // on a synchronous request (Railway gateway timeout), so this returns a jobId
+  // immediately and the pulse cron (REEL_GENERATION_ENABLED-gated) processes it.
+  // Does NOT publish — publishing is a later, separately-gated stage.
+  enqueueReelJob: adminProcedure
+    .input(z.object({ brief: z.any() }))
+    .mutation(async ({ input }) => {
+      const { enqueueReelJob } = await import("../services/reelPipeline");
+      return enqueueReelJob(input.brief, "admin");
+    }),
+  getReelJob: adminProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) return null;
+      const { reelJobs } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const rows = await d.select().from(reelJobs).where(eq(reelJobs.id, input.jobId)).limit(1);
+      return rows[0] ?? null;
+    }),
   generateCarouselImages: adminProcedure
     .input(z.object({
       briefId: z.string(),
