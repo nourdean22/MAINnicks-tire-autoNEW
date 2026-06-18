@@ -201,7 +201,7 @@ export const controlCenterRouter = router({
 
     // ─── AI Gateway ──────────────────────────────────
     let aiGateway = {
-      veniceHealthy: false,
+      openaiHealthy: false,
       recentRequests: 0,
       fallbackRate: 0,
       topModels: [] as string[],
@@ -210,15 +210,15 @@ export const controlCenterRouter = router({
     try {
       const health = getGatewayHealth();
       const models = await getAvailableModels();
-      const veniceModels = models.find(m => m.provider === "venice")?.models ?? [];
+      const openaiModels = models.find(m => m.provider === "openai")?.models ?? [];
 
       aiGateway = {
-        veniceHealthy: health.veniceHealthy,
+        openaiHealthy: !!(process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY),
         recentRequests: health.stats.last5min.total,
         fallbackRate: health.stats.last5min.total > 0
           ? Math.round((health.stats.last5min.fallbacks / health.stats.last5min.total) * 100)
           : 0,
-        topModels: veniceModels.slice(0, 5),
+        topModels: openaiModels.slice(0, 5),
       };
     } catch (err) {
       // AI gateway unavailable — defaults are fine
@@ -337,13 +337,13 @@ export const controlCenterRouter = router({
       }
     }
 
-    // Venice down is urgent — means all AI is on OpenAI fallback
-    if (!aiGateway.veniceHealthy) {
+    // OpenAI/Gemini down is urgent — means Nick AI is non-functional
+    if (!aiGateway.openaiHealthy) {
       urgentItems.push({
         type: "system",
-        message: "Venice AI is offline — running on OpenAI fallback",
-        action: "/admin#health",
-        priority: "low",
+        message: "OpenAI or Gemini API key is missing or invalid — Nick AI is offline",
+        action: "/admin#settings",
+        priority: "high",
       });
     }
 
@@ -903,7 +903,7 @@ export const controlCenterRouter = router({
   getOperationalTwin: adminProcedure.query(async () => {
     const d = await db();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- gateway health shape varies between providers
-    let health: Record<string, unknown> = { veniceHealthy: false, circuitBreaker: { open: false } };
+    let health: Record<string, unknown> = { openaiHealthy: false, circuitBreaker: { open: false } };
     try { health = getGatewayHealth() as Record<string, unknown>; } catch (err) {
       log.warn("[ControlCenter] Gateway health unavailable for twin:", err instanceof Error ? err.message : err);
     }
@@ -915,9 +915,9 @@ export const controlCenterRouter = router({
         server: { status: "live", risk: "low" },
         database: { status: d ? "connected" : "disconnected", risk: d ? "low" : "critical" },
         aiGateway: {
-          status: health.veniceHealthy ? "venice-primary" : "openai-fallback",
-          circuitBreaker: (health.circuitBreaker as Record<string, unknown>)?.open ? "open" : "closed",
-          risk: health.veniceHealthy ? "low" : "medium",
+          status: (process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY) ? "active" : "offline",
+          circuitBreaker: "closed",
+          risk: (process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY) ? "low" : "critical",
         },
         cron: { status: "running", jobCount: 55, risk: "low" },
         auth: { status: "active", method: "google-oauth", risk: "low" },

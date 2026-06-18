@@ -94,6 +94,7 @@ export interface ScheduleResult {
 export async function scheduleBufferPost(args: {
   text: string;
   imageUrl?: string;
+  videoUrl?: string;
   linkUrl?: string;
   profileIds?: string[];
   scheduledAt?: string;
@@ -117,7 +118,13 @@ export async function scheduleBufferPost(args: {
     for (const pid of profiles) {
       params.append("profile_ids[]", pid);
     }
-    if (args.imageUrl) {
+    if (args.videoUrl) {
+      params.append("media[video]", args.videoUrl);
+      params.append("media[link]", args.videoUrl);
+      if (args.imageUrl) {
+        params.append("media[thumbnail]", args.imageUrl);
+      }
+    } else if (args.imageUrl) {
       params.append("media[photo]", args.imageUrl);
       params.append("media[link]", args.imageUrl);
     }

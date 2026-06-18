@@ -138,9 +138,7 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
         // Heuristic: provider name appears in the modelId. Match
         // against the known provider names we manage in PROVIDERS.
         const { markProviderFailed, markGeminiQuotaExhausted } = await import("@/lib/ai/provider");
-        if (modelInfo.includes("venice") || modelInfo.includes("Venice"))
-          markProviderFailed("venice");
-        else if (modelInfo.includes("ollama") || modelInfo.includes("Ollama"))
+        if (modelInfo.includes("ollama") || modelInfo.includes("Ollama"))
           markProviderFailed("ollama");
         else if (modelInfo.startsWith("gpt-") || modelInfo.includes("openai"))
           markProviderFailed("openai");

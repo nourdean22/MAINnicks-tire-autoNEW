@@ -19,7 +19,7 @@
  * Venice's b64_json shape.
  */
 
-import type { ImageResult } from "./venice-image";
+import type { ImageResult } from "./gemini-image";
 
 const REPLICATE_API_BASE = "https://api.replicate.com/v1";
 

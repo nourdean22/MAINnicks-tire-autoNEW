@@ -326,17 +326,7 @@ async function checkAIGateway(): Promise<void> {
     const { getGatewayHealth } = await import("./ai-gateway");
     const health = getGatewayHealth();
 
-    if (health.circuitBreaker.open) {
-      comp.status = "degraded";
-      comp.error = `Circuit breaker open — ${health.circuitBreaker.consecutiveFailures} consecutive failures`;
-      const cooldownRemaining = health.circuitBreaker.cooldownUntil
-        ? Math.round((new Date(health.circuitBreaker.cooldownUntil).getTime() - Date.now()) / 1000)
-        : 0;
-      log.warn("AI gateway circuit breaker open", {
-        failures: health.circuitBreaker.consecutiveFailures,
-        cooldownSecondsRemaining: cooldownRemaining,
-      });
-    } else if (health.stats.last5min.failures > health.stats.last5min.total * 0.5 && health.stats.last5min.total > 2) {
+    if (health.stats.last5min.failures > health.stats.last5min.total * 0.5 && health.stats.last5min.total > 2) {
       comp.status = "degraded";
       comp.error = `High failure rate: ${health.stats.last5min.failures}/${health.stats.last5min.total} in last 5 min`;
       log.warn("AI gateway high failure rate", {

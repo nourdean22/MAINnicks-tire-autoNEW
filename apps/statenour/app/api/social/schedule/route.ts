@@ -31,6 +31,7 @@ export const runtime = "nodejs";
 interface ScheduleBody {
   text?: string;
   imageUrl?: string;
+  videoUrl?: string;
   linkUrl?: string;
   profileIds?: string[];
   scheduledAt?: string;
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
       {
         text: body.text ?? "",
         imageUrl: body.imageUrl,
+        videoUrl: body.videoUrl,
         linkUrl: body.linkUrl,
         profileIds: body.profileIds,
         scheduledAt: body.scheduledAt,

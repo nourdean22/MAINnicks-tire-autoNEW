@@ -399,7 +399,7 @@ async function computeEnvReadiness(): Promise<{ ready: number; total: number }> 
   };
   const required = {
     push: has("VAPID_PUBLIC_KEY") && has("VAPID_PRIVATE_KEY"),
-    venice: has("VENICE_API_KEY"),
+    gemini: has("GEMINI_API_KEY") || has("GOOGLE_GENERATIVE_AI_API_KEY"),
     crons: has("CRON_SECRET"),
     google_data:
       (has("AUTH_GOOGLE_CLIENT_ID") ||

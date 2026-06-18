@@ -38,7 +38,7 @@ export const aiConfigPatchSchema = z
     // cast. A drift in those source unions surfaces here as a type
     // error, which is the contract working as intended.
     defaultProvider: z
-      .enum(["venice", "ollama", "openai", "anthropic", "emergency"])
+      .enum(["gemini", "ollama", "openai", "anthropic", "emergency"])
       .optional(),
     defaultMode: z.enum(["standard", "deep"]).optional(),
     defaultTaskType: z

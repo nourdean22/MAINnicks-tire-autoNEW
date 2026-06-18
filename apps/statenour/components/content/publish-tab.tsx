@@ -203,6 +203,7 @@ export function PublishTab() {
       const json = await scheduleMutation.mutateAsync({
         text: caption,
         imageUrl: imageUrl || undefined,
+        videoUrl: videoUrl || undefined,
         profileIds: selectedProfiles,
         scheduledAt: scheduleMode === "datetime" ? scheduledAt : undefined,
         shareNow: scheduleMode === "now",
@@ -211,6 +212,7 @@ export function PublishTab() {
         setSuccess(`Queued ${json.bufferUpdateIds.length} update(s) for ${json.scheduledFor}`);
         setCaption("");
         setImageUrl("");
+        setVideoUrl("");
       } else {
         setError(json.error ?? "Schedule failed");
       }
@@ -219,7 +221,7 @@ export function PublishTab() {
     } finally {
       setScheduling(false);
     }
-  }, [caption, imageUrl, selectedProfiles, scheduleMode, scheduledAt, scheduleMutation, confirm]);
+  }, [caption, imageUrl, videoUrl, selectedProfiles, scheduleMode, scheduledAt, scheduleMutation, confirm]);
 
   return (
     <>

@@ -1,5 +1,5 @@
 /**
- * lib/ai/gemini-image.ts · v10.0.529.47
+ * lib/ai/gemini-image.ts
  *
  * Google Gemini image-generation fallback for when Venice's
  * flux-2-pro is unavailable (402 no credit · 429 rate-limited).
@@ -13,41 +13,52 @@
  * ratio isn't a direct parameter on this model · prompts can hint
  * it ("wide landscape", "portrait orientation", "square") but
  * we don't try to enforce it for the fallback case.
- *
- * The returned ImageResult shape matches lib/ai/venice-image.ts so
- * downstream callers (tools.ts · interceptors.ts) can swap the
- * implementation without changes. Persistence path is identical:
- * AuditEvent(eventType="generated_image") stores the base64, and
- * the relative URL /api/images/<recordId> serves it.
- *
- * Skills consulted:
- *   · ai-studio-image (Google AI Studio image patterns)
- *   · error-handling-patterns (provider-chain fallback discipline)
- *   · api-endpoint-builder (clean REST contract)
- *   · kaizen + karpathy-guidelines (smallest surgical add)
  */
-
-import type { ImageResult } from "./venice-image";
 
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
-// `gemini-2.5-flash-image` is the production model · the rebrand of
-// nano-banana. `gemini-2.0-flash-exp` is the older preview that also
-// supports image output but is being deprecated.
 const GEMINI_IMAGE_MODEL =
   process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 
-/**
- * Native Gemini sizes · always 1024x1024 from the model. We accept
- * the same string enum as Venice so the upstream caller doesn't
- * have to switch types · we just return "1024x1024" regardless.
- */
+export interface ImageResult {
+  base64: string;
+  dataUrl: string;
+  imageUrl: string;
+  imageId: string;
+  prompt: string;
+  model: string;
+  size: string;
+}
+
 type AcceptedSize = "512x512" | "1024x1024" | "1536x1024" | "1024x1536";
 
 export interface GeminiImageOptions {
   size?: AcceptedSize;
   /** Output prompt-string passthrough · used for AuditEvent detail + caller's record. */
   recordedPrompt?: string;
+}
+
+export function inferAspectRatio(prompt: string): "512x512" | "1024x1024" | "1536x1024" | "1024x1536" {
+  if (!prompt) return "1024x1024";
+  const p = prompt.toLowerCase();
+  // 9:16 vertical — Stories, Reels, TikTok, Shorts, vertical video
+  if (/\b(story|stories|reel|reels|tiktok|tik\s?tok|short|shorts|9:16|portrait\s+video|vertical(\s+video)?)\b/.test(p)) {
+    return "1024x1536";
+  }
+  // 4:5 portrait — Instagram feed posts (recommended for max screen real estate)
+  if (/\b(instagram(\s+post)?|feed\s+post|4:5|portrait\s+post)\b/.test(p)) {
+    return "1024x1536";
+  }
+  // 16:9 landscape — billboards, banners, YouTube thumbnails, web hero
+  if (/\b(billboard|banner|youtube\s+thumbnail|hero\s+image|landscape|16:9|widescreen)\b/.test(p)) {
+    return "1536x1024";
+  }
+  // 1024×1024 — when "high quality" or "1024" mentioned (override default)
+  if (/\b(high\s+quality|hi[-\s]?res|1024(x1024)?|hq|max\s+quality)\b/.test(p)) {
+    return "1024x1024";
+  }
+  // Default — fastest, smallest payload
+  return "512x512";
 }
 
 export async function generateGeminiImage(
@@ -64,15 +75,9 @@ export async function generateGeminiImage(
   if (!safePrompt) {
     throw new Error("Gemini image generation failed: empty prompt");
   }
-  // The model handles long prompts fine, but cap to a sane limit for
-  // request-size hygiene + audit-record cleanliness.
   const cappedPrompt =
     safePrompt.length > 2000 ? safePrompt.slice(0, 2000) : safePrompt;
 
-  // Aspect-ratio hint · the model uses prompt-tail guidance instead
-  // of a structured param. Append a light directional cue when the
-  // caller passed a non-square size · we don't override the model's
-  // judgment, just nudge it.
   const sizeHint = options.size;
   let finalPrompt = cappedPrompt;
   if (sizeHint === "1536x1024") {
@@ -87,8 +92,6 @@ export async function generateGeminiImage(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // Both header AND query-param auth are accepted · header is
-      // preferred so the key doesn't end up in HTTP logs.
       "x-goog-api-key": GEMINI_API_KEY,
     },
     body: JSON.stringify({
@@ -97,9 +100,6 @@ export async function generateGeminiImage(
           parts: [{ text: finalPrompt }],
         },
       ],
-      // generationConfig is optional · the model defaults to outputting
-      // an image when the prompt is image-asking. Explicit responseModalities
-      // pinning ensures the output includes image data.
       generationConfig: {
         responseModalities: ["IMAGE"],
       },
@@ -125,8 +125,6 @@ export async function generateGeminiImage(
     }>;
   };
 
-  // Walk parts for the first image · text parts can sneak in if the
-  // model produced commentary alongside the image, ignore them.
   const parts = data.candidates?.[0]?.content?.parts ?? [];
   let b64: string | undefined;
   let mimeType = "image/png";
@@ -143,8 +141,6 @@ export async function generateGeminiImage(
     );
   }
 
-  // Persist · same AuditEvent shape Venice uses so /api/images/<id>
-  // serves either-source images identically.
   const { prisma } = await import("@/lib/prisma");
   const record = await prisma.auditEvent.create({
     data: {
@@ -162,8 +158,6 @@ export async function generateGeminiImage(
     },
   });
 
-  // Fire-and-forget photo embedding · matches Venice path. Skips
-  // qwen3-vl by passing the prompt as the description.
   void import("@/lib/brain/photo-embedding")
     .then((m) =>
       m.embedPhoto({
@@ -172,9 +166,7 @@ export async function generateGeminiImage(
         description: cappedPrompt,
       }),
     )
-    .catch(() => {
-      // Embedding is enrichment · failure doesn't break the image.
-    });
+    .catch(() => {});
 
   return {
     base64: b64,
@@ -187,15 +179,104 @@ export async function generateGeminiImage(
   };
 }
 
-/**
- * Provider-chain helper · try Venice first, fall through to Gemini
- * on 402 (no credit) · 429 (rate limit) · or any network/5xx error.
- * Bubbles up the LAST error if both fail so the caller still sees
- * a useful message.
- *
- * Other error classes (400 validation · 401 auth) skip Venice entirely
- * because they're prompt-shape issues that Gemini can't fix either.
- */
+export async function generateImageOpenRouter(
+  prompt: string,
+  options: GeminiImageOptions = {}
+): Promise<ImageResult> {
+  const openRouterKey = (process.env.OPENROUTER_API_KEY || "").trim();
+  if (!openRouterKey) {
+    throw new Error("OpenRouter image generation skipped: OPENROUTER_API_KEY not configured");
+  }
+
+  const safePrompt = (prompt ?? "").trim();
+  const cappedPrompt = safePrompt.length > 2000 ? safePrompt.slice(0, 2000) : safePrompt;
+  const sizeHint = options.size || "1024x1024";
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${openRouterKey}`,
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash-image",
+      messages: [{ role: "user", content: cappedPrompt }],
+      modalities: ["image"],
+    }),
+    signal: AbortSignal.timeout(90_000),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    throw new Error(`OpenRouter image generation failed (${res.status}): ${errBody.slice(0, 300)}`);
+  }
+
+  const data = await res.json();
+  const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url || data.choices?.[0]?.message?.content;
+  if (!imageUrl) {
+    throw new Error("OpenRouter image generation failed: no image URL in response");
+  }
+
+  let b64: string;
+  let mimeType = "image/png";
+
+  if (imageUrl.startsWith("data:")) {
+    const matches = imageUrl.match(/^data:([^;]+);base64,(.*)$/);
+    if (matches) {
+      mimeType = matches[1];
+      b64 = matches[2];
+    } else {
+      throw new Error("Invalid base64 URL format from OpenRouter");
+    }
+  } else {
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) {
+      throw new Error(`Failed to fetch image from OpenRouter URL: ${imageUrl}`);
+    }
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    b64 = buffer.toString("base64");
+    const contentMime = imgRes.headers.get("content-type");
+    if (contentMime) mimeType = contentMime;
+  }
+
+  const { prisma } = await import("@/lib/prisma");
+  const record = await prisma.auditEvent.create({
+    data: {
+      actor: "nick-image-gen",
+      eventType: "generated_image",
+      detail: cappedPrompt.slice(0, 200),
+      payload: {
+        base64: b64,
+        model: "google/gemini-2.5-flash-image",
+        size: sizeHint,
+        mimeType,
+        createdAt: new Date().toISOString(),
+        provider: "openrouter",
+      },
+    },
+  });
+
+  void import("@/lib/brain/photo-embedding")
+    .then((m) =>
+      m.embedPhoto({
+        photoId: record.id,
+        imageUrl: `/api/images/${record.id}`,
+        description: cappedPrompt,
+      }),
+    )
+    .catch(() => {});
+
+  return {
+    base64: b64,
+    dataUrl: `data:${mimeType};base64,${b64}`,
+    imageUrl: `/api/images/${record.id}`,
+    imageId: record.id,
+    prompt: cappedPrompt,
+    model: "google/gemini-2.5-flash-image",
+    size: sizeHint,
+  };
+}
+
 export async function generateImageWithFallback(
   prompt: string,
   options: {
@@ -203,22 +284,32 @@ export async function generateImageWithFallback(
     autoAspect?: boolean;
   } = {},
 ): Promise<ImageResult> {
-  const { generateVeniceImage } = await import("./venice-image");
+  if (process.env.REPLICATE_FLUX === "true" && process.env.REPLICATE_API_KEY) {
+    try {
+      const { generateReplicateFluxImage } = await import("./replicate-flux");
+      const sizeStr = options.size ?? (options.autoAspect !== false ? inferAspectRatio(prompt) : "1024x1024");
+      const [wStr, hStr] = sizeStr.split("x");
+      const width = Math.max(256, Math.min(1792, Number(wStr) || 1024));
+      const height = Math.max(256, Math.min(1792, Number(hStr) || 1024));
+      return await generateReplicateFluxImage(prompt, { width, height });
+    } catch (err) {
+      console.warn(
+        `[ai:image] Replicate FLUX failed · falling back to direct Gemini: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  const size = options.size ?? (options.autoAspect !== false ? inferAspectRatio(prompt) : "1024x1024");
   try {
-    return await generateVeniceImage(prompt, options);
+    return await generateGeminiImage(prompt, { ...options, size });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // Decide whether to fall through · only on quota/billing/server
-    // failures. Validation/auth errors stay loud · they need a fix
-    // at the prompt or env level, not a provider swap.
-    const shouldFallThrough =
-      /\b(402\b|payment|insufficient|credit|429\b|rate.?limit|too.?many|5\d\d\b|server|timeout|ECONNRESET|fetch)\b/i.test(
-        msg,
-      );
-    if (!shouldFallThrough) throw err;
-    console.warn(
-      `[ai:image] Venice failed (${msg.slice(0, 120)}) · falling through to Gemini`,
-    );
-    return await generateGeminiImage(prompt, options);
+    console.warn(`[ai:image] Direct Gemini failed (${msg.slice(0, 120)}) · trying OpenRouter fallback`);
+    try {
+      return await generateImageOpenRouter(prompt, { ...options, size });
+    } catch (orErr) {
+      const orMsg = orErr instanceof Error ? orErr.message : String(orErr);
+      throw new Error(`Both Direct Gemini and OpenRouter failed. Gemini error: ${msg}. OpenRouter error: ${orMsg}`);
+    }
   }
 }

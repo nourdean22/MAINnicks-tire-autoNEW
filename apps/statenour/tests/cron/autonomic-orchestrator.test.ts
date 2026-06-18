@@ -212,12 +212,12 @@ describe("services/autonomic-orchestrator", () => {
     expect(mocks.clientQuery).toHaveBeenCalledWith("REINDEX INDEX CONCURRENTLY vector_embeddings_hnsw_1536");
   });
 
-  it("Phase 3: trips Venice circuit breaker on too many timeouts/errors and rescues work items", async () => {
-    // 3 timeout/error traces on Venice
+  it("Phase 3: trips Ollama circuit breaker on too many timeouts/errors and rescues work items", async () => {
+    // 3 timeout/error traces on Ollama
     mockAgentTracesPhase3 = [
-      { provider: "venice", errorClass: "timeout", errorMessage: "deadline exceeded" },
-      { provider: "venice", errorClass: "failed", errorMessage: "ECONNRESET" },
-      { provider: "venice", errorClass: "failed", errorMessage: "timeout" },
+      { provider: "ollama", errorClass: "timeout", errorMessage: "deadline exceeded" },
+      { provider: "ollama", errorClass: "failed", errorMessage: "ECONNRESET" },
+      { provider: "ollama", errorClass: "failed", errorMessage: "timeout" },
     ];
 
     // 1 stalled WorkItem (claimed >15 minutes ago)
@@ -227,8 +227,8 @@ describe("services/autonomic-orchestrator", () => {
 
     const res = await runAutonomicOrchestrator();
 
-    expect(res.veniceQuotaTripped).toBe(true);
-    expect(mocks.markVeniceQuotaExhausted).toHaveBeenCalled();
+    expect(res.ollamaQuotaTripped).toBe(true);
+    expect(mocks.markOllamaQuotaExhausted).toHaveBeenCalled();
     expect(res.rescuedWorkItems).toContain("wi_stalled_1");
     expect(prisma.workItem.update).toHaveBeenCalledWith({
       where: { id: "wi_stalled_1" },
@@ -245,15 +245,15 @@ describe("services/autonomic-orchestrator", () => {
     );
   });
 
-  it("Phase 3: trips Venice circuit breaker instantly on 402", async () => {
+  it("Phase 3: trips Ollama circuit breaker instantly on 402", async () => {
     mockAgentTracesPhase3 = [
-      { provider: "venice", errorClass: "QuotaExhausted", errorMessage: "402 Payment Required" },
+      { provider: "ollama", errorClass: "QuotaExhausted", errorMessage: "402 Payment Required" },
     ];
 
     const res = await runAutonomicOrchestrator();
 
-    expect(res.veniceQuotaTripped).toBe(true);
-    expect(mocks.markVeniceQuotaExhausted).toHaveBeenCalled();
+    expect(res.ollamaQuotaTripped).toBe(true);
+    expect(mocks.markOllamaQuotaExhausted).toHaveBeenCalled();
   });
 
   it("Phase 4: prunes log tables and runs task janitor", async () => {

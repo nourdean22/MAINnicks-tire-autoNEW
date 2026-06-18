@@ -30,7 +30,7 @@ beforeEach(() => {
 
 describe("v10 B.5 · streamWithFallback", () => {
   it("returns the streamText result on first-attempt success", () => {
-    const fakeModel = { modelId: "venice/llama-3.3-70b" };
+    const fakeModel = { modelId: "gemini/gemini-2.5-flash" };
     const fakeResult = { __mockResult: true };
     getModelMock.mockReturnValueOnce(fakeModel);
     streamTextMock.mockReturnValueOnce(fakeResult);
@@ -41,23 +41,23 @@ describe("v10 B.5 · streamWithFallback", () => {
     });
 
     expect(out.result).toBe(fakeResult);
-    expect(out.provider).toBe("venice");
+    expect(out.provider).toBe("gemini");
     expect(out.attempts.length).toBe(1);
     expect(out.attempts[0].errorClass).toBeNull();
     expect(markProviderFailedMock).not.toHaveBeenCalled();
   });
 
   it("retries with next provider on sync throw, succeeds on attempt 2", () => {
-    const veniceModel = { modelId: "venice/llama-3.3-70b" };
+    const geminiModel = { modelId: "gemini/gemini-2.5-flash" };
     const ollamaModel = { modelId: "ollama/qwen3-235b" };
     const fakeResult = { __mockResult: true };
 
     getModelMock
-      .mockReturnValueOnce(veniceModel)
+      .mockReturnValueOnce(geminiModel)
       .mockReturnValueOnce(ollamaModel);
     streamTextMock
       .mockImplementationOnce(() => {
-        throw new Error("venice 503");
+        throw new Error("gemini 503");
       })
       .mockReturnValueOnce(fakeResult);
 
@@ -70,20 +70,20 @@ describe("v10 B.5 · streamWithFallback", () => {
     expect(out.provider).toBe("ollama");
     expect(out.attempts.length).toBe(2);
     expect(out.attempts[0].errorClass).toBe("stream_text_sync_throw");
-    expect(out.attempts[0].provider).toBe("venice");
+    expect(out.attempts[0].provider).toBe("gemini");
     expect(out.attempts[1].errorClass).toBeNull();
     // Provider that failed got marked.
-    expect(markProviderFailedMock).toHaveBeenCalledWith("venice");
+    expect(markProviderFailedMock).toHaveBeenCalledWith("gemini");
   });
 
   it("throws when all attempts fail · trace attached to error", () => {
-    const veniceModel = { modelId: "venice/m" };
+    const geminiModel = { modelId: "gemini/m" };
     const ollamaModel = { modelId: "ollama/m" };
     const openaiModel = { modelId: "gpt-4o" };
     const anthropicModel = { modelId: "claude-3-5-sonnet" };
 
     getModelMock
-      .mockReturnValueOnce(veniceModel)
+      .mockReturnValueOnce(geminiModel)
       .mockReturnValueOnce(ollamaModel)
       .mockReturnValueOnce(openaiModel)
       .mockReturnValueOnce(anthropicModel);
@@ -112,7 +112,7 @@ describe("v10 B.5 · streamWithFallback", () => {
   });
 
   it("respects maxAttempts cap", () => {
-    getModelMock.mockReturnValue({ modelId: "venice/m" });
+    getModelMock.mockReturnValue({ modelId: "gemini/m" });
     streamTextMock.mockImplementation(() => {
       throw new Error("transient");
     });
@@ -187,7 +187,7 @@ describe("v10 B.5 · streamWithFallback", () => {
   });
 
   it("buildConfig called fresh on each attempt with the chosen model", () => {
-    const m1 = { modelId: "venice/m" };
+    const m1 = { modelId: "gemini/m" };
     const m2 = { modelId: "ollama/m" };
     getModelMock.mockReturnValueOnce(m1).mockReturnValueOnce(m2);
     streamTextMock

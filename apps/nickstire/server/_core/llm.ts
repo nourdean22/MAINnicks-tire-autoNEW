@@ -208,15 +208,17 @@ const normalizeToolChoice = (
 };
 
 const resolveApiUrl = () => {
+  if (process.env.GEMINI_API_KEY) {
+    return "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions";
+  }
   const base = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
   return `${base}/v1/chat/completions`;
 };
 
-/** Returns the correct API key — VENICE_API_KEY when base URL points to Venice, otherwise OPENAI_API_KEY */
+/** Returns the correct API key — GEMINI_API_KEY or OPENAI_API_KEY */
 const resolveApiKey = (): string => {
-  const baseUrl = process.env.OPENAI_BASE_URL || "";
-  if (baseUrl.includes("venice.ai") && process.env.VENICE_API_KEY) {
-    return process.env.VENICE_API_KEY;
+  if (process.env.GEMINI_API_KEY) {
+    return process.env.GEMINI_API_KEY;
   }
   return process.env.OPENAI_API_KEY || "";
 };
@@ -224,7 +226,7 @@ const resolveApiKey = (): string => {
 const assertApiKey = () => {
   const key = resolveApiKey();
   if (!key) {
-    throw new Error("No API key configured (checked VENICE_API_KEY and OPENAI_API_KEY)");
+    throw new Error("No API key configured (checked GEMINI_API_KEY and OPENAI_API_KEY)");
   }
 };
 
@@ -288,7 +290,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: process.env.LLM_MODEL || "gpt-4o-mini",
+    model: process.env.GEMINI_API_KEY
+      ? (process.env.GEMINI_MODEL || "gemini-2.5-flash")
+      : (process.env.LLM_MODEL || "gpt-4o-mini"),
     messages: messages.map(normalizeMessage),
   };
 

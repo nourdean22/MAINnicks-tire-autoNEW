@@ -42,7 +42,7 @@ export function inferProviderName(model: LanguageModel | unknown): ProviderName 
     typeof model === "object" && model && "modelId" in model
       ? String((model as { modelId?: unknown }).modelId)
       : "";
-  if (modelId.includes("venice") || modelId.includes("Venice")) return "venice";
+  if (modelId.includes("gemini") || modelId.includes("google") || modelId.includes("Google")) return "gemini";
   if (modelId.includes("ollama") || modelId.includes("Ollama")) return "ollama";
   if (modelId.startsWith("gpt-") || modelId.includes("openai")) return "openai";
   if (modelId.includes("claude") || modelId.includes("anthropic")) return "anthropic";

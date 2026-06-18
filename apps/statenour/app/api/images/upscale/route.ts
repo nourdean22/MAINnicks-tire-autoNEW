@@ -17,7 +17,7 @@
 import { NextResponse } from "next/server";
 import { upscaleImage } from "@/lib/services/image-actions";
 import { requireSession } from "@/lib/auth-guard";
-import type { UpscaleScale } from "@/lib/ai/venice-image";
+type UpscaleScale = 2 | 4;
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

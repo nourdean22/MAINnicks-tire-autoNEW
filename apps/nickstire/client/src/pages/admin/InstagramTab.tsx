@@ -13,13 +13,16 @@
  * Built in phases — Phase 2: Connection + Analytics (this file). Composer
  * (Phase 3) and Comment moderation (Phase 4) append their own sections.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Instagram, Loader2, RefreshCw, AlertTriangle, CheckCircle2, KeyRound,
   TrendingUp, TrendingDown, Minus, Clock, BarChart3, Trophy, ExternalLink,
   Wand2, Heart, MessageCircle, Send, ShieldCheck, Sparkles,
   Camera, Lock, ChevronDown, ChevronUp, Film,
+  Grid, List, Play, Pause, Volume2, VolumeX, X,
+  Image,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Panel } from "./shared";
 import IgAutopostPanel from "./settings/IgAutopostPanel";
 import DraftBoardPanel from "./DraftBoardPanel";
@@ -65,6 +68,7 @@ const MODE_CLS = {
 } as const;
 
 const SUBTABS = [
+  { id: "feed", label: "Feed Explorer", Icon: Film },
   { id: "inbox", label: "Inbox", Icon: MessageCircle },
   { id: "create", label: "Create", Icon: Wand2 },
   { id: "publish", label: "Publish", Icon: Send },
@@ -82,14 +86,14 @@ function ModeBadge({ mode }: { mode: keyof typeof MODE_CLS }) {
 }
 
 export default function InstagramTab() {
-  const [sub, setSub] = useState<(typeof SUBTABS)[number]["id"]>("inbox");
+  const [sub, setSub] = useState<(typeof SUBTABS)[number]["id"]>("feed");
   return (
     <div className="space-y-4">
       <div className="border border-pink-500/40 bg-pink-500/10 rounded p-3 text-xs text-pink-200 flex items-start gap-2">
         <Instagram className="w-4 h-4 shrink-0 mt-0.5 text-pink-400" />
         <span>
           <strong>Instagram command center for @nicks_tire_euclid.</strong> Everything in one place —
-          reply to comments (Inbox), generate content (Create), publish custom posts (Publish), review execution logs (Autopost Logs), read performance
+          explore the feed (Feed Explorer), reply to comments (Inbox), generate content (Create), publish custom posts (Publish), review execution logs (Autopost Logs), read performance
           (Analytics), manage the connection (Settings). Nothing here posts autonomously; every
           external action is an explicit, claim-safe owner action.
         </span>
@@ -110,6 +114,7 @@ export default function InstagramTab() {
       </div>
 
       <div>
+        {sub === "feed" && <FeedExplorerPanel />}
         {sub === "inbox" && <CommentsPanel />}
         {sub === "create" && <CreateSection />}
         {sub === "publish" && <PublishPanel />}
@@ -314,6 +319,29 @@ function fmtHour(h: number): string {
 
 function AnalyticsPanel() {
   const { data, isLoading } = trpc.instagramAdmin.getAnalytics.useQuery();
+  const [showReport, setShowReport] = useState(false);
+  const { data: report, isLoading: reportLoading, refetch: refetchReport } = trpc.instagramAdmin.getPerformanceReport.useQuery(undefined, {
+    enabled: showReport,
+  });
+
+  const formattedReport = useMemo(() => {
+    if (!report) return "";
+    const lines = [
+      "=== INSTAGRAM PERFORMANCE RECOMMENDATIONS ===",
+      ...report.recommendations.map((rec, i) => `${i + 1}. ${rec}`),
+      "",
+      "=== ENGAGEMENT BY POST TYPE ===",
+      ...report.engagementByType.map(
+        (e) => `- ${e.type}: ${e.postCount} posts, avg ${e.avgLikes} likes, ${e.avgComments} comments, engagement rate ${e.avgEngagementRate.toFixed(2)}%`
+      ),
+      "",
+      "=== BEST TIMES TO POST ===",
+      ...report.bestTimes.map(
+        (t) => `- ${t.dayName} at ${fmtHour(t.hourOfDay)} (avg ${t.avgEngagement.toFixed(1)} engagement)`
+      ),
+    ];
+    return lines.join("\n");
+  }, [report]);
 
   if (isLoading) {
     return (
@@ -407,7 +435,7 @@ function AnalyticsPanel() {
 
       {/* Top posts */}
       {data.topPosts.length > 0 && (
-        <div>
+        <div className="mb-4">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground/70 mb-1.5">
             <Trophy className="w-3.5 h-3.5 text-amber-400" /> Top posts
           </div>
@@ -426,6 +454,65 @@ function AnalyticsPanel() {
           </div>
         </div>
       )}
+
+      {/* Narrative Performance Report */}
+      <div className="mt-6 border-t border-border/20 pt-4">
+        <button
+          onClick={() => {
+            setShowReport(!showReport);
+            if (!report) refetchReport();
+          }}
+          className="w-full flex items-center justify-between bg-neutral-900/30 hover:bg-neutral-900/50 border border-border/25 rounded-lg p-4 transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <div className="text-left">
+              <span className="text-sm font-bold text-foreground block">AI Narrative Performance Analysis</span>
+              <span className="text-[10px] text-foreground/40">Evaluate copy vectors, hook styles, and content conversions</span>
+            </div>
+          </div>
+          <span className="text-xs text-foreground/50 flex items-center gap-1 font-bold">
+            {showReport ? "Collapse" : "Generate Analysis"}
+            {showReport ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </span>
+        </button>
+
+        {showReport && (
+          <div className="mt-3 bg-neutral-900/20 border border-border/30 rounded-lg p-4 space-y-3 font-sans">
+            {reportLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <span className="text-xs text-foreground/40">Analyzing post engagement data...</span>
+              </div>
+            ) : report ? (
+              <div className="space-y-3">
+                <div className="text-xs leading-relaxed text-foreground/80 whitespace-pre-wrap font-mono p-3 bg-black/40 border border-border/20 rounded-lg max-h-[400px] overflow-y-auto">
+                  {formattedReport}
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(formattedReport);
+                      toast.success("Analysis copied to clipboard");
+                    }}
+                    className="px-2.5 py-1.5 text-[10px] font-semibold border border-border/40 rounded text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors"
+                  >
+                    Copy Report
+                  </button>
+                  <button
+                    onClick={() => refetchReport()}
+                    className="px-2.5 py-1.5 text-[10px] font-semibold border border-border/40 rounded text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors"
+                  >
+                    Recalculate
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic text-center py-6">Could not generate analysis report.</p>
+            )}
+          </div>
+        )}
+      </div>
     </Panel>
   );
 }
@@ -1011,6 +1098,689 @@ function CommentModerationRow({ comment }: { comment: IgCommentVM }) {
   );
 }
 
+function VideoPlayer({ src, poster }: { src: string; poster?: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const togglePlay = () => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      videoRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch((err) => console.log("Video play blocked:", err));
+    }
+  };
+
+  const toggleMute = () => {
+    if (!videoRef.current) return;
+    const nextMuted = !videoRef.current.muted;
+    videoRef.current.muted = nextMuted;
+    setIsMuted(nextMuted);
+  };
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.play().then(() => {
+            setIsPlaying(true);
+          }).catch(() => {});
+        } else {
+          el.pause();
+          setIsPlaying(false);
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    observer.observe(el);
+    return () => {
+      observer.unobserve(el);
+    };
+  }, []);
+
+  return (
+    <div className="relative w-full max-h-[500px] bg-black flex items-center justify-center group rounded-lg overflow-hidden">
+      <video
+        ref={videoRef}
+        src={src}
+        poster={poster}
+        loop
+        muted
+        playsInline
+        onClick={togglePlay}
+        className="w-full max-h-[500px] object-cover cursor-pointer"
+      />
+      
+      {!isPlaying && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/20">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              togglePlay();
+            }}
+            className="pointer-events-auto p-4 bg-black/60 hover:bg-black/80 rounded-full text-white backdrop-blur-sm transition-all transform scale-100 hover:scale-110"
+          >
+            <Play className="w-6 h-6 fill-white" />
+          </button>
+        </div>
+      )}
+
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            togglePlay();
+          }}
+          className="p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors pointer-events-auto"
+        >
+          {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleMute();
+          }}
+          className="p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors pointer-events-auto"
+        >
+          {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FeedPostCard({ post, username }: { post: any; username: string }) {
+  const [showComments, setShowComments] = useState(false);
+  const [isCaptionExpanded, setIsCaptionExpanded] = useState(false);
+
+  const { data: commentsRes, isLoading: commentsLoading } = trpc.instagramAdmin.getComments.useQuery(
+    { mediaId: post.id },
+    { enabled: showComments },
+  );
+
+  const comments = commentsRes?.comments ?? [];
+
+  return (
+    <div className="bg-card border border-border/30 rounded-xl overflow-hidden shadow-sm hover:border-border/60 transition-all">
+      <div className="flex items-center gap-3 p-3 bg-neutral-900/10 border-b border-border/10">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 via-red-500 to-pink-500 p-0.5 flex items-center justify-center">
+          <div className="w-full h-full rounded-full bg-background flex items-center justify-center text-[10px] font-bold">
+            IG
+          </div>
+        </div>
+        <div>
+          <span className="text-xs font-extrabold text-foreground block">@{username}</span>
+          <span className="text-[9px] text-foreground/40 font-mono">{new Date(post.posted).toLocaleDateString()}</span>
+        </div>
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="px-1.5 py-0.5 text-[8px] font-bold border rounded uppercase bg-neutral-800 text-foreground/60 border-border/20">
+            {post.type}
+          </span>
+          <a
+            href={post.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1 hover:text-primary transition-colors text-foreground/60 hover:text-foreground"
+            title="View on Instagram"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      </div>
+
+      <div className="bg-neutral-950 flex items-center justify-center overflow-hidden">
+        {post.type === "VIDEO" && post.mediaUrl ? (
+          <VideoPlayer src={post.mediaUrl} poster={post.thumbnailUrl} />
+        ) : post.mediaUrl ? (
+          <img src={post.mediaUrl} alt="" className="w-full max-h-[600px] object-contain" />
+        ) : (
+          <div className="w-full h-64 bg-neutral-900 flex items-center justify-center">
+            <Instagram className="w-12 h-12 text-white/20" />
+          </div>
+        )}
+      </div>
+
+      <div className="p-4 space-y-2.5">
+        <div className="flex items-center gap-4 text-xs font-bold text-foreground/75">
+          <span className="flex items-center gap-1">
+            <Heart className="w-4 h-4 text-pink-500 fill-pink-500/10" />
+            {post.likes} likes
+          </span>
+          <button
+            onClick={() => setShowComments(!showComments)}
+            className="flex items-center gap-1 hover:text-primary"
+          >
+            <MessageCircle className="w-4 h-4 text-primary" />
+            {post.comments} comments
+          </button>
+        </div>
+
+        {post.caption && (
+          <div className="text-xs leading-relaxed text-foreground/85">
+            <span className="font-extrabold mr-1.5 text-foreground">@{username}</span>
+            <span className="whitespace-pre-wrap">
+              {isCaptionExpanded ? post.caption : `${post.caption.slice(0, 160)}${post.caption.length > 160 ? "..." : ""}`}
+            </span>
+            {post.caption.length > 160 && (
+              <button
+                onClick={() => setIsCaptionExpanded(!isCaptionExpanded)}
+                className="text-primary hover:underline font-bold text-[10px] ml-1.5 focus:outline-none"
+              >
+                {isCaptionExpanded ? "Show less" : "Read more"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {showComments && (
+        <div className="border-t border-border/15 bg-neutral-900/10 p-3 space-y-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-foreground/50 flex justify-between items-center mb-1">
+            <span>Comments</span>
+          </div>
+          
+          {commentsLoading ? (
+            <div className="py-6 text-center text-xs text-foreground/40 flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" /> Loading comments...
+            </div>
+          ) : comments.length === 0 ? (
+            <div className="py-4 text-center text-xs text-foreground/30 italic">No comments on this post yet.</div>
+          ) : (
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+              {comments.map((c: any) => (
+                <CommentModerationRow key={c.id} comment={c} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReelCommentsList({ mediaId }: { mediaId: string }) {
+  const { data: commentsRes, isLoading } = trpc.instagramAdmin.getComments.useQuery({ mediaId });
+  const comments = commentsRes?.comments ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="py-8 text-center text-xs text-white/40 flex items-center justify-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin text-primary" /> Loading comments...
+      </div>
+    );
+  }
+
+  if (commentsRes && !commentsRes.ok) {
+    return (
+      <p className="text-[10px] text-amber-400 py-4 text-center">
+        {commentsRes.error}
+      </p>
+    );
+  }
+
+  if (comments.length === 0) {
+    return (
+      <p className="text-[10px] text-white/40 py-8 text-center italic">
+        No comments yet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {comments.map((c: any) => (
+        <CommentModerationRow key={c.id} comment={c} />
+      ))}
+    </div>
+  );
+}
+
+function ReelCard({ 
+  post, 
+  username, 
+  isMuted, 
+  onMuteToggle 
+}: { 
+  post: any; 
+  username: string; 
+  isMuted: boolean; 
+  onMuteToggle: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [isCaptionExpanded, setIsCaptionExpanded] = useState(false);
+
+  const isVideo = post.type === "VIDEO" || post.mediaUrl?.includes("video") || post.mediaUrl?.endsWith(".mp4");
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !isVideo) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.play().then(() => {
+            setIsPlaying(true);
+          }).catch((err) => console.log("Reel autoplay blocked:", err));
+        } else {
+          el.pause();
+          setIsPlaying(false);
+        }
+      },
+      { threshold: 0.6 }
+    );
+
+    observer.observe(el);
+    return () => {
+      observer.unobserve(el);
+    };
+  }, [isVideo]);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
+
+  const handleVideoTap = () => {
+    if (!videoRef.current || !isVideo) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      videoRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch(() => {});
+    }
+  };
+
+  return (
+    <div className="w-full h-full snap-start relative bg-neutral-950 flex flex-col justify-between scroll-snap-align-start shrink-0">
+      <div className="absolute inset-0 z-0 flex items-center justify-center" onClick={handleVideoTap}>
+        {isVideo ? (
+          <video
+            ref={videoRef}
+            src={post.mediaUrl}
+            poster={post.thumbnailUrl}
+            loop
+            muted={isMuted}
+            playsInline
+            className="w-full h-full object-cover cursor-pointer"
+          />
+        ) : (
+          <img 
+            src={post.thumbnailUrl || post.mediaUrl} 
+            alt="" 
+            className="w-full h-full object-cover"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/75 pointer-events-none" />
+      </div>
+
+      <div className="absolute top-3 inset-x-3 z-10 flex items-center justify-between pointer-events-none">
+        <span className="px-2 py-0.5 bg-black/40 backdrop-blur-md rounded text-[9px] font-bold text-white/90 border border-white/10 uppercase tracking-wider">
+          {post.type}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onMuteToggle();
+          }}
+          className="pointer-events-auto p-1.5 bg-black/40 backdrop-blur-md rounded-full text-white border border-white/10 hover:bg-black/60 transition-colors"
+        >
+          {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+
+      <div className="absolute right-3 bottom-16 z-10 flex flex-col items-center gap-4 text-white">
+        <div className="w-8 h-8 rounded-full border border-white/20 bg-gradient-to-tr from-amber-500 to-pink-500 p-0.5 shadow-lg">
+          <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-[9px] font-black uppercase text-pink-400">
+            NT
+          </div>
+        </div>
+
+        <button className="flex flex-col items-center gap-0.5 group">
+          <div className="p-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 group-hover:bg-black/60 transition-all">
+            <Heart className="w-4 h-4 fill-white" />
+          </div>
+          <span className="text-[10px] font-bold tracking-wider text-white shadow-sm drop-shadow">{post.likes}</span>
+        </button>
+
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowComments(true);
+          }}
+          className="flex flex-col items-center gap-0.5 group"
+        >
+          <div className="p-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 group-hover:bg-black/60 transition-all">
+            <MessageCircle className="w-4 h-4 fill-white/10" />
+          </div>
+          <span className="text-[10px] font-bold tracking-wider text-white shadow-sm drop-shadow">{post.comments}</span>
+        </button>
+
+        <a 
+          href={post.link} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="p-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 hover:bg-black/60 transition-all text-white"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </a>
+      </div>
+
+      <div className="absolute left-3 bottom-3 right-14 z-10 text-white space-y-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold">@{username}</span>
+          <span className="text-[9px] text-white/60 font-mono">
+            {new Date(post.posted).toLocaleDateString()}
+          </span>
+        </div>
+        {post.caption && (
+          <div className="text-[11px] leading-snug max-h-20 overflow-y-auto text-white/90 drop-shadow pr-1">
+            <span className="whitespace-pre-wrap">
+              {isCaptionExpanded ? post.caption : `${post.caption.slice(0, 80)}${post.caption.length > 80 ? "..." : ""}`}
+            </span>
+            {post.caption.length > 80 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsCaptionExpanded(!isCaptionExpanded);
+                }}
+                className="text-pink-400 hover:underline font-bold text-[9px] ml-1 focus:outline-none"
+              >
+                {isCaptionExpanded ? "less" : "more"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {!isPlaying && isVideo && (
+        <div className="absolute inset-0 flex items-center justify-center z-5 bg-black/10 pointer-events-none">
+          <div className="p-3 bg-black/50 rounded-full text-white backdrop-blur-sm">
+            <Play className="w-6 h-6 fill-white" />
+          </div>
+        </div>
+      )}
+
+      {showComments && (
+        <div 
+          className="absolute inset-0 z-30 bg-black/50 backdrop-blur-[2px] flex flex-col justify-end"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowComments(false);
+          }}
+        >
+          <div 
+            className="w-full bg-neutral-950 border-t border-white/10 rounded-t-2xl p-4 flex flex-col h-[75%] select-text"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+              <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1">
+                <MessageCircle className="w-3.5 h-3.5" /> Comments ({post.comments})
+              </span>
+              <button 
+                onClick={() => setShowComments(false)}
+                className="p-1 hover:bg-neutral-800 rounded text-white/50 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto pr-1">
+              <ReelCommentsList mediaId={post.id} />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReelsFeedExplorer({ feed, username }: { feed: any[]; username: string }) {
+  const [isMuted, setIsMuted] = useState(true);
+
+  return (
+    <div className="relative w-full max-w-[340px] aspect-[9/16] bg-black rounded-[2rem] border-8 border-neutral-800 overflow-hidden shadow-2xl mx-auto flex flex-col">
+      <div 
+        className="flex-1 overflow-y-auto snap-y snap-mandatory h-full w-full scrollbar-none"
+        style={{ scrollSnapType: "y mandatory", scrollbarWidth: "none" }}
+      >
+        {feed.map((post) => (
+          <ReelCard 
+            key={post.id} 
+            post={post} 
+            username={username} 
+            isMuted={isMuted} 
+            onMuteToggle={() => setIsMuted(!isMuted)} 
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FeedExplorerPanel() {
+  const [layout, setLayout] = useState<"grid" | "scroll" | "reels">("scroll");
+  const { data: feed, isLoading, refetch } = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 30 });
+  const { data: account } = trpc.instagramAdmin.getAccountInfo.useQuery();
+  const username = account?.username || "nicks_tire_euclid";
+
+  const sync = trpc.instagramAdmin.syncFeed.useMutation({
+    onSuccess: () => {
+      refetch();
+      toast.success("Feed synced with Instagram");
+    },
+    onError: (err) => {
+      toast.error("Failed to sync feed: " + err.message);
+    }
+  });
+
+  const [activeModalPost, setActiveModalPost] = useState<any | null>(null);
+
+  if (isLoading) {
+    return (
+      <Panel title="Instagram Feed Explorer" icon={<Film className="w-4 h-4 text-pink-400" />}>
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <span className="text-xs text-foreground/50">Loading feed from cache...</span>
+        </div>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="Instagram Feed Explorer" icon={<Film className="w-4 h-4 text-pink-400" />}>
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <ModeBadge mode="read-only" />
+          <span className="text-[10px] text-foreground/40">
+            synced feed for @{username}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex bg-neutral-900 border border-border/40 rounded p-0.5">
+            <button
+              onClick={() => setLayout("grid")}
+              className={`p-1.5 rounded text-xs font-bold transition-all ${
+                layout === "grid" ? "bg-primary/20 text-primary" : "text-foreground/40 hover:text-foreground/60"
+              }`}
+              title="Grid View"
+            >
+              <Grid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setLayout("scroll")}
+              className={`p-1.5 rounded text-xs font-bold transition-all ${
+                layout === "scroll" ? "bg-primary/20 text-primary" : "text-foreground/40 hover:text-foreground/60"
+              }`}
+              title="Scroll View"
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setLayout("reels")}
+              className={`p-1.5 rounded text-xs font-bold transition-all ${
+                layout === "reels" ? "bg-primary/20 text-primary" : "text-foreground/40 hover:text-foreground/60"
+              }`}
+              title="Reels View"
+            >
+              <Film className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <button
+            onClick={() => sync.mutate()}
+            disabled={sync.isPending}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold rounded border border-border/40 text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
+          >
+            {sync.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Sync
+          </button>
+        </div>
+      </div>
+
+      {!feed?.length ? (
+        <div className="text-center py-20 border border-border/30 bg-card rounded-lg space-y-3">
+          <Instagram className="w-12 h-12 text-foreground/20 mx-auto" />
+          <p className="font-bold text-base text-foreground/40 tracking-wider">NO FEED POSTS FOUND</p>
+          <p className="text-foreground/30 text-xs max-w-sm mx-auto leading-relaxed">
+            Sync your feed above to fetch and cache the latest posts and reels from Meta.
+          </p>
+        </div>
+      ) : layout === "grid" ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {feed.map((post) => (
+            <div
+              key={post.id}
+              onClick={() => setActiveModalPost(post)}
+              className="relative aspect-square bg-neutral-950 rounded-lg overflow-hidden border border-border/20 hover:border-primary/40 transition-all cursor-pointer group"
+            >
+              {post.thumbnailUrl || post.mediaUrl ? (
+                <img src={post.thumbnailUrl || post.mediaUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-neutral-900">
+                  <Instagram className="w-8 h-8 text-white/10" />
+                </div>
+              )}
+              <div className="absolute top-2 right-2 p-1 bg-black/60 rounded backdrop-blur-sm text-white">
+                {post.type === "VIDEO" ? <Film className="w-3 h-3" /> : post.type === "CAROUSEL_ALBUM" ? <Image className="w-3 h-3" /> : <Camera className="w-3 h-3" />}
+              </div>
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 flex items-center justify-center gap-4 text-white font-bold text-xs transition-opacity duration-200">
+                <span className="flex items-center gap-1"><Heart className="w-3.5 h-3.5 fill-white" /> {post.likes}</span>
+                <span className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" /> {post.comments}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : layout === "reels" ? (
+        <ReelsFeedExplorer feed={feed} username={username} />
+      ) : (
+        <div className="max-w-xl mx-auto space-y-6">
+          {feed.map((post) => (
+            <FeedPostCard key={post.id} post={post} username={username} />
+          ))}
+        </div>
+      )}
+
+      {activeModalPost && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={() => setActiveModalPost(null)}
+        >
+          <div
+            className="bg-background border border-border/30 rounded-xl overflow-hidden shadow-2xl max-w-4xl w-full flex flex-col md:flex-row max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="md:w-3/5 bg-black flex items-center justify-center min-h-[300px]">
+              {activeModalPost.type === "VIDEO" && activeModalPost.mediaUrl ? (
+                <VideoPlayer src={activeModalPost.mediaUrl} poster={activeModalPost.thumbnailUrl} />
+              ) : activeModalPost.mediaUrl ? (
+                <img src={activeModalPost.mediaUrl} alt="" className="w-full max-h-[80vh] object-contain" />
+              ) : (
+                <div className="w-full h-64 flex items-center justify-center">
+                  <Instagram className="w-16 h-16 text-white/10" />
+                </div>
+              )}
+            </div>
+            
+            <div className="md:w-2/5 flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between p-3 border-b border-border/10 bg-neutral-900/10">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-extrabold">@{username}</span>
+                  <span className="text-[10px] text-foreground/40 font-mono">
+                    {new Date(activeModalPost.posted).toLocaleDateString()}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setActiveModalPost(null)}
+                  className="p-1 hover:bg-neutral-800 rounded transition-colors text-foreground/50 hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {activeModalPost.caption && (
+                  <div className="text-xs leading-relaxed border-b border-border/10 pb-3">
+                    <span className="font-extrabold mr-1.5">@{username}</span>
+                    <span className="whitespace-pre-wrap">{activeModalPost.caption}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-4 text-xs font-bold text-foreground/75">
+                  <span className="flex items-center gap-1"><Heart className="w-4 h-4 text-pink-500 fill-pink-500/10" /> {activeModalPost.likes} likes</span>
+                  <span className="flex items-center gap-1"><MessageCircle className="w-4 h-4 text-primary" /> {activeModalPost.comments} comments</span>
+                </div>
+
+                <div className="space-y-3">
+                  <ModalCommentsList mediaId={activeModalPost.id} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function ModalCommentsList({ mediaId }: { mediaId: string }) {
+  const { data: commentsRes, isLoading } = trpc.instagramAdmin.getComments.useQuery({ mediaId });
+  const comments = commentsRes?.comments ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="py-8 text-center text-xs text-foreground/40 flex items-center justify-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin text-primary" /> Loading comments...
+      </div>
+    );
+  }
+
+  if (comments.length === 0) {
+    return <div className="py-6 text-center text-xs text-foreground/30 italic">No comments on this post yet.</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {comments.map((comment: any) => (
+        <CommentModerationRow key={comment.id} comment={comment} />
+      ))}
+    </div>
+  );
+}
+
 function CommentsPanel() {
   const { data: feed } = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 12 });
   const [mediaId, setMediaId] = useState<string | null>(null);
@@ -1019,14 +1789,21 @@ function CommentsPanel() {
     { enabled: !!mediaId },
   );
 
-  // Questions first — a cheap, honest triage (no faked sentiment scoring):
-  // a follower asking a question is the highest-value reply to not miss.
-  const comments = [...(commentsRes?.comments ?? [])].sort(
-    (a, b) => Number(b.text.includes("?")) - Number(a.text.includes("?")),
-  );
+  const selectedPost = useMemo(() => {
+    return feed?.find(p => p.id === mediaId);
+  }, [feed, mediaId]);
+
+  const comments = useMemo(() => {
+    return [...(commentsRes?.comments ?? [])].sort(
+      (a, b) => Number(b.text.includes("?")) - Number(a.text.includes("?")),
+    );
+  }, [commentsRes]);
+
+  const { data: account } = trpc.instagramAdmin.getAccountInfo.useQuery();
+  const username = account?.username || "nicks_tire_euclid";
 
   return (
-    <Panel title="Comment moderation" icon={<MessageCircle className="w-4 h-4" />}>
+    <Panel title="Comment moderation" icon={<MessageCircle className="w-4 h-4 text-pink-400" />}>
       <div className="flex items-center gap-2 mb-2">
         <ModeBadge mode="live" />
         <span className="text-[10px] text-foreground/40">replies post to Instagram — claim-safety-gated, two-tap to confirm</span>
@@ -1035,37 +1812,85 @@ function CommentsPanel() {
         <p className="text-xs text-muted-foreground py-3">No posts in the cache yet — tap <strong>Sync feed</strong> above.</p>
       ) : (
         <>
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-2">
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
             {feed.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setMediaId(p.id)}
-                className={`shrink-0 w-16 h-16 rounded border overflow-hidden relative ${mediaId === p.id ? "border-primary" : "border-border/30"}`}
+                className={`shrink-0 w-16 h-16 rounded border overflow-hidden relative transition-all ${
+                  mediaId === p.id ? "border-primary ring-2 ring-primary/20 scale-95" : "border-border/30 opacity-70 hover:opacity-100"
+                }`}
               >
                 {p.thumbnailUrl || p.mediaUrl ? (
                   <img src={p.thumbnailUrl || p.mediaUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-neutral-800 flex items-center justify-center"><Instagram className="w-4 h-4 text-white/30" /></div>
                 )}
-                <span className="absolute bottom-0 right-0 bg-black/70 text-white text-[8px] px-1 rounded-tl flex items-center gap-0.5">
+                <span className="absolute bottom-0 right-0 bg-black/70 text-white text-[8px] px-1 rounded-tl flex items-center gap-0.5 font-bold">
                   <MessageCircle className="w-2 h-2" />{p.comments}
                 </span>
               </button>
             ))}
           </div>
+
           {!mediaId ? (
-            <p className="text-[11px] text-foreground/40">Pick a post above to load its comments.</p>
-          ) : isLoading ? (
-            <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-          ) : commentsRes && !commentsRes.ok ? (
-            <p className="text-[11px] text-amber-400 flex items-start gap-1">
-              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{commentsRes.error}
+            <p className="text-[11px] text-foreground/40 text-center py-10 bg-background/5 rounded-lg border border-dashed border-border/20">
+              Pick a post above to load its comments.
             </p>
-          ) : !comments.length ? (
-            <p className="text-[11px] text-foreground/40">No comments on this post.</p>
           ) : (
-            <div className="space-y-2">
-              {comments.map((c) => <CommentModerationRow key={c.id} comment={c} />)}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+              <div className="lg:col-span-4 space-y-3 bg-neutral-900/10 border border-border/25 rounded-lg p-3">
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Active Post Context</div>
+                {selectedPost && (
+                  <div className="space-y-3">
+                    <div className="rounded overflow-hidden bg-black flex items-center justify-center">
+                      {selectedPost.type === "VIDEO" && selectedPost.mediaUrl ? (
+                        <VideoPlayer src={selectedPost.mediaUrl} poster={selectedPost.thumbnailUrl} />
+                      ) : selectedPost.mediaUrl ? (
+                        <img src={selectedPost.mediaUrl} alt="" className="w-full max-h-[300px] object-contain" />
+                      ) : (
+                        <div className="w-full h-40 bg-neutral-900 flex items-center justify-center">
+                          <Instagram className="w-10 h-10 text-white/10" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between text-[10px] text-foreground/50">
+                        <span className="font-semibold text-foreground/70">Type: {selectedPost.type}</span>
+                        <span>{new Date(selectedPost.posted).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-[11px] text-foreground/75 italic line-clamp-4">
+                        {selectedPost.caption || "(no caption)"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="lg:col-span-8 space-y-3">
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold flex items-center justify-between">
+                  <span>Follower Comments</span>
+                  {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
+                </div>
+
+                {isLoading ? (
+                  <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                ) : commentsRes && !commentsRes.ok ? (
+                  <p className="text-[11px] text-amber-400 flex items-start gap-1">
+                    <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{commentsRes.error}
+                  </p>
+                ) : !comments.length ? (
+                  <p className="text-[11px] text-foreground/40 italic text-center py-8 bg-background/5 border border-border/10 rounded-lg">
+                    No comments on this post yet.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {comments.map((c) => (
+                      <CommentModerationRow key={c.id} comment={c} />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </>
