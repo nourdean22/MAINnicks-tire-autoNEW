@@ -20,7 +20,7 @@ import {
   Wand2, Heart, MessageCircle, Send, ShieldCheck, Sparkles,
   Camera, Lock, ChevronDown, ChevronUp, Film,
   Grid, List, Play, Pause, Volume2, VolumeX, X,
-  Image,
+  Image, Search, SlidersHorizontal, ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Panel } from "./shared";
@@ -1026,6 +1026,7 @@ interface IgCommentVM { id: string; text: string; username: string; timestamp: s
 
 function CommentModerationRow({ comment }: { comment: IgCommentVM }) {
   const [draft, setDraft] = useState("");
+  const [tone, setTone] = useState<"warm" | "professional" | "witty" | "promo">("warm");
   const [confirming, setConfirming] = useState(false);
   const suggest = trpc.instagramAdmin.suggestReply.useMutation({
     onSuccess: (r) => setDraft(r.draft),
@@ -1063,15 +1064,27 @@ function CommentModerationRow({ comment }: { comment: IgCommentVM }) {
             <span><strong>{f.severity === "block" ? "BLOCKED" : "CHECK"}</strong> · {f.rule} ("{f.match}") — {f.fix}</span>
           </p>
         ))}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => suggest.mutate({ commentText: comment.text })}
-            disabled={suggest.isPending}
-            className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded border border-border/40 text-foreground/70 hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
-          >
-            {suggest.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-            Suggest
-          </button>
+        <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+          <div className="flex items-center gap-2">
+            <select
+              value={tone}
+              onChange={(e) => setTone(e.target.value as any)}
+              className="bg-neutral-900 border border-border/40 text-foreground text-[10px] font-medium px-2 py-1 rounded focus:outline-none focus:border-primary/50 cursor-pointer"
+            >
+              <option value="warm">😊 Warm Tone</option>
+              <option value="professional">💼 Professional</option>
+              <option value="witty">⚡ Witty & Wry</option>
+              <option value="promo">🏷️ Promotional</option>
+            </select>
+            <button
+              onClick={() => suggest.mutate({ commentText: comment.text, tone })}
+              disabled={suggest.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold rounded border border-border/40 bg-neutral-900/40 text-foreground/80 hover:text-foreground hover:border-primary/45 transition-all disabled:opacity-50"
+            >
+              {suggest.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-pink-400" />}
+              Suggest
+            </button>
+          </div>
           <button
             onClick={() => {
               if (confirming) reply.mutate({ commentId: comment.id, message: draft.trim() });
@@ -1079,11 +1092,11 @@ function CommentModerationRow({ comment }: { comment: IgCommentVM }) {
             }}
             disabled={reply.isPending || !draft.trim() || blockers.length > 0}
             title={blockers.length ? "Fix the blocked wording first" : undefined}
-            className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded border transition-colors disabled:opacity-50 ${
-              confirming ? "bg-pink-500/20 text-pink-300 border-pink-500/50" : "text-pink-400 border-pink-500/30 hover:bg-pink-500/10"
+            className={`inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold rounded border transition-all disabled:opacity-50 ${
+              confirming ? "bg-pink-600 text-white border-pink-500 animate-pulse" : "text-pink-450 border-pink-500/30 hover:bg-pink-500/10"
             }`}
           >
-            {reply.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+            {reply.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
             {blockers.length ? "Blocked — edit first" : confirming ? "Tap again — posts to Instagram" : "Reply (live)"}
           </button>
         </div>
@@ -1576,6 +1589,10 @@ function FeedExplorerPanel() {
   const { data: account } = trpc.instagramAdmin.getAccountInfo.useQuery();
   const username = account?.username || "nicks_tire_euclid";
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState<"ALL" | "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM">("ALL");
+  const [sortBy, setSortBy] = useState<"posted" | "likes" | "comments">("posted");
+
   const sync = trpc.instagramAdmin.syncFeed.useMutation({
     onSuccess: () => {
       refetch();
@@ -1587,6 +1604,23 @@ function FeedExplorerPanel() {
   });
 
   const [activeModalPost, setActiveModalPost] = useState<any | null>(null);
+
+  const filteredFeed = useMemo(() => {
+    if (!feed) return [];
+    return feed
+      .filter((post) => {
+        const matchesSearch = searchQuery
+          ? post.caption?.toLowerCase().includes(searchQuery.toLowerCase())
+          : true;
+        const matchesType = filterType === "ALL" ? true : post.type === filterType;
+        return matchesSearch && matchesType;
+      })
+      .sort((a, b) => {
+        if (sortBy === "likes") return b.likes - a.likes;
+        if (sortBy === "comments") return b.comments - a.comments;
+        return new Date(b.posted).getTime() - new Date(a.posted).getTime();
+      });
+  }, [feed, searchQuery, filterType, sortBy]);
 
   if (isLoading) {
     return (
@@ -1601,7 +1635,7 @@ function FeedExplorerPanel() {
 
   return (
     <Panel title="Instagram Feed Explorer" icon={<Film className="w-4 h-4 text-pink-400" />}>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
         <div className="flex items-center gap-2">
           <ModeBadge mode="read-only" />
           <span className="text-[10px] text-foreground/40">
@@ -1651,17 +1685,66 @@ function FeedExplorerPanel() {
         </div>
       </div>
 
-      {!feed?.length ? (
+      {/* Modern Search & Filtering Bar */}
+      <div className="flex flex-col md:flex-row gap-3 mb-4 p-3 bg-neutral-900/10 border border-border/20 rounded-lg">
+        {/* Search */}
+        <div className="flex-1 relative">
+          <Search className="w-4 h-4 text-foreground/40 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search post captions..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-background border border-border/40 rounded pl-9 pr-3 py-1.5 text-xs text-foreground placeholder-foreground/30 focus:outline-none focus:border-primary/50"
+          />
+        </div>
+
+        {/* Filters */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-1 text-[11px] text-foreground/50">
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Filter:</span>
+          </div>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as any)}
+            className="bg-neutral-900 border border-border/40 text-foreground text-xs px-2.5 py-1.5 rounded focus:outline-none focus:border-primary/50 cursor-pointer"
+          >
+            <option value="ALL">🖼️ All Media</option>
+            <option value="IMAGE">📷 Images</option>
+            <option value="VIDEO">🎥 Videos/Reels</option>
+            <option value="CAROUSEL_ALBUM">📚 Carousels</option>
+          </select>
+
+          <div className="flex items-center gap-1 text-[11px] text-foreground/50">
+            <ArrowUpDown className="w-3.5 h-3.5" />
+            <span>Sort:</span>
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="bg-neutral-900 border border-border/40 text-foreground text-xs px-2.5 py-1.5 rounded focus:outline-none focus:border-primary/50 cursor-pointer"
+          >
+            <option value="posted">📅 Date Fired</option>
+            <option value="likes">❤️ Likes Count</option>
+            <option value="comments">💬 Comments Count</option>
+          </select>
+        </div>
+      </div>
+
+      {!filteredFeed.length ? (
         <div className="text-center py-20 border border-border/30 bg-card rounded-lg space-y-3">
           <Instagram className="w-12 h-12 text-foreground/20 mx-auto" />
-          <p className="font-bold text-base text-foreground/40 tracking-wider">NO FEED POSTS FOUND</p>
+          <p className="font-bold text-base text-foreground/40 tracking-wider">NO MATCHING POSTS FOUND</p>
           <p className="text-foreground/30 text-xs max-w-sm mx-auto leading-relaxed">
-            Sync your feed above to fetch and cache the latest posts and reels from Meta.
+            {feed?.length 
+              ? "Try adjusting your search query or media filters above." 
+              : "Sync your feed above to fetch and cache the latest posts and reels from Meta."}
           </p>
         </div>
       ) : layout === "grid" ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {feed.map((post) => (
+          {filteredFeed.map((post) => (
             <div
               key={post.id}
               onClick={() => setActiveModalPost(post)}
@@ -1685,10 +1768,10 @@ function FeedExplorerPanel() {
           ))}
         </div>
       ) : layout === "reels" ? (
-        <ReelsFeedExplorer feed={feed} username={username} />
+        <ReelsFeedExplorer feed={filteredFeed} username={username} />
       ) : (
         <div className="max-w-xl mx-auto space-y-6">
-          {feed.map((post) => (
+          {filteredFeed.map((post) => (
             <FeedPostCard key={post.id} post={post} username={username} />
           ))}
         </div>
