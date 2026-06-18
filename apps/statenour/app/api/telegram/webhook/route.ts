@@ -1129,8 +1129,8 @@ async function cmdImagine(prompt: string, chatId: string): Promise<void> {
   await sendTelegram(`🎨 Generating: "${prompt.slice(0, 60)}..."`, chatId);
 
   try {
-    const { generateVeniceImage } = await import("@/lib/ai/venice-image");
-    const result = await generateVeniceImage(prompt);
+    const { generateImageWithFallback } = await import("@/lib/ai/gemini-image");
+    const result = await generateImageWithFallback(prompt);
 
     // Send as photo via Telegram Bot API
     const botToken = process.env.TELEGRAM_BOT_TOKEN;

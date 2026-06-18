@@ -14,7 +14,6 @@ const baseEnv = {
   GOOGLE_OAUTH_CLIENT_ID: "valid-google-oauth-client-id",
   GOOGLE_OAUTH_CLIENT_SECRET: "valid-google-oauth-client-secret",
   OWNER_OPEN_ID: "google:12345",
-  VENICE_API_KEY: "valid-venice-api-key",
   OPENAI_API_KEY: "valid-openai-api-key",
   LLM_MODEL: "llama-3.3-70b",
   // Ensure we clear out inherit system variables so they don't pollute the test environment

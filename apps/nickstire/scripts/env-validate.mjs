@@ -15,7 +15,7 @@ const REQUIRED_KEYS = {
     "GOOGLE_OAUTH_CLIENT_SECRET",
     "OWNER_OPEN_ID",
   ],
-  requiredForAiFeatures: ["VENICE_API_KEY", "OPENAI_API_KEY", "LLM_MODEL"],
+  requiredForAiFeatures: ["LLM_MODEL"],
 };
 
 const PLACEHOLDER_PATTERNS = [
@@ -131,6 +131,9 @@ function validateTemplate() {
 
   const { map: envMap, sectionHits } = parseEnvFile(filePath);
   const missingRequired = allRequiredKeys.filter(key => !envMap.has(key));
+  if (!envMap.has("GEMINI_API_KEY") && !envMap.has("OPENAI_API_KEY")) {
+    missingRequired.push("GEMINI_API_KEY (or OPENAI_API_KEY)");
+  }
   const missingSections = KNOWN_SECTION_HEADERS.filter(
     h => !sectionHits.has(h)
   );
@@ -201,6 +204,12 @@ function validateRuntime() {
     }
 
     if (isPlaceholder(value)) placeholders.push(key);
+  }
+
+  const geminiKey = process.env.GEMINI_API_KEY || "";
+  const openaiKey = process.env.OPENAI_API_KEY || "";
+  if (geminiKey.trim() === "" && openaiKey.trim() === "") {
+    missing.push("GEMINI_API_KEY or OPENAI_API_KEY");
   }
 
   if (missing.length > 0 || placeholders.length > 0) {

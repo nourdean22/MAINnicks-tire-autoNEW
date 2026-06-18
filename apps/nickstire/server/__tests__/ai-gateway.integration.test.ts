@@ -6,14 +6,14 @@
 import { describe, it, expect } from "vitest";
 
 describe("AI Provider Configuration", () => {
-  it("Venice is the primary provider for all chat tasks", async () => {
+  it("OpenAI is the primary provider for all chat tasks", async () => {
     const content = await import("fs").then(fs =>
       fs.readFileSync("server/lib/ai-gateway.ts", "utf8")
     );
-    const veniceCount = (content.match(/provider: "venice"/g) || []).length;
+    const openaiCount = (content.match(/provider: "openai"/g) || []).length;
     const ollamaCount = (content.match(/provider: "ollama"/g) || []).length;
 
-    expect(veniceCount).toBeGreaterThanOrEqual(10);
+    expect(openaiCount).toBeGreaterThanOrEqual(10);
     expect(ollamaCount).toBe(0);
   });
 
@@ -39,12 +39,12 @@ describe("AI Provider Configuration", () => {
 });
 
 describe("LLM Bypass (invokeLLM)", () => {
-  it("resolveApiKey detects Venice URL", async () => {
+  it("resolveApiKey retrieves OpenAI key", async () => {
     const content = await import("fs").then(fs =>
       fs.readFileSync("server/_core/llm.ts", "utf8")
     );
-    expect(content).toContain("venice.ai");
-    expect(content).toContain("VENICE_API_KEY");
+    expect(content).not.toContain("venice.ai");
+    expect(content).not.toContain("VENICE_API_KEY");
     expect(content).toContain("OPENAI_API_KEY");
   });
 });
@@ -68,12 +68,13 @@ describe("AI Routing Table", () => {
 });
 
 describe("Gateway Health", () => {
-  it("health endpoint reports Venice status", async () => {
+  it("health endpoint reports stats and routing table", async () => {
     const content = await import("fs").then(fs =>
       fs.readFileSync("server/lib/ai-gateway.ts", "utf8")
     );
-    expect(content).toContain("veniceHealthy");
-    expect(content).toContain("circuitBreaker");
+    expect(content).not.toContain("veniceHealthy");
+    expect(content).not.toContain("circuitBreaker:");
+    expect(content).toContain("routingTable");
   });
 
   it("memory alert fires at 80% threshold", async () => {

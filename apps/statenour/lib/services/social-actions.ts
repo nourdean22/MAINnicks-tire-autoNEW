@@ -143,7 +143,6 @@ function resolveImageUrl(
   }
   const host =
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() ||
     (requestHost ? `https://${requestHost}` : "");
   if (!host) {
     return { url: undefined, unresolved: true };
@@ -302,6 +301,7 @@ export class SocialScheduleInputError extends Error {
 export interface ScheduleSocialInput {
   text: string;
   imageUrl?: string;
+  videoUrl?: string;
   linkUrl?: string;
   profileIds?: string[];
   scheduledAt?: string;
@@ -328,9 +328,13 @@ export async function scheduleSocialPost(
   const resolved = resolveImageUrl(input.imageUrl, requestHost);
   const absoluteImageUrl = resolved.unresolved ? input.imageUrl : resolved.url;
 
+  const resolvedVid = resolveImageUrl(input.videoUrl, requestHost);
+  const absoluteVideoUrl = resolvedVid.unresolved ? input.videoUrl : resolvedVid.url;
+
   const result = await scheduleBufferPost({
     text: input.text,
     imageUrl: absoluteImageUrl,
+    videoUrl: absoluteVideoUrl,
     linkUrl: input.linkUrl,
     profileIds: input.profileIds,
     scheduledAt: input.scheduledAt,
@@ -350,6 +354,7 @@ export async function scheduleSocialPost(
           scheduledFor: result.scheduledFor,
           error: result.error,
           text: input.text.slice(0, 500),
+          videoUrl: input.videoUrl ? input.videoUrl.slice(0, 500) : undefined,
         },
       },
     })

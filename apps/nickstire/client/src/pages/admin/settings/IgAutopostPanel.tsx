@@ -23,9 +23,18 @@ const IG_ARCHETYPES = [
 type IgArchetypeId = "proof" | "anti" | "math" | "seasonal" | "question" | "process";
 
 export default function IgAutopostPanel() {
+  const utils = trpc.useUtils();
   const { data: status } = trpc.nickActions.socialStatus.useQuery(undefined, { staleTime: 60_000 });
   const { data: flags } = trpc.featureFlags.list.useQuery();
   const [archetype, setArchetype] = useState<IgArchetypeId | undefined>(undefined);
+
+  const toggleMut = trpc.featureFlags.toggle.useMutation({
+    onSuccess: () => {
+      utils.featureFlags.list.invalidate();
+      toast.success("Autopost mode updated successfully");
+    },
+    onError: (err) => toast.error("Failed to toggle autopost mode: " + err.message),
+  });
 
   const fire = trpc.nickActions.fireIgAutopostNow.useMutation({
     onSuccess: (r) => {
@@ -74,7 +83,35 @@ export default function IgAutopostPanel() {
             {legacyLive ? "IG + FB AUTOPOST" : "Legacy IG/FB Autopost"}
           </h3>
         </div>
-        {legacyLive ? (
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-foreground/50">Automation Mode:</span>
+            <button
+              onClick={async () => {
+                const targetState = !legacyLive;
+                const ok = await confirmDialog({
+                  title: targetState ? "Enable Live Autoposting?" : "Switch to Dry-run only?",
+                  message: targetState 
+                    ? "Warning: The autonomous poster will publish content directly to Instagram and Facebook live feeds 3x a day if the eval score clears the gate."
+                    : "Autopost will only generate drafts and send previews to Telegram. Live publishing will be disabled.",
+                  confirmLabel: targetState ? "Enable Live" : "Switch to Dry-run",
+                  tone: targetState ? "danger" : "default",
+                });
+                if (ok) {
+                  toggleMut.mutate({ key: "legacy_autopost_live", value: targetState });
+                }
+              }}
+              disabled={toggleMut.isPending}
+              className={`px-2.5 py-1 text-[10px] font-bold rounded border transition-colors ${
+                legacyLive 
+                  ? "bg-pink-500/15 text-pink-400 border-pink-500/35 hover:bg-pink-500/25" 
+                  : "bg-neutral-800 text-foreground/60 border-border/30 hover:text-foreground"
+              }`}
+            >
+              {toggleMut.isPending ? "Updating..." : legacyLive ? "LIVE" : "DRY-RUN"}
+            </button>
+          </div>
+
           <div className="flex items-center gap-2 text-[10px] font-medium tracking-[0.12em]">
             <span className={`px-2 py-0.5 rounded ${igReady ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
               IG {igReady ? "READY" : "OFFLINE"}
@@ -83,13 +120,7 @@ export default function IgAutopostPanel() {
               FB {fbReady ? "READY" : "OFFLINE"}
             </span>
           </div>
-        ) : (
-          <div className="flex items-center gap-2 text-[10px] font-medium tracking-[0.12em]">
-            <span className="px-2 py-0.5 rounded bg-foreground/10 text-foreground/60 border border-border/20">
-              Dry-run only
-            </span>
-          </div>
-        )}
+        </div>
       </div>
 
       <p className="text-foreground/50 text-[11px] leading-relaxed max-w-2xl">

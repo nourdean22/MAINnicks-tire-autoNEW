@@ -46,7 +46,7 @@ interface DraftOpts {
 interface DraftResult {
   ok: true;
   draft: string;
-  source: "nickgpt-ollama" | "fallback-claude" | "fallback-venice";
+  source: "nickgpt-ollama" | "fallback-claude" | "fallback-openai";
   modelName: string;
   latencyMs: number;
 }
@@ -54,7 +54,7 @@ interface DraftResult {
 interface DraftError {
   ok: false;
   error: string;
-  source: "nickgpt-ollama" | "fallback-claude" | "fallback-venice" | "disabled";
+  source: "nickgpt-ollama" | "fallback-claude" | "fallback-openai" | "disabled";
 }
 
 export type DraftResponse = DraftResult | DraftError;
@@ -140,10 +140,11 @@ async function callOllama(opts: Required<Pick<DraftOpts, "inboundMessage" | "sys
  * client (Venice/Claude) is invoked elsewhere; we only need a thin
  * wrapper for this single use case.
  */
-async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage" | "systemPrompt" | "maxTokens" | "temperature">> & { conversationContext: DraftOpts["conversationContext"] }): Promise<{ text: string; source: "fallback-claude" | "fallback-venice"; modelName: string }> {
-  // Prefer Anthropic if key present, else fall back to Venice (OpenAI-compat)
+async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage" | "systemPrompt" | "maxTokens" | "temperature">> & { conversationContext: DraftOpts["conversationContext"] }): Promise<{ text: string; source: "fallback-claude" | "fallback-openai"; modelName: string }> {
+  // Prefer Anthropic if key present, else fall back to Gemini or OpenAI
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  const veniceKey = process.env.VENICE_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
   const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
   if (opts.conversationContext) {
     for (const m of opts.conversationContext) {
@@ -179,14 +180,14 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
     return { text, source: "fallback-claude", modelName };
   }
 
-  if (veniceKey) {
-    const modelName = process.env.LLM_MODEL || "llama-3.3-70b";
-    const baseUrl = process.env.VENICE_BASE_URL || "https://api.venice.ai/api/v1";
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
+  if (geminiKey) {
+    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const baseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
+    const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${veniceKey}`,
+        Authorization: `Bearer ${geminiKey}`,
       },
       body: JSON.stringify({
         model: modelName,
@@ -197,15 +198,41 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
     });
     if (!resp.ok) {
       const text = await resp.text().catch(() => "<no body>");
-      throw new Error(`Venice HTTP ${resp.status} · ${text.slice(0, 200)}`);
+      throw new Error(`Gemini HTTP ${resp.status} · ${text.slice(0, 200)}`);
     }
     const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
     const text = json.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!text) throw new Error("Venice returned empty content");
-    return { text, source: "fallback-venice", modelName };
+    if (!text) throw new Error("Gemini returned empty content");
+    return { text, source: "fallback-openai", modelName };
   }
 
-  throw new Error("No fallback LLM key available · set ANTHROPIC_API_KEY or VENICE_API_KEY");
+  if (openaiKey) {
+    const modelName = process.env.LLM_MODEL || "gpt-4o-mini";
+    const baseUrl = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openaiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [{ role: "system", content: opts.systemPrompt }, ...messages],
+        max_tokens: opts.maxTokens,
+        temperature: opts.temperature,
+      }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "<no body>");
+      throw new Error(`OpenAI HTTP ${resp.status} · ${text.slice(0, 200)}`);
+    }
+    const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const text = json.choices?.[0]?.message?.content?.trim() ?? "";
+    if (!text) throw new Error("OpenAI returned empty content");
+    return { text, source: "fallback-openai", modelName };
+  }
+
+  throw new Error("No fallback LLM key available · set ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY");
 }
 
 /**

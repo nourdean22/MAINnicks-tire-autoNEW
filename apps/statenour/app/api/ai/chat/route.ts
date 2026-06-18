@@ -796,9 +796,9 @@ async function chatPostInner(req: Request) {
   let resolveOnFinish: () => void = () => {};
   let onFinishPromise: Promise<void> = Promise.resolve();
   try {
-  // For Venice (small context), use just the truncated system prompt — it already has Nick's identity
+  // For Ollama/Gemini (small context), use just the truncated system prompt — it already has Nick's identity
   // For Anthropic (large context), append the full chat-layer identity + Greene laws
-  const chatLayerPrompt = provider === "venice" ? systemPrompt : `${systemPrompt}
+  const chatLayerPrompt = (provider === "ollama" || provider === "gemini") ? systemPrompt : `${systemPrompt}
 
 # NICK — Chief of Staff, NOUR OS (Chat Layer)
 

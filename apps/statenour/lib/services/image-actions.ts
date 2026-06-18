@@ -21,11 +21,11 @@
 
 import { prisma } from "@/lib/prisma";
 import {
-  upscaleVeniceImage,
-  generateVeniceImage,
-  type UpscaleScale,
-} from "@/lib/ai/venice-image";
+  generateImageWithFallback,
+} from "@/lib/ai/gemini-image";
 import { trackGeneration } from "@/lib/ai/track";
+
+export type UpscaleScale = 2 | 4;
 
 export interface UpscaleArgs {
   sourceImageId: string;
@@ -45,51 +45,13 @@ export interface UpscaleResult {
 }
 
 export async function upscaleImage(args: UpscaleArgs): Promise<UpscaleResult> {
-  const t0 = Date.now();
-  try {
-    const result = await upscaleVeniceImage(args.sourceImageId, args.scale, {
-      enhance: args.enhance ?? true,
-    });
-    const durationMs = Date.now() - t0;
-
-    // Cost tracking — flat per-call estimate. Venice's actual price is
-    // metered server-side; we approximate so the cost dashboard sees
-    // the spend in real time. 2x ≈ $0.02 = 2¢, 4x ≈ $0.04 = 4¢.
-    void trackGeneration({
-      feature: "image_upscale",
-      model: "venice-upscale",
-      promptTokens: args.scale === 4 ? 40_000 : 20_000,
-      outputTokens: 0,
-      durationMs,
-      status: "complete",
-    });
-
-    return {
-      ok: true,
-      imageUrl: result.imageUrl,
-      imageId: result.imageId,
-      size: result.size,
-      scale: result.scale,
-      sourceImageId: result.sourceImageId,
-      durationMs,
-      costCents: args.scale === 4 ? 4 : 2,
-    };
-  } catch (err) {
-    // Track the failure so the cost dashboard's error rate is real
-    void trackGeneration({
-      feature: "image_upscale",
-      model: "venice-upscale",
-      durationMs: Date.now() - t0,
-      status: "error",
-    });
-    throw err;
-  }
+  throw new Error("Upscaling is not supported by the current provider (Venice is retired).");
 }
 
 export interface VaryArgs {
   sourceImageId: string;
   count?: number;
-  /** Optional speed override · "fast" (z-image-turbo) for cheap variants */
+  /** Optional speed override */
   speed?: "fast" | "balanced" | "quality";
 }
 
@@ -132,9 +94,6 @@ export async function varyImage(args: VaryArgs): Promise<VaryResult> {
 
   const sourcePayload = source.payload as { size?: string };
   const originalPrompt = source.detail ?? "(no prompt available)";
-  // v10.0.479 · size enum updated to flux-2-pro accepted values.
-  // Legacy DB rows may still hold "1024x768" / "768x1024" · map them
-  // to the closest new shape so variations of older images don't 400.
   const rawSize = sourcePayload.size ?? "1024x1024";
   const sourceSize: SourceSize =
     rawSize === "1024x768"
@@ -145,14 +104,11 @@ export async function varyImage(args: VaryArgs): Promise<VaryResult> {
           ? (rawSize as SourceSize)
           : "1024x1024";
 
-  // Generate variations in parallel — Venice can handle ~3-4 concurrent
-  // image gens for the same key without rate-limiting issues.
   const t0 = Date.now();
   const results = await Promise.allSettled(
     Array.from({ length: count }, () =>
-      generateVeniceImage(originalPrompt, {
+      generateImageWithFallback(originalPrompt, {
         size: sourceSize,
-        speed: args.speed ?? "fast",
       }),
     ),
   );
@@ -160,18 +116,17 @@ export async function varyImage(args: VaryArgs): Promise<VaryResult> {
   const successes = results
     .filter(
       (r): r is PromiseFulfilledResult<
-        Awaited<ReturnType<typeof generateVeniceImage>>
+        Awaited<ReturnType<typeof generateImageWithFallback>>
       > => r.status === "fulfilled",
     )
     .map((r) => r.value);
   const failures = results.filter((r) => r.status === "rejected").length;
 
-  // Track each successful gen for cost dashboard visibility
   for (const r of successes) {
     void trackGeneration({
       feature: "image_variation",
       model: r.model,
-      promptTokens: r.model === "z-image-turbo" ? 10_000 : 50_000,
+      promptTokens: 50_000,
       outputTokens: 0,
       durationMs: Math.round((Date.now() - t0) / count),
       status: "complete",
@@ -181,7 +136,7 @@ export async function varyImage(args: VaryArgs): Promise<VaryResult> {
   if (failures > 0) {
     void trackGeneration({
       feature: "image_variation",
-      model: "venice-image",
+      model: "gemini-image",
       durationMs: Date.now() - t0,
       status: "error",
     });

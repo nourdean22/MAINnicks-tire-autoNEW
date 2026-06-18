@@ -90,17 +90,17 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
       ? Math.round((aiHealth.stats.last5min.fallbacks / aiHealth.stats.last5min.total) * 100) + "%"
       : "n/a";
 
+    const aiKeyPresent = !!(process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY);
     checks.aiGateway = {
-      status: aiHealth.circuitBreaker.open ? "degraded" : "up",
-      veniceHealthy: aiHealth.veniceHealthy,
-      circuitBreakerOpen: aiHealth.circuitBreaker.open,
+      status: aiKeyPresent ? "up" : "down",
+      openaiHealthy: aiKeyPresent,
       recentRequests: aiHealth.stats.last5min.total,
       recentFailures: aiHealth.stats.last5min.failures,
       fallbackRate: failureRate,
     };
 
-    // AI gateway issues = degraded, not unhealthy (fallbacks exist)
-    if (aiHealth.circuitBreaker.open && overallStatus === "healthy") {
+    // AI gateway issues = degraded, not unhealthy
+    if (!aiKeyPresent && overallStatus === "healthy") {
       overallStatus = "degraded";
     }
   } catch (err) {

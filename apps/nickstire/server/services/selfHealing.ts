@@ -104,17 +104,14 @@ export async function runSelfHealingChecks(): Promise<{
   }
 
   // 6. Check AI provider health.
-  // Only raise as an ISSUE when no provider is configured at all (Nick AI
-  // genuinely non-functional). If OpenAI is present but Venice is not,
-  // that's an intentional cost-saving choice — log as info only to stop
-  // the self-healing cron from spamming the log every 5 minutes.
+  // Only raise as an ISSUE when neither GEMINI_API_KEY nor OPENAI_API_KEY is configured
+  // (Nick AI genuinely non-functional).
   try {
-    const veniceKey = process.env.VENICE_API_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;
-    if (!veniceKey && !openaiKey) {
-      issues.push("AI PROVIDERS: Neither VENICE_API_KEY nor OPENAI_API_KEY configured — Nick AI is non-functional");
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!openaiKey && !geminiKey) {
+      issues.push("AI PROVIDERS: Neither OPENAI_API_KEY nor GEMINI_API_KEY configured — Nick AI is non-functional");
     }
-    // Venice-only fallback status is informational, not an issue.
   } catch (e) { log.warn("[services/selfHealing] operation failed:", e); }
 
   // Report + learn + act

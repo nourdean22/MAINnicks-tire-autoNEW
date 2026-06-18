@@ -3,7 +3,7 @@ import { buildCronCommandDeck } from "@/lib/services/system-pages";
 import { runManifestCron } from "@/lib/services/cron-control";
 import { recordCoachEvent } from "@/lib/services/coach-events";
 import { daysAgo } from "@/lib/utils/datetime";
-import { markVeniceQuotaExhausted, markOllamaQuotaExhausted } from "@/lib/ai/provider";
+import { markOllamaQuotaExhausted } from "@/lib/ai/provider";
 import { WorkItemStatus, TaskStatus, Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 
@@ -198,7 +198,6 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       take: 50,
     });
 
-    let veniceErrorsCount = 0;
     let ollamaErrorsCount = 0;
 
     for (const err of recentErrors) {
@@ -206,13 +205,7 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       const msg = (err.errorMessage ?? "").toLowerCase();
       const isQuotaOrTimeout = /402|payment|insufficient|credit|timeout|deadline|econnreset/.test(msg);
 
-      if (provider === "venice") {
-        if (/402|payment|insufficient|credit/.test(msg)) {
-          result.veniceQuotaTripped = true;
-        } else if (isQuotaOrTimeout) {
-          veniceErrorsCount++;
-        }
-      } else if (provider === "ollama") {
+      if (provider === "ollama") {
         if (/402|quota|limit/.test(msg)) {
           result.ollamaQuotaTripped = true;
         } else if (isQuotaOrTimeout) {
@@ -221,16 +214,8 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       }
     }
 
-    if (veniceErrorsCount >= 3) {
-      result.veniceQuotaTripped = true;
-    }
     if (ollamaErrorsCount >= 3) {
       result.ollamaQuotaTripped = true;
-    }
-
-    if (result.veniceQuotaTripped) {
-      log.warn("tripping_venice_circuit_breaker");
-      markVeniceQuotaExhausted();
     }
     if (result.ollamaQuotaTripped) {
       log.warn("tripping_ollama_circuit_breaker");

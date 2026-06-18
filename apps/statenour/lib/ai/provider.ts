@@ -61,9 +61,6 @@ function cleanEnv(val: string | undefined): string | undefined {
   return val.replace(/\\n/g, "").replace(/\\r/g, "").trim();
 }
 
-const VENICE_API_KEY = cleanEnv(process.env.VENICE_API_KEY);
-const VENICE_MODEL = cleanEnv(process.env.VENICE_MODEL) || "venice-uncensored";
-
 const ANTHROPIC_API_KEY = cleanEnv(process.env.ANTHROPIC_API_KEY);
 const ANTHROPIC_MODEL = cleanEnv(process.env.ANTHROPIC_MODEL) || "claude-sonnet-4-6";
 
@@ -94,7 +91,6 @@ const GEMINI_API_KEY = cleanEnv(process.env.GEMINI_API_KEY) || cleanEnv(process.
 const GEMINI_MODEL = cleanEnv(process.env.GEMINI_MODEL) || "gemini-3.5-flash";
 
 const AI_PROVIDER = cleanEnv(process.env.AI_PROVIDER) as
-  | "venice"
   | "ollama"
   | "openai"
   | "anthropic"
@@ -102,7 +98,6 @@ const AI_PROVIDER = cleanEnv(process.env.AI_PROVIDER) as
   | undefined;
 
 export type ProviderName =
-  | "venice"
   | "ollama"
   | "openai"
   | "anthropic"
@@ -110,412 +105,7 @@ export type ProviderName =
   | "emergency";
 export type TaskType = "fast" | "reason" | "deep" | "vision" | "embed" | "code" | "sql" | "math" | "creative" | "summary" | "classify" | "extract";
 
-// ---------------------------------------------------------------------------
-// Venice Configuration — MAXIMUM UNRESTRICTED + TASK-ADAPTIVE
-// ---------------------------------------------------------------------------
-
-/**
- * Base Venice parameters — applied to EVERY Venice request.
- * These unlock Venice Pro features and remove all restrictions.
- */
-export const VENICE_PARAMS = {
-  // === UNRESTRICTED MODE ===
-  include_venice_system_prompt: false,  // Nick has his own 50K prompt
-  // strip_thinking_response FLIPPED Apr 15: when Venice strips thinking
-  // server-side AND the model happens to burn its entire output budget
-  // on reasoning, we get an empty response with no chance to recover.
-  // Letting Venice return the raw tokens + stripping on OUR side gives
-  // us diagnostic visibility and a fallback path.
-  strip_thinking_response: false,
-  // disable_thinking is set PER TASK TYPE in VENICE_TASK_OVERRIDES
-  // below. The "fast" and "classify" profiles force it ON so quick
-  // chat messages don't waste tokens on internal reasoning.
-  enable_e2ee: true,                    // End-to-end encryption for business strategy
-
-  // === REAL-TIME INTELLIGENCE ===
-  enable_web_search: "auto",            // Venice searches when relevant
-  enable_web_scraping: true,            // Scrape URLs in messages
-  enable_web_citations: true,           // Cite sources from web search
-
-  // === PERFORMANCE — prompt caching on Venice side ===
-  // prompt_cache_key routes matching prompts to the same backend
-  // worker so the 50K system prompt doesn't get re-tokenized on every
-  // message. With a 24h retention window, warm sessions shave 5-15s
-  // off first-token latency on Venice GLM-4.7-flash.
-  prompt_cache_key: "nour-os-nick-v10",
-  prompt_cache_retention: "24h",
-};
-
-/**
- * Task-specific overrides for Venice requests.
- * Different tasks need different reasoning depth, temperature, and penalties.
- *
- * reasoning_effort: none → max (how hard Venice thinks)
- * temperature: 0.0 → 2.0 (creativity vs determinism)
- * repetition_penalty: 1.0+ (prevent repetitive responses)
- * min_p: 0.0 → 1.0 (filter low-probability tokens)
- * top_k: filter to top K tokens
- */
-// Note: these overrides spread LAST so task-level fields override the
-// base VENICE_PARAMS. Setting disable_thinking: true here wins over
-// anything in VENICE_PARAMS (which now leaves it out entirely).
-const VENICE_TASK_OVERRIDES: Record<TaskType, Record<string, unknown>> = {
-  fast: {
-    // CRITICAL: quick-mode chat messages like "ping" or "hi" don't
-    // need reasoning — and when reasoning_effort was "low" + Venice
-    // still had disable_thinking: false, the model burned all 180
-    // output tokens thinking and strip_thinking_response returned
-    // an empty string. That killed quick-mode chat entirely.
-    // Setting disable_thinking: true here forces the model to skip
-    // the think phase and emit direct tokens immediately.
-    reasoning_effort: "none",
-    disable_thinking: true,
-    temperature: 0.4,
-    repetition_penalty: 1.1,
-    min_p: 0.05,
-  },
-  reason: {
-    // Apr 17 fix: disable_thinking was undefined here, so Venice left
-    // reasoning_effort="high" free to burn the ENTIRE output budget on
-    // internal <think> tokens. Result: visible assistant text was often
-    // empty — "give me a list of movies" → blank response. Empty
-    // responses were the #1 chat error in ai_errors.
-    //
-    // Solution: set disable_thinking=true. We lose Venice's internal
-    // reasoning step, but we gain reliable visible output. Reasoning
-    // still happens in the emitted tokens when the model wants — it
-    // just can't hide ALL of it behind a <think> wall.
-    //
-    // Deep mode (below) keeps reasoning ON because it has maxOutputTokens=4000
-    // as a visible-budget floor and is only used for strategic queries.
-    reasoning_effort: "medium",
-    disable_thinking: true,
-    // v10.0.481 · 0.7 → 0.8 · operator turned up creativity. Default
-    // chat thinking gets more room to explore phrasings + angles
-    // without losing reasoning coherence (effort=medium holds).
-    temperature: 0.8,
-    repetition_penalty: 1.15,
-    min_p: 0.03,
-    prompt_cache_retention: "24h",
-  },
-  deep: {
-    // Apr 17 v4: every deep request was returning empty with
-    // finishReason='other'. Root cause: reasoning_effort="high" + the
-    // venice-uncensored fast model (where deep actually routes by
-    // default — see resolveVeniceModelForTask). The fast model doesn't
-    // support heavy reasoning; sending it reasoning_effort=high AND
-    // a 57K prompt silently failed.
-    //
-    // Fix: drop to effort="none" + disable_thinking so the fast model
-    // handles it cleanly. Deep mode strategic "thinking" happens in
-    // the VISIBLE output via the prompt ("think step by step before
-    // answering") + the 4000-token visible budget set in the chat
-    // route. Same shape as reason task, just colder temp + bigger
-    // output budget for strategic queries.
-    reasoning_effort: "none",
-    disable_thinking: true,
-    temperature: 0.4,
-    repetition_penalty: 1.1,
-    min_p: 0.02,
-    prompt_cache_retention: "24h",
-  },
-  vision: {
-    reasoning_effort: "medium",
-    temperature: 0.5,
-  },
-  embed: {},  // Embeddings don't use chat completions
-  code: {
-    reasoning_effort: "high",
-    temperature: 0.2,
-    repetition_penalty: 1.0,
-  },
-  sql: {
-    reasoning_effort: "medium",
-    temperature: 0.1,
-  },
-  math: {
-    reasoning_effort: "high",
-    temperature: 0.1,
-  },
-  creative: {
-    // v10.0.180 · creative is the ONE remaining task that routes to
-    // the configured (heretic) model by default per
-    // VENICE_USE_CONFIGURED_MODEL_FOR_TASKS=creative. Without
-    // disable_thinking the heretic model can burn its full output
-    // budget on internal <think> reasoning, leaving zero visible
-    // tokens after strip_thinking. Same root-cause as v10.0.178
-    // (suggestions) and v10.0.179 (conversation-compress). Marketing/
-    // brainstorm/caption content routes here via domain-routing.ts;
-    // an empty response on a "caption this photo" request looked
-    // like a flake but was the silent burn.
-    //
-    // Reasoning still happens in the emitted tokens — the model just
-    // can't hide ALL of it behind a <think> wall. Visible output
-    // becomes reliable.
-    reasoning_effort: "medium",
-    disable_thinking: true,
-    // v10.0.481 · 0.9 → 1.05 · operator turned up creativity hard.
-    // Marketing / brainstorm / caption tasks now lean into novel
-    // combinations, contrarian framings, unexpected adjacencies.
-    // Repetition penalty stays at 1.3 to keep individual outputs
-    // distinct; min_p tightened slightly to filter incoherent
-    // tail-tokens at the higher temp.
-    temperature: 1.05,
-    repetition_penalty: 1.3,
-    min_p: 0.02,
-    top_k: 50,
-  },
-  summary: {
-    reasoning_effort: "low",
-    disable_thinking: true,
-    // v10.0.481 · 0.3 → 0.45 · operator turned up creativity. Summary
-    // gets slightly more room for novel phrasing while still being
-    // grounded (reasoning=low + rep_penalty 1.2 keep it tight).
-    temperature: 0.45,
-    repetition_penalty: 1.2,
-  },
-  classify: {
-    reasoning_effort: "none",
-    disable_thinking: true,
-    temperature: 0.1,
-    min_p: 0.1,
-  },
-  extract: {
-    reasoning_effort: "low",
-    temperature: 0.1,
-  },
-};
-
-/**
- * Build a Venice fetch wrapper CLOSURE-LOCKED to a specific task type.
- *
- * ⚠ Why a closure, not a module-level variable:
- *   The old approach stored `_currentTaskType` at module level and
- *   `createVeniceModel()` set it before each request. With concurrent
- *   requests (e.g. main chat=deep + /api/ai/chat/prefetch=fast firing
- *   in parallel) the prefetch would overwrite _currentTaskType AFTER
- *   the deep request grabbed it but BEFORE its fetch hit Venice. Deep
- *   mode requests ended up sent with `fast` params — reasoning_effort=none,
- *   disable_thinking=true, wrong model — and Venice silently returned
- *   empty responses (finishReason='other').
- *
- *   Closure-locked task type means each model instance owns its own
- *   fetcher. Concurrent Venice calls can't clobber each other.
- */
-// Models that don't support Venice's function-calling surface. Tools get
-// stripped from the request body when one of these is the target — Venice
-// returns HTTP 400 "tools is not supported by this model" otherwise, which
-// silently killed deep mode until Apr 17.
-const VENICE_MODELS_WITHOUT_TOOLS = new Set([
-  "venice-uncensored", // stock fast model, no function calling
-]);
-
-function makeVeniceFetch(taskType: TaskType): typeof globalThis.fetch {
-  return async (url, options) => {
-    if (options?.body && typeof options.body === "string") {
-      try {
-        const body = JSON.parse(options.body);
-
-        // Strip tools + tool_choice when model can't handle them. We'd
-        // rather give a good tool-free response than a 400 Bad Request.
-        if (VENICE_MODELS_WITHOUT_TOOLS.has(body.model)) {
-          if (body.tools || body.tool_choice) {
-            const toolsDropped = Array.isArray(body.tools) ? body.tools.length : 0;
-            delete body.tools;
-            delete body.tool_choice;
-            console.log(
-              `[veniceFetch] stripped ${toolsDropped} tools + tool_choice — ${body.model} doesn't support function calling`
-            );
-          }
-        }
-
-        // Inject venice_parameters (unrestricted mode + web search + caching)
-        // AND merge task-specific disable_thinking into venice_parameters
-        // so Venice sees the full parameter block in one place.
-        //
-        // v10.0.529.106 · Wave 59 · prompt_cache_key segmented by
-        // taskType. Pre-Wave-59 every task type shared the cache key
-        // "nour-os-nick-v10", meaning a fast-turn (temp 0.4 ·
-        // disable_thinking true) and a deep-turn (temp 0.0 ·
-        // reasoning_effort high) shared cache slots and evicted each
-        // other prematurely. Segmenting by task type gives each
-        // reasoning profile its own cache lane → fewer evictions, more
-        // hits within a task lane.
-        const overrides = VENICE_TASK_OVERRIDES[taskType] || {};
-        body.venice_parameters = {
-          ...VENICE_PARAMS,
-          prompt_cache_key: `${VENICE_PARAMS.prompt_cache_key}-${taskType}`,
-          // disable_thinking is a venice_parameters field, not a top-level one
-          ...(overrides.disable_thinking !== undefined
-            ? { disable_thinking: overrides.disable_thinking }
-            : {}),
-        };
-
-        // Inject task-specific overrides at the top level, EXCEPT disable_thinking
-        // which belongs under venice_parameters (we already folded it above)
-        for (const [key, value] of Object.entries(overrides)) {
-          if (value === undefined) continue;
-          if (key === "disable_thinking") continue; // already handled above
-          body[key] = value;
-        }
-
-        // Debug log — shows up in server logs so we can see EXACTLY what
-        // parameters Venice is receiving for a given task type.
-        const systemMsgs = (body.messages || []).filter((m: { role: string }) => m.role === "system");
-        const systemCharTotal = systemMsgs.reduce((sum: number, m: { content?: string }) => sum + (m.content?.length || 0), 0);
-        const userMsgs = (body.messages || []).filter((m: { role: string }) => m.role === "user");
-        const userCharTotal = userMsgs.reduce((sum: number, m: { content?: string }) => sum + (m.content?.length || 0), 0);
-        const toolCount = Array.isArray(body.tools) ? body.tools.length : 0;
-        const toolCharTotal = Array.isArray(body.tools)
-          ? body.tools.reduce((sum: number, t: unknown) => sum + JSON.stringify(t).length, 0)
-          : 0;
-        console.log(
-          `[veniceFetch] task=${taskType} model=${body.model} max_tokens=${body.max_tokens ?? body.max_output_tokens ?? "?"} disable_thinking=${body.venice_parameters?.disable_thinking} reasoning_effort=${body.reasoning_effort} msgs=${body.messages?.length ?? 0} sys=${systemMsgs.length}×${systemCharTotal}ch usr=${userMsgs.length}×${userCharTotal}ch tools=${toolCount}×${toolCharTotal}ch bodyKeys=${Object.keys(body).join(",")}`
-        );
-
-        // Fire the request; capture error body for diagnosis on non-2xx.
-        const response = await globalThis.fetch(url, { ...options, body: JSON.stringify(body) });
-        if (!response.ok) {
-          const errorBody = await response.clone().text().catch(() => "<unreadable>");
-          console.error(
-            `[veniceFetch] ${response.status} ${response.statusText} task=${taskType} · body:`,
-            errorBody.slice(0, 1000)
-          );
-          // Apr 27 · 402 Payment Required = Venice account is out of
-          // credits. Trip the circuit breaker so subsequent calls fall
-          // through to OpenAI/Anthropic for the cooldown window instead
-          // of burning request budget hitting a known-broken endpoint
-          // (which then 429s and makes the user think the chat itself
-          // is broken).
-          if (response.status === 402) {
-            markVeniceQuotaExhausted();
-          }
-        } else {
-          // Apr 27 · Success → clear the breaker. After a top-up the
-          // first 200 from Venice means credits are flowing again, so
-          // future calls should route to Venice without waiting for
-          // the cooldown to expire.
-          if (isVeniceQuotaExhausted()) clearVeniceQuotaExhausted();
-        }
-        return response;
-      } catch {
-        // Not JSON body — pass through unchanged
-      }
-    }
-    return globalThis.fetch(url, options);
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Provider factories
-// ---------------------------------------------------------------------------
-
-/**
- * Per-task Venice model — stays entirely on Venice but uses the right
- * model for the right job.
- *
- * The default VENICE_MODEL from env is `olafangensan-glm-4.7-flash-heretic`,
- * a community GLM-4.7 fine-tune that produces rich deep reasoning but
- * silently returns EMPTY text on short "quick" messages (verified:
- * raw=0, reasoning=0, content=0, steps=0, finish=stop, output=400 tokens).
- * It ignores disable_thinking and doesn't wrap output in <think> tags
- * the AI SDK can catch.
- *
- * For fast + classify task types we use `venice-uncensored` instead —
- * stock Venice model that responds immediately, no reasoning phase,
- * sub-3s first token. Heavy tasks (reason/deep/creative) keep the
- * heretic model where the thinking pays off.
- *
- * ⚠ Apr 15 2026 — the heretic model started returning "Invalid JSON
- *   response" on reason/deep calls in Next.js routes, silently
- *   killing every aiChat(..., "deep") caller (review, coach-goal,
- *   plan-project, suggest-goals, assist, strategy). The fix: route
- *   MOST tasks through venice-uncensored (the proven working model)
- *   and reserve the configured VENICE_MODEL only for `creative`
- *   where temperature 0.9 genuinely benefits from a bigger model.
- *
- *   To force heretic back on for a given task type, set
- *   VENICE_USE_CONFIGURED_MODEL_FOR_TASKS to a comma-separated list
- *   (e.g. "reason,deep") in .env.local.
- *
- * Override VENICE_FAST_MODEL env var to pick a different fast model.
- */
-const VENICE_FAST_MODEL = cleanEnv(process.env.VENICE_FAST_MODEL) || "venice-uncensored";
-
-// v10.0.514 · default dropped from "creative" to "" (empty).
-// The 2026-05-12 chat smoke tests showed venice-uncensored handles
-// creative content (post ideas, brand-voice copy) just fine · while
-// the heretic model errored 3× in a row on a "post idea" question
-// with "Stream interrupted: [object Object]" on the operator's
-// production chat. Until heretic's invalid-JSON / empty-content
-// failure mode is fixed upstream, default to NEVER use it.
-// Operator can opt back in via VENICE_USE_CONFIGURED_MODEL_FOR_TASKS
-// env var if they have a specific creative use case where the bigger
-// model's temperature-0.9 reasoning actually pays off.
-const TASKS_FORCED_TO_CONFIGURED_MODEL: Set<TaskType> = new Set(
-  (cleanEnv(process.env.VENICE_USE_CONFIGURED_MODEL_FOR_TASKS) || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean) as TaskType[]
-);
-
-function resolveVeniceModelForTask(taskType: TaskType): string {
-  // `fast` and `classify` have always used the fast model — keep
-  // that behavior.
-  if (taskType === "fast" || taskType === "classify") {
-    return VENICE_FAST_MODEL;
-  }
-  // Explicit opt-in list: if the env names this task type, use the
-  // configured VENICE_MODEL (typically a reasoning-heavy model like
-  // GLM heretic).
-  if (TASKS_FORCED_TO_CONFIGURED_MODEL.has(taskType)) {
-    return VENICE_MODEL;
-  }
-  // Default: route through venice-uncensored. It's stock, fast, and
-  // doesn't produce the `reasoning_content` that chokes the AI SDK.
-  return VENICE_FAST_MODEL;
-}
-
-function createVeniceModel(taskType: TaskType = "reason"): LanguageModel {
-  const modelId = resolveVeniceModelForTask(taskType);
-
-  const venice = createOpenAI({
-    baseURL: "https://api.venice.ai/api/v1",
-    apiKey: VENICE_API_KEY!,
-    headers: {
-      // X-Venice-Privacy: strict is the real privacy control.
-      // X-Venice-No-Store was REMOVED Apr 15 — it was silently
-      // canceling prompt_cache_key, forcing Venice to re-ingest the
-      // 50K system prompt on every request (the root cause of the
-      // "spotty chat" complaint). With this gone, warm sessions hit
-      // the prompt cache and shave 5-15s off first-token latency.
-      "X-Venice-Privacy": "strict",
-    },
-    // Closure-locked fetch: each model instance carries its own task
-    // type, immune to concurrent request clobbering (see makeVeniceFetch).
-    fetch: makeVeniceFetch(taskType),
-  });
-
-  // Wrap with extractReasoningMiddleware so any model that DOES emit
-  // <think>...</think> blocks (the heretic model on deep mode) gets
-  // them properly routed to the reasoning field instead of leaking
-  // into visible text. Safe for models that don't use think tags —
-  // middleware is a no-op when no tags are present.
-  //
-  // ⚠ Apr 17 v6 — THE deep mode "empty response" ROOT CAUSE:
-  //   AI SDK v6's createOpenAI() defaults to OpenAI's new Responses API
-  //   (`POST /v1/responses` with `input` field). Venice ONLY supports
-  //   the legacy Chat Completions API (`POST /v1/chat/completions` with
-  //   `messages` field). The default send path stripped the conversation
-  //   from `messages` into the new `input` format, but Venice couldn't
-  //   parse it — silently responded with finishReason='other' and 0
-  //   tokens. venice.chat(modelId) forces the legacy Chat Completions
-  //   path Venice actually supports. Fixes deep mode end-to-end.
-  return wrapLanguageModel({
-    model: venice.chat(modelId),
-    middleware: extractReasoningMiddleware({ tagName: "think" }),
-  });
-}
+export const VENICE_PARAMS = {};
 
 function createAnthropicModel(): LanguageModel {
   const anthropic = createAnthropic({ apiKey: ANTHROPIC_API_KEY! });
@@ -606,20 +196,12 @@ function makeQuotaBreaker(provider: ProviderName, cooldownMs: number) {
   };
 }
 
-const veniceBreaker = makeQuotaBreaker("venice", 2 * 60_000);
-export const markVeniceQuotaExhausted = veniceBreaker.mark;
-export const clearVeniceQuotaExhausted = veniceBreaker.clear;
-export const isVeniceQuotaExhausted = veniceBreaker.isExhausted;
+export const markVeniceQuotaExhausted = () => {};
+export const clearVeniceQuotaExhausted = () => {};
+export const isVeniceQuotaExhausted = () => false;
 
 function isVeniceAvailable(): boolean {
-  // Venice is retired for chat/completions (operator directive)
-  if (process.env.RETIRE_VENICE !== "false") return false;
-
-  if (!VENICE_API_KEY || VENICE_API_KEY === "your-new-key-here") return false;
-  // Skip Venice while the quota-exhausted cooldown is active so getModel
-  // falls through to the next provider in the chain.
-  if (isVeniceQuotaExhausted()) return false;
-  return true;
+  return false;
 }
 
 function isAnthropicAvailable(): boolean {
@@ -677,7 +259,6 @@ const PROVIDERS: ProviderEntry[] = [
   { name: "gemini", available: isGeminiAvailable, create: (t) => createGoogleModel(t), modelId: GEMINI_MODEL },
   { name: "openai", available: isOpenAIAvailable, create: () => createOpenAIModel(), modelId: OPENAI_MODEL },
   { name: "anthropic", available: isAnthropicAvailable, create: () => createAnthropicModel(), modelId: ANTHROPIC_MODEL },
-  { name: "venice", available: isVeniceAvailable, create: (t) => createVeniceModel(t), modelId: VENICE_MODEL },
 ];
 
 // ---------------------------------------------------------------------------
@@ -756,12 +337,7 @@ export interface GetModelOptions {
    * v10.0.512 · Promote a specific provider to 1st in the chain.
    * Used for factual/customer/SEO queries where Anthropic Claude
    * respects tool descriptions and explicit system-prompt directives
-   * far better than venice-uncensored.
-   *
-   * The 2026-05-12 smoke test showed venice ignoring directly-injected
-   * GSC data and saying "Sorry, I cannot provide information" instead
-   * of citing the numbers in its system prompt. Anthropic Claude
-   * doesn't have that compliance gap.
+   * far better than others.
    */
   forceProviderFirst?: ProviderName;
 }
@@ -773,21 +349,21 @@ export function getPreferredOrderForTask(taskType: TaskType): ProviderName[] {
     case "summary":
     case "classify":
     case "extract":
-      return ["gemini", "ollama", "openai", "anthropic", "venice"];
+      return ["gemini", "ollama", "openai", "anthropic"];
     case "reason":
     case "vision":
-      return ["ollama", "gemini", "openai", "anthropic", "venice"];
+      return ["ollama", "gemini", "openai", "anthropic"];
     case "deep":
-      return ["ollama", "openai", "anthropic", "gemini", "venice"];
+      return ["ollama", "openai", "anthropic", "gemini"];
     case "code":
-      return ["ollama", "openai", "anthropic", "gemini", "venice"];
+      return ["ollama", "openai", "anthropic", "gemini"];
     case "math":
-      return ["openai", "gemini", "ollama", "anthropic", "venice"];
+      return ["openai", "gemini", "ollama", "anthropic"];
     case "creative":
-      return ["ollama", "gemini", "openai", "anthropic", "venice"];
+      return ["ollama", "gemini", "openai", "anthropic"];
     case "embed":
     default:
-      return ["ollama", "gemini", "openai", "anthropic", "venice"];
+      return ["ollama", "gemini", "openai", "anthropic"];
   }
 }
 
@@ -805,7 +381,7 @@ export function getModel(
     preferred = [pinned, ...taskOrder.filter((p) => p !== pinned)];
   } else if (opts.preferLargeContext) {
     // Apr 28 · Reorder when caller wants large context — Ollama goes first, then Gemini.
-    preferred = ["ollama", "gemini", "venice", "openai", "anthropic"];
+    preferred = ["ollama", "gemini", "openai", "anthropic"];
   } else {
     preferred = getPreferredOrderForTask(taskType);
   }
@@ -845,26 +421,14 @@ export function getModel(
   }
 
   throw new Error(
-    "No AI provider available. Set VENICE_API_KEY, OLLAMA_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY."
+    "No AI provider available. Set OLLAMA_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY."
   );
 }
 
 /**
  * Returns the name and model ID of the currently active provider.
- *
- * v10.0.112 audit fix · two correctness fixes:
- *   1. Skip providers in the recently-failed cooldown so we never
- *      report "currently using Venice" while getModel() has already
- *      rotated to Ollama. Mirrors the same guard in getModel().
- *   2. For Venice, resolve the per-task model dynamically. The
- *      configured VENICE_MODEL is the "creative/deep" pick; for
- *      most tasks resolveVeniceModelForTask() returns the FAST model.
- *      Pre-fix this surface lied about which Venice model was active.
  */
 function activeModelIdFor(entry: ProviderEntry, taskType: TaskType): string {
-  if (entry.name === "venice") {
-    return resolveVeniceModelForTask(taskType);
-  }
   return entry.modelId;
 }
 
@@ -1005,7 +569,6 @@ const PROVIDER_RATES_PER_1M_TOKENS: Record<
   string,
   { input: number; output: number }
 > = {
-  venice: { input: 0.5, output: 1.5 }, // Venice flagship-ish pricing
   ollama: { input: 0.0, output: 0.0 }, // local · zero marginal
   gemini: { input: 0.075, output: 0.30 }, // Gemini 2.5/3.5 Flash rates
   openai: { input: 2.5, output: 10.0 }, // gpt-4o-mini-ish average
@@ -1083,7 +646,7 @@ export async function aiChat(
     // Sort so ollama (0 cost) and gemini (extremely cheap) are tried first
     orderedProviders = [...PROVIDERS].sort((a, b) => {
       const costTier = (n: ProviderName) =>
-        n === "ollama" ? 0 : n === "gemini" ? 1 : n === "openai" ? 2 : n === "venice" ? 3 : 4;
+        n === "ollama" ? 0 : n === "gemini" ? 1 : n === "openai" ? 2 : 4;
       return costTier(a.name) - costTier(b.name);
     });
     // Skip anthropic if others are available to save remaining budget
@@ -1160,9 +723,7 @@ export async function aiChat(
       ? AbortSignal.any([externalSignal, controller.signal])
       : controller.signal;
     const attemptStart = Date.now();
-    const resolvedModelId = entry.name === "venice"
-      ? resolveVeniceModelForTask(taskType)
-      : entry.modelId;
+    const resolvedModelId = entry.modelId;
     try {
       log.debug("provider.try", { provider: entry.name, model: resolvedModelId, taskType });
       const model = entry.create(taskType);
@@ -1353,41 +914,7 @@ export async function aiChat(
 export async function getEmbedding(text: string): Promise<number[]> {
   const input = text.slice(0, 30_000);
 
-  // 1. Venice (primary)
-  if (VENICE_API_KEY) {
-    try {
-      const res = await fetch("https://api.venice.ai/api/v1/embeddings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${VENICE_API_KEY}`,
-        },
-        body: JSON.stringify({ model: "text-embedding-bge-m3", input }),
-        // wave-181.90 follow-up · 5s cap. Embedding paths run on every
-        // RAG retrieval · without bounds a Venice stall blocks every
-        // chat turn. Graceful fallback to Ollama / Cohere / OpenAI
-        // already exists below · timeout just hits that path faster.
-        signal: AbortSignal.timeout(5_000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const vec = data.data?.[0]?.embedding;
-        if (vec?.length > 0) return vec;
-      } else {
-        // Log the actual error so we can see if the model name changes
-        // or the endpoint moves. Previously this was a silent catch
-        // which masked the root cause for weeks.
-        const errBody = await res.text().catch(() => "");
-        console.warn(
-          `[ai:embedding] Venice failed (${res.status}): ${errBody.slice(0, 200)}`
-        );
-      }
-    } catch (err) {
-      console.warn(
-        `[ai:embedding] Venice fetch threw: ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
-  }
+
 
   // 2. Ollama Cloud (fallback) · v10.0.529.45 · added after Venice ran
   // out of credit during the operator's live persona-corpus import.
@@ -1550,7 +1077,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
   }
 
   log.warn("embedding.all_failed", {
-    tried: ["venice", "ollama", "cohere", "hf", "openai"],
+    tried: ["ollama", "cohere", "hf", "openai"],
   });
   return [];
 }
