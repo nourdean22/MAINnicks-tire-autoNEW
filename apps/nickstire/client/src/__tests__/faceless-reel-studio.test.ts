@@ -287,8 +287,11 @@ describe("builders", () => {
   });
 });
 
-describe("external side effects are structurally impossible in V1", () => {
-  it("all kill-switches are on and gates accept", () => {
+// These constants/gates are CLIENT-SIDE UI affordances only — they cannot reach
+// Instagram. The REAL publish safety is the server gate (REEL_PUBLISH_ENABLED
+// default-OFF + full claim-safety), proven in server/socialPublish.reelGate.test.ts.
+describe("client studio UI flags (publish safety is enforced server-side)", () => {
+  it("exposes the studio's UI gates", () => {
     expect(PUBLISH_ENABLED).toBe(true);
     expect(GENERATION_ENABLED).toBe(true);
     expect(INSIGHTS_ENABLED).toBe(true);
