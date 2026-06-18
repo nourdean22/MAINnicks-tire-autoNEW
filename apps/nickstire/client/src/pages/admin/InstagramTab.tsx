@@ -1942,6 +1942,21 @@ function FeedExplorerPanel({
       .slice(0, 5);
   }, [feed]);
 
+  // Hashtags mined from the feed, ranked by the engagement of the posts they
+  // appear on — the shop's own proven tags, one tap to filter by.
+  const topHashtags = useMemo(() => {
+    if (!feed) return [];
+    const counts = new Map<string, number>();
+    for (const p of feed) {
+      const tags = (p.caption || "").match(/#[\p{L}\p{N}_]+/gu) || [];
+      for (const tag of tags) {
+        const t = tag.toLowerCase();
+        counts.set(t, (counts.get(t) || 0) + (p.likes ?? 0) + (p.comments ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([tag]) => tag);
+  }, [feed]);
+
   if (isLoading) {
     return (
       <Panel title="Instagram Feed Explorer" icon={<Film className="w-4 h-4 text-pink-400" />}>
@@ -2077,6 +2092,25 @@ function FeedExplorerPanel({
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {topHashtags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 mb-4">
+          <span className="text-[10px] text-foreground/40">Top tags:</span>
+          {topHashtags.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => setSearchQuery(searchQuery.toLowerCase() === tag ? "" : tag)}
+              className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
+                searchQuery.toLowerCase() === tag
+                  ? "bg-primary/15 text-primary border-primary/40"
+                  : "border-border/30 text-foreground/55 hover:text-foreground hover:border-primary/40"
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
         </div>
       )}
 
