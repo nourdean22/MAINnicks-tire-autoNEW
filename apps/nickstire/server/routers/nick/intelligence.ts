@@ -602,6 +602,12 @@ export async function handleRunMigrations() {
       // slot-dedupe fail-OPENS when this table is missing, so it MUST exist in prod
       // before IG_AUTOPOST_DRYRUN=false, or each slot double-posts.
       `CREATE TABLE IF NOT EXISTS ig_autopost_log (id INT AUTO_INCREMENT PRIMARY KEY, archetype VARCHAR(20) NOT NULL, conceptKey VARCHAR(64) NOT NULL, slot VARCHAR(16) NOT NULL DEFAULT 'manual', slotDate VARCHAR(10) NOT NULL, evalScoresJson TEXT NULL, captionWeighted INT NULL, overallScore INT NULL, status VARCHAR(16) NOT NULL, caption TEXT NOT NULL, hashtags TEXT NULL, imagePrompt TEXT NULL, imageUrl VARCHAR(1000) NULL, igPostId VARCHAR(64) NULL, fbPostId VARCHAR(64) NULL, error VARCHAR(500) NULL, source VARCHAR(16) NOT NULL DEFAULT 'cron', createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_ig_autopost_created (createdAt), INDEX idx_ig_autopost_slot_day (slot, slotDate), INDEX idx_ig_autopost_status (status))`,
+      // 2026-06-18 · drizzle/0071_scheduled_posts.sql — publish-later queue.
+      // The scheduled-posts cron fires due owner-scheduled rows through
+      // socialPublish; until this table exists, listScheduled/schedulePost
+      // error (gracefully). Idempotent CREATE TABLE IF NOT EXISTS — the loop's
+      // "already exists" catch makes re-runs no-ops.
+      `CREATE TABLE IF NOT EXISTS scheduled_posts (id INT AUTO_INCREMENT PRIMARY KEY, platforms JSON NOT NULL, caption TEXT NOT NULL, imageUrl VARCHAR(1000) NULL, videoUrl VARCHAR(1000) NULL, imageUrls JSON NULL, scheduledAt TIMESTAMP NOT NULL, status VARCHAR(16) NOT NULL DEFAULT 'pending', postedAt TIMESTAMP NULL, igPostId VARCHAR(64) NULL, error VARCHAR(500) NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_scheduled_due (status, scheduledAt))`,
     ];
 
     let applied = 0;
