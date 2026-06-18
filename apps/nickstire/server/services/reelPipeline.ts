@@ -13,6 +13,7 @@
  * gated publish (publishToSocial / REEL_PUBLISH_ENABLED) are later stages.
  */
 import { createLogger } from "../lib/logger";
+import type { ReelAssemblyBrief } from "./reelAssembly";
 
 const log = createLogger("services:reel-pipeline");
 
@@ -123,14 +124,18 @@ export async function processNextReelJob(): Promise<{
       const resp = await fetch(hgUrl);
       if (!resp.ok) throw new Error(`failed to fetch clip for beat ${beat.beatNumber}: HTTP ${resp.status}`);
       const buf = Buffer.from(await resp.arrayBuffer());
-      const put = await storagePut(`reels/${job.id}/clip-${beat.beatNumber}.mp4`, buf, "video/mp4");
+      // Unique basename per (job, beat): the no-S3 fallback serves by basename
+      // only, so a job-scoped prefix isn't enough — fold jobId into the filename
+      // so job N's clip-0 can't overwrite job M's before assembly downloads it.
+      const put = await storagePut(`reels/clip-${job.id}-${beat.beatNumber}.mp4`, buf, "video/mp4");
       clipUrls.push(put.url);
       log.info("reel clip generated", { jobId: job.id, beat: beat.beatNumber });
     }
 
     await d
       .update(reelJobs)
-      .set({ status: "assets_ready", clipUrlsJson: JSON.stringify(clipUrls), error: null })
+      // reset attempts so the assembly stage gets its own fresh retry budget
+      .set({ status: "assets_ready", clipUrlsJson: JSON.stringify(clipUrls), error: null, attempts: 0 })
       .where(eq(reelJobs.id, job.id));
     log.info("reel job assets_ready", { jobId: job.id, clips: clipUrls.length });
     return { processed: true, jobId: job.id, status: "assets_ready" };
@@ -140,6 +145,76 @@ export async function processNextReelJob(): Promise<{
     const nextStatus = attempt >= MAX_ATTEMPTS ? "failed" : "queued";
     await d.update(reelJobs).set({ status: nextStatus, error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
     log.warn("reel job step failed", { jobId: job.id, attempt, nextStatus, error: msg });
+    return { processed: true, jobId: job.id, status: nextStatus, error: msg };
+  }
+}
+
+/**
+ * Claim and process the oldest `assets_ready` reel job: download its re-hosted
+ * clips, generate a voiceover, run the ffmpeg assembly, re-host the finished
+ * MP4 (`assets_ready -> assembling -> assembled`, mp4Url set). STOPS at
+ * `assembled` — publishing is a separate, separately-gated stage. Retry on
+ * failure returns the job to `assets_ready` (never `queued`, which would
+ * re-spend Higgsfield credits re-generating clips).
+ *
+ * SAFETY: same REEL_GENERATION_ENABLED kill-switch as the gen stage — a hard
+ * no-op until the operator arms the pipeline.
+ */
+export async function processNextAssemblyJob(): Promise<{
+  processed: boolean;
+  jobId?: number;
+  status?: string;
+  error?: string;
+}> {
+  if (process.env.REEL_GENERATION_ENABLED !== "true") return { processed: false };
+
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) return { processed: false };
+
+  const { reelJobs } = await import("../../drizzle/schema");
+  const { eq, and, asc } = await import("drizzle-orm");
+
+  const rows = await d
+    .select()
+    .from(reelJobs)
+    .where(eq(reelJobs.status, "assets_ready"))
+    .orderBy(asc(reelJobs.createdAt))
+    .limit(1);
+  if (!rows.length) return { processed: false };
+  const job = rows[0];
+  const attempt = (job.attempts ?? 0) + 1;
+
+  // Atomic claim: only the worker that flips assets_ready->assembling proceeds.
+  const claim = await d
+    .update(reelJobs)
+    .set({ status: "assembling", attempts: attempt })
+    .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "assets_ready")));
+  const claimed =
+    (claim as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows ??
+    (claim as unknown as { affectedRows?: number; rowsAffected?: number })?.rowsAffected ??
+    0;
+  if (claimed !== 1) return { processed: false }; // another worker claimed it
+
+  try {
+    // The stored payload is the full client ReelBrief (storyboardBeats carry
+    // startSecond/endSecond) — richer than the gen stage's minimal ReelJobBrief.
+    const brief = JSON.parse(job.payload) as ReelAssemblyBrief;
+    const clipUrls = JSON.parse(job.clipUrlsJson ?? "[]") as string[];
+    if (!Array.isArray(clipUrls) || !clipUrls.length) throw new Error("no clipUrls on assets_ready job");
+
+    const { assembleReel } = await import("./reelAssembly");
+    const { mp4Url, durationSec } = await assembleReel(brief, clipUrls, job.id);
+
+    await d.update(reelJobs).set({ status: "assembled", mp4Url, error: null }).where(eq(reelJobs.id, job.id));
+    log.info("reel job assembled", { jobId: job.id, mp4Url, durationSec });
+    return { processed: true, jobId: job.id, status: "assembled" };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Retry assembly (back to assets_ready, NOT queued — clips are already gen'd).
+    const nextStatus = attempt >= MAX_ATTEMPTS ? "failed" : "assets_ready";
+    await d.update(reelJobs).set({ status: nextStatus, error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
+    log.warn("reel assembly failed", { jobId: job.id, attempt, nextStatus, error: msg });
     return { processed: true, jobId: job.id, status: nextStatus, error: msg };
   }
 }

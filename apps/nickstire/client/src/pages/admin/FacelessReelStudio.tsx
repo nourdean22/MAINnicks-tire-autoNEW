@@ -261,6 +261,31 @@ export default function FacelessReelStudio() {
     }
   });
 
+  // ─── Background render (durable cron pipeline) ───────────────────────
+  // Queues the brief for gen-clips → voiceover → ffmpeg assembly into a
+  // finished MP4. Runs as a background job (minutes-long, survives Railway's
+  // request timeout), gated by REEL_GENERATION_ENABLED. Does NOT publish.
+  const REEL_TERMINAL = ["assembled", "posted", "failed"];
+  const [renderJobId, setRenderJobId] = useState<number | null>(null);
+  const enqueueRenderMutation = trpc.contentAdmin.enqueueReelJob.useMutation({
+    onSuccess: (res) => {
+      setRenderJobId(res.jobId);
+      copied(`Reel queued for background render — job #${res.jobId}.`);
+    },
+    onError: (err) => copied(`Could not queue render: ${err.message}`),
+  });
+  const { data: renderJob } = trpc.contentAdmin.getReelJob.useQuery(
+    { jobId: renderJobId ?? 0 },
+    {
+      enabled: renderJobId != null,
+      refetchInterval: (query) => {
+        const status = (query.state.data as { status?: string } | null | undefined)?.status;
+        return status && REEL_TERMINAL.includes(status) ? false : 4000;
+      },
+    },
+  );
+  const renderActive = renderJob != null && !REEL_TERMINAL.includes(renderJob.status);
+
   const reps = useMemo(() => {
     const logs = sheetsLogs || [];
     const topics = logs.map((l: any) => l.topic);
@@ -718,6 +743,43 @@ export default function FacelessReelStudio() {
           </button>
         </div>
         
+        {/* Background render — durable pipeline (gen clips → VO → assemble MP4) */}
+        <div className="mt-3 border border-primary/30 bg-primary/5 rounded p-3 space-y-2 max-w-lg">
+          <p className="text-[11px] font-bold text-foreground/80 flex items-center gap-1">
+            <Film className="w-3.5 h-3.5 text-primary" /> BACKGROUND RENDER → FINISHED MP4
+          </p>
+          <p className="text-[11px] text-foreground/50">
+            Queues this brief for the durable pipeline: a Higgsfield clip per beat → voiceover → ffmpeg assembly into a captioned 1080×1920 MP4. Runs as a background job (minutes), gated by the operator's <span className="font-mono">REEL_GENERATION_ENABLED</span> kill-switch. Does not publish.
+          </p>
+          <button
+            type="button"
+            onClick={() => enqueueRenderMutation.mutate({ brief: { ...brief, higgsfieldPromptPack: promptPack } })}
+            disabled={enqueueRenderMutation.isPending || renderActive}
+            className="text-[11px] font-semibold px-2.5 py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-1"
+          >
+            <Video className="w-3 h-3" />
+            {enqueueRenderMutation.isPending ? "Queuing…" : renderActive ? "Rendering…" : "Render Reel in Background"}
+          </button>
+          {renderJobId != null && (
+            <div className="text-[11px] text-foreground/70 space-y-1.5 pt-1">
+              <p>
+                Job <span className="font-mono">#{renderJobId}</span> · status:{" "}
+                <span className="font-bold text-foreground">{renderJob?.status ?? "loading…"}</span>
+                {renderActive && <Loader2 className="inline w-3 h-3 ml-1 animate-spin" />}
+              </p>
+              {renderJob?.error && <p className="text-rose-400">Error: {renderJob.error}</p>}
+              {renderJob?.mp4Url && (
+                <div className="space-y-1.5">
+                  <video src={renderJob.mp4Url} controls className="w-40 rounded border border-border/40 bg-black" />
+                  <a href={renderJob.mp4Url} target="_blank" rel="noreferrer" className="text-primary underline block">
+                    Download / open MP4
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {reelInsights && (
           <div className="mt-3 p-3 bg-primary/5 border border-primary/20 rounded text-[11px] space-y-1 max-w-sm">
             <p className="font-bold text-foreground/80 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> INSTAGRAM REEL METRICS</p>

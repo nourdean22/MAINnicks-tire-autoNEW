@@ -1,7 +1,7 @@
 import { describe, expect, it, afterEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
-import { processNextReelJob } from "./services/reelPipeline";
+import { processNextReelJob, processNextAssemblyJob } from "./services/reelPipeline";
 
 function ctx(role: "admin" | "user" | null): TrpcContext {
   return {
@@ -48,5 +48,12 @@ describe("reel pipeline — generation kill switch", () => {
     // Any value other than the exact string "true" must also stay off.
     process.env.REEL_GENERATION_ENABLED = "1";
     await expect(processNextReelJob()).resolves.toEqual({ processed: false });
+  });
+
+  it("processNextAssemblyJob shares the same kill switch (no ffmpeg/DB touched when off)", async () => {
+    delete process.env.REEL_GENERATION_ENABLED;
+    await expect(processNextAssemblyJob()).resolves.toEqual({ processed: false });
+    process.env.REEL_GENERATION_ENABLED = "1";
+    await expect(processNextAssemblyJob()).resolves.toEqual({ processed: false });
   });
 });
