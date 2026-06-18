@@ -472,16 +472,30 @@ export function startTieredScheduler(): void {
         // assets_ready). Minutes-long gen runs here as a BACKGROUND job, never
         // a synchronous request (which dies on Railway's gateway timeout).
         // requiresEnv gates it OFF by default — zero Higgsfield credit spend
-        // until the operator sets REEL_GENERATION_ENABLED. Assembly + the gated
-        // publish are later pipeline stages.
+        // until the operator sets REEL_GENERATION_ENABLED. Each pulse advances
+        // the pipeline by one unit per stage: generate clips for one queued job
+        // (gen -> assets_ready), then assemble one assets_ready job into a
+        // finished MP4 (assembling -> assembled). The gated publish is a later
+        // stage.
         name: "reel-pipeline",
         requiresEnv: "REEL_GENERATION_ENABLED",
         handler: async () => {
-          const { processNextReelJob } = await import("../services/reelPipeline");
-          const r = await processNextReelJob();
+          const { processNextReelJob, processNextAssemblyJob } = await import("../services/reelPipeline");
+          // Settle each stage independently: a pre-try DB rejection in the gen
+          // stage must not skip assembly this pulse (the job simply retries on the
+          // next pulse). Both stages share the same one-job-per-pulse cadence.
+          type StageResult = { processed: boolean; jobId?: number; status?: string; error?: string };
+          const settle = (p: Promise<StageResult>): Promise<StageResult> =>
+            p.catch((e) => ({ processed: true, status: "error", error: e instanceof Error ? e.message : String(e) }));
+          const gen = await settle(processNextReelJob());
+          const asm = await settle(processNextAssemblyJob());
+          const details = [
+            gen.processed ? `gen ${gen.jobId ?? "?"}: ${gen.status}` : null,
+            asm.processed ? `assemble ${asm.jobId ?? "?"}: ${asm.status}` : null,
+          ].filter(Boolean).join("; ");
           return {
-            recordsProcessed: r.processed ? 1 : 0,
-            details: r.processed ? `job ${r.jobId}: ${r.status}` : "no queued reel jobs",
+            recordsProcessed: (gen.processed ? 1 : 0) + (asm.processed ? 1 : 0),
+            details: details || "no reel jobs to process",
           };
         },
       },

@@ -1,0 +1,17 @@
+# Nixpacks build config — system deps for server-side Faceless Reel assembly.
+#
+# The reel pipeline assembles finished MP4s on the server (reelAssembly.ts shells
+# `ffmpeg` to trim/concat clips, burn captions, and mix the voiceover). The base
+# Nixpacks Node image ships neither ffmpeg nor a font, so add both here.
+#
+#   ffmpeg            — the assembler + the existing higgsfieldStudio.stitchVideos
+#                       both spawn `ffmpeg`. (Nix package, recommended over apt.)
+#   fonts-dejavu-core — ffmpeg drawtext needs a real .ttf on disk; apt lands it at
+#                       the predictable /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+#                       which resolveFontPath() targets on Linux.
+#
+# The "..." entries preserve packages from the auto-detected Node provider — this
+# file only APPENDS; it does not replace the build plan.
+[phases.setup]
+nixPkgs = ["...", "ffmpeg"]
+aptPkgs = ["...", "fonts-dejavu-core"]
