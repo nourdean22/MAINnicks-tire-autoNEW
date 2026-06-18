@@ -534,5 +534,15 @@ export function registerAllJobs(): void {
     return runProactiveCheck();
   });
 
+  // Daily IG reel auto-poster — hourly tick, posts one pre-made reel in the 9am
+  // ET window (one per day, reels 5-30). Laptop-independent: runs on the Railway
+  // server. Gated by REEL_AUTOPOST_ENABLED (this job) AND REEL_PUBLISH_ENABLED
+  // (the publishToSocial reel kill-switch); both default OFF. State + same-day
+  // idempotency live in shop_settings — no migration.
+  registerJob("daily-reel-post", 60 * 60 * 1000, async () => {
+    const { runDailyReelPost } = await import("./jobs/dailyReelPost");
+    return runDailyReelPost();
+  }, process.env.REEL_AUTOPOST_ENABLED === "true");
+
   log.info("All cron jobs registered");
 }
