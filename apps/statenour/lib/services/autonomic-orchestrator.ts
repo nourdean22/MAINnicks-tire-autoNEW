@@ -15,7 +15,6 @@ export interface AutonomicOrchestratorResult {
   vacuumedTables: string[];
   indexReindexed: boolean;
   avgLatencyMs: number;
-  veniceQuotaTripped: boolean;
   ollamaQuotaTripped: boolean;
   rescuedWorkItems: string[];
   prunedLogsCount: number;
@@ -32,7 +31,6 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
     vacuumedTables: [],
     indexReindexed: false,
     avgLatencyMs: 0,
-    veniceQuotaTripped: false,
     ollamaQuotaTripped: false,
     rescuedWorkItems: [],
     prunedLogsCount: 0,
@@ -188,7 +186,7 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       where: {
         createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
         errorClass: { not: null },
-        provider: { in: ["venice", "ollama"] },
+        provider: "ollama",
       },
       select: {
         provider: true,
@@ -424,7 +422,7 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       subjectId: "autonomic-orchestrator",
       priority: "P2",
       title: "Autonomic Orchestrator Run Completed",
-      body: `Phase 1: Healed ${result.healedCrons.length} crons. Phase 2: Vacuumed ${result.vacuumedTables.length} tables. Index reindexed: ${result.indexReindexed ? "Yes" : "No"}. Phase 3: Venice Quota tripped: ${result.veniceQuotaTripped}, Ollama Quota tripped: ${result.ollamaQuotaTripped}. Rescued ${result.rescuedWorkItems.length} work items. Phase 4: Pruned ${result.prunedLogsCount} log rows. Archived ${result.archivedTasksCount} stale tasks. Phase 5: Decomposed ${result.decomposedTasksCount} stalled tasks.`,
+      body: `Phase 1: Healed ${result.healedCrons.length} crons. Phase 2: Vacuumed ${result.vacuumedTables.length} tables. Index reindexed: ${result.indexReindexed ? "Yes" : "No"}. Phase 3: Ollama Quota tripped: ${result.ollamaQuotaTripped}. Rescued ${result.rescuedWorkItems.length} work items. Phase 4: Pruned ${result.prunedLogsCount} log rows. Archived ${result.archivedTasksCount} stale tasks. Phase 5: Decomposed ${result.decomposedTasksCount} stalled tasks.`,
       surfaces: ["scoreboard", "home"],
     });
   } catch (eventErr) {

@@ -8,7 +8,6 @@ const mocks = {
   buildCronCommandDeck: vi.fn(),
   runManifestCron: vi.fn(),
   recordCoachEvent: vi.fn(),
-  markVeniceQuotaExhausted: vi.fn(),
   markOllamaQuotaExhausted: vi.fn(),
   decomposeTaskWithAi: vi.fn(),
   clientConnect: vi.fn(),
@@ -47,9 +46,7 @@ vi.mock("@/lib/services/ai-tasks", () => ({
 }));
 
 vi.mock("@/lib/ai/provider", () => ({
-  markVeniceQuotaExhausted: () => mocks.markVeniceQuotaExhausted(),
   markOllamaQuotaExhausted: () => mocks.markOllamaQuotaExhausted(),
-  isVeniceQuotaExhausted: () => false,
   isOllamaQuotaExhausted: () => false,
   getProviderStatus: () => ({ providers: [] }),
 }));
