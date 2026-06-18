@@ -1,7 +1,12 @@
 import { describe, expect, it, afterEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
-import { processNextReelJob, processNextAssemblyJob } from "./services/reelPipeline";
+import {
+  processNextReelJob,
+  processNextAssemblyJob,
+  recoverStuckReelJobs,
+  withTimeout,
+} from "./services/reelPipeline";
 
 function ctx(role: "admin" | "user" | null): TrpcContext {
   return {
@@ -55,5 +60,28 @@ describe("reel pipeline — generation kill switch", () => {
     await expect(processNextAssemblyJob()).resolves.toEqual({ processed: false });
     process.env.REEL_GENERATION_ENABLED = "1";
     await expect(processNextAssemblyJob()).resolves.toEqual({ processed: false });
+  });
+
+  it("recoverStuckReelJobs shares the same kill switch (no DB touched when off)", async () => {
+    delete process.env.REEL_GENERATION_ENABLED;
+    await expect(recoverStuckReelJobs()).resolves.toEqual({ recovered: 0 });
+    process.env.REEL_GENERATION_ENABLED = "1";
+    await expect(recoverStuckReelJobs()).resolves.toEqual({ recovered: 0 });
+  });
+});
+
+describe("reel pipeline — withTimeout", () => {
+  it("resolves a promise that settles before the deadline", async () => {
+    await expect(withTimeout(Promise.resolve("ok"), 1000, "fast")).resolves.toBe("ok");
+  });
+
+  it("rejects with a labeled timeout when the promise outlives the deadline", async () => {
+    const slow = new Promise((res) => setTimeout(res, 10_000));
+    await expect(withTimeout(slow, 20, "gen beat 3")).rejects.toThrow(/gen beat 3 timed out after/);
+  });
+
+  it("propagates the underlying rejection unchanged when it loses the race", async () => {
+    const boom = Promise.reject(new Error("higgsfield 500"));
+    await expect(withTimeout(boom, 1000, "fast")).rejects.toThrow("higgsfield 500");
   });
 });
