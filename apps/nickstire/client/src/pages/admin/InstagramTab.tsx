@@ -86,6 +86,43 @@ function ModeBadge({ mode }: { mode: keyof typeof MODE_CLS }) {
   );
 }
 
+/** Always-on one-glance social health — bridges IG connection, AI provider
+ *  health (the dead-fallback trap), autopost failures, and the Google-review
+ *  reply backlog. Pure aggregation of existing procs; no new backend. */
+function SocialHealthStrip() {
+  const { data: status } = trpc.instagramAdmin.getConnectionStatus.useQuery();
+  const { data: health } = trpc.instagramAdmin.getProviderHealth.useQuery();
+  const { data: reviewStats } = trpc.reviewReplies.stats.useQuery();
+  if (!status && !health) return null;
+
+  const autopostFails = health?.autopost.recentFailures ?? 0;
+  const reviewsToPost = reviewStats?.approved ?? 0;
+  const items = [
+    { ok: !!status?.instagramReady, label: status?.instagramReady ? "IG connected" : "IG not connected" },
+    {
+      ok: !!health?.text.configured && !health?.text.openaiFallback,
+      label: health?.text.openaiFallback ? "LLM on dead OpenAI fallback" : `Text: ${health?.text.provider ?? "?"}`,
+    },
+    { ok: !!health?.image.configured, label: `Image: ${health?.image.provider ?? "?"}` },
+    { ok: autopostFails === 0, label: autopostFails > 0 ? `${autopostFails} autopost fails` : "Autopost OK" },
+    { ok: reviewsToPost === 0, label: reviewsToPost > 0 ? `${reviewsToPost} reviews to post` : "Reviews clear" },
+  ];
+  const allOk = items.every((i) => i.ok);
+
+  return (
+    <div className={`rounded border p-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${allOk ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
+      <span className="font-semibold text-foreground/70 flex items-center gap-1">
+        <ShieldCheck className="w-3.5 h-3.5" /> Social health
+      </span>
+      {items.map((i, idx) => (
+        <span key={idx} className={`inline-flex items-center gap-1 ${i.ok ? "text-emerald-400" : "text-amber-400"}`}>
+          {i.ok ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}{i.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function InstagramTab() {
   const [sub, setSub] = useState<(typeof SUBTABS)[number]["id"]>("feed");
   const [activeModalPost, setActiveModalPost] = useState<any | null>(null);
@@ -108,6 +145,8 @@ export default function InstagramTab() {
           external action is an explicit, claim-safe owner action.
         </span>
       </div>
+
+      <SocialHealthStrip />
 
       <div className="flex flex-wrap gap-1.5">
         {SUBTABS.map((s) => (
