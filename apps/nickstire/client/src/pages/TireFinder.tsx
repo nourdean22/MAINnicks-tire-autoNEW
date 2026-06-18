@@ -1065,8 +1065,8 @@ export default function TireFinder() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="New & Used Tires Cleveland & Euclid · Nick's Tire & Auto"
-        description="Shop new and used tires in Cleveland & Euclid at Nick's Tire & Auto. Used tires from $25 installed. Mount, balance, and lifetime rotation package included!"
+        title="Used Tires in Euclid & Cleveland · From $25 Installed | Nick's Tire & Auto"
+        description="Used tires in Euclid & Cleveland from $25 installed. Every tire inspected, mounted, balanced, valve stems included. Walk in 7 days, first-come first-served. (216) 862-0005"
         canonicalPath="/tires"
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}
@@ -1136,10 +1136,10 @@ export default function TireFinder() {
         <div className="container max-w-3xl mx-auto text-center">
           <motion.div initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0 }}>
             <span className="text-xs font-semibold text-primary tracking-[0.2em] uppercase">
-              Cleveland Tire Shop · New & Used Tires · Order Online or Walk In
+              Used Tires Euclid & Cleveland · New Tires · Walk In or Order Online
             </span>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-foreground mt-4 leading-[1.1] tracking-tight">
-              Tire Estimates & Local Fitting
+              Used & New Tires in Euclid & Cleveland
             </h1>
             <p className="mt-4 text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
               Find new or used tires for your vehicle. Beyond tire fitting, Nick's on Euclid Ave offers same-day <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake repair in Euclid</Link> and fast <Link href="/diagnostics" className="underline text-primary hover:text-primary-foreground font-semibold">check engine light diagnostics</Link>. Walk in 7 days, explore our soft-pull <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing options for repairs</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground font-semibold">contact Nick’s Tire & Auto</Link> today.
@@ -1716,10 +1716,13 @@ export default function TireFinder() {
                     </span>
                   </div>
                   <h2 className="text-xl sm:text-2xl font-semibold text-foreground mt-2">
-                    Used Tires Cleveland — Inspected, Installed, Honest
+                    Used Tires Euclid & Cleveland — Inspected, Installed, Honest
                   </h2>
                   <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
                     Not everyone needs brand-new rubber. We carry a large selection of inspected used tires — every one passes a 4-point exam (tread depth, sidewall, DOT date, plug history) before it earns a spot on your car. Same professional installation, same included mount/balance/valve stems/disposal, same coffee — just a friendlier number on the receipt. Payment programs on the spot if you need them.
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-1.5">
+                    Select 12-inch sizes from $25 installed; most standard passenger sizes $40–$80 installed.
                   </p>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">

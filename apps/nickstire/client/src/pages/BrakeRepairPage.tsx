@@ -26,13 +26,13 @@ const CONFIG: ServicePageConfig = {
       Squealing? Grinding? Pedal soft like Cleveland weather in March? Nick's Tire & Auto is your Euclid Ave destination for reliable <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link> and Cleveland. Need to troubleshoot first? Try our <Link href="/diagnose" className="underline text-primary hover:text-primary-foreground">vehicle diagnostics symptom checker</Link>, or browse our complete <Link href="/services" className="underline text-primary hover:text-primary-foreground">services page</Link>. We lift the car, hand you the flashlight, and walk you under it so you see what's worn. Free check, written quote, and you don't pay until you say yes. Check out our <Link href="/financing" className="underline text-primary hover:text-primary-foreground">financing options for repairs</Link>, find <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire repair and replacement services</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> to drop off today.
     </>
   ),
-  startingPrice: "Free check · written quote · you don't pay until you say yes",
-  pricingTitle: "BRAKE SERVICE — THREE LEVELS, ONE PROMISE",
-  pricingSub: "Every estimate is written before the wrench moves and explained in human English. We show you the worn part on the lift before we touch the bill.",
+  startingPrice: "Summer Special — up to 30% off brake service. Free check, written quote first.",
+  pricingTitle: "SUMMER SPECIAL — BRAKE PRICING",
+  pricingSub: "Summer Special pricing varies by vehicle. Drive in for a free check and a written quote — discounts up to 30% off standard rates. We show you the worn part on the lift before we touch the bill.",
   tiers: [
-    { name: "Pad Replacement", price: "From $149", sub: "per axle, most vehicles · written estimate up front", use: "Pads worn, rotors still within spec. The cheapest stop-pedal fix that exists. Out the door in 90 minutes." },
-    { name: "Pads + Rotors", price: "From $279", sub: "per axle, most vehicles · written estimate up front", use: "Rotors scored from a winter of too many late-stops. The most common Cleveland brake job by a country mile.", featured: true },
-    { name: "Full Brake Job", price: "From $499", sub: "per axle, includes calipers if needed", use: "Calipers seized, lines leaking, full system refresh. The once-a-decade reset that buys you another 60K miles." },
+    { name: "Pad Replacement", price: "Summer Special", sub: "per axle · up to 30% off · price varies by vehicle", use: "Pads worn, rotors still within spec. The cheapest stop-pedal fix that exists. Out the door in 60 minutes. Come in for your written quote." },
+    { name: "Pads + Rotors", price: "Summer Special", sub: "per axle · up to 30% off · price varies by vehicle", use: "Rotors scored from a winter of too many late-stops. The most common Cleveland brake job by a country mile. Drive in today for pricing.", featured: true },
+    { name: "Full Brake Job", price: "Summer Special", sub: "per axle · includes calipers if needed", use: "Calipers seized, lines leaking, full system refresh. The once-a-decade reset that buys you another 60K miles. Summer Special pricing — come in for a quote." },
   ],
   includedTitle: "WHAT'S INCLUDED",
   includedSub: "Every brake service at Nick's comes with this — we tell you the cost before we touch anything.",
@@ -82,7 +82,7 @@ const CONFIG: ServicePageConfig = {
     { q: "My brake warning light is on — can I drive?", a: "If it's the ABS light only, you can drive cautiously to the shop. If it's the brake warning light (red), that means low brake fluid or a hydraulic problem — pull over and call us. Driving on a failing brake system is how accidents happen." },
     { q: "How do I schedule a brake inspection at Nick's?", a: "No appointment is needed! Nick's Tire & Auto runs on a first-come, first-served basis. You can walk in 7 days a week (Mon-Sat 8-6, Sun 9-4) at 17625 Euclid Ave, Cleveland. You can also schedule a vehicle drop-off online or call us ahead at (216) 862-0005." },
     { q: "How much does a brake job cost in Cleveland?", a: "It depends on what's worn — pads only is the cheapest fix; pads + rotors is the most common; full brake jobs (calipers, lines) run highest. The free check tells us exactly what's needed. We give you a written quote before any work and explain why each part is being replaced. No upsells, no boilerplate quotes — you don't pay until you say yes." },
-    { q: "How long does brake repair take?", a: "Most pad replacements take 60-90 minutes per axle. Pads + rotors usually 90 minutes. If you drop off before 10 AM, it's done same day. Walk-ins welcome but calling ahead at (216) 862-0005 lets us have the right parts ready." },
+    { q: "How long does brake repair take?", a: "Most pad replacements average about 60 minutes per axle — check out our reviews, we're the fastest in the city. Pads + rotors usually 90 minutes. If you drop off before 10 AM, it's done same day. Walk-ins welcome but calling ahead at (216) 862-0005 lets us have the right parts ready." },
     { q: "Do you replace brakes on European cars?", a: "Yes — we service BMW, Mercedes, Audi, Volkswagen, Volvo, Porsche, and most European brands. These typically use specific pads and sensors; we stock or source OE-spec parts and reset the wear indicator on your dashboard after service." },
     { q: "Do you offer a warranty on brake work?", a: "Every brake job includes our 12-month / 12,000-mile warranty covering parts and labor. If a pad is defective or fails early, we replace it free. Real warranty — not the 'comes with a sticker but good luck claiming it' kind." },
   ],
@@ -93,7 +93,7 @@ const CONFIG: ServicePageConfig = {
   // $149/$279 tiers below are the payoff); stakes hook reframes "can it wait?"
   // and pulls into the fear stats (which substantiate the cascade cost).
   curiosityArc: {
-    heroHook: "Two prices. Which one's your car?",
+    heroHook: "Summer Special — up to 30% off. Which brakes does your car need?",
     stakesHook: "Wondering if it can wait? Worn pads draw a line — and every week pushes you past it.",
   },
   ctaHeadline: "BOOK YOUR BRAKE SERVICE",
