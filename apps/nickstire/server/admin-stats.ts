@@ -264,7 +264,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       booked: sql<number>`SUM(CASE WHEN ${leads.status} = 'booked' THEN 1 ELSE 0 END)`,
       closed: sql<number>`SUM(CASE WHEN ${leads.status} = 'closed' THEN 1 ELSE 0 END)`,
       lost: sql<number>`SUM(CASE WHEN ${leads.status} = 'lost' THEN 1 ELSE 0 END)`,
-      urgent: sql<number>`SUM(CASE WHEN COALESCE(${leads.urgencyScore}, 0) >= 4 AND NOT (${leads.source} = 'callback' AND ${leads.callbackId} IS NOT NULL) THEN 1 ELSE 0 END)`,
+      // Urgency only matters while a lead is in-flight — a booked/closed/lost
+      // lead has been actioned and must not bleed into "urgent" (matches the
+      // Sales Pipeline's wave-128 rule so Overview and Pipeline agree).
+      urgent: sql<number>`SUM(CASE WHEN COALESCE(${leads.urgencyScore}, 0) >= 4 AND ${leads.status} NOT IN ('booked', 'completed', 'closed', 'lost') AND NOT (${leads.source} = 'callback' AND ${leads.callbackId} IS NOT NULL) THEN 1 ELSE 0 END)`,
       thisWeek: sql<number>`SUM(CASE WHEN ${leads.createdAt} >= ${weekAgo} THEN 1 ELSE 0 END)`,
       avgUrgencySum: sql<number>`COALESCE(SUM(COALESCE(${leads.urgencyScore}, 3)), 0)`,
     }).from(leads).where(gte(leads.createdAt, ninetyDaysAgo));
