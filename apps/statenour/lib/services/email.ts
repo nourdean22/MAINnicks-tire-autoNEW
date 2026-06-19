@@ -50,7 +50,7 @@ export function driftAlertEmail(alerts: { ruleName: string; severity: string; me
 
   return {
     subject: `⚠ ${alerts.length} Drift Alert${alerts.length > 1 ? "s" : ""} — NOUR OS`,
-    text: `You have ${alerts.length} unresolved drift alert${alerts.length > 1 ? "s" : ""}:\n\n${alertList}\n\nReview at https://bdnick.info/drift`,
+    text: `You have ${alerts.length} unresolved drift alert${alerts.length > 1 ? "s" : ""}:\n\n${alertList}\n\nReview at https://bdnick.info/system/alerts`,
     html: `
       <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0a0a; color: #e5e5e5; padding: 24px; border-radius: 12px;">
         <h2 style="color: #f59e0b; font-size: 18px; margin: 0 0 16px;">⚠ Drift Alerts</h2>
@@ -63,7 +63,7 @@ export function driftAlertEmail(alerts: { ruleName: string; severity: string; me
             <div style="font-size: 12px; color: #a1a1aa; margin-top: 4px;">${a.message}</div>
           </div>
         `).join("")}
-        <a href="https://bdnick.info/drift" style="display: inline-block; margin-top: 16px; background: #f59e0b; color: #000; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600;">Review Alerts →</a>
+        <a href="https://bdnick.info/system/alerts" style="display: inline-block; margin-top: 16px; background: #f59e0b; color: #000; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600;">Review Alerts →</a>
       </div>
     `,
   };
