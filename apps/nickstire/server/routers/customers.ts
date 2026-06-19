@@ -5,6 +5,7 @@ import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, like, or, sql, desc, asc } from "drizzle-orm";
 import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents, invoices, workOrders, algEstimates } from "../../drizzle/schema";
+import { campaignEligiblePhoneSql } from "../lib/sms-eligibility";
 import { logAdminAction } from "../services/auditTrail";
 import { predictCustomerLTV, generateCrossSellRecommendations, forecastRevenue } from "../services/intelligenceEngines";
 import { csvSafe } from "../sanitize";
@@ -676,7 +677,7 @@ export const customersRouter = router({
       // Get untexted customers, prioritize recent → lapsed → unknown
       const untexted = await d.select()
         .from(customers)
-        .where(sql`${customers.smsCampaignSent} = 0 AND ${customers.smsOptOut} = 0 AND ${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10 AND ${customers.phone} LIKE '+1%'`)
+        .where(sql`${customers.smsCampaignSent} = 0 AND ${campaignEligiblePhoneSql}`)
         .orderBy(sql`CASE ${customers.segment} WHEN 'recent' THEN 0 WHEN 'lapsed' THEN 1 ELSE 2 END, ${customers.lastVisitDate} DESC`)
         .limit(batchSize);
 
