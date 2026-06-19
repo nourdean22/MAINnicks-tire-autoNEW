@@ -26,6 +26,7 @@
  * of the seed list · grep-verified).
  */
 
+import { useId } from "react";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { AiSettingsPanel } from "@/components/settings/ai-settings-panel";
@@ -50,12 +51,13 @@ import { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 
 /** Obsidian+gold group divider — labels an IA cluster of panels. */
 function GroupHeading({ children }: { children: React.ReactNode }) {
+  const headingId = useId();
   return (
-    <div className="mt-10 mb-1 flex items-center gap-3">
-      <span className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.2em] text-[var(--gold)]/70">
+    <div role="region" aria-labelledby={headingId} className="mt-10 mb-1 flex items-center gap-3">
+      <span id={headingId} className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.2em] text-[var(--gold)]/70">
         {children}
       </span>
-      <span className="h-px flex-1 bg-[var(--border-default)]" />
+      <span className="h-px flex-1 bg-[var(--border-default)]" aria-hidden="true" />
     </div>
   );
 }

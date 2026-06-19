@@ -99,7 +99,7 @@ export function HQErrorsCard() {
         <span className={cn("font-semibold", pal.text)}>
           {count24h} error{count24h === 1 ? "" : "s"} 24h
         </span>
-        <span className="text-[10px] text-[var(--text-muted)] tabular-nums">
+        <span className="text-[10px] text-[var(--text-tertiary)] tabular-nums">
           · {distinctCount} distinct
         </span>
         <Link
@@ -134,12 +134,12 @@ export function HQErrorsCard() {
                   ? "border-rose-500/45 bg-rose-500/15 text-rose-200"
                   : g.count >= 5
                     ? "border-amber-500/35 bg-amber-500/10 text-amber-200"
-                    : "border-white/10 bg-white/5 text-[var(--text-muted)]",
+                    : "border-white/10 bg-white/5 text-[var(--text-tertiary)]",
               )}
             >
               ×{g.count}
             </span>
-            <span className="shrink-0 text-[10px] text-[var(--text-muted)] tabular-nums">
+            <span className="shrink-0 text-[10px] text-[var(--text-tertiary)] tabular-nums">
               {g.lastSeen ? timeAgo(g.lastSeen) : "—"}
             </span>
           </li>

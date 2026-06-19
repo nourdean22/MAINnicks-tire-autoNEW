@@ -3,10 +3,9 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
-import { ArrowRight, Flame, ShieldAlert, Zap, Target, CheckCircle2 } from "lucide-react";
+import { ArrowRight, ShieldAlert, Zap, Target, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/components/actions/shared";
-import type { CriticalFewTask } from "@/lib/services/next-move";
 
 interface StatLevel {
   key: string;

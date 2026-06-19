@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo, useId, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ConfirmHold } from "@/components/ui/confirm-hold";
-import { Brain, Sliders, Shield, AlertTriangle, Search, Info } from "lucide-react";
+import { Brain, Shield, AlertTriangle, Search, Info } from "lucide-react";
 import { haptic } from "@/lib/ui/haptic";
 import { trpc } from "@/lib/trpc/client";
 
@@ -99,6 +99,7 @@ export function IntelligenceFlagsPanel() {
           <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
           <input
             type="text"
+            aria-label="Search feature flags"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search flags (e.g. autonomy, recall)..."
@@ -110,6 +111,7 @@ export function IntelligenceFlagsPanel() {
           {["all", "stable", "canary", "experimental"].map((s) => (
             <button
               key={s}
+              aria-pressed={statusFilter === s}
               onClick={() => {
                 haptic.select();
                 setStatusFilter(s);
@@ -190,6 +192,7 @@ export function IntelligenceFlagsPanel() {
                     {/* DEFAULT button */}
                     <button
                       onClick={() => handleOverride(flag.key, null)}
+                      aria-pressed={overrideState === "ENV"}
                       className={cn(
                         "px-2 h-6 text-[8px] font-bold uppercase tracking-wider rounded transition-colors",
                         overrideState === "ENV"
@@ -203,6 +206,7 @@ export function IntelligenceFlagsPanel() {
                     {/* FORCE OFF button */}
                     <button
                       onClick={() => handleOverride(flag.key, "false")}
+                      aria-pressed={overrideState === "OFF"}
                       className={cn(
                         "px-2 h-6 text-[8px] font-bold uppercase tracking-wider rounded transition-colors",
                         overrideState === "OFF"
@@ -217,6 +221,7 @@ export function IntelligenceFlagsPanel() {
                     {!isHighRisk && (
                       <button
                         onClick={() => handleOverride(flag.key, "true")}
+                        aria-pressed={overrideState === "ON"}
                         className={cn(
                           "px-2 h-6 text-[8px] font-bold uppercase tracking-wider rounded transition-colors",
                           overrideState === "ON"
@@ -258,15 +263,5 @@ export function IntelligenceFlagsPanel() {
         )}
       </div>
     </GlassCard>
-  );
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  const labelId = useId();
-  return (
-    <div className="flex items-center justify-between py-2 border-b border-[var(--border-default)]/40 last:border-b-0">
-      <label id={labelId} className="text-[11px] text-[var(--text-secondary)]">{label}</label>
-      <div role="group" aria-labelledby={labelId} className="flex items-center gap-2">{children}</div>
-    </div>
   );
 }

@@ -28,7 +28,6 @@ import {
   Database,
   Sliders,
   RotateCcw,
-  Zap,
   Trash2,
 } from "lucide-react";
 import { haptic } from "@/lib/ui/haptic";
@@ -465,6 +464,7 @@ function SegmentedSelect({
       {options.map((o) => (
         <button
           key={o}
+          aria-pressed={value === o}
           onClick={() => {
             haptic.select();
             onChange(o);
