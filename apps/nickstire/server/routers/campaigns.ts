@@ -12,6 +12,7 @@ import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
 import { eq, sql, desc, and, isNull } from "drizzle-orm";
 import { customers, smsCampaigns, smsCampaignSends } from "../../drizzle/schema";
+import { campaignEligiblePhoneSql } from "../lib/sms-eligibility";
 import { sendSms, isShopGatewayReachable, isShopGatewayConfigured } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 import { BUSINESS } from "@shared/business";
@@ -53,7 +54,9 @@ async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"): Promis
   const d = await db();
   if (!d) return [];
 
-  const phoneFilter = sql`${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10 AND ${customers.smsOptOut} = 0`;
+  // Canonical eligibility predicate — shared with customers.retryCampaign so the
+  // two SMS-campaign paths can never drift on who counts as reachable.
+  const phoneFilter = campaignEligiblePhoneSql;
 
   if (segment === "recent") {
     // Active in last 90 days
