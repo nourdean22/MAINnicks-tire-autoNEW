@@ -158,7 +158,7 @@ export function NextActionWhisperer() {
         </button>
         <button
           onClick={skip}
-          className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-red-400 hover:bg-red-500/10"
+          className="min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-6 h-6 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-red-400 hover:bg-red-500/10"
           aria-label="Skip for 5 min"
         >
           <XIcon size={11} />
