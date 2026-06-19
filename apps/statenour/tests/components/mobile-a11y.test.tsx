@@ -391,4 +391,13 @@ describe("A11 · ultron interactive controls reach 44px on mobile", () => {
     expect(readSource("components/ultron/persona-drift-card.tsx")).toContain("min-h-[44px] sm:min-h-[24px]");
     expect(readSource("components/ultron/contradictions-card.tsx")).toContain("min-h-[44px] sm:min-h-[26px]");
   });
+
+  it("primary action + disclosure buttons floor to 44px height on mobile", () => {
+    // Review follow-up: next-action 'start' (the primary action) matches its
+    // now-44px skip sibling, and situation-card's expand toggle was the last
+    // untreated interactive control in the card body. Height-only; sm:min-h-0
+    // restores the original dense desktop height.
+    expect(readSource("components/ultron/today/next-action-whisperer.tsx")).toContain("px-2 py-1 min-h-[44px] sm:min-h-0");
+    expect(readSource("components/ultron/signal/situation-card.tsx")).toContain("gap-1 min-h-[44px] sm:min-h-0 text-[9px]");
+  });
 });

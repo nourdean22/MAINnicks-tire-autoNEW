@@ -152,7 +152,7 @@ export function NextActionWhisperer() {
       <div className="flex items-center gap-1.5 shrink-0">
         <button
           onClick={start}
-          className="flex items-center gap-1 px-2 py-1 rounded border border-[var(--gold)]/40 bg-[var(--gold)]/15 text-[9px] font-bold uppercase tracking-wider text-[var(--gold)] hover:bg-[var(--gold)]/25 transition-colors"
+          className="flex items-center gap-1 px-2 py-1 min-h-[44px] sm:min-h-0 rounded border border-[var(--gold)]/40 bg-[var(--gold)]/15 text-[9px] font-bold uppercase tracking-wider text-[var(--gold)] hover:bg-[var(--gold)]/25 transition-colors"
         >
           <Play size={9} /> start
         </button>

@@ -280,7 +280,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
       {hasExpandable && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="w-full flex items-center justify-center gap-1 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--text-primary)] pt-1 transition-colors"
+          className="w-full flex items-center justify-center gap-1 min-h-[44px] sm:min-h-0 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--text-primary)] pt-1 transition-colors"
         >
           {expanded ? (
             <>
