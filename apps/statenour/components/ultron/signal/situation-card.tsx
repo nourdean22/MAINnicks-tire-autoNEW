@@ -67,7 +67,7 @@ const SEV_RING: Record<SituationSeverity, string> = {
   critical: "border-red-500/50 bg-red-500/[0.04] shadow-[0_0_20px_rgba(239,68,68,0.08)]",
   high: "border-amber-500/50 bg-amber-500/[0.04]",
   medium: "border-[var(--gold)]/45 bg-[var(--gold)]/[0.04]",
-  low: "border-zinc-700/60 bg-[var(--bg-raised)]",
+  low: "border-[var(--border-hover)]/60 bg-[var(--bg-raised)]",
   win: "border-emerald-500/45 bg-emerald-500/[0.04]",
 };
 
@@ -75,7 +75,7 @@ const SEV_DOT: Record<SituationSeverity, string> = {
   critical: "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]",
   high: "bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.5)]",
   medium: "bg-[var(--gold)]",
-  low: "bg-zinc-500",
+  low: "bg-[var(--text-tertiary)]",
   win: "bg-emerald-400",
 };
 
@@ -280,7 +280,7 @@ export function SituationCard({ initial = null }: SituationCardProps) {
       {hasExpandable && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="w-full flex items-center justify-center gap-1 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--text-primary)] pt-1 transition-colors"
+          className="w-full flex items-center justify-center gap-1 min-h-[44px] sm:min-h-0 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--text-primary)] pt-1 transition-colors"
         >
           {expanded ? (
             <>
@@ -498,7 +498,7 @@ function CalibrationOnboarding() {
       <button
         onClick={dismiss}
         aria-label="Dismiss explainer"
-        className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-raised)]"
+        className="shrink-0 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-5 h-5 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-raised)]"
       >
         <X size={10} />
       </button>

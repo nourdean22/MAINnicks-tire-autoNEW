@@ -33,7 +33,7 @@ const PRIORITY_TINT: Record<string, string> = {
   critical: "border-rose-500/40 bg-rose-500/[0.04] text-rose-200",
   high: "border-amber-500/40 bg-amber-500/[0.04] text-amber-200",
   medium: "border-sky-500/30 bg-sky-500/[0.03] text-sky-200",
-  low: "border-zinc-700 bg-zinc-900/30 text-zinc-300",
+  low: "border-[var(--border-hover)] bg-[var(--bg-elevated)]/30 text-[var(--text-secondary)]",
 };
 
 export function CommandSpinePulse() {

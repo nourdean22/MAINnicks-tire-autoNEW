@@ -120,7 +120,7 @@ export function HQStatusChips() {
             "hidden md:flex group items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-[0.14em] transition-all",
             sug.fallbackHeavy
               ? "border-amber-500/30 bg-amber-500/[0.05] text-amber-400 hover:bg-amber-500/[0.12]"
-              : "border-zinc-700/40 bg-zinc-900/40 text-[var(--text-tertiary)] hover:border-[var(--gold)]/30 hover:text-[var(--gold)]/80"
+              : "border-[var(--border-hover)]/40 bg-[var(--bg-elevated)]/40 text-[var(--text-tertiary)] hover:border-[var(--gold)]/30 hover:text-[var(--gold)]/80"
           )}
           title={`Suggestion cache hit rate: ${sug.hitRatePct}%${
             sug.fallbackHeavy ? " · heuristic-heavy (Venice slow?)" : ""

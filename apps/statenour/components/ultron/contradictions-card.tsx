@@ -436,7 +436,7 @@ export function ContradictionsCard() {
                     }
                     className={cn(
                       "shrink-0 -my-0.5 rounded transition-all",
-                      "min-w-[28px] min-h-[28px] flex items-center justify-center",
+                      "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center",
                       isExpanded
                         ? "bg-[var(--gold)]/15 text-[var(--gold)] scale-95"
                         : "text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08]",
@@ -478,7 +478,7 @@ export function ContradictionsCard() {
                               title={meta.title}
                               className={cn(
                                 "flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10px] font-mono lowercase tracking-wide transition-all",
-                                "min-h-[26px]",
+                                "min-h-[44px] sm:min-h-[26px]",
                                 meta.tone,
                                 isSubmitting && "opacity-60 cursor-wait",
                               )}
