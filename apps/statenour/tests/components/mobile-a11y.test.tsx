@@ -165,3 +165,24 @@ describe("A7 · ReasoningTrace toggle has aria-controls pointing at disclosed co
     expect(src).toContain("id={contentsId}");
   });
 });
+
+// ─── 6 · A6 · settings GroupHeading landmark (source-level check) ─────
+
+describe("A6 · Settings GroupHeading declares role=region landmark", () => {
+  it("each IA group divider is a labelled region (useId + role=region + aria-labelledby/id pair)", () => {
+    // GroupHeading draws the Settings IA cluster dividers (Automation /
+    // AI / Scoring …). Pre-2026-06-19 it was a bare <div> → screen
+    // readers heard orphaned uppercase labels with no landmark to jump
+    // to / skip past. The page is a "use client" tRPC shell that can't
+    // SSR in isolation, so we lock the contract source-side · the SAME
+    // pattern as the A6 ticker tests + A7 ReasoningTrace above.
+    const src = readSource("app/(mastery)/settings/page.tsx");
+    expect(src).toContain("const headingId = useId();");
+    // Each divider is a navigable landmark labelled by its own heading.
+    expect(src).toContain('role="region"');
+    expect(src).toContain("aria-labelledby={headingId}");
+    expect(src).toContain("id={headingId}");
+    // The gold divider rule is purely decorative · hidden from a11y tree.
+    expect(src).toContain('aria-hidden="true"');
+  });
+});
