@@ -246,8 +246,13 @@ describe("A8 · home triage form controls have accessible names", () => {
 describe("A9 · settings selector/filter groups expose aria-pressed", () => {
   it("skill-library tabs + journal/ai SegmentedSelect + intelligence filters declare aria-pressed", () => {
     expect(readSource("components/settings/skill-library-panel.tsx")).toContain("aria-pressed={sel}");
-    expect(readSource("components/settings/ai-settings-panel.tsx")).toContain("aria-pressed={value === o}");
-    expect(readSource("components/settings/journal-brain-panel.tsx")).toContain("aria-pressed={value === o}");
+    // SegmentedSelect/Toggle were de-duplicated into settings-controls.tsx —
+    // assert the shared source carries the contract and both panels consume it.
+    const controls = readSource("components/settings/settings-controls.tsx");
+    expect(controls).toContain("aria-pressed={value === o}");
+    expect(controls).toContain('role="switch"');
+    expect(readSource("components/settings/ai-settings-panel.tsx")).toContain('from "./settings-controls"');
+    expect(readSource("components/settings/journal-brain-panel.tsx")).toContain('from "./settings-controls"');
     const flags = readSource("components/settings/intelligence-flags-panel.tsx");
     expect(flags).toContain("aria-pressed={statusFilter === s}");
     expect(flags).toContain('aria-pressed={overrideState === "ENV"}');
