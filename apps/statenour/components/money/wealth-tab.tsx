@@ -1,12 +1,22 @@
 "use client";
 
+/**
+ * WealthTab — investment portfolio (holdings · cost/market value · gain-loss ·
+ * net-worth board). 2026-06-19 · IA reorg Phase 5: extracted from the former
+ * /wealth page into a tab of the /money hub. The StandardPage wrapper was
+ * dropped (the hub provides it) and its `actions` (Refresh Prices · Add Asset)
+ * moved inline to a toolbar row. The iOS-PWA-suppressed `window.confirm` →
+ * in-DOM `megaConfirm`, and `alert()` → `toast.error()`
+ * (see nickstire-ios-pwa-primitives).
+ */
+
 import { useState, useEffect } from "react";
-import { StandardPage } from "@/components/layout/standard-page";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { megaConfirm } from "@/components/operator/mega-confirm-dialog";
 import { logger } from "@/lib/logger";
 
-const log = logger.withSurface("wealth-dashboard");
+const log = logger.withSurface("wealth-tab");
 
 interface Holding {
   id: string;
@@ -32,7 +42,7 @@ interface WealthData {
   };
 }
 
-export default function WealthPage() {
+export function WealthTab() {
   const [data, setData] = useState<WealthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +104,7 @@ export default function WealthPage() {
       setShowAddForm(false);
       fetchData();
     } catch (e) {
-      alert("Error saving holding: " + (e instanceof Error ? e.message : String(e)));
+      toast.error("Error saving holding: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setSubmitting(false);
     }
@@ -126,7 +136,8 @@ export default function WealthPage() {
   };
 
   const handleDeleteHolding = async (id: string, symbol: string) => {
-    if (!confirm(`Are you sure you want to delete ${symbol} from your portfolio?`)) return;
+    const ok = await megaConfirm(`Delete ${symbol} from your portfolio? This cannot be undone.`);
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/wealth?id=${id}`, {
@@ -136,7 +147,7 @@ export default function WealthPage() {
       if (!res.ok) throw new Error("Failed to delete holding");
       fetchData();
     } catch (e) {
-      alert("Delete failed: " + (e instanceof Error ? e.message : String(e)));
+      toast.error("Delete failed: " + (e instanceof Error ? e.message : String(e)));
     }
   };
 
@@ -145,38 +156,37 @@ export default function WealthPage() {
     return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(dollars);
   };
 
+  if (loading && !data) {
+    return (
+      <div className="py-10 text-center text-sm text-[var(--text-tertiary)]">Loading portfolio…</div>
+    );
+  }
+
   return (
-    <StandardPage
-      eyebrow="mastery · investments"
-      title="wealth intelligence"
-      description="Consolidated assets, portfolio tracking, and net worth indicator board."
-      width="2xl"
-      rhythm="comfortable"
-      loading={loading && !data}
-      actions={
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={refreshing || !data?.holdings.length}
-            onClick={handleRefreshPrices}
-            className="text-[11px] font-mono uppercase tracking-wider"
-          >
-            {refreshing ? "Refreshing..." : "Refresh Prices"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="text-[11px] font-mono uppercase tracking-wider"
-          >
-            {showAddForm ? "Cancel" : "+ Add Asset"}
-          </Button>
-        </div>
-      }
-    >
+    <div className="space-y-4">
+      {/* Toolbar — the former StandardPage `actions`. */}
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={refreshing || !data?.holdings.length}
+          onClick={handleRefreshPrices}
+          className="text-[11px] font-mono uppercase tracking-wider"
+        >
+          {refreshing ? "Refreshing..." : "Refresh Prices"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="text-[11px] font-mono uppercase tracking-wider"
+        >
+          {showAddForm ? "Cancel" : "+ Add Asset"}
+        </Button>
+      </div>
+
       {error && (
         <div className="rounded-lg border border-rose-500/20 bg-rose-500/[0.05] p-4 text-sm text-rose-300">
           Error loading portfolio: {error}
@@ -396,6 +406,6 @@ export default function WealthPage() {
           </div>
         </div>
       </div>
-    </StandardPage>
+    </div>
   );
 }

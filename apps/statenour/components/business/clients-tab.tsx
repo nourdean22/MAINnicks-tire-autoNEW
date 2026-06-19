@@ -1,12 +1,20 @@
 "use client";
 
+/**
+ * ClientsTab — coaching CRM (contacts/dossiers · bookings · agreements).
+ * 2026-06-19 · IA reorg Phase 5: extracted from the former /crm page into a
+ * tab of /business (the coaching pipeline sits next to the funnel it feeds).
+ * StandardPage wrapper dropped (the page provides it); its `actions`
+ * (+Add Contact) moved inline. Errors already surface in-DOM via `formError`
+ * (the page was already iOS-PWA-safe — no window.alert).
+ */
+
 import { useState, useEffect } from "react";
-import { StandardPage } from "@/components/layout/standard-page";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { logger } from "@/lib/logger";
 
-const log = logger.withSurface("crm-dashboard");
+const log = logger.withSurface("clients-tab");
 
 interface Booking {
   id: string;
@@ -48,7 +56,7 @@ interface CrmData {
   recentAgreements: (Agreement & { contact: { name: string } })[];
 }
 
-export default function CrmPage() {
+export function ClientsTab() {
   const [data, setData] = useState<CrmData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +70,6 @@ export default function CrmPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Fetch data
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -114,15 +121,16 @@ export default function CrmPage() {
     }
   };
 
+  if (loading && !data) {
+    return (
+      <div className="py-10 text-center text-sm text-[var(--text-tertiary)]">Loading clients…</div>
+    );
+  }
+
   return (
-    <StandardPage
-      eyebrow="mastery · crm"
-      title="relationship brain"
-      description="Natively consolidate coaching leads, client agreements, and session bookings."
-      width="2xl"
-      rhythm="comfortable"
-      loading={loading && !data}
-      actions={
+    <div className="space-y-4">
+      {/* Toolbar — the former StandardPage `actions`. */}
+      <div className="flex items-center justify-end">
         <Button
           type="button"
           variant="outline"
@@ -135,8 +143,8 @@ export default function CrmPage() {
         >
           {showAddForm ? "Cancel" : "+ Add Contact"}
         </Button>
-      }
-    >
+      </div>
+
       {/* Error state */}
       {error && (
         <div className="rounded-lg border border-rose-500/20 bg-rose-500/[0.05] p-4 text-sm text-rose-300">
@@ -366,6 +374,6 @@ export default function CrmPage() {
           </div>
         </div>
       </div>
-    </StandardPage>
+    </div>
   );
 }

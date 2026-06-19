@@ -238,6 +238,14 @@ const nextConfig: NextConfig = {
     { source: "/financial", destination: "/business?tab=money", permanent: false },
     { source: "/funnel", destination: "/business?tab=funnel", permanent: false },
 
+    // 2026-06-19 · IA reorg Phase 5 · /finance + /wealth consolidated into the
+    // tabbed /money hub (Finance + Wealth tabs). Deep links land on the right tab.
+    { source: "/finance", destination: "/money?tab=finance", permanent: false },
+    { source: "/wealth", destination: "/money?tab=wealth", permanent: false },
+    // 2026-06-19 · IA reorg Phase 5 · /crm folded into the /business Clients tab
+    // (coaching pipeline next to the funnel it feeds).
+    { source: "/crm", destination: "/business?tab=clients", permanent: false },
+
     // Wave 2 surface merge · /seo + /radar folded into the tabbed /market
     // surface (Search + Radar tabs). Deep links + bookmarks land on the
     // right tab.
