@@ -90,6 +90,12 @@ interface CommandAction {
 const RECENT_KEY = "command-palette:recents";
 const RECENT_CAP = 8;
 
+// 2026-06-18 · IA reorg Phase 1 · external open-trigger. Mirrors the
+// CAPTURE_OPEN_EVENT pattern (brain-dump-modal): any surface can open the
+// palette by dispatching this event. Critical on the iOS PWA where there is
+// no keyboard for ⌘K — the FloatingHome "Search" button fires it by tap.
+export const COMMAND_PALETTE_OPEN_EVENT = "ultron:open-command-palette";
+
 function loadRecents(): string[] {
   if (typeof window === "undefined") return [];
   try {
@@ -179,6 +185,15 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", down);
   }, [open]);
 
+  // 2026-06-18 · IA reorg Phase 1 · tap-to-open. On the iOS PWA there is no
+  // ⌘K — the FloatingHome "Search" button (and the future bottom-bar search)
+  // dispatch COMMAND_PALETTE_OPEN_EVENT to open the palette by tap.
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(COMMAND_PALETTE_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(COMMAND_PALETTE_OPEN_EVENT, onOpen);
+  }, []);
+
   // Refresh recents every time the palette opens — cheap, and makes
   // ranking reflect what he actually just used (multi-tab safe).
   useEffect(() => {
@@ -263,6 +278,15 @@ export function CommandPalette() {
       { id: "nav-brain-board", label: "Brain Board · multi-advisor", group: "Pages", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=board"), keywords: ["board", "advisor", "consult", "council", "elon", "buffett", "warren", "decision"] },
 
       // ═══ PAGES — remaining live surfaces ═══
+      // 2026-06-18 · IA reorg Phase 1 · STOPGAP — surface the 5 orphan pages
+      // (reachable from neither nav nor cmdK before this) so they're tappable
+      // on the phone now. Phase 3 makes cmdK iterate the NAV source, after
+      // which these no longer need hand-listing here.
+      { id: "nav-crm", label: "CRM · Coaching Clients", group: "Pages", icon: <InboxIcon className="size-4" />, action: () => navigate("/crm"), keywords: ["crm", "coaching", "client", "lead", "booking", "agreement", "pipeline"] },
+      { id: "nav-finance", label: "Finance · Personal Ledger", group: "Pages", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/finance"), keywords: ["finance", "money", "ledger", "cash", "spending", "csv", "bookkeeping"] },
+      { id: "nav-wealth", label: "Wealth · Portfolio", group: "Pages", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/wealth"), keywords: ["wealth", "portfolio", "investment", "net worth", "holdings", "stocks"] },
+      { id: "nav-voice", label: "Voice · Brief + Talk", group: "Pages", icon: <PlayIcon className="size-4" />, action: () => navigate("/voice"), keywords: ["voice", "brief", "audio", "talk", "call", "speak", "morning"] },
+      { id: "nav-learn", label: "Learn · Build-Your-Own-X", group: "Pages", icon: <BookOpenIcon className="size-4" />, action: () => navigate("/learn"), keywords: ["learn", "tutorial", "build", "reference", "catalog", "how"] },
       { id: "nav-body", label: "Body Tracking", group: "Pages", icon: <HeartPulseIcon className="size-4" />, action: () => navigate("/stats#body"), keywords: ["weight", "workout", "boxing", "body"] },
       { id: "nav-knowledge", label: "Knowledge Base", group: "Pages", icon: <BookOpenIcon className="size-4" />, action: () => navigate("/knowledge") },
       { id: "nav-integrations", label: "Integrations", group: "Pages", icon: <Layers3Icon className="size-4" />, action: () => navigate("/settings") },

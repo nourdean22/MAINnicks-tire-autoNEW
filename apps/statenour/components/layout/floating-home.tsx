@@ -32,10 +32,11 @@ import { cn } from "@/lib/utils";
 import { MOBILE_TABS, NAV_ITEMS, type NavItem } from "./nav-items";
 import { resolveActiveNav } from "@/lib/nav/active-nav";
 import { CAPTURE_OPEN_EVENT } from "@/components/brain-dump-modal";
+import { COMMAND_PALETTE_OPEN_EVENT } from "@/components/command-palette";
 // v10.0.529.72 · BrainIcon · ServerIcon · CompassIcon dropped — they
 // only powered the BRAIN / OPS / LIFE rows of the QUICK NAV that were
 // inlined into <ActionsContextBand> on /tasks.
-import { Minus, Shield, GripVertical, ChevronLeft, NotebookPen, Cog as CogIcon, ArrowRight, Clock, Target, Users } from "lucide-react";
+import { Minus, Shield, GripVertical, ChevronLeft, NotebookPen, Cog as CogIcon, ArrowRight, Clock, Target, Users, Search } from "lucide-react";
 import { useSystemPulse, type SystemPulse } from "@/lib/hooks/use-system-pulse";
 import { useRecentPages } from "@/lib/hooks/use-recent-pages";
 import { pickSmartNow } from "@/lib/floating-home/smart-now";
@@ -380,6 +381,26 @@ export function FloatingHome() {
               {activeNav ? activeNav.label : "quick nav"}
             </span>
           </div>
+
+          {/* 2026-06-18 · IA reorg Phase 1 · Search opens the ⌘K command
+              palette by TAP — the only way to reach it on the keyboardless
+              iOS PWA. Dispatches COMMAND_PALETTE_OPEN_EVENT (mirrors Capture). */}
+          <button
+            onClick={() => {
+              window.dispatchEvent(new Event(COMMAND_PALETTE_OPEN_EVENT));
+              setState((s) => ({ ...s, expanded: false }));
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-xs transition-colors border-b border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--gold)]/10 hover:text-[var(--gold)]"
+            aria-label="Search everything (open command palette)"
+          >
+            <Search size={14} strokeWidth={1.75} />
+            <span className="font-medium uppercase tracking-[0.15em] text-[10px]">
+              Search
+            </span>
+            <kbd className="ml-auto hidden sm:inline-flex items-center h-4 px-1 rounded border border-[var(--border-default)] bg-[var(--bg-raised)] text-[8px] font-mono text-[var(--text-tertiary)]">
+              ⌘K
+            </kbd>
+          </button>
 
           {/* v10.0.348 · SMART NOW · context-aware top suggestion. Shows the
               highest-leverage next-step based on pulse + time-of-day. Tap
