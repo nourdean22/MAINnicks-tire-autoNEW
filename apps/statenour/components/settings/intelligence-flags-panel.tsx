@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo, useId, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ConfirmHold } from "@/components/ui/confirm-hold";
-import { Brain, Sliders, Shield, AlertTriangle, Search, Info } from "lucide-react";
+import { Brain, Shield, AlertTriangle, Search, Info } from "lucide-react";
 import { haptic } from "@/lib/ui/haptic";
 import { trpc } from "@/lib/trpc/client";
 
@@ -258,15 +258,5 @@ export function IntelligenceFlagsPanel() {
         )}
       </div>
     </GlassCard>
-  );
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  const labelId = useId();
-  return (
-    <div className="flex items-center justify-between py-2 border-b border-[var(--border-default)]/40 last:border-b-0">
-      <label id={labelId} className="text-[11px] text-[var(--text-secondary)]">{label}</label>
-      <div role="group" aria-labelledby={labelId} className="flex items-center gap-2">{children}</div>
-    </div>
   );
 }

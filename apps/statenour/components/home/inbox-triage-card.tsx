@@ -211,6 +211,7 @@ export function InboxTriageCard({ isNested = false }: InboxTriageCardProps) {
                   <div className="flex items-center gap-1.5 w-full">
                     <input
                       type="text"
+                      aria-label="Next physical action"
                       placeholder="e.g. Call mechanic shop at 10am"
                       value={nextActionInputs[f.taskId] ?? ""}
                       onChange={(e) =>

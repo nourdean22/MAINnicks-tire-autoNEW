@@ -219,6 +219,7 @@ export function InboxTasksTriage({ isNested = false }: InboxTasksTriageProps) {
               <div className="flex gap-2">
                 <input
                   type="date"
+                  aria-label="Select due date"
                   className="flex-1 bg-zinc-950 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-(--gold)/30"
                   onChange={(e) => {
                     if (e.target.value) {
@@ -264,6 +265,7 @@ export function InboxTasksTriage({ isNested = false }: InboxTasksTriageProps) {
                 </span>
                 <input
                   type="date"
+                  aria-label="Snooze until custom date"
                   className="w-full bg-zinc-950 border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-(--gold)/30"
                   onChange={(e) => {
                     if (e.target.value) {

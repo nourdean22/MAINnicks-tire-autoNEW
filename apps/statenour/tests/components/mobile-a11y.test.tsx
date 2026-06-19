@@ -186,3 +186,56 @@ describe("A6 · Settings GroupHeading declares role=region landmark", () => {
     expect(src).toContain('aria-hidden="true"');
   });
 });
+
+// ─── 7 · A8 · Settings + Home control a11y (2026-06-19 audit) ─────────
+// Source-level guards for the 6 confirmed a11y fixes from the multi-lens
+// Settings→Home audit. The components are "use client" tRPC shells that
+// can't SSR in isolation, so we lock the contracts source-side — same
+// pattern as the A6/A7 landmark tests above.
+
+describe("A8 · settings toggles expose switch role + state + name", () => {
+  it("push-notification toggle is a role=switch with aria-checked + aria-label", () => {
+    // Was a bare <button> → screen readers heard an unnamed button with
+    // no on/off state. Matches the in-app Toggle pattern (ai-settings /
+    // journal-brain panels already use role=switch + aria-checked).
+    const src = readSource("components/settings/push-notification-toggle.tsx");
+    expect(src).toContain('role="switch"');
+    expect(src).toContain("aria-checked={isSubscribed}");
+    expect(src).toContain("aria-label={isSubscribed");
+  });
+
+  it("cron kill-switch is a role=switch with aria-checked + aria-label", () => {
+    // State was conveyed by colour + knob position only. The decorative
+    // Power icon + knob are now aria-hidden.
+    const src = readSource("components/settings/cron-control-panel.tsx");
+    expect(src).toContain('role="switch"');
+    expect(src).toContain("aria-checked={r.enabled}");
+    expect(src).toContain("aria-label={`${r.jobName} cron");
+  });
+});
+
+describe("A8 · home Action Hub tabs expose selected state", () => {
+  it("each view-switcher button declares aria-pressed (house pattern, not a partial tablist)", () => {
+    // Active tab was colour/underline only. aria-pressed matches the
+    // in-card selector idiom (brain/board-tab.tsx) — honest about there
+    // being no roving-tabindex arrow-key tab navigation.
+    const src = readSource("components/home/home-action-hub.tsx");
+    expect(src).toContain("aria-pressed={isActive}");
+  });
+});
+
+describe("A8 · home triage form controls have accessible names", () => {
+  it("inbox-tasks-triage date inputs are labelled (schedule + snooze)", () => {
+    // Bare <input type=date> has no intrinsic name; the nearby caption
+    // was not programmatically associated (WCAG 4.1.2).
+    const src = readSource("components/home/inbox-tasks-triage.tsx");
+    expect(src).toContain('aria-label="Select due date"');
+    expect(src).toContain('aria-label="Snooze until custom date"');
+  });
+
+  it("inbox-triage-card next-action input is labelled (not placeholder-only)", () => {
+    // A placeholder is not a reliable accessible name.
+    const src = readSource("components/home/inbox-triage-card.tsx");
+    expect(src).toContain('aria-label="Next physical action"');
+  });
+});

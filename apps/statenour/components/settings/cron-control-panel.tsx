@@ -348,6 +348,9 @@ export function CronControlPanel() {
                   <button
                     onClick={() => toggle(r.jobName, !r.enabled)}
                     disabled={toggling !== null || firing !== null}
+                    role="switch"
+                    aria-checked={r.enabled}
+                    aria-label={`${r.jobName} cron ${r.enabled ? "enabled" : "disabled"}`}
                     title={r.enabled ? "click to kill" : "click to enable"}
                     className={cn(
                       "shrink-0 h-5 w-9 rounded-full border relative transition-colors",
@@ -358,6 +361,7 @@ export function CronControlPanel() {
                     )}
                   >
                     <span
+                      aria-hidden
                       className={cn(
                         "absolute top-0.5 w-3.5 h-3.5 rounded-full transition-all",
                         r.enabled
@@ -367,6 +371,7 @@ export function CronControlPanel() {
                     />
                     <Power
                       size={7}
+                      aria-hidden
                       className={cn(
                         "absolute top-1/2 -translate-y-1/2",
                         r.enabled ? "left-1 text-emerald-400/70" : "right-1 text-red-400/70",
