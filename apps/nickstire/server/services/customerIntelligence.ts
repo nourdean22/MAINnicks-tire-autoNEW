@@ -15,6 +15,7 @@ import { createLogger } from "../lib/logger";
 import { sql, eq, desc, gte, asc, and } from "drizzle-orm";
 
 import { db } from "../lib/db-helper";
+import { lapsedCondition } from "../lib/customer-segments";
 
 const log = createLogger("customer-intelligence");
 
@@ -56,7 +57,7 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
     const [total, active, lapsed, newMonth] = await Promise.all([
       d.select({ count: sql<number>`count(*)` }).from(customers),
       d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.segment, "recent")),
-      d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.segment, "lapsed")),
+      d.select({ count: sql<number>`count(*)` }).from(customers).where(lapsedCondition()),
       d.select({ count: sql<number>`count(*)` }).from(customers).where(sql`${customers.createdAt} >= ${monthAgo}`),
     ]);
 
@@ -113,7 +114,7 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
         phone: customers.phone,
         lastVisit: customers.lastVisitDate,
       }).from(customers)
-        .where(eq(customers.segment, "lapsed"))
+        .where(lapsedCondition())
         .orderBy(asc(customers.lastVisitDate)) // Oldest visit first = most at-risk
         .limit(10);
 

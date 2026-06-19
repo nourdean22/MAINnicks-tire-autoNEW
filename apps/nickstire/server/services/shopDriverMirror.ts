@@ -840,9 +840,9 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
       })
       .filter(n => n.length > 0)
   )];
-  const customersByLastName = new Map<string, Array<{ id: number; firstName: string | null; lastName: string | null }>>();
+  const customersByLastName = new Map<string, Array<{ id: number; firstName: string | null; lastName: string | null; phone: string | null }>>();
   if (lastNamesForLookup.length > 0) {
-    const rows = await d.select({ id: customers.id, firstName: customers.firstName, lastName: customers.lastName })
+    const rows = await d.select({ id: customers.id, firstName: customers.firstName, lastName: customers.lastName, phone: customers.phone })
       .from(customers).where(inArray(customers.lastName, lastNamesForLookup));
     for (const r of rows) {
       if (!r.lastName) continue;
@@ -886,6 +886,7 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
 
       // Map-lookup customer by phone (no per-row SELECT)
       let customerId: number | undefined;
+      let matchedCustomerPhone: string | null = null;
       if (ri.customerPhone) {
         const phone = normalizePhone(ri.customerPhone);
         if (phone.length >= 7) {
@@ -906,9 +907,22 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
           const filtered = firstName
             ? candidates.filter(c => c.firstName === firstName)
             : candidates;
-          if (filtered.length === 1) customerId = filtered[0].id;
+          if (filtered.length === 1) {
+            customerId = filtered[0].id;
+            matchedCustomerPhone = filtered[0].phone ?? null;
+          }
         }
       }
+
+      // Root-cause fix: ALG ticket payloads frequently omit the phone, which left
+      // the invoice untextable ("missing customer phone") even when we matched it
+      // to a known customer by name. Backfill the phone from the matched customer
+      // so new invoices don't re-accumulate the gap. Bare 10-digit (this file's
+      // local normalizePhone), the same format as every other invoices.customerPhone.
+      // Never overrides a payload-supplied phone.
+      const effectivePhone = ri.customerPhone
+        || (matchedCustomerPhone ? normalizePhone(matchedCustomerPhone) : null)
+        || null;
 
       // Normalize payment method
       const paymentMethod = normalizePaymentMethod(ri.paymentMethod);
@@ -923,7 +937,7 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         await d.insert(invoices).values({
           customerId: customerId ?? null,
           customerName: ri.customerName,
-          customerPhone: ri.customerPhone || null,
+          customerPhone: effectivePhone,
           invoiceNumber: ri.invoiceNumber,
           totalAmount: ri.totalAmount,
           partsCost: ri.partsCost || 0,
@@ -946,7 +960,7 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
           await d.update(invoices).set({
             customerId: customerId ?? undefined,
             customerName: ri.customerName,
-            customerPhone: ri.customerPhone || undefined,
+            customerPhone: effectivePhone || undefined,
             totalAmount: ri.totalAmount,
             partsCost: ri.partsCost || undefined,
             laborCost: ri.laborCost || undefined,

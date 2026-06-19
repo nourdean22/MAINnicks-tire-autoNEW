@@ -28,14 +28,16 @@ export function requireAdminApiKey(req: any, res: any, next: any) {
 
 export function registerAdminRoutes(app: Express): void {
   // ─── Real-time SSE for admin dashboards ─────────────────
-  // v1.7 audit fix · pre-fix this SSE stream of admin activity was
-  // publicly readable. Every other /api/admin/* route in this file
-  // applies requireAdminApiKey; the SSE registration was the lone
-  // exception. requireAdminApiKey is a hoisted function declaration
-  // (defined ~30 lines below), so the forward reference is safe.
+  // Auth is enforced INSIDE sseHandler via the admin's OAuth session cookie
+  // (sdk.authenticateRequest → role === "admin"), with the ADMIN_API_KEY
+  // Bearer as a server-to-server fallback. We deliberately do NOT use
+  // requireAdminApiKey here: the browser transport is EventSource, which
+  // cannot send an Authorization header, so a Bearer-only gate 401'd every
+  // dashboard connection. The route stays admin-only — just via the cookie
+  // the admin actually carries.
   import("../services/realtimePush").then(({ sseHandler }) => {
-    app.get("/api/admin/events", requireAdminApiKey, sseHandler);
-    serverLog.info("SSE endpoint registered: /api/admin/events (auth-gated)");
+    app.get("/api/admin/events", sseHandler);
+    serverLog.info("SSE endpoint registered: /api/admin/events (session-auth-gated)");
   }).catch(e => serverLog.warn("[server:init] SSE endpoint registration failed", { error: e instanceof Error ? e.message : String(e) }));
 
   // ─── Cron Status (admin) ──────────────────────────────
