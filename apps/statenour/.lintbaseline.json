@@ -114,7 +114,6 @@
     "apps/statenour/components/journal/memory-calibration.tsx": 2,
     "apps/statenour/components/journal/reflect-composer.tsx": 1,
     "apps/statenour/components/journal/thread-rail.tsx": 3,
-    "apps/statenour/components/layout/floating-home.tsx": 2,
     "apps/statenour/components/missions/linked-missions-panel.tsx": 3,
     "apps/statenour/components/settings/ai-settings-panel.tsx": 1,
     "apps/statenour/components/settings/cron-control-panel.tsx": 1,
