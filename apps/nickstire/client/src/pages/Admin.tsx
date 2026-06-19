@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   Loader2, Shield, XCircle, ArrowLeft, Menu, X, Sparkles, ChevronRight,
-  Images, Clapperboard,
+  Images, Clapperboard, Megaphone,
 } from "lucide-react";
 import {
   AdminSection, NAV_GROUPS, SECTION_TITLES, openCustomerDrawer,
@@ -695,6 +695,14 @@ export default function Admin() {
             className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
           >
             <Clapperboard className="w-4 h-4" />
+          </Link>
+          <Link
+            href="/admin/ad-studio"
+            title="Ad Studio"
+            aria-label="Ad Studio"
+            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
+          >
+            <Megaphone className="w-4 h-4" />
           </Link>
         </header>
 
