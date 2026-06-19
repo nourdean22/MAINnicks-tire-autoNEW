@@ -58,20 +58,17 @@ export const OPS_REGISTRY: OpsItem[] = [
     id: "refund-writeback",
     title: "Refunds / writeback",
     category: "Money Safety",
-    status: "done",
+    status: "design_only",
     risk: "high",
     truth:
-      "LIVE admin-gated refunds exist. The Tire Orders cockpit AUTO-REFUND button calls gatewayTire.refundOrder " +
-      "(adminProcedure, non-empty reason required, two-tap confirm) -> refundTireOrderPayment, which issues " +
-      "stripe.refunds.create with an idempotency key (refund-<orderNumber>), flips tire_orders + the linked invoice " +
-      "to 'refunded', and appends a timestamped admin note (actor + reason + Stripe refund id). Invoice-level refunds " +
-      "use the same Stripe path with an explicit amount in server/routers/advanced/invoices.ts.",
-    forbidden: "Moving money out outside this flow: refunds without an admin session, without a reason, or bypassing the refund-<orderNumber> idempotency key.",
-    nextAction: "Monitor: every refund must write paymentStatus='refunded' + an admin note. If one ever lacks a note or double-fires, check the idempotency key.",
-    ownerRequired: false,
+      "NO automatic refunds exist anywhere in this codebase (verified: no stripe.refunds call). " +
+      "Cancelled-but-paid orders surface in the Tire Orders cockpit with a manual Stripe-dashboard workflow.",
+    forbidden: "Calling Stripe refund APIs or any mutation that moves money out.",
+    nextAction: "Owner reviews the refund design doc, then approves a separate, dedicated PR.",
+    ownerRequired: true,
     doc: "docs/refund-writeback-design.md",
     href: "/admin?tab=tireOrders",
-    lastVerified: "2026-06-19",
+    lastVerified: "2026-06-10",
   },
   {
     id: "stripe-config",
@@ -196,7 +193,7 @@ export const OPS_REGISTRY: OpsItem[] = [
     truth:
       "Repo-root docs/PROJECT-COMPLETION-LEDGER.md tags every roadmap item with evidence-based status. " +
       "Hand-maintained — update it in the PR that changes an item's truth.",
-    nextAction: "Review the three owner-gated rows (D&K, messaging, entity cleanup) — refunds now shipped LIVE.",
+    nextAction: "Review the four owner-gated rows (refunds, D&K, messaging, entity cleanup).",
     ownerRequired: false,
     doc: "../../docs/PROJECT-COMPLETION-LEDGER.md",
     lastVerified: "2026-06-10",
@@ -222,7 +219,7 @@ export const REPORT_DOCS: ReportDoc[] = [
   { title: "Off-page growth playbook", category: "GBP / Local SEO", path: "apps/nickstire/docs/2026-05-30-offpage-growth-playbook.md", note: "" },
   { title: "GBP automation roadmap", category: "GBP / Local SEO", path: "apps/nickstire/docs/gbp-automation-roadmap.md", note: "Draft-queue-only plan — no live posting" },
   { title: "Entity cleanup checklist", category: "Entity Cleanup", path: "apps/nickstire/docs/entity-cleanup-checklist.md", note: "Owner manual NAP fixes" },
-  { title: "Refund / writeback design", category: "Checkout Safety", path: "apps/nickstire/docs/refund-writeback-design.md", note: "Design doc — refunds now LIVE (admin-gated AUTO-REFUND in Tire Orders)" },
+  { title: "Refund / writeback design", category: "Checkout Safety", path: "apps/nickstire/docs/refund-writeback-design.md", note: "Design only — requires owner approval" },
   { title: "Gateway / D&K availability status", category: "D&K / Gateway", path: "apps/nickstire/docs/gateway-dk-availability-status.md", note: "Why live availability is down, what's needed" },
   { title: "Customer confirmation notifications", category: "Customer Messaging", path: "apps/nickstire/docs/customer-confirmation-notifications.md", note: "Preview-only — no sends" },
   { title: "Website audit status", category: "Website SEO Audit", path: "apps/nickstire/docs/website-audit-status.md", note: "What's fixed vs still open" },
