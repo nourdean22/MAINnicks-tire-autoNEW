@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { deriveCronIssues } from "./cron-issues";
 
 export interface OpenIssue {
   key: string;
@@ -88,8 +89,13 @@ export function useSettingsStatus() {
       });
     }
 
+    // RULE 4 · real cron signals (failing jobs + data-accuracy findings like the
+    // 2388 missing phones). Previously omitted, which let the "All clear" banner
+    // sit green over genuine problems. Latest-run-per-job, deduped in the helper.
+    issues.push(...deriveCronIssues(cronHealth ?? []));
+
     return issues;
-  }, [flags, funnel, smsStatus, smsGwHealth]);
+  }, [flags, funnel, smsStatus, smsGwHealth, cronHealth]);
 
   const alertCount = useMemo(() => openIssues.filter((i) => i.severity === "alert").length, [openIssues]);
   const warningCount = useMemo(() => openIssues.filter((i) => i.severity === "warning").length, [openIssues]);

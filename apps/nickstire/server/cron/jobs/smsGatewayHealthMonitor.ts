@@ -12,10 +12,13 @@
  * fine — at worst we re-alert once after a deploy if still offline).
  */
 import { createLogger } from "../../lib/logger";
+// Single source of truth for the offline window — the SAME constant the live
+// `sms.gatewayHealth` resolver uses, so the alert and the admin badges can
+// never disagree on what "offline" means.
+import { GATEWAY_OFFLINE_MINUTES as OFFLINE_THRESHOLD_MIN } from "../../lib/gateway-device";
 
 const log = createLogger("cron:sms-gateway-health");
 
-const OFFLINE_THRESHOLD_MIN = 30;
 let alertedOffline = false; // re-arms after a successful online ping
 
 interface CapevaceDevice {
