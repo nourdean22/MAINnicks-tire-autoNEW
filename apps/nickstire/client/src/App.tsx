@@ -44,6 +44,7 @@ const GenericServicePage = lazy(() => import("./pages/GenericServicePage"));
 const Admin = lazy(() => import("./pages/Admin"));
 const AdminIgCarouselStudio = lazy(() => import("./pages/admin/IgCarouselStudio"));
 const AdminFacelessReelStudio = lazy(() => import("./pages/admin/FacelessReelStudio"));
+const AdminAdStudio = lazy(() => import("./pages/admin/AdStudio"));
 const Blog = lazy(() => import("./pages/Blog"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
 const Contact = lazy(() => import("./pages/Contact"));
@@ -253,6 +254,7 @@ function Router() {
             <Route path={"/admin/content"}>{() => <Redirect to="/admin?tab=content" />}</Route>
             <Route path={"/admin/ig-studio"} component={AdminIgCarouselStudio} />
             <Route path={"/admin/reel-studio"} component={AdminFacelessReelStudio} />
+            <Route path={"/admin/ad-studio"} component={AdminAdStudio} />
             {/* City-specific landing pages for local SEO */}
             <Route path={"/cleveland-auto-repair"} component={CityPage} />
             <Route path={"/euclid-auto-repair"} component={CityPage} />
