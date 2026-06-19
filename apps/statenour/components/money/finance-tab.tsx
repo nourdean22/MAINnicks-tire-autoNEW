@@ -1,12 +1,21 @@
 "use client";
 
+/**
+ * FinanceTab — personal cash-in/out ledger (CSV upload + AI categorization +
+ * manual edit). 2026-06-19 · IA reorg Phase 5: extracted verbatim from the
+ * former /finance page into a tab of the /money hub (StandardPage wrapper
+ * dropped — /money provides it). The `alert()` error path was replaced with
+ * an in-DOM `toast.error()` (window.alert is silently suppressed in the iOS
+ * PWA · see nickstire-ios-pwa-primitives).
+ */
+
 import { useState, useEffect } from "react";
-import { StandardPage } from "@/components/layout/standard-page";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import { logger } from "@/lib/logger";
 
-const log = logger.withSurface("finance-dashboard");
+const log = logger.withSurface("finance-tab");
 
 interface Transaction {
   id: string;
@@ -29,7 +38,7 @@ interface FinanceData {
   categoryBreakdown: Record<string, number>;
 }
 
-export default function FinancePage() {
+export function FinanceTab() {
   const [data, setData] = useState<FinanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,7 +139,7 @@ export default function FinancePage() {
       setEditingTxId(null);
       fetchData();
     } catch (e) {
-      alert("Update failed: " + (e instanceof Error ? e.message : String(e)));
+      toast.error("Update failed: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setUpdating(false);
     }
@@ -141,15 +150,14 @@ export default function FinancePage() {
     return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(dollars);
   };
 
+  if (loading && !data) {
+    return (
+      <div className="py-10 text-center text-sm text-[var(--text-tertiary)]">Loading ledger…</div>
+    );
+  }
+
   return (
-    <StandardPage
-      eyebrow="mastery · ledger"
-      title="financial ledger"
-      description="Manual CSV statement uploader and AI-categorized bookkeeping pipeline."
-      width="2xl"
-      rhythm="comfortable"
-      loading={loading && !data}
-    >
+    <div className="space-y-4">
       {error && (
         <div className="rounded-lg border border-rose-500/20 bg-rose-500/[0.05] p-4 text-sm text-rose-300">
           Error loading ledger: {error}
@@ -335,6 +343,6 @@ export default function FinancePage() {
           </div>
         </div>
       </div>
-    </StandardPage>
+    </div>
   );
 }
