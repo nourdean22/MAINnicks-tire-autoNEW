@@ -288,6 +288,7 @@ export function SkillLibraryPanel() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
+              aria-pressed={sel}
               className={cn(
                 "flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider transition-colors",
                 sel
@@ -413,17 +414,19 @@ export function SkillLibraryPanel() {
                         onClick={() => void saveEdit(s)}
                         disabled={rowBusy}
                         title="save"
-                        className="h-6 w-6 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 inline-flex items-center justify-center"
+                        aria-label="Save skill edit"
+                        className="h-9 w-9 sm:h-6 sm:w-6 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 inline-flex items-center justify-center"
                       >
-                        <Check size={10} />
+                        <Check size={10} aria-hidden />
                       </button>
                       <button
                         onClick={cancelEdit}
                         disabled={rowBusy}
                         title="cancel"
-                        className="h-6 w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 inline-flex items-center justify-center"
+                        aria-label="Cancel edit"
+                        className="h-9 w-9 sm:h-6 sm:w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 inline-flex items-center justify-center"
                       >
-                        <X size={10} />
+                        <X size={10} aria-hidden />
                       </button>
                     </>
                   ) : (
@@ -432,9 +435,10 @@ export function SkillLibraryPanel() {
                         onClick={() => startEdit(s)}
                         disabled={rowBusy}
                         title="edit trigger + action"
-                        className="h-6 w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 inline-flex items-center justify-center"
+                        aria-label="Edit trigger and action"
+                        className="h-9 w-9 sm:h-6 sm:w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 inline-flex items-center justify-center"
                       >
-                        <Pencil size={10} />
+                        <Pencil size={10} aria-hidden />
                       </button>
                       {tab === "candidates" && (
                         <>
@@ -451,9 +455,10 @@ export function SkillLibraryPanel() {
                             onClick={() => act(s.key, "drop", "skill_pending")}
                             disabled={rowBusy}
                             title="drop candidate"
-                            className="h-6 w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
+                            aria-label="Drop candidate"
+                            className="h-9 w-9 sm:h-6 sm:w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
                           >
-                            <Trash2 size={10} />
+                            <Trash2 size={10} aria-hidden />
                           </button>
                         </>
                       )}
@@ -472,9 +477,10 @@ export function SkillLibraryPanel() {
                             onClick={() => act(s.key, "drop", "skill")}
                             disabled={rowBusy}
                             title="drop skill"
-                            className="h-6 w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
+                            aria-label="Drop skill"
+                            className="h-9 w-9 sm:h-6 sm:w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
                           >
-                            <Trash2 size={10} />
+                            <Trash2 size={10} aria-hidden />
                           </button>
                         </>
                       )}

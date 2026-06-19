@@ -82,7 +82,7 @@ export function DeployChip() {
       }
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5",
-        "text-[10px] uppercase tracking-wide text-[var(--text-muted)] hover:border-white/20 hover:text-[var(--text-secondary)] transition-colors",
+        "text-[10px] uppercase tracking-wide text-[var(--text-tertiary)] hover:border-white/20 hover:text-[var(--text-secondary)] transition-colors",
       )}
     >
       <GitCommit className="h-3 w-3" />

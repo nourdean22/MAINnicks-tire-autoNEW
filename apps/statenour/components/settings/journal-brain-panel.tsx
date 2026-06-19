@@ -277,6 +277,7 @@ function SegmentedSelect({
         <button
           key={o}
           type="button"
+          aria-pressed={value === o}
           onClick={() => {
             haptic.select();
             onChange(o);
