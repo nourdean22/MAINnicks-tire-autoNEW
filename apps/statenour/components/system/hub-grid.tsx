@@ -39,6 +39,7 @@ import {
   Clock,
   DollarSign,
   FileText,
+  Inbox,
   Radio,
   Search,
   Stethoscope,
@@ -227,6 +228,17 @@ const CARDS: HubCard[] = [
     group: "ai",
     description: "Live metrics, execution traces, memory decay, and prompt versions for Nick",
     chip: () => ({ label: "observing", severity: "healthy" }),
+  },
+  {
+    // 2026-06-18 · IA reorg Phase 2 · surface the last orphaned system page.
+    // /system/inbox (memory-quarantine review) was reachable from neither
+    // nav nor cmdK nor a hub tile — only by typing the URL.
+    href: "/system/inbox",
+    title: "Memory Inbox",
+    icon: Inbox,
+    group: "ai",
+    description: "Quarantined memory ingestion — review claims + contradictions before they land",
+    chip: () => ({ label: "review", severity: "info" }),
   },
 ];
 

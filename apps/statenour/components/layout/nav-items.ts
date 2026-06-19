@@ -23,6 +23,11 @@ import {
   Search,
   Users,
   Link2,
+  Mic,
+  BookOpen,
+  GraduationCap,
+  Wallet,
+  Contact,
 } from "lucide-react";
 
 export type NavItem = {
@@ -148,3 +153,88 @@ export const NAV_ITEMS: NavItem[] = [
 
 export const MOBILE_TABS = NAV_ITEMS.filter((item) => item.mobileTab);
 export const SYSTEM_TABS = NAV_ITEMS.filter((item) => item.systemTab);
+
+// ════════════════════════════════════════════════════════════════════
+// SECTIONED NAV MODEL — 2026-06-18 · IA reorg Phase 2 (additive)
+// ════════════════════════════════════════════════════════════════════
+// One source of truth the future bottom bar, the MORE sheet, AND ⌘K all
+// read — so the three never drift (the old flat NAV_ITEMS + hardcoded
+// cmdK + orb were three independent copies). ADDITIVE: the legacy
+// NAV_ITEMS / MOBILE_TABS / SYSTEM_TABS above stay live until the Phase 4
+// renderer flip consumes this. Phase 3 makes ⌘K iterate NAV.
+// See docs/audits/IA-REORG-DESIGN.md §2 + §5.
+//
+// Sections are the operator's OS-loop VERBS: capture → execute → reflect
+// → money → operate. `bottomTab` items are the 4 always-visible daily
+// content tabs (rendered in the bar, excluded from the MORE sheet by
+// `bySection`). `/system` owns its own sub-surfaces via the System hub
+// grid, so the system/* children are NOT listed here.
+
+export type NavSection = "capture" | "execute" | "reflect" | "money" | "operate";
+
+export interface NavEntry {
+  href: string;
+  label: string;
+  icon: typeof Brain;
+  section: NavSection;
+  /** One of the 4 always-visible bottom content tabs. */
+  bottomTab?: boolean;
+  /** Rendered as a flat one-tap MORE row (vs a hub that owns its own tabs). */
+  flatRow?: boolean;
+  /** External link — opens in a new tab (e.g. nickstire.org/admin). */
+  external?: boolean;
+  /** Footer placement in the MORE sheet (Settings · Admin). */
+  footer?: boolean;
+  /** Hub routes that own in-page tabs — lets ⌘K hint sub-surfaces. */
+  tabs?: { key: string; label: string }[];
+}
+
+export const NAV: NavEntry[] = [
+  // ── TIER 1 · bottom content tabs (the smart-now daily loop) ──
+  { href: "/",         label: "Home",     icon: MessageSquare, section: "capture", bottomTab: true },
+  { href: "/missions", label: "Missions", icon: ListTodo,      section: "execute", bottomTab: true },
+  { href: "/journal",  label: "Journal",  icon: NotebookPen,   section: "reflect", bottomTab: true },
+  { href: "/stats",    label: "Stats",    icon: Target,        section: "reflect", bottomTab: true },
+
+  // ── CAPTURE ──
+  { href: "/voice", label: "Voice",         icon: Mic, section: "capture", flatRow: true },
+  { href: "/pins",  label: "Pinned Memory", icon: Pin, section: "capture", flatRow: true },
+
+  // ── EXECUTE ──
+  { href: "/content", label: "Content", icon: Send, section: "execute",
+    tabs: [{ key: "drafts", label: "Drafts" }, { key: "history", label: "History" }, { key: "publish", label: "Publish" }, { key: "outreach", label: "Outreach" }] },
+  { href: "/market", label: "Market", icon: Radar, section: "execute",
+    tabs: [{ key: "search", label: "SEO" }, { key: "radar", label: "Radar" }] },
+  { href: "/knowledge",      label: "Knowledge",      icon: BookOpen,       section: "execute", flatRow: true },
+  { href: "/learn",          label: "Learn",          icon: GraduationCap,  section: "execute", flatRow: true },
+  { href: "/photo-improver", label: "Photo Improver", icon: ImageIcon,      section: "execute", flatRow: true },
+  { href: "/links",          label: "Short Links",    icon: Link2,          section: "execute", flatRow: true },
+
+  // ── REFLECT ──
+  { href: "/brain", label: "Brain", icon: Brain, section: "reflect",
+    tabs: [{ key: "memory", label: "Memory" }, { key: "board", label: "Board" }, { key: "wisdom", label: "Wisdom" }, { key: "reason", label: "Reason" }] },
+  { href: "/people", label: "People", icon: Users, section: "reflect", flatRow: true },
+
+  // ── MONEY ── (Phase 5 folds finance+wealth into a /money hub + folds
+  // /crm into /business?tab=clients; for now they're flat rows so the
+  // orphans are reachable.)
+  { href: "/finance", label: "Finance", icon: Wallet,     section: "money", flatRow: true },
+  { href: "/wealth",  label: "Wealth",  icon: TrendingUp, section: "money", flatRow: true },
+  { href: "/crm",     label: "CRM",     icon: Contact,    section: "money", flatRow: true },
+  { href: "/business", label: "Business", icon: Store, section: "money",
+    tabs: [{ key: "money", label: "Money" }, { key: "funnel", label: "Funnel" }] },
+
+  // ── OPERATE ── (/system owns its own hub grid of sub-surfaces)
+  { href: "/system", label: "System", icon: Activity, section: "operate" },
+
+  // ── FOOTER ──
+  { href: "/settings", label: "Settings", icon: Settings, section: "operate", footer: true },
+  { href: "https://nickstire.org/admin", label: "Admin", icon: Store, section: "operate", external: true, footer: true },
+];
+
+/** The 4 always-visible bottom content tabs (a synthetic "More" is added by the renderer). */
+export const BOTTOM_TABS = NAV.filter((n) => n.bottomTab);
+
+/** MORE-sheet rows for a verb section — excludes the bottom tabs + footer. */
+export const bySection = (s: NavSection) =>
+  NAV.filter((n) => n.section === s && !n.bottomTab && !n.footer);
