@@ -46,7 +46,7 @@ export const GENERATION_ENABLED = true;
 export const INSIGHTS_ENABLED = true;
 
 export const DISABLED_REASON =
-  "Disabled in this PR — no external generation or posting occurs.";
+  "Studio actions are turned off — no external generation or posting occurs.";
 
 // ─── Brand constants (operator-facing source of truth for the Studio) ──
 // NOTE: shared/business.ts holds site-wide business facts; it is being edited
@@ -748,7 +748,7 @@ export function buildInstagramPublishChecklist(brief: ReelBrief): ChecklistItem[
     { label: "Posting from correct account", ok: null, detail: `${STUDIO_BRAND.handle} — manual check` },
     { label: "Facebook cross-post OFF", ok: null, detail: "Manual check in IG composer" },
     { label: "Manual operator review", ok: null, detail: "A human watches the full reel before posting" },
-    { label: "Publish button", ok: PUBLISH_ENABLED, detail: DISABLED_REASON },
+    { label: "Publish button", ok: PUBLISH_ENABLED, detail: PUBLISH_ENABLED ? "Live — publishing is server-gated (REEL_PUBLISH_ENABLED + claim-safety)" : DISABLED_REASON },
   ];
 }
 

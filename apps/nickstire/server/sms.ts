@@ -26,6 +26,7 @@ import { STORE_PHONE, STORE_NAME } from "@shared/const";
 import { createLogger } from "./lib/logger";
 import { normalizePhone } from "./lib/phone";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
+import { isGatewayOnline } from "./lib/gateway-device";
 
 import { BUSINESS } from "@shared/business";
 const log = createLogger("sms");
@@ -968,7 +969,6 @@ async function checkDailyLimit(phone: string): Promise<boolean> {
 // hammer the cloud. Any probe failure / unconfigured → treated OFFLINE
 // (skip) · never send into uncertainty.
 const GATEWAY_REACHABLE_TTL_MS = 60_000;
-const GATEWAY_OFFLINE_THRESHOLD_MIN = 30;
 let _gatewayReachableCache: { value: boolean; expiresAt: number } | null = null;
 
 async function probeShopGatewayReachable(): Promise<boolean> {
@@ -997,7 +997,8 @@ async function probeShopGatewayReachable(): Promise<boolean> {
     if (!dev) return false; // configured device not among registered → offline
     const lastSeenMs = dev.lastSeen ? new Date(dev.lastSeen).getTime() : 0;
     const ageMin = lastSeenMs ? (Date.now() - lastSeenMs) / 60_000 : 999;
-    return ageMin < GATEWAY_OFFLINE_THRESHOLD_MIN;
+    // Same offline window as the live badge + the alerting cron (one constant).
+    return isGatewayOnline(ageMin);
   } catch {
     return false; // unreachable → offline
   }

@@ -25,3 +25,27 @@ export function pickGatewayDevice<T extends { id: string; lastSeen?: string }>(
     return t > ft ? d : freshest;
   });
 }
+
+/**
+ * Minutes of silence before the SMS gateway is considered OFFLINE.
+ *
+ * THE single source of truth for both the live `sms.gatewayHealth` resolver
+ * (services.ts) and the alerting cron (smsGatewayHealthMonitor.ts). The F25e
+ * phone relay heartbeats into the Capevace cloud roughly every ~15 min, so a
+ * healthy gateway routinely sits in the 10–17 min `lastSeen` band. The old
+ * live-resolver threshold of 10 min flagged that NORMAL gap as offline,
+ * flapping every admin badge (Overview "F25e OFFLINE" / Tires + Winback
+ * "Gateway offline") while the cron simultaneously logged "online". 30 min =
+ * two missed check-ins before declaring offline — the window the cron and the
+ * Settings "last 30 minutes" copy already assume.
+ */
+export const GATEWAY_OFFLINE_MINUTES = 30;
+
+/**
+ * True when the gateway's `lastSeen` age (in minutes) is within the live
+ * window. Offline at exactly the threshold, matching the cron's `>=` check so
+ * the live badge and the alert can never disagree at the boundary.
+ */
+export function isGatewayOnline(ageMinutes: number): boolean {
+  return ageMinutes < GATEWAY_OFFLINE_MINUTES;
+}
