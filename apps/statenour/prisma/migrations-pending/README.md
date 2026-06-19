@@ -48,6 +48,23 @@ them back when ready.
 
 ## Parked migrations
 
+### `20260618000000_consolidated_models` — ⏳ REGISTERED, awaiting apply (PR #217)
+
+The NOUR OS consolidation (#206) added 10 Prisma models — `ContentNode`,
+`Contact`, `Booking`, `Agreement`, `Product`, `Order`, `FinancialTransaction`,
+`InvestmentHolding`, `ShortLink`, `LinkClick` — backing `/crm` `/wealth`
+`/finance` `/links`. Their idempotent DDL (`CREATE TABLE IF NOT EXISTS` +
+indexes + FKs) is registered in the `apply-pending-migration` route's
+`MIGRATIONS` map under key `20260618000000_consolidated_models` (PR #217).
+
+**Registered ≠ applied.** To apply to prod, from the authed app tab run:
+```js
+fetch('/api/system/apply-pending-migration',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'20260618000000_consolidated_models'}),credentials:'include'})
+```
+then confirm with `prisma migrate status`. DDL is idempotent — safe to re-run.
+DDL ↔ `schema.prisma` parity verified for all 10 tables (column names/types,
+nullability, defaults, `@unique`, indexes, FK `onDelete`).
+
 ### `0003_ambition_engine` — ✅ APPLIED 2026-05-30 (via endpoint)
 
 Ambition Engine P1 (the `/stats` goals redesign · 8 additive `life_goals`

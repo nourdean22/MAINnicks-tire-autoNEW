@@ -4,7 +4,15 @@ Prisma models in one Neon Postgres instance · model count last
 verified 2026-05-21. This file is the map — if you're about to write a
 migration or add a feature, read the relevant section first.
 
-> **Model count:** 80 — verified via `grep -c "^model " prisma/schema.prisma`.
+> **Model count:** 101 — verified via `grep -c "^model " prisma/schema.prisma` (2026-06-19).
+
+> **NOUR OS consolidation models (#206) + migration `20260618000000_consolidated_models` (PR #217):**
+> 10 models — `ContentNode`, `Contact`, `Booking`, `Agreement`, `Product`,
+> `Order`, `FinancialTransaction`, `InvestmentHolding`, `ShortLink`, `LinkClick`
+> (back `/crm` `/wealth` `/finance` `/links`) — are in `schema.prisma`. Their
+> tables are **REGISTERED but not yet applied to prod**; apply via the guarded
+> `apply-pending-migration` endpoint (key `20260618000000_consolidated_models`).
+> See `prisma/migrations-pending/README.md`.
 
 > **v526 prod index migration APPLIED (v529.1 · 2026-05-12):** 8
 > `CREATE INDEX CONCURRENTLY` + 14 `DROP INDEX CONCURRENTLY` ran via
