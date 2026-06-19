@@ -106,8 +106,8 @@ export default function ServicesOverview() {
           140-155 sweet spot). Aligned with routes.ts so prerender +
           runtime <head> match. */}
       <SEOHead
-        title="Tire Shop & Auto Repair Cleveland · Nick's Tire & Auto"
-        description="Tire & auto repair in Cleveland & Euclid. Brakes, diagnostics, emissions, oil changes. Free check, written quote, you don't pay until you say yes. Walk in!"
+        title="Cleveland Auto Repair & Tires · No Pay Til You Say Yes | Nick's"
+        description="Tires, brakes, diagnostics, oil & emissions in one Euclid shop. Free check, written quote, you don't pay until you say yes. 4.9★ from 1,700+ drivers."
         canonicalPath="/services"
       />
       <Breadcrumbs items={[{ label: "Services", href: "/services" }]} />
