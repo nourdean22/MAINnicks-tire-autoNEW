@@ -8,6 +8,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { sdk } from "../_core/sdk";
 
 const log = createLogger("realtime");
 
@@ -68,18 +69,30 @@ export function pushToAdminDashboards(event: {
  * Express handler for SSE subscription.
  * Mount at: app.get("/api/admin/events", sseHandler)
  */
-export function sseHandler(req: any, res: any): void {
-  // Verify admin auth — always require valid credentials.
-  // wave-181.76 (self-audit) · `req.cookies` was undefined because the
-  // app has no cookie-parser middleware. Manual header parse (matches
-  // the realtime.ts + oauth.ts inline parse pattern · no new dep).
+export async function sseHandler(req: any, res: any): Promise<void> {
+  // Admin auth. The browser transport (EventSource) CANNOT send an
+  // Authorization header, so accept the OAuth session cookie the admin
+  // already holds — resolved the SAME way as every tRPC adminProcedure
+  // (sdk.authenticateRequest → role === "admin"). Keep the ADMIN_API_KEY
+  // Bearer as a server-to-server / curl fallback.
+  // Pre-fix this required a Bearer header OR a never-set `admin_token` cookie,
+  // so every browser EventSource connection 401'd — and the reconnect storm
+  // then tripped the clients.size>=50 503 cap.
   const auth = req.headers.authorization;
   const expected = process.env.ADMIN_API_KEY;
-  const adminTokenCookie = (req.headers.cookie as string | undefined)?.match(/(?:^|;\s*)admin_token=([^;]+)/)?.[1];
-  const hasValidBearer = expected && auth === `Bearer ${expected}`;
-  const hasValidCookie = adminTokenCookie && adminTokenCookie.length > 10;
+  const hasValidBearer = !!expected && auth === `Bearer ${expected}`;
 
-  if (!hasValidBearer && !hasValidCookie) {
+  let isAdmin = false;
+  if (!hasValidBearer) {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      isAdmin = user?.role === "admin";
+    } catch {
+      isAdmin = false;
+    }
+  }
+
+  if (!hasValidBearer && !isAdmin) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
