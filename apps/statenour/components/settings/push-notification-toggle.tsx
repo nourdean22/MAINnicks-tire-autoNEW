@@ -84,7 +84,7 @@ export function PushNotificationToggle() {
             : "Enable to receive alerts even when the browser is closed."}
       </p>
       {errorMessage && (
-        <p className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+        <p role="alert" className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
           ⚠ {errorMessage}
         </p>
       )}

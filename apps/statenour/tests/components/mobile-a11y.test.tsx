@@ -303,3 +303,30 @@ describe("A9 · ultron cards bind to a defined text token", () => {
     }
   });
 });
+
+// ─── 9 · A10 · settings mutation feedback announces to AT (2026-06-19) ─
+// A conditionally-mounted error/confirm banner with no live-region role
+// is silently inserted — screen readers don't announce it. role="alert"
+// is assertive and announces on insertion (the correct choice for
+// conditionally-rendered content; people-scoring's "saved" uses an
+// always-mounted role="status" because polite regions must pre-exist).
+
+describe("A10 · settings panels announce mutation errors / confirms to AT", () => {
+  it("conditionally-mounted error + confirm banners carry role=alert", () => {
+    // push-notification + journal-brain + operating-rhythm rendered a bare
+    // <p>/<span> only when the error/confirm was truthy → never announced.
+    expect(readSource("components/settings/push-notification-toggle.tsx")).toContain('<p role="alert"');
+    expect(readSource("components/settings/journal-brain-panel.tsx")).toContain('<p role="alert"');
+    const rhythm = readSource("components/settings/operating-rhythm-toggle.tsx");
+    expect(rhythm).toContain('<p role="alert"'); // mutationError banner
+    expect(rhythm).toContain('<span role="alert"'); // pending-disable confirm prompt
+  });
+
+  it("people-scoring keeps the always-mounted role=status saved announcer (the reference)", () => {
+    // Regression guard: the polite "saved" region must stay always-mounted
+    // (conditional content, unconditional element) or it stops announcing.
+    const src = readSource("components/settings/people-scoring-panel.tsx");
+    expect(src).toContain('role="status"');
+    expect(src).toContain('aria-live="polite"');
+  });
+});
