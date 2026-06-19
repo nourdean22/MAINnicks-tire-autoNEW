@@ -330,3 +330,74 @@ describe("A10 · settings panels announce mutation errors / confirms to AT", () 
     expect(src).toContain('aria-live="polite"');
   });
 });
+
+// ─── 10 · A11 · ultron diagnostics a11y/token hardening (2026-06-19) ──
+// Extends the Settings/Home token + tap-target sweep (#224/#226/#228)
+// across the ultron HQ surface. Source-asserted — the cards need live
+// tRPC + auth to render, so we lock the literal class contracts exactly
+// like the A2 composer + A9 ultron-token guards above.
+//
+// Verified-residue-only scope (an adversarial audit of all 27 ultron
+// files found ZERO missing-aria and ZERO native-dialog issues — ARIA and
+// the in-DOM confirm primitives were already in place; only neutral-token
+// and sub-44px tap-target residue remained).
+
+describe("A11 · ultron diagnostics bind neutral colours to tokens", () => {
+  // Only the NEUTRAL families have globals.css tokens, so only they were
+  // swapped. Semantic status hues (rose/amber/emerald/sky/red/blue/violet)
+  // correctly STAY raw — no token exists for them. The regex fails loudly
+  // if a sibling re-introduces a raw neutral into a tokenized file.
+  const NEUTRAL_RAW = /\b(?:bg|text|border)-(?:zinc|slate|gray|neutral)-\d{2,3}\b/;
+  it("fully-tokenized ultron files contain no raw neutral-palette classes", () => {
+    for (const f of [
+      "components/ultron/command-spine-pulse.tsx",
+      "components/ultron/decision-replay-card.tsx",
+      "components/ultron/preferences-card.tsx",
+      "components/ultron/signal/situation-card.tsx",
+      "components/ultron/top-strip/hq-status-chips.tsx",
+    ]) {
+      expect(readSource(f)).not.toMatch(NEUTRAL_RAW);
+    }
+  });
+
+  it("omni-capture park-intent foreground uses the neutral text token", () => {
+    // Only the neutral FOREGROUND maps to a token; the slate bg/border tint
+    // is the shared hued-chip pattern (emerald/blue/violet/amber) with no
+    // token equivalent, so it intentionally stays raw.
+    const src = readSource("components/ultron/ask/omni-capture.tsx");
+    expect(src).not.toContain('color: "text-slate-400"');
+    expect(src).toContain('color: "text-[var(--text-tertiary)]"');
+  });
+});
+
+describe("A11 · ultron interactive controls reach 44px on mobile", () => {
+  it("isolated icon buttons grow to 44px on mobile, collapse to dense desktop size", () => {
+    // min-* floors win on mobile; sm: returns the control to its original
+    // dense desktop dimensions, so desktop is pixel-identical.
+    const collapseToMin = "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px]";
+    expect(readSource("components/ultron/contradictions-card.tsx")).toContain(collapseToMin);
+    expect(readSource("components/ultron/decision-replay-card.tsx")).toContain(collapseToMin);
+    expect(readSource("components/ultron/preferences-card.tsx")).toContain(collapseToMin);
+    const overlayOnWH = "min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0";
+    expect(readSource("components/ultron/signal/situation-card.tsx")).toContain(overlayOnWH);
+    expect(readSource("components/ultron/today/next-action-whisperer.tsx")).toContain(overlayOnWH);
+    expect(readSource("components/ultron/today/active-task-companion.tsx")).toContain(overlayOnWH);
+  });
+
+  it("dense multi-button rows grow height-only on mobile (no horizontal crowding)", () => {
+    // persona-drift's 3-button row + contradiction's 4 resolve choices keep
+    // their natural width (adding min-w-[44px] x3/x4 would crowd the
+    // excerpt on a 375px screen) and only grow the vertical tap dimension.
+    expect(readSource("components/ultron/persona-drift-card.tsx")).toContain("min-h-[44px] sm:min-h-[24px]");
+    expect(readSource("components/ultron/contradictions-card.tsx")).toContain("min-h-[44px] sm:min-h-[26px]");
+  });
+
+  it("primary action + disclosure buttons floor to 44px height on mobile", () => {
+    // Review follow-up: next-action 'start' (the primary action) matches its
+    // now-44px skip sibling, and situation-card's expand toggle was the last
+    // untreated interactive control in the card body. Height-only; sm:min-h-0
+    // restores the original dense desktop height.
+    expect(readSource("components/ultron/today/next-action-whisperer.tsx")).toContain("px-2 py-1 min-h-[44px] sm:min-h-0");
+    expect(readSource("components/ultron/signal/situation-card.tsx")).toContain("gap-1 min-h-[44px] sm:min-h-0 text-[9px]");
+  });
+});

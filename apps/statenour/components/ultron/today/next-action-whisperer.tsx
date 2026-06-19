@@ -152,13 +152,13 @@ export function NextActionWhisperer() {
       <div className="flex items-center gap-1.5 shrink-0">
         <button
           onClick={start}
-          className="flex items-center gap-1 px-2 py-1 rounded border border-[var(--gold)]/40 bg-[var(--gold)]/15 text-[9px] font-bold uppercase tracking-wider text-[var(--gold)] hover:bg-[var(--gold)]/25 transition-colors"
+          className="flex items-center gap-1 px-2 py-1 min-h-[44px] sm:min-h-0 rounded border border-[var(--gold)]/40 bg-[var(--gold)]/15 text-[9px] font-bold uppercase tracking-wider text-[var(--gold)] hover:bg-[var(--gold)]/25 transition-colors"
         >
           <Play size={9} /> start
         </button>
         <button
           onClick={skip}
-          className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-red-400 hover:bg-red-500/10"
+          className="min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 w-6 h-6 rounded flex items-center justify-center text-[var(--text-tertiary)] hover:text-red-400 hover:bg-red-500/10"
           aria-label="Skip for 5 min"
         >
           <XIcon size={11} />

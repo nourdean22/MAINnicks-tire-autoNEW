@@ -195,7 +195,7 @@ export function PersonaDriftCard() {
                           aria-label={`${r} this drift event`}
                           className={cn(
                             "flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-mono lowercase tracking-wide transition-colors",
-                            "min-h-[24px]",
+                            "min-h-[44px] sm:min-h-[24px]",
                             meta.tone,
                             isSubmitting && "opacity-60 cursor-wait",
                           )}
