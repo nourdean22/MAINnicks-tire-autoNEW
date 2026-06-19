@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger";
 import { runConsolidation } from "@/lib/brain/memory-consolidation";
 import { autoPromoteStableSkillsToWisdom } from "@/lib/brain/skill-extractor";
 import { flushSlowQueriesToSystemMetric } from "@/lib/db/slow-query-tracker";
+import { runSemanticDedup } from "@/lib/brain/semantic-dedup";
 // v10.0.178 · was 60s — task itself takes ~51s p95, which left zero
 // headroom. Mega's per-child timeout was the actual blocker (50s,
 // now 90s); bumping this in lockstep so a slow run doesn't trip
@@ -43,9 +44,26 @@ export const GET = cronHandler(async () => {
     return { flushed: 0, topMs: 0 };
   });
 
+  // Wave 63 · semantic near-duplicate sweep — complements the AI-merge in
+  // runConsolidation by collapsing near-identical memories (pgvector cosine
+  // >= 0.95, capped at 100/run, soft-deletes excluded) that quietly degrade
+  // recall quality. DRY-RUN by default: emits a `semantic_dedup_dry_run` audit
+  // event and deletes NOTHING, so the operator can inspect candidate counts
+  // (System > Coverage) before flipping it live with SEMANTIC_DEDUP_LIVE=1.
+  // Best-effort — a failure here never blocks consolidation.
+  const semanticDedup = await runSemanticDedup({
+    dryRun: process.env.SEMANTIC_DEDUP_LIVE !== "1",
+  }).catch((err) => {
+    logger.warn("consolidate_semantic_dedup_failed", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    });
+    return null;
+  });
+
   return {
     ...result,
     skillPromotion: skillPromote,
     slowQueryFlush,
+    semanticDedup,
   };
 });
