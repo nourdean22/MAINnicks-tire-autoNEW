@@ -250,8 +250,11 @@ export const autoLaborRouter = router({
   status: adminProcedure.query(async () => {
     const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
     const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
-    const { getDataStaleDays, getLastSuccessfulSync } = await import("../services/shopDriverMirror");
-    const staleDays = getDataStaleDays();
+    const { getDbDataStaleDays, getLastSuccessfulSync } = await import("../services/shopDriverMirror");
+    // Persisted freshness (newest mirrored invoice date) — NOT the volatile
+    // in-memory marker, which falsely reports "99 days" after every redeploy
+    // until the next admin-gated sync. null (no rows) → 0 (nothing to be stale).
+    const staleDays = (await getDbDataStaleDays()) ?? 0;
     const lastSuccessfulSync = getLastSuccessfulSync();
 
     if (!username || !password) {
