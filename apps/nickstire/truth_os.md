@@ -2,6 +2,12 @@
 
 **Purpose:** Single place to record what must be **true in production** for this repo. Update when you ship behavior or infra changes.
 
+## 🟡 Pending merge — 2026-06-19 (NOT yet live — awaiting operator merge)
+
+- **#219 `nickstire/sms-consistency-sweep`** — `retryCampaign` no longer excludes bare-10-digit customers (now shares `campaignEligiblePhoneSql` with the segment filter); `gatewayHealth` picks the configured/freshest device via shared `pickGatewayDevice` instead of blind `devices[0]`.
+- **#220 `nickstire/reel-quality-gate`** — the 75-pt reel quality gate is enforced server-side (`content.generateReelBrief` returns the score; new `content.validateReelBrief` mutation). Reuses the already-server-imported pure `facelessReelStudio` module (no duplication).
+- Both pass full nickstire gates (tsc 0, suite green). Full session detail: `apps/statenour/docs/sessions/2026-06-19.md`. Move these into a 🟢 shipped section once merged + live.
+
 ## 🟢 Latest shipped — 2026-06-18 (Ad Studio + IG reel/ad campaigns)
 
 - **Ad Studio (#212 · `/admin/ad-studio` · nav: Megaphone)**: owner-gated tool that generates a boost-ready Instagram carousel **ad** end-to-end — pick an angle ($10-down / free-check / 4.9★ trust) → claim-safe LLM copy (`server/services/adStudio/adCopyGen.ts`) + **server-side puppeteer render** of a brand template (Nick's yellow on near-black, **no fake people**; real product object shots + a designed 4.9★ review card) → slides hosted via `storagePut` → **Post now** or **Schedule**. Reuses `metaSocial.postInstagramCarousel` + `scheduled_posts` for delivery. **Proof + CTA cards are templated from `BUSINESS` constants** — phone/address/reviews can never be hallucinated. Fonts (Anton + Barlow Condensed, OFL) + product shots are baked to base64 (`server/services/adStudio/adAssets.ts` via `gen-assets.mjs`) so the render survives esbuild bundling — **no runtime file IO or font fetch**. Gates: tsc 0 · `adStudio.test` 10/10 · build · brand-voice 0 · routes 0. **⚠ Watch item: the runtime puppeteer render on Railway is operator-smoke-tested in-browser (open the tool → Generate). Chromium is present at build (prerender); if its runtime libs are missing, `adStudio.generate` returns a clean error rather than crashing.**
