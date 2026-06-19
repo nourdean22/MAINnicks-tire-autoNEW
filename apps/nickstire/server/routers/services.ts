@@ -20,6 +20,7 @@ import {
 import { storagePut } from "../storage";
 import { sendSms } from "../sms";
 import { createLogger } from "../lib/logger";
+import { pickGatewayDevice } from "../lib/gateway-device";
 import { z } from "zod";
 
 const log = createLogger("routers:services");
@@ -531,7 +532,19 @@ export const smsRouter = router({
       if (!devices.length) {
         return { configured: true as const, online: false, lastSeen: null, deviceName: null, error: "No devices registered" };
       }
-      const dev = devices[0];
+      // Don't blindly trust devices[0] — the Capevace account can hold a stale
+      // test phone alongside the live F25e, and order isn't guaranteed. Prefer
+      // the configured device id, else the freshest by lastSeen (shared helper).
+      const dev = pickGatewayDevice(devices, process.env.SHOP_SMS_GATEWAY_DEVICE_ID);
+      if (!dev) {
+        return {
+          configured: true as const,
+          online: false,
+          lastSeen: null,
+          deviceName: null,
+          error: `Configured gateway device ${process.env.SHOP_SMS_GATEWAY_DEVICE_ID} not registered (${devices.length} device(s) found)`,
+        };
+      }
       const lastSeenMs = dev.lastSeen ? new Date(dev.lastSeen).getTime() : 0;
       const ageMin = lastSeenMs ? Math.round((Date.now() - lastSeenMs) / 60_000) : 999;
       return {
