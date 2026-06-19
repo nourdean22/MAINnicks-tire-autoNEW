@@ -465,8 +465,8 @@ export default function DiagnosePage() {
   return (
     <PageLayout activeHref="/diagnose" showChat={true}>
       <SEOHead
-        title="Auto Diagnostics Cleveland & Euclid · Nick's Tire & Auto"
-        description="Free check-engine diagnostics in Euclid & Cleveland. Describe symptoms, get likely causes & repairs. You don't pay until you say yes. Call (216) 862-0005."
+        title="What's Wrong With My Car? Free Symptom Checker · Nick's Tire & Auto"
+        description="Not sure what's wrong with your car? Use our free symptom checker for likely causes, urgency & repair costs — then bring it to Nick's in Euclid. No pay til yes."
         canonicalPath="/diagnose"
       />
 
