@@ -23,8 +23,42 @@ import {
 import { z } from "zod";
 
 import { createLogger } from "../lib/logger";
+import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
 
 const log = createLogger("routers:content");
+
+/**
+ * Minimal input schema for server-side reel quality validation — covers exactly
+ * the fields `calculateReelQualityScore` reads. `.passthrough()` keeps any extra
+ * ReelBrief fields the client sends; the validated object is cast to ReelBrief
+ * for the pure scorer, which only touches these fields.
+ */
+const reelBriefScoreInput = z.object({
+  campaignKeyword: z.string(),
+  mechanicTruth: z.string().default(""),
+  voiceoverScript: z.string().default(""),
+  selectedCaption: z.string().default(""),
+  captionHooks: z.array(z.string()).default([]),
+  sourceNotes: z.array(z.unknown()).default([]),
+  winningConceptId: z.string().nullable().default(null),
+  storyboardBeats: z.array(z.object({
+    beatNumber: z.number(),
+    startSecond: z.number(),
+    endSecond: z.number(),
+    visual: z.string(),
+    onScreenText: z.string(),
+  }).passthrough()).default([]),
+  higgsfieldPromptPack: z.array(z.object({ prompt: z.string() }).passthrough()).default([]),
+  concepts: z.array(z.object({
+    id: z.string(),
+    loopIdea: z.string().default(""),
+    scores: z.object({
+      hook: z.number(), truth: z.number(), save: z.number(),
+      local: z.number(), absurdity: z.number(), fit: z.number(),
+    }),
+  }).passthrough()).default([]),
+}).passthrough();
+
 export const contentRouter = router({
   publishedArticles: publicProcedure.query(async () => {
     return getPublishedArticles();
@@ -575,8 +609,12 @@ export const contentAdminRouter = router({
     .mutation(async ({ input }) => {
       try {
         const { generateReelBriefAI } = await import("../services/reelBriefGen");
+        const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
         const { brief } = await generateReelBriefAI(input);
-        return { success: true as const, brief };
+        // Server-authoritative quality verdict — the same 75-pt gate the Studio
+        // UI shows, computed server-side so automation can't ship past it blind.
+        const qualityScore = calculateReelQualityScore(brief);
+        return { success: true as const, brief, qualityScore };
       } catch (err) {
         log.error("generateReelBrief failed", { err: err instanceof Error ? err.message : String(err) });
         throw new TRPCError({
@@ -584,6 +622,19 @@ export const contentAdminRouter = router({
           message: err instanceof Error ? err.message : "Reel brief generation failed",
         });
       }
+    }),
+  /** Server-authoritative reel quality gate. Re-scores an (optionally edited)
+   *  brief with the same 75-pt gate the Studio UI uses, so quality is
+   *  enforceable server-side rather than advisory client-only. Pure compute —
+   *  no generation, storage, or posting. */
+  validateReelBrief: adminProcedure
+    .input(z.object({ brief: reelBriefScoreInput }))
+    .mutation(async ({ input }) => {
+      const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
+      // The pure scorer reads only the validated fields above; the cast bridges
+      // the focused input schema to the full ReelBrief type.
+      const qualityScore = calculateReelQualityScore(input.brief as unknown as ReelBrief);
+      return { qualityScore, passing: qualityScore.passing };
     }),
   getProprietaryEvidence: adminProcedure
     .input(z.object({ topicKeyword: z.string().optional() }).optional())
