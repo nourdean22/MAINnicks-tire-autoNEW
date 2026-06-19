@@ -37,8 +37,14 @@ export function getLastSuccessfulSync(): Date | null {
 }
 
 /**
- * Calculates the number of days since the last successful sync.
- * Returns 99 if there has never been a successful sync.
+ * Days since the last in-memory successful sync. Returns 99 if there has never
+ * been one *this process lifetime*.
+ *
+ * ⚠️ `lastSuccessfulSync` is in-memory and resets to null on every restart, so
+ * this returns the alarming `99` sentinel after each redeploy until the next
+ * sync runs — which is gated on admin activity and can lag. Do NOT use this for
+ * the operator-facing "data freshness" signal; use getDbDataStaleDays()
+ * (persisted, MAX invoice date) instead.
  */
 export function getDataStaleDays(): number {
   if (!lastSuccessfulSync) return 99;
@@ -1226,7 +1232,12 @@ async function sendMirrorAlert(msg: string): Promise<void> {
 
 // ─── DATA STALENESS CHECK ──────────────────────────────
 // Check how many days since the most recent invoice in our DB
-async function getDbDataStaleDays(): Promise<number | null> {
+/**
+ * Real data freshness: days since the newest mirrored ShopDriver invoice.
+ * Persisted (survives restarts), so unlike getDataStaleDays() it never reports
+ * a false post-deploy "99 days". Returns null when there are no mirrored rows.
+ */
+export async function getDbDataStaleDays(): Promise<number | null> {
   try {
     const d = await getDb();
     if (!d) return null;
