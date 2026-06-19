@@ -193,7 +193,10 @@ const nextConfig: NextConfig = {
     // Admin sprawl → /system hub.
     { source: "/system/policies", destination: "/system", permanent: false },
     { source: "/system/skills", destination: "/system", permanent: false },
-    { source: "/system/tools", destination: "/system", permanent: false },
+    // 2026-06-18 · IA reorg Phase 0 · /system/tools UN-SHADOWED. The live
+    // agent-tools registry page (trpc.system.getTools, linked from the System
+    // hub grid) was being bounced to /system by this redirect = dead surface.
+    // Now reachable; surfaced as a System-hub tile.
     { source: "/system/features", destination: "/system", permanent: false },
     { source: "/system/api-tokens", destination: "/system", permanent: false },
     { source: "/system/devices", destination: "/system", permanent: false },
@@ -208,7 +211,10 @@ const nextConfig: NextConfig = {
     { source: "/system/digest", destination: "/system", permanent: false },
     { source: "/system/coach-events", destination: "/system/alerts", permanent: false },
     { source: "/system/reviews", destination: "/system", permanent: false },
-    { source: "/system/proactive-preview", destination: "/system", permanent: false },
+    // 2026-06-18 · IA reorg Phase 0 · /system/proactive-preview UN-SHADOWED.
+    // The live proactive-push dry-run page (linked from the System hub grid)
+    // was being bounced to /system by this redirect = dead surface. Now
+    // reachable; surfaced as a System-hub tile.
     { source: "/system/errors", destination: "/system/logs?view=errors", permanent: false },
     // Reason consolidation. Wave 2 (2026-06-03) · /reason itself folded
     // into /brain?tab=reason · these two land there directly (single hop).
