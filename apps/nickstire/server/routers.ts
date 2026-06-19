@@ -83,6 +83,7 @@ import { voiceAgentRouter } from "./routers/voiceAgent";
 import { vapiRouter } from "./routers/vapi";
 import { closedLoopRouter } from "./routers/closedLoop";
 import { membershipsRouter } from "./routers/memberships";
+import { adStudioRouter } from "./routers/adStudio";
 
 export const appRouter = router({
   system: systemRouter,
@@ -102,6 +103,8 @@ export const appRouter = router({
   // Admin Instagram console — connection, feed, analytics, comment
   // moderation, AI co-pilot. Owner-gated wrapper over existing IG services.
   instagramAdmin: instagramAdminRouter,
+  // Self-serve graphic-design IG ad generator (copy + server render + post/schedule)
+  adStudio: adStudioRouter,
   search: searchRouter,
   diagnose: diagnoseRouter,
   laborEstimate: laborEstimateRouter,
