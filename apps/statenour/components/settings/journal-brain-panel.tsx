@@ -217,7 +217,7 @@ export function JournalBrainPanel() {
       </Row>
 
       {updateMutation.isError && (
-        <p className="mt-3 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+        <p role="alert" className="mt-3 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
           ⚠ Server rejected the change — reverted to the last saved value.
         </p>
       )}
