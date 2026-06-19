@@ -3,11 +3,11 @@
  * today's stats, AI gateway health, system status, daily brief, and execution tracking.
  */
 import { adminProcedure, router } from "../_core/trpc";
-import { sql, eq, gte, and, desc } from "drizzle-orm";
+import { sql, eq, gte, and, desc, isNull } from "drizzle-orm";
 import { exec } from "child_process";
 import { promisify } from "util";
 const execAsync = promisify(exec);
-import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits, invoices, estimatesLog, callEvents, tireOrders, winbackSends, winbackCampaigns, memberships } from "../../drizzle/schema";
+import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits, invoices, algEstimates, callEvents, tireOrders, winbackSends, winbackCampaigns, memberships } from "../../drizzle/schema";
 import { countActionableLeads } from "@shared/leadSource";
 import { getGatewayHealth, getAvailableModels } from "../lib/ai-gateway";
 import { z } from "zod";
@@ -108,9 +108,17 @@ export const controlCenterRouter = router({
       winbacksToday,
       pendingEstimatesList,
     ] = await Promise.all([
-      d.select({ sum: sql<number>`COALESCE(SUM(${estimatesLog.estimatedAmountCents}), 0)` })
-        .from(estimatesLog)
-        .where(eq(estimatesLog.converted, 0)),
+      // Outstanding opportunities = real ALG/ShopDriver counter estimates that
+      // never converted to an invoice (matched_invoice_id IS NULL), in cents.
+      // Same table the Customers-tab "Declined" column reads, but this is the
+      // FULL unmatched sum — a SUPERSET of customerMetricsRefresh.declinedValue,
+      // which only counts estimates whose phone fuzzy-matches a known customer.
+      // So this headline is expected to be >= the sum of the per-customer
+      // Declined dollars (don't "reconcile" them to be equal). The old source,
+      // estimates_log, is the web AI-estimator funnel with no writer → it was $0.
+      d.select({ sum: sql<number>`COALESCE(SUM(${algEstimates.estimatedAmount}), 0)` })
+        .from(algEstimates)
+        .where(isNull(algEstimates.matchedInvoiceId)),
       d.select({ count: sql<number>`count(*)` })
         .from(callEvents)
         .where(gte(callEvents.createdAt, todayStart)),
@@ -127,15 +135,15 @@ export const controlCenterRouter = router({
         .from(winbackSends)
         .where(gte(winbackSends.createdAt, todayStart)),
       d.select({
-        id: estimatesLog.id,
-        name: estimatesLog.name,
-        value: estimatesLog.estimatedAmountCents,
-        createdAt: estimatesLog.createdAt,
-        service: estimatesLog.service,
+        id: algEstimates.id,
+        name: algEstimates.customerName,
+        value: algEstimates.estimatedAmount,
+        createdAt: algEstimates.estimateDate,
+        service: algEstimates.serviceDescription,
       })
-        .from(estimatesLog)
-        .where(eq(estimatesLog.converted, 0))
-        .orderBy(desc(estimatesLog.estimatedAmountCents))
+        .from(algEstimates)
+        .where(isNull(algEstimates.matchedInvoiceId))
+        .orderBy(desc(algEstimates.estimatedAmount))
         .limit(5),
     ]);
 
@@ -1044,22 +1052,26 @@ export const controlCenterRouter = router({
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     try {
-      // 1. Highest open estimate outstanding for > 24 hours
+      // 1. Highest open estimate outstanding for > 24 hours.
+      // Reads real ALG/ShopDriver counter estimates that never converted
+      // (matched_invoice_id IS NULL) — same source as the Overview total and
+      // the Customers "Declined" column. (estimates_log, the web AI-estimator
+      // funnel, has no writer, so this nudge never fired off it.)
       const [est] = await d.select({
-        id: estimatesLog.id,
-        name: estimatesLog.name,
-        phone: estimatesLog.phone,
-        service: estimatesLog.service,
-        value: estimatesLog.estimatedAmountCents,
-        createdAt: estimatesLog.createdAt,
+        id: algEstimates.id,
+        name: algEstimates.customerName,
+        phone: algEstimates.customerPhone,
+        service: algEstimates.serviceDescription,
+        value: algEstimates.estimatedAmount,
+        createdAt: algEstimates.estimateDate,
       })
-        .from(estimatesLog)
+        .from(algEstimates)
         .where(and(
-          eq(estimatesLog.converted, 0),
-          sql`${estimatesLog.estimatedAmountCents} IS NOT NULL`,
-          sql`${estimatesLog.createdAt} < ${twentyFourHoursAgo}`
+          isNull(algEstimates.matchedInvoiceId),
+          sql`${algEstimates.estimatedAmount} > 0`,
+          sql`${algEstimates.estimateDate} < ${twentyFourHoursAgo}`
         ))
-        .orderBy(desc(estimatesLog.estimatedAmountCents))
+        .orderBy(desc(algEstimates.estimatedAmount))
         .limit(1);
 
       if (est) {

@@ -1095,6 +1095,7 @@ import {
   smsMessages, InsertSmsMessage,
   repairGallery, InsertRepairGalleryItem,
   technicians, InsertTechnician,
+  customers,
 } from "../drizzle/schema";
 
 // ── Reminder Settings ──
@@ -1335,8 +1336,36 @@ export async function recentInboundExists(conversationId: number, body: string):
 export async function getConversations(limit = 50): Promise<SmsConversation[]> {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(smsConversations)
+  const convos: SmsConversation[] = await db.select().from(smsConversations)
     .orderBy(desc(smsConversations.lastMessageAt)).limit(limit);
+
+  // Backfill the display name from the customers table for conversations that
+  // never captured one — inbound texts from numbers we already know as customers
+  // were showing as a raw phone number in the inbox. Match on last-10 digits:
+  // conversation phones are normalized E.164 (+1…), customers.phone is bare 10-digit.
+  const last10 = (p: string | null | undefined) => (p ?? "").replace(/\D/g, "").slice(-10);
+  const unnamed = convos.filter((c) => !c.customerName && c.phone);
+  const phones = [...new Set(unnamed.map((c) => last10(c.phone)).filter((p) => p.length === 10))];
+  if (phones.length === 0) return convos;
+
+  const matches = await db
+    .select({ phone: customers.phone, firstName: customers.firstName, lastName: customers.lastName })
+    .from(customers)
+    .where(sql`RIGHT(REGEXP_REPLACE(${customers.phone}, '[^0-9]', ''), 10) IN (${sql.join(phones.map((p) => sql`${p}`), sql`, `)})`);
+
+  const nameByPhone = new Map<string, string>();
+  for (const m of matches) {
+    const key = last10(m.phone);
+    if (key.length !== 10 || nameByPhone.has(key)) continue;
+    const name = [m.firstName, m.lastName].filter(Boolean).join(" ").trim();
+    if (name) nameByPhone.set(key, name);
+  }
+
+  return convos.map((c) =>
+    !c.customerName && c.phone && nameByPhone.has(last10(c.phone))
+      ? { ...c, customerName: nameByPhone.get(last10(c.phone))! }
+      : c,
+  );
 }
 
 export async function getConversationMessages(conversationId: number, limit = 100) {

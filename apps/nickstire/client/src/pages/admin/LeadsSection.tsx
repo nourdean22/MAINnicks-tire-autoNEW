@@ -166,15 +166,16 @@ export default function LeadsSection() {
     // lost the lead has been actioned and shouldn't bleed into the
     // urgent counter. Same fix as wave-123 Action Queue (Overview).
     const TERMINAL = new Set(["booked", "completed", "closed", "lost"]);
-    return {
-      new: leadsData.filter((l: LeadItem) => l.status === "new").length,
-      contacted: leadsData.filter((l: LeadItem) => l.status === "contacted").length,
-      urgent: leadsData.filter((l: LeadItem) =>
-        (l.urgencyScore ?? 0) >= 4 && !TERMINAL.has(l.status)
-      ).length,
-      total: leadsData.length,
-      booked: leadsData.filter((l: LeadItem) => l.status === "booked").length,
-    };
+    const newCount = leadsData.filter((l: LeadItem) => l.status === "new").length;
+    const contacted = leadsData.filter((l: LeadItem) => l.status === "contacted").length;
+    const booked = leadsData.filter((l: LeadItem) => l.status === "booked").length;
+    const urgent = leadsData.filter((l: LeadItem) =>
+      (l.urgencyScore ?? 0) >= 4 && !TERMINAL.has(l.status)
+    ).length;
+    // "Active" total = the three status buckets shown below (New + Contacted +
+    // Booked), so the headline always reconciles with the breakdown. Closed/lost
+    // leads are finished and aren't surfaced as buckets here.
+    return { new: newCount, contacted, urgent, total: newCount + contacted + booked, booked };
   }, [leadsData]);
 
   // Urgent uncontacted leads — the money bleeder
@@ -318,7 +319,7 @@ export default function LeadsSection() {
           desktop, 2-row stack on phone. */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard
-          label="Total Leads"
+          label="Active Leads"
           value={leadStats.total}
           icon={<Hash className="w-4 h-4" />}
           color="text-foreground"

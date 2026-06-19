@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickGatewayDevice } from "./gateway-device";
+import { pickGatewayDevice, isGatewayOnline, GATEWAY_OFFLINE_MINUTES } from "./gateway-device";
 
 describe("pickGatewayDevice", () => {
   const older = { id: "older", lastSeen: "2026-06-19T10:00:00Z" };
@@ -29,5 +29,30 @@ describe("pickGatewayDevice", () => {
     expect(pickGatewayDevice([noSeen])).toBe(noSeen);
     expect(pickGatewayDevice([noSeen, fresher])).toBe(fresher);
     expect(pickGatewayDevice([fresher, noSeen])).toBe(fresher);
+  });
+});
+
+/**
+ * Regression lock for the gateway "online" threshold.
+ *
+ * Before: the live `sms.gatewayHealth` resolver used `ageMin < 10` while the
+ * alerting cron used 30 min. The F25e relay heartbeats into Capevace roughly
+ * every ~15 min, so a HEALTHY gateway routinely sits in the 10–17 min band —
+ * where the 10-min resolver flipped every admin badge (Overview/Tires/Winback)
+ * to OFFLINE while the cron logged "online". One shared constant fixes it.
+ */
+describe("isGatewayOnline — single shared gateway-offline threshold", () => {
+  it("reads a 15-minute-old check-in as ONLINE (a normal ~15min relay gap must not flap offline)", () => {
+    expect(isGatewayOnline(15)).toBe(true);
+  });
+
+  it("is online just under the threshold and offline at/over it", () => {
+    expect(isGatewayOnline(GATEWAY_OFFLINE_MINUTES - 1)).toBe(true); // 29 -> online
+    expect(isGatewayOnline(GATEWAY_OFFLINE_MINUTES)).toBe(false); // 30 -> offline (matches cron `>=`)
+    expect(isGatewayOnline(GATEWAY_OFFLINE_MINUTES + 1)).toBe(false); // 31 -> offline
+  });
+
+  it("uses a 30-minute window (two missed ~15min check-ins) so the live badge matches the alerting cron", () => {
+    expect(GATEWAY_OFFLINE_MINUTES).toBe(30);
   });
 });
