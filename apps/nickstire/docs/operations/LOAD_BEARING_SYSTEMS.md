@@ -24,6 +24,7 @@ Any PR touching these areas should include:
 | Bridge/sync systems              | bridge connectors/sync modules                                                                                           | Cross-system drift and stale records                           | sync path validation                                                  |
 | DB schema/migrations             | `drizzle/`, `drizzle.config.ts`                                                                                          | Data integrity and runtime query failures                      | migration plan + rollback                                             |
 | Webhook verification             | Meta/Twilio/SMS Gateway webhook handlers                                                                                 | spoof/abuse or dropped events                                  | signature validation tests (HMAC for SMS Gateway uses body+timestamp) |
+| Social publish & ad render       | `server/services/adStudio/*` (puppeteer render), `server/routers/adStudio.ts`, `server/services/metaSocial.ts` (carousel/reel post), `server/services/scheduledPosts.ts` + pulse-tier `scheduled-posts` cron | Ads/reels fail to generate or post — marketing + paid-boost disruption (no direct revenue loss; fails clean) | render smoke test (Generate) + Meta post-path check + claim-safety lint; arms `REEL_PUBLISH_ENABLED`/`META_IG_USER_ID` |
 
 ## Merge gate recommendation
 
