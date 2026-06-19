@@ -44,7 +44,7 @@ export function HomeCommandStack() {
     
     let modeLabel = "Calm System Planning";
     let modeDesc = "Triage inbox & capture reflections";
-    let modeColor = "text-zinc-400 border-zinc-800 bg-zinc-950/40";
+    let modeColor = "text-[var(--text-tertiary)] border-[var(--border-default)] bg-[var(--bg-base)]/40";
     let modeIcon = Target;
 
     if (doingTask) {
