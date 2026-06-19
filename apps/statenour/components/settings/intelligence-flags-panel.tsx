@@ -99,6 +99,7 @@ export function IntelligenceFlagsPanel() {
           <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
           <input
             type="text"
+            aria-label="Search feature flags"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search flags (e.g. autonomy, recall)..."
@@ -110,6 +111,7 @@ export function IntelligenceFlagsPanel() {
           {["all", "stable", "canary", "experimental"].map((s) => (
             <button
               key={s}
+              aria-pressed={statusFilter === s}
               onClick={() => {
                 haptic.select();
                 setStatusFilter(s);
@@ -190,6 +192,7 @@ export function IntelligenceFlagsPanel() {
                     {/* DEFAULT button */}
                     <button
                       onClick={() => handleOverride(flag.key, null)}
+                      aria-pressed={overrideState === "ENV"}
                       className={cn(
                         "px-2 h-6 text-[8px] font-bold uppercase tracking-wider rounded transition-colors",
                         overrideState === "ENV"
@@ -203,6 +206,7 @@ export function IntelligenceFlagsPanel() {
                     {/* FORCE OFF button */}
                     <button
                       onClick={() => handleOverride(flag.key, "false")}
+                      aria-pressed={overrideState === "OFF"}
                       className={cn(
                         "px-2 h-6 text-[8px] font-bold uppercase tracking-wider rounded transition-colors",
                         overrideState === "OFF"
@@ -217,6 +221,7 @@ export function IntelligenceFlagsPanel() {
                     {!isHighRisk && (
                       <button
                         onClick={() => handleOverride(flag.key, "true")}
+                        aria-pressed={overrideState === "ON"}
                         className={cn(
                           "px-2 h-6 text-[8px] font-bold uppercase tracking-wider rounded transition-colors",
                           overrideState === "ON"

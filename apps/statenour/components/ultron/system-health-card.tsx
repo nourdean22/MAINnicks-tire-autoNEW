@@ -129,8 +129,8 @@ export function SystemHealthCard() {
         className="rounded-xl border border-white/10 bg-white/[0.02] backdrop-blur-sm"
       >
         <div className="flex items-center gap-2 px-3 py-2 text-sm">
-          <span className="h-2 w-2 rounded-full bg-[var(--text-muted)]" />
-          <AlertTriangle className="h-4 w-4 text-[var(--text-muted)]" />
+          <span className="h-2 w-2 rounded-full bg-[var(--text-tertiary)]" />
+          <AlertTriangle className="h-4 w-4 text-[var(--text-tertiary)]" />
           <div className="flex-1 min-w-0 text-[var(--text-secondary)]">
             <span className="font-semibold text-[var(--text-primary)]">
               Health digest stale
@@ -272,7 +272,7 @@ export function SystemHealthCard() {
         {data.trend?.overallDirection === "stable" && (
           <span
             title={`vs ${data.trend.priorDate}: no change`}
-            className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.02] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]"
+            className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.02] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]"
           >
             <Minus className="h-2.5 w-2.5" />
             <span>stable</span>
@@ -308,7 +308,7 @@ export function SystemHealthCard() {
           type="button"
           aria-label={expanded ? "Collapse details" : "Expand details"}
           onClick={() => setExpanded((x) => !x)}
-          className="rounded-md p-1 text-[var(--text-muted)] hover:bg-white/5 hover:text-[var(--text-primary)] transition-colors"
+          className="rounded-md p-1 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center text-[var(--text-tertiary)] hover:bg-white/5 hover:text-[var(--text-primary)] transition-colors"
         >
           {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
@@ -401,7 +401,7 @@ function StatCell({
 }) {
   return (
     <div className="rounded-md border border-white/5 bg-white/[0.02] px-2 py-1">
-      <div className="text-[var(--text-muted)] text-[9px] uppercase tracking-wide">
+      <div className="text-[var(--text-tertiary)] text-[9px] uppercase tracking-wide">
         {label}
       </div>
       <div

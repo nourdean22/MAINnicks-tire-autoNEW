@@ -99,6 +99,8 @@ export function OperatingRhythmToggle() {
           type="button"
           onClick={handleTap}
           disabled={setFlags.isPending}
+          role="switch"
+          aria-checked={enabled}
           aria-label={enabled ? "disable operating rhythm" : "enable operating rhythm"}
           className={cn(
             "relative w-11 h-6 rounded-full transition-colors",
@@ -108,6 +110,7 @@ export function OperatingRhythmToggle() {
           )}
         >
           <span
+            aria-hidden
             className={cn(
               "absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform",
               enabled ? "left-[22px]" : "left-0.5",

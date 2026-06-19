@@ -6,13 +6,11 @@ import { toast } from "sonner";
 import {
   Inbox,
   Check,
-  X,
   Clock,
   Archive,
   Sparkles,
   Trash2,
   Calendar,
-  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -213,14 +211,14 @@ export function InboxTasksTriage({ isNested = false }: InboxTasksTriageProps) {
         <div className="mt-3 p-3 rounded bg-black/40 border border-white/5 space-y-3 transition-all duration-300">
           {activePanel === "schedule" && (
             <div className="space-y-2">
-              <label className="text-[10px] font-mono uppercase text-white/40 block">
+              <span className="text-[10px] font-mono uppercase text-white/40 block">
                 Select Due Date:
-              </label>
+              </span>
               <div className="flex gap-2">
                 <input
                   type="date"
                   aria-label="Select due date"
-                  className="flex-1 bg-zinc-950 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-(--gold)/30"
+                  className="flex-1 bg-[var(--bg-base)] border border-white/10 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-(--gold)/30"
                   onChange={(e) => {
                     if (e.target.value) {
                       void handleTriage({
@@ -236,9 +234,9 @@ export function InboxTasksTriage({ isNested = false }: InboxTasksTriageProps) {
 
           {activePanel === "snooze" && (
             <div className="space-y-2">
-              <label className="text-[10px] font-mono uppercase text-white/40 block">
+              <span className="text-[10px] font-mono uppercase text-white/40 block">
                 Select Snooze Duration:
-              </label>
+              </span>
               <div className="flex flex-wrap gap-1.5">
                 <button
                   onClick={() => handleTriage({ decision: "snooze", snoozeDays: 1 })}
@@ -266,7 +264,7 @@ export function InboxTasksTriage({ isNested = false }: InboxTasksTriageProps) {
                 <input
                   type="date"
                   aria-label="Snooze until custom date"
-                  className="w-full bg-zinc-950 border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-(--gold)/30"
+                  className="w-full bg-[var(--bg-base)] border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-(--gold)/30"
                   onChange={(e) => {
                     if (e.target.value) {
                       void handleTriage({
@@ -307,7 +305,8 @@ export function InboxTasksTriage({ isNested = false }: InboxTasksTriageProps) {
                   Choose active project:
                 </span>
                 <select
-                  className="w-full bg-zinc-950 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-(--gold)/30"
+                  aria-label="Choose active project"
+                  className="w-full bg-[var(--bg-base)] border border-white/10 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-(--gold)/30"
                   defaultValue=""
                   onChange={(e) => {
                     if (e.target.value) {
