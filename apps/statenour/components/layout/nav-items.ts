@@ -10,7 +10,6 @@ import {
   Send,
   Target,
   Image as ImageIcon,
-  TrendingUp,
   Radar,
   Users,
   Link2,
@@ -18,7 +17,6 @@ import {
   BookOpen,
   GraduationCap,
   Wallet,
-  Contact,
 } from "lucide-react";
 
 // ════════════════════════════════════════════════════════════════════
@@ -83,14 +81,12 @@ export const NAV: NavEntry[] = [
     tabs: [{ key: "memory", label: "Memory" }, { key: "board", label: "Board" }, { key: "wisdom", label: "Wisdom" }, { key: "reason", label: "Reason" }] },
   { href: "/people", label: "People", icon: Users, section: "reflect", flatRow: true },
 
-  // ── MONEY ── (Phase 5 folds finance+wealth into a /money hub + folds
-  // /crm into /business?tab=clients; for now they're flat rows so the
-  // orphans are reachable.)
-  { href: "/finance", label: "Finance", icon: Wallet,     section: "money", flatRow: true },
-  { href: "/wealth",  label: "Wealth",  icon: TrendingUp, section: "money", flatRow: true },
-  { href: "/crm",     label: "CRM",     icon: Contact,    section: "money", flatRow: true },
+  // ── MONEY ── personal /money hub + the shop /business hub. Phase 5
+  // consolidated /finance + /wealth → /money, and /crm → /business Clients tab.
+  { href: "/money", label: "Money", icon: Wallet, section: "money",
+    tabs: [{ key: "finance", label: "Finance" }, { key: "wealth", label: "Wealth" }] },
   { href: "/business", label: "Business", icon: Store, section: "money",
-    tabs: [{ key: "money", label: "Money" }, { key: "funnel", label: "Funnel" }] },
+    tabs: [{ key: "money", label: "Money" }, { key: "funnel", label: "Funnel" }, { key: "clients", label: "Clients" }] },
 
   // ── OPERATE ── (/system owns its own hub grid of sub-surfaces)
   { href: "/system", label: "System", icon: Activity, section: "operate" },
