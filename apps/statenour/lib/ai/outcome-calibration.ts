@@ -237,17 +237,15 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
  * Format calibration stats as a system-prompt block. Injected into
  * content-mode prompt so Nick knows his own track record.
  *
- * Wave 59 · NO-OP until the resolve loop is wired. `resolvePrediction`
- * — the step that marks predictions resolved + writes back the actual
- * score — has zero call sites, so `resolvedCount` is permanently 0.
- * That meant this function only ever emitted the "insufficient data"
- * hedge, injecting pure prompt noise into every content-mode system
- * prompt. Returning "" makes it a no-op so it stops polluting prompts;
- * the call site (`lib/ai/system-prompt.ts`) already guards `if
- * (calibBlock)` so an empty string is skipped cleanly. The `stats`
- * param + return type are preserved so callers are untouched. Restore
- * the real block (git history) once resolvePrediction is invoked from
- * the BATCH-5 content_performance scoring path.
+ * The resolve loop is LIVE: `resolvePrediction` (marks a prediction
+ * resolved + writes back its actual score) is invoked by the
+ * brain-intelligence cron (`app/api/cron/brain-intelligence/route.ts`),
+ * so `resolvedCount` grows as predictions get scored. Below 5 resolved
+ * this emits the "insufficient data" hedge; at 5+ it emits the real
+ * calibration block (accuracy + bias). The call site
+ * (`lib/ai/system-prompt.ts`) guards `if (calibBlock)`. (Historical:
+ * Wave 59 once stubbed this to "" while resolvePrediction had no
+ * callers; that wiring has since landed.)
  */
 export function buildCalibrationPromptBlock(stats: CalibrationStats): string {
   if (stats.resolvedCount < 5) {
