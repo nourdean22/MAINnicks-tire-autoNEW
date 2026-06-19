@@ -60,8 +60,13 @@ const CORE_PAGES: RouteEntry[] = [
     // VAPI repair call. Applied here as V1 Benefit Lead variant per
     // seo-aeo-meta-description-generator skill. Aligned with ServicesOverview.tsx
     // SEOHead so prerender + runtime <head> match.
-    title: "Tire Shop & Auto Repair Cleveland · Nick's Tire & Auto",
-    description: "Tire & auto repair in Cleveland & Euclid. Brakes, diagnostics, emissions, oil changes. Free check, written quote, you don't pay until you say yes. Walk in!",
+    // 2026-06-19 GSC tune · /services held pos 3.4 but only 0.4% CTR over
+    // 2,264 imp (90d) — strong rank, weak earn. Hub page ranks for broad
+    // terms; the generic title lost the click. Applied the proven "No Pay
+    // Til You Say Yes" hook (winning on /diagnostics) + 4.9★/1,700+ social
+    // proof up front. Kept in sync with ServicesOverview.tsx SEOHead.
+    title: "Cleveland Auto Repair & Tires · No Pay Til You Say Yes | Nick's",
+    description: "Tires, brakes, diagnostics, oil & emissions in one Euclid shop. Free check, written quote, you don't pay until you say yes. 4.9★ from 1,700+ drivers.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -998,8 +1003,14 @@ const UTILITY_PAGES: RouteEntry[] = [
     path: "/diagnose",
     priority: 0.7,
     changefreq: "monthly",
-    title: "Auto Diagnostics Cleveland & Euclid · Nick's Tire & Auto",
-    description: "Free check-engine diagnostics in Euclid & Cleveland. Describe symptoms, get likely causes & repairs. You don't pay until you say yes. Call (216) 862-0005.",
+    // 2026-06-19 cannibalization fix · /diagnose (symptom-checker TOOL) was
+    // titled "Auto Diagnostics Cleveland" and split commercial signal with
+    // /diagnostics (the service page built to win that query, already ahead
+    // at pos 24.7 vs 28.8). Repointed to its true intent — "what's wrong with
+    // my car" / symptom checker — so /diagnostics owns the commercial query.
+    // Kept in sync with DiagnosePage.tsx SEOHead.
+    title: "What's Wrong With My Car? Free Symptom Checker · Nick's Tire & Auto",
+    description: "Not sure what's wrong with your car? Use our free symptom checker for likely causes, urgency & repair costs — then bring it to Nick's in Euclid. No pay til yes.",
     group: "utility",
     sitemap: true,
     prerender: true,
