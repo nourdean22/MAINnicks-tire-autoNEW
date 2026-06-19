@@ -7,6 +7,7 @@ import { createLogger } from "../../lib/logger";
 import { gte, sql, count } from "drizzle-orm";
 
 import { BUSINESS } from "@shared/business";
+import { countActionableLeads } from "@shared/leadSource";
 const log = createLogger("cron:dashboard-sync");
 
 export async function processDashboardSync(): Promise<{ recordsProcessed: number; details?: string }> {
@@ -30,10 +31,13 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
       .from(bookings)
       .where(gte(bookings.createdAt, sql`${todayStr}`));
 
-    const [todayLeads] = await db
-      .select({ count: count() })
+    // Actionable-lead definition (shared/leadSource): exclude web-callback leads already
+    // counted as callbacks so this Sheets metric matches the morning brief + Money Risks.
+    const todayLeadRows = await db
+      .select({ source: leads.source, callbackId: leads.callbackId })
       .from(leads)
       .where(gte(leads.createdAt, sql`${todayStr}`));
+    const todayLeadsCount = countActionableLeads(todayLeadRows);
 
     const [todayCallbacks] = await db
       .select({ count: count() })
@@ -60,7 +64,7 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
       date: new Date().toLocaleDateString("en-US", { timeZone: BUSINESS.timezone }),
       time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: BUSINESS.timezone }),
       bookings: todayBookings?.count || 0,
-      leads: todayLeads?.count || 0,
+      leads: todayLeadsCount,
       callbacks: todayCallbacks?.count || 0,
       invoices: invoiceCount,
       revenue: todayRevenue,
