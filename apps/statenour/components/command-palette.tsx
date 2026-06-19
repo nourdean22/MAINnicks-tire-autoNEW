@@ -45,29 +45,24 @@ import {
 // PersonProfile candidates as a dedicated CommandGroup. Hidden when
 // the parser returns null (i.e. the query is normal cmdk text).
 import RelationshipLogAction from "@/components/command-palette/relationship-log-action";
+// 2026-06-18 · IA reorg Phase 3 · ⌘K navigation now derives from the single
+// NAV source of truth so the bar / MORE sheet / palette can never drift.
+import { NAV } from "@/components/layout/nav-items";
 import {
   ActivityIcon,
   BrainIcon,
-  ClipboardListIcon,
   ClockIcon,
-  CogIcon,
   HeartPulseIcon,
-  MonitorIcon,
   ZapIcon,
   RefreshCwIcon,
   AlertTriangleIcon,
   BotIcon,
   DollarSignIcon,
   WrenchIcon,
-  MessageSquareIcon,
   TrendingUpIcon,
-  TrendingDownIcon,
   ImageIcon,
   SearchIcon,
-  BookOpenIcon,
   EyeIcon,
-  ShieldIcon,
-  Layers3Icon,
   InboxIcon,
   StethoscopeIcon,
   DatabaseIcon,
@@ -240,17 +235,32 @@ export function CommandPalette() {
     [],
   );
 
+  // 2026-06-18 · IA reorg Phase 3 · the Navigate group DERIVES from the single
+  // NAV source (nav-items.ts) — the bar, MORE sheet, and ⌘K all read it, so they
+  // can't drift. A command can't exist here for a destination not in NAV, which
+  // structurally deleted the old hand-listed Navigate/Pages groups + the ~10
+  // "label-theater" System-Ops entries that all routed to /system or
+  // /system/calibration under fake distinct names.
+  const navCommands: CommandAction[] = useMemo(
+    () =>
+      NAV.map((entry) => ({
+        id: `nav:${entry.href}`,
+        label: entry.label,
+        group: "Navigate",
+        icon: <entry.icon className="size-4" />,
+        action: entry.external
+          ? () => openExternal(entry.href)
+          : () => navigate(entry.href),
+      })),
+    [navigate, openExternal],
+  );
+
   const actions: CommandAction[] = useMemo(
     () => [
-      // ═══ NAVIGATE — Core 5 + depth pages ═══
-      { id: "nav-hq", label: "HQ Dashboard", group: "Navigate", icon: <ShieldIcon className="size-4" />, action: () => navigate("/"), shortcut: "G H" },
-      { id: "nav-chat", label: "Nick (AI Chat)", group: "Navigate", icon: <MessageSquareIcon className="size-4" />, action: () => navigate("/chat"), shortcut: "G N" },
-      { id: "nav-brain", label: "Brain Dashboard", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain"), keywords: ["memory", "skill", "identity", "belief", "ghost", "nick"] },
-      { id: "nav-tasks", label: "Tasks / Actions", group: "Navigate", icon: <ClipboardListIcon className="size-4" />, action: () => navigate("/missions"), shortcut: "G T", keywords: ["tasks", "actions", "missions", "loops", "queue"] },
-      { id: "nav-journal", label: "Journal", group: "Navigate", icon: <BookOpenIcon className="size-4" />, action: () => navigate("/journal"), shortcut: "G J", keywords: ["journal", "reflect", "dump"] },
-      { id: "nav-mastery", label: "Stats", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/stats"), keywords: ["mastery", "growth", "goals", "character", "level", "xp", "stats"] },
-      { id: "nav-financial", label: "Financial / Money", group: "Navigate", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/business?tab=money"), keywords: ["money", "income", "business", "funnel"] },
-      { id: "nav-settings", label: "Settings", group: "Navigate", icon: <CogIcon className="size-4" />, action: () => navigate("/settings") },
+      ...navCommands,
+      // High-value sub-surface deep-links not covered by a top-level NAV entry.
+      { id: "nav-brain-board", label: "Brain Board · multi-advisor", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=board"), keywords: ["board", "advisor", "consult", "council", "elon", "buffett", "warren"] },
+      { id: "nav-body", label: "Body Tracking", group: "Navigate", icon: <HeartPulseIcon className="size-4" />, action: () => navigate("/stats#body"), keywords: ["weight", "workout", "boxing", "body"] },
 
       // ═══ DIAGNOSTICS — push+pull probe hub (ENR3/ENR4) ═══
       { id: "diag-hub", label: "Diagnostics Hub (all probes)", group: "Diagnostics", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["diagnostics", "health", "push", "pull", "probe", "env", "oauth", "pulse", "stale", "cron"] },
@@ -260,39 +270,24 @@ export function CommandPalette() {
       // page deleted. /system/logs covers the same data with broader
       // source list, just slower poll. Manual refresh = live enough.
 
-      // ═══ SYSTEM OPS DECK ═══
-      { id: "sys-crons", label: "Crons · live deck", group: "System Ops", icon: <ClockIcon className="size-4" />, action: () => navigate("/system/crons"), keywords: ["cron", "schedule", "job", "kill", "manual"] },
-      { id: "sys-errors", label: "Errors · fingerprints", group: "System Ops", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/logs?view=errors"), keywords: ["error", "log", "stack", "fingerprint"] },
-      { id: "sys-ai-cost", label: "AI Cost · burn rate", group: "System Ops", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/system/ai-cost"), keywords: ["cost", "nick", "tokens", "budget", "burn"] },
-      { id: "sys-actions", label: "Actions · Nick audit", group: "System Ops", icon: <BotIcon className="size-4" />, action: () => navigate("/system/actions"), keywords: ["action", "autonomous", "rule", "audit", "approval"] },
-      { id: "sys-quality", label: "Nick Quality · trend", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["quality", "critic", "regen", "specificity", "cliche"] },
-      { id: "sys-anti", label: "Anti-patterns · library", group: "System Ops", icon: <TrendingDownIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["lesson", "failure", "mistake", "antipattern", "revisit"] },
-      { id: "sys-devices", label: "Devices · fleet", group: "System Ops", icon: <MonitorIcon className="size-4" />, action: () => navigate("/system"), keywords: ["device", "ring", "eufy", "tuya", "camera", "agent", "bridge"] },
-      { id: "sys-power", label: "Power · master control", group: "System Ops", icon: <ZapIcon className="size-4" />, action: () => navigate("/system"), keywords: ["power", "kill", "provider", "budget", "quiet", "shadow", "emergency"] },
-      // 2026-05-23 · UI #4 · new surfaces shipped this session
-      { id: "sys-operator-state", label: "Operator State · live pulse", group: "System Ops", icon: <BrainIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["mood", "focus", "capacity", "drift", "momentum", "lecun", "state", "pulse"] },
-      { id: "sys-calibration", label: "State Calibration · mood × kind", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["calibration", "m1", "heatmap", "mood", "kind", "hit rate", "suggestion"] },
-      { id: "sys-api-tokens", label: "API Tokens · Chrome ext", group: "System Ops", icon: <CogIcon className="size-4" />, action: () => navigate("/system"), keywords: ["token", "api", "chrome", "extension", "bearer", "sn_"] },
-      { id: "sys-judge-eval", label: "Judge-eval · V1↔V2 + calibration", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["judge", "eval", "v1", "v2", "prompt", "shadow", "calibration", "ground truth"] },
-      { id: "sys-lens-stats", label: "Lens Stats · framework fire-rate", group: "System Ops", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["lens", "framework", "elon", "pareto", "stats", "fire"] },
-      { id: "nav-brain-board", label: "Brain Board · multi-advisor", group: "Pages", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=board"), keywords: ["board", "advisor", "consult", "council", "elon", "buffett", "warren", "decision"] },
-
-      // ═══ PAGES — remaining live surfaces ═══
-      // 2026-06-18 · IA reorg Phase 1 · STOPGAP — surface the 5 orphan pages
-      // (reachable from neither nav nor cmdK before this) so they're tappable
-      // on the phone now. Phase 3 makes cmdK iterate the NAV source, after
-      // which these no longer need hand-listing here.
-      { id: "nav-crm", label: "CRM · Coaching Clients", group: "Pages", icon: <InboxIcon className="size-4" />, action: () => navigate("/crm"), keywords: ["crm", "coaching", "client", "lead", "booking", "agreement", "pipeline"] },
-      { id: "nav-finance", label: "Finance · Personal Ledger", group: "Pages", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/finance"), keywords: ["finance", "money", "ledger", "cash", "spending", "csv", "bookkeeping"] },
-      { id: "nav-wealth", label: "Wealth · Portfolio", group: "Pages", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/wealth"), keywords: ["wealth", "portfolio", "investment", "net worth", "holdings", "stocks"] },
-      { id: "nav-voice", label: "Voice · Brief + Talk", group: "Pages", icon: <PlayIcon className="size-4" />, action: () => navigate("/voice"), keywords: ["voice", "brief", "audio", "talk", "call", "speak", "morning"] },
-      { id: "nav-learn", label: "Learn · Build-Your-Own-X", group: "Pages", icon: <BookOpenIcon className="size-4" />, action: () => navigate("/learn"), keywords: ["learn", "tutorial", "build", "reference", "catalog", "how"] },
-      { id: "nav-body", label: "Body Tracking", group: "Pages", icon: <HeartPulseIcon className="size-4" />, action: () => navigate("/stats#body"), keywords: ["weight", "workout", "boxing", "body"] },
-      { id: "nav-knowledge", label: "Knowledge Base", group: "Pages", icon: <BookOpenIcon className="size-4" />, action: () => navigate("/knowledge") },
-      { id: "nav-integrations", label: "Integrations", group: "Pages", icon: <Layers3Icon className="size-4" />, action: () => navigate("/settings") },
-      { id: "nav-devices", label: "Devices", group: "Pages", icon: <MonitorIcon className="size-4" />, action: () => navigate("/system"), keywords: ["ring", "eufy", "camera"] },
-      { id: "nav-system", label: "System (dashboard)", group: "Pages", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system") },
-      { id: "nav-shop-admin", label: "Shop Admin (nickstire)", group: "Pages", icon: <TrendingUpIcon className="size-4" />, action: () => openExternal("https://nickstire.org/admin"), keywords: ["admin", "nickstire", "business", "shop"] },
+      // ═══ SYSTEM — the genuine, distinct /system/* surfaces. These live
+      // here (not in NAV) because /system owns them via its hub grid. Phase 3
+      // deleted the old "System Ops" deck's ~10 theatrical labels —
+      // Quality / Anti-patterns / Operator-State / Judge-eval / Lens-Stats →
+      // /system/calibration, and Devices / Power / API-Tokens → /system —
+      // that faked distinct pages. These are the real ones. ═══
+      { id: "sys-crons", label: "Crons · live deck", group: "System", icon: <ClockIcon className="size-4" />, action: () => navigate("/system/crons"), keywords: ["cron", "schedule", "job", "kill", "manual"] },
+      { id: "sys-errors", label: "Errors · fingerprints", group: "System", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/logs?view=errors"), keywords: ["error", "log", "stack", "fingerprint"] },
+      { id: "sys-logs", label: "Logs · request + AI stream", group: "System", icon: <DatabaseIcon className="size-4" />, action: () => navigate("/system/logs"), keywords: ["log", "request", "stream", "api", "generation"] },
+      { id: "sys-ai-cost", label: "AI Cost · burn rate", group: "System", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/system/ai-cost"), keywords: ["cost", "nick", "tokens", "budget", "burn"] },
+      { id: "sys-actions", label: "Autonomous Actions · audit", group: "System", icon: <BotIcon className="size-4" />, action: () => navigate("/system/actions"), keywords: ["action", "autonomous", "rule", "audit", "approval"] },
+      { id: "sys-health", label: "Health · diagnostics", group: "System", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["health", "diagnostics", "probe", "env", "vectors", "backlog"] },
+      { id: "sys-calibration", label: "Calibration · accuracy + judge-eval", group: "System", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["calibration", "quality", "judge", "eval", "drift", "coverage", "operator state", "lens", "anti-pattern"] },
+      { id: "sys-alerts", label: "Alerts · cross-category inspector", group: "System", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/alerts"), keywords: ["alert", "inspect", "category", "coach"] },
+      { id: "sys-inbox", label: "Memory Inbox · quarantine review", group: "System", icon: <InboxIcon className="size-4" />, action: () => navigate("/system/inbox"), keywords: ["inbox", "quarantine", "memory", "contradiction", "review"] },
+      { id: "sys-tools", label: "Tools Registry · governance", group: "System", icon: <WrenchIcon className="size-4" />, action: () => navigate("/system/tools"), keywords: ["tool", "registry", "govern", "permission", "capability"] },
+      { id: "sys-proactive", label: "Proactive Preview · push dry-run", group: "System", icon: <BotIcon className="size-4" />, action: () => navigate("/system/proactive-preview"), keywords: ["proactive", "push", "preview", "dry run", "telemetry"] },
+      { id: "sys-cockpit", label: "Cockpit Observability · traces", group: "System", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system/cockpit-observability"), keywords: ["cockpit", "observability", "trace", "metric", "decay", "prompt version"] },
 
       // ═══ QUICK ACTIONS ═══
       { id: "action-chat-nick", label: "Talk to Nick", group: "Quick Actions", icon: <BrainIcon className="size-4" />, action: () => navigate("/chat"), keywords: ["nick", "ai", "ask", "help"] },
@@ -469,7 +464,7 @@ export function CommandPalette() {
         keywords: ["device", "sync"],
       },
     ],
-    [navigate, openExternal, probe],
+    [navigate, openExternal, probe, navCommands],
   );
 
   // Keep a ref so the ⌘⇧K keyboard handler can reach the current
