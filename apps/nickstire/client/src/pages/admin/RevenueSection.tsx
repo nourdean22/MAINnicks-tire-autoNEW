@@ -4,7 +4,7 @@
  * Removed ALG invoice tracking / paid revenue metrics based on operator request.
  */
 import React, { lazy, Suspense } from "react";
-import { Loader2, AlertTriangle, Wrench, CreditCard, Activity } from "lucide-react";
+import { Loader2, AlertTriangle, Wrench, CreditCard, Activity, Receipt } from "lucide-react";
 
 // 2026-05-19 MONEY consolidation · Declined Work + Snap Finance pulled
 // IN as tabs (they were sidebar destinations; all three answer
@@ -13,21 +13,23 @@ const WorkOrdersSection = lazy(() => import("./money/WorkOrdersSection"));
 const DispatchSection = lazy(() => import("./money/DispatchSection"));
 const DeclinedEstimatesSection = lazy(() => import("./money/DeclinedEstimatesSection"));
 const SnapDashboardSection = lazy(() => import("./money/SnapDashboardSection"));
+const UnpaidInvoicesSection = lazy(() => import("./money/UnpaidInvoicesSection"));
 
 // 2026-05-19 · PageHeader removed from import + render (Move 4 of audit ·
 // reclaims ~80px of mobile viewport · topbar already shows "Money").
 import { SectionInsightStrip, TabBar, useUrlFilter } from "./shared";
 
-type SectionTab = "tireOrders" | "declined" | "financing" | "shopPulse" | "shopStatus";
+type SectionTab = "tireOrders" | "unpaid" | "declined" | "financing" | "shopPulse" | "shopStatus";
 
 const MONEY_TABS: { id: SectionTab; label: string; icon: React.ReactNode }[] = [
   { id: "shopPulse", label: "Shop Pulse", icon: <Wrench className="w-3.5 h-3.5" /> },
+  { id: "unpaid", label: "Unpaid", icon: <Receipt className="w-3.5 h-3.5" /> },
   { id: "declined", label: "Declined", icon: <AlertTriangle className="w-3.5 h-3.5" /> },
   { id: "financing", label: "Financing", icon: <CreditCard className="w-3.5 h-3.5" /> },
   { id: "shopStatus", label: "Shop Status", icon: <Activity className="w-3.5 h-3.5" /> },
 ];
 
-const VALID_MONEY_TABS: SectionTab[] = ["tireOrders", "declined", "financing", "shopPulse", "shopStatus"];
+const VALID_MONEY_TABS: SectionTab[] = ["tireOrders", "unpaid", "declined", "financing", "shopPulse", "shopStatus"];
 
 // Compatibility wrapper for the retired Money → Tire Orders deep link:
 // rewrites the URL to the surviving top-level cockpit. Full-page
@@ -75,6 +77,11 @@ export default function RevenueSection() {
       {section === "declined" && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
           <DeclinedEstimatesSection />
+        </Suspense>
+      )}
+      {section === "unpaid" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <UnpaidInvoicesSection />
         </Suspense>
       )}
       {section === "financing" && (

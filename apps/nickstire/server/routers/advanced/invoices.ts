@@ -88,6 +88,34 @@ export const invoicesRouter = router({
       const [countResult] = await d.select({ count: sql<number>`count(*)` }).from(invoices).where(where);
       return { items, total: countResult?.count ?? 0 };
     }),
+  /**
+   * Unpaid invoices queue — issued invoices still awaiting payment
+   * (pending / partial), highest balance first then oldest. Powers the
+   * admin Money "Unpaid" tab. Read-only; no outreach side effects.
+   */
+  unpaidList: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return { items: [], totalCents: 0 };
+    const items = await d.select({
+      id: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      customerName: invoices.customerName,
+      customerPhone: invoices.customerPhone,
+      totalAmount: invoices.totalAmount,
+      paymentStatus: invoices.paymentStatus,
+      invoiceDate: invoices.invoiceDate,
+      serviceDescription: invoices.serviceDescription,
+      vehicleInfo: invoices.vehicleInfo,
+      customerId: invoices.customerId,
+    })
+      .from(invoices)
+      .where(inArray(invoices.paymentStatus, ["pending", "partial"]))
+      .orderBy(desc(invoices.totalAmount), asc(invoices.invoiceDate))
+      .limit(500);
+    let totalCents = 0;
+    for (const r of items) totalCents += r.totalAmount ?? 0;
+    return { items, totalCents };
+  }),
 
   /** Create an invoice */
   create: adminProcedure
