@@ -123,7 +123,7 @@ export function HQStatusChips() {
               : "border-[var(--border-hover)]/40 bg-[var(--bg-elevated)]/40 text-[var(--text-tertiary)] hover:border-[var(--gold)]/30 hover:text-[var(--gold)]/80"
           )}
           title={`Suggestion cache hit rate: ${sug.hitRatePct}%${
-            sug.fallbackHeavy ? " · heuristic-heavy (Venice slow?)" : ""
+            sug.fallbackHeavy ? " · heuristic-heavy (AI slow?)" : ""
           }`}
         >
           <Sparkles size={9} />

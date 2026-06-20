@@ -119,7 +119,7 @@ const nextConfig: NextConfig = {
             // VAPI voice-agent live-call surface (operator can see VAPI
             // status, call list, recordings from the statenour cockpit).
             // Wave H landed Ollama Cloud but missed VAPI · audit caught it.
-            "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.venice.ai https://api.vapi.ai https://ollama.com https://*.ollama.com http://localhost:11434 wss:",
+            "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.vapi.ai https://ollama.com https://*.ollama.com http://localhost:11434 wss:",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
