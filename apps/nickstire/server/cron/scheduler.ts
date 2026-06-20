@@ -1132,6 +1132,15 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "unpaid-invoice-recovery", // NEW: courteous 7d/30d payment reminders for pending/partial invoices
+        handler: async () => {
+          const { runUnpaidInvoiceRecovery } = await import("./jobs/unpaidInvoiceRecovery");
+          // Off by default - FEATURE_UNPAID_INVOICE_RECOVERY=1 on Railway enables live
+          // sends; without it this is a dry-run (logs + Telegram alert, no SMS out).
+          return runUnpaidInvoiceRecovery({ maxSends: Number(process.env.INVOICE_RECOVERY_MAX_PER_RUN) || 30 });
+        },
+      },
+      {
         // wave-181.84 · AgentPhone Confirmation Bot · was registered ONLY in
         // registerAllJobs() (the HTTP-trigger registry), but ABSENT from this
         // tiered scheduler — and _core/index.ts boots ONLY startTieredScheduler(),
