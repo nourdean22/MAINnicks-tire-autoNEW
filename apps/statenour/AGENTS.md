@@ -92,6 +92,6 @@ Operator standing rules: `C:\Users\nourd\.claude\CLAUDE.md` (operator on phone �
 - **Next.js dev-server module cache is sticky** — when swapping a module's behavior, make the old module internally delegate to the new one (defense-in-depth).
 - **Side-effect gating is LIVE in the autonomous-engine** — rules with `approval: "ask"` defer + stash `payload.deferredItem`; changing the rule contract means updating `approval-queue.ts` too.
 - **aiChat/tracedAiChat NEVER throw on total provider failure** — they return a SENTINEL; check `result.provider === "emergency" | "none"` before trusting `content`.
-- **Image-gen routes through Venice flux-2-pro** via internal delegation in `lib/ai/openai-image.ts` ($0.04/img vs $0.19+ on gpt-image-1).
+- **Image-gen routes through `generateImageWithFallback`** in `lib/ai/gemini-image.ts` (Replicate FLUX → direct Gemini → OpenRouter), invoked from `lib/ai/chat/handlers/image.ts`. Venice flux-2-pro is RETIRED (no `openai-image.ts`/`venice-image.ts` in tree).
 - **GitHub CLI (gh) 401 Bad Credentials inside Agent Sandbox** — The agent environment automatically injects a dummy `GITHUB_TOKEN` which overrides the local keyring config. Run `$env:GITHUB_TOKEN=$null` in the terminal session to clear it and successfully fall back to the user's correct local token configuration.
 

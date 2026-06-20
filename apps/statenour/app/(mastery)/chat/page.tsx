@@ -55,7 +55,7 @@ import { readPageContext, onPageContextChanged } from "@/components/chat/page-co
 // empty-state branch + message list now render inside ChatMessageList).
 import { ChatMessageList } from "@/components/chat/chat-message-list";
 import { useSilentRetry } from "@/components/chat/use-silent-retry";
-import { useVeniceHealth } from "@/components/chat/use-venice-health";
+import { useProviderHealth } from "@/components/chat/use-provider-health";
 // v10.0.529.18 · useIdleSuggestion removed · the hook fired every
 // session (debounce timer + /api/ai/autocomplete poll) but its render
 // site was deleted in v10.0.141 ("idle-suggestion render REMOVED per
@@ -966,9 +966,10 @@ function Chat() {
     },
     { maxAttempts: 1, isStreaming },
   );
-  // Apr 19 · Venice health — feeds the header dot. Amber when Venice
-  // is unreachable / rate-limited, silent gold-idle when fine.
-  const veniceHealthy = useVeniceHealth();
+  // Apr 19 · Provider-fleet health — feeds the header dot. Amber when
+  // the fleet is degraded / a lane is unreachable, silent gold-idle
+  // when fine.
+  const providerHealthy = useProviderHealth();
 
   // Apr 19 · Adaptive input placeholder — rotates based on live state
   // (contradictions / overdue / quiet) so the input itself carries
@@ -2088,7 +2089,7 @@ function Chat() {
         onProviderChange={(p) => setOverrides((o) => ({ ...o, provider: p }))}
         onCycleProvider={() =>
           setOverrides((o) => {
-            const chain = ["auto", "ollama", "gemini", "venice", "openai", "anthropic"] as const;
+            const chain = ["auto", "ollama", "gemini", "openai", "anthropic"] as const;
             const idx = chain.indexOf(o.provider as typeof chain[number]);
             return { ...o, provider: chain[(idx + 1) % chain.length] };
           })
@@ -2110,7 +2111,7 @@ function Chat() {
           writePersonaOverride(p);
           try { localStorage.setItem("nour:nick-personality", p); } catch {}
         }}
-        veniceHealthy={veniceHealthy}
+        providerHealthy={providerHealthy}
         memoryInspectorOpen={memoryInspectorOpen}
         onToggleMemoryInspector={() => setMemoryInspectorOpen(!memoryInspectorOpen)}
       />
@@ -2714,7 +2715,7 @@ function Chat() {
           Operator can wire it there in a future commit if they miss it. */}
 
       {/* ─── v10.0.343 · Provider degradation banner · Cat 8
-          (operational silence) prevention. Polls /api/ai/venice-status
+          (operational silence) prevention. Polls /api/system/provider-health
           every 60s and renders ONLY when overallTone is amber/red ·
           surfaces silent provider downgrades that would otherwise just
           slow the chat without telling the operator. Click to expand

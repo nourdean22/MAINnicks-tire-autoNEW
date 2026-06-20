@@ -85,7 +85,6 @@ unchanged dependencies skip the pnpm install layer. Cache invalidates automatica
 
 CRITICAL (deploy fails if absent):
 - `DATABASE_URL` · Neon Postgres pooled
-- `VENICE_API_KEY` · Venice AI default provider
 - `CRON_SECRET` · cron endpoint auth
 
 Common:

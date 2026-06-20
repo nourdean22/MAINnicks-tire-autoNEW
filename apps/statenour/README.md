@@ -33,7 +33,7 @@ pnpm install --frozen-lockfile
 
 # 3. env — copy then fill (see .env.example for the full catalog)
 cp .env.example .env.local
-#   minimum required: DATABASE_URL, DIRECT_URL, VENICE_API_KEY
+#   minimum required: DATABASE_URL, DIRECT_URL, + one AI provider key (OLLAMA_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY)
 #   production also needs: AUTH_SECRET, AUTH_GOOGLE_CLIENT_*,
 #                          AUTH_ALLOWED_EMAIL, CRON_SECRET, STATENOUR_SYNC_KEY
 
@@ -107,7 +107,7 @@ spot a problem.
 
 statenour is a Next.js 16 App Router app deployed to Railway. Prisma
 7 talks to Neon Postgres (current model count in RECONCILIATION). Nick
-runs through a pluggable provider chain (Ollama Cloud primary → Venice
+runs through a pluggable provider chain (Ollama Cloud primary → Gemini
 → OpenAI → Anthropic fallback) via `lib/ai/provider.ts`, with
 `streamWithFallback` providing pre-first-token same-turn rotation.
 System prompt assembly + tool selection + output critique live in

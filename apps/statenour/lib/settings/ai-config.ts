@@ -26,7 +26,7 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export interface AiConfig {
   // ── Provider + mode overrides ──
   // These force the chat pipeline to use specific settings. Omit to
-  // keep automatic detection (quick/standard/deep + Venice-first).
+  // keep automatic detection (quick/standard/deep + default ordering).
   defaultProvider?: ProviderName;
   defaultMode?: ChatMode;
   defaultTaskType?: TaskType;

@@ -7,8 +7,9 @@
  * function · drift between the two consumers is structurally
  * impossible.
  *
- * The probe runs synchronous health checks (Venice reachability · Neon
- * latency) + reads recent chat errors / slow requests / ai_error audit
+ * The probe runs synchronous health checks (AI provider-fleet
+ * availability · Neon latency) + reads recent chat errors / slow
+ * requests / ai_error audit
  * events, then assembles a markdown report. It deliberately does NOT
  * touch streamText / compression / brain-context — the whole point is
  * to diagnose a broken chat route WITHOUT going through it.
@@ -19,6 +20,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { getProviderHealth } from "@/lib/ai/provider-health";
 
 export interface DiagnoseHealthCheck {
   name: string;
@@ -51,44 +53,23 @@ export interface DiagnoseChatResult {
   report: string;
 }
 
-async function checkVenice(): Promise<DiagnoseHealthCheck> {
-  const apiKey = (process.env.VENICE_API_KEY || "").trim();
-  if (!apiKey) {
-    return { name: "Venice API key", ok: false, detail: "VENICE_API_KEY env var not set" };
-  }
-  const t0 = Date.now();
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 3000);
+async function checkProviders(): Promise<DiagnoseHealthCheck> {
   try {
-    const res = await fetch("https://api.venice.ai/api/v1/models", {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: ctrl.signal,
-    });
-    clearTimeout(timer);
-    const latencyMs = Date.now() - t0;
-    if (!res.ok) {
-      return {
-        name: "Venice API",
-        ok: false,
-        detail: `HTTP ${res.status} ${res.statusText}`,
-        latencyMs,
-      };
-    }
+    const snap = await getProviderHealth();
+    const up = snap.providers.filter((p) => p.available).map((p) => p.name);
+    const ok = snap.overallTone !== "red";
     return {
-      name: "Venice API",
-      ok: latencyMs < 2000,
-      detail: latencyMs < 2000 ? "responsive" : `slow (${latencyMs}ms) — streams may time out`,
-      latencyMs,
+      name: "AI providers",
+      ok,
+      detail: up.length
+        ? `${up.length} lane(s) up: ${up.join(", ")} (${snap.pillLabel})`
+        : `no provider lanes available (${snap.pillLabel})`,
     };
   } catch (err) {
-    clearTimeout(timer);
     return {
-      name: "Venice API",
+      name: "AI providers",
       ok: false,
-      detail: err instanceof Error
-        ? err.name === "AbortError" ? "timeout after 3s" : err.message
-        : "unknown error",
-      latencyMs: Date.now() - t0,
+      detail: err instanceof Error ? err.message.slice(0, 100) : "provider-health probe failed",
     };
   }
 }
@@ -115,15 +96,16 @@ async function checkDatabase(): Promise<DiagnoseHealthCheck> {
 }
 
 /**
- * Run the full chat-route diagnostic. Pings Venice + Neon, reads the
+ * Run the full chat-route diagnostic. Pings the AI provider fleet +
+ * Neon, reads the
  * last hour of chat errors / slow requests / ai_error audit events,
  * and assembles a markdown report. Owner-only at both transports.
  */
 export async function runChatDiagnostic(): Promise<DiagnoseChatResult> {
   const since = new Date(Date.now() - 60 * 60_000); // 1h
 
-  const [veniceCheck, dbCheck, recentErrors, slowLogs, aiErrorEvents] = await Promise.all([
-    checkVenice(),
+  const [providerCheck, dbCheck, recentErrors, slowLogs, aiErrorEvents] = await Promise.all([
+    checkProviders(),
     checkDatabase(),
     prisma.apiRequestLog
       .findMany({
@@ -159,7 +141,7 @@ export async function runChatDiagnostic(): Promise<DiagnoseChatResult> {
       .catch(() => []),
   ]);
 
-  const checks: DiagnoseHealthCheck[] = [veniceCheck, dbCheck];
+  const checks: DiagnoseHealthCheck[] = [providerCheck, dbCheck];
   const allOk = checks.every((c) => c.ok);
 
   const lines: string[] = [];
@@ -204,19 +186,15 @@ export async function runChatDiagnostic(): Promise<DiagnoseChatResult> {
   }
 
   lines.push("## What to do next");
-  if (!veniceCheck.ok) {
-    lines.push("- Venice API is unreachable / slow. Open /settings and flip the Provider pill to OpenAI as a manual fallback.");
-    lines.push("- Check https://status.venice.ai for ongoing incidents.");
+  if (!providerCheck.ok) {
+    lines.push("- AI providers degraded/offline — open the ⋯ menu Provider Override and pin a known-good lane (Gemini/OpenAI/Claude).");
   }
   if (!dbCheck.ok) {
     lines.push("- Database is unresponsive. This blocks conversation save + brain context. Check Neon status.");
   }
-  if (slowLogs.length >= 2) {
-    lines.push("- Multiple slow chat requests (>15s). Turn on 'quick' mode on the chat control bar to skip context memory.");
-  }
   if (recentErrors.length === 0 && allOk) {
     lines.push("- All checks pass. The stream drop was likely a transient network blip. Tap Retry.");
-    lines.push("- If it keeps happening, try forcing the Provider pill to OpenAI temporarily.");
+    lines.push("- If it keeps happening, pin a different provider lane in the ⋯ menu.");
   }
   lines.push("");
 

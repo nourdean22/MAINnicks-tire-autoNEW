@@ -41,7 +41,6 @@ beforeEach(() => {
   vi.resetModules();
   vi.restoreAllMocks();
   generateTextMock.mockReset();
-  vi.stubEnv("RETIRE_VENICE", "false");
 });
 
 afterEach(() => {
@@ -112,7 +111,6 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
   it("reorders provider chain when preferLargeContext is passed, placing ollama first, then gemini", async () => {
     vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
     vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
-    vi.stubEnv("VENICE_API_KEY", "test-venice-key");
     vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
     vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
 
@@ -130,7 +128,6 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
   it("aiChat falls back in the correct order when budget is nearing limit", async () => {
     vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
     vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
-    vi.stubEnv("VENICE_API_KEY", "test-venice-key");
     vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
     vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
 
@@ -163,8 +160,7 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     it("routes fast, sql, summary, classify, extract to Gemini first", async () => {
       vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
       vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
-      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
-      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+        vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
       vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
 
       const { getActiveProviderInfo } = await import("@/lib/ai/provider");
@@ -178,8 +174,7 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     it("routes reason and vision to Ollama first", async () => {
       vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
       vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
-      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
-      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+        vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
       vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
 
       const { getActiveProviderInfo } = await import("@/lib/ai/provider");
@@ -190,8 +185,7 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     it("routes deep to Ollama first, and falls back to OpenAI if Ollama is unavailable", async () => {
       vi.stubEnv("OLLAMA_API_KEY", "");
       vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
-      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
-      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+        vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
       vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
 
       const { getActiveProviderInfo } = await import("@/lib/ai/provider");
@@ -201,8 +195,7 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     it("routes code to OpenAI then Anthropic if Ollama is unavailable", async () => {
       vi.stubEnv("OLLAMA_API_KEY", "");
       vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
-      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
-      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+        vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
       vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
 
       const { getActiveProviderInfo } = await import("@/lib/ai/provider");
@@ -212,8 +205,7 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     it("routes math to OpenAI first", async () => {
       vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
       vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
-      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
-      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+        vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
       vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
 
       const { getActiveProviderInfo } = await import("@/lib/ai/provider");
@@ -223,8 +215,7 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     it("routes creative to Ollama first", async () => {
       vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
       vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
-      vi.stubEnv("VENICE_API_KEY", "test-venice-key");
-      vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+        vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
       vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
 
       const { getActiveProviderInfo } = await import("@/lib/ai/provider");

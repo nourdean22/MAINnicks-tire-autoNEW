@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   },
   createStructuredAiResponse: vi.fn(),
   storeMemoryEmbedding: vi.fn().mockResolvedValue(undefined),
-  getActiveProviderInfo: vi.fn(() => ({ provider: "venice", modelId: "test-model" })),
+  getActiveProviderInfo: vi.fn(() => ({ provider: "ollama", modelId: "test-model" })),
   today: vi.fn(() => "2026-06-11"),
 }));
 
