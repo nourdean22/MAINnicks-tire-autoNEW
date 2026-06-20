@@ -438,7 +438,7 @@ export const brainTools = {
   //   searchBrainDumps  →  searchReflections (covers both sources)
 
   syncKnowledge: tool({
-    description: "Run the knowledge sync pipeline on demand. Three idempotent stages: (1) classify raw BrainDumps + promote substantial new chat messages, (2) rebalance priorities on backfill/journal-sourced tasks, (3) index substantial assistant chat messages as nick_advice memories. Use when Nour says 'sync my knowledge', 'process new thoughts', 'ingest recent chats', or 'catch up the brain'. Also runs automatically on a cron every 6 hours — call this tool when Nour wants an immediate refresh.",
+    description: "Run the knowledge sync pipeline on demand. Three idempotent stages: (1) promote substantial new chat messages to BrainDumps (AI classification of raw BrainDumps is currently disabled — no provider), (2) rebalance priorities on backfill/journal-sourced tasks, (3) index substantial assistant chat messages as nick_advice memories. Use when Nour says 'sync my knowledge', 'process new thoughts', 'ingest recent chats', or 'catch up the brain'.",
     inputSchema: z.object({}),
     execute: async () => {
       try {
@@ -616,12 +616,6 @@ export const brainTools = {
   // ingestJournal() directly before the model gets involved. Faster
   // + model can't forget to call the tool.
 
-  /**
-   * Run the full knowledge sync pipeline on demand. Same logic as
-   * the `/api/cron/knowledge-sync` cron — three stages: classify
-   * raw BrainDumps + promote new chat messages, rebalance task
-   * priorities, index new Nick wisdom. Idempotent.
-   */
   getBrainHealth: tool({
     description: "Get a full brain health report — memory count, learning velocity, prediction accuracy, wisdom promotions, contradiction resolution. Shows how smart the brain is getting.",
     inputSchema: z.object({}),
