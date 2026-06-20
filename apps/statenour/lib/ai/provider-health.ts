@@ -33,9 +33,7 @@ import {
 // Models known to NOT support function calling. Mirror of the set in
 // provider.ts so the dashboard can show a yellow flag without importing
 // a private. Add to both when a new model joins the list.
-const NO_TOOLS_MODELS = new Set<string>([
-  "venice-uncensored",
-]);
+const NO_TOOLS_MODELS = new Set<string>();
 
 export interface ProviderHealth {
   name: ProviderName;

@@ -177,22 +177,6 @@ export const GET = apiHandler(
       });
     }
 
-    // ── Venice (rolling — no expiry on API keys, billing-tier scoped) ──
-    {
-      const envPresent = has("VENICE_API_KEY");
-      tokens.push({
-        id: "venice_api_key",
-        label: "Venice AI",
-        rotationCadenceDays: "indefinite",
-        issuedAt: null,
-        expiresAt: null,
-        daysSinceIssued: null,
-        daysUntilExpiry: null,
-        envPresent,
-        status: envPresent ? "indefinite" : "missing",
-      });
-    }
-
     // ── CRON_SECRET (rotate on compromise) ────────────────────────
     {
       const envPresent = has("CRON_SECRET");

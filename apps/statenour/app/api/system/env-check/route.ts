@@ -37,7 +37,6 @@ export const GET = apiHandler(
         project_id: has("VERCEL_PROJECT_ID"),
       },
       ai: {
-        venice: has("VENICE_API_KEY"),
         openai: has("OPENAI_API_KEY"),
         anthropic: has("ANTHROPIC_API_KEY"),
         gemini: has("GEMINI_API_KEY") || has("GOOGLE_AI_API_KEY"),
@@ -104,7 +103,6 @@ export const GET = apiHandler(
           browserbase: groups.browserbase.configured,
           vercel_rollback: groups.vercel.configured,
           push: groups.push.configured,
-          venice: groups.ai.venice,
           crons: groups.cron.configured,
           google_data: groups.google_data.client_id && groups.google_data.client_secret,
         },
