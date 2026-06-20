@@ -1032,7 +1032,6 @@ const COST_IMAGE_MODELS = new Set([
   "seedream-v4",
   "nano-banana-2",
   "qwen-image",
-  "venice-image",
 ]);
 
 export interface SystemCostsView {
@@ -1138,7 +1137,7 @@ export async function buildSystemCosts(opts: {
   const toolSupport = latency.map((l) => ({
     model: l.model,
     calls: l.calls,
-    supportsTools: !["venice-uncensored"].includes(l.model),
+    supportsTools: true,
   }));
 
   const slowestModels = [...latency]
@@ -1499,7 +1498,6 @@ export interface DeploymentTruthView {
 
 const DEPLOYMENT_SECRET_CHECKS: Array<Omit<SecretCheck, "configured">> = [
   { name: "DATABASE_URL", critical: true },
-  { name: "VENICE_API_KEY", critical: true },
   { name: "OPENAI_API_KEY", critical: false },
   { name: "ANTHROPIC_API_KEY", critical: false },
   { name: "OLLAMA_API_KEY", critical: false },
