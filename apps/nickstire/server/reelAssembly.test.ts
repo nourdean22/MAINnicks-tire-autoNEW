@@ -127,6 +127,21 @@ describe("buildFfmpegArgs", () => {
     expect(fc).toContain("atrim=0:9");
   });
 
+  it("normalizes loudness to -14 LUFS on the final audio (every audio branch)", () => {
+    const target = "loudnorm=I=-14:TP=-1.5:LRA=11";
+    expect(buildFfmpegArgs(base).join(" ")).toContain(target); // VO + music
+    expect(buildFfmpegArgs({ ...base, musicPath: null }).join(" ")).toContain(target); // VO only
+    expect(buildFfmpegArgs({ ...base, voPath: null }).join(" ")).toContain(target); // music only
+  });
+
+  it("brands captions in Nick's yellow and opens beat 1 as a centered hook", () => {
+    const fc = buildFfmpegArgs(base).join(" ");
+    expect(fc).toContain("fontcolor=0xFDB913"); // brand yellow, not white
+    expect(fc).not.toContain("fontcolor=white");
+    expect(fc).toContain("y=(h-text_h)/2"); // beat 1 hook, screen-centered
+    expect(fc).toContain("y=h*0.62"); // later captions in the lower third (out of IG safe zone)
+  });
+
   it("emits an IG-ready H.264 +faststart mp4 mapped from the final video/audio labels", () => {
     const args = buildFfmpegArgs(base);
     expect(args).toContain("libx264");
