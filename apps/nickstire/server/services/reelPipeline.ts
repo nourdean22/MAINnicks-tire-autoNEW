@@ -144,7 +144,7 @@ export async function processNextReelJob(): Promise<{
     const beats = brief.storyboardBeats ?? [];
     if (!beats.length) throw new Error("brief has no storyboardBeats");
 
-    const { generateReelClipVideo } = await import("./higgsfieldStudio");
+    const { generateReelClipVideo } = await import("./veoStudio");
     const { storagePut } = await import("../storage");
 
     const clipUrls: string[] = [];
@@ -152,7 +152,7 @@ export async function processNextReelJob(): Promise<{
       const prompt =
         brief.higgsfieldPromptPack?.find((p) => p.beatNumber === beat.beatNumber)?.prompt ?? beat.visual;
       if (!prompt || !prompt.trim()) throw new Error(`beat ${beat.beatNumber} has no prompt`);
-      // Timeout-guarded: a hung seedance poll otherwise blocks here forever with
+      // Timeout-guarded: a hung Veo poll otherwise blocks here forever with
       // the job parked in `generating` (no catch ever fires). On timeout it
       // rejects into the catch below and retries on the next pulse.
       const hgUrl = await withTimeout(
@@ -160,8 +160,8 @@ export async function processNextReelJob(): Promise<{
         GEN_CLIP_TIMEOUT_MS,
         `gen beat ${beat.beatNumber}`,
       );
-      // Re-host the Higgsfield clip to our own public storage — HF URLs are
-      // temporary, and storagePut falls back to the public /generated route
+      // Re-host the generated clip to our own public storage — source URLs can
+      // be temporary, and storagePut falls back to the public /generated route
       // when S3 isn't configured, so the clip is always fetchable from us.
       const resp = await withTimeout(fetch(hgUrl), CLIP_FETCH_TIMEOUT_MS, `fetch beat ${beat.beatNumber}`);
       if (!resp.ok) throw new Error(`failed to fetch clip for beat ${beat.beatNumber}: HTTP ${resp.status}`);
