@@ -55,6 +55,7 @@ import { sendTelegram } from "../../services/telegram";
 import { getCallStateHistory } from "../../services/voice-call-state";
 import { createLogger } from "../../lib/logger";
 import { classifyCall } from "../../services/vapiCallClassifier";
+import { trailReachedTool, scoreBand, isConvertedScore } from "../../services/vapiConversionSignals";
 
 const log = createLogger("cron:vapi-eval");
 
@@ -238,7 +239,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       let reachedTool = false;
       try {
         const states = await getCallStateHistory(row.vapiCallId);
-        reachedTool = states.some((s) => s.state === "tool_called" || s.state === "confirmed");
+        reachedTool = trailReachedTool(states);
       } catch { /* state trail is optional · score without it */ }
 
       // Run new classifier service
@@ -316,6 +317,12 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           evalReasoning: reasoning,
           evalAt: new Date(),
           metadata: updatedMetadata,
+          // 2026-06-20 · reconcile the conversion flag from ground truth. The
+          // webhook stamps convertedToLead at row-insert; a last-second tool
+          // whose fire-and-forget state write lands after end-of-call would
+          // miss it — here the trail is complete. Set 1 when a tool was
+          // reached; never regress a flag already set (e.g. trail read failed).
+          convertedToLead: reachedTool ? 1 : row.convertedToLead,
         })
         .where(eq(vapiCallLogs.id, row.id));
     } catch (e) {
@@ -333,8 +340,13 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
   }
 
   const avgScore = Math.round(scored.reduce((s, c) => s + c.score, 0) / totalCalls);
-  const wastedCount = scored.filter((c) => c.outcome === "wasted").length;
-  const convertedCount = scored.filter((c) => c.outcome === "converted" || c.outcome === "exemplary").length;
+  // Band counts come from the SCORE, not the outcome category. The prior code
+  // compared c.outcome (a category like 'hard_conversion') against score-band
+  // labels ('wasted'/'converted'/'exemplary') — they never matched, so the
+  // nightly digest always reported 0 converted / 0 wasted. scoreBand maps the
+  // documented bands: <50 wasted · 50-69 info · 70-84 converted · 85+ exemplary.
+  const wastedCount = scored.filter((c) => scoreBand(c.score) === "wasted").length;
+  const convertedCount = scored.filter((c) => isConvertedScore(c.score)).length;
   const conversionRate = totalCalls > 0 ? Math.round((convertedCount / totalCalls) * 100) : 0;
 
   // F6 · degradation alert. Compare today's batch avg to the 30d baseline
