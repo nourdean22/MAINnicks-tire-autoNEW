@@ -475,6 +475,10 @@ function angleForArchetype(a: IgArchetype): string {
   return DIALS.angle[map[a]] ?? DIALS.angle[0];
 }
 
+/** Bump when the gen/eval prompts change · stamped on every ig_autopost_log
+ * row so a content-quality shift can be tied to the prompt edit that caused it. */
+export const PROMPT_VERSION = "2026-06-20";
+
 function buildGenSystemPrompt(): string {
   return [
     "You are the social copywriter and creative director for Nick's Tire & Auto, a neighborhood auto + tire shop on Euclid Ave in Cleveland, Ohio.",
@@ -1273,6 +1277,7 @@ async function logRun(row: {
       fbPostId: row.fbPostId,
       error: row.error ? row.error.slice(0, 500) : null,
       source: row.source,
+      promptVersion: PROMPT_VERSION,
     });
   } catch (err) {
     log.warn("igAutopostLog insert failed (non-critical)", { err: errMsg(err) });
