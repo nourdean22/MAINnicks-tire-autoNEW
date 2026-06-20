@@ -507,6 +507,14 @@ export function startTieredScheduler(): void {
           };
         },
       },
+      {
+        name: "daily-reel-post",
+        requiresEnv: "REEL_AUTOPOST_ENABLED",
+        handler: async () => {
+          const { runDailyReelPost } = await import("./jobs/dailyReelPost");
+          return runDailyReelPost();
+        },
+      },
     ],
     running: false,
     lastRun: null,
