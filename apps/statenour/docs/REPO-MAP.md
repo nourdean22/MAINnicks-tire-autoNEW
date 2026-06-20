@@ -124,8 +124,8 @@ goal/project/task bridge + tasks + journal + knowledge + devices.
 - **Repo:** `nourdean22/MAINnicks-tire-autoNEW` monorepo, lives at
   `apps/statenour/` — the standalone `statenour-os` repo is retired.
 - **Stack:** Next.js 16 · Prisma 7 · Neon Postgres · Tailwind 4 ·
-  AI SDK v6 · Venice GLM-4.7-flash-heretic (with same-turn fallback to
-  Ollama/OpenAI/Anthropic via `streamWithFallback`)
+  AI SDK v6 · pluggable provider chain (model ids + order live in `lib/ai/provider.ts`;
+  same-turn fallback via `streamWithFallback`)
 - **Deploy:** Railway (`statenour-web` service), branch `main` →
   `bdnick.info`
 - **Local:** `C:\Users\nourd\OneDrive\Desktop\nickstire-repo-staging\apps\statenour`

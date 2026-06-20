@@ -1,6 +1,6 @@
 # Reconciliation · statenour-os
 
-> **⏳ Pending merge (2026-06-19):** Five PRs opened this session, **NOT yet merged/live** — statenour: #217 (consolidated-models migration registration), #221 (calibration-comment + `/drift` email-link fixes), #222 (semantic-dedup cron, dry-run default); nickstire siblings: #219 (SMS eligibility/gateway), #220 (reel quality gate). Full detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). These fold into the verified log + the `**Last verified:**` stamp below once the operator merges.
+> **⏳ Pending merge (2026-06-19):** Six PRs opened this session, **NOT yet merged/live** — statenour: #217 (consolidated-models migration registration), #221 (calibration-comment + `/drift` email-link fixes), #222 (semantic-dedup cron, dry-run default), #235 (Venice control-plane de-drift — override honored, real fleet health, env boot-guard P0); nickstire siblings: #219 (SMS eligibility/gateway), #220 (reel quality gate). Full detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). These fold into the verified log + the `**Last verified:**` stamp below once the operator merges.
 
 > **Historical log** — entries are most-recent-first. The older entries far below reference now-**retired** deploy paths (the `codex/ollama-local` / `statenour-master` branches · Vercel · the standalone statenour-os repo), kept for lineage only and never current instructions. Current truth: [`CURRENT-TRUTH.md`](CURRENT-TRUTH.md) · production is `main` → Railway → bdnick.info.
 

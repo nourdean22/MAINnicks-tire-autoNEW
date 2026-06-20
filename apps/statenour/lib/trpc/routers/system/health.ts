@@ -163,7 +163,7 @@ export const healthProcedures = {
 
   /**
    * hooks-lib slice · owner-only · the "Diagnose with Nick" health
-   * probe · Venice reachability + Neon latency + recent chat errors /
+   * probe · AI provider fleet + Neon latency + recent chat errors /
    * slow requests / ai_error audit events → a markdown report.
    * Replaces GET /api/ai/diagnose-chat · delegates to the shared
    * `diagnose-chat.runChatDiagnostic` the legacy route also calls ·
@@ -272,7 +272,7 @@ export const healthProcedures = {
 
   /**
    * Phase UU.2 · owner-only · real-time cost/quota state per provider
-   * (Twilio · Resend · Stripe · Vercel · Venice). Replaces GET
+   * (Twilio · Resend · Stripe · Vercel). Replaces GET
    * /api/system/integration-quotas · delegates to the shared
    * `system-data.buildIntegrationQuotas` service. No input · always
    * probes every configured provider.

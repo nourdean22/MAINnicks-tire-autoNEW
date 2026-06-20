@@ -98,6 +98,13 @@ jobs:
         if: steps.changes.outputs.nickstire == 'true'
         run: pnpm --filter nicks-tire-auto validate:routes
 
+      # ─── Statenour-only custom validator (no Turbo equivalent yet) ───
+      - name: Statenour · stale-doc guard (strict)
+        if: steps.changes.outputs.statenour == 'true'
+        run: pnpm --filter @statenour/web check:stale-docs
+        env:
+          STALE_DOCS_STRICT: '1'
+
       # ─── Security audit (always runs · cheap + non-blocking) ─────────
       - name: Dependency audit (high+ severity)
         continue-on-error: true

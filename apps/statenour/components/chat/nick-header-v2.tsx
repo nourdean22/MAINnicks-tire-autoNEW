@@ -61,7 +61,7 @@ import { ProviderHealthPill } from "@/components/chat/provider-health-pill";
 // still works via lib/ai/intent-classifier.ts setPersonaOverride().
 export type ChatPersonality = "master" | "builder" | "friend";
 export type ChatMode = "auto" | "standard" | "deep";
-export type ProviderOverride = "auto" | "ollama" | "gemini" | "venice" | "openai" | "anthropic";
+export type ProviderOverride = "auto" | "ollama" | "gemini" | "openai" | "anthropic";
 
 interface NickHeaderV2Props {
   hasError?: boolean;
@@ -92,7 +92,7 @@ interface NickHeaderV2Props {
   memoryInspectorOpen?: boolean;
   onToggleMemoryInspector?: () => void;
   conversationId?: string | null;
-  veniceHealthy?: boolean;
+  providerHealthy?: boolean;
 }
 
 export function NickHeaderV2({
@@ -124,7 +124,7 @@ export function NickHeaderV2({
   memoryInspectorOpen,
   onToggleMemoryInspector,
   conversationId,
-  veniceHealthy = true,
+  providerHealthy = true,
 }: NickHeaderV2Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -138,12 +138,12 @@ export function NickHeaderV2({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [menuOpen]);
 
-  // Status dot: red (error) · gold-pulse (streaming) · gold-idle · amber (no venice)
+  // Status dot: red (error) · gold-pulse (streaming) · gold-idle · amber (provider degraded)
   const dotColor = hasError
     ? "bg-red-500"
     : isStreaming
       ? "bg-(--gold) nick-orb-streaming"
-      : !veniceHealthy
+      : !providerHealthy
         ? "bg-amber-400"
         : "bg-(--gold) nick-orb-idle";
 
@@ -302,8 +302,8 @@ export function NickHeaderV2({
                       );
                     })}
                   </div>
-                  <div className="grid grid-cols-3 gap-1 bg-white/5 p-1 rounded-lg">
-                    {(["venice", "openai", "anthropic"] as const).map((p) => {
+                  <div className="grid grid-cols-2 gap-1 bg-white/5 p-1 rounded-lg">
+                    {(["openai", "anthropic"] as const).map((p) => {
                       const isActive = (providerOverride || "auto") === p;
                       return (
                         <button
