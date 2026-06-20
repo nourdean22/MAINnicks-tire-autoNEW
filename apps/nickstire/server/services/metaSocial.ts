@@ -542,6 +542,10 @@ export async function postInstagramCarousel(params: {
 export async function postInstagramReel(params: {
   videoUrl: string;
   caption: string;
+  /** Hosted branded cover image URL. Wins over thumbOffsetMs when set. */
+  coverUrl?: string;
+  /** Fallback cover: ms into the reel to grab the cover frame. Default 0 = the centered Anton hook first frame. */
+  thumbOffsetMs?: number;
 }): Promise<{ success: boolean; postId?: string; error?: string }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
@@ -565,6 +569,12 @@ export async function postInstagramReel(params: {
         media_type: "REELS",
         video_url: params.videoUrl,
         caption: params.caption,
+        // Branded cover: prefer an explicit hosted image; otherwise pull a frame
+        // from the reel. The generated reel's first frame is the centered Anton
+        // hook overlay, so thumb_offset=0 yields an on-brand cover with no hosting.
+        ...(params.coverUrl
+          ? { cover_url: params.coverUrl }
+          : { thumb_offset: params.thumbOffsetMs ?? 0 }),
       }),
       signal: AbortSignal.timeout(15000),
     });
