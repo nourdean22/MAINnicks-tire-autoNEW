@@ -340,6 +340,37 @@ export interface AssembleResult {
  * the result via storagePut (public /generated URL — Meta-fetchable). Does NOT
  * publish — that's a separate, separately-gated stage.
  */
+/**
+ * Pick a background music bed for the reel. Prefers a committed loop in
+ * apps/nickstire/assets/reel-music whose filename matches the brief's
+ * archetype/tone; otherwise rotates deterministically (a given reel always gets
+ * the same bed). Returns an absolute path, or null when no beds are committed —
+ * assembly then degrades gracefully to a VO-only reel (never a silent/broken
+ * publish). Drop more .mp3/.wav loops into that folder and they're used automatically.
+ */
+export function pickMusicBed(brief: ReelAssemblyBrief): string | null {
+  try {
+    const dir = [
+      path.resolve(process.cwd(), "assets/reel-music"),
+      path.resolve(process.cwd(), "apps/nickstire/assets/reel-music"),
+    ].find((d) => fs.existsSync(d));
+    if (!dir) return null;
+    const beds = fs.readdirSync(dir).filter((f) => /\.(mp3|wav|m4a)$/i.test(f)).sort();
+    if (beds.length === 0) return null;
+    const tone = String(
+      (brief as { archetype?: string; tone?: string }).archetype ?? (brief as { tone?: string }).tone ?? "",
+    ).toLowerCase();
+    const matched = tone ? beds.find((b) => b.toLowerCase().includes(tone)) : undefined;
+    if (matched) return path.join(dir, matched);
+    const seed = String((brief as { id?: string | number }).id ?? brief.voiceoverScript ?? "");
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    return path.join(dir, beds[h % beds.length]);
+  } catch {
+    return null;
+  }
+}
+
 export async function assembleReel(
   brief: ReelAssemblyBrief,
   clipUrls: string[],
@@ -369,7 +400,7 @@ export async function assembleReel(
 
     const outPath = path.join(workDir, "reel.mp4");
     const fontPath = await resolveReelFontPath();
-    const args = buildFfmpegArgs({ segs, clipPaths, voPath, musicPath: null, fontPath, outPath });
+    const args = buildFfmpegArgs({ segs, clipPaths, voPath, musicPath: pickMusicBed(brief), fontPath, outPath });
     log.info("assembling reel", { jobId, beats: segs.length, total, usedVo: !!voPath });
     await runFfmpeg(args);
 
