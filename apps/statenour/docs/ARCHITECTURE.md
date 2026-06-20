@@ -23,7 +23,7 @@ Last verified 2026-05-21. Source of truth for subsystem boundaries.
 >   waterfall timeline at `GET /api/system/agent-traces/[traceId]/timeline`
 >   plus `components/chat/reasoning-trace-{drawer,timeline}.tsx`.
 > - `streamWithFallback` (`lib/ai/stream-with-fallback.ts`) — wraps
->   chat-route streamText so a venice failure pre-first-token rotates
+>   chat-route streamText so a provider failure pre-first-token rotates
 >   to ollama → openai → anthropic in the SAME turn. Composes with
 >   v9.1.27 `markProviderFailed` 60s sticky window.
 > - **Operator surfaces:** `/system/repos` · `/system/schema-history`
@@ -311,9 +311,6 @@ off by TTL; brain + audit + decision data is `forever`.
 
 ```
 Ollama Cloud   (primary · large-context)
-   │   if down:
-   ▼
-Venice          (fallback · uncensored)
    │   if down:
    ▼
 OpenAI          (fallback)

@@ -169,7 +169,7 @@ export function useChatKeyboard(opts: UseChatKeyboardOpts): void {
         e.preventDefault();
         haptic.medium();
         setOverrides((o) => {
-          const chain: ProviderOverride[] = ["auto", "venice", "openai", "anthropic"];
+          const chain: ProviderOverride[] = ["auto", "openai", "anthropic"];
           const idx = chain.indexOf(o.provider);
           const next = chain[(idx + 1) % chain.length];
           return { ...o, provider: next };

@@ -1,5 +1,5 @@
 import { streamText, stepCountIs } from "ai";
-import { getModel, getActiveProviderInfo, type ProviderName, type TaskType } from "@/lib/ai/provider";
+import { getModel, getActiveProviderInfo, isRuntimeProvider, type ProviderName, type TaskType } from "@/lib/ai/provider";
 import { buildSystemPrompt, detectTopicTier } from "@/lib/ai/system-prompt";
 import { detectQueryShape } from "@/lib/ai/query-shape";
 import { classifyTurn } from "@/lib/ai/turn-intelligence";
@@ -203,8 +203,17 @@ async function chatPostInner(req: Request) {
   const __partialRef = { text: "" };
   let recalledHits: any[] = [];
   let detectedContradictions: any[] = [];
-  // Provider override is tracked for logging + future provider switcher.
-  void providerOverride;
+  // Validate the per-request provider override against the runtime list
+  // (rejects retired `venice` + anything unsupported). A valid value is
+  // honored at the getModel call below — UNLESS a tool-mandatory force
+  // (python-execute / action intent) is active, which must win for
+  // tool_choice correctness. See the getModel call site.
+  const validatedProviderOverride = isRuntimeProvider(providerOverride)
+    ? providerOverride
+    : undefined;
+  if (providerOverride && !validatedProviderOverride) {
+    log.warn("provider_override_rejected", { requested: providerOverride });
+  }
 
   // ═══ PERF: Chat mode detection (with overrides) ═══
   // Three-layer priority for mode:
@@ -380,17 +389,26 @@ async function chatPostInner(req: Request) {
     // this push, so the override now lands on ollama for python-
     // execute turns. Strict tool_choice + qwen3 = tool fires
     // reliably + free tier covers our usage + 1M context window.
+    // Precedence: (1) tool-mandatory force (python-execute / action intent)
+    // pins ollama for strict tool_choice — ALWAYS wins; (2) a validated
+    // per-request user override; (3) default task ordering. toolMandatoryForce
+    // is the literal "ollama" (never nullish) when an intent is active, so
+    // `??` can never let the user override clobber the tool force. Do NOT
+    // replace `??` with a naive merge.
+    const toolMandatoryForce =
+      __pythonExecuteIntent || __actionIntent ? ("ollama" as const) : undefined;
+    const effectiveForce = toolMandatoryForce ?? validatedProviderOverride;
     model = getModel(finalTaskType, {
       preferLargeContext: finalPreferLargeContext,
-      ...(__pythonExecuteIntent || __actionIntent
-        ? { forceProviderFirst: "ollama" as const }
-        : {}),
+      ...(effectiveForce ? { forceProviderFirst: effectiveForce } : {}),
     });
-    if (__pythonExecuteIntent || __actionIntent) {
+    if (toolMandatoryForce) {
       log.info("tool_provider_override", {
         forced: "ollama",
         reason: __pythonExecuteIntent ? "python_execute" : "action_intent",
       });
+    } else if (validatedProviderOverride) {
+      log.info("user_provider_override", { forced: validatedProviderOverride });
     }
   } catch (err) {
     recordError("chat:request", err, { reason: "no_provider" });

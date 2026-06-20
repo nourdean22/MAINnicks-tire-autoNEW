@@ -45,7 +45,6 @@ export const ENV_SPEC: Spec[] = [
   { key: "STATENOUR_SYNC_KEY",  tier: "required", when: () => PROD, description: "Shared secret for /api/sync" },
 
   // AI — at least one provider must be set. Validated as a group below.
-  { key: "VENICE_API_KEY",    tier: "runtime", description: "Primary AI provider (Venice GLM)" },
   { key: "OPENAI_API_KEY",    tier: "runtime", description: "Fallback AI provider" },
   { key: "ANTHROPIC_API_KEY", tier: "runtime", description: "Fallback AI provider" },
   { key: "GEMINI_API_KEY",    tier: "runtime", description: "Fallback AI provider", aliases: ["GOOGLE_GENERATIVE_AI_API_KEY"] },
@@ -71,7 +70,7 @@ export const ENV_SPEC: Spec[] = [
   { key: "NEXT_PUBLIC_APP_URL", tier: "runtime", description: "Public origin for absolute links" },
 
   // Optional override
-  { key: "AI_PROVIDER", tier: "runtime", description: "Pin AI provider: venice|openai|anthropic|gemini" },
+  { key: "AI_PROVIDER", tier: "runtime", description: "Pin AI provider: ollama|gemini|openai|anthropic" },
   { key: "LOCAL_DEV_BYPASS_AUTH", tier: "runtime", description: "Dev-only — set to '1' to skip auth in preview" },
 
   // ── WAVE-200 substrate (2026-05-17) ────────────────────────────────
@@ -122,7 +121,7 @@ export function checkEnvHealth(): EnvHealth {
     }
   }
 
-  const aiKeys = ["VENICE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"];
+  const aiKeys = ["OLLAMA_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"];
   const atLeastOneAiProvider = aiKeys.some((k) => process.env[k] || process.env.GOOGLE_GENERATIVE_AI_API_KEY);
 
   return { missing, degraded, atLeastOneAiProvider };
