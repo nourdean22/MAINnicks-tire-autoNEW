@@ -3,7 +3,7 @@
  * today's stats, AI gateway health, system status, daily brief, and execution tracking.
  */
 import { adminProcedure, router } from "../_core/trpc";
-import { sql, eq, gte, and, desc, isNull } from "drizzle-orm";
+import { sql, eq, gte, and, desc, isNull, inArray } from "drizzle-orm";
 import { exec } from "child_process";
 import { promisify } from "util";
 const execAsync = promisify(exec);
@@ -107,6 +107,7 @@ export const controlCenterRouter = router({
       tireOrdersToday,
       winbacksToday,
       pendingEstimatesList,
+      unpaidInvoices,
     ] = await Promise.all([
       // Outstanding opportunities = real ALG/ShopDriver counter estimates that
       // never converted to an invoice (matched_invoice_id IS NULL), in cents.
@@ -145,9 +146,17 @@ export const controlCenterRouter = router({
         .where(isNull(algEstimates.matchedInvoiceId))
         .orderBy(desc(algEstimates.estimatedAmount))
         .limit(5),
+      // Unpaid invoices = issued invoices still awaiting payment (pending
+      // or partial), in cents. Pairs with the openEstimates superset above
+      // so totalOutstanding reflects BOTH unconverted estimates AND
+      // issued-but-unpaid invoices. Was hardcoded to 0 (false $0).
+      d.select({ sum: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
+        .from(invoices)
+        .where(inArray(invoices.paymentStatus, ["pending", "partial"])),
     ]);
 
     const openEstimatesSum = openEstimates[0]?.sum ?? 0;
+    const unpaidInvoicesSum = unpaidInvoices[0]?.sum ?? 0;
 
     const combinedPending = [
       ...pendingEstimatesList.map((est: { id: number; name: string | null; value: number | null; createdAt: Date; service: string | null }) => ({
@@ -163,9 +172,9 @@ export const controlCenterRouter = router({
       .slice(0, 5);
 
     return {
-      unpaidInvoicesSum: 0,
+      unpaidInvoicesSum,
       openEstimatesSum,
-      totalOutstanding: openEstimatesSum,
+      totalOutstanding: openEstimatesSum + unpaidInvoicesSum,
       todayMetrics: {
         calls: callsToday[0]?.count ?? 0,
         leads: leadsToday[0]?.count ?? 0,
