@@ -66,13 +66,6 @@ async function fallbackPing(name: string): Promise<PingResult | null> {
         headers: { Authorization: `Bearer ${token}` },
       });
     }
-    case "venice": {
-      const token = env("VENICE_API_KEY");
-      if (!token) return { ok: false, status: "ERR", ms: 0, detail: "VENICE_API_KEY missing" };
-      return ping("https://api.venice.ai/api/v1/models", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    }
     case "anthropic": {
       const token = env("ANTHROPIC_API_KEY");
       if (!token) return { ok: false, status: "ERR", ms: 0, detail: "ANTHROPIC_API_KEY missing" };

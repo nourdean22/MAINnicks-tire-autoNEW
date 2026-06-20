@@ -7,17 +7,11 @@
  * cost/latency/quality profiles per domain — using one model for
  * everything wastes capacity.
  *
- * Routing matrix (Apr 2026):
- *
- *   DOMAIN          PRIMARY                FALLBACK            REASON
- *   ───────────────────────────────────────────────────────────────────
- *   marketing       venice-uncensored      ollama qwen3-vl     · Venice has Cleveland brand voice trained-in
- *   code            ollama qwen3-coder     openai gpt-4o       · qwen3-coder beats GLM on JS/TS/SQL
- *   strategy        ollama deepseek-v4-pro venice glm-4.7      · 1M context fits whole strategy doc
- *   vision          ollama qwen3-vl        openai gpt-4o-mini  · qwen3-vl is multimodal native
- *   fast-classify   venice-uncensored      —                   · cheapest, fastest for "/yes" or "/no" calls
- *   creative        venice glm-4.7         ollama qwen3-vl     · GLM heretic is uncensored + creative
- *   summary         venice-uncensored      ollama qwen3-vl     · cheap + fast for compress operations
+ * Routing matrix: detectDomain() classifies the message into a taskType;
+ * the actual provider/model order per taskType is owned by
+ * getPreferredOrderForTask() in provider.ts (env-driven Ollama -> Gemini ->
+ * OpenAI -> Anthropic). Venice was retired (PRs #235/#237/#239), so the old
+ * per-domain Venice primaries no longer apply.
  *
  * Detection: detectDomain() reads the user message + chat-mode signals
  * and returns the domain classification. Used by chat route to pass
@@ -79,8 +73,8 @@ const PATTERNS: Array<{ test: RegExp; route: DomainRoute }> = [
     route: {
       domain: "marketing",
       taskType: "creative",
-      preferLargeContext: false, // brand voice fits in Venice 65k
-      label: "marketing → venice-uncensored",
+      preferLargeContext: false,
+      label: "marketing",
     },
   },
   // ── CREATIVE — brainstorm, alt angles, variations ──
@@ -90,7 +84,7 @@ const PATTERNS: Array<{ test: RegExp; route: DomainRoute }> = [
       domain: "creative",
       taskType: "creative",
       preferLargeContext: false,
-      label: "creative → venice glm-4.7 heretic",
+      label: "creative",
     },
   },
   // ── FAST-CLASSIFY — yes/no, intent, single-word ──
@@ -100,7 +94,7 @@ const PATTERNS: Array<{ test: RegExp; route: DomainRoute }> = [
       domain: "fast-classify",
       taskType: "classify",
       preferLargeContext: false,
-      label: "fast-classify → venice-uncensored",
+      label: "fast-classify",
     },
   },
   // ── SUMMARY — compress, recap, tl;dr ──
@@ -110,7 +104,7 @@ const PATTERNS: Array<{ test: RegExp; route: DomainRoute }> = [
       domain: "summary",
       taskType: "summary",
       preferLargeContext: false,
-      label: "summary → venice-uncensored",
+      label: "summary",
     },
   },
 ];

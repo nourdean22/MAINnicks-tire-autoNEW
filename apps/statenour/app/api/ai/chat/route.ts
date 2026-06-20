@@ -413,7 +413,7 @@ async function chatPostInner(req: Request) {
   } catch (err) {
     recordError("chat:request", err, { reason: "no_provider" });
     return Response.json(
-      { error: "Nick AI is not available right now. No AI provider configured. Set VENICE_API_KEY, OLLAMA_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY." },
+      { error: "Nick AI is not available right now. No AI provider configured. Set OLLAMA_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY." },
       { status: 503 }
     );
   }
