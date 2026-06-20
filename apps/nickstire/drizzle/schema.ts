@@ -3006,6 +3006,8 @@ export const igAutopostLog = mysqlTable("ig_autopost_log", {
   error: varchar("error", { length: 500 }),
   /** Trigger source: cron (scheduled) or admin (Fire Now button) */
   source: varchar("source", { length: 16 }).default("cron").notNull(),
+  /** Gen + eval prompt version stamp (date string, e.g. "2026-06-20") · attribution #3 */
+  promptVersion: varchar("promptVersion", { length: 32 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("idx_ig_autopost_created").on(table.createdAt),
