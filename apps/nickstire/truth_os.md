@@ -2,11 +2,11 @@
 
 **Purpose:** Single place to record what must be **true in production** for this repo. Update when you ship behavior or infra changes.
 
-## 🟡 Pending merge — 2026-06-19 (NOT yet live — awaiting operator merge)
+## 🟢 Shipped — 2026-06-19 (SMS consistency sweep + reel quality gate — both LIVE)
 
-- **#219 `nickstire/sms-consistency-sweep`** — `retryCampaign` no longer excludes bare-10-digit customers (now shares `campaignEligiblePhoneSql` with the segment filter); `gatewayHealth` picks the configured/freshest device via shared `pickGatewayDevice` instead of blind `devices[0]`.
-- **#220 `nickstire/reel-quality-gate`** — the 75-pt reel quality gate is enforced server-side (`content.generateReelBrief` returns the score; new `content.validateReelBrief` mutation). Reuses the already-server-imported pure `facelessReelStudio` module (no duplication).
-- Both pass full nickstire gates (tsc 0, suite green). Full session detail: `apps/statenour/docs/sessions/2026-06-19.md`. Move these into a 🟢 shipped section once merged + live.
+- **#219 (LIVE, `411296da`) `nickstire/sms-consistency-sweep`** — `retryCampaign` no longer excludes bare-10-digit customers (now shares `campaignEligiblePhoneSql` with the segment filter); `gatewayHealth` picks the configured/freshest device via shared `pickGatewayDevice` instead of blind `devices[0]`.
+- **#220 (LIVE, `3c182f36`) `nickstire/reel-quality-gate`** — the 75-pt reel quality gate is enforced server-side (`content.generateReelBrief` returns the score; new `content.validateReelBrief` mutation). Reuses the already-server-imported pure `facelessReelStudio` module (no duplication).
+- Both passed full nickstire gates (tsc 0, suite green) and merged to main 2026-06-19. Full session detail: `apps/statenour/docs/sessions/2026-06-19.md`.
 
 ## 🟢 Latest shipped — 2026-06-20 (Money summary: unpaid invoices now counted)
 
