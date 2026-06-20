@@ -378,6 +378,27 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
 
   if (shouldAlert) {
     try {
+      // Warm-transfer connect rate (14d) — rides the alert digest as context
+      // (no new nightly message; the always-on view is the admin Voice tile).
+      // READ-ONLY and INFERRED: VAPI exposes no "human answered" bit, so this is
+      // a duration proxy — see lib/warmTransferConnect.ts. Withheld until >=10
+      // forwards so a noisy window never surfaces a misleading %.
+      let connectLine = "";
+      try {
+        const { computeWarmTransferConnectRate } = await import("../../lib/warmTransferConnect");
+        const connectCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+        const transferRows = await d
+          .select({ endedReason: vapiCallLogs.endedReason, durationSeconds: vapiCallLogs.durationSeconds })
+          .from(vapiCallLogs)
+          .where(gte(vapiCallLogs.createdAt, connectCutoff));
+        const wt = computeWarmTransferConnectRate(transferRows);
+        connectLine = wt.reliable
+          ? `Warm-transfer connect (14d): ~${wt.rate}% inferred · ${wt.connected}/${wt.attempted} forwards · ${wt.failed} failed`
+          : `Warm-transfers (14d): ${wt.attempted} attempted · ${wt.failed} failed · connect % pending (need >=10)`;
+      } catch (wtErr) {
+        log.warn("[vapi-eval] connect-rate compute failed", { error: wtErr instanceof Error ? wtErr.message : String(wtErr) });
+      }
+
       const worst = scored
         .sort((a, b) => a.score - b.score)
         .slice(0, 3)
@@ -396,6 +417,8 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           : avgScore < 60 ? "⚠ Avg score below 60 — investigate the prompt or memory layer." :
           `${wastedCount} wasted calls — listen to the worst 3 and find the pattern.`,
       ];
+      // Slot the connect line right after the Converted/Wasted line (index 2).
+      if (connectLine) lines.splice(3, 0, connectLine);
       await sendTelegram(lines.join("\n"));
     } catch (e) {
       log.warn("[vapi-eval] telegram failed", { error: e instanceof Error ? e.message : String(e) });

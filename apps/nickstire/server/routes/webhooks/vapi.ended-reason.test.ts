@@ -46,6 +46,18 @@ describe("extractEndedReason", () => {
     expect(extractEndedReason({ call: { endedReason: "call.ringing" } })).toBeNull();
   });
 
+  it("keeps a TERMINAL warm-transfer / transfer-failed call-level reason (connect-rate ground truth)", () => {
+    // These are real ended reasons (the hand-off failed) — the connect-rate
+    // needs them to count a forward that did NOT reach a human.
+    expect(extractEndedReason({ call: { endedReason: "call.in-progress.error-transfer-failed" } }))
+      .toBe("call.in-progress.error-transfer-failed");
+    expect(extractEndedReason({ call: { endedReason: "call.in-progress.error-warm-transfer-silence-timeout" } }))
+      .toBe("call.in-progress.error-warm-transfer-silence-timeout");
+    // ...but generic call.* SIP transients STILL drop (wave-137 guard intact):
+    expect(extractEndedReason({ call: { endedReason: "call.in-progress.sip-completed-call" } })).toBeNull();
+    expect(extractEndedReason({ call: { endedReason: "call.ringing" } })).toBeNull();
+  });
+
   it("both absent (the 274-row class) → null", () => {
     expect(extractEndedReason({ call: { id: "abc" } })).toBeNull();
     expect(extractEndedReason({})).toBeNull();
