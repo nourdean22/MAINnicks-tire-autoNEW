@@ -240,8 +240,6 @@ export async function buildErrorRateByRoute(range = "24h", minRequests = 5) {
 
 // ─────────────────────── Integration quotas ───────────────────────
 
-const TIMEOUT_MS = 8000;
-
 interface QuotaProbe {
   provider: string;
   ok: boolean;
@@ -251,85 +249,19 @@ interface QuotaProbe {
   ms?: number;
 }
 
-const env = (k: string) => process.env[k]?.trim();
-
-async function timedFetch(
-  url: string,
-  init?: RequestInit,
-): Promise<{
-  ok: boolean;
-  status: number;
-  ms: number;
-  body: unknown;
-  error?: string;
-}> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  const t0 = Date.now();
-  try {
-    const r = await fetch(url, { ...init, signal: ctrl.signal });
-    clearTimeout(timer);
-    const ms = Date.now() - t0;
-    const text = await r.text();
-    let body: unknown = null;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = text.slice(0, 500);
-    }
-    return { ok: r.ok, status: r.status, ms, body };
-  } catch (err) {
-    clearTimeout(timer);
-    return {
-      ok: false,
-      status: 0,
-      ms: Date.now() - t0,
-      body: null,
-      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
-    };
-  }
-}
-
-async function probeVenice(): Promise<QuotaProbe> {
-  const token = env("VENICE_API_KEY");
-  if (!token) return { provider: "venice", ok: false, status: "missing" };
-  const r = await timedFetch(
-    "https://api.venice.ai/api/v1/api_keys/rate_limits",
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    },
-  );
-  if (!r.ok) {
-    return {
-      provider: "venice",
-      ok: false,
-      status: "error",
-      error: r.error ?? `HTTP ${r.status}`,
-      ms: r.ms,
-    };
-  }
-  return {
-    provider: "venice",
-    ok: true,
-    status: "configured",
-    ms: r.ms,
-    data: r.body as Record<string, unknown>,
-  };
-}
-
 /**
  * Real-time cost/quota state per provider for the dashboard card.
  *
- * statenour uses Venice as its only first-party metered integration.
+ * Venice was statenour's only first-party metered integration and its
+ * sole probe here; it has been retired, leaving no provider to probe.
  * Twilio/Resend/Stripe are nickstire's (SMS/email/payments live there)
  * and statenour is on Railway, not Vercel — probing those here only
- * ever reported a misleading permanent "4 missing", so they were
- * dropped. Honest "1/1 live" beats lying "1/5".
+ * ever reported a misleading permanent "missing". With no probes the
+ * rollup is empty and the dashboard card hides itself rather than
+ * lying with a "0/1 live" forever.
  */
 export async function buildIntegrationQuotas() {
-  const probes = await Promise.all([
-    probeVenice(),
-  ]);
+  const probes: QuotaProbe[] = [];
 
   return {
     generatedAt: new Date().toISOString(),

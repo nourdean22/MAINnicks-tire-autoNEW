@@ -128,7 +128,6 @@ export const metaTools = {
         // report bridge=ok while every bridge tool was returning
         // { error: "Bridge not configured" } silently.
         const envChecks = {
-          ai: { present: !!process.env.VENICE_API_KEY, var: "VENICE_API_KEY" },
           anthropic: { present: !!process.env.ANTHROPIC_API_KEY, var: "ANTHROPIC_API_KEY" },
           telegram: { present: !!process.env.TELEGRAM_BOT_TOKEN, var: "TELEGRAM_BOT_TOKEN" },
           github: { present: !!process.env.GITHUB_TOKEN, var: "GITHUB_TOKEN" },

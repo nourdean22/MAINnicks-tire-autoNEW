@@ -201,28 +201,6 @@ async function probeVercel(): Promise<QuotaProbe> {
   };
 }
 
-async function probeVenice(): Promise<QuotaProbe> {
-  const token = env("VENICE_API_KEY");
-  if (!token) return { provider: "venice", ok: false, status: "missing" };
-  // Venice has /api/v1/api_keys/info per their docs
-  const r = await timedFetch(
-    "https://api.venice.ai/api/v1/api_keys/rate_limits",
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    },
-  );
-  if (!r.ok) {
-    return { provider: "venice", ok: false, status: "error", error: r.error ?? `HTTP ${r.status}`, ms: r.ms };
-  }
-  return {
-    provider: "venice",
-    ok: true,
-    status: "configured",
-    ms: r.ms,
-    data: r.body as Record<string, unknown>,
-  };
-}
-
 export const GET = apiHandler(
   async () => {
     const probes = await Promise.all([
@@ -230,7 +208,6 @@ export const GET = apiHandler(
       probeResend(),
       probeStripe(),
       probeVercel(),
-      probeVenice(),
     ]);
 
     return {

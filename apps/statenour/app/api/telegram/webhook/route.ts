@@ -876,56 +876,12 @@ async function handlePhoto(
     const mimeType = filePath.endsWith(".png") ? "image/png" : "image/jpeg";
 
     // Analyze with multimodal AI (send actual image data)
-    const veniceKey = process.env.VENICE_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
     let analysisText = "";
 
-    // Try Venice vision model first (qwen3-vl supports images via OpenAI compat)
-    if (veniceKey) {
-      try {
-        const vRes = await fetch("https://api.venice.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${veniceKey}` },
-          body: JSON.stringify({
-            model: "qwen3-vl-235b-a22b",
-            messages: [
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "image_url",
-                    image_url: { url: `data:${mimeType};base64,${base64}` },
-                  },
-                  {
-                    type: "text",
-                    text: `You are Nick, Nour's Chief of Staff (tire shop CEO). Analyze this image.\n${caption ? `Caption: "${caption}"` : ""}\nProvide: 1) What this is 2) Actionable insight (car issue→service+price, competitor→intelligence, receipt→expense) 3) One recommendation`,
-                  },
-                ],
-              },
-            ],
-            max_tokens: 500,
-            // v10.0.180 · added per the disable_thinking gate. Vision
-            // models on Venice can emit <think> tokens too; without
-            // this set the 500-token budget could be burned on
-            // internal reasoning, returning empty content. See
-            // scripts/check-venice-disable-thinking.ts header for
-            // the bug-class history.
-            venice_parameters: {
-              disable_thinking: true,
-              strip_thinking_response: true,
-            },
-          }),
-        });
-        if (vRes.ok) {
-          const vData = await vRes.json();
-          analysisText = vData.choices?.[0]?.message?.content ?? "";
-        }
-      } catch { /* fall through to Anthropic */ }
-    }
-
-    // Fallback: Anthropic Claude (native vision support)
-    if (!analysisText && anthropicKey) {
+    // Primary: Anthropic Claude (native vision support)
+    if (anthropicKey) {
       try {
         const aRes = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",

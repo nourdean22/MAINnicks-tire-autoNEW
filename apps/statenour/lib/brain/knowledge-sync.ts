@@ -3,7 +3,6 @@
  * backfill scripts in scripts/*.ts.
  *
  * Exports three pure functions that can run from either:
- *   • `/api/cron/knowledge-sync` — periodic cron
  *   • the `syncKnowledge` AI tool — Nick can call it on demand
  *   • a future event-bus handler — runs when data changes
  *
@@ -16,90 +15,16 @@
  *   • ingestNickWisdom — uses stable per-message memory keys so
  *     re-runs reinforce existing memories instead of duplicating
  *
- * The Venice API is called directly via fetch() (not through
- * lib/ai/provider.aiChat()) because the Vercel AI SDK chokes on
- * Venice's reasoning_content field when running outside certain
- * runtime contexts. Same workaround documented in lib/ai/provider.ts.
+ * NOTE: AI classification of raw BrainDumps is currently DISABLED.
+ * The Venice provider that backed it has been retired and no
+ * replacement is wired in, so extractFromText() returns null and
+ * the classify stage no-ops (BrainDumps are promoted/stored but not
+ * AI-classified). Wisdom indexing + chat promotion still run.
  */
 
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { recordError } from "@/lib/errors/record-error";
-
-// ─── Venice direct (bypasses AI SDK reasoning_content issue) ──
-
-const VENICE_MODEL_DEFAULT = "olafangensan-glm-4.7-flash-heretic";
-
-async function callVeniceOnce(
-  system: string,
-  user: string,
-  timeoutMs: number
-): Promise<string | null> {
-  const apiKey = (process.env.VENICE_API_KEY || "").trim();
-  if (!apiKey) throw new Error("VENICE_API_KEY not set");
-  const model =
-    (process.env.VENICE_MODEL || "").trim() || VENICE_MODEL_DEFAULT;
-
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch("https://api.venice.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "X-Venice-Privacy": "strict",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        temperature: 0.3,
-        venice_parameters: {
-          include_venice_system_prompt: false,
-          strip_thinking_response: true,
-          disable_thinking: false,
-          enable_web_search: "off",
-        },
-      }),
-      signal: ctrl.signal,
-    });
-    clearTimeout(t);
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = data?.choices?.[0]?.message?.content;
-    if (!content) return null;
-    return content
-      .replace(/<think>[\s\S]*?<\/think>/gi, "")
-      .replace(/<\/?think>/gi, "")
-      .trim();
-  } catch (err) {
-    clearTimeout(t);
-    throw err;
-  }
-}
-
-async function callVenice(
-  system: string,
-  user: string,
-  timeoutMs = 60_000
-): Promise<string | null> {
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const result = await callVeniceOnce(system, user, timeoutMs);
-      if (result !== null) return result;
-    } catch {
-      if (attempt === 3) return null;
-      await new Promise((r) => setTimeout(r, 1500));
-    }
-  }
-  return null;
-}
 
 // ─── Types ───
 
@@ -112,17 +37,6 @@ type ThoughtType =
   | "reflection"
   | "planning"
   | "venting";
-
-const VALID_TYPES: ThoughtType[] = [
-  "raw",
-  "thinking",
-  "reasoning",
-  "insight",
-  "decision",
-  "reflection",
-  "planning",
-  "venting",
-];
 
 interface Extraction {
   entryType: ThoughtType;
@@ -163,60 +77,20 @@ export interface KnowledgeSyncResult {
 
 // ─── AI extraction (shared between brain dumps and chat) ───
 
+// Knowledge classification is DISABLED — the Venice provider that
+// backed it was retired and no replacement is wired in (operator
+// decision: no feature restore). This honestly no-ops rather than
+// throwing or masquerading as a classification failure: callers
+// treat null as "skip", so raw BrainDumps are left unclassified and
+// no tasks/insights are fabricated from them.
 async function extractFromText(
-  rawText: string,
-  source: string
+  _rawText: string,
+  _source: string
 ): Promise<Extraction | null> {
-  const systemPrompt = `You are Nick's journal processing engine. Extract actionable intelligence from Nour's journal entry.
-
-Return ONLY valid JSON with this structure (no markdown, no code fences, no prose):
-{
-  "entryType": "raw|thinking|reasoning|insight|decision|reflection|planning|venting",
-  "summary": "2-3 sentence summary",
-  "mood": "one word",
-  "domains": ["business|health|personal|finance|relationship|mastery"],
-  "actionItems": [{"title": "specific task", "priority": "critical|high|medium|low", "domain": "business|health|personal|system|finance"}],
-  "insights": ["patterns worth remembering"],
-  "commitments": ["promises or decisions made"],
-  "patterns": "recurring themes (or null)",
-  "concerns": ["worries mentioned"],
-  "wins": ["positive things mentioned"],
-  "linkedTopics": ["tags/names referenced, max 6"]
-}
-
-Priority rules — STRICT, DO NOT INFLATE:
-- "critical" — ONLY if explicit same-day deadline (today, tomorrow, asap, by EOD) or $ at imminent risk
-- "high" — customer-facing, revenue-blocking, or same-week time-sensitive
-- "medium" — DEFAULT PRIORITY. Most items land here
-- "low" — nice-to-have, no deadline
-
-RESPOND WITH THE JSON OBJECT ONLY. NO OTHER TEXT.`;
-
-  const userPrompt = `Journal entry (${source}):\n\n${rawText.slice(0, 4000)}`;
-
-  try {
-    const content = await callVenice(systemPrompt, userPrompt);
-    if (!content) return null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const extracted = extractJsonObject<any>(content);
-    if (!extracted.ok) return null;
-    const data = extracted.value;
-    return {
-      entryType: VALID_TYPES.includes(data.entryType) ? data.entryType : "raw",
-      summary: typeof data.summary === "string" ? data.summary : "",
-      mood: typeof data.mood === "string" ? data.mood : null,
-      domains: Array.isArray(data.domains) ? data.domains : [],
-      linkedTopics: Array.isArray(data.linkedTopics) ? data.linkedTopics : [],
-      actionItems: Array.isArray(data.actionItems) ? data.actionItems : [],
-      insights: Array.isArray(data.insights) ? data.insights : [],
-      commitments: Array.isArray(data.commitments) ? data.commitments : [],
-      patterns: typeof data.patterns === "string" ? data.patterns : null,
-      concerns: Array.isArray(data.concerns) ? data.concerns : [],
-      wins: Array.isArray(data.wins) ? data.wins : [],
-    };
-  } catch {
-    return null;
-  }
+  // No provider → no classification. Returning null tells callers to
+  // skip applyExtraction(), so no tasks/insights/commitments are
+  // fabricated from an unprocessed entry.
+  return null;
 }
 
 async function applyExtraction(
@@ -530,10 +404,11 @@ async function ingestNickWisdom(): Promise<KnowledgeSyncResult["wisdom"]> {
 // ─── Main entry ───
 
 /**
- * Run the full knowledge sync pipeline. Safe to call from a cron, an
- * AI tool, or an event-bus handler. All three stages are idempotent
- * and individually resilient — if Venice is down, backfill returns
- * zero classified but rebalance + wisdom still run.
+ * Run the full knowledge sync pipeline. Safe to call from the
+ * syncKnowledge AI tool or an event-bus handler. All three stages are
+ * idempotent and individually resilient. AI classification is disabled
+ * (no provider), so backfill returns zero classified; chat promotion,
+ * rebalance, and wisdom indexing still run.
  */
 export async function runKnowledgeSync(): Promise<KnowledgeSyncResult> {
   const t0 = Date.now();

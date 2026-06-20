@@ -200,7 +200,9 @@ function IntegrationQuotasCard() {
   const probes: QuotaProbe[] = quotasQuery.data?.probes ?? [];
   const summary = quotasQuery.data?.summary ?? null;
 
-  if (quotasQuery.isPending || !summary) return null;
+  // No metered provider probes left after Venice was retired — hide the
+  // card entirely instead of rendering a misleading empty "0/0 live".
+  if (quotasQuery.isPending || !summary || probes.length === 0) return null;
 
   return (
     <GlassCard>

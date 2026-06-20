@@ -74,16 +74,19 @@ export async function buildToolsHealth(): Promise<ToolsHealthReport> {
 
   // ── ENV VARS — categorized ──
   const envChecks: Record<string, string[]> = {
-    // ai: VENICE_API_KEY only. Venice is the PRIMARY AI provider
-    // (lib/env.ts:48) and the live chain is Ollama -> Venice -> OpenAI
-    // -> Anthropic (lib/ai/provider.ts:667). Requiring ANTHROPIC_API_KEY
-    // here was a false-alarm: Anthropic is the LAST-resort fallback and
-    // is intentionally UNCONFIGURED in this deployment (provider.ts:649),
-    // so the arsenal read "degraded/PARTIAL" while AI was fully
-    // operational on Venice+Ollama+OpenAI. The primary key being present
-    // means the whole fallback chain is reachable -> AI is operational.
-    // (2026-06-02 audit.)
-    ai: ["VENICE_API_KEY"],
+    // ai: the runtime provider fleet. AI is operational as long as AT
+    // LEAST ONE provider key is present — the live chain falls back across
+    // Ollama -> OpenAI -> Gemini -> Anthropic (lib/ai/provider.ts), and no
+    // single key is individually required. (Venice was retired; keying off
+    // a now-unset VENICE_API_KEY made the arsenal read "down" while AI was
+    // fully operational.) This category uses anyOf semantics — see
+    // ANY_OF_CATEGORIES below.
+    ai: [
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "GEMINI_API_KEY",
+      "OLLAMA_API_KEY",
+    ],
     voice: ["HUGGINGFACE_API_KEY"],
     files: ["GITHUB_TOKEN", "GOOGLE_SERVICE_ACCOUNT_KEY"],
     communication: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"],
@@ -91,14 +94,24 @@ export async function buildToolsHealth(): Promise<ToolsHealthReport> {
     cron: ["CRON_SECRET"],
   };
 
+  // Categories whose keys are alternatives, not requirements: the category
+  // is healthy when ANY ONE key is present (e.g. AI's fallback provider
+  // fleet). All other categories require every declared key.
+  const ANY_OF_CATEGORIES = new Set(["ai"]);
+
   for (const [category, vars] of Object.entries(envChecks)) {
     const present = vars.filter((v) => !!process.env[v]);
     const missing = vars.filter((v) => !process.env[v]);
+    const ok = ANY_OF_CATEGORIES.has(category)
+      ? present.length > 0
+      : missing.length === 0;
     checks[`env_${category}`] = {
-      status:
-        missing.length === 0 ? "ok" : present.length > 0 ? "degraded" : "down",
-      detail:
-        missing.length === 0 ? "All set" : `Missing: ${missing.join(", ")}`,
+      status: ok ? "ok" : present.length > 0 ? "degraded" : "down",
+      detail: ok
+        ? "All set"
+        : ANY_OF_CATEGORIES.has(category)
+          ? `None set: ${vars.join(", ")}`
+          : `Missing: ${missing.join(", ")}`,
       checked: vars,
     };
   }
