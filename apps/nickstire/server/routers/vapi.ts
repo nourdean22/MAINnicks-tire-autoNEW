@@ -347,6 +347,26 @@ export const vapiRouter = router({
           count,
         })).sort((a, b) => b.count - a.count);
 
+        // Warm-transfer connect rate (14d, READ-ONLY, INFERRED). Always a
+        // dedicated 14d window — independent of the caller's range — because a
+        // connect % needs >=10 forwards to mean anything, which a single day
+        // rarely has. VAPI exposes no "human answered" bit; see
+        // lib/warmTransferConnect.ts for why this is a duration proxy.
+        let warmTransferConnect: {
+          rate: number | null; attempted: number; connected: number; failed: number; reliable: boolean;
+        } = { rate: null, attempted: 0, connected: 0, failed: 0, reliable: false };
+        try {
+          const { computeWarmTransferConnectRate } = await import("../lib/warmTransferConnect");
+          const connectCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+          const transferRows = await db
+            .select({ endedReason: vapiCallLogs.endedReason, durationSeconds: vapiCallLogs.durationSeconds })
+            .from(vapiCallLogs)
+            .where(gte(vapiCallLogs.createdAt, connectCutoff));
+          warmTransferConnect = computeWarmTransferConnectRate(transferRows);
+        } catch {
+          /* read-only metric · default zeros on failure, never break the tile */
+        }
+
         return {
           ok: true as const,
           total: rows.length,
@@ -368,6 +388,7 @@ export const vapiRouter = router({
           revisedHardConversionRate: Math.round(revisedHardConversionRate),
           actionableRate: Math.round(actionableRate),
           avgScore,
+          warmTransferConnect,
           weeklyTrend,
           outcomeBreakdown,
           intentDistribution,

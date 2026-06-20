@@ -131,7 +131,13 @@ export function extractEndedReason(event: unknown): string | null {
   const top = typeof e.endedReason === "string" ? e.endedReason.trim() : "";
   if (top) return top;
   const nested = typeof e.call?.endedReason === "string" ? e.call.endedReason.trim() : "";
-  if (nested && !nested.startsWith("call.")) return nested;
+  // Accept a call-level value when it's a clean label (not a `call.*` SIP
+  // transient) OR a TERMINAL warm-transfer / transfer-failed reason. The latter
+  // are real ended reasons (the hand-off failed), not transient SIP statuses —
+  // they feed the warm-transfer connect-rate's ground-truth "failed" count
+  // (lib/warmTransferConnect.ts). Generic call.* SIP transients still drop, so
+  // the wave-137 bug this guard fixed stays fixed.
+  if (nested && (!nested.startsWith("call.") || /warm-transfer|transfer-failed/.test(nested))) return nested;
   return null;
 }
 
