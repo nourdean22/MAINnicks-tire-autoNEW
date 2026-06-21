@@ -110,3 +110,57 @@ Expected: 21/21 pass. Any failure = investigate that specific endpoint.
 5. Run smoke test: `bash scripts/smoke-test.sh`
 6. Open `/cc` in browser
 7. Verify: DB connected, AI gateway healthy, cron jobs running
+
+## Disaster Recovery (data loss / corruption / cluster loss)
+
+The sections above cover *availability* (restart, reconnect). This covers *durability* —
+recovering customer/lead/order data after deletion, corruption, or a lost TiDB cluster.
+
+### Targets (commitments, not aspirations)
+
+| Metric | Target | Meaning |
+|---|---|---|
+| **RPO** (max data loss) | ≤ 24h via daily snapshot · **minutes** if PITR is enabled | How far back a restore lands |
+| **RTO** (max downtime) | ≤ 2h | Detect → restore → repoint → redeploy → verify |
+
+### TiDB Cloud backup model — VERIFY in console (do not assume)
+
+TiDB Cloud provides automated snapshot backups and, depending on tier/config,
+point-in-time restore (PITR). The exact retention window and whether PITR is ON
+are **operator-verifiable facts, not assumptions** — confirm them now:
+
+1. tidbcloud.com → cluster → **Backup** tab. Record: automatic-backup schedule,
+   retention days, and whether **PITR** is enabled. If PITR is available and OFF, turn it ON
+   (it is the difference between losing a day vs. losing minutes).
+2. Note the cluster tier (Serverless vs Dedicated) — restore options differ by tier.
+
+### Restore procedure (NEVER overwrite prod in place)
+
+1. **Stop the bleeding:** if corruption is actively spreading, set `SMS_KILL_SWITCH=true` +
+   `VAPI_KILL_SWITCH=true` and pause write-heavy crons (Railway env) so the bad state
+   doesn't compound while you restore.
+2. TiDB Cloud → Backup → **Restore** → restore the chosen snapshot/timestamp to a
+   **NEW cluster** (never restore over the live one — you need the live one for forensics
+   and as a fallback).
+3. Validate the restored cluster: row counts on `leads`, `tire_orders`, `sms_messages`,
+   `callbacks` against expectations for that timestamp.
+4. **Cut over:** update Railway `DATABASE_URL` (service `MAINnicks-tire-auto`) to the new
+   cluster's connection string (keep the `?ssl={"rejectUnauthorized":true}` suffix) → redeploy.
+5. `curl -s https://nickstire.org/api/health` → DB `"status":"up"`. Re-enable kill switches.
+6. Retire the corrupted cluster only AFTER the restored one is confirmed healthy in prod.
+
+### What a DB restore does NOT cover (close these gaps separately)
+
+- **Railway env vars / secrets** — a single point of failure no DB backup touches. Export the
+  `MAINnicks-tire-auto` variables and store them in a sealed secrets vault; without them a
+  fresh deploy cannot boot. Re-export whenever secrets rotate.
+- **Committed prerendered HTML** — lives in git (`apps/nickstire/prerendered/`); recovered via git, not DB.
+- **S3 / CloudFront media assets** — separate durability domain; confirm bucket versioning is ON.
+
+### Drill cadence + role separation
+
+- **Quarterly restore drill:** restore the latest backup to a throwaway cluster, validate row
+  counts, then delete it. Record date + result in `truth_os.md`. An untested backup is a
+  hope, not a recovery plan.
+- **Who can restore:** owner-operator only. Restores create new clusters + rotate
+  `DATABASE_URL` — never delegate without supervision.

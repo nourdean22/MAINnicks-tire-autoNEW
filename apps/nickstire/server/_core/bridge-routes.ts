@@ -261,7 +261,14 @@ export function registerBridgeRoutes(app: Express): void {
         return;
       }
       const { note, context } = parsed.data;
-      console.info(`[bridge:note] ${context || "general"}: ${note}`);
+      // Privacy: log metadata only — never the note body to the stdout/Railway stream.
+      // NOTE: quick-note currently has NO persistence sink (the note is not written to
+      // any table). If retained notes are needed, wire a real store here; until then
+      // this endpoint only acknowledges receipt.
+      log.info("[bridge:note] received", {
+        context: context || "general",
+        note_len: note.length,
+      });
       res.json({ success: true, logged: true });
     } catch (err: unknown) {
       log.error("[Bridge] Action error:", err);
