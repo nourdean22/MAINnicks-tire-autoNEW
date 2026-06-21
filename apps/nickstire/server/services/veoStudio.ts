@@ -8,14 +8,15 @@
  * otherwise mints a token from the repo's service account (cloud-platform scope —
  * the same `GOOGLE_SERVICE_ACCOUNT_*` creds reelVoice uses for Google TTS).
  *
- * Hardened (doctrine): no fake AI people (negativePrompt + personGeneration
- * guard), fail-closed on every error, a poll deadline so a stuck op can't wedge
- * the queue, and a min-size check so a truncated download never publishes as a
- * broken clip. Model + params are env-overridable so a Veo version/param change
- * never needs a code change:
- *   REEL_VEO_MODEL (default veo-3.0-generate-001), REEL_VEO_DURATION (4),
- *   REEL_VEO_RESOLUTION (720p), REEL_VEO_PERSON_GENERATION (dont_allow),
- *   REEL_VEO_POLL_INTERVAL_MS (10000), REEL_VEO_POLL_MAX_MS (360000).
+ * Hardened (doctrine): no fake AI people (always-on negativePrompt; an optional
+ * personGeneration guard for models that support it), fail-closed on every
+ * error, a poll deadline so a stuck op can't wedge the queue, and a min-size
+ * check so a truncated download never publishes as a broken clip. Model + params
+ * are env-overridable so a Veo version/param change never needs a code change:
+ *   REEL_VEO_MODEL (default veo-3.0-generate-001), REEL_VEO_RESOLUTION (720p),
+ *   REEL_VEO_ASPECT_RATIO (9:16), REEL_VEO_DURATION (opt-in, numeric),
+ *   REEL_VEO_PERSON_GENERATION (opt-in), REEL_VEO_POLL_INTERVAL_MS (10000),
+ *   REEL_VEO_POLL_MAX_MS (360000).
  */
 import { createLogger } from "../lib/logger";
 
@@ -26,7 +27,7 @@ const VEO_MODEL = process.env.REEL_VEO_MODEL || "veo-3.0-generate-001";
 const POLL_INTERVAL_MS = Number(process.env.REEL_VEO_POLL_INTERVAL_MS) || 10_000;
 const POLL_MAX_MS = Number(process.env.REEL_VEO_POLL_MAX_MS) || 6 * 60_000;
 // Doctrine: AI gen is for real product objects only — never fake people. Belt
-// (negativePrompt) + suspenders (personGeneration) on top of the no-people prompt.
+// (negativePrompt) is always on; personGeneration is opt-in (some Veo models reject it).
 const NEGATIVE_PROMPT =
   "human, person, people, face, hands, fingers, crowd, mannequin, text, captions, subtitles, watermark, logo, blurry, low quality, distorted";
 
@@ -55,17 +56,23 @@ async function veoAuthHeader(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
-/** Pure: the Veo predictLongRunning body for a 9:16 product reel clip. Testable without I/O. */
+/**
+ * Pure: the Veo predictLongRunning body for a 9:16 product reel clip. Testable
+ * without I/O. The default param set is empirically verified against
+ * veo-3.0-generate-001 (see the Veo probe): that model REJECTS numberOfVideos,
+ * personGeneration:"dont_allow", and a string durationSeconds. aspectRatio +
+ * resolution + negativePrompt generate cleanly, and the negativePrompt carries
+ * the no-people doctrine guard. The model-specific extras are opt-in via env so
+ * the default body stays portable across Veo models (3.0 / 3.1 / fast variants).
+ */
 export function buildVeoRequestBody(prompt: string, env: NodeJS.ProcessEnv = process.env): Record<string, unknown> {
   const parameters: Record<string, unknown> = {
-    aspectRatio: "9:16",
-    durationSeconds: env.REEL_VEO_DURATION || "4",
+    aspectRatio: env.REEL_VEO_ASPECT_RATIO || "9:16",
     resolution: env.REEL_VEO_RESOLUTION || "720p",
-    numberOfVideos: 1,
     negativePrompt: NEGATIVE_PROMPT,
   };
-  const personGeneration = env.REEL_VEO_PERSON_GENERATION ?? "dont_allow";
-  if (personGeneration) parameters.personGeneration = personGeneration;
+  if (env.REEL_VEO_DURATION) parameters.durationSeconds = Number(env.REEL_VEO_DURATION);
+  if (env.REEL_VEO_PERSON_GENERATION) parameters.personGeneration = env.REEL_VEO_PERSON_GENERATION;
   return { instances: [{ prompt }], parameters };
 }
 
