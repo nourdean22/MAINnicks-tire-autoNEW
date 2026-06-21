@@ -101,14 +101,21 @@ const nextConfig: NextConfig = {
         },
         // Disable legacy XSS filter — modern browsers don't need it and it can cause issues
         { key: "X-XSS-Protection", value: "0" },
-        {
-          key: "Content-Security-Policy",
-          value: [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: blob: https:",
-            "font-src 'self' data:",
+        // ── Content-Security-Policy ──────────────────────────────────────
+        // CSP moved to middleware.ts (audit-2026-06-21) so script-src can use
+        // a per-request nonce + 'strict-dynamic' in production. It must live in
+        // exactly ONE place — a CSP header here AND in middleware would make the
+        // browser enforce their intersection and break the nonce model. The
+        // policy (incl. the Ollama/VAPI connect-src) now lives in
+        // lib/security/csp.ts. Removed from next.config:
+        // {
+        //   key: "Content-Security-Policy",
+        //   value: [
+        //     "default-src 'self'",
+        //     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        //     "style-src 'self' 'unsafe-inline'",
+        //     "img-src 'self' data: blob: https:",
+        //     "font-src 'self' data:",
             // wave-fix-2026-05-25 · audit · added Ollama Cloud + local
             // localhost:11434 to support the kimi-k2.5:cloud backup
             // provider (operator's fallback when primary providers fail).
@@ -119,12 +126,12 @@ const nextConfig: NextConfig = {
             // VAPI voice-agent live-call surface (operator can see VAPI
             // status, call list, recordings from the statenour cockpit).
             // Wave H landed Ollama Cloud but missed VAPI · audit caught it.
-            "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.vapi.ai https://ollama.com https://*.ollama.com http://localhost:11434 wss:",
-            "frame-ancestors 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-          ].join("; "),
-        },
+        //     "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.venice.ai https://api.vapi.ai https://ollama.com https://*.ollama.com http://localhost:11434 wss:",
+        //     "frame-ancestors 'none'",
+        //     "base-uri 'self'",
+        //     "form-action 'self'",
+        //   ].join("; "),
+        // },
       ],
     },
     {

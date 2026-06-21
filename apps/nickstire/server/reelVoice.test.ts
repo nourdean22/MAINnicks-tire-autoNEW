@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickVoiceProvider, googleTtsRequest, generateVoiceover } from "./services/reelVoice";
+import { pickVoiceProvider, googleTtsRequest, generateVoiceover, buildReelSsml } from "./services/reelVoice";
 
 describe("pickVoiceProvider", () => {
   it("prefers Google when its service-account creds are present", () => {
@@ -21,7 +21,30 @@ describe("googleTtsRequest", () => {
     expect(url).toContain("texttospeech.googleapis.com");
     expect((body.voice as { name: string }).name).toBe("en-US-Neural2-J");
     expect((body.audioConfig as { audioEncoding: string }).audioEncoding).toBe("LINEAR16");
-    expect((body.input as { text: string }).text).toBe("hello there");
+    // Sends SSML (not plain text) for natural pacing; the script is wrapped in <speak>.
+    expect((body.input as { ssml: string }).ssml).toContain("<speak>");
+    expect((body.input as { ssml: string }).ssml).toContain("hello there");
+    expect((body.input as { text?: string }).text).toBeUndefined();
+  });
+});
+
+describe("buildReelSsml", () => {
+  it("emphasizes the hook sentence and inserts breaks between sentences", () => {
+    const ssml = buildReelSsml("Your tires are lying. Ten degrees colder costs you a psi. Air up today.");
+    expect(ssml.startsWith("<speak>")).toBe(true);
+    expect(ssml).toContain('<emphasis level="strong">Your tires are lying.</emphasis>');
+    expect(ssml).toContain('<break time="350ms"/>');
+  });
+  it("XML-escapes unsafe characters so the SSML never breaks", () => {
+    const ssml = buildReelSsml("Tires & brakes <now>");
+    expect(ssml).toContain("Tires &amp; brakes");
+    expect(ssml).toContain("&lt;now&gt;");
+    expect(ssml).not.toContain("& "); // no raw ampersand survives
+  });
+  it("wraps a single-sentence script and still emphasizes it as the hook (no breaks)", () => {
+    const ssml = buildReelSsml("just one line");
+    expect(ssml).toBe('<speak><emphasis level="strong">just one line</emphasis></speak>');
+    expect(ssml).not.toContain("<break");
   });
 });
 

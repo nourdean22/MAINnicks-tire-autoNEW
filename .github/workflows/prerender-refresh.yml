@@ -47,8 +47,8 @@ jobs:
       - name: Regenerate prerendered HTML
         working-directory: apps/nickstire
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRERENDER_RO || secrets.DATABASE_URL }}
+          JWT_SECRET: "prerender-dummy-secret-not-used"
         run: pnpm run regen
 
       - name: Commit refreshed prerender

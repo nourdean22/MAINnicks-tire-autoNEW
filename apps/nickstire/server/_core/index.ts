@@ -2,9 +2,15 @@ import "dotenv/config";
 import { timingSafeEqual, randomUUID } from "crypto";
 
 // ─── Startup env validation ─────────────────────────
-const REQUIRED_ENV = ["DATABASE_URL", "JWT_SECRET"] as const;
+const REQUIRED_ENV = [
+  "DATABASE_URL",
+  "JWT_SECRET",
+  "OWNER_OPEN_ID",
+  "ADMIN_API_KEY",
+  "STATENOUR_SYNC_KEY",
+] as const;
 const RECOMMENDED_ENV = [
-  "OWNER_OPEN_ID", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
+  "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
   "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER",
   "BRIDGE_API_KEY", "OPENAI_API_KEY",
 ] as const;
@@ -32,6 +38,16 @@ if (missingRequired.length) {
 // JWT_SECRET must be at least 32 characters to be cryptographically useful
 if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
   console.error("FATAL: JWT_SECRET must be at least 32 characters long");
+  process.exit(1);
+}
+// ADMIN_API_KEY must be at least 32 characters to be cryptographically useful
+if (process.env.ADMIN_API_KEY && process.env.ADMIN_API_KEY.length < 32) {
+  console.error("FATAL: ADMIN_API_KEY must be at least 32 characters long");
+  process.exit(1);
+}
+// STATENOUR_SYNC_KEY must be at least 32 characters to be cryptographically useful
+if (process.env.STATENOUR_SYNC_KEY && process.env.STATENOUR_SYNC_KEY.length < 32) {
+  console.error("FATAL: STATENOUR_SYNC_KEY must be at least 32 characters long");
   process.exit(1);
 }
 const missingRec = RECOMMENDED_ENV.filter(k => !process.env[k]);
@@ -101,8 +117,9 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   _httpServer = server;
-  // Trust proxy — required for rate limiting behind reverse proxy
-  app.set("trust proxy", 1);
+  // Trust proxy — explicit Cloudflare/Railway reverse proxy trust
+  const TRUST_PROXY = process.env.TRUST_PROXY ?? "loopback, linklocal, uniquelocal";
+  app.set("trust proxy", TRUST_PROXY);
   // Remove X-Powered-By header — leaks server technology to attackers
   app.disable("x-powered-by");
   // Compression — gzip/deflate all responses (fixes Ahrefs "Not compressed" for all pages)

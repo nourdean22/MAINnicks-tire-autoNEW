@@ -55,7 +55,8 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     "frame-src https://www.google.com https://maps.google.com",
     "media-src 'self' blob:",
     "frame-ancestors 'none'",
-    "base-uri 'self'",
+    "base-uri 'none'",
+    "object-src 'none'",
     "form-action 'self'",
     // upgrade-insecure-requests: rewrites http:// to https:// automatically
     // (defense-in-depth even with HSTS — covers user-typed URLs in our forms)
