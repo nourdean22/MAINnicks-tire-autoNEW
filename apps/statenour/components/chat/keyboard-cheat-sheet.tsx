@@ -27,7 +27,7 @@ const SHORTCUT_ROWS: ShortcutRow[] = [
   { keys: ["⌘", "I"], desc: "Inspect the system prompt Nick is using" },
   { keys: ["⌘", "⇧", "L"], desc: "Open tool-call log for this conversation" },
   { keys: ["⌘", "⇧", "D"], desc: "Force DEEP mode for next message" },
-  { keys: ["⌘", "⇧", "V"], desc: "Cycle provider (auto → venice → openai → anthropic)" },
+  { keys: ["⌘", "⇧", "V"], desc: "Cycle provider (auto → openai → anthropic)" },
   { keys: ["⌘", "⇧", "P"], desc: "Jump to /brain pinned-context manager" },
   { keys: ["⌘", "⇧", "T"], desc: "Toggle text-to-speech for Nick" },
   { keys: ["⌘", "⇧", "E"], desc: "Copy entire conversation to clipboard" },
