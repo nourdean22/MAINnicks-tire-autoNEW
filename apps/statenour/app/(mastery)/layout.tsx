@@ -36,6 +36,16 @@ export default function MasteryLayout({
   return (
     <TRPCProvider>
     <NourStateProvider>
+      {/* A11y · WCAG 2.4.1 Bypass Blocks · first focusable element in the
+          shell. Keyboard / screen-reader users jump past the ambient HUD,
+          tickers, and bottom nav straight to <main id="main-content">.
+          Visually hidden until focused (sr-only → not-sr-only on focus). */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-[var(--bg-elevated)] focus:px-4 focus:py-2 focus:text-[var(--text-primary)] focus:outline focus:outline-2 focus:outline-[var(--glass-border)]"
+      >
+        Skip to main content
+      </a>
       <NeuralBackground />
       <PageTracker />
       {/* v10.0.529.91 · Wave 35 · invisible · watches usePathname +
@@ -72,7 +82,7 @@ export default function MasteryLayout({
             under the ticker. md:pb-8 (32px) clears the ticker with a
             touch of breathing room; mobile keeps pb-20 (80px) to clear
             the orb stack too. */}
-        <main className="pb-24">
+        <main id="main-content" className="pb-24">
           <div className="feed py-4 md:py-6 page-enter">
             {/* v11.1 · ErrorBoundary wraps the page content (not the
                 chrome). A broken panel still lets the orb, nav, and

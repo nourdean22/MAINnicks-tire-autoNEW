@@ -64,6 +64,17 @@ function normalizeQueryShape(query: string): string {
     .slice(0, 240);
 }
 
+// Raw SQL text is only emitted when DEBUG_SQL=1 is explicitly set. By
+// default the dev slow-query/N+1 logs carry the normalized SHAPE
+// ($?-parameterized, "public". stripped, no literals) so ad-hoc predicate
+// text never leaks into shared dev consoles, screen recordings, or pasted
+// incident notes. Prisma already parameterizes values, so the shape is the
+// useful signal anyway; raw text is opt-in for deep debugging only.
+const RAW_SQL_LOG = process.env.DEBUG_SQL === "1";
+function sqlForLog(query: string, max = 120): string {
+  return (RAW_SQL_LOG ? query : normalizeQueryShape(query)).slice(0, max);
+}
+
 function createPrismaClient(): PrismaClient {
   const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 
@@ -117,14 +128,14 @@ function createPrismaClient(): PrismaClient {
       // ── Slow-query log (always useful) ─────────────────────────────
       if (QUIET_QUERY_LOG) {
         if (duration > SLOW_QUERY_THRESHOLD_MS) {
-          console.warn(`\x1b[31m⚠ Slow query [${duration}ms]: ${e.query.slice(0, 120)}\x1b[0m`);
+          console.warn(`\x1b[31m⚠ Slow query [${duration}ms]: ${sqlForLog(e.query)}\x1b[0m`);
         }
       } else {
         if (duration > SLOW_QUERY_THRESHOLD_MS) {
-          console.warn(`\x1b[31m⚠ Slow query [${duration}ms]: ${e.query.slice(0, 120)}\x1b[0m`);
+          console.warn(`\x1b[31m⚠ Slow query [${duration}ms]: ${sqlForLog(e.query)}\x1b[0m`);
         } else if (duration > 300) {
           // Amber zone — Neon cold connection, informational only
-          console.log(`\x1b[33m● Query [${duration}ms]: ${e.query.slice(0, 80)}\x1b[0m`);
+          console.log(`\x1b[33m● Query [${duration}ms]: ${sqlForLog(e.query, 80)}\x1b[0m`);
         }
         // Anything under 300ms is silent — that's normal Neon latency, not noise
       }
