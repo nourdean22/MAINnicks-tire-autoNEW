@@ -108,7 +108,7 @@ This document. 30 min. **You are reading the output.**
 
 ### Wave 47 · ELON DELETE-FIRST SWEEP · risk LOW · reward ~8-10k LOC deletion
 - Drop 9 orphan Prisma enums (CustomerRiskStatus · LtvBand · CustomerFollowUpStage · CustomerSegment · LeadSource · LeadType · LeadUrgency · LeadStatus · ServiceCategory)
-- Drop 11 dead Prisma models (StateLog · AuditEvent · LocalSyncLog · SessionReport · MasteryScore · EnvironmentalSignal · PersonProfile · SystemSnapshot · OperatorProfile · OperatorPreference · BrainDump) after data-audit
+- Drop 11 dead Prisma models (StateLog · AuditEvent · LocalSyncLog · SessionReport · MasteryScore · ~~EnvironmentalSignal~~ ✓ dropped 2026-06-21 · PersonProfile · SystemSnapshot · OperatorProfile · OperatorPreference · BrainDump) after data-audit
 - `pnpm remove` 8 dead packages: stripe · twilio · cheerio · @react-pdf/renderer · @next/env · sharp · react-markdown · remark-gfm
 - Delete `useChatPersonality` hook (0 callers · 80 LOC)
 - Delete `components/ui/button-group.tsx` (0 callers) + `components/metric-card.tsx` (1 caller → use TrendCounter)
