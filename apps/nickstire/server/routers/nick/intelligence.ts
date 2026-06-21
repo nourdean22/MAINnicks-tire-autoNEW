@@ -549,6 +549,12 @@ export async function handleRunMigrations() {
       `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS metadata JSON DEFAULT NULL`,
       `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS audited_at TIMESTAMP NULL DEFAULT NULL`,
       `CREATE INDEX IF NOT EXISTS idx_vapi_audited_at ON vapi_call_logs (audited_at)`,
+      // 2026-06-21 · Phase 5.2 live IG insights — reach/saved/views/shares snapshots
+      // on instagram_analytics (views replaces Meta's deprecated plays). Idempotent.
+      `ALTER TABLE instagram_analytics ADD COLUMN IF NOT EXISTS reach INT DEFAULT NULL`,
+      `ALTER TABLE instagram_analytics ADD COLUMN IF NOT EXISTS saved INT DEFAULT NULL`,
+      `ALTER TABLE instagram_analytics ADD COLUMN IF NOT EXISTS views INT DEFAULT NULL`,
+      `ALTER TABLE instagram_analytics ADD COLUMN IF NOT EXISTS shares INT DEFAULT NULL`,
       // 2026-05-24 · drizzle/0061_service_affinity_v2.sql — SA v2 closed loop
       // 4 new tables: predictions/impressions/actions/outcomes. Enables
       // operator-flip activation gate via admin UI without TiDB Cloud login.
