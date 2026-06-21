@@ -138,8 +138,9 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   const fc: string[] = [];
   // 1. normalize each beat to a trimmed vertical clip + a deterministic slow
   //    push-in (Phase 4.1 motion): Ken Burns 1.0 -> 1.06 across the beat keeps a
-  //    static AI clip alive for watch-time. pzoom accumulates the prior frame's
-  //    zoom; d=1 = one output frame per input frame (no frame resampling).
+  //    static AI clip alive for watch-time. pzoom accumulates frame-to-frame
+  //    WITHIN each beat; every beat is a separate input stream, so the zoom resets
+  //    to 1.0 per beat (the intended per-beat push-in). d=1 = 1 out frame per in.
   segs.forEach((s, i) => {
     const zInc = (0.06 / Math.max(1, s.dur * 30)).toFixed(6);
     fc.push(
@@ -200,10 +201,11 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     );
     maps.push("-map", "[aout]");
   } else if (haveVo) {
-    fc.push(`[${voIdx}:a]volume=1.15,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
+    // aresample FIRST so loudnorm computes the apad/duration on a known 48k rate.
+    fc.push(`[${voIdx}:a]aresample=48000,volume=1.15,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
     maps.push("-map", "[aout]");
   } else if (haveMusic) {
-    fc.push(`[${musIdx}:a]volume=0.5,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
+    fc.push(`[${musIdx}:a]aresample=48000,volume=0.5,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
     maps.push("-map", "[aout]");
   }
   const hasAudio = maps.includes("[aout]");
@@ -453,7 +455,8 @@ export async function assembleReel(
     // job overwrite the same data/generated/reel.mp4. reel-<jobId>.mp4 keeps them distinct.
     const put = await storagePut(`reels/reel-${jobId}.mp4`, mp4, "video/mp4");
     log.info("reel assembled", { jobId, bytes: mp4.length, url: put.url });
-    return { mp4Url: put.url, durationSec: total, usedVo: !!voPath };
+    // Report the REAL file length (beats + the save-payload freeze), not just the beats.
+    return { mp4Url: put.url, durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath };
   } finally {
     fs.promises.rm(workDir, { recursive: true, force: true }).catch(() => {});
   }
