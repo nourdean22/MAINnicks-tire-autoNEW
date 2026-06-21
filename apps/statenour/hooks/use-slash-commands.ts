@@ -25,7 +25,7 @@ export interface SlashCommand {
   action?: "new-chat" | "history" | "pin-last" | "clear-chat" | "diagnose";
 }
 
-export const SLASH_COMMANDS: SlashCommand[] = [
+const SLASH_COMMANDS: SlashCommand[] = [
   // Prompt templates (fill input or fire immediately)
   { cmd: "/image", label: "Generate Image", icon: "📸", prompt: "Generate an image: " },
   { cmd: "/revenue", label: "Revenue Snapshot", icon: "📊", prompt: "Give me a full revenue snapshot — today, this week, pipeline, aging estimates, and what needs follow-up." },

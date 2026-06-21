@@ -170,12 +170,7 @@ export function ChatMessageList({
               candidates, momentum). No generic "ask me anything".
               No mode/persona labels. Tap an opener → ask fills input.
               See components/chat/chat-empty-state.tsx */
-          <ChatEmptyState
-            onPick={(ask) => {
-              setInput(ask);
-              inputRef.current?.focus();
-            }}
-          />
+          <ChatEmptyState />
         ) : (
           // Apr 27 · MOBILE-FLUIDITY — outer padding tuned for thumb
           // reach. Generous bottom space so the last message clears

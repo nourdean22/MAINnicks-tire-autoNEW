@@ -20,7 +20,7 @@
 import { useEffect, useState } from "react";
 import { hourET } from "@/lib/utils/datetime";
 
-export function ChatEmptyState({ onPick: _onPick }: { onPick: (ask: string) => void }) {
+export function ChatEmptyState() {
   // `greeting` stays null until client mount (avoids hydration mismatch
   // when server-rendered hour differs from local time).
   const [greeting, setGreeting] = useState<string | null>(null);

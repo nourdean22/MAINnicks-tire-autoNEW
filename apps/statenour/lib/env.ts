@@ -84,6 +84,21 @@ export const ENV_SPEC: Spec[] = [
   { key: "LIVEKIT_API_KEY",         tier: "runtime", description: "Wave-200 Phase 4 · LiveKit API key" },
   { key: "LIVEKIT_API_SECRET",      tier: "runtime", description: "Wave-200 Phase 4 · LiveKit API secret" },
 
+  // ── Operational / Tooling (read by scripts + runtime surfaces) ───────
+  { key: "APP_BASE_URL",              tier: "runtime", description: "Internal base URL for cron-generated links (falls back to NEXT_PUBLIC_APP_URL)" },
+  { key: "BUILD_TIME",                tier: "runtime", description: "Deploy/build timestamp for health digest" },
+  { key: "DAILY_AI_BUDGET_CENTS",     tier: "runtime", description: "Daily AI spend cap in cents — cost SLO gate" },
+  { key: "DEBUG_SQL",                 tier: "runtime", description: "Set to '1' to log raw Prisma SQL queries" },
+  { key: "NARRATOR_LLM_SYNTHESIS",    tier: "runtime", description: "Set to '1' to enable Ultron narrator LLM synthesis" },
+  { key: "NICK_PRIME_PROMPT",         tier: "runtime", description: "Toggle Nick prime prompt variant ('1' / '0')" },
+  { key: "OPERATOR_EMAIL",            tier: "runtime", description: "Fallback operator email for brain preference inference" },
+  { key: "GEMINI_MODEL",              tier: "runtime", description: "Override Gemini model for Google Search integration" },
+  { key: "ALLOW_PROD_WRITES",         tier: "runtime", description: "Dangerous script gate — set to '1' to permit prod mutations" },
+  { key: "CONFIRM_PROD",              tier: "runtime", description: "Dangerous script gate — set to '1' to confirm prod operations" },
+  { key: "POLICY_GATE_HARD",          tier: "runtime", description: "CI gate — set to '1' to enforce hard policy checks" },
+  { key: "POLICY_GATE_SOFT",          tier: "runtime", description: "CI gate — set to '1' to enforce soft policy warnings" },
+  { key: "PRE_PUSH_SKIP",             tier: "runtime", description: "Dev escape hatch — set to '1' to skip pre-push checks locally" },
+
   // ── PLATFORM (auto-set) ────────────────────────────────────────────
   { key: "NODE_ENV",              tier: "platform", description: "development | production | test" },
   { key: "VERCEL",                tier: "platform", description: "Vercel runtime indicator" },

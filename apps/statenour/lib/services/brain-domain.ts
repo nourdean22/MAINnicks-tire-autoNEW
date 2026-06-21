@@ -896,9 +896,6 @@ export async function buildActivityStream(args: {
   };
 }
 
-/** Re-export so the tRPC router has a single brain-domain import. */
-export { getEntityHistory };
-
 // ──────────────── page visit ────────────────
 
 /** Shallow, explicit shape for a page-visit record result. */
