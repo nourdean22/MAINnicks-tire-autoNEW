@@ -207,18 +207,13 @@ export default function FacelessReelStudio() {
   };
 
   const handleReadInsights = () => {
-    setIsReadingInsights(true);
-    copied("Reading Instagram Graph API metrics...");
-    setTimeout(() => {
-      setIsReadingInsights(false);
-      setReelInsights({
-        views: 1200 + Math.floor(Math.random() * 800),
-        likes: 80 + Math.floor(Math.random() * 50),
-        saves: 15 + Math.floor(Math.random() * 15),
-        dms: 2 + Math.floor(Math.random() * 6),
-      });
-      copied("Insights loaded!");
-    }, 1500);
+    // Phase 5.1: the old handler FABRICATED metrics with Math.random() behind a
+    // "Reading Graph API" toast. Real reach/saved/views/shares now sync from the
+    // Graph API into instagram_analytics (services/metaSocial.getMediaInsights)
+    // and surface in the Analytics tab — never invent numbers here.
+    setIsReadingInsights(false);
+    setReelInsights(null);
+    copied("Live reel metrics (reach, saves, views, shares) now sync from the Graph API into the Analytics tab — this preview no longer shows estimates.");
   };
 
   const publishReelMutation = trpc.contentAdmin.publishReel.useMutation({
