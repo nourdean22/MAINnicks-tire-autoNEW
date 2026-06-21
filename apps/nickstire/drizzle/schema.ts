@@ -2891,6 +2891,12 @@ export const instagramAnalytics = mysqlTable("instagram_analytics", {
   themesJson: text("themesJson"),
   /** Follower count at time of snapshot */
   followerSnapshot: int("followerSnapshot"),
+  /** Live Graph insights, refreshed each sync (nullable until first fetched). */
+  reach: int("reach"),
+  saved: int("saved"),
+  /** `views` replaces Meta's deprecated `plays` metric. */
+  views: int("views"),
+  shares: int("shares"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("idx_ig_analytics_post").on(table.postId),

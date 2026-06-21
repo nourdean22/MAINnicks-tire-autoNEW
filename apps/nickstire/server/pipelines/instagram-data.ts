@@ -92,17 +92,17 @@ export async function syncInstagramPosts(): Promise<{
 
   let newPosts = 0;
   let errors = 0;
+  // Only refresh live insights for posts whose metrics are still moving — older
+  // posts are stable, so skipping them keeps Graph calls well under rate limits.
+  const INSIGHTS_REFRESH_DAYS = 14;
 
   for (const post of posts) {
     try {
-      // Check if already processed
       const existing = await d
         .select({ id: instagramAnalytics.id })
         .from(instagramAnalytics)
         .where(eq(instagramAnalytics.postId, post.id))
         .limit(1);
-
-      if (existing.length > 0) continue;
 
       // Calculate engagement rate
       const totalEngagement = post.likes + post.comments;
@@ -110,12 +110,36 @@ export async function syncInstagramPosts(): Promise<{
         ? Math.round((totalEngagement / followers) * 10000) // Store as *10000
         : 0;
 
-      // Parse posting time
+      // Live Graph insights — real reach/saved/views/shares — but only while the
+      // post is recent enough that its metrics still move; older posts skip the
+      // call to stay under the Graph per-token rate limit. Never throws; on error
+      // metricCols stays empty so the row keeps its prior values.
       const postedDate = new Date(post.posted);
+      const ageDays = (Date.now() - postedDate.getTime()) / 86_400_000;
+      const { getMediaInsights } = await import("../services/metaSocial");
+      const insights = Number.isFinite(ageDays) && ageDays <= INSIGHTS_REFRESH_DAYS
+        ? await getMediaInsights(post.id)
+        : { ok: false as const };
+      const metricCols: { reach?: number | null; saved?: number | null; views?: number | null; shares?: number | null } =
+        insights.ok
+          ? { reach: insights.reach ?? null, saved: insights.saved ?? null, views: insights.views ?? null, shares: insights.shares ?? null }
+          : {};
+
+      // Already tracked: refresh the live-growing metrics (don't re-score — that's
+      // an LLM call, and the AI content score doesn't change after publish).
+      if (existing.length > 0) {
+        await d
+          .update(instagramAnalytics)
+          .set({ likes: post.likes, comments: post.comments, engagementRate, followerSnapshot: followers, ...metricCols })
+          .where(eq(instagramAnalytics.id, existing[0].id));
+        continue;
+      }
+
+      // Parse posting time
       const dayOfWeek = postedDate.getDay();
       const hourOfDay = postedDate.getHours();
 
-      // AI content scoring
+      // AI content scoring (new posts only)
       const { score, themes } = await scoreContent(post.caption, post.type, post.likes, post.comments, followers);
 
       await d.insert(instagramAnalytics).values({
@@ -131,6 +155,7 @@ export async function syncInstagramPosts(): Promise<{
         contentScore: score,
         themesJson: JSON.stringify(themes),
         followerSnapshot: followers,
+        ...metricCols,
       });
 
       newPosts++;

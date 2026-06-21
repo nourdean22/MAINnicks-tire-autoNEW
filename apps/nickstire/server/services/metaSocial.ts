@@ -772,6 +772,65 @@ export async function getMediaComments(
 }
 
 /**
+ * Pure: map an IG /insights Graph response (`{data:[{name,values:[{value}]}]}`)
+ * to the metric fields we store. Tolerates missing/extra metrics and bad shapes.
+ */
+export function parseInsights(data: unknown): { reach?: number; saved?: number; views?: number; shares?: number } {
+  const out: Record<string, number> = {};
+  const rows = (data as { data?: unknown[] } | null)?.data;
+  for (const raw of Array.isArray(rows) ? rows : []) {
+    const m = raw as Record<string, unknown>;
+    const name = typeof m.name === "string" ? m.name : "";
+    const values = m.values as Array<{ value?: unknown }> | undefined;
+    const v = values?.[0]?.value;
+    if (name && typeof v === "number") out[name] = v;
+  }
+  return { reach: out.reach, saved: out.saved, views: out.views, shares: out.shares };
+}
+
+/**
+ * Fetch LIVE engagement insights for one of our media objects (reel/post).
+ * Real Graph data — reach/saved/views/shares — for the analytics table and the
+ * data-driven generation loop (replaces the Studio's fabricated metrics).
+ * Read-only, never throws (returns ok:false on any config/Graph error).
+ * `views` replaces the deprecated `plays` metric; image media reject `views`, so
+ * a metric-validation error retries with the universally-supported subset.
+ */
+export async function getMediaInsights(
+  mediaId: string,
+): Promise<{ ok: boolean; reach?: number; saved?: number; views?: number; shares?: number; error?: string }> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  if (!token) {
+    return { ok: false, error: "Instagram not configured (need META_PAGE_ACCESS_TOKEN)" };
+  }
+  const fetchMetrics = async (metrics: string) => {
+    const url = `${GRAPH_URL}/${encodeURIComponent(mediaId)}/insights?metric=${metrics}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+    const data = await res.json();
+    return { res, data };
+  };
+  try {
+    let { res, data } = await fetchMetrics("reach,saved,views,shares");
+    // Image/carousel media reject `views` (reels-only) and fail the whole call;
+    // retry once with the universally-supported subset on ANY first failure.
+    if (!res.ok) {
+      ({ res, data } = await fetchMetrics("reach,saved,shares"));
+    }
+    if (!res.ok) {
+      const errMsg = data?.error?.message || `HTTP ${res.status}`;
+      log.error("Instagram insights fetch failed:", { error: errMsg });
+      return { ok: false, error: errMsg };
+    }
+    return { ok: true, ...parseInsights(data) };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error("Instagram insights error:", { error: errMsg });
+    return { ok: false, error: errMsg };
+  }
+}
+
+/**
  * Post a reply to a specific comment on our own media. LIVE Graph write,
  * so callers MUST claim-safety-check the message and gate it behind an
  * explicit per-action admin confirmation (see instagramAdminRouter.postReply).
