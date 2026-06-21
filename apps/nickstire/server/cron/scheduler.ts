@@ -515,6 +515,19 @@ export function startTieredScheduler(): void {
           return runDailyReelPost();
         },
       },
+      {
+        // Comment-velocity responder (Phase 3.2): drafts + (when armed) posts
+        // claim-safe replies to comments on recently posted reels — first-hour
+        // comment velocity is a Meta reach lever. Double-gated: requiresEnv keeps
+        // it OFF by default, and even when on it dry-runs (logs only) unless
+        // REEL_COMMENT_RESPONDER_LIVE=true. A claim-blocked draft is never posted.
+        name: "reel-comment-responder",
+        requiresEnv: "REEL_COMMENT_RESPONDER_ENABLED",
+        handler: async () => {
+          const { runReelCommentResponder } = await import("../services/commentResponder");
+          return runReelCommentResponder();
+        },
+      },
     ],
     running: false,
     lastRun: null,
