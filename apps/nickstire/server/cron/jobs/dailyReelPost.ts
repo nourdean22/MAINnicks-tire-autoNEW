@@ -110,11 +110,21 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
   const job = jobs[0];
 
   if (!job) {
-    // Only ENQUEUE during the 9 AM ET window. Publishing an already-assembled job (below)
-    // runs on ANY pulse — async gen+assembly routinely finishes after the 9 o'clock hour, so
-    // gating publish on wall-clock would silently skip the reel forever.
-    if (hour !== POST_HOUR_ET) {
-      return { recordsProcessed: 0, details: `not post hour (ET ${hour}:00, want ${POST_HOUR_ET}:00) — waiting to enqueue` };
+    // Only ENQUEUE during the best posting hour. Publishing an already-assembled
+    // job (below) runs on ANY pulse — async gen+assembly routinely finishes after
+    // the window, so gating publish on wall-clock would silently skip the reel.
+    // Phase 5.3: the enqueue hour is data-driven (top-engagement slot) once the
+    // analytics table has enough data; until then it stays POST_HOUR_ET (9 ET).
+    let targetHour = POST_HOUR_ET;
+    try {
+      const { getBestPostingTimes } = await import("../../pipelines/instagram-data");
+      const times = await getBestPostingTimes({ limit: 1 });
+      if (times.length && Number.isFinite(times[0].hourOfDay)) targetHour = times[0].hourOfDay;
+    } catch (err) {
+      log.warn("best-posting-time lookup failed; using default hour", { err: err instanceof Error ? err.message : String(err) });
+    }
+    if (hour !== targetHour) {
+      return { recordsProcessed: 0, details: `not post hour (ET ${hour}:00, want ${targetHour}:00) — waiting to enqueue` };
     }
     const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
     if (idx >= MANIFEST.length) {
