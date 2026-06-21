@@ -201,19 +201,7 @@ export const healthProcedures = {
    */
   aiSpend: operatorProcedure.query(async () => checkBudget()),
 
-  /**
-   * Cross-domain residuals slice · owner-only · the live Venice API
-   * status + balance probe. Replaces GET /api/ai/venice-status ·
-   * delegates to the shared `venice-status.probeVeniceStatus` service
-   * the REST route also calls. No input · the probe is a single bounded
-   * fetch (10s timeout). `useVeniceHealth` polls this on a 30s interval
-   * · React Query now drives the refetch via refetchInterval. Never
-   * throws — a missing key / network failure resolves to
-   * `{ ok: false, error }` so the consumer's health dot just goes amber.
-   */
-  veniceStatus: operatorProcedure.query(async () => {
-    return { ok: false, error: "Venice retired" };
-  }),
+
 
   /**
    * Cross-domain residuals slice · owner-only · the full multi-provider

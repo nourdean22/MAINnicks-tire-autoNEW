@@ -949,8 +949,8 @@ export interface SuggestionStatsWindow {
   requests: number;
   cacheHits: number;
   cacheHitRate: number;
-  veniceOk: number;
-  veniceFail: number;
+  aiOk: number;
+  aiFail: number;
   heuristic: number;
   errorFallback: number;
   avgLatencyMs: number;
@@ -972,8 +972,8 @@ export interface SuggestionStatsView extends SuggestionStatsWindow {
     requests: number;
     cacheHits: number;
     cacheHitRate: number;
-    veniceOk: number;
-    veniceFail: number;
+    aiOk: number;
+    aiFail: number;
     heuristic: number;
     errorFallback: number;
     avgLatencyMs: number;
@@ -982,7 +982,7 @@ export interface SuggestionStatsView extends SuggestionStatsWindow {
 }
 
 /**
- * Suggestion-cache hit/miss + Venice OK/fail telemetry · lambda-local
+ * Suggestion-cache hit/miss + AI OK/fail telemetry · lambda-local
  * live counters + 24h SystemMetric-persisted baseline. Lifted verbatim
  * from GET /api/ai/chat/suggestions/stats — same `live` / `history24`
  * envelope + flat legacy keys.
@@ -995,8 +995,8 @@ export async function buildSuggestionStats(): Promise<SuggestionStatsView> {
     requests: live.requests,
     cacheHits: live.cacheHits,
     cacheHitRate: Number(live.cacheHitRate.toFixed(3)),
-    veniceOk: live.veniceOk,
-    veniceFail: live.veniceFail,
+    aiOk: live.aiOk,
+    aiFail: live.aiFail,
     heuristic: live.heuristic,
     errorFallback: live.errorFallback,
     avgLatencyMs: Math.round(live.avgLatencyMs),
@@ -1010,8 +1010,8 @@ export async function buildSuggestionStats(): Promise<SuggestionStatsView> {
     history24: {
       requests: history24.requests,
       cacheHits: history24.cacheHits,
-      veniceOk: history24.veniceOk,
-      veniceFail: history24.veniceFail,
+      aiOk: history24.aiOk,
+      aiFail: history24.aiFail,
       heuristic: history24.heuristic,
       errorFallback: history24.errorFallback,
       avgLatencyMs: history24.avgLatencyMs,

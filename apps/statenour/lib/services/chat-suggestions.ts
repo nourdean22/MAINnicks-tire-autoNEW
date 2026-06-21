@@ -153,7 +153,7 @@ export interface SuggestionsArgs {
 
 export interface SuggestionsResult {
   suggestions: string[];
-  /** "cache" | "venice" | "heuristic" | "too-short" | "error-fallback" */
+  /** "cache" | "ai" | "heuristic" | "too-short" | "error-fallback" */
   source: string;
   cached: boolean;
   attempts: number;
@@ -161,7 +161,7 @@ export interface SuggestionsResult {
 }
 
 /**
- * Build smart-reply suggestions · cache → Venice (×2) → heuristic.
+ * Build smart-reply suggestions · cache → AI (×2) → heuristic.
  * Never throws — an internal failure resolves to the error-fallback
  * triplet (the legacy route returned HTTP 200 on the catch path so
  * the chip UI never breaks).
@@ -205,7 +205,7 @@ export async function buildSuggestions(
     const suggestions = ai ?? heuristicSuggestions(assistantMsg);
     cacheSet(key, suggestions);
 
-    const source = ai ? "venice" : "heuristic";
+    const source = ai ? "ai" : "heuristic";
     const latencyMs = Date.now() - t0;
     recordSuggestionMetric(source, latencyMs, !ai && attempts > 0);
 

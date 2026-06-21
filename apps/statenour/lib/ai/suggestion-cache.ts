@@ -200,8 +200,8 @@ export function heuristicSuggestions(assistant: string): string[] {
 
 type MetricWindow = {
   cacheHits: number;
-  veniceOk: number;
-  veniceFail: number;
+  aiOk: number;
+  aiFail: number;
   heuristic: number;
   errorFallback: number;
   totalLatencyMs: number;
@@ -210,8 +210,8 @@ type MetricWindow = {
 };
 const METRICS: MetricWindow = {
   cacheHits: 0,
-  veniceOk: 0,
-  veniceFail: 0,
+  aiOk: 0,
+  aiFail: 0,
   heuristic: 0,
   errorFallback: 0,
   totalLatencyMs: 0,
@@ -220,33 +220,33 @@ const METRICS: MetricWindow = {
 };
 
 export function recordSuggestionMetric(
-  source: "cache" | "venice" | "heuristic" | "error-fallback",
+  source: "cache" | "ai" | "heuristic" | "error-fallback",
   latencyMs: number,
-  veniceFailed: boolean
+  aiFailed: boolean
 ) {
   METRICS.requests++;
   METRICS.totalLatencyMs += latencyMs;
   METRICS.latencySamples.push(latencyMs);
   if (METRICS.latencySamples.length > 200) METRICS.latencySamples.shift();
   if (source === "cache") METRICS.cacheHits++;
-  else if (source === "venice") METRICS.veniceOk++;
+  else if (source === "ai") METRICS.aiOk++;
   else if (source === "heuristic") METRICS.heuristic++;
   else if (source === "error-fallback") METRICS.errorFallback++;
-  if (veniceFailed && source !== "venice") METRICS.veniceFail++;
+  if (aiFailed && source !== "ai") METRICS.aiFail++;
 
   // Apr 20 · Persist to SystemMetric so history survives lambda
   // cold starts. Fire-and-forget; the in-memory metrics above are
   // the hot path for the panel. DB reads happen in readHistorical-
   // SuggestionMetrics for the 24h view.
-  void persistMetric(source, latencyMs, veniceFailed).catch((err) =>
+  void persistMetric(source, latencyMs, aiFailed).catch((err) =>
     recordError("ai:suggestion-metric", err, { source, latencyMs }),
   );
 }
 
 async function persistMetric(
-  source: "cache" | "venice" | "heuristic" | "error-fallback",
+  source: "cache" | "ai" | "heuristic" | "error-fallback",
   latencyMs: number,
-  veniceFailed: boolean
+  aiFailed: boolean
 ): Promise<void> {
   try {
     const { prisma } = await import("@/lib/prisma");
@@ -256,7 +256,7 @@ async function persistMetric(
         value: latencyMs,
         unit: "ms",
         source: "api",
-        tags: { source, veniceFailed } as any,
+        tags: { source, aiFailed } as any,
       },
     });
   } catch {
@@ -274,8 +274,8 @@ export async function readHistoricalSuggestionMetrics(
 ): Promise<{
   requests: number;
   cacheHits: number;
-  veniceOk: number;
-  veniceFail: number;
+  aiOk: number;
+  aiFail: number;
   heuristic: number;
   errorFallback: number;
   avgLatencyMs: number;
@@ -293,8 +293,8 @@ export async function readHistoricalSuggestionMetrics(
       take: 5000,
     });
     let cacheHits = 0;
-    let veniceOk = 0;
-    let veniceFail = 0;
+    let aiOk = 0;
+    let aiFail = 0;
     let heuristic = 0;
     let errorFallback = 0;
     let total = 0;
@@ -302,19 +302,20 @@ export async function readHistoricalSuggestionMetrics(
     for (const r of rows) {
       total++;
       totalLatency += r.value;
-      const tags = r.tags as { source?: string; veniceFailed?: boolean } | null;
+      const tags = r.tags as { source?: string; veniceFailed?: boolean; aiFailed?: boolean } | null;
       const src = tags?.source;
       if (src === "cache") cacheHits++;
-      else if (src === "venice") veniceOk++;
+      // Map legacy "venice" tag or new "ai" tag to aiOk for back-compat
+      else if (src === "venice" || src === "ai") aiOk++;
       else if (src === "heuristic") heuristic++;
       else if (src === "error-fallback") errorFallback++;
-      if (tags?.veniceFailed) veniceFail++;
+      if (tags?.veniceFailed || tags?.aiFailed) aiFail++;
     }
     return {
       requests: total,
       cacheHits,
-      veniceOk,
-      veniceFail,
+      aiOk,
+      aiFail,
       heuristic,
       errorFallback,
       avgLatencyMs: total > 0 ? Math.round(totalLatency / total) : 0,
@@ -324,8 +325,8 @@ export async function readHistoricalSuggestionMetrics(
     return {
       requests: 0,
       cacheHits: 0,
-      veniceOk: 0,
-      veniceFail: 0,
+      aiOk: 0,
+      aiFail: 0,
       heuristic: 0,
       errorFallback: 0,
       avgLatencyMs: 0,

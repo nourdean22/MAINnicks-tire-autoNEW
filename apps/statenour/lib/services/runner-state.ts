@@ -113,7 +113,7 @@ export type CaptureInboxItemView = {
   metadata: Record<string, unknown>;
 };
 
-const DEFAULT_SERVICE_ORDER = ["launcher", "app", "runner", "repair_supervisor", "upgrade_runner", "venice", "ale", "capture", "network"] as const;
+const DEFAULT_SERVICE_ORDER = ["launcher", "app", "runner", "repair_supervisor", "upgrade_runner", "ale", "capture", "network"] as const;
 const DEFAULT_INTEGRATION_ORDER = ["ale_session", "ale_refresh", "capture_sync"] as const;
 const LOCAL_STATUS_SNAPSHOT_PATH = "C:\\NOUR_OS\\state\\status_snapshot.json";
 
@@ -234,7 +234,6 @@ function degradedSnapshot(detail: string): SystemHealthSnapshot {
           app: emptyService("app", "ready", "Public control plane is serving cached-safe surfaces.", ""),
           runner: emptyService("runner", "degraded", "Local worker plane heartbeat is unavailable.", "Run Start NOUR OS to restore the local worker plane."),
           upgrade_runner: emptyService("upgrade_runner", "degraded", "Night Shift has not reported yet.", "Run or verify the Night Shift controller."),
-          venice: emptyService("venice", "ready", "Venice AI — cloud provider, always available.", ""),
           ale: emptyService("ale", "degraded", "Recovery cache cannot refresh while the data plane is degraded.", "Restore database connectivity, then refresh ALE."),
           capture: emptyService("capture", "degraded", "Capture inbox cannot refresh while the data plane is degraded.", "Restore database connectivity, then rerun the local runner."),
           network: emptyService("network", "degraded", "Mobile and remote URLs may be stale.", "Check the latest runner heartbeat.")

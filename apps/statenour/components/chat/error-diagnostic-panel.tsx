@@ -69,7 +69,7 @@ export function ErrorDiagnosticPanel({
           />
           {diagnosing && (
             <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 text-[11px] text-blue-300 font-mono">
-              running checks · pinging Venice + DB + reading audit logs…
+              running checks · pinging AI + DB + reading audit logs…
             </div>
           )}
           {diagnosticReport && (

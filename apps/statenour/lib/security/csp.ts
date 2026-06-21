@@ -30,7 +30,7 @@ export function generateNonce(): string {
  * prod is nonce + strict-dynamic with no unsafe-inline / unsafe-eval.
  *
  * connect-src mirrors the prior next.config policy verbatim (OpenAI /
- * Anthropic / Venice / VAPI / Ollama Cloud + local) so the AI fallback chain
+ * Anthropic / VAPI / Ollama Cloud + local) so the AI fallback chain
  * and the VAPI live-call surface keep working.
  */
 export function buildCsp(nonce: string, isDev: boolean): string {
@@ -46,7 +46,7 @@ export function buildCsp(nonce: string, isDev: boolean): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.venice.ai https://api.vapi.ai https://ollama.com https://*.ollama.com http://localhost:11434 wss:",
+    "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.vapi.ai https://ollama.com https://*.ollama.com http://localhost:11434 wss:",
     // object-src 'none' (audit-2026-06-21) — block <object>/<embed>/<applet>
     // plugin execution outright; nothing in the app uses them.
     "object-src 'none'",

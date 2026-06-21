@@ -14,7 +14,7 @@
  * Usage:
  *   <ErrorCard
  *     title="Chat failed"
- *     message="Venice returned a 429"
+ *     message="AI returned a 429"
  *     domain="chat:stream"
  *     onRetry={() => retry()}
  *     onDiagnose={() => askNick("Why did the chat just fail?")}
@@ -38,11 +38,11 @@ export interface ErrorCardProps {
 }
 
 const DOMAIN_HINTS: Record<string, string> = {
-  "chat:stream": "Venice or the network dropped mid-stream. Retry usually works — if not, the control bar's Provider pill lets you force OpenAI.",
-  "chat:request": "The chat request couldn't even start. Check Venice status (dot in chat header) and API key env vars.",
+  "chat:stream": "AI provider or the network dropped mid-stream. Retry usually works — if not, the control bar's Provider pill lets you force OpenAI.",
+  "chat:request": "The chat request couldn't even start. Check provider status (dot in chat header) and API key env vars.",
   "chat:db-write": "Neon Postgres write failed. Chat keeps working but history won't persist this turn. Check the Prisma connection.",
   "chat:prompt-build": "The system prompt builder threw. Usually a brain engine regression — check the audit log for which engine.",
-  "chat:image-gen": "Venice image API returned an error. Try rephrasing the image prompt or check rate limits.",
+  "chat:image-gen": "AI image API returned an error. Try rephrasing the image prompt or check rate limits.",
   "chat:post-process": "A background task (journal / people / actions) failed. Chat response is fine, but side effects are degraded.",
   "ai:provider": "AI provider init failed. Either no API key is set or the provider is temporarily unreachable.",
   "ai:embedding": "Embedding API call failed. Semantic search falls back to keyword mode automatically.",
