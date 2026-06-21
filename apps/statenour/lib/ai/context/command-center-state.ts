@@ -358,7 +358,6 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
     pinnedMemories,
     topBrainRules,
     latestFinancial,
-    latestEmpire,
     masteryRows,
     weeklyTargetRow,
     todayDoneCount,
@@ -535,13 +534,6 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
           savingsRatePct: true,
           netWorthEstimate: true,
         },
-      })
-      .catch(() => null),
-    // v9.1.9 · most recent empire snapshot for the moneyScore.
-    prisma.dailyEmpireSnapshot
-      .findFirst({
-        orderBy: { snapshotDate: "desc" },
-        select: { snapshotDate: true, moneyScore: true },
       })
       .catch(() => null),
     // v9.1.9 · latest score per mastery domain (one row per domain).
@@ -802,7 +794,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       pinned: pinnedMemories.map(toPinnedMemorySummary),
       rules: topBrainRules.map(toBrainRuleSummary),
     },
-    domainSnapshot: buildDomainSnapshot(latestFinancial, latestEmpire, masteryRows),
+    domainSnapshot: buildDomainSnapshot(latestFinancial, null, masteryRows),
     temporal: buildTemporalContext(weeklyTargetRow, currentWeekKey),
     proof: {
       today: todayProof,

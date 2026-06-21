@@ -550,10 +550,8 @@ export async function selfHeal(): Promise<{ fixed: number }> {
   fixed += oldContradictions.count;
 
   // Fix environmental signals past expiry
-  const expiredSignals = await prisma.environmentalSignal.deleteMany({
-    where: { expiresAt: { lt: new Date() } },
-  });
-  fixed += expiredSignals.count;
+  // EnvironmentalSignal model removed — no-op
+  fixed += 0;
 
   return { fixed };
 }
@@ -581,7 +579,7 @@ export async function systemHealthCheck(): Promise<Record<string, unknown>> {
     prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.SIMULATION, deletedAt: null } }),
     prisma.identitySnapshot.count({ where: { deletedAt: null } }),
     prisma.causalChain.count(),
-    prisma.environmentalSignal.count(),
+    Promise.resolve(0),
     prisma.personProfile.count(),
   ]);
 

@@ -408,11 +408,9 @@ Max 3 signals.`,
   const signals = extracted.value;
   if (!Array.isArray(signals)) return { signals: 0 };
 
-  for (const s of signals.slice(0, 3)) {
-    await prisma.environmentalSignal.create({
-      data: { date: today(), category: s.category || "seasonal", signal: s.signal, impact: s.impact, urgency: s.urgency || "low", actionable: !!s.actionable },
-    }).catch(() => undefined);
-  }
+  // EnvironmentalSignal model removed — no-op
+  void signals;
+
   return { signals: signals.length };
 }
 
@@ -510,11 +508,7 @@ export async function getThinkingLayersContext(): Promise<string> {
   }
 
   // L12: Environmental signals
-  const signals = await prisma.environmentalSignal.findMany({
-    where: { urgency: { in: ["medium", "high", "critical"] } },
-    orderBy: { createdAt: "desc" }, take: 3,
-    select: { category: true, signal: true, impact: true, urgency: true },
-  }).catch((): never[] => []);
+  const signals: Array<{ category: string; signal: string; impact: string; urgency: string }> = [];
 
   if (signals.length > 0) {
     sections.push(`\n## L12 — Environmental Signals (${signals.length})`);

@@ -34,5 +34,4 @@ export { auditTodaysLeads } from "./audit-todays-leads";
 
 // Consolidated Stack workflows
 export { crmFollowups } from "./crm-followups";
-export { financeClassification } from "./finance-classification";
 

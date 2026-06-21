@@ -462,7 +462,6 @@ export async function buildSystemPromptUncached(
     habitData,
     recentVisionEvents,
     latestFinancial,
-    latestEmpire,
     customerCount,
     openLeadCount,
     activeJobCount,
@@ -638,16 +637,7 @@ export async function buildSystemPromptUncached(
         }).catch((): null => null),
       null,
     ),
-    gated(
-      tier,
-      ["business"],
-      () =>
-        prisma.dailyEmpireSnapshot.findFirst({
-          orderBy: { snapshotDate: "desc" },
-          select: { snapshotDate: true, moneyScore: true, moneyDetail: true },
-        }).catch((): null => null),
-      null,
-    ),
+    Promise.resolve(0).catch((): number => 0),
     Promise.resolve(0).catch((): number => 0),
     Promise.resolve(0).catch((): number => 0),
     Promise.resolve(0).catch((): number => 0),
@@ -937,7 +927,7 @@ export async function buildSystemPromptUncached(
     openLeadCount,
     activeJobCount,
     latestFinancial,
-    latestEmpire,
+    latestEmpire: null,
   }));
 
   // Seasonal context lives in lib/ai/business-knowledge.ts SEASONAL_PLAYBOOKS

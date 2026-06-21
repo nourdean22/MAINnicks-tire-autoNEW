@@ -133,22 +133,8 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
   // 3. Update environmental signals if business-relevant
   if (event.type === "booking" || event.type === "lead") {
     const dayOfWeek = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "long" });
-    const existingSignal = await prisma.environmentalSignal.findFirst({
-      where: { date: today(), category: BRAIN_CATEGORIES.OPERATIONAL },
-    });
-
-    if (!existingSignal) {
-      await prisma.environmentalSignal.create({
-        data: {
-          date: today(),
-          category: BRAIN_CATEGORIES.OPERATIONAL,
-          signal: `${dayOfWeek} activity: ${event.type} received`,
-          impact: "Tracking daily shop activity flow",
-          urgency: "low",
-          actionable: false,
-        },
-      });
-    }
+    // EnvironmentalSignal model removed — no-op
+    void dayOfWeek;
     actions.push("signal.operational");
   }
 
