@@ -42,6 +42,9 @@ export interface ReelSegment {
 export const MAX_CLIP_SECONDS = 4;
 const MIN_BEAT_SECONDS = 0.8;
 const DEFAULT_BEAT_SECONDS = 3;
+/** Phase 3.1 save-payload: hold the final frame this long with a SAVE overlay. */
+export const SAVE_FREEZE_SECONDS = 3;
+const SAVE_CTA_TEXT = "SAVE THIS";
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
@@ -116,6 +119,9 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     throw new Error(`segment/clip count mismatch: ${segs.length} segs vs ${clipPaths.length} clips`);
   }
   const total = segmentsTotalSeconds(segs);
+  // Phase 3.1: the rendered reel runs SAVE_FREEZE_SECONDS longer than the beats
+  // (a held final frame + SAVE prompt). Audio length + -t use this extended total.
+  const videoTotal = Number((total + SAVE_FREEZE_SECONDS).toFixed(2));
   // drawtext fontfile: forward slashes + escaped ':' so a Windows drive letter
   // (C:/...) or any ':' in the path doesn't terminate the option early.
   const fontEsc = fontPath.replace(/\\/g, "/").replace(/:/g, "\\:");
@@ -130,10 +136,20 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   const musIdx = clipPaths.length + (haveVo ? 1 : 0);
 
   const fc: string[] = [];
-  // 1. normalize each beat to a trimmed vertical clip
+  // 1. normalize each beat to a trimmed vertical clip + a deterministic slow
+  //    push-in (Phase 4.1 motion): Ken Burns 1.0 -> 1.06 across the beat keeps a
+  //    static AI clip alive for watch-time. pzoom accumulates frame-to-frame
+  //    WITHIN each beat; every beat is a separate input stream, so the zoom resets
+  //    to 1.0 per beat (the intended per-beat push-in). d=1 = 1 out frame per in.
   segs.forEach((s, i) => {
+    const zInc = (0.06 / Math.max(1, s.dur * 30)).toFixed(6);
     fc.push(
-      `[${i}:v]trim=0:${s.dur},setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30,format=yuv420p[v${i}]`,
+      // fps=30 BEFORE zoompan: zoompan is fps-sensitive on video — d=1 stamps the
+      // INPUT frame count onto its output fps, so a 24fps source at fps=30 would
+      // shrink each beat to 0.8x. Normalizing to 30fps first keeps duration exact.
+      `[${i}:v]trim=0:${s.dur},setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,` +
+        `zoompan=z='min(pzoom+${zInc},1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30,` +
+        `setsar=1,format=yuv420p[v${i}]`,
     );
   });
   // 2. concat all beats into one video stream
@@ -150,7 +166,7 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     const start = cum;
     const end = cum + s.dur;
     cum = end;
-    const next = i === segs.length - 1 ? "vout" : `d${i}`;
+    const next = i === segs.length - 1 ? "vcap" : `d${i}`;
     const isHook = i === 0;
     const size = isHook ? Math.round(s.fontSize * 1.35) : s.fontSize;
     const yPos = isHook ? "(h-text_h)/2" : "h*0.62";
@@ -160,21 +176,36 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     label = next;
   });
 
+  // 3b. Phase 3.1 save-payload: freeze the final frame for SAVE_FREEZE_SECONDS and
+  //     stamp a top-of-frame "SAVE THIS" prompt (works muted; a save is a top Meta
+  //     reach lever). tpad clone-holds the last rendered frame; the overlay shows
+  //     only during the freeze window so it never collides with beat captions.
+  fc.push(`[vcap]tpad=stop_mode=clone:stop_duration=${SAVE_FREEZE_SECONDS}[vpad]`);
+  fc.push(
+    `[vpad]drawtext=fontfile='${fontEsc}':text='${SAVE_CTA_TEXT}':fontsize=72:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=h*0.12:enable='gte(t,${total.toFixed(2)})'[vout]`,
+  );
+
   // 4. audio: VO loud over ducked music, degrading gracefully when either is absent
   const maps: string[] = ["-map", "[vout]"];
   if (haveVo && haveMusic) {
+    // Phase 4.2: duck the music DYNAMICALLY under the VO via sidechaincompress
+    // (keyed off the VO) instead of a static volume — music breathes back in the
+    // gaps. Both sources resampled to a common rate first (sidechaincompress
+    // requires it). Padded to videoTotal so music carries through the freeze.
     fc.push(
-      `[${voIdx}:a]volume=1.15[a0]`,
-      `[${musIdx}:a]volume=0.16[a1]`,
-      `[a0][a1]amix=inputs=2:duration=longest:normalize=0[am]`,
-      `[am]atrim=0:${total},asetpts=PTS-STARTPTS,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`,
+      `[${voIdx}:a]aresample=48000,volume=1.15,asplit=2[vo_mix][vo_key]`,
+      `[${musIdx}:a]aresample=48000,volume=0.6[mus_raw]`,
+      `[mus_raw][vo_key]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[mus_duck]`,
+      `[vo_mix][mus_duck]amix=inputs=2:duration=longest:normalize=0[am]`,
+      `[am]atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`,
     );
     maps.push("-map", "[aout]");
   } else if (haveVo) {
-    fc.push(`[${voIdx}:a]volume=1.15,atrim=0:${total},asetpts=PTS-STARTPTS,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
+    // aresample FIRST so loudnorm computes the apad/duration on a known 48k rate.
+    fc.push(`[${voIdx}:a]aresample=48000,volume=1.15,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
     maps.push("-map", "[aout]");
   } else if (haveMusic) {
-    fc.push(`[${musIdx}:a]volume=0.5,atrim=0:${total},asetpts=PTS-STARTPTS,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
+    fc.push(`[${musIdx}:a]aresample=48000,volume=0.5,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
     maps.push("-map", "[aout]");
   }
   const hasAudio = maps.includes("[aout]");
@@ -187,7 +218,7 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     "-r",
     "30",
     "-t",
-    String(total),
+    String(videoTotal),
     "-c:v",
     "libx264",
     "-profile:v",
@@ -424,7 +455,8 @@ export async function assembleReel(
     // job overwrite the same data/generated/reel.mp4. reel-<jobId>.mp4 keeps them distinct.
     const put = await storagePut(`reels/reel-${jobId}.mp4`, mp4, "video/mp4");
     log.info("reel assembled", { jobId, bytes: mp4.length, url: put.url });
-    return { mp4Url: put.url, durationSec: total, usedVo: !!voPath };
+    // Report the REAL file length (beats + the save-payload freeze), not just the beats.
+    return { mp4Url: put.url, durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath };
   } finally {
     fs.promises.rm(workDir, { recursive: true, force: true }).catch(() => {});
   }
