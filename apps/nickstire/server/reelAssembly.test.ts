@@ -119,12 +119,26 @@ describe("buildFfmpegArgs", () => {
     expect(fc).not.toContain("between(t"); // inclusive between() double-renders the cut frame
   });
 
-  it("mixes VO loud (1.15) over ducked music (0.16) and trims to total length", () => {
+  it("ducks music UNDER the VO via sidechaincompress (not a static volume) and pads through the freeze", () => {
     const fc = buildFfmpegArgs(base).join(" ");
-    expect(fc).toContain("volume=1.15");
-    expect(fc).toContain("volume=0.16");
+    expect(fc).toContain("volume=1.15"); // VO loud
+    expect(fc).toContain("sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400"); // dynamic duck keyed off VO
+    expect(fc).not.toContain("volume=0.16"); // the old static duck is gone
     expect(fc).toContain("amix=inputs=2");
-    expect(fc).toContain("atrim=0:9");
+    // 9s of beats + 3s save-payload freeze => audio trimmed/padded to 12s
+    expect(fc).toContain("atrim=0:12");
+    expect(fc).toContain("apad=whole_dur=12");
+  });
+
+  it("adds per-beat push-in motion + a save-payload freeze with a SAVE overlay (Phase 3.1/4.1)", () => {
+    const args = buildFfmpegArgs(base);
+    const fc = args.join(" ");
+    expect(fc).toContain("zoompan=z='min(pzoom+"); // Ken Burns per beat
+    expect(fc).toContain("tpad=stop_mode=clone:stop_duration=3"); // freeze final frame 3s
+    expect(fc).toContain("text='SAVE THIS'"); // save-payload prompt
+    expect(fc).toContain("[vout]");
+    const tIdx = args.indexOf("-t");
+    expect(args[tIdx + 1]).toBe("12"); // 9s of beats + 3s freeze
   });
 
   it("normalizes loudness to -14 LUFS on the final audio (every audio branch)", () => {
