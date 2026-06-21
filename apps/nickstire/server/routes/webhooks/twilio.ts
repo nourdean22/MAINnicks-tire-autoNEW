@@ -58,7 +58,13 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
       return;
     }
 
-    log.info("Inbound SMS received", { from: from.slice(-4), body: body.slice(0, 100) });
+    // Privacy: log metadata only — customer message content goes to the DB
+    // conversation record (admin inbox), never to the stdout/Railway log stream.
+    log.info("Inbound SMS received", {
+      from: from.slice(-4),
+      body_len: String(body).length,
+      has_media: numMedia >= 1,
+    });
 
     const { getOrCreateConversation, addSmsMessage, smsMessageExists } = await import("../../db");
 
@@ -135,7 +141,11 @@ router.post("/voice/process", (req: Request, res: Response) => {
   }
 
   if (speechResult) {
-    log.info("Voice input processed", { caller: callerPhone.slice(-4), speech: speechResult.slice(0, 100) });
+    // Privacy: log transcript length only, never the caller's spoken words.
+    log.info("Voice input processed", {
+      caller: callerPhone.slice(-4),
+      speech_len: String(speechResult).length,
+    });
     res.type("text/xml").send(generateResponseTwiML(speechResult));
   } else {
     res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>

@@ -13,7 +13,8 @@
 | Environment | `production` (`84f0d4b4-efcd-480f-a761-27589e0a095f`) |
 | Region | US West |
 | Build context | monorepo root |
-| Dockerfile | `apps/nickstire/Dockerfile` |
+| Builder | **Nixpacks** (Railway default) · augmented by `apps/nickstire/nixpacks.toml` (adds `ffmpeg` + `fonts-dejavu-core` for server-side reel assembly) |
+| Build / start | Dashboard-configured: `pnpm --filter nicks-tire-auto build` / `start` · healthcheck `/api/health` · **no Dockerfile in repo** |
 
 ## Deploy trigger
 
@@ -43,7 +44,7 @@ pnpm verify:nick        # full check suite
 ```
 deps  → install pnpm@10.4.1 workspace deps · wouter patch applied
 build → vite build (client) · esbuild server (ESM bundle) · scripts/build-maybe-prerender.mjs
-runtime → node 20 alpine + dist/index.js (express server) + client/dist (static)
+runtime → node 20 (Nixpacks Debian base · ffmpeg + DejaVu font via nixpacks.toml) + dist/index.js (express server) + client/dist (static)
 ```
 
 ## Env vars (Railway-managed)
@@ -94,7 +95,8 @@ VAPI_KILL_SWITCH=true
 
 ## Related docs
 
-- `apps/nickstire/Dockerfile`
+- `apps/nickstire/nixpacks.toml` · Nixpacks system-deps (ffmpeg/fonts) — **this app builds via Nixpacks, not a Dockerfile**
+- `apps/nickstire/RECOVERY.md` · recovery + disaster-recovery (RPO/RTO, DB restore) procedures
 - `docs/SHOP_SMS_GATEWAY_SETUP.md` · F25e SMS recovery runbook
 - `docs/migrations/INDEX.md` · in-flight migrations tracker
 - `apps/nickstire/CLAUDE.md` · nickstire-specific operator guide
