@@ -27,8 +27,14 @@ import {
   isOllamaQuotaExhausted,
   isGeminiQuotaExhausted,
   getProviderStatus,
+  getOllamaCooldownRemainingMs,
+  getGeminiCooldownRemainingMs,
+  getOpenAiCooldownRemainingMs,
+  getAnthropicCooldownRemainingMs,
+  RUNTIME_PROVIDERS,
   type ProviderName,
 } from "./provider";
+import { PROVIDERS_REGISTRY } from "@/config/ai-providers";
 
 // Models known to NOT support function calling. Mirror of the set in
 // provider.ts so the dashboard can show a yellow flag without importing
@@ -69,28 +75,26 @@ export interface ProviderHealthSnapshot {
 }
 
 // ── Quota cooldown remaining helpers ──
-// The breakers in provider.ts expose isXQuotaExhausted() but not the
-// remaining time. We approximate by checking the flag — when active,
-// we know it's <=2min. A more accurate read would require exporting
-// veniceQuotaExhaustedUntil but that's an internal global. Showing
-// "<2 min" is honest until we plumb the exact number.
-
-function approxCooldownMs(exhausted: boolean): number {
-  return exhausted ? 60_000 : 0; // half the 2-min window as a midpoint guess
-}
+// We query the quota breaker's remainingMs() directly to get the precise cooldown time.
 
 // ── Recent-call telemetry ──
 // One AiGeneration query, grouped by model, then we map model → provider
 // using a heuristic (model name prefix). Avoids a separate provider field
 // on AiGeneration (which would require a migration).
-function modelToProvider(model: string): ProviderName | null {
+export function modelToProvider(model: string): ProviderName | null {
   if (!model) return null;
   const m = model.toLowerCase();
-  if (m.includes("qwen3") || m.includes("deepseek-v4") || m.includes("kimi")) return "ollama";
-  if (m.includes("gemini")) return "gemini";
-  if (m.includes("gpt") || m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4")) return "openai";
-  if (m.includes("claude")) return "anthropic";
-  // Image models track separately; we don't bucket them per provider here.
+  for (const provider of RUNTIME_PROVIDERS) {
+    const cfg = PROVIDERS_REGISTRY[provider];
+    if (m === cfg.defaultModel.toLowerCase() || (cfg.defaultVisionModel && m === cfg.defaultVisionModel.toLowerCase())) {
+      return provider;
+    }
+    for (const sub of cfg.modelSubstrings) {
+      if (m.includes(sub.toLowerCase())) {
+        return provider;
+      }
+    }
+  }
   return null;
 }
 
@@ -185,13 +189,20 @@ export async function getProviderHealth(force = false): Promise<ProviderHealthSn
           ? isGeminiQuotaExhausted()
           : false;
     const tel = telemetry[p.name] ?? { calls: 0, errors: 0, avgMs: 0 };
+    let quotaCooldownRemainingMs = 0;
+    if (exhausted) {
+      if (p.name === "ollama") quotaCooldownRemainingMs = getOllamaCooldownRemainingMs();
+      else if (p.name === "gemini") quotaCooldownRemainingMs = getGeminiCooldownRemainingMs();
+      else if (p.name === "openai") quotaCooldownRemainingMs = getOpenAiCooldownRemainingMs();
+      else if (p.name === "anthropic") quotaCooldownRemainingMs = getAnthropicCooldownRemainingMs();
+    }
     return {
       name: p.name,
       configured: p.available || exhausted, // configured but tripped still counts as configured
       available: p.available && !exhausted,
       modelId: p.modelId,
       quotaExhausted: exhausted,
-      quotaCooldownRemainingMs: approxCooldownMs(exhausted),
+      quotaCooldownRemainingMs,
       toolsSupported: !NO_TOOLS_MODELS.has(p.modelId),
       recentCalls: tel.calls,
       recentErrors: tel.errors,
