@@ -490,4 +490,3 @@ function slugify(s: string): string {
     .slice(0, 80);
 }
 
-export { EMPTY };
