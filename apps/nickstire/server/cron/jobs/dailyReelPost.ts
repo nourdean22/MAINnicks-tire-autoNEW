@@ -110,11 +110,21 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
   const job = jobs[0];
 
   if (!job) {
-    // Only ENQUEUE during the 9 AM ET window. Publishing an already-assembled job (below)
-    // runs on ANY pulse — async gen+assembly routinely finishes after the 9 o'clock hour, so
-    // gating publish on wall-clock would silently skip the reel forever.
-    if (hour !== POST_HOUR_ET) {
-      return { recordsProcessed: 0, details: `not post hour (ET ${hour}:00, want ${POST_HOUR_ET}:00) — waiting to enqueue` };
+    // Only ENQUEUE during the best posting hour. Publishing an already-assembled
+    // job (below) runs on ANY pulse — async gen+assembly routinely finishes after
+    // the window, so gating publish on wall-clock would silently skip the reel.
+    // Phase 5.3: the enqueue hour is data-driven (top-engagement slot) once the
+    // analytics table has enough data; until then it stays POST_HOUR_ET (9 ET).
+    let targetHour = POST_HOUR_ET;
+    try {
+      const { getBestPostingTimes } = await import("../../pipelines/instagram-data");
+      const times = await getBestPostingTimes({ limit: 1 });
+      if (times.length && Number.isFinite(times[0].hourOfDay)) targetHour = times[0].hourOfDay;
+    } catch (err) {
+      log.warn("best-posting-time lookup failed; using default hour", { err: err instanceof Error ? err.message : String(err) });
+    }
+    if (hour !== targetHour) {
+      return { recordsProcessed: 0, details: `not post hour (ET ${hour}:00, want ${targetHour}:00) — waiting to enqueue` };
     }
     const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
     if (idx >= MANIFEST.length) {
@@ -142,7 +152,22 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     if (!videoUrl) {
       return { recordsProcessed: 0, details: `Job ${job.id} assembled but mp4Url is missing` };
     }
-    const caption = job.caption || "";
+    let caption = job.caption || "";
+    // Phase 3.3 safety: the AI caption carries the share-CTA, and publishToSocial
+    // claim-gates reel captions — so an unsafe CTA would make the reel SILENTLY
+    // never post (campaign stall). Fall back to the known claim-safe MANIFEST
+    // caption so the reel still ships on time (CTA dropped), with a loud log.
+    try {
+      const { checkReviewReply, hasBlockingFindings } = await import("@shared/reviewReplyQa");
+      if (caption && hasBlockingFindings(checkReviewReply(caption))) {
+        const idx0 = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
+        const safe = MANIFEST[idx0]?.caption;
+        log.warn(`AI reel caption tripped the claim gate — falling back to the manifest caption`, { jobId: job.id });
+        if (safe) caption = safe;
+      }
+    } catch (err) {
+      log.warn("reel caption claim-check skipped", { err: err instanceof Error ? err.message : String(err) });
+    }
 
     log.info(`Attempting to publish assembled reel job ${job.id} (mp4Url: ${videoUrl})`);
     const outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption });

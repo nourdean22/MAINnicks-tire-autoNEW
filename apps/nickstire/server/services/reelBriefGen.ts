@@ -146,13 +146,29 @@ export async function generateReelBriefAI(
     proprietaryEvidence,
   });
 
+  // Phase 5.4 + 3.3: feed what's performed back into generation + push a DM-share CTA.
+  let feedback = "";
+  try {
+    const { getReelGenerationSignal } = await import("../pipelines/instagram-data");
+    const sig = await getReelGenerationSignal();
+    if (sig.topThemes.length) {
+      feedback = `\n\nPERFORMANCE FEEDBACK: recent top-performing themes are ${sig.topThemes.join(", ")}. If one genuinely fits the grounded fact, lean toward it — never force it.`;
+    }
+  } catch (e) {
+    log.warn("reel generation signal skipped", { e: e instanceof Error ? e.message : String(e) });
+  }
+  const shareCta =
+    "\n\nSHARE CTA: the selectedCaption MUST include a natural prompt inviting the viewer to SEND the reel to someone who needs it (DM shares are a top reach lever) — e.g. \"send this to someone whose tires are bald.\" Keep it claim-safe: no prices, no guarantees, sell the visit not a quote.";
+
   const res = await invokeLLM({
     messages: [
       { role: "system", content: systemPrompt },
       {
         role: "user",
         content:
-          "Run the full process internally — ground the fact, ideate the concepts, score them, pick the single winner — then OUTPUT ONLY the winning reel as one JSON object matching the provided schema (contiguous storyboard beats, caption, hashtags). No prose, no markdown.",
+          "Run the full process internally — ground the fact, ideate the concepts, score them, pick the single winner — then OUTPUT ONLY the winning reel as one JSON object matching the provided schema (contiguous storyboard beats, caption, hashtags). No prose, no markdown." +
+          feedback +
+          shareCta,
       },
     ],
     // Large brief + gemini-2.5-flash thinking overhead — generous headroom.

@@ -135,9 +135,16 @@ export async function syncInstagramPosts(): Promise<{
         continue;
       }
 
-      // Parse posting time
-      const dayOfWeek = postedDate.getDay();
-      const hourOfDay = postedDate.getHours();
+      // Parse posting time in ET (the business timezone) — getDay()/getHours() use
+      // the server's UTC clock, which would shift the best-hour cadence (Phase 5.3
+      // feeds hourOfDay into the ET-based posting cron) and skew the analytics.
+      const hourOfDay = parseInt(postedDate.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10) || 0;
+      const dayOfWeek = Math.max(
+        0,
+        ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(
+          postedDate.toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short" }),
+        ),
+      );
 
       // AI content scoring (new posts only)
       const { score, themes } = await scoreContent(post.caption, post.type, post.likes, post.comments, followers);
@@ -298,6 +305,52 @@ export async function getBestPostingTimes(opts?: { limit?: number }): Promise<Be
     avgEngagement: Number(r.avgEngagement) / 100,
     postCount: Number(r.postCount),
   }));
+}
+
+// ─── REEL GENERATION SIGNAL (Phase 5.4 feedback loop) ───
+
+/** Pure: the most-frequent AI-tagged themes across rows (highest-engagement first). */
+export function pickTopThemes(rows: Array<{ themesJson?: string | null }>, limit = 3): string[] {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    let themes: unknown = [];
+    try {
+      themes = JSON.parse(r.themesJson || "[]");
+    } catch {
+      themes = [];
+    }
+    for (const t of Array.isArray(themes) ? themes : []) {
+      const k = String(t).trim().toLowerCase();
+      if (k && k !== "no-caption") counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([t]) => t);
+}
+
+/**
+ * What's working, fed back into reel generation/cadence. topThemes = most frequent
+ * themes among the highest-engagement posts; bestPostHour = the top posting slot's
+ * hour (getBestPostingTimes needs >=2 posts/slot, so this is null until data
+ * accumulates). Graceful: empty themes + null hour → generation/cadence keep their
+ * defaults with ZERO behavior change until the analytics table fills.
+ */
+export async function getReelGenerationSignal(): Promise<{ topThemes: string[]; bestPostHour: number | null }> {
+  try {
+    const d = await db();
+    if (!d) return { topThemes: [], bestPostHour: null };
+    const rows = await d
+      .select({ themesJson: instagramAnalytics.themesJson })
+      .from(instagramAnalytics)
+      .orderBy(desc(instagramAnalytics.engagementRate))
+      .limit(8);
+    const topThemes = pickTopThemes(rows as Array<{ themesJson?: string | null }>);
+    const times = await getBestPostingTimes({ limit: 1 });
+    const bestPostHour = times.length && Number.isFinite(times[0].hourOfDay) ? times[0].hourOfDay : null;
+    return { topThemes, bestPostHour };
+  } catch (err) {
+    log.warn("reel generation signal unavailable", { err: err instanceof Error ? err.message : String(err) });
+    return { topThemes: [], bestPostHour: null };
+  }
 }
 
 // ─── FOLLOWER GROWTH ────────────────────────────────────
