@@ -135,9 +135,16 @@ export async function syncInstagramPosts(): Promise<{
         continue;
       }
 
-      // Parse posting time
-      const dayOfWeek = postedDate.getDay();
-      const hourOfDay = postedDate.getHours();
+      // Parse posting time in ET (the business timezone) — getDay()/getHours() use
+      // the server's UTC clock, which would shift the best-hour cadence (Phase 5.3
+      // feeds hourOfDay into the ET-based posting cron) and skew the analytics.
+      const hourOfDay = parseInt(postedDate.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10) || 0;
+      const dayOfWeek = Math.max(
+        0,
+        ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(
+          postedDate.toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short" }),
+        ),
+      );
 
       // AI content scoring (new posts only)
       const { score, themes } = await scoreContent(post.caption, post.type, post.likes, post.comments, followers);
