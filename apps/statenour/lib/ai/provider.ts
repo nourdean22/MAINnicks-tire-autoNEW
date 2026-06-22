@@ -207,11 +207,80 @@ export const clearOllamaQuotaExhausted = ollamaBreaker.clear;
 export const isOllamaQuotaExhausted = ollamaBreaker.isExhausted;
 export const getOllamaCooldownRemainingMs = ollamaBreaker.remainingMs;
 
+// Background health check cache for Ollama v10.1
+let ollamaHealthCached = true;
+let lastOllamaCheckTime = 0;
+let isCheckingOllamaHealth = false;
+
+export async function probeOllamaHealth(): Promise<void> {
+  if (isCheckingOllamaHealth) return;
+  isCheckingOllamaHealth = true;
+  try {
+    const baseUrl = getBaseUrl("ollama");
+    const apiKey = getApiKey("ollama");
+    if (!baseUrl || !apiKey) {
+      ollamaHealthCached = false;
+      return;
+    }
+    const url = `${baseUrl}/v1/models`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
+
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      log.warn("ollama.health_check_failed", { status: res.status });
+      ollamaHealthCached = false;
+      return;
+    }
+
+    const data = await res.json();
+    const targetModel = resolveProviderModel("ollama");
+    const models = data?.data || [];
+    const hasTargetModel = models.some((m: any) => 
+      m.id === targetModel || 
+      m.id?.includes("glm-5.2") || 
+      m.id?.includes("glm-5")
+    );
+    
+    if (models.length > 0 && !hasTargetModel) {
+      log.warn("ollama.health_check_model_missing", { targetModel, available: models.map((m: any) => m.id) });
+      ollamaHealthCached = false;
+    } else {
+      ollamaHealthCached = true;
+    }
+  } catch (err) {
+    log.warn("ollama.health_check_exception", { error: String(err) });
+    ollamaHealthCached = false;
+  } finally {
+    lastOllamaCheckTime = Date.now();
+    isCheckingOllamaHealth = false;
+  }
+}
+
 function isOllamaAvailable(): boolean {
   const apiKey = getApiKey("ollama");
   if (!apiKey || apiKey.length < 20) return false;
   if (isOllamaQuotaExhausted()) return false;
-  return true;
+
+  // Skip live health checks in testing to keep unit tests isolated and fast
+  if (process.env.NODE_ENV === "test") {
+    return true;
+  }
+
+  const now = Date.now();
+  if (now - lastOllamaCheckTime > 60_000) {
+    probeOllamaHealth().catch((e) => log.error("ollama.background_health_check_error", e));
+  }
+
+  return ollamaHealthCached;
 }
 
 const geminiBreaker = makeQuotaBreaker("gemini", PROVIDERS_REGISTRY.gemini.cooldownMs);

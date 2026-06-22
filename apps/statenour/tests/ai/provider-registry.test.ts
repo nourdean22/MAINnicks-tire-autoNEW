@@ -100,7 +100,7 @@ describe("AI Provider Resolvers & Fallbacks", () => {
     
     // With only GEMINI_API_KEY set
     const { getModel } = await import("@/lib/ai/provider");
-    expect(resolveProviderModel("gemini")).toBe("gemini-2.0-flash");
+    expect(resolveProviderModel("gemini")).toBe("gemini-3.5-flash");
     
     // Verify fallback key behavior
     process.env.GEMINI_API_KEY = "";
@@ -121,23 +121,26 @@ describe("AI Provider Resolvers & Fallbacks", () => {
     process.env.OLLAMA_VISION_MODEL = "";
     expect(resolveProviderModel("ollama", "vision")).toBe("qwen3-vl:235b-instruct");
 
-    expect(resolveProviderModel("ollama", "reason")).toBe("qwen3-vl:235b-instruct");
+    expect(resolveProviderModel("ollama", "reason")).toBe("glm-5.2");
   });
 });
 
 describe("AI Provider Health Telemetry Mapping", () => {
   it("correctly maps various model IDs back to their providers based on registry rules", () => {
     // Test mapping of current/default models
-    expect(modelToProvider("gemini-2.0-flash")).toBe("gemini");
+    expect(modelToProvider("gemini-3.5-flash")).toBe("gemini");
     expect(modelToProvider("gpt-4o-mini")).toBe("openai");
     expect(modelToProvider("claude-sonnet-4-6")).toBe("anthropic");
-    expect(modelToProvider("qwen3-vl:235b-instruct")).toBe("ollama");
+    expect(modelToProvider("glm-5.2")).toBe("ollama");
 
     // Test mapping of custom/historical substrings
+    expect(modelToProvider("glm-5")).toBe("ollama");
+    expect(modelToProvider("qwen3-vl:235b-instruct")).toBe("ollama");
     expect(modelToProvider("qwen3.5:397b")).toBe("ollama");
     expect(modelToProvider("deepseek-v4-flash")).toBe("ollama");
     expect(modelToProvider("kimi-k2.6")).toBe("ollama");
     expect(modelToProvider("gemini-1.5-pro")).toBe("gemini");
+    expect(modelToProvider("gemini-2.0-flash")).toBe("gemini");
     expect(modelToProvider("gpt-4o")).toBe("openai");
     expect(modelToProvider("o1-mini")).toBe("openai");
     expect(modelToProvider("o3-mini-2025-01-31")).toBe("openai");

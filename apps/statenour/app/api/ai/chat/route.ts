@@ -372,6 +372,7 @@ async function chatPostInner(req: Request) {
       })();
 
   let model: ReturnType<typeof getModel>;
+  let effectiveForce: ProviderName | undefined = undefined;
   try {
     // Apr 28 · Tag-team Venice + Ollama Cloud. When the prompt is in
     // content-mode (heavy v5.0 engine, ~70-100kc), prefer Ollama's
@@ -397,7 +398,7 @@ async function chatPostInner(req: Request) {
     // replace `??` with a naive merge.
     const toolMandatoryForce =
       __pythonExecuteIntent || __actionIntent ? ("ollama" as const) : undefined;
-    const effectiveForce = toolMandatoryForce ?? validatedProviderOverride;
+    effectiveForce = toolMandatoryForce ?? validatedProviderOverride;
     model = getModel(finalTaskType, {
       preferLargeContext: finalPreferLargeContext,
       ...(effectiveForce ? { forceProviderFirst: effectiveForce } : {}),
@@ -1274,6 +1275,7 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   const __sameTurnFallback = streamWithFallback({
     taskType: finalTaskType,
     preferLargeContext: finalPreferLargeContext,
+    forceProviderFirst: effectiveForce,
     buildConfig: (__fbModel) => {
       const fbProvider = inferProviderName(__fbModel) ?? provider;
       const fbModelId =
