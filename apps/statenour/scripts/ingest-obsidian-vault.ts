@@ -110,6 +110,25 @@ async function main() {
       const rawKey = trimmed.substring(0, colonIdx).trim();
       let rawVal = trimmed.substring(colonIdx + 1).trim();
 
+      // Strip trailing comments safely
+      let commentIdx = -1;
+      let inDoubleQuote = false;
+      let inSingleQuote = false;
+      for (let charIdx = 0; charIdx < rawVal.length; charIdx++) {
+        const char = rawVal[charIdx];
+        if (char === '"' && !inSingleQuote) {
+          inDoubleQuote = !inDoubleQuote;
+        } else if (char === "'" && !inDoubleQuote) {
+          inSingleQuote = !inSingleQuote;
+        } else if (char === '#' && !inDoubleQuote && !inSingleQuote) {
+          commentIdx = charIdx;
+          break;
+        }
+      }
+      if (commentIdx !== -1) {
+        rawVal = rawVal.substring(0, commentIdx).trim();
+      }
+
       if ((rawVal.startsWith('"') && rawVal.endsWith('"')) || (rawVal.startsWith("'") && rawVal.endsWith("'"))) {
         rawVal = rawVal.substring(1, rawVal.length - 1);
       }
@@ -241,15 +260,15 @@ async function main() {
       if (!category) {
         console.log(`  ⚠️ [Quarantine] "${file}" has no category and does not match filename heuristics.`);
         if (target.name === "Obsidian Vault" && fs.existsSync(target.path)) {
-          const inboxDir = path.join(target.path, "01_Inbox");
-          if (!fs.existsSync(inboxDir)) {
-            fs.mkdirSync(inboxDir, { recursive: true });
+          const quarantineDir = path.join(target.path, "Statenour", "Quarantine");
+          if (!fs.existsSync(quarantineDir)) {
+            fs.mkdirSync(quarantineDir, { recursive: true });
           }
-          const destPath = path.join(inboxDir, file);
+          const destPath = path.join(quarantineDir, file);
           if (filePath !== destPath) {
             try {
               fs.renameSync(filePath, destPath);
-              console.log(`    └─ Moved to: ${destPath}`);
+              console.log(`    └─ Moved to quarantine: ${destPath}`);
             } catch (renameErr) {
               console.error(`    └─ Failed to move file to quarantine:`, renameErr);
             }
