@@ -1401,6 +1401,119 @@ export async function buildSystemPromptUncached(
     }
   }
 
+  // Dark psychology + tactical playbook injection (2026-06-20).
+  // Same self-gating pattern as the Greene matcher above: deterministic
+  // keyword match on triggers[] · returns [] when nothing matches · zero
+  // cost on casual turns. Capped at 3 matches · ~450 chars max injection.
+  // Corpus is seeded by scripts/seed-dark-psychology-corpus.ts (19 entries
+  // across dark_psychology, negotiation_tactic, competitive_intel,
+  // tactical_playbook categories).
+  if (userMessage && userMessage.trim().length > 0) {
+    try {
+      const { pickDarkPsychologyForMessage, renderDarkPsychologyBlock } =
+        await import("@/lib/ai/dark-psychology-matcher");
+      const picks = await pickDarkPsychologyForMessage(userMessage);
+      const block = renderDarkPsychologyBlock(picks);
+      if (block) {
+        p.push(block);
+        p.push(``);
+      }
+    } catch {
+      // Best-effort · matcher failures must never poison the prompt.
+    }
+  }
+
+  // Power-dynamics summary for strategy/full tiers (2026-06-20).
+  // Compact 200-char injection so Nick can reference the operator's power
+  // position during strategy conversations. Skipped entirely for
+  // core/business/personal turns to avoid prompt bloat.
+  if (tier === "strategy" || tier === "full") {
+    try {
+      const { analyzePowerDynamics } = await import(
+        "@/lib/brain/analyzers/power-dynamics"
+      );
+      const analysis = await analyzePowerDynamics({ days: 30 });
+      if (analysis.dataCompleteness.sufficient) {
+        const top = analysis.leverage.strongestPositions[0];
+        const weak = analysis.leverage.weakestPositions[0];
+        const parts: string[] = [
+          `Power balance avg: ${analysis.leverage.avgPowerBalance.toFixed(2)} across ${analysis.dataCompleteness.profiles} profiles.`,
+        ];
+        if (top) parts.push(`Strongest: ${top.name} (+${top.balance}).`);
+        if (weak) parts.push(`Weakest: ${weak.name} (${weak.balance}).`);
+        if (analysis.threats.drainers.length > 0)
+          parts.push(`Drainers: ${analysis.threats.drainers.join(", ")}.`);
+        if (analysis.network.neglectedCount > 0)
+          parts.push(`${analysis.network.neglectedCount} neglected.`);
+        p.push(`## POWER DYNAMICS · 30d summary`);
+        p.push(parts.join(" "));
+        p.push(``);
+      }
+    } catch {
+      // Best-effort · analyzer failures must never poison the prompt.
+    }
+  }
+
+  // Composure summary for personal/strategy/full tiers (2026-06-20).
+  // Compact injection so Nick can reference the operator's emotional
+  // regulation state during personal/strategy conversations.
+  if (tier === "personal" || tier === "strategy" || tier === "full") {
+    try {
+      const { analyzeComposure } = await import(
+        "@/lib/brain/analyzers/composure-control"
+      );
+      const analysis = await analyzeComposure({ days: 14 });
+      p.push(`## COMPOSURE · 14d summary`);
+      p.push(
+        `Score: ${analysis.composureScore}/100. ` +
+          `Mood stability: ${analysis.signals.moodStability}. ` +
+          `Drift control: ${analysis.signals.driftControl}. ` +
+          `Decision quality under stress: ${analysis.signals.decisionQualityUnderStress}. ` +
+          `Recovery: ${analysis.signals.recoverySpeed}. ` +
+          `Trigger management: ${analysis.signals.triggerManagement}.`,
+      );
+      if (analysis.patterns.stressTriggers.length > 0) {
+        p.push(`Top triggers: ${analysis.patterns.stressTriggers.join(", ")}.`);
+      }
+      p.push(``);
+    } catch {
+      // Best-effort · analyzer failures must never poison the prompt.
+    }
+  }
+
+  // Competitive intelligence for business/strategy/full tiers (2026-06-20).
+  // Compact injection so Nick can reference competitive positioning during
+  // business conversations.
+  if (tier === "business" || tier === "strategy" || tier === "full") {
+    try {
+      const { analyzeCompetitiveIntel } = await import(
+        "@/lib/brain/analyzers/competitive-intel"
+      );
+      const analysis = await analyzeCompetitiveIntel();
+      if (analysis.marketPosition.rank > 0) {
+        p.push(`## COMPETITIVE INTEL · market position`);
+        p.push(
+          `Rank: #${analysis.marketPosition.rank} by rating. ` +
+            `Pricing: ${analysis.marketPosition.pricingPosition}. ` +
+            `Review gap: ${analysis.marketPosition.reviewGap.gap} behind top.`,
+        );
+        if (analysis.vulnerabilities.length > 0) {
+          p.push(
+            `${analysis.vulnerabilities.length} competitor vulnerabilities. Top: ${analysis.vulnerabilities[0].competitor} — ${analysis.vulnerabilities[0].weakness}.`,
+          );
+        }
+        if (analysis.opportunities.length > 0) {
+          p.push(
+            `GSC quick win: "${analysis.opportunities[0].keyword}" at position ${analysis.opportunities[0].position}.`,
+          );
+        }
+        p.push(``);
+      }
+    } catch {
+      // Best-effort · analyzer failures must never poison the prompt.
+    }
+  }
+
   return trimPromptToBudget(p.join("\n"), 58000);
 }
 

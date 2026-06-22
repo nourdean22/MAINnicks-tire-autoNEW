@@ -304,6 +304,27 @@ export const BRAIN_CATEGORIES = {
    *  "shift" | "insight" }. Written by tRPC markAlphaMoment. */
   ALPHA_MOMENT: "alpha_moment",
 
+  // ── Power Atlas · Dark Psychology extension (2026-06-20) ──
+  /** 2026-06-20 · Dark psychology corpus · cognitive biases, manipulation
+   *  techniques, social engineering patterns from P0WER handbook +
+   *  external repos. Key shape: `dp_<topic>`. Metadata mirrors GreeneEntry
+   *  shape: { title, summary, fullText, triggers[], actions[],
+   *  relatedKeys[], applicabilityPrompt, sourceBook }. Seeded via
+   *  scripts/seed-dark-psychology-corpus.ts. */
+  DARK_PSYCHOLOGY: "dark_psychology",
+  /** 2026-06-20 · Negotiation tactics · Voss "Never Split the Difference"
+   *  patterns (mirroring, labeling, calibrated questions, accusation audit).
+   *  Key shape: `neg_<pattern>`. Same metadata shape as DARK_PSYCHOLOGY. */
+  NEGOTIATION_TACTIC: "negotiation_tactic",
+  /** 2026-06-20 · Competitive intelligence · Chanakya Neeti principles for
+   *  systematic exploitation of competitor vulnerabilities. Key shape:
+   *  `ci_<principle>`. Same metadata shape as DARK_PSYCHOLOGY. */
+  COMPETITIVE_INTEL: "competitive_intel",
+  /** 2026-06-20 · Tactical playbook · concrete tactical patterns (anchoring,
+   *  scarcity, illusion of choice, Trojan networking). Key shape:
+   *  `tp_<pattern>`. Same metadata shape as DARK_PSYCHOLOGY. */
+  TACTICAL_PLAYBOOK: "tactical_playbook",
+
   // ── Wave AA · Missions-led IA (2026-05-28) ──
   /** 2026-05-28 · Wave AA Phase 3 · per-mission retrospective captured
    *  when the operator completes a mission (last task ticked done OR
@@ -680,6 +701,13 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
   ],
   "Relationships + people": [
     "relationships", "comms", "meetings",
+    "greene_law", "power_play", "relationship_digest_sent",
+    "relationship_birthday_sent", "kept_word", "alpha_moment",
+    "greene_contextual_pick", "relationships_picks_today",
+    "relationships_morning_brief", "relationships_weekly_synthesis",
+    "relationships_outreach",
+    "dark_psychology", "negotiation_tactic",
+    "competitive_intel", "tactical_playbook",
   ],
   "Meta · archive + stale": [
     "ancient_device_events", "hq_pin_candidate", "orphan_conversations",

@@ -230,6 +230,13 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // (updates Contradiction status, deprecates losing memory, writes
   // resolved_contradiction belief). Free per-call · pure DB.
   { name: "resolveContradiction",          category: "brain",          sideEffecting: true, cost: "free" },
+  // Machiavellian Power Dynamics integration · read-only analyzers + tactical lookups
+  { name: "analyzeCompetitiveIntel",       category: "brain",          battle: false, cost: "free" },
+  { name: "analyzeComposure",              category: "brain",          battle: false, cost: "free" },
+  { name: "analyzePowerDynamics",          category: "brain",          battle: false, cost: "free" },
+  { name: "getContextualGreeneLaws",       category: "brain",          battle: true,  cost: "free" },
+  { name: "getDarkPsychologyTactics",      category: "brain",          battle: true,  cost: "free" },
+  { name: "getPowerBalanceSummary",        category: "brain",          battle: true,  cost: "free" },
 
   // ── files (Drive + GitHub) ───────────────────────────────────────
   { name: "buildArchitectureMemory",      category: "files",          cost: "spendy", riskClass: "low" },
