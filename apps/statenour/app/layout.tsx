@@ -28,6 +28,15 @@ const instrumentSerif = Instrument_Serif({
   display: "swap",
 });
 
+// ── Render mode (2026-06-21 CSP fix) ──────────────────────────────────────
+// Force every page dynamic. middleware.ts enforces script-src 'strict-dynamic'
+// with a per-request nonce; a statically prerendered page ships with NO nonce,
+// so the CSP then blocks ALL of its scripts -> blank/skeleton page in every
+// browser. This hit `/`, all /(mastery) pages, and /voice. Dynamic rendering =
+// a live nonce that matches the header. Applied at the ROOT so no future page
+// can regress the same way. (No force-static pages remain to conflict.)
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "NOUR OS",
   description: "Personal operating system for disciplined execution.",
