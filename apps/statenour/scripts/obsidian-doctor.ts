@@ -13,13 +13,28 @@ import path from "path";
 import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
 import { KNOWN_BRAIN_CATEGORIES } from "../lib/brain/categories";
+import { getObsidianEngineConfig, writeEngineStatus, readEngineStatus } from "../lib/obsidian/engine-config";
+import { ObsidianEngineStatus, EngineIssue, QuarantinedFileInfo } from "../lib/obsidian/types";
+
+const TOKEN_PATTERNS = [
+  { name: "GitHub Personal Access Token", regex: /ghp_[a-zA-Z0-9]{36,}/i },
+  { name: "GitHub Fine-Grained Token", regex: /github_pat_[a-zA-Z0-9_]{80,}/i },
+  { name: "Anthropic API Key", regex: /sk-ant-[a-zA-Z0-9-_]{40,}/i },
+  { name: "OpenRouter API Key", regex: /sk-or-v1-[a-zA-Z0-9]{40,}/i },
+  { name: "Stripe API Key", regex: /sk_(live|test)_[a-zA-Z0-9]{24,}/i },
+  { name: "Bearer Token", regex: /bearer\s+[a-zA-Z0-9_\-\.]{30,}/i }
+];
 
 // Parse CLI arguments
 const args = process.argv.slice(2);
 const strict = args.includes("--strict");
 const jsonMode = args.includes("--json");
+const fixMode = args.includes("--fix");
+const noStatusWrite = args.includes("--no-status-write");
 
-let vaultPath = process.env.OBSIDIAN_VAULT_PATH || "C:\\Users\\nourd\\OneDrive\\Documents\\Obsidian Vault";
+
+const engineConfig = getObsidianEngineConfig();
+let vaultPath = engineConfig.vaultPath;
 const vaultIdx = args.indexOf("--vault");
 if (vaultIdx !== -1 && vaultIdx + 1 < args.length) {
   vaultPath = args[vaultIdx + 1];
@@ -144,6 +159,77 @@ function parseFrontmatter(fileContent: string): { metadata: Record<string, any>;
   return { metadata };
 }
 
+function fixNoteFrontmatter(content: string): string | null {
+  const trimmed = content.trim();
+  if (!trimmed.startsWith("---")) return null;
+
+  const lines = content.split(/\r?\n/);
+  if (lines[0] !== "---") return null;
+
+  let closingIndex = -1;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === "---") {
+      closingIndex = i;
+      break;
+    }
+  }
+  if (closingIndex === -1) return null;
+
+  const yamlLines = lines.slice(1, closingIndex);
+  const bodyLines = lines.slice(closingIndex + 1);
+
+  let hasStatus = false;
+  let hasSource = false;
+  let hasUpdatedAt = false;
+  let modified = false;
+
+  const newYamlLines = yamlLines.map((line) => {
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine.startsWith("#")) return line;
+
+    const colonIdx = trimmedLine.indexOf(":");
+    if (colonIdx === -1) return line;
+
+    const key = trimmedLine.substring(0, colonIdx).trim();
+    let val = trimmedLine.substring(colonIdx + 1).trim();
+
+    if (key === "status") {
+      hasStatus = true;
+      const lowerVal = val.toLowerCase();
+      if (val !== lowerVal) {
+        modified = true;
+        return line.replace(val, lowerVal);
+      }
+    }
+    if (key === "source") {
+      hasSource = true;
+      const lowerVal = val.toLowerCase();
+      if (lowerVal !== "obsidian" && lowerVal !== "statenour") {
+        modified = true;
+        return line.replace(val, "obsidian");
+      }
+    }
+    if (key === "updated_at") {
+      hasUpdatedAt = true;
+    }
+    return line;
+  });
+
+  if (!hasSource) {
+    newYamlLines.push("source: obsidian");
+    modified = true;
+  }
+  if (!hasUpdatedAt) {
+    newYamlLines.push(`updated_at: ${new Date().toISOString()}`);
+    modified = true;
+  }
+
+  if (!modified) return null;
+
+  return ["---", ...newYamlLines, "---", ...bodyLines].join("\n");
+}
+
+
 // Recursive file scanner
 function getFilesRecursive(dir: string): string[] {
   let results: string[] = [];
@@ -267,7 +353,16 @@ async function main() {
   for (const folder of requiredFolders) {
     const fPath = path.join(vaultPath, folder);
     if (!fs.existsSync(fPath)) {
-      logFail(`Cockpit folder structure missing: ${folder}`);
+      if (fixMode) {
+        try {
+          fs.mkdirSync(fPath, { recursive: true });
+          logPass(`Fixed: Created cockpit folder structure: ${folder}`);
+        } catch (err) {
+          logFail(`Failed to create cockpit folder structure ${folder}: ${err}`);
+        }
+      } else {
+        logFail(`Cockpit folder structure missing: ${folder}`);
+      }
     } else {
       logPass(`Cockpit folder exists: ${folder}`);
     }
@@ -322,7 +417,7 @@ async function main() {
   const seenTitlesInFolders: Record<string, string[]> = {};
 
   for (const noteFile of noteFiles) {
-    const relativeNotePath = noteFile.substring(vaultPath.Length + 1);
+    const relativeNotePath = noteFile.substring(vaultPath.length + 1);
     
     // Check unreadable/placeholder files (OneDrive safety)
     let content = "";
@@ -337,11 +432,33 @@ async function main() {
       continue;
     }
 
+    // Scan for token patterns
+    for (const pattern of TOKEN_PATTERNS) {
+      if (pattern.regex.test(content)) {
+        logWarn(`Potential secret detected (${pattern.name}). Avoid storing access keys in notes.`, noteFile);
+      }
+    }
+
     // Parse Frontmatter
-    const { metadata, error } = parseFrontmatter(content);
+    let { metadata, error } = parseFrontmatter(content);
     if (error) {
       logFail(`Frontmatter syntax error: ${error}`, noteFile);
       continue;
+    }
+
+    if (fixMode) {
+      const fixedContent = fixNoteFrontmatter(content);
+      if (fixedContent !== null && fixedContent !== content) {
+        try {
+          fs.writeFileSync(noteFile, fixedContent, "utf-8");
+          content = fixedContent;
+          const reParsed = parseFrontmatter(content);
+          metadata = reParsed.metadata;
+          logPass(`Fixed frontmatter in-place (normalized status, source, or updated_at).`, noteFile);
+        } catch (writeErr) {
+          logFail(`Failed to write fixed frontmatter: ${writeErr}`, noteFile);
+        }
+      }
     }
 
     const category = metadata.category;
@@ -423,10 +540,93 @@ async function main() {
     }
   }
 
-  finishReport();
+  finishReport(noteFiles);
 }
 
-function finishReport() {
+function getSuggestedFix(message: string): string | undefined {
+  if (message.includes("missing required 'review_due'")) {
+    return "Add 'review_due: YYYY-MM-DD' to the YAML frontmatter.";
+  }
+  if (message.includes("missing 'category'")) {
+    return "Add 'category: <category>' (e.g. planning, physical, business, discipline, spiritual, or ai_config) to the frontmatter.";
+  }
+  if (message.includes("missing its \"statenour_id\"")) {
+    return "Statenour ID will be assigned on next export, or add 'statenour_id: <id>' if it already exists in the database.";
+  }
+  if (message.includes("Duplicate note title")) {
+    return "Rename the note to ensure unique filenames within the folder.";
+  }
+  if (message.includes("Invalid sync_direction")) {
+    return "Set sync_direction to 'bidirectional', 'obsidian_to_statenour', or 'none'.";
+  }
+  return undefined;
+}
+
+function finishReport(noteFilesList: string[]) {
+  const quarantinedFiles: QuarantinedFileInfo[] = [];
+  const quarantineDir = path.join(vaultPath, "Statenour", "Quarantine");
+  if (fs.existsSync(quarantineDir)) {
+    try {
+      const qFiles = fs.readdirSync(quarantineDir).filter(f => f.endsWith(".md") || f.endsWith(".txt"));
+      for (const qFile of qFiles) {
+        quarantinedFiles.push({
+          filename: qFile,
+          relativePath: path.join("Statenour", "Quarantine", qFile),
+          reason: "Missing category frontmatter property or failing metadata validation.",
+          detected_at: new Date().toISOString(),
+          suggested_fix: "Add valid YAML frontmatter containing 'category: <category>' to this note and move it back to 01_Inbox/ or 10_Statenour/."
+        });
+      }
+    } catch {}
+  }
+
+  if (!noStatusWrite) {
+    try {
+      const existingStatus = readEngineStatus();
+      const hasFailures = failCount > 0;
+      const hasWarnings = warnCount > 0;
+      const health = hasFailures ? "error" : (hasWarnings ? "degraded" : "healthy");
+
+      const statusPayload: ObsidianEngineStatus = {
+        health,
+        lastRunAt: new Date().toISOString(),
+        lastDoctorRunAt: new Date().toISOString(),
+        lastIngestRunAt: existingStatus ? existingStatus.lastIngestRunAt : null,
+        lastExportRunAt: existingStatus ? existingStatus.lastExportRunAt : null,
+        stats: {
+          totalNotes: noteFilesList.length,
+          processed: noteFilesList.length,
+          synced: existingStatus ? existingStatus.stats.synced : 0,
+          skipped: existingStatus ? existingStatus.stats.skipped : 0,
+          failed: failCount,
+          quarantined: quarantinedFiles.length,
+          warnings: warnCount,
+          failures: failCount,
+        },
+        issues: issues.map(issue => ({
+          type: issue.type,
+          message: issue.message,
+          file: issue.file ? path.relative(vaultPath, issue.file) : undefined,
+          detected_at: new Date().toISOString(),
+          suggested_fix: getSuggestedFix(issue.message)
+        })),
+        quarantinedFiles,
+        config: {
+          vaultPath,
+          icloudShortcutsPath: engineConfig.icloudShortcutsPath,
+          syncMode: engineConfig.syncMode,
+          restUrl: engineConfig.restUrl
+        }
+      };
+
+      writeEngineStatus(statusPayload);
+    } catch (writeErr) {
+      if (!jsonMode) {
+        console.error("  ⚠️ Failed to write engine status file:", writeErr);
+      }
+    }
+  }
+
   if (jsonMode) {
     const report = {
       vaultPath,
@@ -435,8 +635,10 @@ function finishReport() {
         pass: passCount,
         warn: warnCount,
         fail: failCount,
+        quarantined: quarantinedFiles.length,
       },
       issues,
+      quarantinedFiles,
     };
     console.log(JSON.stringify(report, null, 2));
   } else {
@@ -445,6 +647,7 @@ function finishReport() {
     console.log(`    - Passed: ${passCount}`);
     console.log(`    - Warned: ${warnCount}`);
     console.log(`    - Failed: ${failCount}`);
+    console.log(`    - Quarantined: ${quarantinedFiles.length}`);
     console.log("═══════════════════════════════════════════════════════════");
 
     if (failCount > 0) {

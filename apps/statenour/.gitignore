@@ -67,3 +67,6 @@ docs/vapi-kb/_tool-payload.json
 # redirect their output here. Diagnostic captures, never source.
 chat-output.txt
 errors-out.txt
+
+# Statenour local runtime
+.runtime/

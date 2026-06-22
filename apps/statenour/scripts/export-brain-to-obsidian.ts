@@ -1,21 +1,100 @@
 /**
- * Export Statenour Brain Data → Obsidian Vault · 2026-06-16
+ * Export Statenour Brain Data → Obsidian Vault
  *
  * Queries active life goals, missions, reflections, and memories from the
  * Statenour database and writes them as structured markdown files in the Obsidian Vault.
  *
- * Run: pnpm tsx scripts/export-brain-to-obsidian.ts
+ * Run: pnpm tsx scripts/export-brain-to-obsidian.ts [--memory-mode=rollup|individual]
  */
 
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { prisma } from "../lib/prisma";
+import { getObsidianEngineConfig, readEngineStatus, writeEngineStatus } from "../lib/obsidian/engine-config";
+import { ObsidianEngineStatus, EngineIssue } from "../lib/obsidian/types";
+
+// Parse CLI arguments
+const args = process.argv.slice(2);
+let memoryMode: "rollup" | "individual" = "rollup";
+const modeArg = args.find(a => a.startsWith("--memory-mode="));
+if (modeArg) {
+  const val = modeArg.split("=")[1];
+  if (val === "individual" || val === "rollup") {
+    memoryMode = val;
+  }
+}
+
+const engineConfig = getObsidianEngineConfig();
+const vaultPath = engineConfig.vaultPath;
+
+interface ConflictRecord {
+  title: string;
+  file: string;
+  conflictFile: string;
+}
+
+const exportConflicts: ConflictRecord[] = [];
+let exportedGoals = 0;
+let exportedMissions = 0;
+let exportedReflections = 0;
+let exportedMemories = 0;
+let exportFailed = 0;
 
 // Helper to sanitize filename by removing illegal Windows/Linux characters
 function sanitizeFilename(name: string): string {
   return name
     .replace(/[\\/:*?"<>|]/g, "")
     .trim();
+}
+
+// Helper to calculate SHA256 of string
+function calculateHash(str: string): string {
+  return crypto.createHash("sha256").update(str, "utf-8").digest("hex");
+}
+
+// Helper to parse YAML frontmatter (read-only for local conflict check)
+function parseFrontmatter(fileContent: string): { metadata: Record<string, any>; content: string } {
+  const result = { metadata: {} as Record<string, any>, content: fileContent };
+  const normalized = fileContent.trim();
+  if (!normalized.startsWith("---")) return result;
+
+  const lines = normalized.split(/\r?\n/);
+  if (lines[0] !== "---") return result;
+
+  let closingIndex = -1;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === "---") {
+      closingIndex = i;
+      break;
+    }
+  }
+
+  if (closingIndex === -1) return result;
+
+  const yamlLines = lines.slice(1, closingIndex);
+  const metadata: Record<string, any> = {};
+
+  for (const line of yamlLines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const colonIdx = trimmed.indexOf(":");
+    if (colonIdx === -1) continue;
+
+    const rawKey = trimmed.substring(0, colonIdx).trim();
+    let rawVal = trimmed.substring(colonIdx + 1).trim();
+
+    if ((rawVal.startsWith('"') && rawVal.endsWith('"')) || (rawVal.startsWith("'") && rawVal.endsWith("'"))) {
+      rawVal = rawVal.substring(1, rawVal.length - 1);
+    }
+
+    metadata[rawKey] = rawVal;
+  }
+
+  result.metadata = metadata;
+  result.content = lines.slice(closingIndex + 1).join("\n");
+  return result;
 }
 
 // Helper to build frontmatter YAML string
@@ -37,13 +116,83 @@ function buildFrontmatter(metadata: Record<string, any>): string {
   return yaml;
 }
 
+// Build final content with embedded content hash and timestamp
+function buildNoteContent(metadata: Record<string, any>, body: string): { content: string; hash: string } {
+  const cleanBody = body.trim();
+  const contentHash = calculateHash(cleanBody);
+  const fullMetadata = {
+    ...metadata,
+    hash: contentHash,
+    last_synced_at: new Date().toISOString()
+  };
+  const content = buildFrontmatter(fullMetadata) + body;
+  return { content, hash: contentHash };
+}
+
+// Safe Note Writer with Conflict Protection
+function safeWriteNote(
+  filePath: string,
+  metadata: Record<string, any>,
+  body: string
+): boolean {
+  try {
+    const { content: newContent } = buildNoteContent(metadata, body);
+
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(filePath, newContent, "utf-8");
+      return true;
+    }
+
+    // Check conflict
+    const localRaw = fs.readFileSync(filePath, "utf-8");
+    const localParsed = parseFrontmatter(localRaw);
+    
+    const storedHash = localParsed.metadata.hash;
+    const currentLocalHash = calculateHash(localParsed.content.trim());
+    
+    // If the local file's stored hash doesn't match the current body, the user has edited it
+    const isModified = storedHash && storedHash !== currentLocalHash;
+
+    if (isModified) {
+      // Sync Conflict! Write copy under Statenour/Quarantine/Conflicts/
+      const conflictDir = path.join(vaultPath, "Statenour", "Quarantine", "Conflicts");
+      if (!fs.existsSync(conflictDir)) {
+        fs.mkdirSync(conflictDir, { recursive: true });
+      }
+
+      const sanitizedTitle = sanitizeFilename(metadata.title || path.basename(filePath, ".md"));
+      const timestamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
+      const conflictFilename = `${sanitizedTitle}.conflict-${timestamp}.md`;
+      const conflictPath = path.join(conflictDir, conflictFilename);
+
+      fs.writeFileSync(conflictPath, newContent, "utf-8");
+      
+      exportConflicts.push({
+        title: metadata.title || sanitizedTitle,
+        file: filePath,
+        conflictFile: conflictFilename
+      });
+
+      console.warn(`  ⚠️  [Conflict] "${sanitizedTitle}" was modified locally in Obsidian. Staged version written to Quarantine/Conflicts/`);
+      return false;
+    }
+
+    // Safe to overwrite
+    fs.writeFileSync(filePath, newContent, "utf-8");
+    return true;
+  } catch (err) {
+    console.error(`  ❌ Failed to write note: ${filePath}`, err);
+    exportFailed++;
+    return false;
+  }
+}
+
 async function main() {
   console.log("");
   console.log("═══════════════════════════════════════════════════════════");
   console.log("  EXPORT STATENOUR BRAIN → OBSIDIAN VAULT");
   console.log("═══════════════════════════════════════════════════════════");
 
-  const vaultPath = "C:\\Users\\nourd\\OneDrive\\Documents\\Obsidian Vault";
   if (!fs.existsSync(vaultPath)) {
     console.error(`❌ Vault directory not found at: ${vaultPath}`);
     process.exit(1);
@@ -68,23 +217,33 @@ async function main() {
   const memoriesDir = path.join(targetDir, "Memories");
   if (!fs.existsSync(memoriesDir)) fs.mkdirSync(memoriesDir);
 
-  // Remove legacy rollup files to prevent duplicate information
+  // Archive legacy rollup files instead of deleting
+  const archiveDir = path.join(targetDir, "Archive", "Legacy Exports");
+  if (!fs.existsSync(archiveDir)) {
+    fs.mkdirSync(archiveDir, { recursive: true });
+  }
+
   const legacyGoalsFile = path.join(targetDir, "Life Goals.md");
   if (fs.existsSync(legacyGoalsFile)) {
     try {
-      fs.unlinkSync(legacyGoalsFile);
-      console.log("  🧹 Removed legacy Life Goals.md");
-    } catch {}
+      fs.renameSync(legacyGoalsFile, path.join(archiveDir, "Life Goals.md"));
+      console.log("  🧹 Archived legacy Life Goals.md to Statenour/Archive/Legacy Exports/");
+    } catch {
+      try { fs.unlinkSync(legacyGoalsFile); } catch {}
+    }
   }
   const legacyMissionsFile = path.join(targetDir, "Active Missions.md");
   if (fs.existsSync(legacyMissionsFile)) {
     try {
-      fs.unlinkSync(legacyMissionsFile);
-      console.log("  🧹 Removed legacy Active Missions.md");
-    } catch {}
+      fs.renameSync(legacyMissionsFile, path.join(archiveDir, "Active Missions.md"));
+      console.log("  🧹 Archived legacy Active Missions.md to Statenour/Archive/Legacy Exports/");
+    } catch {
+      try { fs.unlinkSync(legacyMissionsFile); } catch {}
+    }
   }
 
   console.log(`  Exporting data into: ${targetDir}`);
+  console.log(`  Memory Mode: ${memoryMode}`);
   console.log("");
 
   // 1. Export Active Life Goals
@@ -94,7 +253,6 @@ async function main() {
       where: { deletedAt: null },
     });
 
-    let exportedGoals = 0;
     for (const goal of goals) {
       const sanitizedTitle = sanitizeFilename(goal.title);
       const filename = `${sanitizedTitle}.md`;
@@ -109,31 +267,30 @@ async function main() {
         statenour_model: "LifeGoal",
         statenour_id: goal.id,
         sync_direction: "bidirectional",
-        last_synced_at: new Date().toISOString(),
       };
 
-      let content = buildFrontmatter(metadata);
-      content += `# 🎯 ${goal.title}\n\n`;
+      let body = `# 🎯 ${goal.title}\n\n`;
       if (goal.why) {
-        content += `${goal.why}\n\n`;
+        body += `${goal.why}\n\n`;
       }
-      content += `- **Horizon:** ${goal.horizon || "None"}\n`;
-      content += `- **Metric:** ${goal.metric} (${goal.targetValue} ${goal.unit || ""})\n`;
-      content += `- **Current Value:** ${goal.currentValue} (${goal.progress}%)\n`;
-      content += `- **Deadline:** ${goal.deadline ? new Date(goal.deadline).toLocaleDateString() : "None"}\n`;
-      content += `- **Status:** ${goal.status}\n`;
-      content += `- **Created At:** ${goal.createdAt.toLocaleDateString()}\n\n`;
+      body += `- **Horizon:** ${goal.horizon || "None"}\n`;
+      body += `- **Metric:** ${goal.metric} (${goal.targetValue} ${goal.unit || ""})\n`;
+      body += `- **Current Value:** ${goal.currentValue} (${goal.progress}%)\n`;
+      body += `- **Deadline:** ${goal.deadline ? new Date(goal.deadline).toLocaleDateString() : "None"}\n`;
+      body += `- **Status:** ${goal.status}\n`;
+      body += `- **Created At:** ${goal.createdAt.toLocaleDateString()}\n\n`;
 
       if (goal.planData) {
-        content += `## Plan Data\n\`\`\`json\n${JSON.stringify(goal.planData, null, 2)}\n\`\`\`\n\n`;
+        body += `## Plan Data\n\`\`\`json\n${JSON.stringify(goal.planData, null, 2)}\n\`\`\`\n\n`;
       }
 
-      fs.writeFileSync(path.join(goalsDir, filename), content, "utf-8");
-      exportedGoals++;
+      const success = safeWriteNote(path.join(goalsDir, filename), metadata, body);
+      if (success) exportedGoals++;
     }
     console.log(`    └─ ✅ ${exportedGoals} individual life goals written to Statenour/Goals/`);
   } catch (err) {
     console.error("    └─ ❌ Failed to export Life Goals:", err);
+    exportFailed++;
   }
 
   // 2. Export Active Missions
@@ -143,7 +300,6 @@ async function main() {
       where: { deletedAt: null },
     });
 
-    let exportedMissions = 0;
     for (const mission of missions) {
       const sanitizedTitle = sanitizeFilename(mission.title);
       const filename = `${sanitizedTitle}.md`;
@@ -157,34 +313,33 @@ async function main() {
         statenour_model: "Mission",
         statenour_id: mission.id,
         sync_direction: "bidirectional",
-        last_synced_at: new Date().toISOString(),
       };
 
-      let content = buildFrontmatter(metadata);
-      content += `# 📂 ${mission.title}\n\n`;
-      content += `- **Domain:** ${mission.canonicalDomain || mission.domain}\n`;
-      content += `- **Status:** ${mission.status}\n`;
-      content += `- **Priority:** ${mission.priority}\n`;
-      content += `- **ROI Score:** ${mission.roiScore}\n`;
-      content += `- **Neglect Cost:** ${mission.neglectCost}\n`;
-      content += `- **Success Metric:** ${mission.successMetric || "None"}\n`;
-      content += `- **Deadline:** ${mission.deadline ? new Date(mission.deadline).toLocaleDateString() : "None"}\n`;
-      content += `- **Created At:** ${mission.createdAt.toLocaleDateString()}\n\n`;
+      let body = `# 📂 ${mission.title}\n\n`;
+      body += `- **Domain:** ${mission.canonicalDomain || mission.domain}\n`;
+      body += `- **Status:** ${mission.status}\n`;
+      body += `- **Priority:** ${mission.priority}\n`;
+      body += `- **ROI Score:** ${mission.roiScore}\n`;
+      body += `- **Neglect Cost:** ${mission.neglectCost}\n`;
+      body += `- **Success Metric:** ${mission.successMetric || "None"}\n`;
+      body += `- **Deadline:** ${mission.deadline ? new Date(mission.deadline).toLocaleDateString() : "None"}\n`;
+      body += `- **Created At:** ${mission.createdAt.toLocaleDateString()}\n\n`;
 
       if (mission.weeklyReviewNote) {
-        content += `## Weekly Review Note\n\n${mission.weeklyReviewNote}\n\n`;
+        body += `## Weekly Review Note\n\n${mission.weeklyReviewNote}\n\n`;
       }
 
       if (mission.planData) {
-        content += `## Plan Data\n\`\`\`json\n${JSON.stringify(mission.planData, null, 2)}\n\`\`\`\n\n`;
+        body += `## Plan Data\n\`\`\`json\n${JSON.stringify(mission.planData, null, 2)}\n\`\`\`\n\n`;
       }
 
-      fs.writeFileSync(path.join(missionsDir, filename), content, "utf-8");
-      exportedMissions++;
+      const success = safeWriteNote(path.join(missionsDir, filename), metadata, body);
+      if (success) exportedMissions++;
     }
     console.log(`    └─ ✅ ${exportedMissions} individual missions written to Statenour/Missions/`);
   } catch (err) {
     console.error("    └─ ❌ Failed to export Missions:", err);
+    exportFailed++;
   }
 
   // 3. Export Reflections
@@ -196,7 +351,6 @@ async function main() {
       orderBy: { createdAt: "desc" },
     });
 
-    let exportedReflections = 0;
     for (const ref of reflections) {
       const dateStr = ref.createdAt.toISOString().split("T")[0];
       const timeStr = ref.createdAt.toTimeString().split(" ")[0].replace(/:/g, "-");
@@ -211,28 +365,27 @@ async function main() {
         statenour_model: "Reflection",
         statenour_id: ref.id,
         sync_direction: "bidirectional",
-        last_synced_at: new Date().toISOString(),
       };
 
-      let content = buildFrontmatter(metadata);
-      content += `# 💭 Statenour Reflection (${ref.scope})\n\n`;
-      content += `- **Date:** ${ref.createdAt.toLocaleString()}\n`;
-      content += `- **Category:** ${ref.category}\n`;
-      content += `- **Confidence:** ${ref.confidence}\n`;
-      content += `- **Actionable:** ${ref.actionable ? "Yes" : "No"}\n`;
-      content += `- **Acknowledged:** ${ref.acknowledged ? "Yes" : "No"}\n\n`;
-      content += `## Insight\n\n${ref.insight}\n\n`;
-      content += `## Evidence\n\n${ref.evidence}\n`;
+      let body = `# 💭 Statenour Reflection (${ref.scope})\n\n`;
+      body += `- **Date:** ${ref.createdAt.toLocaleString()}\n`;
+      body += `- **Category:** ${ref.category}\n`;
+      body += `- **Confidence:** ${ref.confidence}\n`;
+      body += `- **Actionable:** ${ref.actionable ? "Yes" : "No"}\n`;
+      body += `- **Acknowledged:** ${ref.acknowledged ? "Yes" : "No"}\n\n`;
+      body += `## Insight\n\n${ref.insight}\n\n`;
+      body += `## Evidence\n\n${ref.evidence}\n`;
 
-      fs.writeFileSync(path.join(reflectionsDir, filename), content, "utf-8");
-      exportedReflections++;
+      const success = safeWriteNote(path.join(reflectionsDir, filename), metadata, body);
+      if (success) exportedReflections++;
     }
     console.log(`    └─ ✅ ${exportedReflections} reflections written to Statenour/Reflections/`);
   } catch (err) {
     console.error("    └─ ❌ Failed to export Reflections:", err);
+    exportFailed++;
   }
 
-  // 4. Export Brain Memories (excluding obsidian imports and system artifacts)
+  // 4. Export Brain Memories
   console.log("  Processing: Brain Memories...");
   try {
     const memories = await prisma.brainMemory.findMany({
@@ -258,37 +411,135 @@ async function main() {
       grouped[mem.category].push(mem);
     }
 
-    let exportedMemories = 0;
-    for (const category of Object.keys(grouped)) {
-      const catMemories = grouped[category];
-      
-      // Sanitize category name for filename
-      const cleanCatName = category.toUpperCase().replace(/[^A-Z0-9_]+/g, "_");
-      const filename = `${cleanCatName}.md`;
+    if (memoryMode === "rollup") {
+      // Rollup Mode: Export as single category log files
+      for (const category of Object.keys(grouped)) {
+        const catMemories = grouped[category];
+        const cleanCatName = category.toUpperCase().replace(/[^A-Z0-9_]+/g, "_");
+        const filename = `${cleanCatName}.md`;
 
-      let catMarkdown = `# 🧠 Brain Memories: ${cleanCatName}\n\n`;
-      catMarkdown += `*Last Synced: ${new Date().toLocaleString()}*\n\n`;
+        const metadata = {
+          title: `Brain Memories Rollup: ${cleanCatName}`,
+          type: "memory_rollup",
+          category: category,
+          source: "statenour",
+          sync_direction: "none",
+        };
 
-      for (const mem of catMemories) {
-        catMarkdown += `## Key: ${mem.key}\n`;
-        catMarkdown += `- **Created:** ${mem.createdAt.toLocaleString()}\n`;
-        catMarkdown += `- **Confidence:** ${mem.confidence}\n\n`;
-        catMarkdown += `### Content:\n\`\`\`\n${mem.content}\n\`\`\`\n\n`;
-        
-        // Metadata formatting
-        if (mem.metadata) {
-          catMarkdown += `#### Metadata:\n\`\`\`json\n${JSON.stringify(mem.metadata, null, 2)}\n\`\`\`\n\n`;
+        let body = `# 🧠 Brain Memories: ${cleanCatName}\n\n`;
+        body += `*Last Synced: ${new Date().toLocaleString()}*\n\n`;
+
+        for (const mem of catMemories) {
+          body += `## Key: ${mem.key}\n`;
+          body += `- **Created:** ${mem.createdAt.toLocaleString()}\n`;
+          body += `- **Confidence:** ${mem.confidence}\n\n`;
+          body += `### Content:\n\`\`\`\n${mem.content}\n\`\`\`\n\n`;
+          
+          if (mem.metadata) {
+            body += `#### Metadata:\n\`\`\`json\n${JSON.stringify(mem.metadata, null, 2)}\n\`\`\`\n\n`;
+          }
+          body += `---\n\n`;
+          exportedMemories++;
         }
-        
-        catMarkdown += `---\n\n`;
-        exportedMemories++;
-      }
 
-      fs.writeFileSync(path.join(memoriesDir, filename), catMarkdown, "utf-8");
+        const success = safeWriteNote(path.join(memoriesDir, filename), metadata, body);
+      }
+      console.log(`    └─ ✅ Synced all active memories into ${Object.keys(grouped).length} category markdown logs`);
+    } else {
+      // Individual Mode: Export each memory as an individual markdown file
+      for (const category of Object.keys(grouped)) {
+        const catMemories = grouped[category];
+        const cleanCatName = category.toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+        const categorySubdir = path.join(memoriesDir, cleanCatName);
+        if (!fs.existsSync(categorySubdir)) {
+          fs.mkdirSync(categorySubdir, { recursive: true });
+        }
+
+        for (const mem of catMemories) {
+          const sanitizedKey = sanitizeFilename(mem.key);
+          const filename = `${sanitizedKey}.md`;
+
+          const metadata = {
+            title: mem.key,
+            type: "memory",
+            category: category,
+            source: "statenour",
+            statenour_model: "BrainMemory",
+            statenour_id: mem.id,
+            sync_direction: "bidirectional",
+          };
+
+          let body = `# 🧠 Brain Memory: ${mem.key}\n\n`;
+          body += `${mem.content}\n\n`;
+          
+          if (mem.metadata) {
+            body += `## Metadata\n\`\`\`json\n${JSON.stringify(mem.metadata, null, 2)}\n\`\`\`\n`;
+          }
+
+          const success = safeWriteNote(path.join(categorySubdir, filename), metadata, body);
+          if (success) exportedMemories++;
+        }
+      }
+      console.log(`    └─ ✅ ${exportedMemories} individual memory notes written to Statenour/Memories/`);
     }
-    console.log(`    └─ ✅ Synced all active memories into ${Object.keys(grouped).length} category markdown logs`);
   } catch (err) {
     console.error("    └─ ❌ Failed to export Brain Memories:", err);
+    exportFailed++;
+  }
+
+  // Write updated status file after each export run
+  try {
+    const existingStatus = readEngineStatus();
+    
+    // Count export successes, warnings, and conflicts
+    const exportWarnings: EngineIssue[] = [];
+    if (exportConflicts.length > 0) {
+      for (const conf of exportConflicts) {
+        exportWarnings.push({
+          type: "WARN",
+          message: `Sync conflict detected for note: "${conf.title}". A conflict file was written to Statenour/Quarantine/Conflicts/${conf.conflictFile}.`,
+          file: conf.file,
+          detected_at: new Date().toISOString(),
+          suggested_fix: "Compare the conflict file with the note, merge changes, and delete the conflict file."
+        });
+      }
+    }
+
+    const hasFailures = exportFailed > 0 || (existingStatus ? existingStatus.health === "error" : false);
+    const health = hasFailures ? "error" : (exportConflicts.length > 0 || (existingStatus ? existingStatus.health === "degraded" : false) ? "degraded" : "healthy");
+
+    const statusPayload: ObsidianEngineStatus = {
+      health,
+      lastRunAt: new Date().toISOString(),
+      lastDoctorRunAt: existingStatus ? existingStatus.lastDoctorRunAt : null,
+      lastIngestRunAt: existingStatus ? existingStatus.lastIngestRunAt : null,
+      lastExportRunAt: new Date().toISOString(),
+      stats: {
+        totalNotes: existingStatus ? existingStatus.stats.totalNotes : (exportedGoals + exportedMissions + exportedReflections + exportedMemories),
+        processed: exportedGoals + exportedMissions + exportedReflections + exportedMemories,
+        synced: exportedGoals + exportedMissions + exportedReflections + exportedMemories - exportConflicts.length,
+        skipped: existingStatus ? existingStatus.stats.skipped : 0,
+        failed: exportFailed,
+        quarantined: existingStatus ? existingStatus.stats.quarantined : 0,
+        warnings: exportWarnings.length + (existingStatus ? existingStatus.stats.warnings : 0),
+        failures: exportFailed + (existingStatus ? existingStatus.stats.failures : 0),
+      },
+      issues: [
+        ...(existingStatus ? existingStatus.issues.filter(issue => !issue.message.includes("conflict")) : []),
+        ...exportWarnings
+      ],
+      quarantinedFiles: existingStatus ? existingStatus.quarantinedFiles : [],
+      config: {
+        vaultPath,
+        icloudShortcutsPath: engineConfig.icloudShortcutsPath,
+        syncMode: engineConfig.syncMode,
+        restUrl: engineConfig.restUrl
+      }
+    };
+
+    writeEngineStatus(statusPayload);
+  } catch (writeErr) {
+    console.error("  ⚠️ Failed to write engine status file:", writeErr);
   }
 
   console.log("");

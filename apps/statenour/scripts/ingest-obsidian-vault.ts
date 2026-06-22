@@ -13,6 +13,8 @@ import path from "path";
 import { prisma } from "../lib/prisma";
 import { BRAIN_CATEGORIES } from "../lib/brain/categories";
 import { brainMemory } from "../lib/brain/memory-manager";
+import { getObsidianEngineConfig, readEngineStatus, writeEngineStatus } from "../lib/obsidian/engine-config";
+import { ObsidianEngineStatus, QuarantinedFileInfo } from "../lib/obsidian/types";
 
 // Helper to recursively find files in a directory matching a filter
 function getFilesRecursive(dir: string, filter: (f: string) => boolean): string[] {
@@ -41,16 +43,18 @@ async function main() {
   console.log("  INGEST LOCAL NOTES (OBSIDIAN & ICLOUD) → BRAIN");
   console.log("═══════════════════════════════════════════════════════════");
 
+  const engineConfig = getObsidianEngineConfig();
+
   const scanTargets = [
     {
       name: "Obsidian Vault",
-      path: "C:\\Users\\nourd\\OneDrive\\Documents\\Obsidian Vault",
+      path: engineConfig.vaultPath,
       prefix: "obsidian_",
       filter: (f: string) => f.endsWith(".md") && f !== "README.md",
     },
     {
       name: "iCloud Shortcuts Folder",
-      path: "C:\\Users\\nourd\\iCloudDrive\\iCloud~is~workflow~my~workflows",
+      path: engineConfig.icloudShortcutsPath,
       prefix: "icloud_shortcut_",
       filter: (f: string) => (f.endsWith(".md") || f.endsWith(".txt")) && f !== "README.md",
     },
@@ -217,6 +221,9 @@ async function main() {
 
   let totalProcessed = 0;
   let totalSynced = 0;
+  let totalSkipped = 0;
+  let totalQuarantined = 0;
+  let totalFailed = 0;
 
   for (const target of scanTargets) {
     console.log(`Checking ${target.name} at: ${target.path}...`);
@@ -237,6 +244,7 @@ async function main() {
 
       if (!rawContent.trim()) {
         console.log(`  Skipping empty file: ${file}`);
+        totalSkipped++;
         continue;
       }
 
@@ -249,6 +257,7 @@ async function main() {
         : null;
       if (syncDirection && syncDirection !== "obsidian_to_statenour" && syncDirection !== "bidirectional") {
         console.log(`  [Skip] "${file}" has sync_direction: "${syncDirection}" (not bidirectional or obsidian_to_statenour).`);
+        totalSkipped++;
         continue;
       }
 
@@ -259,6 +268,7 @@ async function main() {
       // Strict validation / Quarantine
       if (!category) {
         console.log(`  ⚠️ [Quarantine] "${file}" has no category and does not match filename heuristics.`);
+        totalQuarantined++;
         if (target.name === "Obsidian Vault" && fs.existsSync(target.path)) {
           const quarantineDir = path.join(target.path, "Statenour", "Quarantine");
           if (!fs.existsSync(quarantineDir)) {
@@ -290,6 +300,7 @@ async function main() {
 
       if (existing && existing.content === fullContent) {
         console.log(`  [Skip] "${file}" is already synced and unchanged.`);
+        totalSkipped++;
         continue;
       }
 
@@ -363,6 +374,7 @@ async function main() {
         totalSynced++;
       } catch (err) {
         console.error(`    └─ ❌ Failed to ingest ${file}:`, err);
+        totalFailed++;
       }
     }
     console.log("");
@@ -370,8 +382,68 @@ async function main() {
 
   console.log("═══════════════════════════════════════════════════════════");
   console.log(`  🎉 Ingestion complete: ${totalSynced}/${totalProcessed} new/modified notes synced.`);
+  console.log(`    - Skipped: ${totalSkipped}`);
+  console.log(`    - Quarantined: ${totalQuarantined}`);
+  console.log(`    - Failed: ${totalFailed}`);
   console.log("═══════════════════════════════════════════════════════════");
   console.log("");
+
+  // Write updated status file
+  try {
+    const existingStatus = readEngineStatus();
+    const hasFailures = totalFailed > 0 || (existingStatus ? existingStatus.health === "error" : false);
+    const health = hasFailures ? "error" : (totalQuarantined > 0 || (existingStatus ? existingStatus.health === "degraded" : false) ? "degraded" : "healthy");
+
+    const statusPayload: ObsidianEngineStatus = {
+      health,
+      lastRunAt: new Date().toISOString(),
+      lastDoctorRunAt: existingStatus ? existingStatus.lastDoctorRunAt : null,
+      lastIngestRunAt: new Date().toISOString(),
+      lastExportRunAt: existingStatus ? existingStatus.lastExportRunAt : null,
+      stats: {
+        totalNotes: existingStatus ? existingStatus.stats.totalNotes : totalProcessed,
+        processed: totalProcessed,
+        synced: totalSynced,
+        skipped: totalSkipped,
+        failed: totalFailed,
+        quarantined: totalQuarantined,
+        warnings: existingStatus ? existingStatus.stats.warnings : 0,
+        failures: totalFailed + (existingStatus ? existingStatus.stats.failures : 0),
+      },
+      issues: existingStatus ? existingStatus.issues : [],
+      quarantinedFiles: existingStatus ? existingStatus.quarantinedFiles : [],
+      config: {
+        vaultPath: engineConfig.vaultPath,
+        icloudShortcutsPath: engineConfig.icloudShortcutsPath,
+        syncMode: engineConfig.syncMode,
+        restUrl: engineConfig.restUrl
+      }
+    };
+
+    // Scan Quarantine folder during ingest to make sure quarantinedFiles is always accurate
+    const quarantinedFilesList: QuarantinedFileInfo[] = [];
+    const quarantineDir = path.join(engineConfig.vaultPath, "Statenour", "Quarantine");
+    if (fs.existsSync(quarantineDir)) {
+      try {
+        const qFiles = fs.readdirSync(quarantineDir).filter(f => f.endsWith(".md") || f.endsWith(".txt"));
+        for (const qFile of qFiles) {
+          quarantinedFilesList.push({
+            filename: qFile,
+            relativePath: path.join("Statenour", "Quarantine", qFile),
+            reason: "Missing category frontmatter property or failing metadata heuristics during ingestion.",
+            detected_at: new Date().toISOString(),
+            suggested_fix: "Add valid YAML frontmatter containing 'category: <category>' to this note and move it back to 01_Inbox/ or 10_Statenour/."
+          });
+        }
+      } catch {}
+    }
+    statusPayload.quarantinedFiles = quarantinedFilesList;
+    statusPayload.stats.quarantined = quarantinedFilesList.length;
+
+    writeEngineStatus(statusPayload);
+  } catch (writeErr) {
+    console.error("  ⚠️ Failed to write engine status file:", writeErr);
+  }
 
   await prisma.$disconnect();
 }
