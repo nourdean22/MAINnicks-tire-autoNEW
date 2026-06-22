@@ -470,6 +470,35 @@ async function runDraft(
   // Routed via makeTracedAiChat factory · inherits the daily-budget gate
   // installed in traced-aichat.ts. Drop-in: call signature unchanged.
   const aiChat = tracedAiChat;
+
+  // Greene + dark-psychology tactical context injection (2026-06-20).
+  // Deterministic keyword match · sub-millisecond · self-gating (returns ""
+  // when nothing matches). Prepended to the reasoning context so the draft
+  // step sees relevant tactical patterns alongside fanout/tool data.
+  let tacticalContext = "";
+  try {
+    const [greeneBlock, darkPsychBlock] = await Promise.all([
+      (async () => {
+        const { pickContextualLawsForMessage, renderGreeneBlock } =
+          await import("@/lib/ai/greene-message-matcher");
+        const picks = await pickContextualLawsForMessage(question);
+        return renderGreeneBlock(picks);
+      })(),
+      (async () => {
+        const { pickDarkPsychologyForMessage, renderDarkPsychologyBlock } =
+          await import("@/lib/ai/dark-psychology-matcher");
+        const picks = await pickDarkPsychologyForMessage(question);
+        return renderDarkPsychologyBlock(picks);
+      })(),
+    ]);
+    const blocks = [greeneBlock, darkPsychBlock].filter(Boolean);
+    if (blocks.length > 0) {
+      tacticalContext = blocks.join("\n\n") + "\n\n---\n\n";
+    }
+  } catch {
+    // Best-effort · tactical context failures must never block the draft.
+  }
+
   const reply = await aiChat(
     [
       {
@@ -488,7 +517,7 @@ If the context is empty or contradicts itself, say so explicitly and proceed wit
         : null,
       {
         role: "system" as const,
-        content: `Reasoning context:\n${context.slice(0, 4000)}`,
+        content: `Reasoning context:\n${(tacticalContext + context).slice(0, 4000)}`,
       },
       { role: "user", content: question },
     ].filter((m): m is { role: "system" | "user" | "assistant"; content: string } => m !== null),
