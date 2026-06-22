@@ -51,6 +51,9 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
+    "obsidian:doctor": "tsx scripts/obsidian-doctor.ts",
+    "obsidian:ingest": "tsx scripts/ingest-obsidian-vault.ts",
+    "obsidian:export": "tsx scripts/export-brain-to-obsidian.ts",
     "install-hooks": "bash scripts/install-hooks.sh",
     "postinstall": "prisma generate"
   },
