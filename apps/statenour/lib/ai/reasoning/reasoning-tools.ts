@@ -56,7 +56,23 @@ const REASONING_TOOL_WHITELIST = new Set([
   "getCameraIntelligence",
   "findCustomer",
   // System reads (if any read-safe ones exist)
-  // Brain reads
+  // Brain reads — analyzers + Greene + power dynamics + dark psychology
+  "analyzeMentalHealth",
+  "analyzeGoals",
+  "analyzeTrends",
+  "analyzeSleep",
+  "analyzeWeightTrend",
+  "analyzeFitness",
+  "analyzeWorkHealth",
+  "getEmotionalState",
+  "getBrainHealth",
+  "searchGreeneLaws",
+  "analyzePowerDynamics",
+  "getDarkPsychologyTactics",
+  "getPowerBalanceSummary",
+  "getContextualGreeneLaws",
+  "analyzeComposure",
+  "analyzeCompetitiveIntel",
 ] as const);
 
 /**
