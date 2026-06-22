@@ -20,8 +20,6 @@ export const CANONICAL_DOMAINS = [
   { key: "mind", label: "Mind", anchorTitle: "GENERAL MIND", statBranch: "mind" },
   { key: "business", label: "Business", anchorTitle: "GENERAL BUSINESS", statBranch: "empire" },
   { key: "social", label: "Social", anchorTitle: "GENERAL SOCIAL", statBranch: "influence" },
-  // Spiritual lives under the `mind` branch via the `faith` stat.
-  { key: "spiritual", label: "Spiritual", anchorTitle: "GENERAL SPIRITUAL", statBranch: "mind" },
   // Personal = errands/home/admin · no single stat branch (catch-all).
   { key: "personal", label: "Personal", anchorTitle: "GENERAL PERSONAL", statBranch: null },
 ] as const;
@@ -74,7 +72,6 @@ const CANONICAL_TO_LEGACY: Record<CanonicalDomain, string> = {
   personal: "PERSONAL",
   mind: "PERSONAL",
   social: "PERSONAL",
-  spiritual: "PERSONAL",
 };
 
 export function legacyDomainFor(domain: CanonicalDomain): string {
