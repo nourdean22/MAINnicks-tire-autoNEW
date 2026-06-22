@@ -68,10 +68,83 @@ async function main() {
     );
   };
 
+  // Helper to parse YAML frontmatter without external dependencies
+  const parseFrontmatter = (fileContent: string) => {
+    const result = {
+      metadata: {} as Record<string, any>,
+      content: fileContent,
+    };
+
+    const normalized = fileContent.trim();
+    if (!normalized.startsWith("---")) {
+      return result;
+    }
+
+    const lines = normalized.split(/\r?\n/);
+    if (lines[0] !== "---") {
+      return result;
+    }
+
+    let closingIndex = -1;
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].trim() === "---") {
+        closingIndex = i;
+        break;
+      }
+    }
+
+    if (closingIndex === -1) {
+      return result;
+    }
+
+    const yamlLines = lines.slice(1, closingIndex);
+    const metadata: Record<string, any> = {};
+
+    for (const line of yamlLines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+
+      const colonIdx = trimmed.indexOf(":");
+      if (colonIdx === -1) continue;
+
+      const rawKey = trimmed.substring(0, colonIdx).trim();
+      let rawVal = trimmed.substring(colonIdx + 1).trim();
+
+      if ((rawVal.startsWith('"') && rawVal.endsWith('"')) || (rawVal.startsWith("'") && rawVal.endsWith("'"))) {
+        rawVal = rawVal.substring(1, rawVal.length - 1);
+      }
+
+      let value: any = rawVal;
+      if (rawKey === "tags") {
+        if (rawVal.startsWith("[") && rawVal.endsWith("]")) {
+          value = rawVal
+            .substring(1, rawVal.length - 1)
+            .split(",")
+            .map((t) => t.trim().replace(/^['"]|['"]$/g, ""))
+            .filter(Boolean);
+        } else {
+          value = rawVal.split(",").map((t) => t.trim()).filter(Boolean);
+        }
+      } else if (rawVal === "true") {
+        value = true;
+      } else if (rawVal === "false") {
+        value = false;
+      } else if (!isNaN(Number(rawVal)) && rawVal !== "") {
+        value = Number(rawVal);
+      }
+
+      metadata[rawKey] = value;
+    }
+
+    result.metadata = metadata;
+    result.content = lines.slice(closingIndex + 1).join("\n").trim();
+    return result;
+  };
+
   // Helper to map files to categories
   const getCategoryAndTitle = (filename: string) => {
     const name = filename.toLowerCase();
-    let category = BRAIN_CATEGORIES.PERSONAL_DEVELOPMENT;
+    let category = null; // Default to null for strict validation/quarantine
     let title = filename.replace(/\.(md|txt)$/, "");
 
     if (
@@ -141,26 +214,54 @@ async function main() {
     for (const filePath of filePaths) {
       totalProcessed++;
       const file = path.basename(filePath);
-      let content = fs.readFileSync(filePath, "utf-8").trim();
+      const rawContent = fs.readFileSync(filePath, "utf-8");
 
-      if (!content) {
+      if (!rawContent.trim()) {
         console.log(`  Skipping empty file: ${file}`);
         continue;
       }
 
-      const { category, title } = getCategoryAndTitle(file);
-      const key = toKey(file, target.prefix);
+      // Parse YAML frontmatter
+      const parsed = parseFrontmatter(rawContent);
 
-      // Clean up content: strip markdown frontmatter if present (lines between first --- and second ---)
-      if (content.startsWith("---")) {
-        const parts = content.split("---");
-        if (parts.length >= 3) {
-          content = parts.slice(2).join("---").trim();
-        }
+      // Gate by sync_direction if present in frontmatter
+      const syncDirection = typeof parsed.metadata.sync_direction === "string" 
+        ? parsed.metadata.sync_direction.toLowerCase() 
+        : null;
+      if (syncDirection && syncDirection !== "obsidian_to_statenour" && syncDirection !== "bidirectional") {
+        console.log(`  [Skip] "${file}" has sync_direction: "${syncDirection}" (not bidirectional or obsidian_to_statenour).`);
+        continue;
       }
 
+      const { category: filenameCategory, title: filenameTitle } = getCategoryAndTitle(file);
+      const category = parsed.metadata.category || filenameCategory;
+      const title = parsed.metadata.title || filenameTitle;
+
+      // Strict validation / Quarantine
+      if (!category) {
+        console.log(`  ⚠️ [Quarantine] "${file}" has no category and does not match filename heuristics.`);
+        if (target.name === "Obsidian Vault" && fs.existsSync(target.path)) {
+          const inboxDir = path.join(target.path, "01_Inbox");
+          if (!fs.existsSync(inboxDir)) {
+            fs.mkdirSync(inboxDir, { recursive: true });
+          }
+          const destPath = path.join(inboxDir, file);
+          if (filePath !== destPath) {
+            try {
+              fs.renameSync(filePath, destPath);
+              console.log(`    └─ Moved to: ${destPath}`);
+            } catch (renameErr) {
+              console.error(`    └─ Failed to move file to quarantine:`, renameErr);
+            }
+          }
+        }
+        continue;
+      }
+
+      const key = toKey(file, target.prefix);
+
       // Prefix with title for search clarity
-      const fullContent = `[${title}]\n${content}`;
+      const fullContent = `[${title}]\n${parsed.content}`;
 
       // Deduplication check: skip if identical content is already stored
       const existing = await prisma.brainMemory.findFirst({
@@ -180,26 +281,63 @@ async function main() {
       console.log(`    └─ Size:       ${fullContent.length} chars`);
 
       try {
+        // Map all key metadata fields
+        const metadataPayload: Record<string, any> = {
+          origin: target.name.toLowerCase().replace(/ /g, "-"),
+          filename: file,
+          title,
+          syncedAt: new Date().toISOString(),
+        };
+
+        const keysToExtract = [
+          "type",
+          "status",
+          "horizon",
+          "priority",
+          "confidence",
+          "review_due",
+          "sync_direction",
+          "statenour_id",
+          "statenour_model",
+          "tags",
+        ];
+
+        for (const mKey of keysToExtract) {
+          if (parsed.metadata[mKey] !== undefined) {
+            metadataPayload[mKey] = parsed.metadata[mKey];
+          }
+        }
+
         // Ingest note using the native memory-manager (handles embeddings generation via OpenAI)
         await brainMemory.remember(
           category,
           key,
           fullContent,
           "skill_ingestion",
-          {
-            origin: target.name.toLowerCase().replace(/ /g, "-"),
-            filename: file,
-            title,
-            syncedAt: new Date().toISOString(),
-          }
+          metadataPayload
         );
 
-        // Lock confidence to 1.0 (prevents decay)
+        // Lock confidence to 1.0 (prevents decay) unless confidence is set in frontmatter
         const record = await prisma.brainMemory.findFirst({
           where: { category, key },
         });
+
         if (record) {
-          await brainMemory.confirm(record.id);
+          const yamlConfidence = typeof parsed.metadata.confidence === "number" 
+            ? parsed.metadata.confidence 
+            : null;
+          if (yamlConfidence !== null) {
+            await prisma.brainMemory.update({
+              where: { id: record.id },
+              data: {
+                confidence: yamlConfidence,
+                expiresAt: null, // Keep permanent since it comes from the vault
+              },
+            });
+            console.log(`    └─ Set custom confidence: ${yamlConfidence}`);
+          } else {
+            await brainMemory.confirm(record.id);
+          }
         }
 
         console.log(`    └─ ✅ Success`);
