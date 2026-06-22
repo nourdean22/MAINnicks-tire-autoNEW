@@ -1070,4 +1070,88 @@ export const systemTools = {
   // BRAIN INTELLIGENCE — Direct access to brain engine outputs
   // ═══════════════════════════════════════════════════════════
 
+  // v10.0.530 · Firecrawl web scraper · converts any URL into
+  // clean LLM-ready markdown. Use when operator shares a link
+  // and Nick needs to read + understand the page content.
+  scrapeWebPage: tool({
+    description:
+      "Scrape a web page and convert it to clean markdown. Use when the operator shares a URL and says 'read this', 'what does this page say', 'summarize this link', or when Nick needs to understand the content of a specific web page. Returns the page content as markdown with title and description. Requires FIRECRAWL_API_KEY — returns a clear error if not configured.",
+    inputSchema: z.object({
+      url: z
+        .string()
+        .url()
+        .describe("The URL to scrape and convert to markdown."),
+      waitFor: z
+        .number()
+        .int()
+        .min(0)
+        .max(15000)
+        .optional()
+        .describe(
+          "Wait time in ms for JS-heavy pages to render. Default 0. Use 3000-5000 for SPAs.",
+        ),
+      excludeTags: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "CSS selectors to exclude from output. e.g. ['nav', 'footer', '.ads'].",
+        ),
+    }),
+    execute: async ({ url, waitFor, excludeTags }) => {
+      try {
+        const { isFirecrawlConfigured, scrapeUrl } = await import(
+          "@/lib/integrations/firecrawl"
+        );
+
+        if (!isFirecrawlConfigured()) {
+          return {
+            ok: false,
+            code: "missing_api_key",
+            error:
+              "FIRECRAWL_API_KEY not set. Get a key at https://firecrawl.dev and add it to .env to enable web scraping.",
+          };
+        }
+
+        // SSRF defense — block private/internal URLs
+        const { assertPublicUrl } = await import("@/lib/utils/url-safety");
+        const safety = await assertPublicUrl(url);
+        if (!safety.safe) {
+          return {
+            ok: false,
+            code: "url_blocked",
+            error: `URL safety check failed: ${safety.reason}`,
+          };
+        }
+
+        const result = await scrapeUrl(url, {
+          waitFor,
+          excludeTags,
+          maxLength: 8000,
+        });
+
+        // Fence the scraped content for prompt-injection safety
+        const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
+
+        return {
+          ok: true,
+          title: result.title,
+          description: result.description,
+          sourceUrl: result.sourceUrl,
+          charCount: result.charCount,
+          content: fenceContent(
+            "scrapeWebPage",
+            "external_web",
+            result.markdown,
+          ),
+        };
+      } catch (err) {
+        const { sanitizeError } = await import("@/lib/utils/sanitize-error");
+        return {
+          ok: false,
+          error: sanitizeError(err),
+        };
+      }
+    },
+  }),
+
 };
