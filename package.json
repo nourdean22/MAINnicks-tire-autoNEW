@@ -27,7 +27,9 @@
     "obsidian:doctor": "pnpm --filter @statenour/web obsidian:doctor",
     "obsidian:ingest": "pnpm --filter @statenour/web obsidian:ingest",
     "obsidian:export": "pnpm --filter @statenour/web obsidian:export",
-    "obsidian:sync": "pnpm obsidian:ingest; pnpm obsidian:export",
+    "obsidian:sync": "pnpm --filter @statenour/web obsidian:sync",
+    "obsidian:status": "pnpm --filter @statenour/web obsidian:status",
+    "obsidian:watch": "pnpm --filter @statenour/web obsidian:watch",
     "prepare": "git config core.hooksPath .husky 2>/dev/null || true"
   },
   "devDependencies": {
