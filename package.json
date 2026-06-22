@@ -23,6 +23,11 @@
     "verify:nick": "pnpm --filter nicks-tire-auto verify",
     "verify:affected": "turbo run check lint test --affected",
     "ci:affected": "turbo run check lint test build --affected",
+    "obsidian:plugins": "powershell scripts/install-cockpit-plugins.ps1",
+    "obsidian:doctor": "pnpm --filter @statenour/web obsidian:doctor",
+    "obsidian:ingest": "pnpm --filter @statenour/web obsidian:ingest",
+    "obsidian:export": "pnpm --filter @statenour/web obsidian:export",
+    "obsidian:sync": "pnpm obsidian:ingest; pnpm obsidian:export",
     "prepare": "git config core.hooksPath .husky 2>/dev/null || true"
   },
   "devDependencies": {
