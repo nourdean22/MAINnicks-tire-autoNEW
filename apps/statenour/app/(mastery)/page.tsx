@@ -7,6 +7,7 @@ import { HomeIdentityHeader } from "@/components/home/home-identity-header";
 import { HomeNickDock } from "@/components/home/home-nick-dock";
 import { HomeBrainGraph } from "@/components/home/home-brain-graph";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
+import { ObsidianEngineCard } from "@/components/obsidian/obsidian-engine-card";
 
 /**
  * The home route · 2026-06-22 · Redesigned Nour Command Center layout.
@@ -29,6 +30,7 @@ export default function HomePage() {
           <HomeCommandStack />
           <HomeActionHub />
           <HomeJournalHub />
+          <ObsidianEngineCard />
           <HomeStatePulse />
         </main>
 
