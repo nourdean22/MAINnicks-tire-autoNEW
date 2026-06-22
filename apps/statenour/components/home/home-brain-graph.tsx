@@ -367,15 +367,21 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       if (!res.ok) {
         throw new Error("Failed to fetch graph data");
       }
-      const data: BrainGraphPayload = await res.json();
+      const json = await res.json();
       
-      setRawNodes(data.nodes);
-      setRawEdges(data.edges);
+      // Unwrap the apiHandler envelope if present, otherwise fallback to root object
+      const payload = (json && json.ok && json.data ? json.data : json) as BrainGraphPayload;
+      
+      const nodesList = payload?.nodes ?? [];
+      const edgesList = payload?.edges ?? [];
+      
+      setRawNodes(nodesList);
+      setRawEdges(edgesList);
 
       const existingMap = new Map<string, CanvasNode>();
       simNodesRef.current.forEach((n) => existingMap.set(n.id, n));
 
-      const newSimNodes = data.nodes.map((node) => {
+      const newSimNodes = nodesList.map((node) => {
         const existing = existingMap.get(node.id);
         const radius = node.type === "system" || node.weight >= 8 ? 8 : 5;
         if (existing) {
@@ -403,9 +409,9 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       });
 
       simNodesRef.current = newSimNodes;
-      simEdgesRef.current = data.edges;
+      simEdgesRef.current = edgesList;
 
-      if (selectedNode && !data.nodes.some((n) => n.id === selectedNode.id)) {
+      if (selectedNode && !nodesList.some((n) => n.id === selectedNode.id)) {
         setSelectedNode(null);
       }
 
