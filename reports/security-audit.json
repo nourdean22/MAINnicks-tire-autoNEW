@@ -1,0 +1,16 @@
+﻿{
+    "vulnerabilities":  {
+                            "low":  0,
+                            "critical":  0,
+                            "moderate":  0,
+                            "total":  0,
+                            "high":  0
+                        },
+    "advisories":  [
+
+                   ],
+    "severity":  "moderate",
+    "timestamp":  "2026-06-22T09:00:33.4395459-04:00",
+    "exitCode":  1,
+    "repoRoot":  "C:\\Users\\nourd\\NOURCITY"
+}
