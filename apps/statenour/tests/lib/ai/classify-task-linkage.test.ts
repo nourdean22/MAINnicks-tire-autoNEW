@@ -87,20 +87,20 @@ describe("fallbackLinkage · keyword overlap", () => {
 });
 
 describe("fallbackLinkage · canonical domain (2026-06-09)", () => {
-  const SIX = ["health", "mind", "business", "social", "spiritual", "personal"];
+  const FIVE = ["health", "mind", "business", "social", "personal"];
 
-  it("ALWAYS resolves one of the 6 domains", () => {
+  it("ALWAYS resolves one of the 5 domains", () => {
     for (const t of [
       "go to the gym", "read a book", "fix the customer invoice",
       "call mom", "pray fajr", "buy groceries", "zzz qqq",
     ]) {
-      expect(SIX).toContain(fallbackLinkage(input({ taskTitle: t })).domain);
+      expect(FIVE).toContain(fallbackLinkage(input({ taskTitle: t })).domain);
     }
   });
 
   it("infers the domain from keyword cues", () => {
     expect(fallbackLinkage(input({ taskTitle: "workout at the gym" })).domain).toBe("health");
-    expect(fallbackLinkage(input({ taskTitle: "pray and read quran" })).domain).toBe("spiritual");
+    expect(fallbackLinkage(input({ taskTitle: "pray and read quran" })).domain).toBe("mind");
     expect(fallbackLinkage(input({ taskTitle: "send customer the invoice" })).domain).toBe("business");
     expect(fallbackLinkage(input({ taskTitle: "dinner with family" })).domain).toBe("social");
     expect(fallbackLinkage(input({ taskTitle: "study the course material" })).domain).toBe("mind");
