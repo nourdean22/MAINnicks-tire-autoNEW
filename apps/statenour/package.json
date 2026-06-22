@@ -61,6 +61,7 @@
     "@ai-sdk/react": "^3.0.142",
     "@base-ui/react": "^1.3.0",
     "@e2b/code-interpreter": "2.4.2",
+    "@mendable/firecrawl-js": "4.28.2",
     "@next/env": "16.2.3",
     "@nour/utils": "workspace:*",
     "@prisma/adapter-neon": "^7.6.0",
