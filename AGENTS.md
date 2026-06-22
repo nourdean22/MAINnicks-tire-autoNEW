@@ -31,6 +31,7 @@ Two apps share this repo: `apps/statenour` (Railway → bdnick.info) and `apps/n
 - The push gate = repo-root `.husky/pre-push` → `turbo build` for affected apps. Other printed checks (lint-baseline, prompt:size-check) can be RED but are NON-blocking — a green local test run is on you.
 - statenour (from `apps/statenour/`): `pnpm typecheck` · `pnpm lint` · `pnpm test` · full gate `pnpm verify:hard`. Piping vitest to `tail` masks the exit code — read the summary line.
 - nickstire (from `apps/nickstire/`): `pnpm run verify` (master gate). Full suite MUST be serial on Windows: `pnpm exec vitest run --pool=forks --poolOptions.forks.singleFork=true`.
+- Supply-chain security: `powershell scripts/security-scan.ps1` wraps `pnpm audit --json` with structured reporting. Advisory-only by default; use `-FailOnCritical` for CI gating. Report lands at `reports/security-audit.json`.
 - Fresh worktrees created via `scripts/worktree-setup.ps1` do NOT need `pnpm install` because `node_modules` are automatically junctioned from the root. If dependencies or `pnpm-lock.yaml` change, run `pnpm install --frozen-lockfile --filter "<app>..."` — WITH the `...` suffix (bare `--filter` skips workspace deps → phantom `clsx`/import failures).
 
 ## Commit Attribution
@@ -52,3 +53,26 @@ Co-Authored-By: <model name> <noreply@anthropic.com>
 
 - Cross-session agent memory: `~/.claude/projects/C--/memory/MEMORY.md` (index + topic files) — concurrently edited by sibling sessions, re-read before editing. Per-app last-session handoff: `apps/<app>/.remember/remember.md`.
 - statenour's own "brain" (BrainMemory + pgvector recall) is a product feature — separate from agent memory.
+
+## Integrations (2026-06-22)
+
+### Deep reasoning tool-access
+- **Flag:** `NICK_DEEP_REASONING` (feature flags DB). When ON, the reasoning engine's pipeline includes a `runToolGather()` step that calls read-only business/brain tools via `generateText` (not `aiChat` — which doesn't support tools).
+- **Whitelist:** `lib/ai/reasoning/reasoning-tools.ts` — 16 READ-ONLY tools (revenue, reviews, tasks, brain search, etc.). The engine OBSERVES, never ACTS.
+- **Fencing:** All tool output is wrapped via `fenceContent()` to prevent prompt-injection bleeding into the reasoning loop.
+
+### Firecrawl web scraper
+- **Tool:** `scrapeWebPage` in `lib/ai/tools/system.ts` — converts any URL to clean LLM-ready markdown.
+- **Integration:** `lib/integrations/firecrawl.ts` — `withGuardian` wrapped, 30s timeout, 2 retries, graceful degradation when `FIRECRAWL_API_KEY` is missing.
+- **Security:** SSRF defense via `assertPublicUrl()` + content fencing via `fenceContent()`. Catalog entry: `research` category, `battle: true`, `cost: cheap`.
+- **Env:** `FIRECRAWL_API_KEY` — set on Railway and `.env.local`.
+
+### Supply-chain security scan
+- **Script:** `scripts/security-scan.ps1` — wraps `pnpm audit --json` with structured JSON reporting.
+- **Usage:** `powershell scripts/security-scan.ps1 [-OutputFile reports/audit.json] [-Severity critical] [-FailOnCritical]`
+- **Report:** `reports/security-audit.json` — severity breakdown (critical/high/moderate/low) + advisory details.
+
+### Codebase-memory MCP
+- **Server:** `@modelcontextprotocol/server-filesystem` — exposes `apps/statenour`, `apps/nickstire`, `packages`, `docs`, `scripts` directories.
+- **Startup:** `powershell scripts/start-codebase-mcp.ps1` or via the `codebase-memory` entry in `mcp_config.json`.
+- **Docs:** `docs/codebase-memory-mcp.md` — IDE config for Antigravity + Claude Desktop.

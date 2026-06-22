@@ -54,6 +54,11 @@ When the operator invokes `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`,
 | Cron manifest (single source) | [`config/crons.ts`](config/crons.ts) — verified via `pnpm check:crons`; jobs run through the Inngest mega fan-out |
 | AutomationPolicy registry | DB · `automation_policies` · seed via `pnpm tsx scripts/seed-policies.ts` |
 | Schema-drift guard | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) (EXPECTATIONS list) |
+| Reasoning tool whitelist | [`lib/ai/reasoning/reasoning-tools.ts`](lib/ai/reasoning/reasoning-tools.ts) — 16 read-only tools gated by `NICK_DEEP_REASONING` flag |
+| Tool catalog (114 tools) | [`lib/ai/tools/catalog.ts`](lib/ai/tools/catalog.ts) — category, cost, risk, required env |
+| Firecrawl web scraper | [`lib/integrations/firecrawl.ts`](lib/integrations/firecrawl.ts) — `FIRECRAWL_API_KEY` env; `scrapeWebPage` tool in `system.ts` |
+| Supply-chain security | `scripts/security-scan.ps1` — `pnpm audit --json` wrapper; report at `reports/security-audit.json` |
+| Codebase MCP server | `scripts/start-codebase-mcp.ps1` + `docs/codebase-memory-mcp.md` — filesystem MCP over `apps/`, `packages/`, `docs/` |
 
 ## 4 · The fabrication-defense stack (don't break this)
 
@@ -94,4 +99,6 @@ Operator standing rules: `C:\Users\nourd\.claude\CLAUDE.md` (operator on phone �
 - **aiChat/tracedAiChat NEVER throw on total provider failure** — they return a SENTINEL; check `result.provider === "emergency" | "none"` before trusting `content`.
 - **Image-gen routes through `generateImageWithFallback`** in `lib/ai/gemini-image.ts` (Replicate FLUX → direct Gemini → OpenRouter), invoked from `lib/ai/chat/handlers/image.ts`. Venice flux-2-pro is RETIRED (no `openai-image.ts`/`venice-image.ts` in tree).
 - **GitHub CLI (gh) 401 Bad Credentials inside Agent Sandbox** — The agent environment automatically injects a dummy `GITHUB_TOKEN` which overrides the local keyring config. Run `$env:GITHUB_TOKEN=$null` in the terminal session to clear it and successfully fall back to the user's correct local token configuration.
+- **Firecrawl `scrapeWebPage` has SSRF defense** — `assertPublicUrl()` blocks private/internal URLs before the request reaches Firecrawl. Content is fenced via `fenceContent()` to prevent prompt injection from scraped pages.
+- **Deep reasoning tool-gather uses `generateText`, NOT `aiChat`** — `aiChat` doesn't support tools. The reasoning engine's `runToolGather()` step uses `generateText` from the AI SDK with the read-only whitelist.
 
