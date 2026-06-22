@@ -101,7 +101,7 @@ export default function SystemToolsPage() {
         </div>
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-[var(--text-secondary)] list-disc pl-4">
           <li>
-            <strong className="text-white">Browser automation</strong> is completely <span className="text-amber-400 font-semibold">inert</span>. Web driving remains deactivated.
+            <strong className="text-white">Browser automation</strong> is <span className="text-zinc-400 font-semibold">intentionally parked</span> - the operator uses Claude-in-Chrome + computer-use instead.
           </li>
           <li>
             <strong className="text-white">Local access</strong> (host filesystem and host shell execution) is strictly <span className="text-red-400 font-semibold">blocked</span>.
