@@ -100,7 +100,7 @@ describe("AI Provider Resolvers & Fallbacks", () => {
     
     // With only GEMINI_API_KEY set
     const { getModel } = await import("@/lib/ai/provider");
-    expect(resolveProviderModel("gemini")).toBe("gemini-3.5-flash");
+    expect(resolveProviderModel("gemini")).toBe("gemini-2.0-flash");
     
     // Verify fallback key behavior
     process.env.GEMINI_API_KEY = "";
@@ -128,7 +128,7 @@ describe("AI Provider Resolvers & Fallbacks", () => {
 describe("AI Provider Health Telemetry Mapping", () => {
   it("correctly maps various model IDs back to their providers based on registry rules", () => {
     // Test mapping of current/default models
-    expect(modelToProvider("gemini-3.5-flash")).toBe("gemini");
+    expect(modelToProvider("gemini-2.0-flash")).toBe("gemini");
     expect(modelToProvider("gpt-4o-mini")).toBe("openai");
     expect(modelToProvider("claude-sonnet-4-6")).toBe("anthropic");
     expect(modelToProvider("qwen3-vl:235b-instruct")).toBe("ollama");

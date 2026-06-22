@@ -48,13 +48,13 @@ afterEach(() => {
 });
 
 describe("Gemini Provider Configuration and Fallbacks", () => {
-  it("defaults to gemini-3.5-flash as the flagship model", async () => {
+  it("defaults to gemini-2.0-flash as the flagship model", async () => {
     vi.stubEnv("GEMINI_API_KEY", "test-api-key");
     const { getProviderStatus } = await import("@/lib/ai/provider");
     const status = getProviderStatus();
     const gemini = status.providers.find((p) => p.name === "gemini");
     expect(gemini).toBeDefined();
-    expect(gemini?.modelId).toBe("gemini-3.5-flash");
+    expect(gemini?.modelId).toBe("gemini-2.0-flash");
   });
 
   it("respects GEMINI_MODEL env override", async () => {
@@ -151,7 +151,7 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     // Prio: ollama (0 cost) -> gemini (1) -> openai (2). anthropic (3) is skipped because hasCheaper is true.
     expect(attemptedModels).toEqual([
       "qwen3-vl:235b-instruct",
-      "gemini-3.5-flash",
+      "gemini-2.0-flash",
       "gpt-4o-mini",
     ]);
   });
