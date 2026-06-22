@@ -224,6 +224,13 @@ export const BRAIN_CATEGORIES = {
   MACRO: "macro",
   OPERATIONAL: "operational",
   RESEARCH: "research",
+  RESEARCH_PACK: "research_pack",
+  RESEARCH_SOURCE: "research_source",
+  RESEARCH_CLAIM: "research_claim",
+  RESEARCH_QUESTION: "research_question",
+  RESEARCH_ACTION: "research_action",
+  RESEARCH_CONTRADICTION: "research_contradiction",
+  NOTEBOOKLM_PACK: "notebooklm_pack",
   TECH: "tech",
   UI: "ui",
   VIDEO: "video",
@@ -720,6 +727,9 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
   "Tech / content": [
     "architecture", "content", "data", "files", "local", "macro",
     "operational", "research", "tech", "ui", "video",
+    "research_pack", "research_source", "research_claim",
+    "research_question", "research_action", "research_contradiction",
+    "notebooklm_pack"
   ],
   "Tasks + strategy": [
     "planning", "project_management", "strategic_plan", "strategy",

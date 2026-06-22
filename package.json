@@ -28,8 +28,10 @@
     "obsidian:ingest": "pnpm --filter @statenour/web obsidian:ingest",
     "obsidian:export": "pnpm --filter @statenour/web obsidian:export",
     "obsidian:sync": "pnpm --filter @statenour/web obsidian:sync",
-    "obsidian:status": "pnpm --filter @statenour/web obsidian:status",
     "obsidian:watch": "pnpm --filter @statenour/web obsidian:watch",
+    "research:pack": "pnpm --filter @statenour/web research:pack",
+    "research:ingest": "pnpm --filter @statenour/web research:ingest",
+    "research:notebooklm": "pnpm --filter @statenour/web research:notebooklm",
     "prepare": "git config core.hooksPath .husky 2>/dev/null || true"
   },
   "devDependencies": {
