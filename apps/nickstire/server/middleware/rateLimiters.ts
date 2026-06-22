@@ -1,12 +1,15 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request } from "express";
 
 const clientIp = (req: Request): string => {
   const cfIp = req.headers["cf-connecting-ip"];
-  if (typeof cfIp === "string") {
-    return cfIp;
-  }
-  return req.ip || "unknown";
+  const raw = typeof cfIp === "string" ? cfIp : req.ip || "unknown";
+  // Normalize IPv6 to its subnet via express-rate-limit's helper so IPv6
+  // clients can't bypass limits by hopping addresses within their /64
+  // allocation (silences ERR_ERL_KEY_GEN_IPV6 from the v8 keyGenerator
+  // validator). IPv4 is returned unchanged; the "unknown" fallback is passed
+  // through untouched since it isn't an IP.
+  return raw === "unknown" ? raw : ipKeyGenerator(raw);
 };
 
 // Rate limiting for public API endpoints to prevent spam/abuse
