@@ -46,7 +46,7 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     id: "gemini",
     apiKeyEnv: ["GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
     modelEnv: "GEMINI_MODEL",
-    defaultModel: "gemini-3.5-flash",
+    defaultModel: "gemini-2.0-flash",
     cooldownMs: AI_PROVIDER_COOLDOWN_MS,
     modelSubstrings: ["gemini"],
   },
