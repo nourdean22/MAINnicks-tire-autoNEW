@@ -28,6 +28,16 @@ import { TRPCProvider } from "@/components/providers/trpc-provider";
 // get a Promise<boolean>.
 import { MegaConfirmHost } from "@/components/operator/mega-confirm-dialog";
 
+// ── Render mode (audit-2026-06-21 CSP follow-up) ──────────────────────────
+// MUST be force-dynamic. middleware.ts stamps a per-request CSP nonce onto
+// every framework <script> via the request headers — but that only happens on
+// a live render. A statically prerendered (mastery) page ships with NO nonce,
+// so the runtime `'strict-dynamic'` CSP header blocks ALL of its scripts →
+// blank/skeleton page in every browser (Chrome, Safari, desktop, phone).
+// Dynamic rendering = a live nonce that matches the header. Mirrors
+// app/auth/sign-in/page.tsx, which already does this and works.
+export const dynamic = "force-dynamic";
+
 export default function MasteryLayout({
   children,
 }: {
