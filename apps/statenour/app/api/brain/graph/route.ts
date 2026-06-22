@@ -1,26 +1,25 @@
 /**
  * GET /api/brain/graph · v10.0.91 · 2026-05-02.
  *
- * Memory graph data for /brain/galaxy visualization. Returns:
- *   · nodes: brain memories filtered to high-relevance categories
- *   · edges: semantic_edge rows (from v10.0.89 semantic-link)
- *   · clusters: assignment by category (color-by hint)
+ * Extended 2026-06-22 to support Nour Command Center layout and fullscreen brain.
  *
  * Tunable via query:
+ *   · ?scope=home|full (new CC/Brain scope)
+ *   · ?focus=<nodeId> (focus neighborhood center)
+ *   · ?depth=1|2|3 (BFS neighborhood depth, default 2)
+ *
+ * Legacy:
  *   · ?limit=200 (max nodes)
  *   · ?minConfidence=0.5 (filter weak memories)
  *   · ?categories=wisdom,insight,pattern (filter list)
  *   · ?minEdgeScore=0.6 (filter weak semantic edges)
- *
- * Response designed for force-directed layouts (D3, react-force-
- * graph). Each node has { id, category, label, confidence, ageDays }
- * and each edge has { source, target, score, type }.
  *
  * Auth: owner only.
  */
 
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
+import { getBrainGraph } from "@/lib/brain/brain-graph";
 
 const DEFAULT_CATEGORIES = [
   "wisdom",
@@ -44,6 +43,31 @@ const DEFAULT_CATEGORIES = [
 export const GET = apiHandler(
   async (req) => {
     const url = new URL(req.url);
+    const scope = url.searchParams.get("scope") as "home" | "full" | null;
+    const focus = url.searchParams.get("focus") || undefined;
+    const depth = url.searchParams.get("depth") ? parseInt(url.searchParams.get("depth")!, 10) || 2 : undefined;
+
+    // If scope or focus is present, we route to the new custom graph logic
+    if (scope || focus) {
+      const limit = url.searchParams.get("limit") ? parseInt(url.searchParams.get("limit")!, 10) : undefined;
+      const minConfidence = url.searchParams.get("minConfidence") ? parseFloat(url.searchParams.get("minConfidence")!) : undefined;
+      const categoriesParam = url.searchParams.get("categories");
+      const categories = categoriesParam && categoriesParam.length > 0
+        ? categoriesParam.split(",").map((c) => c.trim()).filter(Boolean)
+        : undefined;
+
+      const payload = await getBrainGraph({
+        scope: scope || undefined,
+        focus,
+        depth,
+        limit,
+        minConfidence,
+        categories,
+      });
+      return payload;
+    }
+
+    // Otherwise, fallback to the legacy memory-only graph response to preserve backward compatibility
     const limit = Math.min(
       parseInt(url.searchParams.get("limit") ?? "200", 10) || 200,
       1000,
