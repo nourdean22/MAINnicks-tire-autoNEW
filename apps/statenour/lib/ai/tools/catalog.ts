@@ -64,7 +64,7 @@ export interface ToolMeta {
 }
 
 /**
- * The 113-tool catalog. Keep this alphabetized within each category
+ * The 114-tool catalog. Keep this alphabetized within each category
  * for easy diff review. New tools get appended to their category.
  */
 export const TOOL_CATALOG: ToolMeta[] = [
@@ -296,6 +296,10 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // external dependencies. Cheap to call but classed as battle:false
   // because expansion planning isn't a hot-path read; it's strategic.
   { name: "scoreLocation",                category: "business_read",  battle: false, cost: "free"   },
+
+  // v10.0.530 · Firecrawl web scraper · converts any URL into
+  // clean LLM-ready markdown. Cheap (one API call), read-only.
+  { name: "scrapeWebPage",                category: "research",       battle: true,  cost: "cheap",  riskClass: "low", requiredEnv: ["FIRECRAWL_API_KEY"] },
 ];
 
 /** Fast lookup: name → meta. Built once. */
