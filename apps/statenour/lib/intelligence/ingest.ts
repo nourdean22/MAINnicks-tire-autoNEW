@@ -224,6 +224,7 @@ ${scraped.markdown}
           verificationScore: grounded.verificationScore,
           status: grounded.status,
           bestMatchChunk: grounded.bestMatchChunk,
+          narrativeStatus: claim.narrativeStatus,
         },
       });
       savedClaimsCount++;
