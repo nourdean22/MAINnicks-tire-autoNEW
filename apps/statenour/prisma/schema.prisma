@@ -3032,6 +3032,7 @@ model IntelligenceClaim {
   status            String          @default("unverified") // source_supported | weak_support | unverified
   bestMatchChunk    String?         @db.Text @map("best_match_chunk")
   createdAt         DateTime        @default(now()) @map("created_at")
+  narrativeStatus   String?         @map("narrative_status") // emerging | peak | declining
 
   @@index([documentId])
   @@index([category, status])
