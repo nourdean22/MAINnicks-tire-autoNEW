@@ -60,12 +60,12 @@ Known context: ${JSON.stringify(node.metadata || {})}`;
   };
 
   return (
-    <div className="absolute right-3 top-16 bottom-3 w-80 max-w-full glass-card border-[var(--border-default)] bg-[#0A0A0A]/95 backdrop-blur-md shadow-2xl flex flex-col z-20 animate-fade-in-scale">
+    <div className="absolute right-3 top-16 bottom-3 w-80 max-w-full glass-card border-(--border-default) bg-[#0A0A0A]/95 backdrop-blur-md shadow-2xl flex flex-col z-20 animate-fade-in-scale">
       {/* Panel Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-[var(--border-default)]">
+      <div className="flex items-center justify-between pb-3 border-b border-(--border-default)">
         <div className="flex items-center gap-2">
-          <IconComponent size={14} className="text-[var(--gold)]" />
-          <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+          <IconComponent size={14} className="text-(--gold)" />
+          <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-(--text-tertiary)">
             {node.type}
           </span>
           {node.status && (
@@ -73,7 +73,7 @@ Known context: ${JSON.stringify(node.metadata || {})}`;
               className={cn(
                 "inline-flex items-center gap-1 px-1.5 py-0.25 rounded text-[8px] font-semibold font-mono uppercase tracking-wider border",
                 node.status === "risk" && "bg-rose-500/10 border-rose-500/20 text-rose-400",
-                node.status === "opportunity" && "bg-[var(--gold)]/10 border-[var(--gold)]/20 text-[var(--gold)]",
+                node.status === "opportunity" && "bg-(--gold)/10 border-(--gold)/20 text-(--gold)",
                 node.status === "done" && "bg-emerald-500/10 border-emerald-500/20 text-emerald-400",
                 node.status === "stale" && "bg-zinc-500/10 border-zinc-500/20 text-zinc-400",
                 node.status === "active" && "bg-cyan-500/10 border-cyan-500/20 text-cyan-400"
@@ -83,7 +83,7 @@ Known context: ${JSON.stringify(node.metadata || {})}`;
                 className={cn(
                   "h-1 w-1 rounded-full",
                   node.status === "risk" && "bg-rose-400",
-                  node.status === "opportunity" && "bg-[var(--gold)]",
+                  node.status === "opportunity" && "bg-(--gold)",
                   node.status === "done" && "bg-emerald-400",
                   node.status === "stale" && "bg-zinc-400",
                   node.status === "active" && "bg-cyan-400"
@@ -110,7 +110,7 @@ Known context: ${JSON.stringify(node.metadata || {})}`;
         </div>
         <button
           onClick={onClose}
-          className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors p-1"
+          className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors p-1"
           aria-label="Close panel"
         >
           <X size={14} />
@@ -120,57 +120,57 @@ Known context: ${JSON.stringify(node.metadata || {})}`;
       {/* Panel Scrollable Content */}
       <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
         <div>
-          <h4 className="text-sm font-semibold uppercase tracking-wide leading-tight text-[var(--text-primary)]">
+          <h4 className="text-sm font-semibold uppercase tracking-wide leading-tight text-(--text-primary)">
             {node.label}
           </h4>
         </div>
 
         {/* Why this matters */}
         <div className="space-y-1">
-          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-(--text-tertiary)">
             why this matters
           </span>
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed bg-black/30 p-2.5 rounded border border-[var(--border-default)]/60">
+          <p className="text-xs text-(--text-secondary) leading-relaxed bg-black/30 p-2.5 rounded border border-(--border-default)/60">
             {whyMatters}
           </p>
         </div>
 
         {/* Connected leverage */}
         <div className="space-y-1">
-          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-(--text-tertiary)">
             connected leverage
           </span>
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+          <p className="text-xs text-(--text-secondary) leading-relaxed">
             {leverageText}
           </p>
         </div>
 
         {/* Current Risk / Opportunity */}
         <div className="space-y-1">
-          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-(--text-tertiary)">
             current status context
           </span>
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+          <p className="text-xs text-(--text-secondary) leading-relaxed">
             {riskOpportunity}
           </p>
         </div>
 
         {/* Next best move */}
         <div className="space-y-1">
-          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-[var(--gold)]">
+          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-(--gold)">
             next best move
           </span>
-          <p className="text-xs text-[var(--text-primary)] font-medium leading-relaxed bg-[var(--gold)]/[0.02] border border-[var(--gold)]/15 p-2.5 rounded">
+          <p className="text-xs text-(--text-primary) font-medium leading-relaxed bg-(--gold)/2 border border-(--gold)/15 p-2.5 rounded">
             {nextMove}
           </p>
         </div>
       </div>
 
       {/* Panel Actions Footer */}
-      <div className="pt-3 border-t border-[var(--border-default)] flex flex-col gap-1.5">
+      <div className="pt-3 border-t border-(--border-default) flex flex-col gap-1.5">
         <button
           onClick={handleAskNick}
-          className="w-full text-[10px] font-mono uppercase tracking-wider font-semibold rounded bg-[var(--gold)] text-[var(--text-inverse)] hover:bg-[var(--gold-dim)] transition-colors min-h-[40px] flex items-center justify-center gap-1.5 active:scale-[0.98]"
+          className="w-full text-[10px] font-mono uppercase tracking-wider font-semibold rounded bg-(--gold) text-(--text-inverse) hover:bg-(--gold-dim) transition-colors min-h-[40px] flex items-center justify-center gap-1.5 active:scale-[0.98]"
         >
           <MessageSquare size={12} />
           ask nick about this
@@ -179,7 +179,7 @@ Known context: ${JSON.stringify(node.metadata || {})}`;
         <div className="grid grid-cols-2 gap-1.5">
           <button
             onClick={() => onFocusNode(node.id)}
-            className="text-[9px] font-mono uppercase tracking-wider rounded border border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:border-[var(--gold)]/20 transition-colors min-h-[38px] flex items-center justify-center gap-1"
+            className="text-[9px] font-mono uppercase tracking-wider rounded border border-(--border-default) bg-(--bg-elevated) text-(--text-secondary) hover:border-(--gold)/20 transition-colors min-h-[38px] flex items-center justify-center gap-1"
           >
             <Compass size={11} />
             focus graph
@@ -188,7 +188,7 @@ Known context: ${JSON.stringify(node.metadata || {})}`;
           {node.href && (
             <button
               onClick={handleOpenPage}
-              className="text-[9px] font-mono uppercase tracking-wider rounded border border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:border-[var(--gold)]/20 transition-colors min-h-[38px] flex items-center justify-center gap-1"
+              className="text-[9px] font-mono uppercase tracking-wider rounded border border-(--border-default) bg-(--bg-elevated) text-(--text-secondary) hover:border-(--gold)/20 transition-colors min-h-[38px] flex items-center justify-center gap-1"
             >
               open page
               <ArrowRight size={11} />

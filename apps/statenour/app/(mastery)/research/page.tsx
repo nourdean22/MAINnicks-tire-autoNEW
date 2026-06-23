@@ -318,7 +318,7 @@ export default function ResearchLabPage() {
                 COPY
               </button>
             </div>
-            <div className="font-mono text-xs text-zinc-300 break-all select-all select-none">
+            <div className="font-mono text-xs text-zinc-300 break-all select-all">
               {cliCommand}
             </div>
           </div>
