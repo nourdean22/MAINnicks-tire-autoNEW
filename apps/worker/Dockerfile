@@ -20,6 +20,8 @@ COPY apps/statenour/package.json ./apps/statenour/
 COPY apps/nickstire/package.json ./apps/nickstire/
 # Tier-2-E: packages/utils manifest must be present for workspace resolution.
 COPY packages/utils/package.json ./packages/utils/
+# @nour/reel-engine manifest · worker's src/scheduler.ts imports renderReelVideo.
+COPY packages/reel-engine/package.json ./packages/reel-engine/
 # Wave 49+CP7 fix · pnpm.patchedDependencies references files in these dirs.
 # Even with `--filter @statenour/worker`, pnpm still reads patch files for
 # lockfile integrity validation. Without these COPYs install fails with
@@ -61,6 +63,15 @@ COPY apps/statenour/patches ./apps/statenour/patches
 #   WORKDIR /repo/packages/utils
 #   RUN pnpm run build
 COPY packages/utils ./packages/utils
+# @nour/reel-engine - worker's src/scheduler.ts imports renderReelVideo at
+# RUNTIME, so (unlike @nour/utils above, which is copied-but-not-built because
+# the worker never imports it) reel-engine MUST be built to emit dist/ before
+# the worker's tsc - else `error TS2307: Cannot find module '@nour/reel-engine'`.
+# Broke statenour-worker deploys from 2026-06-23 (#305) onward.
+COPY --from=deps /repo/packages/reel-engine/node_modules ./packages/reel-engine/node_modules
+COPY packages/reel-engine ./packages/reel-engine
+WORKDIR /repo/packages/reel-engine
+RUN pnpm run build
 
 # pnpm install in deps copied the .pnpm/ store + symlinked to it.
 # Now compile TS → dist/, then use `pnpm deploy` to produce a self-
