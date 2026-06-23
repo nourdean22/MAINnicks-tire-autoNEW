@@ -34,7 +34,7 @@ export const GET = apiHandler(async () => {
     "device-sync", "learn", "stale-tasks", "device-health", "brain-cycle",
     "notification-sender", "journal-checkin", "embed-backfill",
     "reflect", "predict", "think", "consolidate", "drift-check",
-    "daily-report", "data-cleanup", "intelligence",
+    "data-cleanup", "intelligence",
   ];
   const scheduledNames = new Set(scheduled.map((c) => c.jobName));
   const virtualCrons = MEGA_FANOUT

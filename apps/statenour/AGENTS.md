@@ -3,7 +3,7 @@
 > **⚡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-06-19 · post the **Consolidated-Models Migration Registration wave — PR #217**: landed the parked consolidated-models migration registration (10 NOUR OS tables, idempotent DDL, DDL↔Prisma parity verified) + migration docs; local repo hygiene (worktree/branch prune, scratch scripts rescued). Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-06-21 · post the **Consolidated-Models Migration Registration wave — PR #217**: landed the parked consolidated-models migration registration (10 NOUR OS tables, idempotent DDL, DDL↔Prisma parity verified) + migration docs; local repo hygiene (worktree/branch prune, scratch scripts rescued). Full detail: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 

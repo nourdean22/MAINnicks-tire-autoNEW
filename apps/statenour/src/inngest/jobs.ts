@@ -97,7 +97,6 @@ export const MORNING_JOBS: readonly string[] = [
 export const EVENING_JOBS: readonly string[] = [
   "/api/cron/predict",
   "/api/cron/consolidate",
-  "/api/cron/daily-report",
   "/api/cron/data-cleanup",
   "/api/cron/subtask-usage-audit",
   "/api/cron/cron-healer",
