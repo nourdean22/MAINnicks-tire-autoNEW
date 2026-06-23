@@ -96,6 +96,9 @@ function formatList(items) {
 }
 
 function checkCodependencies(getEnvVal) {
+  const nodeEnv = getEnvVal("NODE_ENV") || "";
+  const isProd = nodeEnv.trim().toLowerCase() === "production" || process.env.NODE_ENV === "production";
+
   // Stripe co-dependency check: warns if secret key is present but webhook secret is missing
   const stripeSecret = getEnvVal("STRIPE_SECRET_KEY");
   const stripeWebhook = getEnvVal("STRIPE_WEBHOOK_SECRET");
@@ -104,6 +107,18 @@ function checkCodependencies(getEnvVal) {
     if (!stripeWebhook || stripeWebhook.trim() === "") {
       console.warn(
         `[env-validate] WARNING: STRIPE_SECRET_KEY is configured but STRIPE_WEBHOOK_SECRET is missing. Stripe API calls may work, but webhook-driven events such as invoice-paid sync, subscription updates, or membership reconciliation may fail.`
+      );
+    }
+  } else if (isProd) {
+    console.warn(
+      `[env-validate] WARNING: STRIPE_SECRET_KEY is not configured in production mode. Online payments and checkout features will be disabled.`
+    );
+  }
+
+  if (isProd && (!stripeWebhook || stripeWebhook.trim() === "")) {
+    if (!stripeSecret || stripeSecret.trim() === "") {
+      console.warn(
+        `[env-validate] WARNING: STRIPE_WEBHOOK_SECRET is not configured in production mode. Webhook reconciliation events will be disabled.`
       );
     }
   }
