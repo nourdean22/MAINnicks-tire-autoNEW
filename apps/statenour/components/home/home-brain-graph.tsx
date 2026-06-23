@@ -655,7 +655,7 @@ ${summary}`;
       {/* Search & Actions Panel */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]/70" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-(--text-tertiary)/70" />
           <input
             type="text"
             placeholder="Search brain nodes..."
@@ -665,7 +665,7 @@ ${summary}`;
               isSimActiveRef.current = true;
               triggerAnimationLoop();
             }}
-            className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded px-8 py-2 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/50 focus:border-[var(--gold)]/40 focus:outline-none transition-colors"
+            className="w-full bg-(--bg-elevated) border border-(--border-default) rounded px-8 py-2 text-[11px] text-(--text-primary) placeholder:text-(--text-tertiary)/50 focus:border-(--gold)/40 focus:outline-none transition-colors"
           />
         </div>
 
@@ -679,8 +679,8 @@ ${summary}`;
             className={cn(
               "px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border transition-colors inline-flex items-center gap-1.5 min-h-[44px]",
               localOnly
-                ? "bg-[var(--gold)]/10 border-[var(--gold)]/35 text-[var(--gold)]"
-                : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--gold)]/20"
+                ? "bg-(--gold)/10 border-(--gold)/35 text-(--gold)"
+                : "bg-(--bg-elevated) border-(--border-default) text-(--text-secondary) hover:border-(--gold)/20"
             )}
           >
             <Compass size={12} />
@@ -696,7 +696,7 @@ ${summary}`;
               setFocusId(null);
               setLocalOnly(false);
             }}
-            className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--gold)]/20 min-h-[44px]"
+            className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border bg-(--bg-elevated) border-(--border-default) text-(--text-secondary) hover:border-(--gold)/20 min-h-[44px]"
           >
             reset focus
           </button>
@@ -706,9 +706,9 @@ ${summary}`;
           type="button"
           onClick={handleAskTheBrain}
           disabled={loading || rawNodes.length === 0}
-          className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border bg-[var(--bg-elevated)] border-[var(--gold)]/20 text-[var(--gold)] hover:bg-[var(--gold)]/5 min-h-[44px] inline-flex items-center gap-1.5"
+          className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border bg-(--bg-elevated) border-(--gold)/20 text-(--gold) hover:bg-(--gold)/5 min-h-[44px] inline-flex items-center gap-1.5"
         >
-          <Zap size={12} className="fill-[var(--gold)]" />
+          <Zap size={12} className="fill-(--gold)" />
           ask the brain
         </button>
 
@@ -716,7 +716,7 @@ ${summary}`;
           <button
             type="button"
             onClick={() => router.push("/brain")}
-            className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--gold)]/20 min-h-[44px] inline-flex items-center gap-1.5"
+            className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border bg-(--bg-elevated) border-(--border-default) text-(--text-secondary) hover:border-(--gold)/20 min-h-[44px] inline-flex items-center gap-1.5"
           >
             <Maximize2 size={11} />
             fullscreen
@@ -728,7 +728,7 @@ ${summary}`;
       <div 
         ref={containerRef}
         className={cn(
-          "relative glass-card border-[var(--border-default)] flex-1 overflow-hidden bg-[#030303]",
+          "relative glass-card border-(--border-default) flex-1 overflow-hidden bg-[#030303]",
           isMobile && variant === "home" ? "h-[220px] cursor-pointer" : "min-h-[360px] h-[calc(100vh-22rem)] lg:h-[calc(100vh-14rem)]"
         )}
         onClick={() => {
@@ -739,7 +739,7 @@ ${summary}`;
       >
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#030303]/80 z-10">
-            <Loader2 size={24} className="animate-spin text-[var(--gold)]" />
+            <Loader2 size={24} className="animate-spin text-(--gold)" />
           </div>
         )}
         
@@ -750,7 +750,7 @@ ${summary}`;
         )}
 
         {isMobile && variant === "home" && (
-          <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded bg-black/60 border border-[var(--gold)]/25 text-[8px] font-mono uppercase tracking-wider text-[var(--gold)]">
+          <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded bg-black/60 border border-(--gold)/25 text-[8px] font-mono uppercase tracking-wider text-(--gold)">
             TAP TO EXPLORE FULL GRAPH
           </div>
         )}
@@ -773,21 +773,21 @@ ${summary}`;
           <div className="absolute bottom-3 right-3 flex flex-col gap-1 z-10">
             <button
               onClick={zoomIn}
-              className="w-8 h-8 rounded bg-black/60 border border-[var(--border-default)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] text-xs font-mono font-bold flex items-center justify-center"
+              className="w-8 h-8 rounded bg-black/60 border border-(--border-default) hover:border-(--gold)/40 hover:text-(--gold) text-xs font-mono font-bold flex items-center justify-center"
               title="Zoom In"
             >
               +
             </button>
             <button
               onClick={zoomOut}
-              className="w-8 h-8 rounded bg-black/60 border border-[var(--border-default)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] text-xs font-mono font-bold flex items-center justify-center"
+              className="w-8 h-8 rounded bg-black/60 border border-(--border-default) hover:border-(--gold)/40 hover:text-(--gold) text-xs font-mono font-bold flex items-center justify-center"
               title="Zoom Out"
             >
               -
             </button>
             <button
               onClick={zoomReset}
-              className="w-8 h-8 rounded bg-black/60 border border-[var(--border-default)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] text-xs flex items-center justify-center"
+              className="w-8 h-8 rounded bg-black/60 border border-(--border-default) hover:border-(--gold)/40 hover:text-(--gold) text-xs flex items-center justify-center"
               title="Reset View"
             >
               <Expand size={12} />

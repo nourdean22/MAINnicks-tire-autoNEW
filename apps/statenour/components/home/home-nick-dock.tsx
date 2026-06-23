@@ -131,9 +131,9 @@ export function HomeNickDock() {
 
   return (
     <div className="fixed bottom-0 inset-x-0 z-30 pb-safe px-3 sm:px-6 pointer-events-none">
-      <div className="mx-auto max-w-4xl w-full glass-card border-[var(--gold)]/20 bg-[#0A0A0A]/90 backdrop-blur-lg shadow-[var(--shadow-gold-strong)] pointer-events-auto p-2 sm:p-3 space-y-2 rounded-t-xl sm:rounded-xl">
+      <div className="mx-auto max-w-4xl w-full glass-card border-(--gold)/20 bg-[#0A0A0A]/90 backdrop-blur-lg shadow-(--shadow-gold-strong) pointer-events-auto p-2 sm:p-3 space-y-2 rounded-t-xl sm:rounded-xl">
         {/* Mode Selectors */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-[var(--border-default)] scrollbar-none">
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-(--border-default) scrollbar-none">
           {MODES.map((mode) => {
             const Icon = mode.icon;
             const isActive = mode.key === activeMode;
@@ -148,11 +148,11 @@ export function HomeNickDock() {
                 className={cn(
                   "shrink-0 px-2.5 py-1.5 rounded text-[10px] font-mono uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 min-h-[36px]",
                   isActive
-                    ? "bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/30"
-                    : "text-[var(--text-tertiary)] border border-transparent hover:text-[var(--text-secondary)]"
+                    ? "bg-(--gold)/10 text-(--gold) border border-(--gold)/30"
+                    : "text-(--text-tertiary) border border-transparent hover:text-(--text-secondary)"
                 )}
               >
-                <Icon size={12} className={cn(isActive && "text-[var(--gold)]")} />
+                <Icon size={12} className={cn(isActive && "text-(--gold)")} />
                 {mode.label}
               </button>
             );
@@ -170,13 +170,13 @@ export function HomeNickDock() {
             rows={1}
             className={cn(
               "flex-1 min-h-[44px] resize-none bg-transparent px-3 py-2.5 text-[15px] sm:text-[16px] leading-snug",
-              "text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/50",
+              "text-(--text-primary) placeholder:text-(--text-tertiary)/50",
               "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
             )}
           />
 
           <div className="flex items-center gap-1">
-            <span className="hidden sm:inline text-[9px] font-mono text-[var(--text-tertiary)]/30 select-none mr-2">
+            <span className="hidden sm:inline text-[9px] font-mono text-(--text-tertiary)/30 select-none mr-2">
               ⌘↵ to send
             </span>
             <button
@@ -187,8 +187,8 @@ export function HomeNickDock() {
               className={cn(
                 "shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-md transition-all active:scale-95",
                 canSend
-                  ? "bg-[var(--gold)] text-[var(--text-inverse)] hover:bg-[var(--gold-dim)]"
-                  : "bg-[var(--border-default)] text-[var(--text-tertiary)]/30"
+                  ? "bg-(--gold) text-(--text-inverse) hover:bg-(--gold-dim)"
+                  : "bg-(--border-default) text-(--text-tertiary)/30"
               )}
             >
               <Send size={16} strokeWidth={2} />
