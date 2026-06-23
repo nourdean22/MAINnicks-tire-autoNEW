@@ -44,6 +44,8 @@ export interface ProprietaryEvidence {
     averageMileage: number;
   };
   clevelandAngle: string;
+  testimonials?: string[];
+  pastSocialOutputs?: { topic: string; contentType: string; campaignKeyword?: string }[];
 }
 
 export interface ReelPromptOptions {
@@ -97,6 +99,22 @@ You are the Faceless Reel Director for ${STUDIO_BRAND.name} (${STUDIO_BRAND.hand
   - Failed Component: ${cs.failedComponent} (Condition: ${cs.condition.toUpperCase()})
   - Tech Inspection Notes: ${cs.techNotes}
   - Recommended Action: ${cs.recommendedAction}`;
+    }
+    if (pe.testimonials && pe.testimonials.length > 0) {
+      evidenceText += `
+- Real Customer Testimonials & Reviews (Use for Social Proof):`;
+      for (const t of pe.testimonials) {
+        evidenceText += `
+  - ${t}`;
+      }
+    }
+    if (pe.pastSocialOutputs && pe.pastSocialOutputs.length > 0) {
+      evidenceText += `
+- Recently Posted Social Media Topics (AVOID repeating these exact angles/topics):`;
+      for (const p of pe.pastSocialOutputs) {
+        evidenceText += `
+  - [${p.contentType.toUpperCase()}] Topic: "${p.topic}" (Keyword: ${p.campaignKeyword || "none"})`;
+      }
     }
     evidenceText += `
 - Instructions for LLM:

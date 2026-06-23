@@ -218,9 +218,33 @@ export const contentAdminRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const { syncReelDraftToSheet } = await import("../sheets-sync");
-        const ok = await syncReelDraftToSheet(input.id, input.topic, JSON.stringify(input.brief));
-        return { success: ok };
+        const { getDb } = await import("../db");
+        const { socialDrafts } = await import("../../drizzle/schema");
+        const d = await getDb();
+        if (d) {
+          await d.insert(socialDrafts).values({
+            id: input.id,
+            contentType: "reel",
+            topic: input.topic,
+            briefJson: JSON.stringify(input.brief),
+          }).onDuplicateKeyUpdate({
+            set: {
+              topic: input.topic,
+              briefJson: JSON.stringify(input.brief),
+            }
+          });
+        }
+
+        // Dual-write/sync to sheet
+        let sheetOk = false;
+        try {
+          const { syncReelDraftToSheet } = await import("../sheets-sync");
+          sheetOk = await syncReelDraftToSheet(input.id, input.topic, JSON.stringify(input.brief));
+        } catch (err) {
+          log.warn("syncReelDraftToSheet failed", err);
+        }
+
+        return { success: true, sheetSynced: sheetOk };
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Save Reel draft failed" });
       }
@@ -233,17 +257,82 @@ export const contentAdminRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const { syncCarouselDraftToSheet } = await import("../sheets-sync");
-        const ok = await syncCarouselDraftToSheet(input.id, input.topic, JSON.stringify(input.brief));
-        return { success: ok };
+        const { getDb } = await import("../db");
+        const { socialDrafts } = await import("../../drizzle/schema");
+        const d = await getDb();
+        if (d) {
+          await d.insert(socialDrafts).values({
+            id: input.id,
+            contentType: "carousel",
+            topic: input.topic,
+            briefJson: JSON.stringify(input.brief),
+          }).onDuplicateKeyUpdate({
+            set: {
+              topic: input.topic,
+              briefJson: JSON.stringify(input.brief),
+            }
+          });
+        }
+
+        // Dual-write/sync to sheet
+        let sheetOk = false;
+        try {
+          const { syncCarouselDraftToSheet } = await import("../sheets-sync");
+          sheetOk = await syncCarouselDraftToSheet(input.id, input.topic, JSON.stringify(input.brief));
+        } catch (err) {
+          log.warn("syncCarouselDraftToSheet failed", err);
+        }
+
+        return { success: true, sheetSynced: sheetOk };
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Save Carousel draft failed" });
       }
     }),
   allReelDrafts: adminProcedure.query(async () => {
     try {
-      const { fetchReelDraftsFromSheet } = await import("../sheets-sync");
-      return await fetchReelDraftsFromSheet();
+      const dbDrafts: any[] = [];
+      try {
+        const { getDb } = await import("../db");
+        const { socialDrafts } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const d = await getDb();
+        if (d) {
+          const rows = await d.select().from(socialDrafts).where(eq(socialDrafts.contentType, "reel"));
+          for (const r of rows) {
+            try {
+              dbDrafts.push(JSON.parse(r.briefJson));
+            } catch (e) {
+              log.error("Failed to parse db Reel draft JSON", { id: r.id, error: e });
+            }
+          }
+        }
+      } catch (dbErr) {
+        log.warn("Failed to fetch Reel drafts from DB, continuing to sheet", dbErr);
+      }
+
+      // Fetch sheets drafts
+      let sheetDrafts: any[] = [];
+      try {
+        const { fetchReelDraftsFromSheet } = await import("../sheets-sync");
+        sheetDrafts = await fetchReelDraftsFromSheet();
+      } catch (sheetErr) {
+        log.warn("fetchReelDraftsFromSheet failed", sheetErr);
+      }
+
+      // Merge them by ID. DB takes priority.
+      const mergedMap = new Map<string, any>();
+      for (const sd of sheetDrafts) {
+        if (sd && sd.id) {
+          mergedMap.set(sd.id, sd);
+        }
+      }
+      for (const dd of dbDrafts) {
+        if (dd && dd.id) {
+          mergedMap.set(dd.id, dd);
+        }
+      }
+
+      return Array.from(mergedMap.values());
     } catch (err) {
       log.warn("allReelDrafts failed", err);
       return [];
@@ -251,8 +340,47 @@ export const contentAdminRouter = router({
   }),
   allCarouselDrafts: adminProcedure.query(async () => {
     try {
-      const { fetchCarouselDraftsFromSheet } = await import("../sheets-sync");
-      return await fetchCarouselDraftsFromSheet();
+      const dbDrafts: any[] = [];
+      try {
+        const { getDb } = await import("../db");
+        const { socialDrafts } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const d = await getDb();
+        if (d) {
+          const rows = await d.select().from(socialDrafts).where(eq(socialDrafts.contentType, "carousel"));
+          for (const r of rows) {
+            try {
+              dbDrafts.push(JSON.parse(r.briefJson));
+            } catch (e) {
+              log.error("Failed to parse db Carousel draft JSON", { id: r.id, error: e });
+            }
+          }
+        }
+      } catch (dbErr) {
+        log.warn("Failed to fetch Carousel drafts from DB, continuing to sheet", dbErr);
+      }
+
+      let sheetDrafts: any[] = [];
+      try {
+        const { fetchCarouselDraftsFromSheet } = await import("../sheets-sync");
+        sheetDrafts = await fetchCarouselDraftsFromSheet();
+      } catch (sheetErr) {
+        log.warn("fetchCarouselDraftsFromSheet failed", sheetErr);
+      }
+
+      const mergedMap = new Map<string, any>();
+      for (const sd of sheetDrafts) {
+        if (sd && sd.id) {
+          mergedMap.set(sd.id, sd);
+        }
+      }
+      for (const dd of dbDrafts) {
+        if (dd && dd.id) {
+          mergedMap.set(dd.id, dd);
+        }
+      }
+
+      return Array.from(mergedMap.values());
     } catch (err) {
       log.warn("allCarouselDrafts failed", err);
       return [];
@@ -281,9 +409,97 @@ export const contentAdminRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const { syncReelLogToSheet } = await import("../sheets-sync");
-        const ok = await syncReelLogToSheet(input);
-        return { success: ok };
+        try {
+          const { getDb } = await import("../db");
+          const { socialDrafts } = await import("../../drizzle/schema");
+          const { eq, and } = await import("drizzle-orm");
+          const d = await getDb();
+          if (d) {
+            const existing = await d
+              .select()
+              .from(socialDrafts)
+              .where(and(eq(socialDrafts.contentType, "reel"), eq(socialDrafts.topic, input.topic)))
+              .limit(1);
+
+            if (existing.length > 0) {
+              const row = existing[0];
+              let brief: any = {};
+              try {
+                brief = JSON.parse(row.briefJson);
+              } catch (e) {
+                log.error("Failed to parse existing briefJson for logging", e);
+              }
+              brief.status = "posted";
+              brief.instagramUrl = input.instagramUrl;
+              brief.assetPaths = input.assetPaths;
+              brief.verifiedFact = input.verifiedFact;
+              brief.sources = input.sources;
+              brief.driverConfusion = input.driverConfusion;
+              brief.clevelandAngle = input.clevelandAngle;
+              brief.campaignKeyword = input.campaignKeyword;
+              brief.creativeTerritory = input.creativeTerritory;
+              brief.usefulAbsurdity = input.usefulAbsurdity;
+              brief.storyboardOutline = input.storyboardOutline;
+              brief.captionHook = input.captionHook;
+              brief.score = input.score;
+              brief.hashtags = input.hashtags;
+              brief.avoidedRepeats = input.avoidedRepeats;
+              brief.issues = input.issues;
+              brief.insightsChecked = input.insightsChecked;
+              brief.facebookCrossPostOff = input.facebookCrossPostOff;
+
+              await d
+                .update(socialDrafts)
+                .set({
+                  briefJson: JSON.stringify(brief),
+                })
+                .where(eq(socialDrafts.id, row.id));
+            } else {
+              const newId = `posted-reel-${Date.now()}`;
+              const brief = {
+                id: newId,
+                topic: input.topic,
+                status: "posted",
+                instagramUrl: input.instagramUrl,
+                assetPaths: input.assetPaths,
+                campaignKeyword: input.campaignKeyword,
+                creativeTerritory: input.creativeTerritory,
+                usefulAbsurdity: input.usefulAbsurdity,
+                storyboardOutline: input.storyboardOutline,
+                captionHook: input.captionHook,
+                score: input.score,
+                verifiedFact: input.verifiedFact,
+                sources: input.sources,
+                driverConfusion: input.driverConfusion,
+                clevelandAngle: input.clevelandAngle,
+                hashtags: input.hashtags,
+                avoidedRepeats: input.avoidedRepeats,
+                issues: input.issues,
+                insightsChecked: input.insightsChecked,
+                facebookCrossPostOff: input.facebookCrossPostOff,
+              };
+              await d.insert(socialDrafts).values({
+                id: newId,
+                contentType: "reel",
+                topic: input.topic,
+                briefJson: JSON.stringify(brief),
+              });
+            }
+          }
+        } catch (dbErr) {
+          log.error("Failed to log Reel in database", dbErr);
+        }
+
+        // Dual-write to Google Sheets
+        let sheetOk = false;
+        try {
+          const { syncReelLogToSheet } = await import("../sheets-sync");
+          sheetOk = await syncReelLogToSheet(input);
+        } catch (err) {
+          log.warn("syncReelLogToSheet failed", err);
+        }
+
+        return { success: true, sheetSynced: sheetOk };
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Log Reel failed" });
       }
@@ -311,17 +527,166 @@ export const contentAdminRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const { syncCarouselLogToSheet } = await import("../sheets-sync");
-        const ok = await syncCarouselLogToSheet(input);
-        return { success: ok };
+        try {
+          const { getDb } = await import("../db");
+          const { socialDrafts } = await import("../../drizzle/schema");
+          const { eq, and } = await import("drizzle-orm");
+          const d = await getDb();
+          if (d) {
+            const existing = await d
+              .select()
+              .from(socialDrafts)
+              .where(and(eq(socialDrafts.contentType, "carousel"), eq(socialDrafts.topic, input.topic)))
+              .limit(1);
+
+            if (existing.length > 0) {
+              const row = existing[0];
+              let brief: any = {};
+              try {
+                brief = JSON.parse(row.briefJson);
+              } catch (e) {
+                log.error("Failed to parse existing briefJson for logging", e);
+              }
+              brief.status = "posted";
+              brief.instagramUrl = input.instagramUrl;
+              brief.assetPaths = input.assetPaths;
+              brief.verifiedFact = input.verifiedFact;
+              brief.sources = input.sources;
+              brief.driverConfusion = input.driverConfusion;
+              brief.clevelandAngle = input.clevelandAngle;
+              brief.campaignKeyword = input.campaignKeyword;
+              brief.creativeTerritory = input.creativeTerritory;
+              brief.usefulAbsurdity = input.usefulAbsurdity;
+              brief.storyboardOutline = input.storyboardOutline;
+              brief.captionHook = input.captionHook;
+              brief.score = input.score;
+              brief.hashtags = input.hashtags;
+              brief.avoidedRepeats = input.avoidedRepeats;
+              brief.issues = input.issues;
+              brief.insightsChecked = input.insightsChecked;
+              brief.facebookCrossPostOff = input.facebookCrossPostOff;
+
+              await d
+                .update(socialDrafts)
+                .set({
+                  briefJson: JSON.stringify(brief),
+                })
+                .where(eq(socialDrafts.id, row.id));
+            } else {
+              const newId = `posted-carousel-${Date.now()}`;
+              const brief = {
+                id: newId,
+                topic: input.topic,
+                status: "posted",
+                instagramUrl: input.instagramUrl,
+                assetPaths: input.assetPaths,
+                campaignKeyword: input.campaignKeyword,
+                creativeTerritory: input.creativeTerritory,
+                usefulAbsurdity: input.usefulAbsurdity,
+                storyboardOutline: input.storyboardOutline,
+                captionHook: input.captionHook,
+                score: input.score,
+                verifiedFact: input.verifiedFact,
+                sources: input.sources,
+                driverConfusion: input.driverConfusion,
+                clevelandAngle: input.clevelandAngle,
+                hashtags: input.hashtags,
+                avoidedRepeats: input.avoidedRepeats,
+                issues: input.issues,
+                insightsChecked: input.insightsChecked,
+                facebookCrossPostOff: input.facebookCrossPostOff,
+              };
+              await d.insert(socialDrafts).values({
+                id: newId,
+                contentType: "carousel",
+                topic: input.topic,
+                briefJson: JSON.stringify(brief),
+              });
+            }
+          }
+        } catch (dbErr) {
+          log.error("Failed to log Carousel in database", dbErr);
+        }
+
+        // Dual-write to Google Sheets
+        let sheetOk = false;
+        try {
+          const { syncCarouselLogToSheet } = await import("../sheets-sync");
+          sheetOk = await syncCarouselLogToSheet(input);
+        } catch (err) {
+          log.warn("syncCarouselLogToSheet failed", err);
+        }
+
+        return { success: true, sheetSynced: sheetOk };
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Log Carousel failed" });
       }
     }),
   allReelLogs: adminProcedure.query(async () => {
     try {
-      const { fetchReelLogsFromSheet } = await import("../sheets-sync");
-      return await fetchReelLogsFromSheet();
+      const dbLogs: any[] = [];
+      try {
+        const { getDb } = await import("../db");
+        const { socialDrafts } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const d = await getDb();
+        if (d) {
+          const rows = await d.select().from(socialDrafts).where(eq(socialDrafts.contentType, "reel"));
+          for (const r of rows) {
+            try {
+              const brief = JSON.parse(r.briefJson);
+              if (brief.status === "posted") {
+                dbLogs.push({
+                  timestamp: r.updatedAt.toLocaleString("en-US", { timeZone: "America/New_York" }),
+                  topic: r.topic,
+                  verifiedFact: brief.verifiedFact || "",
+                  sources: brief.sources || "",
+                  driverConfusion: brief.driverConfusion || "",
+                  clevelandAngle: brief.clevelandAngle || "",
+                  campaignKeyword: brief.campaignKeyword || "",
+                  creativeTerritory: brief.creativeTerritory || "",
+                  usefulAbsurdity: brief.usefulAbsurdity || "",
+                  storyboardOutline: brief.storyboardOutline || "",
+                  captionHook: brief.captionHook || "",
+                  instagramUrl: brief.instagramUrl || "",
+                  assetPaths: brief.assetPaths || "",
+                  score: brief.score || "",
+                  hashtags: brief.hashtags || "",
+                  avoidedRepeats: brief.avoidedRepeats || "",
+                  issues: brief.issues || "",
+                  insightsChecked: brief.insightsChecked || "",
+                  facebookCrossPostOff: brief.facebookCrossPostOff || "",
+                });
+              }
+            } catch (e) {
+              log.error("Failed to parse db Reel log briefJson", e);
+            }
+          }
+        }
+      } catch (dbErr) {
+        log.warn("Failed to fetch Reel logs from DB, continuing to sheet", dbErr);
+      }
+
+      let sheetLogs: any[] = [];
+      try {
+        const { fetchReelLogsFromSheet } = await import("../sheets-sync");
+        sheetLogs = await fetchReelLogsFromSheet();
+      } catch (sheetErr) {
+        log.warn("fetchReelLogsFromSheet failed", sheetErr);
+      }
+
+      const mergedMap = new Map<string, any>();
+      for (const l of sheetLogs) {
+        if (l.topic) {
+          mergedMap.set(l.topic, l);
+        }
+      }
+      for (const l of dbLogs) {
+        if (l.topic) {
+          mergedMap.set(l.topic, l);
+        }
+      }
+      return Array.from(mergedMap.values());
     } catch (err) {
       log.warn("allReelLogs failed", err);
       return [];
@@ -329,8 +694,69 @@ export const contentAdminRouter = router({
   }),
   allCarouselLogs: adminProcedure.query(async () => {
     try {
-      const { fetchCarouselLogsFromSheet } = await import("../sheets-sync");
-      return await fetchCarouselLogsFromSheet();
+      const dbLogs: any[] = [];
+      try {
+        const { getDb } = await import("../db");
+        const { socialDrafts } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const d = await getDb();
+        if (d) {
+          const rows = await d.select().from(socialDrafts).where(eq(socialDrafts.contentType, "carousel"));
+          for (const r of rows) {
+            try {
+              const brief = JSON.parse(r.briefJson);
+              if (brief.status === "posted") {
+                dbLogs.push({
+                  timestamp: r.updatedAt.toLocaleString("en-US", { timeZone: "America/New_York" }),
+                  topic: r.topic,
+                  verifiedFact: brief.verifiedFact || "",
+                  sources: brief.sources || "",
+                  driverConfusion: brief.driverConfusion || "",
+                  clevelandAngle: brief.clevelandAngle || "",
+                  campaignKeyword: brief.campaignKeyword || "",
+                  creativeTerritory: brief.creativeTerritory || "",
+                  usefulAbsurdity: brief.usefulAbsurdity || "",
+                  storyboardOutline: brief.storyboardOutline || "",
+                  captionHook: brief.captionHook || "",
+                  instagramUrl: brief.instagramUrl || "",
+                  assetPaths: brief.assetPaths || "",
+                  score: brief.score || "",
+                  hashtags: brief.hashtags || "",
+                  avoidedRepeats: brief.avoidedRepeats || "",
+                  issues: brief.issues || "",
+                  insightsChecked: brief.insightsChecked || "",
+                  facebookCrossPostOff: brief.facebookCrossPostOff || "",
+                });
+              }
+            } catch (e) {
+              log.error("Failed to parse db Carousel log briefJson", e);
+            }
+          }
+        }
+      } catch (dbErr) {
+        log.warn("Failed to fetch Carousel logs from DB, continuing to sheet", dbErr);
+      }
+
+      let sheetLogs: any[] = [];
+      try {
+        const { fetchCarouselLogsFromSheet } = await import("../sheets-sync");
+        sheetLogs = await fetchCarouselLogsFromSheet();
+      } catch (sheetErr) {
+        log.warn("fetchCarouselLogsFromSheet failed", sheetErr);
+      }
+
+      const mergedMap = new Map<string, any>();
+      for (const l of sheetLogs) {
+        if (l.topic) {
+          mergedMap.set(l.topic, l);
+        }
+      }
+      for (const l of dbLogs) {
+        if (l.topic) {
+          mergedMap.set(l.topic, l);
+        }
+      }
+      return Array.from(mergedMap.values());
     } catch (err) {
       log.warn("allCarouselLogs failed", err);
       return [];
