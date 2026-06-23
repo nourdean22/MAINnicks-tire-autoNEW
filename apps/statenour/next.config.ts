@@ -72,7 +72,7 @@ const nextConfig: NextConfig = {
   // dependencies · was a dead config entry from a prior browser-automation
   // exploration. Browser automation now flows via the claude-in-chrome MCP
   // path · no in-process puppeteer.
-  serverExternalPackages: ["@prisma/client"],
+  serverExternalPackages: ["@prisma/client", "@resvg/resvg-js"],
 
   // v10.0.290 · 3D layer.
   // Wave 53 (2026-05-20): pivoted off Spline to React Three Fiber. The

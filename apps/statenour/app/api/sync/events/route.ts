@@ -88,6 +88,43 @@ export const POST = apiHandler(
             });
           }
         }
+
+        // Sync social draft from Nick's Tire
+        if (event.type === "nickstire:social_draft:sync") {
+          const d = event.data;
+          if (d && d.id) {
+            await prisma.socialPublishQueue.upsert({
+              where: { id: String(d.id) },
+              create: {
+                id: String(d.id),
+                content: String(d.content || ""),
+                status: String(d.status || "pending"),
+                imageUrl: d.imageUrl ? String(d.imageUrl) : null,
+                platforms: Array.isArray(d.platforms) ? d.platforms.map(String) : [],
+                kind: String(d.kind || "post"),
+                source: String(d.source || "nick"),
+                sourceMetadata: (d.sourceMetadata as any) || {},
+                missionId: d.missionId ? String(d.missionId) : null,
+                scheduledFor: d.scheduledFor ? new Date(d.scheduledFor as string | number | Date) : null,
+                publishedAt: d.publishedAt ? new Date(d.publishedAt as string | number | Date) : null,
+                publishUrls: Array.isArray(d.publishUrls) ? d.publishUrls.map(String) : [],
+              },
+              update: {
+                content: String(d.content || ""),
+                status: String(d.status || "pending"),
+                imageUrl: d.imageUrl ? String(d.imageUrl) : null,
+                platforms: Array.isArray(d.platforms) ? d.platforms.map(String) : [],
+                kind: String(d.kind || "post"),
+                source: String(d.source || "nick"),
+                sourceMetadata: (d.sourceMetadata as any) || {},
+                missionId: d.missionId ? String(d.missionId) : null,
+                scheduledFor: d.scheduledFor ? new Date(d.scheduledFor as string | number | Date) : null,
+                publishedAt: d.publishedAt ? new Date(d.publishedAt as string | number | Date) : null,
+                publishUrls: Array.isArray(d.publishUrls) ? d.publishUrls.map(String) : [],
+              },
+            });
+          }
+        }
       } catch (alertErr) {
         console.warn("[sync/events] Alert write failed:", alertErr);
       }

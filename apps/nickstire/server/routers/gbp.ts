@@ -14,6 +14,7 @@ import {
   publishGbpPost,
   GbpLocalPostParams
 } from "@nour/gbp-publisher";
+import { dispatch } from "../services/eventBus";
 
 const log = createLogger("routers:gbp");
 
@@ -353,6 +354,30 @@ export const gbpRouter = router({
                 .where(eq(socialDrafts.id, input.draftId));
             }
           }
+        }
+
+        // Sync with Statenour Command Center Queue
+        try {
+          await dispatch("social_draft:sync", {
+            id: input.draftId || `gbp-post-${result.name.split("/").pop() || Date.now()}`,
+            content: input.summary,
+            status: "published",
+            imageUrl: (input.mediaUrls && input.mediaUrls[0]) || null,
+            platforms: ["gbp"],
+            kind: "post",
+            source: "nick",
+            sourceMetadata: {
+              gbpPostId: result.name,
+              gbpSearchUrl: result.searchUrl || "",
+              publishedAt: new Date().toISOString(),
+              topicType: input.topicType,
+              ctaType: input.ctaType,
+              ctaUrl: input.ctaUrl,
+            },
+            publishedAt: new Date().toISOString(),
+          }, { source: "gbp_router" });
+        } catch (syncErr) {
+          log.warn("Failed to sync published GBP post to Statenour:", syncErr);
         }
 
         return {

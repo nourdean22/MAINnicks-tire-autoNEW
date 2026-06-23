@@ -83,6 +83,7 @@ export function DraftsTab() {
     { intervalMs: 60_000 },
   );
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [confirmKey, setConfirmKey] = useState<{ key: string; action: "approve" | "reject" } | null>(null);
   const actOnDraft = trpc.operator.actOnDraft.useMutation();
 
   async function action(key: string, kind: "approve" | "reject") {
@@ -98,6 +99,18 @@ export function DraftsTab() {
       setBusyKey(null);
     }
   }
+
+  const handleActionClick = (key: string, actionKind: "approve" | "reject") => {
+    if (confirmKey?.key === key && confirmKey.action === actionKind) {
+      setConfirmKey(null);
+      action(key, actionKind);
+    } else {
+      setConfirmKey({ key, action: actionKind });
+      setTimeout(() => {
+        setConfirmKey((prev) => (prev?.key === key && prev.action === actionKind ? null : prev));
+      }, 3000);
+    }
+  };
 
   return (
     <>
@@ -190,6 +203,24 @@ export function DraftsTab() {
                     {d.content.length > 360 ? `${d.content.slice(0, 360)}…` : d.content}
                   </p>
 
+                  {/* On-the-fly Image Preview */}
+                  <div className="my-3 overflow-hidden rounded border border-[var(--border-default)] bg-[var(--bg-raised)] max-w-sm">
+                    <div className="border-b border-[var(--border-default)] bg-black/10 px-3 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                      Visual Asset Preview
+                    </div>
+                    <div className="p-3 flex justify-center bg-black/20">
+                      <img
+                        src={`/api/content/render-asset?id=${d.id}`}
+                        alt="Visual Preview"
+                        className="h-auto w-full max-w-[280px] rounded shadow-lg object-contain aspect-square bg-[var(--bg-void)] border border-[var(--border-default)]"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
+                    </div>
+                  </div>
+
                   {d.metadata.suggestedPlatforms && d.metadata.suggestedPlatforms.length > 0 && (
                     <div className="mb-3 flex flex-wrap gap-1.5">
                       {d.metadata.suggestedPlatforms.map((p) => (
@@ -207,19 +238,29 @@ export function DraftsTab() {
                         <>
                           <button
                             type="button"
-                            onClick={() => action(d.key, "approve")}
+                            onClick={() => handleActionClick(d.key, "approve")}
                             disabled={busyKey === d.key}
-                            className="min-h-[44px] px-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 text-sm font-medium hover:bg-emerald-500/15 disabled:opacity-50"
+                            className={cn(
+                              "min-h-[44px] px-4 rounded-md border text-sm font-medium transition-all duration-200 disabled:opacity-50",
+                              confirmKey?.key === d.key && confirmKey.action === "approve"
+                                ? "border-emerald-500 bg-emerald-500/20 text-emerald-200 font-bold px-5"
+                                : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15"
+                            )}
                           >
-                            {busyKey === d.key ? "…" : "Approve"}
+                            {busyKey === d.key ? "…" : confirmKey?.key === d.key && confirmKey.action === "approve" ? "Confirm Approve" : "Approve"}
                           </button>
                           <button
                             type="button"
-                            onClick={() => action(d.key, "reject")}
+                            onClick={() => handleActionClick(d.key, "reject")}
                             disabled={busyKey === d.key}
-                            className="min-h-[44px] px-4 rounded-md border border-zinc-500/40 bg-zinc-500/5 text-zinc-300 text-sm font-medium hover:bg-zinc-500/15 disabled:opacity-50"
+                            className={cn(
+                              "min-h-[44px] px-4 rounded-md border text-sm font-medium transition-all duration-200 disabled:opacity-50",
+                              confirmKey?.key === d.key && confirmKey.action === "reject"
+                                ? "border-rose-500 bg-rose-500/20 text-rose-200 font-bold px-5"
+                                : "border-zinc-500/40 bg-zinc-500/5 text-zinc-300 hover:bg-zinc-500/15"
+                            )}
                           >
-                            Reject
+                            {busyKey === d.key ? "…" : confirmKey?.key === d.key && confirmKey.action === "reject" ? "Confirm Reject" : "Reject"}
                           </button>
                         </>
                       )}

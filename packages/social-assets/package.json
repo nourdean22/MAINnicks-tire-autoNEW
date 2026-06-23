@@ -17,7 +17,7 @@
     "src"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-fonts.js",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "render": "tsx src/cli.tsx"
