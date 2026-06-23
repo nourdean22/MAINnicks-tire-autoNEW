@@ -35,3 +35,5 @@ export { auditTodaysLeads } from "./audit-todays-leads";
 // Consolidated Stack workflows
 export { crmFollowups } from "./crm-followups";
 
+// Intelligence OS workflows
+export { intelligenceDailyBrief, intelligenceWeeklyBrief } from "./intelligence-brief";
