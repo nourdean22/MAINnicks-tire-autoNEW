@@ -939,7 +939,7 @@ function OrderTracker() {
 
 // ─── MAIN PAGE ────────────────────────────────────────
 export default function TireFinder() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const searchString = useSearch();
   // Read ?size= from URL for shareable/bookmarkable searches
   const urlSize = useMemo(() => {
@@ -1007,7 +1007,7 @@ export default function TireFinder() {
       toast.error("Please enter a valid tire size (e.g. 215/60R16).");
       return;
     }
-    setActiveSearch(searchInput.trim());
+    setLocation(`/tires?size=${encodeURIComponent(searchInput.trim())}`, { replace: true });
   };
 
   useEffect(() => {
@@ -1214,7 +1214,9 @@ export default function TireFinder() {
               {COMMON_SIZES.slice(0, 6).map((s) => (
                 <button
                   key={s}
-                  onClick={() => { setSearchInput(s); setActiveSearch(s); }}
+                  onClick={() => {
+                    setLocation(`/tires?size=${encodeURIComponent(s)}`, { replace: true });
+                  }}
                   className="text-xs text-muted-foreground hover:text-primary border border-border/30 rounded-full px-3 py-1 hover:border-primary/30 transition-colors"
                 >
                   {s}
@@ -1602,8 +1604,7 @@ export default function TireFinder() {
                     </a>
                     <button
                       onClick={() => {
-                        setSearchInput("");
-                        setActiveSearch("");
+                        setLocation("/tires", { replace: true });
                         setRescueSubmitted(false);
                         setRescueName("");
                         setRescuePhone("");
