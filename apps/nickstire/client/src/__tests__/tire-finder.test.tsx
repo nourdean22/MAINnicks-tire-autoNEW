@@ -84,12 +84,8 @@ describe("Tire Finder Module", () => {
       })
     );
 
-    // Verify default pricing is displayed correctly
-    // Total price is: $89.00 * 4 = $356.00
-    // Tax is: Math.round($356.00 * 0.08) = $28.48
-    // Card processing is: Math.round(($356.00 + $28.48) * 0.02) = $7.69
-    // Total: $356.00 + $28.48 + $7.69 = $392.17
-    expect(screen.getByText("$392.17")).toBeTruthy();
+    // Verify default pricing is displayed correctly as pending confirmation
+    expect(screen.getByText("Price Pending Confirmation")).toBeTruthy();
 
     // Verify prefilled vehicle is populated
     const yearInput = screen.getByPlaceholderText("2020") as HTMLInputElement;
@@ -136,5 +132,43 @@ describe("Financing Options", () => {
     for (const provider of FINANCING_PROVIDERS) {
       expect(provider.name).toBeTruthy();
     }
+  });
+});
+
+describe("Ezytire Environment Variables", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    cleanup();
+  });
+
+  it("renders size-only search and hides tabs when VITE_EZYTIRE_BASE_URL is missing", async () => {
+    vi.stubEnv("VITE_EZYTIRE_BASE_URL", "");
+    vi.stubEnv("PROD", true as any);
+
+    const { default: TireFinder } = await import("@/pages/TireFinder");
+    render(React.createElement(TireFinder));
+
+    // The tab switcher shouldn't render, and the vehicle tab shouldn't exist
+    expect(screen.queryByText("Search by Vehicle")).toBeNull();
+    expect(screen.queryByText("Get Fitment Help")).toBeNull();
+    // The standard size search input should be visible
+    expect(screen.getByPlaceholderText("Enter tire size (e.g. 215/60R16)")).toBeTruthy();
+  });
+
+  it("renders all tabs when VITE_EZYTIRE_BASE_URL is present", async () => {
+    vi.stubEnv("VITE_EZYTIRE_BASE_URL", "test.ezytiredemo.com");
+    vi.stubEnv("PROD", true as any);
+
+    const { default: TireFinder } = await import("@/pages/TireFinder");
+    render(React.createElement(TireFinder));
+
+    // The tab switcher should render all tabs
+    expect(screen.getByText("Search by Size")).toBeTruthy();
+    expect(screen.getByText("Search by Vehicle")).toBeTruthy();
+    expect(screen.getByText("Get Fitment Help")).toBeTruthy();
   });
 });

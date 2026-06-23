@@ -340,6 +340,25 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
     }
   };
 
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedTrackPartialOrder = () => {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    debounceTimeoutRef.current = setTimeout(() => {
+      trackPartialOrder();
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const orderMutation = trpc.gatewayTire.placeOrder.useMutation({
     onSuccess: (data) => {
       if (data.success) {
@@ -375,8 +394,8 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const tirePrice = tire ? tire.shopPrice : 89.00;
-  const tirePriceCents = tire ? tire.pricePerTireCents : 8900;
+  const tirePrice = tire ? tire.shopPrice : 0;
+  const tirePriceCents = tire ? tire.pricePerTireCents : 0;
   const tireBrandName = tire ? tire.brand : "Custom Request";
   const tireModelName = tire ? tire.model : "Vehicle Fitment";
 
@@ -449,42 +468,50 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                 {/* Stripe Pay Now / Financing CTAs */}
                 {!paymentSubmitted && (
                   <div className="mt-3 bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
-                    <button
-                      onClick={() => checkoutMutation.mutate({ orderNumber: orderResult.orderNumber, phone })}
-                      disabled={checkoutMutation.isPending}
-                      className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground py-2.5 rounded-md text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-                    >
-                      {checkoutMutation.isPending ? (
-                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting secure checkout…</>
-                      ) : (
-                        <>Pay Now — ${(bd.total / 100).toFixed(2)}</>
-                      )}
-                    </button>
-                    <p className="text-[9px] text-muted-foreground text-center">
-                      Secure card payment via Stripe. Cards carry a 2% surcharge.
-                    </p>
-                    
-                    <div className="border-t border-border/20 pt-3">
-                      <p className="text-[10px] text-muted-foreground mb-2 text-center font-medium">Or apply for Snap/Acima financing:</p>
-                      <div className="flex gap-2">
-                        <a
-                          href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 text-center bg-[#FF6B00] text-white py-2 rounded-md text-xs font-medium hover:bg-[#FF6B00]/90 transition-colors"
+                    {tire ? (
+                      <>
+                        <button
+                          onClick={() => checkoutMutation.mutate({ orderNumber: orderResult.orderNumber, phone })}
+                          disabled={checkoutMutation.isPending}
+                          className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground py-2.5 rounded-md text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
-                          Snap Finance
-                        </a>
-                        <a
-                          href="https://acima.us/1TjEOYtr6C"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 text-center bg-blue-600 text-white py-2 rounded-md text-xs font-medium hover:bg-blue-600/90 transition-colors"
-                        >
-                          Acima Credit
-                        </a>
-                      </div>
-                    </div>
+                          {checkoutMutation.isPending ? (
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting secure checkout…</>
+                          ) : (
+                            <>Pay Now — ${(bd.total / 100).toFixed(2)}</>
+                          )}
+                        </button>
+                        <p className="text-[9px] text-muted-foreground text-center">
+                          Secure card payment via Stripe. Cards carry a 2% surcharge.
+                        </p>
+                        
+                        <div className="border-t border-border/20 pt-3">
+                          <p className="text-[10px] text-muted-foreground mb-2 text-center font-medium">Or apply for Snap/Acima financing:</p>
+                          <div className="flex gap-2">
+                            <a
+                              href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 text-center bg-[#FF6B00] text-white py-2 rounded-md text-xs font-medium hover:bg-[#FF6B00]/90 transition-colors"
+                            >
+                              Snap Finance
+                            </a>
+                            <a
+                              href="https://acima.us/1TjEOYtr6C"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 text-center bg-blue-600 text-white py-2 rounded-md text-xs font-medium hover:bg-blue-600/90 transition-colors"
+                            >
+                              Acima Credit
+                            </a>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-amber-500/90 font-medium text-center py-2">
+                        Online payment will be available once staff confirms pricing.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -513,23 +540,27 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
           <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6 text-left space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{quantity}x {tireBrandName} {tireModelName}</span>
-              <span className="text-foreground font-medium">${(bd.subtotal / 100).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Nick's Premium Installation Package</span>
-              <span className="text-green-400 font-medium">Included</span>
+              <span className="text-foreground font-medium">
+                {tire ? `$${(bd.subtotal / 100).toFixed(2)}` : "Pending confirmation"}
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Ohio sales tax (8%)</span>
-              <span className="text-foreground">${(bd.tax / 100).toFixed(2)}</span>
+              <span className="text-foreground">
+                {tire ? `$${(bd.tax / 100).toFixed(2)}` : "Pending confirmation"}
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Card processing fee (2%)</span>
-              <span className="text-foreground">${(bd.cardFee / 100).toFixed(2)}</span>
+              <span className="text-foreground">
+                {tire ? `$${(bd.cardFee / 100).toFixed(2)}` : "Pending confirmation"}
+              </span>
             </div>
             <div className="flex justify-between pt-2 border-t border-border/30">
               <span className="font-medium text-foreground">Total Estimate</span>
-              <span className="font-semibold text-primary">${(bd.total / 100).toFixed(2)}</span>
+              <span className="font-semibold text-primary">
+                {tire ? `$${(bd.total / 100).toFixed(2)}` : "Price Pending Confirmation"}
+              </span>
             </div>
           </div>
           <button onClick={onClose} className="w-full bg-primary text-primary-foreground py-3 rounded-md font-medium hover:bg-primary/90 transition-colors">
@@ -559,7 +590,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
         <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6">
           <div className="flex justify-between text-sm mb-2">
             <span className="text-muted-foreground">{tireBrandName} {tireModelName} x{quantity}</span>
-            <span className="text-foreground font-medium">${tireTotal.toFixed(2)}</span>
+            <span className="text-foreground font-medium">{tire ? `$${tireTotal.toFixed(2)}` : "Pending confirmation"}</span>
           </div>
 
           {/* FREE package — this is the genius part */}
@@ -605,19 +636,19 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Tires x{quantity}</span>
-              <span className="text-foreground">${(bd.subtotal / 100).toFixed(2)}</span>
+              <span className="text-foreground">{tire ? `$${(bd.subtotal / 100).toFixed(2)}` : "Pending confirmation"}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Ohio sales tax (8%)</span>
-              <span className="text-foreground">${(bd.tax / 100).toFixed(2)}</span>
+              <span className="text-foreground">{tire ? `$${(bd.tax / 100).toFixed(2)}` : "Pending confirmation"}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Card processing fee (2%)</span>
-              <span className="text-foreground">${(bd.cardFee / 100).toFixed(2)}</span>
+              <span className="text-foreground">{tire ? `$${(bd.cardFee / 100).toFixed(2)}` : "Pending confirmation"}</span>
             </div>
             <div className="flex justify-between pt-1.5 border-t border-border/20">
               <span className="font-medium text-foreground">Estimated Total</span>
-              <span className="font-semibold text-primary text-lg">${(bd.total / 100).toFixed(2)}</span>
+              <span className="font-semibold text-primary text-lg">{tire ? `$${(bd.total / 100).toFixed(2)}` : "Price Pending Confirmation"}</span>
             </div>
             <p className="text-[10px] text-green-400 text-right font-medium">
               You save ${packageValue}+ on installation
@@ -658,7 +689,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
             <label className="block text-sm text-muted-foreground mb-1.5">Full Name *</label>
             <input
               type="text" value={name} onChange={(e) => setName(e.target.value)}
-              onBlur={trackPartialOrder}
+              onBlur={debouncedTrackPartialOrder}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
               placeholder="John Smith"
             />
@@ -667,7 +698,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
             <label className="block text-sm text-muted-foreground mb-1.5">Phone Number *</label>
             <input
               type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-              onBlur={trackPartialOrder}
+              onBlur={debouncedTrackPartialOrder}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
               placeholder={BUSINESS.phone.placeholder}
             />
@@ -676,7 +707,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
             <label className="block text-sm text-muted-foreground mb-1.5">Email (for order updates)</label>
             <input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              onBlur={trackPartialOrder}
+              onBlur={debouncedTrackPartialOrder}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
               placeholder="john@example.com"
             />
@@ -688,7 +719,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                 type="text"
                 value={vehicleYear}
                 onChange={(e) => setVehicleYear(e.target.value)}
-                onBlur={trackPartialOrder}
+                onBlur={debouncedTrackPartialOrder}
                 className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
                 placeholder="2020"
               />
@@ -699,7 +730,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                 type="text"
                 value={vehicleMake}
                 onChange={(e) => setVehicleMake(e.target.value)}
-                onBlur={trackPartialOrder}
+                onBlur={debouncedTrackPartialOrder}
                 className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
                 placeholder="Honda"
               />
@@ -712,7 +743,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                 type="text"
                 value={vehicleModel}
                 onChange={(e) => setVehicleModel(e.target.value)}
-                onBlur={trackPartialOrder}
+                onBlur={debouncedTrackPartialOrder}
                 className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
                 placeholder="Civic"
               />
@@ -723,7 +754,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                 type="text"
                 value={vehicleOption}
                 onChange={(e) => setVehicleOption(e.target.value)}
-                onBlur={trackPartialOrder}
+                onBlur={debouncedTrackPartialOrder}
                 className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
                 placeholder="LX / EX"
               />
@@ -735,7 +766,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
               type="text"
               value={tireSize}
               onChange={(e) => setTireSize(e.target.value)}
-              onBlur={trackPartialOrder}
+              onBlur={debouncedTrackPartialOrder}
               disabled={!!tire}
               className={`w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors ${
                 tire ? "opacity-60 cursor-not-allowed bg-muted/10" : ""
@@ -817,8 +848,10 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
         >
           {orderMutation.isPending ? (
             <><Loader2 className="w-4 h-4 animate-spin" /> Requesting Tires...</>
-          ) : (
+          ) : tire ? (
             <>Request These Tires — ${(bd.total / 100).toFixed(2)}</>
+          ) : (
+            <>Request Price Confirmation</>
           )}
         </button>
 
@@ -1750,13 +1783,14 @@ export default function TireFinder() {
                   </div>
 
                   {/* Ezytire Results Iframe */}
-                  <div className="relative w-full h-[650px] rounded-xl border border-border/30 overflow-hidden bg-card shadow-inner">
+                  <div className="relative w-full h-[600px] md:h-[800px] rounded-xl border border-border/30 overflow-hidden bg-card shadow-inner">
                     {ezytireIframeUrl ? (
                       <iframe
                         src={ezytireIframeUrl}
                         className="w-full h-full border-0"
                         title="Ezytire Search Results"
                         sandbox="allow-scripts allow-same-origin allow-forms"
+                        style={{ WebkitOverflowScrolling: "touch" }}
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
