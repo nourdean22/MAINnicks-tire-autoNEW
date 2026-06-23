@@ -1787,10 +1787,9 @@ export default function TireFinder() {
                     {ezytireIframeUrl ? (
                       <iframe
                         src={ezytireIframeUrl}
-                        className="w-full h-full border-0"
+                        className="w-full h-full border-0 scroll-touch"
                         title="Ezytire Search Results"
                         sandbox="allow-scripts allow-same-origin allow-forms"
-                        style={{ WebkitOverflowScrolling: "touch" }}
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
