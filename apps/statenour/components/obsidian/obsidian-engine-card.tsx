@@ -58,8 +58,19 @@ export function ObsidianEngineCard() {
       const res = await fetch("/api/obsidian/status");
       if (!res.ok) throw new Error("Failed to load status");
       const data = await res.json();
-      setStatus(data);
-      setError(null);
+      
+      // Handle Next.js apiHandler response envelope
+      if (data && typeof data === "object" && "ok" in data) {
+        if (data.ok) {
+          setStatus(data.data || null);
+          setError(null);
+        } else {
+          throw new Error(data.error || "Failed to load status");
+        }
+      } else {
+        setStatus(data);
+        setError(null);
+      }
     } catch (err: any) {
       setError(err.message || "Unknown error");
     } finally {
@@ -108,6 +119,10 @@ export function ObsidianEngineCard() {
     error: "alert · engine halted",
   };
 
+  const currentHealth = engine.health || "degraded";
+  const pulseColor = pulseColors[currentHealth as keyof typeof pulseColors] || pulseColors.degraded;
+  const label = statusLabel[currentHealth as keyof typeof statusLabel] || statusLabel.degraded;
+
   return (
     <div className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border-white/10 p-4 shadow-xl space-y-4">
       <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -117,12 +132,12 @@ export function ObsidianEngineCard() {
         <div className="flex items-center gap-2">
           <span className={cn(
             "inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[9px] font-mono uppercase tracking-wider",
-            engine.health === "healthy" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
-            engine.health === "degraded" ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
+            currentHealth === "healthy" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
+            currentHealth === "degraded" ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
             "text-rose-400 border-rose-500/20 bg-rose-500/5"
           )}>
-            <span className={cn("h-1.5 w-1.5 rounded-full animate-pulse shadow-sm", pulseColors[engine.health])} />
-            {statusLabel[engine.health]}
+            <span className={cn("h-1.5 w-1.5 rounded-full animate-pulse shadow-sm", pulseColor)} />
+            {label}
           </span>
           <span className="text-[10px] text-white/45 font-mono uppercase tracking-wider">
             Obsidian Local Engine
@@ -143,41 +158,41 @@ export function ObsidianEngineCard() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <div className="p-2.5 rounded border border-white/5 bg-white/[0.01] flex flex-col justify-between">
           <span className="text-[8px] font-mono uppercase tracking-wider text-white/40 block mb-1">Total Notes</span>
-          <span className="text-lg font-semibold text-white leading-tight font-mono">{engine.stats.totalNotes}</span>
+          <span className="text-lg font-semibold text-white leading-tight font-mono">{engine.stats?.totalNotes ?? 0}</span>
         </div>
         <div className="p-2.5 rounded border border-white/5 bg-white/[0.01] flex flex-col justify-between">
           <span className="text-[8px] font-mono uppercase tracking-wider text-white/40 block mb-1">Synced</span>
-          <span className="text-lg font-semibold text-white leading-tight font-mono">{engine.stats.synced}</span>
+          <span className="text-lg font-semibold text-white leading-tight font-mono">{engine.stats?.synced ?? 0}</span>
         </div>
         <div className="p-2.5 rounded border border-white/5 bg-white/[0.01] flex flex-col justify-between">
           <span className="text-[8px] font-mono uppercase tracking-wider text-white/40 block mb-1">Quarantined</span>
           <span className={cn(
             "text-lg font-semibold leading-tight font-mono",
-            engine.stats.quarantined > 0 ? "text-amber-400" : "text-white"
+            (engine.stats?.quarantined ?? 0) > 0 ? "text-amber-400" : "text-white"
           )}>
-            {engine.stats.quarantined}
+            {engine.stats?.quarantined ?? 0}
           </span>
         </div>
         <div className="p-2.5 rounded border border-white/5 bg-white/[0.01] flex flex-col justify-between">
           <span className="text-[8px] font-mono uppercase tracking-wider text-white/40 block mb-1">Failures</span>
           <span className={cn(
             "text-lg font-semibold leading-tight font-mono",
-            engine.stats.failures > 0 ? "text-rose-400" : "text-white"
+            (engine.stats?.failures ?? 0) > 0 ? "text-rose-400" : "text-white"
           )}>
-            {engine.stats.failures}
+            {engine.stats?.failures ?? 0}
           </span>
         </div>
       </div>
 
       {/* Active issues or quarantined files list */}
-      {(engine.issues.length > 0 || engine.quarantinedFiles.length > 0) && (
+      {(((engine.issues?.length ?? 0) > 0 || (engine.quarantinedFiles?.length ?? 0) > 0)) && (
         <div className="space-y-2 border-t border-white/5 pt-3">
           <span className="text-[9px] font-mono uppercase tracking-wider text-amber-400/80 font-bold block">
-            Requires Attention ({engine.issues.length + engine.quarantinedFiles.length})
+            Requires Attention ({(engine.issues?.length ?? 0) + (engine.quarantinedFiles?.length ?? 0)})
           </span>
 
           <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-            {engine.issues.map((issue, idx) => (
+            {engine.issues?.map((issue, idx) => (
               <div key={`issue-${idx}`} className="p-2 rounded border border-rose-500/10 bg-rose-500/[0.01] space-y-1 text-[11px]">
                 <div className="flex items-start gap-1.5">
                   <ShieldAlert size={12} className="text-rose-400 shrink-0 mt-0.5" />
@@ -197,7 +212,7 @@ export function ObsidianEngineCard() {
               </div>
             ))}
 
-            {engine.quarantinedFiles.map((qFile, idx) => (
+            {engine.quarantinedFiles?.map((qFile, idx) => (
               <div key={`qfile-${idx}`} className="p-2 rounded border border-amber-500/10 bg-amber-500/[0.01] space-y-1 text-[11px]">
                 <div className="flex items-start gap-1.5">
                   <Ban size={12} className="text-amber-400 shrink-0 mt-0.5" />
