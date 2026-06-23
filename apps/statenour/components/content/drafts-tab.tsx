@@ -28,7 +28,7 @@ import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
 import Link from "next/link";
 
-type DraftStatus = "pending" | "approved" | "rejected" | "scheduled" | "published";
+type DraftStatus = "pending" | "approved" | "rejected" | "scheduled" | "published" | "rendering";
 
 interface ContentDraft {
   id: string;
@@ -53,11 +53,12 @@ interface DraftsResponse {
   generatedAt: string;
 }
 
-const STATUS_FILTERS = ["pending", "approved", "scheduled", "all"] as const;
+const STATUS_FILTERS = ["pending", "rendering", "approved", "scheduled", "all"] as const;
 type StatusFilter = typeof STATUS_FILTERS[number];
 
 const STATUS_TONE: Record<DraftStatus, { bg: string; text: string; label: string }> = {
   pending: { bg: "border-amber-500/30 bg-amber-500/[0.04]", text: "text-amber-200", label: "pending" },
+  rendering: { bg: "border-purple-500/30 bg-purple-500/[0.04] animate-pulse", text: "text-purple-200", label: "rendering video" },
   approved: { bg: "border-emerald-500/30 bg-emerald-500/[0.04]", text: "text-emerald-200", label: "approved" },
   scheduled: { bg: "border-sky-500/30 bg-sky-500/[0.04]", text: "text-sky-200", label: "scheduled" },
   published: { bg: "border-zinc-500/30 bg-zinc-500/[0.04]", text: "text-zinc-300", label: "published" },
@@ -129,8 +130,9 @@ export function DraftsTab() {
       <div className="space-y-4">
         {/* 4-stat rollup · same pattern as /people + /system/cockpit */}
         {data && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             <Stat label="pending" value={data.counts.pending} tint={data.counts.pending > 0 ? "text-amber-300" : "text-zinc-500"} />
+            <Stat label="rendering" value={data.counts.rendering || 0} tint={data.counts.rendering > 0 ? "text-purple-300 animate-pulse" : "text-zinc-500"} />
             <Stat label="approved" value={data.counts.approved} tint="text-emerald-300" />
             <Stat label="scheduled" value={data.counts.scheduled} tint="text-sky-300" />
             <Stat label="rejected" value={data.counts.rejected} tint="text-zinc-500" />
@@ -150,6 +152,7 @@ export function DraftsTab() {
             ariaLabel="Filter drafts by status"
             options={[
               { value: "pending", label: "pending review" },
+              { value: "rendering", label: "rendering video" },
               { value: "approved", label: "approved · ready" },
               { value: "scheduled", label: "scheduled" },
               { value: "all", label: "all drafts" },
@@ -203,21 +206,37 @@ export function DraftsTab() {
                     {d.content.length > 360 ? `${d.content.slice(0, 360)}…` : d.content}
                   </p>
 
-                  {/* On-the-fly Image Preview */}
+                  {/* On-the-fly Image/Video Preview */}
                   <div className="my-3 overflow-hidden rounded border border-[var(--border-default)] bg-[var(--bg-raised)] max-w-sm">
                     <div className="border-b border-[var(--border-default)] bg-black/10 px-3 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-                      Visual Asset Preview
+                      {d.metadata.imageUrl?.endsWith(".mp4") ? "Video Asset Preview" : "Visual Asset Preview"}
                     </div>
                     <div className="p-3 flex justify-center bg-black/20">
-                      <img
-                        src={`/api/content/render-asset?id=${d.id}`}
-                        alt="Visual Preview"
-                        className="h-auto w-full max-w-[280px] rounded shadow-lg object-contain aspect-square bg-[var(--bg-void)] border border-[var(--border-default)]"
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
+                      {d.metadata.imageUrl?.endsWith(".mp4") ? (
+                        <video
+                          src={d.metadata.imageUrl}
+                          controls
+                          className="h-auto w-full max-w-[280px] rounded shadow-lg object-contain bg-[var(--bg-void)] border border-[var(--border-default)]"
+                        />
+                      ) : d.metadata.status === "rendering" ? (
+                        <div className="flex flex-col items-center justify-center p-6 gap-3 text-purple-200">
+                          <svg className="animate-spin h-8 w-8 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span className="text-xs uppercase tracking-wider font-semibold">Generating Video...</span>
+                        </div>
+                      ) : (
+                        <img
+                          src={`/api/content/render-asset?id=${d.id}`}
+                          alt="Visual Preview"
+                          className="h-auto w-full max-w-[280px] rounded shadow-lg object-contain aspect-square bg-[var(--bg-void)] border border-[var(--border-default)]"
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -231,9 +250,22 @@ export function DraftsTab() {
                     </div>
                   )}
 
-                  {/* Action buttons · only for pending + approved */}
-                  {(isPending || isApproved) && (
+                  {/* Action buttons · only for pending + approved + rendering */}
+                  {(isPending || isApproved || d.metadata.status === "rendering") && (
                     <div className="flex flex-wrap gap-2 mt-3">
+                      {d.metadata.status === "rendering" && (
+                        <button
+                          type="button"
+                          disabled
+                          className="min-h-[44px] px-4 rounded-md border border-purple-500/20 bg-purple-500/5 text-purple-300 text-sm font-medium flex items-center gap-2 cursor-not-allowed opacity-75"
+                        >
+                          <svg className="animate-spin h-4 w-4 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Compiling Video...
+                        </button>
+                      )}
                       {isPending && (
                         <>
                           <button

@@ -17,7 +17,7 @@ import { randomUUID } from "node:crypto";
 // generation · matches the runner-auth pattern · no new npm dep needed.
 const createId = () => randomUUID().replace(/-/g, "").slice(0, 24);
 
-export type DraftStatus = "pending" | "approved" | "rejected" | "scheduled" | "published";
+export type DraftStatus = "pending" | "approved" | "rejected" | "scheduled" | "published" | "rendering";
 
 export interface ContentDraftMetadata {
   imageUrl?: string | null;
@@ -227,6 +227,7 @@ export async function getDraftCounts(): Promise<Record<DraftStatus | "total", nu
     rejected: 0,
     scheduled: 0,
     published: 0,
+    rendering: 0,
     total: 0,
   };
 
