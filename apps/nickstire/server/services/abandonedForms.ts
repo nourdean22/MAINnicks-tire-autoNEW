@@ -12,7 +12,7 @@ const log = createLogger("abandoned-forms");
 
 interface PartialFormData {
   sessionId: string;
-  formType: "booking" | "lead" | "callback" | "quote";
+  formType: "booking" | "lead" | "callback" | "quote" | "tire_order";
   name?: string;
   phone?: string;
   email?: string;
@@ -121,7 +121,11 @@ export async function processAbandonedForms(): Promise<{ recordsProcessed: numbe
 
       const { sendSms, withOptOut } = await import("../sms");
       const firstName = partial.name?.split(" ")[0] || "there";
-      const message = withOptOut(`Hi ${firstName}, looks like you didn't finish booking at Nick's Tire & Auto. Need help? Call (216) 862-0005 or reply here!`);
+      const message = withOptOut(
+        partial.formType === "tire_order"
+          ? `Hi ${firstName}, looks like you didn't finish ordering your tires at Nick's Tire & Auto. Need help finding the right fit? Call (216) 862-0005 or reply here!`
+          : `Hi ${firstName}, looks like you didn't finish booking at Nick's Tire & Auto. Need help? Call (216) 862-0005 or reply here!`
+      );
 
       const result = await sendSms(partial.phone, message, { via: "shop", skipPersist: true, variantKey: "abandoned_form" });
       // Persist with variantKey="abandoned_form" so the cooldown above
