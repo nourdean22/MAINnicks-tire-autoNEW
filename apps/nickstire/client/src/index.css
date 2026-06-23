@@ -1653,3 +1653,7 @@ p.body-pretty {
   --ring-yellow-strong: rgba(255, 255, 255, 0.18);
   --brand-yellow: #E6E8EB;
 }
+
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+}
