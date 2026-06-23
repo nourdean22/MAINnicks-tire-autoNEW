@@ -81,7 +81,16 @@ export default function ResearchLabPage() {
       const res = await fetch("/api/research/status");
       if (res.ok) {
         const data = await res.json();
-        setStatus(data);
+        // Handle Next.js apiHandler response envelope
+        if (data && typeof data === "object" && "ok" in data) {
+          if (data.ok) {
+            setStatus(data.data || null);
+          } else {
+            toast.error(data.error || "Failed to load status metrics.");
+          }
+        } else {
+          setStatus(data);
+        }
       }
     } catch (err) {
       toast.error("Failed to load status metrics.");
@@ -97,9 +106,22 @@ export default function ResearchLabPage() {
       const res = await fetch("/api/research/packs");
       if (res.ok) {
         const data = await res.json();
-        setPacks(data);
-        if (data.length > 0 && !selectedPack) {
-          setSelectedPack(data[0]);
+        let packsList: ResearchPack[] = [];
+        
+        // Handle Next.js apiHandler response envelope
+        if (data && typeof data === "object" && "ok" in data) {
+          if (data.ok) {
+            packsList = data.data || [];
+          } else {
+            toast.error(data.error || "Failed to fetch research packs.");
+          }
+        } else {
+          packsList = Array.isArray(data) ? data : [];
+        }
+
+        setPacks(packsList);
+        if (packsList.length > 0 && !selectedPack) {
+          setSelectedPack(packsList[0]);
         }
       }
     } catch (err) {
@@ -116,7 +138,20 @@ export default function ResearchLabPage() {
       const res = await fetch(`/api/research/packs/items?slug=${slug}`);
       if (res.ok) {
         const data = await res.json();
-        setPackItems(data);
+        let itemsList: ResearchItem[] = [];
+        
+        // Handle Next.js apiHandler response envelope
+        if (data && typeof data === "object" && "ok" in data) {
+          if (data.ok) {
+            itemsList = data.data || [];
+          } else {
+            toast.error(data.error || "Failed to fetch pack items.");
+          }
+        } else {
+          itemsList = Array.isArray(data) ? data : [];
+        }
+
+        setPackItems(itemsList);
       }
     } catch (err) {
       toast.error("Failed to fetch pack items.");
@@ -208,7 +243,7 @@ export default function ResearchLabPage() {
           <div className="text-zinc-500 text-xs font-mono uppercase tracking-wider mb-1">Awaiting NotebookLM</div>
           <div className="flex items-center gap-2">
             <span className="text-2xl font-semibold text-amber-500 font-mono">
-              {loadingStatus ? "..." : status?.packsAwaitingNotebookLMReview.length ?? 0}
+              {loadingStatus ? "..." : (status?.packsAwaitingNotebookLMReview?.length ?? 0)}
             </span>
             <span className="text-xs text-zinc-500">review queue</span>
           </div>
@@ -218,7 +253,7 @@ export default function ResearchLabPage() {
           <div className="text-zinc-500 text-xs font-mono uppercase tracking-wider mb-1">Awaiting Ingest</div>
           <div className="flex items-center gap-2">
             <span className="text-2xl font-semibold text-indigo-400 font-mono">
-              {loadingStatus ? "..." : status?.packsAwaitingActionExtraction.length ?? 0}
+              {loadingStatus ? "..." : (status?.packsAwaitingActionExtraction?.length ?? 0)}
             </span>
             <span className="text-xs text-zinc-500">action backlog</span>
           </div>
