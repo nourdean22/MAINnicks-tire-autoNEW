@@ -1,8 +1,10 @@
 # Project Completion Ledger
 
 Source-grounded truth about what is actually done, partial, or untouched.
-Updated 2026-06-15 against main `e0c4507b` — after the
-12-PR ship (#152 merged). Every status cites evidence — a
+Updated 2026-06-23 against main `7428dc88` — after the
+#262–#300 sprint (CSP nonce, schema purge, 4 integration slices,
+Obsidian bridge, Command Center, social pipeline, GBP publisher,
+Remotion reel engine, 90-branch prune). Every status cites evidence — a
 merged PR, a file path, or an explicit operator action. If a row says
 UNKNOWN, nobody has verified it; do not treat it as done.
 
@@ -28,7 +30,10 @@ DANGEROUS_DO_NOT_AUTOMATE_YET
 | D&K / Gateway live availability repair | BLOCKED_BY_EXTERNAL_ACCESS | TireFinder.tsx comment: D&K migrated B2B portal to static SPA 2026, old auth endpoint gone; `gatewayClient.ts` has token+quicksearch only | Pipeline cache WORKS (live QA: 205/55R16 → 15 real D&K tires); live order-time recheck impossible / new D&K API creds+docs | high | owner: get current API docs/credentials from D&K rep | health surface only | **yes** |
 | Customer confirmation SMS/email | NOT_STARTED (code), templates drafted | No order-confirmation send exists (notifications audit, 2026-06-10); SMS infra exists for other flows (F25e) | — / preview templates + send-disabled module (ops-hub PR adds preview-only module) | high (spam/cost) | owner approves provider+copy before any send | preview only | **yes** |
 | IG/FB autoposter | PARTIAL (now self-reporting) | `server/services/igAutopost.ts` + the #50/#53 armed-state card (dry-run, env token, durable `app_secret_kv` token, IG user id, derived couldPostLiveNow) | Armed-state visible in Admin → Growth / prod card not yet read; igAutopost.ts:683 still quotes "$60 used" (price-channel decision open) | med | read the armed-state card post-deploy; resolve price-channel decision | — | yes |
-| GBP post automation | PARTIAL | `server/services/gbpAutoPost.ts`, `gbpContentGenerator.ts` | Generator + poster code exists / enablement, post verification, live-state unverified | med | verify env/flags; add post-verification checklist (ops-hub docs) | verify | yes |
+| GBP post automation | DONE_MERGED | PR #299 `572464fc`; GBP publisher + unified command center queue dashboard | Publisher + queue dashboard live / enablement flag off by default | med | verify env/flags; flip enablement when ready | — | yes |
+| Rate-limiter IPv6 normalization | DONE_MERGED | PR #277 `2a9897de` + PR #278 `d2fb8875` | IPv6 keyGenerator normalized + dead duplicate rate-limiter removed / — | low | — | — | no |
+| Reel pipeline tooling | DONE_MERGED | PR #279 `7c92d572` + PR #291 `1eebcd1f` + PR #300 `39e90c09` | Reel pipeline curated + TS type fixes + Phase 4 Remotion Reel Engine integration / — | low | — | — | no |
+| Social assets static render pipeline | DONE_MERGED | PR #298 `5f99727d` | Phase 1 static render pipeline for social assets / — | low | — | — | no |
 | GBP review responses | DONE_MERGED (copy-only by design) | Monitor cron + `reviewReplies` router existed; #53 added the Admin → Growth → Review Replies surface; **#57 `722934c7` closed the loop** (markPosted owner confirmation + oldestApprovedAt rot signal + backlog banner); **#58 (open, stacked on #57)** adds the claim-safety QA gate + in-DOM draft editing + worst-rating-first ordering | Verified: NO code path posts a reply to Google — owner pastes in the GBP app, then taps Mark posted (DB-only) / true auto-posting deliberately not built | low (was med-high — auto-post risk eliminated by design) | merge #58, then owner works draft→approve→paste→Mark-posted weekly | review #58 | **yes (pasting)** |
 | GBP Q&A seeds · photo queue · entity tracker · competitor monitor · rank-keyword model | DONE_MERGED (copy/manual by design) | PR #50 → `aaa26010` (libs + read-only `localGrowth` router + GSC alias fix) + PR #53 → `02d907bb` (admin Growth section, 7 tabs) | All five systems operator-usable in Admin → Growth; ranks stay null until measured / review keyword miner + "Women Trust This Shop" pillar still NOT_STARTED | low | owner posts the 17 Q&A seeds (~15 min) + weekly photo queue | — | **yes (manual posting)** |
 | IG Carousel + Faceless Reel studios | DONE_MERGED (draft-only) | #51 `e0750dbc` + #52 `f1ba38bd` (studios) · #54 `fc023204` (routes + topbar links) · #55 `a231e449` (Growth tile) | `/admin/ig-studio` + `/admin/reel-studio` live; generation/publish/insights kill-switches OFF by design / future gated enablement waves | low | use for next week's content | — | posting manual |
@@ -39,8 +44,8 @@ DANGEROUS_DO_NOT_AUTOMATE_YET
 | Google Reviews API / Place ID reliability | PARTIAL (surface live, prod read pending) | `localGrowth.reviewsHealth` (#50) + Growth tab card (#53) report key-presence + live-reachability + fallback honestly | Health card live / nobody has READ it against prod yet | low | open Admin → Growth → Local Growth on the deployed site — the card answers this row | — | 1-min check |
 | Low-CTR SEO Page Optimizations | DONE_MERGED | PR #152; `ReviewsPage.tsx`, `SpecialsPage.tsx`, `Financing.tsx`, `TireFinder.tsx` | Rewrote title tags and meta descriptions for low-CTR pages to optimize search click-through rate | low | — | — | no |
 | Building Blue redesign | UNKNOWN_NEEDS_VERIFICATION | No branch/doc named "Building Blue" found in repo | Unclear what this refers to / definition | ? | owner: define or drop the item | no | yes |
-| Repo/runtime/CI/governance hardening | PARTIAL | `.github/workflows` (affected build, used by PR CI), husky pre-commit/pre-push chains, PROTECTED-CORE.md | Strong local gates + CI / coverage excludes money-path files; STRIPE_WEBHOOK_SECRET not in env-validate required keys | med | add env-validate warn + coverage include (separate PR) | yes | no |
-| Vitest test suite greenup | DONE_MERGED | PR #69 (`43e420c9`) | Fixes all 8 pre-existing test failures on main due to error wrapping / matcher serialization quirks | low | — | — | no |
+| Repo/runtime/CI/governance hardening | DONE_MERGED | PR #69 + PR #294 `03fa4b07` + PR #297 `bd4b3df1` + `7428dc88` | ESLint flat-config scoping fix + governance hardening + vitest coverage-v8; strong local gates + CI / — | low | — | — | no |
+| Vitest test suite greenup | DONE_MERGED | PR #69 (`43e420c9`) + `7428dc88` (coverage-v8) | All pre-existing test failures fixed; vitest coverage-v8 configured | low | — | — | no |
 | Credential rotation | MANUAL_OWNER_TASK | [CREDENTIAL_ROTATION.md](file:///C:/Users/nourd/NOURCITY/docs/operator/CREDENTIAL_ROTATION.md) | Zero-downtime runbook prepared for all 15 leaked keys / Actual key rotations pending owner execution | high | owner: rotate keys manually using runbook when ready | — | **yes** |
 | Brand/entity cleanup (external NAP) | MANUAL_OWNER_TASK | No automation possible without platform logins | — / every external listing | med | owner checklist (`apps/nickstire/docs/entity-cleanup-checklist.md`, ops-hub PR) | checklist only | **yes** |
 
@@ -64,6 +69,28 @@ DANGEROUS_DO_NOT_AUTOMATE_YET
 | Task Inbox Triage Flow | DONE_MERGED | PR #152; `task.ts`, `inbox-tasks-triage.tsx`, `page.tsx` | Implements `triage` mutation + iOS PWA two-tap confirm triage UI card | low | — | — | no |
 | Google OAuth Diagnostics | DONE_MERGED | PR #152; `google-oauth-diagnostics.ts`, `google-oauth-reauth.md` | Multi-account diagnostics CLI script + operations runbook | low | — | — | no |
 | Cockpit Upgrade | DONE_MERGED | branch `statenour/cockpit-upgrade` | Operator-grade cockpit UI (SSE streaming, approval gate intercept, contradiction inspector, durable workflows, telemetry dashboard) | low | — | — | no |
+| CSP Nonce Hardening | DONE_MERGED | PR #262 `c3fdf551` + PR #268–#269 | Per-request nonce, force-dynamic at root+mastery layouts, skip link added | low | — | — | no |
+| Schema Purge (13 models + 1 enum) | DONE_MERGED | PR #267 `17ece313` + `7a4b2706` | 13 unused Prisma models + 1 dead enum dropped; dead references stubbed | low | — | — | no |
+| 22 Legacy REST Routes Deleted | DONE_MERGED | `51dac1b3` + `c5336da8` | Routes superseded by tRPC; dead exports pruned | low | — | — | no |
+| De-Venice Residual Cleanup (WP-0) | DONE_MERGED | PR #265 `57ea56fe` | Venice residual removed + drift guard | low | — | — | no |
+| AI Provider Registry (WP-1) | DONE_MERGED | PR #266 `0dd14884` | Formalized Venice/Ollama/Anthropic provider chain | low | — | — | no |
+| Inert Browser Tools Parking | DONE_MERGED | PR #270 `84eabd62` | Marked inert browser tools as parked, not missing-setup | low | — | — | no |
+| Spiritual→Mind Domain Merge | DONE_MERGED | PR #271 `95ea58dc` | Spiritual domain merged to Mind; Krueger Home Upgrades dissolved | low | — | — | no |
+| Deep Reasoning Tool Access | DONE_MERGED | PR #272 `80eb2615` | `runToolGather()` step in reasoning engine; 16 read-only tools whitelisted; gated by `NICK_DEEP_REASONING` flag | low | — | — | no |
+| Firecrawl Web-Context Tool | DONE_MERGED | PR #273 `081732b4` | `scrapeWebPage` tool with SSRF defense + content fencing; graceful degradation | low | set `FIRECRAWL_API_KEY` on Railway | — | no |
+| Supply-Chain Security Scan | DONE_MERGED | PR #274 `ea9fc3e1` | `scripts/security-scan.ps1` wraps `pnpm audit` with structured JSON reporting | low | — | — | no |
+| Codebase Memory MCP | DONE_MERGED | PR #273 `081732b4` | MCP filesystem server startup script + docs | low | — | — | no |
+| AGENTS.md Integration Docs | DONE_MERGED | PR #275 `4308dd89` | All 4 integration slices documented in AGENTS.md | low | — | — | no |
+| Machiavellian Power Dynamics | DONE_MERGED | PR #276 `a2771003` | Phases 0-5 power dynamics integration | low | — | — | no |
+| Gemini Model Correction + Telemetry | DONE_MERGED | PR #280 `199db3ca` + PR #281 `c71f1552` | Correct flagship model name + harden telemetry + optimize chat routing latency | low | — | — | no |
+| Nour Command Center + Brain Graph | DONE_MERGED | PR #282 `c8ef4033` + PR #283 `fed68dbb` | Fullscreen live brain graph + API envelope unwrap fix | low | — | — | no |
+| Statenour-Obsidian Integration | DONE_MERGED | PR #284–#287 (`b4867933`→`410a4955`) | Obsidian bridge upgrade + cockpit plugins + cockpit hardening + headless engine layer | low | — | — | no |
+| Research Lab | DONE_MERGED | PR #288 `adf42a26` | Research Lab with extensive safety guardrails | low | — | — | no |
+| Social Studio Memory Layer | DONE_MERGED | PR #289 `1a365b53` | DB-backed memory layer + review grounding for Carousel & Reel Studios | low | — | — | no |
+| System Audit Seams 2/3/4 | DONE_MERGED | PR #290 `dfa0e202` | System audit points for Seams 2, 3, and 4 | low | — | — | no |
+| Tailwind v4 Migration | DONE_MERGED | PR #292 `892296d5` | Migrate TW v4 classes + fix redundant select class | low | — | — | no |
+| apiHandler Envelope Fix | DONE_MERGED | PR #293 `c64a3909` | Fix client-side crashes from Next.js apiHandler envelope wrapping on status widgets | low | — | — | no |
+| Cloudflare Tunnel Setup | DONE_MERGED | PR #295 `a09bddb1` + PR #296 `19d4b69c` | Named tunnel script + local cloudflared.exe fallback in batch scripts | low | — | — | no |
 
 ---
 
