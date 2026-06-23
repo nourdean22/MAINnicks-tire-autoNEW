@@ -52,8 +52,14 @@ export const intelligenceDailyBrief = inngest.createFunction(
 
     // 2. Synthesize Claims into Opportunities & score them
     const opportunityReport = await step.run("synthesize-opportunities", async () => {
-      const count = await processClaimsIntoOpportunities();
-      return { opportunitiesCreated: count };
+      const { processSearchOpportunities } = await import("@/lib/intelligence/search-opportunity");
+      const { processOpportunityContentDrafts } = await import("@/lib/intelligence/content-alpha");
+      
+      const claimsCount = await processClaimsIntoOpportunities();
+      const searchCount = await processSearchOpportunities();
+      const draftsCount = await processOpportunityContentDrafts();
+      
+      return { opportunitiesCreated: claimsCount + searchCount, draftsCreated: draftsCount };
     });
 
     // 3. Compose Daily Executive Brief text
@@ -68,6 +74,15 @@ export const intelligenceDailyBrief = inngest.createFunction(
         },
         orderBy: { score: "desc" },
         take: 5,
+      });
+
+      // Fetch recent pending content drafts
+      const drafts = await prisma.socialPublishQueue.findMany({
+        where: {
+          status: "pending",
+        },
+        orderBy: { createdAt: "desc" },
+        take: 3,
       });
 
       // Fetch high confidence claims (confidence >= 0.8) or recent alerts
@@ -85,28 +100,34 @@ export const intelligenceDailyBrief = inngest.createFunction(
       });
 
       const model = getModel("reason");
-      const systemPrompt = `You are the executive chief of staff for Nour. Compose a Daily Executive Brief (max 500 words) summarizing key alerts, opportunities, and pending decisions.
-Your writing style is direct, clear, highly professional, and action-oriented. No generic fluff.
+      const systemPrompt = `You are Nour's Chief of Staff and chief intelligence officer. Compose the Daily Executive Brief V2.
+Your tone is ruthlessly direct, quantitative, hyper-strategic, and action-oriented. Eliminate all passive fluff or generic warnings.
 
-Format using these exact sections:
-# Daily Executive Brief · [Date]
+You must format using these exact headings:
+# Daily Executive Brief V2 · [Date]
 
-## 🚨 Critical Alerts (Threat Score >= 80 or high-confidence contradictions)
-Describe any critical alerts/threats with a clear format:
-* **[Category/Domain]** Specific description and implications.
-  - *Action*: Clear action verb [Approve] / [Dismiss]
+## 💼 CEO Brief (Highest ROI opportunity & Threat level)
+Detail the highest-ROI opportunity and most critical threat. Quantify estimated cash flow impact or margin exposure if ignored.
+- *Recommended Action*: Action verb with clear instructions.
 
-## 💡 Top Opportunities (Score >= 75)
-* **[Category/Domain]** Specific description and return on investment (ROI).
-  - *Action*: Clear action verb [Approve] / [Defer]
+## ✍️ Content Brief (Auto-generated publish queue suggestions)
+Detail the fresh content drafts created today in the SocialPublishQueue.
+- *Action*: Approve or decline content templates for review.
 
-## ⚡ Decisions Pending (Action Ledger)
-* **[Category/Domain]** Decision description and immediate context.
-  - *Action*: Clear choice [Approve] / [Open Ledger]`;
+## 🗺️ Local Market Brief (Competitor price checks & GSC query gaps)
+Detail competitor tire pricing deviations and high-intent Google search Console organic click opportunities.
+- *Action*: Select targeted landing pages or price matching overrides.
+
+## 🚀 Frontier Brief (AI agent engineering & Cognitive biomarker protocols)
+Summarize cutting-edge developer/AI workflow improvements and biomarker adjustments based on recovery logs.
+- *Action*: Protocol adjustment command.`;
 
       const promptText = `Date: ${today}
 Opportunities:
 ${opportunities.map((o) => `- [${o.domain.toUpperCase()}] ${o.title}: ${o.description} (Score: ${o.score})`).join("\n")}
+
+Drafts in Queue:
+${drafts.map((d) => `- [DRAFT] Kind: ${d.kind} | Platforms: ${d.platforms.join(", ")} | Preview: "${d.content.slice(0, 100)}..."`).join("\n")}
 
 Claims:
 ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\n")}`;
