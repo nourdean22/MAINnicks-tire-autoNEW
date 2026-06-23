@@ -572,7 +572,10 @@ export const gatewayTireRouter = router({
       }
 
       // Verdict logic is pure + unit-tested in ../lib/tire-order-guards.
-      const verdict = evaluateOrderPrice(input.pricePerTireCents, expectedPriceCents);
+      const isCustomRequest = input.tireBrand === "Custom Request";
+      const verdict = isCustomRequest && input.pricePerTireCents === 0
+        ? { ok: true as const, basis: "floor" as const }
+        : evaluateOrderPrice(input.pricePerTireCents, expectedPriceCents);
       if (!verdict.ok) {
         if (verdict.reason === "below-expected") {
           // Tight floor · 5% below expected = reject (catches manipulated prices)
