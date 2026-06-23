@@ -32,6 +32,8 @@
     "research:pack": "pnpm --filter @statenour/web research:pack",
     "research:ingest": "pnpm --filter @statenour/web research:ingest",
     "research:notebooklm": "pnpm --filter @statenour/web research:notebooklm",
+    "social:asset": "pnpm --filter @nour/social-assets render",
+    "social:verify": "pnpm --filter @nour/social-assets test",
     "prepare": "git config core.hooksPath .husky 2>/dev/null || true"
   },
   "devDependencies": {
