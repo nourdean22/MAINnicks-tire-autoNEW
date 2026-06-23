@@ -153,10 +153,11 @@ function Router() {
   // wouldn't match /admin. Redirect uppercase paths to their lowercase
   // equivalents while preserving query string.
   useEffect(() => {
-    if (location !== location.toLowerCase()) {
-      const lower = location.toLowerCase();
+    const [path] = location.split("?");
+    if (path !== path.toLowerCase()) {
+      const lowerPath = path.toLowerCase();
       const search = typeof window !== "undefined" ? window.location.search : "";
-      setLocation(lower + search, { replace: true });
+      setLocation(lowerPath + search, { replace: true });
     }
   }, [location, setLocation]);
 
