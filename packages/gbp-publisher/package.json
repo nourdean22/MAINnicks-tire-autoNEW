@@ -1,8 +1,8 @@
 {
-  "name": "@nour/social-assets",
+  "name": "@nour/gbp-publisher",
   "version": "0.1.0",
   "private": true,
-  "description": "Proprietary social asset generation engine utilizing Satori and resvg-js.",
+  "description": "Google Business Profile oauth and posting publishing interface.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,18 +17,16 @@
     "src"
   ],
   "scripts": {
-    "build": "tsc && node scripts/copy-fonts.js",
+    "build": "tsc",
     "check": "tsc --noEmit",
-    "test": "vitest run",
-    "render": "tsx src/cli.tsx"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@resvg/resvg-js": "^2.6.2",
-    "react": "^18.3.1",
-    "satori": "^0.13.0"
+    "googleapis": "^171.4.0"
   },
   "devDependencies": {
-    "@types/react": "^18.3.3",
+    "@types/node": "^20.0.0",
+    "mlly": "1.8.2",
     "tsx": "^4.19.3",
     "typescript": "^5.6.0",
     "vitest": "^1.6.0"

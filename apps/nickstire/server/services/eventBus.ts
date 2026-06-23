@@ -38,7 +38,8 @@ export type BusinessEvent =
   | "stage_changed"
   | "social_posted"
   | "mirror_synced"
-  | "data_refreshed";
+  | "data_refreshed"
+  | "social_draft:sync";
 
 export interface EventPayload {
   type: BusinessEvent;
@@ -484,6 +485,7 @@ async function ensureInitialized(): Promise<void> {
           campaign_sent: "campaign", social_posted: "campaign",
           stage_changed: "stage-change",
           mirror_synced: "sync", data_refreshed: "sync",
+          "social_draft:sync": "campaign",
         };
 
         const payload = JSON.stringify({

@@ -78,6 +78,7 @@ import {
   conversionRouter,
   smsPerformanceRouter,
   instagramAdminRouter,
+  gbpRouter,
 } from "./routers/index";
 import { voiceAgentRouter } from "./routers/voiceAgent";
 import { vapiRouter } from "./routers/vapi";
@@ -143,6 +144,7 @@ export const appRouter = router({
   smsBot: smsBotRouter,
   reviewReplies: reviewRepliesRouter,
   localGrowth: localGrowthRouter,
+  gbp: gbpRouter,
   shareCards: shareCardsRouter,
   gallery: galleryRouter,
   technicians: techniciansRouter,

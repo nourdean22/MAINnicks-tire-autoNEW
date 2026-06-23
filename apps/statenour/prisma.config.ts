@@ -1,4 +1,8 @@
 import { defineConfig } from "prisma/config";
+import { loadEnvConfig } from "@next/env";
+
+// Load environment variables from .env and .env.local
+loadEnvConfig(process.cwd());
 
 const placeholderUrl = "postgresql://user:password@localhost:5432/statenour";
 

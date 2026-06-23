@@ -24,6 +24,7 @@ import { z } from "zod";
 
 import { createLogger } from "../lib/logger";
 import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
+import { dispatch } from "../services/eventBus";
 
 const log = createLogger("routers:content");
 
@@ -244,6 +245,27 @@ export const contentAdminRouter = router({
           log.warn("syncReelDraftToSheet failed", err);
         }
 
+        // Sync with Statenour Command Center Queue
+        try {
+          await dispatch("social_draft:sync", {
+            id: input.id,
+            content: input.brief?.selectedCaption || input.brief?.voiceoverScript || input.topic,
+            status: input.brief?.status || "pending",
+            imageUrl: input.brief?.videoUrl || null,
+            platforms: ["instagram"],
+            kind: "reel",
+            source: "nick",
+            sourceMetadata: {
+              topic: input.topic,
+              brief: input.brief,
+            },
+            scheduledFor: input.brief?.scheduledFor ? new Date(input.brief.scheduledFor).toISOString() : null,
+            publishedAt: input.brief?.publishedAt ? new Date(input.brief.publishedAt).toISOString() : null,
+          }, { source: "content_router" });
+        } catch (syncErr) {
+          log.warn("Failed to sync Reel draft to Statenour:", syncErr);
+        }
+
         return { success: true, sheetSynced: sheetOk };
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Save Reel draft failed" });
@@ -281,6 +303,27 @@ export const contentAdminRouter = router({
           sheetOk = await syncCarouselDraftToSheet(input.id, input.topic, JSON.stringify(input.brief));
         } catch (err) {
           log.warn("syncCarouselDraftToSheet failed", err);
+        }
+
+        // Sync with Statenour Command Center Queue
+        try {
+          await dispatch("social_draft:sync", {
+            id: input.id,
+            content: input.brief?.caption || input.brief?.selectedCaption || input.topic,
+            status: input.brief?.status || "pending",
+            imageUrl: (input.brief?.assetPaths && input.brief.assetPaths[0]) || null,
+            platforms: ["instagram"],
+            kind: "post",
+            source: "nick",
+            sourceMetadata: {
+              topic: input.topic,
+              brief: input.brief,
+            },
+            scheduledFor: input.brief?.scheduledFor ? new Date(input.brief.scheduledFor).toISOString() : null,
+            publishedAt: input.brief?.publishedAt ? new Date(input.brief.publishedAt).toISOString() : null,
+          }, { source: "content_router" });
+        } catch (syncErr) {
+          log.warn("Failed to sync Carousel draft to Statenour:", syncErr);
         }
 
         return { success: true, sheetSynced: sheetOk };
@@ -499,6 +542,28 @@ export const contentAdminRouter = router({
           log.warn("syncReelLogToSheet failed", err);
         }
 
+        // Sync with Statenour Command Center Queue
+        try {
+          await dispatch("social_draft:sync", {
+            id: input.topic ? `reel-${input.topic.toLowerCase().replace(/[^a-z0-9]/g, "-")}` : `posted-reel-${Date.now()}`,
+            content: input.captionHook || input.topic,
+            status: "published",
+            imageUrl: input.instagramUrl || null,
+            platforms: ["instagram"],
+            kind: "reel",
+            source: "nick",
+            sourceMetadata: {
+              topic: input.topic,
+              instagramUrl: input.instagramUrl,
+              assetPaths: input.assetPaths,
+              score: input.score,
+            },
+            publishedAt: new Date().toISOString(),
+          }, { source: "content_router" });
+        } catch (syncErr) {
+          log.warn("Failed to sync logged Reel to Statenour:", syncErr);
+        }
+
         return { success: true, sheetSynced: sheetOk };
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Log Reel failed" });
@@ -615,6 +680,28 @@ export const contentAdminRouter = router({
           sheetOk = await syncCarouselLogToSheet(input);
         } catch (err) {
           log.warn("syncCarouselLogToSheet failed", err);
+        }
+
+        // Sync with Statenour Command Center Queue
+        try {
+          await dispatch("social_draft:sync", {
+            id: input.topic ? `carousel-${input.topic.toLowerCase().replace(/[^a-z0-9]/g, "-")}` : `posted-carousel-${Date.now()}`,
+            content: input.captionHook || input.topic,
+            status: "published",
+            imageUrl: input.instagramUrl || null,
+            platforms: ["instagram"],
+            kind: "post",
+            source: "nick",
+            sourceMetadata: {
+              topic: input.topic,
+              instagramUrl: input.instagramUrl,
+              assetPaths: input.assetPaths,
+              score: input.score,
+            },
+            publishedAt: new Date().toISOString(),
+          }, { source: "content_router" });
+        } catch (syncErr) {
+          log.warn("Failed to sync logged Carousel to Statenour:", syncErr);
         }
 
         return { success: true, sheetSynced: sheetOk };
@@ -1086,5 +1173,69 @@ export const contentAdminRouter = router({
       });
     }
   }),
+  listStatenourQueue: adminProcedure
+    .input(z.object({
+      status: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
+      const syncKey = process.env.STATENOUR_SYNC_KEY || "";
+      if (!syncKey) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Statenour sync key is not configured on Nick's Tire." });
+      }
+
+      const status = input?.status || "all";
+      try {
+        const res = await fetch(`${statenourUrl}/api/sync/queue?status=${status}`, {
+          headers: { "x-sync-key": syncKey },
+        });
+        if (!res.ok) {
+          throw new Error(`Statenour responded with status: ${res.status}`);
+        }
+        const json = await res.json();
+        const payload = json && json.ok && json.data ? json.data : json;
+        const drafts = (payload.drafts || []) as any[];
+        return drafts.map((d: any) => ({
+          ...d,
+          previewUrl: `${statenourUrl}/api/content/render-asset?id=${d.id}`,
+        }));
+      } catch (err: any) {
+        log.error("Failed to fetch Statenour social publish queue:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to fetch Statenour queue: ${err.message}` });
+      }
+    }),
+  actOnStatenourQueueItem: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      action: z.enum(["approve", "reject", "schedule", "publish", "delete"]),
+      reason: z.string().optional(),
+      scheduledFor: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
+      const syncKey = process.env.STATENOUR_SYNC_KEY || "";
+      if (!syncKey) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Statenour sync key is not configured on Nick's Tire." });
+      }
+
+      try {
+        const res = await fetch(`${statenourUrl}/api/sync/queue`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-sync-key": syncKey,
+          },
+          body: JSON.stringify(input),
+        });
+        if (!res.ok) {
+          throw new Error(`Statenour responded with status: ${res.status}`);
+        }
+        const json = await res.json();
+        return json && json.ok && json.data ? json.data : json;
+      } catch (err: any) {
+        log.error("Failed to mutate Statenour social publish queue item:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to mutate Statenour queue item: ${err.message}` });
+      }
+    }),
 });
 

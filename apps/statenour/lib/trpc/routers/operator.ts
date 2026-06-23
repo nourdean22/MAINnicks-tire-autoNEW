@@ -21,6 +21,7 @@
 
 import { z } from "zod";
 import { router, operatorProcedure } from "../trpc";
+import { prisma } from "@/lib/prisma";
 import { DOMAINS } from "@/lib/mastery/config";
 import { xpEventTotalsSince } from "@/lib/mastery/credit";
 import { toDateString } from "@/lib/utils/datetime";
@@ -92,7 +93,14 @@ import {
   getDashboardSummary,
 } from "@/lib/services/business-intel";
 import { getContentHistory } from "@/lib/services/content-history";
-import { approveDraft, rejectDraft } from "@/lib/content/drafts";
+import {
+  approveDraft,
+  rejectDraft,
+  createDraft,
+  listDrafts,
+  markScheduled,
+  getDraftCounts,
+} from "@/lib/content/drafts";
 import {
   getDecisionDetail,
   gradeDecision as gradeDecisionService,
@@ -952,6 +960,135 @@ export const operatorRouter = router({
       }
       await rejectDraft(input.key, input.reason);
       return { ok: true as const, rejected: true as const };
+    }),
+
+  listPublishQueue: operatorProcedure
+    .input(
+      z.object({
+        status: z.enum(["pending", "approved", "rejected", "scheduled", "published", "all"]).optional(),
+        limit: z.number().int().min(1).max(200).optional(),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const status = input?.status ?? "pending";
+      const limit = input?.limit ?? 50;
+      return listDrafts({ status, limit });
+    }),
+
+  addToPublishQueue: operatorProcedure
+    .input(
+      z.object({
+        content: z.string().min(1).max(4000),
+        imageUrl: z.string().max(2000).nullish(),
+        platforms: z.array(z.string().max(32)).max(10).optional(),
+        kind: z.enum(["post", "thread", "story", "reel"]).optional(),
+        source: z.string().max(80).optional(),
+        missionId: z.string().max(80).nullish(),
+        sourceMetadata: z.record(z.string(), z.any()).nullish(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      return createDraft({
+        content: input.content,
+        imageUrl: input.imageUrl,
+        suggestedPlatforms: input.platforms,
+        kind: input.kind,
+        source: input.source,
+        missionId: input.missionId,
+        sourceMetadata: input.sourceMetadata,
+      });
+    }),
+
+  updatePublishQueueItem: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(80),
+        content: z.string().max(4000).optional(),
+        platforms: z.array(z.string().max(32)).max(10).optional(),
+        scheduledFor: z.string().max(64).nullish(),
+        status: z.enum(["pending", "approved", "rejected", "scheduled", "published"]).optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      const updateData: any = {};
+      if (data.content !== undefined) updateData.content = data.content;
+      if (data.platforms !== undefined) updateData.platforms = data.platforms;
+      if (data.scheduledFor !== undefined) {
+        updateData.scheduledFor = data.scheduledFor ? new Date(data.scheduledFor) : null;
+      }
+      if (data.status !== undefined) updateData.status = data.status;
+      
+      return prisma.socialPublishQueue.update({
+        where: { id },
+        data: updateData,
+      });
+    }),
+
+  actOnPublishQueueItem: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(80),
+        action: z.enum(["approve", "reject", "schedule", "publish", "delete"]),
+        reason: z.string().max(2000).optional(),
+        scheduledFor: z.string().max(64).optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { id, action, reason, scheduledFor } = input;
+      
+      if (action === "approve") {
+        const draft = await approveDraft(id);
+        if (!draft) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "draft_not_found",
+          });
+        }
+        return { ok: true as const, draft };
+      }
+      
+      if (action === "reject") {
+        await rejectDraft(id, reason);
+        return { ok: true as const, rejected: true as const };
+      }
+      
+      if (action === "schedule") {
+        if (!scheduledFor) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "scheduledFor is required for scheduling",
+          });
+        }
+        await markScheduled(id, scheduledFor);
+        return { ok: true as const, scheduled: true as const };
+      }
+      
+      if (action === "publish") {
+        const updated = await prisma.socialPublishQueue.update({
+          where: { id },
+          data: {
+            status: "published",
+            publishedAt: new Date(),
+          },
+        });
+        return { ok: true as const, published: true as const, item: updated };
+      }
+      
+      if (action === "delete") {
+        await prisma.socialPublishQueue.update({
+          where: { id },
+          data: {
+            deletedAt: new Date(),
+          },
+        });
+        return { ok: true as const, deleted: true as const };
+      }
+      
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Invalid action",
+      });
     }),
 
   // ──────────────── Misc pages · /decisions/[id] (2026-05-22) ────────────────

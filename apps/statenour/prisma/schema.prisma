@@ -244,6 +244,7 @@ model Mission {
   planData           Json?
   tasks              Task[]
   chatConversations  ChatConversation[]
+  socialPublishItems SocialPublishQueue[]
   /// v10.0.421 · operator can link missions together (depends-on,
   /// blocks, related). MissionLink is an explicit join with optional
   /// relation type · self-referential many-to-many.
@@ -2954,6 +2955,36 @@ model LinkClick {
 
   @@index([shortLinkId, clickedAt])
   @@map("link_clicks")
+}
+
+model SocialPublishQueue {
+  id              String             @id @default(cuid())
+  content         String             @db.Text
+  status          String             @default("pending") // "pending" | "approved" | "rejected" | "scheduled" | "published"
+  imageUrl        String?            @map("image_url") @db.Text
+  platforms       String[]           @default([]) // e.g. ["instagram", "gbp"]
+  scheduledFor    DateTime?          @map("scheduled_for")
+  publishedAt     DateTime?          @map("published_at")
+  publishUrls     String[]           @default([]) @map("publish_urls")
+  kind            String             @default("post") // "post" | "thread" | "story" | "reel"
+  source          String             @default("manual") // "nick" | "manual" | "statenour-pack"
+  sourceMetadata  Json?              @map("source_metadata")
+  approvedBy      String?            @map("approved_by")
+  approvedAt      DateTime?          @map("approved_at")
+  rejectedBy      String?            @map("rejected_by")
+  rejectedAt      DateTime?          @map("rejected_at")
+  rejectionReason String?            @map("rejection_reason") @db.Text
+  missionId       String?            @map("mission_id")
+  mission         Mission?           @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  deletedAt       DateTime?          @map("deleted_at")
+
+  @@index([status, scheduledFor])
+  @@index([missionId])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("social_publish_queue")
 }
 
 
