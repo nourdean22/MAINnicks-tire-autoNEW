@@ -89,6 +89,8 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { createPrerenderMiddleware } from "../prerender-middleware";
 import { SITE_URL } from "@shared/business";
+import { startTieredScheduler } from "../cron/scheduler";
+import { validateTwilioRequest } from "../middleware/twilioValidation";
 
 const serverLog = createLogger("server");
 
@@ -304,10 +306,12 @@ async function startServer() {
     // ─── Tiered Cron Scheduler ──────────────────────────────
     // 4 tiers: heartbeat(5m), pulse(15m), hourly(2h), daily(24h)
     // + 2 standalone: morning brief + daily report (12h)
-    import("../cron/scheduler").then(({ startTieredScheduler }) => {
+    try {
       startTieredScheduler();
       serverLog.info("Tiered Job Scheduler active");
-    }).catch(err => console.error("[Scheduler] Failed to start:", err));
+    } catch (err) {
+      console.error("[Scheduler] Failed to start:", err);
+    }
 
     // Explicitly start background timers (removed auto-start from module imports)
     import("../sms").then(({ startDelayedQueueProcessor }) => {
@@ -659,7 +663,6 @@ ${urls.join("\n")}
   // Unified inbound SMS handler: runs booking bot + logs communication + parses intent
   // Protected by Twilio signature validation in production
   const { handleIncomingSMS } = await import("../routers/smsBot");
-  const { validateTwilioRequest } = await import("../middleware/twilioValidation");
   app.post("/api/sms-webhook", express.urlencoded({ extended: false }), validateTwilioRequest, async (req, res) => {
     try {
       const { Body, From, MessageSid } = req.body;
