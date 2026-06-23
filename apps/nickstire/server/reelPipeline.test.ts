@@ -20,18 +20,22 @@ function ctx(role: "admin" | "user" | null): TrpcContext {
             name: `${role} User`,
             loginMethod: "manus",
             role,
+            loyaltyPoints: 0,
+            loyaltyTier: "bronze",
+            totalVisits: 0,
+            totalSpent: 0,
             createdAt: new Date(),
             updatedAt: new Date(),
             lastSignedIn: new Date(),
           },
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
-    res: { clearCookie: () => {} } as TrpcContext["res"],
+    res: { clearCookie: () => {} } as unknown as TrpcContext["res"],
   };
 }
 
 describe("reel pipeline — enqueue proc auth", () => {
   it("contentAdmin.enqueueReelJob is registered", () => {
-    expect(appRouter._def.procedures["contentAdmin.enqueueReelJob"]).toBeDefined();
+    expect((appRouter._def.procedures as Record<string, any>)["contentAdmin.enqueueReelJob"]).toBeDefined();
   });
 
   it("rejects non-admin callers with FORBIDDEN (before any DB write)", async () => {
