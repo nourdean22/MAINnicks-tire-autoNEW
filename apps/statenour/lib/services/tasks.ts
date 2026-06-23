@@ -721,6 +721,15 @@ export async function updateTask(id: string, input: unknown) {
     throw new ServiceError("Task not found.", 404);
   }
 
+  if (
+    existing.loopKind === "DAILY" &&
+    payload.status === "WAITING" &&
+    existing.status !== "WAITING" &&
+    !payload.lastCompletedAt
+  ) {
+    payload.lastCompletedAt = new Date();
+  }
+
   if (payload.status === "DONE" || (payload.status === "ARCHIVED" && existing.loopKind === "PROMISE")) {
     const { checkTask } = await import("@/lib/services/task-actions");
     const checkRes = await checkTask({
