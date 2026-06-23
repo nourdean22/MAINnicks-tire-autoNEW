@@ -23,6 +23,11 @@
  */
 
 import cron from "node-cron";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { storagePut } from "./storage.js";
+import { renderReelVideo } from "@nour/reel-engine";
 
 const STATENOUR_WEB_URL = (process.env.STATENOUR_WEB_URL ?? "").trim();
 const CRON_SECRET = (process.env.CRON_SECRET ?? "").trim();
@@ -74,6 +79,139 @@ const HIGH_FREQ_JOBS: JobDef[] = [
     description: "Hourly · ping LLM providers for health/latency",
   },
 ];
+
+let isRendering = false;
+
+/**
+ * Polls Statenour for approved video drafts and compiles them locally
+ * using Remotion. Saves resulting MP4 to S3/CDN and updates Next.js.
+ */
+async function processVideoRenders(): Promise<void> {
+  if (!STATENOUR_WEB_URL) return;
+
+  if (isRendering) {
+    console.log(`[scheduler-video] render loop in progress, skipping tick`);
+    return;
+  }
+
+  isRendering = true;
+  const STATENOUR_SYNC_KEY = (process.env.STATENOUR_SYNC_KEY || CRON_SECRET).trim();
+  const url = `${STATENOUR_WEB_URL}/api/sync/queue/render`;
+
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${STATENOUR_SYNC_KEY}`,
+        "User-Agent": "statenour-worker/1.0 (railway)",
+      },
+    });
+
+    if (!res.ok) {
+      if (res.status !== 404) {
+        console.error(`[scheduler-video] failed to poll render tasks: ${res.status}`);
+      }
+      return;
+    }
+
+    const body = (await res.json()) as { ok: boolean; item: any };
+    if (!body.ok || !body.item) {
+      return; // No pending renders
+    }
+
+    const { id, content, kind, sourceMetadata } = body.item;
+    console.log(`[scheduler-video] found render task for queue item ${id}`);
+
+    const isAlert =
+      sourceMetadata?.type === "alert" ||
+      content?.toLowerCase().includes("warning") ||
+      content?.toLowerCase().includes("alert");
+    const template = isAlert ? "alert" : "review";
+
+    const data =
+      template === "alert"
+        ? {
+            alertTitle: sourceMetadata?.alertTitle || "Service Alert",
+            alertDetails: sourceMetadata?.alertDetails || content || "",
+            location: sourceMetadata?.location || "Local Road Safety",
+            companyName: sourceMetadata?.companyName || "Nick's Tire & Auto",
+          }
+        : {
+            reviewerName: sourceMetadata?.reviewerName || "Verified Customer",
+            reviewText: sourceMetadata?.reviewText || content || "",
+            stars: Number(sourceMetadata?.stars ?? 5),
+            companyName: sourceMetadata?.companyName || "Nick's Tire & Auto",
+          };
+
+    const tempDir = os.tmpdir();
+    const tempFile = path.join(tempDir, `render_${id}.mp4`);
+
+    try {
+      console.log(`[scheduler-video] rendering ${template} template to ${tempFile}`);
+      await renderReelVideo({
+        template,
+        data,
+        outputPath: tempFile,
+      });
+
+      console.log(`[scheduler-video] uploading compiled video to storage`);
+      const buffer = fs.readFileSync(tempFile);
+      const uploadResult = await storagePut(`social/reels/render_${id}.mp4`, buffer, "video/mp4");
+
+      // Clean up temp file
+      if (fs.existsSync(tempFile)) {
+        fs.unlinkSync(tempFile);
+      }
+
+      console.log(`[scheduler-video] syncing compiled video url back to statenour: ${uploadResult.url}`);
+      const completeRes = await fetch(`${STATENOUR_WEB_URL}/api/sync/queue/render-complete`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${STATENOUR_SYNC_KEY}`,
+          "Content-Type": "application/json",
+          "User-Agent": "statenour-worker/1.0 (railway)",
+        },
+        body: JSON.stringify({
+          id,
+          videoUrl: uploadResult.url,
+        }),
+      });
+
+      if (!completeRes.ok) {
+        console.error(`[scheduler-video] failed to complete render task for ${id}: ${completeRes.status}`);
+      } else {
+        console.log(`[scheduler-video] render task successfully completed for ${id}`);
+      }
+    } catch (err: any) {
+      console.error(`[scheduler-video] exception during render/upload for ${id}:`, err);
+      // Clean up temp file if it exists
+      if (fs.existsSync(tempFile)) {
+        try {
+          fs.unlinkSync(tempFile);
+        } catch {}
+      }
+
+      // Revert queue item back to approved so it can be retried
+      console.log(`[scheduler-video] resetting status of ${id} back to approved`);
+      await fetch(`${STATENOUR_WEB_URL}/api/sync/queue`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${STATENOUR_SYNC_KEY}`,
+          "Content-Type": "application/json",
+          "User-Agent": "statenour-worker/1.0 (railway)",
+        },
+        body: JSON.stringify({
+          id,
+          action: "approve",
+        }),
+      }).catch((e) => console.error(`[scheduler-video] failed to reset status for ${id}:`, e));
+    }
+  } catch (err) {
+    console.error(`[scheduler-video] error in processVideoRenders tick:`, err);
+  } finally {
+    isRendering = false;
+  }
+}
 
 /**
  * Fire a single cron handler via HTTP. Returns true on success.
@@ -148,6 +286,17 @@ export function startScheduler(): void {
     );
     registered++;
   }
+
+  // Register local video rendering job - runs every 2 minutes
+  cron.schedule(
+    "*/2 * * * *",
+    () => {
+      void processVideoRenders();
+    },
+    { timezone: "UTC" }
+  );
+  registered++;
+
   console.log(
     `[scheduler] registered ${registered} jobs · target=${STATENOUR_WEB_URL || "UNSET"} · timezone UTC`,
   );
