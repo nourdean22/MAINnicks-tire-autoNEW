@@ -468,7 +468,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                 {/* Stripe Pay Now / Financing CTAs */}
                 {!paymentSubmitted && (
                   <div className="mt-3 bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
-                    {tire ? (
+                    {tire && tire.shopPrice > 0 ? (
                       <>
                         <button
                           onClick={() => checkoutMutation.mutate({ orderNumber: orderResult.orderNumber, phone })}
@@ -541,25 +541,25 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{quantity}x {tireBrandName} {tireModelName}</span>
               <span className="text-foreground font-medium">
-                {tire ? `$${(bd.subtotal / 100).toFixed(2)}` : "Pending confirmation"}
+                {tire && tire.shopPrice > 0 ? `$${(bd.subtotal / 100).toFixed(2)}` : "Pending confirmation"}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Ohio sales tax (8%)</span>
               <span className="text-foreground">
-                {tire ? `$${(bd.tax / 100).toFixed(2)}` : "Pending confirmation"}
+                {tire && tire.shopPrice > 0 ? `$${(bd.tax / 100).toFixed(2)}` : "Pending confirmation"}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Card processing fee (2%)</span>
               <span className="text-foreground">
-                {tire ? `$${(bd.cardFee / 100).toFixed(2)}` : "Pending confirmation"}
+                {tire && tire.shopPrice > 0 ? `$${(bd.cardFee / 100).toFixed(2)}` : "Pending confirmation"}
               </span>
             </div>
             <div className="flex justify-between pt-2 border-t border-border/30">
               <span className="font-medium text-foreground">Total Estimate</span>
               <span className="font-semibold text-primary">
-                {tire ? `$${(bd.total / 100).toFixed(2)}` : "Price Pending Confirmation"}
+                {tire && tire.shopPrice > 0 ? `$${(bd.total / 100).toFixed(2)}` : "Price Pending Confirmation"}
               </span>
             </div>
           </div>
@@ -590,7 +590,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
         <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6">
           <div className="flex justify-between text-sm mb-2">
             <span className="text-muted-foreground">{tireBrandName} {tireModelName} x{quantity}</span>
-            <span className="text-foreground font-medium">{tire ? `$${tireTotal.toFixed(2)}` : "Pending confirmation"}</span>
+            <span className="text-foreground font-medium">{tire && tire.shopPrice > 0 ? `$${tireTotal.toFixed(2)}` : "Pending confirmation"}</span>
           </div>
 
           {/* FREE package — this is the genius part */}
@@ -636,19 +636,19 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Tires x{quantity}</span>
-              <span className="text-foreground">{tire ? `$${(bd.subtotal / 100).toFixed(2)}` : "Pending confirmation"}</span>
+              <span className="text-foreground">{tire && tire.shopPrice > 0 ? `$${(bd.subtotal / 100).toFixed(2)}` : "Pending confirmation"}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Ohio sales tax (8%)</span>
-              <span className="text-foreground">{tire ? `$${(bd.tax / 100).toFixed(2)}` : "Pending confirmation"}</span>
+              <span className="text-foreground">{tire && tire.shopPrice > 0 ? `$${(bd.tax / 100).toFixed(2)}` : "Pending confirmation"}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Card processing fee (2%)</span>
-              <span className="text-foreground">{tire ? `$${(bd.cardFee / 100).toFixed(2)}` : "Pending confirmation"}</span>
+              <span className="text-foreground">{tire && tire.shopPrice > 0 ? `$${(bd.cardFee / 100).toFixed(2)}` : "Pending confirmation"}</span>
             </div>
             <div className="flex justify-between pt-1.5 border-t border-border/20">
               <span className="font-medium text-foreground">Estimated Total</span>
-              <span className="font-semibold text-primary text-lg">{tire ? `$${(bd.total / 100).toFixed(2)}` : "Price Pending Confirmation"}</span>
+              <span className="font-semibold text-primary text-lg">{tire && tire.shopPrice > 0 ? `$${(bd.total / 100).toFixed(2)}` : "Price Pending Confirmation"}</span>
             </div>
             <p className="text-[10px] text-green-400 text-right font-medium">
               You save ${packageValue}+ on installation
@@ -848,7 +848,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
         >
           {orderMutation.isPending ? (
             <><Loader2 className="w-4 h-4 animate-spin" /> Requesting Tires...</>
-          ) : tire ? (
+          ) : (tire && tire.shopPrice > 0) ? (
             <>Request These Tires — ${(bd.total / 100).toFixed(2)}</>
           ) : (
             <>Request Price Confirmation</>
