@@ -155,7 +155,8 @@ function Router() {
   useEffect(() => {
     if (location !== location.toLowerCase()) {
       const lower = location.toLowerCase();
-      setLocation(lower, { replace: true });
+      const search = typeof window !== "undefined" ? window.location.search : "";
+      setLocation(lower + search, { replace: true });
     }
   }, [location, setLocation]);
 
