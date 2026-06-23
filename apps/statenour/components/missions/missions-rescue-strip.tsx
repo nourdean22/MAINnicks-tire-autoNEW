@@ -14,17 +14,38 @@ import { useState } from "react";
 import { LifeBuoy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
+import type { Task } from "@/components/actions/shared";
+import { MissionTaskRow } from "./mission-task-row";
 
 const ISSUE_LABEL: Record<string, string> = {
-  pending_classification: "needs approval",
-  legacy_inbox: "in legacy inbox",
-  stale: "stale",
-  no_next_action: "no next action",
-  general_maybe_specific: "maybe a project?",
+  pending_classification: "Pending Classification",
+  legacy_inbox: "Legacy Inbox",
+  stale: "Stale",
+  no_next_action: "No Next Action",
+  general_maybe_specific: "General Anchor",
 };
 
-export function MissionsRescueStrip() {
+export interface MissionsRescueStripProps {
+  tasks?: Task[];
+  onCompleteTask?: (id: string) => void | Promise<void>;
+  onStartTask?: (id: string) => void | Promise<void>;
+  onDeleteTask?: (id: string) => void | Promise<void>;
+  onEditTask?: (task: Task) => void;
+  onSnoozeTask?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
+  onDecomposeTask?: (id: string) => void | Promise<void>;
+}
+
+export function MissionsRescueStrip({
+  tasks,
+  onCompleteTask,
+  onStartTask,
+  onDeleteTask,
+  onEditTask,
+  onSnoozeTask,
+  onDecomposeTask,
+}: MissionsRescueStripProps) {
   const [open, setOpen] = useState(false);
+  const [expandedAnchorId, setExpandedAnchorId] = useState<string | null>(null);
   const { data } = trpc.task.missionsHygiene.useQuery(undefined, {
     refetchInterval: 120_000,
     staleTime: 60_000,
@@ -74,16 +95,76 @@ export function MissionsRescueStrip() {
       {anchors.length > 0 && (
         <div
           className={cn(
-            "flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500",
+            "flex flex-col gap-2 text-xs text-zinc-500",
             findings.length > 0 && "mt-3 border-t border-zinc-800/60 pt-2",
           )}
         >
-          <span className="uppercase tracking-wide text-zinc-600">Domain anchors</span>
-          {anchors.map((a) => (
-            <span key={a.missionId} className="text-zinc-400">
-              {a.title} <span className="text-amber-300/70">{a.openCount}</span>
-            </span>
-          ))}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="uppercase tracking-wide text-zinc-600">Domain anchors</span>
+            {anchors.map((a) => {
+              const isExpanded = expandedAnchorId === a.missionId;
+              return (
+                <button
+                  key={a.missionId}
+                  type="button"
+                  onClick={() => setExpandedAnchorId(isExpanded ? null : a.missionId)}
+                  className={cn(
+                    "text-zinc-400 hover:text-[var(--gold)] transition-colors inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-transparent font-medium",
+                    isExpanded && "bg-zinc-800/60 border-zinc-700/50 text-[var(--gold)]"
+                  )}
+                >
+                  {a.title} <span className="text-amber-300/70">{a.openCount}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Expanded Anchor Tasks */}
+          {expandedAnchorId && tasks && (
+            <div className="mt-2 rounded-xl border border-zinc-800/60 bg-zinc-950/20 p-2 space-y-1">
+              <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-zinc-500 font-mono flex items-center justify-between">
+                <span>Tasks in {anchors.find((a) => a.missionId === expandedAnchorId)?.title || "Anchor"}</span>
+                <button
+                  type="button"
+                  onClick={() => setExpandedAnchorId(null)}
+                  className="text-zinc-600 hover:text-zinc-400 font-medium"
+                >
+                  close
+                </button>
+              </div>
+              {(() => {
+                const anchorTasks = tasks.filter(
+                  (t) =>
+                    t.missionId === expandedAnchorId &&
+                    t.status !== "DONE" &&
+                    t.status !== "ARCHIVED"
+                );
+                if (anchorTasks.length === 0) {
+                  return (
+                    <div className="px-2 py-3 text-center text-zinc-600 font-mono text-[11px]">
+                      No open tasks in this anchor.
+                    </div>
+                  );
+                }
+                return (
+                  <div className="divide-y divide-zinc-800/30">
+                    {anchorTasks.map((task) => (
+                      <MissionTaskRow
+                        key={task.id}
+                        task={task}
+                        onComplete={onCompleteTask || (() => {})}
+                        onStart={onStartTask}
+                        onDelete={onDeleteTask}
+                        onEdit={onEditTask}
+                        onSnooze={onSnoozeTask}
+                        onDecompose={onDecomposeTask}
+                      />
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
       )}
     </div>
