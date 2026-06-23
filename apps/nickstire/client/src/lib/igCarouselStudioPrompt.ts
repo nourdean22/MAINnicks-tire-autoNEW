@@ -42,6 +42,8 @@ export interface ProprietaryEvidence {
     averageMileage: number;
   };
   clevelandAngle: string;
+  testimonials?: string[];
+  pastSocialOutputs?: { topic: string; contentType: string; campaignKeyword?: string }[];
 }
 
 export interface MasterPromptOptions {
@@ -115,6 +117,18 @@ export function buildCarouselStudioSystemPrompt(opts: MasterPromptOptions): stri
       lines.push(`  - Failed Component: ${cs.failedComponent} (Condition: ${cs.condition.toUpperCase()})`);
       lines.push(`  - Tech Inspection Notes: ${cs.techNotes}`);
       lines.push(`  - Recommended Action: ${cs.recommendedAction}`);
+    }
+    if (pe.testimonials && pe.testimonials.length > 0) {
+      lines.push("- Real Customer Testimonials & Reviews (Use for Social Proof):");
+      for (const t of pe.testimonials) {
+        lines.push(`  - ${t}`);
+      }
+    }
+    if (pe.pastSocialOutputs && pe.pastSocialOutputs.length > 0) {
+      lines.push("- Recently Posted Social Media Topics (AVOID repeating these exact angles/topics):");
+      for (const p of pe.pastSocialOutputs) {
+        lines.push(`  - [${p.contentType.toUpperCase()}] Topic: "${p.topic}" (Keyword: ${p.campaignKeyword || "none"})`);
+      }
     }
     lines.push("- Instructions for LLM:");
     lines.push("  - You MUST dynamically ground the storyboard concept using this real evidence.");

@@ -478,7 +478,12 @@ export async function handleRunMigrations() {
     if (!d) return { success: false, error: "DB not available" };
 
     const migrations = [
+      // 2026-06-23 · social_drafts — Stored briefs/drafts from Carousel/Reel Studios
+      `CREATE TABLE IF NOT EXISTS social_drafts (id VARCHAR(64) PRIMARY KEY, contentType VARCHAR(16) NOT NULL, topic VARCHAR(255) NOT NULL, briefJson TEXT NOT NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_social_drafts_type (contentType), INDEX idx_social_drafts_created (createdAt))`,
+      // 2026-06-23 · customer_testimonials — Curated customer reviews and testimonials generated/validated by studios
+      `CREATE TABLE IF NOT EXISTS customer_testimonials (id INT AUTO_INCREMENT PRIMARY KEY, author VARCHAR(100) NULL, text TEXT NOT NULL, rating INT NOT NULL DEFAULT 5, source VARCHAR(50) NOT NULL DEFAULT 'manual', createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_testimonials_rating (rating))`,
       `CREATE TABLE IF NOT EXISTS chat_analytics (id int AUTO_INCREMENT PRIMARY KEY, sessionId int, hourOfDay int NOT NULL, dayOfWeek int NOT NULL, month int NOT NULL, messageCount int NOT NULL DEFAULT 0, converted int NOT NULL DEFAULT 0, leadScore int, duration int, createdAt timestamp NOT NULL DEFAULT (now()))`,
+
       `CREATE TABLE IF NOT EXISTS review_pipeline (id int AUTO_INCREMENT PRIMARY KEY, authorName varchar(255) NOT NULL, rating int NOT NULL, reviewText text, reviewTime int, relativeTime varchar(100), sentiment varchar(20), topicsJson text, keywordsJson text, urgency varchar(20), suggestedResponse text, status varchar(20) DEFAULT 'pending', createdAt timestamp NOT NULL DEFAULT (now()))`,
       `CREATE TABLE IF NOT EXISTS search_performance (id int AUTO_INCREMENT PRIMARY KEY, query varchar(500) NOT NULL, page varchar(500), clicks int DEFAULT 0, impressions int DEFAULT 0, ctr int DEFAULT 0, position int DEFAULT 0, date date, createdAt timestamp NOT NULL DEFAULT (now()))`,
       `CREATE TABLE IF NOT EXISTS pipeline_runs (id int AUTO_INCREMENT PRIMARY KEY, pipelineName varchar(100) NOT NULL, status varchar(20) NOT NULL, startedAt timestamp NOT NULL DEFAULT (now()), completedAt timestamp, durationMs int, resultJson text, error text)`,

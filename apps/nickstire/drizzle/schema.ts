@@ -3351,3 +3351,41 @@ export const voiceFollowups = mysqlTable("voice_followups", {
   uniqueIndex("uniq_booking_touch").on(table.bookingId, table.touch),
   index("idx_followup_created").on(table.createdAt),
 ]);
+
+/**
+ * social_drafts · Stored briefs and drafts from the IG Carousel Studio and Faceless Reel Studio.
+ * Allows DB-backed memory persistence.
+ */
+export const socialDrafts = mysqlTable("social_drafts", {
+  id: varchar("id", { length: 64 }).primaryKey(), // e.g. ai-123456789
+  contentType: varchar("contentType", { length: 16 }).notNull(), // carousel | reel
+  topic: varchar("topic", { length: 255 }).notNull(),
+  briefJson: text("briefJson").notNull(), // Stored JSON representation of the brief
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_social_drafts_type").on(table.contentType),
+  index("idx_social_drafts_created").on(table.createdAt),
+]);
+
+export type SocialDraftRow = typeof socialDrafts.$inferSelect;
+export type InsertSocialDraft = typeof socialDrafts.$inferInsert;
+
+/**
+ * customer_testimonials · Curated customer reviews and testimonials generated/validated by studios.
+ */
+export const customerTestimonials = mysqlTable("customer_testimonials", {
+  id: int("id").autoincrement().primaryKey(),
+  author: varchar("author", { length: 100 }),
+  text: text("text").notNull(),
+  rating: int("rating").default(5).notNull(),
+  source: varchar("source", { length: 50 }).default("manual").notNull(), // manual | google | etc
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_testimonials_rating").on(table.rating),
+]);
+
+export type CustomerTestimonialRow = typeof customerTestimonials.$inferSelect;
+export type InsertCustomerTestimonial = typeof customerTestimonials.$inferInsert;
+
