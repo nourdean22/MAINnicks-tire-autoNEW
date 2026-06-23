@@ -13,11 +13,12 @@ REM ============================================================================
 setlocal EnableDelayedExpansion
 
 set "CLOUDFLARED=C:\Program Files (x86)\cloudflared\cloudflared.exe"
+if not exist "%CLOUDFLARED%" set "CLOUDFLARED=%USERPROFILE%\.cloudflared\cloudflared.exe"
 set "URL_FILE=%USERPROFILE%\.cloudflared\tunnel-url.txt"
 
 if not exist "%CLOUDFLARED%" (
     echo [ERROR] cloudflared not found at %CLOUDFLARED%
-    echo Install from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
+    echo Please run scripts/setup-cloudflare-tunnel.ps1 to download it first.
     exit /b 1
 )
 
