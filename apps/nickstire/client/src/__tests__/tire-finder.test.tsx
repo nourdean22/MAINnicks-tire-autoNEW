@@ -2,8 +2,9 @@
  * Tire Finder Tests — Verify tire data and module integrity
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import React from "react";
+
 
 // Mock wouter and framer-motion like in admin.test.tsx
 vi.mock("wouter", () => ({
@@ -40,8 +41,18 @@ vi.mock("@/lib/trpc", () => {
   };
   const procedure = (key: string) => ({
     useQuery: () => queryResult(key),
-    useMutation: () => ({
-      mutate: vi.fn(),
+    useMutation: (opts: any) => ({
+      mutate: (vars: any) => {
+        console.log("MOCK MUTATE CALLED FOR KEY:", key, "HAS ON_SUCCESS:", !!opts?.onSuccess);
+        if (key === "gatewayTire.placeOrder" && opts?.onSuccess) {
+          opts.onSuccess({
+            success: true,
+            orderNumber: "TO-20260623-854",
+            invoiceNumber: "INV-20260623-003",
+            totalAmount: 0,
+          });
+        }
+      },
       isPending: false,
     }),
   });
@@ -170,5 +181,51 @@ describe("Ezytire Environment Variables", () => {
     expect(screen.getByText("Search by Size")).toBeTruthy();
     expect(screen.getByText("Search by Vehicle")).toBeTruthy();
     expect(screen.getByText("Get Fitment Help")).toBeTruthy();
+  });
+
+  it("OrderModal handles tire with $0 price properly for custom quote requests", async () => {
+    const { OrderModal } = await import("@/pages/TireFinder");
+    const onClose = vi.fn();
+    
+    render(
+      React.createElement(OrderModal, {
+        tire: {
+          name: "Mock Tire",
+          brand: "MockBrand",
+          model: "MockModel",
+          size: "205/55R16",
+          shopPrice: 0,
+          pricePerTireCents: 0,
+        },
+        quantity: 4,
+        packageValue: 289,
+        onClose,
+      })
+    );
+
+    // Verify default pricing is displayed correctly as pending confirmation
+    expect(screen.getAllByText("Price Pending Confirmation").length).toBeGreaterThan(0);
+
+    // Let's submit the form to transition to the success screen
+    fireEvent.change(screen.getByPlaceholderText("John Smith"), { target: { value: "Nour Test" } });
+    fireEvent.change(screen.getByPlaceholderText("(216) 555-0000"), { target: { value: "(216) 555-9999" } });
+    fireEvent.change(screen.getByPlaceholderText("2020"), { target: { value: "2022" } });
+    fireEvent.change(screen.getByPlaceholderText("Honda"), { target: { value: "Honda" } });
+    fireEvent.change(screen.getByPlaceholderText("Civic"), { target: { value: "Accord" } });
+
+    const submitBtn = screen.getByRole("button", { name: /Request Price Confirmation/i });
+
+    // Now click the submit button
+    const { act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.click(submitBtn);
+    });
+
+    // Verify that the success state renders 'Price Pending Confirmation' and shows payment pending text
+    expect(screen.getAllByText("Price Pending Confirmation").length).toBeGreaterThan(0);
+    expect(screen.getByText("Online payment will be available once staff confirms pricing.")).toBeTruthy();
+    expect(screen.queryByText(/Pay Now/)).toBeNull();
+    expect(screen.queryByText("Snap Finance")).toBeNull();
+    expect(screen.queryByText("Acima Credit")).toBeNull();
   });
 });
