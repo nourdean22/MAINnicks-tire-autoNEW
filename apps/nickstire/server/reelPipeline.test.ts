@@ -77,11 +77,23 @@ describe("reel pipeline — withTimeout", () => {
 
   it("rejects with a labeled timeout when the promise outlives the deadline", async () => {
     const slow = new Promise((res) => setTimeout(res, 10_000));
-    await expect(withTimeout(slow, 20, "gen beat 3")).rejects.toThrow(/gen beat 3 timed out after/);
+    try {
+      await withTimeout(slow, 20, "gen beat 3");
+      expect.fail("Should have rejected");
+    } catch (e: any) {
+      expect(e).toBeDefined();
+      expect(e.message).toMatch(/gen beat 3 timed out after/);
+    }
   });
 
   it("propagates the underlying rejection unchanged when it loses the race", async () => {
     const boom = Promise.reject(new Error("higgsfield 500"));
-    await expect(withTimeout(boom, 1000, "fast")).rejects.toThrow("higgsfield 500");
+    try {
+      await withTimeout(boom, 1000, "fast");
+      expect.fail("Should have rejected");
+    } catch (e: any) {
+      expect(e).toBeDefined();
+      expect(e.message).toBe("higgsfield 500");
+    }
   });
 });
