@@ -133,8 +133,25 @@ export const CRONS: CronDef[] = [
     inngest: true,
     description: "Industry-intel RSS feeder → BrainMemory(industry_intel) for recallIndustryIntel (system prompt + /intel + plan-day). Revived 2026-05-31 (was deleted in Wave AE).",
   },
+  {
+    name: "intelligence-daily-brief",
+    schedule: "0 10 * * *",
+    mode: "active",
+    category: "review",
+    inngest: true,
+    description: "Daily Ingestion, claim verification, opportunity scoring & Executive Briefing — Inngest-native.",
+  },
+  {
+    name: "intelligence-weekly-brief",
+    schedule: "0 11 * * 0",
+    mode: "active",
+    category: "review",
+    inngest: true,
+    description: "Weekly Ingestion & Strategic Briefing — Inngest-native.",
+  },
 
   // ── COMPOSE ─────────────────────────────────────────────────────────
+
   {
     name: "mega",
     path: "/api/cron/mega?slot=morning",
@@ -353,15 +370,6 @@ export const CRONS: CronDef[] = [
     description: "Sunday 1pm UTC · composite digest across missions + relationships + journal + brain · Telegram push.",
     memory: 1024,
     maxDuration: 120,
-  },
-  {
-    name: "daily-report",
-    schedule: "0 22 * * *",
-    mode: "active",
-    category: "review",
-    description: "Daily 10pm UTC · operator-day summary · what shipped, what stalled, what compounded.",
-    memory: 512,
-    maxDuration: 60,
   },
   {
     name: "journal-checkin",
