@@ -13,6 +13,7 @@ export interface ExtractedClaim {
   text: string;
   category: "research_claim" | "research_contradiction" | "research_action" | "research_question";
   confidence: number;
+  narrativeStatus: "emerging" | "peak" | "declining" | "stable";
 }
 
 export async function extractClaimsFromText(rawContent: string): Promise<ExtractedClaim[]> {
@@ -33,13 +34,20 @@ For each claim, categorize it as:
 
 Provide a confidence score (0.0 to 1.0) indicating how verifiable and strong the source's assertion is.
 
+Additionally, assess the narrative status of the claim:
+- 'emerging': Early-stage signals or novel announcements (e.g., brand new AI models, early weather warnings).
+- 'peak': Highly active/current events or major trends (e.g., current logistics freight price surges).
+- 'declining': Fading trends, dated recall reports, or resolving/passed events.
+- 'stable': Constant, baseline business or economic facts.
+
 Respond ONLY with a JSON array of objects. Do not include markdown code blocks, preamble, or postamble.
 JSON Schema:
 [
   {
     "text": "The exact factual claim",
     "category": "research_claim | research_contradiction | research_action | research_question",
-    "confidence": 0.95
+    "confidence": 0.95,
+    "narrativeStatus": "emerging | peak | declining | stable"
   }
 ]`;
 
@@ -63,6 +71,7 @@ JSON Schema:
 
     // Filter and sanitize the extracted claims
     const validCategories = ["research_claim", "research_contradiction", "research_action", "research_question"];
+    const validNarratives = ["emerging", "peak", "declining", "stable"];
     const claims = parsed.value.filter((c) => {
       return (
         c &&
@@ -71,7 +80,9 @@ JSON Schema:
         validCategories.includes(c.category) &&
         typeof c.confidence === "number" &&
         c.confidence >= 0 &&
-        c.confidence <= 1
+        c.confidence <= 1 &&
+        typeof c.narrativeStatus === "string" &&
+        validNarratives.includes(c.narrativeStatus)
       );
     });
 
