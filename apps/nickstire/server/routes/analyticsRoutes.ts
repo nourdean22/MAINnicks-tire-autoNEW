@@ -50,7 +50,7 @@ export function registerAnalyticsRoutes(app: Express): void {
 
   app.post("/api/track-abandoned", express.json(), async (req, res) => {
     try {
-      const { name, phone, service, vehicle, step: formStep } = req.body || {};
+      const { name, phone, service, vehicle, step: formStep, formType, sessionId: bodySessionId } = req.body || {};
       // wave-147 — was `if (!name && !phone) return sendStatus(204)`,
       // which silently dropped the majority of step-1 abandonment events
       // (users who picked a service + bounced before touching name/phone).
@@ -58,14 +58,19 @@ export function registerAnalyticsRoutes(app: Express): void {
       // real engagement; only reject totally-empty beacons.
       if (!name && !phone && !service) return res.sendStatus(204);
       const { savePartialForm } = await import("../services/abandonedForms");
-      const sessionId = `beacon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const sessionId = bodySessionId || `beacon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      const parsedFormType = (typeof formType === "string" && ["booking", "lead", "callback", "quote", "tire_order"].includes(formType))
+        ? (formType as "booking" | "lead" | "callback" | "quote" | "tire_order")
+        : "booking";
+
       savePartialForm({
         sessionId,
-        formType: "booking",
+        formType: parsedFormType,
         name: typeof name === "string" ? name.slice(0, 200) : undefined,
         phone: typeof phone === "string" ? phone.slice(0, 20) : undefined,
         service: typeof service === "string" ? service.slice(0, 200) : undefined,
-        pageUrl: `/book (step ${formStep || "?"})`,
+        pageUrl: parsedFormType === "tire_order" ? `/tires (step ${formStep || "?"})` : `/book (step ${formStep || "?"})`,
       });
       res.sendStatus(204);
     } catch (e) {

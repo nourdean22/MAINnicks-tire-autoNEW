@@ -860,6 +860,15 @@ export const gatewayTireRouter = router({
         }).catch(e => log.warn("[gatewayTire:placeOrder] uncommon size email notification failed:", e));
       }
 
+      if (input.sessionId) {
+        try {
+          const { markFormCompleted } = await import("../services/abandonedForms");
+          markFormCompleted(input.sessionId);
+        } catch (e) {
+          log.warn("[placeOrder:abandoned-cleanup] failed to mark form completed:", e);
+        }
+      }
+
       return {
         success: true,
         orderNumber,
