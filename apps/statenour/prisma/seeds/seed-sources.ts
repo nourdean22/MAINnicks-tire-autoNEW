@@ -19,6 +19,14 @@ export async function seedSources(prisma: PrismaClient) {
       refreshInterval: 86400, // 1 day in seconds
     },
     {
+      name: "Google Business Profile Local Performance",
+      url: "https://businessprofileperformance.googleapis.com",
+      domain: "seo",
+      sourceType: "primary",
+      authScore: 85.0,
+      refreshInterval: 86400, // 1 day
+    },
+    {
       name: "NHTSA Recall API",
       url: "https://api.nhtsa.gov",
       domain: "automotive",
@@ -33,6 +41,22 @@ export async function seedSources(prisma: PrismaClient) {
       sourceType: "official",
       authScore: 90.0,
       refreshInterval: 86400, // 1 day in seconds
+    },
+    {
+      name: "SEC EDGAR Financial Filings",
+      url: "https://data.sec.gov/api/xbrl",
+      domain: "competitor",
+      sourceType: "official",
+      authScore: 95.0,
+      refreshInterval: 604800, // 7 days
+    },
+    {
+      name: "Discount Tire & Competitor Prices",
+      url: "https://competitor-tires.com/prices",
+      domain: "competitor",
+      sourceType: "primary",
+      authScore: 80.0,
+      refreshInterval: 86400, // 1 day
     }
   ];
 

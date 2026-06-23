@@ -12,7 +12,7 @@ import { serializeForJson } from "@/lib/utils/serialize";
 // behaviors so existing rows stay meaningful. Same weights as the
 // old lib/scoring/daily-score.ts (sleep 4, energy 3, mood 2, deep 5,
 // revenue 6, workout 8, social 5, drift -8, distraction -6 → 0–100).
-type DailyScoreInput = {
+export type DailyScoreInput = {
   sleepHours?: number | null;
   energyScore?: number | null;
   moodScore?: number | null;
@@ -23,7 +23,7 @@ type DailyScoreInput = {
   distractionFlag: boolean;
   socialFamilyAction: boolean;
 };
-function calculateDailyScore(input: DailyScoreInput): number {
+export function calculateDailyScore(input: DailyScoreInput): number {
   const raw =
     (input.sleepHours || 0) * 4 +
     (input.energyScore || 0) * 3 +

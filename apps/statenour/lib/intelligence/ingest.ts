@@ -5,6 +5,12 @@
 import { prisma } from "@/lib/prisma";
 import { fetchFREDIndicators } from "./connectors/fred";
 import { fetchNHTSARecalls } from "./connectors/nhtsa";
+import { fetchGSCAndGBPMetrics } from "./connectors/gsc";
+import { fetchCompetitorAndSECData } from "./connectors/sec";
+import { fetchWeatherMetrics } from "./connectors/weather";
+import { fetchSupplyChainMetrics } from "./connectors/supplychain";
+import { fetchListedDeals } from "./connectors/dealscouting";
+import { fetchBioPerformanceMetrics } from "./connectors/performance";
 import { extractClaimsFromText } from "./extraction";
 import { groundClaim } from "./grounding";
 import { scrapeUrl, isFirecrawlConfigured } from "@/lib/integrations/firecrawl";
@@ -71,6 +77,104 @@ ${recalls
 - **Remedy:** ${r.Remedy}`
   )
   .join("\n\n")}
+`;
+    } else if (source.domain === "seo") {
+      const { gsc, gbp } = await fetchGSCAndGBPMetrics();
+      rawContent = `# Google Search Console & Business Profile Report
+Generated: ${new Date().toISOString()}
+Source: ${source.url}
+
+Google Search Console Keywords:
+${gsc
+  .map(
+    (g) =>
+      `- **Query:** "${g.query}" | Clicks: ${g.clicks} | Impressions: ${g.impressions} | CTR: ${(g.ctr * 100).toFixed(1)}% | Avg Position: ${g.position}`
+  )
+  .join("\n")}
+
+Google Business Profile Status:
+- Rating: ${gbp.rating} / 5.0 (${gbp.totalReviews} total reviews)
+- Latest Review: "${gbp.recentReviewText}"
+`;
+    } else if (source.domain === "competitor") {
+      const { filings, prices } = await fetchCompetitorAndSECData();
+      rawContent = `# SEC EDGAR Filings & Competitor Pricing Report
+Generated: ${new Date().toISOString()}
+Source: ${source.url}
+
+Competitor Pricing:
+${prices
+  .map(
+    (p) =>
+      `- **${p.competitor}**: brand **${p.tireBrand}** (size ${p.size}) priced at **$${p.price}** (Promo: ${p.promo || "None"})`
+  )
+  .join("\n")}
+
+SEC Edgar Filings:
+${filings
+  .map(
+    (f) =>
+      `- **Ticker:** ${f.ticker} | Form: ${f.form} | Filed: ${f.filedAt} | Revenue: $${f.revenueBillions}B | Net Income: $${f.netIncomeBillions}B`
+  )
+  .join("\n")}
+`;
+    } else if (source.domain === "weather") {
+      const data = await fetchWeatherMetrics();
+      rawContent = `# NOAA Weather & Forecast Report
+Generated: ${new Date().toISOString()}
+Location: ${data.location}
+Temperature: ${data.temperature}°F
+Condition: ${data.condition}
+Forecast: ${data.forecast}
+
+Alerts & Opportunities:
+${data.alerts.length === 0 ? "- None" : data.alerts.map(a => `### ${a.event} (${a.severity} Priority)
+- **Description:** ${a.description}
+- **Opportunity:** ${a.opportunity}`).join("\n\n")}
+`;
+    } else if (source.domain === "supplychain") {
+      const data = await fetchSupplyChainMetrics();
+      rawContent = `# Supply Chain & Tire Commodities Report
+Generated: ${new Date().toISOString()}
+Source: ${source.url}
+
+Commodity & Logistics Metrics:
+${data.metrics.map(m => `- **${m.name}** (${m.symbol}): **${m.price} ${m.unit}** (24h Change: ${m.changePercent24h > 0 ? "+" : ""}${m.changePercent24h}%)`).join("\n")}
+
+Alerts & Recommendations:
+${data.alerts.length === 0 ? "- None" : data.alerts.map(a => `### ${a.title} (${a.severity} Priority)
+- **Impact:** ${a.impactDescription}
+- **Recommendation:** ${a.actionRecommendation}`).join("\n\n")}
+`;
+    } else if (source.domain === "dealscouting") {
+      const deals = await fetchListedDeals();
+      rawContent = `# Lakewood/Cleveland Automotive Deal Scouting Report
+Generated: ${new Date().toISOString()}
+Source: ${source.url}
+
+Active M&A & Commercial Real Estate Deals:
+${deals.map(d => `### ${d.title}
+- **Location:** ${d.location}
+- **Price:** $${d.listingPrice.toLocaleString()}
+- **Type:** ${d.type}
+- **Link:** ${d.link}
+- **Description:** ${d.description}
+- **Strategic Notes:** ${d.notes}`).join("\n\n")}
+`;
+    } else if (source.domain === "performance") {
+      const data = await fetchBioPerformanceMetrics();
+      rawContent = `# Personal Bio-Performance & Health Research Report
+Generated: ${new Date().toISOString()}
+Source: ${source.url}
+
+Personal Biomarkers:
+${data.biometrics.map(b => `- **${b.metric}**: **${b.value}${b.unit}** | Status: **${b.status}**\n  Notes: ${b.notes}`).join("\n")}
+
+Scientific Insights & Protocols:
+${data.insights.map(i => `### ${i.title} (${i.topic})
+- **Source:** ${i.source}
+- **Summary:** ${i.summary}
+- **Actionable Protocol:** ${i.actionableProtocol}`).join("\n\n")}
 `;
     } else if (source.url.startsWith("http") && isFirecrawlConfigured()) {
       try {
@@ -172,6 +276,66 @@ Source: ${url}
 - Average search position for "Nick's Tire and Auto" improved from 4.2 to 3.1 over the last 14 days.
 - Impressions for "mobile tire repair near me" spiked by 45% following the mobile landing page optimization.
 - Mobile usability indexing issue detected on the checkout funnel page due to small touch targets (< 48px).
+`;
+  }
+  if (domain === "weather") {
+    return `# NOAA Weather & Forecast Report
+Generated: ${nowStr}
+Location: Cleveland, OH
+Temperature: 28°F
+Condition: Light Snow
+Forecast: Light snow showers expected in the Cleveland metro area. Total snow accumulation of 1 to 3 inches possible. Low near 28.
+
+Alerts & Opportunities:
+### Winter Hazard Alert (HIGH Priority)
+- **Description:** Freezing temperatures or snow predicted in Cleveland. Current forecast: Light snow showers expected in the Cleveland metro area.
+- **Opportunity:** Promote immediate winter tire swap packages and battery diagnostics to VIP customers via SMS.
+`;
+  }
+  if (domain === "supplychain") {
+    return `# Supply Chain & Tire Commodities Report
+Generated: ${nowStr}
+Source: ${url}
+
+Commodity & Logistics Metrics:
+- **Natural Rubber (TSR20 Futures)** (SGX:JR): **1840.5 USD/Metric Ton** (24h Change: +3.42%)
+- **Global Container Freight Index** (FBX:GLO): **4250 USD/40ft Box** (24h Change: +12.8%)
+
+Alerts & Recommendations:
+### Rubber Price Spike (MEDIUM Priority)
+- **Impact:** Natural rubber is up 3.42% in the last 24h. Tire manufacturers are highly likely to raise wholesale dealer costs by 5-8% next quarter.
+- **Recommendation:** Pre-order high-volume standard SUV and light-truck tire sizes now to lock in lower wholesale margin basis before price adjustments hit.
+`;
+  }
+  if (domain === "dealscouting") {
+    return `# Lakewood/Cleveland Automotive Deal Scouting Report
+Generated: ${nowStr}
+Source: ${url}
+
+Active M&A & Commercial Real Estate Deals:
+### Lakewood 6-Bay Auto Repair Facility
+- **Location:** Lakewood, OH (Detroit Ave)
+- **Price:** $420,000
+- **Type:** automotive_business
+- **Link:** https://commercial.crexi.com/lakewood-auto-bay
+- **Description:** Fully equipped 6-bay repair shop with active client list, tire mounting machines, and alignment rack.
+- **Strategic Notes:** Highly strategic secondary location for Nick's Tire. Lakewood has dense commuter demographics but fewer large-scale independent tire centers.
+`;
+  }
+  if (domain === "performance") {
+    return `# Personal Bio-Performance & Health Research Report
+Generated: ${nowStr}
+Source: ${url}
+
+Personal Biomarkers:
+- **Sleep Efficiency**: **74.5%** | Status: **suboptimal**
+  Notes: Time in bed was 8.2 hours, but deep and REM sleep fell below target due to elevated resting heart rate.
+
+Scientific Insights & Protocols:
+### Impact of Late-Night Cortisol on Deep Sleep Cycles (Sleep Science)
+- **Source:** Stanford Neurobiology / Huberman Lab
+- **Summary:** Intense cognitive problem-solving or screen exposure in the 90 minutes before sleep triggers cortisol release, delaying the first deep-sleep cycle by up to 45 minutes.
+- **Actionable Protocol:** Establish a hard screen shutdown at 9:00 PM. Replace coding or active planning with passive reading or breathwork to trigger parasympathetic tone.
 `;
   }
   return `# General Intelligence Report: ${name}
