@@ -590,6 +590,41 @@ function MissionsPageInner() {
     [updateTask, refetchAll],
   );
 
+  const handleEditTask = useCallback(
+    (task: Task) => {
+      setTaskEditTarget(task);
+      setTaskEditOpen(true);
+      telemetry.event("editTaskOpen", { taskId: task.id });
+    },
+    [telemetry],
+  );
+
+  const handleSnoozeTask = useCallback(
+    async (taskId: string, snoozedUntilIso: string) => {
+      try {
+        const clearing = !snoozedUntilIso;
+        telemetry.event("snoozeTask", {
+          taskId,
+          clearing,
+          snoozedUntil: snoozedUntilIso || null,
+        });
+        await updateTask.mutateAsync({
+          id: taskId,
+          fields: {
+            snoozedUntil: snoozedUntilIso || null,
+            status: clearing ? "READY" : "WAITING",
+          },
+        });
+        await refetchAll();
+        toast.success(clearing ? "Snooze cleared." : "Task snoozed.");
+      } catch (err) {
+        log.error("snoozeTask_failed", { err });
+        toast.error("Could not update snooze.");
+      }
+    },
+    [updateTask, refetchAll, telemetry],
+  );
+
   const handleDecomposeTask = useCallback(
     async (id: string) => {
       const task = tasks.find((t) => t.id === id);
@@ -762,11 +797,7 @@ function MissionsPageInner() {
             onComplete={handleCompleteTask}
             onStart={handleStartTask}
             onDelete={handleDeleteTask}
-            onEdit={(task) => {
-              setTaskEditTarget(task);
-              setTaskEditOpen(true);
-              telemetry.event("editTaskOpen", { taskId: task.id });
-            }}
+            onEdit={handleEditTask}
             onUpdateTask={handleUpdateTaskFields}
             onExit={() => setExecutionModeActive(false)}
           />
@@ -883,7 +914,15 @@ function MissionsPageInner() {
 
       {/* Wire 2 · read-only rescue suggestions + GENERAL-anchor open-counts.
        *  Self-hides when nothing needs attention. Never moves a task. */}
-      <MissionsRescueStrip />
+      <MissionsRescueStrip
+        tasks={tasks}
+        onCompleteTask={handleCompleteTask}
+        onStartTask={handleStartTask}
+        onDeleteTask={handleDeleteTask}
+        onEditTask={handleEditTask}
+        onSnoozeTask={handleSnoozeTask}
+        onDecomposeTask={handleDecomposeTask}
+      />
 
       {/* Hidden risk warning banner */}
       <HiddenRiskWarning
@@ -1009,11 +1048,7 @@ function MissionsPageInner() {
           setMissionEditOpen(true);
           telemetry.event("editMissionOpen", { missionId });
         }}
-        onEditTask={(task) => {
-          setTaskEditTarget(task);
-          setTaskEditOpen(true);
-          telemetry.event("editTaskOpen", { taskId: task.id });
-        }}
+        onEditTask={handleEditTask}
         onMoveMission={async (missionId, direction) => {
           try {
             telemetry.event("reorderMission", { missionId, direction });
@@ -1044,30 +1079,7 @@ function MissionsPageInner() {
         // meta strip opens a popover with 2 presets. We translate the
         // tap into the existing task.update mutation + the WAITING flip
         // the task-resurface cron expects. Empty string = clear snooze.
-        onSnoozeTask={async (taskId, snoozedUntilIso) => {
-          try {
-            const clearing = !snoozedUntilIso;
-            telemetry.event("snoozeTask", {
-              taskId,
-              clearing,
-              snoozedUntil: snoozedUntilIso || null,
-            });
-            await updateTask.mutateAsync({
-              id: taskId,
-              fields: {
-                // null clears the snooze · ISO sets the wake time
-                snoozedUntil: snoozedUntilIso || null,
-                // WAITING parks it for the cron · READY brings it back
-                status: clearing ? "READY" : "WAITING",
-              },
-            });
-            await refetchAll();
-            toast.success(clearing ? "Snooze cleared." : "Task snoozed.");
-          } catch (err) {
-            log.error("snoozeTask_failed", { err });
-            toast.error("Could not update snooze.");
-          }
-        }}
+        onSnoozeTask={handleSnoozeTask}
       />
 
       {/* Phase 3 retro modal · opens when a mission is completed (either
