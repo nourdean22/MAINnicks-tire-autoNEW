@@ -161,7 +161,7 @@ function PackageBanner({ packageData }: { packageData: any }) {
       transition={{ delay: 0.2 }}
       className="mb-8"
     >
-      <div className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl">
+      <div className="relative overflow-hidden bg-linear-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl">
         {/* Header */}
         <div className="p-6 sm:p-8">
           <div className="flex items-start gap-4">
@@ -393,7 +393,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
           animate={{ opacity: 1, scale: 1 }}
           className="relative bg-card border border-border/50 rounded-lg p-6 sm:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto"
         >
-          <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+          <button onClick={onClose} aria-label="Close" title="Close" className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
             <X className="w-5 h-5" />
           </button>
 
@@ -408,7 +408,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
             
             {/* Step 1: Request Received */}
             <div className="relative flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center shrink-0 z-10 bg-card">
+              <div className="w-8 h-8 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center shrink-0 z-10">
                 <Check className="w-4 h-4 text-green-400" />
               </div>
               <div>
@@ -421,7 +421,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
 
             {/* Step 2: Staff Check */}
             <div className="relative flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10 bg-card">
+              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10">
                 <Clock className="w-4 h-4 text-primary animate-pulse" />
               </div>
               <div>
@@ -437,7 +437,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
 
             {/* Step 3: Pay Online (Optional) */}
             <div className="relative flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10 bg-card">
+              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10">
                 <Gift className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
@@ -492,7 +492,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
 
             {/* Step 4: Visit Shop */}
             <div className="relative flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10 bg-card">
+              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10">
                 <Wrench className="w-4 h-4 text-primary" />
               </div>
               <div>
@@ -548,7 +548,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
         animate={{ opacity: 1, y: 0 }}
         className="relative bg-card border border-border/50 rounded-lg p-6 sm:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto"
       >
-        <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+        <button onClick={onClose} aria-label="Close" title="Close" className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
           <X className="w-5 h-5" />
         </button>
 
@@ -1381,7 +1381,7 @@ export default function TireFinder() {
       <div className="min-h-screen bg-background text-foreground">
 
       {/* ─── HERO ─── */}
-      <section className="pt-24 pb-12 sm:pt-28 sm:pb-16 bg-gradient-to-b from-card/60 via-background to-background border-b border-border/10">
+      <section className="pt-24 pb-12 sm:pt-28 sm:pb-16 bg-linear-to-b from-card/60 via-background to-background border-b border-border/10">
         <div className="container max-w-3xl mx-auto text-center">
           <motion.div initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0 }}>
             <span className="text-xs font-semibold text-primary tracking-[0.2em] uppercase">
@@ -1725,7 +1725,7 @@ export default function TireFinder() {
                   </div>
 
                   {/* Native CTA Banner */}
-                  <div className="bg-gradient-to-br from-primary/10 via-card to-primary/5 border border-primary/30 rounded-xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-lg text-left">
+                  <div className="bg-linear-to-br from-primary/10 via-card to-primary/5 border border-primary/30 rounded-xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-lg text-left">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
                         <Sparkles className="w-6 h-6 text-primary" />
@@ -1750,7 +1750,7 @@ export default function TireFinder() {
                   </div>
 
                   {/* Ezytire Results Iframe */}
-                  <div className="relative w-full rounded-xl border border-border/30 overflow-hidden bg-card shadow-inner" style={{ height: "650px" }}>
+                  <div className="relative w-full h-[650px] rounded-xl border border-border/30 overflow-hidden bg-card shadow-inner">
                     {ezytireIframeUrl ? (
                       <iframe
                         src={ezytireIframeUrl}
@@ -1831,7 +1831,7 @@ export default function TireFinder() {
                     {/* Trust strip */}
                     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-4 border-y border-foreground/10 text-sm text-foreground/60 mb-8">
                       <span className="flex items-center gap-1.5 whitespace-nowrap">
-                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 shrink-0" />
                         {BUSINESS.reviews.rating} stars · {BUSINESS.reviews.countDisplay} reviews
                       </span>
                       <span className="hidden sm:inline">✓ Walk-in OK 7 days</span>
@@ -1898,6 +1898,9 @@ export default function TireFinder() {
                             min="1"
                             max="20"
                             value={quantity}
+                            aria-label="Quantity"
+                            title="Quantity"
+                            placeholder="Qty"
                             onChange={(e) => {
                               const v = parseInt(e.target.value, 10);
                               if (v >= 1 && v <= 20) setQuantity(v);
@@ -1927,6 +1930,8 @@ export default function TireFinder() {
                         {/* Sort */}
                         <select
                           value={sortBy}
+                          aria-label="Sort by"
+                          title="Sort by"
                           onChange={(e) => setSortBy(e.target.value as SortOption)}
                           className="text-xs bg-card border border-border/30 rounded-md px-3 py-1.5 text-muted-foreground focus:outline-none focus:border-primary/50"
                         >
@@ -1951,7 +1956,7 @@ export default function TireFinder() {
                     </div>
 
                     {/* Set pricing callout */}
-                    <div className="mt-8 bg-gradient-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-8 text-center">
+                    <div className="mt-8 bg-linear-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-8 text-center">
                       <p className="text-sm text-muted-foreground mb-1">Starting at</p>
                       <p className="text-4xl font-semibold text-foreground">
                         ${(Math.min(...data.tires.map((t: any) => t.shopPrice)) * quantity).toFixed(2)}
@@ -2093,7 +2098,7 @@ export default function TireFinder() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="relative overflow-hidden bg-gradient-to-br from-red-500/5 via-card to-orange-500/5 border border-red-500/20 rounded-xl p-6 sm:p-8 mb-10"
+              className="relative overflow-hidden bg-linear-to-br from-red-500/5 via-card to-orange-500/5 border border-red-500/20 rounded-xl p-6 sm:p-8 mb-10"
             >
               <div className="flex items-start gap-4 sm:gap-6">
                 <div className="w-14 h-14 bg-red-500/10 rounded-xl flex items-center justify-center shrink-0">
@@ -2218,7 +2223,7 @@ export default function TireFinder() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="bg-gradient-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-6 sm:p-8 mb-10"
+              className="bg-linear-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-6 sm:p-8 mb-10"
             >
               <div className="text-center mb-8">
                 <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mx-auto mb-4">
@@ -2376,12 +2381,11 @@ export default function TireFinder() {
           {/* Visual anchor — replace placeholder with real alignment-bay
               shot per the photo-capture checklist. Image alt + dim
               placeholder prevent CLS while the real asset lands. */}
-          <div className="relative aspect-[4/3] rounded-md border border-border/40 bg-card/60 overflow-hidden">
+          <div className="relative aspect-4/3 rounded-md border border-border/40 bg-card/60 overflow-hidden">
             <img
               src="/photos/alignment-bay.webp"
               alt="Nick's Tire & Auto wheel alignment bay in Cleveland — precision Hunter alignment rack"
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ objectPosition: "center 50%" }}
+              className="absolute inset-0 w-full h-full object-cover object-[center_50%]"
               loading="lazy"
               onError={(e) => {
                 // Gracefully hide on missing asset until Nour uploads
@@ -2548,6 +2552,8 @@ export default function TireFinder() {
           >
             <button
               onClick={() => setShowSizeHelper(false)}
+              aria-label="Close"
+              title="Close"
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
             >
               <X className="w-5 h-5" />
