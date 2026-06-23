@@ -97,7 +97,9 @@ function formatList(items) {
 
 function checkCodependencies(getEnvVal) {
   const nodeEnv = getEnvVal("NODE_ENV") || "";
-  const isProd = nodeEnv.trim().toLowerCase() === "production" || process.env.NODE_ENV === "production";
+  const isProd =
+    nodeEnv.trim().toLowerCase() === "production" ||
+    process.env.NODE_ENV === "production";
 
   // Stripe co-dependency check: warns if secret key is present but webhook secret is missing
   const stripeSecret = getEnvVal("STRIPE_SECRET_KEY");

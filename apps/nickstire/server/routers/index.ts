@@ -59,3 +59,4 @@ export { seoToolsRouter } from "./seoTools";
 export { smsPerformanceRouter } from "./smsPerformance";
 export { localGrowthRouter } from "./localGrowth";
 export { instagramAdminRouter } from "./instagramAdmin";
+export { gbpRouter } from "./gbp";

@@ -72,6 +72,7 @@
     "@e2b/code-interpreter": "2.4.2",
     "@mendable/firecrawl-js": "4.28.2",
     "@next/env": "16.2.3",
+    "@nour/social-assets": "workspace:*",
     "@nour/utils": "workspace:*",
     "@prisma/adapter-neon": "^7.6.0",
     "@prisma/client": "^7.5.0",
