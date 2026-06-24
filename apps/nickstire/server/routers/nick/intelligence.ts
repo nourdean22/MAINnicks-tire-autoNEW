@@ -627,6 +627,55 @@ export async function handleRunMigrations() {
       // error (gracefully). Idempotent CREATE TABLE IF NOT EXISTS — the loop's
       // "already exists" catch makes re-runs no-ops.
       `CREATE TABLE IF NOT EXISTS scheduled_posts (id INT AUTO_INCREMENT PRIMARY KEY, platforms JSON NOT NULL, caption TEXT NOT NULL, imageUrl VARCHAR(1000) NULL, videoUrl VARCHAR(1000) NULL, imageUrls JSON NULL, scheduledAt TIMESTAMP NOT NULL, status VARCHAR(16) NOT NULL DEFAULT 'pending', postedAt TIMESTAMP NULL, igPostId VARCHAR(64) NULL, error VARCHAR(500) NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_scheduled_due (status, scheduledAt))`,
+      // Content Domination Engine tables (2026-06-24)
+      `CREATE TABLE IF NOT EXISTS content_manufacturing_campaigns (
+        id VARCHAR(64) PRIMARY KEY,
+        topic VARCHAR(128) NOT NULL,
+        persona VARCHAR(64) NOT NULL,
+        target_monthly_volume INT NOT NULL DEFAULT 30,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_campaign_topic (topic)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+      `CREATE TABLE IF NOT EXISTS social_content_inventory (
+        id VARCHAR(64) PRIMARY KEY,
+        campaign_id VARCHAR(64) NULL,
+        content_type ENUM('reel', 'carousel', 'post', 'story', 'poll') NOT NULL,
+        platform ENUM('instagram', 'facebook', 'both') NOT NULL DEFAULT 'both',
+        topic VARCHAR(128) NOT NULL,
+        series_name VARCHAR(128) NOT NULL,
+        episode_number INT NOT NULL DEFAULT 1,
+        hook_category VARCHAR(64) NOT NULL,
+        hook_text TEXT NOT NULL,
+        body_text TEXT NOT NULL,
+        visual_style VARCHAR(64) NOT NULL,
+        persona VARCHAR(64) NOT NULL,
+        score_curiosity INT NOT NULL DEFAULT 0,
+        score_emotion INT NOT NULL DEFAULT 0,
+        score_shareability INT NOT NULL DEFAULT 0,
+        score_comment_potential INT NOT NULL DEFAULT 0,
+        score_save_potential INT NOT NULL DEFAULT 0,
+        score_local_relevance INT NOT NULL DEFAULT 0,
+        score_revenue_relevance INT NOT NULL DEFAULT 0,
+        score_authority INT NOT NULL DEFAULT 0,
+        score_hook_strength INT NOT NULL DEFAULT 0,
+        score_overall INT NOT NULL DEFAULT 0,
+        gsc_query_seed VARCHAR(255) NULL,
+        weather_trigger_condition VARCHAR(128) NULL,
+        interactive_dm_keyword VARCHAR(64) NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'pending',
+        scheduled_at TIMESTAMP NULL DEFAULT NULL,
+        published_at TIMESTAMP NULL DEFAULT NULL,
+        asset_paths JSON NULL,
+        brief_json TEXT NULL,
+        error_message VARCHAR(500) NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_sci_status_scheduled (status, scheduled_at),
+        INDEX idx_sci_campaign (campaign_id),
+        INDEX idx_sci_topic_type (topic, content_type)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
     ];
 
     let applied = 0;
