@@ -41,29 +41,34 @@ class StorageCleanup:
             
         logger.warning(f"Storage size exceeded quota: {current_gb:.3f} GB / {self.max_gb} GB. Starting purge...")
         
-        # Gather all files with modified times
+        # Gather all files with modified times and sizes
         all_files = []
         for folder in [self.storage_manager.snapshots_path, self.storage_manager.crops_path]:
             if folder.exists():
                 for f in folder.iterdir():
                     if f.is_file():
-                        all_files.append((f, f.stat().st_mtime))
+                        stat = f.stat()
+                        all_files.append((f, stat.st_mtime, stat.st_size))
                         
         # Sort files by modification time (oldest first)
         all_files.sort(key=lambda x: x[1])
         
+        total_bytes = current_gb * 1024 * 1024 * 1024
+        target_bytes = self.max_gb * 0.85 * 1024 * 1024 * 1024
+        
         deleted_count = 0
-        for f, _ in all_files:
+        for f, _, file_size in all_files:
             try:
                 f.unlink()
                 deleted_count += 1
-                current_gb = self.storage_manager.get_total_size_gb()
-                if current_gb <= (self.max_gb * 0.85): # target 85% of limit after purge
+                total_bytes -= file_size
+                if total_bytes <= target_bytes:
                     break
             except Exception as e:
                 logger.error(f"Failed to delete {f}: {e}")
                 
-        logger.info(f"Purge complete. Deleted {deleted_count} file(s). New size: {current_gb:.3f} GB")
+        new_gb = total_bytes / (1024 * 1024 * 1024)
+        logger.info(f"Purge complete. Deleted {deleted_count} file(s). New size: {new_gb:.3f} GB")
 
     def _purge_dir_by_age(self, directory: Path, cutoff_time: float):
         if not directory.exists():

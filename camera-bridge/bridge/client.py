@@ -57,8 +57,12 @@ class StatenourClient:
             
         return success
 
-    def send_heartbeat(self, status: str = "ONLINE") -> bool:
+    def send_heartbeat(self, status: str = "ONLINE", dry_run: bool = False) -> bool:
         """Sends a liveness status update to backend devices endpoint."""
+        if dry_run:
+            logger.info(f"[DRY-RUN] Would send heartbeat: status={status}")
+            return True
+
         if not self.ingest_url:
             return False
             

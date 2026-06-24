@@ -6,6 +6,7 @@ import yaml
 import json
 import logging
 import threading
+import requests
 import paho.mqtt.client as mqtt
 from pathlib import Path
 from dotenv import load_dotenv
@@ -98,7 +99,7 @@ class CameraBridgeApp:
             topic = self.config.get("mqtt", {}).get("topic", "frigate/events")
             client.subscribe(topic)
             logger.info(f"Subscribed to topic: {topic}")
-            self.client.send_heartbeat("ONLINE")
+            self.client.send_heartbeat("ONLINE", dry_run=self.dry_run)
         else:
             logger.error(f"MQTT connection failed with code {rc}")
 
@@ -198,7 +199,7 @@ class CameraBridgeApp:
 
             # 1. Heartbeat every 60 seconds
             if now - last_heartbeat >= 60:
-                self.client.send_heartbeat("ONLINE")
+                self.client.send_heartbeat("ONLINE", dry_run=self.dry_run)
                 last_heartbeat = now
 
             # 2. Storage cleanup
@@ -214,10 +215,11 @@ class CameraBridgeApp:
 if __name__ == "__main__":
     load_dotenv()
     
-    config_file = "config.yaml"
-    if not os.path.exists(config_file):
-        config_file = "config.example.yaml"
+    script_dir = Path(__file__).parent.resolve()
+    config_file = script_dir / "config.yaml"
+    if not config_file.exists():
+        config_file = script_dir / "config.example.yaml"
         logger.warning(f"config.yaml not found! Using template {config_file}.")
 
-    app = CameraBridgeApp(config_file)
+    app = CameraBridgeApp(str(config_file))
     app.start()
