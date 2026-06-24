@@ -1107,14 +1107,46 @@ export default function TireFinder() {
   const searchString = useSearch();
   // Read ?size= from URL for shareable/bookmarkable searches
   const urlSize = useMemo(() => {
-    return new URLSearchParams(searchString).get("size");
+    const rawSize = new URLSearchParams(searchString).get("size");
+    if (!rawSize) return "";
+    let cleaned = rawSize.trim();
+    
+    // Check if the size string matches a duplication pattern (e.g. 215/60R16215/60R16)
+    const duplicateMatch = cleaned.match(/^(.{3,})\1$/i);
+    if (duplicateMatch) {
+      cleaned = duplicateMatch[1];
+    }
+    
+    // Check for double/nested query param structure (e.g. 215/60R16?size=215/60R16 or 215/60R16&size=215/60R16)
+    if (cleaned.includes("?size=")) {
+      cleaned = cleaned.split("?size=")[0];
+    } else if (cleaned.includes("&size=")) {
+      cleaned = cleaned.split("&size=")[0];
+    } else if (cleaned.includes("size=")) {
+      cleaned = cleaned.split("size=")[0];
+    }
+    
+    return cleaned;
   }, [searchString]);
   const [searchInput, setSearchInput] = useState(urlSize || "");
   const [activeSearch, setActiveSearch] = useState(urlSize || "");
 
   useEffect(() => {
-    setSearchInput(urlSize || "");
-    setActiveSearch(urlSize || "");
+    if (urlSize) {
+      setSearchInput(urlSize);
+      setActiveSearch(urlSize);
+      
+      // Clean up dirty URL in address bar if needed
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("size");
+      if (raw !== urlSize) {
+        params.set("size", urlSize);
+        window.history.replaceState({}, "", window.location.pathname + "?" + params.toString());
+      }
+    } else {
+      setSearchInput("");
+      setActiveSearch("");
+    }
   }, [urlSize]);
   const [quantity, setQuantity] = useState(4);
   const [sortBy, setSortBy] = useState<SortOption>("price-low");
@@ -1289,7 +1321,13 @@ export default function TireFinder() {
       toast.error("Please enter a valid tire size (e.g. 215/60R16).");
       return;
     }
-    setLocation(`/tires?size=${encodeURIComponent(searchInput.trim())}`, { replace: true });
+    const targetSize = searchInput.trim();
+    setSearchInput(targetSize);
+    setActiveSearch(targetSize);
+    
+    const params = new URLSearchParams(window.location.search);
+    params.set("size", targetSize);
+    window.history.replaceState({}, "", window.location.pathname + "?" + params.toString());
   };
 
   useEffect(() => {
@@ -1523,7 +1561,11 @@ export default function TireFinder() {
                     <button
                       key={s}
                       onClick={() => {
-                        setLocation(`/tires?size=${encodeURIComponent(s)}`, { replace: true });
+                        setSearchInput(s);
+                        setActiveSearch(s);
+                        const params = new URLSearchParams(window.location.search);
+                        params.set("size", s);
+                        window.history.replaceState({}, "", window.location.pathname + "?" + params.toString());
                       }}
                       className="text-xs text-muted-foreground hover:text-primary border border-border/30 rounded-full px-3 py-1 hover:border-primary/30 transition-colors"
                     >

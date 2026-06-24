@@ -40,26 +40,80 @@ const TONE_GUIDELINES: Record<ReplyTone, string> = {
  */
 export async function draftCommentReply(
   commentText: string,
-  tone: ReplyTone = "warm",
-): Promise<{ draft: string; findings: ReturnType<typeof checkReviewReply>; blocked: boolean }> {
-  const prompt = `You manage the Instagram account for Nick's Tire & Auto, a neighborhood Cleveland-area shop.
+  tone?: ReplyTone,
+): Promise<{ draft: string; toneClassified?: ReplyTone; findings: ReturnType<typeof checkReviewReply>; blocked: boolean }> {
+  // If tone is not provided, perform sentiment-based classification first
+  let prompt = "";
+  if (!tone) {
+    prompt = `You manage the Instagram account for Nick's Tire & Auto, a neighborhood Cleveland-area shop.
+A follower left this comment on one of our posts: "${commentText}"
+
+INSTRUCTIONS:
+1. Classify the comment's sentiment and choose a reply tone:
+   - If angry, complaining, or reporting a bad experience -> Use tone "professional" (polite, direct, helpful, inviting to DM for direct resolution).
+   - If asking a technical/pricing question or scheduling -> Use tone "promo" (friendly, answering directly if simple, casually inviting to book or visit nickstire.org/contact).
+   - If positive, praising, or sharing a joke/meme -> Use tone "witty" (friendly, neighborhood humor, or witty remark).
+   - Otherwise -> Use tone "warm" (human, 1-2 sentence public reply sounding like the owner).
+
+2. Write a 1-2 sentence reply in the chosen tone. Keep it under 200 characters.
+3. Strict Safety Rules:
+   - Forbid guarantees/warranties.
+   - Forbid exact pricing quotes.
+   - Use soft diagnostics (e.g. "could point to", "worth checking").
+   - ASCII-only characters (no emojis, plain text only).
+
+Your output must be a valid JSON object matching the requested schema. No conversational prose.`;
+  } else {
+    prompt = `You manage the Instagram account for Nick's Tire & Auto, a neighborhood Cleveland-area shop.
 A follower left this comment on one of our posts: "${commentText}"
 
 ${TONE_GUIDELINES[tone]}
 ${buildReplyPromptRules()}
 Keep it under 200 characters.`;
+  }
 
   let draft = "";
+  let toneClassified: ReplyTone = tone || "warm";
+
   try {
-    const result = await invokeLLM({ messages: [{ role: "user", content: prompt }], maxTokens: 2048 });
-    const content = result.choices?.[0]?.message?.content;
-    draft = typeof content === "string" ? sanitizeText(content) : "";
+    if (!tone) {
+      const result = await invokeLLM({
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: 2048,
+        outputSchema: {
+          name: "comment_reply",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              replyText: { type: "string" },
+              classifiedTone: { type: "string", enum: ["warm", "professional", "witty", "promo"] }
+            },
+            required: ["replyText", "classifiedTone"]
+          }
+        }
+      });
+      const content = result.choices?.[0]?.message?.content as string;
+      try {
+        const parsed = JSON.parse(content);
+        draft = sanitizeText(parsed.replyText || "");
+        toneClassified = (parsed.classifiedTone as ReplyTone) || "warm";
+      } catch (jsonErr) {
+        draft = sanitizeText(content || "");
+        toneClassified = "warm";
+      }
+    } else {
+      const result = await invokeLLM({ messages: [{ role: "user", content: prompt }], maxTokens: 2048 });
+      const content = result.choices?.[0]?.message?.content;
+      draft = typeof content === "string" ? sanitizeText(content) : "";
+    }
   } catch (err) {
     log.error("draftCommentReply LLM failed:", err);
     draft = "";
   }
   const findings = draft ? checkReviewReply(draft) : [];
-  return { draft, findings, blocked: hasBlockingFindings(findings) };
+  return { draft, toneClassified, findings, blocked: hasBlockingFindings(findings) };
 }
 
 const RECENT_REELS = Number(process.env.REEL_COMMENT_RESPONDER_REELS) || 3;
@@ -103,13 +157,25 @@ export async function runReelCommentResponder(): Promise<{ recordsProcessed: num
 
   if (posted.length === 0) return { recordsProcessed: 0, details: "no recently-posted reels to scan" };
 
+  // Calculate dynamic velocity limit (first-hour bonus)
+  let dynamicLimit = MAX_REPLIES_PER_RUN;
+  for (const job of posted) {
+    const pubDate = job.publishedAt ? new Date(job.publishedAt) : new Date(job.createdAt);
+    const ageMinutes = (Date.now() - pubDate.getTime()) / (60 * 1000);
+    if (ageMinutes <= 60) {
+      log.info(`Reel ${job.id} was posted in the last hour (${Math.round(ageMinutes)}m ago). Raising comment responder limit to 15.`);
+      dynamicLimit = 15;
+      break;
+    }
+  }
+
   const { getMediaComments, replyToComment } = await import("./metaSocial");
   let postedCount = 0;
   let drafted = 0;
   let blocked = 0;
 
   for (const job of posted) {
-    if (postedCount >= MAX_REPLIES_PER_RUN) break;
+    if (postedCount >= dynamicLimit) break;
     const mediaId = job.igPostId as string;
     // NOTE: getMediaComments returns up to 50 top-level comments (no pagination);
     // on a very high-traffic reel, comments past the first 50 aren't reachable here.
@@ -132,13 +198,14 @@ export async function runReelCommentResponder(): Promise<{ recordsProcessed: num
     };
 
     for (const c of ordered) {
-      if (postedCount >= MAX_REPLIES_PER_RUN) break;
+      if (postedCount >= dynamicLimit) break;
       if (lastTs && c.timestamp && c.timestamp <= lastTs) continue; // already past the cursor
       if (c.replied || !c.text.trim()) {
         advance(c.timestamp);
         continue;
       }
-      const { draft, blocked: isBlocked } = await draftCommentReply(c.text, "warm");
+      // Choose tone dynamically based on comment sentiment (pass no tone parameter)
+      const { draft, toneClassified, blocked: isBlocked } = await draftCommentReply(c.text);
       if (!draft || isBlocked) {
         if (isBlocked) blocked++;
         advance(c.timestamp);
@@ -146,7 +213,7 @@ export async function runReelCommentResponder(): Promise<{ recordsProcessed: num
       }
       drafted++;
       if (!live) {
-        log.info("[dry-run] would reply to comment", { mediaId, commentId: c.id, draft });
+        log.info("[dry-run] would reply to comment", { mediaId, commentId: c.id, draft, tone: toneClassified });
         advance(c.timestamp);
         continue;
       }
@@ -154,7 +221,7 @@ export async function runReelCommentResponder(): Promise<{ recordsProcessed: num
       if (r.success) {
         postedCount++;
         advance(c.timestamp);
-        log.info("posted comment reply", { mediaId, commentId: c.id, replyId: r.replyId });
+        log.info("posted comment reply", { mediaId, commentId: c.id, replyId: r.replyId, tone: toneClassified });
       } else {
         // Leave the cursor frozen so this comment is retried on the next pulse.
         frozen = true;

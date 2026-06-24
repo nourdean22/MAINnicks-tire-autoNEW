@@ -454,6 +454,123 @@ export async function postToInstagram(params: {
   }
 }
 
+// ─── Instagram Story Post ─────────────────────────────
+
+export async function postInstagramStory(params: {
+  imageUrl?: string;
+  videoUrl?: string;
+}): Promise<{ success: boolean; postId?: string; error?: string }> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  const igUserId = await getIgUserId();
+
+  if (!token || !igUserId) {
+    return { success: false, error: "Instagram not configured" };
+  }
+
+  if (!params.imageUrl && !params.videoUrl) {
+    return { success: false, error: "Must provide either imageUrl or videoUrl" };
+  }
+
+  try {
+    const authHeaders = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    };
+
+    // Step 1: Create media container
+    const containerRes = await fetch(`${GRAPH_URL}/${igUserId}/media`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        media_type: "STORIES",
+        ...(params.imageUrl ? { image_url: params.imageUrl } : {}),
+        ...(params.videoUrl ? { video_url: params.videoUrl } : {}),
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    const containerData = await containerRes.json();
+
+    if (!containerRes.ok) {
+      const errMsg = containerData?.error?.message || `Story container creation failed: HTTP ${containerRes.status}`;
+      log.error("Instagram story container error:", { error: errMsg });
+      return { success: false, error: errMsg };
+    }
+
+    const creationId = containerData.id;
+    if (!creationId) {
+      return { success: false, error: "No container ID returned from Meta" };
+    }
+
+    // Step 2: Poll container status until it is FINISHED (or ERROR)
+    let isReady = false;
+    let attempts = 0;
+    const maxAttempts = 12; // 12 attempts * 5s = 60 seconds (1 minute)
+
+    while (!isReady && attempts < maxAttempts) {
+      attempts++;
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      const statusRes = await fetch(
+        `${GRAPH_URL}/${creationId}?fields=status_code&access_token=${encodeURIComponent(token)}`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+
+      const statusData = await statusRes.json().catch(() => null);
+      if (!statusRes.ok || !statusData) {
+        const errMsg = statusData?.error?.message || `HTTP ${statusRes.status}`;
+        log.warn(`Failed to check story status (attempt ${attempts}): ${errMsg}`);
+        continue;
+      }
+
+      if (statusData.error) {
+        log.warn(`Meta status check returned error: ${statusData.error.message}`);
+        continue;
+      }
+
+      const statusCode = statusData.status_code;
+      log.info(`Instagram story status check (attempt ${attempts}): ${statusCode}`);
+
+      if (statusCode === "FINISHED") {
+        isReady = true;
+      } else if (statusCode === "ERROR") {
+        return { success: false, error: "Meta story processing failed (status_code: ERROR)" };
+      }
+    }
+
+    if (!isReady) {
+      return { success: false, error: "Meta story processing timed out (still IN_PROGRESS after 60s)" };
+    }
+
+    // Step 3: Publish the container
+    const publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        creation_id: creationId,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    const publishData = await publishRes.json();
+
+    if (!publishRes.ok) {
+      const errMsg = publishData?.error?.message || `Story publish failed: HTTP ${publishRes.status}`;
+      log.error("Instagram story publish error:", { error: errMsg });
+      return { success: false, error: errMsg };
+    }
+
+    const postId = publishData.id;
+    log.info(`Instagram story published: ${postId}`);
+    return { success: true, postId };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error("Instagram story post error:", { error: errMsg });
+    return { success: false, error: errMsg };
+  }
+}
+
 // ─── Instagram Carousel Post ──────────────────────────
 
 export async function postInstagramCarousel(params: {
@@ -874,3 +991,25 @@ export async function replyToComment(
     return { success: false, error: errMsg };
   }
 }
+
+
+export async function getInstagramPermalink(postId: string): Promise<string | null> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  if (!token) return null;
+  try {
+    const res = await fetch(`${GRAPH_URL}/${postId}?fields=permalink&access_token=${encodeURIComponent(token)}`);
+    const data = await res.json();
+    if (res.ok && data.permalink) {
+      return data.permalink;
+    } else {
+      log.error("Failed to retrieve Instagram permalink", { data });
+      return null;
+    }
+  } catch (err) {
+    log.error("Error retrieving Instagram permalink:", err);
+    return null;
+  }
+}
+
+
