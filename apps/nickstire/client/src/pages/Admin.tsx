@@ -53,7 +53,7 @@ const GrowthSection = lazy(() => import("./admin/GrowthSection"));
 // briefs (CustomersBrief / OutreachBrief / LeadsBrief / MoneyBrief /
 // VoiceBrief) · and pending statenour /funnel + /brain extensions for
 // the remaining signals. See docs/2026-05-24-intelligence-dispersal-plan.md.
-// const IntelligenceSection = lazy(() => import("./admin/IntelligenceSection"));
+const IntelligenceHQSection = lazy(() => import("./admin/intelligence/IntelligenceHQSection"));
 // 2026-05-19 MONEY consolidation · DeclinedEstimatesSection +
 // SnapDashboardSection are now tabs inside RevenueSection (the "Money"
 // page). Lazy imports moved into RevenueSection.tsx. Old URLs redirect
@@ -101,6 +101,7 @@ function SectionContent({ section }: { section: AdminSection }) {
         {section === "tireOrders" && <TireOrdersSection />}
         {section === "opsHub" && <OpsHubSection />}
         {section === "growth" && <GrowthSection />}
+        {section === "intelligence" && <IntelligenceHQSection />}
       </Suspense>
     </AdminSectionBoundary>
   );
@@ -132,7 +133,9 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   // instead of a blank pane. Statenour /scoreboard is the canonical
   // home for the synthesized intelligence (see docs/2026-05-24-
   // intelligence-dispersal-plan.md).
-  intelligence: "overview",
+  // Restored 2026-06-24 as an active, top-level command center.
+  intell: "intelligence",
+  intelligencehq: "intelligence",
 
   // 2026-05-06 Elon-deeper-cut · these sections were removed from the
   // sidebar but kept reachable via URL.
@@ -251,7 +254,7 @@ const VALID_SECTIONS: ReadonlySet<AdminSection> = new Set<AdminSection>([
   "overview", "leads", "content", "customers",
   "campaigns", "settings", "revenue", "callTrackingView",
   "trafficFunnel", "voiceReceptionist", "memberships", "tireOrders",
-  "opsHub", "growth",
+  "opsHub", "growth", "intelligence",
 ]);
 
 // 2026-05-19 MONEY consolidation · compound redirects for old bookmarks.

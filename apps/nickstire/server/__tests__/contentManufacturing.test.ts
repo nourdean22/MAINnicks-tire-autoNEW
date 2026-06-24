@@ -101,6 +101,7 @@ vi.mock("../_core/llm", () => ({
 describe("Content Domination Engine - Manufacturing & Safety", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(invokeLLM).mockReset();
     mockDbResult = [];
     mockCampaignsResult = [];
     mockInventoryResult = [];
@@ -444,7 +445,7 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
     it("should retry generation if a draft fails safety validation on early attempts", async () => {
       const mockAngles = [
         {
-          angle: "Cleveland winter brake inspection checklist",
+          angle: "Angle A",
           narrativeFranchise: "Cleveland Car Survival Guide",
           entertainmentPillar: "Contrarian Content",
           description: "Crucial checks for brakes before winter hits Cleveland."
@@ -519,7 +520,25 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
           id: "test",
           created: 123,
           model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hookIndex: 0, reasoning: "best" }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
           choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(mockDraftUnsafe) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hooks: mockHooks }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hookIndex: 0, reasoning: "best" }) }, finish_reason: "stop" }]
         })
         .mockResolvedValueOnce({
           id: "test",
@@ -552,7 +571,7 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
     it("should filter out drafts whose overall score is below the gate threshold (75)", async () => {
       const mockAngles = [
         {
-          angle: "Cleveland winter brake inspection checklist",
+          angle: "Angle A",
           narrativeFranchise: "Cleveland Car Survival Guide",
           entertainmentPillar: "Contrarian Content",
           description: "Crucial checks for brakes before winter hits Cleveland."
@@ -602,6 +621,12 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
           created: 123,
           model: "model",
           choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hooks: mockHooks }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hookIndex: 0, reasoning: "best" }) }, finish_reason: "stop" }]
         })
         .mockResolvedValueOnce({
           id: "test",
@@ -673,7 +698,7 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
 
       const mockAngles = [
         {
-          angle: "Cleveland winter brake inspection checklist",
+          angle: "Angle A",
           narrativeFranchise: "Cleveland Car Survival Guide",
           entertainmentPillar: "Contrarian Content",
           description: "Crucial checks for brakes before winter hits Cleveland."
@@ -723,6 +748,12 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
           created: 123,
           model: "model",
           choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hooks: mockHooks }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hookIndex: 0, reasoning: "best" }) }, finish_reason: "stop" }]
         })
         .mockResolvedValueOnce({
           id: "test",

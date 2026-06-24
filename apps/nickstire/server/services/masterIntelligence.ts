@@ -73,6 +73,7 @@ export interface MasterIntelligenceReport {
     score: number;
     /** Per-component breakdown so the dashboard can show WHY the score is what it is. */
     scoreBreakdown: ScoreComponent[];
+    failures: string[];
   };
 }
 
@@ -479,6 +480,6 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
     marketing: { channelROI, reviewVelocity: reviewVel, smsEngagement: smsEng, leadResponse: leadResp, contentPerformance: contentPerf },
     growth: { newCustomerVelocity: custVelocity, referralNetwork: referralNet, portfolioLTV, marketShare, seasonalDemand: seasonal },
     competitive: { competitorGap: compGap, chatFunnel, reviewSentiment: reviewSent },
-    summary: { topAlert, topOpportunity, topRisk, score, scoreBreakdown },
+    summary: { topAlert, topOpportunity, topRisk, score, scoreBreakdown, failures: failures.map(f => (f as PromiseRejectedResult).reason?.message || "Unknown error") },
   };
 }

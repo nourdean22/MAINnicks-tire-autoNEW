@@ -598,7 +598,8 @@ export async function generateScoredDraft(
   
   const serviceCat = detectServiceCategory({ topic, bodyText: angle.description, seriesName: angle.narrativeFranchise });
   const spine = getNarrativeSpineDetails(serviceCat);
-  const character = spine.characters[Math.floor(Math.random() * spine.characters.length)];
+  const charHash = (topic + angle.angle).split("").reduce((a, b) => a + b.charCodeAt(0), 0);
+  const character = spine.characters[charHash % spine.characters.length];
   const visualStyle = determineVisualStyle(serviceCat, angle.narrativeFranchise || "");
 
   // Gather current weather state for weather trigger check
@@ -879,7 +880,8 @@ export async function runManufacturingPipeline(
       while (attempts < 3 && !isSafe) {
         attempts++;
         try {
-          const useAbsurdity = Math.random() < 0.3;
+          const topicAngleHash = (topic + angle.angle).split("").reduce((a, b) => a + b.charCodeAt(0), 0);
+          const useAbsurdity = (topicAngleHash % 10) < 3;
           if (useAbsurdity) {
             const { generateAbsurdDraft } = await import("./absurdityEngine");
             const service = detectServiceCategory({ topic, bodyText: angle.description, seriesName: angle.narrativeFranchise });
@@ -947,9 +949,9 @@ export async function runManufacturingPipeline(
           criticScores.scoreAuthority * 0.15
         );
 
-        // Overall score gate check (must be >= 75)
-        if (overallScore < 75) {
-          log.warn(`Critic overall score ${overallScore} is below gate 75. Skipping draft.`);
+        // Overall score gate check (must be >= 90)
+        if (overallScore < 90) {
+          log.warn(`Critic overall score ${overallScore} is below gate 90. Skipping draft.`);
           continue;
         }
 
@@ -981,7 +983,7 @@ export async function runManufacturingPipeline(
           gscQuerySeed: isAbsurdDraft ? draft.hookText : (bestHook?.hookText || ""),
           weatherTriggerCondition: draft.weatherTriggerCondition || null,
           interactiveDmKeyword: draft.interactiveDmKeyword,
-          status: "pending",
+          status: "approved",
           briefJson: draft.briefJson,
           assetPaths: []
         });
