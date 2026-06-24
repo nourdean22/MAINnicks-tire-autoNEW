@@ -319,16 +319,20 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         (async () => {
           try {
             const { getDb } = await import("../../db");
-            const { smsMessages } = await import("../../../drizzle/schema");
-            const { eq } = await import("drizzle-orm");
+            const { smsMessages, smsOrchestrations } = await import("../../../drizzle/schema");
+            const { eq, like } = await import("drizzle-orm");
             const db = await getDb();
             if (!db) return;
             const newStatus = eventType === "sms:delivered" ? "delivered" : "sent";
             await db.update(smsMessages)
               .set({ status: newStatus })
               .where(eq(smsMessages.twilioSid, messageId));
+
+            await db.update(smsOrchestrations)
+              .set({ status: newStatus })
+              .where(like(smsOrchestrations.sendResultJson, `%"sid":"${messageId}"%`));
           } catch (err) {
-            log.warn("Failed to update smsMessages status on delivery", {
+            log.warn("Failed to update status on delivery", {
               error: err instanceof Error ? err.message : String(err),
             });
           }
@@ -351,13 +355,17 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         (async () => {
           try {
             const { getDb } = await import("../../db");
-            const { smsMessages } = await import("../../../drizzle/schema");
-            const { eq } = await import("drizzle-orm");
+            const { smsMessages, smsOrchestrations } = await import("../../../drizzle/schema");
+            const { eq, like } = await import("drizzle-orm");
             const db = await getDb();
             if (!db) return;
             await db.update(smsMessages)
               .set({ status: "failed" })
               .where(eq(smsMessages.twilioSid, messageId));
+
+            await db.update(smsOrchestrations)
+              .set({ status: "failed", failureReason: reason })
+              .where(like(smsOrchestrations.sendResultJson, `%"sid":"${messageId}"%`));
           } catch {
             // Don't break the webhook
           }
