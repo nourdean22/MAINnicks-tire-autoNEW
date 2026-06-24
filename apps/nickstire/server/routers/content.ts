@@ -1404,6 +1404,12 @@ export const contentAdminRouter = router({
     const { replenishReserve } = await import("../services/contentManufacturing");
     return replenishReserve();
   }),
+  syncSocialMetricsAndAttribution: adminProcedure.mutation(async () => {
+    const { syncSocialMetrics, attributeRevenueToSocial } = await import("../services/contentManufacturing");
+    const sync = await syncSocialMetrics();
+    const attrib = await attributeRevenueToSocial();
+    return { sync, attrib };
+  }),
   listInventory: adminProcedure
     .input(z.object({
       status: z.string().optional(),

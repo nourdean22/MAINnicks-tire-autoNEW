@@ -528,6 +528,14 @@ export function startTieredScheduler(): void {
           return runReelCommentResponder();
         },
       },
+      {
+        name: "social-inventory-publisher",
+        requiresEnv: "SOCIAL_INVENTORY_PUBLISH_ENABLED",
+        handler: async () => {
+          const { runSocialInventoryPublisher } = await import("./jobs/socialInventoryPublisher");
+          return runSocialInventoryPublisher();
+        },
+      },
     ],
     running: false,
     lastRun: null,
@@ -920,6 +928,14 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { runFollowupCadence } = await import("./jobs/followupCadence");
           return runFollowupCadence();
+        },
+      },
+      {
+        name: "content-reserve-replenish",
+        requiresEnv: "CONTENT_REPLENISH_ENABLED",
+        handler: async () => {
+          const { runContentReserveReplenish } = await import("./jobs/contentReserveReplenish");
+          return runContentReserveReplenish();
         },
       },
     ],
