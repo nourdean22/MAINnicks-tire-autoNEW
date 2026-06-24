@@ -1657,3 +1657,11 @@ p.body-pretty {
 .scroll-touch {
   -webkit-overflow-scrolling: touch;
 }
+
+@utility hide-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
