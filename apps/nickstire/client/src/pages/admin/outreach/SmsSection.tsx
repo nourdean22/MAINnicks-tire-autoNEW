@@ -18,7 +18,7 @@
  * Backend untouched — server/routers/smsConversations.ts already routes
  * outbound through the F25e shop gateway with Twilio fallback (wave-105).
  */
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { BUSINESS } from "@shared/business";
@@ -182,38 +182,42 @@ function ThreadView({
     return rows[rows.length - 1];
   }, [messagesQ.data]);
 
+  const handleSuggestDraft = useCallback(() => {
+    setIsDraftLoading(true);
+    suggestDraft.mutate(
+      {
+        phone: conversation.customerPhone,
+        conversationId: conversation.id,
+      },
+      {
+        onSuccess: (res) => {
+          setSuggestedDraft({
+            id: res.draftId,
+            draft: res.draft,
+            intent: res.intent,
+            confidence: res.confidence,
+            provider: res.provider,
+            latencyMs: res.latencyMs,
+          });
+          setIsDraftLoading(false);
+        },
+        onError: (err) => {
+          console.error("Failed to suggest draft", err);
+          setIsDraftLoading(false);
+        },
+      }
+    );
+  }, [conversation.customerPhone, conversation.id, suggestDraft]);
+
   // Automatically suggest a draft when the last message is inbound
   useEffect(() => {
     if (lastMessage && lastMessage.direction === "inbound") {
-      setIsDraftLoading(true);
-      suggestDraft.mutate(
-        {
-          phone: conversation.customerPhone,
-          conversationId: conversation.id,
-        },
-        {
-          onSuccess: (res) => {
-            setSuggestedDraft({
-              id: res.draftId,
-              draft: res.draft,
-              intent: res.intent,
-              confidence: res.confidence,
-              provider: res.provider,
-              latencyMs: res.latencyMs,
-            });
-            setIsDraftLoading(false);
-          },
-          onError: (err) => {
-            console.error("Failed to suggest draft", err);
-            setIsDraftLoading(false);
-          },
-        }
-      );
+      handleSuggestDraft();
     } else {
       setSuggestedDraft(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversation.id, lastMessage?.id]);
+  }, [conversation.id, lastMessage?.id, handleSuggestDraft]);
 
   const markRead = trpc.smsConversations.markRead.useMutation({
     onSuccess: () => {
@@ -227,18 +231,18 @@ function ThreadView({
   });
 
   const send = trpc.smsConversations.send.useMutation({
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       void messagesQ.refetch();
       void utils.smsConversations.list.invalidate();
       void utils.smsConversations.unreadCount.invalidate();
 
       // Record feedback on successful send
       if (suggestedDraft) {
-        const finalReply = reply.trim();
-        const wasEdited = finalReply !== suggestedDraft.draft;
+        const sentMessage = variables.message;
+        const wasEdited = sentMessage !== suggestedDraft.draft;
         saveFeedback.mutate({
           draftId: suggestedDraft.id!,
-          operatorReply: finalReply,
+          operatorReply: sentMessage,
           status: wasEdited ? "edited" : "approved",
         });
       }
@@ -415,24 +419,24 @@ function ThreadView({
             <div className="flex flex-wrap gap-1.5 py-1">
               <button
                 type="button"
-                onClick={() => setReply("Conventional oil change is $49. No appointment needed, just stop by.")}
+                onClick={() => setReply(BUSINESS.oilChange.conventionalExplanation)}
                 className="px-2.5 py-1 rounded bg-foreground/5 hover:bg-foreground/10 text-[10px] text-foreground/80 transition-colors font-medium border border-border/20"
               >
-                Conventional Oil: $49
+                Conventional Oil: {BUSINESS.oilChange.conventionalPrice}
               </button>
               <button
                 type="button"
-                onClick={() => setReply("Synthetic oil change is $80. No appointment needed, just stop by.")}
+                onClick={() => setReply(BUSINESS.oilChange.syntheticExplanation)}
                 className="px-2.5 py-1 rounded bg-foreground/5 hover:bg-foreground/10 text-[10px] text-foreground/80 transition-colors font-medium border border-border/20"
               >
-                Synthetic Oil: $80
+                Synthetic Oil: {BUSINESS.oilChange.syntheticPrice}
               </button>
               <button
                 type="button"
-                onClick={() => setReply("Used tires start at $60+ mounting/balancing included. Bring it by for a look.")}
+                onClick={() => setReply(BUSINESS.usedTires.explanation + ". Bring it by for a look.")}
                 className="px-2.5 py-1 rounded bg-foreground/5 hover:bg-foreground/10 text-[10px] text-foreground/80 transition-colors font-medium border border-border/20"
               >
-                Used Tires: $60+
+                Used Tires: $60
               </button>
               <button
                 type="button"
@@ -470,11 +474,6 @@ function ThreadView({
                       });
                       if (res.success) {
                         toast.success("Sent");
-                        saveFeedback.mutate({
-                          draftId: suggestedDraft.id!,
-                          status: "approved",
-                        });
-                        setSuggestedDraft(null);
                       } else {
                         toast.error("Send failed");
                       }
@@ -488,13 +487,7 @@ function ThreadView({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsDraftLoading(true);
-                    suggestDraft.mutate({
-                      phone: conversation.customerPhone,
-                      conversationId: conversation.id,
-                    });
-                  }}
+                  onClick={handleSuggestDraft}
                   className="px-2 py-1 text-foreground/60 hover:text-foreground hover:bg-foreground/5 rounded text-[11px] transition-colors"
                 >
                   Regenerate
