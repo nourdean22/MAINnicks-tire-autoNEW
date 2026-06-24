@@ -162,85 +162,98 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
   messages.push({ role: "user", content: opts.inboundMessage });
 
   if (anthropicKey) {
-    const modelName = process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: modelName,
-        max_tokens: opts.maxTokens,
-        system: opts.systemPrompt,
-        temperature: opts.temperature,
-        messages,
-      }),
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "<no body>");
-      throw new Error(`Anthropic HTTP ${resp.status} · ${text.slice(0, 200)}`);
+    try {
+      const modelName = process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: modelName,
+          max_tokens: opts.maxTokens,
+          system: opts.systemPrompt,
+          temperature: opts.temperature,
+          messages,
+        }),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "<no body>");
+        throw new Error(`Anthropic HTTP ${resp.status} · ${text.slice(0, 200)}`);
+      }
+      const json = (await resp.json()) as { content?: Array<{ text?: string }> };
+      const text = json.content?.[0]?.text?.trim() ?? "";
+      if (!text) throw new Error("Anthropic returned empty content");
+      return { text, source: "fallback-claude", modelName };
+    } catch (err) {
+      log.warn("Anthropic fallback draft generation failed, trying next provider", { error: err instanceof Error ? err.message : String(err) });
     }
-    const json = (await resp.json()) as { content?: Array<{ text?: string }> };
-    const text = json.content?.[0]?.text?.trim() ?? "";
-    if (!text) throw new Error("Anthropic returned empty content");
-    return { text, source: "fallback-claude", modelName };
   }
 
   if (geminiKey) {
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const baseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
-    const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${geminiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages: [{ role: "system", content: opts.systemPrompt }, ...messages],
-        max_tokens: opts.maxTokens,
-        temperature: opts.temperature,
-      }),
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "<no body>");
-      throw new Error(`Gemini HTTP ${resp.status} · ${text.slice(0, 200)}`);
+    try {
+      const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+      const baseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
+      const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${geminiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [{ role: "system", content: opts.systemPrompt }, ...messages],
+          max_tokens: opts.maxTokens,
+          temperature: opts.temperature,
+        }),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "<no body>");
+        throw new Error(`Gemini HTTP ${resp.status} · ${text.slice(0, 200)}`);
+      }
+      const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const text = json.choices?.[0]?.message?.content?.trim() ?? "";
+      if (!text) throw new Error("Gemini returned empty content");
+      return { text, source: "fallback-openai", modelName };
+    } catch (err) {
+      log.warn("Gemini fallback draft generation failed, trying next provider", { error: err instanceof Error ? err.message : String(err) });
     }
-    const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const text = json.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!text) throw new Error("Gemini returned empty content");
-    return { text, source: "fallback-openai", modelName };
   }
 
   if (openaiKey) {
-    const modelName = process.env.LLM_MODEL || "gpt-4o-mini";
-    const baseUrl = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openaiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages: [{ role: "system", content: opts.systemPrompt }, ...messages],
-        max_tokens: opts.maxTokens,
-        temperature: opts.temperature,
-      }),
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "<no body>");
-      throw new Error(`OpenAI HTTP ${resp.status} · ${text.slice(0, 200)}`);
+    try {
+      const modelName = process.env.LLM_MODEL || "gpt-4o-mini";
+      const base = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
+      const completionsUrl = `${base}/v1/chat/completions`;
+      const resp = await fetch(completionsUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openaiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [{ role: "system", content: opts.systemPrompt }, ...messages],
+          max_tokens: opts.maxTokens,
+          temperature: opts.temperature,
+        }),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "<no body>");
+        throw new Error(`OpenAI HTTP ${resp.status} · ${text.slice(0, 200)}`);
+      }
+      const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const text = json.choices?.[0]?.message?.content?.trim() ?? "";
+      if (!text) throw new Error("OpenAI returned empty content");
+      return { text, source: "fallback-openai", modelName };
+    } catch (err) {
+      log.warn("OpenAI fallback draft generation failed", { error: err instanceof Error ? err.message : String(err) });
     }
-    const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const text = json.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!text) throw new Error("OpenAI returned empty content");
-    return { text, source: "fallback-openai", modelName };
   }
 
-  throw new Error("No fallback LLM key available · set ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY");
+  throw new Error("All fallback LLM providers failed or no keys configured.");
 }
 
 /**
