@@ -39,7 +39,7 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 // ─── INBOUND: Process events from nickstire.org ──────────
 
 export interface ShopEvent {
-  type: "booking" | "lead" | "review" | "invoice" | "stage-change" | "campaign" | "emergency";
+  type: "booking" | "lead" | "review" | "invoice" | "stage-change" | "campaign" | "emergency" | "call";
   data: Record<string, unknown>;
   timestamp?: string;
 }
@@ -126,6 +126,19 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
         "pipeline_analysis"
       );
       actions.push("alert.emergency");
+      break;
+    }
+
+    case "call": {
+      const duration = Number(event.data.durationSeconds || 0);
+      const phone = String(event.data.phone || "unknown");
+      await brainMemory.remember(
+        "insight",
+        `call_completed_${Date.now()}`,
+        `Phone call from ${phone} ended. Duration: ${duration}s. Reason: ${event.data.endedReason || "unknown"}. Mentioned: ${event.data.serviceMention || "none"}.`,
+        "pipeline_analysis"
+      );
+      actions.push("insight.call");
       break;
     }
   }

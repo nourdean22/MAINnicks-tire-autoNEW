@@ -1,11 +1,41 @@
 "use client";
 
+import { useState } from "react";
 import { UIMessage } from "ai";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { ToolResultCard, isKnownToolName } from "@/components/chat/tool-result-card";
+import { NickMessage } from "@/components/chat/nick-message";
+import { UserMessageBubble, AssistantMessageShell } from "@/components/chat/message-bubble-shells";
+import { MessageActionSheet } from "@/components/chat/message-action-sheet";
+import { ReasoningTraceModal } from "@/components/chat/reasoning-trace-modal";
+import { extractContextBlocks, extractQuality, extractCitations } from "@/lib/chat/extract-message-metadata";
+import { toast } from "sonner";
 
-export function ChatMessageList({ messages, isLoading, error }: { messages: UIMessage[], isLoading: boolean, error: Error | undefined }) {
+async function copyToClipboard(text: string): Promise<void> {
+  if (typeof navigator !== "undefined" && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied to clipboard", { duration: 1500 });
+    } catch {
+      toast.error("Clipboard blocked by browser");
+    }
+  }
+}
+
+export function ChatMessageList({ 
+  messages, 
+  isLoading, 
+  error,
+  liveContextBlocksRef 
+}: { 
+  messages: UIMessage[], 
+  isLoading: boolean, 
+  error: Error | undefined,
+  liveContextBlocksRef?: React.RefObject<any>
+}) {
   const pending = useChatUiStore((s) => s.pending);
+  const [actionSheetMsg, setActionSheetMsg] = useState<{ id: string; role: "user" | "assistant"; text: string } | null>(null);
+  const [reasoningTraceMsg, setReasoningTraceMsg] = useState<string | null>(null);
 
   if (messages.length === 0 && pending.length === 0) {
     return (
@@ -28,7 +58,39 @@ export function ChatMessageList({ messages, isLoading, error }: { messages: UIMe
           }`}>
             {m.parts?.map((part, i) => {
               if (part.type === "text") {
-                return <div key={i}>{part.text}</div>;
+                if (m.role === "user") {
+                  return (
+                    <UserMessageBubble 
+                      key={i} 
+                      text={part.text} 
+                      onClick={() => {}} 
+                      onLongPress={() => setActionSheetMsg({ id: m.id, role: "user", text: part.text })} 
+                    />
+                  );
+                }
+                
+                const contextBlocks = extractContextBlocks(m, liveContextBlocksRef?.current || null);
+                const quality = extractQuality(m);
+                const citations = extractCitations(m);
+
+                return (
+                  <AssistantMessageShell
+                    key={i}
+                    text={part.text}
+                    messageId={m.id}
+                    onLongPress={() => setActionSheetMsg({ id: m.id, role: "assistant", text: part.text })}
+                    contextBlocks={contextBlocks}
+                    quality={quality}
+                    citations={citations}
+                    onRegen={() => { toast("Regen triggered (coming soon)"); }}
+                  >
+                    <NickMessage 
+                      text={part.text} 
+                      streaming={isLoading && m.id === messages[messages.length - 1]?.id} 
+                      messageId={m.id}
+                    />
+                  </AssistantMessageShell>
+                );
               }
               if (part.type.startsWith("tool-")) {
                 const toolName = part.type.replace("tool-", "");
@@ -81,6 +143,36 @@ export function ChatMessageList({ messages, isLoading, error }: { messages: UIMe
           Stream degraded. Check logs or retry.
         </div>
       )}
+
+      {/* Action Sheet */}
+      <MessageActionSheet 
+        open={!!actionSheetMsg}
+        onClose={() => setActionSheetMsg(null)}
+        role={actionSheetMsg?.role || "user"}
+        text={actionSheetMsg?.text || ""}
+        onCopy={() => {
+          if (actionSheetMsg?.text) copyToClipboard(actionSheetMsg.text);
+        }}
+        onSaveAsBelief={() => {
+          toast("Save as belief triggered (memory port pending)");
+        }}
+        onSaveAsDecision={() => {
+          toast("Save as decision triggered (memory port pending)");
+        }}
+        onShowReasoning={() => {
+          if (actionSheetMsg?.id) {
+            setReasoningTraceMsg(actionSheetMsg.id);
+          }
+          setActionSheetMsg(null);
+        }}
+      />
+
+      {/* Reasoning Trace Modal */}
+      <ReasoningTraceModal
+        open={reasoningTraceMsg !== null}
+        messageId={reasoningTraceMsg}
+        onClose={() => setReasoningTraceMsg(null)}
+      />
     </div>
   );
 }

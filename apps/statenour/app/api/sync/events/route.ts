@@ -144,6 +144,7 @@ export const POST = apiHandler(
         "nickstire:tire_order": "invoice",
         "nickstire:callback": "lead",
         "nickstire:revenue": "invoice",
+        "nickstire:call_completed": "call",
       };
       const shopType = typeMap[event.type];
       if (shopType) {

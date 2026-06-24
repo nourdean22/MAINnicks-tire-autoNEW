@@ -2,8 +2,9 @@
 
 import { FormEvent, useRef, useEffect } from "react";
 import { useChatUiStore } from "../stores/chat-ui-store";
+import type { ChatRuntimeController } from "../types/chat-runtime-controller";
 
-export function ChatComposer({ chat }: { chat: any }) {
+export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   const draft = useChatUiStore((s) => s.draft);
   const setDraft = useChatUiStore((s) => s.setDraft);
   const clearConversationDraft = useChatUiStore((s) => s.clearConversationDraft);
@@ -38,7 +39,7 @@ export function ChatComposer({ chat }: { chat: any }) {
     clearConversationDraft();
 
     try {
-      await chat.append({ role: "user", content: text });
+      await chat.sendText(text);
       resolvePending(tempId);
     } catch (err) {
       console.error(err);
