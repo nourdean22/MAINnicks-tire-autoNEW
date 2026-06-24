@@ -3,6 +3,9 @@
  */
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { getDbTyped } from "../db";
+import { contentManufacturingCampaigns, socialContentInventory } from "../../drizzle/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { sendNotification } from "../email-notify";
 import {
   generateArticle,
@@ -1236,6 +1239,203 @@ export const contentAdminRouter = router({
         log.error("Failed to mutate Statenour social publish queue item:", err);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to mutate Statenour queue item: ${err.message}` });
       }
+    }),
+  listCampaigns: adminProcedure.query(async () => {
+    const db = await getDbTyped();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+    return db.select().from(contentManufacturingCampaigns);
+  }),
+  createCampaign: adminProcedure
+    .input(z.object({
+      topic: z.string().min(2),
+      persona: z.string().min(2),
+      targetMonthlyVolume: z.number().default(30),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbTyped();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+      const id = `campaign_${Date.now()}`;
+      await db.insert(contentManufacturingCampaigns).values({
+        id,
+        topic: input.topic,
+        persona: input.persona,
+        targetMonthlyVolume: input.targetMonthlyVolume,
+        isActive: true,
+      });
+      return { success: true, id };
+    }),
+  toggleCampaign: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      isActive: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbTyped();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+      await db.update(contentManufacturingCampaigns)
+        .set({ isActive: input.isActive })
+        .where(eq(contentManufacturingCampaigns.id, input.id));
+      return { success: true };
+    }),
+  explodeCampaignTopic: adminProcedure
+    .input(z.object({ topic: z.string() }))
+    .mutation(async ({ input }) => {
+      const { explodeTopic } = await import("../services/contentManufacturing");
+      return explodeTopic(input.topic);
+    }),
+  previewHooks: adminProcedure
+    .input(z.object({
+      topic: z.string(),
+      angle: z.object({
+        angle: z.string(),
+        narrativeFranchise: z.string(),
+        entertainmentPillar: z.string(),
+        description: z.string(),
+      }),
+    }))
+    .mutation(async ({ input }) => {
+      const { generateHookLibrary } = await import("../services/contentManufacturing");
+      return generateHookLibrary(input.topic, input.angle);
+    }),
+  triggerDraftGeneration: adminProcedure
+    .input(z.object({
+      campaignId: z.string().optional(),
+      topic: z.string(),
+      angle: z.object({
+        angle: z.string(),
+        narrativeFranchise: z.string(),
+        entertainmentPillar: z.string(),
+        description: z.string(),
+      }),
+      hook: z.object({
+        hookText: z.string(),
+        hookCategory: z.string(),
+        scoreCuriosity: z.number(),
+        scoreEmotion: z.number(),
+        scoreLocalRelevance: z.number(),
+        scoreAuthority: z.number(),
+        scoreOverall: z.number().optional(),
+      }),
+      persona: z.string(),
+      contentType: z.enum(["reel", "carousel", "post", "story"]),
+    }))
+    .mutation(async ({ input }) => {
+      const { generateScoredDraft, validateClaimSafety } = await import("../services/contentManufacturing");
+      const db = await getDbTyped();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+      
+      const draft = await generateScoredDraft(
+        input.topic,
+        input.angle,
+        input.hook as any,
+        input.persona,
+        input.contentType,
+        "both"
+      );
+      
+      const validation = validateClaimSafety(draft);
+      if (!validation.safe) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Claim Safety Violation: ${validation.errors.join("; ")}`,
+        });
+      }
+      
+      const overallScore = Math.round(
+        draft.scoreCuriosity * 0.15 +
+        draft.scoreEmotion * 0.15 +
+        draft.scoreShareability * 0.15 +
+        draft.scoreCommentPotential * 0.15 +
+        draft.scoreSavePotential * 0.1 +
+        draft.scoreLocalRelevance * 0.1 +
+        draft.scoreRevenueRelevance * 0.1 +
+        draft.scoreAuthority * 0.1
+      );
+      
+      const id = `draft_${Date.now()}`;
+      await db.insert(socialContentInventory).values({
+        id,
+        campaignId: input.campaignId || null,
+        contentType: input.contentType,
+        platform: "both",
+        topic: input.topic,
+        seriesName: input.angle.narrativeFranchise,
+        episodeNumber: 1,
+        hookCategory: input.hook.hookCategory,
+        hookText: draft.hookText,
+        bodyText: draft.bodyText,
+        visualStyle: draft.visualStyle,
+        persona: draft.persona,
+        scoreCuriosity: draft.scoreCuriosity,
+        scoreEmotion: draft.scoreEmotion,
+        scoreShareability: draft.scoreShareability,
+        scoreCommentPotential: draft.scoreCommentPotential,
+        scoreSavePotential: draft.scoreSavePotential,
+        scoreLocalRelevance: draft.scoreLocalRelevance,
+        scoreRevenueRelevance: draft.scoreRevenueRelevance,
+        scoreAuthority: draft.scoreAuthority,
+        scoreHookStrength: draft.scoreHookStrength,
+        scoreOverall: overallScore,
+        gscQuerySeed: input.hook.hookText,
+        weatherTriggerCondition: draft.weatherTriggerCondition || null,
+        interactiveDmKeyword: draft.interactiveDmKeyword,
+        status: "pending",
+        briefJson: draft.briefJson,
+        assetPaths: [],
+      });
+      
+      return { success: true, id, draft, overallScore };
+    }),
+  runFullPipeline: adminProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      topic: z.string(),
+      persona: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runManufacturingPipeline } = await import("../services/contentManufacturing");
+      return runManufacturingPipeline(input.campaignId, input.topic, input.persona);
+    }),
+  getReserveStatus: adminProcedure.query(async () => {
+    const { getReserveStatus } = await import("../services/contentManufacturing");
+    return getReserveStatus();
+  }),
+  replenishReserve: adminProcedure.mutation(async () => {
+    const { replenishReserve } = await import("../services/contentManufacturing");
+    return replenishReserve();
+  }),
+  listInventory: adminProcedure
+    .input(z.object({
+      status: z.string().optional(),
+      topic: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDbTyped();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+      let query = db.select().from(socialContentInventory);
+      const conditions = [];
+      if (input?.status) conditions.push(eq(socialContentInventory.status, input.status));
+      if (input?.topic) conditions.push(eq(socialContentInventory.topic, input.topic));
+      if (conditions.length > 0) {
+        return query.where(and(...conditions)).orderBy(desc(socialContentInventory.createdAt));
+      }
+      return query.orderBy(desc(socialContentInventory.createdAt));
+    }),
+  actOnInventoryItem: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      action: z.enum(["approve", "reject", "schedule"]),
+      scheduledAt: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbTyped();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+      const status = input.action === "approve" ? "approved" : input.action === "reject" ? "rejected" : "scheduled";
+      const scheduledDate = input.scheduledAt ? new Date(input.scheduledAt) : null;
+      await db.update(socialContentInventory)
+        .set({ status, scheduledAt: scheduledDate })
+        .where(eq(socialContentInventory.id, input.id));
+      return { success: true };
     }),
 });
 

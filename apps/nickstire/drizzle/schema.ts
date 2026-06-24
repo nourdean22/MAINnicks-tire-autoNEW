@@ -3535,4 +3535,68 @@ export const smsLearningRecommendations = mysqlTable("sms_learning_recommendatio
 export type SmsLearningRecommendation = typeof smsLearningRecommendations.$inferSelect;
 export type InsertSmsLearningRecommendation = typeof smsLearningRecommendations.$inferInsert;
 
+export const contentManufacturingCampaigns = mysqlTable("content_manufacturing_campaigns", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  topic: varchar("topic", { length: 128 }).notNull(),
+  persona: varchar("persona", { length: 64 }).notNull(),
+  targetMonthlyVolume: int("target_monthly_volume").default(30).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_campaign_topic").on(table.topic),
+]);
+
+export type ContentManufacturingCampaign = typeof contentManufacturingCampaigns.$inferSelect;
+export type InsertContentManufacturingCampaign = typeof contentManufacturingCampaigns.$inferInsert;
+
+export const socialContentInventory = mysqlTable("social_content_inventory", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  campaignId: varchar("campaign_id", { length: 64 }),
+  contentType: mysqlEnum("content_type", ["reel", "carousel", "post", "story", "poll"]).notNull(),
+  platform: mysqlEnum("platform", ["instagram", "facebook", "both"]).default("both").notNull(),
+  topic: varchar("topic", { length: 128 }).notNull(),
+  seriesName: varchar("series_name", { length: 128 }).notNull(),
+  episodeNumber: int("episode_number").default(1).notNull(),
+  hookCategory: varchar("hook_category", { length: 64 }).notNull(),
+  hookText: text("hook_text").notNull(),
+  bodyText: text("body_text").notNull(),
+  visualStyle: varchar("visual_style", { length: 64 }).notNull(),
+  persona: varchar("persona", { length: 64 }).notNull(),
+
+  // Attention Scores
+  scoreCuriosity: int("score_curiosity").default(0).notNull(),
+  scoreEmotion: int("score_emotion").default(0).notNull(),
+  scoreShareability: int("score_shareability").default(0).notNull(),
+  scoreCommentPotential: int("score_comment_potential").default(0).notNull(),
+  scoreSavePotential: int("score_save_potential").default(0).notNull(),
+  scoreLocalRelevance: int("score_local_relevance").default(0).notNull(),
+  scoreRevenueRelevance: int("score_revenue_relevance").default(0).notNull(),
+  scoreAuthority: int("score_authority").default(0).notNull(),
+  scoreHookStrength: int("score_hook_strength").default(0).notNull(),
+  scoreOverall: int("score_overall").default(0).notNull(),
+
+  // Asymmetric grounding fields
+  gscQuerySeed: varchar("gsc_query_seed", { length: 255 }),
+  weatherTriggerCondition: varchar("weather_trigger_condition", { length: 128 }),
+  interactiveDmKeyword: varchar("interactive_dm_keyword", { length: 64 }),
+
+  // Status & Lifecycle
+  status: varchar("status", { length: 32 }).default("pending").notNull(),
+  scheduledAt: timestamp("scheduled_at"),
+  publishedAt: timestamp("published_at"),
+  assetPaths: json("asset_paths"),
+  briefJson: text("brief_json"),
+  errorMessage: varchar("error_message", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_sci_status_scheduled").on(table.status, table.scheduledAt),
+  index("idx_sci_campaign").on(table.campaignId),
+  index("idx_sci_topic_type").on(table.topic, table.contentType),
+]);
+
+export type SocialContentInventory = typeof socialContentInventory.$inferSelect;
+export type InsertSocialContentInventory = typeof socialContentInventory.$inferInsert;
+
 
