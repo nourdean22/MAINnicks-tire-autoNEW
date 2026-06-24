@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { BUSINESS } from "@shared/business";
 import {
   ArrowLeft, Send as SendIcon, Plus, MessageSquare, Search, X, Sparkles,
+  ThumbsUp, ThumbsDown, AlertTriangle, CheckCircle, Play, Settings, RefreshCw
 } from "lucide-react";
 import { PageHeader } from "../shared";
 // wave-181.x Outreach Hub Phase 2 · GatewayPill hoisted to shared
@@ -161,13 +162,59 @@ function ThreadView({
     { conversationId: conversation.id, limit: 200 },
     { refetchInterval: 15_000 },
   );
-  // 2026-05-23 · markRead invalidates moved INTO onSuccess so they
-  // only fire after the server actually acknowledges. Previously the
-  // local invalidate raced the server call — if the server rejected
-  // (network blip), the unread badge stayed at 0 locally even though
-  // the DB still had unread messages, hiding new incoming texts from
-  // the operator. onError refetches the conversation list to restore
-  // server truth.
+
+  const suggestDraft = trpc.smsConversations.suggestDraft.useMutation();
+  const saveFeedback = trpc.smsConversations.saveFeedback.useMutation();
+
+  const [suggestedDraft, setSuggestedDraft] = useState<{
+    id: number | null;
+    draft: string;
+    intent: string;
+    confidence: number;
+    provider: string;
+    latencyMs: number;
+  } | null>(null);
+  const [isDraftLoading, setIsDraftLoading] = useState(false);
+
+  // Group by day / last message detection
+  const lastMessage = useMemo(() => {
+    const rows = messagesQ.data ?? [];
+    return rows[rows.length - 1];
+  }, [messagesQ.data]);
+
+  // Automatically suggest a draft when the last message is inbound
+  useEffect(() => {
+    if (lastMessage && lastMessage.direction === "inbound") {
+      setIsDraftLoading(true);
+      suggestDraft.mutate(
+        {
+          phone: conversation.customerPhone,
+          conversationId: conversation.id,
+        },
+        {
+          onSuccess: (res) => {
+            setSuggestedDraft({
+              id: res.draftId,
+              draft: res.draft,
+              intent: res.intent,
+              confidence: res.confidence,
+              provider: res.provider,
+              latencyMs: res.latencyMs,
+            });
+            setIsDraftLoading(false);
+          },
+          onError: (err) => {
+            console.error("Failed to suggest draft", err);
+            setIsDraftLoading(false);
+          },
+        }
+      );
+    } else {
+      setSuggestedDraft(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation.id, lastMessage?.id]);
+
   const markRead = trpc.smsConversations.markRead.useMutation({
     onSuccess: () => {
       void utils.smsConversations.list.invalidate();
@@ -178,12 +225,26 @@ function ThreadView({
       void utils.smsConversations.unreadCount.invalidate();
     },
   });
+
   const send = trpc.smsConversations.send.useMutation({
     onSuccess: () => {
       void messagesQ.refetch();
       void utils.smsConversations.list.invalidate();
       void utils.smsConversations.unreadCount.invalidate();
+
+      // Record feedback on successful send
+      if (suggestedDraft) {
+        const finalReply = reply.trim();
+        const wasEdited = finalReply !== suggestedDraft.draft;
+        saveFeedback.mutate({
+          draftId: suggestedDraft.id!,
+          operatorReply: finalReply,
+          status: wasEdited ? "edited" : "approved",
+        });
+      }
+
       setReply("");
+      setSuggestedDraft(null);
     },
     // onError toast intentionally omitted — handleSend's try/catch already
     // surfaces exactly one toast per outcome (success/failure/throw). A
@@ -320,6 +381,166 @@ function ThreadView({
           ctx={{ name: conversation.customerName, vehicle: null }}
           onInsert={(body) => setReply((prev) => (prev.trim() ? `${prev.trimEnd()} ${body}` : body))}
         />
+
+        {/* NickGPT Suggestion Card */}
+        {isDraftLoading && (
+          <div className="mb-3 p-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.02] flex items-center justify-between text-xs text-foreground/60 animate-pulse">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+              <span>NickGPT is drafting a reply...</span>
+            </div>
+          </div>
+        )}
+
+        {suggestedDraft && !isDraftLoading && (
+          <div className="mb-3 p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/[0.03] shadow-inner text-xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span className="font-semibold text-amber-500 tracking-tight text-[13px]">NickGPT Suggestion</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20 capitalize">
+                  {suggestedDraft.intent} ({Math.round(suggestedDraft.confidence * 100)}%)
+                </span>
+              </div>
+              <span className="text-[10px] text-foreground/40 font-mono">
+                via {suggestedDraft.provider} ({suggestedDraft.latencyMs}ms)
+              </span>
+            </div>
+
+            <p className="text-[13px] leading-relaxed text-foreground/90 italic bg-background/50 p-2.5 rounded-lg border border-border/20">
+              "{suggestedDraft.draft}"
+            </p>
+
+            {/* Quick Action Preset Chips */}
+            <div className="flex flex-wrap gap-1.5 py-1">
+              <button
+                type="button"
+                onClick={() => setReply("Conventional oil change is $49. No appointment needed, just stop by.")}
+                className="px-2.5 py-1 rounded bg-foreground/5 hover:bg-foreground/10 text-[10px] text-foreground/80 transition-colors font-medium border border-border/20"
+              >
+                Conventional Oil: $49
+              </button>
+              <button
+                type="button"
+                onClick={() => setReply("Synthetic oil change is $80. No appointment needed, just stop by.")}
+                className="px-2.5 py-1 rounded bg-foreground/5 hover:bg-foreground/10 text-[10px] text-foreground/80 transition-colors font-medium border border-border/20"
+              >
+                Synthetic Oil: $80
+              </button>
+              <button
+                type="button"
+                onClick={() => setReply("Used tires start at $60+ mounting/balancing included. Bring it by for a look.")}
+                className="px-2.5 py-1 rounded bg-foreground/5 hover:bg-foreground/10 text-[10px] text-foreground/80 transition-colors font-medium border border-border/20"
+              >
+                Used Tires: $60+
+              </button>
+              <button
+                type="button"
+                onClick={() => setReply("Bring it by for a free check, written quote. You don't pay until you say yes to the work.")}
+                className="px-2.5 py-1 rounded bg-foreground/5 hover:bg-foreground/10 text-[10px] text-foreground/80 transition-colors font-medium border border-border/20"
+              >
+                Free Check CTA
+              </button>
+              <button
+                type="button"
+                onClick={() => setReply("Open Mon-Sat 8-6, Sun 9-4. Located at 17625 Euclid Ave. (216) 862-0005.")}
+                className="px-2.5 py-1 rounded bg-foreground/5 hover:bg-foreground/10 text-[10px] text-foreground/80 transition-colors font-medium border border-border/20"
+              >
+                Hours & Directions
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 flex-wrap border-t border-border/10 pt-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setReply(suggestedDraft.draft)}
+                  className="px-2.5 py-1 rounded bg-amber-500 text-black font-semibold hover:bg-amber-400 transition-colors text-[11px]"
+                >
+                  Use Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await send.mutateAsync({
+                        phone: conversation.customerPhone,
+                        message: suggestedDraft.draft,
+                        customerName: conversation.customerName || undefined,
+                      });
+                      if (res.success) {
+                        toast.success("Sent");
+                        saveFeedback.mutate({
+                          draftId: suggestedDraft.id!,
+                          status: "approved",
+                        });
+                        setSuggestedDraft(null);
+                      } else {
+                        toast.error("Send failed");
+                      }
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Send failed");
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded bg-foreground/10 hover:bg-foreground/20 text-foreground transition-colors font-semibold text-[11px]"
+                >
+                  Send Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDraftLoading(true);
+                    suggestDraft.mutate({
+                      phone: conversation.customerPhone,
+                      conversationId: conversation.id,
+                    });
+                  }}
+                  className="px-2 py-1 text-foreground/60 hover:text-foreground hover:bg-foreground/5 rounded text-[11px] transition-colors"
+                >
+                  Regenerate
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-foreground/45 text-[10px]">Rate:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    saveFeedback.mutate({ draftId: suggestedDraft.id!, rating: "good" });
+                    toast.success("Rated Good");
+                  }}
+                  className="p-1 hover:bg-green-500/10 text-foreground/50 hover:text-green-400 rounded transition-colors text-[12px]"
+                  title="Rate Good"
+                >
+                  👍
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    saveFeedback.mutate({ draftId: suggestedDraft.id!, rating: "bad" });
+                    toast.success("Rated Bad");
+                  }}
+                  className="p-1 hover:bg-red-500/10 text-foreground/50 hover:text-red-400 rounded transition-colors text-[12px]"
+                  title="Rate Bad"
+                >
+                  👎
+                </button>
+                <div className="w-px h-3 bg-border/30 mx-1" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    saveFeedback.mutate({ draftId: suggestedDraft.id!, status: "rejected" });
+                    setSuggestedDraft(null);
+                  }}
+                  className="px-2 py-1 text-foreground/45 hover:text-foreground/75 rounded hover:bg-foreground/5 text-[11px] transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-end gap-2">
           <textarea
             value={reply}
@@ -620,6 +841,237 @@ function ConversationList({
   );
 }
 
+// ─── NickGPT Status & Test Console Dashboard ───────────
+function NickGptDashboard({ onNew }: { onNew: () => void }) {
+  const statsQ = trpc.smsConversations.getNickGptStats.useQuery(undefined, { refetchInterval: 10_000 });
+  const flagsQ = trpc.featureFlags.list.useQuery();
+  const utils = trpc.useUtils();
+
+  const toggleFlag = trpc.featureFlags.toggle.useMutation({
+    onSuccess: (res) => {
+      toast.success(`${res.key} ${res.value ? "ENABLED" : "DISABLED"}`);
+      void flagsQ.refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const [testInput, setTestInput] = useState("");
+  const [testResult, setTestResult] = useState<{
+    draft: string;
+    intent: string;
+    confidence: number;
+    provider: string;
+    latencyMs: number;
+  } | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+
+  const testDraftMut = trpc.smsConversations.suggestDraft.useMutation({
+    onSuccess: (res) => {
+      setTestResult({
+        draft: res.draft,
+        intent: res.intent,
+        confidence: res.confidence,
+        provider: res.provider,
+        latencyMs: res.latencyMs,
+      });
+      setIsTesting(false);
+    },
+    onError: (err) => {
+      toast.error(`Test failed: ${err.message}`);
+      setIsTesting(false);
+    }
+  });
+
+  const getFlagValue = (key: string) => {
+    return flagsQ.data?.find((f) => f.key === key)?.value ?? false;
+  };
+
+  const handleToggle = (key: string) => {
+    const current = getFlagValue(key);
+    toggleFlag.mutate({ key, value: !current });
+  };
+
+  const handleTest = (message: string) => {
+    setTestInput(message);
+    setIsTesting(true);
+    testDraftMut.mutate({
+      phone: "2168620005",
+      inboundMessage: message,
+    });
+  };
+
+  const stats = statsQ.data;
+
+  return (
+    <div className="flex-1 flex flex-col bg-card border border-border/30 rounded-2xl overflow-hidden p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border/10 pb-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-amber-500" />
+          <h3 className="font-bold text-foreground text-[16px]">NickGPT Command Center</h3>
+        </div>
+        <button
+          onClick={onNew}
+          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-full font-semibold text-[12px] hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          New Message
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Left Side: Status & Flags & Stats */}
+        <div className="space-y-6">
+          {/* Feature Flags */}
+          <div className="space-y-3.5">
+            <h4 className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-semibold">Engine Control Flags</h4>
+            
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-foreground/[0.02] border border-border/10">
+                <div>
+                  <p className="font-medium text-foreground text-[13px]">NickGPT Draft Assistant</p>
+                  <p className="text-[11px] text-foreground/45">Route drafts through NickGPT 3B</p>
+                </div>
+                <button
+                  onClick={() => handleToggle("nickgpt_drafter_enabled")}
+                  disabled={toggleFlag.isPending}
+                  className={`px-3 py-1 rounded text-[11px] font-semibold transition-colors ${
+                    getFlagValue("nickgpt_drafter_enabled") 
+                      ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" 
+                      : "bg-foreground/5 text-foreground/40 border border-border/10"
+                  }`}
+                >
+                  {getFlagValue("nickgpt_drafter_enabled") ? "ON" : "OFF"}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-foreground/[0.02] border border-border/10">
+                <div>
+                  <p className="font-medium text-foreground text-[13px]">Auto-Reply Engine</p>
+                  <p className="text-[11px] text-foreground/45">Auto-respond to inbound SMS based on intent</p>
+                </div>
+                <button
+                  onClick={() => handleToggle("smart_sms_auto_reply")}
+                  disabled={toggleFlag.isPending}
+                  className={`px-3 py-1 rounded text-[11px] font-semibold transition-colors ${
+                    getFlagValue("smart_sms_auto_reply") 
+                      ? "bg-primary/10 text-primary border border-primary/20" 
+                      : "bg-foreground/5 text-foreground/40 border border-border/10"
+                  }`}
+                >
+                  {getFlagValue("smart_sms_auto_reply") ? "ON" : "OFF"}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-foreground/[0.02] border border-border/10">
+                <div>
+                  <p className="font-medium text-foreground text-[13px]">Low-Risk Auto-Send</p>
+                  <p className="text-[11px] text-foreground/45">Auto-send obvious greetings and simple queries</p>
+                </div>
+                <button
+                  onClick={() => handleToggle("nickgpt_low_risk_autosend_enabled")}
+                  disabled={toggleFlag.isPending}
+                  className={`px-3 py-1 rounded text-[11px] font-semibold transition-colors ${
+                    getFlagValue("nickgpt_low_risk_autosend_enabled") 
+                      ? "bg-green-500/10 text-green-400 border border-green-500/20" 
+                      : "bg-foreground/5 text-foreground/40 border border-border/10"
+                  }`}
+                >
+                  {getFlagValue("nickgpt_low_risk_autosend_enabled") ? "ON" : "OFF"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="space-y-3.5">
+            <h4 className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-semibold">Today's Performance</h4>
+            
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-3 rounded-xl bg-foreground/[0.02] border border-border/10 text-center">
+                <p className="text-foreground/45 text-[10px] uppercase font-medium">Generated</p>
+                <p className="text-xl font-bold text-foreground mt-1">{stats?.draftsGeneratedToday ?? 0}</p>
+              </div>
+              <div className="p-3 rounded-xl bg-foreground/[0.02] border border-border/10 text-center">
+                <p className="text-foreground/45 text-[10px] uppercase font-medium">Approved</p>
+                <p className="text-xl font-bold text-foreground mt-1">{stats?.draftsApprovedToday ?? 0}</p>
+              </div>
+              <div className="p-3 rounded-xl bg-foreground/[0.02] border border-border/10 text-center">
+                <p className="text-foreground/45 text-[10px] uppercase font-medium">Approval Rate</p>
+                <p className="text-xl font-bold text-amber-500 mt-1">{stats?.approvalRate ?? 100}%</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side: Interactive Test Console */}
+        <div className="flex flex-col space-y-4 border-t md:border-t-0 md:border-l border-border/10 pt-6 md:pt-0 md:pl-6">
+          <h4 className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-semibold">Interactive Test Console</h4>
+          
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => handleTest("do you sell used tires?")}
+              className="px-2.5 py-1 rounded bg-foreground/[0.03] hover:bg-foreground/[0.06] border border-border/20 text-[11px] transition-colors"
+            >
+              Used Tires Inquiry
+            </button>
+            <button
+              onClick={() => handleTest("need to book an oil change tomorrow")}
+              className="px-2.5 py-1 rounded bg-foreground/[0.03] hover:bg-foreground/[0.06] border border-border/20 text-[11px] transition-colors"
+            >
+              Oil Change Booking
+            </button>
+            <button
+              onClick={() => handleTest("is my car ready for pickup?")}
+              className="px-2.5 py-1 rounded bg-foreground/[0.03] hover:bg-foreground/[0.06] border border-border/20 text-[11px] transition-colors"
+            >
+              Status Inquiry
+            </button>
+          </div>
+
+          <div className="flex gap-2">
+            <textarea
+              value={testInput}
+              onChange={(e) => setTestInput(e.target.value)}
+              placeholder="Type customer test message here..."
+              rows={2}
+              className="flex-1 bg-foreground/5 border border-border/30 rounded-xl px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-amber-500/50 resize-none"
+            />
+            <button
+              onClick={() => testInput.trim() && handleTest(testInput)}
+              disabled={isTesting || !testInput.trim()}
+              className="bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black font-semibold px-4 rounded-xl flex items-center justify-center transition-colors shrink-0 text-xs"
+            >
+              {isTesting ? "Testing..." : "Test"}
+            </button>
+          </div>
+
+          {testResult && (
+            <div className="flex-1 p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/[0.02] text-xs space-y-2">
+              <div className="flex items-center justify-between border-b border-border/10 pb-1.5">
+                <span className="font-semibold text-amber-500">Test Classification</span>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-amber-500/10 text-amber-500 capitalize">
+                  {testResult.intent} ({Math.round(testResult.confidence * 100)}%)
+                </span>
+              </div>
+              <div>
+                <p className="text-[10px] text-foreground/45 uppercase font-medium">Generated Draft</p>
+                <p className="text-[13px] text-foreground/90 italic leading-relaxed bg-background/50 p-2.5 rounded-lg border border-border/20 mt-1">
+                  "{testResult.draft}"
+                </p>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-foreground/30 font-mono pt-1">
+                <span>Latency: {testResult.latencyMs}ms</span>
+                <span>Source: {testResult.provider}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main section ───────────────────────────────────────
 export default function SmsSection() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -705,20 +1157,7 @@ export default function SmsSection() {
               key={selected.id /* re-mount per conversation so initialBody only seeds once */}
             />
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center bg-card border border-border/30 text-center px-6">
-              <MessageSquare className="w-10 h-10 text-foreground/15 mb-4" />
-              <h3 className="font-semibold text-foreground/70 tracking-tight mb-1">Select a conversation</h3>
-              <p className="text-foreground/40 text-sm max-w-xs">
-                Pick a thread from the left, or start a new message to any phone number.
-              </p>
-              <button
-                onClick={() => setShowNew(true)}
-                className="mt-5 inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-full font-medium text-[13px] hover:bg-primary/90 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                New message
-              </button>
-            </div>
+            <NickGptDashboard onNew={() => setShowNew(true)} />
           )}
         </div>
       </div>

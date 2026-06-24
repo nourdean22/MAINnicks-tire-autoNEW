@@ -14,8 +14,8 @@ image = (
         "accelerate==1.0.0",
         "bitsandbytes==0.44.0",
         "huggingface_hub==0.25.0",
+        "rich",
     )
-    .env({"HF_TOKEN": modal.Secret.from_name("huggingface-token")})
 )
 
 volume = modal.Volume.from_name("nickgpt-data", create_if_missing=True)
@@ -36,7 +36,7 @@ def train():
     from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
     from trl import SFTTrainer, SFTConfig
 
-    BASE_MODEL = "meta-llama/Llama-3.2-3B-Instruct"
+    BASE_MODEL = "Qwen/Qwen2.5-3B-Instruct"
 
     # 4-bit quant for memory efficiency on A10G
     bnb = BitsAndBytesConfig(
@@ -70,7 +70,11 @@ def train():
 
     dataset = load_dataset("json", data_files="/data/train.jsonl", split="train")
     # 90/10 train/eval split
-    split = dataset.train_test_split(test_size=0.1, seed=42)
+    if len(dataset) < 10:
+        print(f"Dataset has only {len(dataset)} items. Skipping train/test split.")
+        split = {"train": dataset, "test": dataset}
+    else:
+        split = dataset.train_test_split(test_size=0.1, seed=42)
 
     cfg = SFTConfig(
         output_dir="/output/nickgpt-lora",

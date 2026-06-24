@@ -83,8 +83,10 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
 
     // Persist inbound to the conversation thread — this is both the
     // admin-inbox record and the dedup marker the check above reads.
+    let conversationId: number | undefined = undefined;
     try {
       const conversation = await getOrCreateConversation(from);
+      conversationId = conversation.id;
       await addSmsMessage({
         conversationId: conversation.id,
         direction: "inbound",
@@ -102,8 +104,22 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
     const parsed = parseSmsResponse(body);
 
     // Execute auto-action if high confidence
+    let executed = false;
     if (parsed.autoAction && !parsed.requiresHuman) {
-      await executeAutoAction(parsed, from);
+      const res = await executeAutoAction(parsed, from);
+      executed = res.executed;
+    }
+
+    // If no keyword auto-action was executed, check if we should auto-reply via NickGPT
+    if (!executed && conversationId) {
+      try {
+        const { handleNickGptAutoSend } = await import("../../services/nickgpt-autosend");
+        await handleNickGptAutoSend(from, body, conversationId);
+      } catch (autoSendErr) {
+        log.warn("NickGPT auto-send check failed in Twilio webhook", {
+          error: autoSendErr instanceof Error ? autoSendErr.message : String(autoSendErr),
+        });
+      }
     }
 
     // Log communication (fire-and-forget)
