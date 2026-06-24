@@ -209,9 +209,9 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   const hasAudio = maps.includes("[aout]");
 
   const filterStr = fc.join(";");
-  console.log("=== FFmpeg Filtergraph ===");
-  console.log(filterStr);
-  console.log("==========================");
+  log.debug("=== FFmpeg Filtergraph ===");
+  log.debug(filterStr);
+  log.debug("==========================");
 
   return [
     ...inputs,

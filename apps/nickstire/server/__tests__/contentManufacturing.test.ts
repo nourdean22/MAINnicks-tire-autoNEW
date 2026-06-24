@@ -8,7 +8,12 @@ import {
   getReserveStatus,
   replenishReserve,
   syncSocialMetrics,
-  attributeRevenueToSocial
+  attributeRevenueToSocial,
+  detectServiceCategory,
+  getServiceCoverageStatus,
+  selectUnderservedService,
+  enforceServiceDiversityQuota,
+  determineVisualStyle
 } from "../services/contentManufacturing";
 import { invokeLLM } from "../_core/llm";
 
@@ -101,6 +106,7 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
     mockInventoryResult = [];
     insertValuesMock.mockClear();
     currentTableName = "";
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
   });
 
   describe("explodeTopic", () => {
@@ -411,6 +417,22 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
           created: 123,
           model: "model",
           choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(mockDraft) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({
+            scoreCuriosity: 90,
+            scoreEmotion: 90,
+            scoreShareability: 90,
+            scoreCommentPotential: 90,
+            scoreSavePotential: 90,
+            scoreLocalRelevance: 90,
+            scoreRevenueRelevance: 90,
+            scoreAuthority: 90,
+            scoreHookStrength: 90
+          }) }, finish_reason: "stop" }]
         });
 
       const result = await runManufacturingPipeline("campaign_123", "brakes", "cleveland_car_doctor");
@@ -504,6 +526,22 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
           created: 123,
           model: "model",
           choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(mockDraftSafe) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({
+            scoreCuriosity: 90,
+            scoreEmotion: 90,
+            scoreShareability: 90,
+            scoreCommentPotential: 90,
+            scoreSavePotential: 90,
+            scoreLocalRelevance: 90,
+            scoreRevenueRelevance: 90,
+            scoreAuthority: 90,
+            scoreHookStrength: 90
+          }) }, finish_reason: "stop" }]
         });
 
       const result = await runManufacturingPipeline("campaign_123", "brakes", "cleveland_car_doctor");
@@ -570,6 +608,22 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
           created: 123,
           model: "model",
           choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(mockDraftLowScore) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({
+            scoreCuriosity: 50,
+            scoreEmotion: 50,
+            scoreShareability: 50,
+            scoreCommentPotential: 50,
+            scoreSavePotential: 50,
+            scoreLocalRelevance: 50,
+            scoreRevenueRelevance: 50,
+            scoreAuthority: 50,
+            scoreHookStrength: 50
+          }) }, finish_reason: "stop" }]
         });
 
       const result = await runManufacturingPipeline("campaign_123", "brakes", "cleveland_car_doctor");
@@ -675,6 +729,22 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
           created: 123,
           model: "model",
           choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(mockDraft) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({
+            scoreCuriosity: 90,
+            scoreEmotion: 90,
+            scoreShareability: 90,
+            scoreCommentPotential: 90,
+            scoreSavePotential: 90,
+            scoreLocalRelevance: 90,
+            scoreRevenueRelevance: 90,
+            scoreAuthority: 90,
+            scoreHookStrength: 90
+          }) }, finish_reason: "stop" }]
         });
 
       const result = await replenishReserve();
@@ -771,6 +841,89 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
       const result = await attributeRevenueToSocial();
       expect(result.itemsProcessed).toBe(1);
       expect(result.bookingsAttributed).toBe(1);
+    });
+  });
+
+  describe("Service Coverage and Diversity Quota Helpers", () => {
+    it("detectServiceCategory should classify topics and text correctly", () => {
+      expect(detectServiceCategory({ topic: "Brake rotors worn down", bodyText: "" })).toBe("Brakes");
+      expect(detectServiceCategory({ topic: "Lake effect snow tires", bodyText: "" })).toBe("Tires");
+      expect(detectServiceCategory({ topic: "Pothole suspension clunk", bodyText: "" })).toBe("Suspension");
+      expect(detectServiceCategory({ topic: "Wheel bearing growl", bodyText: "" })).toBe("Wheel Bearings");
+      expect(detectServiceCategory({ topic: "Steering wheel alignment pull", bodyText: "" })).toBe("Alignment");
+      expect(detectServiceCategory({ topic: "Cabin AC blowing hot", bodyText: "" })).toBe("AC/Cooling");
+      expect(detectServiceCategory({ topic: "Battery replacement", bodyText: "" })).toBe("Batteries");
+      expect(detectServiceCategory({ topic: "Synthetic oil lube filter", bodyText: "" })).toBe("Oil Changes");
+      expect(detectServiceCategory({ topic: "Check engine diagnostic scanning", bodyText: "" })).toBe("Diagnostics");
+    });
+
+    it("getServiceCoverageStatus should calculate correct percentages", () => {
+      const mockInventory = [
+        { topic: "Tires are worn", bodyText: "" },
+        { topic: "Tires are flat", bodyText: "" },
+        { topic: "Brakes clanking", bodyText: "" },
+        { topic: "Wheel alignment alignment", bodyText: "" },
+        { topic: "Suspension struts struts", bodyText: "" },
+      ];
+      const coverage = getServiceCoverageStatus(mockInventory);
+      expect(coverage["Tires"].count).toBe(2);
+      expect(coverage["Tires"].percentage).toBe(40);
+      expect(coverage["Brakes"].count).toBe(1);
+      expect(coverage["Brakes"].percentage).toBe(20);
+      expect(coverage["Diagnostics"].count).toBe(0);
+      expect(coverage["Diagnostics"].percentage).toBe(0);
+    });
+
+    it("selectUnderservedService should prioritize based on priority list", () => {
+      const coverage = {
+        "Tires": { count: 10, percentage: 50 },
+        "Brakes": { count: 0, percentage: 0 },
+        "Alignment": { count: 0, percentage: 0 },
+        "Suspension": { count: 5, percentage: 25 },
+        "Diagnostics": { count: 3, percentage: 15 },
+        "Oil Changes": { count: 1, percentage: 5 },
+        "Batteries": { count: 0, percentage: 0 },
+        "AC/Cooling": { count: 0, percentage: 0 },
+        "Wheel Bearings": { count: 0, percentage: 0 },
+      };
+      const underserved = selectUnderservedService(coverage);
+      // Brakes is the first priority service that has 0 count
+      expect(underserved).toBe("Brakes");
+    });
+
+    it("enforceServiceDiversityQuota should demote Tires campaigns when tires exceed 40%", () => {
+      const campaigns = [
+        { id: "c1", topic: "Tires swap discount" },
+        { id: "c2", topic: "Brake check special" },
+        { id: "c3", topic: "Suspension inspection" }
+      ];
+      // Scenario A: Tires <= 40% (no change)
+      const coverageA = {
+        "Tires": { count: 2, percentage: 40 },
+        "Brakes": { count: 3, percentage: 60 }
+      } as any;
+      const resA = enforceServiceDiversityQuota(campaigns, coverageA);
+      expect(resA[0].id).toBe("c1"); // Tires remains first
+
+      // Scenario B: Tires > 40% (Tires campaign demoted)
+      const coverageB = {
+        "Tires": { count: 3, percentage: 60 },
+        "Brakes": { count: 2, percentage: 40 }
+      } as any;
+      const resB = enforceServiceDiversityQuota(campaigns, coverageB);
+      expect(resB[0].id).not.toBe("c1"); // Tires demoted, non-tires campaigns first
+      expect(resB[resB.length - 1].id).toBe("c1"); // Tires campaign at the end
+    });
+
+    it("determineVisualStyle should choose correct style based on service/franchise", () => {
+      const style1 = determineVisualStyle("Tires", "Mistakes");
+      expect(style1.key).toBe("pressure-gauge");
+
+      const style2 = determineVisualStyle("Suspension", "Survival");
+      expect(style2.key).toBe("pothole-topo");
+
+      const style3 = determineVisualStyle("Brakes", "Would you drive");
+      expect(style3.key).toBe("forensic-tag");
     });
   });
 });

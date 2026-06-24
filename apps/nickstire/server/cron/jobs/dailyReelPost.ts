@@ -82,6 +82,28 @@ async function setKv(key: string, value: string, label: string): Promise<void> {
   }
 }
 
+async function setAutopostProgress(idx: number, date: string): Promise<void> {
+  const { getDb } = await import("../../db");
+  const d = await getDb();
+  if (!d) return;
+  await d.transaction(async (tx) => {
+    // 1. Update index
+    const indexRow = await tx.select().from(shopSettings).where(eq(shopSettings.key, "reel_autopost_index")).limit(1);
+    if (indexRow.length > 0) {
+      await tx.update(shopSettings).set({ value: String(idx), updatedBy: "system" }).where(eq(shopSettings.key, "reel_autopost_index"));
+    } else {
+      await tx.insert(shopSettings).values({ key: "reel_autopost_index", value: String(idx), label: "Daily reel autopost — next reel index", category: "general", updatedBy: "system" });
+    }
+    // 2. Update date
+    const dateRow = await tx.select().from(shopSettings).where(eq(shopSettings.key, "reel_autopost_last_date")).limit(1);
+    if (dateRow.length > 0) {
+      await tx.update(shopSettings).set({ value: date, updatedBy: "system" }).where(eq(shopSettings.key, "reel_autopost_last_date"));
+    } else {
+      await tx.insert(shopSettings).values({ key: "reel_autopost_last_date", value: date, label: "Daily reel autopost — last post date (ET)", category: "general", updatedBy: "system" });
+    }
+  });
+}
+
 function etNow(): { date: string; hour: number } {
   const now = new Date();
   const date = now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }); // YYYY-MM-DD
@@ -180,8 +202,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // Successfully posted live!
     await d.update(reelJobs).set({ status: "posted", igPostId: ig.postId }).where(eq(reelJobs.id, job.id));
     const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
-    await setKv("reel_autopost_index", String(idx + 1), "Daily reel autopost — next reel index");
-    await setKv("reel_autopost_last_date", date, "Daily reel autopost — last post date (ET)");
+    await setAutopostProgress(idx + 1, date);
     log.info(`Successfully posted dynamic reel for job ${job.id}`, { postId: ig.postId });
     return { recordsProcessed: 1, details: `posted dynamic reel for job ${job.id} (index: ${idx + 1})` };
   }
@@ -191,8 +212,24 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
   }
 
   if (job.status === "failed") {
-    log.error(`Dynamic reel job ${job.id} failed: ${job.error}`);
-    return { recordsProcessed: 0, details: `Reel generation/assembly failed: ${job.error}` };
+    log.error(`Dynamic reel job ${job.id} failed: ${job.error}. Falling back to default safe video.`);
+    const videoUrl = "https://assets.mixkit.co/videos/preview/mixkit-car-mechanic-working-on-a-wheel-42289-large.mp4";
+    const idx0 = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
+    const caption = MANIFEST[idx0]?.caption || "Stop by Nick's Tire & Auto for a free check today!";
+    
+    log.info(`Publishing fallback video for failed job ${job.id}`);
+    const outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption });
+    const ig = outcome.results.find((r) => r.platform === "instagram");
+    if (!ig?.success) {
+      log.error(`Publishing fallback video failed for job ${job.id}`, { error: ig?.error });
+      return { recordsProcessed: 0, details: `Fallback publish failed: ${ig?.error ?? "unknown"} — not advancing index` };
+    }
+
+    await d.update(reelJobs).set({ status: "posted", igPostId: ig.postId }).where(eq(reelJobs.id, job.id));
+    const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
+    await setAutopostProgress(idx + 1, date);
+    log.info(`Successfully posted fallback reel for failed job ${job.id}`, { postId: ig.postId });
+    return { recordsProcessed: 1, details: `posted fallback reel for failed job ${job.id} (index: ${idx + 1})` };
   }
 
   return { recordsProcessed: 0, details: `Unknown job status: ${job.status}` };

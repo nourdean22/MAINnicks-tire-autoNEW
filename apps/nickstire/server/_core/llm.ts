@@ -211,19 +211,27 @@ const normalizeToolChoice = (
 };
 
 const resolveApiUrl = () => {
+  if (process.env.OPENAI_BASE_URL) {
+    return `${process.env.OPENAI_BASE_URL.replace(/\/$/, "")}/v1/chat/completions`;
+  }
+  if (process.env.OPENAI_API_KEY) {
+    return "https://api.openai.com/v1/chat/completions";
+  }
   if (process.env.GEMINI_API_KEY) {
     return "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions";
   }
-  const base = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
-  return `${base}/v1/chat/completions`;
+  return "https://api.openai.com/v1/chat/completions";
 };
 
-/** Returns the correct API key — GEMINI_API_KEY or OPENAI_API_KEY */
+/** Returns the correct API key — OPENAI_API_KEY or GEMINI_API_KEY */
 const resolveApiKey = (): string => {
+  if (process.env.OPENAI_API_KEY) {
+    return process.env.OPENAI_API_KEY;
+  }
   if (process.env.GEMINI_API_KEY) {
     return process.env.GEMINI_API_KEY;
   }
-  return process.env.OPENAI_API_KEY || "";
+  return "";
 };
 
 const assertApiKey = () => {
@@ -293,9 +301,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: process.env.GEMINI_API_KEY
-      ? (process.env.GEMINI_MODEL || "gemini-2.5-flash")
-      : (process.env.LLM_MODEL || "gpt-4o-mini"),
+    model: process.env.OPENAI_API_KEY
+      ? (process.env.LLM_MODEL || "gpt-4o-mini")
+      : (process.env.GEMINI_MODEL || "gemini-2.5-flash"),
     messages: messages.map(normalizeMessage),
   };
 

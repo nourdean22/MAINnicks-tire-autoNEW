@@ -12,6 +12,7 @@ export interface PublishInput {
   imageUrl?: string;
   imageUrls?: string[];
   videoUrl?: string;
+  isStory?: boolean;
 }
 
 export interface PublishOutcome {
@@ -31,7 +32,7 @@ export function captionClaimBlockers(caption: string) {
 /** Run the actual publish across the selected platforms. No claim-safety here —
  *  callers MUST gate on captionClaimBlockers() first. */
 export async function publishToSocial(input: PublishInput): Promise<PublishOutcome> {
-  const { postToFacebook, postToInstagram, postInstagramReel, postInstagramCarousel } = await import("./metaSocial");
+  const { postToFacebook, postToInstagram, postInstagramReel, postInstagramCarousel, postInstagramStory } = await import("./metaSocial");
   const results: PublishOutcome["results"] = [];
 
   if (input.platforms.includes("facebook")) {
@@ -43,7 +44,10 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
   }
 
   if (input.platforms.includes("instagram")) {
-    if (input.imageUrls && input.imageUrls.length >= 2) {
+    if (input.isStory) {
+      const r = await postInstagramStory({ imageUrl: input.imageUrl, videoUrl: input.videoUrl });
+      results.push({ platform: "instagram", ...r });
+    } else if (input.imageUrls && input.imageUrls.length >= 2) {
       const r = await postInstagramCarousel({ imageUrls: input.imageUrls, caption: input.caption });
       results.push({ platform: "instagram", ...r });
     } else if (input.videoUrl) {
