@@ -3581,6 +3581,14 @@ export const socialContentInventory = mysqlTable("social_content_inventory", {
   weatherTriggerCondition: varchar("weather_trigger_condition", { length: 128 }),
   interactiveDmKeyword: varchar("interactive_dm_keyword", { length: 64 }),
 
+  // Analytics & Performance Loopback (Self-Learning)
+  metricsReach: int("metrics_reach").default(0),
+  metricsEngagement: int("metrics_engagement").default(0),
+  metricsShares: int("metrics_shares").default(0),
+  metricsSaves: int("metrics_saves").default(0),
+  metricsComments: int("metrics_comments").default(0),
+  metricsBookingsAttributed: int("metrics_bookings_attributed").default(0),
+
   // Status & Lifecycle
   status: varchar("status", { length: 32 }).default("pending").notNull(),
   scheduledAt: timestamp("scheduled_at"),

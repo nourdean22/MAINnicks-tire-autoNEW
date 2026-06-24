@@ -88,6 +88,12 @@ export function runServerMigrations(): void {
         gsc_query_seed VARCHAR(255) NULL,
         weather_trigger_condition VARCHAR(128) NULL,
         interactive_dm_keyword VARCHAR(64) NULL,
+        metrics_reach INT DEFAULT 0,
+        metrics_engagement INT DEFAULT 0,
+        metrics_shares INT DEFAULT 0,
+        metrics_saves INT DEFAULT 0,
+        metrics_comments INT DEFAULT 0,
+        metrics_bookings_attributed INT DEFAULT 0,
         status VARCHAR(32) NOT NULL DEFAULT 'pending',
         scheduled_at TIMESTAMP NULL DEFAULT NULL,
         published_at TIMESTAMP NULL DEFAULT NULL,
@@ -99,7 +105,13 @@ export function runServerMigrations(): void {
         INDEX idx_sci_status_scheduled (status, scheduled_at),
         INDEX idx_sci_campaign (campaign_id),
         INDEX idx_sci_topic_type (topic, content_type)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_reach INT DEFAULT 0`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_engagement INT DEFAULT 0`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_shares INT DEFAULT 0`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_saves INT DEFAULT 0`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_comments INT DEFAULT 0`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_bookings_attributed INT DEFAULT 0`
     ];
     let applied = 0;
     for (const stmt of alters) {
