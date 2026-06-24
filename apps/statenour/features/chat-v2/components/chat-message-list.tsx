@@ -8,6 +8,7 @@ import { NickMessage } from "@/components/chat/nick-message";
 import { UserMessageBubble, AssistantMessageShell } from "@/components/chat/message-bubble-shells";
 import { MessageActionSheet } from "@/components/chat/message-action-sheet";
 import { ReasoningTraceModal } from "@/components/chat/reasoning-trace-modal";
+import { ReasoningTraceLive } from "@/components/chat/reasoning-trace-live";
 import { extractContextBlocks, extractQuality, extractCitations } from "@/lib/chat/extract-message-metadata";
 import { toast } from "sonner";
 
@@ -73,6 +74,10 @@ export function ChatMessageList({
                 const quality = extractQuality(m);
                 const citations = extractCitations(m);
 
+                const reasoningSteps = ((m as any).annotations || [])
+                  .filter((a: any) => a?.type === "reasoning-step")
+                  .map((a: any) => a.step);
+
                 return (
                   <AssistantMessageShell
                     key={i}
@@ -84,6 +89,7 @@ export function ChatMessageList({
                     citations={citations}
                     onRegen={() => { toast("Regen triggered (coming soon)"); }}
                   >
+                    <ReasoningTraceLive steps={reasoningSteps} />
                     <NickMessage 
                       text={part.text} 
                       streaming={isLoading && m.id === messages[messages.length - 1]?.id} 
