@@ -6,7 +6,9 @@ import {
   generateScoredDraft,
   runManufacturingPipeline,
   getReserveStatus,
-  replenishReserve
+  replenishReserve,
+  syncSocialMetrics,
+  attributeRevenueToSocial
 } from "../services/contentManufacturing";
 import { invokeLLM } from "../_core/llm";
 
@@ -15,6 +17,10 @@ let currentTableName = "";
 let mockDbResult: any[] = [];
 let mockCampaignsResult: any[] = [];
 let mockInventoryResult: any[] = [];
+let mockCommLogResult: any[] = [];
+let mockSmsMessagesResult: any[] = [];
+let mockBookingsResult: any[] = [];
+let mockInstagramAnalyticsResult: any[] = [];
 const insertValuesMock = vi.fn().mockReturnThis();
 
 const mockDb: any = {
@@ -22,14 +28,11 @@ const mockDb: any = {
     const builder = {
       from: vi.fn().mockImplementation((table) => {
         if (table) {
-          currentTableName = table.name || 
-            table._meta?.name || 
-            table[Symbol.for('drizzle:Name')] || 
-            table[Symbol.for('drizzle:OriginalName')] || 
-            "";
+          currentTableName = table[Symbol.for('drizzle:Name')] || table.name || table._meta?.name || "";
         }
         return builder;
       }),
+      innerJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
@@ -39,6 +42,14 @@ const mockDb: any = {
           result = mockCampaignsResult;
         } else if (currentTableName === "social_content_inventory") {
           result = mockInventoryResult;
+        } else if (currentTableName === "communication_log") {
+          result = mockCommLogResult;
+        } else if (currentTableName === "sms_messages" || currentTableName === "sms_conversations") {
+          result = mockSmsMessagesResult;
+        } else if (currentTableName === "bookings") {
+          result = mockBookingsResult;
+        } else if (currentTableName === "instagram_analytics") {
+          result = mockInstagramAnalyticsResult;
         }
         currentTableName = ""; // reset
         return Promise.resolve(result).then(onFulfilled);
@@ -53,6 +64,16 @@ const mockDb: any = {
         return Promise.resolve([]).then(onFulfilled);
       }),
     };
+  }),
+  update: vi.fn().mockImplementation(() => {
+    const builder = {
+      set: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      then: vi.fn().mockImplementation((onFulfilled) => {
+        return Promise.resolve([]).then(onFulfilled);
+      }),
+    };
+    return builder;
   })
 };
 
@@ -660,6 +681,96 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
       expect(result.success).toBe(true);
       expect(result.draftsCreated).toBe(1);
       expect(result.campaignRuns).toContain("brakes");
+    });
+  });
+
+  describe("syncSocialMetrics", () => {
+    beforeEach(() => {
+      mockInventoryResult = [];
+      mockInstagramAnalyticsResult = [];
+      mockCommLogResult = [];
+      mockSmsMessagesResult = [];
+      mockBookingsResult = [];
+    });
+
+    it("should match instagramAnalytics to socialContentInventory and sync metrics", async () => {
+      mockInventoryResult = [
+        {
+          id: "item_1",
+          status: "published",
+          hookText: "Don't drive on Cuyahoga winter roads without checking this",
+          bodyText: "Brake check info",
+          interactiveDmKeyword: "SURVIVE",
+          contentType: "reel",
+          platform: "instagram",
+          metricsReach: 0,
+          metricsEngagement: 0,
+        }
+      ];
+
+      mockInstagramAnalyticsResult = [
+        {
+          id: 101,
+          postId: "ig_post_123",
+          postType: "VIDEO",
+          caption: "Don't drive on Cuyahoga winter roads without checking this! Text SURVIVE for a checklist.",
+          likes: 12,
+          comments: 3,
+          reach: 150,
+          shares: 5,
+          saved: 8,
+        }
+      ];
+
+      const result = await syncSocialMetrics();
+      expect(result.matched).toBe(1);
+      expect(result.updated).toBe(1);
+    });
+  });
+
+  describe("attributeRevenueToSocial", () => {
+    beforeEach(() => {
+      mockInventoryResult = [];
+      mockInstagramAnalyticsResult = [];
+      mockCommLogResult = [];
+      mockSmsMessagesResult = [];
+      mockBookingsResult = [];
+    });
+
+    it("should attribute bookings to inventory items using interactiveDmKeyword", async () => {
+      mockInventoryResult = [
+        {
+          id: "item_1",
+          status: "published",
+          hookText: "Checking brakes",
+          bodyText: "Brake check info",
+          interactiveDmKeyword: "SURVIVE",
+          publishedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        }
+      ];
+
+      mockCommLogResult = [
+        {
+          phone: "2165551234",
+          body: "Please send me the SURVIVE checklist!",
+          createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+        }
+      ];
+
+      mockSmsMessagesResult = [];
+
+      mockBookingsResult = [
+        {
+          id: 501,
+          phone: "2165551234",
+          createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        }
+      ];
+
+      const result = await attributeRevenueToSocial();
+      expect(result.itemsProcessed).toBe(1);
+      expect(result.bookingsAttributed).toBe(1);
     });
   });
 });

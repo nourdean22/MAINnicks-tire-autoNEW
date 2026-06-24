@@ -1,10 +1,15 @@
-import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, like } from "drizzle-orm";
 import { getDbTyped } from "../db";
 import {
   contentManufacturingCampaigns,
   socialContentInventory,
   searchPerformance,
-  competitorSnapshots
+  competitorSnapshots,
+  communicationLog,
+  smsMessages,
+  smsConversations,
+  bookings,
+  instagramAnalytics
 } from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
 import { createLogger } from "../lib/logger";
@@ -717,4 +722,199 @@ export async function replenishReserve(): Promise<{ success: boolean; draftsCrea
     draftsCreated: totalDraftsCreated,
     campaignRuns
   };
+}
+
+/**
+ * Matches instagramAnalytics records to socialContentInventory items (via caption check),
+ * copying reach, engagement (likes + comments), shares, saves, and comments count.
+ */
+export async function syncSocialMetrics(): Promise<{ matched: number; updated: number }> {
+  log.info("Running syncSocialMetrics loop");
+  const db = await getDbTyped();
+  if (!db) return { matched: 0, updated: 0 };
+
+  const inventoryItems = await db
+    .select()
+    .from(socialContentInventory)
+    .where(eq(socialContentInventory.status, "published"));
+
+  const analyticsPosts = await db
+    .select()
+    .from(instagramAnalytics);
+
+  let matched = 0;
+  let updated = 0;
+
+  const cleanText = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  for (const item of inventoryItems) {
+    const matchingPost = analyticsPosts.find((post) => {
+      if (!post.caption) return false;
+      const cleanCaption = cleanText(post.caption);
+
+      // Match 1: caption contains clean hookText
+      if (item.hookText && cleanCaption.includes(cleanText(item.hookText))) {
+        return true;
+      }
+      // Match 2: caption contains clean bodyText
+      if (item.bodyText && cleanCaption.includes(cleanText(item.bodyText))) {
+        return true;
+      }
+      // Match 3: keyword match + content type alignment
+      if (item.interactiveDmKeyword && item.interactiveDmKeyword.length > 2) {
+        const cleanKeyword = cleanText(item.interactiveDmKeyword);
+        if (cleanCaption.includes(cleanKeyword)) {
+          const typeMatch =
+            (item.contentType === "reel" && post.postType === "VIDEO") ||
+            (item.contentType === "carousel" && post.postType === "CAROUSEL_ALBUM") ||
+            (item.contentType === "post" && post.postType === "IMAGE");
+          if (typeMatch) return true;
+        }
+      }
+      return false;
+    });
+
+    if (matchingPost) {
+      matched++;
+      const reach = matchingPost.reach || 0;
+      const likes = matchingPost.likes || 0;
+      const comments = matchingPost.comments || 0;
+      const engagement = likes + comments;
+      const shares = matchingPost.shares || 0;
+      const saves = matchingPost.saved || 0;
+
+      if (
+        item.metricsReach !== reach ||
+        item.metricsEngagement !== engagement ||
+        item.metricsShares !== shares ||
+        item.metricsSaves !== saves ||
+        item.metricsComments !== comments
+      ) {
+        await db
+          .update(socialContentInventory)
+          .set({
+            metricsReach: reach,
+            metricsEngagement: engagement,
+            metricsShares: shares,
+            metricsSaves: saves,
+            metricsComments: comments,
+          })
+          .where(eq(socialContentInventory.id, item.id));
+        updated++;
+      }
+    }
+  }
+
+  log.info(`syncSocialMetrics finished: matched=${matched} updated=${updated}`);
+  return { matched, updated };
+}
+
+/**
+ * Attributes bookings back to socialContentInventory items based on customer phone numbers
+ * that interacted with the interactiveDmKeyword.
+ */
+export async function attributeRevenueToSocial(): Promise<{ itemsProcessed: number; bookingsAttributed: number }> {
+  log.info("Running attributeRevenueToSocial loop");
+  const db = await getDbTyped();
+  if (!db) return { itemsProcessed: 0, bookingsAttributed: 0 };
+
+  // Fetch all published content inventory items with DM keywords
+  const items = await db
+    .select()
+    .from(socialContentInventory)
+    .where(
+      and(
+        eq(socialContentInventory.status, "published"),
+        sql`${socialContentInventory.interactiveDmKeyword} IS NOT NULL`
+      )
+    );
+
+  let itemsProcessed = 0;
+  let bookingsAttributed = 0;
+
+  const ATTRIBUTION_WINDOW_DAYS = 14;
+
+  for (const item of items) {
+    const keyword = item.interactiveDmKeyword;
+    if (!keyword) continue;
+    itemsProcessed++;
+
+    const publishedAt = item.publishedAt || item.createdAt;
+
+    // Find communications containing the keyword since publication
+    const comms = await db
+      .select({
+        phone: communicationLog.customerPhone,
+        createdAt: communicationLog.createdAt,
+      })
+      .from(communicationLog)
+      .where(
+        and(
+          like(communicationLog.body, `%${keyword}%`),
+          gte(communicationLog.createdAt, publishedAt)
+        )
+      );
+
+    const sms = await db
+      .select({
+        phone: smsConversations.phone,
+        createdAt: smsMessages.createdAt,
+      })
+      .from(smsMessages)
+      .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
+      .where(
+        and(
+          like(smsMessages.body, `%${keyword}%`),
+          gte(smsMessages.createdAt, publishedAt)
+        )
+      );
+
+    const phoneInteractions = new Map<string, Date>();
+
+    const addInteraction = (phone: string | null, date: Date) => {
+      if (!phone) return;
+      const norm = phone.replace(/\D/g, "").slice(-10);
+      if (norm.length !== 10) return;
+
+      const existing = phoneInteractions.get(norm);
+      if (!existing || date < existing) {
+        phoneInteractions.set(norm, date);
+      }
+    };
+
+    for (const c of comms) addInteraction(c.phone, c.createdAt);
+    for (const s of sms) addInteraction(s.phone, s.createdAt);
+
+    let postBookingsCount = 0;
+
+    for (const [phone, interactionDate] of phoneInteractions.entries()) {
+      const windowEnd = new Date(interactionDate.getTime() + ATTRIBUTION_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+      // Find bookings for this phone number inside the attribution window
+      const matchedBookings = await db
+        .select()
+        .from(bookings)
+        .where(
+          and(
+            sql`RIGHT(REGEXP_REPLACE(${bookings.phone}, '[^0-9]', ''), 10) = ${phone}`,
+            gte(bookings.createdAt, interactionDate),
+            lte(bookings.createdAt, windowEnd)
+          )
+        );
+
+      postBookingsCount += matchedBookings.length;
+      bookingsAttributed += matchedBookings.length;
+    }
+
+    // Update the inventory item
+    await db
+      .update(socialContentInventory)
+      .set({
+        metricsBookingsAttributed: postBookingsCount,
+      })
+      .where(eq(socialContentInventory.id, item.id));
+  }
+
+  log.info(`attributeRevenueToSocial finished: itemsProcessed=${itemsProcessed} bookingsAttributed=${bookingsAttributed}`);
+  return { itemsProcessed, bookingsAttributed };
 }
