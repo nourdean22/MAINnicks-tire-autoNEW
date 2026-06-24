@@ -820,6 +820,21 @@ export async function updateTask(id: string, input: unknown) {
   if (before !== after) {
     if (after === "DOING") {
       emitTaskEventAsync({ taskId: id, kind: "started", source: "service:updateTask" });
+    } else if (after === "WAITING" && existing.loopKind !== "DAILY" && existing.loopKind !== "WEEKLY") {
+      emitTaskEventAsync({ taskId: id, kind: "waiting", source: "service:updateTask" });
+      const credit = await creditTaskStats(result.task.id).catch((err) => {
+        log.warn("task_stat_credit_failed", {
+          taskId: result.task.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return { statsCredited: 0, xpCredited: 0 };
+      });
+      completionReward = {
+        xpCredited: credit.xpCredited,
+        statsCredited: credit.statsCredited,
+        goalLifted: false,
+        streak: payload.streakCount ?? null,
+      };
     } else if (after === "DONE") {
       emitTaskEventAsync({ taskId: id, kind: "completed", source: "service:updateTask" });
       // v10.0.529.106 · Wave 52 · CRITICAL · pre-Wave-52 this path never

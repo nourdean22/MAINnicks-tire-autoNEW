@@ -51,6 +51,7 @@ export type TaskEventKind =
   | "snoozed"
   | "stale_flagged"
   | "revived"
+  | "waiting"
   | "killed";
 
 export interface TaskEventInput {
