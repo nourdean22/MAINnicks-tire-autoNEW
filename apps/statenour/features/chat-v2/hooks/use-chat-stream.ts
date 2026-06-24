@@ -6,8 +6,9 @@ import { useChatTransport } from "@/hooks/chat/use-chat-transport";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStall } from "@/hooks/chat/use-chat-stall";
 import { useStreamingErrorGuard } from "@/hooks/chat/use-streaming-error-guard";
+import type { ChatRuntimeController } from "../types/chat-runtime-controller";
 
-export function useChatStream() {
+export function useChatStream(): ChatRuntimeController {
   const activeConversationId = useChatUiStore((s) => s.activeConversationId);
   const setActiveConversationId = useChatUiStore((s) => s.setActiveConversationId);
   const setConnection = useChatUiStore((s) => s.setConnection);
@@ -23,11 +24,13 @@ export function useChatStream() {
     bodyRef.current.conversationId = activeConversationId;
   }, [activeConversationId]);
 
+  const liveContextBlocksRef = useRef<any>(null);
+
   // Use the robust transport wrapper from the repo
   const transport = useChatTransport({
     apiPath: "/api/ai/chat",
     transportBodyRef: bodyRef,
-    liveContextBlocksRef: useRef(null), // Provide refs if you need to extract these downstream
+    liveContextBlocksRef, // Provide refs if you need to extract these downstream
     lastPersonaHeaderRef: useRef(null),
     setDeeperContext: () => {}, 
     onConversationId: useCallback((id: string) => {
@@ -74,5 +77,15 @@ export function useChatStream() {
     }
   }, [stallStatus, setConnection]);
 
-  return chat;
+  return {
+    messages: chat.messages,
+    status: chat.status as "submitted" | "streaming" | "ready" | "error",
+    error: chat.error,
+    isStreaming: chat.status === "streaming" || chat.status === "submitted",
+    sendText: (text: string) => chat.sendMessage({ text }),
+    stop: chat.stop,
+    regenerate: chat.regenerate,
+    setMessages: chat.setMessages,
+    liveContextBlocksRef,
+  };
 }

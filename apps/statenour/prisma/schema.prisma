@@ -210,33 +210,33 @@ enum CaptureConversionTarget {
 }
 
 model Mission {
-  id                 String             @id @default(cuid())
+  id                 String               @id @default(cuid())
   title              String
   domain             MissionDomain
-  status             MissionStatus      @default(ACTIVE)
+  status             MissionStatus        @default(ACTIVE)
   priority           Int
   roiScore           Int
   neglectCost        Int
   successMetric      String?
   deadline           DateTime?
-  weeklyReviewNote   String?            @db.Text
+  weeklyReviewNote   String?              @db.Text
   manualRankOverride Int?
   /// 2026-06-09 · domain-anchored missions. systemKind="GENERAL" marks a
   /// system-managed per-domain anchor (the classifier's catch-all · protected
   /// from delete · excluded from project caps/counts). canonicalDomain is one
   /// of the 6 life domains (health/mind/business/social/spiritual/personal) —
   /// the real routing key; the legacy `domain` enum stays for back-compat.
-  systemKind         String?            @map("system_kind") @db.VarChar(16)
-  canonicalDomain    String?            @map("canonical_domain") @db.VarChar(24)
+  systemKind         String?              @map("system_kind") @db.VarChar(16)
+  canonicalDomain    String?              @map("canonical_domain") @db.VarChar(24)
   /// v7.8 · Apr 29 · Universal audit. Who created vs who last
   /// updated. Values: "user" (explicit Nour click) · "nick" (AI
   /// agent action) · "cron:<jobName>" · "bridge:<system>" · "system".
-  createdBy          String?            @default("system") @map("created_by") @db.VarChar(64)
-  updatedBy          String?            @default("system") @map("updated_by") @db.VarChar(64)
+  createdBy          String?              @default("system") @map("created_by") @db.VarChar(64)
+  updatedBy          String?              @default("system") @map("updated_by") @db.VarChar(64)
   /// v7.9 · Apr 29 · Universal soft-delete. NULL = active. Set on
   /// "delete" so the row is recoverable. Default queries should
   /// filter `deletedAt: null` (use the lib/db/soft-delete helpers).
-  deletedAt          DateTime?          @map("deleted_at")
+  deletedAt          DateTime?            @map("deleted_at")
   /// Full AI-generated plan data: phases, risks, pro tips, tools,
   /// decision points, done checklist, learning path, coach history.
   /// Populated by /api/ai/plan-project mode=plan, extended by mode=
@@ -248,17 +248,17 @@ model Mission {
   /// v10.0.421 · operator can link missions together (depends-on,
   /// blocks, related). MissionLink is an explicit join with optional
   /// relation type · self-referential many-to-many.
-  linkedFrom         MissionLink[]      @relation("MissionLinkSource")
-  linkedTo           MissionLink[]      @relation("MissionLinkTarget")
+  linkedFrom         MissionLink[]        @relation("MissionLinkSource")
+  linkedTo           MissionLink[]        @relation("MissionLinkTarget")
   /// Phase A.3 schema migration (2026-05-18) · explicit parent goal.
   /// Nullable so existing missions don't break · operator can backfill
   /// gradually via /goals UI or chat. When set, completing the mission
   /// can auto-bump the goal's progress. Per ADR-0012 + parked
   /// migration at prisma/migrations-pending/0001_mission_lifegoalid/.
   lifeGoalId         String?
-  lifeGoal           LifeGoal?          @relation(fields: [lifeGoalId], references: [id], onDelete: SetNull)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  lifeGoal           LifeGoal?            @relation(fields: [lifeGoalId], references: [id], onDelete: SetNull)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   /// Journal Brain (2026-06-01) — entries grounded/linked to this mission.
   journalDumps       BrainDump[]
@@ -315,7 +315,7 @@ model TaskClassificationCorrection {
 }
 
 model Task {
-  id                      String      @id @default(cuid())
+  id                      String         @id @default(cuid())
   title                   String
   missionId               String
   // v9.1.15 · changed Cascade → Restrict. Cascade was a Postgres-
@@ -324,30 +324,30 @@ model Task {
   // even though the soft-delete pattern is the entire DB convention.
   // Restrict surfaces accidental hard-deletes as an error, forcing
   // the caller to use softDelete() (which respects the pattern).
-  mission                 Mission     @relation(fields: [missionId], references: [id], onDelete: Restrict)
-  status                  TaskStatus  @default(INBOX)
+  mission                 Mission        @relation(fields: [missionId], references: [id], onDelete: Restrict)
+  status                  TaskStatus     @default(INBOX)
   nextPhysicalAction      String
   effort                  EffortBand
   roiScore                Int
   frictionScore           Int
   energyRequired          EnergyLevel
   context                 TaskContext
-  delegatable             Boolean     @default(false)
+  delegatable             Boolean        @default(false)
   waitingOn               String?
   dueDate                 DateTime?
   lastTouchedAt           DateTime?
-  driftRisk               Int         @default(0)
+  driftRisk               Int            @default(0)
   autoPriority            Int?
   manualPriorityOverride  Int?
-  autoPriorityExplanation String?     @db.Text
+  autoPriorityExplanation String?        @db.Text
   finishCondition         String
   /// v7.8 · Apr 29 · Universal audit. Same shape as Mission.
-  createdBy               String?     @default("system") @map("created_by") @db.VarChar(64)
-  updatedBy               String?     @default("system") @map("updated_by") @db.VarChar(64)
+  createdBy               String?        @default("system") @map("created_by") @db.VarChar(64)
+  updatedBy               String?        @default("system") @map("updated_by") @db.VarChar(64)
   /// Unified loop kind — see LoopKind enum. Apr 15 rebuild:
   /// MasteryHabit + Commitment + OpenLoop collapsed into this column
   /// on the Task model. Old tables still exist but hold no data.
-  loopKind                LoopKind    @default(ONCE)
+  loopKind                LoopKind       @default(ONCE)
   /// For PROMISE loops: who Nour promised (name, "myself",
   /// "Dania", "customer X", etc). Null for ONCE + DAILY.
   /// LEGACY free-text · superseded by personId below for known people
@@ -360,42 +360,42 @@ model Task {
   /// SET NULL (a deleted person leaves the task, just unlinked — the
   /// same orphan-not-cascade rule as goalId/parentTaskId).
   /// Backfilled from promiseTo name-match · migration 0005_people_overhaul.
-  personId                String?     @map("person_id")
+  personId                String?        @map("person_id")
   person                  PersonProfile? @relation("PersonTasks", fields: [personId], references: [id], onDelete: SetNull)
   /// For DAILY loops: last time this item was checked off.
   lastCompletedAt         DateTime?
   /// For DAILY loops: consecutive days completed streak. Incremented
   /// on complete; resets to 1 if the gap since lastCompletedAt is
   /// > 1 day. Displayed as a flame in the loop list.
-  streakCount             Int         @default(0)
+  streakCount             Int            @default(0)
   /// Optional link to a LifeGoal — lets loops trace up to the WHY
   /// so the UI can render lineage breadcrumbs. Nullable so legacy
   /// tasks and inbox items don't break. v11.0 W5.3 — upgraded from
   /// bare String? to a real @relation so Prisma can type-check
   /// goal fetches + cascading nulls on goal deletion.
   goalId                  String?
-  goal                    LifeGoal?   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  goal                    LifeGoal?      @relation(fields: [goalId], references: [id], onDelete: SetNull)
   /// 2026-06-01 · classifier-assigned mastery stat keys this task feeds
   /// (the 33 character-sheet stats). Set by `enrichTaskLinkage` when the
   /// task has no linked goal, so even goal-less tasks credit a real stat
   /// on completion. Empty = fall back to mission/goal-domain inference.
-  statHints               String[]    @default([])
+  statHints               String[]       @default([])
   /// 2026-06-01 · suggest-then-approve · when `enrichTaskLinkage` finds a
   /// LOW-confidence mission/goal match (below the silent-attach bar) it
   /// parks the proposal here instead of dropping it. The /missions chip
   /// shows it; the operator accepts (applies) or dismisses. Mirrors
   /// PersonProfile.pendingClassification. Shape: { missionId?, goalId?,
   /// statHints?, confidence, rationale, suggestedAt }.
-  pendingClassification   Json?       @map("pending_classification")
+  pendingClassification   Json?          @map("pending_classification")
   /// 2026-05-23 · task #22 · self-FK for subtask hierarchy (1 level
   /// per ADR-0017 amended Rule 4). Nullable · top-level tasks have
   /// NULL · subtasks point at their parent. ON DELETE SET NULL so a
   /// deleted parent leaves children as orphans rather than cascade-
   /// deleting (matches the goalId pattern · operator re-categorizes).
   /// Companion · prisma/migrations/20260523_task_parent_task_id/.
-  parentTaskId            String?     @map("parent_task_id")
-  parent                  Task?       @relation("TaskChildren", fields: [parentTaskId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  children                Task[]      @relation("TaskChildren")
+  parentTaskId            String?        @map("parent_task_id")
+  parent                  Task?          @relation("TaskChildren", fields: [parentTaskId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  children                Task[]         @relation("TaskChildren")
   /// For project-linked tasks: the phase name from the project plan.
   /// Populated when a task is created from ProjectPlanData.phases.
   phaseName               String?
@@ -403,7 +403,7 @@ model Task {
   /// task transitions from DOING → DONE via diff of startedAt to
   /// now. Used by the calibration loop that trains Nour's personal
   /// effort band estimates against reality.
-  actualMinutes           Int         @default(0)
+  actualMinutes           Int            @default(0)
   /// Set when status → DOING. Cleared when the task leaves DOING.
   /// Used to compute actualMinutes delta on completion.
   startedAt               DateTime?
@@ -413,25 +413,25 @@ model Task {
   /// into mega-morning). Pre-Wave-26 the snooze UI parked tasks in
   /// WAITING with no wake-up timestamp — they never came back. The
   /// "snoozed N days" promise is now actually kept.
-  snoozedUntil            DateTime?   @map("snoozed_until")
+  snoozedUntil            DateTime?      @map("snoozed_until")
   /// 2026-06-06 · WEEKLY loops · which weekdays this task recurs on.
   /// 0=Sunday .. 6=Saturday (JS Date.getDay()). Empty for ONCE/DAILY/
   /// PROMISE. On completion checkTask snoozes a WEEKLY task to its next
   /// listed weekday (status WAITING + snoozedUntil); the task-resurface
   /// cron flips it back to READY on that day.
-  recurringDays           Int[]       @default([]) @map("recurring_days")
+  recurringDays           Int[]          @default([]) @map("recurring_days")
   /// v7.9 · Apr 29 · Universal soft-delete.
-  deletedAt               DateTime?   @map("deleted_at")
-  completionNote          String?     @map("completion_note")
-  outcomeScore            Int?        @map("outcome_score")
+  deletedAt               DateTime?      @map("deleted_at")
+  completionNote          String?        @map("completion_note")
+  outcomeScore            Int?           @map("outcome_score")
   /// v9.0-rc · Apr 30 · Proof attachment.
   /// Shape: { urls?: string[]; screenshots?: string[]; metrics?: Record<string,number>; notes?: string; observedAt?: string }
   /// Marking DONE without proof is allowed (soft enforcement) but the
   /// command-center-state's `noProofDay` risk fires when a busy day
   /// has zero proof attachments. See docs/project/V9-PLAN.md §1 v9.0-rc.
   proof                   Json?
-  createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @updatedAt
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
   events                  TaskEvent[]
 
   @@index([missionId, status, dueDate])
@@ -584,25 +584,26 @@ model PersonalDailyLog {
 }
 
 model DailyExecutionState {
-  id                  String              @id @default(cuid())
-  stateDate           DateTime            @unique @db.Date
-  dayState            DayState            @default(OPEN)
+  id                  String     @id @default(cuid())
+  stateDate           DateTime   @unique @db.Date
+  dayState            DayState   @default(OPEN)
   currentCommand      String?
   currentTaskId       String?
   activeMissionId     String?
-  activeEmpireLane    EmpireLane          @default(MONEY)
-  blockedReason       String?             @db.Text
-  deferReason         String?             @db.Text
+  activeEmpireLane    EmpireLane @default(MONEY)
+  blockedReason       String?    @db.Text
+  deferReason         String?    @db.Text
   lastResolvedCommand String?
   tomorrowFirstMove   String?
-  recoveryQuota       Int                 @default(5)
-  recoveryTouches     Int                 @default(0)
-  missionMoved        Boolean             @default(false)
-  shadowMode          Boolean             @default(false)
-  openedAt            DateTime            @default(now())
+  recoveryQuota       Int        @default(5)
+  recoveryTouches     Int        @default(0)
+  missionMoved        Boolean    @default(false)
+  shadowMode          Boolean    @default(false)
+  openedAt            DateTime   @default(now())
   closedAt            DateTime?
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
   @@index([stateDate, dayState])
   @@index([activeEmpireLane, dayState])
   @@index([createdAt])
@@ -795,13 +796,13 @@ model OperatorPreference {
 }
 
 model RecoveryActionLog {
-  id         String     @id @default(cuid())
-  action     String
-  outcome    String?
-  note       String?    @db.Text
-  nextFollowUpAt       DateTime?
-  expectedValue        Int?
-  createdAt  DateTime   @default(now())
+  id             String    @id @default(cuid())
+  action         String
+  outcome        String?
+  note           String?   @db.Text
+  nextFollowUpAt DateTime?
+  expectedValue  Int?
+  createdAt      DateTime  @default(now())
 
   @@index([createdAt])
 }
@@ -2028,7 +2029,7 @@ model PersonProfile {
   currentStrategy String?  @map("current_strategy")
 
   // 2026-05-27 · Power Atlas Phase 0 ── power dynamics ──
-  powerBalance           Float   @default(0.0)   @map("power_balance")
+  powerBalance           Float   @default(0.0) @map("power_balance")
   /// 2026-05-27 · Power Atlas Phase 2 · operator-mandated safety. When
   /// true, Phase 3 auto-compute MUST SKIP this profile (operator's
   /// manual slider value is sticky). Set by `updatePowerBalance`
@@ -2219,21 +2220,21 @@ model LifeGoal {
 
   /// v11.0 W5.3 — back-reference for Task.goal. Enables
   /// `prisma.lifeGoal.findMany({ include: { tasks: true } })`.
-  tasks  Task[]
-  events GoalEvent[]
+  tasks              Task[]
+  events             GoalEvent[]
   /// Phase A.3 schema migration (2026-05-18) · back-ref for
   /// Mission.lifeGoalId · enables `lifeGoal.findMany({ include:
   /// { missions: true } })` for the /goals page sidebar.
-  missions Mission[]
+  missions           Mission[]
   /// Ambition Engine · goal↔mastery-stat spine + the ladder self-relation.
-  statLinks GoalStat[]
+  statLinks          GoalStat[]
   /// Journal Brain (2026-06-01) — entries grounded/linked to this goal.
   journalDumps       BrainDump[]
   journalReflections Reflection[]
   journalSituations  SituationLog[]
   journalDecisions   DecisionReplay[]
-  parent    LifeGoal?  @relation("GoalLadder", fields: [parentGoalId], references: [id], onDelete: SetNull)
-  children  LifeGoal[] @relation("GoalLadder")
+  parent             LifeGoal?        @relation("GoalLadder", fields: [parentGoalId], references: [id], onDelete: SetNull)
+  children           LifeGoal[]       @relation("GoalLadder")
 
   @@index([domain, status])
   @@index([horizon, status])
@@ -2558,18 +2559,18 @@ enum GreeneBook {
 }
 
 model StrategicLaw {
-  id              String          @id @default(cuid())
+  id              String         @id @default(cuid())
   book            GreeneBook
   number          Int
   title           String
   shortTitle      String
-  essence         String          @db.Text
-  shopApplication String          @db.Text
-  nourApplication String          @db.Text
+  essence         String         @db.Text
+  shopApplication String         @db.Text
+  nourApplication String         @db.Text
   triggerPatterns Json // string[] of snake_case patterns
   situationLogs   SituationLog[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@unique([book, number])
   @@index([book])
@@ -2770,7 +2771,7 @@ model CalibrationReviewItem {
   proposedActualOutcome Json?     @map("proposed_actual_outcome")
   approvedActualOutcome Json?     @map("approved_actual_outcome")
   confidence            Float     @default(0.5)
-  evidence              Json?     // e.g. { taskNote: "...", clicks: 10, revenue: 100 }
+  evidence              Json? // e.g. { taskNote: "...", clicks: 10, revenue: 100 }
   evidenceFreshness     DateTime? @map("evidence_freshness")
   reviewedBy            String?   @map("reviewed_by") @db.VarChar(64)
   reviewedAt            DateTime? @map("reviewed_at")
@@ -2787,22 +2788,22 @@ model CalibrationReviewItem {
 }
 
 model ApprovalRequest {
-  id               String           @id @default(cuid())
-  actionType       String           @map("action_type")
-  toolId           String           @map("tool_id")
-  status           String           @default("pending_approval")
-  riskClass        String           @map("risk_class")
-  payload          Json
-  resultPayload    Json?            @map("result_payload")
-  requestedBy      String           @map("requested_by")
-  reason           String           @db.Text
-  expiresAt        DateTime         @map("expires_at")
-  approvedAt       DateTime?        @map("approved_at")
-  approvedBy       String?          @map("approved_by")
-  executedAt       DateTime?        @map("executed_at")
-  screenshotUrl    String?          @map("screenshot_url")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
+  id            String    @id @default(cuid())
+  actionType    String    @map("action_type")
+  toolId        String    @map("tool_id")
+  status        String    @default("pending_approval")
+  riskClass     String    @map("risk_class")
+  payload       Json
+  resultPayload Json?     @map("result_payload")
+  requestedBy   String    @map("requested_by")
+  reason        String    @db.Text
+  expiresAt     DateTime  @map("expires_at")
+  approvedAt    DateTime? @map("approved_at")
+  approvedBy    String?   @map("approved_by")
+  executedAt    DateTime? @map("executed_at")
+  screenshotUrl String?   @map("screenshot_url")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   @@index([status])
   @@index([createdAt])
@@ -2810,18 +2811,18 @@ model ApprovalRequest {
 }
 
 model MemoryInboxItem {
-  id                String           @id @default(cuid())
-  sourceUrl         String?          @map("source_url")
-  sourceType        String           @map("source_type")
-  rawTextFenced     String           @map("raw_text_fenced")
-  extractedClaims   Json             @map("extracted_claims")
-  contradictionLogs Json?            @map("contradiction_logs")
-  privacyClass      String           @map("privacy_class")
-  status            String           @default("quarantined")
-  reviewedBy        String?          @map("reviewed_by")
-  reviewedAt        DateTime?        @map("reviewed_at")
-  createdAt         DateTime         @default(now()) @map("created_at")
-  updatedAt         DateTime         @updatedAt @map("updated_at")
+  id                String    @id @default(cuid())
+  sourceUrl         String?   @map("source_url")
+  sourceType        String    @map("source_type")
+  rawTextFenced     String    @map("raw_text_fenced")
+  extractedClaims   Json      @map("extracted_claims")
+  contradictionLogs Json?     @map("contradiction_logs")
+  privacyClass      String    @map("privacy_class")
+  status            String    @default("quarantined")
+  reviewedBy        String?   @map("reviewed_by")
+  reviewedAt        DateTime? @map("reviewed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   @@index([status])
   @@index([createdAt])
@@ -2829,15 +2830,15 @@ model MemoryInboxItem {
 }
 
 model PromptVersion {
-  id             String        @id @default(cuid())
-  version        Int
-  systemPrompt   String        @db.Text
-  userPrompt     String?       @db.Text
-  tags           String[]      @default([])
-  active         Boolean       @default(false)
-  createdBy      String        @default("user")
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id           String   @id @default(cuid())
+  version      Int
+  systemPrompt String   @db.Text
+  userPrompt   String?  @db.Text
+  tags         String[] @default([])
+  active       Boolean  @default(false)
+  createdBy    String   @default("user")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@unique([version])
   @@index([active])
@@ -2853,7 +2854,7 @@ model Contact {
   role         String      @db.VarChar(32) // "coaching_client", "lead", "sponsor", "partner"
   status       String      @default("active") // "lead", "active", "dormant"
   notes        String?     @db.Text
-  psychProfile Json?       // AI-extracted motivations, goals, pain points
+  psychProfile Json? // AI-extracted motivations, goals, pain points
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   bookings     Booking[]
@@ -2900,16 +2901,16 @@ model Agreement {
 
 // === 5. Commerce (Replaces Medusa) ===
 model Product {
-  id             String   @id @default(cuid())
-  slug           String   @unique
-  name           String
-  description    String?  @db.Text
-  priceCents     Int      @map("price_cents")
-  stripePriceId  String?  @map("stripe_price_id")
-  active         Boolean  @default(true)
-  metadata       Json?
-  createdAt      DateTime @default(now())
-  orders         Order[]
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  name          String
+  description   String?  @db.Text
+  priceCents    Int      @map("price_cents")
+  stripePriceId String?  @map("stripe_price_id")
+  active        Boolean  @default(true)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  orders        Order[]
 
   @@map("products")
 }
@@ -2958,27 +2959,27 @@ model LinkClick {
 }
 
 model SocialPublishQueue {
-  id              String             @id @default(cuid())
-  content         String             @db.Text
-  status          String             @default("pending") // "pending" | "approved" | "rejected" | "scheduled" | "published" | "rendering"
-  imageUrl        String?            @map("image_url") @db.Text
-  platforms       String[]           @default([]) // e.g. ["instagram", "gbp"]
-  scheduledFor    DateTime?          @map("scheduled_for")
-  publishedAt     DateTime?          @map("published_at")
-  publishUrls     String[]           @default([]) @map("publish_urls")
-  kind            String             @default("post") // "post" | "thread" | "story" | "reel"
-  source          String             @default("manual") // "nick" | "manual" | "statenour-pack"
-  sourceMetadata  Json?              @map("source_metadata")
-  approvedBy      String?            @map("approved_by")
-  approvedAt      DateTime?          @map("approved_at")
-  rejectedBy      String?            @map("rejected_by")
-  rejectedAt      DateTime?          @map("rejected_at")
-  rejectionReason String?            @map("rejection_reason") @db.Text
-  missionId       String?            @map("mission_id")
-  mission         Mission?           @relation(fields: [missionId], references: [id], onDelete: SetNull)
-  createdAt       DateTime           @default(now()) @map("created_at")
-  updatedAt       DateTime           @updatedAt @map("updated_at")
-  deletedAt       DateTime?          @map("deleted_at")
+  id              String    @id @default(cuid())
+  content         String    @db.Text
+  status          String    @default("pending") // "pending" | "approved" | "rejected" | "scheduled" | "published" | "rendering"
+  imageUrl        String?   @map("image_url") @db.Text
+  platforms       String[]  @default([]) // e.g. ["instagram", "gbp"]
+  scheduledFor    DateTime? @map("scheduled_for")
+  publishedAt     DateTime? @map("published_at")
+  publishUrls     String[]  @default([]) @map("publish_urls")
+  kind            String    @default("post") // "post" | "thread" | "story" | "reel"
+  source          String    @default("manual") // "nick" | "manual" | "statenour-pack"
+  sourceMetadata  Json?     @map("source_metadata")
+  approvedBy      String?   @map("approved_by")
+  approvedAt      DateTime? @map("approved_at")
+  rejectedBy      String?   @map("rejected_by")
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectionReason String?   @map("rejection_reason") @db.Text
+  missionId       String?   @map("mission_id")
+  mission         Mission?  @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
 
   @@index([status, scheduledFor])
   @@index([missionId])
@@ -2987,14 +2988,29 @@ model SocialPublishQueue {
   @@map("social_publish_queue")
 }
 
+model ContentStudioProject {
+  id          String @id @default(cuid())
+  contentType String @map("content_type") // e.g., "carousel", "reel"
+  topic       String @db.Text
+  briefJson   Json   @map("brief_json")
+  status      String @default("draft") // "draft" | "published"
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([contentType, status])
+  @@index([createdAt])
+  @@map("content_studio_projects")
+}
+
 // ── Intelligence OS Core ──
 
 model RegisteredSource {
   id              String           @id @default(cuid())
   name            String
   url             String           @unique
-  domain          String           // ai | seo | competitor | automotive | macro
-  sourceType      String           // official | primary | secondary | community
+  domain          String // ai | seo | competitor | automotive | macro
+  sourceType      String // official | primary | secondary | community
   authScore       Float            @default(70.0) @map("auth_score")
   refreshInterval Int              @default(86400) @map("refresh_interval") // refresh period in seconds
   lastFetched     DateTime?        @map("last_fetched")
@@ -3008,13 +3024,13 @@ model RegisteredSource {
 }
 
 model SourceDocument {
-  id           String             @id @default(cuid())
-  sourceId     String             @map("source_id")
-  source       RegisteredSource   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  rawContent   String             @db.Text @map("raw_content")
-  url          String?
-  capturedAt   DateTime           @default(now()) @map("captured_at")
-  claims       IntelligenceClaim[]
+  id         String              @id @default(cuid())
+  sourceId   String              @map("source_id")
+  source     RegisteredSource    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  rawContent String              @map("raw_content") @db.Text
+  url        String?
+  capturedAt DateTime            @default(now()) @map("captured_at")
+  claims     IntelligenceClaim[]
 
   @@index([sourceId])
   @@index([capturedAt])
@@ -3022,17 +3038,17 @@ model SourceDocument {
 }
 
 model IntelligenceClaim {
-  id                String          @id @default(cuid())
-  documentId        String          @map("document_id")
-  document          SourceDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  text              String          @db.Text
-  category          String          // research_claim | research_contradiction | research_action | research_question
-  confidence        Float           @default(0.5)
-  verificationScore Float           @map("verification_score")
-  status            String          @default("unverified") // source_supported | weak_support | unverified
-  bestMatchChunk    String?         @db.Text @map("best_match_chunk")
-  createdAt         DateTime        @default(now()) @map("created_at")
-  narrativeStatus   String?         @map("narrative_status") // emerging | peak | declining
+  id                String         @id @default(cuid())
+  documentId        String         @map("document_id")
+  document          SourceDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  text              String         @db.Text
+  category          String // research_claim | research_contradiction | research_action | research_question
+  confidence        Float          @default(0.5)
+  verificationScore Float          @map("verification_score")
+  status            String         @default("unverified") // source_supported | weak_support | unverified
+  bestMatchChunk    String?        @map("best_match_chunk") @db.Text
+  createdAt         DateTime       @default(now()) @map("created_at")
+  narrativeStatus   String?        @map("narrative_status") // emerging | peak | declining
 
   @@index([documentId])
   @@index([category, status])
@@ -3041,18 +3057,18 @@ model IntelligenceClaim {
 }
 
 model OpportunityLog {
-  id           String    @id @default(cuid())
-  title        String
-  description  String    @db.Text
-  domain       String    // ai | seo | competitor | automotive | macro
-  impact       Float     // 0 - 100
-  urgency      Float     // 0 - 100
-  confidence   Float     // 0.0 - 1.0
-  reversibility Float    // 0 - 100
-  score        Float     // calculated priority score
-  status       String    @default("pending") // pending | accepted | declined | resolved
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id            String   @id @default(cuid())
+  title         String
+  description   String   @db.Text
+  domain        String // ai | seo | competitor | automotive | macro
+  impact        Float // 0 - 100
+  urgency       Float // 0 - 100
+  confidence    Float // 0.0 - 1.0
+  reversibility Float // 0 - 100
+  score         Float // calculated priority score
+  status        String   @default("pending") // pending | accepted | declined | resolved
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@index([status, score(sort: Desc)])
   @@index([domain])
@@ -3061,15 +3077,12 @@ model OpportunityLog {
 }
 
 model BriefingLog {
-  id           String    @id @default(cuid())
-  briefType    String    @map("brief_type") // daily | weekly | monthly
-  content      String    @db.Text
-  sentAt       DateTime  @default(now()) @map("sent_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(cuid())
+  briefType String   @map("brief_type") // daily | weekly | monthly
+  content   String   @db.Text
+  sentAt    DateTime @default(now()) @map("sent_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([briefType, createdAt(sort: Desc)])
   @@map("briefing_logs")
 }
-
-
-

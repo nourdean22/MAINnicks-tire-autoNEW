@@ -18,6 +18,7 @@ import { taskRouter } from "./routers/task";
 import { journalRouter } from "./routers/journal";
 import { brainRouter } from "./routers/brain";
 import { aiRouter } from "./routers/ai";
+import { contentStudioRouter } from "./routers/content-studio";
 
 export const appRouter = router({
   nick: nickRouter,
@@ -29,6 +30,7 @@ export const appRouter = router({
   journal: journalRouter,
   brain: brainRouter,
   ai: aiRouter,
+  contentStudio: contentStudioRouter,
 });
 
 /** Type-only export for the client · NEVER import appRouter on the

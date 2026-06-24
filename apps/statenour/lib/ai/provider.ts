@@ -142,6 +142,18 @@ function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
   const ollama = createOpenAI({
     apiKey: apiKey!,
     baseURL: baseUrl ? `${baseUrl}/v1` : undefined,
+    fetch: async (url, options) => {
+      if (options?.body && typeof options.body === "string") {
+        try {
+          const parsed = JSON.parse(options.body);
+          if (typeof parsed.max_tokens === "number") {
+            parsed.options = { ...parsed.options, num_predict: parsed.max_tokens };
+            options.body = JSON.stringify(parsed);
+          }
+        } catch {}
+      }
+      return fetch(url, options);
+    },
   });
   return ollama.chat(modelId);
 }

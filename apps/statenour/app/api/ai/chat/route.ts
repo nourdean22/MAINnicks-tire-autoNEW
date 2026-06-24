@@ -1105,19 +1105,69 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           } catch {
             /* snapshot is best-effort — proceed without it */
           }
-          const { reasonStreaming } = await import("@/lib/ai/reasoning/engine");
-          const reasoning = await reasonStreaming(
-            {
+
+          const __altPersist = buildOnFinish({
+            log,
+            convId,
+            conversationId,
+            provider,
+            modelId,
+            model,
+            mode,
+            modeOverride,
+            personality,
+            contentMode,
+            finalSystemPrompt,
+            systemPrompt,
+            finalTaskType,
+            userContent,
+            turnSignal,
+            contextBlocksFired,
+            deeperContextCount,
+            deeperContextTypes,
+            startedAt,
+            firstTokenRef: __firstTokenRef,
+            traceId: __traceId,
+            recordTrace,
+            messages,
+            topicTier,
+          });
+
+          const { simulateReasoningStream } = await import(
+            "@/lib/ai/chat/simulate-stream-from-text"
+          );
+          const { buildChatResponse } = await import(
+            "@/lib/services/chat/response-shape"
+          );
+
+          const streamResponse = simulateReasoningStream({
+            request: {
               question: userContent,
               brainContext: (liveSnapshot + finalSystemPrompt).slice(0, 24000),
             },
-            () => {},
-          );
-          winner = reasoning.trace.answer ?? "";
-          log.info("deep_reasoning_path", {
-            tier: reasoning.tier,
-            intent: turnSignal.intent,
-            hadSnapshot: liveSnapshot.length > 0,
+            chunkSize: 24,
+            chunkDelayMs: 8,
+            onComplete: (finalWinner) => {
+              log.info("deep_reasoning_path_completed", { intent: turnSignal.intent, hadSnapshot: liveSnapshot.length > 0 });
+              return __altPersist({ text: finalWinner, finishReason: "stop" });
+            }
+          });
+
+          return buildChatResponse({
+            streamResponse,
+            convId: convId!,
+            traceId: __traceId,
+            mode,
+            modeOverride,
+            personality,
+            turnSignal,
+            deeperContextCount,
+            deeperContextTypes,
+            contextBlocksFired,
+            classification,
+            recalledMemories: recalledHits,
+            contradictions: detectedContradictions,
+            onFinishPromise: Promise.resolve(),
           });
         } else if (regenOn) {
           const { generateText } = await import("ai");
