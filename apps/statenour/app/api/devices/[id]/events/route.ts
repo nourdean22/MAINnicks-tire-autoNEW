@@ -41,15 +41,31 @@ export const POST = apiHandler(async (req, { params }) => {
   const body = await req.json();
   const items = body.events || [body];
 
-  const created = await prisma.deviceEvent.createMany({
-    data: items.map((e: { event: string; data?: unknown; source?: string; timestamp?: string }) => ({
-      deviceId: id,
-      event: e.event,
-      data: e.data || null,
-      source: e.source || "local",
-      timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
-    })),
-  });
+  const vehicleEvents = items.filter((e: any) => e.event === "vehicle_detected");
+  const otherEvents = items.filter((e: any) => e.event !== "vehicle_detected");
+
+  let syncedCount = 0;
+
+  if (otherEvents.length > 0) {
+    const created = await prisma.deviceEvent.createMany({
+      data: otherEvents.map((e: { event: string; data?: unknown; source?: string; timestamp?: string }) => ({
+        deviceId: id,
+        event: e.event,
+        data: e.data || null,
+        source: e.source || "local",
+        timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
+      })),
+    });
+    syncedCount += created.count;
+  }
+
+  if (vehicleEvents.length > 0) {
+    const { handleVehicleEvent } = await import("@/lib/services/vehicle-detection");
+    for (const e of vehicleEvents) {
+      await handleVehicleEvent(id, e);
+      syncedCount++;
+    }
+  }
 
   // Update device lastSeenAt
   await prisma.smartDevice.update({
@@ -57,5 +73,5 @@ export const POST = apiHandler(async (req, { params }) => {
     data: { lastSeenAt: new Date(), status: "ONLINE" },
   });
 
-  return { synced: created.count };
+  return { synced: syncedCount };
 }, { auth: "sync" });
