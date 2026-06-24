@@ -53,10 +53,10 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
         if (isReel) {
           mediaInput.videoUrl = assets[0] || "https://assets.mixkit.co/videos/preview/mixkit-car-mechanic-working-on-a-wheel-42289-large.mp4";
         } else if (isCarousel) {
-          mediaInput.imageUrls = assets.length >= 2 ? assets : [
-            "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=800",
-            "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80&w=800"
-          ];
+          if (assets.length < 2) {
+            throw new Error(`Carousel requires at least 2 assets, found ${assets.length}`);
+          }
+          mediaInput.imageUrls = assets;
         } else {
           mediaInput.imageUrl = assets[0] || "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=800";
         }

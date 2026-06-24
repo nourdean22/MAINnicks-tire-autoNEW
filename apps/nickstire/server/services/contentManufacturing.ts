@@ -81,6 +81,17 @@ export interface SocialDraft {
   scoreAuthority: number;
   scoreHookStrength: number;
   briefJson: string;
+  adCopy: {
+    hookYellow: string;
+    hookWhite: string;
+    hookSub: string;
+    valueWhite: string;
+    valueYellow: string;
+    valueTicks: [string, string, string];
+    offerYellow: string;
+    offerWhite: string;
+    offerSub: string;
+  };
   gscQuerySeed?: string;
   weatherTriggerCondition?: string;
 }
@@ -670,13 +681,34 @@ You must return a valid JSON object matching the requested schema. No conversati
           scoreRevenueRelevance: { type: "number" },
           scoreAuthority: { type: "number" },
           scoreHookStrength: { type: "number" },
-          briefJson: { type: "string" }
+          briefJson: { type: "string" },
+          adCopy: {
+            type: "object",
+            description: "Ad Copy for AdStudio carousel generation",
+            properties: {
+              hookYellow: { type: "string" },
+              hookWhite: { type: "string" },
+              hookSub: { type: "string" },
+              valueWhite: { type: "string" },
+              valueYellow: { type: "string" },
+              valueTicks: {
+                type: "array",
+                items: { type: "string" },
+                minItems: 3,
+                maxItems: 3
+              },
+              offerYellow: { type: "string" },
+              offerWhite: { type: "string" },
+              offerSub: { type: "string" }
+            },
+            required: ["hookYellow", "hookWhite", "hookSub", "valueWhite", "valueYellow", "valueTicks", "offerYellow", "offerWhite", "offerSub"]
+          }
         },
         required: [
           "hookText", "bodyText", "visualStyle", "persona", "interactiveDmKeyword",
           "caption", "hashtags", "scoreCuriosity", "scoreEmotion", "scoreShareability",
           "scoreCommentPotential", "scoreSavePotential", "scoreLocalRelevance",
-          "scoreRevenueRelevance", "scoreAuthority", "scoreHookStrength", "briefJson"
+          "scoreRevenueRelevance", "scoreAuthority", "scoreHookStrength", "briefJson", "adCopy"
         ]
       }
     }
@@ -957,6 +989,36 @@ export async function runManufacturingPipeline(
 
         // Insert into database
         const draftId = `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        
+        let assetPaths: string[] = [];
+        if (contentType === "carousel") {
+          try {
+            log.info("Generating Option C Hybrid Carousel Assets...");
+            const { generateImage } = await import("../_core/imageGeneration");
+            const { renderAdSlides } = await import("./adStudio/adRender");
+            
+            // 1. Hook Image via AI
+            const hookPrompt = `A stunning, hyper-realistic photo. ${draft.visualStyle}. Concept: ${draft.hookText}. No text. Cinematic lighting.`;
+            const hookImageRes = await generateImage({ prompt: hookPrompt });
+            const aiImageUrl = hookImageRes.url;
+            
+            // 2. Typography slides via AdStudio
+            const copy = {
+              ...draft.adCopy,
+              caption: draft.caption
+            };
+            const rendered = await renderAdSlides(copy);
+            
+            if (aiImageUrl) {
+              // Replace the AdStudio hook slide (index 0) with the AI image
+              rendered.slideUrls[0] = aiImageUrl;
+            }
+            assetPaths = rendered.slideUrls;
+          } catch (e) {
+            log.warn("Hybrid Carousel generation failed, falling back to empty assets", { e: e instanceof Error ? e.message : String(e) });
+          }
+        }
+
         await db.insert(socialContentInventory).values({
           id: draftId,
           campaignId,
@@ -985,7 +1047,7 @@ export async function runManufacturingPipeline(
           interactiveDmKeyword: draft.interactiveDmKeyword,
           status: "approved",
           briefJson: draft.briefJson,
-          assetPaths: []
+          assetPaths: assetPaths
         });
 
         draftsCreated++;

@@ -108,6 +108,27 @@ export function ContentWarRoom() {
               </div>
             </div>
 
+            {/* Asset Preview Gallery */}
+            {Array.isArray(draft.assetPaths) && draft.assetPaths.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-border/20">
+                <span className="text-xs font-semibold text-primary uppercase tracking-wide block mb-2">Generated Assets</span>
+                <div className="flex gap-2 overflow-x-auto pb-2 snap-x hide-scrollbar">
+                  {draft.assetPaths.map((asset: string, idx: number) => (
+                    <div key={idx} className="flex-shrink-0 w-24 h-24 rounded-md overflow-hidden border border-border/40 relative snap-center">
+                      {draft.contentType === "reel" && idx === 0 ? (
+                        <video src={asset} className="w-full h-full object-cover" muted loop playsInline onMouseEnter={(e) => e.currentTarget.play()} onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }} />
+                      ) : (
+                        <img src={asset} alt={`Asset ${idx + 1}`} className="w-full h-full object-cover" />
+                      )}
+                      <div className="absolute top-1 right-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-full font-mono">
+                        {idx + 1}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {draft.errorMessage && (
               <div className="mt-3 text-xs bg-red-500/10 text-red-400 p-2 rounded-md border border-red-500/20 break-words">
                 <span className="font-bold block mb-1">Error:</span>
