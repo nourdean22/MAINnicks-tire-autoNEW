@@ -1436,7 +1436,7 @@ export async function getCustomerJourneyTimeline(phone: string) {
         timestamp: i.createdAt || new Date(),
         type: "invoice",
         title: `Invoice #${i.invoiceNumber || i.id}`,
-        description: `Total: $${(i.totalAmount / 100).toFixed(2)} | Service: ${i.serviceDescription || "N/A"}`,
+        description: `Total: ${(i.totalAmount / 100).toFixed(2)} | Service: ${i.serviceDescription || "N/A"}`,
         meta: i
       });
     }

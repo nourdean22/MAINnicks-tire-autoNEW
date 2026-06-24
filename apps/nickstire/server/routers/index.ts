@@ -60,3 +60,4 @@ export { smsPerformanceRouter } from "./smsPerformance";
 export { localGrowthRouter } from "./localGrowth";
 export { instagramAdminRouter } from "./instagramAdmin";
 export { gbpRouter } from "./gbp";
+export { smsOrchestratorRouter } from "./smsOrchestrator";

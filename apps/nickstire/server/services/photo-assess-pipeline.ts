@@ -151,11 +151,18 @@ export async function runPhotoAssess(req: PhotoAssessRequest): Promise<PhotoAsse
   }
 
   try {
-    const smsResult = await sendSms(req.phone, replyText, { via: "shop" });
-    if (!smsResult.success) {
+    const { orchestrateSms } = await import("./smsOrchestrator");
+    const orchResult = await orchestrateSms({
+      type: "photo_assess_reply",
+      phone: req.phone,
+      replyText: replyText,
+    });
+
+    const success = orchResult.status === "sent" || orchResult.status === "queued";
+    if (!success) {
       log.warn("photo_assess_sms_failed", {
         source: req.source,
-        error: smsResult.error,
+        error: orchResult.reason,
       });
       return {
         ok: false,
@@ -163,11 +170,12 @@ export async function runPhotoAssess(req: PhotoAssessRequest): Promise<PhotoAsse
         serviceSuggest: vision.serviceSuggest,
         urgency: vision.urgency,
         smsSent: false,
-        smsError: smsResult.error,
+        smsError: orchResult.reason,
         visionLatencyMs: vision.latencyMs,
         visionSource: vision.source,
       };
     }
+
     log.info("photo_assess_sms_ok", {
       source: req.source,
       phone: req.phone.slice(-4),

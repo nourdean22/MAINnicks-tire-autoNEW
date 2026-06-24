@@ -283,26 +283,18 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         // forget — intent handling must never block or fail the 200 ack.
         (async () => {
           if (compositeRedelivery) {
-            log.info("Skipping auto-action — composite redelivery (prior identical inbound <5min)", {
+            log.info("Skipping orchestrator — composite redelivery (prior identical inbound <5min)", {
               phone: phone.slice(-4),
             });
             return;
           }
-          const { parseSmsResponse, executeAutoAction } = await import(
-            "../../services/smsResponseParser"
-          );
-          const parsed = parseSmsResponse(body);
-          let executed = false;
-          if (parsed.autoAction && !parsed.requiresHuman) {
-            const res = await executeAutoAction(parsed, normalized);
-            executed = res.executed;
-          }
-
-          // If no keyword auto-action was executed, check if we should auto-reply via NickGPT
-          if (!executed && conversationId) {
-            const { handleNickGptAutoSend } = await import("../../services/nickgpt-autosend");
-            await handleNickGptAutoSend(normalized, body, conversationId);
-          }
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "inbound_sms",
+            phone: normalized,
+            body,
+            conversationId: conversationId!,
+          });
         })().catch((err) => {
           log.warn("Inbound shop SMS intent processing failed", {
             error: err instanceof Error ? err.message : String(err),
