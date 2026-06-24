@@ -293,6 +293,14 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "Mega fan-out skips; daily children run via the Railway cron path.",
     ownerDoc: "src/inngest/functions/mega-fanout.ts",
   },
+  {
+    key: "NICK_ARRIVAL_INTELLIGENCE",
+    description: "Activates the Nick's Tire & Auto Arrival Intelligence vehicle alerts pipeline. When enabled, vehicle_detected events send Telegram notifications in real-time.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Events are logged to the database but no real-time Telegram notifications are sent.",
+    ownerDoc: "lib/services/vehicle-detection.ts",
+  },
 ];
 
 // Overrides state cache

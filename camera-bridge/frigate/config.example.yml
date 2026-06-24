@@ -1,0 +1,69 @@
+# Frigate Example Configuration
+# Copy this to config.yml and fill in the camera connection parameters.
+
+mqtt:
+  host: mqtt
+  port: 1883
+  # client_id, user, password if needed
+
+detectors:
+  # Default to CPU. Change to "coral" if a Google Coral Accelerator USB is plugged in.
+  ov:
+    type: cpu
+
+cameras:
+  # The outside camera facing the front parking lot and driveway
+  outside_v380:
+    ffmpeg:
+      inputs:
+        # Replace credentials and IP with shop camera details verified via test-rtsp.ps1
+        - path: rtsp://admin:password@192.168.0.155:554/live/ch00_0
+          roles:
+            - detect
+            - rtmp
+    detect:
+      enabled: true
+      width: 1920
+      height: 1080
+      fps: 5
+    
+    # Restrict alerts to vehicle types to prevent wind/shadow noise
+    objects:
+      track:
+        - car
+        - truck
+        - motorcycle
+        - bus
+      filters:
+        car:
+          min_area: 5000
+          max_area: 500000
+          threshold: 0.65
+        truck:
+          min_area: 8000
+          threshold: 0.65
+
+    # Enforce zone rules so we only alert when cars pull up in the main shop zone
+    zones:
+      front_lot:
+        # Coordinate polygon encompassing the main driveway / shop sign zone.
+        # Define visually using the Frigate coordinate assistant in the Web UI.
+        coordinates: 0.12,0.85,0.45,0.42,0.88,0.43,0.95,0.92
+        objects:
+          - car
+          - truck
+          - motorcycle
+
+    # Snapshots are required to capture the frame for ALPR / License Plate OCR processing
+    snapshots:
+      enabled: true
+      clean_png: false
+      timestamp: true
+      bounding_box: true
+      retain:
+        default: 7 # Clean up snapshots automatically after 7 days
+
+    # Disable continuous recording to prevent clogging the local mini-PC disk.
+    # We only save snapshots of confirmed vehicle arrival events.
+    record:
+      enabled: false
