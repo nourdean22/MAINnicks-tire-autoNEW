@@ -86,7 +86,7 @@ async function setAutopostProgress(idx: number, date: string): Promise<void> {
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return;
-  await d.transaction(async (tx) => {
+  await d.transaction(async (tx: any) => {
     // 1. Update index
     const indexRow = await tx.select().from(shopSettings).where(eq(shopSettings.key, "reel_autopost_index")).limit(1);
     if (indexRow.length > 0) {
