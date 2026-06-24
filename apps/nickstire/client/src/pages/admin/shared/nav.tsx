@@ -4,7 +4,7 @@
 import React from "react";
 import {
   LayoutDashboard, UserCheck, Send, DollarSign, PhoneCall, Settings, Disc,
-  ClipboardList, TrendingUp, Shield,
+  ClipboardList, TrendingUp, Shield, Brain,
 } from "lucide-react";
 import type { NavGroup } from "./types";
 
@@ -27,6 +27,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "", // Flat list
     items: [
       { id: "overview", label: "Today", icon: <LayoutDashboard className="w-4 h-4" />, badge: "leads" },
+      { id: "intelligence", label: "Intelligence HQ", icon: <Brain className="w-4 h-4 text-purple-400" /> },
       { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
       { id: "leads", label: "Sales Pipeline", icon: <TrendingUp className="w-4 h-4" /> },
       { id: "tireOrders", label: "Tires", icon: <Disc className="w-4 h-4" /> },

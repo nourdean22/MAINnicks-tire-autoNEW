@@ -3607,4 +3607,23 @@ export const socialContentInventory = mysqlTable("social_content_inventory", {
 export type SocialContentInventory = typeof socialContentInventory.$inferSelect;
 export type InsertSocialContentInventory = typeof socialContentInventory.$inferInsert;
 
+export const intelligenceDecisionLedger = mysqlTable("intelligence_decision_ledger", {
+  id: int("id").autoincrement().primaryKey(),
+  engineId: varchar("engine_id", { length: 64 }).notNull(),
+  recommendationType: varchar("recommendation_type", { length: 64 }).notNull(),
+  recommendationTarget: varchar("recommendation_target", { length: 255 }).notNull(),
+  actionTaken: varchar("action_taken", { length: 64 }).notNull(),
+  valueAtRiskCents: int("value_at_risk_cents").default(0),
+  actualRevenueCapturedCents: int("actual_revenue_captured_cents").default(0),
+  contextJson: text("context_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_intel_engine").on(table.engineId),
+  index("idx_intel_action").on(table.actionTaken),
+  index("idx_intel_created").on(table.createdAt),
+]);
+
+export type IntelligenceDecisionLedger = typeof intelligenceDecisionLedger.$inferSelect;
+export type InsertIntelligenceDecisionLedger = typeof intelligenceDecisionLedger.$inferInsert;
 

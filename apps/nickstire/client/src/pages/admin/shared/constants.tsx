@@ -80,4 +80,5 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   tireOrders: "Tires",
   opsHub: "Reports",
   growth: "Marketing / Growth",
+  intelligence: "Intelligence HQ",
 };

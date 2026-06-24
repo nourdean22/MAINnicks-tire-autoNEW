@@ -88,19 +88,22 @@ async function setAutopostProgress(idx: number, date: string): Promise<void> {
   if (!d) return;
   await d.transaction(async (tx: any) => {
     // 1. Update index
-    const indexRow = await tx.select().from(shopSettings).where(eq(shopSettings.key, "reel_autopost_index")).limit(1);
-    if (indexRow.length > 0) {
-      await tx.update(shopSettings).set({ value: String(idx), updatedBy: "system" }).where(eq(shopSettings.key, "reel_autopost_index"));
-    } else {
-      await tx.insert(shopSettings).values({ key: "reel_autopost_index", value: String(idx), label: "Daily reel autopost — next reel index", category: "general", updatedBy: "system" });
-    }
+    await tx.insert(shopSettings).values({ 
+      key: "reel_autopost_index", 
+      value: String(idx), 
+      label: "Daily reel autopost — next reel index", 
+      category: "general", 
+      updatedBy: "system" 
+    }).onDuplicateKeyUpdate({ set: { value: String(idx), updatedBy: "system" } });
+    
     // 2. Update date
-    const dateRow = await tx.select().from(shopSettings).where(eq(shopSettings.key, "reel_autopost_last_date")).limit(1);
-    if (dateRow.length > 0) {
-      await tx.update(shopSettings).set({ value: date, updatedBy: "system" }).where(eq(shopSettings.key, "reel_autopost_last_date"));
-    } else {
-      await tx.insert(shopSettings).values({ key: "reel_autopost_last_date", value: date, label: "Daily reel autopost — last post date (ET)", category: "general", updatedBy: "system" });
-    }
+    await tx.insert(shopSettings).values({ 
+      key: "reel_autopost_last_date", 
+      value: date, 
+      label: "Daily reel autopost — last post date (ET)", 
+      category: "general", 
+      updatedBy: "system" 
+    }).onDuplicateKeyUpdate({ set: { value: date, updatedBy: "system" } });
   });
 }
 
