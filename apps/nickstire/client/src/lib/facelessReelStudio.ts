@@ -63,6 +63,14 @@ export const STUDIO_BRAND = {
   reputation: "4.9-star local reputation",
   reviews: "1,685+ Google reviews",
   certification: "ASE-certified service capability",
+  typography: {
+    display: "Anton",
+    body: "Barlow",
+  },
+  colors: {
+    primary: "#FDB913",
+    background: "#0A0A0A",
+  },
 } as const;
 
 // ─── Reel output rules (hard format contract) ─────────────────────

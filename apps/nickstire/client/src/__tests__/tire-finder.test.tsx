@@ -229,3 +229,36 @@ describe("Ezytire Environment Variables", () => {
     expect(screen.queryByText("Acima Credit")).toBeNull();
   });
 });
+
+describe("TireFinder URL Sync & Duplication Guard", () => {
+  afterEach(cleanup);
+
+  it("cleans up self-concatenated size parameter (e.g. 215/60R16215/60R16) on mount", async () => {
+    // Stage URL with a duplicated size param
+    window.history.pushState({}, "", "/tires?size=215/60R16215/60R16");
+
+    const { default: TireFinder } = await import("../pages/TireFinder");
+    render(React.createElement(TireFinder));
+
+    const input = screen.getByLabelText("Search tire size") as HTMLInputElement;
+    expect(input.value).toBe("215/60R16");
+
+    // Clean up
+    window.history.pushState({}, "", "/");
+  });
+
+  it("handles double query params or ?size= in the parameter value", async () => {
+    // Stage URL with double query param pattern
+    window.history.pushState({}, "", "/tires?size=215/60R16?size=215/60R16");
+
+    const { default: TireFinder } = await import("../pages/TireFinder");
+    render(React.createElement(TireFinder));
+
+    const input = screen.getByLabelText("Search tire size") as HTMLInputElement;
+    expect(input.value).toBe("215/60R16");
+
+    // Clean up
+    window.history.pushState({}, "", "/");
+  });
+});
+

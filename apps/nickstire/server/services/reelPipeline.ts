@@ -129,15 +129,12 @@ export async function processNextReelJob(): Promise<{
 
   // Atomic claim: only the worker that flips queued->generating proceeds, so a
   // future second worker can't double-process the same row.
-  const claim = await d
+  const claimRes = await d
     .update(reelJobs)
     .set({ status: "generating", attempts: attempt })
     .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "queued")));
-  const claimed =
-    (claim as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows ??
-    (claim as unknown as { affectedRows?: number; rowsAffected?: number })?.rowsAffected ??
-    0;
-  if (claimed !== 1) return { processed: false }; // another worker claimed it
+  const affectedRows = (claimRes[0] as unknown as { affectedRows?: number })?.affectedRows ?? 0;
+  if (affectedRows !== 1) return { processed: false }; // another worker claimed it
 
   try {
     const brief = JSON.parse(job.payload) as ReelJobBrief;
@@ -232,15 +229,12 @@ export async function processNextAssemblyJob(): Promise<{
   const attempt = (job.attempts ?? 0) + 1;
 
   // Atomic claim: only the worker that flips assets_ready->assembling proceeds.
-  const claim = await d
+  const claimRes = await d
     .update(reelJobs)
     .set({ status: "assembling", attempts: attempt })
     .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "assets_ready")));
-  const claimed =
-    (claim as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows ??
-    (claim as unknown as { affectedRows?: number; rowsAffected?: number })?.rowsAffected ??
-    0;
-  if (claimed !== 1) return { processed: false }; // another worker claimed it
+  const affectedRows = (claimRes[0] as unknown as { affectedRows?: number })?.affectedRows ?? 0;
+  if (affectedRows !== 1) return { processed: false }; // another worker claimed it
 
   try {
     // The stored payload is the full client ReelBrief (storyboardBeats carry

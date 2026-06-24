@@ -119,12 +119,10 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     throw new Error(`segment/clip count mismatch: ${segs.length} segs vs ${clipPaths.length} clips`);
   }
   const total = segmentsTotalSeconds(segs);
-  // Phase 3.1: the rendered reel runs SAVE_FREEZE_SECONDS longer than the beats
-  // (a held final frame + SAVE prompt). Audio length + -t use this extended total.
   const videoTotal = Number((total + SAVE_FREEZE_SECONDS).toFixed(2));
-  // drawtext fontfile: forward slashes + escaped ':' so a Windows drive letter
-  // (C:/...) or any ':' in the path doesn't terminate the option early.
-  const fontEsc = fontPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+  // The font is copied to the working directory so it's just 'font.ttf'.
+  // No Windows drive letter colon escaping hell.
+  const fontEsc = fontPath.replace(/\\/g, "/");
 
   const inputs: string[] = [];
   clipPaths.forEach((p) => inputs.push("-i", p));
@@ -171,7 +169,7 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     const size = isHook ? Math.round(s.fontSize * 1.35) : s.fontSize;
     const yPos = isHook ? "(h-text_h)/2" : "h*0.62";
     fc.push(
-      `[${label}]drawtext=fontfile='${fontEsc}':text='${s.caption}':fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yPos}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${next}]`,
+      `[${label}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}.txt':fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yPos}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${next}]`,
     );
     label = next;
   });
@@ -182,7 +180,7 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   //     only during the freeze window so it never collides with beat captions.
   fc.push(`[vcap]tpad=stop_mode=clone:stop_duration=${SAVE_FREEZE_SECONDS}[vpad]`);
   fc.push(
-    `[vpad]drawtext=fontfile='${fontEsc}':text='${SAVE_CTA_TEXT}':fontsize=72:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=h*0.12:enable='gte(t,${total.toFixed(2)})'[vout]`,
+    `[vpad]drawtext=fontfile='${fontEsc}':textfile='caption_save.txt':fontsize=72:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=h*0.12:enable='gte(t,${total.toFixed(2)})'[vout]`,
   );
 
   // 4. audio: VO loud over ducked music, degrading gracefully when either is absent
@@ -210,10 +208,15 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   }
   const hasAudio = maps.includes("[aout]");
 
+  const filterStr = fc.join(";");
+  log.debug("=== FFmpeg Filtergraph ===");
+  log.debug(filterStr);
+  log.debug("==========================");
+
   return [
     ...inputs,
     "-filter_complex",
-    fc.join(";"),
+    filterStr,
     ...maps,
     "-r",
     "30",
@@ -335,9 +338,13 @@ async function downloadTo(url: string, dest: string): Promise<void> {
   await fs.promises.writeFile(dest, Buffer.from(await r.arrayBuffer()));
 }
 
-function runFfmpeg(args: string[], timeoutMs = 5 * 60 * 1000): Promise<void> {
+function runFfmpeg(args: string[], timeoutMs = 5 * 60 * 1000, cwd?: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn("ffmpeg", args);
+    if (cwd) {
+       const cmdStr = ["ffmpeg", ...args.map(a => `"${a}"`)].join(" ");
+       fs.writeFileSync(path.join(cwd, "ffmpeg_debug.bat"), cmdStr);
+    }
+    const child = spawn("ffmpeg", args, { cwd });
     let stderr = "";
     child.stderr.on("data", (d) => {
       stderr += String(d);
@@ -415,12 +422,21 @@ export async function assembleReel(
   const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `reel-${jobId}-`));
   try {
     const clipPaths: string[] = [];
-    for (let i = 0; i < clipUrls.length; i++) {
+    for (let i = 0; i < segs.length; i++) {
       const p = path.join(workDir, `clip-${i}.mp4`);
-      await downloadTo(clipUrls[i], p);
+      const url = clipUrls[i];
+      if (url.includes("/generated/")) {
+        const filename = url.split("/").pop();
+        const localPath = path.join(process.cwd(), "data", "generated", filename!);
+        await fs.promises.copyFile(localPath, p);
+      } else {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`failed to fetch clip ${i}`);
+        const buf = Buffer.from(await resp.arrayBuffer());
+        await fs.promises.writeFile(p, buf);
+      }
       clipPaths.push(p);
     }
-
     const { generateVoiceover } = await import("./reelVoice");
     const vo = await generateVoiceover(brief.voiceoverScript);
     let voPath: string | null = null;
@@ -430,10 +446,18 @@ export async function assembleReel(
     }
 
     const outPath = path.join(workDir, "reel.mp4");
-    const fontPath = await resolveReelFontPath();
-    const args = buildFfmpegArgs({ segs, clipPaths, voPath, musicPath: pickMusicBed(brief), fontPath, outPath });
+    const origFontPath = await resolveReelFontPath();
+    const localFontPath = path.join(workDir, "font.ttf");
+    await fs.promises.copyFile(origFontPath, localFontPath);
+
+    for (let i = 0; i < segs.length; i++) {
+      await fs.promises.writeFile(path.join(workDir, `caption_${i}.txt`), segs[i].caption, "utf-8");
+    }
+    await fs.promises.writeFile(path.join(workDir, "caption_save.txt"), SAVE_CTA_TEXT, "utf-8");
+
+    const args = buildFfmpegArgs({ segs, clipPaths, voPath, musicPath: pickMusicBed(brief), fontPath: "font.ttf", outPath });
     log.info("assembling reel", { jobId, beats: segs.length, total, usedVo: !!voPath });
-    await runFfmpeg(args);
+    await runFfmpeg(args, 5 * 60 * 1000, workDir);
 
     // Publish-gate hardening: never ship a corrupt / wrong-aspect / silent reel.
     // A failed assertion throws -> the job fails loudly instead of publishing garbage.

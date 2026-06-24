@@ -14,6 +14,7 @@ import {
 import { invokeLLM } from "../_core/llm";
 import { createLogger } from "../lib/logger";
 import { checkWeatherTriggers } from "./weatherIntelligence";
+import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
 
 const log = createLogger("services:contentManufacturing");
 
@@ -291,10 +292,295 @@ export function validateClaimSafety(draft: SocialDraft): { safe: boolean; errors
     }
   }
 
+  // 4. Anti-Boring/Anti-Generic Filter
+  const genericCheck = detectGenericMarketingLanguage(combinedText);
+  if (genericCheck.generic) {
+    errors.push(`Violated Rule 4: Generic/boring marketing phrase found "${genericCheck.matchedPhrase}". Use direct, local mechanic voice.`);
+  }
+
   return {
     safe: errors.length === 0,
     errors
   };
+}
+
+export function detectServiceCategory(item: { topic: string; bodyText: string; seriesName?: string }): string {
+  const text = `${item.topic} ${item.bodyText} ${item.seriesName || ""}`.toLowerCase();
+  if (text.includes("brake")) return "Brakes";
+  if (text.includes("alignment") || text.includes("align")) return "Alignment";
+  if (text.includes("suspension") || text.includes("shock") || text.includes("strut") || text.includes("bushing") || text.includes("sway bar") || text.includes("tie rod") || text.includes("drive shaft") || text.includes("cv joint")) return "Suspension";
+  if (text.includes("oil") || text.includes("lube") || text.includes("viscosity") || text.includes("sludge") || text.includes("dipstick")) return "Oil Changes";
+  if (text.includes("battery") || text.includes("batteries") || text.includes("charge") || text.includes("terminal") || text.includes("alternator")) return "Batteries";
+  if (text.includes("ac") || text.includes("cooling") || text.includes("coolant") || text.includes("refrigerant") || text.includes("compressor") || text.includes("heater") || text.includes("radiator") || text.includes("thermostat")) return "AC/Cooling";
+  if (text.includes("bearing")) return "Wheel Bearings";
+  if (text.includes("tire") || text.includes("tread") || text.includes("pressure") || text.includes("tpms") || text.includes("plug") || text.includes("patch") || text.includes("sidewall") || text.includes("lug nut") || text.includes("wheel lock")) return "Tires";
+  return "Diagnostics";
+}
+
+export function getNarrativeSpineDetails(service: string): { narrative: string; characters: string[] } {
+  const clean = service.toLowerCase().trim();
+  if (clean.includes("tire")) {
+    return {
+      narrative: "The Tire Diary (Tires record every other problem. Core line: 'Your tread is a confession.')",
+      characters: ["Penny Test Inspector", "Tire Therapist", "Tread Historian"]
+    };
+  }
+  if (clean.includes("brake")) {
+    return {
+      narrative: "Brake Pad Lifeguard (Every stop costs the pad part of its life.)",
+      characters: ["Brake Pad Lifeguard", "Rotor Judge", "Brake Fluid Messenger", "ABS Security Guard"]
+    };
+  }
+  if (clean.includes("align")) {
+    return {
+      narrative: "The Tightrope Walker (Alignment is balance. Potholes knock it off.)",
+      characters: ["Alignment Tightrope Walker", "Pothole Gremlin", "Steering Wheel Translator"]
+    };
+  }
+  if (clean.includes("suspension") || clean.includes("shock") || clean.includes("strut") || clean.includes("bushing")) {
+    return {
+      narrative: "What The Road Took (Cleveland roads collect a hidden tax.)",
+      characters: ["Shoreway Crusher", "Freeze-Thaw Monster", "Salt King", "Suspension Detective"]
+    };
+  }
+  if (clean.includes("oil") || clean.includes("lube") || clean.includes("sludge")) {
+    return {
+      narrative: "Life Inside The Engine (Old oil changes the whole engine environment.)",
+      characters: ["Mayor Oil", "Filter Gatekeeper", "Sludge Monster", "Friction Bandits"]
+    };
+  }
+  if (clean.includes("battery") || clean.includes("batteries") || clean.includes("charge")) {
+    return {
+      narrative: "Murder Planned In July, Committed In January (Heat damages batteries; cold exposes them.)",
+      characters: ["Battery Victim", "Heat Assassin", "Winter Executioner", "Corrosion Parasite"]
+    };
+  }
+  if (clean.includes("ac") || clean.includes("cooling") || clean.includes("coolant")) {
+    return {
+      narrative: "The Slow Goodbye Of The AC (AC fades slowly and drivers adapt without noticing.)",
+      characters: ["Cabin Air Therapist", "Compressor Athlete", "Refrigerant Magician", "Pollen Monster"]
+    };
+  }
+  if (clean.includes("bearing")) {
+    return {
+      narrative: "Wheel Bearing Whodunit (The hum is the clue. The bearing is the suspect.)",
+      characters: ["Detective Bearing", "Highway Witness", "Radio Volume Criminal"]
+    };
+  }
+  return {
+    narrative: "Dashboard Light Therapist (Your car is communicating, not panicking.)",
+    characters: ["Dashboard Light Therapist", "Mystery Noise Detective", "Check Engine Smoke Alarm", "Smell Investigator"]
+  };
+}
+
+export const MEDIA_VISUAL_STYLES = [
+  { key: "caution-tape", name: "caution-tape cut", description: "High-contrast hazard stripes with stencil cutout frames." },
+  { key: "blueprint", name: "garage blueprint negative", description: "Cyan blueprint styling with white technical outline marks." },
+  { key: "forensic-tag", name: "forensic tag", description: "Numbered evidence marker tags placed next to worn parts." },
+  { key: "salt-crust", name: "salt-crust texture", description: "Gritty, high-contrast texture overlay highlighting corrosion." },
+  { key: "rubber-noir", name: "macro rubber noir", description: "Deep charcoal close-ups of tread rubber with dramatic key lighting." },
+  { key: "thermal-cam", name: "thermal-cam read", description: "Infrared heat-map color grade showcasing heat stress/friction." },
+  { key: "service-manual", name: "service-manual spread", description: "Technical schematics, line art, and specs on off-white paper." },
+  { key: "hazard-diamond", name: "hazard-diamond signage", description: "Yellow/black quadrant warning labels and hazard typography." },
+  { key: "tread-emboss", name: "tire-tread emboss", description: "Heavy textured tire-tread shadow embossing." },
+  { key: "snow-static", name: "snow-static overlay", description: "Frosty, static-noise weather grading for cold-starts." },
+  { key: "oscilloscope", name: "oscilloscope diagnostic", description: "Cathode-ray green wave patterns on grid lines." },
+  { key: "xray-amber", name: "x-ray amber", description: "Amber duotone lighting revealing internal structural details." },
+  { key: "pothole-topo", name: "pothole topography", description: "Relief map lines tracing Cuyahoga asphalt crater depths." },
+  { key: "pressure-gauge", name: "pressure-gauge dial", description: "Analog dial graphic with needle tipping into red warning zones." },
+  { key: "warning-light", name: "warning-light constellation", description: "Glowing dashboard glyph symbols grouped on dark background." },
+  { key: "rust-bloom", name: "rust-bloom overlay", description: "Orange rust texture bleeding into deep black background." },
+  { key: "strobe-bay", name: "strobe bay light", description: "Single overhead light beam with dramatic shadows and dust motes." },
+  { key: "receipt-minimal", name: "receipt-roll minimal", description: "Monospace receipt printout styling on plain white strip." },
+  { key: "inspection-collage", name: "inspection-sticker collage", description: "Overlapping municipal safety inspection stickers." },
+  { key: "obd-terminal", name: "diagnostic OBD terminal", description: "Green/amber retro terminal text on black screen." }
+];
+
+export function determineVisualStyle(service: string, franchise: string): typeof MEDIA_VISUAL_STYLES[number] {
+  const serviceLower = service.toLowerCase();
+  const franchiseLower = franchise.toLowerCase();
+
+  if (serviceLower.includes("tire")) {
+    if (franchiseLower.includes("mistakes")) return MEDIA_VISUAL_STYLES.find(s => s.key === "pressure-gauge") || MEDIA_VISUAL_STYLES[13];
+    return MEDIA_VISUAL_STYLES.find(s => s.key === "rubber-noir") || MEDIA_VISUAL_STYLES[4];
+  }
+  if (serviceLower.includes("brake")) {
+    if (franchiseLower.includes("would you drive")) return MEDIA_VISUAL_STYLES.find(s => s.key === "forensic-tag") || MEDIA_VISUAL_STYLES[2];
+    return MEDIA_VISUAL_STYLES.find(s => s.key === "caution-tape") || MEDIA_VISUAL_STYLES[0];
+  }
+  if (serviceLower.includes("align")) {
+    return MEDIA_VISUAL_STYLES.find(s => s.key === "blueprint") || MEDIA_VISUAL_STYLES[1];
+  }
+  if (serviceLower.includes("suspension")) {
+    if (franchiseLower.includes("survival")) return MEDIA_VISUAL_STYLES.find(s => s.key === "pothole-topo") || MEDIA_VISUAL_STYLES[12];
+    return MEDIA_VISUAL_STYLES.find(s => s.key === "rust-bloom") || MEDIA_VISUAL_STYLES[15];
+  }
+  if (serviceLower.includes("oil")) {
+    return MEDIA_VISUAL_STYLES.find(s => s.key === "strobe-bay") || MEDIA_VISUAL_STYLES[16];
+  }
+  if (serviceLower.includes("battery")) {
+    return MEDIA_VISUAL_STYLES.find(s => s.key === "xray-amber") || MEDIA_VISUAL_STYLES[11];
+  }
+  if (serviceLower.includes("ac") || serviceLower.includes("cool")) {
+    return MEDIA_VISUAL_STYLES.find(s => s.key === "thermal-cam") || MEDIA_VISUAL_STYLES[5];
+  }
+  if (serviceLower.includes("bearing")) {
+    return MEDIA_VISUAL_STYLES.find(s => s.key === "oscilloscope") || MEDIA_VISUAL_STYLES[10];
+  }
+  if (franchiseLower.includes("mistakes")) return MEDIA_VISUAL_STYLES.find(s => s.key === "receipt-minimal") || MEDIA_VISUAL_STYLES[17];
+  return MEDIA_VISUAL_STYLES.find(s => s.key === "obd-terminal") || MEDIA_VISUAL_STYLES[19];
+}
+
+export function detectGenericMarketingLanguage(text: string): { generic: boolean; matchedPhrase?: string } {
+  const genericPhrases = [
+    "regular maintenance is important",
+    "keep your vehicle running smoothly",
+    "don't forget to check your tires",
+    "schedule your appointment today",
+    "your safety is our priority",
+    "we offer quality service",
+    "trust the experts",
+    "call us for all your auto repair needs",
+    "automotive needs",
+    "hassle-free",
+    "peace of mind",
+    "ensure your vehicle",
+    "optimal performance",
+    "look no further",
+    "at nick's tire",
+    "we've got you covered"
+  ];
+  
+  const clean = text.toLowerCase();
+  for (const phrase of genericPhrases) {
+    if (clean.includes(phrase)) {
+      return { generic: true, matchedPhrase: phrase };
+    }
+  }
+  return { generic: false };
+}
+
+export async function generateHookTournament(
+  topic: string,
+  angle: ContentAngle
+): Promise<Hook> {
+  log.info(`Running Hook Tournament for topic "${topic}", angle "${angle.angle}"`);
+  
+  const prompt = `
+You are an elite copywriter and attention engineer. Generate exactly 25 hooks for the following:
+Topic: "${topic}"
+Angle: "${angle.angle}"
+Franchise: "${angle.narrativeFranchise}"
+Pillar: "${angle.entertainmentPillar}"
+
+INSTRUCTIONS:
+1. Generate exactly 25 hooks, distributing them across these 9 categories:
+   - fear
+   - curiosity
+   - local
+   - myth-busting
+   - money-saving
+   - useful absurdity
+   - authority
+   - story
+   - problem-first
+2. Group them by category.
+3. For each hook, provide realistic scores (0-100) for:
+   - scoreCuriosity (induces cognitive loops)
+   - scoreEmotion (evokes concern, relief, or interest)
+   - scoreLocalRelevance (mentions Cleveland/Euclid/Northeast Ohio landmarks or winter/potholes/salt)
+   - scoreAuthority (implies honest expertise without pitchiness)
+
+Return a valid JSON object matching the requested schema. No conversational prose.
+`;
+
+  const response = await invokeLLM({
+    messages: [{ role: "user", content: prompt }],
+    outputSchema: {
+      name: "hook_tournament",
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          hooks: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                hookText: { type: "string" },
+                hookCategory: { type: "string" },
+                scoreCuriosity: { type: "number" },
+                scoreEmotion: { type: "number" },
+                scoreLocalRelevance: { type: "number" },
+                scoreAuthority: { type: "number" }
+              },
+              required: ["hookText", "hookCategory", "scoreCuriosity", "scoreEmotion", "scoreLocalRelevance", "scoreAuthority"]
+            }
+          }
+        },
+        required: ["hooks"]
+      }
+    }
+  });
+
+  const parsed = JSON.parse(response.choices[0].message.content as string);
+  const rawHooks: Hook[] = parsed.hooks || [];
+
+  const scoredHooks = rawHooks.map(h => {
+    const overall = Math.round(
+      h.scoreCuriosity * 0.3 +
+      h.scoreEmotion * 0.25 +
+      h.scoreLocalRelevance * 0.25 +
+      h.scoreAuthority * 0.2
+    );
+    return { ...h, scoreOverall: overall };
+  });
+
+  const top3 = scoredHooks.sort((a, b) => (b.scoreOverall || 0) - (a.scoreOverall || 0)).slice(0, 3);
+  if (top3.length === 0) {
+    throw new Error("No hooks generated in tournament");
+  }
+
+  log.info(`Top 3 hooks selected. Running head-to-head critic pass.`);
+  
+  const criticPrompt = `
+You are an independent critic. Evaluate the following 3 hook candidates for a social media post about "${topic}" in Cleveland:
+1. "${top3[0]?.hookText}" (Category: ${top3[0]?.hookCategory})
+2. "${top3[1]?.hookText}" (Category: ${top3[1]?.hookCategory})
+3. "${top3[2]?.hookText}" (Category: ${top3[2]?.hookCategory})
+
+Select the absolute best hook (champion) that:
+- Has the strongest first-frame jeopardy/scroll-stop probability.
+- Sounds authentic, human, and local (Cleveland-specific).
+- Avoids generic AI hype.
+
+Your output must be JSON matching the schema, indicating the index (0, 1, or 2) of the chosen champion and a brief reason.
+`;
+
+  const criticRes = await invokeLLM({
+    messages: [{ role: "user", content: criticPrompt }],
+    outputSchema: {
+      name: "champion_selection",
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          championIndex: { type: "number", minimum: 0, maximum: 2 },
+          reason: { type: "string" }
+        },
+        required: ["championIndex", "reason"]
+      }
+    }
+  });
+
+  const criticParsed = JSON.parse(criticRes.choices[0].message.content as string);
+  const champIdx = criticParsed.championIndex ?? 0;
+  const champion = top3[champIdx] || top3[0];
+  log.info(`Champion selected: "${champion.hookText}" (Reason: ${criticParsed.reason})`);
+  return champion;
 }
 
 /**
@@ -309,7 +595,11 @@ export async function generateScoredDraft(
   platform: "instagram" | "facebook" | "both"
 ): Promise<SocialDraft> {
   const persona = PERSONAS.find((p) => p.key === personaKey) || PERSONAS[0];
-  const visualStyle = VISUAL_STYLES[Math.floor(Math.random() * VISUAL_STYLES.length)];
+  
+  const serviceCat = detectServiceCategory({ topic, bodyText: angle.description, seriesName: angle.narrativeFranchise });
+  const spine = getNarrativeSpineDetails(serviceCat);
+  const character = spine.characters[Math.floor(Math.random() * spine.characters.length)];
+  const visualStyle = determineVisualStyle(serviceCat, angle.narrativeFranchise || "");
 
   // Gather current weather state for weather trigger check
   let weatherCond = "";
@@ -402,6 +692,134 @@ You must return a valid JSON object matching the requested schema. No conversati
 }
 
 /**
+ * Phase 0: Independent Critic Pass (second model call).
+ * Grades the draft objectively across all attention metrics.
+ */
+export async function critiqueSocialDraft(
+  draft: SocialDraft,
+  topic: string,
+  angle: ContentAngle
+): Promise<Record<string, number>> {
+  const prompt = `
+You are an elite, independent critic and attention auditor for local automotive content.
+Your job is to objectively score the following social media post draft. Do not inflate scores. Be brutal and realistic.
+
+Post Topic: "${topic}"
+Content Angle: "${angle.angle}"
+Post Type: "${draft.visualStyle}"
+Persona: "${draft.persona}"
+Caption: "${draft.caption}"
+On-screen/Body text: "${draft.bodyText}"
+
+Score the draft on the following 9 dimensions from 0 to 100:
+1. scoreCuriosity: Induces a cognitive loop or unresolved question.
+2. scoreEmotion: Evokes relief, concern, or curiosity without fearmongering.
+3. scoreShareability: Realistically, would someone share/send this to a friend? (Needs clear tag-bait or callout).
+4. scoreCommentPotential: Will this trigger comments/questions? (Needs a prompt or interactive loop).
+5. scoreSavePotential: Is it a glovebox cheat-sheet, reference-worthy tip, or checklist?
+6. scoreLocalRelevance: Mentions Cleveland, Ohio, Cuyahoga county, local roads, or weather.
+7. scoreRevenueRelevance: Does it naturally tie back to one of Nick's core services?
+8. scoreAuthority: Implies deep expertise without sounding like a corporate ad.
+9. scoreHookStrength: Does the hook (first frame/line) grab attention instantly? (Should reflect how strong the hook text is).
+
+You must return a valid JSON object matching the requested schema. No conversational prose.
+  `;
+
+  const response = await invokeLLM({
+    messages: [{ role: "user", content: prompt }],
+    outputSchema: {
+      name: "critic_score",
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          scoreCuriosity: { type: "number" },
+          scoreEmotion: { type: "number" },
+          scoreShareability: { type: "number" },
+          scoreCommentPotential: { type: "number" },
+          scoreSavePotential: { type: "number" },
+          scoreLocalRelevance: { type: "number" },
+          scoreRevenueRelevance: { type: "number" },
+          scoreAuthority: { type: "number" },
+          scoreHookStrength: { type: "number" }
+        },
+        required: [
+          "scoreCuriosity", "scoreEmotion", "scoreShareability", "scoreCommentPotential",
+          "scoreSavePotential", "scoreLocalRelevance", "scoreRevenueRelevance", "scoreAuthority", "scoreHookStrength"
+        ]
+      }
+    }
+  });
+
+  return JSON.parse(response.choices[0].message.content as string);
+}
+
+/**
+ * Grades a Reel brief objectively across attention metrics.
+ */
+export async function critiqueReelBrief(
+  brief: ReelBrief,
+  topic: string
+): Promise<Record<string, number>> {
+  const prompt = `
+You are an elite, independent critic and attention auditor for local automotive content.
+Your job is to objectively score the following Instagram Reel brief. Do not inflate scores. Be brutal and realistic.
+
+Post Topic: "${topic}"
+Reel Archetype: "${brief.archetype}"
+Reel Motion Lens: "${brief.motionLens}"
+Reel Object Character: "${brief.objectCharacter}"
+Caption: "${brief.selectedCaption}"
+Voiceover script: "${brief.voiceoverScript || ""}"
+Storyboard Beats:
+${brief.storyboardBeats.map(b => `- Beat ${b.beatNumber}: ${b.visual} (Text: "${b.onScreenText || ""}")`).join("\n")}
+
+Score the reel on the following 9 dimensions from 0 to 100:
+1. scoreCuriosity: Induces a cognitive loop or unresolved question.
+2. scoreEmotion: Evokes relief, concern, or curiosity without fearmongering.
+3. scoreShareability: Realistically, would someone share/send this to a friend? (Needs clear tag-bait or callout).
+4. scoreCommentPotential: Will this trigger comments/questions? (Needs a prompt or interactive loop).
+5. scoreSavePotential: Is it a glovebox cheat-sheet, reference-worthy tip, or checklist?
+6. scoreLocalRelevance: Mentions Cleveland, Ohio, Cuyahoga county, local roads, or weather.
+7. scoreRevenueRelevance: Does it naturally tie back to one of Nick's core services?
+8. scoreAuthority: Implies deep expertise without sounding like a corporate ad.
+9. scoreHookStrength: Does the hook (first frame/line) grab attention instantly? (Should reflect how strong the hook text is).
+
+You must return a valid JSON object matching the requested schema. No conversational prose.
+  `;
+
+  const response = await invokeLLM({
+    messages: [{ role: "user", content: prompt }],
+    outputSchema: {
+      name: "critic_score",
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          scoreCuriosity: { type: "number" },
+          scoreEmotion: { type: "number" },
+          scoreShareability: { type: "number" },
+          scoreCommentPotential: { type: "number" },
+          scoreSavePotential: { type: "number" },
+          scoreLocalRelevance: { type: "number" },
+          scoreRevenueRelevance: { type: "number" },
+          scoreAuthority: { type: "number" },
+          scoreHookStrength: { type: "number" }
+        },
+        required: [
+          "scoreCuriosity", "scoreEmotion", "scoreShareability", "scoreCommentPotential",
+          "scoreSavePotential", "scoreLocalRelevance", "scoreRevenueRelevance", "scoreAuthority", "scoreHookStrength"
+        ]
+      }
+    }
+  });
+
+  return JSON.parse(response.choices[0].message.content as string);
+}
+
+/**
  * Full content manufacturing pipeline.
  * Explodes topic -> Generates hooks -> Generates draft -> Runs claim safety checks -> Persists draft.
  */
@@ -417,7 +835,24 @@ export async function runManufacturingPipeline(
 
     log.info(`Starting Content Manufacturing pipeline for topic "${topic}"`);
 
-    // 1. Explode topic into angles
+    // 1. Distinctiveness / Novelty check:
+    // skip any topic shipped/published in the last 14 days
+    const recentItems = await db
+      .select({ topic: socialContentInventory.topic })
+      .from(socialContentInventory)
+      .where(
+        and(
+          eq(socialContentInventory.status, "published"),
+          gte(socialContentInventory.publishedAt, new Date(Date.now() - 14 * 24 * 60 * 60 * 1000))
+        )
+      );
+    const recentTopics = recentItems.map(i => i.topic.toLowerCase().trim());
+    if (recentTopics.includes(topic.toLowerCase().trim())) {
+      log.info(`Topic "${topic}" was already published in the last 14 days. Skipping for distinctiveness.`);
+      return { success: false, draftsCreated: 0, errors: [`Topic "${topic}" recently published`] };
+    }
+
+    // 2. Explode topic into angles
     const angles = await explodeTopic(topic);
     if (angles.length === 0) {
       return { success: false, draftsCreated: 0, errors: ["No content angles exploded"] };
@@ -430,15 +865,6 @@ export async function runManufacturingPipeline(
     const selectedAngles = angles.slice(0, 3);
 
     for (const angle of selectedAngles) {
-      // 2. Generate Hook library for angle
-      const hooks = await generateHookLibrary(topic, angle);
-      if (hooks.length === 0) continue;
-
-      // Select the single highest scoring hook
-      const bestHook = hooks.reduce((prev, current) =>
-        (prev.scoreOverall || 0) > (current.scoreOverall || 0) ? prev : current
-      );
-
       // Determine content type cycle (Reels / Carousel / standard Post)
       const contentTypes: Array<"reel" | "carousel" | "post"> = ["reel", "carousel", "post"];
       const contentType = contentTypes[draftsCreated % contentTypes.length];
@@ -447,11 +873,35 @@ export async function runManufacturingPipeline(
       let attempts = 0;
       let draft: SocialDraft | null = null;
       let isSafe = false;
+      let isAbsurdDraft = false;
+      let bestHook: Hook | null = null;
 
       while (attempts < 3 && !isSafe) {
         attempts++;
         try {
-          draft = await generateScoredDraft(topic, angle, bestHook, persona, contentType, "both");
+          const useAbsurdity = Math.random() < 0.3;
+          if (useAbsurdity) {
+            const { generateAbsurdDraft } = await import("./absurdityEngine");
+            const service = detectServiceCategory({ topic, bodyText: angle.description, seriesName: angle.narrativeFranchise });
+            log.info(`Generating absurdity draft for topic "${topic}", service "${service}"`);
+            draft = await generateAbsurdDraft(topic, service, persona, contentType);
+            isAbsurdDraft = true;
+          } else {
+            // Run Hook Tournament for angle
+            try {
+              bestHook = await generateHookTournament(topic, angle);
+            } catch (e) {
+              log.error("Hook tournament failed, falling back to generateHookLibrary:", e);
+              const hooks = await generateHookLibrary(topic, angle);
+              if (hooks.length === 0) continue;
+              bestHook = hooks.reduce((prev, current) =>
+                (prev.scoreOverall || 0) > (current.scoreOverall || 0) ? prev : current
+              );
+            }
+            draft = await generateScoredDraft(topic, angle, bestHook!, persona, contentType, "both");
+            isAbsurdDraft = false;
+          }
+
           const validation = validateClaimSafety(draft);
           if (validation.safe) {
             isSafe = true;
@@ -464,21 +914,42 @@ export async function runManufacturingPipeline(
       }
 
       if (draft && isSafe) {
-        // Calculate overall score
+        // Run Independent Critic Pass (second model call)
+        let criticScores: Record<string, number>;
+        try {
+          criticScores = await critiqueSocialDraft(draft, topic, angle);
+        } catch (e) {
+          log.error("Independent critic pass failed, falling back to draft self-scores:", e);
+          criticScores = {
+            scoreCuriosity: draft.scoreCuriosity,
+            scoreEmotion: draft.scoreEmotion,
+            scoreShareability: draft.scoreShareability,
+            scoreCommentPotential: draft.scoreCommentPotential,
+            scoreSavePotential: draft.scoreSavePotential,
+            scoreLocalRelevance: draft.scoreLocalRelevance,
+            scoreRevenueRelevance: draft.scoreRevenueRelevance,
+            scoreAuthority: draft.scoreAuthority,
+            scoreHookStrength: draft.scoreHookStrength,
+          };
+        }
+
+        // Calculate overall score with new weights:
+        // Curiosity: 0.125, Emotion: 0.125, Shareability: 0.125, CommentPotential: 0.125
+        // SavePotential: 0.10, LocalRelevance: 0.15, RevenueRelevance: 0.10, Authority: 0.15
         const overallScore = Math.round(
-          draft.scoreCuriosity * 0.15 +
-          draft.scoreEmotion * 0.15 +
-          draft.scoreShareability * 0.15 +
-          draft.scoreCommentPotential * 0.15 +
-          draft.scoreSavePotential * 0.1 +
-          draft.scoreLocalRelevance * 0.1 +
-          draft.scoreRevenueRelevance * 0.1 +
-          draft.scoreAuthority * 0.1
+          criticScores.scoreCuriosity * 0.125 +
+          criticScores.scoreEmotion * 0.125 +
+          criticScores.scoreShareability * 0.125 +
+          criticScores.scoreCommentPotential * 0.125 +
+          criticScores.scoreSavePotential * 0.10 +
+          criticScores.scoreLocalRelevance * 0.15 +
+          criticScores.scoreRevenueRelevance * 0.10 +
+          criticScores.scoreAuthority * 0.15
         );
 
         // Overall score gate check (must be >= 75)
         if (overallScore < 75) {
-          log.warn(`Overall score ${overallScore} is below gate 75. Skipping draft.`);
+          log.warn(`Critic overall score ${overallScore} is below gate 75. Skipping draft.`);
           continue;
         }
 
@@ -490,24 +961,24 @@ export async function runManufacturingPipeline(
           contentType: contentType,
           platform: "both",
           topic,
-          seriesName: angle.narrativeFranchise,
+          seriesName: isAbsurdDraft ? "Useful Absurdity" : angle.narrativeFranchise,
           episodeNumber: 1,
-          hookCategory: bestHook.hookCategory,
+          hookCategory: isAbsurdDraft ? "humor" : (bestHook?.hookCategory || "general"),
           hookText: draft.hookText,
           bodyText: draft.bodyText,
           visualStyle: draft.visualStyle,
           persona: draft.persona,
-          scoreCuriosity: draft.scoreCuriosity,
-          scoreEmotion: draft.scoreEmotion,
-          scoreShareability: draft.scoreShareability,
-          scoreCommentPotential: draft.scoreCommentPotential,
-          scoreSavePotential: draft.scoreSavePotential,
-          scoreLocalRelevance: draft.scoreLocalRelevance,
-          scoreRevenueRelevance: draft.scoreRevenueRelevance,
-          scoreAuthority: draft.scoreAuthority,
-          scoreHookStrength: draft.scoreHookStrength,
+          scoreCuriosity: criticScores.scoreCuriosity,
+          scoreEmotion: criticScores.scoreEmotion,
+          scoreShareability: criticScores.scoreShareability,
+          scoreCommentPotential: criticScores.scoreCommentPotential,
+          scoreSavePotential: criticScores.scoreSavePotential,
+          scoreLocalRelevance: criticScores.scoreLocalRelevance,
+          scoreRevenueRelevance: criticScores.scoreRevenueRelevance,
+          scoreAuthority: criticScores.scoreAuthority,
+          scoreHookStrength: criticScores.scoreHookStrength,
           scoreOverall: overallScore,
-          gscQuerySeed: bestHook.hookText, // Use the seed query
+          gscQuerySeed: isAbsurdDraft ? draft.hookText : (bestHook?.hookText || ""),
           weatherTriggerCondition: draft.weatherTriggerCondition || null,
           interactiveDmKeyword: draft.interactiveDmKeyword,
           status: "pending",
@@ -552,10 +1023,106 @@ export interface CampaignCoverage {
   warning: string | null;
 }
 
+export interface ServiceCoverageInfo {
+  count: number;
+  percentage: number;
+}
+
 export interface ReserveStatus {
   reserves: Record<string, ContentTypeReserve>;
   campaignCoverage: CampaignCoverage[];
   deficitAlerts: string[];
+  serviceCoverage: Record<string, ServiceCoverageInfo>;
+  diversityReport: {
+    underCoveredServices: string[];
+    overCoveredServices: string[];
+    tiresPercentage: number;
+    isTireLimitExceeded: boolean;
+  };
+}
+
+export const ALL_SERVICES = [
+  "Tires",
+  "Brakes",
+  "Alignment",
+  "Suspension",
+  "Diagnostics",
+  "Oil Changes",
+  "Batteries",
+  "AC/Cooling",
+  "Wheel Bearings"
+];
+
+export function getServiceCoverageStatus(inventory: { topic: string; bodyText: string; seriesName?: string }[]): Record<string, ServiceCoverageInfo> {
+  const serviceCounts: Record<string, number> = {};
+  for (const s of ALL_SERVICES) {
+    serviceCounts[s] = 0;
+  }
+  for (const item of inventory) {
+    const category = detectServiceCategory(item);
+    serviceCounts[category] = (serviceCounts[category] || 0) + 1;
+  }
+  const total = inventory.length;
+  const coverage: Record<string, ServiceCoverageInfo> = {};
+  for (const s of ALL_SERVICES) {
+    const count = serviceCounts[s] || 0;
+    coverage[s] = {
+      count,
+      percentage: total > 0 ? Math.round((count / total) * 100) : 0
+    };
+  }
+  return coverage;
+}
+
+export function selectUnderservedService(coverage: Record<string, ServiceCoverageInfo>): string {
+  const priorityList = [
+    "Brakes",
+    "Suspension",
+    "Diagnostics",
+    "Alignment",
+    "Batteries",
+    "AC/Cooling",
+    "Wheel Bearings",
+    "Oil Changes",
+    "Tires"
+  ];
+  
+  for (const service of priorityList) {
+    if (coverage[service] && coverage[service].count === 0) {
+      return service;
+    }
+  }
+  
+  let bestService = priorityList[0];
+  let minCount = Infinity;
+  for (const service of priorityList) {
+    const count = coverage[service]?.count ?? 0;
+    if (count < minCount) {
+      minCount = count;
+      bestService = service;
+    }
+  }
+  return bestService;
+}
+
+export function enforceServiceDiversityQuota(campaigns: any[], coverage: Record<string, ServiceCoverageInfo>): any[] {
+  const total = Object.values(coverage).reduce((acc, curr) => acc + curr.count, 0);
+  const tireCount = coverage["Tires"]?.count ?? 0;
+  const tirePercentage = total > 0 ? (tireCount / total) * 100 : 0;
+  
+  if (tirePercentage > 40) {
+    log.info(`Tires active inventory quota exceeded (${Math.round(tirePercentage)}% > 40%). Filtering/demoting Tires campaigns.`);
+    const nonTireCampaigns = campaigns.filter(c => {
+      const cat = detectServiceCategory({ topic: c.topic, bodyText: "" });
+      return cat !== "Tires";
+    });
+    const tireCampaigns = campaigns.filter(c => {
+      const cat = detectServiceCategory({ topic: c.topic, bodyText: "" });
+      return cat === "Tires";
+    });
+    return [...nonTireCampaigns, ...tireCampaigns];
+  }
+  return campaigns;
 }
 
 /**
@@ -577,7 +1144,9 @@ export async function getReserveStatus(): Promise<ReserveStatus> {
       id: socialContentInventory.id,
       contentType: socialContentInventory.contentType,
       topic: socialContentInventory.topic,
-      status: socialContentInventory.status
+      status: socialContentInventory.status,
+      bodyText: socialContentInventory.bodyText,
+      seriesName: socialContentInventory.seriesName
     })
     .from(socialContentInventory)
     .where(sql`${socialContentInventory.status} != 'rejected'`);
@@ -656,10 +1225,41 @@ export async function getReserveStatus(): Promise<ReserveStatus> {
     });
   }
 
+  // Calculate service coverage and diversity report
+  const serviceCoverage = getServiceCoverageStatus(inventory);
+  const totalActive = inventory.length;
+  const tireCount = serviceCoverage["Tires"]?.count ?? 0;
+  const tiresPercentage = totalActive > 0 ? Math.round((tireCount / totalActive) * 100) : 0;
+  const isTireLimitExceeded = tiresPercentage > 40;
+
+  const underCoveredServices: string[] = [];
+  const overCoveredServices: string[] = [];
+
+  for (const s of ALL_SERVICES) {
+    const info = serviceCoverage[s];
+    if (s === "Tires" && info.percentage > 40) {
+      overCoveredServices.push(s);
+    } else if (s !== "Tires" && info.percentage > 25) {
+      overCoveredServices.push(s);
+    }
+    if (info.count === 0 || (totalActive >= 10 && info.percentage < 5)) {
+      underCoveredServices.push(s);
+    }
+  }
+
+  const diversityReport = {
+    underCoveredServices,
+    overCoveredServices,
+    tiresPercentage,
+    isTireLimitExceeded
+  };
+
   return {
     reserves,
     campaignCoverage,
-    deficitAlerts
+    deficitAlerts,
+    serviceCoverage,
+    diversityReport
   };
 }
 
@@ -670,23 +1270,55 @@ export async function replenishReserve(): Promise<{ success: boolean; draftsCrea
   log.info("Starting automated reserve replenishment run");
   const status = await getReserveStatus();
 
-  // Find active campaigns that have deficits (ordered by largest deficit first)
-  const sortedCampaigns = [...status.campaignCoverage]
-    .filter(c => c.deficit > 0)
-    .sort((a, b) => b.deficit - a.deficit);
-
   const db = await getDbTyped();
   if (!db) throw new Error("Database not available");
 
-  let campaignsToRun = sortedCampaigns.map(c => c.campaignId);
+  // Fetch all active campaigns
+  const activeCampaigns = await db
+    .select()
+    .from(contentManufacturingCampaigns)
+    .where(eq(contentManufacturingCampaigns.isActive, true));
+
+  // Build a lookup map of campaign ID to campaign row
+  const campaignMap = new Map(activeCampaigns.map(c => [c.id, c]));
+
+  // Enforce diversity quota on active campaigns list
+  const coverage = status.serviceCoverage;
+  const orderedActiveCampaigns = enforceServiceDiversityQuota(activeCampaigns, coverage);
+
+  // Filter and prioritize campaigns with deficits based on the ordered campaign order
+  const sortedCampaigns = [...status.campaignCoverage]
+    .filter(c => c.deficit > 0);
+
+  const tiresLimitExceeded = status.diversityReport.isTireLimitExceeded;
+  const sortedCampaignsMapped = sortedCampaigns
+    .map(c => campaignMap.get(c.campaignId))
+    .filter((c): c is NonNullable<typeof c> => !!c);
+
+  sortedCampaignsMapped.sort((a, b) => {
+    const aCat = detectServiceCategory({ topic: a.topic, bodyText: "" });
+    const bCat = detectServiceCategory({ topic: b.topic, bodyText: "" });
+    
+    if (tiresLimitExceeded) {
+      if (aCat === "Tires" && bCat !== "Tires") return 1;
+      if (aCat !== "Tires" && bCat === "Tires") return -1;
+    }
+    
+    const aDef = status.campaignCoverage.find(c => c.campaignId === a.id)?.deficit ?? 0;
+    const bDef = status.campaignCoverage.find(c => c.campaignId === b.id)?.deficit ?? 0;
+    return bDef - aDef;
+  });
+
+  let campaignsToRun = sortedCampaignsMapped.map(c => c.id);
   if (campaignsToRun.length === 0) {
     const hasTypeDeficit = Object.values(status.reserves).some(r => r.deficit > 0);
     if (hasTypeDeficit) {
-      const activeCampaigns = await db
-        .select()
-        .from(contentManufacturingCampaigns)
-        .where(eq(contentManufacturingCampaigns.isActive, true));
-      campaignsToRun = activeCampaigns.map(c => c.id);
+      const prioritizedCampaigns = tiresLimitExceeded
+        ? activeCampaigns.filter(c => detectServiceCategory({ topic: c.topic, bodyText: "" }) !== "Tires")
+        : activeCampaigns;
+      campaignsToRun = prioritizedCampaigns.length > 0
+        ? prioritizedCampaigns.map(c => c.id)
+        : activeCampaigns.map(c => c.id);
     }
   }
 
@@ -902,15 +1534,26 @@ export async function attributeRevenueToSocial(): Promise<{ itemsProcessed: numb
           )
         );
 
-      postBookingsCount += matchedBookings.length;
-      bookingsAttributed += matchedBookings.length;
+      // Apply 50% decay every 7 days (exponential time-decay)
+      let phoneBookingWeight = 0;
+      for (const b of matchedBookings) {
+        const bookingTime = new Date(b.createdAt).getTime();
+        const diffMs = bookingTime - interactionDate.getTime();
+        const diffDays = Math.max(0, diffMs / (24 * 60 * 60 * 1000));
+        const weight = Math.pow(0.5, diffDays / 7);
+        phoneBookingWeight += weight;
+      }
+      postBookingsCount += phoneBookingWeight;
     }
+
+    const roundedBookingsCount = Math.round(postBookingsCount);
+    bookingsAttributed += roundedBookingsCount;
 
     // Update the inventory item
     await db
       .update(socialContentInventory)
       .set({
-        metricsBookingsAttributed: postBookingsCount,
+        metricsBookingsAttributed: roundedBookingsCount,
       })
       .where(eq(socialContentInventory.id, item.id));
   }

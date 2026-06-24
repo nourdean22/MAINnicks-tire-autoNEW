@@ -17,7 +17,7 @@ export const BRAND = {
     statusRed: "#EF4444",
   },
   fonts: {
-    body: "Inter",
-    display: "Outfit",
+    body: "Barlow",
+    display: "Anton",
   }
 };

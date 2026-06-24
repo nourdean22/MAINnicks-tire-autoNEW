@@ -183,6 +183,7 @@ export async function generateReelBriefAI(
     throw new Error("LLM returned no reel brief content");
   }
   const parsed = parseReelJson(content);
+  const kw = coerceKeyword(str(parsed.campaignKeyword));
 
   const storyboardBeats: StoryboardBeat[] = (Array.isArray(parsed.storyboardBeats) ? parsed.storyboardBeats : [])
     .map((raw: unknown, i: number) => {
@@ -199,6 +200,23 @@ export async function generateReelBriefAI(
         safeZoneNotes: str(b.safeZoneNotes),
       };
     });
+
+  // Programmatically append the final loop/CTA frame (Phase 1.3 visual CTA card)
+  const lastBeat = storyboardBeats[storyboardBeats.length - 1];
+  if (lastBeat) {
+    const endSec = lastBeat.endSecond;
+    storyboardBeats.push({
+      beatNumber: storyboardBeats.length + 1,
+      startSecond: endSec,
+      endSecond: endSec + 2, // 2-second hold card
+      visual: "Graphic display of Nick's Tire & Auto logo on brand yellow (#FDB913) background with clear text overlay",
+      motion: "Static hold with subtle camera zoom-in",
+      onScreenText: `SAVE THIS POST | DM us "${kw}"`,
+      purpose: "Provide a strong, clear, brand-aligned visual call to action on loop",
+      audioCue: "Fading music loop",
+      safeZoneNotes: "Center-aligned text, fully inside IG UI safe zones"
+    });
+  }
 
   const now = new Date().toISOString();
   const brief: ReelBrief = {
