@@ -35,6 +35,7 @@ export type AuditAction =
   // 2026-05-30 · control-plane actions (operator levers, not entity CRUD)
   | "flag.toggled"
   | "customer.sms_manual_send"
+  | "customer.sms_autosend_reply"
   | "migrations.ran"
   // 2026-06-11 · refund action types
   | "tireorder.refunded"

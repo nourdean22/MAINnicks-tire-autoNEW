@@ -221,6 +221,7 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         // (wiped on every redeploy); addSmsMessage() is the durable row
         // the admin SMS UI actually reads. Awaited — a failed DB write
         // returns 500 so Capevace retries instead of dropping the lead.
+        let conversationId: number | undefined = undefined;
         try {
           const { getOrCreateConversation, addSmsMessage, smsMessageExists, recentInboundExists } = await import("../../db");
           // Dedup — the Capevace cloud relay delivers webhooks
@@ -238,6 +239,7 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
             return;
           }
           const conversation = await getOrCreateConversation(normalized);
+          conversationId = conversation.id;
           // Rank-3: a prior identical inbound (<5min) means this is a redelivery
           // (new messageId) or an impatient repeat. Checked BEFORE addSmsMessage
           // so it sees only PRIOR rows, not the one we're about to add.
@@ -290,8 +292,16 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
             "../../services/smsResponseParser"
           );
           const parsed = parseSmsResponse(body);
+          let executed = false;
           if (parsed.autoAction && !parsed.requiresHuman) {
-            await executeAutoAction(parsed, normalized);
+            const res = await executeAutoAction(parsed, normalized);
+            executed = res.executed;
+          }
+
+          // If no keyword auto-action was executed, check if we should auto-reply via NickGPT
+          if (!executed && conversationId) {
+            const { handleNickGptAutoSend } = await import("../../services/nickgpt-autosend");
+            await handleNickGptAutoSend(normalized, body, conversationId);
           }
         })().catch((err) => {
           log.warn("Inbound shop SMS intent processing failed", {
