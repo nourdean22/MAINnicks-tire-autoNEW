@@ -10,15 +10,16 @@ const log = logger.withSurface("services/vehicle-detection");
  * Performs database log creation, deduplication, cooldown check, and alerts.
  */
 export async function handleVehicleEvent(deviceId: string, payload: any): Promise<string> {
-  const isEnabled = getFlag("NICK_ARRIVAL_INTELLIGENCE")?.isOn ?? false;
-  if (!isEnabled) {
-    log.info("arrival_intel_disabled", { deviceId });
-  }
-
   const eventName = payload.event || "vehicle_detected";
   const data = payload.data || {};
   const source = payload.source || "local";
   const timestamp = payload.timestamp ? new Date(payload.timestamp) : new Date();
+
+  // Test panel events bypass the feature flag to allow verification tests
+  const isEnabled = (getFlag("NICK_ARRIVAL_INTELLIGENCE")?.isOn ?? false) || source === "test-panel";
+  if (!isEnabled) {
+    log.info("arrival_intel_disabled", { deviceId });
+  }
 
   // Extract fields
   const zone = data.zone || "unknown";
