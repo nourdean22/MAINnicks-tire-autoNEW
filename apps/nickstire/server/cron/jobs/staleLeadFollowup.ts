@@ -78,11 +78,13 @@ export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: nu
         continue; // already claimed by an overlapping run
       }
 
-      const message = `Got your request at Nick's Tire & Auto — want us to give you a call? Reply YES, or reach us any time at (216) 862-0005.`;
-
-      // Wave-109: stale-lead nudge via shop gateway (1:1 transactional)
-      const result = await sendSms(lead.phone, message, { via: "shop" });
-      if (result.success) processed++;
+      const { orchestrateSms } = await import("../../services/smsOrchestrator");
+      const result = await orchestrateSms({
+        type: "stale_lead_followup",
+        phone: lead.phone,
+        leadId: lead.id,
+      });
+      if (result.status === "sent" || result.status === "queued") processed++;
     }
 
     if (processed > 0) {

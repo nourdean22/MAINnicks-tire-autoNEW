@@ -100,30 +100,21 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
       });
     }
 
-    // Parse intent
-    const parsed = parseSmsResponse(body);
-
-    // Execute auto-action if high confidence
-    let executed = false;
-    if (parsed.autoAction && !parsed.requiresHuman) {
-      const res = await executeAutoAction(parsed, from);
-      executed = res.executed;
-    }
-
-    // If no keyword auto-action was executed, check if we should auto-reply via NickGPT
-    if (!executed && conversationId) {
+    if (conversationId) {
       try {
-        const { handleNickGptAutoSend } = await import("../../services/nickgpt-autosend");
-        await handleNickGptAutoSend(from, body, conversationId);
-      } catch (autoSendErr) {
-        log.warn("NickGPT auto-send check failed in Twilio webhook", {
-          error: autoSendErr instanceof Error ? autoSendErr.message : String(autoSendErr),
+        const { orchestrateSms } = await import("../../services/smsOrchestrator");
+        await orchestrateSms({
+          type: "inbound_sms",
+          phone: from,
+          body,
+          conversationId,
+        });
+      } catch (orchErr) {
+        log.warn("Orchestrator inbound SMS check failed in Twilio webhook", {
+          error: orchErr instanceof Error ? orchErr.message : String(orchErr),
         });
       }
     }
-
-    // Log communication (fire-and-forget)
-    logInboundSms(from, body, parsed.intent).catch((e) => { log.warn("[webhooks/twilio] fire-and-forget failed:", e); });
 
     // Send empty TwiML response (no auto-reply for now)
     res.type("text/xml").send("<Response></Response>");

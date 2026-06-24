@@ -1,0 +1,339 @@
+/**
+ * Central SMS Message Catalog and Pricing Truth
+ */
+
+import { BUSINESS } from "@shared/business";
+
+export const SERVICE_PRICE_TRUTH = {
+  usedTires: "$60 installed for most standard sizes",
+  oilConventional: "$49 conventional",
+  oilSynthetic: "$80 synthetic",
+  brakes: "starts at $149/axle",
+  alignment: "starts at $79",
+  diagnostic: "free check"
+};
+
+export interface ReplyConfig {
+  expectedReplyTypes: string[];
+  nextActionOnReply: string;
+  adminPriority: "low" | "medium" | "high";
+  conversionSignal: string;
+}
+
+export const REPLY_CONFIGS: Record<string, ReplyConfig> = {
+  vapi_confirmation: {
+    expectedReplyTypes: ["questions", "reschedule", "cancel"],
+    nextActionOnReply: "nickgpt_or_admin",
+    adminPriority: "low",
+    conversionSignal: "vapi_confirmed_reply"
+  },
+  vapi_forwarded_call_followup: {
+    expectedReplyTypes: ["tire size", "service question", "call back", "price question"],
+    nextActionOnReply: "callback_or_auto_price",
+    adminPriority: "medium",
+    conversionSignal: "vapi_forward_reply"
+  },
+  after_hours_capture: {
+    expectedReplyTypes: ["urgency", "specific service", "cancel"],
+    nextActionOnReply: "admin_nudge",
+    adminPriority: "medium",
+    conversionSignal: "after_hours_reply"
+  },
+  stale_lead_followup: {
+    expectedReplyTypes: ["YES", "call me", "tomorrow", "no thanks"],
+    nextActionOnReply: "callback_request_or_archive",
+    adminPriority: "high",
+    conversionSignal: "stale_lead_recovered"
+  },
+  abandoned_form_recovery: {
+    expectedReplyTypes: ["size check", "pricing", "need appointment", "no thanks"],
+    nextActionOnReply: "nickgpt_inquiry",
+    adminPriority: "medium",
+    conversionSignal: "form_recovered"
+  },
+  booking_reminder: {
+    expectedReplyTypes: ["YES", "cancel", "late", "reschedule"],
+    nextActionOnReply: "confirm_or_cancel_booking",
+    adminPriority: "high",
+    conversionSignal: "booking_confirmed"
+  },
+  review_request: {
+    expectedReplyTypes: ["thanks", "done", "complaint"],
+    nextActionOnReply: "complaint_review_flag",
+    adminPriority: "high",
+    conversionSignal: "review_sentiment"
+  },
+  price_question_oil: {
+    expectedReplyTypes: ["when can I come", "do conventional", "need appointment"],
+    nextActionOnReply: "auto_send_hours",
+    adminPriority: "medium",
+    conversionSignal: "oil_inquiry_replied"
+  },
+  price_question_tires: {
+    expectedReplyTypes: ["have my size", "when open", "do alignment"],
+    nextActionOnReply: "size_check_prompt",
+    adminPriority: "medium",
+    conversionSignal: "tire_inquiry_replied"
+  },
+  price_question_brakes: {
+    expectedReplyTypes: ["how long it takes", "pricing details", "come today"],
+    nextActionOnReply: "inspect_offer",
+    adminPriority: "medium",
+    conversionSignal: "brake_inquiry_replied"
+  },
+  price_question_alignment: {
+    expectedReplyTypes: ["come now", "appointment needed"],
+    nextActionOnReply: "auto_send_hours",
+    adminPriority: "medium",
+    conversionSignal: "alignment_inquiry_replied"
+  },
+  price_question_diagnostic: {
+    expectedReplyTypes: ["coming now", "check engine light"],
+    nextActionOnReply: "inspect_offer",
+    adminPriority: "medium",
+    conversionSignal: "diagnostic_inquiry_replied"
+  },
+  hours_location: {
+    expectedReplyTypes: ["coming now", "can I drop off"],
+    nextActionOnReply: "confirm_walkin",
+    adminPriority: "low",
+    conversionSignal: "hours_replied"
+  },
+  same_day_visit: {
+    expectedReplyTypes: ["coming now", "dropping off"],
+    nextActionOnReply: "confirm_walkin",
+    adminPriority: "low",
+    conversionSignal: "visit_replied"
+  },
+  drop_off: {
+    expectedReplyTypes: ["keys location", "when finished"],
+    nextActionOnReply: "dropoff_instructions",
+    adminPriority: "low",
+    conversionSignal: "drop_off_replied"
+  }
+};
+
+const TEMPLATE_VARIANTS: Record<string, string[]> = {
+  vapi_confirmation: [
+    "We're all set. Here's our info: 17625 Euclid Ave, Cleveland. Call or text us here if anything changes.",
+    "Confirmed. We're at 17625 Euclid Ave, Cleveland. Pull up when you get here and we'll help you out.",
+    "Got you down. You can reach us at {shopPhone}. Address is 17625 Euclid Ave. See you soon."
+  ],
+  vapi_forwarded_call_followup: [
+    "Sorry if you couldn't get through just now — text us here and we'll help you out right away. - Nick's Tire & Auto",
+    "Tried to catch your call but missed you. Just text us what you need and the crew will get on it.",
+    "Sorry we missed your call. What can we help you with? Text us here or call back when you can."
+  ],
+  after_hours_capture: [
+    "Thanks for reaching out to Nick's. We're closed right now, but we'll reach back out when we open at {nextOpen}.",
+    "We're closed for the day, but we've got your message and we'll call you back when we open at {nextOpen}.",
+    "Got your request. We're closed right now, but we'll call you back when we open tomorrow morning."
+  ],
+  stale_lead_followup: [
+    "Still need help with your vehicle? Reply YES or call us at {shopPhone} to get it sorted out.",
+    "Just following up on your request. Let us know if you still need us to take a look.",
+    "Hey, just checking if you still need that service. We can work you in if you bring it by."
+  ],
+  abandoned_form_recovery: [
+    "Looks like you didn't finish booking your visit at Nick's. Need help getting it set up? Reply here!",
+    "Just noticed you started booking but didn't finish. Text us here if you have any questions.",
+    "Want to finish setting up your visit? Let us know if you need help or just walk in anytime."
+  ],
+  "booking_reminder:confirmation-request": [
+    "Still planning to swing by? Reply YES to confirm or let us know if you need to reschedule. {shopPhone}",
+    "Checking if you're still coming in. Text YES to let us know, or walk in anytime open.",
+    "Are we still good for your visit? Reply YES to confirm. Walk-ins are always welcome too."
+  ],
+  "booking_reminder:24h-before": [
+    "See you tomorrow at Nick's. We're first-come, first-served, so earlier is usually better.",
+    "Reminder for your visit tomorrow. Stop by anytime we're open and we'll work you in.",
+    "We'll see you tomorrow. Pull up when you get here and we'll check it out."
+  ],
+  "booking_reminder:1h-before": [
+    "You're up within the hour at 17625 Euclid Ave. Pull right in when you get here.",
+    "Just a heads up we're expecting you soon. Pull in and the crew will get you sorted.",
+    "We'll see you in about an hour. Call or text if you need help finding us."
+  ],
+  "booking_reminder:thank-you": [
+    "Thanks for choosing Nick's. All work is backed by our warranty. Let us know if you need anything else.",
+    "Thanks for coming by today. Reach out if anything comes up — we'll make it right.",
+    "Appreciate your business. Let us know if we can help you with anything down the road."
+  ],
+  "booking_reminder:maintenance-reminder": [
+    "Due for an oil change? conventional is $49, synthetic is $80. Walk in anytime, no appointment.",
+    "Time for routine maintenance? Conventional oil changes are $49, synthetic is $80. Stop by.",
+    "Need an oil change or tire check? Stop by 17625 Euclid Ave. We'll inspect everything first."
+  ],
+  booking_reminder: [
+    "Hi {name}, reminder from Nick's about your {service} visit. Call {shopPhone} if anything changes.",
+    "Quick reminder from Nick's about your {service} visit. Stop by during business hours.",
+    "Friendly reminder about your {service} service. Pull up when you're ready and we'll check it out."
+  ],
+  review_request: [
+    "If we earned it, a quick review on Google helps a ton: nickstire.org/review. Thanks!",
+    "Hope we did a good job for you. If you have a minute, leave us a review: nickstire.org/review.",
+    "Mind sharing your experience? A quick Google review helps us out: nickstire.org/review."
+  ],
+  price_question_oil: [
+    "Our oil changes are $49 for conventional and $80 for full synthetic. Bring it by and we'll get it done.",
+    "Conventional oil change is $49, synthetic is $80. Includes a free vehicle check. Stop by anytime.",
+    "It's $49 for conventional and $80 for full synthetic. Just pull up when you're ready."
+  ],
+  price_question_tires: [
+    "Used tires start at $60 installed for most standard sizes. Bring it by and we'll find a match.",
+    "We do used tires for $60 installed for standard sizes. Pull up and we'll check what we have in stock.",
+    "Used tires are $60 installed for most sizes. Walk in anytime and we'll check your size."
+  ],
+  price_question_brakes: [
+    "Brakes start at $149 per axle. We'll inspect them first and give you a quote before doing any work.",
+    "Brake service starts at $149/axle. Stop by and we'll look them over for free first.",
+    "Brakes start at $149 per axle. Bring it in and we'll inspect them for you."
+  ],
+  price_question_alignment: [
+    "Alignments start at $79. Bring it by and we'll get your vehicle squared away.",
+    "Standard alignment starts at $79. Just pull up during business hours.",
+    "Wheel alignment starts at $79. We'll inspect your steering and suspension first."
+  ],
+  price_question_diagnostic: [
+    "We do a free check first. Bring it in, we'll look it over, and let you know what it needs.",
+    "Diagnostics start with a free check. We'll scan the codes and let you know the cost first.",
+    "Just bring it by. We'll check it out for free and tell you the price before we touch anything."
+  ],
+  hours_location: [
+    "We're at 17625 Euclid Ave, Cleveland. Open Mon-Sat 8-6, Sun 9-4. Pull up when you get here.",
+    "17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8-6, Sun 9-4. Walk-ins welcome.",
+    "We are located at 17625 Euclid Ave. Mon-Sat 8am-6pm, Sun 9am-4pm. Stop by anytime."
+  ],
+  same_day_visit: [
+    "Yes, come by today. We're first-come, first-served, so earlier is usually better.",
+    "Yes, you can stop by today. If you can drop it off, that helps us work it in faster.",
+    "Yes, bring it in. We're open till 6 today. Pull right up."
+  ],
+  drop_off: [
+    "Yes, dropping it off is perfect. We can work it in and text you as soon as it's ready.",
+    "Drop-off is no problem. We'll inspect it and call you with a quote before doing anything.",
+    "You can drop it off anytime we're open. We'll text you when the job is done."
+  ]
+};
+
+export function getTemplateVariant(
+  eventType: string,
+  context: Record<string, any> = {},
+  variantIndex?: number
+): { body: string; variantKey: string } {
+  let lookupKey = eventType;
+  if (eventType === "booking_reminder" && context.reminderType) {
+    const specificKey = `booking_reminder:${context.reminderType}`;
+    if (TEMPLATE_VARIANTS[specificKey]) {
+      lookupKey = specificKey;
+    }
+  }
+
+  const variants = TEMPLATE_VARIANTS[lookupKey] || TEMPLATE_VARIANTS[eventType] || [
+    "Hi, we've received your request. Nick's Tire & Auto {shopPhone}."
+  ];
+
+  const index = variantIndex !== undefined
+    ? Math.min(Math.max(0, variantIndex), variants.length - 1)
+    : Math.floor(Math.random() * variants.length);
+
+  let raw = variants[index];
+  const variantKey = `${lookupKey}_v${index + 1}`;
+
+  // Replace placeholders
+  const name = context.name ? context.name.split(" ")[0] : "there";
+  const service = context.service || "service";
+  const nextOpen = context.nextOpen || "8:00 AM";
+  const shopPhone = BUSINESS.phone.display;
+
+  raw = raw
+    .replace(/{name}/g, name)
+    .replace(/{service}/g, service)
+    .replace(/{nextOpen}/g, nextOpen)
+    .replace(/{shopPhone}/g, shopPhone);
+
+  return { body: raw, variantKey };
+}
+
+export interface ExperimentAssignment {
+  body: string;
+  variantKey: string;
+  experimentId: string;
+  isControl: boolean;
+  trafficWeight: number;
+  variantAssignmentReason: string;
+  selectedTemplateKey: string;
+}
+
+export function assignVariantWithExperiment(
+  eventType: string,
+  context: Record<string, any> = {}
+): ExperimentAssignment {
+  let lookupKey = eventType;
+  if (eventType === "booking_reminder" && context.reminderType) {
+    const specificKey = `booking_reminder:${context.reminderType}`;
+    if (TEMPLATE_VARIANTS[specificKey]) {
+      lookupKey = specificKey;
+    }
+  }
+
+  const variants = TEMPLATE_VARIANTS[lookupKey] || TEMPLATE_VARIANTS[eventType] || [
+    "Hi, we've received your request. Nick's Tire & Auto {shopPhone}."
+  ];
+
+  const experimentId = `exp_${lookupKey}_v1_vs_challengers`;
+  
+  // Traffic split: 80% control (v1), 10% challenger 1 (v2), 10% challenger 2 (v3)
+  let weights: number[] = [];
+  if (variants.length === 1) {
+    weights = [100];
+  } else if (variants.length === 2) {
+    weights = [80, 20];
+  } else {
+    weights = [80];
+    const remaining = 20 / (variants.length - 1);
+    for (let i = 1; i < variants.length; i++) {
+      weights.push(remaining);
+    }
+  }
+
+  const roll = Math.random() * 100;
+  let selectedIndex = 0;
+  let runningSum = 0;
+  for (let i = 0; i < weights.length; i++) {
+    runningSum += weights[i];
+    if (roll <= runningSum) {
+      selectedIndex = i;
+      break;
+    }
+  }
+
+  const raw = variants[selectedIndex];
+  const variantKey = `${lookupKey}_v${selectedIndex + 1}`;
+  const isControl = selectedIndex === 0;
+  const trafficWeight = Math.round(weights[selectedIndex]);
+  const variantAssignmentReason = `Experiment split roll: ${roll.toFixed(1)} / Weight sum up to ${runningSum.toFixed(1)}%`;
+
+  // Replace placeholders
+  const name = context.name ? context.name.split(" ")[0] : "there";
+  const service = context.service || "service";
+  const nextOpen = context.nextOpen || "8:00 AM";
+  const shopPhone = BUSINESS.phone.display;
+
+  const body = raw
+    .replace(/{name}/g, name)
+    .replace(/{service}/g, service)
+    .replace(/{nextOpen}/g, nextOpen)
+    .replace(/{shopPhone}/g, shopPhone);
+
+  return {
+    body,
+    variantKey,
+    experimentId,
+    isControl,
+    trafficWeight,
+    variantAssignmentReason,
+    selectedTemplateKey: lookupKey
+  };
+}
+

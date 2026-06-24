@@ -314,39 +314,27 @@ export const voiceAgentRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const { sendSms } = await import("../sms");
-        const body = `${input.summary}\n\n📍 17625 Euclid Ave, Cleveland\n📞 ${BUSINESS.phone.display}\n${input.mapLink || "https://nickstire.org/contact"}`;
-        // Wave-103 — route through the shop's real number so the
-        // customer sees the text from 216-862-0005 (the same line they
-        // just called). Falls back to Twilio if the gateway is offline.
-        //
-        // wave-181.x · `transactional: true` is critical here. The
-        // customer is on the phone with us RIGHT NOW · this SMS is the
-        // direct response to a customer-initiated interaction · TCPA-
-        // safe to bypass quiet-hours + daily-cap. Without the flag, an
-        // 8:30 PM call would have Nick say "I'll text you the address"
-        // but the SMS would queue until 8 AM the next day · the
-        // customer is left thinking the text was lost. Opt-out is NOT
-        // bypassed · transactional flag only affects timing + cap.
-        const result = await sendSms(input.phone, body, { via: "shop", transactional: true });
-        // Broadened: was `&& result.error === "sms_disabled"` (kill-switch only),
-        // which missed the real failure — F25e offline + Twilio also down ->
-        // sent:false but degraded:false -> Nick promised a text that never sent.
-        // Any genuine non-send now degrades so Nick reads the address aloud.
-        // `queued` also degrades: in F25e-only/queue-when-offline mode the recap
-        // SMS is held for later delivery, so Nick reads the address ALOUD now —
-        // the text still arrives when the gateway is back, but the caller standing
-        // on Euclid Ave isn't left waiting on a text that's hours out.
-        const degraded = !result.success || result.queued === true;
-        log.info("Voice agent SMS sent", {
+        const { orchestrateSms } = await import("../services/smsOrchestrator");
+        const orchResult = await orchestrateSms({
+          type: "vapi_confirmation",
+          phone: input.phone,
+          summary: input.summary,
+          mapLink: input.mapLink,
+        });
+
+        const success = orchResult.status === "sent" || orchResult.status === "queued";
+        const degraded = !success || orchResult.status === "queued";
+
+        log.info("Voice agent SMS sent via orchestrator", {
           phone: input.phone.slice(-4),
-          success: result.success,
+          status: orchResult.status,
           degraded,
         });
+
         return {
-          sent: result.success,
-          sid: result.sid,
-          error: result.error,
+          sent: success,
+          sid: orchResult.id?.toString(),
+          error: orchResult.status === "failed" ? orchResult.reason : undefined,
           degraded,
           // Friendly verbal recap Nick should READ ALOUD when degraded
           verbalRecap: degraded
