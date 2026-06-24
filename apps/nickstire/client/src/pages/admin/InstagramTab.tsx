@@ -71,6 +71,7 @@ const MODE_CLS = {
 const SUBTABS = [
   { id: "feed", label: "Feed Explorer", Icon: Film },
   { id: "inbox", label: "Inbox", Icon: MessageCircle },
+  { id: "warRoom", label: "Social War Room", Icon: Sparkles },
   { id: "create", label: "Create", Icon: Wand2 },
   { id: "publish", label: "Publish", Icon: Send },
   { id: "logs", label: "Autopost Logs", Icon: Clock },
@@ -171,6 +172,7 @@ export default function InstagramTab() {
           />
         )}
         {sub === "inbox" && <CommentsPanel />}
+        {sub === "warRoom" && <WarRoomPanel />}
         {sub === "create" && <CreateSection seedConcept={seedConcept} onSeedConsumed={() => setSeedConcept(null)} onSeed={setSeedConcept} />}
         {sub === "publish" && (
           <PublishPanel
@@ -3049,6 +3051,546 @@ function PublishPanel({
         </div>
       )}
     </Panel>
+  );
+}
+
+function WarRoomPanel() {
+  const utils = trpc.useUtils();
+  const { data: campaigns, isLoading: loadingCampaigns } = trpc.contentAdmin.listCampaigns.useQuery();
+  const { data: inventory, isLoading: loadingInventory } = trpc.contentAdmin.listInventory.useQuery();
+  const { data: weatherData } = trpc.weather.current.useQuery();
+  const { data: reserveStatus, isLoading: loadingReserve } = trpc.contentAdmin.getReserveStatus.useQuery();
+
+  const createCampaign = trpc.contentAdmin.createCampaign.useMutation({
+    onSuccess: () => {
+      toast.success("Campaign created");
+      utils.contentAdmin.listCampaigns.invalidate();
+    }
+  });
+
+  const toggleCampaign = trpc.contentAdmin.toggleCampaign.useMutation({
+    onSuccess: () => {
+      toast.success("Campaign updated");
+      utils.contentAdmin.listCampaigns.invalidate();
+    }
+  });
+
+  const explodeTopic = trpc.contentAdmin.explodeCampaignTopic.useMutation();
+  const previewHooks = trpc.contentAdmin.previewHooks.useMutation();
+  const triggerDraft = trpc.contentAdmin.triggerDraftGeneration.useMutation({
+    onSuccess: () => {
+      toast.success("Draft created and safety checked successfully!");
+      utils.contentAdmin.listInventory.invalidate();
+      utils.contentAdmin.getReserveStatus.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to create draft");
+    }
+  });
+
+  const runPipeline = trpc.contentAdmin.runFullPipeline.useMutation({
+    onSuccess: (res) => {
+      toast.success(`Pipeline finished! Created ${res.draftsCreated} drafts.`);
+      utils.contentAdmin.listInventory.invalidate();
+      utils.contentAdmin.getReserveStatus.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Pipeline execution failed");
+    }
+  });
+
+  const actOnItem = trpc.contentAdmin.actOnInventoryItem.useMutation({
+    onSuccess: () => {
+      toast.success("Action applied to queue");
+      utils.contentAdmin.listInventory.invalidate();
+      utils.contentAdmin.getReserveStatus.invalidate();
+    }
+  });
+
+  const triggerReplenish = trpc.contentAdmin.replenishReserve.useMutation({
+    onSuccess: (res) => {
+      if (res.draftsCreated > 0) {
+        toast.success(`Replenished! Created ${res.draftsCreated} drafts for: ${res.campaignRuns.join(", ")}`);
+      } else {
+        toast.info("Reserves are fully stocked. No replenishment needed.");
+      }
+      utils.contentAdmin.getReserveStatus.invalidate();
+      utils.contentAdmin.listInventory.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Replenishment failed");
+    }
+  });
+
+  const [newTopic, setNewTopic] = useState("");
+  const [newPersona, setNewPersona] = useState("cleveland_car_doctor");
+  const [newTarget, setNewTarget] = useState(30);
+
+  // Manual generation flow state
+  const [explodedAngles, setExplodedAngles] = useState<any[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState<any | null>(null);
+  const [activeAngle, setActiveAngle] = useState<any | null>(null);
+  const [previewedHooks, setPreviewedHooks] = useState<any[]>([]);
+
+  // Stats calculation
+  const totalCampaigns = campaigns?.length || 0;
+  const activeCampaigns = campaigns?.filter(c => c.isActive) || [];
+  const targetVolume = activeCampaigns.reduce((acc, c) => acc + c.targetMonthlyVolume, 0);
+  const readyDrafts = inventory?.filter(i => i.status === "pending" || i.status === "approved" || i.status === "scheduled")?.length || 0;
+
+  // Gaps Monitor
+  const gaps = useMemo(() => {
+    if (!campaigns || !inventory) return [];
+    return campaigns.filter(c => {
+      const count = inventory.filter(i => i.topic === c.topic && i.status !== "rejected").length;
+      return count < 5;
+    });
+  }, [campaigns, inventory]);
+
+  const handleCreateCampaign = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTopic.trim()) return;
+    createCampaign.mutate({
+      topic: newTopic.trim(),
+      persona: newPersona,
+      targetMonthlyVolume: newTarget
+    });
+    setNewTopic("");
+  };
+
+  const handleExplode = (campaign: any) => {
+    setSelectedCampaign(campaign);
+    setExplodedAngles([]);
+    setActiveAngle(null);
+    setPreviewedHooks([]);
+    explodeTopic.mutate({ topic: campaign.topic }, {
+      onSuccess: (data) => {
+        setExplodedAngles(data);
+      }
+    });
+  };
+
+  const handleSelectAngle = (angle: any) => {
+    setActiveAngle(angle);
+    setPreviewedHooks([]);
+    previewHooks.mutate({ topic: selectedCampaign.topic, angle }, {
+      onSuccess: (data) => {
+        setPreviewedHooks(data);
+      }
+    });
+  };
+
+  const handleGenerateDraft = (hook: any, type: "reel" | "carousel" | "post" | "story") => {
+    if (!selectedCampaign || !activeAngle) return;
+    triggerDraft.mutate({
+      campaignId: selectedCampaign.id,
+      topic: selectedCampaign.topic,
+      angle: activeAngle,
+      hook,
+      persona: selectedCampaign.persona,
+      contentType: type
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* War Room Header */}
+      <div className="flex items-center justify-between border-b border-border/20 pb-3">
+        <div>
+          <h2 className="text-base font-bold flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-pink-400" /> Social War Room
+          </h2>
+          <p className="text-xs text-foreground/50">Attention Manufacturing Console & Content Inventory</p>
+        </div>
+        <span className="px-2 py-0.5 text-[10px] font-bold border border-red-500/30 bg-red-500/10 text-red-400 rounded uppercase tracking-wider">
+          Armed
+        </span>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Panel className="p-3 bg-background/25 border-border/30">
+          <span className="text-[10px] uppercase text-foreground/40 font-semibold block mb-1">Active Campaigns</span>
+          <span className="text-xl font-bold text-foreground">{activeCampaigns.length} <span className="text-xs font-normal text-foreground/40">/ {totalCampaigns}</span></span>
+        </Panel>
+        <Panel className="p-3 bg-background/25 border-border/30">
+          <span className="text-[10px] uppercase text-foreground/40 font-semibold block mb-1">Target Monthly Vol</span>
+          <span className="text-xl font-bold text-foreground">{targetVolume} posts</span>
+        </Panel>
+        <Panel className="p-3 bg-background/25 border-border/30">
+          <span className="text-[10px] uppercase text-foreground/40 font-semibold block mb-1">Queue Health (Next 30 Days)</span>
+          <span className="text-xl font-bold text-foreground">{readyDrafts} <span className="text-xs font-normal text-foreground/40">/ {targetVolume}</span></span>
+        </Panel>
+        <Panel className="p-3 bg-background/25 border-border/30">
+          <span className="text-[10px] uppercase text-foreground/40 font-semibold block mb-1">Gaps Detected</span>
+          <span className={`text-xl font-bold ${gaps.length > 0 ? "text-amber-400 animate-pulse" : "text-emerald-400"}`}>
+            {gaps.length} topics low
+          </span>
+        </Panel>
+      </div>
+
+      {/* Gaps Monitor Warn Alert */}
+      {gaps.length > 0 && (
+        <div className="border border-amber-500/30 bg-amber-500/5 rounded p-3 text-xs text-amber-200 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+          <div>
+            <span className="font-semibold block">Content Pipeline Gaps Warning</span>
+            <span className="mt-0.5 block text-foreground/70">
+              The following topics have less than 5 ready drafts in the social inventory:
+              {gaps.map(g => (
+                <span key={g.id} className="inline-block mx-1 px-1.5 py-0.5 bg-background/50 border border-border/20 rounded font-semibold text-foreground/90">
+                  {g.topic}
+                </span>
+              ))}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Content Reserve System Panel */}
+      <Panel className="p-4 border-border/30 bg-background/10">
+        <div className="flex items-center justify-between border-b border-border/20 pb-2 mb-3">
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-pink-400 font-bold block">Content Reserve Warehouse</span>
+            <p className="text-[10px] text-foreground/50">Safety buffer levels for continuous 365-day publishing</p>
+          </div>
+          <button
+            onClick={() => triggerReplenish.mutate()}
+            disabled={triggerReplenish.isPending}
+            className="px-2.5 py-1 text-xs font-bold rounded bg-pink-500 hover:bg-pink-600 text-white transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+          >
+            {triggerReplenish.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+            Replenish Reserves
+          </button>
+        </div>
+
+        {loadingReserve ? (
+          <div className="flex justify-center p-4"><Loader2 className="w-5 h-5 animate-spin text-pink-400" /></div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {reserveStatus && Object.values(reserveStatus.reserves).map((res: any) => {
+              const pct = Math.min(100, Math.round((res.days / res.threshold) * 100));
+              const isDeficit = res.deficit > 0;
+              return (
+                <div key={res.contentType} className="border border-border/20 rounded p-3 space-y-2 bg-background/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold capitalize text-foreground/80">{res.contentType}s</span>
+                    <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded uppercase ${
+                      isDeficit ? "bg-red-500/10 text-red-400 border border-red-500/20" : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                    }`}>
+                      {isDeficit ? `${res.deficit}d Deficit` : "Healthy"}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[11px] mb-1">
+                      <span className="text-foreground/50">{res.count} drafts</span>
+                      <span className="font-semibold text-foreground/90">{res.days} / {res.threshold} days</span>
+                    </div>
+                    <div className="w-full bg-foreground/5 rounded-full h-1.5 overflow-hidden border border-border/10">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isDeficit ? "bg-amber-500" : "bg-emerald-500"
+                        }`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Display Reserve Deficit Alerts */}
+        {reserveStatus && reserveStatus.deficitAlerts.length > 0 && (
+          <div className="mt-3 space-y-1.5 border-t border-border/10 pt-3">
+            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block mb-1">Active Deficit Alarms</span>
+            {reserveStatus.deficitAlerts.map((alert, idx) => (
+              <div key={idx} className="text-[11px] text-amber-200/80 flex items-center gap-1.5 bg-amber-500/5 p-1 px-2 rounded border border-amber-500/10">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 block shrink-0" />
+                <span>{alert}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      {/* Main Grid: Left column Campaigns, Right Column Generation Board & Draft Queue */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Left Side: Campaigns Panel (5 cols) */}
+        <div className="lg:col-span-5 space-y-4">
+          <Panel className="p-3 border-border/30">
+            <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-bold block mb-3">Narrative Campaigns</span>
+            {loadingCampaigns ? (
+              <div className="flex justify-center p-4"><Loader2 className="w-5 h-5 animate-spin" /></div>
+            ) : (
+              <div className="space-y-3">
+                {(campaigns || []).map((c) => (
+                  <div key={c.id} className="border border-border/20 rounded p-2.5 space-y-2 bg-background/10">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold capitalize text-foreground/90">{c.topic}</h4>
+                        <p className="text-[10px] text-foreground/50 capitalize">Persona: {c.persona.replace(/_/g, " ")}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => toggleCampaign.mutate({ id: c.id, isActive: !c.isActive })}
+                          className={`px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase transition-colors ${
+                            c.isActive ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20" : "bg-foreground/5 text-foreground/30 border-border/20 hover:bg-foreground/10"
+                          }`}
+                        >
+                          {c.isActive ? "Active" : "Paused"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-foreground/40">Target: {c.targetMonthlyVolume}/mo</span>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleExplode(c)}
+                          disabled={explodeTopic.isPending}
+                          className="px-2 py-1 bg-primary/10 border border-primary/20 hover:bg-primary/25 text-primary rounded font-bold transition-all disabled:opacity-50"
+                        >
+                          Manual Gen
+                        </button>
+                        <button
+                          onClick={() => runPipeline.mutate({ campaignId: c.id, topic: c.topic, persona: c.persona })}
+                          disabled={runPipeline.isPending}
+                          className="px-2 py-1 bg-pink-500/10 border border-pink-500/20 hover:bg-pink-500/25 text-pink-400 rounded font-bold transition-all disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {runPipeline.isPending && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
+                          Auto Run
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Add Campaign Form */}
+                <form onSubmit={handleCreateCampaign} className="border-t border-border/20 pt-3 space-y-2">
+                  <span className="text-[10px] uppercase text-foreground/40 font-semibold block">Create New Campaign</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Topic (e.g. Alignment)"
+                      value={newTopic}
+                      onChange={(e) => setNewTopic(e.target.value)}
+                      className="bg-background/40 border border-border/30 rounded p-1.5 text-xs"
+                    />
+                    <select
+                      value={newPersona}
+                      onChange={(e) => setNewPersona(e.target.value)}
+                      className="bg-background/40 border border-border/30 rounded p-1.5 text-xs"
+                    >
+                      <option value="cleveland_car_doctor">Cleveland Car Doctor</option>
+                      <option value="tire_whisperer">Tire Whisperer</option>
+                      <option value="shop_insider">Shop Insider</option>
+                      <option value="pothole_investigator">Pothole Investigator</option>
+                      <option value="light_therapist">Light Therapist</option>
+                    </select>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-foreground/50">Target:</span>
+                      <input
+                        type="number"
+                        value={newTarget}
+                        onChange={(e) => setNewTarget(parseInt(e.target.value, 10))}
+                        className="bg-background/40 border border-border/30 rounded p-1 text-xs w-12 text-center"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="px-2.5 py-1 text-xs font-semibold rounded bg-foreground text-background hover:bg-foreground/90 transition-colors"
+                    >
+                      Add Campaign
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </Panel>
+
+          {/* Weather Alerts & GSC trends */}
+          <Panel className="p-3 border-border/30 bg-background/5">
+            <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-bold block mb-2">Trend Hijacking & Weather triggers</span>
+            <div className="text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-foreground/50">Weather condition:</span>
+                <span className="font-semibold text-foreground/80">{weatherData?.alert?.message || "No active alert"}</span>
+              </div>
+              <div className="bg-background/30 border border-border/10 p-2 rounded text-[11px] text-foreground/60 leading-relaxed">
+                {weatherData?.weather ? (
+                  <span>Cleveland temperature is {weatherData.weather.temperature_f}°F with {weatherData.weather.weather_condition || "clear skies"}.</span>
+                ) : (
+                  <span>Weather details unavailable.</span>
+                )}
+              </div>
+            </div>
+          </Panel>
+        </div>
+
+        {/* Right Side: Generation Board (7 cols) */}
+        <div className="lg:col-span-7 space-y-4">
+          {/* Explosive Angles Board */}
+          {selectedCampaign && (
+            <Panel className="p-3 border-pink-500/20 bg-pink-500/5">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[10px] uppercase tracking-wider text-pink-400 font-bold">Topic Explosion: {selectedCampaign.topic}</span>
+                <button onClick={() => setSelectedCampaign(null)} className="text-foreground/40 hover:text-foreground/75"><X className="w-4 h-4" /></button>
+              </div>
+
+              {explodeTopic.isPending ? (
+                <div className="flex flex-col items-center justify-center p-8 space-y-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-pink-400" />
+                  <span className="text-xs text-foreground/50">Running 50 content angle explosion pipeline...</span>
+                </div>
+              ) : explodedAngles.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                    {explodedAngles.map((a, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSelectAngle(a)}
+                        className={`text-left p-2 border rounded transition-colors text-[11px] ${
+                          activeAngle?.angle === a.angle ? "border-pink-500 bg-pink-500/10 text-foreground" : "border-border/20 bg-background/20 text-foreground/70 hover:bg-background/40"
+                        }`}
+                      >
+                        <span className="font-bold block text-foreground truncate">{a.angle}</span>
+                        <span className="text-[9px] text-foreground/40">{a.narrativeFranchise}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Hooks and Scoring Preview */}
+                  {activeAngle && (
+                    <div className="border-t border-border/20 pt-3 space-y-3">
+                      <h5 className="text-xs font-semibold text-foreground/80">Hook Library & Pre-Scoring for "{activeAngle.angle}"</h5>
+                      {previewHooks.isPending ? (
+                        <div className="flex justify-center p-4"><Loader2 className="w-5 h-5 animate-spin text-pink-400" /></div>
+                      ) : previewedHooks.length > 0 ? (
+                        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                          {previewedHooks.map((h, idx) => (
+                            <div key={idx} className="border border-border/10 rounded p-2 text-[11px] bg-background/30 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                              <div className="space-y-1">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/40">{h.hookCategory}</span>
+                                <p className="text-foreground/90 font-medium leading-normal">"{h.hookText}"</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="text-right">
+                                  <span className="text-[9px] text-foreground/40 block">Attention Score</span>
+                                  <span className={`text-xs font-bold block ${h.scoreOverall >= 75 ? "text-emerald-400" : "text-amber-400"}`}>{h.scoreOverall}/100</span>
+                                </div>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => handleGenerateDraft(h, "reel")}
+                                    className="px-2 py-0.5 bg-background border border-border/20 hover:border-pink-500/40 text-[10px] rounded transition-all"
+                                  >
+                                    Reel
+                                  </button>
+                                  <button
+                                    onClick={() => handleGenerateDraft(h, "carousel")}
+                                    className="px-2 py-0.5 bg-background border border-border/20 hover:border-pink-500/40 text-[10px] rounded transition-all"
+                                  >
+                                    Slides
+                                  </button>
+                                  <button
+                                    onClick={() => handleGenerateDraft(h, "post")}
+                                    className="px-2 py-0.5 bg-background border border-border/20 hover:border-pink-500/40 text-[10px] rounded transition-all"
+                                  >
+                                    Post
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </Panel>
+          )}
+
+          {/* Scored social drafts list */}
+          <Panel className="p-3 border-border/30">
+            <span className="text-[10px] uppercase tracking-wider text-foreground/50 font-bold block mb-3">Scored Social Queue / Inventory</span>
+            {loadingInventory ? (
+              <div className="flex justify-center p-4"><Loader2 className="w-5 h-5 animate-spin" /></div>
+            ) : inventory && inventory.length > 0 ? (
+              <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                {inventory.map((item) => (
+                  <div key={item.id} className="border border-border/20 rounded p-2.5 space-y-2 bg-background/20 relative">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase ${
+                            item.contentType === "reel" ? "bg-pink-500/10 text-pink-400 border-pink-500/20" : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                          }`}>{item.contentType}</span>
+                          <span className="text-[10px] text-foreground/50 capitalize font-medium">{item.topic}</span>
+                          <span className="text-[10px] text-foreground/30">·</span>
+                          <span className="text-[10px] text-foreground/40 italic">{item.seriesName}</span>
+                        </div>
+                        <h4 className="text-[11px] font-semibold text-foreground/90 mt-1 leading-normal">"{item.hookText}"</h4>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[9px] text-foreground/40 block font-bold">Overall Score</span>
+                        <span className={`text-xs font-extrabold block ${
+                          item.scoreOverall >= 85 ? "text-pink-400" : item.scoreOverall >= 75 ? "text-emerald-400" : "text-amber-400"
+                        }`}>{item.scoreOverall}/100</span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-foreground/70 bg-background/30 p-2 rounded leading-normal max-h-16 overflow-y-auto select-all">
+                      {item.bodyText}
+                    </p>
+
+                    <div className="flex items-center justify-between text-[10px] text-foreground/50 flex-wrap gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 bg-background border border-border/10 rounded text-[9px]">Style: {item.visualStyle}</span>
+                        <span className="px-1.5 py-0.5 bg-background border border-border/10 rounded text-[9px]">Persona: {item.persona}</span>
+                      </div>
+                      <div className="flex gap-1">
+                        {item.status === "pending" && (
+                          <>
+                            <button
+                              onClick={() => actOnItem.mutate({ id: item.id, action: "approve" })}
+                              className="px-2 py-0.5 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 font-bold transition-all"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => actOnItem.mutate({ id: item.id, action: "reject" })}
+                              className="px-2 py-0.5 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 font-bold transition-all"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {item.status === "approved" && (
+                          <span className="text-emerald-400 font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Approved
+                          </span>
+                        )}
+                        {item.status === "rejected" && (
+                          <span className="text-red-400 font-bold">Rejected</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-8 border border-dashed border-border/20 rounded-lg text-foreground/40">
+                <Grid className="w-8 h-8 mb-2 opacity-50" />
+                <span className="text-xs">No manufactured drafts in queue.</span>
+              </div>
+            )}
+          </Panel>
+        </div>
+      </div>
+    </div>
   );
 }
 
