@@ -103,6 +103,7 @@ export interface FfmpegBuildOpts {
   clipPaths: string[];
   voPath: string | null;
   musicPath: string | null;
+  assPath: string | null;
   fontPath: string;
   outPath: string;
 }
@@ -114,7 +115,7 @@ export interface FfmpegBuildOpts {
  * the cut frame), VO loud over ducked music. Pure — no filesystem access.
  */
 export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
-  const { segs, clipPaths, voPath, musicPath, fontPath, outPath } = opts;
+  const { segs, clipPaths, voPath, musicPath, assPath, fontPath, outPath } = opts;
   if (segs.length !== clipPaths.length) {
     throw new Error(`segment/clip count mismatch: ${segs.length} segs vs ${clipPaths.length} clips`);
   }
@@ -137,42 +138,57 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   // 1. normalize each beat to a trimmed vertical clip + a deterministic slow
   //    push-in (Phase 4.1 motion): Ken Burns 1.0 -> 1.06 across the beat keeps a
   //    static AI clip alive for watch-time. pzoom accumulates frame-to-frame
-  //    WITHIN each beat; every beat is a separate input stream, so the zoom resets
-  //    to 1.0 per beat (the intended per-beat push-in). d=1 = 1 out frame per in.
+  const zInc = (0.06 / Math.max(1, 30)).toFixed(6);
+  const XFADE_DUR = 0.5;
+  const XFADE_TRANSITION = "fade";
+
+  // 1. base sizing + Ken Burns pan/zoom + extend for xfade
   segs.forEach((s, i) => {
-    const zInc = (0.06 / Math.max(1, s.dur * 30)).toFixed(6);
+    const pad = i < segs.length - 1 ? `:stop_duration=${XFADE_DUR}` : "";
     fc.push(
-      // fps=30 BEFORE zoompan: zoompan is fps-sensitive on video — d=1 stamps the
-      // INPUT frame count onto its output fps, so a 24fps source at fps=30 would
-      // shrink each beat to 0.8x. Normalizing to 30fps first keeps duration exact.
-      `[${i}:v]trim=0:${s.dur},setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,` +
+      `[${i}:v]trim=0:${s.dur},setpts=PTS-STARTPTS,` +
+        `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,` +
         `zoompan=z='min(pzoom+${zInc},1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30,` +
-        `setsar=1,format=yuv420p[v${i}]`,
+        `setsar=1,format=yuv420p,` +
+        `tpad=stop_mode=clone${pad}[v${i}]`,
     );
   });
-  // 2. concat all beats into one video stream
-  fc.push(`${segs.map((_, i) => `[v${i}]`).join("")}concat=n=${segs.length}:v=1:a=0[vc]`);
-  // 3. burn one caption per beat on a half-open time window
-  // Brand styling: Anton (resolved upstream) in Nick's yellow #FDB913 on a
-  // near-black box, raised out of IG's bottom caption / right-rail safe zone.
-  // Beat 1 is the scroll-stopping HOOK — larger and screen-centered for its
-  // window; later captions settle to the lower third (the muted-first read the
-  // reel spec asks for).
-  let cum = 0;
-  let label = "vc";
-  segs.forEach((s, i) => {
-    const start = cum;
-    const end = cum + s.dur;
-    cum = end;
-    const next = i === segs.length - 1 ? "vcap" : `d${i}`;
-    const isHook = i === 0;
-    const size = isHook ? Math.round(s.fontSize * 1.35) : s.fontSize;
-    const yPos = isHook ? "(h-text_h)/2" : "h*0.62";
-    fc.push(
-      `[${label}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}.txt':fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yPos}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${next}]`,
-    );
-    label = next;
-  });
+  // 2. xfade all beats into one video stream
+  if (segs.length > 1) {
+    let prev = "[v0]";
+    let cumOffset = 0;
+    for (let i = 1; i < segs.length; i++) {
+      cumOffset += segs[i - 1].dur;
+      const next = `[v${i}]`;
+      const out = i === segs.length - 1 ? "[vc]" : `[xf${i}]`;
+      fc.push(`${prev}${next}xfade=transition=${XFADE_TRANSITION}:duration=${XFADE_DUR}:offset=${cumOffset.toFixed(2)}${out}`);
+      prev = out;
+    }
+  } else {
+    fc.push(`[v0]copy[vc]`);
+  }
+  // 3. burn one caption per beat on a half-open time window, OR use dynamic ASS captions if available
+  if (assPath) {
+    // Escape for ffmpeg: backslashes become forward slashes, Windows drive letters (C:) need escaping
+    const assEsc = assPath.replace(/\\/g, "/").replace(/:/g, "\\\\:");
+    fc.push(`[vc]subtitles='${assEsc}':fontsdir='${path.dirname(fontEsc)}'[vcap]`);
+  } else {
+    let cum = 0;
+    let label = "vc";
+    segs.forEach((s, i) => {
+      const start = cum;
+      const end = cum + s.dur;
+      cum = end;
+      const next = i === segs.length - 1 ? "vcap" : `d${i}`;
+      const isHook = i === 0;
+      const size = isHook ? Math.round(s.fontSize * 1.35) : s.fontSize;
+      const yPos = isHook ? "(h-text_h)/2" : "h*0.62";
+      fc.push(
+        `[${label}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}.txt':fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yPos}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${next}]`,
+      );
+      label = next;
+    });
+  }
 
   // 3b. Phase 3.1 save-payload: freeze the final frame for SAVE_FREEZE_SECONDS and
   //     stamp a top-of-frame "SAVE THIS" prompt (works muted; a save is a top Meta
@@ -437,12 +453,17 @@ export async function assembleReel(
       }
       clipPaths.push(p);
     }
-    const { generateVoiceover } = await import("./reelVoice");
+    const { generateVoiceover, generateAssSubtitles } = await import("./reelVoice");
     const vo = await generateVoiceover(brief.voiceoverScript);
     let voPath: string | null = null;
+    let assPath: string | null = null;
     if (vo) {
       voPath = path.join(workDir, `vo.${vo.ext}`);
       await fs.promises.writeFile(voPath, vo.buf);
+      if (vo.alignment) {
+        assPath = path.join(workDir, "captions.ass");
+        await fs.promises.writeFile(assPath, generateAssSubtitles(vo.alignment));
+      }
     }
 
     const outPath = path.join(workDir, "reel.mp4");
@@ -455,8 +476,8 @@ export async function assembleReel(
     }
     await fs.promises.writeFile(path.join(workDir, "caption_save.txt"), SAVE_CTA_TEXT, "utf-8");
 
-    const args = buildFfmpegArgs({ segs, clipPaths, voPath, musicPath: pickMusicBed(brief), fontPath: "font.ttf", outPath });
-    log.info("assembling reel", { jobId, beats: segs.length, total, usedVo: !!voPath });
+    const args = buildFfmpegArgs({ segs, clipPaths, voPath, assPath, musicPath: pickMusicBed(brief), fontPath: "font.ttf", outPath });
+    log.info("assembling reel", { jobId, beats: segs.length, total, usedVo: !!voPath, usedAss: !!assPath });
     await runFfmpeg(args, 5 * 60 * 1000, workDir);
 
     // Publish-gate hardening: never ship a corrupt / wrong-aspect / silent reel.
