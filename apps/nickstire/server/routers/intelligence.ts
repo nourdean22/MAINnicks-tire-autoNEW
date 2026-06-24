@@ -6,6 +6,9 @@
  * autopilot calls them directly) — only the unused tRPC wrappers were removed.
  */
 import { adminProcedure, router } from "../_core/trpc";
+import { z } from "zod";
+import { eq, desc } from "drizzle-orm";
+import { intelligenceDecisionLedger } from "../../drizzle/schema";
 import { forecastSeasonalDemand } from "../services/intelligenceEngines";
 import { generateMasterIntelligenceReport } from "../services/masterIntelligence";
 import {
@@ -146,5 +149,55 @@ export const intelligenceRouter = router({
       rawSql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')`
     );
     return { activeWOs, todayBookings, estimatedWait: activeWOs === 0 ? 0 : Math.min(180, activeWOs * 45) };
+  }),
+
+  // ── Decision Ledger & Learning Loop ──
+  logDecision: adminProcedure
+    .input(z.object({
+      engineId: z.string(),
+      recommendationType: z.string(),
+      recommendationTarget: z.string(),
+      actionTaken: z.string(),
+      valueAtRiskCents: z.number().optional().default(0),
+      contextJson: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) throw new Error("DB not ready");
+
+      await d.insert(intelligenceDecisionLedger).values({
+        engineId: input.engineId,
+        recommendationType: input.recommendationType,
+        recommendationTarget: input.recommendationTarget,
+        actionTaken: input.actionTaken,
+        valueAtRiskCents: input.valueAtRiskCents,
+        contextJson: input.contextJson,
+      });
+      return { success: true };
+    }),
+
+  updateDecisionOutcome: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      actualRevenueCapturedCents: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) throw new Error("DB not ready");
+
+      await d.update(intelligenceDecisionLedger)
+        .set({ actualRevenueCapturedCents: input.actualRevenueCapturedCents })
+        .where(eq(intelligenceDecisionLedger.id, input.id));
+      return { success: true };
+    }),
+
+  recentDecisions: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return [];
+
+    return await d.select().from(intelligenceDecisionLedger).orderBy(desc(intelligenceDecisionLedger.createdAt)).limit(20);
   }),
 });

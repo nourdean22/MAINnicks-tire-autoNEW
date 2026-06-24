@@ -54,9 +54,7 @@ import { MorningBrief } from "./today/MorningBrief";
 import { WaveMetricWins } from "./today/WaveMetricWins";
 // wave-2 money-visibility · "what's at risk before it costs money today" ·
 // derives from the same overviewMediumBundle (cache-shared · no new query).
-import { TodaysMoneyRisks } from "./today/TodaysMoneyRisks";
 import { MoneyScorecard } from "./today/MoneyScorecard";
-import { TopMoneyMoves } from "./today/TopMoneyMoves";
 import type {
   BookingItem, LeadItem, CallbackItem, WorkOrderItem,
   NBAAction, AtRiskWhale, ShopFloorData, ActionItem,
@@ -476,8 +474,6 @@ export default function OverviewSection() {
         urgentLeads={urgentLeads}
       />
 
-      <TopMoneyMoves />
-
       <MoneyScorecard />
 
       {/* ─── 4 STAT PILLS · the always-visible scoreboard ─── */}
@@ -544,12 +540,6 @@ export default function OverviewSection() {
           )}
         </button>
       </div>
-
-      {/* ─── MONEY AT RISK TODAY · clear it before it costs us ─── */}
-      <TodaysMoneyRisks />
-
-      {/* ─── WHAT TO DO NOW · server-ranked NBA strip ─── */}
-      <NextBestActions />
 
       {/* ─── PRIORITY ACTION QUEUE · the action surface ─── */}
       <div id="priority-action-queue" className="stat-card !p-5 !border-primary/20 transition-all">
