@@ -234,7 +234,7 @@ function getLocalHeuristicFallback(
   const matchesTirePrice = /\b(tire|tires|price|prices|pricing|quote|cost|sizes|size|rim|rims|wheel|wheels|tread|treads)\b/i.test(text);
   const matchesBrakes = /\b(brake|brakes|rotor|rotors|pad|pads|stopping|squeak|squeal)\b/i.test(text);
   const matchesOil = /\b(oil|filter|lube|synthetic)\b/i.test(text);
-  const matchesAppointment = /\b(appointment|book|schedule|scheduling|reserve|reservation|slot|come|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(text);
+  const matchesAppointment = /\b(appointment|book|schedule|scheduling|reserve|reservation|slot|come|today|tomorrow|drop|drop-off|dropoff|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(text);
   const matchesOptOut = /\b(stop|unsubscribe|opt out|cancel|quit|end)\b/i.test(text);
   const matchesDiagnostic = /\b(shake|shaking|vibrate|vibration|highway|wobble|alignment|balance|check engine|light|fail|failed|e-check|echeck|emissions|squeak|noise|leak|leaking|smoke)\b/i.test(text);
 

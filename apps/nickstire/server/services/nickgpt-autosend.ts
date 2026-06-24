@@ -35,8 +35,11 @@ export async function handleNickGptAutoSend(
   const candidateLabels = [
     "asking about hours or location",
     "greeting or hello",
-    "booking or appointment request",
-    "pricing query or quote request",
+    "asking about brake service",
+    "asking about tire prices or sizes",
+    "asking about oil change",
+    "asking about diagnostic or check engine",
+    "asking about appointment scheduling",
     "complaint or negative feedback",
     "opting out of texts"
   ] as const;
@@ -51,7 +54,15 @@ export async function handleNickGptAutoSend(
   log.info("Auto-send classification", { phoneLast4: normalized.slice(-4), topLabel, topScore });
 
   // 3. Check if intent is low-risk and confidence is high
-  const lowRiskLabels = ["asking about hours or location", "greeting or hello"];
+  const lowRiskLabels = [
+    "asking about hours or location",
+    "greeting or hello",
+    "asking about brake service",
+    "asking about tire prices or sizes",
+    "asking about oil change",
+    "asking about diagnostic or check engine",
+    "asking about appointment scheduling"
+  ];
   const CONFIDENCE_THRESHOLD = 0.85;
 
   if (!lowRiskLabels.includes(topLabel) || topScore < CONFIDENCE_THRESHOLD) {
