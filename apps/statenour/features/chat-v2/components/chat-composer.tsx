@@ -67,6 +67,7 @@ export function ChatComposer({ chat }: { chat: any }) {
         />
         <button
           type="submit"
+          aria-label="Send message"
           disabled={!draft.trim() || chat.status === "streaming"}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-950 transition-transform disabled:opacity-50 active:scale-95 hover:bg-white"
         >
