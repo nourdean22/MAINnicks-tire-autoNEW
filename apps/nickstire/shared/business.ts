@@ -196,6 +196,13 @@ export const BUSINESS = {
     dailyVolume: "50+ per day",
   },
 
+  oilChange: {
+    conventionalPrice: "$49",
+    syntheticPrice: "$80",
+    conventionalExplanation: "Conventional oil change is $49. No appointment needed, just stop by.",
+    syntheticExplanation: "Synthetic oil change is $80. No appointment needed, just stop by.",
+  },
+
   // ─── NEW TIRES (floor + positioning) ────────────────
   // wave-183: keep a price FLOOR for SEO (price-in-page is a proven ranking lever —
   // the $49 oil fix drove /oil-change impressions +1149%), standardized to the real
