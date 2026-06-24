@@ -115,7 +115,7 @@ export async function cloneVoice(opts: CloneVoiceOptions): Promise<CloneVoiceRes
   }
 
   const provider = opts.provider ?? (process.env.XTTS_PROVIDER as "replicate" | "modal" | undefined) ?? "replicate";
-  const voiceSampleUrl = opts.voiceSampleUrl ?? process.env.XTTS_VOICE_SAMPLE_URL;
+  const voiceSampleUrl = opts.voiceSampleUrl ?? process.env.XTTS_VOICE_SAMPLE_URL ?? "https://huggingface.co/coqui/XTTS-v2/resolve/v2.0.2/samples/en_sample.wav";
   if (!voiceSampleUrl) {
     return { ok: false, error: "XTTS_VOICE_SAMPLE_URL not set · cannot clone without sample", reason: "no_sample" };
   }
@@ -326,7 +326,7 @@ export async function checkVoiceCloneHealth(): Promise<{
 }> {
   const enabled = await isVoiceCloneEnabled();
   const provider = (process.env.XTTS_PROVIDER as "replicate" | "modal" | undefined) ?? "replicate";
-  const sampleUrl = process.env.XTTS_VOICE_SAMPLE_URL;
+  const sampleUrl = process.env.XTTS_VOICE_SAMPLE_URL ?? "https://huggingface.co/coqui/XTTS-v2/resolve/v2.0.2/samples/en_sample.wav";
 
   let sampleReachable = false;
   if (sampleUrl) {
