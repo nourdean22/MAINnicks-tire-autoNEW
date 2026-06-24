@@ -102,6 +102,11 @@ export function createSeasonalPost(season: { title: string; services: string[]; 
  */
 export async function generateAndNotifyGBPPost(opts?: { dryRun?: boolean; requiresReview?: boolean }): Promise<{ recordsProcessed: number; details: string }> {
   try {
+    const { isEnabled } = await import("./featureFlags");
+    if (!(await isEnabled("gbp_auto_posting"))) {
+      return { recordsProcessed: 0, details: "Skip — gbp_auto_posting feature flag is disabled" };
+    }
+
     const now = new Date();
     const day = now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
     if (day !== "Monday") {
