@@ -36,6 +36,7 @@ import {
   AlertTriangle,
   Bot,
   Brain,
+  Camera,
   Clock,
   DollarSign,
   FileText,
@@ -109,6 +110,16 @@ const CARDS: HubCard[] = [
         ? { label: "degraded", severity: "warning" }
         : { label: "healthy", severity: "healthy" };
     },
+  },
+  {
+    href: "/system/camera",
+    title: "Arrival Intel",
+    icon: Camera,
+    group: "health",
+    description:
+      "Real-time vehicle detection and automated license plate recognition cockpit",
+    featured: true,
+    chip: () => ({ label: "live", severity: "healthy" }),
   },
   {
     href: "/system/crons",

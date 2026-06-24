@@ -194,4 +194,192 @@ export const devicesProcedures = {
     cached("system_repo_briefing", 300, getEcosystemDigest),
   ),
 
+  /**
+   * Owner-only · get camera arrivals, daily counts, and camera status
+   */
+  cameraArrivals: operatorProcedure.query(async () => {
+    // Fetch recent vehicle_detected events
+    const events = await prisma.deviceEvent.findMany({
+      where: { event: "vehicle_detected" },
+      orderBy: { timestamp: "desc" },
+      take: 50,
+      include: {
+        device: {
+          select: { id: true, name: true, location: true },
+        },
+      },
+    });
+
+    // Calculate today's counts
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayCount = await prisma.deviceEvent.count({
+      where: {
+        event: "vehicle_detected",
+        timestamp: { gte: todayStart },
+      },
+    });
+
+    // Get camera devices
+    const cameras = await prisma.smartDevice.findMany({
+      where: {
+        OR: [
+          { deviceType: "CAMERA" },
+          { platform: "V380" },
+        ],
+      },
+      orderBy: { name: "asc" },
+    });
+
+    return {
+      events: events.map((e) => ({
+        id: e.id,
+        deviceId: e.deviceId,
+        cameraName: e.device?.name ?? "Unknown Camera",
+        timestamp: e.timestamp.toISOString(),
+        createdAt: e.createdAt.toISOString(),
+        data: (e.data ?? {}) as any,
+      })),
+      todayCount,
+      cameras: cameras.map((c) => ({
+        id: c.id,
+        name: c.name,
+        platform: c.platform,
+        status: c.status,
+        lastSeenAt: c.lastSeenAt?.toISOString() ?? null,
+      })),
+    };
+  }),
+
+  /**
+   * Owner-only · trigger a simulated vehicle detection event for testing
+   */
+  testVehicleAlert: operatorProcedure
+    .input(
+      z.object({
+        deviceId: z.string(),
+        state: z.string().optional(),
+        plateText: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { handleVehicleEvent } = await import("@/lib/services/vehicle-detection");
+      
+      const device = await prisma.smartDevice.findUnique({
+        where: { id: input.deviceId },
+      });
+      const cameraName = device?.name ?? "Test Outside Camera";
+      
+      const testPayload = {
+        event: "vehicle_detected",
+        source: "test-panel",
+        timestamp: new Date().toISOString(),
+        data: {
+          cameraId: input.deviceId,
+          cameraName,
+          zone: "front_lot",
+          zoneName: "Front Lot",
+          state: input.state || "CONFIRMED_ARRIVAL",
+          priority: "normal",
+          label: "car",
+          confidence: 0.95,
+          dwellSeconds: 5.0,
+          trackId: `test-track-${Date.now()}`,
+          plate: input.plateText
+            ? {
+                status: "CANDIDATE",
+                text: input.plateText.toUpperCase(),
+                normalizedText: input.plateText.toUpperCase(),
+                state: "OH",
+                confidence: 0.85,
+                provider: "local-alpr",
+              }
+            : {
+                status: "NONE",
+                confidence: 0.0,
+                provider: "disabled",
+              },
+        },
+      };
+
+      const eventId = await handleVehicleEvent(input.deviceId, testPayload);
+      return { ok: true, eventId };
+    }),
+
+  /**
+   * Owner-only · update arrival state (Acknowledge, False Positive)
+   */
+  updateArrivalStatus: operatorProcedure
+    .input(
+      z.object({
+        eventId: z.string(),
+        state: z.enum(["ACKNOWLEDGED", "FALSE_POSITIVE", "LEFT"]),
+        plateText: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const event = await prisma.deviceEvent.findUnique({
+        where: { id: input.eventId },
+      });
+      if (!event) throw new Error("Event not found");
+
+      const existingData = (event.data as any) || {};
+      const updatedData = {
+        ...existingData,
+        state: input.state,
+      };
+
+      if (input.plateText !== undefined) {
+        updatedData.plate = {
+          ...(existingData.plate || {}),
+          text: input.plateText.toUpperCase(),
+          normalizedText: input.plateText.toUpperCase(),
+          status: input.plateText ? "CORRECTED" : "NONE",
+        };
+      }
+
+      const updated = await prisma.deviceEvent.update({
+        where: { id: input.eventId },
+        data: {
+          data: updatedData,
+        },
+      });
+
+      // Update Telegram message if it exists
+      const telegramMessageId = existingData.telegramMessageId;
+      if (telegramMessageId) {
+        const { editTelegramMessage } = await import("@/lib/services/telegram");
+        
+        let plateLine = "NONE";
+        const currentPlate = updatedData.plate;
+        if (currentPlate && currentPlate.status && currentPlate.status !== "NONE") {
+          const stateStr = currentPlate.state ? ` (${currentPlate.state})` : "";
+          const textStr = currentPlate.text ? ` <b>${currentPlate.text}</b>` : "";
+          plateLine = `${currentPlate.status}${textStr}${stateStr}`;
+        }
+
+        const text = `🚗 <b>Vehicle Arrival Intelligence</b>\n\n` +
+          `<b>Camera:</b> ${existingData.cameraName || "Unknown"}\n` +
+          `<b>Zone:</b> ${existingData.zoneName || "unknown"}\n` +
+          `<b>Type:</b> ${existingData.label || "vehicle"} (${Math.round((existingData.confidence || 0) * 100)}%)\n` +
+          `<b>State:</b> ${input.state}\n` +
+          `<b>Dwell:</b> ${existingData.dwellSeconds || 0}s\n` +
+          `<b>Plate:</b> ${plateLine}\n\n` +
+          `<i>Status: ${input.state} by Operator</i>`;
+
+        const buttons = [
+          [
+            {
+              text: "📹 Open Camera Panel",
+              url: "https://bdnick.info/system/camera",
+            },
+          ],
+        ];
+
+        await editTelegramMessage(Number(telegramMessageId), text, undefined, buttons).catch(() => {});
+      }
+
+      return { ok: true, eventId: updated.id };
+    }),
+
 };

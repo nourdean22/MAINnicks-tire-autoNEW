@@ -170,7 +170,8 @@ export async function answerCallbackQuery(
 export async function editTelegramMessage(
   messageId: number,
   text: string,
-  chatId?: string
+  chatId?: string,
+  buttons?: InlineButton[][]
 ): Promise<boolean> {
   if (!BOT_TOKEN) return false;
 
@@ -190,6 +191,7 @@ export async function editTelegramMessage(
           text,
           parse_mode: "HTML",
           disable_web_page_preview: true,
+          ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}),
         }),
       }
     );
