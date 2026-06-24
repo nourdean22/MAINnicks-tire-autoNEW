@@ -3389,3 +3389,26 @@ export const customerTestimonials = mysqlTable("customer_testimonials", {
 export type CustomerTestimonialRow = typeof customerTestimonials.$inferSelect;
 export type InsertCustomerTestimonial = typeof customerTestimonials.$inferInsert;
 
+export const nickgptDrafts = mysqlTable("nickgpt_drafts", {
+  id: int("id").autoincrement().primaryKey(),
+  customerPhone: varchar("customer_phone", { length: 30 }).notNull(),
+  inboundMessage: text("inbound_message").notNull(),
+  draftReply: text("draft_reply").notNull(),
+  operatorReply: text("operator_reply"),
+  intent: varchar("intent", { length: 100 }),
+  confidence: float("confidence"),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  latencyMs: int("latency_ms"),
+  rating: mysqlEnum("rating", ["good", "bad"]),
+  status: mysqlEnum("status", ["draft", "approved", "edited", "rejected"]).default("draft").notNull(),
+  autoSent: boolean("auto_sent").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_nickgpt_drafts_phone").on(table.customerPhone),
+  index("idx_nickgpt_drafts_created").on(table.createdAt),
+]);
+
+export type NickgptDraft = typeof nickgptDrafts.$inferSelect;
+export type InsertNickgptDraft = typeof nickgptDrafts.$inferInsert;
+
