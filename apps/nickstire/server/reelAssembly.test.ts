@@ -135,7 +135,7 @@ describe("buildFfmpegArgs", () => {
     const fc = args.join(" ");
     expect(fc).toContain("zoompan=z='min(pzoom+"); // Ken Burns per beat
     expect(fc).toContain("tpad=stop_mode=clone:stop_duration=3"); // freeze final frame 3s
-    expect(fc).toContain("text='SAVE THIS'"); // save-payload prompt
+    expect(fc).toContain("textfile='caption_save.txt'"); // save-payload prompt
     expect(fc).toContain("[vout]");
     const tIdx = args.indexOf("-t");
     expect(args[tIdx + 1]).toBe("12"); // 9s of beats + 3s freeze

@@ -7,12 +7,13 @@ import { AIHealthPanel } from "./AIHealthPanel";
 import { CustomerIntelligence } from "./CustomerIntelligence";
 import { LeadSLAMonitor } from "./LeadSLAMonitor";
 import { MarketIntelligence } from "./MarketIntelligence";
+import { ContentWarRoom } from "./ContentWarRoom";
 import { trpc } from "@/lib/trpc";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function IntelligenceHQSection() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"battlefield" | "ledger">("battlefield");
+  const [activeTab, setActiveTab] = useState<"battlefield" | "ledger" | "content">("battlefield");
 
   const { data: report, isFetching } = trpc.intelligence.masterReport.useQuery(undefined, {
     refetchInterval: 60000,
@@ -94,7 +95,18 @@ export default function IntelligenceHQSection() {
           >
             Decision Ledger
           </button>
+          <button
+            onClick={() => setActiveTab("content")}
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+              activeTab === "content"
+                ? "bg-primary/10 text-primary shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Content War Room
+          </button>
         </div>
+      </div>
       </div>
 
       {activeTab === "battlefield" && (
@@ -212,6 +224,16 @@ export default function IntelligenceHQSection() {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === "content" && (
+        <div className="py-2">
+          <div className="px-4 mb-4">
+            <h2 className="text-lg font-bold text-foreground">Content Factory Queue</h2>
+            <p className="text-sm text-muted-foreground">Monitoring AI drafts, scores, and publishing status.</p>
+          </div>
+          <ContentWarRoom />
         </div>
       )}
     </div>

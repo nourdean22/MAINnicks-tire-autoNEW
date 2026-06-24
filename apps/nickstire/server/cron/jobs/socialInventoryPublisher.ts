@@ -11,6 +11,10 @@ const log = createLogger("cron:social-inventory-publisher");
  * and publishes them to the targeted social platforms.
  */
 export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed: number; details: string }> {
+  if (process.env.REEL_PUBLISH_ENABLED !== "true") {
+    return { recordsProcessed: 0, details: "disabled (REEL_PUBLISH_ENABLED != true)" };
+  }
+
   try {
     const db = await getDbTyped();
     if (!db) return { recordsProcessed: 0, details: "Database not available" };
@@ -38,8 +42,10 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
         const isReel = item.contentType === "reel";
         const isCarousel = item.contentType === "carousel";
         
+        const platformsToPublish = item.platform === "both" || item.platform === "all" ? ["facebook", "instagram", "google"] : [item.platform];
+        
         const mediaInput: any = {
-          platforms: item.platform === "both" ? ["facebook", "instagram"] : [item.platform],
+          platforms: platformsToPublish,
           caption: `${item.hookText}\n\n${item.bodyText}`,
         };
 

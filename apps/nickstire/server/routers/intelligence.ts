@@ -8,7 +8,7 @@
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
-import { intelligenceDecisionLedger } from "../../drizzle/schema";
+import { intelligenceDecisionLedger, socialContentInventory } from "../../drizzle/schema";
 import { forecastSeasonalDemand } from "../services/intelligenceEngines";
 import { generateMasterIntelligenceReport } from "../services/masterIntelligence";
 import {
@@ -199,5 +199,13 @@ export const intelligenceRouter = router({
     if (!d) return [];
 
     return await d.select().from(intelligenceDecisionLedger).orderBy(desc(intelligenceDecisionLedger.createdAt)).limit(20);
+  }),
+
+  contentDrafts: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return [];
+
+    return await d.select().from(socialContentInventory).orderBy(desc(socialContentInventory.createdAt)).limit(50);
   }),
 });
