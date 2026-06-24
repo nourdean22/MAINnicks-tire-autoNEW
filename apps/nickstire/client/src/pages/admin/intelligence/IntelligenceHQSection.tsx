@@ -3,10 +3,24 @@ import { Brain, ShieldAlert, Target, Zap, Activity } from "lucide-react";
 import { TopMoneyMoves } from "../today/TopMoneyMoves";
 import { TodaysMoneyRisks } from "../today/TodaysMoneyRisks";
 import { NextBestActions } from "../today/NextBestActions";
+import { AIHealthPanel } from "./AIHealthPanel";
+import { CustomerIntelligence } from "./CustomerIntelligence";
+import { LeadSLAMonitor } from "./LeadSLAMonitor";
+import { MarketIntelligence } from "./MarketIntelligence";
 import { trpc } from "@/lib/trpc";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function IntelligenceHQSection() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"battlefield" | "ledger">("battlefield");
+
+  const { data: report, isFetching } = trpc.intelligence.masterReport.useQuery(undefined, {
+    refetchInterval: 60000,
+  });
+
+  // Calculate status
+  const status = !report ? "degraded" : report.summary.failures?.length > 0 ? "partial" : "live";
+  const mainFight = report?.summary?.topAlert || "clear stale callbacks before they turn into lost money.";
 
   // Fetch the recent intelligence decisions from the ledger
   const { data: recentDecisions } = trpc.intelligence.recentDecisions.useQuery(undefined, {
@@ -24,11 +38,42 @@ export default function IntelligenceHQSection() {
             </div>
             Intelligence HQ
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Action-first command center. Zero passive analytics.
-          </p>
+          <div className="flex items-center gap-3 mt-1 text-sm">
+            <p className="text-muted-foreground">Action-first command center. Zero passive analytics.</p>
+            <span className="text-border/50">•</span>
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  status === "live" ? "bg-emerald-400" : status === "partial" ? "bg-yellow-400" : "bg-red-400"
+                }`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                  status === "live" ? "bg-emerald-500" : status === "partial" ? "bg-yellow-500" : "bg-red-500"
+                }`}></span>
+              </span>
+              <span className={`font-mono text-xs uppercase ${
+                status === "live" ? "text-emerald-400" : status === "partial" ? "text-yellow-400" : "text-red-400"
+              }`}>
+                System {status}
+              </span>
+            </div>
+            {report?.timestamp && (
+              <>
+                <span className="text-border/50">•</span>
+                <span className="text-xs text-muted-foreground">Updated {new Date(report.timestamp).toLocaleTimeString()}</span>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex bg-background/50 border border-border/40 p-1 rounded-lg">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => queryClient.invalidateQueries()}
+            disabled={isFetching}
+            className="p-1.5 rounded-md border border-border/40 hover:bg-muted/20 text-muted-foreground transition-colors disabled:opacity-50"
+            title="Refresh Intelligence"
+          >
+            <Activity className={`w-4 h-4 ${isFetching ? "animate-spin text-primary" : ""}`} />
+          </button>
+          <div className="flex bg-background/50 border border-border/40 p-1 rounded-lg">
           <button
             onClick={() => setActiveTab("battlefield")}
             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
@@ -54,6 +99,14 @@ export default function IntelligenceHQSection() {
 
       {activeTab === "battlefield" && (
         <div className="space-y-6 px-4">
+          {/* ─── TODAY'S MAIN FIGHT ─── */}
+          <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 flex items-center gap-3">
+            <Zap className="w-5 h-5 text-primary" />
+            <div className="text-sm font-medium">
+              <span className="text-primary font-bold">Today's main fight:</span> {mainFight}
+            </div>
+          </div>
+
           {/* ─── BATTLEFIELD OVERVIEW ─── */}
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -75,6 +128,12 @@ export default function IntelligenceHQSection() {
                 </div>
                 <NextBestActions />
               </div>
+
+              {/* CUSTOMER INTELLIGENCE */}
+              <CustomerIntelligence />
+
+              {/* LEAD SLA MONITOR */}
+              <LeadSLAMonitor />
             </div>
 
             <div className="space-y-6">
@@ -87,16 +146,11 @@ export default function IntelligenceHQSection() {
                 <TodaysMoneyRisks />
               </div>
 
-              {/* LIVE RADAR */}
-              <div className="stat-card !p-5 border-dashed">
-                <div className="flex items-center gap-2 mb-4">
-                  <Activity className="w-5 h-5 text-purple-400" />
-                  <h2 className="text-sm font-black text-purple-400 tracking-wide uppercase">Live Radar</h2>
-                </div>
-                <div className="flex items-center justify-center h-32 text-muted-foreground/50 border border-dashed border-border/40 rounded">
-                  No immediate anomalies detected in the last hour.
-                </div>
-              </div>
+              {/* AI HEALTH PANEL */}
+              <AIHealthPanel />
+
+              {/* MARKET INTELLIGENCE */}
+              <MarketIntelligence />
             </div>
           </div>
         </div>

@@ -1055,6 +1055,9 @@ export const controlCenterRouter = router({
       targetTab: string;
       metadata: Record<string, any>;
       score: number;
+      urgency: number;
+      confidence: "High" | "Medium" | "Low";
+      reason: string;
     }> = [];
 
     const now = new Date();
@@ -1101,7 +1104,10 @@ export const controlCenterRouter = router({
             amount: val,
             id: est.id
           },
-          score: val
+          score: val,
+          urgency: 4,
+          confidence: (est.phone && est.service && val > 0) ? "High" : "Medium",
+          reason: "High-value estimate sits unconverted. Calling them could close the deal."
         });
       }
     } catch (err) {
@@ -1138,7 +1144,10 @@ export const controlCenterRouter = router({
             context: cb.context,
             id: cb.id
           },
-          score: 500 // missed callbacks have high urgency weight
+          score: 500, // missed callbacks have high urgency weight
+          urgency: 5,
+          confidence: cb.phone ? "High" : "Low",
+          reason: "Customer actively asked for a callback but hasn't been reached."
         });
       }
     } catch (err) {
@@ -1175,7 +1184,10 @@ export const controlCenterRouter = router({
             targetCount: camp.targetCount,
             id: camp.id
           },
-          score: 300
+          score: 300,
+          urgency: 3,
+          confidence: "High",
+          reason: `Segment of ${camp.targetCount} customers ready for re-engagement.`
         });
       }
     } catch (err) {
@@ -1211,7 +1223,10 @@ export const controlCenterRouter = router({
             status: memb.status,
             id: memb.id
           },
-          score: 200
+          score: 200,
+          urgency: 4,
+          confidence: memb.phone ? "High" : "Medium",
+          reason: `Membership is ${memb.status}, risking cancellation or failed billing.`
         });
       }
     } catch (err) {
