@@ -3412,3 +3412,127 @@ export const nickgptDrafts = mysqlTable("nickgpt_drafts", {
 export type NickgptDraft = typeof nickgptDrafts.$inferSelect;
 export type InsertNickgptDraft = typeof nickgptDrafts.$inferInsert;
 
+export const smsOrchestrations = mysqlTable("sms_orchestrations", {
+  id: int("id").autoincrement().primaryKey(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  customerPhone: varchar("customer_phone", { length: 30 }).notNull(),
+  messageBody: text("message_body").notNull(),
+  variantKey: varchar("variant_key", { length: 50 }).notNull(),
+  shouldAutoSend: boolean("should_auto_send").notNull(),
+  requiresHumanApproval: boolean("requires_human_approval").notNull(),
+  reason: text("reason"),
+  customerContext: text("customer_context"), // JSON string
+  providerUsed: varchar("provider_used", { length: 50 }).notNull(), // 'shop' | 'twilio' | 'none'
+  cooldownKey: varchar("cooldown_key", { length: 255 }),
+  status: varchar("status", { length: 50 }).notNull(), // e.g. received, classified, compiled, drafted, approved, blocked, skipped, queued, sending, sent, delivered, failed, replied, expired, cancelled
+  statusReason: text("status_reason"),
+  deliveryStatus: varchar("delivery_status", { length: 50 }),
+  deliveredAt: timestamp("delivered_at"),
+  repliedAt: timestamp("replied_at"),
+  failedAt: timestamp("failed_at"),
+  sentAt: timestamp("sent_at"),
+  queuedUntil: timestamp("queued_until"),
+  failureReason: text("failure_reason"),
+  sourceTable: varchar("source_table", { length: 100 }),
+  sourceId: varchar("source_id", { length: 100 }),
+  relatedConversationId: int("related_conversation_id"),
+  relatedLeadId: int("related_lead_id"),
+  relatedBookingId: int("related_booking_id"),
+  relatedCallbackId: int("related_callback_id"),
+  relatedVapiCallId: varchar("related_vapi_call_id", { length: 100 }),
+  relatedEstimateId: varchar("related_estimate_id", { length: 100 }),
+  sendResultJson: text("send_result_json"),
+  metadataJson: text("metadata_json"),
+  decisionTraceJson: text("decision_trace_json"),
+  riskTier: varchar("risk_tier", { length: 50 }),
+  humanReviewReason: text("human_review_reason"),
+  noSendReason: text("no_send_reason"),
+  selectedTemplateKey: varchar("selected_template_key", { length: 100 }),
+  selectedVariantKey: varchar("selected_variant_key", { length: 100 }),
+  templateVersion: varchar("template_version", { length: 50 }),
+  experimentId: varchar("experiment_id", { length: 100 }),
+  journeyId: varchar("journey_id", { length: 100 }),
+  correlationId: varchar("correlation_id", { length: 100 }),
+  idempotencyKey: varchar("idempotency_key", { length: 255 }),
+  legacyComparisonJson: text("legacy_comparison_json"),
+  shadowWouldSend: boolean("shadow_would_send"),
+  shadowMessageBody: text("shadow_message_body"),
+  legacyMessageBody: text("legacy_message_body"),
+  variantAssignmentReason: text("variant_assignment_reason"),
+  isControl: boolean("is_control"),
+  trafficWeight: int("traffic_weight"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_sms_orch_phone").on(table.customerPhone),
+  index("idx_sms_orch_created").on(table.createdAt),
+  index("idx_sms_orch_event").on(table.eventType),
+  index("idx_sms_orch_cooldown").on(table.cooldownKey),
+  index("idx_sms_orch_correlation").on(table.correlationId),
+  index("idx_sms_orch_idempotency").on(table.idempotencyKey),
+]);
+
+export type SmsOrchestration = typeof smsOrchestrations.$inferSelect;
+export type InsertSmsOrchestration = typeof smsOrchestrations.$inferInsert;
+
+export const smsOrchestrationOutcomes = mysqlTable("sms_orchestration_outcomes", {
+  id: int("id").autoincrement().primaryKey(),
+  orchestrationId: int("orchestration_id").notNull(),
+  outcomeType: varchar("outcome_type", { length: 100 }).notNull(),
+  outcomeValue: text("outcome_value"),
+  sourceTable: varchar("source_table", { length: 100 }),
+  sourceId: varchar("source_id", { length: 100 }),
+  metadataJson: text("metadata_json"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_sms_out_orch").on(table.orchestrationId),
+  index("idx_sms_out_created").on(table.createdAt),
+]);
+
+export type SmsOrchestrationOutcome = typeof smsOrchestrationOutcomes.$inferSelect;
+export type InsertSmsOrchestrationOutcome = typeof smsOrchestrationOutcomes.$inferInsert;
+
+export const nickgptTrainingExamples = mysqlTable("nickgpt_training_examples", {
+  id: int("id").autoincrement().primaryKey(),
+  customerPhone: varchar("customer_phone", { length: 30 }).notNull(),
+  inboundMessage: text("inbound_message").notNull(),
+  conversationContextJson: text("conversation_context_json"),
+  nickgptDraft: text("nickgpt_draft").notNull(),
+  operatorFinalReply: text("operator_final_reply").notNull(),
+  intent: varchar("intent", { length: 100 }),
+  serviceMention: varchar("service_mention", { length: 100 }),
+  rating: int("rating"),
+  outcome: varchar("outcome", { length: 100 }),
+  approvedForTraining: boolean("approved_for_training").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_ngpt_train_phone").on(table.customerPhone),
+  index("idx_ngpt_train_created").on(table.createdAt),
+]);
+
+export type NickgptTrainingExample = typeof nickgptTrainingExamples.$inferSelect;
+export type InsertNickgptTrainingExample = typeof nickgptTrainingExamples.$inferInsert;
+
+export const smsLearningRecommendations = mysqlTable("sms_learning_recommendations", {
+  id: int("id").autoincrement().primaryKey(),
+  recommendationType: varchar("recommendation_type", { length: 100 }).notNull(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  currentVariantKey: varchar("current_variant_key", { length: 100 }).notNull(),
+  proposedVariantKey: varchar("proposed_variant_key", { length: 100 }).notNull(),
+  proposedMessage: text("proposed_message").notNull(),
+  reason: text("reason").notNull(),
+  supportingStatsJson: text("supporting_stats_json"),
+  status: varchar("status", { length: 50 }).default("pending").notNull(), // 'pending' | 'approved' | 'rejected' | 'applied'
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: varchar("reviewed_by", { length: 100 }),
+}, (table) => [
+  index("idx_sms_rec_type").on(table.recommendationType),
+  index("idx_sms_rec_status").on(table.status),
+  index("idx_sms_rec_created").on(table.createdAt),
+]);
+
+export type SmsLearningRecommendation = typeof smsLearningRecommendations.$inferSelect;
+export type InsertSmsLearningRecommendation = typeof smsLearningRecommendations.$inferInsert;
+
+

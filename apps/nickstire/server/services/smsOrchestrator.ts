@@ -30,7 +30,7 @@ import { getTemplateVariant, assignVariantWithExperiment, REPLY_CONFIGS } from "
 
 const log = createLogger("sms-orchestrator");
 
-export type SmsOrchestratorEvent =
+export type SmsOrchestratorEvent = (
   | { type: "inbound_sms"; phone: string; body: string; conversationId: number }
   | { type: "vapi_confirmation"; phone: string; summary: string; mapLink?: string; vapiCallId?: string }
   | { type: "vapi_forwarded_call_followup"; phone: string; vapiCallId?: string }
@@ -40,7 +40,8 @@ export type SmsOrchestratorEvent =
   | { type: "booking_reminder"; phone: string; name: string; reminderType: string; service: string; vehicle?: string; preferredTime?: string; refCode?: string; bookingId?: number }
   | { type: "review_request"; phone: string; name: string; bookingId?: number }
   | { type: "manual_admin_reply"; phone: string; message: string; conversationId?: number }
-  | { type: "photo_assess_reply"; phone: string; replyText: string; leadId?: number };
+  | { type: "photo_assess_reply"; phone: string; replyText: string; leadId?: number }
+) & { idempotencyKey?: string };
 
 export interface SmsOrchestratorResult {
   id?: number;
@@ -426,8 +427,32 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
   let experimentId = "";
   let journeyId = "";
   let correlationId = `corr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  let idempotencyKey = `idemp_${event.type}_${normalizedPhone}_${Date.now().toString().slice(0, 7)}`;
+  let idempotencyKey = "";
+  if (event.idempotencyKey) {
+    idempotencyKey = event.idempotencyKey;
+  } else {
+    const prefix = `idemp_${event.type}_${normalizedPhone}`;
+    if (event.type === "booking_reminder" && event.bookingId) {
+      idempotencyKey = `${prefix}_booking_${event.bookingId}_${event.reminderType}`;
+    } else if (event.type === "stale_lead_followup" && event.leadId) {
+      idempotencyKey = `${prefix}_lead_${event.leadId}`;
+    } else if (event.type === "review_request" && event.bookingId) {
+      idempotencyKey = `${prefix}_booking_${event.bookingId}`;
+    } else if (event.type === "abandoned_form_recovery" && event.formType) {
+      idempotencyKey = `${prefix}_form_${event.formType}`;
+    } else if (event.type === "photo_assess_reply" && event.leadId) {
+      idempotencyKey = `${prefix}_lead_${event.leadId}`;
+    } else if (event.type === "vapi_confirmation" && event.vapiCallId) {
+      idempotencyKey = `${prefix}_call_${event.vapiCallId}`;
+    } else if (event.type === "vapi_forwarded_call_followup" && event.vapiCallId) {
+      idempotencyKey = `${prefix}_call_${event.vapiCallId}`;
+    } else {
+      idempotencyKey = `${prefix}_unique_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    }
+  }
   let legacyComparisonJson = "";
+  let sendResultJson: any = null;
+  let decisionTraceJson: string | null = null;
   let shadowWouldSend = false;
   let shadowMessageBody = "";
   
@@ -449,6 +474,34 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
 
   // For inbound, we first save a 'received' state
   let orchestrationId: number | null = null;
+
+  // ─── Idempotency Check for Outbound Events ───
+  if (event.type !== "inbound_sms" && db) {
+    try {
+      const [existing] = await db.select()
+        .from(smsOrchestrations)
+        .where(eq(smsOrchestrations.idempotencyKey, idempotencyKey))
+        .limit(1);
+
+      if (existing && existing.idempotencyKey === idempotencyKey) {
+        log.info("Idempotency match found, returning existing orchestration", { idempotencyKey });
+        return {
+          id: existing.id,
+          body: existing.messageBody || "",
+          source: existing.eventType,
+          variantKey: existing.variantKey || "control",
+          shouldAutoSend: existing.shouldAutoSend ?? false,
+          requiresHumanApproval: existing.requiresHumanApproval ?? false,
+          reason: existing.reason || "idempotent_duplicate",
+          customerContext: existing.customerContext || "{}",
+          providerUsed: (existing.providerUsed || "none") as "shop" | "twilio" | "none",
+          status: existing.status as any,
+        };
+      }
+    } catch (err) {
+      log.warn("Failed to check idempotency in db", err);
+    }
+  }
 
   if (event.type === "inbound_sms") {
     sourceTable = "sms_messages";
@@ -1261,8 +1314,6 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
   return finalResult;
 }
 
-let sendResultJson: any = null;
-let decisionTraceJson: string | null = null;
 
 // tRPC helper keys for label printing
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -1436,7 +1487,7 @@ export async function getCustomerJourneyTimeline(phone: string) {
         timestamp: i.createdAt || new Date(),
         type: "invoice",
         title: `Invoice #${i.invoiceNumber || i.id}`,
-        description: `Total: $${(i.totalAmount / 100).toFixed(2)} | Service: ${i.serviceDescription || "N/A"}`,
+        description: `Total: ${(i.totalAmount / 100).toFixed(2)} | Service: ${i.serviceDescription || "N/A"}`,
         meta: i
       });
     }

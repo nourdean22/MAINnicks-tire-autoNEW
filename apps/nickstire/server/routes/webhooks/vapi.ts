@@ -563,12 +563,11 @@ router.post("/vapi", async (req: Request, res: Response) => {
               // caller" rows) to a self-serve SMS back to the caller. The caller
               // re-engages on their terms; the operator's callback queue stays clean.
               if (firstLog && isForwardedEndedReason(cleanEndedReason) && customer?.number) {
-                const { sendSms } = await import("../../sms");
-                await sendSms(
-                  customer.number.trim(),
-                  "Sorry if you couldn't get through just now - try us again any time, or just text us here and we'll help. - Nick's Tire & Auto (216) 862-0005",
-                  { via: "shop" },
-                ).catch((err: unknown) => {
+                const { orchestrateSms } = await import("../../services/smsOrchestrator");
+                await orchestrateSms({
+                  type: "vapi_forwarded_call_followup",
+                  phone: customer.number.trim(),
+                }).catch((err: unknown) => {
                   log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
                     error: err instanceof Error ? err.message : String(err),
                   });

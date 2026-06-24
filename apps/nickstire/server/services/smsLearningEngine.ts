@@ -21,7 +21,8 @@ import { notifyOwner } from "../_core/notification";
 
 const log = createLogger("sms-learning-engine");
 
-const isTestNumber = (phone: string) => {
+const isTestNumber = (phone?: string) => {
+  if (!phone) return false;
   const norm = phone.replace(/\D/g, "");
   return norm.includes("55501") || norm.startsWith("555");
 };

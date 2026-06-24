@@ -36,6 +36,8 @@ export type AuditAction =
   | "flag.toggled"
   | "customer.sms_manual_send"
   | "customer.sms_autosend_reply"
+  | "customer.sms_autosend_reply"
+  | "customer.sms_autosend_reply"
   | "migrations.ran"
   // 2026-06-11 · refund action types
   | "tireorder.refunded"

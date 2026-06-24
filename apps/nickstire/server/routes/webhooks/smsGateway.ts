@@ -283,26 +283,18 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         // forget — intent handling must never block or fail the 200 ack.
         (async () => {
           if (compositeRedelivery) {
-            log.info("Skipping auto-action — composite redelivery (prior identical inbound <5min)", {
+            log.info("Skipping orchestrator — composite redelivery (prior identical inbound <5min)", {
               phone: phone.slice(-4),
             });
             return;
           }
-          const { parseSmsResponse, executeAutoAction } = await import(
-            "../../services/smsResponseParser"
-          );
-          const parsed = parseSmsResponse(body);
-          let executed = false;
-          if (parsed.autoAction && !parsed.requiresHuman) {
-            const res = await executeAutoAction(parsed, normalized);
-            executed = res.executed;
-          }
-
-          // If no keyword auto-action was executed, check if we should auto-reply via NickGPT
-          if (!executed && conversationId) {
-            const { handleNickGptAutoSend } = await import("../../services/nickgpt-autosend");
-            await handleNickGptAutoSend(normalized, body, conversationId);
-          }
+          const { orchestrateSms } = await import("../../services/smsOrchestrator");
+          await orchestrateSms({
+            type: "inbound_sms",
+            phone: normalized,
+            body,
+            conversationId: conversationId!,
+          });
         })().catch((err) => {
           log.warn("Inbound shop SMS intent processing failed", {
             error: err instanceof Error ? err.message : String(err),
@@ -327,16 +319,20 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         (async () => {
           try {
             const { getDb } = await import("../../db");
-            const { smsMessages } = await import("../../../drizzle/schema");
-            const { eq } = await import("drizzle-orm");
+            const { smsMessages, smsOrchestrations } = await import("../../../drizzle/schema");
+            const { eq, like } = await import("drizzle-orm");
             const db = await getDb();
             if (!db) return;
             const newStatus = eventType === "sms:delivered" ? "delivered" : "sent";
             await db.update(smsMessages)
               .set({ status: newStatus })
               .where(eq(smsMessages.twilioSid, messageId));
+
+            await db.update(smsOrchestrations)
+              .set({ status: newStatus })
+              .where(like(smsOrchestrations.sendResultJson, `%"sid":"${messageId}"%`));
           } catch (err) {
-            log.warn("Failed to update smsMessages status on delivery", {
+            log.warn("Failed to update status on delivery", {
               error: err instanceof Error ? err.message : String(err),
             });
           }
@@ -359,13 +355,17 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         (async () => {
           try {
             const { getDb } = await import("../../db");
-            const { smsMessages } = await import("../../../drizzle/schema");
-            const { eq } = await import("drizzle-orm");
+            const { smsMessages, smsOrchestrations } = await import("../../../drizzle/schema");
+            const { eq, like } = await import("drizzle-orm");
             const db = await getDb();
             if (!db) return;
             await db.update(smsMessages)
               .set({ status: "failed" })
               .where(eq(smsMessages.twilioSid, messageId));
+
+            await db.update(smsOrchestrations)
+              .set({ status: "failed", failureReason: reason })
+              .where(like(smsOrchestrations.sendResultJson, `%"sid":"${messageId}"%`));
           } catch {
             // Don't break the webhook
           }

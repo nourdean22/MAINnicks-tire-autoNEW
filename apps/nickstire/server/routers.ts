@@ -79,6 +79,7 @@ import {
   smsPerformanceRouter,
   instagramAdminRouter,
   gbpRouter,
+  smsOrchestratorRouter,
 } from "./routers/index";
 import { voiceAgentRouter } from "./routers/voiceAgent";
 import { vapiRouter } from "./routers/vapi";
@@ -145,6 +146,7 @@ export const appRouter = router({
   reviewReplies: reviewRepliesRouter,
   localGrowth: localGrowthRouter,
   gbp: gbpRouter,
+  smsOrchestrator: smsOrchestratorRouter,
   shareCards: shareCardsRouter,
   gallery: galleryRouter,
   technicians: techniciansRouter,
