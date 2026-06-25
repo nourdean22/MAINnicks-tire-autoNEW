@@ -33,11 +33,13 @@
     "research:ingest": "pnpm --filter @statenour/web research:ingest",
     "research:notebooklm": "pnpm --filter @statenour/web research:notebooklm",
     "social:asset": "pnpm --filter @nour/social-assets render",
-    "social:verify": "pnpm --filter @nour/social-assets test",
-    "prepare": "git config core.hooksPath .husky 2>/dev/null || true"
+    "social:verify": "pnpm --filter @nour/social-assets test"
   },
   "devDependencies": {
     "@types/node": "25.9.2",
+    "lefthook": "2.1.9",
+    "sherif": "1.12.0",
+    "syncpack": "15.3.2",
     "turbo": "^2.5.8",
     "typescript": "6.0.3"
   },

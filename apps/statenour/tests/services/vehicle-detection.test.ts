@@ -23,11 +23,40 @@ vi.mock("@/lib/feature-flags", async (importOriginal) => {
   };
 });
 
+// Mock Prisma
+let mockDbEvent: any = null;
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    smartDevice: {
+      upsert: vi.fn().mockResolvedValue({}),
+    },
+    deviceEvent: {
+      deleteMany: vi.fn().mockImplementation(() => { mockDbEvent = null; return { count: 0 }; }),
+      findFirst: vi.fn().mockImplementation((args: any) => {
+        if (!mockDbEvent) return null;
+        const path = args?.where?.data?.path?.[0];
+        const expectedValue = args?.where?.data?.equals;
+        if (path && expectedValue) {
+          if (mockDbEvent.data?.[path] !== expectedValue) {
+            return null;
+          }
+        }
+        return mockDbEvent;
+      }),
+      create: vi.fn().mockImplementation((args: any) => { mockDbEvent = { ...args.data, id: "event_1" }; return mockDbEvent; }),
+      update: vi.fn().mockImplementation((args: any) => { mockDbEvent = { ...mockDbEvent, ...args.data, id: "event_1" }; return mockDbEvent; }),
+      findUnique: vi.fn().mockImplementation(() => mockDbEvent),
+    },
+  },
+}));
+
 describe("Arrival Intelligence Ingest Pipeline", () => {
   const deviceId = "test-camera-outside";
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    await prisma.deviceEvent.deleteMany({});
 
     // 1. Ensure test device exists in DB
     await prisma.smartDevice.upsert({
@@ -40,6 +69,7 @@ describe("Arrival Intelligence Ingest Pipeline", () => {
         deviceType: "CAMERA",
         location: "shop",
         status: "ONLINE",
+
       },
       update: {
         status: "ONLINE",

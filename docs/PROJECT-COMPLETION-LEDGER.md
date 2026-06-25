@@ -15,6 +15,12 @@ DANGEROUS_DO_NOT_AUTOMATE_YET
 
 ---
 
+## Monorepo (Root)
+
+| Item | Status | Evidence | Done / Missing | Risk | Next action | Code now? | Owner? |
+|---|---|---|---|---|---|---|---|
+| Monorepo Modernization Wave | DONE_MERGED | PR TBD `chore/monorepo-modernization-wave` | `pnpm` catalogs implemented, Husky replaced with `lefthook` (with app isolation), and all tests/verifications fixed and passing / — | low | — | — | no |
+
 ## Nick's Tire
 
 | Item | Status | Evidence | Done / Missing | Risk | Next action | Code now? | Owner? |

@@ -75,7 +75,7 @@
     "@nour/social-assets": "workspace:*",
     "@nour/utils": "workspace:*",
     "@prisma/adapter-neon": "^7.6.0",
-    "@prisma/client": "^7.5.0",
+    "@prisma/client": "catalog:",
     "@react-three/drei": "10.7.7",
     "@react-three/fiber": "9.6.1",
     "@statenour/lenses": "workspace:*",
@@ -101,7 +101,7 @@
     "ioredis": "^5.10.1",
     "livekit-client": "2.19.0",
     "livekit-server-sdk": "2.15.3",
-    "lucide-react": "^1.7.0",
+    "lucide-react": "catalog:",
     "mammoth": "1.12.0",
     "nanoid": "^5.1.7",
     "next": "^16.2.6",
@@ -143,10 +143,10 @@
     "glob": "^13.0.6",
     "inngest-cli": "1.19.4",
     "postcss": "^8.5.3",
-    "prisma": "^7.5.0",
-    "tailwindcss": "^4.2.2",
+    "prisma": "catalog:",
+    "tailwindcss": "catalog:",
     "tsx": "^4.19.3",
-    "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

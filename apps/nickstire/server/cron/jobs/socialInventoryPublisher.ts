@@ -42,7 +42,8 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
         const isReel = item.contentType === "reel";
         const isCarousel = item.contentType === "carousel";
         
-        const platformsToPublish = item.platform === "both" || item.platform === "all" ? ["facebook", "instagram", "google"] : [item.platform];
+        const platformString = item.platform as string;
+        const platformsToPublish = platformString === "both" || platformString === "all" ? ["facebook", "instagram", "google"] : [item.platform];
         
         const mediaInput: any = {
           platforms: platformsToPublish,
