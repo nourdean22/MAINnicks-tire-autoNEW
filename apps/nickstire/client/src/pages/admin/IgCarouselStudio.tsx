@@ -86,8 +86,23 @@ export default function IgCarouselStudio() {
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [aiBrief, setAiBrief] = useState<CarouselBrief | null>(null);
 
-  const { data: sheetsDrafts, refetch: refetchDrafts } = trpc.contentAdmin.allCarouselDrafts.useQuery();
-  const { data: sheetsLogs, refetch: refetchLogs } = trpc.contentAdmin.allCarouselLogs.useQuery();
+  const { data: rawDrafts, refetch: refetchDrafts } = trpc.contentStudio.list.useQuery({ contentType: "carousel", status: "draft" });
+  const sheetsDrafts = useMemo(() => {
+    return (rawDrafts || []).map((d: any) => ({
+      id: d.id,
+      topic: d.topic,
+      ...(d.briefJson || {}),
+    }));
+  }, [rawDrafts]);
+  const { data: rawLogs, refetch: refetchLogs } = trpc.contentStudio.list.useQuery({ contentType: "carousel", status: "published" });
+  const sheetsLogs = useMemo(() => {
+    return (rawLogs || []).map((d: any) => ({
+      id: d.id,
+      topic: d.topic,
+      ...(d.briefJson || {}),
+      timestamp: d.updatedAt || "",
+    }));
+  }, [rawLogs]);
 
   const allBriefs = useMemo((): CarouselBrief[] => {
     const custom = (sheetsDrafts || []).map((d: any) => ({ ...d, isSample: false } as CarouselBrief));
@@ -151,9 +166,9 @@ export default function IgCarouselStudio() {
 
   const { data: evidence } = trpc.contentAdmin.getProprietaryEvidence.useQuery({ topicKeyword: selectedBriefTopic });
 
-  const saveDraftMutation = trpc.contentAdmin.saveCarouselDraft.useMutation({
+  const saveDraftMutation = trpc.contentStudio.create.useMutation({
     onSuccess: () => {
-      toast.success("Draft saved to Google Sheets");
+      toast.success("Draft saved via Content Studio");
       refetchDrafts();
     },
     onError: (err) => {
@@ -161,9 +176,9 @@ export default function IgCarouselStudio() {
     }
   });
 
-  const logCarouselMutation = trpc.contentAdmin.logCarousel.useMutation({
+  const logCarouselMutation = trpc.contentStudio.update.useMutation({
     onSuccess: () => {
-      toast.success("Carousel logged to Google Sheets");
+      toast.success("Carousel logged via Content Studio");
       refetchLogs();
       setIgUrl("");
     },
@@ -555,9 +570,10 @@ export default function IgCarouselStudio() {
                   assetPaths: generatedImages
                 };
                 saveDraftMutation.mutate({
-                  id: brief.id,
+                  contentType: "carousel",
                   topic: brief.topic,
-                  brief: updatedBrief,
+                  briefJson: updatedBrief,
+                  status: "draft"
                 });
               }}
               disabled={saveDraftMutation.isPending}
@@ -639,24 +655,28 @@ export default function IgCarouselStudio() {
                     return;
                   }
                   logCarouselMutation.mutate({
+                    id: brief.id,
                     topic: brief.topic,
-                    verifiedFact: brief.mechanicTruth,
-                    sources: brief.sourceNotes.map(s => s.label).join(", "),
-                    driverConfusion: brief.driverConfusion,
-                    clevelandAngle: brief.clevelandAngle,
-                    campaignKeyword: brief.campaignKeyword,
-                    creativeTerritory: brief.creativeTerritory,
-                    usefulAbsurdity: brief.usefulAbsurdity,
-                    storyboardOutline: brief.slides.map(s => s.headline).join(" | "),
-                    captionHook: brief.captionHooks[0] || "",
-                    instagramUrl: igUrl,
-                    assetPaths: brief.assetPaths?.join(", ") || "",
-                    score: String(boost.score),
-                    hashtags: brief.hashtags.join(", "),
-                    avoidedRepeats: brief.avoidedForRepetition || "",
-                    issues: brief.operatorNotes || "",
-                    insightsChecked: "No",
-                    facebookCrossPostOff: "Yes",
+                    status: "published",
+                    briefJson: {
+                      ...brief,
+                      status: "published",
+                      instagramUrl: igUrl,
+                      verifiedFact: brief.mechanicTruth,
+                      sources: brief.sourceNotes.map(s => s.label).join(", "),
+                      driverConfusion: brief.driverConfusion,
+                      clevelandAngle: brief.clevelandAngle,
+                      campaignKeyword: brief.campaignKeyword,
+                      creativeTerritory: brief.creativeTerritory,
+                      usefulAbsurdity: brief.usefulAbsurdity,
+                      storyboardOutline: brief.slides.map(s => s.headline).join(" | "),
+                      captionHook: brief.captionHooks[0] || "",
+                      assetPaths: brief.assetPaths || [],
+                      score: String(boost.score),
+                      hashtags: brief.hashtags,
+                      avoidedRepeats: brief.avoidedForRepetition || "",
+                      issues: brief.operatorNotes || "",
+                    }
                   });
                 }}
                 disabled={logCarouselMutation.isPending}

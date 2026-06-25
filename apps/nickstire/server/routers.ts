@@ -11,6 +11,7 @@ import {
   chatRouter,
   contentRouter,
   contentAdminRouter,
+  contentStudioRouter,
   adminDashboardRouter,
   analyticsRouter,
   followUpsRouter,
@@ -134,6 +135,7 @@ export const appRouter = router({
   // Admin features
   adminDashboard: adminDashboardRouter,
   contentAdmin: contentAdminRouter,
+  contentStudio: contentStudioRouter,
   analytics: analyticsRouter,
   customerNotifications: customerNotificationsRouter,
   followUps: followUpsRouter,

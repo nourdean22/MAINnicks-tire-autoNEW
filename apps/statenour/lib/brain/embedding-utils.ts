@@ -38,11 +38,12 @@ async function writePgvectorColumn(
   try {
     if (!(await isPgvectorAvailable())) return;
     if (vec.length === 0) return;
-    const lit = vectorLiteral(vec);
+    // embedding_vec is constrained to vector(1024) in the database.
+    const lit = vectorLiteral(padToVectorDim(vec, 1024));
     // Cast literal → vector inline; safe because vectorLiteral
     // already sanitizes (only finite numbers + brackets/commas).
     await prisma.$executeRawUnsafe(
-      `UPDATE vector_embeddings SET embedding_vec = '${lit}'::vector WHERE id = $1`,
+      `UPDATE vector_embeddings SET embedding_vec = '${lit}'::vector(1024) WHERE id = $1`,
       rowId,
     );
 

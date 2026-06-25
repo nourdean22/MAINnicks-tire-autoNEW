@@ -56,5 +56,6 @@
     "rotat",
     "schnell",
     "vapi"
-  ]
+  ],
+  "prisma.pinToPrisma6": true
 }
