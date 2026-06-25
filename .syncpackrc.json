@@ -1,0 +1,26 @@
+{
+  "dependencyTypes": ["prod", "dev"],
+  "versionGroups": [
+    {
+      "dependencies": ["react", "react-dom"],
+      "dependencyTypes": ["peer"],
+      "isBanned": false,
+      "severity": "warning"
+    }
+  ],
+  "sortAz": [
+    "dependencies",
+    "devDependencies",
+    "peerDependencies",
+    "optionalDependencies"
+  ],
+  "sortFirst": [
+    "name",
+    "version",
+    "private",
+    "description",
+    "scripts",
+    "dependencies",
+    "devDependencies"
+  ]
+}
