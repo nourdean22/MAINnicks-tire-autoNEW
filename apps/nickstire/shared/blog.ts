@@ -1925,7 +1925,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Our Four Payment Program Providers",
-        content: "We work with four providers, each with different approval criteria. Acima Credit is a lease-to-own option that requires no credit check — approval is based on income and banking history, with a 90-day same-as-cash option. Snap Finance works with bad credit and no credit, using income verification rather than credit score, with a 100-day same-as-cash option. Koalafi offers the highest approval amounts up to $7,500 for larger repairs. American First Finance rounds out our lineup with no-credit-needed lease-to-own and a 90-day same-as-cash option. Between these four providers, we get most applicants approved for the repairs they need."
+        content: "We work with four providers, each with different approval criteria. Acima is a lease-to-own option that requires no traditional credit check — approval is based on income and banking history, with a 90-day same-as-cash option. Snap Finance works with alternative data using income verification rather than FICO score, with a 100-day same-as-cash option. Koalafi offers the highest approval amounts up to $7,500 for larger repairs. American First Finance rounds out our lineup with alternative-underwriting lease-to-own and a 90-day same-as-cash option. Between these four providers, we get most applicants approved for the repairs they need."
       },
       {
         heading: "How It Works — $10 Down, Same-Day Approval",
