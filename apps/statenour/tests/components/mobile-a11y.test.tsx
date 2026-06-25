@@ -220,7 +220,7 @@ describe("A8 · home Action Hub tabs expose selected state", () => {
     // in-card selector idiom (brain/board-tab.tsx) — honest about there
     // being no roving-tabindex arrow-key tab navigation.
     const src = readSource("components/home/home-action-hub.tsx");
-    expect(src).toContain("aria-pressed={isActive}");
+    expect(src).toContain('aria-pressed={isActive ? "true" : "false"}');
   });
 });
 
