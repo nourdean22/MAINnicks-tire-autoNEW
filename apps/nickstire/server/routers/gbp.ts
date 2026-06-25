@@ -90,7 +90,7 @@ async function createAuthClient(secrets: Awaited<ReturnType<typeof loadGbpSecret
     clientId: secrets.clientId,
     clientSecret: secrets.clientSecret,
     refreshToken: secrets.refreshToken,
-    onTokenRefreshed: async (tokens) => {
+    onTokenRefreshed: async (tokens: any) => {
       if (tokens.refreshToken) {
         await saveGbpSecret("gbp_refresh_token", tokens.refreshToken);
       }

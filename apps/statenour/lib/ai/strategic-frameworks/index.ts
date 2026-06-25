@@ -62,7 +62,7 @@ export function composeStrategicLensBlock(text: string, topN: number = 3): strin
 
   if (matches.length > 0) {
     const sections = matches
-      .map((m) => {
+      .map((m: any) => {
         const f = m.framework;
         return `### ${f.name}\n${f.oneLiner}\n\n${f.lens}`;
       })
@@ -90,7 +90,7 @@ strategic.`;
   const featuredLenses = pickFeaturedLenses();
   const lensesToList = featuredLenses.length > 0 ? featuredLenses : REGISTRY;
   const headlines = lensesToList
-    .map((f) => `· **${f.name}** — ${f.oneLiner}`)
+    .map((f: any) => `· **${f.name}** — ${f.oneLiner}`)
     .join("\n");
 
   return `## STRATEGIC LENS

@@ -280,7 +280,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: CHART_THEME.axis }} tickFormatter={(v: string) => v.slice(5)} />
                 <YAxis tick={{ fontSize: 10, fill: CHART_THEME.axis }} tickFormatter={(v: number) => `$${v.toLocaleString()}`} />
-                <RechartsTooltip contentStyle={CHART_THEME.tooltip} formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]} />
+                <RechartsTooltip contentStyle={CHART_THEME.tooltip} formatter={(value: any) => [`$${Number(value).toLocaleString()}`, "Revenue"]} />
                 <Area type="monotone" dataKey="amount" stroke={CHART_THEME.primary} fill={CHART_THEME.primary} fillOpacity={0.15} strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
@@ -301,10 +301,10 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <RPieChart>
-                  <Pie data={stats.revenueByPayment.map((d: PaymentBreakdown) => ({ ...d, name: d.method.toUpperCase() }))} dataKey="amount" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie data={stats.revenueByPayment.map((d: PaymentBreakdown) => ({ ...d, name: d.method.toUpperCase() }))} dataKey="amount" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
                     {stats.revenueByPayment.map((_: PaymentBreakdown, i: number) => (<Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />))}
                   </Pie>
-                  <RechartsTooltip contentStyle={CHART_THEME.tooltip} formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]} />
+                  <RechartsTooltip contentStyle={CHART_THEME.tooltip} formatter={(value: any) => [`$${Number(value).toLocaleString()}`, "Revenue"]} />
                 </RPieChart>
               </ResponsiveContainer>
             </div>
@@ -541,7 +541,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
                     <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART_THEME.axis }} />
                     <YAxis tick={{ fontSize: 10, fill: CHART_THEME.axis }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                     <RechartsTooltip contentStyle={CHART_THEME.tooltip}
-                      formatter={(value: number, name: string) => [`$${value.toLocaleString()}`, name.charAt(0).toUpperCase() + name.slice(1)]} />
+                      formatter={((value: any, name: string) => [`$${Number(value).toLocaleString()}`, name.charAt(0).toUpperCase() + name.slice(1)]) as any} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar dataKey="labor" stackId="rev" fill={CHART_THEME.secondary} name="Labor" radius={[0, 0, 0, 0]} />
                     <Bar dataKey="parts" stackId="rev" fill={CHART_THEME.tertiary} name="Parts" radius={[2, 2, 0, 0]} />
@@ -562,7 +562,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
                       <XAxis dataKey="day" tick={{ fontSize: 10, fill: CHART_THEME.axis }} tickFormatter={(v: string) => v.slice(0, 3)} />
                       <YAxis tick={{ fontSize: 10, fill: CHART_THEME.axis }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                       <RechartsTooltip contentStyle={CHART_THEME.tooltip}
-                        formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]} />
+                        formatter={((value: any) => [`$${Number(value).toLocaleString()}`, "Revenue"]) as any} />
                       <Bar dataKey="revenue" fill={CHART_THEME.primary} radius={[2, 2, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -580,7 +580,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
                       <XAxis type="number" tick={{ fontSize: 10, fill: CHART_THEME.axis }} tickFormatter={(v: number) => `$${v}`} />
                       <YAxis type="category" dataKey="category" tick={{ fontSize: 10, fill: CHART_THEME.axis }} width={80} />
                       <RechartsTooltip contentStyle={CHART_THEME.tooltip}
-                        formatter={(value: number) => [`$${value.toLocaleString()}`, "Avg Ticket"]} />
+                        formatter={((value: number) => [`$${value.toLocaleString()}`, "Avg Ticket"]) as any} />
                       <Bar dataKey="avgTicket" fill={CHART_THEME.quaternary} radius={[0, 2, 2, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -624,7 +624,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
                     <YAxis yAxisId="rev" tick={{ fontSize: 10, fill: CHART_THEME.axis }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                     <YAxis yAxisId="jobs" orientation="right" tick={{ fontSize: 10, fill: CHART_THEME.axis }} />
                     <RechartsTooltip contentStyle={CHART_THEME.tooltip}
-                      formatter={(value: number, name: string) => [name === "jobs" ? value : `$${value.toLocaleString()}`, name === "jobs" ? "Jobs" : name === "avgTicket" ? "Avg Ticket" : "Revenue"]} />
+                      formatter={((value: any, name: string) => [name === "jobs" ? value : `$${value.toLocaleString()}`, name === "jobs" ? "Jobs" : name === "avgTicket" ? "Avg Ticket" : "Revenue"]) as any} />
                     <Legend wrapperStyle={{ fontSize: 10 }} />
                     <Line yAxisId="rev" type="monotone" dataKey="revenue" stroke={CHART_THEME.primary} strokeWidth={2} dot={false} name="Revenue" />
                     <Line yAxisId="rev" type="monotone" dataKey="avgTicket" stroke={CHART_THEME.quaternary} strokeWidth={1.5} dot={false} strokeDasharray="4 2" name="Avg Ticket" />
@@ -646,7 +646,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
                     <XAxis dataKey="week" tick={{ fontSize: 9, fill: CHART_THEME.axis }} tickFormatter={(v: string) => v?.slice(5) || ""} />
                     <YAxis tick={{ fontSize: 10, fill: CHART_THEME.axis }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                     <RechartsTooltip contentStyle={CHART_THEME.tooltip}
-                      formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]} />
+                      formatter={(value: any) => [`$${Number(value).toLocaleString()}`, "Revenue"]} />
                     <Area type="monotone" dataKey="revenue" stroke={CHART_THEME.tertiary} fill={CHART_THEME.tertiary} fillOpacity={0.15} strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>

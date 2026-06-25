@@ -146,10 +146,13 @@ function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
       if (options?.body && typeof options.body === "string") {
         try {
           const parsed = JSON.parse(options.body);
-          if (typeof parsed.max_tokens === "number") {
-            parsed.options = { ...parsed.options, num_predict: parsed.max_tokens };
-            options.body = JSON.stringify(parsed);
-          }
+          // Always enforce a strict upper bound to prevent infinite <think> loop drains
+          const MAX_TOKENS = 4096;
+          const requested = typeof parsed.max_tokens === "number" ? parsed.max_tokens : MAX_TOKENS;
+          const num_predict = Math.min(requested, MAX_TOKENS);
+          
+          parsed.options = { ...parsed.options, num_predict };
+          options.body = JSON.stringify(parsed);
         } catch {}
       }
       return fetch(url, options);
