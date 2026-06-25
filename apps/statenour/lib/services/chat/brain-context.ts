@@ -51,6 +51,7 @@ export interface ContextBlocksFired {
   concerns: boolean;
   /** 2026-06-10 · anticipated-question cosine match (precomputed nightly take) */
   anticipated: boolean;
+  physical: boolean;
   // Index signature so Prisma's InputJsonValue accepts this type when
   // it gets persisted into ChatMessage.tokenUsage.contextBlocks. Pure
   // type accommodation — no runtime keys beyond the named flags.
@@ -84,7 +85,7 @@ export interface BuildBrainContextOutput {
 const EMPTY_FIRED: ContextBlocksFired = {
   recall: false, skills: false, identity: false, ghost: false,
   qualitative: false, beliefs: false, nudges: false, contradictions: false,
-  concerns: false, anticipated: false,
+  concerns: false, anticipated: false, physical: false,
 };
 
 export async function buildBrainContext(
@@ -123,7 +124,7 @@ export async function buildBrainContext(
   try {
     const [
       recallMod, skillsMod, identityMod, ghostMod,
-      qualMod, beliefsMod, nudgeMod, concernsMod, anticipatedMod,
+      qualMod, beliefsMod, nudgeMod, concernsMod, anticipatedMod, physicalMod,
     ] = await Promise.all([
       import("@/lib/brain/chat-recall").catch(() => null),
       import("@/lib/brain/skill-extractor").catch(() => null),
@@ -140,11 +141,12 @@ export async function buildBrainContext(
       // matches a question the nightly cron predicted, the precomputed
       // take rides in as warm context (never short-circuits the reply).
       import("@/lib/brain/anticipated-questions").catch(() => null),
+      import("@/lib/brain/physical-business").catch(() => null),
     ]);
 
     const [
       recallBlock, skillsBlock, identityBlock, ghostBlock,
-      qBlock, bBlock, nBlock, concernsBlock, anticipatedBlock,
+      qBlock, bBlock, nBlock, concernsBlock, anticipatedBlock, physicalBlock,
     ] = await Promise.all([
       userContent.length > 10 && recallMod
         ? withTimeout(recallMod.buildChatRecallBlock(userContent, mode === "deep" ? 6 : 4), 3000, "")
@@ -180,6 +182,9 @@ export async function buildBrainContext(
             "",
           )
         : Promise.resolve(""),
+      physicalMod
+        ? withTimeout(physicalMod.buildPhysicalBusinessContextBlock(), 3000, "")
+        : Promise.resolve(""),
     ]);
 
     // Apr 19 · Task queue injection. Runs in the same promise race
@@ -204,6 +209,7 @@ export async function buildBrainContext(
       { name: "nudges", content: nBlock },
       { name: "concerns", content: concernsBlock },
       { name: "anticipated", content: anticipatedBlock },
+      { name: "physical", content: physicalBlock },
       { name: "tasks", content: taskBlock },
     ].filter((b) => b.content && b.content.trim().length > 0);
 
@@ -244,6 +250,7 @@ export async function buildBrainContext(
       contradictions: !!(nBlock && /contradiction/i.test(nBlock)),
       concerns: !!concernsBlock,
       anticipated: !!anticipatedBlock,
+      physical: !!physicalBlock,
     };
 
     log.info("brain_blocks_assembled", {
