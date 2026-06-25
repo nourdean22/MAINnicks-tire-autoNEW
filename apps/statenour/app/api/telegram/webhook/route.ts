@@ -227,8 +227,8 @@ async function handleCallback(callback: {
       if (decision === "approve") {
         const intellReceipt = await (prisma as any).actionReceipt.findUnique({ where: { id: receiptId } });
         if (intellReceipt && intellReceipt.status === "PENDING") {
-          // Send Twilio SMS mock
-          console.log(`[Twilio Mock] SMS to ${intellReceipt.targetId}: ${intellReceipt.payload.smsBody}`);
+          // Send Capevace SMS Gateway mock
+          console.log(`[Capevace Gateway Mock] SMS to ${intellReceipt.targetId}: ${intellReceipt.payload.smsBody}`);
           
           await (prisma as any).actionReceipt.update({
             where: { id: receiptId },
