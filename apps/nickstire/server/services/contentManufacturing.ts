@@ -914,13 +914,7 @@ export async function runManufacturingPipeline(
         try {
           const topicAngleHash = (topic + angle.angle).split("").reduce((a, b) => a + b.charCodeAt(0), 0);
           const useAbsurdity = (topicAngleHash % 10) < 3;
-          if (useAbsurdity) {
-            const { generateAbsurdDraft } = await import("./absurdityEngine");
-            const service = detectServiceCategory({ topic, bodyText: angle.description, seriesName: angle.narrativeFranchise });
-            log.info(`Generating absurdity draft for topic "${topic}", service "${service}"`);
-            draft = await generateAbsurdDraft(topic, service, persona, contentType);
-            isAbsurdDraft = true;
-          } else {
+          if (true) {
             // Run Hook Tournament for angle
             try {
               bestHook = await generateHookTournament(topic, angle);
@@ -936,11 +930,13 @@ export async function runManufacturingPipeline(
             isAbsurdDraft = false;
           }
 
-          const validation = validateClaimSafety(draft);
-          if (validation.safe) {
-            isSafe = true;
-          } else {
-            log.warn(`Safety validation failed for draft on attempt ${attempts}`, { errors: validation.errors });
+          if (draft) {
+            const validation = validateClaimSafety(draft);
+            if (validation.safe) {
+              isSafe = true;
+            } else {
+              log.warn(`Safety validation failed for draft on attempt ${attempts}`, { errors: validation.errors });
+            }
           }
         } catch (e) {
           log.error("Failed to generate draft attempt:", e);

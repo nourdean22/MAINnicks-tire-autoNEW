@@ -136,12 +136,13 @@ export function useUltronFetch<T>(
 ): { data: T | null; loading: boolean; refetch: () => void } {
   const { ttlMs = 30_000, pollMs } = options;
   const [, setTick] = useState(0);
-  const cached = cache.get(url);
-  const initialData = cached && cached.expiresAt > Date.now() ? (cached.value as T) : null;
-
-  const [state, setState] = useState<{ data: T | null; loading: boolean }>({
-    data: initialData,
-    loading: initialData === null,
+  const [state, setState] = useState<{ data: T | null; loading: boolean }>(() => {
+    const cached = cache.get(url);
+    const initialData = cached && cached.expiresAt > Date.now() ? (cached.value as T) : null;
+    return {
+      data: initialData,
+      loading: initialData === null,
+    };
   });
 
   const run = useCallback(async (opts?: { alive?: () => boolean }) => {
@@ -173,7 +174,7 @@ export function useUltronFetch<T>(
 
   useEffect(() => {
     let alive = true;
-    run({ alive: () => alive });
+    queueMicrotask(() => { run({ alive: () => alive }); });
 
     // Subscribe to cache updates from other components using the same key
     const unsub = subscribe(url, () => {

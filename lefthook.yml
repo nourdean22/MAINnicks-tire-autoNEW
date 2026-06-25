@@ -1,0 +1,9 @@
+pre-commit:
+  commands:
+    lint-nickstire:
+      glob: "apps/nickstire/**/*.{js,ts,jsx,tsx}"
+      run: pnpm exec turbo run lint --filter=nicks-tire-auto
+pre-push:
+  commands:
+    verify-affected:
+      run: pnpm run build:affected
