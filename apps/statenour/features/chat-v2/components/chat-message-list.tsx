@@ -51,11 +51,11 @@ export function ChatMessageList({
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 pb-12">
       {/* Real Messages */}
       {messages.map((m) => (
-        <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+        <div key={m.id} className={`flex animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
           <div className={`max-w-[85%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm ${
             m.role === "user" 
-              ? "bg-zinc-800 text-zinc-100" 
-              : "bg-zinc-900 border border-zinc-800/60 text-zinc-300"
+              ? "bg-zinc-800 text-zinc-100 shadow-[0_0_15px_-5px_rgba(0,0,0,0.3)]" 
+              : "bg-zinc-900/80 backdrop-blur-md border border-white/5 text-zinc-200 shadow-[0_0_15px_-5px_rgba(0,0,0,0.5)]"
           }`}>
             {m.parts?.map((part, i) => {
               if (part.type === "text") {
@@ -127,7 +127,7 @@ export function ChatMessageList({
 
       {/* Pending / Optimistic Messages */}
       {pending.map((p) => (
-        <div key={p.tempId} className="flex justify-end opacity-60">
+        <div key={p.tempId} className="flex justify-end opacity-60 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="max-w-[85%] rounded-2xl bg-zinc-800 px-5 py-3.5 text-[15px] leading-relaxed text-zinc-100 shadow-sm">
             {p.text}
           </div>

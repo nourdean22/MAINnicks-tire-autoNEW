@@ -63,15 +63,17 @@ export function ChatIsland() {
   }, [setMemoryData]);
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-zinc-950 text-zinc-100">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-zinc-950 via-[#0a0a0a] to-black text-zinc-100">
       {/* Header Area */}
-      <header className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 backdrop-blur-md">
-        <h1 className="text-sm font-medium text-zinc-300">STATENOUR CHAT</h1>
+      <header className="z-10 flex items-center justify-between border-b border-white/5 bg-black/40 px-4 py-3 backdrop-blur-xl">
+        <h1 className="text-sm font-medium tracking-wide text-zinc-300 drop-shadow-sm">STATENOUR CHAT</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold tracking-wider transition-transform active:scale-95 flex items-center gap-2 ${
-              memoryInspectorOpen ? "bg-amber-500/20 text-amber-400" : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
+              memoryInspectorOpen 
+                ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-[0_0_15px_-3px_rgba(245,158,11,0.3)]" 
+                : "bg-zinc-900/50 backdrop-blur-md border border-white/5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 hover:border-white/10 hover:shadow-[0_0_10px_-2px_rgba(255,255,255,0.05)]"
             }`}
           >
             <Brain className="w-3.5 h-3.5" />
@@ -79,7 +81,11 @@ export function ChatIsland() {
           </button>
           <button 
             onClick={toggleVoiceDock}
-            className="rounded-full bg-zinc-900 px-3 py-1.5 text-xs font-semibold tracking-wider text-zinc-400 transition-transform active:scale-95 hover:bg-zinc-800 hover:text-zinc-200"
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
+              isVoiceDocked
+                ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)]"
+                : "bg-zinc-900/50 backdrop-blur-md border border-white/5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 hover:border-white/10 hover:shadow-[0_0_10px_-2px_rgba(255,255,255,0.05)]"
+            }`}
           >
             {isVoiceDocked ? "CLOSE VOICE" : "DOCK VOICE"}
           </button>
@@ -112,7 +118,7 @@ export function ChatIsland() {
       </div>
 
       {/* Composer Area */}
-      <div className="border-t border-zinc-800/50 bg-zinc-950 p-4">
+      <div className="border-t border-white/5 bg-black/40 backdrop-blur-xl p-4 z-10 relative">
         <ChatComposer chat={chat} />
       </div>
 
