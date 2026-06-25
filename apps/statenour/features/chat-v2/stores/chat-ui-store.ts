@@ -28,6 +28,7 @@ export type ChatUiState = {
   pending: PendingSend[];
   isVoiceDocked: boolean;
   memoryInspectorOpen: boolean;
+  historyDrawerOpen: boolean;
   recalledHits: MemoryHit[];
   contradictions: ContradictionLog[];
   setDraft: (draft: string) => void;
@@ -38,6 +39,7 @@ export type ChatUiState = {
   clearConversationDraft: () => void;
   toggleVoiceDock: () => void;
   setMemoryInspectorOpen: (open: boolean) => void;
+  setHistoryDrawerOpen: (open: boolean) => void;
   setMemoryData: (hits: MemoryHit[], contradictions: ContradictionLog[]) => void;
 };
 
@@ -48,6 +50,7 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
   pending: [],
   isVoiceDocked: false,
   memoryInspectorOpen: false,
+  historyDrawerOpen: false,
   recalledHits: [],
   contradictions: [],
   setDraft: (draft) => set({ draft }),
@@ -59,5 +62,6 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
   clearConversationDraft: () => set({ draft: "" }),
   toggleVoiceDock: () => set((s) => ({ isVoiceDocked: !s.isVoiceDocked })),
   setMemoryInspectorOpen: (open) => set({ memoryInspectorOpen: open }),
+  setHistoryDrawerOpen: (open) => set({ historyDrawerOpen: open }),
   setMemoryData: (hits, contradictions) => set({ recalledHits: hits, contradictions }),
 }));

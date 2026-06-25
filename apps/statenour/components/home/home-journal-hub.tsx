@@ -45,17 +45,18 @@ export function HomeJournalHub() {
   if (isLoading) {
     return (
       <div 
-        className="rounded-xl border border-[var(--gold)]/20 bg-[var(--gold)]/[0.02] p-4 space-y-3 animate-pulse" 
+        className="relative overflow-hidden glass-card rounded-xl border border-white/5 bg-zinc-900/40 backdrop-blur-md p-4 space-y-3 animate-pulse" 
         aria-hidden
       >
-        <div className="h-3.5 w-32 rounded bg-[var(--bg-elevated)]" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--gold)]/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="h-3.5 w-32 rounded bg-white/5" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <div className="h-2.5 w-full rounded bg-[var(--bg-elevated)]" />
-            <div className="h-2.5 w-3/4 rounded bg-[var(--bg-elevated)]" />
-            <div className="h-2.5 w-5/6 rounded bg-[var(--bg-elevated)]" />
+            <div className="h-2.5 w-full rounded bg-white/5" />
+            <div className="h-2.5 w-3/4 rounded bg-white/5" />
+            <div className="h-2.5 w-5/6 rounded bg-white/5" />
           </div>
-          <div className="h-16 rounded bg-[var(--bg-elevated)]" />
+          <div className="h-16 rounded bg-white/5" />
         </div>
       </div>
     );
@@ -69,53 +70,58 @@ export function HomeJournalHub() {
   return (
     <section
       aria-label="Journal Alignment & Actions"
-      className="rounded-xl border border-[var(--gold)]/25 bg-[var(--gold)]/[0.02] p-4 shadow-md space-y-3 animate-fade-in-scale"
+      className="relative overflow-hidden glass-card rounded-xl border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 p-4 shadow-xl space-y-4 animate-fade-in-scale"
     >
+      <div className="absolute top-0 right-0 w-48 h-48 bg-[var(--gold)]/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
       {/* Title block */}
-      <div className="flex items-center justify-between border-b border-[var(--gold)]/10 pb-2">
-        <div className="flex items-center gap-1.5">
-          <Compass size={13} className="text-[var(--gold)] shrink-0" strokeWidth={2} />
-          <h3 className="text-xs font-mono uppercase tracking-[0.18em] text-[var(--gold)]/90">
+      <div className="relative z-10 flex items-center justify-between border-b border-white/5 pb-3">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-md bg-[var(--gold)]/10 border border-[var(--gold)]/20 text-[var(--gold)]">
+            <Compass size={14} strokeWidth={2} />
+          </div>
+          <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-200">
             Journal Alignment
           </h3>
         </div>
         <a
           href="/journal"
-          className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider text-[var(--gold)]/50 hover:text-[var(--gold)] transition"
+          className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-md border border-white/10 bg-white/5 text-zinc-400 hover:bg-[var(--gold)]/10 hover:text-[var(--gold)] hover:border-[var(--gold)]/30 transition-all"
         >
           <BookOpen size={10} />
-          <span>open journal →</span>
+          <span>open journal</span>
         </a>
       </div>
 
       {/* Grid container */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+      <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-5">
         {/* Directive details */}
         <div className={cn(
-          "min-w-0 space-y-2",
-          nextAction ? "md:col-span-7 border-b md:border-b-0 md:border-r border-[var(--gold)]/10 pb-4 md:pb-0 md:pr-4" : "md:col-span-12"
+          "min-w-0 space-y-3",
+          nextAction ? "md:col-span-7 border-b md:border-b-0 md:border-r border-white/5 pb-4 md:pb-0 md:pr-5" : "md:col-span-12"
         )}>
           {brief && (
             <div>
-              <p className="text-[8px] font-mono uppercase tracking-widest text-[var(--gold)]/50 block mb-1">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--gold)]/60 block mb-2.5">
                 daily directive
               </p>
               {lines ? (
-                <dl className="space-y-1">
+                <dl className="space-y-2">
                   {lines.map((l) => (
-                    <div key={l.label} className="flex items-baseline gap-2">
+                    <div key={l.label} className="flex items-baseline gap-3">
                       <dt
                         className={cn(
-                          "w-20 shrink-0 text-[9px] font-mono uppercase tracking-wider",
-                          l.label === "MOVE" ? "text-[var(--gold)] font-bold" : "text-white/40"
+                          "w-20 shrink-0 text-[10px] font-mono uppercase tracking-wider",
+                          l.label === "MOVE" ? "text-[var(--gold)] font-bold" : "text-zinc-500"
                         )}
                       >
                         {l.label}
                       </dt>
                       <dd
                         className={cn(
-                          "min-w-0 text-[12px] leading-snug",
-                          l.label === "MOVE" ? "font-semibold text-white" : "text-white/80"
+                          "min-w-0 text-[13px] leading-relaxed",
+                          l.label === "MOVE" ? "font-medium text-zinc-200" : "text-zinc-400"
                         )}
                       >
                         {l.text}
@@ -124,7 +130,7 @@ export function HomeJournalHub() {
                   ))}
                 </dl>
               ) : (
-                <p className="text-[12px] leading-relaxed text-white/85 whitespace-pre-line">
+                <p className="text-[13px] leading-relaxed text-zinc-400 whitespace-pre-line">
                   {brief}
                 </p>
               )}
@@ -137,20 +143,20 @@ export function HomeJournalHub() {
           <div className="md:col-span-5 flex flex-col justify-center">
             <a
               href={nextAction.entryId ? `/journal#bd-${nextAction.entryId}` : "/journal"}
-              className="group flex flex-col h-full justify-between p-3 rounded-lg border border-[var(--gold)]/15 bg-[var(--gold)]/[0.03] hover:bg-[var(--gold)]/[0.08] hover:border-[var(--gold)]/35 transition"
+              className="group flex flex-col h-full justify-between p-4 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-white/[0.03] hover:border-[var(--gold)]/30 transition-all"
             >
-              <div className="space-y-1">
-                <span className="text-[8px] font-mono uppercase tracking-wider text-[var(--gold)]/60 group-hover:text-[var(--gold)] transition-colors">
+              <div className="space-y-2">
+                <span className="text-[9px] font-mono uppercase tracking-widest text-[var(--gold)]/60 group-hover:text-[var(--gold)]/90 transition-colors block">
                   extracted next move
-                  {nextAction.domain && <span className="ml-1 text-[var(--gold)]/40">#{nextAction.domain}</span>}
+                  {nextAction.domain && <span className="ml-1.5 text-zinc-500">#{nextAction.domain}</span>}
                 </span>
-                <p className="text-[12.5px] font-medium text-white leading-snug break-words">
+                <p className="text-[14px] font-medium text-zinc-200 leading-snug break-words group-hover:text-white transition-colors">
                   {nextAction.action}
                 </p>
               </div>
               
-              <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-mono text-[var(--gold)] font-semibold uppercase tracking-wider">
-                act on reflection <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
+              <span className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-mono text-[var(--gold)] font-semibold uppercase tracking-wider">
+                act on reflection <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
               </span>
             </a>
           </div>
