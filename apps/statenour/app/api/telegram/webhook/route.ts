@@ -218,6 +218,52 @@ async function handleCallback(callback: {
       });
       return;
     }
+
+    if (action === "intell_recall") {
+      const parts = (callback.data ?? "").split(":");
+      const decision = parts[1];
+      const receiptId = parts[2];
+
+      if (decision === "approve") {
+        const intellReceipt = await (prisma as any).actionReceipt.findUnique({ where: { id: receiptId } });
+        if (intellReceipt && intellReceipt.status === "PENDING") {
+          // Send Twilio SMS mock
+          console.log(`[Twilio Mock] SMS to ${intellReceipt.targetId}: ${intellReceipt.payload.smsBody}`);
+          
+          await (prisma as any).actionReceipt.update({
+            where: { id: receiptId },
+            data: { status: "EXECUTED", executedAt: new Date() }
+          });
+          
+          if (messageId) {
+            await editTelegramMessage(
+              messageId,
+              `✅ SMS Dispatched to ${intellReceipt.payload.customerName} for ${intellReceipt.payload.vehicle} recall.`,
+              chatId
+            );
+          }
+        } else {
+          if (messageId) {
+             await editTelegramMessage(messageId, `⚠️ Alert already processed.`, chatId);
+          }
+        }
+      } else {
+        await (prisma as any).actionReceipt.update({
+          where: { id: receiptId },
+          data: { status: "REJECTED" }
+        });
+        if (messageId) {
+          await editTelegramMessage(
+            messageId,
+            `❌ Recall alert rejected.`,
+            chatId
+          );
+        }
+      }
+
+      await answerCallbackQuery(callback.id, decision === "approve" ? "Approved!" : "Rejected");
+      return;
+    }
     // Apr 17 separation pass — autopilot-morning approval flow retired
     // along with the cron that produced it. Shop-side approvals now
     // live in nickstire.org/admin.

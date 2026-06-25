@@ -524,15 +524,6 @@ export const CRONS: CronDef[] = [
     maxDuration: 30,
   },
   {
-    name: "error-telegram-push",
-    schedule: "*/10 * * * *",
-    mode: "active",
-    category: "alert",
-    description: "Every 10min · single push pipe for fatal errors · operator gets 1 message per cluster, not 100.",
-    memory: 256,
-    maxDuration: 30,
-  },
-  {
     name: "proactive-push",
     schedule: "0 * * * *",
     mode: "active",
