@@ -57,6 +57,7 @@ export function HomeActionHub() {
     if (hasSetDefault || isInboxLoading || isHygieneLoading || isMovesLoading) return;
 
     if (inboxCount > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveTab("inbox");
     } else if (findingsCount > 0) {
       setActiveTab("hygiene");
