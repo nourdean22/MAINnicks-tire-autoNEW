@@ -159,7 +159,7 @@ interface ExtractedItem {
 function parseNotebookLMOutput(content: string, defaultCategory = BRAIN_CATEGORIES.RESEARCH_CLAIM): ExtractedItem[] {
   const lines = content.split(/\r?\n/);
   const items: ExtractedItem[] = [];
-  let currentCategory = defaultCategory;
+  let currentCategory: string = defaultCategory;
 
   for (const line of lines) {
     const trimmed = line.trim();
