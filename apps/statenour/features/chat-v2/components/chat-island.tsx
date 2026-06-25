@@ -72,7 +72,7 @@ export function ChatIsland() {
   }, [setMemoryData]);
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-zinc-950 via-[#0a0a0a] to-black text-zinc-100">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-linear-to-br from-zinc-950 via-[#0a0a0a] to-black text-zinc-100">
       {/* Header Area */}
       <header className="z-10 flex items-center justify-between border-b border-white/5 bg-black/40 px-4 py-3 backdrop-blur-xl">
         <h1 className="text-sm font-medium tracking-wide text-zinc-300 drop-shadow-sm">STATENOUR CHAT</h1>
