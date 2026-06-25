@@ -581,6 +581,14 @@ export const CRONS: CronDef[] = [
     foldedInto: "mega-evening",
     description: "FOLDED into mega-evening · NICK_AUTONOMY-gated proactive engine (~22 rules: revenue-pace, urgent-leads, drift escalation, commitment enforcement, morning brief, expired-quote follow-up). Hard-skips when the flag is off. FAIL-CLOSED: every rule defers to /system/approvals unless an explicit `auto` AutomationPolicy exists — nothing auto-sends.",
   },
+  {
+    name: "neglect-penalty",
+    schedule: "0 */4 * * *", // Runs every 4 hours
+    mode: "active",
+    category: "hygiene",
+    inngest: true,
+    description: "Systemic decay enforcer. Deducts XP from neglected missions that idle for >48h and fires a Telegram alert.",
+  },
 ];
 
 /** Names of crons that SHOULD exist as routes (for verifier). */

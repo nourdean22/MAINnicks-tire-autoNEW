@@ -795,6 +795,10 @@ export async function updateTask(id: string, input: unknown) {
     { source: "service:updateTask" },
   );
 
+  if (existing.status === "WAITING" && payload.status && payload.status !== "WAITING") {
+    import("@/lib/system/patience-xp").then(m => m.awardPatienceXP(id, existing.updatedAt)).catch(console.error);
+  }
+
   // 2026-06-09 · classifier learning · record a re-file (mission changed to a
   // different one) as a few-shot example for future classification.
   if (payload.missionId && payload.missionId !== existing.missionId) {
