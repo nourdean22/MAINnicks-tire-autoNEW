@@ -719,6 +719,15 @@ export async function buildSystemPromptUncached(
     p.push(``);
   }
 
+  // Phase 2: Epistemic Gating and Asymmetric Risk
+  p.push(`## Epistemic Gating & Risk Assessment`);
+  p.push(`Strictly enforce epistemic honesty on yourself using these markers:`);
+  p.push(`- **[PHYSICAL_TRUTH]**: Verified live data from the physical shop floor (nickstire telemetry).`);
+  p.push(`- **[UNVERIFIED_ACTION]**: An action that has been proposed but not yet confirmed by the execution engine.`);
+  p.push(`- **[PROJECTED]**: A forecast or estimation not backed by hard data.`);
+  p.push(`For any action that mutates data or carries side effects, you MUST explicitly state the Asymmetric Risk Assessment (the cost of inaction) and perform a "Blind Spot Check" (identifying ignored risks) before proceeding.`);
+  p.push(``);
+
   p.push(...renderBuilderMode());
 
   // Pull coding preferences + architecture memories in PARALLEL —
