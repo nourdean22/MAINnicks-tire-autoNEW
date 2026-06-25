@@ -8,7 +8,9 @@ import { ChatComposer } from "./chat-composer";
 import { ChatMessageList } from "./chat-message-list";
 import { RealtimeVoiceOverlay } from "@/components/chat/realtime-voice-overlay";
 import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sidebar";
-import { Brain } from "lucide-react";
+import { Brain, History } from "lucide-react";
+import { ConversationDrawer } from "@/components/chat/conversation-drawer";
+import { useConversations } from "@/hooks/use-conversations";
 
 function useScrollToBottom<T extends HTMLElement>() {
   const containerRef = useRef<T>(null);
@@ -45,7 +47,14 @@ export function ChatIsland() {
   const contradictions = useChatUiStore((s) => s.contradictions);
   const setMemoryData = useChatUiStore((s) => s.setMemoryData);
 
+  const historyDrawerOpen = useChatUiStore((s) => s.historyDrawerOpen);
+  const setHistoryDrawerOpen = useChatUiStore((s) => s.setHistoryDrawerOpen);
+
   const chat = useChatStream();
+  const convProps = useConversations({
+    setMessages: chat.setMessages,
+    onError: (msg) => console.error("useConversations error:", msg),
+  });
   const { containerRef, endRef } = useScrollToBottom<HTMLDivElement>();
 
   useEffect(() => {
@@ -78,6 +87,17 @@ export function ChatIsland() {
           >
             <Brain className="w-3.5 h-3.5" />
             INSPECTOR
+          </button>
+          <button
+            onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
+              historyDrawerOpen 
+                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]" 
+                : "bg-zinc-900/50 backdrop-blur-md border border-white/5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 hover:border-white/10 hover:shadow-[0_0_10px_-2px_rgba(255,255,255,0.05)]"
+            }`}
+          >
+            <History className="w-3.5 h-3.5" />
+            HISTORY
           </button>
           <button 
             onClick={toggleVoiceDock}
@@ -128,6 +148,39 @@ export function ChatIsland() {
         hits={recalledHits}
         contradictions={contradictions}
       />
+
+      {/* Conversation Drawer Overlay */}
+      {historyDrawerOpen && (
+        <div className="absolute inset-y-0 left-0 w-80 bg-black/40 backdrop-blur-xl border-r border-white/5 z-50 flex flex-col">
+          <ConversationDrawer
+            convos={convProps.convos}
+            activeId={convProps.activeId}
+            pinnedConvoIds={convProps.pinnedIds}
+            hasMoreConvos={convProps.hasMoreConvos}
+            loadingMore={convProps.loadingMore}
+            onLoadMore={convProps.loadMoreConvos}
+            onSelectConvo={convProps.loadConvo}
+            onDeleteConvo={(id, e) => convProps.deleteConvo(id, e)}
+            onRename={convProps.renameConvo}
+            onTogglePin={convProps.togglePin}
+            onNewChat={convProps.newChat}
+            onToggleStar={(id) => {
+              const convo = convProps.convos.find(c => c.id === id);
+              if (convo) convProps.patchConvoFlag(id, "starred", !convo.starredAt);
+            }}
+            onToggleArchive={(id) => {
+              // Note: archivedAt is not in the Convo type because we don't return them, 
+              // but patchConvoFlag handles the archived toggle.
+              convProps.patchConvoFlag(id, "archived", true);
+            }}
+            onToggleMute={(id) => {
+              const convo = convProps.convos.find(c => c.id === id);
+              if (convo) convProps.patchConvoFlag(id, "muted", !convo.mutedAt);
+            }}
+            onClose={() => setHistoryDrawerOpen(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
