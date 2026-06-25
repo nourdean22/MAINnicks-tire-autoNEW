@@ -127,6 +127,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
   }, [task.id, utils]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadSession();
   }, [loadSession]);
 
@@ -273,7 +274,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
     <div className="border-t border-[var(--border-default)]/60 bg-[var(--bg-void)]/30">
       {/* ── Quick actions row ───────────────────────────── */}
       <div className="px-3 py-1.5 flex items-center gap-1 flex-wrap">
-        <span className="shrink-0 text-[8px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]/70 mr-1">
+        <span className="shrink-0 text-[8px] font-bold uppercase tracking-[0.22em] text-[var(--gold)]/70 mr-1">
           <Sparkles size={9} className="inline mr-0.5" />
           session
         </span>
@@ -352,7 +353,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
+          title="Upload photo"
           className="hidden"
           onChange={onPhotoPick}
         />

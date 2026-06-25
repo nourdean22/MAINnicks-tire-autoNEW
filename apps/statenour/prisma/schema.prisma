@@ -244,9 +244,14 @@ model Mission {
   /// Populated by /api/ai/plan-project mode=plan, extended by mode=
   /// learn and mode=guide. Shape documented in lib/ai/project-plan.ts.
   planData           Json?
+  
+  /// Defines what sourceSystem is required for canClaimDone()
+  completionCriteria Json?
+  
   tasks              Task[]
   chatConversations  ChatConversation[]
   socialPublishItems SocialPublishQueue[]
+  actionReceipts     ActionReceipt[]
   /// v10.0.421 · operator can link missions together (depends-on,
   /// blocks, related). MissionLink is an explicit join with optional
   /// relation type · self-referential many-to-many.
@@ -3096,14 +3101,21 @@ enum ActionStatus {
 }
 
 model ActionReceipt {
-  id        String       @id @default(cuid())
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
-  status    ActionStatus @default(PENDING)
-  action    String       @db.VarChar(255)
-  context   String?      @db.Text
+  id                  String       @id @default(cuid())
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+  status              ActionStatus @default(PENDING)
+  action              String       @db.VarChar(255)
+  context             String?      @db.Text
+  
+  missionId           String?
+  mission             Mission?     @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  sourceSystem        String?      @map("source_system")
+  verificationPayload Json?        @map("verification_payload")
+  executedAt          DateTime?    @default(now()) @map("executed_at")
 
   @@index([status, createdAt(sort: Desc)])
+  @@index([missionId])
   @@map("action_receipts")
 }
 
