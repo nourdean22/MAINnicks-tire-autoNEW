@@ -54,16 +54,6 @@ const HIGH_FREQ_JOBS: JobDef[] = [
     description: "Every 2 min · backfill brain-bus events queue",
   },
   {
-    name: "error-telegram-push",
-    schedule: "*/5 * * * *",
-    description: "Every 5 min · push queued error alerts to Telegram",
-  },
-  {
-    name: "alert-telegram-push",
-    schedule: "*/15 * * * *",
-    description: "Every 15 min · push queued alerts to Telegram",
-  },
-  {
     name: "calendar-premeeting",
     schedule: "*/15 11-23,0 * * *",
     description: "Every 15 min · 7am-8pm ET · pre-meeting cards",
