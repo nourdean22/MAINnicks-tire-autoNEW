@@ -103,11 +103,11 @@ describe("buildFfmpegArgs", () => {
     expect(inputs).toEqual(["/t/c1.mp4", "/t/c2.mp4", "/t/c3.mp4", "/t/vo.wav", "/t/music.mp3"]);
   });
 
-  it("scales every beat to a 1080x1920 vertical frame and concatenates them", () => {
+  it("scales every beat to a 1080x1920 vertical frame and xfades them", () => {
     const fc = buildFfmpegArgs(base).join(" ");
     expect(fc).toContain("scale=1080:1920:force_original_aspect_ratio=increase");
     expect(fc).toContain("crop=1080:1920");
-    expect(fc).toContain("concat=n=3:v=1:a=0");
+    expect(fc).toContain("xfade=transition=fade");
   });
 
   it("burns captions on HALF-OPEN intervals (no double-rendered frame at cuts)", () => {

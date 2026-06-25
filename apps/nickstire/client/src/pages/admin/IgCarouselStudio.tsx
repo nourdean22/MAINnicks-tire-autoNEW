@@ -86,7 +86,7 @@ export default function IgCarouselStudio() {
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [aiBrief, setAiBrief] = useState<CarouselBrief | null>(null);
 
-  const { data: rawDrafts, refetch: refetchDrafts } = trpc.contentStudio.list.useQuery({ contentType: "carousel", status: "draft" });
+  const { data: rawDrafts, refetch: refetchDrafts } = trpc.contentStudio.list.useQuery({ contentType: "carousel", status: "draft" } as any);
   const sheetsDrafts = useMemo(() => {
     return (rawDrafts || []).map((d: any) => ({
       id: d.id,
@@ -94,7 +94,7 @@ export default function IgCarouselStudio() {
       ...(d.briefJson || {}),
     }));
   }, [rawDrafts]);
-  const { data: rawLogs, refetch: refetchLogs } = trpc.contentStudio.list.useQuery({ contentType: "carousel", status: "published" });
+  const { data: rawLogs, refetch: refetchLogs } = trpc.contentStudio.list.useQuery({ contentType: "carousel", status: "published" } as any);
   const sheetsLogs = useMemo(() => {
     return (rawLogs || []).map((d: any) => ({
       id: d.id,
@@ -171,7 +171,7 @@ export default function IgCarouselStudio() {
       toast.success("Draft saved via Content Studio");
       refetchDrafts();
     },
-    onError: (err) => {
+    onError: (err: any) => {
       toast.error(`Save failed: ${err.message}`);
     }
   });
@@ -182,7 +182,7 @@ export default function IgCarouselStudio() {
       refetchLogs();
       setIgUrl("");
     },
-    onError: (err) => {
+    onError: (err: any) => {
       toast.error(`Logging failed: ${err.message}`);
     }
   });
