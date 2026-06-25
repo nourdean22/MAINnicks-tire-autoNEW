@@ -8,7 +8,9 @@ import { ChatComposer } from "./chat-composer";
 import { ChatMessageList } from "./chat-message-list";
 import { RealtimeVoiceOverlay } from "@/components/chat/realtime-voice-overlay";
 import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sidebar";
-import { Brain } from "lucide-react";
+import { Brain, History } from "lucide-react";
+import { useConversations } from "../../../hooks/use-conversations";
+import { ConversationDrawer } from "@/components/chat/conversation-drawer";
 
 function useScrollToBottom<T extends HTMLElement>() {
   const containerRef = useRef<T>(null);
@@ -48,6 +50,25 @@ export function ChatIsland() {
   const chat = useChatStream();
   const { containerRef, endRef } = useScrollToBottom<HTMLDivElement>();
 
+  const {
+    convos,
+    activeId,
+    showHistory,
+    setShowHistory,
+    loadConvo,
+    deleteConvo,
+    newChat,
+    renameConvo,
+    pinnedIds,
+    togglePin,
+    hasMoreConvos,
+    loadMoreConvos,
+    loadingMore,
+    patchConvoFlag,
+  } = useConversations({
+    setMessages: chat.setMessages,
+  });
+
   useEffect(() => {
     const handleCockpitEvent = (e: Event) => {
       const customEvent = e as CustomEvent<{ type: string; payload: any }>;
@@ -63,11 +84,22 @@ export function ChatIsland() {
   }, [setMemoryData]);
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-zinc-950 via-[#0a0a0a] to-black text-zinc-100">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-linear-to-br from-zinc-950 via-[#0a0a0a] to-black text-zinc-100">
       {/* Header Area */}
       <header className="z-10 flex items-center justify-between border-b border-white/5 bg-black/40 px-4 py-3 backdrop-blur-xl">
         <h1 className="text-sm font-medium tracking-wide text-zinc-300 drop-shadow-sm">STATENOUR CHAT</h1>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
+              showHistory 
+                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]" 
+                : "bg-zinc-900/50 backdrop-blur-md border border-white/5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 hover:border-white/10 hover:shadow-[0_0_10px_-2px_rgba(255,255,255,0.05)]"
+            }`}
+          >
+            <History className="w-3.5 h-3.5" />
+            HISTORY
+          </button>
           <button
             onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)}
             className={`rounded-full px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
@@ -92,6 +124,25 @@ export function ChatIsland() {
         </div>
       </header>
 
+      {showHistory && (
+        <ConversationDrawer
+          convos={convos}
+          activeId={activeId}
+          pinnedConvoIds={pinnedIds}
+          hasMoreConvos={hasMoreConvos}
+          loadingMore={loadingMore}
+          onLoadMore={loadMoreConvos}
+          onSelectConvo={(id) => void loadConvo(id)}
+          onDeleteConvo={deleteConvo}
+          onRename={renameConvo}
+          onTogglePin={togglePin}
+          onNewChat={() => { newChat(); setShowHistory(false); }}
+          onToggleStar={(id) => patchConvoFlag(id, "starred", !convos.find((c) => c.id === id)?.starredAt)}
+          onToggleArchive={(id) => patchConvoFlag(id, "archived", true)}
+          onToggleMute={(id) => patchConvoFlag(id, "muted", !convos.find((c) => c.id === id)?.mutedAt)}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
 
       {/* Main Flex Area */}
       <div className="flex flex-1 overflow-hidden">
