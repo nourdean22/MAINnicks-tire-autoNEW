@@ -1,4 +1,4 @@
-export * from "./compositions/ReviewVideoReel";
-export * from "./compositions/ServiceAlertReel";
-export * from "./render";
-export { RootComposition } from "./RootComposition";
+export * from "./compositions/ReviewVideoReel.js";
+export * from "./compositions/ServiceAlertReel.js";
+export * from "./render.js";
+export { RootComposition } from "./RootComposition.js";

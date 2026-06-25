@@ -1,7 +1,7 @@
 import React from "react";
 import { Composition } from "remotion";
-import { ReviewVideoReel, ReviewVideoReelProps } from "./compositions/ReviewVideoReel";
-import { ServiceAlertReel, ServiceAlertReelProps } from "./compositions/ServiceAlertReel";
+import { ReviewVideoReel, ReviewVideoReelProps } from "./compositions/ReviewVideoReel.js";
+import { ServiceAlertReel, ServiceAlertReelProps } from "./compositions/ServiceAlertReel.js";
 
 export const RootComposition: React.FC = () => {
   return (

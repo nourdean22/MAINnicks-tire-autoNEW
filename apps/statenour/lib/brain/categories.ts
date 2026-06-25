@@ -186,6 +186,7 @@ export const BRAIN_CATEGORIES = {
 
   // ── Meta / archive / stale markers ──
   ANCIENT_DEVICE_EVENTS: "ancient_device_events",
+  ARCHIVE_DOCUMENT: "archive_document",
   HQ_PIN_CANDIDATE: "hq_pin_candidate",
   ORPHAN_CONVERSATIONS: "orphan_conversations",
   OVERDUE_DECISIONS_REVIEWS: "overdue_decisions_reviews",
@@ -717,7 +718,7 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
     "competitive_intel", "tactical_playbook",
   ],
   "Meta · archive + stale": [
-    "ancient_device_events", "hq_pin_candidate", "orphan_conversations",
+    "ancient_device_events", "archive_document", "hq_pin_candidate", "orphan_conversations",
     "overdue_decisions_reviews",
   ],
   "System / ops": [
