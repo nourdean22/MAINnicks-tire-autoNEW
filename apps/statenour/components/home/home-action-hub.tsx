@@ -116,7 +116,7 @@ export function HomeActionHub() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                aria-pressed={isActive}
+                aria-pressed={isActive ? "true" : "false"}
                 className={cn(
                   "relative flex items-center gap-1.5 py-1 px-2.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all",
                   isActive 
