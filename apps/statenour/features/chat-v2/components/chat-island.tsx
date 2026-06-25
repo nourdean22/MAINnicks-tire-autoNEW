@@ -118,7 +118,7 @@ export function ChatIsland() {
       </div>
 
       {/* Composer Area */}
-      <div className="border-t border-white/5 bg-black/40 backdrop-blur-xl p-4 z-10 relative">
+      <div className="border-t border-white/5 bg-black/40 backdrop-blur-xl px-4 pt-4 pb-24 z-10 relative">
         <ChatComposer chat={chat} />
       </div>
 
