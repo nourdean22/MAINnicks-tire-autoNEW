@@ -179,14 +179,14 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
       )}
 
       {/* Main Composer Chrome */}
-      <div className="relative flex items-end gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-2 shadow-sm focus-within:border-zinc-700 focus-within:ring-1 focus-within:ring-zinc-700">
+      <div className="relative flex items-end gap-2 rounded-2xl border border-white/10 bg-zinc-900/60 p-2 shadow-2xl backdrop-blur-2xl transition-all duration-300 focus-within:border-indigo-500/30 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:shadow-[0_0_40px_-10px_rgba(99,102,241,0.15)] hover:bg-zinc-900/80">
         
         {/* Left Toolbar (Minimalist) */}
         <div className="flex shrink-0 items-center gap-1 pb-1 pl-1">
           <button
             type="button"
             onClick={img.openGallery}
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 transition-all duration-300 hover:bg-zinc-800 hover:text-zinc-200 hover:scale-105 active:scale-95"
             aria-label="Attach image"
           >
             <ImageIcon size={18} />
@@ -196,9 +196,9 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             type="button"
             onClick={voice.isRecording || voice.continuous ? voice.stopRecording : voice.startRecording}
             className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
+              "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 hover:scale-105 active:scale-95",
               voice.isRecording || voice.continuous
-                ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                ? "bg-red-500/20 text-red-400 shadow-[0_0_15px_-3px_rgba(239,68,68,0.3)] border border-red-500/30"
                 : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
             )}
             aria-label="Voice input"
@@ -265,7 +265,12 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           type="submit"
           aria-label="Send message"
           disabled={(!draft.trim() && !img.attached) || chat.status === "streaming"}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-950 transition-transform disabled:opacity-50 active:scale-95 hover:bg-white"
+          className={cn(
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-zinc-950 transition-all duration-300 disabled:opacity-50 active:scale-95",
+            (!draft.trim() && !img.attached) || chat.status === "streaming"
+              ? "bg-zinc-100"
+              : "bg-gradient-to-br from-white to-zinc-300 shadow-[0_0_20px_-5px_rgba(255,255,255,0.4)] hover:shadow-[0_0_25px_-2px_rgba(255,255,255,0.5)] hover:scale-105"
+          )}
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
              <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
