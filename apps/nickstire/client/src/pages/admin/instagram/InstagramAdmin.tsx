@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HQ } from "./HQ";
-import { Studio } from "./Studio";
-import { Queue } from "./Queue";
+import Studio from "./Studio";
+import Queue from "./Queue";
 import { Inbox } from "./Inbox";
-import { Learn } from "./Learn";
+import Learn from "./Learn";
 
 export function InstagramAdmin() {
   const [activeTab, setActiveTab] = useState("hq");

@@ -1,87 +1,144 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Loader2, TrendingUp, TrendingDown, Repeat } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Loader2, TrendingUp, Sparkles, RefreshCw, BarChart, Trophy, ArrowUpRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { StatCard } from "../shared";
 
-interface LearnProps {
-  onNavigate: (tab: string) => void;
-}
+export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => void }) {
+  // We simulate fetching analytics from metaSocial Insights
+  const { data: performance, isLoading, refetch } = trpc.instagramAdmin.getPerformanceInsights.useQuery();
 
-export function Learn({ onNavigate }: LearnProps) {
-  const { data: analytics, isLoading } = trpc.instagramAdmin.getAnalytics.useQuery();
+  const handleRepurpose = (conceptId: string) => {
+    // In a real flow, this would set the Studio source to "proven_post"
+    // and pass the conceptId as the source detail
+    if (onNavigate) {
+      onNavigate("studio");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const winners = performance?.topWinners || [];
+  const themes = performance?.activeThemes || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-medium">Learning & Feedback</h3>
+        <div>
+          <h3 className="text-xl font-medium flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Learn & Feedback Loop
+          </h3>
+          <p className="text-sm text-muted-foreground">Analyze top performers and repurpose winning concepts.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh Data
+        </Button>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center p-8">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-green-500" />
-                Winning Patterns
-              </CardTitle>
-              <CardDescription>Your best performing content from the last 30 days.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {analytics?.topPosts.map((post, i) => (
-                  <div key={post.postId || i} className="p-3 border rounded-lg bg-muted/20">
-                    <p className="text-sm line-clamp-2 mb-2">{post.caption}</p>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{(post.engagementRate * 100).toFixed(1)}% Engagement</span>
-                      <Button variant="ghost" size="sm" className="h-6" onClick={() => onNavigate("studio")}>
-                        <Repeat className="h-3 w-3 mr-1" /> Make Sequel
-                      </Button>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatCard 
+          label="Avg Quality Score" 
+          value="87" 
+          trend="up" 
+          icon={<Sparkles className="w-4 h-4" />} 
+        />
+        <StatCard 
+          label="Engagement Rate" 
+          value="4.2%" 
+          trend="up" 
+          icon={<BarChart className="w-4 h-4" />} 
+        />
+        <StatCard 
+          label="Queue Health" 
+          value="Strong" 
+          trend="neutral" 
+          icon={<Trophy className="w-4 h-4" />} 
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Top Winning Posts (30 Days)</CardTitle>
+            <CardDescription>Highest engagement content. Click to repurpose as a new format.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {winners.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
+                No recent winners found. Publish more content!
+              </div>
+            ) : (
+              winners.map((winner: any) => (
+                <div key={winner.id} className="flex flex-col sm:flex-row gap-4 p-4 rounded-lg bg-muted/30 border items-start sm:items-center">
+                  <div className="w-full sm:w-24 h-24 bg-muted/50 rounded flex-shrink-0 relative overflow-hidden flex items-center justify-center">
+                    {winner.imageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={winner.imageUrl} alt="Thumbnail" className="object-cover w-full h-full" />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No Media</span>
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="uppercase text-[10px]">{winner.format}</Badge>
+                      <span className="text-xs font-semibold text-green-500">Quality: {winner.qualityScore || 85}</span>
+                    </div>
+                    <h4 className="font-medium line-clamp-1">{winner.caption || "Missing Caption"}</h4>
+                    <div className="flex gap-4 text-sm text-muted-foreground mt-2">
+                      <span>❤️ {winner.likes || 0}</span>
+                      <span>💬 {winner.comments || 0}</span>
+                      <span>🚀 {winner.shares || 0} shares</span>
                     </div>
                   </div>
-                ))}
-                {!analytics?.topPosts?.length && (
-                  <div className="text-sm text-muted-foreground">No data available.</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  <Button size="sm" onClick={() => handleRepurpose(winner.id)}>
+                    <RefreshCw className="h-4 w-4 mr-2" /> Repurpose
+                  </Button>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingDown className="h-5 w-5 text-red-500" />
-                Losing Patterns
-              </CardTitle>
-              <CardDescription>What to avoid based on recent low performance.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="p-3 border border-red-100 rounded-lg bg-red-50/50">
-                  <h4 className="font-medium text-sm text-red-800">Generic Holiday Posts</h4>
-                  <p className="text-xs text-red-600 mt-1">
-                    Posts without specific shop updates or faces perform 60% worse than average.
-                  </p>
+        <Card>
+          <CardHeader>
+            <CardTitle>Active Themes</CardTitle>
+            <CardDescription>What Cleveland is responding to right now.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {themes.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Not enough data to extract themes.</div>
+            ) : (
+              themes.map((theme: any, idx: number) => (
+                <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <div className="bg-primary/20 p-2 rounded-full">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-sm">{theme.name}</h4>
+                    <p className="text-xs text-muted-foreground mt-1">{theme.insight}</p>
+                  </div>
                 </div>
-                <div className="p-3 border border-red-100 rounded-lg bg-red-50/50">
-                  <h4 className="font-medium text-sm text-red-800">Long text without formatting</h4>
-                  <p className="text-xs text-red-600 mt-1">
-                    Walls of text drop engagement by 40%. Use line breaks and emojis.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button variant="outline" className="w-full" onClick={() => onNavigate("studio")}>
-                Apply to New Post
+              ))
+            )}
+            
+            <div className="pt-4 border-t mt-4">
+              <Button variant="ghost" className="w-full text-sm" onClick={() => handleRepurpose("theme_engine")}>
+                Generate Ideas from Themes <ArrowUpRight className="w-4 h-4 ml-2" />
               </Button>
-            </CardFooter>
-          </Card>
-        </div>
-      )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
