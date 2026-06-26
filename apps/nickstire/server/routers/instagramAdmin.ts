@@ -575,4 +575,76 @@ Keep it under 200 characters.`;
 
       return { success: true };
     }),
+
+  /** Get all Instagram Drafts for the Queue */
+  getAllDrafts: adminProcedure.query(async () => {
+    // Return sample data for now or fetch from actual DB table if exists
+    // since we're replacing DraftBoardPanel which used contentAdmin.allCarouselDrafts
+    return [
+      {
+        id: "draft_1",
+        status: "ready",
+        format: "carousel",
+        caption: "Tire alignment explained. #cleveland #auto",
+        assetPack: { imageUrl: "https://nickstire.org/logo.png" },
+        qualityScore: { gate: "pass", overall: 92 },
+        conceptBrief: { sourceSummary: "FAQ: How often should I align my tires?" }
+      }
+    ];
+  }),
+
+  /** Get Performance Insights for the Learn Panel */
+  getPerformanceInsights: adminProcedure.query(async () => {
+    return {
+      topWinners: [
+        {
+          id: "win_1",
+          format: "carousel",
+          qualityScore: 94,
+          caption: "Brake check special! Keep your family safe.",
+          likes: 120,
+          comments: 15,
+          shares: 5,
+          imageUrl: "https://nickstire.org/logo.png"
+        }
+      ],
+      activeThemes: [
+        { name: "Pothole Season", insight: "High engagement on suspension repair content." },
+        { name: "Winter Prep", insight: "Early interest in snow tires." }
+      ]
+    };
+  }),
+
+  /** Reject a draft manually from the Queue */
+  rejectDraft: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      reason: z.string().optional()
+    }))
+    .mutation(async ({ input }) => {
+      // Stub for reject
+      log.info("Rejecting draft: " + input.id);
+      return { success: true };
+    }),
+
+  generatePostDraft: adminProcedure
+    .input(z.object({
+      sourceId: z.string(),
+      sourceDetail: z.string().optional(),
+      format: z.string()
+    }))
+    .mutation(async ({ input }) => {
+      // Stub: in real life this calls the LLM with the source and format
+      return { caption: `This is a generated draft for ${input.format} based on ${input.sourceId}.` };
+    }),
+
+  generateMediaDraft: adminProcedure
+    .input(z.object({
+      caption: z.string(),
+      format: z.string().optional()
+    }))
+    .mutation(async ({ input }) => {
+      // Stub: in real life this generates an image
+      return { imageUrl: "https://nickstire.org/logo.png" };
+    })
 });

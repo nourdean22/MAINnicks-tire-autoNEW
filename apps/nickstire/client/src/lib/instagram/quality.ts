@@ -1,5 +1,54 @@
 export type ContentQualityGate = "pass" | "warn" | "block";
 
+export type SourceType = 
+  | "review"
+  | "declined_work"
+  | "customer_question"
+  | "season_weather"
+  | "proven_post"
+  | "special_offer"
+  | "manual_idea"
+  | "real_shop_photo"
+  | "faq_service_education";
+
+export const ContentSourceRegistry: Record<SourceType, { label: string; requiresDetail: boolean; icon: string }> = {
+  review: { label: "5-Star Review", requiresDetail: true, icon: "Star" },
+  declined_work: { label: "Declined Work", requiresDetail: true, icon: "AlertTriangle" },
+  customer_question: { label: "Customer Question", requiresDetail: true, icon: "MessageSquare" },
+  season_weather: { label: "Season / Weather", requiresDetail: true, icon: "Cloud" },
+  proven_post: { label: "Proven Post (Sequel)", requiresDetail: true, icon: "TrendingUp" },
+  special_offer: { label: "Special / Offer", requiresDetail: true, icon: "Tag" },
+  manual_idea: { label: "Manual Idea", requiresDetail: true, icon: "Lightbulb" },
+  real_shop_photo: { label: "Real Shop Photo", requiresDetail: false, icon: "Camera" },
+  faq_service_education: { label: "FAQ / Service Ed", requiresDetail: true, icon: "HelpCircle" },
+};
+
+export type PostFormat = "single" | "carousel" | "reel" | "story" | "ad";
+
+export const FormatRegistry: Record<PostFormat, { label: string; bestFor: string[] }> = {
+  single: {
+    label: "Single Post",
+    bestFor: ["one punchy fact", "offer", "proof/testimonial", "quick warning"],
+  },
+  carousel: {
+    label: "Carousel",
+    bestFor: ["checklist", "multi-step education", "myth vs fact", "3 signs", "comparison"],
+  },
+  reel: {
+    label: "Reel",
+    bestFor: ["visual process", "texture/part closeup", "satisfying loop", "before/after", "diagnostic reveal"],
+  },
+  story: {
+    label: "Story",
+    bestFor: ["daily update", "poll", "behind the scenes"],
+  },
+  ad: {
+    label: "Ad",
+    bestFor: ["direct response offer", "retargeting"],
+  }
+};
+
+
 export interface ContentQualityScore {
   /** 0-10: scroll-stopping power of first line/frame */
   hookStrength: number;

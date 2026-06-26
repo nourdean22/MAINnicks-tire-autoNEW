@@ -1,85 +1,160 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { useState } from "react";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import { Loader2, Kanban, Search, RefreshCw, Send, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, XCircle } from "lucide-react";
 
-interface QueueProps {
-  onNavigate: (tab: string) => void;
-}
+type DraftStatus = "needs_review" | "ready" | "scheduled" | "published" | "rejected";
 
-export function Queue({ onNavigate }: QueueProps) {
-  // In a full implementation, we'd fetch drafts from trpc that have status "draft" or "pending"
-  const pendingPosts = [
-    {
-      id: "draft-1",
-      content: "New Goodyear Assurance tires in stock! Starting at $120. Come get them today before we run out.",
-      format: "single",
-      score: { overall: 85, gate: "pass", reasoning: [] }
+export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => void }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState<DraftStatus | "all">("all");
+
+  const { data: drafts, isLoading, refetch } = trpc.instagramAdmin.getAllDrafts.useQuery();
+
+  const publishDraft = trpc.instagramAdmin.publishManualDraft.useMutation({
+    onSuccess: () => {
+      toast.success("Published Successfully!");
+      refetch();
     },
-    {
-      id: "draft-2",
-      content: "We guarantee the absolute cheapest prices in Ohio for all brake repairs!",
-      format: "reel",
-      score: { 
-        overall: 40, 
-        gate: "block", 
-        reasoning: ["Claim safety violation: 'cheapest prices in Ohio' cannot be proven."] 
-      }
+    onError: (err) => {
+      toast.error("Publishing Failed", { description: err.message });
     }
-  ];
+  });
+
+  const rejectDraft = trpc.instagramAdmin.rejectDraft.useMutation({
+    onSuccess: () => {
+      toast.success("Draft Rejected");
+      refetch();
+    }
+  });
+
+  const filteredDrafts = (drafts || []).filter(d => {
+    if (filter !== "all" && d.status !== filter) return false;
+    if (searchQuery && !d.conceptBrief?.sourceSummary?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-medium">Publishing Queue</h3>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h3 className="text-xl font-medium flex items-center gap-2">
+            <Kanban className="h-5 w-5" />
+            Publishing Queue & Gates
+          </h3>
+          <p className="text-sm text-muted-foreground">Manage staged content, review quality gates, and publish.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+          {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          Refresh
+        </Button>
       </div>
 
-      <div className="grid gap-4">
-        {pendingPosts.length === 0 ? (
-          <div className="text-center p-8 border rounded-lg bg-muted/50">
-            <p className="text-muted-foreground">No posts in the queue.</p>
-            <Button variant="link" onClick={() => onNavigate("studio")}>Go to Studio</Button>
-          </div>
-        ) : (
-          pendingPosts.map(post => (
-            <Card key={post.id} className={post.score.gate === "block" ? "border-red-200" : ""}>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      Draft ({post.format})
-                      {post.score.gate === "pass" ? (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Ready</Badge>
-                      ) : (
-                        <Badge variant="destructive">Blocked</Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription>Score: {post.score.overall}/100</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm border p-3 rounded bg-muted/30">{post.content}</p>
-                {post.score.reasoning.length > 0 && (
-                  <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded flex items-start gap-2">
-                    <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                    <ul className="list-disc pl-4">
-                      {post.score.reasoning.map((w, i) => <li key={i}>{w}</li>)}
-                    </ul>
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => onNavigate("studio")}>Edit in Studio</Button>
-                <Button disabled={post.score.gate === "block"}>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Approve & Schedule
-                </Button>
-              </CardFooter>
-            </Card>
-          ))
-        )}
+      <div className="flex flex-col sm:flex-row gap-4 bg-muted/20 p-4 rounded-lg border border-border/50">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search drafts..." 
+            className="pl-9"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(["all", "needs_review", "ready", "scheduled", "published", "rejected"] as const).map(status => (
+            <Button
+              key={status}
+              variant={filter === status ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilter(status as any)}
+              className="capitalize"
+            >
+              {status.replace("_", " ")}
+            </Button>
+          ))}
+        </div>
       </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : filteredDrafts.length === 0 ? (
+        <Card className="bg-muted/10 border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <Kanban className="h-12 w-12 text-muted-foreground mb-4 opacity-20" />
+            <h3 className="text-lg font-medium">No drafts found</h3>
+            <p className="text-sm text-muted-foreground mt-1">Try adjusting your filters or head to the Studio to create one.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredDrafts.map((draft: any) => (
+            <Card key={draft.id} className="flex flex-col h-full overflow-hidden">
+              <div className="h-40 bg-muted/50 border-b relative flex items-center justify-center">
+                {draft.assetPack?.imageUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={draft.assetPack.imageUrl} alt="Asset" className="object-cover h-full w-full" />
+                ) : (
+                  <span className="text-sm text-muted-foreground">No Media Attached</span>
+                )}
+                <Badge className="absolute top-2 right-2 bg-black/70 hover:bg-black/80 capitalize">
+                  {draft.format}
+                </Badge>
+              </div>
+              <CardHeader className="flex-1">
+                <div className="flex justify-between items-start mb-2">
+                  <Badge variant={
+                    draft.status === "published" ? "default" : 
+                    draft.status === "ready" ? "secondary" : 
+                    draft.status === "rejected" ? "destructive" : "outline"
+                  } className="capitalize">
+                    {draft.status.replace("_", " ")}
+                  </Badge>
+                  {draft.qualityScore && (
+                    <div className="flex items-center gap-1 text-xs font-bold px-2 py-1 bg-muted rounded-full">
+                      {draft.qualityScore.gate === "pass" ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : 
+                       draft.qualityScore.gate === "warn" ? <AlertTriangle className="h-3 w-3 text-yellow-500" /> :
+                       <XCircle className="h-3 w-3 text-red-500" />}
+                      {draft.qualityScore.overall}
+                    </div>
+                  )}
+                </div>
+                <CardTitle className="text-base line-clamp-2">
+                  {draft.conceptBrief?.sourceSummary || "Generated Draft"}
+                </CardTitle>
+                <CardDescription className="line-clamp-3 mt-2 text-sm">
+                  {draft.caption || draft.conceptBrief?.hookOptions?.[0] || "No caption written."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="bg-muted/10 pt-4 border-t mt-auto">
+                <div className="flex gap-2">
+                  <Button 
+                    className="flex-1" 
+                    variant="default"
+                    disabled={draft.status === "published" || publishDraft.isPending}
+                    onClick={() => publishDraft.mutate({ caption: draft.caption || "", imageUrl: draft.assetPack?.imageUrl || "" })}
+                  >
+                    <Send className="h-4 w-4 mr-2" /> Publish
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="flex-none text-destructive hover:bg-destructive/10"
+                    disabled={draft.status === "published" || draft.status === "rejected"}
+                    onClick={() => rejectDraft.mutate({ id: draft.id, reason: "Manual Rejection" })}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
