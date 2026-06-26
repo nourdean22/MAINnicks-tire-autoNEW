@@ -48,6 +48,7 @@ export function SideDrawer({ isOpen, onClose, title, children, width = "md" }: S
         aria-modal="true"
         {...(title ? { "aria-labelledby": "side-drawer-title" } : { "aria-label": "Drawer" })}
         className={`fixed top-0 right-0 h-full z-50 bg-card border-l border-border/30 shadow-2xl flex flex-col
+          pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]
           ${WIDTH_MAP[width]} max-w-[100vw]
           animate-in slide-in-from-right duration-200`}
       >
@@ -56,7 +57,7 @@ export function SideDrawer({ isOpen, onClose, title, children, width = "md" }: S
           <h2 id="side-drawer-title" className="text-[15px] font-semibold text-foreground tracking-tight">{title}</h2>
           <button
             onClick={onClose}
-            className="inline-flex items-center justify-center w-8 h-8 -mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
+            className="inline-flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 -mr-2 sm:-mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
             aria-label="Close drawer"
           >
             <X className="w-4 h-4" />
@@ -64,7 +65,7 @@ export function SideDrawer({ isOpen, onClose, title, children, width = "md" }: S
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom,0px)]">
           {children}
         </div>
       </div>

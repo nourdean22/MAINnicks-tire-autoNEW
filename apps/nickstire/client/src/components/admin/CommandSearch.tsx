@@ -711,13 +711,13 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
       {open && (
         <>
           <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-50" onClick={close} />
-          <div className="fixed top-[15%] left-1/2 -translate-x-1/2 z-50 w-full max-w-lg">
+          <div className="fixed top-[max(0.75rem,env(safe-area-inset-top))] sm:top-[15%] left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-1.5rem)] sm:w-full max-w-lg">
             <div
               ref={overlayRef}
               role="dialog"
               aria-modal="true"
               aria-label="Command search"
-              className="bg-card border border-border/30 shadow-2xl overflow-hidden"
+              className="bg-card border border-border/30 shadow-2xl overflow-hidden rounded-xl"
             >
               {/* SR-only status — announces result count as the operator types. */}
               <div aria-live="polite" className="sr-only">
@@ -742,7 +742,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                   aria-controls="command-search-listbox"
                   aria-activedescendant={selectedIndex >= 0 ? `cmd-opt-${selectedIndex}` : undefined}
                   aria-autocomplete="list"
-                  className="flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/30 outline-none"
+                  className="flex-1 bg-transparent text-[16px] sm:text-sm text-foreground placeholder:text-foreground/30 outline-none"
                 />
                 {query && (
                   <button onClick={() => setQuery("")} className="text-foreground/30 hover:text-foreground/60" aria-label="Clear search">
@@ -753,7 +753,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
 
               {/* Results */}
               {query.length >= 1 && (
-                <div role="listbox" id="command-search-listbox" className="max-h-[50vh] overflow-y-auto">
+                <div role="listbox" id="command-search-listbox" className="max-h-[calc(100dvh-12rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:max-h-[50vh] overflow-y-auto overscroll-contain">
                   {/* Section shortcuts */}
                   {matchingSections.length > 0 && (
                     <div className="px-2 py-2">
@@ -848,7 +848,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
               )}
 
               {/* Footer hint */}
-              <div className="px-4 py-2 border-t border-border/10 text-[10px] text-foreground/30">
+              <div className="hidden sm:block px-4 py-2 border-t border-border/10 text-[10px] text-foreground/30">
                 <kbd className="px-1 py-0.5 bg-background/50 border border-border/30 rounded">↑↓</kbd> navigate · <kbd className="px-1 py-0.5 bg-background/50 border border-border/30 rounded">↵</kbd> select · <kbd className="px-1 py-0.5 bg-background/50 border border-border/30 rounded">Esc</kbd> close
               </div>
             </div>
