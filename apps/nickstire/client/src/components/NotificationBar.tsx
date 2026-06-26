@@ -41,7 +41,7 @@ interface Notification {
   text: string;
   cta?: string;
   ctaHref?: string;
-  icon: React.ReactNode;
+  icon: React.ElementType;
   seasons?: ("spring" | "summer" | "fall" | "winter")[];
   timeOfDay?: ("morning" | "afternoon" | "evening")[];
   daysOfWeek?: number[]; // 0=Sun, 6=Sat
@@ -49,23 +49,23 @@ interface Notification {
 }
 
 // ─── ICON MAP ────────────────────────────────────────────
-const ICON_MAP: Record<string, React.ReactNode> = {
-  snowflake: <Snowflake className="w-4 h-4" />,
-  cloud_rain: <CloudRain className="w-4 h-4" />,
-  cloud_lightning: <CloudLightning className="w-4 h-4" />,
-  wind: <Wind className="w-4 h-4" />,
-  sun: <Sun className="w-4 h-4" />,
-  thermometer: <Thermometer className="w-4 h-4" />,
-  cloud: <Cloud className="w-4 h-4" />,
-  alert_triangle: <AlertTriangle className="w-4 h-4" />,
-  wrench: <Wrench className="w-4 h-4" />,
-  shield: <Shield className="w-4 h-4" />,
-  gauge: <Gauge className="w-4 h-4" />,
-  phone: <Phone className="w-4 h-4" />,
-  star: <Star className="w-4 h-4" />,
-  clock: <Clock className="w-4 h-4" />,
-  zap: <Zap className="w-4 h-4" />,
-  map_pin: <MapPin className="w-4 h-4" />,
+const ICON_MAP: Record<string, React.ElementType> = {
+  snowflake: Snowflake,
+  cloud_rain: CloudRain,
+  cloud_lightning: CloudLightning,
+  wind: Wind,
+  sun: Sun,
+  thermometer: Thermometer,
+  cloud: Cloud,
+  alert_triangle: AlertTriangle,
+  wrench: Wrench,
+  shield: Shield,
+  gauge: Gauge,
+  phone: Phone,
+  star: Star,
+  clock: Clock,
+  zap: Zap,
+  map_pin: MapPin,
 };
 
 // ─── HELPER: GET CURRENT CONTEXT ───────────────────────
@@ -97,7 +97,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Free brake check on the spot — walk in any time before close",
     cta: "Get In Today",
     ctaHref: BUSINESS.phone.href,
-    icon: <Clock className="w-4 h-4" />,
+    icon: Clock,
     timeOfDay: ["morning"],
     daysOfWeek: [1, 2, 3, 4, 5],
   },
@@ -107,7 +107,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Check engine light on? Do not wait — small problems become expensive ones fast",
     cta: "Read My Codes",
     ctaHref: BUSINESS.phone.href,
-    icon: <AlertTriangle className="w-4 h-4" />,
+    icon: AlertTriangle,
   },
   {
     id: "urg-3",
@@ -115,7 +115,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Saturday gets slammed — pull up early or call ahead",
     cta: "Call Nick's",
     ctaHref: BUSINESS.phone.href,
-    icon: <Clock className="w-4 h-4" />,
+    icon: Clock,
     daysOfWeek: [4, 5],
   },
 
@@ -124,13 +124,13 @@ const ALL_NOTIFICATIONS: Notification[] = [
     id: "sp-1",
     strategy: "social_proof",
     text: `4.9 stars from ${BUSINESS.reviews.countDisplay} Google reviews — Euclid Ave, open 7 days`,
-    icon: <Star className="w-4 h-4" />,
+    icon: Star,
   },
   {
     id: "sp-2",
     strategy: "social_proof",
     text: "\"First shop I felt I could trust\" — real Google review from a Cleveland driver",
-    icon: <Star className="w-4 h-4" />,
+    icon: Star,
   },
 
   // ── SEASONAL ──
@@ -140,7 +140,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Spring is here — potholes, salt damage, and worn tires from winter need attention now",
     cta: "Schedule Inspection",
     ctaHref: BUSINESS.phone.href,
-    icon: <AlertTriangle className="w-4 h-4" />,
+    icon: AlertTriangle,
     seasons: ["spring"],
   },
   {
@@ -149,7 +149,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Hot pavement destroys underinflated tires — free tire pressure check, no appointment needed",
     cta: "Stop By",
     ctaHref: "#contact",
-    icon: <AlertTriangle className="w-4 h-4" />,
+    icon: AlertTriangle,
     seasons: ["summer"],
   },
   {
@@ -158,7 +158,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Winter is coming — get your tires, brakes, and battery checked before the first freeze",
     cta: "Schedule Now",
     ctaHref: BUSINESS.phone.href,
-    icon: <Shield className="w-4 h-4" />,
+    icon: Shield,
     seasons: ["fall"],
   },
   {
@@ -167,7 +167,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Cleveland winter driving is brutal — make sure your tires have enough tread to stop safely",
     cta: "Free Check",
     ctaHref: BUSINESS.phone.href,
-    icon: <AlertTriangle className="w-4 h-4" />,
+    icon: AlertTriangle,
     seasons: ["winter"],
   },
 
@@ -176,7 +176,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     id: "auth-1",
     strategy: "authority",
     text: "OBD-II + live data — we tell you exactly what's wrong before you pay for anything",
-    icon: <Shield className="w-4 h-4" />,
+    icon: Shield,
   },
   {
     id: "auth-2",
@@ -184,7 +184,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Ohio E-Check failures repaired — oxygen sensors, EVAP leaks, catalytic converters",
     cta: "Learn More",
     ctaHref: "/emissions",
-    icon: <Zap className="w-4 h-4" />,
+    icon: Zap,
   },
 
   // ── LOSS AVERSION ──
@@ -194,7 +194,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Ignoring that check engine light? A $200 repair today can prevent a $2,000 repair next month",
     cta: "Stop the Bleed",
     ctaHref: BUSINESS.phone.href,
-    icon: <AlertTriangle className="w-4 h-4" />,
+    icon: AlertTriangle,
   },
   {
     id: "la-2",
@@ -202,7 +202,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Worn brake pads cost $150 to replace — worn rotors cost $500+. Do not wait.",
     cta: "Beat the Math",
     ctaHref: BUSINESS.phone.href,
-    icon: <AlertTriangle className="w-4 h-4" />,
+    icon: AlertTriangle,
   },
 
   // ── LOCAL IDENTITY ──
@@ -210,7 +210,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     id: "loc-1",
     strategy: "local_identity",
     text: "Locally owned. Cleveland proud. Serving Euclid and Northeast Ohio drivers every day.",
-    icon: <MapPin className="w-4 h-4" />,
+    icon: MapPin,
   },
 
   // ── VALUE ANCHOR ──
@@ -220,7 +220,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Dealership check-out fee: $150+. Our check: find the real problem at a fair price.",
     cta: "Skip the Markup",
     ctaHref: BUSINESS.phone.href,
-    icon: <Zap className="w-4 h-4" />,
+    icon: Zap,
   },
 
   // ── ACIMA LEASE-TO-OWN ──
@@ -231,7 +231,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     disclosure: ACIMA_COMPACT_DISCLOSURE,
     cta: "Learn More",
     ctaHref: "/financing?utm_source=notification_bar",
-    icon: <CreditCard className="w-4 h-4" />,
+    icon: CreditCard,
   },
   {
     id: "acima-2",
@@ -240,7 +240,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     disclosure: ACIMA_COMPACT_DISCLOSURE,
     cta: "Learn More",
     ctaHref: "/financing?utm_source=notification_bar",
-    icon: <CreditCard className="w-4 h-4" />,
+    icon: CreditCard,
   },
   {
     id: "acima-3",
@@ -248,7 +248,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "Returning Acima customer? You may qualify for increased spending power. Individual results vary.",
     cta: "Apply",
     ctaHref: "/financing?utm_source=notification_bar",
-    icon: <CreditCard className="w-4 h-4" />,
+    icon: CreditCard,
   },
 ];
 
@@ -337,7 +337,7 @@ export default function NotificationBar() {
         text: alert.message,
         cta: alert.cta,
         ctaHref: alert.ctaHref,
-        icon: ICON_MAP[alert.icon] || <Cloud className="w-4 h-4" />,
+        icon: ICON_MAP[alert.icon] || Cloud,
       });
     }
 
@@ -355,7 +355,7 @@ export default function NotificationBar() {
           text: tightLine,
           cta: "See details",
           ctaHref: "/specials",
-          icon: <CreditCard className="w-4 h-4" />,
+          icon: CreditCard,
         });
       }
     }
@@ -369,7 +369,7 @@ export default function NotificationBar() {
           text: dn.message,
           cta: dn.ctaText || undefined,
           ctaHref: dn.ctaHref || undefined,
-          icon: ICON_MAP[dn.icon || "wrench"] || <Wrench className="w-4 h-4" />,
+          icon: ICON_MAP[dn.icon || "wrench"] || Wrench,
         });
       }
     }
@@ -431,7 +431,7 @@ export default function NotificationBar() {
           transition={{ duration: 0.3 }}
           className={`relative flex items-start gap-2.5 px-4 py-3 rounded-xl border shadow-lg ${barStyle} backdrop-blur-xl`}
         >
-          <span className="text-white/80 shrink-0 mt-0.5">{current.icon}</span>
+          <span className="text-white/80 shrink-0 mt-0.5"><current.icon className="w-4 h-4" /></span>
           <div className="flex-1 min-w-0">
             <span className="text-white/90 text-[12px] font-medium leading-snug block">
               {current.text}
