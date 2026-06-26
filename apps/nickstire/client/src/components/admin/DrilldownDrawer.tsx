@@ -45,6 +45,20 @@ export type DrilldownDetail = {
   title?: string;
 };
 
+const VALID_DRILLDOWN_KINDS = new Set<DrilldownKind>([
+  "cars_in_shop",
+  "revenue_today",
+  "jobs_closed_today",
+  "pending_callbacks",
+  "walk_aways",
+  "fresh_leads",
+  "lapsed_vips",
+  "negative_reviews",
+  "today_bookings",
+  "chat_sessions",
+  "intake_today",
+]);
+
 const ADMIN_DRILLDOWN_EVENT = "admin:open-drilldown";
 
 /**
@@ -52,6 +66,10 @@ const ADMIN_DRILLDOWN_EVENT = "admin:open-drilldown";
  */
 export function openDrilldown(detail: DrilldownDetail) {
   if (typeof window === "undefined") return;
+  if (!VALID_DRILLDOWN_KINDS.has(detail.kind)) {
+    console.warn("[DrilldownDrawer] unknown kind passed to openDrilldown:", detail.kind);
+    return;
+  }
   window.dispatchEvent(new CustomEvent(ADMIN_DRILLDOWN_EVENT, { detail }));
 }
 
@@ -64,6 +82,10 @@ export default function DrilldownDrawer() {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<DrilldownDetail>).detail;
       if (!detail?.kind) return;
+      if (!VALID_DRILLDOWN_KINDS.has(detail.kind)) {
+        console.warn("[DrilldownDrawer] unknown kind received via event:", detail.kind);
+        return;
+      }
       setActiveKind(detail.kind);
       setTitleOverride(detail.title);
     };

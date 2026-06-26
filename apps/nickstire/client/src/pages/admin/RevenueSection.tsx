@@ -40,7 +40,8 @@ function LegacyTireOrdersRedirect() {
     const url = new URL(window.location.href);
     url.searchParams.set("tab", "tireOrders");
     url.searchParams.delete("moneyTab");
-    window.location.replace(url.toString());
+    window.history.replaceState({}, "", url.toString());
+    window.dispatchEvent(new CustomEvent("admin:navigate-section", { detail: { section: "tireOrders" } }));
   }, []);
   return (
     <div className="flex items-center justify-center gap-2 py-12 text-xs text-muted-foreground">
