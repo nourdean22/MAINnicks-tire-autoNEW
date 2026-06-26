@@ -60,6 +60,9 @@ function mapEventType(evType: string): EventKind {
   if (evType.startsWith("review.")) return "review.new";
   if (evType.startsWith("callback.")) return "callback.created";
   if (evType.startsWith("customer.")) return "customer.synced";
+  if (evType !== "generic") {
+    console.warn("[ActivityPulse] unmapped event type:", evType);
+  }
   return "generic";
 }
 
