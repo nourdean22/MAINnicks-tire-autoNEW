@@ -202,6 +202,29 @@ Keep it under 200 characters.`;
       return runIgAutopostOneOff(input?.archetype, input?.customConcept);
     }),
 
+  /** Advanced IQ 200 Content Generator endpoint for Studio.tsx */
+  generatePostDraft: adminProcedure
+    .input(z.object({
+      sourceId: z.string(),
+      sourceDetail: z.string().optional(),
+      format: z.string()
+    }))
+    .mutation(async ({ input }) => {
+      const { orchestrateAdvancedCaption, orchestrateAdvancedCarouselConcept } = await import("../services/socialIntelligence");
+      
+      const topic = `${input.sourceId}: ${input.sourceDetail || ""}`;
+      
+      if (input.format === "carousel") {
+        const result = await orchestrateAdvancedCarouselConcept(topic);
+        // We compile the carousel text into the caption for the UI to preview
+        const caption = result.slides.map((s, i) => `[Slide ${i+1}] ${s.text}`).join("\\n\\n");
+        return { caption };
+      } else {
+        const result = await orchestrateAdvancedCaption(topic);
+        return { caption: result.caption };
+      }
+    }),
+
   /** Recent AI generations (from ig_autopost_log) so the composer can show
    *  the actual draft the co-pilot produced — generatePost returns scores +
    *  status but not the caption/image (those go to the log + Telegram). */
@@ -626,25 +649,4 @@ Keep it under 200 characters.`;
       log.info("Rejecting draft: " + input.id);
       return { success: true };
     }),
-
-  generatePostDraft: adminProcedure
-    .input(z.object({
-      sourceId: z.string(),
-      sourceDetail: z.string().optional(),
-      format: z.string()
-    }))
-    .mutation(async ({ input }) => {
-      // Stub: in real life this calls the LLM with the source and format
-      return { caption: `This is a generated draft for ${input.format} based on ${input.sourceId}.` };
-    }),
-
-  generateMediaDraft: adminProcedure
-    .input(z.object({
-      caption: z.string(),
-      format: z.string().optional()
-    }))
-    .mutation(async ({ input }) => {
-      // Stub: in real life this generates an image
-      return { imageUrl: "https://nickstire.org/logo.png" };
-    })
 });
