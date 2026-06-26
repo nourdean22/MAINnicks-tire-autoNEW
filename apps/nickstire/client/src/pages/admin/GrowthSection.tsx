@@ -19,7 +19,7 @@ import {
   Swords, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
   RefreshCw, Lock, Instagram,
 } from "lucide-react";
-import InstagramTab from "./InstagramTab";
+import { InstagramAdmin } from "./instagram/InstagramAdmin";
 import { Section, Panel } from "./shared";
 import { TabBar } from "./shared/table";
 import { trpc } from "@/lib/trpc";
@@ -110,7 +110,7 @@ export default function GrowthSection() {
         {tab === "photos" && <PhotoQueueTab />}
         {tab === "entity" && <EntityTab />}
         {tab === "competitors" && <CompetitorsTab />}
-        {tab === "instagram" && <InstagramTab />}
+        {tab === "instagram" && <InstagramAdmin />}
       </div>
     </Section>
   );
