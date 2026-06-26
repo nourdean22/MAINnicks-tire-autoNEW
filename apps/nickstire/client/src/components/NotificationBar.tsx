@@ -49,7 +49,7 @@ interface Notification {
 }
 
 // ─── ICON MAP ────────────────────────────────────────────
-const ICON_MAP: Record<string, React.ElementType> = {
+const getIconMap = (): Record<string, React.ElementType> => ({
   snowflake: Snowflake,
   cloud_rain: CloudRain,
   cloud_lightning: CloudLightning,
@@ -66,7 +66,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   clock: Clock,
   zap: Zap,
   map_pin: MapPin,
-};
+});
 
 // ─── HELPER: GET CURRENT CONTEXT ───────────────────────
 function getCurrentSeason(): "spring" | "summer" | "fall" | "winter" {
@@ -89,7 +89,7 @@ function getDayOfWeek(): number {
 }
 
 // ─── HARDCODED NOTIFICATION DATABASE (FALLBACK) ────────
-const ALL_NOTIFICATIONS: Notification[] = [
+const getAllNotifications = (): Notification[] => [
   // ── URGENCY ──
   {
     id: "urg-1",
@@ -258,7 +258,7 @@ function getFilteredHardcodedNotifications(): Notification[] {
   const timeOfDay = getTimeOfDay();
   const dayOfWeek = getDayOfWeek();
 
-  return ALL_NOTIFICATIONS.filter((n) => {
+  return getAllNotifications().filter((n) => {
     if (n.seasons && !n.seasons.includes(season)) return false;
     if (n.timeOfDay && !n.timeOfDay.includes(timeOfDay)) return false;
     if (n.daysOfWeek && !n.daysOfWeek.includes(dayOfWeek)) return false;
@@ -337,7 +337,7 @@ export default function NotificationBar() {
         text: alert.message,
         cta: alert.cta,
         ctaHref: alert.ctaHref,
-        icon: ICON_MAP[alert.icon] || Cloud,
+        icon: getIconMap()[alert.icon] || Cloud,
       });
     }
 
@@ -369,7 +369,7 @@ export default function NotificationBar() {
           text: dn.message,
           cta: dn.ctaText || undefined,
           ctaHref: dn.ctaHref || undefined,
-          icon: ICON_MAP[dn.icon || "wrench"] || Wrench,
+          icon: getIconMap()[dn.icon || "wrench"] || Wrench,
         });
       }
     }
