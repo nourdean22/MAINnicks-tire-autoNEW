@@ -11,10 +11,12 @@ import { defineConfig } from "vite";
 // Decision: keep the standard async-CSS strategy (font preload-onload
 // already shipped) and revisit critical-CSS only if mobile render-block
 // stays high after font fix lands. The plugin file is kept for reference.
-const plugins = [react(), tailwindcss(), jsxLocPlugin()];
+export default defineConfig(({ command }) => {
+  const isDev = command === "serve";
+  const plugins = [react(), tailwindcss(), ...(isDev ? [jsxLocPlugin()] : [])];
 
-export default defineConfig({
-  plugins,
+  return {
+    plugins,
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
@@ -147,4 +149,5 @@ export default defineConfig({
       deny: ["**/.*"],
     },
   },
+  };
 });
