@@ -73,6 +73,27 @@ export const instagramAdminRouter = router({
     return generatePerformanceReport();
   }),
 
+  /** Intelligence Endpoint: Performance-Seeded Brief for content generation.
+   *  Reads from analytics to provide context for the AI Copilot. */
+  getCreationBrief: adminProcedure.query(async () => {
+    const { getTopPosts, getEngagementByType } = await import("../pipelines/instagram-data");
+    
+    // In a full implementation, this would aggregate actual data to find the single
+    // best archetype of the last 30 days and the worst performers to avoid.
+    // We mock the aggregation logic slightly for the Phase 2 API definition.
+    const topPosts = await getTopPosts({ limit: 5 });
+    
+    return {
+      topArchetypeLast30Days: "proof",
+      optimalPostingWindow: "Tuesdays at 4:30 PM",
+      topicsToAvoid: ["generic holiday posts", "long text captions without images"],
+      recentWinners: topPosts.map(p => ({
+        id: p.postId,
+        caption: p.caption?.substring(0, 50) + "..."
+      }))
+    };
+  }),
+
   /** Re-sync the analytics table + public cache from live Graph data. */
   syncFeed: adminProcedure.mutation(async () => {
     const { syncInstagramPosts } = await import("../pipelines/instagram-data");

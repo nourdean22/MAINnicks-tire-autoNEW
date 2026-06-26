@@ -125,7 +125,7 @@ export default function DrilldownDrawer() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 z-60 bg-black/40 backdrop-blur-sm"
             onClick={() => setActiveKind(null)}
             aria-hidden="true"
           />
@@ -136,7 +136,7 @@ export default function DrilldownDrawer() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
-            className="fixed top-0 right-0 bottom-0 z-[61] w-full sm:w-[440px] bg-card border-l border-border/40 shadow-2xl flex flex-col pt-[env(safe-area-inset-top,0px)]"
+            className="fixed top-0 right-0 bottom-0 z-61 w-full sm:w-[440px] bg-card border-l border-border/40 shadow-2xl flex flex-col pt-[env(safe-area-inset-top,0px)]"
             role="dialog"
             aria-modal="true"
           >
@@ -188,7 +188,7 @@ export default function DrilldownDrawer() {
 
             {/* Footer — minimal: row count + Esc hint, no redundant
                 CLOSE button on desktop. On mobile, we render a clear Close action button for better ergonomics. */}
-            <div className="shrink-0 px-5 py-3 border-t border-border/15 bg-foreground/[0.02] flex flex-col gap-2 sm:gap-0 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+            <div className="shrink-0 px-5 py-3 border-t border-border/15 bg-foreground/2 flex flex-col gap-2 sm:gap-0 pb-[calc(0.75rem+env(safe-area-inset-bottom,0))]">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-foreground/40 tracking-wide">
                   {data?.rows.length ?? 0} row{data?.rows.length === 1 ? "" : "s"} <span className="hidden sm:inline">· Esc or click outside to close</span>
@@ -221,7 +221,7 @@ interface DrilldownRowData {
 
 function DrilldownRow({ row }: { row: DrilldownRowData }) {
   return (
-    <div className="px-5 py-3 hover:bg-foreground/[0.02] transition-colors">
+    <div className="px-5 py-3 hover:bg-foreground/2 transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="font-medium text-foreground text-[13px] truncate">{row.primary}</p>

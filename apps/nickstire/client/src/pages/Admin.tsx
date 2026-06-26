@@ -274,7 +274,7 @@ export default function Admin() {
           {woStats && woStats.active > 0 && (
             <button
               onClick={() => { setSection("revenue"); setSidebarOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md bg-foreground/[0.03] hover:bg-foreground/[0.06] border border-border/30 hover:border-border/50 transition-colors text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md bg-foreground/3 hover:bg-foreground/6 border border-border/30 hover:border-border/50 transition-colors text-left"
             >
               <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${woStats.overdue > 0 ? "bg-red-400 animate-pulse" : woStats.blocked > 0 ? "bg-amber-400" : "bg-emerald-400"}`} />
               <div className="flex-1 min-w-0">
@@ -310,7 +310,7 @@ export default function Admin() {
                 return next;
               })
             }
-            className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-foreground/[0.04] border border-border/20 hover:border-border/40 transition-colors"
+            className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-foreground/4 border border-border/20 hover:border-border/40 transition-colors"
             title="Toggle admin theme — preview the neutral redesign"
           >
             <span className="text-[11px] text-muted-foreground">Theme</span>

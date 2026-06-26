@@ -150,7 +150,7 @@ export default function ActivityPulse({ disabled = false, className = "" }: Prop
 
   return (
     <div
-      className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] right-4 z-40 flex flex-col-reverse gap-2 pointer-events-none ${className}`}
+      className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0))] right-4 z-40 flex flex-col-reverse gap-2 pointer-events-none ${className}`}
       aria-live="polite"
     >
       <AnimatePresence mode="sync">
