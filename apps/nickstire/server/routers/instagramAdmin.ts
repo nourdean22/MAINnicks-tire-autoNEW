@@ -243,6 +243,51 @@ Keep it under 200 characters.`;
    *  (often out-of-quota) OpenAI key and posts fail with a 429. Plus the recent
    *  autopost pass/fail rate + last error. Key-presence based (no live API ping)
    *  so it's cheap and honest. */
+  /** Generate an AI image for a manual draft in the Studio. */
+  generateMedia: adminProcedure
+    .input(z.object({ caption: z.string().min(1), prompt: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const { generatePostImage } = await import("../services/igAutopost");
+      // Use the prompt if provided, otherwise fallback to the caption
+      const imageResult = await generatePostImage(input.prompt || input.caption, { caption: input.caption });
+      return imageResult;
+    }),
+
+  /** Post a manual draft directly to Instagram (and Facebook). */
+  publishManualDraft: adminProcedure
+    .input(z.object({ caption: z.string().min(1), imageUrl: z.string().url("Must be a valid URL") }))
+    .mutation(async ({ input }) => {
+      const { postToInstagram, postToFacebook } = await import("../services/metaSocial");
+      // Execute the live post
+      const [igResult, fbResult] = await Promise.allSettled([
+        postToInstagram({ caption: input.caption, imageUrl: input.imageUrl }),
+        postToFacebook({ message: input.caption, imageUrl: input.imageUrl })
+      ]);
+      
+      const results = [];
+      if (igResult.status === "fulfilled") {
+        results.push({ platform: "instagram", ...igResult.value });
+      } else {
+        results.push({ platform: "instagram", success: false, error: String(igResult.reason) });
+      }
+      if (fbResult.status === "fulfilled") {
+        results.push({ platform: "facebook", ...fbResult.value });
+      } else {
+        results.push({ platform: "facebook", success: false, error: String(fbResult.reason) });
+      }
+      
+      // If Instagram failed, throw an error because it's the primary engine.
+      const ig = results.find(r => r.platform === "instagram");
+      if (ig && !ig.success) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Instagram post failed: ${ig.error}`,
+        });
+      }
+      
+      return { success: true, results };
+    }),
+
   /** Higgsfield (reels) account health for the Settings panel — creds validity
    *  + remaining credit balance. Runs the CLI (~1-15s) so it's its own query
    *  with its own loading state, not folded into the fast getProviderHealth. */
