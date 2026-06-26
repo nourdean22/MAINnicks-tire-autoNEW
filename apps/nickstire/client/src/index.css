@@ -1665,3 +1665,21 @@ p.body-pretty {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ─── MOBILE SHELL HARDENING ─── */
+@media (max-width: 640px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
+.admin-topbar {
+  min-height: calc(3.5rem + env(safe-area-inset-top, 0px));
+  height: auto !important;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.admin-content {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
+}
+
