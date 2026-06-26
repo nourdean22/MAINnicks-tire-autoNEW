@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Zap, AlertTriangle, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Zap, AlertTriangle, CheckCircle2, AlertCircle, Wand2, Image as ImageIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { evaluateQuality, type ContentQualityScore } from "@/lib/instagram/quality";
+import { Input } from "@/components/ui/input";
 
 interface StudioProps {
   onNavigate: (tab: string) => void;
@@ -14,8 +15,35 @@ interface StudioProps {
 
 export function Studio({ onNavigate }: StudioProps) {
   const [content, setContent] = useState("");
+  const [mediaUrl, setMediaUrl] = useState("");
   const [format, setFormat] = useState<"single" | "carousel" | "reel">("single");
   const [score, setScore] = useState<Pick<ContentQualityScore, "overall" | "gate" | "reasoning"> | null>(null);
+
+  const generateMedia = trpc.instagramAdmin.generateMedia.useMutation({
+    onSuccess: (data) => {
+      setMediaUrl(data.url);
+      toast.success("Media generated successfully!");
+    },
+    onError: (err) => {
+      toast.error("Failed to generate media", { description: err.message });
+    }
+  });
+
+  const publishDraft = trpc.instagramAdmin.publishManualDraft.useMutation({
+    onSuccess: () => {
+      toast.success("Published Successfully!", {
+        description: "Your post is now live on Instagram and Facebook.",
+      });
+      // Clear form
+      setContent("");
+      setMediaUrl("");
+      setScore(null);
+      onNavigate("hq");
+    },
+    onError: (err) => {
+      toast.error("Publishing Failed", { description: err.message });
+    }
+  });
 
   const handleEvaluate = () => {
     // We run the client-side quality evaluation to simulate the Phase 1 scoring foundation
@@ -38,19 +66,30 @@ export function Studio({ onNavigate }: StudioProps) {
     }
   };
 
+  const handleGenerateMedia = () => {
+    if (!content || content.length < 10) {
+      toast.error("Need more context", { description: "Write at least a short caption so the AI knows what to generate." });
+      return;
+    }
+    generateMedia.mutate({ caption: content });
+  };
+
   const handleQueue = () => {
     if (score?.gate === "block") {
-      toast.error("Cannot Queue", {
+      toast.error("Cannot Publish", {
         description: "Post is currently blocked by quality gates.",
       });
       return;
     }
     
-    // In a full implementation, we'd fire a mutation here
-    toast.success("Added to Queue", {
-      description: "Your post is pending approval.",
-    });
-    onNavigate("queue");
+    if (!mediaUrl) {
+      toast.error("Missing Media", {
+        description: "Instagram requires an image. Please generate or provide media first.",
+      });
+      return;
+    }
+    
+    publishDraft.mutate({ caption: content, imageUrl: mediaUrl });
   };
 
   return (
@@ -71,21 +110,70 @@ export function Studio({ onNavigate }: StudioProps) {
               <CardTitle>Drafting Station ({format})</CardTitle>
               <CardDescription>Write your caption or script here. Our AI will evaluate it.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <Textarea 
                 placeholder="Start writing..." 
-                className="min-h-[200px]"
+                className="min-h-[150px]"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
               />
+              
+              <div className="border rounded-md p-4 space-y-4 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                    <h4 className="font-medium">Media Staging</h4>
+                  </div>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    onClick={handleGenerateMedia}
+                    disabled={generateMedia.isPending || !content}
+                  >
+                    {generateMedia.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Wand2 className="h-4 w-4 mr-2" />
+                    )}
+                    Generate Media
+                  </Button>
+                </div>
+                
+                {mediaUrl ? (
+                  <div className="rounded-md overflow-hidden border bg-black/5 flex justify-center p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={mediaUrl} alt="Staged media" className="max-h-[300px] object-contain rounded" />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-[120px] rounded-md border border-dashed text-muted-foreground text-sm">
+                    No media staged. Write a caption and click Generate.
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <Input 
+                    placeholder="Or paste an external public image URL..." 
+                    value={mediaUrl}
+                    onChange={(e) => setMediaUrl(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
             </CardContent>
             <CardFooter className="flex justify-between">
               <Button variant="outline" onClick={handleEvaluate}>
                 <Zap className="h-4 w-4 mr-2" />
                 Evaluate Quality
               </Button>
-              <Button onClick={handleQueue} disabled={score?.gate === "block"}>
-                Send to Queue
+              <Button 
+                onClick={handleQueue} 
+                disabled={score?.gate === "block" || publishDraft.isPending || (!mediaUrl && !publishDraft.isPending)}
+                className="bg-primary"
+              >
+                {publishDraft.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
+                {publishDraft.isPending ? "Publishing..." : "Publish to Live"}
               </Button>
             </CardFooter>
           </Card>
@@ -132,7 +220,7 @@ export function Studio({ onNavigate }: StudioProps) {
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>Blocked</AlertTitle>
                       <AlertDescription>
-                        This content violates hard constraints (e.g. claim safety, pricing). You must fix these before queueing.
+                        This content violates hard constraints (e.g. claim safety, pricing). You must fix these before publishing.
                       </AlertDescription>
                     </Alert>
                   )}
