@@ -74,7 +74,7 @@ type RowActionProps =
  *  the parent ClickableRow's onClick. */
 export function RowAction(props: RowActionProps) {
   const hover = props.hoverClass ?? "hover:text-primary hover:bg-primary/10";
-  const baseClass = `p-1.5 text-foreground/40 ${hover} rounded transition-all disabled:opacity-30 ${props.className ?? ""}`;
+  const baseClass = `inline-flex items-center justify-center p-2.5 sm:p-1.5 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 text-foreground/40 ${hover} rounded transition-all disabled:opacity-30 ${props.className ?? ""}`;
   const aria = props.ariaLabel ?? props.title;
   if ("href" in props && props.href) {
     return (
@@ -151,10 +151,10 @@ export function FilterChips({ chips, onClearAll }: {
           <span className="font-medium">{chip.displayValue || chip.value}</span>
           <button
             onClick={chip.onClear}
-            className="text-primary/50 hover:text-primary transition-colors"
+            className="p-1 sm:p-0 text-primary/50 hover:text-primary transition-colors inline-flex items-center justify-center"
             aria-label={`Clear ${chip.label} filter`}
           >
-            <XCircle className="w-3 h-3" />
+            <XCircle className="w-4 h-4 sm:w-3 sm:h-3" />
           </button>
         </span>
       ))}
@@ -214,7 +214,7 @@ export function TabBar<T extends string>({
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`flex items-center gap-1.5 px-3 ${size === "compact" ? "py-1" : "py-1.5"} text-[12px] font-bold tracking-wide rounded transition-all whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 ${size === "compact" ? "py-2.5 sm:py-1" : "py-3 sm:py-1.5"} text-[12px] font-bold tracking-wide rounded transition-all whitespace-nowrap ${
               activeTab === t.id
                 ? "bg-primary text-primary-foreground"
                 : "text-foreground/50 hover:text-foreground/80 hover:bg-foreground/5"
@@ -243,7 +243,7 @@ export function TabBar<T extends string>({
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`flex items-center gap-1.5 px-4 ${size === "compact" ? "py-1.5" : "py-2.5"} text-[12px] font-bold tracking-wide border-b-2 transition-colors whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-4 ${size === "compact" ? "py-3 sm:py-1.5" : "py-3.5 sm:py-2.5"} text-[12px] font-bold tracking-wide border-b-2 transition-colors whitespace-nowrap ${
               active
                 ? "border-primary text-primary"
                 : "border-transparent text-foreground/40 hover:text-foreground/70"

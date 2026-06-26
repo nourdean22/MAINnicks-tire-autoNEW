@@ -687,7 +687,7 @@ export default function Admin() {
             href="/admin/ig-studio"
             title="IG Carousel Studio"
             aria-label="IG Carousel Studio"
-            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
+            className="hidden lg:inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
           >
             <Images className="w-4 h-4" />
           </Link>
@@ -695,7 +695,7 @@ export default function Admin() {
             href="/admin/reel-studio"
             title="Reel Studio"
             aria-label="Reel Studio"
-            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
+            className="hidden lg:inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
           >
             <Clapperboard className="w-4 h-4" />
           </Link>
@@ -703,7 +703,7 @@ export default function Admin() {
             href="/admin/ad-studio"
             title="Ad Studio"
             aria-label="Ad Studio"
-            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
+            className="hidden lg:inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
           >
             <Megaphone className="w-4 h-4" />
           </Link>
