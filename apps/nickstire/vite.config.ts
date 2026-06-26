@@ -11,10 +11,19 @@ import { defineConfig } from "vite";
 // Decision: keep the standard async-CSS strategy (font preload-onload
 // already shipped) and revisit critical-CSS only if mobile render-block
 // stays high after font fix lands. The plugin file is kept for reference.
-const plugins = [react(), tailwindcss(), jsxLocPlugin()];
 
-export default defineConfig({
-  plugins,
+// jsxLocPlugin injects a JSX runtime intermediary that sits outside the
+// vendor-react chunk. When the lazily-loaded `blog` named chunk evaluates
+// at runtime, that intermediary may not be initialized yet, producing:
+//   "TypeError: Cannot read properties of undefined (reading 'jsx')"
+// Fix: restrict the plugin to serve/dev mode only — it's a DX tool and
+// has zero effect on production output correctness.
+export default defineConfig(({ command }) => ({
+  plugins: [
+    react(),
+    tailwindcss(),
+    ...(command === "serve" ? [jsxLocPlugin()] : []),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
@@ -147,4 +156,4 @@ export default defineConfig({
       deny: ["**/.*"],
     },
   },
-});
+}));
