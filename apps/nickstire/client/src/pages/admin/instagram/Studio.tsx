@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Zap, AlertTriangle, CheckCircle2, AlertCircle, Wand2, Image as ImageIcon } from "lucide-react";
+import { Loader2, Zap, AlertTriangle, CheckCircle2, AlertCircle, Wand2, Images as ImageIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { evaluateQuality, type ContentQualityScore } from "@/lib/instagram/quality";
