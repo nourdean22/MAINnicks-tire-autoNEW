@@ -71,10 +71,11 @@ export function registerAdminRoutes(app: Express): void {
   // returns the run summary (status/scores). The full caption + image land in
   // Telegram (notifyPreview) and ig_autopost_log. Mirrors the tRPC
   // fireIgAutopostNow so the dryrun can be reviewed without a browser session.
-  app.post("/api/admin/ig-autopost-fire", requireAdminApiKey, async (_req, res) => {
+  app.post("/api/admin/ig-autopost-fire", requireAdminApiKey, async (req, res) => {
     try {
       const { runIgAutopostOneOff } = await import("../services/igAutopost");
-      res.json(await runIgAutopostOneOff());
+      const archetype = req.body?.archetype || req.query?.archetype;
+      res.json(await runIgAutopostOneOff(archetype));
     } catch (e) {
       res.status(500).json({ status: "failed", error: e instanceof Error ? e.message : String(e) });
     }
