@@ -3,7 +3,13 @@ import * as path from "path";
 import { sendTelegramOpsAlert } from "../ai/telegram-ops";
 import { prisma } from "../../lib/prisma";
 
-export async function runIntelligenceMatching() {
+/**
+ * DEMO ONLY.
+ * This does not perform real recall matching.
+ * It randomly selects a customer contact and attaches a hardcoded vehicle/recall
+ * so the Telegram approval flow can be tested.
+ */
+export async function runMockRecallApprovalDemo() {
   const csvPath = path.resolve(process.cwd(), "../../apps/nickstire/data/shopdriver-customers.csv");
   
   if (!fs.existsSync(csvPath)) {
@@ -41,6 +47,25 @@ export async function runIntelligenceMatching() {
   const mockVehicle = "2012 Honda Civic";
   const mockRecall = "Takata Airbag Inflator Rupture Risk";
 
+  const verificationPayload = {
+    phone: normalizedPhone,
+    customerName: `${firstName} ${lastName}`,
+    vehicle: mockVehicle,
+    recall: mockRecall,
+    smsBody: `Hi ${firstName}, Nick's Tire Auto here. Your ${mockVehicle} has an active recall for: ${mockRecall}. Please call us at (216) 862-0005 to schedule a free inspection.`,
+  };
+
+  // Create ActionReceipt using valid Prisma schema fields
+  const receipt = await prisma.actionReceipt.create({
+    data: {
+      action: "SMS_BROADCAST",
+      status: "PENDING",
+      sourceSystem: "nhtsa",
+      context: `Recall outreach approval for ${verificationPayload.customerName} — ${verificationPayload.vehicle} — ${verificationPayload.recall}`,
+      verificationPayload,
+      executedAt: null,
+    },
+  });
   const messageText = `🚨 **INTELLIGENCE MATCH** 🚨
 *Customer:* ${firstName} ${lastName}
 *Phone:* ${normalizedPhone}
@@ -48,21 +73,6 @@ export async function runIntelligenceMatching() {
 *Recall:* ${mockRecall}
     
 ⚠️ *Action Required:* Do you want to dispatch a warning SMS and invite them for a free inspection?`;
-
-  // Create ActionReceipt
-  const receipt = await (prisma as any).actionReceipt.create({
-    data: {
-      actionType: "SMS_BROADCAST",
-      targetId: normalizedPhone,
-      status: "PENDING",
-      payload: {
-        customerName: `${firstName} ${lastName}`,
-        vehicle: mockVehicle,
-        recall: mockRecall,
-        smsBody: `Hi ${firstName}, Nick's Tire Auto here. Your ${mockVehicle} has an active recall for: ${mockRecall}. Please call us at (440) 263-1576 to schedule a free inspection.`
-      }
-    }
-  });
 
   // Send interactive alert
   await sendTelegramOpsAlert(messageText, {
