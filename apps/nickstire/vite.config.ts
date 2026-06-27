@@ -11,20 +11,13 @@ import { defineConfig } from "vite";
 // Decision: keep the standard async-CSS strategy (font preload-onload
 // already shipped) and revisit critical-CSS only if mobile render-block
 // stays high after font fix lands. The plugin file is kept for reference.
+export default defineConfig(({ command }) => {
+  const isDev = command === "serve";
+  const plugins = [react(), tailwindcss(), ...(isDev ? [jsxLocPlugin()] : [])];
 
-// jsxLocPlugin injects a JSX runtime intermediary that sits outside the
-// vendor-react chunk. When the lazily-loaded `blog` named chunk evaluates
-// at runtime, that intermediary may not be initialized yet, producing:
-//   "TypeError: Cannot read properties of undefined (reading 'jsx')"
-// Fix: restrict the plugin to serve/dev mode only — it's a DX tool and
-// has zero effect on production output correctness.
-export default defineConfig(({ command }) => ({
-  plugins: [
-    react(),
-    tailwindcss(),
-    ...(command === "serve" ? [jsxLocPlugin()] : []),
-  ],
-  resolve: {
+  return {
+    plugins,
+    resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
@@ -72,50 +65,13 @@ export default defineConfig(({ command }) => ({
         // vendor-misc evaluated before vendor-react finished initializing.
         // Rollup's default vendor chunking respects module graph order.
         manualChunks(id: string) {
-          // ── React core + companions → ONE deterministic chunk.
-          //
-          // Why: Rollup's default chunker can split React across multiple
-          // chunks and load them out of order. When a downstream lib (any
-          // of the @radix-ui / framer-motion / lucide-react / wouter
-          // packages) calls `React.createContext()` at module top-level,
-          // and React's chunk hasn't finished initializing, you get:
-          //   "Cannot read properties of undefined (reading 'createContext')"
-          //
-          // Forcing react + react-dom + scheduler + react-is into a single
-          // `vendor-react` chunk guarantees React is fully initialized
-          // before any consumer chunk runs. This is the canonical fix.
           if (id.includes("node_modules")) {
-            // React core + ALL libs that call React.createContext at module
-            // top-level go in the same chunk. Splitting these into separate
-            // chunks creates TDZ ("Cannot access 'X' before initialization")
-            // and createContext-undefined errors when Rollup orders chunks
-            // unfavorably. Bundling them together costs ~70KB but eliminates
-            // the entire class of init-order bugs.
-            //
-            // 2026-05-05 perf fix — Lighthouse flagged 301 KiB unused JS
-            // shipped with vendor-react. recharts (used ONLY in admin) +
-            // react-day-picker + embla-carousel-react + cmdk are all
-            // restricted to specific UI surfaces. Since admin sections
-            // lazy-load AFTER React mounts, vendor-react has already
-            // initialized — no createContext race. Splitting these to
-            // their own chunks saves ~250 KB on customer first-paint.
+            // Isolate core React to guarantee it initializes first and together
             if (
-              /[\\/]node_modules[\\/]recharts[\\/]/.test(id)
-            ) {
-              return "vendor-charts";
-            }
-            if (
-              /[\\/]node_modules[\\/](react-day-picker|embla-carousel-react|cmdk)[\\/]/.test(id)
-            ) {
-              return "vendor-ui-extras";
-            }
-            // Core React + libs that use createContext at module load.
-            if (
-              /[\\/]node_modules[\\/](react|react-dom|scheduler|react-is|use-sync-external-store|@radix-ui|framer-motion|@tanstack[\\/]react-query|@trpc[\\/]client|@trpc[\\/]react-query|wouter|lucide-react|sonner|vaul|react-hot-toast|react-helmet|class-variance-authority|tailwind-merge)[\\/]/.test(id)
+              /[\\/]node_modules[\\/](react|react-dom|scheduler|react-is)[\\/]/.test(id)
             ) {
               return "vendor-react";
             }
-            // Other vendor: let Rollup chunk by default.
             return undefined;
           }
           // Admin shell — only the SHARED admin helpers land in the admin chunk.
@@ -156,4 +112,5 @@ export default defineConfig(({ command }) => ({
       deny: ["**/.*"],
     },
   },
-}));
+  };
+});

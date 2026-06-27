@@ -116,7 +116,7 @@ export function KeyboardShortcuts() {
 
   if (!open) {
     return goPrefix ? (
-      <div className="fixed bottom-4 right-4 z-[100] px-3 py-1.5 rounded-lg border border-[var(--gold)]/20 bg-[var(--bg-elevated)] text-[11px] font-mono text-[var(--gold)] animate-fadeSlideUp">
+      <div className="hidden sm:block fixed bottom-4 right-4 z-[100] px-3 py-1.5 rounded-lg border border-[var(--gold)]/20 bg-[var(--bg-elevated)] text-[11px] font-mono text-[var(--gold)] animate-fadeSlideUp">
         G → press a key...
       </div>
     ) : null;

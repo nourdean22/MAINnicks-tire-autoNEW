@@ -65,7 +65,7 @@ export function PWAInstallPrompt() {
 
   return (
     <div className={cn(
-      "fixed bottom-28 md:bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-72 z-[90]",
+      "fixed bottom-[calc(64px+env(safe-area-inset-bottom))] md:bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-72 z-[90]",
       "rounded-xl border border-[var(--gold)]/20 bg-[var(--bg-elevated)] shadow-2xl p-3",
       "animate-fadeSlideUp"
     )}>
@@ -79,13 +79,13 @@ export function PWAInstallPrompt() {
           <div className="flex items-center gap-2 mt-2">
             <button
               onClick={install}
-              className="px-3 py-1 rounded-lg bg-[var(--gold)] text-[var(--text-inverse)] text-[10px] font-bold uppercase tracking-wider hover:bg-[var(--gold-dim)] transition-colors"
+              className="px-3 py-1 min-h-[44px] min-w-[44px] rounded-lg bg-[var(--gold)] text-[var(--text-inverse)] text-[10px] font-bold uppercase tracking-wider hover:bg-[var(--gold-dim)] transition-colors"
             >
               Install
             </button>
             <button
               onClick={dismiss}
-              className="text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+              className="text-[10px] min-h-[44px] min-w-[44px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
             >
               Not now
             </button>
