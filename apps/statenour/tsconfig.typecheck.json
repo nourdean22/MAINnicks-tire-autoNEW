@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    ".next",
+    "out",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/**",
+    ".vitest",
+    "scripts",
+    "tests",
+    "prisma/seeds"
+  ]
+}

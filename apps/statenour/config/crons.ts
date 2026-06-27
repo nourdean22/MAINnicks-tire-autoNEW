@@ -524,15 +524,6 @@ export const CRONS: CronDef[] = [
     maxDuration: 30,
   },
   {
-    name: "error-telegram-push",
-    schedule: "*/10 * * * *",
-    mode: "active",
-    category: "alert",
-    description: "Every 10min · single push pipe for fatal errors · operator gets 1 message per cluster, not 100.",
-    memory: 256,
-    maxDuration: 30,
-  },
-  {
     name: "proactive-push",
     schedule: "0 * * * *",
     mode: "active",
@@ -589,6 +580,14 @@ export const CRONS: CronDef[] = [
     category: "action",
     foldedInto: "mega-evening",
     description: "FOLDED into mega-evening · NICK_AUTONOMY-gated proactive engine (~22 rules: revenue-pace, urgent-leads, drift escalation, commitment enforcement, morning brief, expired-quote follow-up). Hard-skips when the flag is off. FAIL-CLOSED: every rule defers to /system/approvals unless an explicit `auto` AutomationPolicy exists — nothing auto-sends.",
+  },
+  {
+    name: "neglect-penalty",
+    schedule: "0 */4 * * *", // Runs every 4 hours
+    mode: "active",
+    category: "hygiene",
+    inngest: true,
+    description: "Systemic decay enforcer. Deducts XP from neglected missions that idle for >48h and fires a Telegram alert.",
   },
 ];
 

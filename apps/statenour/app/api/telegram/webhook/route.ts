@@ -105,9 +105,13 @@ export async function POST(req: NextRequest) {
     id: string;
     data?: string;
     message?: { message_id: number; chat: { id: number } };
+    from?: { id: number };
   } | undefined;
 
+  const expectedOwnerId = Number(process.env.TELEGRAM_OWNER_ID);
+
   if (callback?.data) {
+    if (callback.from?.id !== expectedOwnerId) return NextResponse.json({ ok: true });
     await handleCallback(callback);
     return NextResponse.json({ ok: true });
   }
@@ -120,9 +124,14 @@ export async function POST(req: NextRequest) {
     caption?: string;
     entities?: { type: string; url?: string; offset: number; length: number }[];
     chat: { id: number };
+    from?: { id: number };
   } | undefined;
 
   if (!message) return NextResponse.json({ ok: true });
+
+  if (message.from?.id !== expectedOwnerId) {
+    return NextResponse.json({ ok: true });
+  }
 
   const chatId = String(message.chat.id);
   const expectedChat = process.env.TELEGRAM_CHAT_ID;
@@ -172,7 +181,18 @@ async function handleCallback(callback: {
   const messageId = callback.message?.message_id;
   const chatId = String(callback.message?.chat?.id ?? "");
 
+  const { prisma } = await import("@/lib/prisma");
+
   try {
+    // Deduplicate/track via ActionReceipt
+    const actionKey = callback.data ?? "unknown";
+    const receipt = await (prisma as any).actionReceipt.create({
+      data: {
+        action: actionKey,
+        status: "PENDING",
+      }
+    });
+
     // Journal Brain · confirm/reject a proposed goal link from the phone.
     // callback_data: jlink:c|r:<silo>:<id>
     if (action === "jlink") {
@@ -192,12 +212,66 @@ async function handleCallback(callback: {
           chatId,
         );
       }
+      await (prisma as any).actionReceipt.update({
+        where: { id: receipt.id },
+        data: { status: "SUCCESS" }
+      });
+      return;
+    }
+
+    if (action === "intell_recall") {
+      const parts = (callback.data ?? "").split(":");
+      const decision = parts[1];
+      const receiptId = parts[2];
+
+      if (decision === "approve") {
+        const intellReceipt = await (prisma as any).actionReceipt.findUnique({ where: { id: receiptId } });
+        if (intellReceipt && intellReceipt.status === "PENDING") {
+          // Send Capevace SMS Gateway mock
+          console.log(`[Capevace Gateway Mock] SMS to ${intellReceipt.targetId}: ${intellReceipt.payload.smsBody}`);
+          
+          await (prisma as any).actionReceipt.update({
+            where: { id: receiptId },
+            data: { status: "EXECUTED", executedAt: new Date() }
+          });
+          
+          if (messageId) {
+            await editTelegramMessage(
+              messageId,
+              `✅ SMS Dispatched to ${intellReceipt.payload.customerName} for ${intellReceipt.payload.vehicle} recall.`,
+              chatId
+            );
+          }
+        } else {
+          if (messageId) {
+             await editTelegramMessage(messageId, `⚠️ Alert already processed.`, chatId);
+          }
+        }
+      } else {
+        await (prisma as any).actionReceipt.update({
+          where: { id: receiptId },
+          data: { status: "REJECTED" }
+        });
+        if (messageId) {
+          await editTelegramMessage(
+            messageId,
+            `❌ Recall alert rejected.`,
+            chatId
+          );
+        }
+      }
+
+      await answerCallbackQuery(callback.id, decision === "approve" ? "Approved!" : "Rejected");
       return;
     }
     // Apr 17 separation pass — autopilot-morning approval flow retired
     // along with the cron that produced it. Shop-side approvals now
     // live in nickstire.org/admin.
     await answerCallbackQuery(callback.id, "Unknown action.");
+    await (prisma as any).actionReceipt.update({
+      where: { id: receipt.id },
+      data: { status: "SUCCESS" }
+    });
     void action;
     void param;
     void messageId;

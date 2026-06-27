@@ -9,15 +9,15 @@ import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw
 // wave-181.x Customers Phase 4 · additional icons used by the new
 // Customers Cmd+K shortcuts (Users · Crown · AlertTriangle reused).
 import { toast } from "sonner";
-import type { AdminSection } from "@/pages/admin/shared";
+import { ADMIN_REGISTRY } from "@/pages/admin/registry";
 import { openDrilldown } from "./DrilldownDrawer";
+import type { AdminSection } from "@/pages/admin/shared";
 
 interface Props {
   onNavigate: (section: AdminSection) => void;
   onSelectCustomer: (customerId: number) => void;
 }
 
-// Debounce helper
 function useDebounce(value: string, delay: number) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -27,48 +27,25 @@ function useDebounce(value: string, delay: number) {
   return debounced;
 }
 
-// Curated shortcut list — mirrors current 16-section navigation (2026-04-24
-// admin audit). Deleted sections (bookings, workOrders, sms, winback, etc.)
-// removed here but still reachable via TAB_ALIASES in Admin.tsx for legacy
-// bookmarks.
-const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[]; group: string }[] = [
-  // Core Operations
-  // 2026-05-19 · Walk-In Quote removed from section shortcuts — it's a
-  // drawer (event-bus opened), not a destination. Use the Quick Action
-  // below (or click "Walk-In Quote" button on Leads page).
-  { id: "overview", label: "Dashboard Overview", keywords: ["dashboard", "overview", "home", "today"], group: "Operations" },
-  { id: "trafficFunnel", label: "Traffic → Revenue", keywords: ["funnel", "traffic", "seo", "conversion", "clicks"], group: "Operations" },
-
-  // Sales Pipeline
-  // 2026-05-19 MONEY consolidation · Declined + Snap are now inner tabs
-  // of the unified Money page. Their Cmd+K shortcuts use Quick Actions
-  // (below) that navigate to `revenue` with `moneyTab` rewritten.
-  { id: "leads", label: "Leads / CRM", keywords: ["lead", "crm", "prospect", "new customer", "no-show", "risk"], group: "Sales" },
-
-  // Money & Customers
-  { id: "revenue", label: "Money", keywords: ["revenue", "money", "income", "sales", "declined", "walked", "snap", "financing", "acima", "koalafi"], group: "Money" },
-  { id: "callTrackingView", label: "Call Tracking", keywords: ["call", "phone", "tracking", "missed", "callback"], group: "Money" },
-  // 2026-05-23 · added back to Cmd+K so VAPI is searchable. The wave 181
-  // sidebar removal claimed Cmd+K accessibility but the entry was never
-  // here, leaving no way to find Voice Receptionist from the phone.
-  { id: "voiceReceptionist", label: "Voice Receptionist (Nick)", keywords: ["vapi", "voice", "nick", "receptionist", "ai", "agent", "incoming calls", "phone agent"], group: "Money" },
-  { id: "customers", label: "Customer Database", keywords: ["customer", "client", "database", "lookup", "loyalty", "winback", "referral"], group: "Revenue" },
-  // 2026-06-11 · Nonstop Nick launch — the counter lookup must be findable
-  // from the phone (no sidebar slot yet per the YAGNI call in the design doc).
-  { id: "memberships", label: "Nonstop Nick (member lookup)", keywords: ["membership", "member", "nonstop", "nick", "subscription", "plan", "vehicle", "bind", "7.99", "9.99"], group: "Money" },
-
-  // Outreach + Intelligence
-  // wave-110 — reEngagement merged into campaigns (Outreach Hub tab)
-  { id: "campaigns", label: "Outreach Hub", keywords: ["campaign", "outreach", "sms", "email", "review", "follow-up", "re-engage", "winback", "dormant", "inactive"], group: "Outreach" },
-  { id: "content", label: "Content & AI", keywords: ["content", "post", "social", "blog", "ai", "seo", "specials"], group: "Outreach" },
-  // wave-181.x Wave 3 · Intelligence section retired ·
-  // operator searches for "intelligence" / "brain" now route via
-  // TAB_ALIASES to overview · the canonical signals live on statenour
-  // /scoreboard + various nickstire briefs.
-
-  // System (tabs inside Settings)
-  { id: "settings", label: "Settings & System", keywords: ["setting", "config", "sync", "shopdriver", "health", "compliance", "integrations"], group: "System" },
-];
+// Dynamic shortcuts derived from ADMIN_REGISTRY
+const SECTION_SHORTCUTS = ADMIN_REGISTRY.map(s => ({
+  id: s.id,
+  label: s.id === "overview"
+    ? "Dashboard Overview"
+    : (s.id === "settings"
+        ? "Settings & System"
+        : (s.id === "voiceReceptionist"
+            ? "Voice Receptionist (Nick)"
+            : (s.id === "customers"
+                ? "Customer Database"
+                : (s.id === "memberships"
+                    ? "Nonstop Nick (member lookup)"
+                    : (s.id === "leads"
+                        ? "Leads / CRM"
+                        : s.label))))),
+  keywords: s.keywords ?? [],
+  group: s.group ?? "Operations",
+}));
 
 // 2026-05-06 — Quick Actions registry for ⌘K palette.
 // Each action either opens a drilldown, triggers a mutation, or fires
@@ -711,13 +688,13 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
       {open && (
         <>
           <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-50" onClick={close} />
-          <div className="fixed top-[15%] left-1/2 -translate-x-1/2 z-50 w-full max-w-lg">
+          <div className="fixed top-[max(0.75rem,env(safe-area-inset-top))] sm:top-[15%] left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-1.5rem)] sm:w-full max-w-lg">
             <div
               ref={overlayRef}
               role="dialog"
               aria-modal="true"
               aria-label="Command search"
-              className="bg-card border border-border/30 shadow-2xl overflow-hidden"
+              className="bg-card border border-border/30 shadow-2xl overflow-hidden rounded-xl"
             >
               {/* SR-only status — announces result count as the operator types. */}
               <div aria-live="polite" className="sr-only">
@@ -742,7 +719,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                   aria-controls="command-search-listbox"
                   aria-activedescendant={selectedIndex >= 0 ? `cmd-opt-${selectedIndex}` : undefined}
                   aria-autocomplete="list"
-                  className="flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/30 outline-none"
+                  className="flex-1 bg-transparent text-base text-foreground placeholder:text-foreground/30 outline-none"
                 />
                 {query && (
                   <button onClick={() => setQuery("")} className="text-foreground/30 hover:text-foreground/60" aria-label="Clear search">
@@ -753,7 +730,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
 
               {/* Results */}
               {query.length >= 1 && (
-                <div role="listbox" id="command-search-listbox" className="max-h-[50vh] overflow-y-auto">
+                <div role="listbox" id="command-search-listbox" className="max-h-[calc(100dvh-12rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:max-h-[50vh] overflow-y-auto overscroll-contain">
                   {/* Section shortcuts */}
                   {matchingSections.length > 0 && (
                     <div className="px-2 py-2">
@@ -848,7 +825,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
               )}
 
               {/* Footer hint */}
-              <div className="px-4 py-2 border-t border-border/10 text-[10px] text-foreground/30">
+              <div className="hidden sm:block px-4 py-2 border-t border-border/10 text-[10px] text-foreground/30">
                 <kbd className="px-1 py-0.5 bg-background/50 border border-border/30 rounded">↑↓</kbd> navigate · <kbd className="px-1 py-0.5 bg-background/50 border border-border/30 rounded">↵</kbd> select · <kbd className="px-1 py-0.5 bg-background/50 border border-border/30 rounded">Esc</kbd> close
               </div>
             </div>

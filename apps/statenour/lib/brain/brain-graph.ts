@@ -575,6 +575,35 @@ export async function getBrainGraph(params: {
     }
   }
 
+  // 7. Connectivity pass: ensure no nodes are floating
+  // Calculate which nodes actually have edges in the final set
+  const resolveConnectivity = (finalNodes: BrainGraphNode[], finalEdges: BrainGraphEdge[]) => {
+    const connected = new Set<string>();
+    finalEdges.forEach(e => {
+      connected.add(e.source);
+      connected.add(e.target);
+    });
+
+    finalNodes.forEach(node => {
+      if (node.metadata?.source !== "system_seed" && !connected.has(node.id)) {
+        let targetAnchor = "nour-os";
+        if (node.type === "memory" || node.type === "journal" || node.type === "decision") targetAnchor = "brain-graph";
+        else if (node.type === "task") targetAnchor = "discipline";
+        else if (node.type === "person") targetAnchor = "family-vision";
+        else if (node.type === "goal" || node.type === "mission") {
+          targetAnchor = String(node.metadata?.domain).toLowerCase() === "business" ? "business" : "discipline";
+        }
+        
+        finalEdges.push({
+          source: node.id,
+          target: targetAnchor,
+          type: "belongs_to",
+          weight: 0.3
+        });
+      }
+    });
+  };
+
   // If home scope, clamp nodes list to top 60-80 max
   if (isHome) {
     // Sort nodes to keep: seeds + highest-weight tasks/goals/missions
@@ -591,6 +620,8 @@ export async function getBrainGraph(params: {
       (e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target)
     );
 
+    resolveConnectivity(filteredNodes, filteredEdges);
+
     return {
       nodes: filteredNodes,
       edges: filteredEdges,
@@ -599,10 +630,12 @@ export async function getBrainGraph(params: {
     };
   }
 
+  resolveConnectivity(nodes, edges);
+
   return {
     nodes,
     edges,
     generatedAt: new Date().toISOString(),
-    scope: isHome ? "home" : "full",
+    scope: "full",
   };
 }

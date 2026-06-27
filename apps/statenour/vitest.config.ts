@@ -42,6 +42,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": rootDir,
+      "@nour/utils": path.resolve(rootDir, "../../packages/utils/src/index.ts"),
       // v10.0.209 · `server-only` is a Next.js runtime guard that
       // throws in client bundles. Vitest runs in Node, has no client
       // distinction, and shouldn't choke on the import. Map it to an

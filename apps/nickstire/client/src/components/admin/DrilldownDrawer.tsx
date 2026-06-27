@@ -45,6 +45,20 @@ export type DrilldownDetail = {
   title?: string;
 };
 
+const VALID_DRILLDOWN_KINDS = new Set<DrilldownKind>([
+  "cars_in_shop",
+  "revenue_today",
+  "jobs_closed_today",
+  "pending_callbacks",
+  "walk_aways",
+  "fresh_leads",
+  "lapsed_vips",
+  "negative_reviews",
+  "today_bookings",
+  "chat_sessions",
+  "intake_today",
+]);
+
 const ADMIN_DRILLDOWN_EVENT = "admin:open-drilldown";
 
 /**
@@ -52,6 +66,10 @@ const ADMIN_DRILLDOWN_EVENT = "admin:open-drilldown";
  */
 export function openDrilldown(detail: DrilldownDetail) {
   if (typeof window === "undefined") return;
+  if (!VALID_DRILLDOWN_KINDS.has(detail.kind)) {
+    console.warn("[DrilldownDrawer] unknown kind passed to openDrilldown:", detail.kind);
+    return;
+  }
   window.dispatchEvent(new CustomEvent(ADMIN_DRILLDOWN_EVENT, { detail }));
 }
 
@@ -64,6 +82,10 @@ export default function DrilldownDrawer() {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<DrilldownDetail>).detail;
       if (!detail?.kind) return;
+      if (!VALID_DRILLDOWN_KINDS.has(detail.kind)) {
+        console.warn("[DrilldownDrawer] unknown kind received via event:", detail.kind);
+        return;
+      }
       setActiveKind(detail.kind);
       setTitleOverride(detail.title);
     };
@@ -103,7 +125,7 @@ export default function DrilldownDrawer() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 z-60 bg-black/40 backdrop-blur-sm"
             onClick={() => setActiveKind(null)}
             aria-hidden="true"
           />
@@ -114,7 +136,7 @@ export default function DrilldownDrawer() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
-            className="fixed top-0 right-0 bottom-0 z-[61] w-full sm:w-[440px] bg-card border-l border-border/40 shadow-2xl flex flex-col"
+            className="fixed top-0 right-0 bottom-0 z-61 w-full sm:w-[440px] bg-card border-l border-border/40 shadow-2xl flex flex-col pt-[env(safe-area-inset-top,0px)]"
             role="dialog"
             aria-modal="true"
           >
@@ -131,7 +153,7 @@ export default function DrilldownDrawer() {
               </div>
               <button
                 onClick={() => setActiveKind(null)}
-                className="shrink-0 inline-flex items-center justify-center w-8 h-8 -mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
+                className="shrink-0 inline-flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 -mr-2 sm:-mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
                 aria-label="Close drilldown"
               >
                 <X className="w-4 h-4" />
@@ -139,7 +161,7 @@ export default function DrilldownDrawer() {
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto overscroll-contain">
               {isLoading && (
                 <div className="flex items-center justify-center py-20" role="status" aria-label="Loading">
                   <Loader2 className="w-5 h-5 animate-spin text-primary/60" aria-hidden="true" />
@@ -165,11 +187,19 @@ export default function DrilldownDrawer() {
             </div>
 
             {/* Footer — minimal: row count + Esc hint, no redundant
-                CLOSE button (X in header + backdrop click + Esc all close). */}
-            <div className="shrink-0 px-5 py-3 border-t border-border/15 bg-foreground/[0.02]">
-              <span className="text-[10px] text-foreground/40 tracking-wide">
-                {data?.rows.length ?? 0} row{data?.rows.length === 1 ? "" : "s"} · Esc or click outside to close
-              </span>
+                CLOSE button on desktop. On mobile, we render a clear Close action button for better ergonomics. */}
+            <div className="shrink-0 px-5 py-3 border-t border-border/15 bg-foreground/2 flex flex-col gap-2 sm:gap-0 pb-[calc(0.75rem+env(safe-area-inset-bottom,0))]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-foreground/40 tracking-wide">
+                  {data?.rows.length ?? 0} row{data?.rows.length === 1 ? "" : "s"} <span className="hidden sm:inline">· Esc or click outside to close</span>
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveKind(null)}
+                className="sm:hidden w-full min-h-[44px] py-2.5 px-4 bg-foreground/5 hover:bg-foreground/10 text-foreground text-[14px] font-medium rounded-md transition-colors mt-1"
+              >
+                Close
+              </button>
             </div>
           </motion.aside>
         </>
@@ -191,7 +221,7 @@ interface DrilldownRowData {
 
 function DrilldownRow({ row }: { row: DrilldownRowData }) {
   return (
-    <div className="px-5 py-3 hover:bg-foreground/[0.02] transition-colors">
+    <div className="px-5 py-3 hover:bg-foreground/2 transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="font-medium text-foreground text-[13px] truncate">{row.primary}</p>

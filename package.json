@@ -21,6 +21,7 @@
     "lint:all": "turbo run lint",
     "lint:affected": "turbo run lint --affected",
     "verify:nick": "pnpm --filter nicks-tire-auto verify",
+    "verify:state": "pnpm --filter @statenour/web verify:hard",
     "verify:affected": "turbo run check lint test --affected",
     "ci:affected": "turbo run check lint test build --affected",
     "obsidian:plugins": "powershell scripts/install-cockpit-plugins.ps1",
@@ -41,7 +42,7 @@
     "sherif": "1.12.0",
     "syncpack": "15.3.2",
     "turbo": "^2.5.8",
-    "typescript": "6.0.3"
+    "typescript": "catalog:"
   },
   "engines": {
     "node": ">=20.0.0"

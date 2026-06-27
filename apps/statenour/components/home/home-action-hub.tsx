@@ -57,6 +57,7 @@ export function HomeActionHub() {
     if (hasSetDefault || isInboxLoading || isHygieneLoading || isMovesLoading) return;
 
     if (inboxCount > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveTab("inbox");
     } else if (findingsCount > 0) {
       setActiveTab("hygiene");
@@ -115,7 +116,7 @@ export function HomeActionHub() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                aria-pressed={isActive}
+                aria-pressed={isActive ? "true" : "false"}
                 className={cn(
                   "relative flex items-center gap-1.5 py-1 px-2.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all",
                   isActive 

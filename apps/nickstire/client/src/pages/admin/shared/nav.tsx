@@ -1,11 +1,6 @@
 /**
  * Shared admin navigation config.
  */
-import React from "react";
-import {
-  LayoutDashboard, UserCheck, Send, DollarSign, PhoneCall, Settings, Disc,
-  ClipboardList, TrendingUp, Shield, Brain,
-} from "lucide-react";
 import type { NavGroup } from "./types";
 
 /**
@@ -22,22 +17,17 @@ import type { NavGroup } from "./types";
  *   8. Reports (opsHub)
  *   9. Settings / Safety (settings)
  */
+import { ADMIN_REGISTRY } from "../registry";
+
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "", // Flat list
-    items: [
-      { id: "overview", label: "Today", icon: <LayoutDashboard className="w-4 h-4" />, badge: "leads" },
-      { id: "intelligence", label: "Intelligence HQ", icon: <Brain className="w-4 h-4 text-purple-400" /> },
-      { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
-      { id: "leads", label: "Sales Pipeline", icon: <TrendingUp className="w-4 h-4" /> },
-      { id: "tireOrders", label: "Tires", icon: <Disc className="w-4 h-4" /> },
-      { id: "growth", label: "Marketing / Growth", icon: <TrendingUp className="w-4 h-4" /> },
-      { id: "campaigns", label: "Winback", icon: <Send className="w-4 h-4" /> },
-      { id: "memberships", label: "Nonstop Nick", icon: <Shield className="w-4 h-4" /> },
-      { id: "voiceReceptionist", label: "Voice Receptionist", icon: <PhoneCall className="w-4 h-4" /> },
-      { id: "opsHub", label: "Reports", icon: <ClipboardList className="w-4 h-4" /> },
-      { id: "settings", label: "Settings / Safety", icon: <Settings className="w-4 h-4" /> },
-    ],
+    items: ADMIN_REGISTRY.filter(s => s.showInSidebar).map(s => ({
+      id: s.id,
+      label: s.label,
+      icon: s.icon,
+      badge: s.badgeKey,
+    })),
   },
 ];
 

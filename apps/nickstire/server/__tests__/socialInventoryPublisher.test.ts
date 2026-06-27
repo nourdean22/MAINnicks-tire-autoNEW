@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { runSocialInventoryPublisher } from "../cron/jobs/socialInventoryPublisher";
 
 // Mock database
@@ -67,9 +67,16 @@ vi.mock("../services/contentManufacturing", () => ({
 }));
 
 describe("runSocialInventoryPublisher", () => {
+  const originalEnv = process.env.REEL_PUBLISH_ENABLED;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockDueItems = [];
+    process.env.REEL_PUBLISH_ENABLED = "true";
+  });
+
+  afterEach(() => {
+    process.env.REEL_PUBLISH_ENABLED = originalEnv;
   });
 
   it("should do nothing if no due items are found", async () => {

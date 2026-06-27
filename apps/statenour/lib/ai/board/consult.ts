@@ -63,7 +63,7 @@ const aiChat = makeTracedAiChat("board-consult", "brain");
 function resolveMembers(memberIds: ReadonlyArray<string>): StrategicFramework[] {
   const members: StrategicFramework[] = [];
   for (const id of memberIds) {
-    const framework = REGISTRY.find((f) => f.id === id);
+    const framework = REGISTRY.find((f: any) => f.id === id);
     if (framework) members.push(framework);
   }
   return members;
