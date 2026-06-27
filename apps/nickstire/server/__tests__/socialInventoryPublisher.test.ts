@@ -55,6 +55,7 @@ const mockPublishToSocial = vi.fn().mockResolvedValue({
 });
 vi.mock("../services/socialPublish", () => ({
   publishToSocial: (...args: any[]) => mockPublishToSocial(...args),
+  assertPermanentPublicMediaUrl: () => {},
 }));
 
 // Mock self-learning loops
