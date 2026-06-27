@@ -71,7 +71,72 @@ export function HQ({ onNavigate }: HQProps) {
             )}
           </CardContent>
         </Card>
+
+        {/* Pipeline Health Card */}
+        <PipelineHealthCard />
       </div>
     </div>
+  );
+}
+
+function PipelineHealthCard() {
+  const { data: health, isLoading } = trpc.instagramAdmin.getPipelineHealth.useQuery(undefined, {
+    refetchInterval: 5000,
+  });
+
+  return (
+    <Card className="col-span-full">
+      <CardHeader>
+        <CardTitle>Pipeline Health</CardTitle>
+        <CardDescription>Status of the automated reel manufacturing pipeline.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
+        ) : health ? (
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="p-4 rounded border bg-card">
+              <div className="text-sm font-medium text-muted-foreground mb-1">Storage</div>
+              <div className="flex items-center gap-2">
+                <div className={`h-2 w-2 rounded-full ${health.storage.configured ? "bg-green-500" : "bg-red-500"}`} />
+                <span>{health.storage.configured ? "Configured" : "Missing S3/CF"}</span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {health.storage.permanentUrls ? "Permanent URLs Enabled" : "Ephemeral Only"}
+              </div>
+            </div>
+
+            <div className="p-4 rounded border bg-card">
+              <div className="text-sm font-medium text-muted-foreground mb-1">Reel Generator</div>
+              <div className="flex items-center gap-2">
+                <div className={`h-2 w-2 rounded-full ${health.generator.configured ? "bg-green-500" : "bg-red-500"}`} />
+                <span>{health.generator.configured ? "Configured" : "Missing API Key"}</span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {health.generator.enabled ? "Generation Enabled" : "Generation Paused"}
+              </div>
+            </div>
+
+            <div className="p-4 rounded border bg-card">
+              <div className="text-sm font-medium text-muted-foreground mb-1">Meta API</div>
+              <div className="flex items-center gap-2">
+                <div className={`h-2 w-2 rounded-full ${health.meta.connected ? "bg-green-500" : "bg-red-500"}`} />
+                <span>{health.meta.connected ? "Connected" : "Disconnected"}</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded border bg-card">
+              <div className="text-sm font-medium text-muted-foreground mb-1">Failed Jobs</div>
+              <div className="flex items-center gap-2">
+                <div className={`h-2 w-2 rounded-full ${health.failedJobs === 0 ? "bg-green-500" : "bg-destructive"}`} />
+                <span>{health.failedJobs} stuck/failed job{health.failedJobs === 1 ? "" : "s"}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">Failed to load pipeline health.</div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -52,14 +52,22 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
 
         const assets = Array.isArray(item.assetPaths) ? (item.assetPaths as string[]) : [];
         if (isReel) {
-          mediaInput.videoUrl = assets[0] || "https://assets.mixkit.co/videos/preview/mixkit-car-mechanic-working-on-a-wheel-42289-large.mp4";
+          if (!assets[0]) {
+            throw new Error("no reel MP4 asset — generation incomplete");
+          }
+          const { assertPermanentPublicMediaUrl } = await import("../../services/socialPublish");
+          assertPermanentPublicMediaUrl(assets[0]);
+          mediaInput.videoUrl = assets[0];
         } else if (isCarousel) {
           if (assets.length < 2) {
-            throw new Error(`Carousel requires at least 2 assets, found ${assets.length}`);
+            throw new Error(`carousel requires at least 2 assets, found ${assets.length}`);
           }
           mediaInput.imageUrls = assets;
         } else {
-          mediaInput.imageUrl = assets[0] || "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=800";
+          if (!assets[0]) {
+            throw new Error("no image asset — generation incomplete");
+          }
+          mediaInput.imageUrl = assets[0];
         }
 
         const { results } = await publishToSocial(mediaInput);

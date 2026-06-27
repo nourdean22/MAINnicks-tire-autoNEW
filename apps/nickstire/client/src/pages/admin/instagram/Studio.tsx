@@ -51,7 +51,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
     }
   });
 
-  const publishDraft = trpc.instagramAdmin.publishManualDraft.useMutation({
+  const publishDraft = trpc.instagramAdmin.stageDraft.useMutation({
     onSuccess: () => {
       toast.success("Added to Queue Successfully!", {
         description: "Your post has been gated and queued for publishing.",
@@ -131,7 +131,14 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
       return;
     }
     
-    publishDraft.mutate({ caption: content, imageUrl: mediaUrl });
+    publishDraft.mutate({ 
+      format: format || "single", 
+      caption: content, 
+      imageUrl: mediaUrl,
+      sourceType: source || "manual",
+      sourceDetail: sourceDetail,
+      qualityScore: score
+    });
   };
 
   return (

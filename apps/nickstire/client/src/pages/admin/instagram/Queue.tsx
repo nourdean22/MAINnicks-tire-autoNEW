@@ -15,7 +15,7 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
 
   const { data: drafts, isLoading, refetch } = trpc.instagramAdmin.getAllDrafts.useQuery();
 
-  const publishDraft = trpc.instagramAdmin.publishManualDraft.useMutation({
+  const publishDraft = trpc.instagramAdmin.publishPost.useMutation({
     onSuccess: () => {
       toast.success("Published Successfully!");
       refetch();
@@ -97,8 +97,12 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
             <Card key={draft.id} className="flex flex-col h-full overflow-hidden">
               <div className="h-40 bg-muted/50 border-b relative flex items-center justify-center">
                 {draft.assetPack?.imageUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={draft.assetPack.imageUrl} alt="Asset" className="object-cover h-full w-full" />
+                  draft.format === "reel" || draft.assetPack.imageUrl.endsWith(".mp4") ? (
+                    <video src={draft.assetPack.imageUrl} className="object-cover h-full w-full" controls muted playsInline />
+                  ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={draft.assetPack.imageUrl} alt="Asset" className="object-cover h-full w-full" />
+                  )
                 ) : (
                   <span className="text-sm text-muted-foreground">No Media Attached</span>
                 )}
@@ -137,7 +141,13 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
                     className="flex-1" 
                     variant="default"
                     disabled={draft.status === "published" || publishDraft.isPending}
-                    onClick={() => publishDraft.mutate({ caption: draft.caption || "", imageUrl: draft.assetPack?.imageUrl || "" })}
+                    onClick={() => publishDraft.mutate({ 
+                      inventoryId: draft.id,
+                      platforms: ["instagram"],
+                      caption: draft.caption || "", 
+                      imageUrl: draft.format !== "reel" ? (draft.assetPack?.imageUrl || undefined) : undefined,
+                      videoUrl: draft.format === "reel" ? (draft.assetPack?.imageUrl || undefined) : undefined
+                    })}
                   >
                     <Send className="h-4 w-4 mr-2" /> Publish
                   </Button>
