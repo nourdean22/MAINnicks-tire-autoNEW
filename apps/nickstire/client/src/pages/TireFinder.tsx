@@ -486,7 +486,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                         </p>
                         
                         <div className="border-t border-border/20 pt-3">
-                          <p className="text-[10px] text-muted-foreground mb-2 text-center font-medium">Or apply for Snap/Acima financing:</p>
+                          <p className="text-[10px] text-muted-foreground mb-2 text-center font-medium">Or apply for Snap/Acima payment programs:</p>
                           <div className="flex gap-2">
                             <a
                               href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
@@ -502,7 +502,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                               rel="noopener noreferrer"
                               className="flex-1 text-center bg-blue-600 text-white py-2 rounded-md text-xs font-medium hover:bg-blue-600/90 transition-colors"
                             >
-                              Acima Credit
+                              Acima
                             </a>
                           </div>
                         </div>
