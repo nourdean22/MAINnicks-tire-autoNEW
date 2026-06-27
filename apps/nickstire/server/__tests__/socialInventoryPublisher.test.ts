@@ -26,6 +26,8 @@ const mockDb: any = {
       }),
       innerJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
+      groupBy: vi.fn().mockReturnThis(),
+      having: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       then: vi.fn().mockImplementation((onFulfilled) => {
         let result: any[] = [];
