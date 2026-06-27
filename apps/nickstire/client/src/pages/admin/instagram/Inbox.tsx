@@ -145,10 +145,10 @@ export function Inbox({ onNavigate }: InboxProps) {
                       <img 
                         src={post.mediaUrl || post.thumbnailUrl} 
                         alt="Post media" 
-                        className="w-12 h-12 rounded object-cover border flex-shrink-0 bg-muted"
+                        className="w-12 h-12 rounded object-cover border shrink-0 bg-muted"
                       />
                     ) : (
-                      <div className="w-12 h-12 rounded bg-muted flex items-center justify-center flex-shrink-0 border">
+                      <div className="w-12 h-12 rounded bg-muted flex items-center justify-center shrink-0 border">
                         <MessageSquare className="h-5 w-5 text-muted-foreground" />
                       </div>
                     )}
@@ -226,7 +226,7 @@ export function Inbox({ onNavigate }: InboxProps) {
                       <div key={comment.id} className="p-4 space-y-3 transition-colors hover:bg-muted/10">
                         <div className="flex justify-between items-start">
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-rose-500/20 to-orange-500/20 border border-orange-500/30 flex items-center justify-center text-xs font-bold text-orange-600 dark:text-orange-400">
+                            <div className="w-7 h-7 rounded-full bg-linear-to-tr from-rose-500/20 to-orange-500/20 border border-orange-500/30 flex items-center justify-center text-xs font-bold text-orange-600 dark:text-orange-400">
                               {comment.username.substring(0, 2).toUpperCase()}
                             </div>
                             <div>
@@ -324,7 +324,7 @@ export function Inbox({ onNavigate }: InboxProps) {
                                     <div className="space-y-1.5">
                                       {clientFindings.map((f, i) => (
                                         <Alert key={i} variant={f.severity === "block" ? "destructive" : "default"} className={`py-1 px-3 border text-[11px] leading-normal flex items-start gap-2 ${f.severity === "warn" ? "border-yellow-500/30 text-yellow-600 dark:text-yellow-400 bg-yellow-500/10" : ""}`}>
-                                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                                           <div>
                                             <span className="font-semibold capitalize">{f.severity}</span>: matches rule "{f.rule}" on "{f.match}". Fix: {f.fix}
                                           </div>
