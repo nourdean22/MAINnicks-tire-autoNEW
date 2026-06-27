@@ -59,7 +59,7 @@ export const instagramAdminRouter = router({
         permanentUrls: !!process.env.CLOUDFRONT_DOMAIN,
       },
       generator: {
-        configured: !!process.env.HIGGSFIELD_API_KEY,
+        configured: !!(await (await import("../services/higgsfieldStudio")).getHiggsfieldCredentialsJson()),
         enabled: process.env.REEL_GENERATION_ENABLED === "true",
       },
       meta: {
