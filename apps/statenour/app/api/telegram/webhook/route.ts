@@ -224,33 +224,64 @@ async function handleCallback(callback: {
       const decision = parts[1];
       const receiptId = parts[2];
 
-      if (decision === "approve") {
-        const intellReceipt = await (prisma as any).actionReceipt.findUnique({ where: { id: receiptId } });
-        if (intellReceipt && intellReceipt.status === "PENDING") {
-          // Send Capevace SMS Gateway mock
-          console.log(`[Capevace Gateway Mock] SMS to ${intellReceipt.targetId}: ${intellReceipt.payload.smsBody}`);
-          
-          await (prisma as any).actionReceipt.update({
-            where: { id: receiptId },
-            data: { status: "EXECUTED", executedAt: new Date() }
-          });
-          
-          if (messageId) {
-            await editTelegramMessage(
-              messageId,
-              `✅ SMS Dispatched to ${intellReceipt.payload.customerName} for ${intellReceipt.payload.vehicle} recall.`,
-              chatId
-            );
-          }
-        } else {
-          if (messageId) {
-             await editTelegramMessage(messageId, `⚠️ Alert already processed.`, chatId);
-          }
+      const intellReceipt = await prisma.actionReceipt.findUnique({ where: { id: receiptId } });
+      if (!intellReceipt) {
+        await answerCallbackQuery(callback.id, "Receipt not found.");
+        return;
+      }
+
+      if (intellReceipt.status !== "PENDING") {
+        if (messageId) {
+          await editTelegramMessage(messageId, `⚠️ Alert already processed.`, chatId);
         }
-      } else {
-        await (prisma as any).actionReceipt.update({
+        await answerCallbackQuery(callback.id, "Already processed.");
+        return;
+      }
+
+      const payload = intellReceipt.verificationPayload as any;
+      if (!payload || typeof payload !== "object" || !payload.phone || !payload.smsBody) {
+        console.error("[telegram:webhook] Malformed recall payload on receipt:", receiptId, payload);
+        await prisma.actionReceipt.update({
           where: { id: receiptId },
-          data: { status: "REJECTED" }
+          data: {
+            status: "FAILED",
+            context: `Malformed payload: ${JSON.stringify(payload)}`
+          }
+        });
+        if (messageId) {
+          await editTelegramMessage(messageId, `❌ Recall alert failed: Malformed payload.`, chatId);
+        }
+        await answerCallbackQuery(callback.id, "Malformed payload.");
+        return;
+      }
+
+      if (decision === "approve") {
+        // Send Capevace SMS Gateway mock
+        console.log(`[Capevace Gateway Mock] SMS to ${payload.phone}: ${payload.smsBody}`);
+        
+        await prisma.actionReceipt.update({
+          where: { id: receiptId },
+          data: {
+            status: "SUCCESS",
+            executedAt: new Date()
+          }
+        });
+        
+        if (messageId) {
+          await editTelegramMessage(
+            messageId,
+            `✅ SMS Dispatched to ${payload.customerName} for ${payload.vehicle} recall.`,
+            chatId
+          );
+        }
+        await answerCallbackQuery(callback.id, "Approved!");
+      } else {
+        await prisma.actionReceipt.update({
+          where: { id: receiptId },
+          data: {
+            status: "FAILED",
+            context: "Rejected by operator"
+          }
         });
         if (messageId) {
           await editTelegramMessage(
@@ -259,9 +290,8 @@ async function handleCallback(callback: {
             chatId
           );
         }
+        await answerCallbackQuery(callback.id, "Rejected");
       }
-
-      await answerCallbackQuery(callback.id, decision === "approve" ? "Approved!" : "Rejected");
       return;
     }
     // Apr 17 separation pass — autopilot-morning approval flow retired
