@@ -344,18 +344,18 @@ export default function Admin() {
       <main className="flex-1 min-w-0">
         {/* Top Bar — wave-130 minimalist: 4 utility buttons normalized to
             ghost icons (h-9), single visual weight, no boxy chrome. */}
-        <header className="admin-topbar sticky top-0 z-30 flex items-center px-3 lg:px-5 gap-1">
+        <header className="admin-topbar sticky top-0 z-30 flex items-center px-3 lg:px-5 gap-1 pt-[env(safe-area-inset-top,0px)]">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
+            className="lg:hidden inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors shrink-0"
             aria-label="Open sidebar"
           >
             <Menu className="w-4 h-4" />
           </button>
-          <h1 className="text-[14px] font-semibold text-foreground tracking-tight px-2">
+          <h1 className="text-[14px] font-semibold text-foreground tracking-tight px-2 truncate min-w-0">
             {SECTION_TITLES[section]}
           </h1>
-          <div className="flex-1" />
+          <div className="flex-1 min-w-0" />
           <CommandSearch
             onNavigate={(s) => setSection(s)}
             onSelectCustomer={(id) => openCustomerDrawer(id)}
@@ -370,7 +370,7 @@ export default function Admin() {
               aria-label={act.title}
               className={`${
                 act.mobileHidden ? "hidden lg:inline-flex" : "inline-flex"
-              } items-center justify-center w-9 h-9 hover:text-primary hover:bg-foreground/5 rounded-md transition-colors ${
+              } items-center justify-center w-9 h-9 hover:text-primary hover:bg-foreground/5 rounded-md transition-colors shrink-0 ${
                 act.sectionTrigger && section === act.sectionTrigger
                   ? "text-primary bg-foreground/5"
                   : "text-muted-foreground"

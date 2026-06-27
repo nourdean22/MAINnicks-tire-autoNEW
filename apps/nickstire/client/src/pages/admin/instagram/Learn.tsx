@@ -80,7 +80,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
             ) : (
               winners.map((winner: any) => (
                 <div key={winner.id} className="flex flex-col sm:flex-row gap-4 p-4 rounded-lg bg-muted/30 border items-start sm:items-center">
-                  <div className="w-full sm:w-24 h-24 bg-muted/50 rounded flex-shrink-0 relative overflow-hidden flex items-center justify-center">
+                  <div className="w-full sm:w-24 h-24 bg-muted/50 rounded shrink-0 relative overflow-hidden flex items-center justify-center">
                     {winner.imageUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={winner.imageUrl} alt="Thumbnail" className="object-cover w-full h-full" />
