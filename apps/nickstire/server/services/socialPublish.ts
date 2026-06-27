@@ -29,6 +29,17 @@ export function captionClaimBlockers(caption: string) {
   return checkReviewReply(caption).filter((f) => f.severity === "block" && f.rule !== "no-price-talk");
 }
 
+/**
+ * Enforce permanent URLs for reel publish paths to prevent scheduled reels from
+ * silently failing after 24 hours.
+ */
+export function assertPermanentPublicMediaUrl(url?: string | null): void {
+  if (!url) throw new Error("media URL missing");
+  if (/X-Amz-|Expires=|Signature=|AWSAccessKeyId/i.test(url)) {
+    throw new Error("media URL is presigned/temporary; configure CLOUDFRONT_DOMAIN before publishing");
+  }
+}
+
 /** Run the actual publish across the selected platforms. No claim-safety here —
  *  callers MUST gate on captionClaimBlockers() first. */
 export async function publishToSocial(input: PublishInput): Promise<PublishOutcome> {
