@@ -211,7 +211,7 @@ export default function PayInvoice() {
                         target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-blue-600/90 transition-colors"
                       >
-                        <Shield className="w-3 h-3" /> Acima Credit
+                        <Shield className="w-3 h-3" /> Acima
                       </a>
                     </div>
                     <p className="text-[9px] text-muted-foreground mt-1">Apply in seconds. No hard credit check.</p>
