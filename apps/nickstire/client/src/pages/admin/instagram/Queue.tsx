@@ -32,7 +32,7 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
     }
   });
 
-  const filteredDrafts = (drafts || []).filter(d => {
+  const filteredDrafts = (drafts || []).filter((d: any) => {
     if (filter !== "all" && d.status !== filter) return false;
     if (searchQuery && !d.conceptBrief?.sourceSummary?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
