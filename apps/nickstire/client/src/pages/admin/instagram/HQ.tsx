@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Plus, AlertCircle } from "lucide-react";
+import { Loader2, Plus, AlertCircle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface HQProps {
@@ -84,6 +84,8 @@ function PipelineHealthCard() {
     refetchInterval: 5000,
   });
 
+  const higgsfieldHealth = trpc.instagramAdmin.getHiggsfieldHealth.useQuery(undefined, { enabled: false });
+
   return (
     <Card className="col-span-full">
       <CardHeader>
@@ -106,15 +108,41 @@ function PipelineHealthCard() {
               </div>
             </div>
 
-            <div className="p-4 rounded border bg-card">
-              <div className="text-sm font-medium text-muted-foreground mb-1">Reel Generator</div>
-              <div className="flex items-center gap-2">
-                <div className={`h-2 w-2 rounded-full ${health.generator.configured ? "bg-green-500" : "bg-red-500"}`} />
-                <span>{health.generator.configured ? "Configured" : "Missing API Key"}</span>
+            <div className="p-4 rounded border bg-card flex flex-col justify-between min-h-[110px]">
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="text-sm font-medium text-muted-foreground">Reel Generator</div>
+                  <button
+                    type="button"
+                    onClick={() => higgsfieldHealth.refetch()}
+                    disabled={higgsfieldHealth.isFetching}
+                    className="text-[10px] px-1.5 py-0.5 rounded border border-border/40 hover:bg-muted disabled:opacity-50 inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    {higgsfieldHealth.isFetching ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <RefreshCw className="w-2.5 h-2.5" />}
+                    Check CLI
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className={`h-2 w-2 rounded-full ${health.generator.configured ? "bg-green-500" : "bg-red-500"}`} />
+                  <span>{health.generator.configured ? "Configured" : "Missing API Key"}</span>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {health.generator.enabled ? "Generation Enabled" : "Generation Paused"}
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {health.generator.enabled ? "Generation Enabled" : "Generation Paused"}
-              </div>
+              {higgsfieldHealth.data && (
+                <div className="mt-2 pt-2 border-t text-[11px]">
+                  {higgsfieldHealth.data.credsValid ? (
+                    <div className="text-green-500 font-medium">
+                      ✓ CLI valid {higgsfieldHealth.data.balanceCredits != null && `· ${higgsfieldHealth.data.balanceCredits} cr`}
+                    </div>
+                  ) : (
+                    <div className="text-destructive font-medium text-[10px] leading-tight">
+                      ⚠ CLI STALE. Run `hf auth login`
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="p-4 rounded border bg-card">
