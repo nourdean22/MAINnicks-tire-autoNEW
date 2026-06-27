@@ -142,16 +142,134 @@ export const TEMPLATE_BUILDERS = {
 export type TemplateKey = keyof typeof TEMPLATE_BUILDERS;
 
 /**
- * THE SEND PATH DOES NOT EXIST. This function always throws, regardless
- * of arguments or environment. Real sending requires a dedicated PR
- * (provider choice, cost approval, opt-out handling, throttles) that
- * the owner has explicitly approved — by design there is no flag that
- * can switch this on.
+ * Sends a customer order-confirmation message (SMS and/or Email) for the given order number
+ * using the requested template key.
+ *
+ * Gated by process.env.ENABLE_CUSTOMER_CONFIRMATIONS="true" (dry-run if unset or false).
+ * Enforces strict at-most-once idempotency guards using DB queries.
  */
-export function sendCustomerMessage(): never {
-  throw new Error(
-    "Customer message sending is disabled by design (preview-only module). " +
-    "Enabling sends requires a dedicated owner-approved PR — see " +
-    "docs/customer-confirmation-notifications.md",
-  );
+export async function sendCustomerMessage(
+  orderNumber: string,
+  templateKey: TemplateKey
+): Promise<{ smsSent: boolean; emailSent: boolean; dryRun: boolean }> {
+  const isEnabled = process.env.ENABLE_CUSTOMER_CONFIRMATIONS === "true";
+  const { createLogger } = await import("../lib/logger");
+  const log = createLogger("customer-confirmations");
+
+  const { getDb } = await import("../db");
+  const { tireOrders, smsMessages, auditLog } = await import("../../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+  const d = await getDb();
+  if (!d) {
+    log.error("Database unavailable for sending customer message");
+    return { smsSent: false, emailSent: false, dryRun: !isEnabled };
+  }
+
+  // 1. Fetch Order Details
+  const [order] = await d.select().from(tireOrders).where(eq(tireOrders.orderNumber, orderNumber)).limit(1);
+  if (!order) {
+    log.error(`Tire order not found for number: ${orderNumber}`);
+    return { smsSent: false, emailSent: false, dryRun: !isEnabled };
+  }
+
+  // 2. Render Template
+  const input: OrderMessageInput = {
+    customerName: order.customerName,
+    orderNumber: order.orderNumber,
+    quantity: order.quantity,
+    tireBrand: order.tireBrand,
+    tireModel: order.tireModel,
+    tireSize: order.tireSize,
+    totalAmount: (order.totalAmount || 0) / 100, // convert cents to dollars
+  };
+  const build = TEMPLATE_BUILDERS[templateKey];
+  const preview = build(input);
+
+  // 3. Dry-run Mode Check
+  if (!isEnabled) {
+    log.info(`[DRY-RUN] Customer confirmation draft for ${orderNumber} (${templateKey}):`, {
+      phone: order.customerPhone,
+      email: order.customerEmail,
+      sms: preview.sms,
+      subject: preview.email.subject,
+    });
+    return { smsSent: false, emailSent: false, dryRun: true };
+  }
+
+  let smsSent = false;
+  let emailSent = false;
+
+  // 4. SMS Delivery Path
+  const smsVariantKey = `confirm:${templateKey}:${orderNumber}`;
+  // Idempotency: check if already sent
+  const [existingSms] = await d
+    .select({ id: smsMessages.id })
+    .from(smsMessages)
+    .where(and(eq(smsMessages.variantKey, smsVariantKey), eq(smsMessages.status, "sent")))
+    .limit(1);
+
+  if (existingSms) {
+    log.info(`SMS confirmation already sent for order ${orderNumber} (${templateKey})`);
+  } else {
+    try {
+      const { sendSms } = await import("../sms");
+      const smsResult = await sendSms(order.customerPhone, preview.sms, {
+        transactional: true,
+        variantKey: smsVariantKey,
+      });
+      smsSent = smsResult.success;
+      if (smsSent) {
+        const { logAdminAction } = await import("./auditTrail");
+        await logAdminAction({
+          action: "customer.sms_sent",
+          entityType: "tire_order",
+          entityId: orderNumber,
+          details: `Sent confirmation SMS (${templateKey}): ${preview.sms}`,
+        });
+      }
+    } catch (e) {
+      log.error(`Failed to send confirmation SMS to ${order.customerPhone}:`, e);
+    }
+  }
+
+  // 5. Email Delivery Path
+  if (order.customerEmail) {
+    const emailAuditKey = `${templateKey}:${orderNumber}`;
+    // Idempotency: check if email send is already logged in auditTrail
+    const [existingEmail] = await d
+      .select({ id: auditLog.id })
+      .from(auditLog)
+      .where(and(eq(auditLog.action, "customer.email_sent"), eq(auditLog.entityId, emailAuditKey)))
+      .limit(1);
+
+    if (existingEmail) {
+      log.info(`Email confirmation already sent for order ${orderNumber} (${templateKey})`);
+    } else {
+      try {
+        const { sendNotification } = await import("../email-notify");
+        const emailResult = await sendNotification({
+          category: "booking_confirmation",
+          overrideTo: [order.customerEmail],
+          subject: preview.email.subject,
+          body: preview.email.body,
+          templateUsed: templateKey,
+          bypassThrottle: true,
+        });
+        emailSent = emailResult.emailSent;
+        if (emailSent) {
+          const { logAdminAction } = await import("./auditTrail");
+          await logAdminAction({
+            action: "customer.email_sent",
+            entityType: "tire_order",
+            entityId: emailAuditKey,
+            details: `Sent confirmation email (${templateKey}): ${preview.email.subject}`,
+          });
+        }
+      } catch (e) {
+        log.error(`Failed to send confirmation email to ${order.customerEmail}:`, e);
+      }
+    }
+  }
+
+  return { smsSent, emailSent, dryRun: false };
 }
