@@ -293,6 +293,11 @@ export async function finalizeTireOrderPayment(params: {
   const amountPaid = params.amountCents / 100;
   log.info(`Tire order ${params.tireOrderNumber} marked PAID — $${amountPaid.toFixed(2)}`);
 
+  // Trigger customer confirmation messaging asynchronously
+  import("./customerMessageTemplates").then(({ sendCustomerMessage }) =>
+    sendCustomerMessage(order.orderNumber, "paymentReceived")
+  ).catch(e => log.warn("[payments:paid-notify] customer message failed:", e));
+
   // Shop hand-off email — awaited + checked. This is load-bearing (no
   // admin UI for these orders), so a delivery failure is a loud error,
   // never a silent warn. notifyTireOrderPaid bypasses the notification
