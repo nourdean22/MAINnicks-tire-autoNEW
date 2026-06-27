@@ -25,6 +25,7 @@ export type AuditAction =
   | "booking.priority_changed"
   | "booking.deleted"
   | "customer.sms_sent"
+  | "customer.email_sent"
   | "customer.notes_updated"
   | "customer.segment_changed"
   | "workorder.status_changed"
