@@ -1,78 +1,459 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { trpc } from "@/lib/trpc";
-import { MessageSquare, ArrowRight } from "lucide-react";
+import { 
+  MessageSquare, 
+  ArrowRight, 
+  RefreshCw, 
+  Loader2, 
+  Sparkles, 
+  Send, 
+  CheckCircle2, 
+  AlertCircle, 
+  User, 
+  Clock, 
+  MessageCircle,
+  AlertTriangle,
+  ThumbsUp
+} from "lucide-react";
+import { toast } from "sonner";
+import { checkReviewReply, hasBlockingFindings } from "@shared/reviewReplyQa";
 
 interface InboxProps {
   onNavigate: (tab: string) => void;
 }
 
 export function Inbox({ onNavigate }: InboxProps) {
-  const { data, isLoading } = trpc.reviewReplies.getContentClusters.useQuery();
-  const clusters = data?.clusters;
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
+  const [replyMessage, setReplyMessage] = useState<string>("");
+  const [selectedTone, setSelectedTone] = useState<"warm" | "professional" | "witty" | "promo">("warm");
+
+  // Load Content Opportunities from reviews
+  const { data: optData, isLoading: isOptLoading } = trpc.reviewReplies.getContentClusters.useQuery();
+  const clusters = optData?.clusters;
+
+  // Load Live Post Feed
+  const { data: posts, isLoading: loadingFeed, refetch: refetchFeed } = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 12 });
+
+  // Load Comments for selected post
+  const { data: commentsRes, isLoading: loadingComments, refetch: refetchComments } = trpc.instagramAdmin.getComments.useQuery(
+    { mediaId: selectedPostId || "" },
+    { enabled: !!selectedPostId }
+  );
+
+  // Sync Feed mutation
+  const syncFeed = trpc.instagramAdmin.syncFeed.useMutation({
+    onSuccess: () => {
+      refetchFeed();
+      toast.success("Feed cache successfully updated from Meta!");
+    },
+    onError: (err) => {
+      toast.error("Failed to sync feed", { description: err.message });
+    }
+  });
+
+  // Suggest AI Reply mutation
+  const suggestReply = trpc.instagramAdmin.suggestReply.useMutation({
+    onSuccess: (res) => {
+      setReplyMessage(res.draft || "");
+      if (res.blocked) {
+        toast.warning("AI draft generated but triggered claim-safety rules. Please review and edit.");
+      } else {
+        toast.success("AI draft suggested!");
+      }
+    },
+    onError: (err) => {
+      toast.error("Failed to generate AI suggestion", { description: err.message });
+    }
+  });
+
+  // Post Reply mutation
+  const postReply = trpc.instagramAdmin.postReply.useMutation({
+    onSuccess: () => {
+      toast.success("Reply posted successfully!");
+      setReplyingToCommentId(null);
+      setReplyMessage("");
+      refetchComments();
+    },
+    onError: (err) => {
+      toast.error("Publish failed", { description: err.message });
+    }
+  });
+
+  // Run claim-safety checker on the active reply message
+  const clientFindings = replyMessage ? checkReviewReply(replyMessage) : [];
+  const isBlockedBySafety = hasBlockingFindings(clientFindings);
+
+  const selectedPost = posts?.find(p => p.id === selectedPostId);
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-medium">Community Inbox</h3>
+        <div>
+          <h3 className="text-xl font-medium flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            Community Inbox
+          </h3>
+          <p className="text-sm text-muted-foreground">Moderate conversations, respond to followers, and find review-driven post ideas.</p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => syncFeed.mutate()} 
+          disabled={syncFeed.isPending || loadingFeed}
+          className="gap-2"
+        >
+          {syncFeed.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Sync Feed
+        </Button>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Content Opportunities (From Reviews)</CardTitle>
-            <CardDescription>We analyzed recent reviews to find topics your customers care about.</CardDescription>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Sidebar: Live Post List */}
+        <Card className="lg:col-span-4 flex flex-col h-[600px] overflow-hidden">
+          <CardHeader className="pb-3 border-b">
+            <CardTitle className="text-sm font-semibold">Recent Instagram Feed</CardTitle>
+            <CardDescription>Select a post to manage comments.</CardDescription>
           </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-sm text-muted-foreground">Loading insights...</div>
-            ) : clusters && clusters.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {clusters.map((cluster, i) => (
-                  <Card key={i} className="border bg-muted/20">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <Badge variant="outline" className="capitalize">{cluster.label}</Badge>
-                        <span className="text-xs text-muted-foreground">{cluster.count} mentions</span>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pb-2">
-                      <p className="text-sm text-muted-foreground line-clamp-3">
-                        "{cluster.sample}"
-                      </p>
-                    </CardContent>
-                    <CardFooter>
-                      <Button variant="ghost" size="sm" className="w-full justify-between" onClick={() => onNavigate("studio")}>
-                        Create Post
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
+          <CardContent className="p-0 overflow-y-auto flex-1 divide-y">
+            {loadingFeed ? (
+              <div className="flex flex-col items-center justify-center p-8 h-full space-y-2">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Loading feed...</span>
               </div>
+            ) : posts && posts.length > 0 ? (
+              posts.map((post) => {
+                const isSelected = post.id === selectedPostId;
+                return (
+                  <button
+                    key={post.id}
+                    onClick={() => {
+                      setSelectedPostId(post.id);
+                      setReplyingToCommentId(null);
+                      setReplyMessage("");
+                    }}
+                    className={`w-full text-left p-3 transition-colors hover:bg-muted/50 flex gap-3 items-start ${
+                      isSelected ? "bg-muted border-l-2 border-primary" : ""
+                    }`}
+                  >
+                    {post.mediaUrl || post.thumbnailUrl ? (
+                      <img 
+                        src={post.mediaUrl || post.thumbnailUrl} 
+                        alt="Post media" 
+                        className="w-12 h-12 rounded object-cover border flex-shrink-0 bg-muted"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded bg-muted flex items-center justify-center flex-shrink-0 border">
+                        <MessageSquare className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium line-clamp-2 text-foreground/90">
+                        {post.caption || <span className="italic text-muted-foreground">No caption</span>}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
+                        <span className="flex items-center gap-0.5">
+                          <Clock className="w-3 h-3" />
+                          {new Date(post.posted).toLocaleDateString()}
+                        </span>
+                        <span className="flex items-center gap-0.5">
+                          <MessageCircle className="w-3 h-3" />
+                          {post.comments} comments
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
             ) : (
-              <div className="text-sm text-muted-foreground">No prominent themes found right now.</div>
+              <div className="flex flex-col items-center justify-center p-8 h-full text-center space-y-4">
+                <p className="text-sm text-muted-foreground">No posts cached. Make sure Instagram credentials are set.</p>
+                <Button size="sm" onClick={() => syncFeed.mutate()} disabled={syncFeed.isPending}>
+                  Sync Feed Cache
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Traditional comments inbox would go here */}
-        <Card className="md:col-span-2 opacity-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5" />
-              Social Comments
-            </CardTitle>
-            <CardDescription>Select a post to view comments (Coming Soon)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center p-8 border border-dashed rounded text-muted-foreground">
-              Direct social comments will flow here.
+        {/* Main Work Area: Comment Moderation */}
+        <Card className="lg:col-span-8 flex flex-col h-[600px] overflow-hidden">
+          {selectedPostId ? (
+            <>
+              <CardHeader className="pb-3 border-b flex flex-row justify-between items-start gap-4">
+                <div className="min-w-0">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    Comment Moderation
+                  </CardTitle>
+                  <CardDescription className="line-clamp-1 mt-0.5">
+                    Post: {selectedPost?.caption || "No caption"}
+                  </CardDescription>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => refetchComments()} 
+                  disabled={loadingComments}
+                  className="h-8 w-8 p-0"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loadingComments ? "animate-spin" : ""}`} />
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0 overflow-y-auto flex-1 divide-y">
+                {loadingComments ? (
+                  <div className="flex flex-col items-center justify-center h-full space-y-2 p-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Loading comments from Meta...</span>
+                  </div>
+                ) : commentsRes?.ok === false ? (
+                  <div className="p-6">
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Meta Integration Error</AlertTitle>
+                      <AlertDescription className="text-xs">
+                        {commentsRes.error || "Failed to retrieve comments from the Instagram Graph API. Check your permissions and token status."}
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                ) : commentsRes?.comments && commentsRes.comments.length > 0 ? (
+                  <div className="divide-y">
+                    {commentsRes.comments.map((comment) => (
+                      <div key={comment.id} className="p-4 space-y-3 transition-colors hover:bg-muted/10">
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-rose-500/20 to-orange-500/20 border border-orange-500/30 flex items-center justify-center text-xs font-bold text-orange-600 dark:text-orange-400">
+                              {comment.username.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <span className="text-xs font-semibold text-foreground">@{comment.username}</span>
+                              <span className="text-[10px] text-muted-foreground ml-2">
+                                {new Date(comment.timestamp).toLocaleDateString()} at {new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {comment.likeCount > 0 && (
+                              <Badge variant="outline" className="text-[10px] gap-1 py-0 px-1.5 text-muted-foreground border-muted-foreground/20">
+                                <ThumbsUp className="w-2.5 h-2.5" />
+                                {comment.likeCount}
+                              </Badge>
+                            )}
+                            {comment.replied ? (
+                              <Badge className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/15 border-emerald-500/20 text-[10px] py-0 px-2 font-medium">
+                                <CheckCircle2 className="w-3 h-3 mr-1 inline" /> Replied
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 border-amber-500/20 text-[10px] py-0 px-2 font-medium">
+                                Pending
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        <p className="text-sm text-foreground/90 pl-9 whitespace-pre-wrap leading-relaxed">
+                          {comment.text}
+                        </p>
+
+                        {!comment.replied && (
+                          <div className="pl-9">
+                            {replyingToCommentId === comment.id ? (
+                              <Card className="border border-muted/80 bg-muted/30 p-4 space-y-4">
+                                <div className="flex flex-col gap-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                                      <Sparkles className="w-3.5 h-3.5 text-primary" />
+                                      Reply Draft
+                                    </span>
+                                    <div className="flex gap-1">
+                                      {(["warm", "professional", "witty", "promo"] as const).map((t) => (
+                                        <button
+                                          key={t}
+                                          type="button"
+                                          disabled={suggestReply.isPending}
+                                          onClick={() => setSelectedTone(t)}
+                                          className={`px-2 py-0.5 text-[10px] rounded border capitalize transition-colors ${
+                                            selectedTone === t 
+                                              ? "bg-primary text-primary-foreground border-primary font-medium" 
+                                              : "bg-background text-muted-foreground hover:bg-muted border-border"
+                                          }`}
+                                        >
+                                          {t}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={suggestReply.isPending || postReply.isPending}
+                                      onClick={() => suggestReply.mutate({ commentText: comment.text, tone: selectedTone })}
+                                      className="w-full text-xs gap-1.5 h-8 border-dashed hover:border-solid"
+                                    >
+                                      {suggestReply.isPending ? (
+                                        <>
+                                          <Loader2 className="w-3 h-3 animate-spin" />
+                                          Drafting...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Sparkles className="w-3.5 h-3.5 text-primary" />
+                                          Generate AI Suggestion
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
+
+                                  <Textarea
+                                    value={replyMessage}
+                                    onChange={(e) => setReplyMessage(e.target.value)}
+                                    placeholder="Write a response..."
+                                    className="text-xs min-h-[70px] bg-background"
+                                    disabled={postReply.isPending}
+                                    maxLength={2000}
+                                  />
+
+                                  {/* Claim-Safety feedback */}
+                                  {clientFindings.length > 0 && (
+                                    <div className="space-y-1.5">
+                                      {clientFindings.map((f, i) => (
+                                        <Alert key={i} variant={f.severity === "block" ? "destructive" : "default"} className={`py-1 px-3 border text-[11px] leading-normal flex items-start gap-2 ${f.severity === "warn" ? "border-yellow-500/30 text-yellow-600 dark:text-yellow-400 bg-yellow-500/10" : ""}`}>
+                                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                          <div>
+                                            <span className="font-semibold capitalize">{f.severity}</span>: matches rule "{f.rule}" on "{f.match}". Fix: {f.fix}
+                                          </div>
+                                        </Alert>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  <div className="flex justify-between items-center text-[10px] text-muted-foreground pt-1">
+                                    <span>{replyMessage.length} / 2000 chars</span>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        disabled={postReply.isPending}
+                                        onClick={() => {
+                                          setReplyingToCommentId(null);
+                                          setReplyMessage("");
+                                        }}
+                                        className="h-8 px-3 text-xs"
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        disabled={!replyMessage.trim() || isBlockedBySafety || postReply.isPending}
+                                        onClick={() => postReply.mutate({ commentId: comment.id, message: replyMessage })}
+                                        className="h-8 px-4 text-xs gap-1.5"
+                                      >
+                                        {postReply.isPending ? (
+                                          <>
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                            Posting...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Send className="w-3 h-3" />
+                                            Post Live
+                                          </>
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </Card>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setReplyingToCommentId(comment.id);
+                                  setReplyMessage("");
+                                  setSelectedTone("warm");
+                                }}
+                                className="h-7 text-xs"
+                              >
+                                Reply
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-8 h-full text-center space-y-2 text-muted-foreground">
+                    <MessageSquare className="h-8 w-8 stroke-[1.5]" />
+                    <p className="text-sm">No comments found on this post.</p>
+                  </div>
+                )}
+              </CardContent>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center animate-pulse">
+                <MessageSquare className="h-8 w-8 text-muted-foreground/60" />
+              </div>
+              <div className="space-y-1 max-w-sm">
+                <p className="text-sm font-semibold">Select a Post</p>
+                <p className="text-xs text-muted-foreground">
+                  Select a post from the live feed on the left to moderate comments, draft replies, and use the AI co-pilot.
+                </p>
+              </div>
             </div>
-          </CardContent>
+          )}
         </Card>
       </div>
+
+      {/* Review-Driven Content Opportunities */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Content Opportunities (From Reviews)</CardTitle>
+          <CardDescription>We analyzed recent reviews to find topics your customers care about.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isOptLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Analyzing insights...</span>
+            </div>
+          ) : clusters && clusters.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {clusters.map((cluster, i) => (
+                <Card key={i} className="border bg-muted/20">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className="capitalize">{cluster.label}</Badge>
+                      <span className="text-xs text-muted-foreground">{cluster.count} mentions</span>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pb-2">
+                    <p className="text-xs text-muted-foreground italic line-clamp-3">
+                      "{cluster.sample}"
+                    </p>
+                  </CardContent>
+                  <CardFooter>
+                    <Button variant="ghost" size="sm" className="w-full justify-between" onClick={() => onNavigate("studio")}>
+                      Create Post
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground py-4">No prominent themes found right now.</div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
