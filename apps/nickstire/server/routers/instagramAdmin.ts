@@ -63,7 +63,7 @@ export const instagramAdminRouter = router({
         enabled: process.env.REEL_GENERATION_ENABLED === "true",
       },
       meta: {
-        connected: meta.connected,
+        connected: meta.configured && (meta.facebookReady || meta.instagramReady),
       },
       failedJobs,
     };
@@ -681,7 +681,7 @@ Keep it under 200 characters.`;
       .orderBy(desc(socialContentInventory.createdAt))
       .limit(50);
       
-    return rows.map(r => {
+    return rows.map((r: any) => {
       let parsedBrief: any = {};
       try { parsedBrief = r.briefJson ? JSON.parse(r.briefJson) : {}; } catch {}
       let parsedAssetPaths: any[] = [];
@@ -713,13 +713,13 @@ Keep it under 200 characters.`;
     return {
       topWinners: topPosts.map(p => ({
         id: p.postId,
-        format: p.mediaType === "VIDEO" ? "reel" : (p.mediaType === "CAROUSEL_ALBUM" ? "carousel" : "post"),
+        format: p.postType === "VIDEO" ? "reel" : (p.postType === "CAROUSEL_ALBUM" ? "carousel" : "post"),
         qualityScore: 90, // mock score for now until we have real quality scores mapped
         caption: p.caption?.substring(0, 50) + "...",
-        likes: p.likeCount,
-        comments: p.commentsCount,
-        shares: p.sharesCount ?? 0,
-        imageUrl: p.mediaUrl || ""
+        likes: p.likes,
+        comments: p.comments,
+        shares: 0,
+        imageUrl: ""
       })),
       activeThemes: [
         { name: "Recent Top Performers", insight: "These posts drove the most engagement in the last 30 days." }
