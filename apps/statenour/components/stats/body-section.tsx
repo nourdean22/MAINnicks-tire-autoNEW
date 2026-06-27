@@ -41,6 +41,7 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { ErrorCard } from "@/components/ui/error-card";
+import { HealthGovernorStrip } from "@/components/missions/health-governor-strip";
 
 // Phase XX (2026-05-19 AM) · authedFetch replaced with trpc · 2 sites
 // (timeline read + check-in mutation) on the operator router.
@@ -227,6 +228,7 @@ export function BodySection() {
 
   return (
     <div className="flex flex-col gap-6">
+      <HealthGovernorStrip />
       {/* Former StandardPage description + actions, relocated inline. */}
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm text-[var(--text-secondary)]" style={{ maxWidth: "60ch" }}>
