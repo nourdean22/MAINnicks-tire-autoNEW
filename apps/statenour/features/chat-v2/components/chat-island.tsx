@@ -79,6 +79,8 @@ export function ChatIsland() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)}
+            aria-label="Memory inspector"
+            aria-pressed={memoryInspectorOpen}
             className={`rounded-full px-2.5 sm:px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
               memoryInspectorOpen
                 ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-[0_0_15px_-3px_rgba(245,158,11,0.3)]"
@@ -90,6 +92,8 @@ export function ChatIsland() {
           </button>
           <button
             onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)}
+            aria-label="Conversation history"
+            aria-pressed={historyDrawerOpen}
             className={`rounded-full px-2.5 sm:px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
               historyDrawerOpen
                 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]"
@@ -101,6 +105,8 @@ export function ChatIsland() {
           </button>
           <button
             onClick={toggleVoiceDock}
+            aria-label={isVoiceDocked ? "Close voice dock" : "Dock voice"}
+            aria-pressed={isVoiceDocked}
             className={`rounded-full px-2.5 sm:px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
               isVoiceDocked
                 ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)]"

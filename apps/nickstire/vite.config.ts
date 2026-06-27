@@ -17,7 +17,7 @@ export default defineConfig(({ command }) => {
 
   return {
     plugins,
-  resolve: {
+    resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
