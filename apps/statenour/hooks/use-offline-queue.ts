@@ -118,8 +118,10 @@ export function useOfflineQueue(options: UseOfflineQueueOptions): UseOfflineQueu
   useEffect(() => {
     if (typeof navigator === "undefined") return;
     if (!navigator.onLine) {
-      setIsOnline(false);
-      setStatus("offline");
+      setTimeout(() => {
+        setIsOnline(false);
+        setStatus("offline");
+      }, 0);
     }
   }, []);
   const drainingRef = useRef(false);
