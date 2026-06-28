@@ -40,7 +40,7 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     visionModelEnv: "OLLAMA_VISION_MODEL",
     defaultVisionModel: "qwen3-vl:235b-instruct",
     cooldownMs: AI_PROVIDER_COOLDOWN_MS,
-    modelSubstrings: ["glm-5", "glm-5.2", "qwen3", "deepseek-v4", "kimi"],
+    modelSubstrings: ["glm-5", "glm-5.2", "qwen3", "deepseek-v4", "kimi", "gpt-oss"],
   },
   gemini: {
     id: "gemini",
