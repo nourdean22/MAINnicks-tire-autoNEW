@@ -40,6 +40,11 @@ const nextConfig: NextConfig = {
   env: {
     BUILD_TIME,
   },
+  outputFileTracingIncludes: {
+    "/api/ai/chat": [
+      "lib/ai/last30days/**/*",
+    ],
+  },
 
   // Apr 28 · BATCH 4 hotfix — Next 16 + Turbopack typecheck does NOT
   // honor `skipLibCheck: true` from tsconfig and crashes on

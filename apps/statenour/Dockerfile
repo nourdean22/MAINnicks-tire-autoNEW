@@ -131,7 +131,7 @@ RUN pnpm run build
 
 # ── 3 · runtime ────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat python3 ca-certificates
 
 # Non-root user for the runtime · standard hardening
 RUN addgroup --system --gid 1001 nodejs \

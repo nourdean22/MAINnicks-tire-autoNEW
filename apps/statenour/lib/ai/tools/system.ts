@@ -1154,4 +1154,91 @@ export const systemTools = {
     },
   }),
 
+  last30days: tool({
+    description:
+      "Search and research a topic across live social platforms (Reddit, Hacker News, Polymarket, GitHub, YouTube) and grounded web results from the last 30 days. Returns a raw data report with community comments and source coverage. Use this for queries about recent trends, public consensus, sentiment, product comparison, or tracking what individuals/companies are doing recently. The tool returns a raw structured report; you MUST synthesize it into a clean, markdown-formatted narrative with blue command-clickable links on first mention per the returned instructions. Do not dump the raw clusters.",
+    inputSchema: z.object({
+      topic: z
+        .string()
+        .min(1)
+        .max(100)
+        .describe("The research topic or search query."),
+      quick: z
+        .boolean()
+        .optional()
+        .describe("Lower-latency retrieval profile."),
+      deep: z
+        .boolean()
+        .optional()
+        .describe("Higher-recall retrieval profile."),
+      xHandle: z
+        .string()
+        .optional()
+        .describe("Optional target X handle for a person/product."),
+      githubUser: z
+        .string()
+        .optional()
+        .describe("Optional target GitHub username for person-mode."),
+      subreddits: z
+        .string()
+        .optional()
+        .describe("Comma-separated broad/category subreddit names to search."),
+      deepResearch: z
+        .boolean()
+        .optional()
+        .describe("Use Perplexity Deep Research (requires API key setup, spendy)."),
+    }),
+    execute: async ({ topic, quick, deep, xHandle, githubUser, subreddits, deepResearch }) => {
+      try {
+        const { execFile } = await import("child_process");
+        const { promisify } = await import("util");
+        const execFilePromise = promisify(execFile);
+        const path = await import("path");
+        const fs = await import("fs");
+
+        let scriptPath = path.join(process.cwd(), "apps/statenour/lib/ai/last30days/scripts/last30days.py");
+        if (!fs.existsSync(scriptPath)) {
+          scriptPath = path.join(process.cwd(), "lib/ai/last30days/scripts/last30days.py");
+        }
+
+        if (!fs.existsSync(scriptPath)) {
+          return {
+            ok: false,
+            error: "last30days engine script not found on system.",
+          };
+        }
+
+        const args = [scriptPath, topic, "--emit=compact"];
+        if (quick) args.push("--quick");
+        if (deep) args.push("--deep");
+        if (xHandle) args.push(`--x-handle=${xHandle}`);
+        if (githubUser) args.push(`--github-user=${githubUser}`);
+        if (subreddits) args.push(`--subreddits=${subreddits}`);
+        if (deepResearch) args.push("--deep-research");
+
+        // Forward environment variables needed by the script
+        const env = {
+          ...process.env,
+          // Force no-browser-cookies for safe headless execution in production
+          FROM_BROWSER: "off",
+        };
+
+        const pythonCmd = process.platform === "win32" ? "python" : "python3";
+        const { stdout, stderr } = await execFilePromise(pythonCmd, args, { env, timeout: 60000 });
+
+        return {
+          ok: true,
+          stdout,
+          stderr,
+        };
+      } catch (err) {
+        const { sanitizeError } = await import("@/lib/utils/sanitize-error");
+        return {
+          ok: false,
+          error: sanitizeError(err),
+        };
+      }
+    },
+  }),
+
 };
