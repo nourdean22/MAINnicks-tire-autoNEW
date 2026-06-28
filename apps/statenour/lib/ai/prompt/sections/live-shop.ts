@@ -14,9 +14,9 @@
  */
 
 interface LiveMetricsInput {
-  customerCount: number;
-  openLeadCount: number;
-  activeJobCount: number;
+  customerCount?: number;
+  openLeadCount?: number;
+  activeJobCount?: number;
   latestFinancial: {
     date: string;
     businessRevenue: number | null;
@@ -35,7 +35,9 @@ export function renderLiveMetrics(input: LiveMetricsInput): string[] {
   const p: string[] = [];
 
   p.push(`### LIVE METRICS (real-time)`);
-  p.push(`Customers in DB: ${customerCount || "?"} | Open leads: ${openLeadCount || "?"} | Active jobs: ${activeJobCount || "?"}`);
+  if (customerCount !== undefined || openLeadCount !== undefined || activeJobCount !== undefined) {
+    p.push(`Customers in DB: ${customerCount ?? "?"} | Open leads: ${openLeadCount ?? "?"} | Active jobs: ${activeJobCount ?? "?"}`);
+  }
   if (latestFinancial) {
     p.push(`Latest financial (${latestFinancial.date}): Revenue $${latestFinancial.businessRevenue || "?"} | Take-home $${latestFinancial.ownerTakeHome || "?"} | Debt $${latestFinancial.totalDebt || "?"} | Net worth $${latestFinancial.netWorthEstimate || "?"}`);
   }
