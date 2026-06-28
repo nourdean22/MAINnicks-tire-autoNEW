@@ -8,15 +8,15 @@ export function ReasoningTraceLive({ steps }: { steps: ReasoningStep[] }) {
   const [expanded, setExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  if (!steps || steps.length === 0) return null;
-
-  const isDone = steps[steps.length - 1]?.kind === "deliver";
+  const isDone = steps && steps.length > 0 ? steps[steps.length - 1]?.kind === "deliver" : false;
 
   useEffect(() => {
     if ((!isDone || expanded) && containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [steps.length, isDone, expanded]);
+  }, [steps?.length, isDone, expanded]);
+
+  if (!steps || steps.length === 0) return null;
 
   return (
     <div className="mb-4 mt-1 rounded-xl overflow-hidden border border-zinc-800/60 bg-zinc-950 shadow-sm">

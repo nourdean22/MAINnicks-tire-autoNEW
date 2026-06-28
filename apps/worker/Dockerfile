@@ -86,6 +86,17 @@ RUN pnpm deploy --filter @statenour/worker --prod --legacy /deploy
 FROM node:20-alpine AS runtime
 RUN apk add --no-cache libc6-compat
 
+# Add Chromium and dependencies for Remotion
+RUN apk add --no-cache \
+      chromium \
+      nss \
+      freetype \
+      harfbuzz \
+      ca-certificates \
+      ttf-freefont
+
+ENV REMOTION_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 worker
 

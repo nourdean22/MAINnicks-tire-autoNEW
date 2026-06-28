@@ -48,6 +48,10 @@ them back when ready.
 
 ## Parked migrations
 
+### `20260625000000_action_receipts_and_completion_criteria` — ✅ APPLIED 2026-06-26 (via script)
+
+Patience XP ledger and auto-closer migration (adds `completionCriteria` column to `Mission` table and `action_receipts` table for logging). Applied directly to Neon database and registered in `apply-pending-migration` route's `MIGRATIONS` map.
+
 ### `20260618000000_consolidated_models` — ⏳ REGISTERED, awaiting apply (PR #217)
 
 The NOUR OS consolidation (#206) added 10 Prisma models — `ContentNode`,

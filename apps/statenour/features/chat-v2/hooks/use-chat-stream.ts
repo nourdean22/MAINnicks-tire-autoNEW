@@ -83,6 +83,7 @@ export function useChatStream(): ChatRuntimeController {
     error: chat.error,
     isStreaming: chat.status === "streaming" || chat.status === "submitted",
     sendText: (text: string) => chat.sendMessage({ text }),
+    append: chat.sendMessage,
     stop: chat.stop,
     regenerate: chat.regenerate,
     setMessages: chat.setMessages,

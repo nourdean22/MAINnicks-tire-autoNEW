@@ -119,3 +119,14 @@ export function detectFailedActionClaims(
     expectedTool: r.action,
   }));
 }
+
+/**
+ * Determines if the action results allow claiming completion in prose.
+ * Wired directly into the live chat-finalize loop to prevent fake completion claims.
+ */
+export function canClaimDone(
+  results: ReadonlyArray<ActionExecResult>,
+  assistantText: string,
+): boolean {
+  return detectFailedActionClaims(results, assistantText).length === 0;
+}

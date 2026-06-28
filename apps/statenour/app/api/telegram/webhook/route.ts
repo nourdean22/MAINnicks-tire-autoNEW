@@ -105,9 +105,13 @@ export async function POST(req: NextRequest) {
     id: string;
     data?: string;
     message?: { message_id: number; chat: { id: number } };
+    from?: { id: number };
   } | undefined;
 
+  const expectedOwnerId = Number(process.env.TELEGRAM_OWNER_ID);
+
   if (callback?.data) {
+    if (callback.from?.id !== expectedOwnerId) return NextResponse.json({ ok: true });
     await handleCallback(callback);
     return NextResponse.json({ ok: true });
   }
@@ -120,9 +124,14 @@ export async function POST(req: NextRequest) {
     caption?: string;
     entities?: { type: string; url?: string; offset: number; length: number }[];
     chat: { id: number };
+    from?: { id: number };
   } | undefined;
 
   if (!message) return NextResponse.json({ ok: true });
+
+  if (message.from?.id !== expectedOwnerId) {
+    return NextResponse.json({ ok: true });
+  }
 
   const chatId = String(message.chat.id);
   const expectedChat = process.env.TELEGRAM_CHAT_ID;
@@ -172,7 +181,18 @@ async function handleCallback(callback: {
   const messageId = callback.message?.message_id;
   const chatId = String(callback.message?.chat?.id ?? "");
 
+  const { prisma } = await import("@/lib/prisma");
+
   try {
+    // Deduplicate/track via ActionReceipt
+    const actionKey = callback.data ?? "unknown";
+    const receipt = await (prisma as any).actionReceipt.create({
+      data: {
+        action: actionKey,
+        status: "PENDING",
+      }
+    });
+
     // Journal Brain · confirm/reject a proposed goal link from the phone.
     // callback_data: jlink:c|r:<silo>:<id>
     if (action === "jlink") {
@@ -192,12 +212,96 @@ async function handleCallback(callback: {
           chatId,
         );
       }
+      await (prisma as any).actionReceipt.update({
+        where: { id: receipt.id },
+        data: { status: "SUCCESS" }
+      });
+      return;
+    }
+
+    if (action === "intell_recall") {
+      const parts = (callback.data ?? "").split(":");
+      const decision = parts[1];
+      const receiptId = parts[2];
+
+      const intellReceipt = await prisma.actionReceipt.findUnique({ where: { id: receiptId } });
+      if (!intellReceipt) {
+        await answerCallbackQuery(callback.id, "Receipt not found.");
+        return;
+      }
+
+      if (intellReceipt.status !== "PENDING") {
+        if (messageId) {
+          await editTelegramMessage(messageId, `⚠️ Alert already processed.`, chatId);
+        }
+        await answerCallbackQuery(callback.id, "Already processed.");
+        return;
+      }
+
+      const payload = intellReceipt.verificationPayload as any;
+      if (!payload || typeof payload !== "object" || !payload.phone || !payload.smsBody) {
+        console.error("[telegram:webhook] Malformed recall payload on receipt:", receiptId, payload);
+        await prisma.actionReceipt.update({
+          where: { id: receiptId },
+          data: {
+            status: "FAILED",
+            context: `Malformed payload: ${JSON.stringify(payload)}`
+          }
+        });
+        if (messageId) {
+          await editTelegramMessage(messageId, `❌ Recall alert failed: Malformed payload.`, chatId);
+        }
+        await answerCallbackQuery(callback.id, "Malformed payload.");
+        return;
+      }
+
+      if (decision === "approve") {
+        // Send Capevace SMS Gateway mock
+        console.log(`[Capevace Gateway Mock] SMS to ${payload.phone}: ${payload.smsBody}`);
+        
+        await prisma.actionReceipt.update({
+          where: { id: receiptId },
+          data: {
+            status: "SUCCESS",
+            executedAt: new Date()
+          }
+        });
+        
+        if (messageId) {
+          await editTelegramMessage(
+            messageId,
+            `✅ SMS Dispatched to ${payload.customerName} for ${payload.vehicle} recall.`,
+            chatId
+          );
+        }
+        await answerCallbackQuery(callback.id, "Approved!");
+      } else {
+        await prisma.actionReceipt.update({
+          where: { id: receiptId },
+          data: {
+            status: "FAILED",
+            context: "Rejected by operator"
+          }
+        });
+        if (messageId) {
+          await editTelegramMessage(
+            messageId,
+            `❌ Recall alert rejected.`,
+            chatId
+          );
+        }
+        await answerCallbackQuery(callback.id, "Rejected");
+      }
       return;
     }
     // Apr 17 separation pass — autopilot-morning approval flow retired
     // along with the cron that produced it. Shop-side approvals now
     // live in nickstire.org/admin.
     await answerCallbackQuery(callback.id, "Unknown action.");
+    await (prisma as any).actionReceipt.update({
+      where: { id: receipt.id },
+      data: { status: "SUCCESS" }
+    });
     void action;
     void param;
     void messageId;

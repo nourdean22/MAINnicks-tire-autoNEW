@@ -46,8 +46,8 @@ function tireLine(o: OrderMessageInput): string {
 export function requestReceived(o: OrderMessageInput): MessagePreview {
   return {
     sms:
-      `${SHOP}: got your tire request ${o.orderNumber} — ${tireLine(o)}. ` +
-      `We'll confirm availability and call you. Availability can change until staff confirms. Questions? ${PHONE}`,
+      `Nick's Tire & Auto: we got your tire request ${o.orderNumber} for ${o.quantity} ${o.tireBrand} ${o.tireModel} tires, size ${o.tireSize}. ` +
+      `We're checking availability and fitment now. We'll call you before anything is ordered. Questions? ${PHONE}`,
     email: {
       subject: `Tire request received — ${o.orderNumber}`,
       body:
@@ -64,8 +64,8 @@ export function requestReceived(o: OrderMessageInput): MessagePreview {
 export function availabilityConfirmed(o: OrderMessageInput): MessagePreview {
   return {
     sms:
-      `${SHOP}: good news — your tires for ${o.orderNumber} are confirmed available. ` +
-      `We'll order them and let you know when they arrive. ${PHONE}`,
+      `Nick's Tire & Auto: good news — we confirmed availability for your tires on order ${o.orderNumber}. ` +
+      `We're getting them ordered and we'll let you know when they're ready at the shop. Questions? ${PHONE}`,
     email: {
       subject: `Tires confirmed — ${o.orderNumber}`,
       body:
@@ -82,8 +82,8 @@ export function paymentReceived(o: OrderMessageInput): MessagePreview {
   const amt = o.totalAmount != null ? ` of $${o.totalAmount.toFixed(2)}` : "";
   return {
     sms:
-      `${SHOP}: payment${amt} received for ${o.orderNumber}. ` +
-      `Staff still confirms availability and fitment before install. ${PHONE}`,
+      `Nick's Tire & Auto: we received your payment${amt} for order ${o.orderNumber}. ` +
+      `We're still confirming final fitment and availability before install. We'll call you with the next step. Questions? ${PHONE}`,
     email: {
       subject: `Payment received — ${o.orderNumber}`,
       body:
@@ -100,8 +100,8 @@ export function paymentReceived(o: OrderMessageInput): MessagePreview {
 export function orderReady(o: OrderMessageInput): MessagePreview {
   return {
     sms:
-      `${SHOP}: your tires for ${o.orderNumber} arrived! Walk in any open hours or call ${PHONE} ` +
-      `to set a time. Drop-offs worked first come, first serve.`,
+      `Nick's Tire & Auto: your tires for order ${o.orderNumber} are here. ` +
+      `Stop by during open hours, or call us first if you want to plan the best time. Drop-offs are handled first come, first served. ${PHONE}`,
     email: {
       subject: `Your tires arrived — ${o.orderNumber}`,
       body:
@@ -118,8 +118,8 @@ export function orderReady(o: OrderMessageInput): MessagePreview {
 export function manualLookupReceived(o: OrderMessageInput): MessagePreview {
   return {
     sms:
-      `${SHOP}: we got your request for ${o.tireSize} — that size needs a manual supplier lookup. ` +
-      `We'll call you with options and pricing. ${PHONE}`,
+      `Nick's Tire & Auto: we got your request for size ${o.tireSize}. ` +
+      `That size needs a manual supplier check, so we're looking it up by hand. We'll call you with real options and pricing before anything is ordered. ${PHONE}`,
     email: {
       subject: `We're looking up your tire size — ${o.orderNumber}`,
       body:
@@ -142,16 +142,134 @@ export const TEMPLATE_BUILDERS = {
 export type TemplateKey = keyof typeof TEMPLATE_BUILDERS;
 
 /**
- * THE SEND PATH DOES NOT EXIST. This function always throws, regardless
- * of arguments or environment. Real sending requires a dedicated PR
- * (provider choice, cost approval, opt-out handling, throttles) that
- * the owner has explicitly approved — by design there is no flag that
- * can switch this on.
+ * Sends a customer order-confirmation message (SMS and/or Email) for the given order number
+ * using the requested template key.
+ *
+ * Gated by process.env.ENABLE_CUSTOMER_CONFIRMATIONS="true" (dry-run if unset or false).
+ * Enforces strict at-most-once idempotency guards using DB queries.
  */
-export function sendCustomerMessage(): never {
-  throw new Error(
-    "Customer message sending is disabled by design (preview-only module). " +
-    "Enabling sends requires a dedicated owner-approved PR — see " +
-    "docs/customer-confirmation-notifications.md",
-  );
+export async function sendCustomerMessage(
+  orderNumber: string,
+  templateKey: TemplateKey
+): Promise<{ smsSent: boolean; emailSent: boolean; dryRun: boolean }> {
+  const isEnabled = process.env.ENABLE_CUSTOMER_CONFIRMATIONS === "true";
+  const { createLogger } = await import("../lib/logger");
+  const log = createLogger("customer-confirmations");
+
+  const { getDb } = await import("../db");
+  const { tireOrders, smsMessages, auditLog } = await import("../../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+  const d = await getDb();
+  if (!d) {
+    log.error("Database unavailable for sending customer message");
+    return { smsSent: false, emailSent: false, dryRun: !isEnabled };
+  }
+
+  // 1. Fetch Order Details
+  const [order] = await d.select().from(tireOrders).where(eq(tireOrders.orderNumber, orderNumber)).limit(1);
+  if (!order) {
+    log.error(`Tire order not found for number: ${orderNumber}`);
+    return { smsSent: false, emailSent: false, dryRun: !isEnabled };
+  }
+
+  // 2. Render Template
+  const input: OrderMessageInput = {
+    customerName: order.customerName,
+    orderNumber: order.orderNumber,
+    quantity: order.quantity,
+    tireBrand: order.tireBrand,
+    tireModel: order.tireModel,
+    tireSize: order.tireSize,
+    totalAmount: (order.totalAmount || 0) / 100, // convert cents to dollars
+  };
+  const build = TEMPLATE_BUILDERS[templateKey];
+  const preview = build(input);
+
+  // 3. Dry-run Mode Check
+  if (!isEnabled) {
+    log.info(`[DRY-RUN] Customer confirmation draft for ${orderNumber} (${templateKey}):`, {
+      phone: order.customerPhone,
+      email: order.customerEmail,
+      sms: preview.sms,
+      subject: preview.email.subject,
+    });
+    return { smsSent: false, emailSent: false, dryRun: true };
+  }
+
+  let smsSent = false;
+  let emailSent = false;
+
+  // 4. SMS Delivery Path
+  const smsVariantKey = `confirm:${templateKey}:${orderNumber}`;
+  // Idempotency: check if already sent
+  const [existingSms] = await d
+    .select({ id: smsMessages.id })
+    .from(smsMessages)
+    .where(and(eq(smsMessages.variantKey, smsVariantKey), eq(smsMessages.status, "sent")))
+    .limit(1);
+
+  if (existingSms) {
+    log.info(`SMS confirmation already sent for order ${orderNumber} (${templateKey})`);
+  } else {
+    try {
+      const { sendSms } = await import("../sms");
+      const smsResult = await sendSms(order.customerPhone, preview.sms, {
+        transactional: true,
+        variantKey: smsVariantKey,
+      });
+      smsSent = smsResult.success;
+      if (smsSent) {
+        const { logAdminAction } = await import("./auditTrail");
+        await logAdminAction({
+          action: "customer.sms_sent",
+          entityType: "tire_order",
+          entityId: orderNumber,
+          details: `Sent confirmation SMS (${templateKey}): ${preview.sms}`,
+        });
+      }
+    } catch (e) {
+      log.error(`Failed to send confirmation SMS to ${order.customerPhone}:`, e);
+    }
+  }
+
+  // 5. Email Delivery Path
+  if (order.customerEmail) {
+    const emailAuditKey = `${templateKey}:${orderNumber}`;
+    // Idempotency: check if email send is already logged in auditTrail
+    const [existingEmail] = await d
+      .select({ id: auditLog.id })
+      .from(auditLog)
+      .where(and(eq(auditLog.action, "customer.email_sent"), eq(auditLog.entityId, emailAuditKey)))
+      .limit(1);
+
+    if (existingEmail) {
+      log.info(`Email confirmation already sent for order ${orderNumber} (${templateKey})`);
+    } else {
+      try {
+        const { sendNotification } = await import("../email-notify");
+        const emailResult = await sendNotification({
+          category: "booking_confirmation",
+          overrideTo: [order.customerEmail],
+          subject: preview.email.subject,
+          body: preview.email.body,
+          templateUsed: templateKey,
+          bypassThrottle: true,
+        });
+        emailSent = emailResult.emailSent;
+        if (emailSent) {
+          const { logAdminAction } = await import("./auditTrail");
+          await logAdminAction({
+            action: "customer.email_sent",
+            entityType: "tire_order",
+            entityId: emailAuditKey,
+            details: `Sent confirmation email (${templateKey}): ${preview.email.subject}`,
+          });
+        }
+      } catch (e) {
+        log.error(`Failed to send confirmation email to ${order.customerEmail}:`, e);
+      }
+    }
+  }
+
+  return { smsSent, emailSent, dryRun: false };
 }

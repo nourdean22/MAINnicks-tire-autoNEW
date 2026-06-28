@@ -3627,3 +3627,4 @@ export const intelligenceDecisionLedger = mysqlTable("intelligence_decision_ledg
 export type IntelligenceDecisionLedger = typeof intelligenceDecisionLedger.$inferSelect;
 export type InsertIntelligenceDecisionLedger = typeof intelligenceDecisionLedger.$inferInsert;
 
+

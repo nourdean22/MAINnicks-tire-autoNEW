@@ -121,8 +121,8 @@ async function main() {
               ? m.content
               : Array.isArray(m.parts)
                 ? m.parts
-                    .filter((p) => p?.type === "text" && typeof p.text === "string")
-                    .map((p) => p.text)
+                    .filter((p: any) => p?.type === "text" && typeof p.text === "string")
+                    .map((p: any) => p.text)
                     .join(" ")
                 : "";
           return `${m.role.toUpperCase()}: ${text.slice(0, 600)}`;

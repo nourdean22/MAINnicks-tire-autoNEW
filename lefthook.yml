@@ -1,0 +1,36 @@
+pre-commit:
+  parallel: true
+  commands:
+    nickstire-lint-brand:
+      root: "apps/nickstire"
+      glob: "**/*.{ts,tsx,md}"
+      run: pnpm run lint:brand-voice
+    nickstire-lint-source:
+      root: "apps/nickstire"
+      glob: "**/*.{ts,tsx}"
+      run: pnpm run lint:source
+    nickstire-lint-hooks:
+      root: "apps/nickstire"
+      glob: "**/*.{ts,tsx}"
+      run: pnpm run lint:hooks
+    nickstire-validate-routes:
+      root: "apps/nickstire"
+      glob: "**/*.{ts,tsx}"
+      run: pnpm run validate:routes
+    nickstire-check:
+      root: "apps/nickstire"
+      glob: "**/*.{ts,tsx}"
+      run: pnpm run check
+    statenour-typecheck:
+      root: "apps/statenour"
+      glob: "**/*.{ts,tsx}"
+      run: pnpm run typecheck
+    statenour-eslint:
+      root: "apps/statenour"
+      glob: "**/*.{ts,tsx,js,jsx}"
+      run: pnpm run lint
+
+pre-push:
+  commands:
+    turbo-build-affected:
+      run: pnpm run build:affected

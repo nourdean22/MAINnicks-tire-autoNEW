@@ -108,7 +108,7 @@ export function useCoachEvents(
 
   useEffect(() => {
     if (!active || !surface) {
-      setEvents([]);
+      queueMicrotask(() => setEvents([]));
       return;
     }
     const e = getEntry(surface, limit);

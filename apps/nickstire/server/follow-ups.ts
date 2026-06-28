@@ -58,8 +58,7 @@ export async function process24hFollowUps() {
       continue; // already claimed by an overlapping run
     }
 
-    const firstName = booking.name.split(" ")[0];
-    const message = `Hi ${firstName}, thank you for choosing Nick's Tire & Auto for your ${booking.service.toLowerCase()}. We appreciate your business and hope everything is running smoothly. If you have any questions about the work we did, don't hesitate to call us at (216) 862-0005. — Nick's Tire & Auto`;
+    const smsBody = thankYouSms(booking.name, booking.service);
 
     const notification = await createCustomerNotification({
       bookingId: booking.id,
@@ -68,14 +67,14 @@ export async function process24hFollowUps() {
       recipientEmail: booking.email,
       notificationType: "follow_up",
       subject: `Thank you for visiting Nick's Tire & Auto`,
-      message,
+      message: smsBody,
     });
 
     if (booking.phone) {
       const { isEnabled } = await import("./services/featureFlags");
       if (await isEnabled("sms_review_requests")) {
         // wave-181.58 · route through F25e gateway (Twilio dead per operator).
-        const smsResult = await sendSms(booking.phone, thankYouSms(booking.name, booking.service), { via: "shop" }).catch(() => ({ success: false }));
+        const smsResult = await sendSms(booking.phone, smsBody, { via: "shop" }).catch(() => ({ success: false }));
         if (smsResult.success && notification.id) {
           await markNotificationSent(notification.id).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
         }
@@ -118,8 +117,7 @@ export async function process7dReviewRequests() {
       continue; // already claimed by an overlapping run
     }
 
-    const firstName = booking.name.split(" ")[0];
-    const message = `Hi ${firstName}, it's been about a week since your visit to Nick's Tire & Auto. We hope your ${booking.service.toLowerCase()} is holding up great. If you have a moment, a Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nThank you for your trust. — Nick's Team`;
+    const smsBody = reviewRequestSms(booking.name);
 
     const notification = await createCustomerNotification({
       bookingId: booking.id,
@@ -128,14 +126,14 @@ export async function process7dReviewRequests() {
       recipientEmail: booking.email,
       notificationType: "review_request",
       subject: `How was your experience at Nick's Tire & Auto?`,
-      message,
+      message: smsBody,
     });
 
     if (booking.phone) {
       const { isEnabled } = await import("./services/featureFlags");
       if (await isEnabled("sms_review_requests")) {
         // wave-181.58 · route through F25e gateway (Twilio dead per operator).
-        const smsResult = await sendSms(booking.phone, reviewRequestSms(booking.name), { via: "shop" }).catch(() => ({ success: false }));
+        const smsResult = await sendSms(booking.phone, smsBody, { via: "shop" }).catch(() => ({ success: false }));
         if (smsResult.success && notification.id) {
           await markNotificationSent(notification.id).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
         }

@@ -914,13 +914,7 @@ export async function runManufacturingPipeline(
         try {
           const topicAngleHash = (topic + angle.angle).split("").reduce((a, b) => a + b.charCodeAt(0), 0);
           const useAbsurdity = (topicAngleHash % 10) < 3;
-          if (useAbsurdity) {
-            const { generateAbsurdDraft } = await import("./absurdityEngine");
-            const service = detectServiceCategory({ topic, bodyText: angle.description, seriesName: angle.narrativeFranchise });
-            log.info(`Generating absurdity draft for topic "${topic}", service "${service}"`);
-            draft = await generateAbsurdDraft(topic, service, persona, contentType);
-            isAbsurdDraft = true;
-          } else {
+          if (true) {
             // Run Hook Tournament for angle
             try {
               bestHook = await generateHookTournament(topic, angle);
@@ -936,11 +930,13 @@ export async function runManufacturingPipeline(
             isAbsurdDraft = false;
           }
 
-          const validation = validateClaimSafety(draft);
-          if (validation.safe) {
-            isSafe = true;
-          } else {
-            log.warn(`Safety validation failed for draft on attempt ${attempts}`, { errors: validation.errors });
+          if (draft) {
+            const validation = validateClaimSafety(draft);
+            if (validation.safe) {
+              isSafe = true;
+            } else {
+              log.warn(`Safety validation failed for draft on attempt ${attempts}`, { errors: validation.errors });
+            }
           }
         } catch (e) {
           log.error("Failed to generate draft attempt:", e);
@@ -991,7 +987,38 @@ export async function runManufacturingPipeline(
         const draftId = `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         
         let assetPaths: string[] = [];
-        if (contentType === "carousel") {
+        let finalStatus = "approved";
+        let finalBriefJson = draft.briefJson;
+
+        if (contentType === "reel") {
+          try {
+            log.info("Generating Reel Brief and Enqueueing Job...");
+            const { generateReelBriefAI } = await import("./reelBriefGen");
+            const { enqueueReelJob } = await import("./reelPipeline");
+
+            const { brief } = await generateReelBriefAI({ topic });
+            brief.id = draftId;
+
+            const { jobId } = await enqueueReelJob(brief, "cron");
+
+            finalStatus = "generating";
+            assetPaths = [];
+            
+            let parsedBrief = {};
+            try {
+              parsedBrief = JSON.parse(draft.briefJson);
+            } catch (e) {
+              // Ignore
+            }
+            finalBriefJson = JSON.stringify({
+              ...parsedBrief,
+              reelJobId: jobId,
+              reelBrief: brief,
+            });
+          } catch (e) {
+            log.warn("Reel generation failed, falling back", { e: e instanceof Error ? e.message : String(e) });
+          }
+        } else if (contentType === "carousel") {
           try {
             log.info("Generating Option C Hybrid Carousel Assets...");
             const { generateImage } = await import("../_core/imageGeneration");
@@ -1045,8 +1072,8 @@ export async function runManufacturingPipeline(
           gscQuerySeed: isAbsurdDraft ? draft.hookText : (bestHook?.hookText || ""),
           weatherTriggerCondition: draft.weatherTriggerCondition || null,
           interactiveDmKeyword: draft.interactiveDmKeyword,
-          status: "approved",
-          briefJson: draft.briefJson,
+          status: finalStatus,
+          briefJson: finalBriefJson,
           assetPaths: assetPaths
         });
 

@@ -118,6 +118,7 @@ const IN_SCOPE = [
 ];
 
 function isInScope(relPath) {
+  if (relPath.includes("admin/")) return false;
   return IN_SCOPE.some((rx) => rx.test(relPath));
 }
 

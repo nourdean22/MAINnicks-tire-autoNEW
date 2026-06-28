@@ -385,7 +385,8 @@ export interface ReelBrief {
   winningConceptId: string | null;
 
   storyboardBeats: StoryboardBeat[]; // 4-6 when valid
-  higgsfieldPromptPack: HiggsfieldBeatPrompt[]; // one per beat
+  promptPack?: HiggsfieldBeatPrompt[]; // neutral naming for clip generator prompt pack
+  higgsfieldPromptPack: HiggsfieldBeatPrompt[]; // legacy - one per beat
   ffmpegAssemblyNotes: string;
   voiceoverScript: string; // optional VO — reel must still work muted
 

@@ -104,6 +104,8 @@ interface StoredToken {
   email?: string;
   grantedAt: string;
   lastRefreshAt?: string;
+  accessToken?: string;
+  accessTokenExpiresAt?: number;
 }
 
 /** Read credentials from env with cleanEnv-style trim */
@@ -231,6 +233,8 @@ export async function exchangeCodeForToken(
     scopes: (data.scope || "").split(" ").filter(Boolean),
     email,
     grantedAt: new Date().toISOString(),
+    accessToken: data.access_token,
+    accessTokenExpiresAt: Date.now() + data.expires_in * 1000,
   };
 
   const integrationName = integrationNameFor(accountKey);
@@ -282,72 +286,102 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
   }
 
   const integrationName = integrationNameFor(accountKey);
-  const integration = await prisma.integration.findUnique({
-    where: { name: integrationName },
-  });
-  if (!integration?.config) {
-    throw new Error(
-      `Google OAuth not configured for account "${accountKey}". Click /api/oauth/google-data/start${accountKey === "primary" ? "" : `?account=${accountKey}`} to grant access.`
-    );
-  }
 
-  const stored = integration.config as unknown as StoredToken;
-  if (!stored.refreshToken) {
-    throw new Error(`Google OAuth refresh token missing for account "${accountKey}".`);
-  }
+  // Use a transaction with pg_advisory_xact_lock to prevent concurrent refresh races across processes
+  return await prisma.$transaction(async (tx) => {
+    // Acquire a transaction-level advisory lock
+    await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `google_oauth_refresh_${accountKey}`);
 
-  const { clientId, clientSecret } = getClientCreds();
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    signal: AbortSignal.timeout(10_000), // wave-181.92 · OAuth token endpoint
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: stored.refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
+    const integration = await tx.integration.findUnique({
+      where: { name: integrationName },
+    });
+    if (!integration?.config) {
+      throw new Error(
+        `Google OAuth not configured for account "${accountKey}". Click /api/oauth/google-data/start${accountKey === "primary" ? "" : `?account=${accountKey}`} to grant access.`
+      );
+    }
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    await prisma.integration
+    const stored = integration.config as unknown as StoredToken;
+    if (!stored.refreshToken) {
+      throw new Error(`Google OAuth refresh token missing for account "${accountKey}".`);
+    }
+
+    // Check if another process just refreshed it and wrote it to the DB
+    if (stored.accessToken && stored.accessTokenExpiresAt && stored.accessTokenExpiresAt > Date.now() + 60_000) {
+      tokenCache.set(accountKey, {
+        token: stored.accessToken,
+        expiresAt: stored.accessTokenExpiresAt,
+      });
+      return stored.accessToken;
+    }
+
+    const { clientId, clientSecret } = getClientCreds();
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      signal: AbortSignal.timeout(10_000), // wave-181.92 · OAuth token endpoint
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: stored.refreshToken,
+        grant_type: "refresh_token",
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      let telemetryMsg = `Google refresh failed for "${accountKey}": ${res.status} ${text}`;
+      
+      if (text.includes("invalid_grant")) {
+        const ageMs = Date.now() - new Date(stored.grantedAt).getTime();
+        const ageDays = ageMs / 86400000;
+        telemetryMsg += ` [Telemetry: token age ${ageDays.toFixed(2)} days]`;
+        if (Math.abs(ageDays - 7) < 0.5) {
+          telemetryMsg += ` -> WARNING: Token expired exactly around 7 days. Your GCP OAuth Consent Screen is likely in "Testing" mode! Go to GCP console and click "PUBLISH APP".`;
+        }
+      }
+
+      await tx.integration
+        .update({
+          where: { name: integrationName },
+          data: {
+            status: "failed",
+            errorCount: { increment: 1 },
+            consecutiveFailures: { increment: 1 },
+          },
+        })
+        .catch(() => {});
+      throw new Error(telemetryMsg);
+    }
+
+    const data = (await res.json()) as { access_token: string; expires_in: number };
+    const expiresAt = Date.now() + data.expires_in * 1000;
+
+    tokenCache.set(accountKey, {
+      token: data.access_token,
+      expiresAt,
+    });
+
+    // Mark integration healthy on successful refresh
+    await tx.integration
       .update({
         where: { name: integrationName },
         data: {
-          status: "failed",
-          errorCount: { increment: 1 },
-          consecutiveFailures: { increment: 1 },
+          status: "healthy",
+          consecutiveFailures: 0,
+          lastSyncAt: new Date(),
+          config: {
+            ...(stored as unknown as object),
+            lastRefreshAt: new Date().toISOString(),
+            accessToken: data.access_token,
+            accessTokenExpiresAt: expiresAt,
+          },
         },
       })
       .catch(() => {});
-    throw new Error(`Google refresh failed for "${accountKey}": ${res.status} ${text}`);
-  }
 
-  const data = (await res.json()) as { access_token: string; expires_in: number };
-
-  tokenCache.set(accountKey, {
-    token: data.access_token,
-    expiresAt: Date.now() + data.expires_in * 1000,
-  });
-
-  // Mark integration healthy on successful refresh
-  await prisma.integration
-    .update({
-      where: { name: integrationName },
-      data: {
-        status: "healthy",
-        consecutiveFailures: 0,
-        lastSyncAt: new Date(),
-        config: {
-          ...(stored as unknown as object),
-          lastRefreshAt: new Date().toISOString(),
-        },
-      },
-    })
-    .catch(() => {});
-
-  return data.access_token;
+    return data.access_token;
+  }, { timeout: 15000 });
 }
 
 /**

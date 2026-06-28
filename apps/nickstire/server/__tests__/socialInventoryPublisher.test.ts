@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { runSocialInventoryPublisher } from "../cron/jobs/socialInventoryPublisher";
 
 // Mock database
@@ -26,6 +26,8 @@ const mockDb: any = {
       }),
       innerJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
+      groupBy: vi.fn().mockReturnThis(),
+      having: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       then: vi.fn().mockImplementation((onFulfilled) => {
         let result: any[] = [];
@@ -55,6 +57,7 @@ const mockPublishToSocial = vi.fn().mockResolvedValue({
 });
 vi.mock("../services/socialPublish", () => ({
   publishToSocial: (...args: any[]) => mockPublishToSocial(...args),
+  assertPermanentPublicMediaUrl: () => {},
 }));
 
 // Mock self-learning loops
@@ -67,9 +70,16 @@ vi.mock("../services/contentManufacturing", () => ({
 }));
 
 describe("runSocialInventoryPublisher", () => {
+  const originalEnv = process.env.REEL_PUBLISH_ENABLED;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockDueItems = [];
+    process.env.REEL_PUBLISH_ENABLED = "true";
+  });
+
+  afterEach(() => {
+    process.env.REEL_PUBLISH_ENABLED = originalEnv;
   });
 
   it("should do nothing if no due items are found", async () => {

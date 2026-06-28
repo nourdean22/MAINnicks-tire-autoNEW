@@ -465,6 +465,7 @@ export async function buildSystemPromptUncached(
     customerCount,
     openLeadCount,
     activeJobCount,
+    healthGovernorContext,
   ] = await Promise.all([
     // v10.0.59 · Wave A part 2 · scores → identity_snapshot history
     // via legacy-shim (DailyScore retired Apr 19).
@@ -640,7 +641,15 @@ export async function buildSystemPromptUncached(
     Promise.resolve(0).catch((): number => 0),
     Promise.resolve(0).catch((): number => 0),
     Promise.resolve(0).catch((): number => 0),
-    Promise.resolve(0).catch((): number => 0),
+    (async () => {
+      try {
+        const { getHealthGovernorContext } = await import("@/lib/health-governor/health-governor-guardrails");
+        return await getHealthGovernorContext();
+      } catch (err) {
+        console.error("Health governor prompt context error:", err);
+        return "";
+      }
+    })(),
   ]);
 
   // recentScores is no longer read by any prompt section (v11.1 ·
@@ -699,6 +708,10 @@ export async function buildSystemPromptUncached(
   // SECTION 1: IDENTITY + BEHAVIOR + TOOLS + BUILDER MODE
   // ═══════════════════════════════════════════════════════════════
   const p: string[] = [];
+  if (healthGovernorContext) {
+    p.push(healthGovernorContext);
+    p.push("");
+  }
   p.push(...renderIdentityAndBehavior({ latestWeight }));
   p.push(...renderToolsCatalog());
 
@@ -718,6 +731,15 @@ export async function buildSystemPromptUncached(
     p.push(directive);
     p.push(``);
   }
+
+  // Phase 2: Epistemic Gating and Asymmetric Risk
+  p.push(`## Epistemic Gating & Risk Assessment`);
+  p.push(`Strictly enforce epistemic honesty on yourself using these markers:`);
+  p.push(`- **[PHYSICAL_TRUTH]**: Verified live data from the physical shop floor (nickstire telemetry).`);
+  p.push(`- **[UNVERIFIED_ACTION]**: An action that has been proposed but not yet confirmed by the execution engine.`);
+  p.push(`- **[PROJECTED]**: A forecast or estimation not backed by hard data.`);
+  p.push(`For any action that mutates data or carries side effects, you MUST explicitly state the Asymmetric Risk Assessment (the cost of inaction) and perform a "Blind Spot Check" (identifying ignored risks) before proceeding.`);
+  p.push(``);
 
   p.push(...renderBuilderMode());
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { UIMessage } from "ai";
+import { AlertTriangle } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { ToolResultCard, isKnownToolName } from "@/components/chat/tool-result-card";
 import { NickMessage } from "@/components/chat/nick-message";
@@ -23,16 +24,18 @@ async function copyToClipboard(text: string): Promise<void> {
   }
 }
 
-export function ChatMessageList({ 
-  messages, 
-  isLoading, 
+export function ChatMessageList({
+  messages,
+  isLoading,
   error,
-  liveContextBlocksRef 
-}: { 
-  messages: UIMessage[], 
-  isLoading: boolean, 
+  liveContextBlocksRef,
+  onRetry,
+}: {
+  messages: UIMessage[],
+  isLoading: boolean,
   error: Error | undefined,
-  liveContextBlocksRef?: React.RefObject<any>
+  liveContextBlocksRef?: React.RefObject<any>,
+  onRetry?: () => void,
 }) {
   const pending = useChatUiStore((s) => s.pending);
   const [actionSheetMsg, setActionSheetMsg] = useState<{ id: string; role: "user" | "assistant"; text: string } | null>(null);
@@ -51,11 +54,11 @@ export function ChatMessageList({
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 pb-12">
       {/* Real Messages */}
       {messages.map((m) => (
-        <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+        <div key={m.id} className={`flex animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
           <div className={`max-w-[85%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm ${
             m.role === "user" 
-              ? "bg-zinc-800 text-zinc-100" 
-              : "bg-zinc-900 border border-zinc-800/60 text-zinc-300"
+              ? "bg-zinc-800 text-zinc-100 shadow-[0_0_15px_-5px_rgba(0,0,0,0.3)]" 
+              : "bg-zinc-900/80 backdrop-blur-md border border-white/5 text-zinc-200 shadow-[0_0_15px_-5px_rgba(0,0,0,0.5)]"
           }`}>
             {m.parts?.map((part, i) => {
               if (part.type === "text") {
@@ -127,7 +130,7 @@ export function ChatMessageList({
 
       {/* Pending / Optimistic Messages */}
       {pending.map((p) => (
-        <div key={p.tempId} className="flex justify-end opacity-60">
+        <div key={p.tempId} className="flex justify-end opacity-60 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="max-w-[85%] rounded-2xl bg-zinc-800 px-5 py-3.5 text-[15px] leading-relaxed text-zinc-100 shadow-sm">
             {p.text}
           </div>
@@ -145,8 +148,22 @@ export function ChatMessageList({
 
       {/* Error State */}
       {error && (
-        <div className="mx-auto w-full max-w-md rounded-xl border border-red-900/50 bg-red-950/30 p-4 text-center text-sm text-red-400">
-          Stream degraded. Check logs or retry.
+        <div className="mx-auto w-full max-w-md rounded-xl border border-red-900/40 bg-red-950/25 p-4 text-center">
+          <div className="flex items-center justify-center gap-2 text-red-400 mb-1">
+            <AlertTriangle size={15} className="shrink-0" />
+            <span className="text-[13px] font-semibold">Stream failed</span>
+          </div>
+          <p className="text-[11px] text-red-400/60 mb-3">
+            Response was interrupted — tap below to try again
+          </p>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="px-5 py-2 rounded-lg bg-red-500/15 hover:bg-red-500/25 active:scale-95 text-red-300 text-[12px] font-semibold transition-all"
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
 
