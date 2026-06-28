@@ -142,6 +142,7 @@ import {
 // structurally impossible.
 import { createCommitment } from "@/lib/services/commitments";
 import { TRPCError } from "@trpc/server";
+import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
 
 // The 8 valid identity axes · mirrors `VALID_AXES` in
 // app/api/identity/route.ts verbatim (the route keeps its copy as the
@@ -1348,4 +1349,34 @@ export const operatorRouter = router({
         domain: input.domain,
       }),
     ),
+
+  /**
+   * Return daily anticipated questions and pending follow-up items.
+   */
+  nickRemembersContext: operatorProcedure.query(async () => {
+    const [anticipated, recentDigests] = await Promise.all([
+      getTodaysAnticipated().catch(() => null),
+      prisma.auditEvent.findMany({
+        where: { eventType: "conversation_digest" },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { payload: true },
+      }).catch((): any[] => []),
+    ]);
+
+    const followUps: string[] = [];
+    for (const row of recentDigests) {
+      if (row.payload && typeof row.payload === "object") {
+        const payload = row.payload as Record<string, any>;
+        if (typeof payload.followUpNeeded === "string" && payload.followUpNeeded.trim().length > 0) {
+          followUps.push(payload.followUpNeeded.trim());
+        }
+      }
+    }
+
+    return {
+      anticipatedQuestions: anticipated ? anticipated.questions.map((q) => q.question) : [],
+      followUps,
+    };
+  }),
 });

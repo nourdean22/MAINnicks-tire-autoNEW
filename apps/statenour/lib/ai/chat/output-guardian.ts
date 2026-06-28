@@ -476,8 +476,12 @@ async function getActual(type: ClaimPattern["type"]): Promise<number | null> {
         } catch {}
         return null;
       }
-      case "customer_count":
-        return null;
+      case "customer_count": {
+        const count = await prisma.contact.count({
+          where: { status: "active" },
+        });
+        return count;
+      }
       case "task_count": {
         const count = await prisma.task.count({
           where: { status: { in: ["INBOX", "READY", "DOING", "WAITING"] } },

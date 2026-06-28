@@ -53,6 +53,19 @@ export function IdentityArcCard() {
   const trajectories = projQ.data?.trajectories ?? [];
   const growth = growthQ.data ?? [];
 
+  const totalGained30d = growth.reduce((sum, g) => sum + g.gained30d, 0);
+  const totalGained60d = growth.reduce((sum, g) => sum + g.gained60d, 0);
+  const totalGained90d = growth.reduce((sum, g) => sum + g.gained90d, 0);
+  const totalGained180d = growth.reduce((sum, g) => sum + g.gained180d, 0);
+
+  const momXp = totalGained30d;
+  const priorMomXp = totalGained60d - totalGained30d;
+  const momPct = priorMomXp > 0 ? ((momXp - priorMomXp) / priorMomXp) * 100 : 0;
+
+  const qoqXp = totalGained90d;
+  const priorQoqXp = totalGained180d - totalGained90d;
+  const qoqPct = priorQoqXp > 0 ? ((qoqXp - priorQoqXp) / priorQoqXp) * 100 : 0;
+
   // Sort growth to find top active and stalled stats
   const topActive = [...growth]
     .sort((a, b) => b.gained30d - a.gained30d)
@@ -159,16 +172,40 @@ export function IdentityArcCard() {
           </div>
         ) : (
           <div className="space-y-3 text-[11px]">
+            {/* MoM / QoQ Trend Metrics Grid */}
+            <div className="grid grid-cols-2 gap-2 border-b border-white/6 pb-2">
+              <div className="p-2 rounded bg-white/1 border border-white/4">
+                <p className="text-[9px] uppercase tracking-wider text-white/40">MoM Growth</p>
+                <div className="flex items-baseline justify-between mt-0.5">
+                  <span className="text-xs font-semibold text-white">{momXp.toFixed(0)} XP</span>
+                  <span className={cn("text-[10px] font-semibold flex items-center gap-0.5", momPct >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                    {momPct >= 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                    {momPct >= 0 ? "+" : ""}{momPct.toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+              <div className="p-2 rounded bg-white/1 border border-white/4">
+                <p className="text-[9px] uppercase tracking-wider text-white/40">QoQ Growth</p>
+                <div className="flex items-baseline justify-between mt-0.5">
+                  <span className="text-xs font-semibold text-white">{qoqXp.toFixed(0)} XP</span>
+                  <span className={cn("text-[10px] font-semibold flex items-center gap-0.5", qoqPct >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                    {qoqPct >= 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                    {qoqPct >= 0 ? "+" : ""}{qoqPct.toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {topActive.length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-[9px] uppercase tracking-[0.1em] text-emerald-400 font-semibold flex items-center gap-1">
+                <p className="text-[9px] uppercase tracking-widest text-emerald-400 font-semibold flex items-center gap-1">
                   <Zap className="h-2.5 w-2.5" /> Top 3 Active stats (30d)
                 </p>
                 <div className="grid grid-cols-1 gap-1">
                   {topActive.map((g) => (
                     <div
                       key={g.stat}
-                      className="flex items-center justify-between px-1.5 py-0.5 bg-emerald-500/[0.02] rounded border border-emerald-500/10"
+                      className="flex items-center justify-between px-1.5 py-0.5 bg-emerald-500/2 rounded border border-emerald-500/10"
                     >
                       <span className="text-white/80">
                         {g.icon} {g.label}
@@ -182,14 +219,14 @@ export function IdentityArcCard() {
 
             {stalled.length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-[9px] uppercase tracking-[0.1em] text-rose-400/90 font-semibold flex items-center gap-1">
+                <p className="text-[9px] uppercase tracking-widest text-rose-400/90 font-semibold flex items-center gap-1">
                   <Activity className="h-2.5 w-2.5" /> Stalled stats (Active past 180d, 0 XP in 30d)
                 </p>
                 <div className="grid grid-cols-1 gap-1">
                   {stalled.map((g) => (
                     <div
                       key={g.stat}
-                      className="flex items-center justify-between px-1.5 py-0.5 bg-rose-500/[0.02] rounded border border-rose-500/10"
+                      className="flex items-center justify-between px-1.5 py-0.5 bg-rose-500/2 rounded border border-rose-500/10"
                     >
                       <span className="text-white/60">
                         {g.icon} {g.label}
@@ -208,7 +245,7 @@ export function IdentityArcCard() {
         )}
       </div>
 
-      <div className="text-[9px] text-white/30 flex items-center gap-1 border-t border-white/[0.04] pt-2">
+      <div className="text-[9px] text-white/30 flex items-center gap-1 border-t border-white/4 pt-2">
         <Info className="h-2.5 w-2.5" />
         {activeTab === "projection" 
           ? "Linear regression over 14d snap history."
