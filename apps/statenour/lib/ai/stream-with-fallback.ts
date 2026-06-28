@@ -1,27 +1,11 @@
 /**
  * stream-with-fallback · v10 Track B.5 · Apr 30.
  *
- * Same-turn provider fallback for streamText. v9.1.27 shipped
- * cross-request rotation (markProviderFailed + 60s sticky window).
- * This module adds same-turn fallback for the SYNCHRONOUS-throw
- * path: if streamText() throws before any token is emitted (bad
- * config, auth failure, immediate connection error), we retry with
- * the next provider before returning the user-facing Response.
- *
- * Out of scope (v10.1):
- *   - Post-first-token mid-stream recovery. Once SSE headers are
- *     sent, you can't switch providers without breaking the stream.
- *     v9.1.22's onError handler persists a stub message in that
- *     case; full recovery needs a streamText pipeline refactor.
- *
- * Trace: every attempt is logged to `prompt.same_turn_fallback`
- * SystemMetric so the operator dashboard can show
- *   - how often pre-first-token failures occur
- *   - which providers are flaky
- *   - whether fallback succeeds or all providers fail
+ * Consolidated and upgraded to support Vercel AI SDK ToolLoopAgent,
+ * dynamic think-tag stripping, and strict execution budget racing.
  */
 
-import { streamText, type LanguageModel } from "ai";
+import { ToolLoopAgent, stepCountIs, type LanguageModel } from "ai";
 import {
   getModel,
   markProviderFailed,
@@ -29,14 +13,6 @@ import {
   type ProviderName,
 } from "./provider";
 
-/**
- * Provider-name extraction from a model object's modelId. Mirrors
- * the heuristic in app/api/ai/chat/route.ts onError handler.
- *
- * v10.0.446 · exported so the chat route's streamText buildConfig
- * can attach Anthropic cacheControl ephemeral when Anthropic is the
- * active fallback provider (90% token discount on the system prompt).
- */
 export function inferProviderName(model: LanguageModel | unknown): ProviderName | null {
   const modelId =
     typeof model === "object" && model && "modelId" in model
@@ -60,63 +36,28 @@ export interface StreamAttempt {
 }
 
 export interface StreamWithFallbackResult {
-  /** The successful streamText result. */
-  result: ReturnType<typeof streamText>;
-  /** The model that ultimately served the request. */
+  result: {
+    fullStream: ReadableStream;
+    toUIMessageStreamResponse: () => Response;
+    toolCalls: any;
+  };
   model: LanguageModel;
-  /** Provider name that won. */
   provider: ProviderName | null;
-  /** Trace of every attempt, including the successful one. */
   attempts: StreamAttempt[];
 }
 
 export interface StreamWithFallbackOptions {
-  /**
-   * Builder that produces the streamText config given the chosen
-   * model. Called fresh on each attempt so onError handlers etc.
-   * always reference the model that's actually serving.
-   */
-  buildConfig: (model: LanguageModel) => Parameters<typeof streamText>[0];
-  /** TaskType passed to getModel() on each attempt. */
+  buildConfig: (model: LanguageModel) => any;
   taskType: TaskType;
-  /** Whether to prefer the large-context provider chain. */
   preferLargeContext?: boolean;
-  /**
-   * v10.0.512 · Force a specific provider to the head of the chain
-   * for this turn. Used on factual/customer/SEO queries to escalate
-   * to Anthropic Claude (more compliant with tool/system directives).
-   * Falls back to the normal chain if the forced provider is
-   * unavailable or fails.
-   */
   forceProviderFirst?: ProviderName;
-  /** Max attempts before giving up. Default: number of available providers. */
   maxAttempts?: number;
 }
 
-/**
- * Wraps streamText with same-turn provider fallback.
- *
- * Behavior:
- *   1. Get a model via getModel() (skips recently-failed providers)
- *   2. Try streamText with that model
- *   3. If streamText throws synchronously (bad config, auth fail),
- *      mark the provider failed, get the next model, retry
- *   4. Repeat up to maxAttempts times
- *   5. If ALL attempts fail, throw the last error so the caller's
- *      outer try/catch returns 500
- *
- * The successful streamText result is returned; the caller passes
- * it to .toUIMessageStreamResponse() as before.
- *
- * Note: this does NOT catch async/post-stream errors. Those still
- * fire onError on the streamText result and the v9.1.22 stub-
- * message logic handles them. Same-turn pre-first-token recovery
- * is the v10 scope; mid-stream recovery is v10.1.
- */
-export function streamWithFallback(
+export async function streamWithFallback(
   opts: StreamWithFallbackOptions,
-): StreamWithFallbackResult {
-  const maxAttempts = opts.maxAttempts ?? 4; // 4 = venice, ollama, openai, anthropic
+): Promise<StreamWithFallbackResult> {
+  const maxAttempts = opts.maxAttempts ?? 4;
   const attempts: StreamAttempt[] = [];
   let lastError: unknown = null;
 
@@ -129,9 +70,6 @@ export function streamWithFallback(
     try {
       model = getModel(opts.taskType, {
         preferLargeContext: opts.preferLargeContext,
-        // v10.0.512 · only pin on the FIRST attempt; if Anthropic
-        // fails, subsequent attempts fall through to the normal
-        // chain (Venice/Ollama/OpenAI) for graceful degradation.
         forceProviderFirst: attempt === 1 ? opts.forceProviderFirst : undefined,
       });
       provider = inferProviderName(model);
@@ -140,7 +78,6 @@ export function streamWithFallback(
           ? String((model as { modelId?: unknown }).modelId)
           : "unknown";
     } catch (err) {
-      // getModel itself threw — no providers available at all.
       attempts.push({
         attempt,
         provider: null,
@@ -155,12 +92,130 @@ export function streamWithFallback(
     }
 
     try {
-      // streamText doesn't throw async on its own — async failures
-      // fire onError on the returned result. The throws we catch
-      // here are SYNC: bad config, missing API key after available()
-      // pass, malformed model, etc.
       const config = opts.buildConfig(model);
-      const result = streamText(config);
+      
+      // 1. Build ToolLoopAgent config
+      const systemPrompt = config.system || (config.messages?.[0]?.role === "system" ? config.messages[0].content : "");
+      const messages = config.system ? config.messages : config.messages?.slice(1) || [];
+
+      const agent = new ToolLoopAgent({
+        model,
+        tools: config.tools,
+        instructions: systemPrompt,
+        stopWhen: config.stopWhen ?? stepCountIs(5),
+        temperature: config.temperature,
+        onFinish: config.onFinish,
+        onStepFinish: config.onStepFinish,
+      });
+
+      const abortController = new AbortController();
+      let hasCommittedStream = false;
+
+      // 2. Budget timeout (3.5s for local Ollama models)
+      const isOllama = provider === "ollama";
+      const thinkingBudgetMs = 3500;
+      
+      const budgetTimeout = isOllama
+        ? new Promise<never>((_, reject) => {
+            setTimeout(() => {
+              if (!hasCommittedStream) {
+                abortController.abort();
+                reject(new Error("THINKING_BUDGET_EXCEEDED"));
+              }
+            }, thinkingBudgetMs);
+          })
+        : null;
+
+      const agentStreamPromise = agent.stream({
+        messages,
+        abortSignal: abortController.signal,
+      });
+
+      const result = budgetTimeout
+        ? await Promise.race([agentStreamPromise, budgetTimeout])
+        : await agentStreamPromise;
+
+      const reader = result.fullStream.getReader();
+      let textBuffer = "";
+      let insideThinkBlock = false;
+      let visibleTextAccumulated = "";
+
+      // 3. Setup guarded stream filter
+      const stream = new ReadableStream({
+        async pull(controller) {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                const hasTools = result.toolCalls && (await result.toolCalls).length > 0;
+                if (visibleTextAccumulated.trim().length === 0 && !hasTools) {
+                  controller.error(new Error("EMPTY_STRIPPED_OUTPUT"));
+                } else {
+                  controller.close();
+                }
+                break;
+              }
+
+              // Handle streaming think-tag removal
+              if (value.type === "text-delta" && typeof (value as any).text === "string") {
+                textBuffer += (value as any).text;
+
+                while (textBuffer.length > 0) {
+                  if (!insideThinkBlock) {
+                    const thinkStart = textBuffer.indexOf("<think>");
+                    if (thinkStart !== -1) {
+                      const visiblePart = textBuffer.slice(0, thinkStart);
+                      if (visiblePart.length > 0) {
+                        visibleTextAccumulated += visiblePart;
+                        hasCommittedStream = true;
+                        controller.enqueue({ type: "text-delta", text: visiblePart });
+                      }
+                      insideThinkBlock = true;
+                      textBuffer = textBuffer.slice(thinkStart + 7);
+                    } else {
+                      const lastOpenBracket = textBuffer.lastIndexOf("<");
+                      if (lastOpenBracket !== -1 && "<think>".startsWith(textBuffer.slice(lastOpenBracket))) {
+                        const visiblePart = textBuffer.slice(0, lastOpenBracket);
+                        if (visiblePart.length > 0) {
+                          visibleTextAccumulated += visiblePart;
+                          hasCommittedStream = true;
+                          controller.enqueue({ type: "text-delta", textDelta: visiblePart });
+                        }
+                        textBuffer = textBuffer.slice(lastOpenBracket);
+                        break;
+                      } else {
+                        visibleTextAccumulated += textBuffer;
+                        hasCommittedStream = true;
+                        controller.enqueue(value);
+                        textBuffer = "";
+                      }
+                    }
+                  } else {
+                    const thinkEnd = textBuffer.indexOf("</think>");
+                    if (thinkEnd !== -1) {
+                      insideThinkBlock = false;
+                      textBuffer = textBuffer.slice(thinkEnd + 8);
+                    } else {
+                      const lastOpenBracket = textBuffer.lastIndexOf("<");
+                      if (lastOpenBracket !== -1 && "</think>".startsWith(textBuffer.slice(lastOpenBracket))) {
+                        textBuffer = textBuffer.slice(lastOpenBracket);
+                        break;
+                      } else {
+                        textBuffer = "";
+                      }
+                    }
+                  }
+                }
+              } else {
+                controller.enqueue(value);
+              }
+            }
+          } catch (err) {
+            controller.error(err);
+          }
+        },
+      });
+
       attempts.push({
         attempt,
         provider,
@@ -170,7 +225,19 @@ export function streamWithFallback(
         errorClass: null,
         errorMessage: null,
       });
-      return { result, model, provider, attempts };
+
+      return {
+        result: {
+          fullStream: stream,
+          toUIMessageStreamResponse: () => new Response(stream, {
+            headers: { "Content-Type": "text/event-stream; charset=utf-8" }
+          }),
+          toolCalls: result.toolCalls,
+        },
+        model,
+        provider,
+        attempts,
+      };
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       attempts.push({
@@ -183,25 +250,18 @@ export function streamWithFallback(
         errorMessage: errMsg,
       });
       lastError = err;
-      // Mark the provider failed so the next getModel() call skips it.
       if (provider) {
         markProviderFailed(provider);
       }
-      // Continue to next attempt — getModel() will pick a different
-      // provider on the next iteration since we just marked the
-      // current one as failed.
     }
   }
 
-  // All attempts exhausted. Throw an error that wraps the last
-  // failure for the caller's outer try/catch.
   const summary = attempts
     .map((a) => `${a.provider ?? "?"}:${a.errorClass ?? "ok"}`)
     .join(" → ");
   const wrapped = new Error(
     `[stream-with-fallback] all ${attempts.length} provider attempts failed (${summary}). Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
   );
-  // Attach attempts so callers can persist the trace.
-  (wrapped as Error & { attempts: StreamAttempt[] }).attempts = attempts;
+  (wrapped as any).attempts = attempts;
   throw wrapped;
 }

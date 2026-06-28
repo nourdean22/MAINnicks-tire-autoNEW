@@ -301,10 +301,30 @@ Return empty arrays if nothing found. Be specific, not generic.`,
         // Must have deadline OR non-self recipient
         if (!deadline && toWhom === "self") continue;
 
-        await prisma.commitment.create({
+        const dbCommitment = await prisma.commitment.create({
           data: { dateMade: today(), description: desc, toWhom, domain: null, deadline, status: "active" },
         }).catch((err) => {
           recordError("brain:pipeline-controller", err, { phase: "commitment-create", desc: desc.slice(0, 80) });
+          return null;
+        });
+
+        // Also record as a WITNESSED_COMMITMENT agenda item
+        await prisma.agendaItem.create({
+          data: {
+            title: desc.slice(0, 100),
+            description: desc,
+            category: "WITNESSED_COMMITMENT",
+            status: "ACTIVE",
+            source: "chat",
+            sourceId: String(dbCommitment?.id || "extracted-post-turn"),
+            dueDate: deadline ? new Date(deadline) : null,
+            metadata: {
+              toWhom,
+              legacyCommitmentId: dbCommitment?.id,
+            }
+          }
+        }).catch((err) => {
+          console.error("Failed to create AgendaItem for witnessed commitment:", err);
         });
       }
     }
