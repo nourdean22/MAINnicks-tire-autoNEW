@@ -95,3 +95,4 @@ export async function renderBrandedPoster(copy: AdCopy): Promise<string> {
   log.info("rendered branded poster", { bytes: buf.length });
   return url;
 }
+
