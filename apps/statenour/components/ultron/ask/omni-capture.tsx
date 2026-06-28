@@ -643,6 +643,7 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
               q: {displayQ.length > 80 ? displayQ.slice(0, 80) + "…" : displayQ}
               {cached && !liveText && (
                 <span className="ml-2 text-[var(--gold)]/60">
+                  {/* eslint-disable-next-line react-hooks/purity */}
                   · from {Math.floor((Date.now() - cached.timestamp) / 60_000)}m ago
                 </span>
               )}

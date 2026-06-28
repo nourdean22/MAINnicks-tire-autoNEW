@@ -297,8 +297,10 @@ export function ContradictionsCard() {
     const match = shownUnresolved.find((c) => c.key === resolveKey);
     if (match) {
       autoOpenedRef.current = true;
-      setExpandedKey(match.key);
-      setNote("");
+      setTimeout(() => {
+        setExpandedKey(match.key);
+        setNote("");
+      }, 0);
     }
   }, [contra.data, searchParams, shownUnresolved]);
 
