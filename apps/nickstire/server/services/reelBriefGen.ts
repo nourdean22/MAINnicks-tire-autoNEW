@@ -239,6 +239,7 @@ export async function generateReelBriefAI(
     concepts: [],
     winningConceptId: null,
     storyboardBeats,
+    promptPack: [],
     higgsfieldPromptPack: [],
     ffmpegAssemblyNotes: str(parsed.ffmpegAssemblyNotes),
     voiceoverScript: str(parsed.voiceoverScript),

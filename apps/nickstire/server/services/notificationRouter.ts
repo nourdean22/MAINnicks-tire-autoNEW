@@ -41,37 +41,70 @@ type NotificationType =
   | "warranty-expiring"
   | "special-offer";
 
+function getFirstName(name: unknown): string {
+  if (typeof name !== "string") return "there";
+  return name.trim().split(/\s+/)[0] || "there";
+}
+
 const smsTemplates: Record<string, (d: Record<string, unknown>) => string> = {
   "speed-to-lead": (d) =>
     `NEW LEAD: ${d.name} | ${d.phone} | ${d.service || "General"} | From: ${d.source || "website"}`,
-  "booking-confirmation": (d) =>
-    `Hi ${d.name}! Your appointment at Nick's Tire & Auto is confirmed for ${d.date}. We're at 17625 Euclid Ave, Euclid. Call ${STORE_PHONE} with questions!`,
-  "appointment-reminder-24h": (d) =>
-    `Reminder: Your appointment at Nick's Tire & Auto is tomorrow, ${d.date}. 17625 Euclid Ave. Need to reschedule? Call ${STORE_PHONE}`,
-  "appointment-reminder-2h": (d) =>
-    `Your appointment at Nick's Tire & Auto is in 2 hours. We're ready for you at 17625 Euclid Ave. See you soon!`,
-  "review-request": (d) =>
-    `Hi ${d.name}! Thanks for choosing Nick's Tire & Auto. If we earned it, a Google review means the world: nickstire.org/review — Nick & the team`,
-  "retention-90day": (d) =>
-    `Hi ${d.name}, it's been a while! Your ${d.vehicle || "vehicle"} may be due for maintenance. Book: nickstire.org or call ${STORE_PHONE}. — Nick's Tire & Auto`,
-  "retention-180day": (d) =>
-    `${d.name}, 6 months since we saw your ${d.vehicle || "vehicle"}. Time for a checkup? ${STORE_PHONE} — Nick's Tire & Auto`,
-  "retention-365day": (d) =>
-    `Hey ${d.name}! A year has passed. Your ${d.vehicle || "vehicle"} needs love. Come back to Nick's — ${STORE_PHONE}. First-time-back discount!`,
-  "vehicle-ready": (d) =>
-    `Great news, ${d.name}! Your ${d.vehicle || "vehicle"} is ready for pickup at Nick's Tire & Auto. We're open until ${d.closeTime || "6PM"}.`,
-  "estimate-ready": (d) =>
-    `Hi ${d.name}, your estimate for ${d.service || "the requested service"} is ready. Total: $${d.total}. Reply YES to approve or call ${STORE_PHONE}.`,
-  "referral-credit": (d) =>
-    `Thanks ${d.name}! Your referral of ${d.refereeName} earned you a $25 credit at Nick's Tire & Auto. Applied to your next visit!`,
-  "welcome": (d) =>
-    `Welcome to Nick's Tire & Auto, ${d.name}! Save our number: ${STORE_PHONE}. Your referral code: ${d.referralCode} — share it & earn $25!`,
-  "warranty-expiring": (d) =>
-    `Hi ${d.name}, your warranty on ${d.service} from Nick's expires on ${d.expiryDate}. Schedule a check: ${STORE_PHONE}`,
-  "special-offer": (d) =>
-    `${d.name}, exclusive deal from Nick's: ${d.offerText}. Valid through ${d.expiry}. Book: nickstire.org or call ${STORE_PHONE}`,
-  "status-update": (d) =>
-    `Update on your ${d.vehicle || "vehicle"} at Nick's: ${d.statusMessage}. Questions? ${STORE_PHONE}`,
+  "booking-confirmation": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, Nick's Tire & Auto here. Got your request for ${d.date}. We're walk-in and first come, first served, but we'll keep an eye out for you. Questions? (216) 862-0005`;
+  },
+  "appointment-reminder-24h": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, just a reminder from Nick's Tire & Auto: we're expecting you tomorrow (${d.date}). We're first come, first served, so earlier is usually better. Questions? (216) 862-0005`;
+  },
+  "appointment-reminder-2h": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, just a heads up — we're expecting you soon at 17625 Euclid Ave. Pull up when you're ready. Questions? (216) 862-0005`;
+  },
+  "review-request": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, hope everything's been good since your visit. If we earned it, a quick Google review helps other Cleveland drivers find a shop they can trust: nickstire.org/review`;
+  },
+  "retention-90day": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, it's been about 3 months since your visit. Worth a quick check on the ${d.vehicle || "car"} whenever it's easy — free check, written quote, you don't pay until you say yes. (216) 862-0005`;
+  },
+  "retention-180day": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, six months since we saw you. Free check, written quote, and you don't pay until you say yes. Pull up any day. (216) 862-0005`;
+  },
+  "retention-365day": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, been about a year since we saw you at Nick's — worth a once-over on the ${d.vehicle || "car"} whenever you're ready. Same shop, same fair pricing. Walk in any day. (216) 862-0005`;
+  },
+  "vehicle-ready": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, your ${d.vehicle || "vehicle"} is ready for pickup at Nick's Tire & Auto. Pull up any time during business hours (we're open until ${d.closeTime || "6PM"}). Questions? (216) 862-0005`;
+  },
+  "estimate-ready": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, your estimate for ${d.service || "the work"} is ready at Nick's Tire & Auto. Total is $${d.total}. No pressure — reply YES to approve, or call us at (216) 862-0005 to go over options.`;
+  },
+  "referral-credit": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, thanks for sending ${d.refereeName} our way! We put a $25 credit on file for you at Nick's Tire & Auto. We'll apply it to your next visit. (216) 862-0005`;
+  },
+  "welcome": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, welcome to Nick's Tire & Auto. Save our number here: (216) 862-0005. If you ever need tires, brakes, or check engine work, text or call us anytime.`;
+  },
+  "warranty-expiring": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, the warranty on your ${d.service} from Nick's is coming up on ${d.expiryDate}. If you want us to do a quick check before it runs out, stop by or call (216) 862-0005.`;
+  },
+  "special-offer": (d) => {
+    const fName = getFirstName(d.name);
+    return `Hey ${fName}, just wanted to share a deal from Nick's Tire & Auto: ${d.offerText}, good through ${d.expiry}. Stop by or call us at (216) 862-0005.`;
+  },
+  "status-update": (d) => {
+    const fName = getFirstName(d.name);
+    return `Quick status update on your ${d.vehicle || "vehicle"} at Nick's: ${d.statusMessage}. If you have any questions, call or text us at (216) 862-0005.`;
+  },
 };
 
 /**

@@ -115,6 +115,8 @@ describe("AI Provider Resolvers & Fallbacks", () => {
   });
 
   it("resolves Ollama Vision model correctly when taskType is vision", () => {
+    const originalOllamaModel = process.env.OLLAMA_MODEL;
+    process.env.OLLAMA_MODEL = "";
     process.env.OLLAMA_VISION_MODEL = "test-ollama-vision:latest";
     expect(resolveProviderModel("ollama", "vision")).toBe("test-ollama-vision:latest");
 
@@ -122,6 +124,7 @@ describe("AI Provider Resolvers & Fallbacks", () => {
     expect(resolveProviderModel("ollama", "vision")).toBe("qwen3-vl:235b-instruct");
 
     expect(resolveProviderModel("ollama", "reason")).toBe("glm-5.2");
+    process.env.OLLAMA_MODEL = originalOllamaModel;
   });
 });
 

@@ -7,8 +7,9 @@
  * Responsibilities (all the things that don't belong on serverless):
  *   · Receive Railway-cron HTTP triggers for /cron/mega + /cron/mega-evening
  *   · Run an in-process node-cron loop for high-frequency jobs
- *     (brain-bus-backfill every 2 min · error-telegram-push every 5 min ·
- *     alert-telegram-push + calendar-premeeting every 15 min · etc)
+ *     (brain-bus-backfill every 2 min · calendar-premeeting every 15 min ·
+ *     bus-exhaustion-watch every 30 min · provider-ping hourly ·
+ *     local video render polling)
  *   · Expose /health for Railway healthcheck
  *
  * Auth: every /cron/* endpoint requires the CRON_SECRET shared secret
