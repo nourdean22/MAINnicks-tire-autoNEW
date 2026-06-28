@@ -23,6 +23,9 @@ vi.mock("@/lib/prisma", () => ({
     brainMemory: {
       findMany: vi.fn().mockResolvedValue([]),
     },
+    agendaItem: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
 }));
 
@@ -288,6 +291,9 @@ describe("v9.0-alpha · command-center state contract", () => {
     // System health
     expect(ctx.systemHealth.crons.active).toBe(34);
     expect(ctx.systemHealth.memory.embeddingCoveragePct).toBeCloseTo(87.4);
+
+    // Agenda Items
+    expect(Array.isArray(ctx.agendaItems)).toBe(true);
   });
 
   it("nickContextFromState is a pure projection (same input → same output)", () => {

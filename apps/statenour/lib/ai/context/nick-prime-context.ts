@@ -44,6 +44,15 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
 
+export interface AgendaItemSummary {
+  id: string;
+  title: string;
+  description: string | null;
+  category: "WITNESSED_COMMITMENT" | "STANDING_INTENTION" | "CONTRADICTION" | "NEGLECT_ALERT";
+  createdAt: string;
+  dueDate: string | null;
+}
+
 export interface NickPrimeContext {
   operatorState: CommandCenterState["operator"];
   activeCommand: TaskSummary | null;
@@ -78,6 +87,7 @@ export interface NickPrimeContext {
   weeklyReview?: string;
   followUps: string[];
   anticipatedQuestions: string[];
+  agendaItems: AgendaItemSummary[];
 }
 
 /**
@@ -94,7 +104,7 @@ export async function buildNickPrimeContext(): Promise<NickPrimeContext> {
   
   const { getWeeklyReviewContext } = await import("@/lib/brain/weekly-review-context");
   
-  const [weeklyReview, recentDigests, anticipated] = await Promise.all([
+  const [weeklyReview, recentDigests, anticipated, agendaItems] = await Promise.all([
     getWeeklyReviewContext().catch((): string => ""),
     prisma.auditEvent.findMany({
       where: { eventType: "conversation_digest" },
@@ -103,9 +113,22 @@ export async function buildNickPrimeContext(): Promise<NickPrimeContext> {
       select: { payload: true },
     }).catch((): any[] => []),
     getTodaysAnticipated().catch(() => null),
+    prisma.agendaItem.findMany({
+      where: { status: { in: ["ACTIVE", "SNOOZED"] } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, title: true, description: true, category: true, createdAt: true, dueDate: true }
+    }).catch(() => []),
   ]);
 
   ctx.weeklyReview = weeklyReview;
+  ctx.agendaItems = agendaItems.map(item => ({
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    category: item.category as any,
+    createdAt: item.createdAt.toISOString(),
+    dueDate: item.dueDate ? item.dueDate.toISOString() : null,
+  }));
 
   const followUps: string[] = [];
   for (const row of recentDigests) {
@@ -156,5 +179,6 @@ export function nickContextFromState(state: CommandCenterState): NickPrimeContex
     systemHealth: state.systemHealth,
     followUps: [],
     anticipatedQuestions: [],
+    agendaItems: [],
   };
 }

@@ -227,6 +227,7 @@ const FIXTURE: NickPrimeContext = {
   weeklyReview: "── WEEKLY REVIEWS (cross-week memory · last 14d) ──\nWins: Closed DK Tire",
   followUps: [],
   anticipatedQuestions: [],
+  agendaItems: [],
 };
 
 const EMPTY_FIXTURE: NickPrimeContext = {
@@ -279,6 +280,7 @@ const EMPTY_FIXTURE: NickPrimeContext = {
   },
   followUps: [],
   anticipatedQuestions: [],
+  agendaItems: [],
 };
 
 beforeEach(() => {
@@ -383,6 +385,27 @@ describe("v9.0-beta · prompt-v2 renderer", () => {
     expect(sections.whyBlock).toBe(""); // empty when no missions or goals
     expect(sections.recentThinking).toBe(""); // empty when no thinking activity
     expect(sections.health).toContain("SYSTEM HEALTH");
+  });
+
+  it("renders agenda items when present in the context", () => {
+    const contextWithAgenda: NickPrimeContext = {
+      ...EMPTY_FIXTURE,
+      agendaItems: [
+        {
+          id: "agenda-1",
+          title: "Verify tire supplier contract",
+          description: "Follow up on financing options with DK Tire B2B",
+          category: "WITNESSED_COMMITMENT",
+          createdAt: new Date().toISOString(),
+          dueDate: "2026-06-30T00:00:00.000Z",
+        },
+      ],
+    };
+
+    const sections = renderPromptV2(contextWithAgenda);
+    expect(sections.agendaItems).toContain("## ACTIVE AGENDA ITEMS");
+    expect(sections.agendaItems).toContain("[WITNESSED COMMITMENT] Verify tire supplier contract (Due: 2026-06-30)");
+    expect(sections.agendaItems).toContain("Description: Follow up on financing options with DK Tire B2B");
   });
 });
 

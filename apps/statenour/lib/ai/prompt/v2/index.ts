@@ -68,6 +68,7 @@ export async function buildSystemPromptV2(): Promise<PromptV2Output> {
     buildInferredPatternsBlock(),
   ]
     .concat(sections.anchors ? ["", sections.anchors] : [])
+    .concat(sections.agendaItems ? ["", sections.agendaItems] : [])
     .concat(sections.temporal ? ["", sections.temporal] : [])
     .concat(["", sections.commands])
     .concat(sections.whyBlock ? ["", sections.whyBlock] : [])
