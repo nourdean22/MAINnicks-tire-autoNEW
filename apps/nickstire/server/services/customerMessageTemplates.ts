@@ -46,8 +46,8 @@ function tireLine(o: OrderMessageInput): string {
 export function requestReceived(o: OrderMessageInput): MessagePreview {
   return {
     sms:
-      `${SHOP}: got your tire request ${o.orderNumber} — ${tireLine(o)}. ` +
-      `We'll confirm availability and call you. Availability can change until staff confirms. Questions? ${PHONE}`,
+      `Nick's Tire & Auto: we got your tire request ${o.orderNumber} for ${o.quantity} ${o.tireBrand} ${o.tireModel} tires, size ${o.tireSize}. ` +
+      `We're checking availability and fitment now. We'll call you before anything is ordered. Questions? ${PHONE}`,
     email: {
       subject: `Tire request received — ${o.orderNumber}`,
       body:
@@ -64,8 +64,8 @@ export function requestReceived(o: OrderMessageInput): MessagePreview {
 export function availabilityConfirmed(o: OrderMessageInput): MessagePreview {
   return {
     sms:
-      `${SHOP}: good news — your tires for ${o.orderNumber} are confirmed available. ` +
-      `We'll order them and let you know when they arrive. ${PHONE}`,
+      `Nick's Tire & Auto: good news — we confirmed availability for your tires on order ${o.orderNumber}. ` +
+      `We're getting them ordered and we'll let you know when they're ready at the shop. Questions? ${PHONE}`,
     email: {
       subject: `Tires confirmed — ${o.orderNumber}`,
       body:
@@ -82,8 +82,8 @@ export function paymentReceived(o: OrderMessageInput): MessagePreview {
   const amt = o.totalAmount != null ? ` of $${o.totalAmount.toFixed(2)}` : "";
   return {
     sms:
-      `${SHOP}: payment${amt} received for ${o.orderNumber}. ` +
-      `Staff still confirms availability and fitment before install. ${PHONE}`,
+      `Nick's Tire & Auto: we received your payment${amt} for order ${o.orderNumber}. ` +
+      `We're still confirming final fitment and availability before install. We'll call you with the next step. Questions? ${PHONE}`,
     email: {
       subject: `Payment received — ${o.orderNumber}`,
       body:
@@ -100,8 +100,8 @@ export function paymentReceived(o: OrderMessageInput): MessagePreview {
 export function orderReady(o: OrderMessageInput): MessagePreview {
   return {
     sms:
-      `${SHOP}: your tires for ${o.orderNumber} arrived! Walk in any open hours or call ${PHONE} ` +
-      `to set a time. Drop-offs worked first come, first serve.`,
+      `Nick's Tire & Auto: your tires for order ${o.orderNumber} are here. ` +
+      `Stop by during open hours, or call us first if you want to plan the best time. Drop-offs are handled first come, first served. ${PHONE}`,
     email: {
       subject: `Your tires arrived — ${o.orderNumber}`,
       body:
@@ -118,8 +118,8 @@ export function orderReady(o: OrderMessageInput): MessagePreview {
 export function manualLookupReceived(o: OrderMessageInput): MessagePreview {
   return {
     sms:
-      `${SHOP}: we got your request for ${o.tireSize} — that size needs a manual supplier lookup. ` +
-      `We'll call you with options and pricing. ${PHONE}`,
+      `Nick's Tire & Auto: we got your request for size ${o.tireSize}. ` +
+      `That size needs a manual supplier check, so we're looking it up by hand. We'll call you with real options and pricing before anything is ordered. ${PHONE}`,
     email: {
       subject: `We're looking up your tire size — ${o.orderNumber}`,
       body:
