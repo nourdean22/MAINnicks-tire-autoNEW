@@ -131,7 +131,21 @@ RUN pnpm run build
 
 # ── 3 · runtime ────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
-RUN apk add --no-cache libc6-compat python3 ca-certificates
+RUN apk add --no-cache libc6-compat python3 ca-certificates ffmpeg imagemagick py3-pip py3-wheel \
+ && pip install --no-cache-dir --break-system-packages \
+      moviepy==2.2.1 \
+      edge-tts==7.2.7 \
+      fastapi==0.136.3 \
+      uvicorn==0.32.1 \
+      openai==2.24.0 \
+      loguru==0.7.3 \
+      google-generativeai==0.8.6 \
+      requests==2.33.1 \
+      pydub==0.25.1 \
+      litellm==1.86.2 \
+      toml \
+      python-multipart==0.0.27 \
+      pyyaml==6.0.3
 
 # Non-root user for the runtime · standard hardening
 RUN addgroup --system --gid 1001 nodejs \

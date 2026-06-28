@@ -43,6 +43,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/ai/chat": [
       "lib/ai/last30days/**/*",
+      "lib/ai/moneyprinter/**/*",
     ],
   },
 
