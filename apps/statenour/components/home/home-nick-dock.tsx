@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Send, MessageSquare, Terminal, Search, Inbox, CheckCircle, Activity, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { trpc } from "@/lib/trpc/client";
 
 type DockMode = "ask" | "execute" | "review" | "search" | "capture" | "task";
 
@@ -65,6 +66,11 @@ export function HomeNickDock() {
   const [activeMode, setActiveMode] = useState<DockMode>("ask");
   const [text, setText] = useState("");
   const taRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const remembersQ = trpc.operator.nickRemembersContext.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+  const anticipatedQuestions = remembersQ.data?.anticipatedQuestions ?? [];
 
   const currentMode = MODES.find((m) => m.key === activeMode) || MODES[0];
 
@@ -157,6 +163,25 @@ export function HomeNickDock() {
           );
         })}
       </div>
+
+      {/* Anticipated Questions (Smart Replies) */}
+      {anticipatedQuestions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-1 px-1 border-b border-(--border-default) pb-2">
+          {anticipatedQuestions.map((q) => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => {
+                setText(q);
+                taRef.current?.focus();
+              }}
+              className="px-2.5 py-1 rounded-full text-[11px] bg-zinc-800/40 border border-white/5 text-zinc-300 hover:text-white hover:border-(--gold)/30 hover:bg-(--gold)/5 transition text-left"
+            >
+              ✨ {q}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Input Textarea & Send button */}
       <div className="flex items-end gap-2 pt-1">
