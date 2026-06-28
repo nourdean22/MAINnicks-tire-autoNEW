@@ -146,6 +146,29 @@ export async function handlePersonCreate(params: ActionParams, type: string): Pr
     });
   }
 
+  let undoToken: string | null = null;
+  if (!resolution.matched && resolution.person) {
+    const personId = resolution.person.id;
+    undoToken = `undo_${personId}_${Date.now()}`;
+    const undoExpiresAt = new Date(Date.now() + 30 * 1000);
+    await prisma.brainMemory
+      .create({
+        data: {
+          category: "undo_token",
+          key: undoToken,
+          content: JSON.stringify({
+            toolName: "person.create",
+            personId,
+          }),
+          source: "chat-tool",
+          confidence: 1.0,
+          expiresAt: undoExpiresAt,
+          createdBy: "nick",
+        },
+      })
+      .catch(() => null);
+  }
+
   return {
     action: type,
     success: true,
@@ -158,6 +181,7 @@ export async function handlePersonCreate(params: ActionParams, type: string): Pr
       note: resolution.matched
         ? "Already existed — matched an existing person, no duplicate created."
         : "Added a new person.",
+      undoToken,
     },
   };
 }

@@ -43,7 +43,7 @@ function UndoChip({
 }: {
   token: string;
   expiresAt: string;
-  domain: "tasks" | "goals";
+  domain: "tasks" | "goals" | "people";
 }) {
   const expiryMs = useMemo(() => new Date(expiresAt).getTime(), [expiresAt]);
   const [now, setNow] = useState(() => Date.now());
@@ -192,9 +192,14 @@ export function ToolResultCard({ toolName, state, output }: ToolResultCardProps)
           const o = output as { undoToken?: string; undoExpiresAt?: string } | null;
           if (!o?.undoToken || !o?.undoExpiresAt) return null;
           // Domain inferred from toolName · Wave 41 launches with 2
-          // tools: snoozeTask (tasks) + archiveGoal (goals). Default
-          // tasks for safety.
-          const domain: "tasks" | "goals" = toolName === "archiveGoal" ? "goals" : "tasks";
+          // tools: snoozeTask (tasks) + archiveGoal (goals). Add support
+          // for person.create (people). Default tasks for safety.
+          const domain: "tasks" | "goals" | "people" =
+            toolName === "archiveGoal"
+              ? "goals"
+              : toolName === "person.create"
+              ? "people"
+              : "tasks";
           return (
             <UndoChip token={o.undoToken} expiresAt={o.undoExpiresAt} domain={domain} />
           );

@@ -391,13 +391,32 @@ async function chatPostInner(req: Request) {
     // execute turns. Strict tool_choice + qwen3 = tool fires
     // reliably + free tier covers our usage + 1M context window.
     // Precedence: (1) tool-mandatory force (python-execute / action intent)
-    // pins a text-reliable provider (gemini) for strict tool_choice — ALWAYS wins;
+    // pins a text-reliable provider (gemini or anthropic for high-stakes) for strict tool_choice — ALWAYS wins;
     // (2) a validated per-request user override; (3) default task ordering.
-    // toolMandatoryForce is the literal "gemini" (never nullish) when an intent is
-    // active, so `??` can never let the user override clobber the tool force.
+    // toolMandatoryForce is forced when an intent is active, so `??` can never let the user override clobber the tool force.
     // Do NOT replace `??` with a naive merge.
+    const HIGH_STAKES_MUTATIONS = new Set([
+      "person.create",
+      "person.delete",
+      "person.remove",
+      "gmail.sendDraft",
+      "gmail.createDraft",
+      "google.proposeEvent",
+      "telegram.send",
+      "shop.sendSms",
+      "shop.updateLead"
+    ]);
+
+    const isHighStakesMutation =
+      __actionIntent && HIGH_STAKES_MUTATIONS.has(__actionIntent.expectedTool || "");
+
     const toolMandatoryForce =
-      __pythonExecuteIntent || __actionIntent ? ("gemini" as const) : undefined;
+      __pythonExecuteIntent || __actionIntent
+        ? isHighStakesMutation
+          ? ("anthropic" as const)
+          : ("gemini" as const)
+        : undefined;
+
     effectiveForce = toolMandatoryForce ?? validatedProviderOverride;
     model = getModel(finalTaskType, {
       preferLargeContext: finalPreferLargeContext,
@@ -405,8 +424,9 @@ async function chatPostInner(req: Request) {
     });
     if (toolMandatoryForce) {
       log.info("tool_provider_override", {
-        forced: "gemini",
+        forced: toolMandatoryForce,
         reason: __pythonExecuteIntent ? "python_execute" : "action_intent",
+        highStakes: isHighStakesMutation,
       });
     } else if (validatedProviderOverride) {
       log.info("user_provider_override", { forced: validatedProviderOverride });
