@@ -159,7 +159,9 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
     useDraftAutosave({ key: "omni-capture", value: input });
   useEffect(() => {
     const saved = restoreCaptureDraft();
-    if (saved && input.length === 0) setInput(saved);
+    if (saved && input.length === 0) {
+      setTimeout(() => setInput(saved), 0);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -169,6 +171,7 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
   // via adaptive token cap now.
   const transportBodyRef = useRef<{ modeOverride: "standard" }>({ modeOverride: "standard" });
   const transport = useMemo(
+    // eslint-disable-next-line react-hooks/refs
     () => new DefaultChatTransport({
       api: "/api/ai/chat",
       body: () => transportBodyRef.current,
@@ -197,7 +200,7 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
   // get a fresh auto-classification.
   useEffect(() => {
     if (!input.trim() && manualKind !== null) {
-      setManualKind(null);
+      setTimeout(() => setManualKind(null), 0);
     }
   }, [input, manualKind]);
 

@@ -430,7 +430,7 @@ export function ContradictionsCard() {
                   <button
                     type="button"
                     onClick={() => (isExpanded ? closeForm() : openForm(c.key))}
-                    aria-expanded={isExpanded}
+                    aria-expanded={isExpanded ? "true" : "false"}
                     aria-label={
                       isExpanded
                         ? "close resolution form"
