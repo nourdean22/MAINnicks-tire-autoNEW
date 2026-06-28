@@ -152,6 +152,26 @@ function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
           const num_predict = Math.min(requested, MAX_TOKENS);
           
           parsed.options = { ...parsed.options, num_predict };
+
+          // Configure reasoning / thinking budget for reasoning models under Ollama/OpenRouter
+          const isReasoningModel = ["glm-5", "glm-5.2", "gpt-oss", "deepseek"].some((m) =>
+            modelId.toLowerCase().includes(m)
+          );
+          if (isReasoningModel) {
+            const hasTools = Array.isArray(parsed.tools) && parsed.tools.length > 0;
+            const needsDeepReasoning = taskType === "reason" || taskType === "deep";
+
+            if (hasTools || !needsDeepReasoning) {
+              // Exclude reasoning to avoid burning the output token budget and ensure tools/text are returned
+              parsed.reasoning = { exclude: true };
+              parsed.include_reasoning = false;
+            } else {
+              // Limit reasoning tokens to leave room for the actual response
+              parsed.reasoning = { max_tokens: 1024 };
+              parsed.include_reasoning = true;
+            }
+          }
+
           options.body = JSON.stringify(parsed);
         } catch {}
       }

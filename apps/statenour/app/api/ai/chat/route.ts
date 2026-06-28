@@ -391,13 +391,13 @@ async function chatPostInner(req: Request) {
     // execute turns. Strict tool_choice + qwen3 = tool fires
     // reliably + free tier covers our usage + 1M context window.
     // Precedence: (1) tool-mandatory force (python-execute / action intent)
-    // pins ollama for strict tool_choice — ALWAYS wins; (2) a validated
-    // per-request user override; (3) default task ordering. toolMandatoryForce
-    // is the literal "ollama" (never nullish) when an intent is active, so
-    // `??` can never let the user override clobber the tool force. Do NOT
-    // replace `??` with a naive merge.
+    // pins a text-reliable provider (gemini) for strict tool_choice — ALWAYS wins;
+    // (2) a validated per-request user override; (3) default task ordering.
+    // toolMandatoryForce is the literal "gemini" (never nullish) when an intent is
+    // active, so `??` can never let the user override clobber the tool force.
+    // Do NOT replace `??` with a naive merge.
     const toolMandatoryForce =
-      __pythonExecuteIntent || __actionIntent ? ("ollama" as const) : undefined;
+      __pythonExecuteIntent || __actionIntent ? ("gemini" as const) : undefined;
     effectiveForce = toolMandatoryForce ?? validatedProviderOverride;
     model = getModel(finalTaskType, {
       preferLargeContext: finalPreferLargeContext,
@@ -405,7 +405,7 @@ async function chatPostInner(req: Request) {
     });
     if (toolMandatoryForce) {
       log.info("tool_provider_override", {
-        forced: "ollama",
+        forced: "gemini",
         reason: __pythonExecuteIntent ? "python_execute" : "action_intent",
       });
     } else if (validatedProviderOverride) {
