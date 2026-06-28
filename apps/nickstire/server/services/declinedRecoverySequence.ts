@@ -152,20 +152,21 @@ function formatMoney(amountCents: number): string {
 
 export function buildSequenceMessage(params: BuildParams): string {
   const { touch, profile } = params;
+  const firstName = params.name ? params.name.trim().split(/\s+/)[0] : "there";
 
   // P1 · broke_brenda · money is the blocker
   if (profile === "P1") {
     switch (touch) {
       case "3d":
-        return `Hey — Nick's. That quote we wrote up still stands. If cost was the holdup, $10 down splits it across 4 lenders, no credit-check ding. Free re-check first, you don't pay until you say yes. Reply STOP to opt out.`;
+        return `Hey ${firstName} — Nick's Tire & Auto here. That quote we wrote up is still on file. If cost is the holdup, we can show you payment options before you decide. Free re-check first, you don't pay until you say yes. Reply STOP to opt out.`;
       case "7d":
-        return `Still sitting on that quote? $10 down, soft pre-qual in about a minute — Acima, Snap, Koalafi, American First. Free re-check anytime. (216) 862-0005. Reply STOP to opt out.`;
+        return `Hey ${firstName}, just following up on the quote from Nick's. If cost was the holdup, we can go over payment options with you. Pre-qualifying takes about a minute, no obligation. Free re-check anytime. (216) 862-0005. Reply STOP to opt out.`;
       case "14d":
-        return `Nick's here — that quote's still good. Payment programs start at $10 down if you'd rather spread it out. Free check, written number up front, you don't pay until you say yes. Reply STOP to opt out.`;
+        return `Nick's here. If you're still thinking about that work, we can look at payment options to help spread the cost. Free re-check first, written quote, you don't pay until you say yes. Reply STOP to opt out.`;
       case "30d":
-        return `We'll honor that quote this week. $10 down splits the bill 4 ways if that helps. Free check first, no charge. Pull up any day or call (216) 862-0005. Reply STOP to opt out.`;
+        return `Hey ${firstName}, we still have that quote in our system. If cost is the constraint, we have options to spread the bill if that helps. Free check first, no charge. Stop by or call (216) 862-0005. Reply STOP to opt out.`;
       case "45d":
-        return `Hey — still weighing it? The quote stands, $10-down financing's there if you want it, and the re-check is free. Pull up any day, no obligation. Reply STOP to opt out.`;
+        return `Hey ${firstName}, last follow-up from Nick's on that quote. If cost was the blocker, we can show you a few payment options before you decide. Free check first, no pressure. Reply STOP to opt out.`;
     }
   }
 
@@ -173,30 +174,30 @@ export function buildSequenceMessage(params: BuildParams): string {
   if (profile === "P2") {
     switch (touch) {
       case "3d":
-        return `Hey — Nick's. The quote we wrote up is still on file, photos and the worn part with it. Free re-check anytime, written number, you don't pay until you say yes. Reply STOP to opt out.`;
+        return `Hey ${firstName} — Nick's here. That quote we wrote up is still on file, along with photos of the worn parts. Free re-check with you under the car first, you don't pay until you say yes. Reply STOP to opt out.`;
       case "7d":
-        return `That quote was written before we touched anything — that's how we work. Come back and we'll walk you under the car again. Free check, no charge until you say yes. (216) 862-0005. Reply STOP to opt out.`;
+        return `Hey ${firstName}, just following up on the quote from Nick's. We don't do hidden fees or surprises. Come by and we'll show you exactly what we saw. Free check, no charge until you say yes. (216) 862-0005. Reply STOP to opt out.`;
       case "14d":
-        return `Nick's here — we don't push work you don't need. Got a second opinion? Bring it and we'll go over it side by side. Free re-check, written quote. Reply STOP to opt out.`;
+        return `Nick's here. We only recommend what your car actually needs. Got a second opinion? Bring it in and we'll look at it together. Free re-check, written quote. Reply STOP to opt out.`;
       case "30d":
-        return `That quote's still in our system. Same lift, same person walking you under the car to show you. Free re-check first, you don't pay until you say yes. Reply STOP to opt out.`;
+        return `Hey ${firstName}, that quote is still in our system. Stop by and we'll put the car back on the lift to show you the parts we noted. Free check first, you don't pay until you say yes. Reply STOP to opt out.`;
       case "45d":
-        return `Hey — still on your list? Our quote was written, no fluff, and it still stands. Stop by when you're ready, free check, no charge. Reply STOP to opt out.`;
+        return `Hey ${firstName}, last follow-up from Nick's on that quote. If you still want to re-check those parts with us, stop by anytime. Free check first, no pressure. Reply STOP to opt out.`;
     }
   }
 
   // P3 · busy_tim · time is the blocker
   switch (touch) {
     case "3d":
-      return `Hey — Nick's. That quote's still good whenever it's easy for you. Drop the keys any morning, we'll handle it and let you know when it's ready. Free re-check, you don't pay until you say yes. Reply STOP to opt out.`;
+      return `Hey ${firstName} — Nick's here. That quote is still good when it's easy for you. Dropping it off is usually easiest. Leave the keys any morning and we'll text when it's ready. Free check, you don't pay until you say yes. Reply STOP to opt out.`;
     case "7d":
-      return `Still good to go on that quote. Drop it off any day — first-come, first-served — and we'll reach out when it's ready. Free check, written quote. (216) 862-0005. Reply STOP to opt out.`;
+      return `Hey ${firstName}, just following up on the quote from Nick's. Drop it off any morning and we'll work it in. We'll text or call before doing any work. (216) 862-0005. Reply STOP to opt out.`;
     case "14d":
-      return `Nick's here — easiest path is a drop-off. Leave it any morning, we'll work it in and reach out when it's done. Free re-check, you don't pay until you say yes. Reply STOP to opt out.`;
+      return `Nick's here. If you're still planning on that work, drop-offs are always welcome. Leave it with us and we'll let you know when it's done. Free check first, you don't pay until you say yes. Reply STOP to opt out.`;
     case "30d":
-      return `We'll keep that quote open one more week. Drop it off any day, first-come first-served, and we'll let you know when it's ready. Free check first. Reply STOP to opt out.`;
+      return `Hey ${firstName}, we'll keep that quote open for you. Drop the car off any morning, first-come first-served, and we'll text you when it's ready. Free check first. Reply STOP to opt out.`;
     case "45d":
-      return `Hey — still need that work? Drop it off any day, we'll take care of it and reach out when it's done. Free check, no charge until you say yes. (216) 862-0005. Reply STOP to opt out.`;
+      return `Hey ${firstName}, last follow-up from Nick's on that quote. If you need us to work the car in, drop it off any day and we'll get it handled. Free check first. (216) 862-0005. Reply STOP to opt out.`;
   }
 }
 

@@ -1249,7 +1249,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
 /** Booking confirmation SMS */
 export function bookingConfirmationSms(_name: string, _service: string, refCode?: string): string {
   const ref = refCode ? ` Ref: #${refCode}` : "";
-  return `Got your request at ${STORE_NAME}. We're walk-in, first-come first-served — pull up any day (Mon-Sat 8-6, Sun 9-4) and we'll take care of you.${ref} Questions? ${STORE_PHONE}`;
+  return `Got your request at Nick's Tire & Auto. We're walk-in and first come, first served — but we saw your message and we'll help you when you pull up. Open Mon-Sat 8-6, Sun 9-4.${ref} Questions? (216) 862-0005`;
 }
 
 /** Status update SMS */
@@ -1257,31 +1257,36 @@ export function statusUpdateSms(_name: string, stage: string, refCode?: string):
   const ref = refCode ? ` (Ref: #${refCode})` : "";
 
   const stageMessages: Record<string, string> = {
-    received: `We've got your vehicle in the queue`,
-    inspecting: `We're checking your vehicle now`,
-    "waiting-parts": `We're waiting on parts — we'll let you know the moment they're in`,
-    "in-progress": `Work's underway on your vehicle`,
-    "quality-check": `Work's done — giving it a final once-over`,
-    ready: `Ready for pickup! Pull up any time during business hours (Mon-Sat 8-6, Sun 9-4)`,
+    received: `We've got your vehicle in the queue at Nick's Tire & Auto. We'll check it and reach out before doing any work. Questions? (216) 862-0005`,
+    inspecting: `We're checking your vehicle now. Once we know what it needs, we'll explain it clearly and give you the price before doing anything`,
+    "waiting-parts": `Quick update from Nick's Tire & Auto: we're waiting on parts. We'll let you know as soon as they're in and the job can move forward`,
+    "in-progress": `Work is underway on your vehicle. We'll text or call when it's finished or if anything changes`,
+    "quality-check": `The work is done. We're giving it a final check before pickup. We'll let you know as soon as it's ready`,
+    ready: `Your vehicle is ready for pickup at Nick's Tire & Auto. Pull up during business hours. Questions? (216) 862-0005`,
   };
 
   const statusMsg = stageMessages[stage] || `Quick status update on your vehicle`;
+  
+  // Prevent double-appending shop info for fully self-contained status stages
+  if (stage === "received" || stage === "ready") {
+    return `${statusMsg}${ref}`;
+  }
   return `${statusMsg}.${ref}\n\n${STORE_NAME} — ${STORE_PHONE}`;
 }
 
 /** 24-hour thank-you SMS */
 export function thankYouSms(_name: string, _service: string): string {
-  return `Work's done and backed by our 12-month/12,000-mile warranty. Anything comes up, we're a call or text away. — ${STORE_NAME} ${STORE_PHONE}`;
+  return `Hey, thanks again for coming by Nick's Tire & Auto. All work is backed by our warranty. If anything feels off or you have a question, text or call us here: (216) 862-0005`;
 }
 
 /** 7-day review request SMS */
 export function reviewRequestSms(_name: string): string {
-  return `If we earned it, a quick word on Google goes a long way for the next Cleveland driver looking for a straight-shooting shop:\n\nnickstire.org/review\n\n— ${STORE_NAME}`;
+  return `Hey, hope everything's been good since your visit. If we earned it, a quick Google review helps other Cleveland drivers find a shop they can trust: nickstire.org/review`;
 }
 
 /** Callback confirmation SMS */
 export function callbackConfirmationSms(_name: string): string {
-  return `Got your callback request at ${STORE_NAME} — we'll reach out during business hours (Mon-Sat 8-6, Sun 9-4). Need us sooner? Call ${STORE_PHONE}.`;
+  return `Got your callback request at Nick's Tire & Auto. We'll reach out during business hours (Mon-Sat 8-6, Sun 9-4). Need us sooner? Call or text (216) 862-0005.`;
 }
 
 /**
@@ -1297,27 +1302,27 @@ export function withOptOut(body: string): string {
 
 /** Maintenance reminder SMS (bulk promo · carries the TCPA opt-out footer) */
 export function maintenanceReminderSms(_name: string, _service: string, _mileageNote?: string): string {
-  return withOptOut(`Due for an oil change? $49 conventional, $80 full synthetic — walk in any day, no appointment. ${STORE_NAME}, 17625 Euclid Ave. ${STORE_PHONE}`);
+  return withOptOut(`Due for an oil change? $49 conventional, $80 full synthetic — walk in any day, no appointment. Nick's Tire & Auto, 17625 Euclid Ave. (216) 862-0005`);
 }
 
 /** Lead submission confirmation SMS */
 export function leadConfirmationSms(_name: string): string {
-  return `Got your message at ${STORE_NAME} — we'll call you right back. Can't wait? We're walk-in any day, or reach us at ${STORE_PHONE}.`;
+  return `Hey, this is Nick's Tire & Auto on Euclid. We saw your request and wanted to help. What's going on with the car — tires, brakes, check engine, or something else?`;
 }
 
 /** Booking confirmation request SMS — asks customer to reply YES */
 export function bookingConfirmationRequestSms(_name: string, _preferredTime?: string): string {
-  return `Still planning to swing by ${STORE_NAME}? Reply YES and we'll keep an eye out — or just walk in any day, first-come, first-served. ${STORE_PHONE}`;
+  return `Still planning to swing by Nick's Tire & Auto? Reply YES and we'll keep an eye out — or just walk in any day, first-come, first-served. (216) 862-0005`;
 }
 
 /** Appointment reminder — 24 hours before */
 export function appointmentReminder24hSms(_name: string, _service: string, _vehicle?: string, _preferredTime?: string): string {
-  return `See you tomorrow at ${STORE_NAME}. We're first-come, first-served — pull up any time during business hours (Mon-Sat 8-6, Sun 9-4). Questions? ${STORE_PHONE}`;
+  return `Reminder from Nick's Tire & Auto: we're expecting you tomorrow. We're first come, first served, so earlier is usually better. Open Mon-Sat 8-6, Sun 9-4. Questions? (216) 862-0005`;
 }
 
 /** Appointment reminder — 1 hour before */
 export function appointmentReminder1hSms(_name: string, _vehicle?: string): string {
-  return `You're up at ${STORE_NAME} within the hour — we're at 17625 Euclid Ave. Pull up when you're ready, first-come, first-served. ${STORE_PHONE}`;
+  return `Just a heads up — we're expecting you soon at 17625 Euclid Ave. Pull up when you're ready. Questions? (216) 862-0005`;
 }
 
 // ─── EXPORTS ───────────────────────────────────────────

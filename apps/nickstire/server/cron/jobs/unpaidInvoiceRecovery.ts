@@ -72,9 +72,9 @@ export function firstName(full: string | null | undefined): string {
  */
 export function buildMessage(touch: "7d" | "30d", name: string): string {
   if (touch === "7d") {
-    return `Hey ${name} — Nick's Tire & Auto. Following up on your recent invoice. Whenever you get a chance, you can take care of it at the shop or call us at (216) 862-0005. No pressure — just making sure you're taken care of.`;
+    return `Hey ${name}, Nick’s Tire & Auto here. Just following up on your recent invoice. You can take care of it at the shop or call us at (216) 862-0005 when you get a chance. No pressure — just making sure you're taken care of.`;
   }
-  return `Hey ${name} — Nick's here. Still have an open balance on file. Swing by or call (216) 862-0005 whenever works. We're here Mon-Sat 8-6, Sun 9-4.`;
+  return `Hey ${name}, Nick’s Tire & Auto here. We still have an invoice follow-up open for you. No pressure — just call or stop by when you can (Mon-Sat 8-6, Sun 9-4) and we’ll help get it handled. (216) 862-0005.`;
 }
 
 export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<RecoveryResult> {
