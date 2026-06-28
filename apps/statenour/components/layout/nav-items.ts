@@ -1,5 +1,6 @@
 import {
   Brain,
+  Home,
   MessageSquare,
   ListTodo,
   Settings,
@@ -57,10 +58,11 @@ export interface NavEntry {
 
 export const NAV: NavEntry[] = [
   // ── TIER 1 · bottom content tabs (the smart-now daily loop) ──
-  { href: "/",         label: "Home",     icon: MessageSquare, section: "capture", bottomTab: true },
+  { href: "/",         label: "Home",     icon: Home,          section: "capture", bottomTab: true },
+  { href: "/chat",     label: "Chat",     icon: MessageSquare, section: "capture", bottomTab: true },
   { href: "/missions", label: "Missions", icon: ListTodo,      section: "execute", bottomTab: true },
   { href: "/journal",  label: "Journal",  icon: NotebookPen,   section: "reflect", bottomTab: true },
-  { href: "/stats",    label: "Stats",    icon: Target,        section: "reflect", bottomTab: true },
+  { href: "/stats",    label: "Stats",    icon: Target,        section: "reflect", flatRow: true },
 
   // ── CAPTURE ──
   { href: "/voice", label: "Voice",         icon: Mic, section: "capture", flatRow: true },

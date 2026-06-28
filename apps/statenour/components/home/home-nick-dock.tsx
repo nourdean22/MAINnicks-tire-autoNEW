@@ -130,70 +130,68 @@ export function HomeNickDock() {
   const canSend = text.trim().length > 0;
 
   return (
-    <div className="fixed bottom-0 inset-x-0 z-30 pb-safe px-3 sm:px-6 pointer-events-none">
-      <div className="mx-auto max-w-4xl w-full glass-card border-(--gold)/20 bg-[#0A0A0A]/90 backdrop-blur-lg shadow-(--shadow-gold-strong) pointer-events-auto p-2 sm:p-3 space-y-2 rounded-t-xl sm:rounded-xl">
-        {/* Mode Selectors */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-(--border-default) scrollbar-none">
-          {MODES.map((mode) => {
-            const Icon = mode.icon;
-            const isActive = mode.key === activeMode;
-            return (
-              <button
-                key={mode.key}
-                type="button"
-                onClick={() => {
-                  setActiveMode(mode.key);
-                  taRef.current?.focus();
-                }}
-                className={cn(
-                  "shrink-0 px-2.5 py-1.5 rounded text-[10px] font-mono uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 min-h-[36px]",
-                  isActive
-                    ? "bg-(--gold)/10 text-(--gold) border border-(--gold)/30"
-                    : "text-(--text-tertiary) border border-transparent hover:text-(--text-secondary)"
-                )}
-              >
-                <Icon size={12} className={cn(isActive && "text-(--gold)")} />
-                {mode.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Input Textarea & Send button */}
-        <div className="flex items-end gap-2 pt-1">
-          <textarea
-            ref={taRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={currentMode.placeholder}
-            rows={1}
-            className={cn(
-              "flex-1 min-h-[44px] resize-none bg-transparent px-3 py-2.5 text-[15px] sm:text-[16px] leading-snug",
-              "text-(--text-primary) placeholder:text-(--text-tertiary)/50",
-              "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
-            )}
-          />
-
-          <div className="flex items-center gap-1">
-            <span className="hidden sm:inline text-[9px] font-mono text-(--text-tertiary)/30 select-none mr-2">
-              ⌘↵ to send
-            </span>
+    <div className="w-full glass-card border border-(--gold)/20 bg-[#0A0A0A]/90 backdrop-blur-lg shadow-(--shadow-gold-strong) p-2 sm:p-3 space-y-2 rounded-xl">
+      {/* Mode Selectors */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-(--border-default) scrollbar-none">
+        {MODES.map((mode) => {
+          const Icon = mode.icon;
+          const isActive = mode.key === activeMode;
+          return (
             <button
+              key={mode.key}
               type="button"
-              onClick={handleSend}
-              disabled={!canSend}
-              aria-label="send message"
+              onClick={() => {
+                setActiveMode(mode.key);
+                taRef.current?.focus();
+              }}
               className={cn(
-                "shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-md transition-all active:scale-95",
-                canSend
-                  ? "bg-(--gold) text-(--text-inverse) hover:bg-(--gold-dim)"
-                  : "bg-(--border-default) text-(--text-tertiary)/30"
+                "shrink-0 px-2.5 py-1.5 rounded text-[10px] font-mono uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 min-h-[36px]",
+                isActive
+                  ? "bg-(--gold)/10 text-(--gold) border border-(--gold)/30"
+                  : "text-(--text-tertiary) border border-transparent hover:text-(--text-secondary)"
               )}
             >
-              <Send size={16} strokeWidth={2} />
+              <Icon size={12} className={cn(isActive && "text-(--gold)")} />
+              {mode.label}
             </button>
-          </div>
+          );
+        })}
+      </div>
+
+      {/* Input Textarea & Send button */}
+      <div className="flex items-end gap-2 pt-1">
+        <textarea
+          ref={taRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder={currentMode.placeholder}
+          rows={1}
+          className={cn(
+            "flex-1 min-h-[44px] resize-none bg-transparent px-3 py-2.5 text-[15px] sm:text-[16px] leading-snug",
+            "text-(--text-primary) placeholder:text-(--text-tertiary)/50",
+            "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
+          )}
+        />
+
+        <div className="flex items-center gap-1">
+          <span className="hidden sm:inline text-[9px] font-mono text-(--text-tertiary)/30 select-none mr-2">
+            ⌘↵ to send
+          </span>
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!canSend}
+            aria-label="send message"
+            className={cn(
+              "shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-md transition-all active:scale-95",
+              canSend
+                ? "bg-(--gold) text-(--text-inverse) hover:bg-(--gold-dim)"
+                : "bg-(--border-default) text-(--text-tertiary)/30"
+            )}
+          >
+            <Send size={16} strokeWidth={2} />
+          </button>
         </div>
       </div>
     </div>

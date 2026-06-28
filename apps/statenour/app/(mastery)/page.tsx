@@ -22,6 +22,9 @@ export default function HomePage() {
     <div className="mx-auto max-w-7xl px-3 sm:px-4 pb-32 space-y-4">
       <HomeIdentityHeader />
       <CoachEventBanner surface="home" />
+      
+      {/* Inline Command Dock at the Top */}
+      <HomeNickDock />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_520px]">
         {/* Main Left Bento Stack */}
@@ -39,9 +42,6 @@ export default function HomePage() {
           <HomeBrainGraph variant="home" />
         </aside>
       </div>
-
-      {/* Floating Bottom Dock */}
-      <HomeNickDock />
     </div>
   );
 }
