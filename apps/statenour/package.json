@@ -23,6 +23,7 @@
     "typecheck:raw": "tsc -p tsconfig.typecheck.json --noEmit",
     "check:env": "tsx scripts/check-env.ts",
     "check:env:prod": "tsx scripts/check-env.ts --prod",
+    "verify:railway": "tsx ../../scripts/verify-railway-config.ts",
     "check:crons": "tsx scripts/verify-crons.ts",
     "check:stale-docs": "tsx scripts/check-stale-docs.ts",
     "check:runbooks": "tsx scripts/check-runbooks.ts",

@@ -346,6 +346,16 @@ const MIGRATIONS: Record<string, string[]> = {
     END $$;`,
     `ALTER TABLE "Mission" ADD COLUMN IF NOT EXISTS "completionCriteria" JSONB;`
   ],
+
+  "20260628000000_task_outcome_rating_and_lessons": [
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'OutcomeRating') THEN
+        CREATE TYPE "OutcomeRating" AS ENUM ('OUTSTANDING', 'SATISFACTORY', 'SUBSTANDARD', 'FAILED');
+      END IF;
+    END $$;`,
+    `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "outcome_rating" "OutcomeRating";`,
+    `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "outcome_lesson" TEXT;`
+  ],
 };
 
 export async function POST(req: Request) {
