@@ -87,7 +87,7 @@ async function getReviewStatsFromDb(): Promise<{ count: number; rating: number }
  * Keep backup review stats fresh in the shop_settings table.
  * Does not clear the in-memory cache to avoid fetch loops.
  */
-async function saveBackupStatsToDb(count: number, rating: number): Promise<void> {
+export async function saveBackupStatsToDb(count: number, rating: number): Promise<void> {
   try {
     const { getDb } = await import("./db");
     const d = await getDb();

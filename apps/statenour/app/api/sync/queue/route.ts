@@ -61,6 +61,30 @@ export const POST = apiHandler(
           publishedAt: new Date(),
         },
       });
+
+      // Trigger actual publish to Meta Graph API
+      const publishPlatforms: ("instagram" | "facebook")[] = [];
+      if (updated.platforms.includes("instagram")) publishPlatforms.push("instagram");
+      if (updated.platforms.includes("facebook")) publishPlatforms.push("facebook");
+
+      if (publishPlatforms.length > 0) {
+        try {
+          const { publishSocialPost } = await import("@/lib/services/social-actions");
+          const requestHost = req.headers.get("host") || undefined;
+          await publishSocialPost(
+            {
+              platforms: publishPlatforms,
+              imageUrl: updated.kind !== "reel" ? (updated.imageUrl || undefined) : undefined,
+              videoUrl: updated.kind === "reel" ? (updated.imageUrl || undefined) : undefined,
+              caption: updated.content,
+            },
+            requestHost
+          );
+        } catch (pubErr) {
+          console.error("[sync/queue] Failed to publish to Meta:", pubErr);
+        }
+      }
+
       return { ok: true, published: true, item: updated };
     }
 
