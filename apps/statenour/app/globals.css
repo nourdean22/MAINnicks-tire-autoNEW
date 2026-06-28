@@ -162,8 +162,8 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
    ═══════════════════════════════════════════════════════ */
 .glass-card {
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   padding: 1rem;
@@ -943,8 +943,8 @@ button:active, [role="button"]:active {
   left: 0;
   right: 0;
   background: rgba(10, 10, 10, 0.9);
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border-top: 1px solid var(--glass-border);
   padding: 0.5rem 1rem;
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
@@ -1079,8 +1079,8 @@ body::after {
 /* Neural glass card — upgraded glass with neon edge glow */
 .neural-glass {
   background: linear-gradient(135deg, rgba(17, 17, 17, 0.8), rgba(10, 10, 10, 0.6));
-  backdrop-filter: blur(20px) saturate(1.5);
   -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
   border: 1px solid rgba(253, 185, 19, 0.08);
   border-radius: 16px;
   padding: 1.25rem;
@@ -1104,8 +1104,8 @@ body::after {
    neural-glass-modal and the !important band-aid is deleted. */
 .neural-glass-modal {
   background: linear-gradient(135deg, rgba(17, 17, 17, 0.93), rgba(10, 10, 10, 0.88));
-  backdrop-filter: blur(20px) saturate(1.5);
   -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
 }
 .neural-glass-modal::before {
   content: "";
@@ -1783,6 +1783,7 @@ body::after {
 
 .state-aura-normal {
   /* intentional no-op — neutral default */
+  animation: none;
 }
 
 /* v10.0.467 · COCKPIT glow · box-shadow → opacity-on-pseudo conversion */
@@ -2238,4 +2239,20 @@ select.pwa-select:focus {
 
 .user-bubble-premium:hover::before {
   opacity: 0.16;
+}
+
+/* ═══════════════════════════════════════════════════════
+   CONTRADICTION TENSION GRADIENT
+   Left-edge 2px rule that visualizes temporal polarity gap.
+   Gold top (current truth) fading to amber bottom (stale
+   position). Used in contradictions-card.tsx.
+   ═══════════════════════════════════════════════════════ */
+.contradiction-tension-gradient {
+  background: linear-gradient(
+    180deg,
+    var(--gold) 0%,
+    var(--gold) 38%,
+    rgb(251 191 36 / 0.65) 62%,
+    rgb(251 191 36 / 0.25) 100%
+  );
 }
