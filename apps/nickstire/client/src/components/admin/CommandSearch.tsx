@@ -715,7 +715,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                   onChange={e => setQuery(e.target.value)}
                   placeholder="Search customers, navigate sections..."
                   role="combobox"
-                  aria-expanded={totalResults > 0 ? "true" : "false"}
+                  aria-expanded={totalResults > 0}
                   aria-controls="command-search-listbox"
                   aria-activedescendant={selectedIndex >= 0 ? `cmd-opt-${selectedIndex}` : undefined}
                   aria-autocomplete="list"
@@ -740,7 +740,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                           key={s.id}
                           role="option"
                           id={`cmd-opt-${i}`}
-                          aria-selected={selectedIndex === i ? "true" : "false"}
+                          aria-selected={selectedIndex === i}
                           onClick={() => { onNavigate(s.id); close(); }}
                           className={`w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground transition-colors ${
                             selectedIndex === i ? "bg-primary/15 text-primary" : "hover:bg-primary/10"
@@ -767,7 +767,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                             key={a.id}
                             role="option"
                             id={`cmd-opt-${idx}`}
-                            aria-selected={selectedIndex === idx ? "true" : "false"}
+                            aria-selected={selectedIndex === idx}
                             onClick={() => { void a.run(); close(); }}
                             disabled={isPending}
                             className={`w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -794,7 +794,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                           key={c.id}
                           role="option"
                           id={`cmd-opt-${idx}`}
-                          aria-selected={selectedIndex === idx ? "true" : "false"}
+                          aria-selected={selectedIndex === idx}
                           onClick={() => { onSelectCustomer(c.id); close(); }}
                           className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors group ${
                             selectedIndex === idx ? "bg-primary/15" : "hover:bg-primary/10"
