@@ -90,6 +90,14 @@ export const healthProcedures = {
   healthSummary: operatorProcedure.query(async () => buildSystemHealth()),
 
   /**
+   * Returns the latest evaluated health governor decision.
+   */
+  governorState: operatorProcedure.query(async () => {
+    const { getLatestGovernorDecision } = await import("@/lib/health-governor/health-governor-guardrails");
+    return getLatestGovernorDecision();
+  }),
+
+  /**
    * Phase B.7a · owner-only · the chat-route operator rollup — latency,
    * cost, volume, error rate, quality, tool health, provider mix.
    * Replaces GET /api/system/chat-health · delegates to the shared
@@ -163,7 +171,7 @@ export const healthProcedures = {
 
   /**
    * hooks-lib slice · owner-only · the "Diagnose with Nick" health
-   * probe · Venice reachability + Neon latency + recent chat errors /
+   * probe · AI provider fleet + Neon latency + recent chat errors /
    * slow requests / ai_error audit events → a markdown report.
    * Replaces GET /api/ai/diagnose-chat · delegates to the shared
    * `diagnose-chat.runChatDiagnostic` the legacy route also calls ·
@@ -201,19 +209,7 @@ export const healthProcedures = {
    */
   aiSpend: operatorProcedure.query(async () => checkBudget()),
 
-  /**
-   * Cross-domain residuals slice · owner-only · the live Venice API
-   * status + balance probe. Replaces GET /api/ai/venice-status ·
-   * delegates to the shared `venice-status.probeVeniceStatus` service
-   * the REST route also calls. No input · the probe is a single bounded
-   * fetch (10s timeout). `useVeniceHealth` polls this on a 30s interval
-   * · React Query now drives the refetch via refetchInterval. Never
-   * throws — a missing key / network failure resolves to
-   * `{ ok: false, error }` so the consumer's health dot just goes amber.
-   */
-  veniceStatus: operatorProcedure.query(async () => {
-    return { ok: false, error: "Venice retired" };
-  }),
+
 
   /**
    * Cross-domain residuals slice · owner-only · the full multi-provider
@@ -272,7 +268,7 @@ export const healthProcedures = {
 
   /**
    * Phase UU.2 · owner-only · real-time cost/quota state per provider
-   * (Twilio · Resend · Stripe · Vercel · Venice). Replaces GET
+   * (Twilio · Resend · Stripe · Vercel). Replaces GET
    * /api/system/integration-quotas · delegates to the shared
    * `system-data.buildIntegrationQuotas` service. No input · always
    * probes every configured provider.

@@ -572,7 +572,10 @@ export const gatewayTireRouter = router({
       }
 
       // Verdict logic is pure + unit-tested in ../lib/tire-order-guards.
-      const verdict = evaluateOrderPrice(input.pricePerTireCents, expectedPriceCents);
+      const isCustomRequest = input.tireBrand === "Custom Request";
+      const verdict = isCustomRequest && input.pricePerTireCents === 0
+        ? { ok: true as const, basis: "floor" as const }
+        : evaluateOrderPrice(input.pricePerTireCents, expectedPriceCents);
       if (!verdict.ok) {
         if (verdict.reason === "below-expected") {
           // Tight floor · 5% below expected = reject (catches manipulated prices)
@@ -827,6 +830,12 @@ export const gatewayTireRouter = router({
         })
       ).catch(e => log.warn("[gatewayTire:placeOrder] event bus tire order dispatch failed:", e));
 
+      // ─── Customer confirmation notification ───────────
+      const templateKey = isCommonSize ? "requestReceived" : "manualLookupReceived";
+      import("../services/customerMessageTemplates").then(({ sendCustomerMessage }) =>
+        sendCustomerMessage(orderNumber, templateKey)
+      ).catch(e => log.warn("[gatewayTire:placeOrder] Customer message dispatch failed:", e));
+
       // ─── Smart uncommon-size detection ────────────────
       // If the tire size isn't one we commonly stock, flag it for Gateway
       // ordering (isCommonSize computed above, before the event emit)
@@ -858,6 +867,15 @@ export const gatewayTireRouter = router({
           totalAmount: totalDollars,
           notes: `⚠️ UNCOMMON SIZE — ${input.tireSize} is NOT in regular stock. Order from Gateway Tire immediately.`,
         }).catch(e => log.warn("[gatewayTire:placeOrder] uncommon size email notification failed:", e));
+      }
+
+      if (input.sessionId) {
+        try {
+          const { markFormCompleted } = await import("../services/abandonedForms");
+          markFormCompleted(input.sessionId);
+        } catch (e) {
+          log.warn("[placeOrder:abandoned-cleanup] failed to mark form completed:", e);
+        }
       }
 
       return {
@@ -1177,6 +1195,17 @@ export const gatewayTireRouter = router({
       // ─── Status change notifications ─────────────────
       if (input.status && input.status !== currentOrder.status) {
         const orderDesc = `${currentOrder.quantity}x ${currentOrder.tireBrand} ${currentOrder.tireModel} (${currentOrder.tireSize})`;
+
+        // Trigger customer confirmation messaging asynchronously
+        if (input.status === "confirmed") {
+          import("../services/customerMessageTemplates").then(({ sendCustomerMessage }) =>
+            sendCustomerMessage(currentOrder.orderNumber, "availabilityConfirmed")
+          ).catch(e => log.warn("[updateOrder:customer-confirm] failed:", e));
+        } else if (input.status === "delivered") {
+          import("../services/customerMessageTemplates").then(({ sendCustomerMessage }) =>
+            sendCustomerMessage(currentOrder.orderNumber, "orderReady")
+          ).catch(e => log.warn("[updateOrder:customer-ready] failed:", e));
+        }
 
         // DELIVERED → Email shop + Telegram: tires arrived, ready to schedule
         if (input.status === "delivered") {

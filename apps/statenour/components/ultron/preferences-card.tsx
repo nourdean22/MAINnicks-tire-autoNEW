@@ -319,7 +319,7 @@ export function PreferencesCard() {
             }
             className={cn(
               "shrink-0 -my-0.5 p-1 rounded transition-colors",
-              "min-w-[28px] min-h-[28px] flex items-center justify-center",
+              "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center",
               confirmReset
                 ? "bg-rose-400/15 text-rose-300 border border-rose-400/45"
                 : "text-[var(--text-tertiary)] hover:text-rose-300 hover:bg-rose-400/[0.08]",
@@ -427,7 +427,7 @@ export function PreferencesCard() {
             "flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] font-bold uppercase tracking-wider transition-colors",
             "min-h-[28px]",
             saving
-              ? "bg-zinc-800 border-zinc-700 text-zinc-500"
+              ? "bg-[var(--bg-surface)] border-[var(--border-hover)] text-[var(--text-tertiary)]"
               : !isDirty
                 ? "bg-transparent border-[var(--border-default)] text-[var(--text-tertiary)] cursor-not-allowed"
                 : "bg-[var(--gold)]/15 border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/25",

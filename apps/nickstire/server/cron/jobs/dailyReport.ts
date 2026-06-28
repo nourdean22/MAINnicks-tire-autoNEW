@@ -4,6 +4,7 @@
 import { createLogger } from "../../lib/logger";
 import { sendSms } from "../../sms";
 import { BUSINESS } from "@shared/business";
+import { countActionableLeads } from "@shared/leadSource";
 const log = createLogger("cron:daily-report");
 
 export async function generateDailyReport(): Promise<{ recordsProcessed: number; details: string }> {
@@ -39,9 +40,12 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
       revenue = pulse.today.revenue;
     } catch (e) { log.warn("[jobs/dailyReport] operation failed:", e); }
     try {
-      const rawLeads = await db.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE DATE(createdAt) = ${today}`);
-      const leadRows = Array.isArray(rawLeads) && Array.isArray(rawLeads[0]) ? rawLeads[0] : rawLeads;
-      leadCount = (leadRows as any)?.[0]?.cnt || 0;
+      // Actionable-lead definition (shared/leadSource): exclude web-callback leads already
+      // counted as a callback_requests row (same person, two rows) so this matches the morning
+      // brief + Money Risks. Voice rack-check leads (callbackId null) + real web leads still count.
+      const rawLeads = await db.execute(sql`SELECT source, callbackId FROM leads WHERE DATE(createdAt) = ${today}`);
+      const leadRows = (Array.isArray(rawLeads) && Array.isArray(rawLeads[0]) ? rawLeads[0] : rawLeads) as unknown as Array<{ source?: string | null; callbackId?: number | null }>;
+      leadCount = countActionableLeads(leadRows);
     } catch (e) { log.warn("[jobs/dailyReport] operation failed:", e); }
 
     // Send rich Telegram summary instead of thin SMS

@@ -1,6 +1,9 @@
 // S3-compatible storage helpers (replaces Manus Forge storage proxy)
 // Uses AWS SDK v3 for direct S3 uploads/downloads
-// LAZY-LOADED: AWS SDK is ~60MB — only imported when storage is actually used
+// LAZY-LOADED: AWS SDK is ~60MB — only imported when storage is used
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("storage");
 
 async function getS3Client() {
   const { S3Client } = await import("@aws-sdk/client-s3");
@@ -30,20 +33,32 @@ export async function storagePut(
   const key = normalizeKey(relKey);
 
   if (!bucket) {
-    const fs = await import("fs");
     const path = await import("path");
-    const localDir = path.join(process.cwd(), "data", "generated");
-    if (!fs.existsSync(localDir)) {
-      fs.mkdirSync(localDir, { recursive: true });
-    }
-    const filename = path.basename(key);
-    const localPath = path.join(localDir, filename);
     const body = typeof data === "string" ? Buffer.from(data) : data;
-    fs.writeFileSync(localPath, body);
+    const filename = path.basename(key) || "file.jpg";
+    
+    const formData = new FormData();
+    formData.append("reqtype", "fileupload");
+    const blob = new Blob([body as any], { type: contentType });
+    formData.append("fileToUpload", blob, filename);
 
-    const siteUrl = process.env.SITE_URL || "https://nickstire.org";
-    const url = `${siteUrl}/generated/${filename}`;
-    return { key, url };
+    try {
+      const response = await fetch("https://catbox.moe/user/api.php", {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        throw new Error(`Catbox HTTP error: ${response.statusText}`);
+      }
+      const url = (await response.text()).trim();
+      if (!url.startsWith("http")) {
+        throw new Error("Catbox upload failed: " + url);
+      }
+      return { key, url };
+    } catch (e) {
+      log.error("Catbox upload failed:", e);
+      throw e;
+    }
   }
 
   const { PutObjectCommand, GetObjectCommand } = await import("@aws-sdk/client-s3");

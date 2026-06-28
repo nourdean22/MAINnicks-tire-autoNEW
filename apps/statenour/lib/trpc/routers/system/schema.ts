@@ -325,7 +325,7 @@ export const schemaProcedures = {
   // cross-domain endpoints. Each procedure delegates to a shared
   // lib/services/ function the legacy REST route ALSO calls · drift
   // structurally impossible. No input takes a permissive z.record —
-  // veniceStatus + providerHealth take no input; agentTraceByMessage
+  // providerHealth takes no input; agentTraceByMessage
   // takes a strict z.object.
 
   /**

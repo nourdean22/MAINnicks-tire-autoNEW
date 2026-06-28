@@ -103,11 +103,11 @@ describe("buildFfmpegArgs", () => {
     expect(inputs).toEqual(["/t/c1.mp4", "/t/c2.mp4", "/t/c3.mp4", "/t/vo.wav", "/t/music.mp3"]);
   });
 
-  it("scales every beat to a 1080x1920 vertical frame and concatenates them", () => {
+  it("scales every beat to a 1080x1920 vertical frame and xfades them", () => {
     const fc = buildFfmpegArgs(base).join(" ");
     expect(fc).toContain("scale=1080:1920:force_original_aspect_ratio=increase");
     expect(fc).toContain("crop=1080:1920");
-    expect(fc).toContain("concat=n=3:v=1:a=0");
+    expect(fc).toContain("xfade=transition=fade");
   });
 
   it("burns captions on HALF-OPEN intervals (no double-rendered frame at cuts)", () => {
@@ -119,12 +119,41 @@ describe("buildFfmpegArgs", () => {
     expect(fc).not.toContain("between(t"); // inclusive between() double-renders the cut frame
   });
 
-  it("mixes VO loud (1.15) over ducked music (0.16) and trims to total length", () => {
+  it("ducks music UNDER the VO via sidechaincompress (not a static volume) and pads through the freeze", () => {
     const fc = buildFfmpegArgs(base).join(" ");
-    expect(fc).toContain("volume=1.15");
-    expect(fc).toContain("volume=0.16");
+    expect(fc).toContain("volume=1.15"); // VO loud
+    expect(fc).toContain("sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400"); // dynamic duck keyed off VO
+    expect(fc).not.toContain("volume=0.16"); // the old static duck is gone
     expect(fc).toContain("amix=inputs=2");
-    expect(fc).toContain("atrim=0:9");
+    // 9s of beats + 3s save-payload freeze => audio trimmed/padded to 12s
+    expect(fc).toContain("atrim=0:12");
+    expect(fc).toContain("apad=whole_dur=12");
+  });
+
+  it("adds per-beat push-in motion + a save-payload freeze with a SAVE overlay (Phase 3.1/4.1)", () => {
+    const args = buildFfmpegArgs(base);
+    const fc = args.join(" ");
+    expect(fc).toContain("zoompan=z='min(pzoom+"); // Ken Burns per beat
+    expect(fc).toContain("tpad=stop_mode=clone:stop_duration=3"); // freeze final frame 3s
+    expect(fc).toContain("textfile='caption_save.txt'"); // save-payload prompt
+    expect(fc).toContain("[vout]");
+    const tIdx = args.indexOf("-t");
+    expect(args[tIdx + 1]).toBe("12"); // 9s of beats + 3s freeze
+  });
+
+  it("normalizes loudness to -14 LUFS on the final audio (every audio branch)", () => {
+    const target = "loudnorm=I=-14:TP=-1.5:LRA=11";
+    expect(buildFfmpegArgs(base).join(" ")).toContain(target); // VO + music
+    expect(buildFfmpegArgs({ ...base, musicPath: null }).join(" ")).toContain(target); // VO only
+    expect(buildFfmpegArgs({ ...base, voPath: null }).join(" ")).toContain(target); // music only
+  });
+
+  it("brands captions in Nick's yellow and opens beat 1 as a centered hook", () => {
+    const fc = buildFfmpegArgs(base).join(" ");
+    expect(fc).toContain("fontcolor=0xFDB913"); // brand yellow, not white
+    expect(fc).not.toContain("fontcolor=white");
+    expect(fc).toContain("y=(h-text_h)/2"); // beat 1 hook, screen-centered
+    expect(fc).toContain("y=h*0.62"); // later captions in the lower third (out of IG safe zone)
   });
 
   it("emits an IG-ready H.264 +faststart mp4 mapped from the final video/audio labels", () => {

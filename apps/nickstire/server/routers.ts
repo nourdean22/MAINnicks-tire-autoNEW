@@ -11,6 +11,7 @@ import {
   chatRouter,
   contentRouter,
   contentAdminRouter,
+  contentStudioRouter,
   adminDashboardRouter,
   analyticsRouter,
   followUpsRouter,
@@ -78,6 +79,8 @@ import {
   conversionRouter,
   smsPerformanceRouter,
   instagramAdminRouter,
+  gbpRouter,
+  smsOrchestratorRouter,
 } from "./routers/index";
 import { voiceAgentRouter } from "./routers/voiceAgent";
 import { vapiRouter } from "./routers/vapi";
@@ -132,6 +135,7 @@ export const appRouter = router({
   // Admin features
   adminDashboard: adminDashboardRouter,
   contentAdmin: contentAdminRouter,
+  contentStudio: contentStudioRouter,
   analytics: analyticsRouter,
   customerNotifications: customerNotificationsRouter,
   followUps: followUpsRouter,
@@ -143,6 +147,8 @@ export const appRouter = router({
   smsBot: smsBotRouter,
   reviewReplies: reviewRepliesRouter,
   localGrowth: localGrowthRouter,
+  gbp: gbpRouter,
+  smsOrchestrator: smsOrchestratorRouter,
   shareCards: shareCardsRouter,
   gallery: galleryRouter,
   technicians: techniciansRouter,

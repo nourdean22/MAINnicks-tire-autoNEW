@@ -107,7 +107,7 @@ const REALTIME_TOOLS = [
 ];
 
 const REALTIME_DEFAULTS = {
-  model: "gpt-4o-realtime-preview",
+  model: "gpt-4o-realtime-preview-2024-12-17",
   voice: "alloy", // alloy, echo, fable, onyx, nova, shimmer
   modalities: ["text", "audio"] as const,
   input_audio_format: "pcm16",

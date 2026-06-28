@@ -240,22 +240,6 @@ export async function processScheduledSms() {
       continue;
     }
 
-    // Respect SMS opt-out (skip marketing messages, allow transactional)
-    const isMarketing = ["review-request", "maintenance-reminder"].includes(reminder.type);
-    if (isMarketing) {
-      const { customers } = await import("../../drizzle/schema");
-      const { like } = await import("drizzle-orm");
-      const normalized = booking.phone.replace(/\D/g, "").slice(-10);
-      const [cust] = await db.select({ smsOptOut: customers.smsOptOut })
-        .from(customers).where(like(customers.phone, `%${normalized}`)).limit(1);
-      if (cust?.smsOptOut) {
-        await db.update(appointmentReminders)
-          .set({ status: "cancelled" })
-          .where(eq(appointmentReminders.id, reminder.id));
-        continue;
-      }
-    }
-
     // Skip if booking was cancelled
     if (booking.status === "cancelled") {
       await db.update(appointmentReminders)
@@ -289,56 +273,36 @@ export async function processScheduledSms() {
       continue;
     }
 
-    // Generate message based on type
-    let message: string;
-    switch (reminder.type) {
-      case "confirmation-request":
-        message = bookingConfirmationRequestSms(booking.name, booking.preferredTime || undefined);
-        break;
-      case "24h-before":
-        message = appointmentReminder24hSms(booking.name, booking.service, vehicle || undefined, booking.preferredTime || undefined);
-        break;
-      case "1h-before":
-        message = appointmentReminder1hSms(booking.name, vehicle || undefined);
-        break;
-      case "thank-you":
-        message = thankYouSms(booking.name, booking.service);
-        break;
-      case "review-request":
-        message = reviewRequestSms(booking.name);
-        break;
-      case "maintenance-reminder":
-        message = maintenanceReminderSms(booking.name, booking.service);
-        break;
-      default:
-        message = `Hi ${booking.name.split(" ")[0]}, reminder from Nick's Tire & Auto about your ${booking.service}. Call (216) 862-0005.`;
-    }
-
-    // At-most-once claim — mark the reminder 'sent' BEFORE the send. The
-    // pending->processing claim above only guards overlapping runs; it
-    // does NOT cover the crash-after-send window, because the recovery
-    // sweep resurrects any 'processing' row with sentAt=NULL and re-sends
-    // it. Writing the terminal 'sent' state first closes that: a crash
-    // after this point leaves the row 'sent' (never reprocessed); a crash
-    // before it leaves 'processing' with the send not yet done (correct
-    // for the sweep to reclaim). A send failure downgrades it to 'failed'.
+    // At-most-once claim — mark the reminder 'sent' BEFORE the send.
     await db.update(appointmentReminders)
       .set({ status: "sent", sentAt: now })
       .where(eq(appointmentReminders.id, reminder.id));
 
-    // wave-181.58 · route through F25e gateway (operator decision: Twilio dead).
-    // Was missing from wave-181.46's batch — booking confirmations + 24h/1h
-    // reminders + thank-you + maintenance-reminder all flow through this path.
-    // Without { via: "shop" } they hit the kill switch.
-    // Appointment-related reminders are transactional — must not be silently
-    // dropped by the promo daily-cap/cooldown. Only maintenance-reminder is
-    // promotional (stays capped + carries its own STOP footer).
-    const isTransactional = !["maintenance-reminder", "review-request"].includes(reminder.type);
-    const result = await sendSms(booking.phone, message, { via: "shop", transactional: isTransactional });
+    const { orchestrateSms } = await import("./smsOrchestrator");
+    let result: { status: any; id?: number; reason?: string };
 
-    if (result.success) {
+    if (reminder.type === "review-request") {
+      result = await orchestrateSms({
+        type: "review_request",
+        phone: booking.phone,
+        name: booking.name,
+      });
+    } else {
+      result = await orchestrateSms({
+        type: "booking_reminder",
+        phone: booking.phone,
+        name: booking.name,
+        reminderType: reminder.type,
+        service: booking.service,
+        vehicle: vehicle || undefined,
+        preferredTime: booking.preferredTime || undefined,
+        refCode: String(booking.id),
+      });
+    }
+
+    if (result.status === "sent" || result.status === "queued") {
       await db.update(appointmentReminders)
-        .set({ smsSid: result.sid || null })
+        .set({ smsSid: result.id?.toString() || null })
         .where(eq(appointmentReminders.id, reminder.id));
       sent++;
 
@@ -350,7 +314,7 @@ export async function processScheduledSms() {
       }
     } else {
       await db.update(appointmentReminders)
-        .set({ status: "failed" })
+        .set({ status: result.status === "skipped" ? "skipped" : "failed" })
         .where(eq(appointmentReminders.id, reminder.id));
       failed++;
     }

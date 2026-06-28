@@ -131,7 +131,13 @@ export function extractEndedReason(event: unknown): string | null {
   const top = typeof e.endedReason === "string" ? e.endedReason.trim() : "";
   if (top) return top;
   const nested = typeof e.call?.endedReason === "string" ? e.call.endedReason.trim() : "";
-  if (nested && !nested.startsWith("call.")) return nested;
+  // Accept a call-level value when it's a clean label (not a `call.*` SIP
+  // transient) OR a TERMINAL warm-transfer / transfer-failed reason. The latter
+  // are real ended reasons (the hand-off failed), not transient SIP statuses —
+  // they feed the warm-transfer connect-rate's ground-truth "failed" count
+  // (lib/warmTransferConnect.ts). Generic call.* SIP transients still drop, so
+  // the wave-137 bug this guard fixed stays fixed.
+  if (nested && (!nested.startsWith("call.") || /warm-transfer|transfer-failed/.test(nested))) return nested;
   return null;
 }
 
@@ -503,6 +509,24 @@ router.post("/vapi", async (req: Request, res: Response) => {
               // The vapi_call_logs UNIQUE(vapiCallId) makes a webhook retry
               // throw dup → firstLog=false → one-time side-effects below
               // (forwarded-call callback) run exactly once per call.
+              // 2026-06-20 · derive convertedToLead from the tool-state trail
+              // (complete by end-of-call). It was hardcoded 0 with "updated
+              // later", but the mid-call tireInquiry/bookSlot UPDATE runs
+              // before THIS row exists (0 rows matched), so it stayed 0 for
+              // every call — the conversion meter read 0% forever. A capture
+              // tool (state 'tool_called') or sendConfirmationSms ('confirmed')
+              // means the AI completed a conversion action. Best-effort: any
+              // read failure leaves it 0 and the daily eval reconciles. This is
+              // a TOOL-ENGAGEMENT signal — distinct from the nightly digest's
+              // score>=70 "converted" count; see vapiConversionSignals.ts.
+              let convertedToLead = 0;
+              try {
+                const { getCallStateHistory } = await import("../../services/voice-call-state");
+                const { trailReachedTool } = await import("../../services/vapiConversionSignals");
+                convertedToLead = trailReachedTool(await getCallStateHistory(String(callId))) ? 1 : 0;
+              } catch (stateErr) {
+                log.warn("[vapi webhook] convertedToLead trail read failed (default 0; eval reconciles)", { error: stateErr instanceof Error ? stateErr.message : String(stateErr) });
+              }
               let firstLog = true;
               await d.insert(vapiCallLogs).values({
                 vapiCallId: String(callId),
@@ -512,7 +536,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
                 endedReason: cleanEndedReason,
                 aiSummary: summary,
                 serviceMention,
-                convertedToLead: 0, // updated later if a lead is created from this call
+                convertedToLead,
                 transcriptUrl: (event.call as { transcript?: string; transcriptUrl?: string })?.transcriptUrl ?? null,
                 recordingUrl: (event.call as { recordingUrl?: string })?.recordingUrl ?? null,
               }).catch((err: unknown) => {
@@ -539,12 +563,11 @@ router.post("/vapi", async (req: Request, res: Response) => {
               // caller" rows) to a self-serve SMS back to the caller. The caller
               // re-engages on their terms; the operator's callback queue stays clean.
               if (firstLog && isForwardedEndedReason(cleanEndedReason) && customer?.number) {
-                const { sendSms } = await import("../../sms");
-                await sendSms(
-                  customer.number.trim(),
-                  "Sorry if you couldn't get through just now - try us again any time, or just text us here and we'll help. - Nick's Tire & Auto (216) 862-0005",
-                  { via: "shop" },
-                ).catch((err: unknown) => {
+                const { orchestrateSms } = await import("../../services/smsOrchestrator");
+                await orchestrateSms({
+                  type: "vapi_forwarded_call_followup",
+                  phone: customer.number.trim(),
+                }).catch((err: unknown) => {
                   log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
                     error: err instanceof Error ? err.message : String(err),
                   });

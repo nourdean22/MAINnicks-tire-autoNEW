@@ -46,7 +46,7 @@ export const GENERATION_ENABLED = true;
 export const INSIGHTS_ENABLED = true;
 
 export const DISABLED_REASON =
-  "Disabled in this PR — no external generation or posting occurs.";
+  "Studio actions are turned off — no external generation or posting occurs.";
 
 // ─── Brand constants (operator-facing source of truth for the Studio) ──
 // NOTE: shared/business.ts holds site-wide business facts; it is being edited
@@ -63,6 +63,14 @@ export const STUDIO_BRAND = {
   reputation: "4.9-star local reputation",
   reviews: "1,685+ Google reviews",
   certification: "ASE-certified service capability",
+  typography: {
+    display: "Anton",
+    body: "Barlow",
+  },
+  colors: {
+    primary: "#FDB913",
+    background: "#0A0A0A",
+  },
 } as const;
 
 // ─── Reel output rules (hard format contract) ─────────────────────
@@ -377,7 +385,8 @@ export interface ReelBrief {
   winningConceptId: string | null;
 
   storyboardBeats: StoryboardBeat[]; // 4-6 when valid
-  higgsfieldPromptPack: HiggsfieldBeatPrompt[]; // one per beat
+  promptPack?: HiggsfieldBeatPrompt[]; // neutral naming for clip generator prompt pack
+  higgsfieldPromptPack: HiggsfieldBeatPrompt[]; // legacy - one per beat
   ffmpegAssemblyNotes: string;
   voiceoverScript: string; // optional VO — reel must still work muted
 
@@ -748,7 +757,7 @@ export function buildInstagramPublishChecklist(brief: ReelBrief): ChecklistItem[
     { label: "Posting from correct account", ok: null, detail: `${STUDIO_BRAND.handle} — manual check` },
     { label: "Facebook cross-post OFF", ok: null, detail: "Manual check in IG composer" },
     { label: "Manual operator review", ok: null, detail: "A human watches the full reel before posting" },
-    { label: "Publish button", ok: PUBLISH_ENABLED, detail: DISABLED_REASON },
+    { label: "Publish button", ok: PUBLISH_ENABLED, detail: PUBLISH_ENABLED ? "Live — publishing is server-gated (REEL_PUBLISH_ENABLED + claim-safety)" : DISABLED_REASON },
   ];
 }
 

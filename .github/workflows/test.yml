@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout (full history for affected-detection)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Turbo needs at least the merge-base commit to compute
           # --affected. fetch-depth: 0 grabs everything; for huge repos
@@ -34,14 +34,14 @@ jobs:
           fetch-depth: 0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       # Pin to Node 20 to match Railway's Dockerfile runtime
       # (FROM node:20-alpine in apps/statenour/Dockerfile + apps/worker/Dockerfile).
       # Node 22 in CI vs Node 20 in prod was a latent false-green risk · caught by
       # the Tier-2-G code-review pass.
       - name: Setup Node 20 (matches Railway runtime)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: pnpm
@@ -51,7 +51,7 @@ jobs:
 
       - name: Detect changed paths
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             statenour:
@@ -97,6 +97,13 @@ jobs:
       - name: Nickstire · route registry validation
         if: steps.changes.outputs.nickstire == 'true'
         run: pnpm --filter nicks-tire-auto validate:routes
+
+      # ─── Statenour-only custom validator (no Turbo equivalent yet) ───
+      - name: Statenour · stale-doc guard (strict)
+        if: steps.changes.outputs.statenour == 'true'
+        run: pnpm --filter @statenour/web check:stale-docs
+        env:
+          STALE_DOCS_STRICT: '1'
 
       # ─── Security audit (always runs · cheap + non-blocking) ─────────
       - name: Dependency audit (high+ severity)

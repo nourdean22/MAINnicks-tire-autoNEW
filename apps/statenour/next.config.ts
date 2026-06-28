@@ -40,6 +40,12 @@ const nextConfig: NextConfig = {
   env: {
     BUILD_TIME,
   },
+  outputFileTracingIncludes: {
+    "/api/ai/chat": [
+      "lib/ai/last30days/**/*",
+      "lib/ai/moneyprinter/**/*",
+    ],
+  },
 
   // Apr 28 · BATCH 4 hotfix — Next 16 + Turbopack typecheck does NOT
   // honor `skipLibCheck: true` from tsconfig and crashes on
@@ -72,7 +78,7 @@ const nextConfig: NextConfig = {
   // dependencies · was a dead config entry from a prior browser-automation
   // exploration. Browser automation now flows via the claude-in-chrome MCP
   // path · no in-process puppeteer.
-  serverExternalPackages: ["@prisma/client"],
+  serverExternalPackages: ["@prisma/client", "@resvg/resvg-js"],
 
   // v10.0.290 · 3D layer.
   // Wave 53 (2026-05-20): pivoted off Spline to React Three Fiber. The
@@ -101,14 +107,21 @@ const nextConfig: NextConfig = {
         },
         // Disable legacy XSS filter — modern browsers don't need it and it can cause issues
         { key: "X-XSS-Protection", value: "0" },
-        {
-          key: "Content-Security-Policy",
-          value: [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: blob: https:",
-            "font-src 'self' data:",
+        // ── Content-Security-Policy ──────────────────────────────────────
+        // CSP moved to middleware.ts (audit-2026-06-21) so script-src can use
+        // a per-request nonce + 'strict-dynamic' in production. It must live in
+        // exactly ONE place — a CSP header here AND in middleware would make the
+        // browser enforce their intersection and break the nonce model. The
+        // policy (incl. the Ollama/VAPI connect-src) now lives in
+        // lib/security/csp.ts. Removed from next.config:
+        // {
+        //   key: "Content-Security-Policy",
+        //   value: [
+        //     "default-src 'self'",
+        //     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        //     "style-src 'self' 'unsafe-inline'",
+        //     "img-src 'self' data: blob: https:",
+        //     "font-src 'self' data:",
             // wave-fix-2026-05-25 · audit · added Ollama Cloud + local
             // localhost:11434 to support the kimi-k2.5:cloud backup
             // provider (operator's fallback when primary providers fail).
@@ -119,12 +132,12 @@ const nextConfig: NextConfig = {
             // VAPI voice-agent live-call surface (operator can see VAPI
             // status, call list, recordings from the statenour cockpit).
             // Wave H landed Ollama Cloud but missed VAPI · audit caught it.
-            "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.venice.ai https://api.vapi.ai https://ollama.com https://*.ollama.com http://localhost:11434 wss:",
-            "frame-ancestors 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-          ].join("; "),
-        },
+        //     "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.vapi.ai https://ollama.com https://*.ollama.com http://localhost:11434 wss:",
+        //     "frame-ancestors 'none'",
+        //     "base-uri 'self'",
+        //     "form-action 'self'",
+        //   ].join("; "),
+        // },
       ],
     },
     {
@@ -193,7 +206,10 @@ const nextConfig: NextConfig = {
     // Admin sprawl → /system hub.
     { source: "/system/policies", destination: "/system", permanent: false },
     { source: "/system/skills", destination: "/system", permanent: false },
-    { source: "/system/tools", destination: "/system", permanent: false },
+    // 2026-06-18 · IA reorg Phase 0 · /system/tools UN-SHADOWED. The live
+    // agent-tools registry page (trpc.system.getTools, linked from the System
+    // hub grid) was being bounced to /system by this redirect = dead surface.
+    // Now reachable; surfaced as a System-hub tile.
     { source: "/system/features", destination: "/system", permanent: false },
     { source: "/system/api-tokens", destination: "/system", permanent: false },
     { source: "/system/devices", destination: "/system", permanent: false },
@@ -208,7 +224,10 @@ const nextConfig: NextConfig = {
     { source: "/system/digest", destination: "/system", permanent: false },
     { source: "/system/coach-events", destination: "/system/alerts", permanent: false },
     { source: "/system/reviews", destination: "/system", permanent: false },
-    { source: "/system/proactive-preview", destination: "/system", permanent: false },
+    // 2026-06-18 · IA reorg Phase 0 · /system/proactive-preview UN-SHADOWED.
+    // The live proactive-push dry-run page (linked from the System hub grid)
+    // was being bounced to /system by this redirect = dead surface. Now
+    // reachable; surfaced as a System-hub tile.
     { source: "/system/errors", destination: "/system/logs?view=errors", permanent: false },
     // Reason consolidation. Wave 2 (2026-06-03) · /reason itself folded
     // into /brain?tab=reason · these two land there directly (single hop).
@@ -231,6 +250,14 @@ const nextConfig: NextConfig = {
     // bookmarks land on the right tab.
     { source: "/financial", destination: "/business?tab=money", permanent: false },
     { source: "/funnel", destination: "/business?tab=funnel", permanent: false },
+
+    // 2026-06-19 · IA reorg Phase 5 · /finance + /wealth consolidated into the
+    // tabbed /money hub (Finance + Wealth tabs). Deep links land on the right tab.
+    { source: "/finance", destination: "/money?tab=finance", permanent: false },
+    { source: "/wealth", destination: "/money?tab=wealth", permanent: false },
+    // 2026-06-19 · IA reorg Phase 5 · /crm folded into the /business Clients tab
+    // (coaching pipeline next to the funnel it feeds).
+    { source: "/crm", destination: "/business?tab=clients", permanent: false },
 
     // Wave 2 surface merge · /seo + /radar folded into the tabbed /market
     // surface (Search + Radar tabs). Deep links + bookmarks land on the

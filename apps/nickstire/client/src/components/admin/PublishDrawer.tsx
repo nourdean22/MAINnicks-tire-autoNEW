@@ -68,7 +68,7 @@ export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, is
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] bg-background border-l border-border/40 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-250">
+    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] bg-background border-l border-border/40 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-250 pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]">
       {/* Header */}
       <div className="p-4 border-b border-border/30 flex items-center justify-between bg-card">
         <div className="flex items-center gap-2">
@@ -87,14 +87,14 @@ export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, is
             resetSteps();
             onClose();
           }}
-          className="p-1.5 rounded hover:bg-foreground/5 text-foreground/50 hover:text-foreground transition-colors"
+          className="p-2.5 sm:p-1.5 rounded hover:bg-foreground/5 text-foreground/50 hover:text-foreground transition-colors w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center -mr-2 sm:-mr-1"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Guide Steps */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-6">
+      <div className="flex-1 overflow-y-auto p-5 space-y-6 overscroll-contain">
         <div className="border border-blue-500/20 bg-blue-500/5 rounded p-3 text-xs text-blue-300 leading-relaxed">
           <strong>Publishing is manual.</strong> Higgsfield generation, video rendering, and posting live on social media are done by you manually. Follow this guide to prepare your assets safely.
         </div>

@@ -58,7 +58,13 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
       return;
     }
 
-    log.info("Inbound SMS received", { from: from.slice(-4), body: body.slice(0, 100) });
+    // Privacy: log metadata only — customer message content goes to the DB
+    // conversation record (admin inbox), never to the stdout/Railway log stream.
+    log.info("Inbound SMS received", {
+      from: from.slice(-4),
+      body_len: String(body).length,
+      has_media: numMedia >= 1,
+    });
 
     const { getOrCreateConversation, addSmsMessage, smsMessageExists } = await import("../../db");
 
@@ -77,8 +83,10 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
 
     // Persist inbound to the conversation thread — this is both the
     // admin-inbox record and the dedup marker the check above reads.
+    let conversationId: number | undefined = undefined;
     try {
       const conversation = await getOrCreateConversation(from);
+      conversationId = conversation.id;
       await addSmsMessage({
         conversationId: conversation.id,
         direction: "inbound",
@@ -92,16 +100,21 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
       });
     }
 
-    // Parse intent
-    const parsed = parseSmsResponse(body);
-
-    // Execute auto-action if high confidence
-    if (parsed.autoAction && !parsed.requiresHuman) {
-      await executeAutoAction(parsed, from);
+    if (conversationId) {
+      try {
+        const { orchestrateSms } = await import("../../services/smsOrchestrator");
+        await orchestrateSms({
+          type: "inbound_sms",
+          phone: from,
+          body,
+          conversationId,
+        });
+      } catch (orchErr) {
+        log.warn("Orchestrator inbound SMS check failed in Twilio webhook", {
+          error: orchErr instanceof Error ? orchErr.message : String(orchErr),
+        });
+      }
     }
-
-    // Log communication (fire-and-forget)
-    logInboundSms(from, body, parsed.intent).catch((e) => { log.warn("[webhooks/twilio] fire-and-forget failed:", e); });
 
     // Send empty TwiML response (no auto-reply for now)
     res.type("text/xml").send("<Response></Response>");
@@ -135,7 +148,11 @@ router.post("/voice/process", (req: Request, res: Response) => {
   }
 
   if (speechResult) {
-    log.info("Voice input processed", { caller: callerPhone.slice(-4), speech: speechResult.slice(0, 100) });
+    // Privacy: log transcript length only, never the caller's spoken words.
+    log.info("Voice input processed", {
+      caller: callerPhone.slice(-4),
+      speech_len: String(speechResult).length,
+    });
     res.type("text/xml").send(generateResponseTwiML(speechResult));
   } else {
     res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>

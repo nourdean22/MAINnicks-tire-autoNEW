@@ -79,16 +79,15 @@ catalog of mastery STATS, and recent FILING EXAMPLES, return ONE JSON object:
   "missionId": "<one of the provided mission ids> | null",
   "goalId": "<one of the provided goal ids> | null",
   "statHints": ["<0-2 stat keys from the catalog>"],
-  "domain": "health | mind | business | social | spiritual | personal",
+  "domain": "health | mind | business | social | personal",
   "confidence": 0.0-1.0,
   "rationale": "one short sentence on the fit (or why none)"
 }
 
 RULES:
-- domain: ALWAYS pick the best of the 6 (health=body/fitness/sleep/food · mind=
-  focus/learning/emotions · business=work/shop/money/marketing · social=people/
-  relationships/family · spiritual=faith/prayer/purpose · personal=errands/home/
-  admin/misc). Never null — when unsure, "personal".
+- domain: ALWAYS pick the best of the 5 (health=body/fitness/sleep/food · mind=
+  focus/learning/emotions/faith/prayer/purpose · business=work/shop/money/marketing · social=people/
+  relationships/family · personal=errands/home/admin/misc). Never null — when unsure, "personal".
 - missionId: pick the best-fit SPECIFIC mission; null if none genuinely relates
   (the caller routes null to the domain's GENERAL mission — so don't force it).
 - goalId: only if the task genuinely advances it; null is common and fine.
@@ -220,10 +219,9 @@ export function fallbackLinkage(input: ClassifyLinkageInput): ClassifyLinkageRes
 /** Keyword → canonical domain (deterministic fallback for the domain field). */
 const DOMAIN_CUES: Array<[CanonicalDomain, string[]]> = [
   ["health", ["workout", "gym", "run", "sleep", "diet", "doctor", "health", "water", "fitness", "meal", "stretch", "physio", "dentist"]],
-  ["spiritual", ["pray", "prayer", "quran", "mosque", "faith", "meditate", "gratitude", "purpose"]],
   ["business", ["shop", "tire", "customer", "invoice", "lead", "sale", "client", "revenue", "marketing", "post", "content", "finance", "money", "bill", "vendor", "order", "estimate", "payroll"]],
   ["social", ["meet", "dinner", "family", "friend", "dania", "mom", "dad", "party", "reach", "birthday", "wedding"]],
-  ["mind", ["read", "learn", "study", "course", "journal", "reflect", "focus", "think", "book", "skill"]],
+  ["mind", ["read", "learn", "study", "course", "journal", "reflect", "focus", "think", "book", "skill", "pray", "prayer", "quran", "mosque", "faith", "meditate", "gratitude", "purpose"]],
 ];
 
 function inferDomain(words: Set<string>): CanonicalDomain {

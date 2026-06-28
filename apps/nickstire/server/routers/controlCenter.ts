@@ -3,11 +3,11 @@
  * today's stats, AI gateway health, system status, daily brief, and execution tracking.
  */
 import { adminProcedure, router } from "../_core/trpc";
-import { sql, eq, gte, and, desc } from "drizzle-orm";
+import { sql, eq, gte, and, desc, isNull, inArray } from "drizzle-orm";
 import { exec } from "child_process";
 import { promisify } from "util";
 const execAsync = promisify(exec);
-import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits, invoices, estimatesLog, callEvents, tireOrders, winbackSends, winbackCampaigns, memberships } from "../../drizzle/schema";
+import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits, invoices, algEstimates, callEvents, tireOrders, winbackSends, winbackCampaigns, memberships } from "../../drizzle/schema";
 import { countActionableLeads } from "@shared/leadSource";
 import { getGatewayHealth, getAvailableModels } from "../lib/ai-gateway";
 import { z } from "zod";
@@ -107,10 +107,19 @@ export const controlCenterRouter = router({
       tireOrdersToday,
       winbacksToday,
       pendingEstimatesList,
+      unpaidInvoices,
     ] = await Promise.all([
-      d.select({ sum: sql<number>`COALESCE(SUM(${estimatesLog.estimatedAmountCents}), 0)` })
-        .from(estimatesLog)
-        .where(eq(estimatesLog.converted, 0)),
+      // Outstanding opportunities = real ALG/ShopDriver counter estimates that
+      // never converted to an invoice (matched_invoice_id IS NULL), in cents.
+      // Same table the Customers-tab "Declined" column reads, but this is the
+      // FULL unmatched sum — a SUPERSET of customerMetricsRefresh.declinedValue,
+      // which only counts estimates whose phone fuzzy-matches a known customer.
+      // So this headline is expected to be >= the sum of the per-customer
+      // Declined dollars (don't "reconcile" them to be equal). The old source,
+      // estimates_log, is the web AI-estimator funnel with no writer → it was $0.
+      d.select({ sum: sql<number>`COALESCE(SUM(${algEstimates.estimatedAmount}), 0)` })
+        .from(algEstimates)
+        .where(isNull(algEstimates.matchedInvoiceId)),
       d.select({ count: sql<number>`count(*)` })
         .from(callEvents)
         .where(gte(callEvents.createdAt, todayStart)),
@@ -127,19 +136,27 @@ export const controlCenterRouter = router({
         .from(winbackSends)
         .where(gte(winbackSends.createdAt, todayStart)),
       d.select({
-        id: estimatesLog.id,
-        name: estimatesLog.name,
-        value: estimatesLog.estimatedAmountCents,
-        createdAt: estimatesLog.createdAt,
-        service: estimatesLog.service,
+        id: algEstimates.id,
+        name: algEstimates.customerName,
+        value: algEstimates.estimatedAmount,
+        createdAt: algEstimates.estimateDate,
+        service: algEstimates.serviceDescription,
       })
-        .from(estimatesLog)
-        .where(eq(estimatesLog.converted, 0))
-        .orderBy(desc(estimatesLog.estimatedAmountCents))
+        .from(algEstimates)
+        .where(isNull(algEstimates.matchedInvoiceId))
+        .orderBy(desc(algEstimates.estimatedAmount))
         .limit(5),
+      // Unpaid invoices = issued invoices still awaiting payment (pending
+      // or partial), in cents. Pairs with the openEstimates superset above
+      // so totalOutstanding reflects BOTH unconverted estimates AND
+      // issued-but-unpaid invoices. Was hardcoded to 0 (false $0).
+      d.select({ sum: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
+        .from(invoices)
+        .where(inArray(invoices.paymentStatus, ["pending", "partial"])),
     ]);
 
     const openEstimatesSum = openEstimates[0]?.sum ?? 0;
+    const unpaidInvoicesSum = unpaidInvoices[0]?.sum ?? 0;
 
     const combinedPending = [
       ...pendingEstimatesList.map((est: { id: number; name: string | null; value: number | null; createdAt: Date; service: string | null }) => ({
@@ -155,9 +172,9 @@ export const controlCenterRouter = router({
       .slice(0, 5);
 
     return {
-      unpaidInvoicesSum: 0,
+      unpaidInvoicesSum,
       openEstimatesSum,
-      totalOutstanding: openEstimatesSum,
+      totalOutstanding: openEstimatesSum + unpaidInvoicesSum,
       todayMetrics: {
         calls: callsToday[0]?.count ?? 0,
         leads: leadsToday[0]?.count ?? 0,
@@ -1038,28 +1055,35 @@ export const controlCenterRouter = router({
       targetTab: string;
       metadata: Record<string, any>;
       score: number;
+      urgency: number;
+      confidence: "High" | "Medium" | "Low";
+      reason: string;
     }> = [];
 
     const now = new Date();
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     try {
-      // 1. Highest open estimate outstanding for > 24 hours
+      // 1. Highest open estimate outstanding for > 24 hours.
+      // Reads real ALG/ShopDriver counter estimates that never converted
+      // (matched_invoice_id IS NULL) — same source as the Overview total and
+      // the Customers "Declined" column. (estimates_log, the web AI-estimator
+      // funnel, has no writer, so this nudge never fired off it.)
       const [est] = await d.select({
-        id: estimatesLog.id,
-        name: estimatesLog.name,
-        phone: estimatesLog.phone,
-        service: estimatesLog.service,
-        value: estimatesLog.estimatedAmountCents,
-        createdAt: estimatesLog.createdAt,
+        id: algEstimates.id,
+        name: algEstimates.customerName,
+        phone: algEstimates.customerPhone,
+        service: algEstimates.serviceDescription,
+        value: algEstimates.estimatedAmount,
+        createdAt: algEstimates.estimateDate,
       })
-        .from(estimatesLog)
+        .from(algEstimates)
         .where(and(
-          eq(estimatesLog.converted, 0),
-          sql`${estimatesLog.estimatedAmountCents} IS NOT NULL`,
-          sql`${estimatesLog.createdAt} < ${twentyFourHoursAgo}`
+          isNull(algEstimates.matchedInvoiceId),
+          sql`${algEstimates.estimatedAmount} > 0`,
+          sql`${algEstimates.estimateDate} < ${twentyFourHoursAgo}`
         ))
-        .orderBy(desc(estimatesLog.estimatedAmountCents))
+        .orderBy(desc(algEstimates.estimatedAmount))
         .limit(1);
 
       if (est) {
@@ -1080,7 +1104,10 @@ export const controlCenterRouter = router({
             amount: val,
             id: est.id
           },
-          score: val
+          score: val,
+          urgency: 4,
+          confidence: (est.phone && est.service && val > 0) ? "High" : "Medium",
+          reason: "High-value estimate sits unconverted. Calling them could close the deal."
         });
       }
     } catch (err) {
@@ -1117,7 +1144,10 @@ export const controlCenterRouter = router({
             context: cb.context,
             id: cb.id
           },
-          score: 500 // missed callbacks have high urgency weight
+          score: 500, // missed callbacks have high urgency weight
+          urgency: 5,
+          confidence: cb.phone ? "High" : "Low",
+          reason: "Customer actively asked for a callback but hasn't been reached."
         });
       }
     } catch (err) {
@@ -1154,7 +1184,10 @@ export const controlCenterRouter = router({
             targetCount: camp.targetCount,
             id: camp.id
           },
-          score: 300
+          score: 300,
+          urgency: 3,
+          confidence: "High",
+          reason: `Segment of ${camp.targetCount} customers ready for re-engagement.`
         });
       }
     } catch (err) {
@@ -1190,7 +1223,10 @@ export const controlCenterRouter = router({
             status: memb.status,
             id: memb.id
           },
-          score: 200
+          score: 200,
+          urgency: 4,
+          confidence: memb.phone ? "High" : "Medium",
+          reason: `Membership is ${memb.status}, risking cancellation or failed billing.`
         });
       }
     } catch (err) {

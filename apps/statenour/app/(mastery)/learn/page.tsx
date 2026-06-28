@@ -15,7 +15,12 @@ import { Search, ExternalLink, Video } from "lucide-react";
 import Link from "next/link";
 import { StandardPage } from "@/components/layout/standard-page";
 
-export const dynamic = "force-static";
+// 2026-06-21 · CSP follow-up · was "force-static", but a statically prerendered
+// page ships no CSP nonce, so the runtime `'strict-dynamic'` header blocks all
+// its scripts (blank page). The parent (mastery) layout is now force-dynamic;
+// a force-static child under it also errors the build. Still server-rendered —
+// only the render timing changes.
+export const dynamic = "force-dynamic";
 
 type LearnSort = "alpha-asc" | "alpha-desc" | "language" | "video-first";
 

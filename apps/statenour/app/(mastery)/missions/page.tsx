@@ -48,6 +48,7 @@ import { MissionsQuickAdd } from "@/components/missions/missions-quick-add";
 import { NicksMorningBrief } from "@/components/missions/nicks-morning-brief";
 import { TopMissionToday } from "@/components/missions/top-mission-today";
 import { MissionsHealthStrip } from "@/components/missions/missions-health-strip";
+import { HealthGovernorStrip } from "@/components/missions/health-governor-strip";
 import { MissionsRescueStrip } from "@/components/missions/missions-rescue-strip";
 import { MissionRetroModal } from "@/components/missions/mission-retro-modal";
 import { MissionEditDrawer } from "@/components/missions/mission-edit-drawer";
@@ -590,6 +591,41 @@ function MissionsPageInner() {
     [updateTask, refetchAll],
   );
 
+  const handleEditTask = useCallback(
+    (task: Task) => {
+      setTaskEditTarget(task);
+      setTaskEditOpen(true);
+      telemetry.event("editTaskOpen", { taskId: task.id });
+    },
+    [telemetry],
+  );
+
+  const handleSnoozeTask = useCallback(
+    async (taskId: string, snoozedUntilIso: string) => {
+      try {
+        const clearing = !snoozedUntilIso;
+        telemetry.event("snoozeTask", {
+          taskId,
+          clearing,
+          snoozedUntil: snoozedUntilIso || null,
+        });
+        await updateTask.mutateAsync({
+          id: taskId,
+          fields: {
+            snoozedUntil: snoozedUntilIso || null,
+            status: clearing ? "READY" : "WAITING",
+          },
+        });
+        await refetchAll();
+        toast.success(clearing ? "Snooze cleared." : "Task snoozed.");
+      } catch (err) {
+        log.error("snoozeTask_failed", { err });
+        toast.error("Could not update snooze.");
+      }
+    },
+    [updateTask, refetchAll, telemetry],
+  );
+
   const handleDecomposeTask = useCallback(
     async (id: string) => {
       const task = tasks.find((t) => t.id === id);
@@ -762,11 +798,7 @@ function MissionsPageInner() {
             onComplete={handleCompleteTask}
             onStart={handleStartTask}
             onDelete={handleDeleteTask}
-            onEdit={(task) => {
-              setTaskEditTarget(task);
-              setTaskEditOpen(true);
-              telemetry.event("editTaskOpen", { taskId: task.id });
-            }}
+            onEdit={handleEditTask}
             onUpdateTask={handleUpdateTaskFields}
             onExit={() => setExecutionModeActive(false)}
           />
@@ -875,6 +907,10 @@ function MissionsPageInner() {
        *  when nothing qualifies. */}
       <TopMissionToday missions={missions} tasks={tasks} />
 
+      <Suspense fallback={<div className="h-16 w-full animate-pulse rounded-lg bg-zinc-900/50 border border-zinc-800" />}>
+        <HealthGovernorStrip />
+      </Suspense>
+
       {/* Wave AO · 2026-05-28 · 1-glance triage chip per active mission ·
        *  in_flight (amber) · healthy (green) · behind (gold) · stalled
        *  (rose) · idle (zinc) · done (faint gold). Tap a chip → tooltip
@@ -883,7 +919,15 @@ function MissionsPageInner() {
 
       {/* Wire 2 · read-only rescue suggestions + GENERAL-anchor open-counts.
        *  Self-hides when nothing needs attention. Never moves a task. */}
-      <MissionsRescueStrip />
+      <MissionsRescueStrip
+        tasks={tasks}
+        onCompleteTask={handleCompleteTask}
+        onStartTask={handleStartTask}
+        onDeleteTask={handleDeleteTask}
+        onEditTask={handleEditTask}
+        onSnoozeTask={handleSnoozeTask}
+        onDecomposeTask={handleDecomposeTask}
+      />
 
       {/* Hidden risk warning banner */}
       <HiddenRiskWarning
@@ -1009,11 +1053,7 @@ function MissionsPageInner() {
           setMissionEditOpen(true);
           telemetry.event("editMissionOpen", { missionId });
         }}
-        onEditTask={(task) => {
-          setTaskEditTarget(task);
-          setTaskEditOpen(true);
-          telemetry.event("editTaskOpen", { taskId: task.id });
-        }}
+        onEditTask={handleEditTask}
         onMoveMission={async (missionId, direction) => {
           try {
             telemetry.event("reorderMission", { missionId, direction });
@@ -1044,30 +1084,7 @@ function MissionsPageInner() {
         // meta strip opens a popover with 2 presets. We translate the
         // tap into the existing task.update mutation + the WAITING flip
         // the task-resurface cron expects. Empty string = clear snooze.
-        onSnoozeTask={async (taskId, snoozedUntilIso) => {
-          try {
-            const clearing = !snoozedUntilIso;
-            telemetry.event("snoozeTask", {
-              taskId,
-              clearing,
-              snoozedUntil: snoozedUntilIso || null,
-            });
-            await updateTask.mutateAsync({
-              id: taskId,
-              fields: {
-                // null clears the snooze · ISO sets the wake time
-                snoozedUntil: snoozedUntilIso || null,
-                // WAITING parks it for the cron · READY brings it back
-                status: clearing ? "READY" : "WAITING",
-              },
-            });
-            await refetchAll();
-            toast.success(clearing ? "Snooze cleared." : "Task snoozed.");
-          } catch (err) {
-            log.error("snoozeTask_failed", { err });
-            toast.error("Could not update snooze.");
-          }
-        }}
+        onSnoozeTask={handleSnoozeTask}
       />
 
       {/* Phase 3 retro modal · opens when a mission is completed (either

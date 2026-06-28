@@ -31,11 +31,12 @@ export type CarouselBriefStatus =
   | "blocked"
   | "sandbox_preview_sent";
 
-/** Hard switch for V1. Publishing stays off in this PR regardless of UI state. */
+/** Client-side affordance only — live publishing is enforced server-side
+ *  (claim-safety + env gates) regardless of this flag. */
 export const PUBLISH_ENABLED = true;
 
 export const DISABLED_REASON =
-  "Disabled in this PR — no external social or image-generation calls are made.";
+  "Studio actions are turned off — no external social or image-generation calls are made.";
 
 // ─── Brand constants (operator-facing source of truth for the Studio) ──
 // NOTE: shared/business.ts holds site-wide business facts; it is being edited
@@ -64,7 +65,7 @@ export const ALLOWED_SERVICES = [
   "auto repair",
   "alignment and suspension",
   "E-Check / emissions help",
-  "$10-down lease-to-own financing",
+  "$10-down lease-to-own",
 ] as const;
 
 /** The ONLY approved used-tire price wording. Anything else price-shaped gets flagged. */

@@ -10,10 +10,18 @@ import { router, adminProcedure } from "../_core/trpc";
 import {
   getOrCreateConversation, addSmsMessage, getConversations,
   getConversationMessages, markConversationRead, getUnreadConversationCount,
+  getDbTyped
 } from "../db";
 import { sendSms } from "../sms";
 import { sanitizeText, sanitizePhone } from "../sanitize";
 import { logAdminAction } from "../services/auditTrail";
+import { bookings, nickgptDrafts } from "../../drizzle/schema";
+import { eq, desc, and, gte, sql } from "drizzle-orm";
+import { draftSmsReply } from "../services/nickgpt-client";
+import { classifyIntent } from "../services/classifiers";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("sms-conversations-router");
 
 export const smsConversationsRouter = router({
   /** Get all conversations sorted by most recent (admin) */
@@ -112,6 +120,207 @@ export const smsConversationsRouter = router({
         return { success: result.success, conversationId: conversation.id };
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
+      }
+    }),
+
+  /** Suggest a draft reply for a customer (admin) */
+  suggestDraft: adminProcedure
+    .input(z.object({
+      phone: z.string().min(10).max(30),
+      conversationId: z.number().int().optional(),
+      inboundMessage: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const cleanPhone = sanitizePhone(input.phone);
+      const normalized = cleanPhone.replace(/\D/g, "").slice(-10);
+      let conversationContext: Array<{ role: "user" | "assistant"; content: string }> = [];
+      let inboundMessage = input.inboundMessage ? sanitizeText(input.inboundMessage) : undefined;
+
+      if (input.conversationId) {
+        const dbMessages = await getConversationMessages(input.conversationId, 10);
+        if (dbMessages && dbMessages.length > 0) {
+          conversationContext = dbMessages.map((msg: any) => ({
+            role: msg.direction === "inbound" ? ("user" as const) : ("assistant" as const),
+            content: msg.body,
+          }));
+          if (!inboundMessage) {
+            const lastInbound = [...dbMessages].reverse().find((m) => m.direction === "inbound");
+            if (lastInbound) {
+              inboundMessage = lastInbound.body;
+            }
+          }
+        }
+      }
+
+      if (!inboundMessage) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No inbound message found or provided to draft a reply.",
+        });
+      }
+
+      // 1. Fetch active booking context
+      const db = await getDbTyped();
+      let activeBookingCtx: { vehicle: string | null; stage: string; service: string } | undefined = undefined;
+      if (db) {
+        try {
+          const activeBookings = await db.select()
+            .from(bookings)
+            .where(
+              and(
+                eq(bookings.phone, normalized),
+                sql`${bookings.status} IN ('new', 'confirmed')`
+              )
+            )
+            .orderBy(desc(bookings.createdAt))
+            .limit(1);
+
+          if (activeBookings && activeBookings.length > 0) {
+            const b = activeBookings[0];
+            activeBookingCtx = {
+              vehicle: b.vehicle,
+              stage: b.stage,
+              service: b.service,
+            };
+          }
+        } catch (err) {
+          log.warn("Failed to fetch active booking context", err);
+        }
+      }
+
+      // 2. Classify intent
+      let intent = "general";
+      let confidence = 0.5;
+      try {
+        const classification = await classifyIntent(inboundMessage);
+        if (classification.ok) {
+          intent = classification.topLabel;
+          confidence = classification.topScore;
+        }
+      } catch (err) {
+        log.warn("Intent classification failed, falling back to general", err);
+      }
+
+      // 3. Draft reply
+      const draftResult = await draftSmsReply({
+        inboundMessage,
+        conversationContext,
+        activeBooking: activeBookingCtx,
+      });
+
+      if (!draftResult.ok) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Draft generation failed: ${draftResult.error}`,
+        });
+      }
+
+      // 4. Persist draft
+      let draftId: number | null = null;
+      if (db) {
+        try {
+          const [inserted] = await db.insert(nickgptDrafts).values({
+            customerPhone: normalized,
+            inboundMessage,
+            draftReply: draftResult.draft,
+            intent,
+            confidence,
+            provider: draftResult.source,
+            latencyMs: draftResult.latencyMs,
+            status: "draft",
+            autoSent: false,
+          });
+          draftId = inserted.insertId;
+        } catch (err) {
+          log.warn("Failed to persist NickGPT draft to database", err);
+        }
+      }
+
+      return {
+        draftId,
+        draft: draftResult.draft,
+        intent,
+        confidence,
+        provider: draftResult.source,
+        latencyMs: draftResult.latencyMs,
+      };
+    }),
+
+  /** Save operator feedback/rating on a draft (admin) */
+  saveFeedback: adminProcedure
+    .input(z.object({
+      draftId: z.number().int(),
+      operatorReply: z.string().optional(),
+      rating: z.enum(["good", "bad"]).optional(),
+      status: z.enum(["draft", "approved", "edited", "rejected"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbTyped();
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      }
+
+      try {
+        await db.update(nickgptDrafts)
+          .set({
+            ...(input.operatorReply !== undefined ? { operatorReply: sanitizeText(input.operatorReply) } : {}),
+            ...(input.rating !== undefined ? { rating: input.rating } : {}),
+            ...(input.status !== undefined ? { status: input.status } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(nickgptDrafts.id, input.draftId));
+
+        return { success: true };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Feedback save failed" });
+      }
+    }),
+
+  /** Get stats and last draft details for the dashboard widget (admin) */
+  getNickGptStats: adminProcedure
+    .query(async () => {
+      const db = await getDbTyped();
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      }
+
+      try {
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const draftsToday = await db.select()
+          .from(nickgptDrafts)
+          .where(gte(nickgptDrafts.createdAt, startOfToday));
+
+        const draftsGeneratedToday = draftsToday.length;
+        const draftsApprovedToday = draftsToday.filter((d) => d.status === "approved" || d.status === "edited" || d.autoSent).length;
+        const totalActed = draftsToday.filter((d) => ["approved", "edited", "rejected"].includes(d.status)).length;
+        const approvalRate = totalActed > 0 ? Math.round((draftsToday.filter((d) => ["approved", "edited"].includes(d.status)).length / totalActed) * 100) : 100;
+
+        const lastDrafts = await db.select()
+          .from(nickgptDrafts)
+          .orderBy(desc(nickgptDrafts.createdAt))
+          .limit(1);
+
+        const lastDraft = lastDrafts.length > 0 ? {
+          id: lastDrafts[0].id,
+          customerPhone: lastDrafts[0].customerPhone,
+          inboundMessage: lastDrafts[0].inboundMessage,
+          draftReply: lastDrafts[0].draftReply,
+          intent: lastDrafts[0].intent,
+          confidence: lastDrafts[0].confidence,
+          provider: lastDrafts[0].provider,
+          createdAt: lastDrafts[0].createdAt,
+        } : null;
+
+        return {
+          draftsGeneratedToday,
+          draftsApprovedToday,
+          approvalRate,
+          lastDraft,
+        };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Stats fetch failed" });
       }
     }),
 });

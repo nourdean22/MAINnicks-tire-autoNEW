@@ -23,6 +23,7 @@
 import { prisma } from "@/lib/prisma";
 import { safeQuery } from "@/lib/db/safe-prisma";
 import { getDoneTodayCount } from "@/lib/brain/task-events";
+import { getLatestGovernorDecision } from "@/lib/health-governor/health-governor-guardrails";
 
 /** Coarse energy/state bucket aligned with NourState's currentState. */
 export type LiveState = "peak" | "normal" | "low" | "drift" | "recovery";
@@ -94,6 +95,19 @@ async function estimateCapacityRemainingMin(): Promise<number> {
 
 async function readLiveState(): Promise<LiveState> {
   try {
+    const decision = await getLatestGovernorDecision();
+    if (decision) {
+      const modeMap: Record<string, LiveState> = {
+        OPTIMIZED: "peak",
+        STABLE: "normal",
+        RECOVERY_LOCK: "recovery",
+        SHADOW_MODE: "drift",
+        LOCKDOWN: "low",
+      };
+      return modeMap[decision.mode] ?? "normal";
+    }
+
+    // Fallback to legacy DailyExecutionState if governor decision is null
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const row = await prisma.dailyExecutionState.findUnique({

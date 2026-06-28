@@ -20,12 +20,15 @@
  */
 import { eq } from "drizzle-orm";
 import { createLogger } from "../../lib/logger";
-import { shopSettings } from "../../../drizzle/schema";
+import { shopSettings, reelJobs } from "../../../drizzle/schema";
 import { BUSINESS } from "@shared/business";
+import { generateReelBriefAI } from "../../services/reelBriefGen";
+import { enqueueReelJob } from "../../services/reelPipeline";
+import { buildHiggsfieldReelPromptPack } from "../../../client/src/lib/facelessReelStudio";
+import { publishToSocial } from "../../services/socialPublish";
 
 const log = createLogger("cron:daily-reel-post");
 
-const HF = "https://huggingface.co/datasets/nourdean22/nt-reels/resolve/main";
 const POST_HOUR_ET = 9;
 
 // reels 5-30 in calendar order. Captions are claim-safe: no prices, no "free"
@@ -49,7 +52,7 @@ export const MANIFEST: { reel: number; caption: string }[] = [
   { reel: 20, caption: "One little belt runs almost everything 🎗️ When it dries out and cracks it can snap and strand you. Caught early, it's a small fix. Worth a quick look anytime.\n\n#serpentinebelt #cartips #carmaintenance #euclidohio #clevelandcars #nickstire" },
   { reel: 21, caption: "Your headlights need reading glasses 👓 As the lens clouds and yellows it quietly steals your night vision. Good news: foggy lenses can be restored. Stop by and we'll take a look.\n\n#headlightrestoration #cartips #nightdriving #euclidohio #clevelandcars #nickstire" },
   { reel: 22, caption: "That highway hum? 🐹 A low roar that grows louder with speed is the classic wheel-bearing sign — and it only gets worse. Hear it? Stop by.\n\n#wheelbearing #cartips #carnoise #euclidohio #clevelandcars #nickstire" },
-  { reel: 23, caption: "Your car shouldn't pogo 🦘 Worn struts keep bouncing after a bump — and that bounce stretches your stopping distance. Smooth rides are safer rides. Swing by anytime.\n\n#struts #suspension #cartips #euclidohio #clevelandcars #nickstire" },
+  { reel: 23, caption: "Your car shouldn't pogo 🦘 Worn struts keep bouncing after a bounce — and that bounce stretches your stopping distance. Smooth rides are safer rides. Swing by anytime.\n\n#struts #suspension #cartips #euclidohio #clevelandcars #nickstire" },
   { reel: 24, caption: "It's a riddle, not a death sentence 🔦 The check engine light won't just tell you — don't guess. Scan it for codes and the code points the way. Light on? Stop by and we'll take a look.\n\n#checkenginelight #cartips #cardiagnostics #euclidohio #clevelandcars #nickstire" },
   { reel: 25, caption: "More air isn't better 🎈 Over-inflated tires ride harsh and wear out the center. Match the door-sticker number. Not sure of yours? Stop by and we'll take a look.\n\n#tirepressure #cartips #tiresafety #euclidohio #clevelandcars #nickstire" },
   { reel: 26, caption: "Before the long drive 🧳 Give your car the checklist: tread, tire pressure, the spare, and fluids. A few minutes now means a smoother trip. Heading out? Stop by first.\n\n#roadtrip #cartips #travelready #euclidohio #clevelandcars #nickstire" },
@@ -79,6 +82,31 @@ async function setKv(key: string, value: string, label: string): Promise<void> {
   }
 }
 
+async function setAutopostProgress(idx: number, date: string): Promise<void> {
+  const { getDb } = await import("../../db");
+  const d = await getDb();
+  if (!d) return;
+  await d.transaction(async (tx: any) => {
+    // 1. Update index
+    await tx.insert(shopSettings).values({ 
+      key: "reel_autopost_index", 
+      value: String(idx), 
+      label: "Daily reel autopost — next reel index", 
+      category: "general", 
+      updatedBy: "system" 
+    }).onDuplicateKeyUpdate({ set: { value: String(idx), updatedBy: "system" } });
+    
+    // 2. Update date
+    await tx.insert(shopSettings).values({ 
+      key: "reel_autopost_last_date", 
+      value: date, 
+      label: "Daily reel autopost — last post date (ET)", 
+      category: "general", 
+      updatedBy: "system" 
+    }).onDuplicateKeyUpdate({ set: { value: date, updatedBy: "system" } });
+  });
+}
+
 function etNow(): { date: string; hour: number } {
   const now = new Date();
   const date = now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }); // YYYY-MM-DD
@@ -92,40 +120,114 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
   }
 
   const { date, hour } = etNow();
-  if (hour !== POST_HOUR_ET) {
-    return { recordsProcessed: 0, details: `not post hour (ET ${hour}:00, want ${POST_HOUR_ET}:00)` };
-  }
 
   const lastDate = await getKv("reel_autopost_last_date");
   if (lastDate === date) {
     return { recordsProcessed: 0, details: `already posted today (${date})` };
   }
 
-  const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
-  if (idx >= MANIFEST.length) {
-    return { recordsProcessed: 0, details: `campaign complete (${MANIFEST.length}/${MANIFEST.length} posted)` };
+  const { getDb } = await import("../../db");
+  const d = await getDb();
+  if (!d) return { recordsProcessed: 0, details: "DB not available" };
+
+  const briefId = `autopost-${date}`;
+  const jobs = await d.select().from(reelJobs).where(eq(reelJobs.briefId, briefId)).limit(1);
+  const job = jobs[0];
+
+  if (!job) {
+    // Only ENQUEUE during the best posting hour. Publishing an already-assembled
+    // job (below) runs on ANY pulse — async gen+assembly routinely finishes after
+    // the window, so gating publish on wall-clock would silently skip the reel.
+    // Phase 5.3: the enqueue hour is data-driven (top-engagement slot) once the
+    // analytics table has enough data; until then it stays POST_HOUR_ET (9 ET).
+    let targetHour = POST_HOUR_ET;
+    try {
+      const { getBestPostingTimes } = await import("../../pipelines/instagram-data");
+      const times = await getBestPostingTimes({ limit: 1 });
+      if (times.length && Number.isFinite(times[0].hourOfDay)) targetHour = times[0].hourOfDay;
+    } catch (err) {
+      log.warn("best-posting-time lookup failed; using default hour", { err: err instanceof Error ? err.message : String(err) });
+    }
+    if (hour !== targetHour) {
+      return { recordsProcessed: 0, details: `not post hour (ET ${hour}:00, want ${targetHour}:00) — waiting to enqueue` };
+    }
+    const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
+    if (idx >= MANIFEST.length) {
+      return { recordsProcessed: 0, details: `campaign complete (${MANIFEST.length}/${MANIFEST.length} posted)` };
+    }
+
+    const { caption: manifestCaption } = MANIFEST[idx];
+    const topic = manifestCaption.split("\n")[0] || manifestCaption;
+
+    log.info(`Generating fresh dynamic storyboard brief for topic: "${topic}"`);
+    const { brief } = await generateReelBriefAI({ topic });
+    
+    // Set unique briefId and build Higgsfield prompt pack
+    brief.id = briefId;
+    brief.higgsfieldPromptPack = buildHiggsfieldReelPromptPack(brief);
+
+    // Enqueue background generation
+    const { jobId } = await enqueueReelJob(brief, "cron");
+    log.info(`Enqueued new dynamic reel job: ${jobId} for briefId: ${briefId}`);
+    return { recordsProcessed: 0, details: `Enqueued new dynamic reel job (ID: ${jobId}) for today` };
   }
 
-  const { reel, caption } = MANIFEST[idx];
-  const videoUrl = `${HF}/reel${reel}.mp4`;
+  if (job.status === "assembled") {
+    const videoUrl = job.mp4Url;
+    if (!videoUrl) {
+      return { recordsProcessed: 0, details: `Job ${job.id} assembled but mp4Url is missing` };
+    }
+    
+    try {
+      const { assertPermanentPublicMediaUrl } = await import("../../services/socialPublish");
+      assertPermanentPublicMediaUrl(videoUrl);
+    } catch (err) {
+      log.error(`Job ${job.id} has invalid mp4Url`, { error: err instanceof Error ? err.message : String(err) });
+      return { recordsProcessed: 0, details: `Job ${job.id} URL invalid: ${err instanceof Error ? err.message : String(err)}` };
+    }
+    let caption = job.caption || "";
+    // Phase 3.3 safety: the AI caption carries the share-CTA, and publishToSocial
+    // claim-gates reel captions — so an unsafe CTA would make the reel SILENTLY
+    // never post (campaign stall). Fall back to the known claim-safe MANIFEST
+    // caption so the reel still ships on time (CTA dropped), with a loud log.
+    try {
+      const { checkReviewReply, hasBlockingFindings } = await import("@shared/reviewReplyQa");
+      if (caption && hasBlockingFindings(checkReviewReply(caption))) {
+        const idx0 = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
+        const safe = MANIFEST[idx0]?.caption;
+        log.warn(`AI reel caption tripped the claim gate — falling back to the manifest caption`, { jobId: job.id });
+        if (safe) caption = safe;
+      }
+    } catch (err) {
+      log.warn("reel caption claim-check skipped", { err: err instanceof Error ? err.message : String(err) });
+    }
 
-  // Don't burn the day's slot on a missing file — verify it's hosted first.
-  const head = await fetch(videoUrl, { method: "HEAD" }).catch(() => null);
-  if (!head || !head.ok) {
-    log.error(`reel${reel} not reachable (HTTP ${head?.status ?? "network"})`);
-    return { recordsProcessed: 0, details: `reel${reel} not hosted — not advancing` };
+    log.info(`Attempting to publish assembled reel job ${job.id} (mp4Url: ${videoUrl})`);
+    const outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption });
+    const ig = outcome.results.find((r) => r.platform === "instagram");
+    if (!ig?.success) {
+      log.error(`Reel autopost publish failed for job ${job.id}`, { error: ig?.error });
+      return { recordsProcessed: 0, details: `Publish failed: ${ig?.error ?? "unknown"} — not advancing index` };
+    }
+
+    // Successfully posted live!
+    await d.update(reelJobs).set({ status: "posted", igPostId: ig.postId }).where(eq(reelJobs.id, job.id));
+    const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
+    await setAutopostProgress(idx + 1, date);
+    log.info(`Successfully posted dynamic reel for job ${job.id}`, { postId: ig.postId });
+    return { recordsProcessed: 1, details: `posted dynamic reel for job ${job.id} (index: ${idx + 1})` };
   }
 
-  const { publishToSocial } = await import("../../services/socialPublish");
-  const outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption });
-  const ig = outcome.results.find((r) => r.platform === "instagram");
-  if (!ig?.success) {
-    log.error(`reel${reel} publish failed`, { error: ig?.error });
-    return { recordsProcessed: 0, details: `reel${reel} publish failed: ${ig?.error ?? "unknown"} — not advancing` };
+  if (["queued", "generating", "assets_ready", "assembling", "uploading", "publishing"].includes(job.status)) {
+    return { recordsProcessed: 0, details: `Generation or assembly in progress (status: ${job.status})` };
   }
 
-  await setKv("reel_autopost_index", String(idx + 1), "Daily reel autopost — next reel index");
-  await setKv("reel_autopost_last_date", date, "Daily reel autopost — last post date (ET)");
-  log.info(`Posted reel${reel} (${idx + 1}/${MANIFEST.length})`, { postId: ig.postId });
-  return { recordsProcessed: 1, details: `posted reel${reel} (${idx + 1}/${MANIFEST.length}) ${ig.postId ?? ""}`.trim() };
+  if (job.status === "failed") {
+    return {
+      recordsProcessed: 0,
+      details: `Generation failed for job ${job.id}: ${job.error}; no fallback media posted and index not advanced`,
+    };
+  }
+
+  return { recordsProcessed: 0, details: `Unknown job status: ${job.status}` };
 }

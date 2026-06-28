@@ -1070,4 +1070,291 @@ export const systemTools = {
   // BRAIN INTELLIGENCE — Direct access to brain engine outputs
   // ═══════════════════════════════════════════════════════════
 
+  // v10.0.530 · Firecrawl web scraper · converts any URL into
+  // clean LLM-ready markdown. Use when operator shares a link
+  // and Nick needs to read + understand the page content.
+  scrapeWebPage: tool({
+    description:
+      "Scrape a web page and convert it to clean markdown. Use when the operator shares a URL and says 'read this', 'what does this page say', 'summarize this link', or when Nick needs to understand the content of a specific web page. Returns the page content as markdown with title and description. Requires FIRECRAWL_API_KEY — returns a clear error if not configured.",
+    inputSchema: z.object({
+      url: z
+        .string()
+        .url()
+        .describe("The URL to scrape and convert to markdown."),
+      waitFor: z
+        .number()
+        .int()
+        .min(0)
+        .max(15000)
+        .optional()
+        .describe(
+          "Wait time in ms for JS-heavy pages to render. Default 0. Use 3000-5000 for SPAs.",
+        ),
+      excludeTags: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "CSS selectors to exclude from output. e.g. ['nav', 'footer', '.ads'].",
+        ),
+    }),
+    execute: async ({ url, waitFor, excludeTags }) => {
+      try {
+        const { isFirecrawlConfigured, scrapeUrl } = await import(
+          "@/lib/integrations/firecrawl"
+        );
+
+        if (!isFirecrawlConfigured()) {
+          return {
+            ok: false,
+            code: "missing_api_key",
+            error:
+              "FIRECRAWL_API_KEY not set. Get a key at https://firecrawl.dev and add it to .env to enable web scraping.",
+          };
+        }
+
+        // SSRF defense — block private/internal URLs
+        const { assertPublicUrl } = await import("@/lib/utils/url-safety");
+        const safety = await assertPublicUrl(url);
+        if (!safety.safe) {
+          return {
+            ok: false,
+            code: "url_blocked",
+            error: `URL safety check failed: ${safety.reason}`,
+          };
+        }
+
+        const result = await scrapeUrl(url, {
+          waitFor,
+          excludeTags,
+          maxLength: 8000,
+        });
+
+        // Fence the scraped content for prompt-injection safety
+        const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
+
+        return {
+          ok: true,
+          title: result.title,
+          description: result.description,
+          sourceUrl: result.sourceUrl,
+          charCount: result.charCount,
+          content: fenceContent(
+            "scrapeWebPage",
+            "external_web",
+            result.markdown,
+          ),
+        };
+      } catch (err) {
+        const { sanitizeError } = await import("@/lib/utils/sanitize-error");
+        return {
+          ok: false,
+          error: sanitizeError(err),
+        };
+      }
+    },
+  }),
+
+  last30days: tool({
+    description:
+      "Search and research a topic across live social platforms (Reddit, Hacker News, Polymarket, GitHub, YouTube) and grounded web results from the last 30 days. Returns a raw data report with community comments and source coverage. Use this for queries about recent trends, public consensus, sentiment, product comparison, or tracking what individuals/companies are doing recently. The tool returns a raw structured report; you MUST synthesize it into a clean, markdown-formatted narrative with blue command-clickable links on first mention per the returned instructions. Do not dump the raw clusters.",
+    inputSchema: z.object({
+      topic: z
+        .string()
+        .min(1)
+        .max(100)
+        .describe("The research topic or search query."),
+      quick: z
+        .boolean()
+        .optional()
+        .describe("Lower-latency retrieval profile."),
+      deep: z
+        .boolean()
+        .optional()
+        .describe("Higher-recall retrieval profile."),
+      xHandle: z
+        .string()
+        .optional()
+        .describe("Optional target X handle for a person/product."),
+      githubUser: z
+        .string()
+        .optional()
+        .describe("Optional target GitHub username for person-mode."),
+      subreddits: z
+        .string()
+        .optional()
+        .describe("Comma-separated broad/category subreddit names to search."),
+      deepResearch: z
+        .boolean()
+        .optional()
+        .describe("Use Perplexity Deep Research (requires API key setup, spendy)."),
+    }),
+    execute: async ({ topic, quick, deep, xHandle, githubUser, subreddits, deepResearch }) => {
+      try {
+        const { execFile } = await import("child_process");
+        const { promisify } = await import("util");
+        const execFilePromise = promisify(execFile);
+        const path = await import("path");
+        const fs = await import("fs");
+
+        let scriptPath = path.join(process.cwd(), "apps/statenour/lib/ai/last30days/scripts/last30days.py");
+        if (!fs.existsSync(scriptPath)) {
+          scriptPath = path.join(process.cwd(), "lib/ai/last30days/scripts/last30days.py");
+        }
+
+        if (!fs.existsSync(scriptPath)) {
+          return {
+            ok: false,
+            error: "last30days engine script not found on system.",
+          };
+        }
+
+        const args = [scriptPath, topic, "--emit=compact"];
+        if (quick) args.push("--quick");
+        if (deep) args.push("--deep");
+        if (xHandle) args.push(`--x-handle=${xHandle}`);
+        if (githubUser) args.push(`--github-user=${githubUser}`);
+        if (subreddits) args.push(`--subreddits=${subreddits}`);
+        if (deepResearch) args.push("--deep-research");
+
+        // Forward environment variables needed by the script
+        const env = {
+          ...process.env,
+          // Force no-browser-cookies for safe headless execution in production
+          FROM_BROWSER: "off",
+        };
+
+        const pythonCmd = process.platform === "win32" ? "python" : "python3";
+        const { stdout, stderr } = await execFilePromise(pythonCmd, args, { env, timeout: 60000 });
+
+        return {
+          ok: true,
+          stdout,
+          stderr,
+        };
+      } catch (err) {
+        const { sanitizeError } = await import("@/lib/utils/sanitize-error");
+        return {
+          ok: false,
+          error: sanitizeError(err),
+        };
+      }
+    },
+  }),
+
+  moneyprinter: tool({
+    description:
+      "Generate high-definition short videos automatically from a subject topic or a custom script. Uses MoneyPrinterTurbo to write the video script, select royalty-free B-roll clips, synthesize voice narration (Azure edge_tts), and render subtitle overlays. Returns a success status with the generated video filepath. Use when Nour asks to create a video, generate a TikTok/Reel, write and synthesize B-roll, or output a short video on a topic.",
+    inputSchema: z.object({
+      subject: z
+        .string()
+        .min(1)
+        .max(100)
+        .describe("The main topic/keyword of the video. E.g., 'Why exercise is important'."),
+      script: z
+        .string()
+        .optional()
+        .describe("Optional custom video script text. By default, script is auto-generated by AI."),
+      aspect: z
+        .enum(["9:16", "16:9"])
+        .optional()
+        .describe("Video aspect ratio: 9:16 (portrait, default) or 16:9 (landscape)."),
+      language: z
+        .string()
+        .optional()
+        .describe("Video script/voice language code (e.g. 'en', 'zh'). Defaults to auto-detect."),
+      paragraphCount: z
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .optional()
+        .describe("Optional paragraph count for script segments. Default: 3."),
+    }),
+    execute: async ({ subject, script, aspect, language, paragraphCount }) => {
+      try {
+        const { execFile } = await import("child_process");
+        const { promisify } = await import("util");
+        const execFilePromise = promisify(execFile);
+        const path = await import("path");
+        const fs = await import("fs");
+
+        let rootDir = path.join(process.cwd(), "apps/statenour/lib/ai/moneyprinter");
+        let scriptPath = path.join(rootDir, "cli.py");
+        if (!fs.existsSync(scriptPath)) {
+          rootDir = path.join(process.cwd(), "lib/ai/moneyprinter");
+          scriptPath = path.join(rootDir, "cli.py");
+        }
+
+        if (!fs.existsSync(scriptPath)) {
+          return {
+            ok: false,
+            error: "MoneyPrinterTurbo engine script not found on system.",
+          };
+        }
+
+        // Dynamically inject process.env keys into config.toml
+        const configPath = path.join(rootDir, "config.toml");
+        const examplePath = path.join(rootDir, "config.example.toml");
+        
+        let configContent = "";
+        if (fs.existsSync(configPath)) {
+          configContent = fs.readFileSync(configPath, "utf-8");
+        } else if (fs.existsSync(examplePath)) {
+          configContent = fs.readFileSync(examplePath, "utf-8");
+        }
+
+        if (configContent) {
+          let updatedContent = configContent;
+          if (process.env.OPENAI_API_KEY) {
+            updatedContent = updatedContent.replace(/openai_api_key\s*=\s*""/, `openai_api_key = "${process.env.OPENAI_API_KEY}"`);
+          }
+          if (process.env.OPENAI_BASE_URL) {
+            updatedContent = updatedContent.replace(/openai_base_url\s*=\s*"https:\/\/api.openai.com\/v1"/, `openai_base_url = "${process.env.OPENAI_BASE_URL}"`);
+          }
+          if (process.env.PEXELS_API_KEY) {
+            updatedContent = updatedContent.replace(/pexels_api_keys\s*=\s*\[\]/, `pexels_api_keys = ["${process.env.PEXELS_API_KEY}"]`);
+          }
+          if (process.env.PIXABAY_API_KEY) {
+            updatedContent = updatedContent.replace(/pixabay_api_keys\s*=\s*\[\]/, `pixabay_api_keys = ["${process.env.PIXABAY_API_KEY}"]`);
+          }
+          fs.writeFileSync(configPath, updatedContent, "utf-8");
+        }
+
+        const args = [scriptPath, "--video-subject", subject];
+        if (script) {
+          args.push("--video-script", script);
+        }
+        if (aspect) {
+          args.push("--video-aspect", aspect);
+        }
+        if (language) {
+          args.push("--video-language", language);
+        }
+        if (paragraphCount) {
+          args.push("--paragraph-number", String(paragraphCount));
+        }
+
+        // Forward environment variables
+        const env = {
+          ...process.env,
+        };
+
+        const pythonCmd = process.platform === "win32" ? "python" : "python3";
+        const { stdout, stderr } = await execFilePromise(pythonCmd, args, { env, timeout: 180000 });
+
+        return {
+          ok: true,
+          stdout,
+          stderr,
+        };
+      } catch (err) {
+        const { sanitizeError } = await import("@/lib/utils/sanitize-error");
+        return {
+          ok: false,
+          error: sanitizeError(err),
+        };
+      }
+    },
+  }),
+
 };

@@ -3,10 +3,9 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
-import { ArrowRight, Flame, ShieldAlert, Zap, Target, CheckCircle2 } from "lucide-react";
+import { ArrowRight, ShieldAlert, Zap, Target, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/components/actions/shared";
-import type { CriticalFewTask } from "@/lib/services/next-move";
 
 interface StatLevel {
   key: string;
@@ -45,7 +44,7 @@ export function HomeCommandStack() {
     
     let modeLabel = "Calm System Planning";
     let modeDesc = "Triage inbox & capture reflections";
-    let modeColor = "text-zinc-400 border-zinc-800 bg-zinc-950/40";
+    let modeColor = "text-[var(--text-tertiary)] border-[var(--border-default)] bg-[var(--bg-base)]/40";
     let modeIcon = Target;
 
     if (doingTask) {
@@ -130,7 +129,7 @@ export function HomeCommandStack() {
   const { mode, nextMove, nextRep, risks, completedToday, criticalFew, nextMoveData } = summary;
 
   return (
-    <div className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border-white/10 p-4 shadow-xl space-y-4 animate-fade-in-scale">
+    <div className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border border-white/10 rounded-xl p-4 shadow-xl space-y-4 animate-fade-in-scale">
       {/* Background radial accent glow for premium look */}
       <div className="absolute top-0 right-0 w-48 h-48 bg-[var(--gold)]/5 rounded-full blur-3xl pointer-events-none" />
 

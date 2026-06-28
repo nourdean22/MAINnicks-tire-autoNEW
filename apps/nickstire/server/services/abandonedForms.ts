@@ -12,7 +12,7 @@ const log = createLogger("abandoned-forms");
 
 interface PartialFormData {
   sessionId: string;
-  formType: "booking" | "lead" | "callback" | "quote";
+  formType: "booking" | "lead" | "callback" | "quote" | "tire_order";
   name?: string;
   phone?: string;
   email?: string;
@@ -84,59 +84,17 @@ export async function processAbandonedForms(): Promise<{ recordsProcessed: numbe
     partial.recoveryAttempted = true;
 
     try {
-      const { isEnabled } = await import("./featureFlags");
-      if (!(await isEnabled("smart_sms_auto_reply"))) continue;
+      const { orchestrateSms } = await import("./smsOrchestrator");
+      const result = await orchestrateSms({
+        type: "abandoned_form_recovery",
+        phone: partial.phone,
+        name: partial.name || "",
+        formType: partial.formType,
+      });
 
-      // Opt-out + phone-level cooldown, both keyed on the last-10-digit
-      // phone so they survive restarts and dedupe across the multiple
-      // sessionIds one customer generates (every page visit is a fresh
-      // sessionId; the in-memory recoveryAttempted flag only dedupes
-      // within one Map entry). Without the DB cooldown, a customer who
-      // abandons, gets nudged, then returns and re-abandons is texted
-      // again — the cooldown makes recovery at-most-once per phone.
-      const { getDb } = await import("../db");
-      const d = await getDb();
-      if (d) {
-        const { customers, smsMessages, smsConversations } = await import("../../drizzle/schema");
-        const { like } = await import("drizzle-orm");
-        const normalized = partial.phone!.replace(/\D/g, "").slice(-10);
-
-        const [cust] = await d.select({ smsOptOut: customers.smsOptOut })
-          .from(customers).where(like(customers.phone, `%${normalized}`)).limit(1);
-        if (cust?.smsOptOut) continue;
-
-        const cooldownStart = new Date(Date.now() - RECOVERY_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
-        const recent = await d.select({ id: smsMessages.id })
-          .from(smsMessages)
-          .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
-          .where(and(
-            like(smsConversations.phone, `%${normalized}`),
-            eq(smsMessages.direction, "outbound"),
-            gte(smsMessages.createdAt, cooldownStart),
-            eq(smsMessages.variantKey, "abandoned_form"),
-          ))
-          .limit(1);
-        if (recent.length > 0) continue;
-      }
-
-      const { sendSms, withOptOut } = await import("../sms");
-      const firstName = partial.name?.split(" ")[0] || "there";
-      const message = withOptOut(`Hi ${firstName}, looks like you didn't finish booking at Nick's Tire & Auto. Need help? Call (216) 862-0005 or reply here!`);
-
-      const result = await sendSms(partial.phone, message, { via: "shop", skipPersist: true, variantKey: "abandoned_form" });
-      // Persist with variantKey="abandoned_form" so the cooldown above
-      // sees this send next run and the admin SMS tile counts it.
-      // wave-2026-06 (telemetry dedup) — a QUEUED send already has ONE tiered
-      // row from queueForLater (now carries variantKey); logging here too
-      // would double-count it as an untagged twin. Only log the online path
-      // (a failed online send is still recorded as failed by logOutboundSms).
-      if (!result.queued) {
-        const { logOutboundSms } = await import("./smsInstrumentation");
-        await logOutboundSms(partial.phone, message, result, "abandoned_form");
-      }
-      if (result.success) {
+      if (result.status === "sent" || result.status === "queued") {
         processed++;
-        log.info("Abandoned form recovery sent", { sessionId, phone: partial.phone.slice(-4) });
+        log.info("Abandoned form recovery processed via orchestrator", { sessionId, phoneSuffix: partial.phone.slice(-4), status: result.status });
       }
     } catch (err) {
       log.error("Recovery SMS failed", { error: err instanceof Error ? err.message : String(err) });

@@ -1,17 +1,8 @@
 /**
  * Content draft store · v10.0.529.106 · Wave 76.
  *
- * Pre-Wave-76 the content pipeline (lib/ai/content-multi.ts +
- * lib/social/buffer.ts + lib/social/meta-publish.ts) shipped posts
- * directly · there was no "drafts pending approval" queue.
- *
- * This module adds the approval-queue layer using BrainMemory as
- * storage (no new table per the no-duplicate-data rule):
- *   · category="content_draft"
- *   · key="draft_<cuid>"
- *   · content = the post text
- *   · metadata = { imageUrl, suggestedPlatforms, status,
- *                  generatedAt, approvedAt, scheduledFor }
+ * Refactored to use the dedicated `SocialPublishQueue` Postgres table
+ * in Statenour instead of `BrainMemory`.
  *
  * Status lifecycle: pending → approved → scheduled OR pending → rejected
  *
@@ -26,7 +17,7 @@ import { randomUUID } from "node:crypto";
 // generation · matches the runner-auth pattern · no new npm dep needed.
 const createId = () => randomUUID().replace(/-/g, "").slice(0, 24);
 
-export type DraftStatus = "pending" | "approved" | "rejected" | "scheduled" | "published";
+export type DraftStatus = "pending" | "approved" | "rejected" | "scheduled" | "published" | "rendering";
 
 export interface ContentDraftMetadata {
   imageUrl?: string | null;
@@ -42,6 +33,10 @@ export interface ContentDraftMetadata {
   kind?: "post" | "thread" | "story" | "reel";
   /** Free-text source attribution · "nick autogenerate" · "manual draft" · etc. */
   source?: string;
+  /** Link to a Statenour mission if applicable */
+  missionId?: string | null;
+  /** JSON payload of source evidence (reviews, invoices, repairId) */
+  sourceMetadata?: Record<string, any> | null;
 }
 
 export interface ContentDraft {
@@ -53,11 +48,49 @@ export interface ContentDraft {
   updatedAt: Date;
 }
 
-const CATEGORY = "content_draft";
+/**
+ * Extracts the database CUID/UUID from a potential 'draft_xxx' or 'queue_xxx' key.
+ */
+function parseIdFromKey(key: string): string {
+  if (key.startsWith("draft_")) {
+    return key.slice(6);
+  }
+  if (key.startsWith("queue_")) {
+    return key.slice(6);
+  }
+  return key;
+}
 
 /**
- * Create a new draft · returns the BrainMemory id + key for follow-up.
- * Operator-facing entry point for "Nick generated 3 ideas · here they are."
+ * Maps a SocialPublishQueue row to the ContentDraft shape for backward compatibility.
+ */
+function mapQueueItemToDraft(item: any): ContentDraft {
+  return {
+    id: item.id,
+    key: `draft_${item.id}`,
+    content: item.content,
+    metadata: {
+      status: item.status as DraftStatus,
+      imageUrl: item.imageUrl,
+      suggestedPlatforms: item.platforms,
+      scheduledFor: item.scheduledFor?.toISOString() ?? undefined,
+      publishedAt: item.publishedAt?.toISOString() ?? undefined,
+      publishUrls: item.publishUrls ?? [],
+      kind: item.kind as ContentDraftMetadata["kind"],
+      source: item.source,
+      generatedAt: item.createdAt.toISOString(),
+      approvedAt: item.approvedAt?.toISOString() ?? undefined,
+      rejectedAt: item.rejectedAt?.toISOString() ?? undefined,
+      missionId: item.missionId,
+      sourceMetadata: (item.sourceMetadata ?? {}) as Record<string, any>,
+    },
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
+}
+
+/**
+ * Create a new draft · returns the SocialPublishQueue id + key.
  */
 export async function createDraft(input: {
   content: string;
@@ -65,32 +98,32 @@ export async function createDraft(input: {
   suggestedPlatforms?: string[];
   kind?: ContentDraftMetadata["kind"];
   source?: string;
+  missionId?: string | null;
+  sourceMetadata?: Record<string, any> | null;
 }): Promise<{ id: string; key: string }> {
-  const key = `draft_${createId()}`;
-  const metadata: ContentDraftMetadata = {
-    status: "pending",
-    generatedAt: new Date().toISOString(),
-    imageUrl: input.imageUrl ?? null,
-    suggestedPlatforms: input.suggestedPlatforms ?? [],
-    kind: input.kind ?? "post",
-    source: input.source ?? "manual",
-  };
-  const row = await prisma.brainMemory.create({
+  const id = createId();
+  const key = `draft_${id}`;
+
+  const row = await prisma.socialPublishQueue.create({
     data: {
-      category: CATEGORY,
-      key,
+      id,
       content: input.content.slice(0, 4000),
-      source: input.source ?? "content_drafts",
-      confidence: 0.6,
-      metadata: metadata as never,
+      status: "pending",
+      imageUrl: input.imageUrl ?? null,
+      platforms: input.suggestedPlatforms ?? [],
+      kind: input.kind ?? "post",
+      source: input.source ?? "manual",
+      missionId: input.missionId ?? null,
+      sourceMetadata: input.sourceMetadata ?? {},
     },
   });
+
   return { id: row.id, key };
 }
 
 /**
- * List drafts · optional status filter. Defaults to pending (the
- * approval queue's primary use case). Newest first.
+ * List drafts · optional status filter. Defaults to pending.
+ * Newest first.
  */
 export async function listDrafts(opts: {
   status?: DraftStatus | "all";
@@ -99,91 +132,60 @@ export async function listDrafts(opts: {
   const status = opts.status ?? "pending";
   const limit = Math.min(opts.limit ?? 50, 200);
 
-  const rows = await prisma.brainMemory.findMany({
-    where: { category: CATEGORY, deletedAt: null },
-    orderBy: { createdAt: "desc" },
-    take: limit * 2, // oversample · we filter by status in JS
-    select: {
-      id: true,
-      key: true,
-      content: true,
-      metadata: true,
-      createdAt: true,
-      updatedAt: true,
+  const rows = await prisma.socialPublishQueue.findMany({
+    where: {
+      deletedAt: null,
+      ...(status !== "all" ? { status } : {}),
     },
+    orderBy: { createdAt: "desc" },
+    take: limit,
   });
 
-  const filtered = rows
-    .map((r) => ({
-      id: r.id,
-      key: r.key,
-      content: r.content,
-      metadata: (r.metadata ?? {}) as unknown as ContentDraftMetadata,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-    }))
-    .filter((d) => status === "all" || d.metadata.status === status)
-    .slice(0, limit);
-
-  return filtered;
+  return rows.map(mapQueueItemToDraft);
 }
 
 /**
  * Approve a draft · marks it as approved + sets approvedAt.
- * After approval the operator separately calls scheduleDraft() or
- * publishes via /api/social/publish.
  */
 export async function approveDraft(key: string): Promise<ContentDraft | null> {
-  const existing = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: CATEGORY, key } },
-    select: { id: true, content: true, metadata: true },
+  const id = parseIdFromKey(key);
+  const existing = await prisma.socialPublishQueue.findFirst({
+    where: { id, deletedAt: null },
   });
   if (!existing) return null;
-  const meta = (existing.metadata ?? {}) as unknown as ContentDraftMetadata;
-  const updated: ContentDraftMetadata = {
-    ...meta,
-    status: "approved",
-    approvedAt: new Date().toISOString(),
-  };
-  const row = await prisma.brainMemory.update({
-    where: { category_key: { category: CATEGORY, key } },
-    data: { metadata: updated as never },
+
+  const row = await prisma.socialPublishQueue.update({
+    where: { id },
+    data: {
+      status: "approved",
+      approvedAt: new Date(),
+    },
   });
-  return {
-    id: row.id,
-    key: row.key,
-    content: row.content,
-    metadata: updated,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
+
+  return mapQueueItemToDraft(row);
 }
 
 /**
- * Reject a draft · soft-deletes the row (operator can recover via
- * /system trash views per the v7.9 universal soft-delete contract).
+ * Reject a draft · soft-deletes the row.
  */
 export async function rejectDraft(key: string, reason?: string): Promise<void> {
-  const existing = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: CATEGORY, key } },
-    select: { metadata: true },
+  const id = parseIdFromKey(key);
+  const existing = await prisma.socialPublishQueue.findFirst({
+    where: { id, deletedAt: null },
   });
   if (!existing) return;
-  const meta = (existing.metadata ?? {}) as unknown as ContentDraftMetadata;
-  await prisma.brainMemory.update({
-    where: { category_key: { category: CATEGORY, key } },
+
+  await prisma.socialPublishQueue.update({
+    where: { id },
     data: {
-      metadata: {
-        ...meta,
-        status: "rejected",
-        rejectedAt: new Date().toISOString(),
-      } as never,
+      status: "rejected",
+      rejectedAt: new Date(),
+      rejectionReason: reason ?? null,
       deletedAt: new Date(),
     },
   });
+
   if (reason) {
-    // Log the reason for future pattern detection · "Nour rejects
-    // CTA-heavy drafts" type insights.
     await prisma.auditEvent.create({
       data: {
         actor: "content_drafts",
@@ -196,50 +198,54 @@ export async function rejectDraft(key: string, reason?: string): Promise<void> {
 }
 
 /**
- * Mark a draft as scheduled · used after the operator triggers
- * publish/schedule via /api/social/* with the draft's key reference.
+ * Mark a draft as scheduled.
  */
 export async function markScheduled(key: string, scheduledFor: string): Promise<void> {
-  const existing = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: CATEGORY, key } },
-    select: { metadata: true },
+  const id = parseIdFromKey(key);
+  const existing = await prisma.socialPublishQueue.findFirst({
+    where: { id, deletedAt: null },
   });
   if (!existing) return;
-  const meta = (existing.metadata ?? {}) as unknown as ContentDraftMetadata;
-  await prisma.brainMemory.update({
-    where: { category_key: { category: CATEGORY, key } },
+
+  await prisma.socialPublishQueue.update({
+    where: { id },
     data: {
-      metadata: {
-        ...meta,
-        status: "scheduled",
-        scheduledFor,
-      } as never,
+      status: "scheduled",
+      scheduledFor: new Date(scheduledFor),
     },
   });
 }
 
 /**
  * Rollup counts for the page header · quick "5 pending · 12 scheduled"
- * style stats. Single query · groupBy on status path.
+ * style stats.
  */
 export async function getDraftCounts(): Promise<Record<DraftStatus | "total", number>> {
-  const rows = await prisma.brainMemory.findMany({
-    where: { category: CATEGORY, deletedAt: null },
-    select: { metadata: true },
-    take: 500,
-  });
   const counts: Record<DraftStatus | "total", number> = {
     pending: 0,
     approved: 0,
     rejected: 0,
     scheduled: 0,
     published: 0,
-    total: rows.length,
+    rendering: 0,
+    total: 0,
   };
-  for (const r of rows) {
-    const m = (r.metadata ?? {}) as unknown as ContentDraftMetadata;
-    const s = (m.status ?? "pending") as DraftStatus;
-    if (counts[s] !== undefined) counts[s]++;
+
+  const statusGroups = await prisma.socialPublishQueue.groupBy({
+    by: ["status"],
+    where: { deletedAt: null },
+    _count: {
+      _all: true,
+    },
+  });
+
+  for (const group of statusGroups) {
+    const s = group.status as DraftStatus;
+    if (counts[s] !== undefined) {
+      counts[s] = group._count._all;
+      counts.total += group._count._all;
+    }
   }
+
   return counts;
 }

@@ -1237,6 +1237,13 @@ export const invoices = mysqlTable("invoices", {
   /** ALG ticket UUID — captured from ShopDriver listRecentTickets so we
    * have a stable identifier independent of invoiceNumber. Wave-99. */
   algTicketId: varchar("algTicketId", { length: 64 }),
+  // Unpaid-invoice recovery cron (FEATURE_UNPAID_INVOICE_RECOVERY) · at-most-once
+  // claim + sent markers per touch. camelCase DB columns match this table.
+  // Applied by drizzle/0072_unpaid_invoice_recovery.sql (hand-applied to prod).
+  paymentReminder7dAttemptedAt: timestamp("paymentReminder7dAttemptedAt"),
+  paymentReminder7dSentAt: timestamp("paymentReminder7dSentAt"),
+  paymentReminder30dAttemptedAt: timestamp("paymentReminder30dAttemptedAt"),
+  paymentReminder30dSentAt: timestamp("paymentReminder30dSentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -2884,6 +2891,12 @@ export const instagramAnalytics = mysqlTable("instagram_analytics", {
   themesJson: text("themesJson"),
   /** Follower count at time of snapshot */
   followerSnapshot: int("followerSnapshot"),
+  /** Live Graph insights, refreshed each sync (nullable until first fetched). */
+  reach: int("reach"),
+  saved: int("saved"),
+  /** `views` replaces Meta's deprecated `plays` metric. */
+  views: int("views"),
+  shares: int("shares"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("idx_ig_analytics_post").on(table.postId),
@@ -2999,6 +3012,8 @@ export const igAutopostLog = mysqlTable("ig_autopost_log", {
   error: varchar("error", { length: 500 }),
   /** Trigger source: cron (scheduled) or admin (Fire Now button) */
   source: varchar("source", { length: 16 }).default("cron").notNull(),
+  /** Gen + eval prompt version stamp (date string, e.g. "2026-06-20") · attribution #3 */
+  promptVersion: varchar("promptVersion", { length: 32 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("idx_ig_autopost_created").on(table.createdAt),
@@ -3336,3 +3351,280 @@ export const voiceFollowups = mysqlTable("voice_followups", {
   uniqueIndex("uniq_booking_touch").on(table.bookingId, table.touch),
   index("idx_followup_created").on(table.createdAt),
 ]);
+
+/**
+ * social_drafts · Stored briefs and drafts from the IG Carousel Studio and Faceless Reel Studio.
+ * Allows DB-backed memory persistence.
+ */
+export const socialDrafts = mysqlTable("social_drafts", {
+  id: varchar("id", { length: 64 }).primaryKey(), // e.g. ai-123456789
+  contentType: varchar("contentType", { length: 16 }).notNull(), // carousel | reel
+  topic: varchar("topic", { length: 255 }).notNull(),
+  briefJson: text("briefJson").notNull(), // Stored JSON representation of the brief
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_social_drafts_type").on(table.contentType),
+  index("idx_social_drafts_created").on(table.createdAt),
+]);
+
+export type SocialDraftRow = typeof socialDrafts.$inferSelect;
+export type InsertSocialDraft = typeof socialDrafts.$inferInsert;
+
+/**
+ * customer_testimonials · Curated customer reviews and testimonials generated/validated by studios.
+ */
+export const customerTestimonials = mysqlTable("customer_testimonials", {
+  id: int("id").autoincrement().primaryKey(),
+  author: varchar("author", { length: 100 }),
+  text: text("text").notNull(),
+  rating: int("rating").default(5).notNull(),
+  source: varchar("source", { length: 50 }).default("manual").notNull(), // manual | google | etc
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_testimonials_rating").on(table.rating),
+]);
+
+export type CustomerTestimonialRow = typeof customerTestimonials.$inferSelect;
+export type InsertCustomerTestimonial = typeof customerTestimonials.$inferInsert;
+
+export const nickgptDrafts = mysqlTable("nickgpt_drafts", {
+  id: int("id").autoincrement().primaryKey(),
+  customerPhone: varchar("customer_phone", { length: 30 }).notNull(),
+  inboundMessage: text("inbound_message").notNull(),
+  draftReply: text("draft_reply").notNull(),
+  operatorReply: text("operator_reply"),
+  intent: varchar("intent", { length: 100 }),
+  confidence: float("confidence"),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  latencyMs: int("latency_ms"),
+  rating: mysqlEnum("rating", ["good", "bad"]),
+  status: mysqlEnum("status", ["draft", "approved", "edited", "rejected"]).default("draft").notNull(),
+  autoSent: boolean("auto_sent").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_nickgpt_drafts_phone").on(table.customerPhone),
+  index("idx_nickgpt_drafts_created").on(table.createdAt),
+]);
+
+export type NickgptDraft = typeof nickgptDrafts.$inferSelect;
+export type InsertNickgptDraft = typeof nickgptDrafts.$inferInsert;
+
+export const smsOrchestrations = mysqlTable("sms_orchestrations", {
+  id: int("id").autoincrement().primaryKey(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  customerPhone: varchar("customer_phone", { length: 30 }).notNull(),
+  messageBody: text("message_body").notNull(),
+  variantKey: varchar("variant_key", { length: 50 }).notNull(),
+  shouldAutoSend: boolean("should_auto_send").notNull(),
+  requiresHumanApproval: boolean("requires_human_approval").notNull(),
+  reason: text("reason"),
+  customerContext: text("customer_context"), // JSON string
+  providerUsed: varchar("provider_used", { length: 50 }).notNull(), // 'shop' | 'twilio' | 'none'
+  cooldownKey: varchar("cooldown_key", { length: 255 }),
+  status: varchar("status", { length: 50 }).notNull(), // e.g. received, classified, compiled, drafted, approved, blocked, skipped, queued, sending, sent, delivered, failed, replied, expired, cancelled
+  statusReason: text("status_reason"),
+  deliveryStatus: varchar("delivery_status", { length: 50 }),
+  deliveredAt: timestamp("delivered_at"),
+  repliedAt: timestamp("replied_at"),
+  failedAt: timestamp("failed_at"),
+  sentAt: timestamp("sent_at"),
+  queuedUntil: timestamp("queued_until"),
+  failureReason: text("failure_reason"),
+  sourceTable: varchar("source_table", { length: 100 }),
+  sourceId: varchar("source_id", { length: 100 }),
+  relatedConversationId: int("related_conversation_id"),
+  relatedLeadId: int("related_lead_id"),
+  relatedBookingId: int("related_booking_id"),
+  relatedCallbackId: int("related_callback_id"),
+  relatedVapiCallId: varchar("related_vapi_call_id", { length: 100 }),
+  relatedEstimateId: varchar("related_estimate_id", { length: 100 }),
+  sendResultJson: text("send_result_json"),
+  metadataJson: text("metadata_json"),
+  decisionTraceJson: text("decision_trace_json"),
+  riskTier: varchar("risk_tier", { length: 50 }),
+  humanReviewReason: text("human_review_reason"),
+  noSendReason: text("no_send_reason"),
+  selectedTemplateKey: varchar("selected_template_key", { length: 100 }),
+  selectedVariantKey: varchar("selected_variant_key", { length: 100 }),
+  templateVersion: varchar("template_version", { length: 50 }),
+  experimentId: varchar("experiment_id", { length: 100 }),
+  journeyId: varchar("journey_id", { length: 100 }),
+  correlationId: varchar("correlation_id", { length: 100 }),
+  idempotencyKey: varchar("idempotency_key", { length: 255 }),
+  legacyComparisonJson: text("legacy_comparison_json"),
+  shadowWouldSend: boolean("shadow_would_send"),
+  shadowMessageBody: text("shadow_message_body"),
+  legacyMessageBody: text("legacy_message_body"),
+  variantAssignmentReason: text("variant_assignment_reason"),
+  isControl: boolean("is_control"),
+  trafficWeight: int("traffic_weight"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_sms_orch_phone").on(table.customerPhone),
+  index("idx_sms_orch_created").on(table.createdAt),
+  index("idx_sms_orch_event").on(table.eventType),
+  index("idx_sms_orch_cooldown").on(table.cooldownKey),
+  index("idx_sms_orch_correlation").on(table.correlationId),
+  index("idx_sms_orch_idempotency").on(table.idempotencyKey),
+]);
+
+export type SmsOrchestration = typeof smsOrchestrations.$inferSelect;
+export type InsertSmsOrchestration = typeof smsOrchestrations.$inferInsert;
+
+export const smsOrchestrationOutcomes = mysqlTable("sms_orchestration_outcomes", {
+  id: int("id").autoincrement().primaryKey(),
+  orchestrationId: int("orchestration_id").notNull(),
+  outcomeType: varchar("outcome_type", { length: 100 }).notNull(),
+  outcomeValue: text("outcome_value"),
+  sourceTable: varchar("source_table", { length: 100 }),
+  sourceId: varchar("source_id", { length: 100 }),
+  metadataJson: text("metadata_json"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_sms_out_orch").on(table.orchestrationId),
+  index("idx_sms_out_created").on(table.createdAt),
+]);
+
+export type SmsOrchestrationOutcome = typeof smsOrchestrationOutcomes.$inferSelect;
+export type InsertSmsOrchestrationOutcome = typeof smsOrchestrationOutcomes.$inferInsert;
+
+export const nickgptTrainingExamples = mysqlTable("nickgpt_training_examples", {
+  id: int("id").autoincrement().primaryKey(),
+  customerPhone: varchar("customer_phone", { length: 30 }).notNull(),
+  inboundMessage: text("inbound_message").notNull(),
+  conversationContextJson: text("conversation_context_json"),
+  nickgptDraft: text("nickgpt_draft").notNull(),
+  operatorFinalReply: text("operator_final_reply").notNull(),
+  intent: varchar("intent", { length: 100 }),
+  serviceMention: varchar("service_mention", { length: 100 }),
+  rating: int("rating"),
+  outcome: varchar("outcome", { length: 100 }),
+  approvedForTraining: boolean("approved_for_training").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_ngpt_train_phone").on(table.customerPhone),
+  index("idx_ngpt_train_created").on(table.createdAt),
+]);
+
+export type NickgptTrainingExample = typeof nickgptTrainingExamples.$inferSelect;
+export type InsertNickgptTrainingExample = typeof nickgptTrainingExamples.$inferInsert;
+
+export const smsLearningRecommendations = mysqlTable("sms_learning_recommendations", {
+  id: int("id").autoincrement().primaryKey(),
+  recommendationType: varchar("recommendation_type", { length: 100 }).notNull(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  currentVariantKey: varchar("current_variant_key", { length: 100 }).notNull(),
+  proposedVariantKey: varchar("proposed_variant_key", { length: 100 }).notNull(),
+  proposedMessage: text("proposed_message").notNull(),
+  reason: text("reason").notNull(),
+  supportingStatsJson: text("supporting_stats_json"),
+  status: varchar("status", { length: 50 }).default("pending").notNull(), // 'pending' | 'approved' | 'rejected' | 'applied'
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: varchar("reviewed_by", { length: 100 }),
+}, (table) => [
+  index("idx_sms_rec_type").on(table.recommendationType),
+  index("idx_sms_rec_status").on(table.status),
+  index("idx_sms_rec_created").on(table.createdAt),
+]);
+
+export type SmsLearningRecommendation = typeof smsLearningRecommendations.$inferSelect;
+export type InsertSmsLearningRecommendation = typeof smsLearningRecommendations.$inferInsert;
+
+export const contentManufacturingCampaigns = mysqlTable("content_manufacturing_campaigns", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  topic: varchar("topic", { length: 128 }).notNull(),
+  persona: varchar("persona", { length: 64 }).notNull(),
+  targetMonthlyVolume: int("target_monthly_volume").default(30).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_campaign_topic").on(table.topic),
+]);
+
+export type ContentManufacturingCampaign = typeof contentManufacturingCampaigns.$inferSelect;
+export type InsertContentManufacturingCampaign = typeof contentManufacturingCampaigns.$inferInsert;
+
+export const socialContentInventory = mysqlTable("social_content_inventory", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  campaignId: varchar("campaign_id", { length: 64 }),
+  contentType: mysqlEnum("content_type", ["reel", "carousel", "post", "story", "poll"]).notNull(),
+  platform: mysqlEnum("platform", ["instagram", "facebook", "both"]).default("both").notNull(),
+  topic: varchar("topic", { length: 128 }).notNull(),
+  seriesName: varchar("series_name", { length: 128 }).notNull(),
+  episodeNumber: int("episode_number").default(1).notNull(),
+  hookCategory: varchar("hook_category", { length: 64 }).notNull(),
+  hookText: text("hook_text").notNull(),
+  bodyText: text("body_text").notNull(),
+  visualStyle: varchar("visual_style", { length: 64 }).notNull(),
+  persona: varchar("persona", { length: 64 }).notNull(),
+
+  // Attention Scores
+  scoreCuriosity: int("score_curiosity").default(0).notNull(),
+  scoreEmotion: int("score_emotion").default(0).notNull(),
+  scoreShareability: int("score_shareability").default(0).notNull(),
+  scoreCommentPotential: int("score_comment_potential").default(0).notNull(),
+  scoreSavePotential: int("score_save_potential").default(0).notNull(),
+  scoreLocalRelevance: int("score_local_relevance").default(0).notNull(),
+  scoreRevenueRelevance: int("score_revenue_relevance").default(0).notNull(),
+  scoreAuthority: int("score_authority").default(0).notNull(),
+  scoreHookStrength: int("score_hook_strength").default(0).notNull(),
+  scoreOverall: int("score_overall").default(0).notNull(),
+
+  // Asymmetric grounding fields
+  gscQuerySeed: varchar("gsc_query_seed", { length: 255 }),
+  weatherTriggerCondition: varchar("weather_trigger_condition", { length: 128 }),
+  interactiveDmKeyword: varchar("interactive_dm_keyword", { length: 64 }),
+
+  // Analytics & Performance Loopback (Self-Learning)
+  metricsReach: int("metrics_reach").default(0),
+  metricsEngagement: int("metrics_engagement").default(0),
+  metricsShares: int("metrics_shares").default(0),
+  metricsSaves: int("metrics_saves").default(0),
+  metricsComments: int("metrics_comments").default(0),
+  metricsBookingsAttributed: int("metrics_bookings_attributed").default(0),
+
+  // Status & Lifecycle
+  status: varchar("status", { length: 32 }).default("pending").notNull(),
+  scheduledAt: timestamp("scheduled_at"),
+  publishedAt: timestamp("published_at"),
+  assetPaths: json("asset_paths"),
+  briefJson: text("brief_json"),
+  errorMessage: varchar("error_message", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_sci_status_scheduled").on(table.status, table.scheduledAt),
+  index("idx_sci_campaign").on(table.campaignId),
+  index("idx_sci_topic_type").on(table.topic, table.contentType),
+]);
+
+export type SocialContentInventory = typeof socialContentInventory.$inferSelect;
+export type InsertSocialContentInventory = typeof socialContentInventory.$inferInsert;
+
+export const intelligenceDecisionLedger = mysqlTable("intelligence_decision_ledger", {
+  id: int("id").autoincrement().primaryKey(),
+  engineId: varchar("engine_id", { length: 64 }).notNull(),
+  recommendationType: varchar("recommendation_type", { length: 64 }).notNull(),
+  recommendationTarget: varchar("recommendation_target", { length: 255 }).notNull(),
+  actionTaken: varchar("action_taken", { length: 64 }).notNull(),
+  valueAtRiskCents: int("value_at_risk_cents").default(0),
+  actualRevenueCapturedCents: int("actual_revenue_captured_cents").default(0),
+  contextJson: text("context_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_intel_engine").on(table.engineId),
+  index("idx_intel_action").on(table.actionTaken),
+  index("idx_intel_created").on(table.createdAt),
+]);
+
+export type IntelligenceDecisionLedger = typeof intelligenceDecisionLedger.$inferSelect;
+export type InsertIntelligenceDecisionLedger = typeof intelligenceDecisionLedger.$inferInsert;
+
+

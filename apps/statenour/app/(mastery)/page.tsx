@@ -4,33 +4,44 @@ import { HomeActionHub } from "@/components/home/home-action-hub";
 import { HomeJournalHub } from "@/components/home/home-journal-hub";
 import { HomeStatePulse } from "@/components/home/home-state-pulse";
 import { HomeIdentityHeader } from "@/components/home/home-identity-header";
-import { HomeComposer } from "@/components/home/home-composer";
+import { HomeNickDock } from "@/components/home/home-nick-dock";
+import { HomeBrainGraph } from "@/components/home/home-brain-graph";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
+import { ObsidianEngineCard } from "@/components/obsidian/obsidian-engine-card";
 
 /**
- * The home route · 2026-06-16 · Redesigned and Decluttered.
+ * The home route · 2026-06-22 · Redesigned Nour Command Center layout.
  *
- * Streamlined layout structure:
- *   1. HomeIdentityHeader     · unconditional page identification
- *   2. CoachEventBanner       · active system notifications
- *   3. NicksHomeBrief         · AI-generated 2-3 sentence overview
- *   4. HomeCommandStack       · Bento grid (Today's Critical Few + Stats + Proof logs)
- *   5. HomeActionHub          · Tabbed Center (Inbox Triage, Hygiene, Suggestions)
- *   6. HomeJournalHub         · Unified Journal brief (4-line status + Next Move)
- *   7. HomeStatePulse         · System state pulse bar
- *   8. HomeComposer           · Input composer (Navigates to /chat)
+ * Wide responsive grid:
+ *   - Left Main: existing home card bento stack
+ *   - Right Side: HomeBrainGraph (sticky on desktop, compact preview on mobile)
+ *   - Floating Bottom: HomeNickDock command bar
  */
 export default function HomePage() {
   return (
-    <div className="space-y-4 max-w-3xl mx-auto px-3 pb-32">
+    <div className="mx-auto max-w-7xl px-3 sm:px-4 pb-32 space-y-4">
       <HomeIdentityHeader />
       <CoachEventBanner surface="home" />
-      <NicksHomeBrief />
-      <HomeCommandStack />
-      <HomeActionHub />
-      <HomeJournalHub />
-      <HomeStatePulse />
-      <HomeComposer />
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_520px]">
+        {/* Main Left Bento Stack */}
+        <main className="space-y-4 min-w-0">
+          <NicksHomeBrief />
+          <HomeCommandStack />
+          <HomeActionHub />
+          <HomeJournalHub />
+          <ObsidianEngineCard />
+          <HomeStatePulse />
+        </main>
+
+        {/* Right Sticky Graph Column / Mobile Preview */}
+        <aside className="lg:sticky lg:top-4 lg:h-[calc(100vh-6rem)] min-w-0">
+          <HomeBrainGraph variant="home" />
+        </aside>
+      </div>
+
+      {/* Floating Bottom Dock */}
+      <HomeNickDock />
     </div>
   );
 }

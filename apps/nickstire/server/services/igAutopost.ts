@@ -475,6 +475,10 @@ function angleForArchetype(a: IgArchetype): string {
   return DIALS.angle[map[a]] ?? DIALS.angle[0];
 }
 
+/** Bump when the gen/eval prompts change · stamped on every ig_autopost_log
+ * row so a content-quality shift can be tied to the prompt edit that caused it. */
+export const PROMPT_VERSION = "2026-06-20";
+
 function buildGenSystemPrompt(): string {
   return [
     "You are the social copywriter and creative director for Nick's Tire & Auto, a neighborhood auto + tire shop on Euclid Ave in Cleveland, Ohio.",
@@ -603,6 +607,37 @@ function parseJsonObject<T>(raw: string): T {
   return JSON.parse(s) as T;
 }
 
+/**
+ * Phase 6 (feed-wide): turn a post into a 2-line branded-poster headline + sub
+ * for the adRender "garage poster" layout. Claim-safe (no prices except the
+ * exact phrase "free check", no guarantees/superlatives — sell the visit).
+ * THROWS if it can't produce usable, claim-safe copy, so generatePostImage
+ * falls back to an AI image rather than ship a blank or non-compliant poster.
+ */
+async function derivePosterCopy(text: string): Promise<{ hookYellow: string; hookWhite: string; hookSub: string }> {
+  const prompt = `You are a graphic designer for Nick's Tire & Auto, a Cleveland-area neighborhood tire & auto shop.
+Turn this Instagram post into a bold poster headline.
+POST: "${text.slice(0, 600)}"
+
+Return ONLY JSON: {"hookYellow": string, "hookWhite": string, "hookSub": string}
+- hookYellow + hookWhite together form a 2-part headline; each 1-3 words, punchy, ALL CAPS (e.g. "BALD TIRES" / "CAN'T STOP."). hookYellow grabs attention, hookWhite finishes the thought.
+- hookSub: ONE sentence (<=120 chars) that pays it off and invites a visit.
+- HARD RULES: no prices, no "%", no guarantees, no "best/cheapest/#1", no "free" except the exact phrase "free check". No medical/legal claims. Sell the visit, never quote a price.`;
+  const result = await invokeLLM({ messages: [{ role: "user", content: prompt }], maxTokens: 2048 });
+  const content = result.choices?.[0]?.message?.content;
+  if (typeof content !== "string") throw new Error("derivePosterCopy: no LLM content");
+  const p = parseJsonObject<{ hookYellow?: unknown; hookWhite?: unknown; hookSub?: unknown }>(content);
+  const hookYellow = String(p.hookYellow ?? "").toUpperCase().trim().slice(0, 22);
+  const hookWhite = String(p.hookWhite ?? "").toUpperCase().trim().slice(0, 22);
+  const hookSub = String(p.hookSub ?? "").trim().slice(0, 140);
+  if (!hookYellow || !hookWhite) throw new Error("derivePosterCopy: empty headline");
+  // Defense-in-depth claim guard: never let a poster ship a price/guarantee.
+  if (/\$|%|guarantee|warranty|cheapest|lowest price|\bbest\b/i.test(`${hookYellow} ${hookWhite} ${hookSub}`)) {
+    throw new Error("derivePosterCopy: claim-unsafe copy rejected");
+  }
+  return { hookYellow, hookWhite, hookSub };
+}
+
 async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype, customConcept?: string): Promise<GeneratedPost> {
   const angle = forceArchetype ? angleForArchetype(forceArchetype) : pick(DIALS.angle);
   const visualConcept = pick(DIALS.visualConcept);
@@ -665,6 +700,7 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype, cu
  * convert the generated PNG to JPEG and re-host it, then hand the JPEG url
  * to Instagram. Facebook tolerates either; we use the same JPEG for both.
  */
+// @deprecated — unreachable since Phase 6 (higgsfield now routes to the branded poster); removal candidate.
 async function generatePostImageHiggsfield(prompt: string): Promise<string> {
   const { spawn } = await import("child_process");
   const fs = await import("fs");
@@ -917,8 +953,11 @@ async function generateImageOpenRouter(prompt: string): Promise<string> {
   return uploadedUrl;
 }
 
-export async function generatePostImage(prompt: string): Promise<{ url: string; format: "jpeg" }> {
-  let provider = "openai";
+export async function generatePostImage(
+  prompt: string,
+  ctx?: { caption?: string },
+): Promise<{ url: string; format: "jpeg"; kind: "poster" | "ai" }> {
+  let provider = "adrender";
   try {
     const { db } = await import("../lib/db-helper");
     const d = await db();
@@ -926,32 +965,43 @@ export async function generatePostImage(prompt: string): Promise<{ url: string; 
       const { appSecretKv } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       const rows = await d.select().from(appSecretKv).where(eq(appSecretKv.k, "ig_autopost_image_provider")).limit(1);
-      if (rows.length && rows[0].v) {
-        provider = rows[0].v;
-      } else {
-        provider = process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai";
-      }
+      provider = rows.length && rows[0].v ? rows[0].v : process.env.IG_AUTOPOST_IMAGE_PROVIDER || "adrender";
     } else {
-      provider = process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai";
+      provider = process.env.IG_AUTOPOST_IMAGE_PROVIDER || "adrender";
     }
   } catch (err) {
     log.warn("failed to load image provider from db overrides, using env fallback", { err });
-    provider = process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai";
+    provider = process.env.IG_AUTOPOST_IMAGE_PROVIDER || "adrender";
   }
   provider = provider.toLowerCase();
 
-  let pngUrl: string;
-  if (provider === "higgsfield") {
+  // Phase 6 (feed-wide): the branded "garage poster" is the DEFAULT visual.
+  // Only an explicit AI provider opts out; unset + the deprecated "higgsfield"
+  // stub both resolve to the poster. A poster failure (LLM/render) falls through
+  // to AI gen below so a post is never imageless.
+  const aiProviders = new Set(["openai", "gemini", "openrouter"]);
+  if (!aiProviders.has(provider)) {
     try {
-      pngUrl = await generatePostImageHiggsfield(prompt);
+      const h = await derivePosterCopy(ctx?.caption?.trim() || prompt);
+      const copy = {
+        ...h,
+        valueWhite: "", valueYellow: "", valueTicks: ["", "", ""] as [string, string, string],
+        offerYellow: "", offerWhite: "", offerSub: "", caption: "",
+      };
+      const { renderBrandedPoster } = await import("./adStudio/adRender");
+      const url = await renderBrandedPoster(copy);
+      return { url, format: "jpeg", kind: "poster" };
     } catch (err) {
-      log.warn("Higgsfield image generation failed, falling back to openai provider", {
-        err: err instanceof Error ? err.message : String(err),
-        prompt
-      });
-      pngUrl = await generatePostImageFallback(prompt);
+      log.warn("branded poster failed — falling back to AI image", { err: err instanceof Error ? err.message : String(err) });
+      // Route the fallback to the most reliably-keyed AI path (GEMINI_API_KEY is
+      // set in prod) so a poster failure still yields an image, not a missed post.
+      if (process.env.GEMINI_API_KEY) provider = "gemini";
+      // fall through to AI generation
     }
-  } else if (provider === "gemini") {
+  }
+
+  let pngUrl: string;
+  if (provider === "gemini") {
     try {
       if (process.env.GEMINI_API_KEY) {
         try {
@@ -978,7 +1028,7 @@ export async function generatePostImage(prompt: string): Promise<{ url: string; 
   }
 
   const jpegUrl = await convertHostedPngToJpeg(pngUrl);
-  return { url: jpegUrl, format: "jpeg" };
+  return { url: jpegUrl, format: "jpeg", kind: "ai" };
 }
 
 async function generatePostImageFallback(prompt: string): Promise<string> {
@@ -1273,6 +1323,7 @@ async function logRun(row: {
       fbPostId: row.fbPostId,
       error: row.error ? row.error.slice(0, 500) : null,
       source: row.source,
+      promptVersion: PROMPT_VERSION,
     });
   } catch (err) {
     log.warn("igAutopostLog insert failed (non-critical)", { err: errMsg(err) });
@@ -1319,10 +1370,14 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     for (let attempt = 0; attempt <= MAX_REGEN_ATTEMPTS; attempt++) {
       const post = await generatePost(brief, opts.forceArchetype, opts.customConcept);
       lastPost = post;
-      const image = await generatePostImage(post.imagePrompt);
+      const image = await generatePostImage(post.imagePrompt, { caption: post.caption });
       const [captionEval, imageEval] = await Promise.all([
         evalCaption(post, brief),
-        evalImage(image.url),
+        // A branded poster is a deterministic, approved template — not an AI
+        // gamble — so the pro-look vision eval (which scores photos) is skipped.
+        image.kind === "poster"
+          ? Promise.resolve({ proLook: null, skipped: true, note: "branded poster — deterministic template, eval skipped" })
+          : evalImage(image.url),
       ]);
       const scores = combineScores(captionEval, imageEval);
       lastScores = scores;

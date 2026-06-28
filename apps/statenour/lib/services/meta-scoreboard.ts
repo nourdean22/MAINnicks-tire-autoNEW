@@ -339,5 +339,3 @@ export async function buildMetaScoreboard(): Promise<MetaScoreboardSnapshot> {
     pinnedNumbers,
   };
 }
-
-export { ANCHOR_COUNT, MAX_NUMBERS };

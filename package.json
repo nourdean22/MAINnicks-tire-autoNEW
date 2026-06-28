@@ -21,14 +21,28 @@
     "lint:all": "turbo run lint",
     "lint:affected": "turbo run lint --affected",
     "verify:nick": "pnpm --filter nicks-tire-auto verify",
+    "verify:state": "pnpm --filter @statenour/web verify:hard",
     "verify:affected": "turbo run check lint test --affected",
     "ci:affected": "turbo run check lint test build --affected",
-    "prepare": "git config core.hooksPath .husky 2>/dev/null || true"
+    "obsidian:plugins": "powershell scripts/install-cockpit-plugins.ps1",
+    "obsidian:doctor": "pnpm --filter @statenour/web obsidian:doctor",
+    "obsidian:ingest": "pnpm --filter @statenour/web obsidian:ingest",
+    "obsidian:export": "pnpm --filter @statenour/web obsidian:export",
+    "obsidian:sync": "pnpm --filter @statenour/web obsidian:sync",
+    "obsidian:watch": "pnpm --filter @statenour/web obsidian:watch",
+    "research:pack": "pnpm --filter @statenour/web research:pack",
+    "research:ingest": "pnpm --filter @statenour/web research:ingest",
+    "research:notebooklm": "pnpm --filter @statenour/web research:notebooklm",
+    "social:asset": "pnpm --filter @nour/social-assets render",
+    "social:verify": "pnpm --filter @nour/social-assets test"
   },
   "devDependencies": {
     "@types/node": "25.9.2",
+    "lefthook": "2.1.9",
+    "sherif": "1.12.0",
+    "syncpack": "15.3.2",
     "turbo": "^2.5.8",
-    "typescript": "6.0.3"
+    "typescript": "catalog:"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -40,12 +54,20 @@
       "ai@6.0.162": "apps/statenour/patches/ai@6.0.162.patch"
     },
     "overrides": {
+      "undici@^6.0.0": "6.27.0",
+      "undici@^7.0.0": "7.28.0",
+      "undici@^8.0.0": "8.5.0",
+      "hono": ">=4.12.25",
+      "protobufjs": ">=7.6.1",
+      "dompurify": ">=3.4.5",
+      "@grpc/grpc-js": ">=1.14.4",
+      "form-data": ">=4.0.6",
+      "vite@^7.0.0": ">=7.3.5 <8.0.0",
       "tailwindcss>nanoid": "3.3.7",
       "qs": ">=6.14.2",
       "fast-xml-parser": ">=5.5.6",
       "axios": ">=1.15.2",
       "fast-uri": ">=3.1.2",
-      "hono": ">=4.12.18",
       "@hono/node-server": ">=1.19.13",
       "mermaid": ">=11.15.0",
       "postcss": ">=8.5.10",

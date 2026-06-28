@@ -13,7 +13,7 @@ export type ChatModeOverride = "auto" | "standard" | "deep";
 // v10.0.529.58 · "ollama" added · Ollama Cloud is the new primary
 // chat provider (v529.46) and the override cycle in the ⋯ menu
 // rotates through it explicitly.
-export type ProviderOverride = "auto" | "ollama" | "gemini" | "venice" | "openai" | "anthropic";
+export type ProviderOverride = "auto" | "ollama" | "gemini" | "openai" | "anthropic";
 
 export type TaskTypeOverride =
   | "auto"

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { MOBILE_TABS } from "./nav-items";
+import { BOTTOM_TABS } from "./nav-items";
 
 /**
  * SwipeNavigation — enables swipe left/right between mobile tabs
@@ -22,7 +22,9 @@ export function SwipeNavigation() {
   // can't navigate to absolute URLs, and swiping shouldn't yank Nour
   // off-site. External entries remain reachable via the floating orb +
   // bottom nav, just not via swipe gesture.
-  const SWIPEABLE = MOBILE_TABS.filter((t) => !t.external);
+  // 2026-06-18 · IA reorg Phase 4 · now derives from BOTTOM_TABS (the 4 daily
+  // content tabs Home/Missions/Journal/Stats) — Stats joins the swipe loop.
+  const SWIPEABLE = BOTTOM_TABS.filter((t) => !t.external);
 
   const currentTabIndex = SWIPEABLE.findIndex(
     t => pathname === t.href || pathname.startsWith(t.href + "/")
@@ -82,7 +84,7 @@ export function SwipeNavigation() {
 
     touchStartRef.current = null;
     pullRef.current = { startY: 0, pulling: false };
-    // SWIPEABLE is derived from MOBILE_TABS which is module-const, so
+    // SWIPEABLE is derived from BOTTOM_TABS which is module-const, so
     // it's stable across renders — no need to include in deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTabIndex, router]);

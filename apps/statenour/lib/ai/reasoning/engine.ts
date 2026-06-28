@@ -36,6 +36,7 @@
 
 import { withGuardian } from "@/lib/tools/guardian";
 import { logger as rootLogger } from "@/lib/logger";
+import { getFlag } from "@/lib/feature-flags";
 import type {
   ReasoningRequest,
   ReasoningResult,
@@ -469,6 +470,35 @@ async function runDraft(
   // Routed via makeTracedAiChat factory · inherits the daily-budget gate
   // installed in traced-aichat.ts. Drop-in: call signature unchanged.
   const aiChat = tracedAiChat;
+
+  // Greene + dark-psychology tactical context injection (2026-06-20).
+  // Deterministic keyword match · sub-millisecond · self-gating (returns ""
+  // when nothing matches). Prepended to the reasoning context so the draft
+  // step sees relevant tactical patterns alongside fanout/tool data.
+  let tacticalContext = "";
+  try {
+    const [greeneBlock, darkPsychBlock] = await Promise.all([
+      (async () => {
+        const { pickContextualLawsForMessage, renderGreeneBlock } =
+          await import("@/lib/ai/greene-message-matcher");
+        const picks = await pickContextualLawsForMessage(question);
+        return renderGreeneBlock(picks);
+      })(),
+      (async () => {
+        const { pickDarkPsychologyForMessage, renderDarkPsychologyBlock } =
+          await import("@/lib/ai/dark-psychology-matcher");
+        const picks = await pickDarkPsychologyForMessage(question);
+        return renderDarkPsychologyBlock(picks);
+      })(),
+    ]);
+    const blocks = [greeneBlock, darkPsychBlock].filter(Boolean);
+    if (blocks.length > 0) {
+      tacticalContext = blocks.join("\n\n") + "\n\n---\n\n";
+    }
+  } catch {
+    // Best-effort · tactical context failures must never block the draft.
+  }
+
   const reply = await aiChat(
     [
       {
@@ -487,7 +517,7 @@ If the context is empty or contradicts itself, say so explicitly and proceed wit
         : null,
       {
         role: "system" as const,
-        content: `Reasoning context:\n${context.slice(0, 4000)}`,
+        content: `Reasoning context:\n${(tacticalContext + context).slice(0, 4000)}`,
       },
       { role: "user", content: question },
     ].filter((m): m is { role: "system" | "user" | "assistant"; content: string } => m !== null),
@@ -607,6 +637,107 @@ OUTPUT: the refined answer only · no commentary · no preamble.`,
   return (reply?.content ?? draft).trim();
 }
 
+// ── Tool-gather step · NICK_DEEP_REASONING feature ─────────────────
+//
+// When the NICK_DEEP_REASONING flag is on, the engine can call a curated
+// set of read-only tools (getDashboardSummary, getRevenueStats, etc.)
+// during its gather phase. This grounds the reasoning in REAL business
+// data instead of the model inventing figures.
+//
+// Uses `generateText` from the Vercel AI SDK with tools enabled,
+// bypassing the tool-less `aiChat` path. The LLM decides which tools
+// to call based on the question + plan — no hardcoded pre-fetch.
+//
+// Safety: only READ tools are exposed via getReasoningTools() whitelist.
+// The engine OBSERVES, never ACTS.
+
+async function runToolGather(
+  question: string,
+  plan: string,
+  acc?: CostAccumulator,
+): Promise<{ toolContext: string; toolsCalled: string[]; durationMs: number }> {
+  const t = Date.now();
+  const empty = { toolContext: "", toolsCalled: [], durationMs: 0 };
+
+  // Gate: only run when the deep-reasoning flag is on
+  const flagOn = getFlag("NICK_DEEP_REASONING")?.isOn ?? false;
+  if (!flagOn) return empty;
+
+  try {
+    const { generateText, stepCountIs } = await import("ai");
+    const { getModel } = await import("@/lib/ai/provider");
+    const { getReasoningTools } = await import("./reasoning-tools");
+
+    const tools = getReasoningTools();
+    if (Object.keys(tools).length === 0) return empty;
+
+    const model = getModel("fast");
+
+    const result = await generateText({
+      model,
+      system: `You are a data-gathering assistant for Nick's reasoning engine. Your ONLY job is to call the available tools to fetch real business data that is relevant to the question and plan below. Call 1-3 tools max. Do NOT answer the question — just gather data. If no tools are relevant, output "NO_TOOLS_NEEDED".
+
+QUESTION: ${question}
+
+PLAN: ${plan || "(no plan)"}`,
+      messages: [
+        { role: "user", content: "Gather the relevant data now." },
+      ],
+      tools: tools as Parameters<typeof generateText>["0"]["tools"],
+      stopWhen: stepCountIs(3),
+    });
+
+    // Extract tool results from the steps
+    const toolsCalled: string[] = [];
+    const toolOutputs: string[] = [];
+
+    for (const step of result.steps ?? []) {
+      for (const call of step.toolCalls ?? []) {
+        toolsCalled.push(call.toolName);
+      }
+      // toolResults items are TypedToolResult — access via runtime cast
+      // since the generic type doesn't expose `.result` directly.
+      for (const res of step.toolResults ?? []) {
+        const entry = res as unknown as { toolName: string; result: unknown };
+        const resultStr = typeof entry.result === "string"
+          ? entry.result
+          : JSON.stringify(entry.result, null, 2);
+        toolOutputs.push(
+          `## ${entry.toolName} result\n${resultStr.slice(0, 2000)}`,
+        );
+      }
+    }
+
+    // Track cost
+    if (acc) {
+      acc.calls += 1;
+      acc.callsWithoutCost += 1; // generateText doesn't report costUsd
+    }
+
+    const toolContext = toolOutputs.length > 0
+      ? `# LIVE DATA (from tool calls)\n\n${toolOutputs.join("\n\n")}`
+      : "";
+
+    log.info("tool_gather_completed", {
+      toolsCalled,
+      toolCount: toolsCalled.length,
+      contextLength: toolContext.length,
+      durationMs: Date.now() - t,
+    });
+
+    return {
+      toolContext,
+      toolsCalled,
+      durationMs: Date.now() - t,
+    };
+  } catch (err) {
+    log.warn("tool_gather_failed", {
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return { ...empty, durationMs: Date.now() - t };
+  }
+}
+
 // ── The main engine ────────────────────────────────────────────────
 
 /**
@@ -703,6 +834,30 @@ async function runReasoningEngine(
   } catch (err) {
     log.warn("plan_failed", { err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
     rec.push("plan", "plan step failed · continuing with empty plan");
+  }
+
+  // Step 2.5 · tool gather (NICK_DEEP_REASONING gated)
+  // When the flag is on, the engine calls read-only tools to fetch
+  // real business data. The tool context is prepended to the main
+  // context so the draft step sees real numbers.
+  let toolContext = "";
+  try {
+    const tg = await runToolGather(request.question, plan, acc);
+    if (tg.toolContext) {
+      toolContext = tg.toolContext;
+      callCount += 1;
+      rec.push(
+        "tool_call",
+        `tool gather · ${tg.toolsCalled.length} tool${tg.toolsCalled.length === 1 ? "" : "s"} called: ${tg.toolsCalled.join(", ") || "none"}`,
+        { toolsCalled: tg.toolsCalled, contextLength: tg.toolContext.length },
+        tg.durationMs,
+      );
+    }
+  } catch (err) {
+    log.warn("tool_gather_step_failed", {
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    rec.push("tool_call", "tool gather failed · continuing without live data");
   }
 
   // Step 3 · context gather (fanout · multi-agent · deep-research · mega)
@@ -1053,10 +1208,15 @@ async function runReasoningEngine(
   }
 
   // Step 4 · draft
+  // Prepend tool-gathered live data to the context so the draft step
+  // sees real business numbers alongside fanout/multi-agent context.
+  const fullContext = toolContext
+    ? `${toolContext}\n\n---\n\n${context}`
+    : context;
   let draft = "";
   try {
     const t = Date.now();
-    draft = await runDraft(request.question, context, request.brainContext, acc);
+    draft = await runDraft(request.question, fullContext, request.brainContext, acc);
     callCount += 1;
     rec.push(
       "deliver",

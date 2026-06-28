@@ -261,7 +261,14 @@ export function registerBridgeRoutes(app: Express): void {
         return;
       }
       const { note, context } = parsed.data;
-      console.info(`[bridge:note] ${context || "general"}: ${note}`);
+      // Privacy: log metadata only — never the note body to the stdout/Railway stream.
+      // NOTE: quick-note currently has NO persistence sink (the note is not written to
+      // any table). If retained notes are needed, wire a real store here; until then
+      // this endpoint only acknowledges receipt.
+      log.info("[bridge:note] received", {
+        context: context || "general",
+        note_len: note.length,
+      });
       res.json({ success: true, logged: true });
     } catch (err: unknown) {
       log.error("[Bridge] Action error:", err);
@@ -472,11 +479,9 @@ export function registerBridgeRoutes(app: Express): void {
         const vehicle = [c.vehicleYear, c.vehicleMake, c.vehicleModel].filter(Boolean).join(" ");
         const vehicleLine = vehicle ? ` on your ${vehicle}` : "";
 
-        // Personalized message: thank you + referral + review
-        const msg = `Hi ${firstName}! Thank you for choosing Nick's Tire & Auto for your recent service${vehicleLine}. ` +
-          `We appreciate your business! If you were happy with our work, we'd love a quick Google review: https://g.page/r/nickstire/review ` +
-          `Know someone who needs tires or auto service? Refer a friend and both of you get 10% off your next visit! ` +
-          `— Nick's Tire & Auto (216) 862-0005`;
+        const msg = `Hey ${firstName}, Nick's Tire & Auto here. Thanks again for trusting us with the work${vehicleLine}. ` +
+          `If we earned it, a quick Google review helps other Cleveland drivers find us: https://g.page/r/nickstire/review. ` +
+          `If you send a friend our way, we'll take care of you both on your next visits. Call or text us anytime at (216) 862-0005.`;
 
         messages.push({ phone: c.phone, name: `${c.firstName} ${c.lastName}`, message: msg });
       }

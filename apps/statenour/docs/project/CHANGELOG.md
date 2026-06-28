@@ -15,6 +15,31 @@ separate: different stack (Next.js vs Express), different deploy target
 
 ---
 
+## 2026-06-21 — Deep-disconnect audit · 13 dead Prisma models + 22 legacy REST routes deleted
+
+Three-commit cleanup wave on `main` (PR #267).
+
+### Schema · 13 models + 1 enum dropped
+Verified empty/absent via Neon production probe (`scripts/probe-unused-models.cjs`):
+`OperatorCheckIn`, `CommandResolution` + `CommandResolutionType` enum, `DailyEmpireSnapshot`, `WorkResult`, `StagedRecoveryItem`, `EnvironmentalSignal`, `DailyStrategy`, `AgentRun` + `AgentMemoryHit` + `AgentFeedback`, `ContentNode`, `FinancialTransaction`, `InvestmentHolding`.
+8 tables NOT FOUND in prod; 5 exist with 0 rows / 0 bytes — all safe to drop.
+Also excised dangling relation fields from `DailyExecutionState`, `WorkItem`, `RecoveryActionLog`, `StrategicLaw`, `PromptVersion`.
+`prisma validate` clean; model count 101 → 88.
+
+### Routes · 22 legacy REST routes deleted (~1,210 LOC)
+Superseded by typed tRPC procedures. 5 living routes verified and preserved:
+`/api/missions/[id]/retro`, `/api/coach/events/[key]/ack`, `/api/system/calibration/reviews/[id]/resolve`, `/api/relationships/[personId]/contextual-laws`, `/api/brain/wisdom/[id]/related`.
+
+### Code · dead contract + exports pruned
+Fixed broken `ChatEmptyState` prop contract (`onPick` removed), removed 6 dead exports, deleted 5 unused hooks/components, promoted 13 undocumented env vars to `runtime` tier in `env.ts` + `.env.example`.
+
+### Docs updated
+`DATA-MODEL.md` (count 88, removed deleted models from diagrams), `RECONCILIATION.md` (new top entry), `CONSOLIDATION-PLAN-2026-05-16.md` (strikethrough), `STATENOUR-CONNECTIVITY-MATRIX.md` (marked `DailyEmpireSnapshot` row REMOVED).
+
+Gates: tsc 0 · eslint 0 · stale-docs 0 critical/0 warn · `pnpm test` pass · pre-push turbo green.
+
+---
+
 ## 2026-05-08 — v10.0.442 → v10.0.484 EOD reconciliation sprint · 43 versions
 
 Two-day push covering forward work (v10.0.442-472, 31 versions) followed by a

@@ -20,6 +20,7 @@ import {
 import { storagePut } from "../storage";
 import { sendSms } from "../sms";
 import { createLogger } from "../lib/logger";
+import { pickGatewayDevice, isGatewayOnline } from "../lib/gateway-device";
 import { z } from "zod";
 
 const log = createLogger("routers:services");
@@ -509,7 +510,8 @@ export const smsRouter = router({
   /**
    * Wave-108: live shop gateway health.
    * Hits Capevace's /device endpoint to read the F25e's lastSeen
-   * timestamp + name. Online if lastSeen < 10 min ago.
+   * timestamp + name. Online if lastSeen is within GATEWAY_OFFLINE_MINUTES
+   * (shared with the alerting cron — see lib/gateway-device.ts).
    */
   gatewayHealth: adminProcedure.query(async () => {
     const username = process.env.SHOP_SMS_GATEWAY_USERNAME;
@@ -531,12 +533,24 @@ export const smsRouter = router({
       if (!devices.length) {
         return { configured: true as const, online: false, lastSeen: null, deviceName: null, error: "No devices registered" };
       }
-      const dev = devices[0];
+      // Don't blindly trust devices[0] — the Capevace account can hold a stale
+      // test phone alongside the live F25e, and order isn't guaranteed. Prefer
+      // the configured device id, else the freshest by lastSeen (shared helper).
+      const dev = pickGatewayDevice(devices, process.env.SHOP_SMS_GATEWAY_DEVICE_ID);
+      if (!dev) {
+        return {
+          configured: true as const,
+          online: false,
+          lastSeen: null,
+          deviceName: null,
+          error: `Configured gateway device ${process.env.SHOP_SMS_GATEWAY_DEVICE_ID} not registered (${devices.length} device(s) found)`,
+        };
+      }
       const lastSeenMs = dev.lastSeen ? new Date(dev.lastSeen).getTime() : 0;
       const ageMin = lastSeenMs ? Math.round((Date.now() - lastSeenMs) / 60_000) : 999;
       return {
         configured: true as const,
-        online: ageMin < 10,
+        online: isGatewayOnline(ageMin),
         lastSeen: dev.lastSeen || null,
         ageMinutes: ageMin,
         deviceName: dev.name || null,

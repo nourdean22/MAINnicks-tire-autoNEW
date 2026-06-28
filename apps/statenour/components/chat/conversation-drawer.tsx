@@ -33,7 +33,7 @@
  *     preserved byte-for-byte.
  */
 
-import { Plus, Pin, Trash2, Star, Archive, BellOff } from "lucide-react";
+import { Plus, Pin, Trash2, Star, Archive, BellOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useChatRename } from "@/hooks/chat/use-chat-rename";
@@ -137,7 +137,7 @@ export function ConversationDrawer({
             />
           ) : (
             <p
-              className="truncate text-[12px] font-medium"
+              className="truncate text-[13px] font-medium"
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 startRename(c.id, c.title || "");
@@ -148,16 +148,13 @@ export function ConversationDrawer({
               {c.title || "Untitled"}
             </p>
           )}
-          <p className="text-[9px] text-[var(--text-tertiary)] font-mono">
+          <p className="text-[11px] text-[var(--text-tertiary)] font-mono">
             {timeLabel} · {c._count.messages} msgs
           </p>
         </div>
-        {/* v10.0.529.59 · per-row action group · audit Wave 8 follow-up
-            relocated star/archive/mute/delete from the chat header
-            overflow menu to live next to the conversation they target.
-            Mobile keeps actions visible (no hover); desktop reveals
-            them on row-hover. Pinned, starred, muted, or active rows
-            keep actions visible even without hover as a state cue. */}
+        {/* Action group — on mobile only Pin + Delete show to keep titles readable.
+            Star/BellOff/Archive are desktop-only (`hidden sm:flex`).
+            Active/pinned/starred/muted rows always show actions as a state cue. */}
         <div
           className={cn(
             "flex items-center gap-0.5 shrink-0 transition-opacity",
@@ -169,7 +166,7 @@ export function ConversationDrawer({
           <button
             onClick={(e) => { e.stopPropagation(); onTogglePin(c.id); }}
             className={cn(
-              "h-7 w-7 flex items-center justify-center rounded hover:bg-[var(--bg-raised)]",
+              "h-8 w-8 flex items-center justify-center rounded hover:bg-[var(--bg-raised)]",
               isPinned
                 ? "text-[var(--gold)]"
                 : "text-[var(--text-tertiary)] hover:text-[var(--gold)]",
@@ -177,12 +174,12 @@ export function ConversationDrawer({
             title={isPinned ? "Unpin" : "Pin"}
             aria-label={isPinned ? "Unpin conversation" : "Pin conversation"}
           >
-            <Pin size={11} />
+            <Pin size={13} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onToggleStar(c.id); }}
             className={cn(
-              "h-7 w-7 flex items-center justify-center rounded hover:bg-[var(--bg-raised)]",
+              "hidden sm:flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--bg-raised)]",
               isStarred
                 ? "text-amber-300"
                 : "text-[var(--text-tertiary)] hover:text-amber-300",
@@ -190,12 +187,12 @@ export function ConversationDrawer({
             title={isStarred ? "Unstar" : "Star"}
             aria-label={isStarred ? "Unstar conversation" : "Star conversation"}
           >
-            <Star size={11} className={isStarred ? "fill-amber-300" : ""} />
+            <Star size={13} className={isStarred ? "fill-amber-300" : ""} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onToggleMute(c.id); }}
             className={cn(
-              "h-7 w-7 flex items-center justify-center rounded hover:bg-[var(--bg-raised)]",
+              "hidden sm:flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--bg-raised)]",
               isMuted
                 ? "text-zinc-400"
                 : "text-[var(--text-tertiary)] hover:text-zinc-300",
@@ -203,25 +200,25 @@ export function ConversationDrawer({
             title={isMuted ? "Unmute" : "Mute"}
             aria-label={isMuted ? "Unmute conversation" : "Mute conversation"}
           >
-            <BellOff size={11} />
+            <BellOff size={13} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onToggleArchive(c.id); }}
-            className="h-7 w-7 flex items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]"
+            className="hidden sm:flex h-8 w-8 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]"
             title="Archive"
             aria-label="Archive conversation"
           >
-            <Archive size={11} />
+            <Archive size={13} />
           </button>
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10"
+            className="h-8 w-8 text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10"
             onClick={(e) => onDeleteConvo(c.id, e)}
             title="Delete"
             aria-label="Delete conversation"
           >
-            <Trash2 size={11} />
+            <Trash2 size={13} />
           </Button>
         </div>
       </div>
@@ -257,6 +254,18 @@ export function ConversationDrawer({
           animation: "slideUpHistory 0.28s ease-out",
         }}
       >
+        {/* Mobile header — swipe-up sheet needs a handle + title + dismiss */}
+        <div className="sm:hidden flex items-center justify-between px-4 py-3 border-b border-[var(--border-default)] shrink-0">
+          <span className="text-[14px] font-semibold text-[var(--text-primary)] tracking-tight">Conversations</span>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+            aria-label="Close conversations"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
         <div className="p-2">
           <button
             onClick={onNewChat}
@@ -272,7 +281,7 @@ export function ConversationDrawer({
             <div className="space-y-0.5">
               {pinned.length > 0 && (
                 <>
-                  <p className="text-[8px] font-bold uppercase tracking-wider text-[var(--gold)]/40 px-3 pt-1 pb-0.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--gold)]/40 px-3 pt-1 pb-0.5">
                     Pinned
                   </p>
                   {pinned.map((c) => renderConvo(c, true))}
@@ -296,7 +305,7 @@ export function ConversationDrawer({
                   return (
                     <div key={c.id}>
                       {showDateHeader && (
-                        <p className="text-[8px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]/50 px-3 pt-2 pb-0.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]/50 px-3 pt-2 pb-0.5">
                           {dateLabel}
                         </p>
                       )}

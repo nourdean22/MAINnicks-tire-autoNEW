@@ -4,7 +4,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { useTaskReviewActions } from "@/hooks/use-task-review-actions";
 import { toast } from "sonner";
-import { Inbox, Check, X, Clock, Archive, Sparkles, AlertCircle } from "lucide-react";
+import { Inbox, Check, X, Clock, Archive, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface InboxTriageCardProps {
@@ -211,6 +211,7 @@ export function InboxTriageCard({ isNested = false }: InboxTriageCardProps) {
                   <div className="flex items-center gap-1.5 w-full">
                     <input
                       type="text"
+                      aria-label="Next physical action"
                       placeholder="e.g. Call mechanic shop at 10am"
                       value={nextActionInputs[f.taskId] ?? ""}
                       onChange={(e) =>
@@ -222,7 +223,7 @@ export function InboxTriageCard({ isNested = false }: InboxTriageCardProps) {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") void handleSetNextAction(f.taskId);
                       }}
-                      className="flex-1 min-w-0 bg-zinc-950 border border-white/10 rounded px-2 py-1 text-[11px] text-white focus:outline-none focus:border-[var(--gold)]/30"
+                      className="flex-1 min-w-0 bg-[var(--bg-base)] border border-white/10 rounded px-2 py-1 text-[11px] text-white focus:outline-none focus:border-[var(--gold)]/30"
                     />
                     <button
                       onClick={() => handleSetNextAction(f.taskId)}

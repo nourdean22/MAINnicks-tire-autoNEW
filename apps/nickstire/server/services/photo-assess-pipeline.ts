@@ -59,15 +59,15 @@ const MAX_REPLY_CHARS = 300;
  */
 const DEFAULT_REPLIES: Record<string, string> = {
   "tire-replacement":
-    "Got the photo · looks like the tire needs replacement. We have your size in stock most days. No charge to look. Call/text 216-862-0005 when you're ready.",
+    "Got the photo · looks like the tire needs replacement. We have your size in stock most days. No charge to look. Call/text (216) 862-0005 when you're ready.",
   "tire-repair":
-    "Got the photo · we can patch that if it's in the tread. Bring it by — usually 20 min. No charge if it's not patchable. 216-862-0005.",
+    "Got the photo · we can patch that if it's in the tread. Bring it by — usually 20 min. No charge if it's not patchable. (216) 862-0005.",
   "brake-service":
-    "Saw the brake photo · we'd want to check pad thickness + rotor condition in-person before pricing. Free inspection. 216-862-0005.",
+    "Saw the brake photo · we'd want to check pad thickness + rotor condition in-person before pricing. Free inspection. (216) 862-0005.",
   "inspection-needed":
-    "Thanks for the photo · we'd want eyes on it to give you a real answer. Free 15-min inspection. 216-862-0005.",
+    "Thanks for the photo · we'd want eyes on it to give you a real answer. Free 15-min inspection. (216) 862-0005.",
   unclear:
-    "Got the photo. Hard to tell from one angle — could you swing by for a free look? 216-862-0005.",
+    "Got the photo. Hard to tell from one angle — could you swing by for a free look? (216) 862-0005.",
 };
 
 function pickDefaultReply(serviceSuggest?: string): string {
@@ -151,11 +151,18 @@ export async function runPhotoAssess(req: PhotoAssessRequest): Promise<PhotoAsse
   }
 
   try {
-    const smsResult = await sendSms(req.phone, replyText, { via: "shop" });
-    if (!smsResult.success) {
+    const { orchestrateSms } = await import("./smsOrchestrator");
+    const orchResult = await orchestrateSms({
+      type: "photo_assess_reply",
+      phone: req.phone,
+      replyText: replyText,
+    });
+
+    const success = orchResult.status === "sent" || orchResult.status === "queued";
+    if (!success) {
       log.warn("photo_assess_sms_failed", {
         source: req.source,
-        error: smsResult.error,
+        error: orchResult.reason,
       });
       return {
         ok: false,
@@ -163,11 +170,12 @@ export async function runPhotoAssess(req: PhotoAssessRequest): Promise<PhotoAsse
         serviceSuggest: vision.serviceSuggest,
         urgency: vision.urgency,
         smsSent: false,
-        smsError: smsResult.error,
+        smsError: orchResult.reason,
         visionLatencyMs: vision.latencyMs,
         visionSource: vision.source,
       };
     }
+
     log.info("photo_assess_sms_ok", {
       source: req.source,
       phone: req.phone.slice(-4),

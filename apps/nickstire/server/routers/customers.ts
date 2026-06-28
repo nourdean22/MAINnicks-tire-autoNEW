@@ -5,6 +5,8 @@ import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, like, or, sql, desc, asc } from "drizzle-orm";
 import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents, invoices, workOrders, algEstimates } from "../../drizzle/schema";
+import { campaignEligiblePhoneSql } from "../lib/sms-eligibility";
+import { lapsedCondition } from "../lib/customer-segments";
 import { logAdminAction } from "../services/auditTrail";
 import { predictCustomerLTV, generateCrossSellRecommendations, forecastRevenue } from "../services/intelligenceEngines";
 import { csvSafe } from "../sanitize";
@@ -58,7 +60,13 @@ export const customersRouter = router({
       // Build conditions
       const conditions = [];
       if (segment !== "all") {
-        conditions.push(eq(customers.segment, segment as "recent" | "lapsed" | "new" | "unknown"));
+        if (segment === "lapsed") {
+          // Live AT-RISK definition (shared) so the "View lapsed" CTA returns
+          // exactly the set the KPI counts.
+          conditions.push(lapsedCondition());
+        } else {
+          conditions.push(eq(customers.segment, segment as "recent" | "lapsed" | "new" | "unknown"));
+        }
       }
       if (input?.lastVisitDays && Number.isInteger(input.lastVisitDays) && input.lastVisitDays >= 1) {
         // wave-168: belt + suspenders. Zod already enforces .int().min(1).max(3650)
@@ -212,7 +220,11 @@ export const customersRouter = router({
 
     const [total] = await d.select({ count: sql<number>`count(*)` }).from(customers);
     const [recent] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.segment, "recent"));
-    const [lapsed] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.segment, "lapsed"));
+    // "Lapsed" = AT-RISK (last visit 90–365 days), computed live via the shared
+    // helper. The old `segment='lapsed'` enum was materialized only by the enrich
+    // cron, so it went stale and read 0 while many AT-RISK rows showed.
+    const [lapsed] = await d.select({ count: sql<number>`count(*)` }).from(customers)
+      .where(lapsedCondition());
     const [unknown] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.segment, "unknown"));
     const [withEmail] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(sql`${customers.email} IS NOT NULL AND ${customers.email} != ''`);
     const [commercial] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.customerType, "commercial"));
@@ -575,7 +587,10 @@ export const customersRouter = router({
       // Truncation is surfaced in the response so the UI can flag it.
       const EXPORT_CAP = 10000;
       const query = d.select().from(customers);
-      if (segment !== "all") {
+      if (segment === "lapsed") {
+        // Live AT-RISK definition (shared) so "Export lapsed" matches the KPI.
+        query.where(lapsedCondition());
+      } else if (segment !== "all") {
         query.where(eq(customers.segment, segment));
       }
       const results = await query.orderBy(desc(customers.lastVisitDate)).limit(EXPORT_CAP + 1);
@@ -676,7 +691,7 @@ export const customersRouter = router({
       // Get untexted customers, prioritize recent → lapsed → unknown
       const untexted = await d.select()
         .from(customers)
-        .where(sql`${customers.smsCampaignSent} = 0 AND ${customers.smsOptOut} = 0 AND ${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10 AND ${customers.phone} LIKE '+1%'`)
+        .where(sql`${customers.smsCampaignSent} = 0 AND ${campaignEligiblePhoneSql}`)
         .orderBy(sql`CASE ${customers.segment} WHEN 'recent' THEN 0 WHEN 'lapsed' THEN 1 ELSE 2 END, ${customers.lastVisitDate} DESC`)
         .limit(batchSize);
 

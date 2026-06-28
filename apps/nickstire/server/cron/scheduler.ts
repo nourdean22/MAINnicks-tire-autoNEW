@@ -507,6 +507,35 @@ export function startTieredScheduler(): void {
           };
         },
       },
+      {
+        name: "daily-reel-post",
+        requiresEnv: "REEL_AUTOPOST_ENABLED",
+        handler: async () => {
+          const { runDailyReelPost } = await import("./jobs/dailyReelPost");
+          return runDailyReelPost();
+        },
+      },
+      {
+        // Comment-velocity responder (Phase 3.2): drafts + (when armed) posts
+        // claim-safe replies to comments on recently posted reels — first-hour
+        // comment velocity is a Meta reach lever. Double-gated: requiresEnv keeps
+        // it OFF by default, and even when on it dry-runs (logs only) unless
+        // REEL_COMMENT_RESPONDER_LIVE=true. A claim-blocked draft is never posted.
+        name: "reel-comment-responder",
+        requiresEnv: "REEL_COMMENT_RESPONDER_ENABLED",
+        handler: async () => {
+          const { runReelCommentResponder } = await import("../services/commentResponder");
+          return runReelCommentResponder();
+        },
+      },
+      {
+        name: "social-inventory-publisher",
+        requiresEnv: "SOCIAL_INVENTORY_PUBLISH_ENABLED",
+        handler: async () => {
+          const { runSocialInventoryPublisher } = await import("./jobs/socialInventoryPublisher");
+          return runSocialInventoryPublisher();
+        },
+      },
     ],
     running: false,
     lastRun: null,
@@ -901,6 +930,14 @@ export function startTieredScheduler(): void {
           return runFollowupCadence();
         },
       },
+      {
+        name: "content-reserve-replenish",
+        requiresEnv: "CONTENT_REPLENISH_ENABLED",
+        handler: async () => {
+          const { runContentReserveReplenish } = await import("./jobs/contentReserveReplenish");
+          return runContentReserveReplenish();
+        },
+      },
     ],
     running: false,
     lastRun: null,
@@ -1129,6 +1166,15 @@ export function startTieredScheduler(): void {
           // per-day here because this is a once-daily tier job. Activation
           // still requires FEATURE_DECLINED_RECOVERY=1 (else this is dry-run).
           return runDeclinedWorkRecovery({ maxSends: Number(process.env.DECLINED_RECOVERY_MAX_PER_RUN) || 50 });
+        },
+      },
+      {
+        name: "unpaid-invoice-recovery", // NEW: courteous 7d/30d payment reminders for pending/partial invoices
+        handler: async () => {
+          const { runUnpaidInvoiceRecovery } = await import("./jobs/unpaidInvoiceRecovery");
+          // Off by default - FEATURE_UNPAID_INVOICE_RECOVERY=1 on Railway enables live
+          // sends; without it this is a dry-run (logs + Telegram alert, no SMS out).
+          return runUnpaidInvoiceRecovery({ maxSends: Number(process.env.INVOICE_RECOVERY_MAX_PER_RUN) || 30 });
         },
       },
       {

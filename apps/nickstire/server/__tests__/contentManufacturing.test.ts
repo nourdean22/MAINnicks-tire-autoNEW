@@ -1,0 +1,962 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  explodeTopic,
+  generateHookLibrary,
+  validateClaimSafety,
+  generateScoredDraft,
+  runManufacturingPipeline,
+  getReserveStatus,
+  replenishReserve,
+  syncSocialMetrics,
+  attributeRevenueToSocial,
+  detectServiceCategory,
+  getServiceCoverageStatus,
+  selectUnderservedService,
+  enforceServiceDiversityQuota,
+  determineVisualStyle
+} from "../services/contentManufacturing";
+import { invokeLLM } from "../_core/llm";
+
+// Mock Database
+let currentTableName = "";
+let mockDbResult: any[] = [];
+let mockCampaignsResult: any[] = [];
+let mockInventoryResult: any[] = [];
+let mockCommLogResult: any[] = [];
+let mockSmsMessagesResult: any[] = [];
+let mockBookingsResult: any[] = [];
+let mockInstagramAnalyticsResult: any[] = [];
+const insertValuesMock = vi.fn().mockReturnThis();
+
+const mockDb: any = {
+  select: vi.fn().mockImplementation(() => {
+    const builder = {
+      from: vi.fn().mockImplementation((table) => {
+        if (table) {
+          currentTableName = table[Symbol.for('drizzle:Name')] || table.name || table._meta?.name || "";
+        }
+        return builder;
+      }),
+      innerJoin: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      groupBy: vi.fn().mockReturnThis(),
+      having: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      then: vi.fn().mockImplementation((onFulfilled) => {
+        let result = mockDbResult;
+        if (currentTableName === "content_manufacturing_campaigns") {
+          result = mockCampaignsResult;
+        } else if (currentTableName === "social_content_inventory") {
+          result = mockInventoryResult;
+        } else if (currentTableName === "communication_log") {
+          result = mockCommLogResult;
+        } else if (currentTableName === "sms_messages" || currentTableName === "sms_conversations") {
+          result = mockSmsMessagesResult;
+        } else if (currentTableName === "bookings") {
+          result = mockBookingsResult;
+        } else if (currentTableName === "instagram_analytics") {
+          result = mockInstagramAnalyticsResult;
+        }
+        currentTableName = ""; // reset
+        return Promise.resolve(result).then(onFulfilled);
+      }),
+    };
+    return builder;
+  }),
+  insert: vi.fn().mockImplementation(() => {
+    return {
+      values: insertValuesMock,
+      then: vi.fn().mockImplementation((onFulfilled) => {
+        return Promise.resolve([]).then(onFulfilled);
+      }),
+    };
+  }),
+  update: vi.fn().mockImplementation(() => {
+    const builder = {
+      set: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      then: vi.fn().mockImplementation((onFulfilled) => {
+        return Promise.resolve([]).then(onFulfilled);
+      }),
+    };
+    return builder;
+  })
+};
+
+vi.mock("../db", () => ({
+  getDbTyped: () => Promise.resolve(mockDb),
+  getDb: () => Promise.resolve(mockDb),
+}));
+
+vi.mock("../services/weatherIntelligence", () => ({
+  checkWeatherTriggers: vi.fn().mockResolvedValue({
+    triggered: ["cold_snap"],
+    details: "Cold snap trigger: 25 degrees"
+  })
+}));
+
+vi.mock("../_core/llm", () => ({
+  invokeLLM: vi.fn()
+}));
+
+describe("Content Domination Engine - Manufacturing & Safety", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(invokeLLM).mockReset();
+    mockDbResult = [];
+    mockCampaignsResult = [];
+    mockInventoryResult = [];
+    insertValuesMock.mockClear();
+    currentTableName = "";
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+  });
+
+  describe("explodeTopic", () => {
+    it("should explode a topic into narrative content angles", async () => {
+      mockDbResult = [
+        { query: "brake pads Cleveland" }
+      ];
+
+      const mockAngles = [
+        {
+          angle: "Cleveland winter brake inspection checklist",
+          narrativeFranchise: "Cleveland Car Survival Guide",
+          entertainmentPillar: "Contrarian Content",
+          description: "Crucial checks for brakes before winter hits Cleveland."
+        }
+      ];
+
+      vi.mocked(invokeLLM).mockResolvedValueOnce({
+        id: "test",
+        created: 123,
+        model: "model",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: JSON.stringify({ angles: mockAngles })
+            },
+            finish_reason: "stop"
+          }
+        ]
+      });
+
+      const result = await explodeTopic("brakes");
+      expect(result).toEqual(mockAngles);
+      expect(invokeLLM).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("generateHookLibrary", () => {
+    it("should generate hooks and compute overall scores correctly", async () => {
+      const angle = {
+        angle: "Cleveland winter brake inspection checklist",
+        narrativeFranchise: "Cleveland Car Survival Guide",
+        entertainmentPillar: "Contrarian Content",
+        description: "Crucial checks for brakes before winter hits Cleveland."
+      };
+
+      const mockHooks = [
+        {
+          hookText: "Don't let Cleveland winter freeze your brakes.",
+          hookCategory: "local",
+          scoreCuriosity: 80,
+          scoreEmotion: 70,
+          scoreLocalRelevance: 95,
+          scoreAuthority: 85
+        }
+      ];
+
+      vi.mocked(invokeLLM).mockResolvedValueOnce({
+        id: "test",
+        created: 123,
+        model: "model",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: JSON.stringify({ hooks: mockHooks })
+            },
+            finish_reason: "stop"
+          }
+        ]
+      });
+
+      const result = await generateHookLibrary("brakes", angle);
+      expect(result).toHaveLength(1);
+      
+      // Math: Math.round(80 * 0.3 + 70 * 0.25 + 95 * 0.25 + 85 * 0.2)
+      // 80 * 0.3 = 24
+      // 70 * 0.25 = 17.5
+      // 95 * 0.25 = 23.75
+      // 85 * 0.2 = 17
+      // 24 + 17.5 + 23.75 + 17 = 82.25 => Math.round(82.25) = 82
+      expect(result[0].scoreOverall).toBe(82);
+    });
+  });
+
+  describe("validateClaimSafety", () => {
+    it("should allow approved prices and reject unallowed prices", () => {
+      const allowedDraft = {
+        hookText: "Get an oil change for $49 or synthetic for $80.",
+        bodyText: "Or get used tires starting at $60.",
+        visualStyle: "Style A",
+        persona: "Cleveland Car Doctor",
+        interactiveDmKeyword: "TIRES",
+        caption: "Approved prices: $25, $40, $100 are also OK.",
+        hashtags: ["brakes"],
+        scoreCuriosity: 80,
+        scoreEmotion: 80,
+        scoreShareability: 80,
+        scoreCommentPotential: 80,
+        scoreSavePotential: 80,
+        scoreLocalRelevance: 80,
+        scoreRevenueRelevance: 80,
+        scoreAuthority: 80,
+        scoreHookStrength: 80,
+        briefJson: "{}"
+      };
+
+      const result = validateClaimSafety(allowedDraft);
+      expect(result.safe).toBe(true);
+      expect(result.errors).toHaveLength(0);
+
+      const unallowedDraft = {
+        ...allowedDraft,
+        hookText: "Brake service starting at only $120 today!"
+      };
+
+      const result2 = validateClaimSafety(unallowedDraft);
+      expect(result2.safe).toBe(false);
+      expect(result2.errors[0]).toContain("Violated Rule 1");
+    });
+
+    it("should reject hard diagnostic guarantees", () => {
+      const hardDraft = {
+        hookText: "This noise guaranteed means a broken transmission.",
+        bodyText: "We will fix it easily.",
+        visualStyle: "Style A",
+        persona: "Cleveland Car Doctor",
+        interactiveDmKeyword: "TIRES",
+        caption: "Hurry in before your transmission blows.",
+        hashtags: ["brakes"],
+        scoreCuriosity: 80,
+        scoreEmotion: 80,
+        scoreShareability: 80,
+        scoreCommentPotential: 80,
+        scoreSavePotential: 80,
+        scoreLocalRelevance: 80,
+        scoreRevenueRelevance: 80,
+        scoreAuthority: 80,
+        scoreHookStrength: 80,
+        briefJson: "{}"
+      };
+
+      const result = validateClaimSafety(hardDraft);
+      expect(result.safe).toBe(false);
+      expect(result.errors).toContain("Violated Rule 2: Hard diagnostic/guarantee term found \"guaranteed\". Use soft terms instead.");
+      expect(result.errors).toContain("Violated Rule 2: Hard diagnostic/guarantee term found \"will fix\". Use soft terms instead.");
+      expect(result.errors).toContain("Violated Rule 2: Hard diagnostic/guarantee term found \"broken transmission\". Use soft terms instead.");
+    });
+
+    it("should reject fake review testimonials", () => {
+      const fakeReviewDraft = {
+        hookText: "John says five stars!",
+        bodyText: "He reviewed us and said the service was amazing.",
+        visualStyle: "Style A",
+        persona: "Cleveland Car Doctor",
+        interactiveDmKeyword: "TIRES",
+        caption: "Come check us out.",
+        hashtags: ["brakes"],
+        scoreCuriosity: 80,
+        scoreEmotion: 80,
+        scoreShareability: 80,
+        scoreCommentPotential: 80,
+        scoreSavePotential: 80,
+        scoreLocalRelevance: 80,
+        scoreRevenueRelevance: 80,
+        scoreAuthority: 80,
+        scoreHookStrength: 80,
+        briefJson: "{}"
+      };
+
+      const result = validateClaimSafety(fakeReviewDraft);
+      expect(result.safe).toBe(false);
+      expect(result.errors[0]).toContain("Violated Rule 3");
+    });
+  });
+
+  describe("generateScoredDraft", () => {
+    it("should generate a full social draft from angle and hook", async () => {
+      const angle = {
+        angle: "Cleveland winter brake inspection checklist",
+        narrativeFranchise: "Cleveland Car Survival Guide",
+        entertainmentPillar: "Contrarian Content",
+        description: "Crucial checks for brakes before winter hits Cleveland."
+      };
+
+      const hook = {
+        hookText: "Don't let Cleveland winter freeze your brakes.",
+        hookCategory: "local",
+        scoreCuriosity: 80,
+        scoreEmotion: 70,
+        scoreLocalRelevance: 95,
+        scoreAuthority: 85,
+        scoreOverall: 82
+      };
+
+      const mockDraft = {
+        hookText: "Don't let Cleveland winter freeze your brakes.",
+        bodyText: "Here's the checklist...",
+        visualStyle: "Style A",
+        persona: "Cleveland Car Doctor",
+        interactiveDmKeyword: "SURVIVE",
+        caption: "Stay safe this winter.",
+        hashtags: ["cleveland", "brakes"],
+        scoreCuriosity: 85,
+        scoreEmotion: 75,
+        scoreShareability: 80,
+        scoreCommentPotential: 90,
+        scoreSavePotential: 85,
+        scoreLocalRelevance: 95,
+        scoreRevenueRelevance: 80,
+        scoreAuthority: 85,
+        scoreHookStrength: 82,
+        briefJson: "{}"
+      };
+
+      vi.mocked(invokeLLM).mockResolvedValueOnce({
+        id: "test",
+        created: 123,
+        model: "model",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: JSON.stringify(mockDraft)
+            },
+            finish_reason: "stop"
+          }
+        ]
+      });
+
+      const result = await generateScoredDraft(
+        "brakes",
+        angle,
+        hook,
+        "cleveland_car_doctor",
+        "reel",
+        "both"
+      );
+
+      expect(result).toEqual({
+        ...mockDraft,
+        weatherTriggerCondition: "cold_snap"
+      });
+    });
+  });
+
+  describe("runManufacturingPipeline", () => {
+    it("should successfully generate and persist a safe, high-scoring draft", async () => {
+      const mockAngles = [
+        {
+          angle: "Cleveland winter brake inspection checklist",
+          narrativeFranchise: "Cleveland Car Survival Guide",
+          entertainmentPillar: "Contrarian Content",
+          description: "Crucial checks for brakes before winter hits Cleveland."
+        }
+      ];
+
+      const mockHooks = [
+        {
+          hookText: "Don't let Cleveland winter freeze your brakes.",
+          hookCategory: "local",
+          scoreCuriosity: 80,
+          scoreEmotion: 70,
+          scoreLocalRelevance: 95,
+          scoreAuthority: 85
+        }
+      ];
+
+      const mockDraft = {
+        hookText: "Don't let Cleveland winter freeze your brakes.",
+        bodyText: "Here's the checklist...",
+        visualStyle: "Style A",
+        persona: "Cleveland Car Doctor",
+        interactiveDmKeyword: "SURVIVE",
+        caption: "Stay safe this winter.",
+        hashtags: ["cleveland", "brakes"],
+        scoreCuriosity: 90,
+        scoreEmotion: 90,
+        scoreShareability: 90,
+        scoreCommentPotential: 90,
+        scoreSavePotential: 90,
+        scoreLocalRelevance: 90,
+        scoreRevenueRelevance: 90,
+        scoreAuthority: 90,
+        scoreHookStrength: 82,
+        briefJson: "{}"
+      };
+
+      vi.mocked(invokeLLM)
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ angles: mockAngles }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hooks: mockHooks }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(mockDraft) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({
+            scoreCuriosity: 90,
+            scoreEmotion: 90,
+            scoreShareability: 90,
+            scoreCommentPotential: 90,
+            scoreSavePotential: 90,
+            scoreLocalRelevance: 90,
+            scoreRevenueRelevance: 90,
+            scoreAuthority: 90,
+            scoreHookStrength: 90
+          }) }, finish_reason: "stop" }]
+        });
+
+      const result = await runManufacturingPipeline("campaign_123", "brakes", "cleveland_car_doctor");
+      expect(result.success).toBe(true);
+      expect(result.draftsCreated).toBe(1);
+      expect(insertValuesMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("should retry generation if a draft fails safety validation on early attempts", async () => {
+      const mockAngles = [
+        {
+          angle: "Angle A",
+          narrativeFranchise: "Cleveland Car Survival Guide",
+          entertainmentPillar: "Contrarian Content",
+          description: "Crucial checks for brakes before winter hits Cleveland."
+        }
+      ];
+
+      const mockHooks = [
+        {
+          hookText: "Don't let Cleveland winter freeze your brakes.",
+          hookCategory: "local",
+          scoreCuriosity: 80,
+          scoreEmotion: 70,
+          scoreLocalRelevance: 95,
+          scoreAuthority: 85
+        }
+      ];
+
+      const mockDraftUnsafe = {
+        hookText: "Get brake service for $120!",
+        bodyText: "Here's the checklist...",
+        visualStyle: "Style A",
+        persona: "Cleveland Car Doctor",
+        interactiveDmKeyword: "SURVIVE",
+        caption: "Stay safe this winter.",
+        hashtags: ["cleveland", "brakes"],
+        scoreCuriosity: 90,
+        scoreEmotion: 90,
+        scoreShareability: 90,
+        scoreCommentPotential: 90,
+        scoreSavePotential: 90,
+        scoreLocalRelevance: 90,
+        scoreRevenueRelevance: 90,
+        scoreAuthority: 90,
+        scoreHookStrength: 82,
+        briefJson: "{}"
+      };
+
+      const mockDraftSafe = {
+        hookText: "Don't let Cleveland winter freeze your brakes.",
+        bodyText: "Here's the checklist...",
+        visualStyle: "Style A",
+        persona: "Cleveland Car Doctor",
+        interactiveDmKeyword: "SURVIVE",
+        caption: "Stay safe this winter.",
+        hashtags: ["cleveland", "brakes"],
+        scoreCuriosity: 90,
+        scoreEmotion: 90,
+        scoreShareability: 90,
+        scoreCommentPotential: 90,
+        scoreSavePotential: 90,
+        scoreLocalRelevance: 90,
+        scoreRevenueRelevance: 90,
+        scoreAuthority: 90,
+        scoreHookStrength: 82,
+        briefJson: "{}"
+      };
+
+      vi.mocked(invokeLLM)
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ angles: mockAngles }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hooks: mockHooks }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hookIndex: 0, reasoning: "best" }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(mockDraftUnsafe) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hooks: mockHooks }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hookIndex: 0, reasoning: "best" }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(mockDraftSafe) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({
+            scoreCuriosity: 90,
+            scoreEmotion: 90,
+            scoreShareability: 90,
+            scoreCommentPotential: 90,
+            scoreSavePotential: 90,
+            scoreLocalRelevance: 90,
+            scoreRevenueRelevance: 90,
+            scoreAuthority: 90,
+            scoreHookStrength: 90
+          }) }, finish_reason: "stop" }]
+        });
+
+      const result = await runManufacturingPipeline("campaign_123", "brakes", "cleveland_car_doctor");
+      expect(result.success).toBe(true);
+      expect(result.draftsCreated).toBe(1);
+    });
+
+    it("should filter out drafts whose overall score is below the gate threshold (75)", async () => {
+      const mockAngles = [
+        {
+          angle: "Angle A",
+          narrativeFranchise: "Cleveland Car Survival Guide",
+          entertainmentPillar: "Contrarian Content",
+          description: "Crucial checks for brakes before winter hits Cleveland."
+        }
+      ];
+
+      const mockHooks = [
+        {
+          hookText: "Don't let Cleveland winter freeze your brakes.",
+          hookCategory: "local",
+          scoreCuriosity: 80,
+          scoreEmotion: 70,
+          scoreLocalRelevance: 95,
+          scoreAuthority: 85
+        }
+      ];
+
+      const mockDraftLowScore = {
+        hookText: "Don't let Cleveland winter freeze your brakes.",
+        bodyText: "Here's the checklist...",
+        visualStyle: "Style A",
+        persona: "Cleveland Car Doctor",
+        interactiveDmKeyword: "SURVIVE",
+        caption: "Stay safe this winter.",
+        hashtags: ["cleveland", "brakes"],
+        scoreCuriosity: 50,
+        scoreEmotion: 50,
+        scoreShareability: 50,
+        scoreCommentPotential: 50,
+        scoreSavePotential: 50,
+        scoreLocalRelevance: 50,
+        scoreRevenueRelevance: 50,
+        scoreAuthority: 50,
+        scoreHookStrength: 50,
+        briefJson: "{}"
+      };
+
+      vi.mocked(invokeLLM)
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ angles: mockAngles }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hooks: mockHooks }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hookIndex: 0, reasoning: "best" }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(mockDraftLowScore) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({
+            scoreCuriosity: 50,
+            scoreEmotion: 50,
+            scoreShareability: 50,
+            scoreCommentPotential: 50,
+            scoreSavePotential: 50,
+            scoreLocalRelevance: 50,
+            scoreRevenueRelevance: 50,
+            scoreAuthority: 50,
+            scoreHookStrength: 50
+          }) }, finish_reason: "stop" }]
+        });
+
+      const result = await runManufacturingPipeline("campaign_123", "brakes", "cleveland_car_doctor");
+      expect(result.success).toBe(false);
+      expect(result.draftsCreated).toBe(0);
+    });
+  });
+
+  describe("getReserveStatus", () => {
+    it("should calculate correct reserves, coverage, and deficit alerts", async () => {
+      mockCampaignsResult = [
+        { id: "campaign_1", topic: "brakes", persona: "cleveland_car_doctor", targetMonthlyVolume: 30, isActive: true },
+        { id: "campaign_2", topic: "tires", persona: "tire_whisperer", targetMonthlyVolume: 30, isActive: true }
+      ];
+
+      mockInventoryResult = Array(10).fill({
+        id: "draft_x",
+        contentType: "reel",
+        topic: "brakes",
+        status: "pending"
+      });
+
+      const result = await getReserveStatus();
+
+      expect(result.reserves.reel.count).toBe(10);
+      expect(result.reserves.reel.days).toBe(5);
+      expect(result.reserves.reel.deficit).toBe(55);
+
+      expect(result.reserves.carousel.count).toBe(0);
+      expect(result.reserves.carousel.days).toBe(0);
+      expect(result.reserves.carousel.deficit).toBe(30);
+
+      // Check alerts
+      expect(result.deficitAlerts).toContain("Reserve Deficit: Need 110 more reels to meet the 60-day safety threshold.");
+      expect(result.deficitAlerts).toContain("Reserve Deficit: Need 30 more carousels to meet the 30-day safety threshold.");
+      expect(result.deficitAlerts).toContain("Campaign Gap: \"tires\" has low coverage. Generate 15 more drafts.");
+    });
+  });
+
+  describe("replenishReserve", () => {
+    it("should trigger manufacturing for campaigns with deficits", async () => {
+      mockCampaignsResult = [
+        { id: "campaign_1", topic: "brakes", persona: "cleveland_car_doctor", targetMonthlyVolume: 30, isActive: true }
+      ];
+
+      mockInventoryResult = [];
+
+      const mockAngles = [
+        {
+          angle: "Angle A",
+          narrativeFranchise: "Cleveland Car Survival Guide",
+          entertainmentPillar: "Contrarian Content",
+          description: "Crucial checks for brakes before winter hits Cleveland."
+        }
+      ];
+
+      const mockHooks = [
+        {
+          hookText: "Don't let Cleveland winter freeze your brakes.",
+          hookCategory: "local",
+          scoreCuriosity: 80,
+          scoreEmotion: 70,
+          scoreLocalRelevance: 95,
+          scoreAuthority: 85
+        }
+      ];
+
+      const mockDraft = {
+        hookText: "Don't let Cleveland winter freeze your brakes.",
+        bodyText: "Here's the checklist...",
+        visualStyle: "Style A",
+        persona: "Cleveland Car Doctor",
+        interactiveDmKeyword: "SURVIVE",
+        caption: "Stay safe this winter.",
+        hashtags: ["cleveland", "brakes"],
+        scoreCuriosity: 90,
+        scoreEmotion: 90,
+        scoreShareability: 90,
+        scoreCommentPotential: 90,
+        scoreSavePotential: 90,
+        scoreLocalRelevance: 90,
+        scoreRevenueRelevance: 90,
+        scoreAuthority: 90,
+        scoreHookStrength: 82,
+        briefJson: "{}"
+      };
+
+      vi.mocked(invokeLLM)
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ angles: mockAngles }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hooks: mockHooks }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ hookIndex: 0, reasoning: "best" }) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(mockDraft) }, finish_reason: "stop" }]
+        })
+        .mockResolvedValueOnce({
+          id: "test",
+          created: 123,
+          model: "model",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({
+            scoreCuriosity: 90,
+            scoreEmotion: 90,
+            scoreShareability: 90,
+            scoreCommentPotential: 90,
+            scoreSavePotential: 90,
+            scoreLocalRelevance: 90,
+            scoreRevenueRelevance: 90,
+            scoreAuthority: 90,
+            scoreHookStrength: 90
+          }) }, finish_reason: "stop" }]
+        });
+
+      const result = await replenishReserve();
+      expect(result.success).toBe(true);
+      expect(result.draftsCreated).toBe(1);
+      expect(result.campaignRuns).toContain("brakes");
+    });
+  });
+
+  describe("syncSocialMetrics", () => {
+    beforeEach(() => {
+      mockInventoryResult = [];
+      mockInstagramAnalyticsResult = [];
+      mockCommLogResult = [];
+      mockSmsMessagesResult = [];
+      mockBookingsResult = [];
+    });
+
+    it("should match instagramAnalytics to socialContentInventory and sync metrics", async () => {
+      mockInventoryResult = [
+        {
+          id: "item_1",
+          status: "published",
+          hookText: "Don't drive on Cuyahoga winter roads without checking this",
+          bodyText: "Brake check info",
+          interactiveDmKeyword: "SURVIVE",
+          contentType: "reel",
+          platform: "instagram",
+          metricsReach: 0,
+          metricsEngagement: 0,
+        }
+      ];
+
+      mockInstagramAnalyticsResult = [
+        {
+          id: 101,
+          postId: "ig_post_123",
+          postType: "VIDEO",
+          caption: "Don't drive on Cuyahoga winter roads without checking this! Text SURVIVE for a checklist.",
+          likes: 12,
+          comments: 3,
+          reach: 150,
+          shares: 5,
+          saved: 8,
+        }
+      ];
+
+      const result = await syncSocialMetrics();
+      expect(result.matched).toBe(1);
+      expect(result.updated).toBe(1);
+    });
+  });
+
+  describe("attributeRevenueToSocial", () => {
+    beforeEach(() => {
+      mockInventoryResult = [];
+      mockInstagramAnalyticsResult = [];
+      mockCommLogResult = [];
+      mockSmsMessagesResult = [];
+      mockBookingsResult = [];
+    });
+
+    it("should attribute bookings to inventory items using interactiveDmKeyword", async () => {
+      mockInventoryResult = [
+        {
+          id: "item_1",
+          status: "published",
+          hookText: "Checking brakes",
+          bodyText: "Brake check info",
+          interactiveDmKeyword: "SURVIVE",
+          publishedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        }
+      ];
+
+      mockCommLogResult = [
+        {
+          phone: "2165551234",
+          body: "Please send me the SURVIVE checklist!",
+          createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+        }
+      ];
+
+      mockSmsMessagesResult = [];
+
+      mockBookingsResult = [
+        {
+          id: 501,
+          phone: "2165551234",
+          createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        }
+      ];
+
+      const result = await attributeRevenueToSocial();
+      expect(result.itemsProcessed).toBe(1);
+      expect(result.bookingsAttributed).toBe(1);
+    });
+  });
+
+  describe("Service Coverage and Diversity Quota Helpers", () => {
+    it("detectServiceCategory should classify topics and text correctly", () => {
+      expect(detectServiceCategory({ topic: "Brake rotors worn down", bodyText: "" })).toBe("Brakes");
+      expect(detectServiceCategory({ topic: "Lake effect snow tires", bodyText: "" })).toBe("Tires");
+      expect(detectServiceCategory({ topic: "Pothole suspension clunk", bodyText: "" })).toBe("Suspension");
+      expect(detectServiceCategory({ topic: "Wheel bearing growl", bodyText: "" })).toBe("Wheel Bearings");
+      expect(detectServiceCategory({ topic: "Steering wheel alignment pull", bodyText: "" })).toBe("Alignment");
+      expect(detectServiceCategory({ topic: "Cabin AC blowing hot", bodyText: "" })).toBe("AC/Cooling");
+      expect(detectServiceCategory({ topic: "Battery replacement", bodyText: "" })).toBe("Batteries");
+      expect(detectServiceCategory({ topic: "Synthetic oil lube filter", bodyText: "" })).toBe("Oil Changes");
+      expect(detectServiceCategory({ topic: "Check engine diagnostic scanning", bodyText: "" })).toBe("Diagnostics");
+    });
+
+    it("getServiceCoverageStatus should calculate correct percentages", () => {
+      const mockInventory = [
+        { topic: "Tires are worn", bodyText: "" },
+        { topic: "Tires are flat", bodyText: "" },
+        { topic: "Brakes clanking", bodyText: "" },
+        { topic: "Wheel alignment alignment", bodyText: "" },
+        { topic: "Suspension struts struts", bodyText: "" },
+      ];
+      const coverage = getServiceCoverageStatus(mockInventory);
+      expect(coverage["Tires"].count).toBe(2);
+      expect(coverage["Tires"].percentage).toBe(40);
+      expect(coverage["Brakes"].count).toBe(1);
+      expect(coverage["Brakes"].percentage).toBe(20);
+      expect(coverage["Diagnostics"].count).toBe(0);
+      expect(coverage["Diagnostics"].percentage).toBe(0);
+    });
+
+    it("selectUnderservedService should prioritize based on priority list", () => {
+      const coverage = {
+        "Tires": { count: 10, percentage: 50 },
+        "Brakes": { count: 0, percentage: 0 },
+        "Alignment": { count: 0, percentage: 0 },
+        "Suspension": { count: 5, percentage: 25 },
+        "Diagnostics": { count: 3, percentage: 15 },
+        "Oil Changes": { count: 1, percentage: 5 },
+        "Batteries": { count: 0, percentage: 0 },
+        "AC/Cooling": { count: 0, percentage: 0 },
+        "Wheel Bearings": { count: 0, percentage: 0 },
+      };
+      const underserved = selectUnderservedService(coverage);
+      // Brakes is the first priority service that has 0 count
+      expect(underserved).toBe("Brakes");
+    });
+
+    it("enforceServiceDiversityQuota should demote Tires campaigns when tires exceed 40%", () => {
+      const campaigns = [
+        { id: "c1", topic: "Tires swap discount" },
+        { id: "c2", topic: "Brake check special" },
+        { id: "c3", topic: "Suspension inspection" }
+      ];
+      // Scenario A: Tires <= 40% (no change)
+      const coverageA = {
+        "Tires": { count: 2, percentage: 40 },
+        "Brakes": { count: 3, percentage: 60 }
+      } as any;
+      const resA = enforceServiceDiversityQuota(campaigns, coverageA);
+      expect(resA[0].id).toBe("c1"); // Tires remains first
+
+      // Scenario B: Tires > 40% (Tires campaign demoted)
+      const coverageB = {
+        "Tires": { count: 3, percentage: 60 },
+        "Brakes": { count: 2, percentage: 40 }
+      } as any;
+      const resB = enforceServiceDiversityQuota(campaigns, coverageB);
+      expect(resB[0].id).not.toBe("c1"); // Tires demoted, non-tires campaigns first
+      expect(resB[resB.length - 1].id).toBe("c1"); // Tires campaign at the end
+    });
+
+    it("determineVisualStyle should choose correct style based on service/franchise", () => {
+      const style1 = determineVisualStyle("Tires", "Mistakes");
+      expect(style1.key).toBe("pressure-gauge");
+
+      const style2 = determineVisualStyle("Suspension", "Survival");
+      expect(style2.key).toBe("pothole-topo");
+
+      const style3 = determineVisualStyle("Brakes", "Would you drive");
+      expect(style3.key).toBe("forensic-tag");
+    });
+  });
+});

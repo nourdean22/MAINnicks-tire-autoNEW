@@ -92,17 +92,17 @@ export async function syncInstagramPosts(): Promise<{
 
   let newPosts = 0;
   let errors = 0;
+  // Only refresh live insights for posts whose metrics are still moving — older
+  // posts are stable, so skipping them keeps Graph calls well under rate limits.
+  const INSIGHTS_REFRESH_DAYS = 14;
 
   for (const post of posts) {
     try {
-      // Check if already processed
       const existing = await d
         .select({ id: instagramAnalytics.id })
         .from(instagramAnalytics)
         .where(eq(instagramAnalytics.postId, post.id))
         .limit(1);
-
-      if (existing.length > 0) continue;
 
       // Calculate engagement rate
       const totalEngagement = post.likes + post.comments;
@@ -110,12 +110,43 @@ export async function syncInstagramPosts(): Promise<{
         ? Math.round((totalEngagement / followers) * 10000) // Store as *10000
         : 0;
 
-      // Parse posting time
+      // Live Graph insights — real reach/saved/views/shares — but only while the
+      // post is recent enough that its metrics still move; older posts skip the
+      // call to stay under the Graph per-token rate limit. Never throws; on error
+      // metricCols stays empty so the row keeps its prior values.
       const postedDate = new Date(post.posted);
-      const dayOfWeek = postedDate.getDay();
-      const hourOfDay = postedDate.getHours();
+      const ageDays = (Date.now() - postedDate.getTime()) / 86_400_000;
+      const { getMediaInsights } = await import("../services/metaSocial");
+      const insights = Number.isFinite(ageDays) && ageDays <= INSIGHTS_REFRESH_DAYS
+        ? await getMediaInsights(post.id)
+        : { ok: false as const };
+      const metricCols: { reach?: number | null; saved?: number | null; views?: number | null; shares?: number | null } =
+        insights.ok
+          ? { reach: insights.reach ?? null, saved: insights.saved ?? null, views: insights.views ?? null, shares: insights.shares ?? null }
+          : {};
 
-      // AI content scoring
+      // Already tracked: refresh the live-growing metrics (don't re-score — that's
+      // an LLM call, and the AI content score doesn't change after publish).
+      if (existing.length > 0) {
+        await d
+          .update(instagramAnalytics)
+          .set({ likes: post.likes, comments: post.comments, engagementRate, followerSnapshot: followers, ...metricCols })
+          .where(eq(instagramAnalytics.id, existing[0].id));
+        continue;
+      }
+
+      // Parse posting time in ET (the business timezone) — getDay()/getHours() use
+      // the server's UTC clock, which would shift the best-hour cadence (Phase 5.3
+      // feeds hourOfDay into the ET-based posting cron) and skew the analytics.
+      const hourOfDay = parseInt(postedDate.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10) || 0;
+      const dayOfWeek = Math.max(
+        0,
+        ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(
+          postedDate.toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short" }),
+        ),
+      );
+
+      // AI content scoring (new posts only)
       const { score, themes } = await scoreContent(post.caption, post.type, post.likes, post.comments, followers);
 
       await d.insert(instagramAnalytics).values({
@@ -131,6 +162,7 @@ export async function syncInstagramPosts(): Promise<{
         contentScore: score,
         themesJson: JSON.stringify(themes),
         followerSnapshot: followers,
+        ...metricCols,
       });
 
       newPosts++;
@@ -273,6 +305,52 @@ export async function getBestPostingTimes(opts?: { limit?: number }): Promise<Be
     avgEngagement: Number(r.avgEngagement) / 100,
     postCount: Number(r.postCount),
   }));
+}
+
+// ─── REEL GENERATION SIGNAL (Phase 5.4 feedback loop) ───
+
+/** Pure: the most-frequent AI-tagged themes across rows (highest-engagement first). */
+export function pickTopThemes(rows: Array<{ themesJson?: string | null }>, limit = 3): string[] {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    let themes: unknown = [];
+    try {
+      themes = JSON.parse(r.themesJson || "[]");
+    } catch {
+      themes = [];
+    }
+    for (const t of Array.isArray(themes) ? themes : []) {
+      const k = String(t).trim().toLowerCase();
+      if (k && k !== "no-caption") counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([t]) => t);
+}
+
+/**
+ * What's working, fed back into reel generation/cadence. topThemes = most frequent
+ * themes among the highest-engagement posts; bestPostHour = the top posting slot's
+ * hour (getBestPostingTimes needs >=2 posts/slot, so this is null until data
+ * accumulates). Graceful: empty themes + null hour → generation/cadence keep their
+ * defaults with ZERO behavior change until the analytics table fills.
+ */
+export async function getReelGenerationSignal(): Promise<{ topThemes: string[]; bestPostHour: number | null }> {
+  try {
+    const d = await db();
+    if (!d) return { topThemes: [], bestPostHour: null };
+    const rows = await d
+      .select({ themesJson: instagramAnalytics.themesJson })
+      .from(instagramAnalytics)
+      .orderBy(desc(instagramAnalytics.engagementRate))
+      .limit(8);
+    const topThemes = pickTopThemes(rows as Array<{ themesJson?: string | null }>);
+    const times = await getBestPostingTimes({ limit: 1 });
+    const bestPostHour = times.length && Number.isFinite(times[0].hourOfDay) ? times[0].hourOfDay : null;
+    return { topThemes, bestPostHour };
+  } catch (err) {
+    log.warn("reel generation signal unavailable", { err: err instanceof Error ? err.message : String(err) });
+    return { topThemes: [], bestPostHour: null };
+  }
 }
 
 // ─── FOLLOWER GROWTH ────────────────────────────────────

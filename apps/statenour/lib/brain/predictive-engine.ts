@@ -12,6 +12,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { proposePredictionOutcome } from "@/lib/brain/calibration-engine";
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("predictive-engine");
@@ -290,56 +291,66 @@ export async function evaluatePredictions(): Promise<{ checked: number; confirme
 
   if (pending.length === 0) return { checked: 0, confirmed: 0, disproven: 0 };
 
-  // Gather current state to check predictions against
-  // v10.0.55 · scores + habits via legacy-shims.
-  const [recentScores, recentHabits] = await Promise.all([
-    recentScoreSnapshots(7),
-    recentDailyHabits(7),
-  ]);
-
-  const currentState = `Recent scores: ${recentScores.map((s) => `${s.date}: ${s.overallScore}/10 ${s.workoutDone ? "workout" : "no-workout"}`).join(", ")}. Habit completion: ${recentHabits.filter((h) => h.completed).length}/${recentHabits.length}.`;
-
-  let confirmed = 0;
-  let disproven = 0;
+  let confirmedProposed = 0;
+  let disprovenProposed = 0;
 
   for (const pred of pending) {
-    const result = await aiChat([
-      {
-        role: "system",
-        content: `Evaluate whether this prediction came true. Return ONLY JSON: { "status": "confirmed"|"disproven"|"partially", "outcome": "brief description of what actually happened" }`,
-      },
-      {
-        role: "user",
-        content: `Prediction (made ${pred.date}, target ${pred.targetDate}): "${pred.prediction}"\n\nCurrent state: ${currentState}`,
-      },
-    ], "fast");
-
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const evalExtracted = extractJsonObject<any>(result.content);
-      if (evalExtracted.ok) {
-        const evalResult = evalExtracted.value;
-        await prisma.prediction.update({
-          where: { id: pred.id },
-          data: {
-            status: evalResult.status === "confirmed" ? "confirmed" : evalResult.status === "disproven" ? "disproven" : "expired",
-            outcome: evalResult.outcome || null,
-            confidence: evalResult.status === "confirmed" ? Math.min(pred.confidence + 0.1, 1.0) : pred.confidence,
+      const proposal = await proposePredictionOutcome(pred);
+
+      await prisma.calibrationReviewItem.upsert({
+        where: {
+          sourceId_sourceType: {
+            sourceId: pred.id,
+            sourceType: "Prediction",
           },
-        });
-        if (evalResult.status === "confirmed") confirmed++;
-        else disproven++;
+        },
+        create: {
+          type: "prediction",
+          sourceId: pred.id,
+          sourceType: "Prediction",
+          status: "pending",
+          predictedOutcome: {
+            status: "confirmed",
+            confidence: pred.confidence,
+            prediction: pred.prediction,
+          },
+          proposedActualOutcome: {
+            status: proposal.status,
+            outcomeDescription: proposal.outcomeDescription,
+          },
+          confidence: pred.confidence,
+          evidence: proposal.evidence,
+          evidenceFreshness: new Date(),
+        },
+        update: {
+          proposedActualOutcome: {
+            status: proposal.status,
+            outcomeDescription: proposal.outcomeDescription,
+          },
+          evidence: proposal.evidence,
+          evidenceFreshness: new Date(),
+        },
+      });
+
+      if (proposal.status === "confirmed") {
+        confirmedProposed++;
+      } else if (proposal.status === "disproven") {
+        disprovenProposed++;
       }
-    } catch {
-      // Mark as expired if we can't evaluate
-      await prisma.prediction.update({ where: { id: pred.id }, data: { status: "expired" } });
+    } catch (err) {
+      // Don't crash the entire loop, just log
+      console.error(`Failed to propose outcome for prediction ${pred.id}:`, err);
     }
   }
 
-  // Calibration loop — store accuracy by category as brain memory
-  if (confirmed + disproven >= 2) {
-    const total = confirmed + disproven;
-    const rate = confirmed / total;
+  // Calibration loop — store accuracy by category as brain memory based on all resolved predictions
+  const totalConfirmed = await prisma.prediction.count({ where: { status: "confirmed" } });
+  const totalDisproven = await prisma.prediction.count({ where: { status: "disproven" } });
+  const totalResolved = totalConfirmed + totalDisproven;
+
+  if (totalResolved >= 2) {
+    const rate = totalConfirmed / totalResolved;
 
     // Get per-category accuracy
     const [allConfirmed, allDisproven] = await Promise.all([
@@ -369,19 +380,19 @@ export async function evaluatePredictions(): Promise<{ checked: number; confirme
       create: {
         category: BRAIN_CATEGORIES.PREDICTION_CALIBRATION,
         key: "accuracy_current",
-        content: `Overall prediction accuracy: ${(rate * 100).toFixed(0)}% (${confirmed}/${total}). By category: ${categoryAccuracy || "insufficient data"}. ${rate < 0.4 ? "LOW ACCURACY — reduce confidence on future predictions." : rate > 0.7 ? "Well calibrated." : "Moderate accuracy — room to improve."}`,
+        content: `Overall prediction accuracy: ${(rate * 100).toFixed(0)}% (${totalConfirmed}/${totalResolved}). By category: ${categoryAccuracy || "insufficient data"}. ${rate < 0.4 ? "LOW ACCURACY — reduce confidence on future predictions." : rate > 0.7 ? "Well calibrated." : "Moderate accuracy — room to improve."}`,
         confidence: 0.9,
         source: "prediction_calibration",
       },
       update: {
-        content: `Overall prediction accuracy: ${(rate * 100).toFixed(0)}% (${confirmed}/${total}). By category: ${categoryAccuracy || "insufficient data"}. ${rate < 0.4 ? "LOW ACCURACY — reduce confidence on future predictions." : rate > 0.7 ? "Well calibrated." : "Moderate accuracy — room to improve."}`,
+        content: `Overall prediction accuracy: ${(rate * 100).toFixed(0)}% (${totalConfirmed}/${totalResolved}). By category: ${categoryAccuracy || "insufficient data"}. ${rate < 0.4 ? "LOW ACCURACY — reduce confidence on future predictions." : rate > 0.7 ? "Well calibrated." : "Moderate accuracy — room to improve."}`,
         confidence: 0.9,
         seenCount: { increment: 1 },
       },
     }).catch(() => {});
   }
 
-  return { checked: pending.length, confirmed, disproven };
+  return { checked: pending.length, confirmed: confirmedProposed, disproven: disprovenProposed };
 }
 
 /**

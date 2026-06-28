@@ -130,7 +130,7 @@ const MEGA_FANOUT_JOBS = new Set([
   "device-sync", "learn", "stale-tasks", "device-health", "brain-cycle",
   "notification-sender", "journal-checkin", "embed-backfill",
   "reflect", "predict", "think", "consolidate", "drift-check",
-  "daily-report", "data-cleanup", "intelligence",
+  "data-cleanup", "intelligence",
 ]);
 
 export async function triggerCronByName(

@@ -99,6 +99,8 @@ export function OperatingRhythmToggle() {
           type="button"
           onClick={handleTap}
           disabled={setFlags.isPending}
+          role="switch"
+          aria-checked={enabled}
           aria-label={enabled ? "disable operating rhythm" : "enable operating rhythm"}
           className={cn(
             "relative w-11 h-6 rounded-full transition-colors",
@@ -108,6 +110,7 @@ export function OperatingRhythmToggle() {
           )}
         >
           <span
+            aria-hidden
             className={cn(
               "absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform",
               enabled ? "left-[22px]" : "left-0.5",
@@ -122,7 +125,7 @@ export function OperatingRhythmToggle() {
       </p>
       {pendingDisable && (
         <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-2 py-2">
-          <span className="flex-1 text-[10px] text-rose-300">
+          <span role="alert" className="flex-1 text-[10px] text-rose-300">
             Disable the focus checkpoints? This stops the cron from firing.
           </span>
           <ConfirmHold
@@ -144,7 +147,7 @@ export function OperatingRhythmToggle() {
         </div>
       )}
       {mutationError && (
-        <p className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+        <p role="alert" className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
           ⚠ {mutationError}
         </p>
       )}

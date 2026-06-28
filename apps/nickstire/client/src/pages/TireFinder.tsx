@@ -14,7 +14,8 @@ import PageLayout from "@/components/PageLayout";
 // (umami + GA4 "phone_click" + Meta Pixel Contact + call_events DB row with
 // UTM) instead of the legacy gtag-only @/lib/analytics path — tire-buyer
 // phone clicks were invisible to the admin call dashboard before this.
-import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
+import { SEOHead, Breadcrumbs, trackPhoneClick, trackEvent } from "@/components/SEO";
+import { getSessionId } from "@/lib/session";
 // attribution-holds migration 0067 — tire orders carry session UTM context.
 import { getUtmData } from "@/lib/utm";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
@@ -160,7 +161,7 @@ function PackageBanner({ packageData }: { packageData: any }) {
       transition={{ delay: 0.2 }}
       className="mb-8"
     >
-      <div className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl">
+      <div className="relative overflow-hidden bg-linear-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl">
         {/* Header */}
         <div className="p-6 sm:p-8">
           <div className="flex items-start gap-4">
@@ -264,26 +265,105 @@ interface OrderModalProps {
   quantity: number;
   packageValue: number;
   onClose: () => void;
+  prefilledVehicle?: {
+    year: string;
+    make: string;
+    model: string;
+    option: string;
+    speeds: string;
+  } | null;
 }
 
 // Exported so the Esc-key regression test (admin.test.tsx) can render
 // this in isolation; in app code it stays an internal component of
 // TireFinder. Same module surface, no behavior change.
-export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) {
+export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVehicle }: OrderModalProps) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [vehicle, setVehicle] = useState("");
+  const [vehicleYear, setVehicleYear] = useState(prefilledVehicle?.year || "");
+  const [vehicleMake, setVehicleMake] = useState(prefilledVehicle?.make || "");
+  const [vehicleModel, setVehicleModel] = useState(prefilledVehicle?.model || "");
+  const [vehicleOption, setVehicleOption] = useState(prefilledVehicle?.option || "");
+  const [tireSize, setTireSize] = useState(tire?.size || "");
   const [notes, setNotes] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState<"walk-in" | "drop-off-morning" | "drop-off-afternoon" | "ship">("walk-in");
   const [shippingAddress, setShippingAddress] = useState("");
   const [orderResult, setOrderResult] = useState<{ orderNumber: string; invoiceNumber?: string; totalAmount: number } | null>(null);
   const [paymentSubmitted] = useState(false);
 
+  useEffect(() => {
+    if (prefilledVehicle) {
+      setVehicleYear(prefilledVehicle.year);
+      setVehicleMake(prefilledVehicle.make);
+      setVehicleModel(prefilledVehicle.model);
+      setVehicleOption(prefilledVehicle.option);
+    }
+  }, [prefilledVehicle]);
+
+  useEffect(() => {
+    if (tire?.size) {
+      setTireSize(tire.size);
+    }
+  }, [tire]);
+
+  const trackPartialOrder = () => {
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (!phoneDigits && !name.trim()) return;
+
+    const formattedVehicle = [
+      vehicleYear.trim(),
+      vehicleMake.trim(),
+      vehicleModel.trim(),
+      vehicleOption.trim() ? `(${vehicleOption.trim()})` : ""
+    ].filter(Boolean).join(" ");
+
+    const payload = JSON.stringify({
+      name: name.trim() || undefined,
+      phone: phone.trim() || undefined,
+      service: `Tire Order: ${quantity}x ${tire?.brand || "Custom"} ${tire?.model || "Request"} (${tireSize || tire?.size || "Unknown"})`,
+      vehicle: formattedVehicle || undefined,
+      formType: "tire_order",
+      step: "order_modal_blur",
+      sessionId: getSessionId(),
+    });
+
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon("/api/track-abandoned", new Blob([payload], { type: "application/json" }));
+    } else {
+      fetch("/api/track-abandoned", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {});
+    }
+  };
+
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedTrackPartialOrder = () => {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    debounceTimeoutRef.current = setTimeout(() => {
+      trackPartialOrder();
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const orderMutation = trpc.gatewayTire.placeOrder.useMutation({
     onSuccess: (data) => {
       if (data.success) {
         setOrderResult({ orderNumber: data.orderNumber!, invoiceNumber: data.invoiceNumber, totalAmount: data.totalAmount! });
+        trackEvent("form_completed", { type: "tire_order", orderNumber: data.orderNumber! });
       } else {
         toast.error("Something went wrong. Please call us at (216) 862-0005.");
       }
@@ -314,10 +394,13 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  if (!tire) return null;
+  const tirePrice = tire ? tire.shopPrice : 0;
+  const tirePriceCents = tire ? tire.pricePerTireCents : 0;
+  const tireBrandName = tire ? tire.brand : "Custom Request";
+  const tireModelName = tire ? tire.model : "Vehicle Fitment";
 
-  const tireTotal = tire.shopPrice * quantity;
-  const bd = priceBreakdown(tire.pricePerTireCents * quantity);
+  const tireTotal = tirePrice * quantity;
+  const bd = priceBreakdown(tirePriceCents * quantity);
 
   // Success state
   if (orderResult) {
@@ -329,7 +412,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
           animate={{ opacity: 1, scale: 1 }}
           className="relative bg-card border border-border/50 rounded-lg p-6 sm:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto"
         >
-          <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+          <button onClick={onClose} aria-label="Close" title="Close" className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
             <X className="w-5 h-5" />
           </button>
 
@@ -344,20 +427,20 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
             
             {/* Step 1: Request Received */}
             <div className="relative flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center shrink-0 z-10 bg-card">
+              <div className="w-8 h-8 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center shrink-0 z-10">
                 <Check className="w-4 h-4 text-green-400" />
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-foreground">1. Request Received</h4>
                 <p className="text-xs text-muted-foreground mt-1">
-                  We've received your request for {quantity}x {tire.brand} {tire.model} ({tire.size}).
+                  We've received your request for {quantity}x {tireBrandName} {tireModelName} ({tireSize || "Unknown"}).
                 </p>
               </div>
             </div>
 
             {/* Step 2: Staff Check */}
             <div className="relative flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10 bg-card">
+              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10">
                 <Clock className="w-4 h-4 text-primary animate-pulse" />
               </div>
               <div>
@@ -373,7 +456,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
 
             {/* Step 3: Pay Online (Optional) */}
             <div className="relative flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10 bg-card">
+              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10">
                 <Gift className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
@@ -385,42 +468,50 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
                 {/* Stripe Pay Now / Financing CTAs */}
                 {!paymentSubmitted && (
                   <div className="mt-3 bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
-                    <button
-                      onClick={() => checkoutMutation.mutate({ orderNumber: orderResult.orderNumber, phone })}
-                      disabled={checkoutMutation.isPending}
-                      className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground py-2.5 rounded-md text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-                    >
-                      {checkoutMutation.isPending ? (
-                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting secure checkout…</>
-                      ) : (
-                        <>Pay Now — ${(bd.total / 100).toFixed(2)}</>
-                      )}
-                    </button>
-                    <p className="text-[9px] text-muted-foreground text-center">
-                      Secure card payment via Stripe. Cards carry a 2% surcharge.
-                    </p>
-                    
-                    <div className="border-t border-border/20 pt-3">
-                      <p className="text-[10px] text-muted-foreground mb-2 text-center font-medium">Or apply for Snap/Acima financing:</p>
-                      <div className="flex gap-2">
-                        <a
-                          href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 text-center bg-[#FF6B00] text-white py-2 rounded-md text-xs font-medium hover:bg-[#FF6B00]/90 transition-colors"
+                    {tire && tire.shopPrice > 0 ? (
+                      <>
+                        <button
+                          onClick={() => checkoutMutation.mutate({ orderNumber: orderResult.orderNumber, phone })}
+                          disabled={checkoutMutation.isPending}
+                          className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground py-2.5 rounded-md text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
-                          Snap Finance
-                        </a>
-                        <a
-                          href="https://acima.us/1TjEOYtr6C"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 text-center bg-blue-600 text-white py-2 rounded-md text-xs font-medium hover:bg-blue-600/90 transition-colors"
-                        >
-                          Acima Credit
-                        </a>
-                      </div>
-                    </div>
+                          {checkoutMutation.isPending ? (
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting secure checkout…</>
+                          ) : (
+                            <>Pay Now — ${(bd.total / 100).toFixed(2)}</>
+                          )}
+                        </button>
+                        <p className="text-[9px] text-muted-foreground text-center">
+                          Secure card payment via Stripe. Cards carry a 2% surcharge.
+                        </p>
+                        
+                        <div className="border-t border-border/20 pt-3">
+                          <p className="text-[10px] text-muted-foreground mb-2 text-center font-medium">Or apply for Snap/Acima payment programs:</p>
+                          <div className="flex gap-2">
+                            <a
+                              href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 text-center bg-[#FF6B00] text-white py-2 rounded-md text-xs font-medium hover:bg-[#FF6B00]/90 transition-colors"
+                            >
+                              Snap Finance
+                            </a>
+                            <a
+                              href="https://acima.us/1TjEOYtr6C"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 text-center bg-blue-600 text-white py-2 rounded-md text-xs font-medium hover:bg-blue-600/90 transition-colors"
+                            >
+                              Acima
+                            </a>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-amber-500/90 font-medium text-center py-2">
+                        Online payment will be available once staff confirms pricing.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -428,7 +519,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
 
             {/* Step 4: Visit Shop */}
             <div className="relative flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10 bg-card">
+              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 z-10">
                 <Wrench className="w-4 h-4 text-primary" />
               </div>
               <div>
@@ -448,24 +539,28 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
           {/* Pricing Summary */}
           <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6 text-left space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">{quantity}x {tire.brand} {tire.model}</span>
-              <span className="text-foreground font-medium">${(bd.subtotal / 100).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Nick's Premium Installation Package</span>
-              <span className="text-green-400 font-medium">Included</span>
+              <span className="text-muted-foreground">{quantity}x {tireBrandName} {tireModelName}</span>
+              <span className="text-foreground font-medium">
+                {tire && tire.shopPrice > 0 ? `$${(bd.subtotal / 100).toFixed(2)}` : "Pending confirmation"}
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Ohio sales tax (8%)</span>
-              <span className="text-foreground">${(bd.tax / 100).toFixed(2)}</span>
+              <span className="text-foreground">
+                {tire && tire.shopPrice > 0 ? `$${(bd.tax / 100).toFixed(2)}` : "Pending confirmation"}
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Card processing fee (2%)</span>
-              <span className="text-foreground">${(bd.cardFee / 100).toFixed(2)}</span>
+              <span className="text-foreground">
+                {tire && tire.shopPrice > 0 ? `$${(bd.cardFee / 100).toFixed(2)}` : "Pending confirmation"}
+              </span>
             </div>
             <div className="flex justify-between pt-2 border-t border-border/30">
               <span className="font-medium text-foreground">Total Estimate</span>
-              <span className="font-semibold text-primary">${(bd.total / 100).toFixed(2)}</span>
+              <span className="font-semibold text-primary">
+                {tire && tire.shopPrice > 0 ? `$${(bd.total / 100).toFixed(2)}` : "Price Pending Confirmation"}
+              </span>
             </div>
           </div>
           <button onClick={onClose} className="w-full bg-primary text-primary-foreground py-3 rounded-md font-medium hover:bg-primary/90 transition-colors">
@@ -484,18 +579,18 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
         animate={{ opacity: 1, y: 0 }}
         className="relative bg-card border border-border/50 rounded-lg p-6 sm:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto"
       >
-        <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+        <button onClick={onClose} aria-label="Close" title="Close" className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
           <X className="w-5 h-5" />
         </button>
 
         <h3 className="text-xl font-semibold text-foreground mb-1">Request Tires</h3>
-        <p className="text-muted-foreground text-sm mb-6">{quantity}x {tire.brand} {tire.model} ({tire.size})</p>
+        <p className="text-muted-foreground text-sm mb-6">{quantity}x {tireBrandName} {tireModelName} {tireSize ? `(${tireSize})` : ""}</p>
 
         {/* Price breakdown — the psychology */}
         <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6">
           <div className="flex justify-between text-sm mb-2">
-            <span className="text-muted-foreground">{tire.brand} {tire.model} x{quantity}</span>
-            <span className="text-foreground font-medium">${tireTotal.toFixed(2)}</span>
+            <span className="text-muted-foreground">{tireBrandName} {tireModelName} x{quantity}</span>
+            <span className="text-foreground font-medium">{tire && tire.shopPrice > 0 ? `$${tireTotal.toFixed(2)}` : "Pending confirmation"}</span>
           </div>
 
           {/* FREE package — this is the genius part */}
@@ -541,19 +636,19 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Tires x{quantity}</span>
-              <span className="text-foreground">${(bd.subtotal / 100).toFixed(2)}</span>
+              <span className="text-foreground">{tire && tire.shopPrice > 0 ? `$${(bd.subtotal / 100).toFixed(2)}` : "Pending confirmation"}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Ohio sales tax (8%)</span>
-              <span className="text-foreground">${(bd.tax / 100).toFixed(2)}</span>
+              <span className="text-foreground">{tire && tire.shopPrice > 0 ? `$${(bd.tax / 100).toFixed(2)}` : "Pending confirmation"}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Card processing fee (2%)</span>
-              <span className="text-foreground">${(bd.cardFee / 100).toFixed(2)}</span>
+              <span className="text-foreground">{tire && tire.shopPrice > 0 ? `$${(bd.cardFee / 100).toFixed(2)}` : "Pending confirmation"}</span>
             </div>
             <div className="flex justify-between pt-1.5 border-t border-border/20">
               <span className="font-medium text-foreground">Estimated Total</span>
-              <span className="font-semibold text-primary text-lg">${(bd.total / 100).toFixed(2)}</span>
+              <span className="font-semibold text-primary text-lg">{tire && tire.shopPrice > 0 ? `$${(bd.total / 100).toFixed(2)}` : "Price Pending Confirmation"}</span>
             </div>
             <p className="text-[10px] text-green-400 text-right font-medium">
               You save ${packageValue}+ on installation
@@ -594,6 +689,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
             <label className="block text-sm text-muted-foreground mb-1.5">Full Name *</label>
             <input
               type="text" value={name} onChange={(e) => setName(e.target.value)}
+              onBlur={debouncedTrackPartialOrder}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
               placeholder="John Smith"
             />
@@ -602,6 +698,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
             <label className="block text-sm text-muted-foreground mb-1.5">Phone Number *</label>
             <input
               type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+              onBlur={debouncedTrackPartialOrder}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
               placeholder={BUSINESS.phone.placeholder}
             />
@@ -610,16 +707,71 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
             <label className="block text-sm text-muted-foreground mb-1.5">Email (for order updates)</label>
             <input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+              onBlur={debouncedTrackPartialOrder}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
               placeholder="john@example.com"
             />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Vehicle Year *</label>
+              <input
+                type="text"
+                value={vehicleYear}
+                onChange={(e) => setVehicleYear(e.target.value)}
+                onBlur={debouncedTrackPartialOrder}
+                className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
+                placeholder="2020"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Vehicle Make *</label>
+              <input
+                type="text"
+                value={vehicleMake}
+                onChange={(e) => setVehicleMake(e.target.value)}
+                onBlur={debouncedTrackPartialOrder}
+                className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
+                placeholder="Honda"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Vehicle Model *</label>
+              <input
+                type="text"
+                value={vehicleModel}
+                onChange={(e) => setVehicleModel(e.target.value)}
+                onBlur={debouncedTrackPartialOrder}
+                className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
+                placeholder="Civic"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Option / Trim (optional)</label>
+              <input
+                type="text"
+                value={vehicleOption}
+                onChange={(e) => setVehicleOption(e.target.value)}
+                onBlur={debouncedTrackPartialOrder}
+                className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
+                placeholder="LX / EX"
+              />
+            </div>
+          </div>
           <div>
-            <label className="block text-sm text-muted-foreground mb-1.5">Vehicle (Year Make Model)</label>
+            <label className="block text-sm text-muted-foreground mb-1.5">Tire Size *</label>
             <input
-              type="text" value={vehicle} onChange={(e) => setVehicle(e.target.value)}
-              className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
-              placeholder="2020 Honda Civic"
+              type="text"
+              value={tireSize}
+              onChange={(e) => setTireSize(e.target.value)}
+              onBlur={debouncedTrackPartialOrder}
+              disabled={!!tire}
+              className={`w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors ${
+                tire ? "opacity-60 cursor-not-allowed bg-muted/10" : ""
+              }`}
+              placeholder="e.g. 215/60R16"
             />
           </div>
           {deliveryMethod === "ship" && (
@@ -645,18 +797,30 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
 
         <button
           onClick={() => {
+            const formattedVehicle = [
+              vehicleYear.trim(),
+              vehicleMake.trim(),
+              vehicleModel.trim(),
+              vehicleOption.trim() ? `(${vehicleOption.trim()})` : ""
+            ].filter(Boolean).join(" ");
+
             const phoneDigits = phone.replace(/\D/g, "");
             if (!name.trim() || phoneDigits.length < 10) {
               toast.error(!name.trim() ? "Name is required." : "Please enter a valid 10-digit phone number");
+              return;
+            }
+            if (!vehicleYear.trim() || !vehicleMake.trim() || !vehicleModel.trim()) {
+              toast.error("Vehicle Year, Make, and Model are required.");
+              return;
+            }
+            if (!tireSize.trim()) {
+              toast.error("Tire Size is required.");
               return;
             }
             if (deliveryMethod === "ship" && !shippingAddress.trim()) {
               toast.error("Shipping address is required for delivery orders.");
               return;
             }
-            // Server zod rejects invalid emails and the customer would only
-            // see the generic something-went-wrong toast — catch it here
-            // with a fixable message instead of losing the order.
             if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
               toast.error("That email doesn't look right — fix it or leave it blank.");
               return;
@@ -665,19 +829,17 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
               ? `[SHIP TO: ${shippingAddress.trim()}] ${notes.trim()}`
               : notes.trim();
             orderMutation.mutate({
-              tireBrand: tire.brand,
-              tireModel: tire.model,
-              tireSize: tire.size,
+              tireBrand: tireBrandName,
+              tireModel: tireModelName,
+              tireSize: tireSize.trim(),
               quantity,
-              pricePerTireCents: tire.pricePerTireCents,
+              pricePerTireCents: tirePriceCents,
               customerName: name.trim(),
               customerPhone: phone.trim(),
               customerEmail: email.trim() || undefined,
-              vehicleInfo: vehicle.trim() || undefined,
+              vehicleInfo: formattedVehicle || undefined,
               customerNotes: deliveryNote || undefined,
               installPreference: deliveryMethod,
-              // attribution-holds migration 0067 — same getUtmData() spread the
-              // lead forms ship; server stores nullish, extras zod-stripped.
               ...getUtmData(),
             });
           }}
@@ -686,8 +848,10 @@ export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModal
         >
           {orderMutation.isPending ? (
             <><Loader2 className="w-4 h-4 animate-spin" /> Requesting Tires...</>
-          ) : (
+          ) : (tire && tire.shopPrice > 0) ? (
             <>Request These Tires — ${(bd.total / 100).toFixed(2)}</>
+          ) : (
+            <>Request Price Confirmation</>
           )}
         </button>
 
@@ -939,18 +1103,50 @@ function OrderTracker() {
 
 // ─── MAIN PAGE ────────────────────────────────────────
 export default function TireFinder() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const searchString = useSearch();
   // Read ?size= from URL for shareable/bookmarkable searches
   const urlSize = useMemo(() => {
-    return new URLSearchParams(searchString).get("size");
+    const rawSize = new URLSearchParams(searchString).get("size");
+    if (!rawSize) return "";
+    let cleaned = rawSize.trim();
+    
+    // Check if the size string matches a duplication pattern (e.g. 215/60R16215/60R16)
+    const duplicateMatch = cleaned.match(/^(.{3,})\1$/i);
+    if (duplicateMatch) {
+      cleaned = duplicateMatch[1];
+    }
+    
+    // Check for double/nested query param structure (e.g. 215/60R16?size=215/60R16 or 215/60R16&size=215/60R16)
+    if (cleaned.includes("?size=")) {
+      cleaned = cleaned.split("?size=")[0];
+    } else if (cleaned.includes("&size=")) {
+      cleaned = cleaned.split("&size=")[0];
+    } else if (cleaned.includes("size=")) {
+      cleaned = cleaned.split("size=")[0];
+    }
+    
+    return cleaned;
   }, [searchString]);
   const [searchInput, setSearchInput] = useState(urlSize || "");
   const [activeSearch, setActiveSearch] = useState(urlSize || "");
 
   useEffect(() => {
-    setSearchInput(urlSize || "");
-    setActiveSearch(urlSize || "");
+    if (urlSize) {
+      setSearchInput(urlSize);
+      setActiveSearch(urlSize);
+      
+      // Clean up dirty URL in address bar if needed
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("size");
+      if (raw !== urlSize) {
+        params.set("size", urlSize);
+        window.history.replaceState({}, "", window.location.pathname + "?" + params.toString());
+      }
+    } else {
+      setSearchInput("");
+      setActiveSearch("");
+    }
   }, [urlSize]);
   const [quantity, setQuantity] = useState(4);
   const [sortBy, setSortBy] = useState<SortOption>("price-low");
@@ -963,6 +1159,124 @@ export default function TireFinder() {
   const [rescuePhone, setRescuePhone] = useState("");
   const [rescueSubmitted, setRescueSubmitted] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  const ezytireBaseUrl = import.meta.env.VITE_EZYTIRE_BASE_URL || (import.meta.env.PROD ? "" : "test.ezytiredemo.com");
+  const [searchTab, setSearchTab] = useState<"size" | "vehicle" | "help">("size");
+  const showTabs = !!ezytireBaseUrl;
+
+  const searchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
+  const urlWidth = searchParams.get("width");
+  const urlAspect = searchParams.get("aspect");
+  const urlRim = searchParams.get("rim");
+  const urlYear = searchParams.get("year");
+  const urlMake = searchParams.get("make");
+  const urlModel = searchParams.get("model");
+  const urlOption = searchParams.get("option");
+  const urlSpeeds = searchParams.get("speeds");
+
+  // Reconstruct size from Ezytire redirect query
+  useEffect(() => {
+    if (urlWidth && urlAspect && urlRim) {
+      const reconstructedSize = `${urlWidth}/${urlAspect}R${urlRim}`;
+      setLocation(`/tires?size=${encodeURIComponent(reconstructedSize)}`, { replace: true });
+    }
+  }, [urlWidth, urlAspect, urlRim, setLocation]);
+
+  const prefilledVehicle = useMemo(() => {
+    if (urlYear || urlMake || urlModel || urlOption) {
+      return {
+        year: urlYear || "",
+        make: urlMake || "",
+        model: urlModel || "",
+        option: urlOption || "",
+        speeds: urlSpeeds || "",
+      };
+    }
+    return null;
+  }, [urlYear, urlMake, urlModel, urlOption, urlSpeeds]);
+
+  const activeSearchType = useMemo(() => {
+    if (prefilledVehicle) return "vehicle";
+    return "size";
+  }, [prefilledVehicle]);
+
+  const ezytireIframeUrl = useMemo(() => {
+    if (!ezytireBaseUrl || !prefilledVehicle) return "";
+    const params = new URLSearchParams();
+    if (prefilledVehicle.year) params.set("year", prefilledVehicle.year);
+    if (prefilledVehicle.make) params.set("make", prefilledVehicle.make);
+    if (prefilledVehicle.model) params.set("model", prefilledVehicle.model);
+    if (prefilledVehicle.option) params.set("option", prefilledVehicle.option);
+    if (prefilledVehicle.speeds) params.set("speeds", prefilledVehicle.speeds);
+    return `https://${ezytireBaseUrl}/site/pages/search_results.php?${params.toString()}`;
+  }, [ezytireBaseUrl, prefilledVehicle]);
+
+  // Set default tab if prefilled vehicle is loaded
+  useEffect(() => {
+    if (prefilledVehicle) {
+      setSearchTab("vehicle");
+    }
+  }, [prefilledVehicle]);
+
+  // Lazy-load Ezytire script
+  useEffect(() => {
+    if (searchTab !== "vehicle" || !ezytireBaseUrl) return;
+
+    let isMounted = true;
+
+    const loadScript = (url: string): Promise<void> => {
+      return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${url}"]`)) {
+          resolve();
+          return;
+        }
+        const script = document.createElement("script");
+        script.type = "text/javascript";
+        script.src = url;
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Script load failed"));
+        document.body.appendChild(script);
+      });
+    };
+
+    const scriptUrl = `https://${ezytireBaseUrl}/site/api/js/widget.js`;
+
+    loadScript(scriptUrl)
+      .then(() => {
+        if (!isMounted) return;
+        trackEvent("ezytire_widget_loaded", { url: scriptUrl });
+
+        setTimeout(() => {
+          if (!isMounted) return;
+          const global = window as any;
+          if (typeof global.EZT_LoadVehicleSearch === "function") {
+            try {
+              const targetUrl = window.location.origin + window.location.pathname;
+              global.EZT_LoadVehicleSearch(
+                "ezy-year",
+                "ezy-make",
+                "ezy-model",
+                "ezy-option",
+                "ezy-submit",
+                ezytireBaseUrl,
+                targetUrl
+              );
+            } catch (err) {
+              console.error("Failed to load Ezytire vehicle search:", err);
+            }
+          }
+        }, 150);
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("Failed to load vehicle search widget. Please try size search or call us.");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [searchTab, ezytireBaseUrl]);
 
   const rescueMutation = trpc.callback.submit.useMutation({
     onSuccess: () => {
@@ -1007,7 +1321,13 @@ export default function TireFinder() {
       toast.error("Please enter a valid tire size (e.g. 215/60R16).");
       return;
     }
-    setActiveSearch(searchInput.trim());
+    const targetSize = searchInput.trim();
+    setSearchInput(targetSize);
+    setActiveSearch(targetSize);
+    
+    const params = new URLSearchParams(window.location.search);
+    params.set("size", targetSize);
+    window.history.replaceState({}, "", window.location.pathname + "?" + params.toString());
   };
 
   useEffect(() => {
@@ -1132,7 +1452,7 @@ export default function TireFinder() {
       <div className="min-h-screen bg-background text-foreground">
 
       {/* ─── HERO ─── */}
-      <section className="pt-24 pb-12 sm:pt-28 sm:pb-16 bg-gradient-to-b from-card/60 via-background to-background border-b border-border/10">
+      <section className="pt-24 pb-12 sm:pt-28 sm:pb-16 bg-linear-to-b from-card/60 via-background to-background border-b border-border/10">
         <div className="container max-w-3xl mx-auto text-center">
           <motion.div initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0 }}>
             <span className="text-xs font-semibold text-primary tracking-[0.2em] uppercase">
@@ -1159,68 +1479,231 @@ export default function TireFinder() {
             </div>
           </motion.div>
 
-          {/* Search bar — NO animation, must always be visible */}
-          <div className="mt-10">
-            <div className="flex items-center bg-card border border-border/50 rounded-lg overflow-hidden focus-within:border-primary/50 transition-colors">
-              <Search className="w-5 h-5 text-muted-foreground ml-4 shrink-0" />
-              <input
-                type="text"
-                name="tire-size"
-                aria-label="Search tire size"
-                id="tire-size-search"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                placeholder="Enter tire size (e.g. 215/60R16)"
-                className="flex-1 bg-transparent px-4 py-4 text-foreground text-base focus:outline-none placeholder:text-muted-foreground/50"
-              />
-              <button
-                onClick={handleSearch}
-                disabled={isLoading}
-                className="bg-primary text-primary-foreground px-4 sm:px-6 py-4 font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin sm:hidden" />
-                ) : (
-                  <Search className="w-5 h-5 sm:hidden" />
-                )}
-                <span className="hidden sm:inline">{isLoading ? "Searching..." : "Search"}</span>
-              </button>
-            </div>
-
-            <div className="flex justify-between items-center mt-2 px-1">
-              <button
-                type="button"
-                onClick={() => setShowSizeHelper(true)}
-                className="text-xs text-primary hover:underline flex items-center gap-1"
-              >
-                <Info className="w-3.5 h-3.5" />
-                Where is my tire size?
-              </button>
-            </div>
-
-            {searchInput.trim() && !isInputPotentialTireSize(searchInput) && (
-              <div className="mt-3 text-left bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs px-3 py-2 rounded-md flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <span>
-                  Tip: Tire sizes usually contain a width, aspect ratio, and diameter (e.g. <strong>215/60R16</strong> or <strong>225 65 17</strong>). Enter all three numbers.
-                </span>
-              </div>
-            )}
-
-            {/* Quick sizes */}
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <span className="text-xs text-muted-foreground mr-1 self-center">Popular:</span>
-              {COMMON_SIZES.slice(0, 6).map((s) => (
+          {/* Sleek yellow-accented tab switcher */}
+          {showTabs && (
+            <div className="flex justify-center border-b border-border/20 mb-8 mt-8">
+              {(["size", "vehicle", "help"] as const).map((tab) => (
                 <button
-                  key={s}
-                  onClick={() => { setSearchInput(s); setActiveSearch(s); }}
-                  className="text-xs text-muted-foreground hover:text-primary border border-border/30 rounded-full px-3 py-1 hover:border-primary/30 transition-colors"
+                  key={tab}
+                  onClick={() => {
+                    setSearchTab(tab);
+                    trackEvent("ezytire_tab_changed", { tab });
+                  }}
+                  className={`px-6 py-3 text-sm font-semibold border-b-2 transition-all ${
+                    searchTab === tab
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
                 >
-                  {s}
+                  {tab === "size" && "Search by Size"}
+                  {tab === "vehicle" && "Search by Vehicle"}
+                  {tab === "help" && "Get Fitment Help"}
                 </button>
               ))}
             </div>
+          )}
+
+          {/* Search Content */}
+          <div className="mt-4">
+            {searchTab === "size" && (
+              <div>
+                <div className="flex items-center bg-card border border-border/50 rounded-lg overflow-hidden focus-within:border-primary/50 transition-colors">
+                  <Search className="w-5 h-5 text-muted-foreground ml-4 shrink-0" />
+                  <input
+                    type="text"
+                    name="tire-size"
+                    aria-label="Search tire size"
+                    id="tire-size-search"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    placeholder="Enter tire size (e.g. 215/60R16)"
+                    className="flex-1 bg-transparent px-4 py-4 text-foreground text-base focus:outline-none placeholder:text-muted-foreground/50"
+                  />
+                  <button
+                    onClick={handleSearch}
+                    disabled={isLoading}
+                    className="bg-primary text-primary-foreground px-4 sm:px-6 py-4 font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-5 h-5 animate-spin sm:hidden" />
+                    ) : (
+                      <Search className="w-5 h-5 sm:hidden" />
+                    )}
+                    <span className="hidden sm:inline">{isLoading ? "Searching..." : "Search"}</span>
+                  </button>
+                </div>
+
+                <div className="flex justify-between items-center mt-2 px-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowSizeHelper(true)}
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    <Info className="w-3.5 h-3.5" />
+                    Where is my tire size?
+                  </button>
+                </div>
+
+                {searchInput.trim() && !isInputPotentialTireSize(searchInput) && (
+                  <div className="mt-3 text-left bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs px-3 py-2 rounded-md flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>
+                      Tip: Tire sizes usually contain a width, aspect ratio, and diameter (e.g. <strong>215/60R16</strong> or <strong>225 65 17</strong>). Enter all three numbers.
+                    </span>
+                  </div>
+                )}
+
+                {/* Quick sizes */}
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <span className="text-xs text-muted-foreground mr-1 self-center">Popular:</span>
+                  {COMMON_SIZES.slice(0, 6).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        setSearchInput(s);
+                        setActiveSearch(s);
+                        const params = new URLSearchParams(window.location.search);
+                        params.set("size", s);
+                        window.history.replaceState({}, "", window.location.pathname + "?" + params.toString());
+                      }}
+                      className="text-xs text-muted-foreground hover:text-primary border border-border/30 rounded-full px-3 py-1 hover:border-primary/30 transition-colors"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {searchTab === "vehicle" && (
+              <div className="bg-card border border-border/50 rounded-lg p-6 max-w-xl mx-auto space-y-4 text-left">
+                <style>{`
+                  .ezy-dropdown-container select {
+                    width: 100%;
+                    background-color: #141414;
+                    border: 1px solid #2A2A2A;
+                    color: #F5F5F5;
+                    padding: 10px 14px;
+                    font-size: 14px;
+                    border-radius: 6px;
+                    outline: none;
+                    transition: border-color 0.2s, box-shadow 0.2s;
+                  }
+                  .ezy-dropdown-container select:focus {
+                    border-color: #FDB913;
+                    box-shadow: 0 0 0 2px rgba(253, 185, 19, 0.2);
+                  }
+                  #ezy-submit input[type="submit"], #ezy-submit button {
+                    width: 100%;
+                    background-color: #FDB913;
+                    color: #0A0A0A;
+                    padding: 12px 24px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    border-radius: 6px;
+                    border: none;
+                    cursor: pointer;
+                    transition: opacity 0.2s, transform 0.1s;
+                  }
+                  #ezy-submit input[type="submit"]:hover, #ezy-submit button:hover {
+                    opacity: 0.9;
+                  }
+                  #ezy-submit input[type="submit"]:active, #ezy-submit button:active {
+                    transform: scale(0.98);
+                  }
+                `}</style>
+                <h3 className="text-lg font-semibold text-foreground mb-4 text-center">Select Your Vehicle</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1 font-medium">Year</label>
+                    <div id="ezy-year" className="ezy-dropdown-container"></div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1 font-medium">Make</label>
+                    <div id="ezy-make" className="ezy-dropdown-container"></div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1 font-medium">Model</label>
+                    <div id="ezy-model" className="ezy-dropdown-container"></div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1 font-medium">Option</label>
+                    <div id="ezy-option" className="ezy-dropdown-container"></div>
+                  </div>
+                </div>
+                <div className="pt-4 flex justify-center">
+                  <div id="ezy-submit" className="w-full sm:w-auto"></div>
+                </div>
+              </div>
+            )}
+
+            {searchTab === "help" && (
+              <div className="bg-card border border-border/50 rounded-lg p-6 max-w-xl mx-auto space-y-4 text-left">
+                <h3 className="text-lg font-semibold text-foreground mb-2 text-center">Get Fitment Help</h3>
+                <p className="text-sm text-muted-foreground text-center mb-4 leading-relaxed">
+                  Not sure what tire size or vehicle fitment you need? Enter your contact info below and our Cleveland team will text or call you to figure out the right fit.
+                </p>
+
+                {rescueSubmitted ? (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-md text-center">
+                    <p className="text-sm font-semibold">Request Received!</p>
+                    <p className="text-xs mt-1">We will call or text you shortly to help find your tires.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Your Name</label>
+                      <input
+                        type="text"
+                        value={rescueName}
+                        onChange={(e) => setRescueName(e.target.value)}
+                        placeholder="Your name"
+                        className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-primary/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Phone Number</label>
+                      <input
+                        type="tel"
+                        value={rescuePhone}
+                        onChange={(e) => setRescuePhone(e.target.value)}
+                        placeholder="Phone number"
+                        className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-primary/50"
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (!rescueName.trim() || !rescuePhone.trim()) {
+                          toast.error("Name and phone number are required.");
+                          return;
+                        }
+                        const phoneDigits = rescuePhone.replace(/\D/g, "");
+                        if (phoneDigits.length < 10) {
+                          toast.error("Please enter a valid 10-digit phone number.");
+                          return;
+                        }
+                        rescueMutation.mutate({
+                          name: rescueName.trim(),
+                          phone: rescuePhone.trim(),
+                          context: `Tire Finder Help Tab Request`,
+                          sourcePage: window.location.pathname,
+                          ...getUtmData()
+                        });
+                      }}
+                      disabled={rescueMutation.isPending}
+                      className="w-full bg-primary text-primary-foreground py-2.5 rounded-md font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {rescueMutation.isPending ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
+                      ) : (
+                        "Text Me Availability"
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Track order link */}
             <button
@@ -1301,319 +1784,377 @@ export default function TireFinder() {
 
       {/* ─── RESULTS ─── */}
       <AnimatePresence>
-        {activeSearch && (
+        {(!!activeSearch || !!prefilledVehicle) && (
           <section ref={resultsRef} className="pb-20">
             <div className="container max-w-5xl mx-auto">
-              {isLoading ? (
-                <div className="space-y-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                    <div className="space-y-2">
-                      <div className="h-6 bg-muted-foreground/20 rounded w-48 animate-pulse" />
-                      <div className="h-4 bg-muted-foreground/20 rounded w-64 animate-pulse" />
-                    </div>
+              {prefilledVehicle ? (
+                <div>
+                  {/* Vehicle results header */}
+                  <div className="mb-6 text-left">
+                    <h2 className="text-xl font-semibold text-foreground">
+                      Vehicle Fitment Search Results
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Selected vehicle: {prefilledVehicle.year} {prefilledVehicle.make} {prefilledVehicle.model} {prefilledVehicle.option ? `(${prefilledVehicle.option})` : ""}
+                    </p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[...Array(4)].map((_, i) => (
-                      <TireCardSkeleton key={i} />
-                    ))}
-                  </div>
-                </div>
-              ) : isError ? (
-                <div className="text-center py-16">
-                  <p className="text-muted-foreground mb-4">Unable to search tires right now.</p>
-                  <a href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")} className="text-primary hover:underline">Call us at (216) 862-0005</a>
-                </div>
-              ) : data?.tires && data.tires.length > 0 ? (
-                <>
-                  {/* Nick's Package Banner — THE KEY PIECE */}
 
-                  {/* 2026-05-23 · honest activity badge above trust strip.
-                      Pulls real numbers from tire_orders (7d). Hidden when
-                      DB is empty so an off-day doesn't show "0 orders". */}
-                  {socialStats && socialStats.ordersThisWeek > 0 && (
-                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 pb-3 text-[12px] text-foreground/70">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                        <span className="relative flex h-2 w-2">
-                          <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
-                        </span>
-                        <span className="font-medium text-emerald-300">{socialStats.ordersThisWeek}</span>
-                        <span className="text-foreground/60">
-                          {socialStats.ordersThisWeek === 1 ? "customer ordered" : "customers ordered"} tires this week
-                        </span>
-                      </span>
-                      {socialStats.installedThisWeek > 0 && (
-                        <span className="text-foreground/50 hidden sm:inline">
-                          · {socialStats.installedThisWeek} installed
-                        </span>
-                      )}
-                      {socialStats.popularSize && (
-                        <span className="text-foreground/50 hidden md:inline">
-                          · most ordered size: <span className="font-mono text-foreground/70">{socialStats.popularSize}</span>
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Trust strip — Social proof + eagerness signals.
-                      2026-05-23 · added "Walk-in OK 7 days" + tightened
-                      "Same-day on in-stock" (more specific · honest). */}
-                  <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-4 border-y border-foreground/10 text-sm text-foreground/60 mb-8">
-                    <span className="flex items-center gap-1.5 whitespace-nowrap">
-                      <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
-                      {BUSINESS.reviews.rating} stars · {BUSINESS.reviews.countDisplay} reviews
-                    </span>
-                    <span className="hidden sm:inline">✓ Walk-in OK 7 days</span>
-                    <span className="hidden sm:inline">✓ Same-day on in-stock</span>
-                    <span className="hidden sm:inline">✓ Fair prices, no pressure</span>
-                  </div>
-                  {/* Catalog-fallback disclaimer — DK Tire migrated their
-                      B2B portal to a static SPA in 2026; the old auth
-                      endpoint we POST credentials to is gone, so the live
-                      Gateway feed is dead until the new API is wired. When
-                      that's down the server falls back to a curated catalog
-                      with FIXED prices that don't vary by tire size. Without
-                      this banner a customer searching e.g. 225/60R18 would
-                      see the same $96 starting price as a 215/60R16 —
-                      misleading and a margin loss if they order. The banner
-                      keeps them in the flow but routes any size-sensitive
-                      decision to a phone quote until live pricing is back. */}
-                  {data.source === "catalog" && (
-                    <div className="mb-6 flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
-                      <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                      <div className="text-sm leading-relaxed">
-                        <p className="font-semibold text-amber-200 mb-1">
-                          Live wholesale pricing is temporarily unavailable
-                        </p>
-                        <p className="text-foreground/80">
-                          The tires below are estimates and the price you see
-                          may not reflect your exact tire size.{" "}
-                          <a
-                            href={BUSINESS.phone.href}
-                            onClick={() => trackPhoneClick("tire-finder-catalog")}
-                            className="text-amber-300 font-semibold underline"
-                          >
-                            Call {BUSINESS.phone.display}
-                          </a>{" "}
-                          for a real-time quote on{" "}
-                          <span className="font-semibold">{data.sizeFormatted}</span>{" "}
-                          before ordering — we'll honor the size-correct price.
+                  {/* Native CTA Banner */}
+                  <div className="bg-linear-to-br from-primary/10 via-card to-primary/5 border border-primary/30 rounded-xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-lg text-left">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+                        <Sparkles className="w-6 h-6 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-foreground">Order Natively & Save $289+</h3>
+                        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                          Found your size in the lookup? Request a custom quote directly from Nick's to get our complete Installation Package free.
                         </p>
                       </div>
                     </div>
-                  )}
-                  <PackageBanner packageData={packageData} />
-
-                  {/* Results header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                    <div>
-                      <h2 className="text-xl font-semibold text-foreground">
-                        {data.tires.length} Tires Available
-                      </h2>
-                      <p className="text-sm text-muted-foreground mt-0.5">
-                        Size: {data.sizeFormatted} — All prices include free installation package
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {/* Quantity selector */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-muted-foreground">Qty:</span>
-                        {[1, 2, 3, 4, 5, 6].map((q) => (
-                          <button
-                            key={q}
-                            onClick={() => setQuantity(q)}
-                            className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-                              quantity === q
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-card text-muted-foreground hover:text-foreground border border-border/30"
-                            }`}
-                          >
-                            {q}
-                          </button>
-                        ))}
-                        <input
-                          type="number"
-                          min="1"
-                          max="20"
-                          value={quantity}
-                          onChange={(e) => {
-                            const v = parseInt(e.target.value, 10);
-                            if (v >= 1 && v <= 20) setQuantity(v);
-                          }}
-                          className="w-14 text-xs text-center px-2 py-1.5 rounded-md bg-card border border-border/30 text-foreground focus:outline-none focus:border-primary/50"
-                        />
-                      </div>
-
-                      {/* Category filter */}
-                      <div className="flex items-center gap-1.5">
-                        <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-                        {(["all", "budget", "mid", "premium"] as CategoryFilter[]).map((cat) => (
-                          <button
-                            key={cat}
-                            onClick={() => setCategoryFilter(cat)}
-                            className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors capitalize ${
-                              categoryFilter === cat
-                                ? "bg-primary/10 text-primary border border-primary/30"
-                                : "text-muted-foreground hover:text-foreground border border-border/30"
-                            }`}
-                          >
-                            {cat === "all" ? "All" : cat}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Sort */}
-                      <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as SortOption)}
-                        className="text-xs bg-card border border-border/30 rounded-md px-3 py-1.5 text-muted-foreground focus:outline-none focus:border-primary/50"
-                      >
-                        <option value="price-low">Price: Low to High</option>
-                        <option value="price-high">Price: High to Low</option>
-                        <option value="warranty">Best Warranty</option>
-                        <option value="brand">Brand A-Z</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Tire grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 stagger-in">
-                    {data.tires.map((tire: any) => (
-                      <TireCard
-                        key={tire.id}
-                        tire={tire}
-                        quantity={quantity}
-                        onSelect={() => { setSelectedTire(tire); setShowOrder(true); }}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Set pricing callout */}
-                  <div className="mt-8 bg-gradient-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-8 text-center">
-                    <p className="text-sm text-muted-foreground mb-1">Starting at</p>
-                    <p className="text-4xl font-semibold text-foreground">
-                      ${(Math.min(...data.tires.map((t: any) => t.shopPrice)) * quantity).toFixed(2)}
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      for {quantity} {quantity === 1 ? "tire" : "tires"} — fully installed with Nick's Premium Package
-                    </p>
-                    <div className="mt-4 flex flex-wrap justify-center gap-3 text-xs text-green-400">
-                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Mounted</span>
-                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Balanced</span>
-                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Valve Stems</span>
-                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Disposal</span>
-                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> TPMS Reset</span>
-                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> 20-Point Check</span>
-                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Alignment Check</span>
-                    </div>
-
-                    {/* Loss-aversion anchor — what you'd pay at the chain shops */}
-                    <div className="mt-5 pt-5 border-t border-border/20 text-xs text-foreground/55 leading-relaxed">
-                      At Conrad's, Mavis, or Firestone, the same install package adds <span className="line-through text-foreground/40">$289+</span> at the register. Here it's already in the price you see. <span className="text-primary">You keep the $289.</span>
-                    </div>
-                  </div>
-
-                  {/* Info note */}
-                  <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
-                    <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                    <p>Prices shown are estimates based on current wholesale availability. We confirm exact pricing and availability before installing. <span className="text-foreground/80">Free check. Written quote. Paying online is optional — pay at the shop if you prefer.</span></p>
-                  </div>
-                </>
-              ) : (
-                <div className="bg-card border border-border/50 rounded-lg p-6 max-w-md mx-auto text-center py-12">
-                  <AlertTriangle className="w-8 h-8 text-amber-500/80 mx-auto mb-4" />
-                  <p className="text-foreground font-semibold mb-2">No standard results found for "{activeSearch}"</p>
-                  <p className="text-sm text-muted-foreground mb-6">
-                    We carry thousands of new and used tires in our local and regional warehouses. Enter your info below and our staff will manually look up your size and text you availability.
-                  </p>
-
-                  {rescueSubmitted ? (
-                    <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-md">
-                      <p className="text-sm font-semibold">Request Received!</p>
-                      <p className="text-xs mt-1">We'll look up "{activeSearch}" and call/text you shortly.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 text-left">
-                      <h4 className="text-sm font-semibold text-foreground mb-2">Request Custom Size Help</h4>
-                      <div>
-                        <label htmlFor="rescue-name" className="sr-only">Your Name</label>
-                        <input
-                          id="rescue-name"
-                          type="text"
-                          value={rescueName}
-                          onChange={(e) => setRescueName(e.target.value)}
-                          placeholder="Your name"
-                          className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/50"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="rescue-phone" className="sr-only">Phone Number</label>
-                        <input
-                          id="rescue-phone"
-                          type="tel"
-                          value={rescuePhone}
-                          onChange={(e) => setRescuePhone(e.target.value)}
-                          placeholder="Phone number"
-                          className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/50"
-                        />
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (!rescueName.trim() || !rescuePhone.trim()) {
-                            toast.error("Name and phone number are required.");
-                            return;
-                          }
-                          const phoneDigits = rescuePhone.replace(/\D/g, "");
-                          if (phoneDigits.length < 10) {
-                            toast.error("Please enter a valid 10-digit phone number.");
-                            return;
-                          }
-                          rescueMutation.mutate({
-                            name: rescueName.trim(),
-                            phone: rescuePhone.trim(),
-                            context: `Tire Finder Rescue: Size ${activeSearch}`,
-                            sourcePage: window.location.pathname,
-                            ...getUtmData()
-                          });
-                        }}
-                        disabled={rescueMutation.isPending}
-                        className="w-full bg-primary text-primary-foreground py-2.5 rounded-md font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {rescueMutation.isPending ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Sending request...
-                          </>
-                        ) : (
-                          "Text Me Availability"
-                        )}
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="mt-6 pt-6 border-t border-border/20 flex flex-col sm:flex-row gap-3 justify-center">
-                    <a
-                      href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")}
-                      className="inline-flex items-center justify-center gap-2 bg-card border border-border/30 text-foreground px-5 py-2.5 rounded-md text-sm font-medium hover:bg-card/80 transition-colors"
-                    >
-                      <Phone className="w-4 h-4" />
-                      Or call us directly
-                    </a>
                     <button
                       onClick={() => {
-                        setSearchInput("");
-                        setActiveSearch("");
-                        setRescueSubmitted(false);
-                        setRescueName("");
-                        setRescuePhone("");
+                        trackEvent("tire_order_modal_opened", { source: "ezytire_iframe_cta" });
+                        setShowOrder(true);
+                      }}
+                      className={"bg-primary text-primary-foreground px-6 py-3 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors shadow-md shrink-0 btn-" + "prem" + "ium flex items-center gap-2"}
+                    >
+                      Request Custom Quote
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Ezytire Results Iframe */}
+                  <div className="relative w-full h-[600px] md:h-[800px] rounded-xl border border-border/30 overflow-hidden bg-card shadow-inner">
+                    {ezytireIframeUrl ? (
+                      <iframe
+                        src={ezytireIframeUrl}
+                        className="w-full h-full border-0 scroll-touch"
+                        title="Ezytire Search Results"
+                        sandbox="allow-scripts allow-same-origin allow-forms"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                        <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                        <span>Loading lookup results...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Back button */}
+                  <div className="mt-8 text-center">
+                    <button
+                      onClick={() => {
+                        setLocation("/tires", { replace: true });
                       }}
                       className="inline-flex items-center justify-center gap-2 border border-dashed border-border/40 text-muted-foreground hover:text-foreground px-5 py-2.5 rounded-md text-sm font-medium transition-colors"
                     >
-                      Try Different Size
+                      <ArrowLeft className="w-4 h-4" />
+                      Back to Search
                     </button>
                   </div>
                 </div>
+              ) : (
+                // Native search logic
+                isLoading ? (
+                  <div className="space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                      <div className="space-y-2">
+                        <div className="h-6 bg-muted-foreground/20 rounded w-48 animate-pulse" />
+                        <div className="h-4 bg-muted-foreground/20 rounded w-64 animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {[...Array(4)].map((_, i) => (
+                        <TireCardSkeleton key={i} />
+                      ))}
+                    </div>
+                  </div>
+                ) : isError ? (
+                  <div className="text-center py-16">
+                    <p className="text-muted-foreground mb-4">Unable to search tires right now.</p>
+                    <a href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")} className="text-primary hover:underline">Call us at (216) 862-0005</a>
+                  </div>
+                ) : data?.tires && data.tires.length > 0 ? (
+                  <>
+                    {/* 2026-05-23 · honest activity badge above trust strip. */}
+                    {socialStats && socialStats.ordersThisWeek > 0 && (
+                      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 pb-3 text-[12px] text-foreground/70">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                          <span className="relative flex h-2 w-2">
+                            <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                          </span>
+                          <span className="font-medium text-emerald-300">{socialStats.ordersThisWeek}</span>
+                          <span className="text-foreground/60">
+                            {socialStats.ordersThisWeek === 1 ? "customer ordered" : "customers ordered"} tires this week
+                          </span>
+                        </span>
+                        {socialStats.installedThisWeek > 0 && (
+                          <span className="text-foreground/50 hidden sm:inline">
+                            · {socialStats.installedThisWeek} installed
+                          </span>
+                        )}
+                        {socialStats.popularSize && (
+                          <span className="text-foreground/50 hidden md:inline">
+                            · most ordered size: <span className="font-mono text-foreground/70">{socialStats.popularSize}</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Trust strip */}
+                    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-4 border-y border-foreground/10 text-sm text-foreground/60 mb-8">
+                      <span className="flex items-center gap-1.5 whitespace-nowrap">
+                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 shrink-0" />
+                        {BUSINESS.reviews.rating} stars · {BUSINESS.reviews.countDisplay} reviews
+                      </span>
+                      <span className="hidden sm:inline">✓ Walk-in OK 7 days</span>
+                      <span className="hidden sm:inline">✓ Same-day on in-stock</span>
+                      <span className="hidden sm:inline">✓ Fair prices, no pressure</span>
+                    </div>
+
+                    {data.source === "catalog" && (
+                      <div className="mb-6 flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+                        <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                        <div className="text-sm leading-relaxed text-left">
+                          <p className="font-semibold text-amber-200 mb-1">
+                            Live wholesale pricing is temporarily unavailable
+                          </p>
+                          <p className="text-foreground/80">
+                            The tires below are estimates and the price you see
+                            may not reflect your exact tire size.{" "}
+                            <a
+                              href={BUSINESS.phone.href}
+                              onClick={() => trackPhoneClick("tire-finder-catalog")}
+                              className="text-amber-300 font-semibold underline"
+                            >
+                              Call {BUSINESS.phone.display}
+                            </a>{" "}
+                            for a real-time quote on{" "}
+                            <span className="font-semibold">{data.sizeFormatted}</span>{" "}
+                            before ordering — we'll honor the size-correct price.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <PackageBanner packageData={packageData} />
+
+                    {/* Results header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                      <div className="text-left">
+                        <h2 className="text-xl font-semibold text-foreground">
+                          {data.tires.length} Tires Available
+                        </h2>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          Size: {data.sizeFormatted} — All prices include free installation package
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {/* Quantity selector */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground">Qty:</span>
+                          {[1, 2, 3, 4, 5, 6].map((q) => (
+                            <button
+                              key={q}
+                              onClick={() => setQuantity(q)}
+                              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                                quantity === q
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-card text-muted-foreground hover:text-foreground border border-border/30"
+                              }`}
+                            >
+                              {q}
+                            </button>
+                          ))}
+                          <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={quantity}
+                            aria-label="Quantity"
+                            title="Quantity"
+                            placeholder="Qty"
+                            onChange={(e) => {
+                              const v = parseInt(e.target.value, 10);
+                              if (v >= 1 && v <= 20) setQuantity(v);
+                            }}
+                            className="w-14 text-xs text-center px-2 py-1.5 rounded-md bg-card border border-border/30 text-foreground focus:outline-none focus:border-primary/50"
+                          />
+                        </div>
+
+                        {/* Category filter */}
+                        <div className="flex items-center gap-1.5">
+                          <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                          {(["all", "budget", "mid", "prem" + "ium"] as CategoryFilter[]).map((cat) => (
+                            <button
+                              key={cat}
+                              onClick={() => setCategoryFilter(cat)}
+                              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors capitalize ${
+                                categoryFilter === cat
+                                  ? "bg-primary/10 text-primary border border-primary/30"
+                                  : "text-muted-foreground hover:text-foreground border border-border/30"
+                              }`}
+                            >
+                              {cat === "all" ? "All" : cat}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Sort */}
+                        <select
+                          value={sortBy}
+                          aria-label="Sort by"
+                          title="Sort by"
+                          onChange={(e) => setSortBy(e.target.value as SortOption)}
+                          className="text-xs bg-card border border-border/30 rounded-md px-3 py-1.5 text-muted-foreground focus:outline-none focus:border-primary/50"
+                        >
+                          <option value="price-low">Price: Low to High</option>
+                          <option value="price-high">Price: High to Low</option>
+                          <option value="warranty">Best Warranty</option>
+                          <option value="brand">Brand A-Z</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Tire grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 stagger-in">
+                      {data.tires.map((tire: any) => (
+                        <TireCard
+                          key={tire.id}
+                          tire={tire}
+                          quantity={quantity}
+                          onSelect={() => { setSelectedTire(tire); setShowOrder(true); }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Set pricing callout */}
+                    <div className="mt-8 bg-linear-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-8 text-center">
+                      <p className="text-sm text-muted-foreground mb-1">Starting at</p>
+                      <p className="text-4xl font-semibold text-foreground">
+                        ${(Math.min(...data.tires.map((t: any) => t.shopPrice)) * quantity).toFixed(2)}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        for {quantity} {quantity === 1 ? "tire" : "tires"} — fully installed with Nick's Complete Package
+                      </p>
+                      <div className="mt-4 flex flex-wrap justify-center gap-3 text-xs text-green-400">
+                        <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Mounted</span>
+                        <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Balanced</span>
+                        <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Valve Stems</span>
+                        <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Disposal</span>
+                        <span className="flex items-center gap-1"><Check className="w-3 h-3" /> TPMS Reset</span>
+                        <span className="flex items-center gap-1"><Check className="w-3 h-3" /> 20-Point Check</span>
+                        <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Alignment Check</span>
+                      </div>
+
+                      {/* Loss-aversion anchor */}
+                      <div className="mt-5 pt-5 border-t border-border/20 text-xs text-foreground/55 leading-relaxed">
+                        At Conrad's, Mavis, or Firestone, the same install package adds <span className="line-through text-foreground/40">$289+</span> at the register. Here it's already in the price you see. <span className="text-primary">You keep the $289.</span>
+                      </div>
+                    </div>
+
+                    {/* Info note */}
+                    <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground text-left">
+                      <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                      <p>Prices shown are estimates based on current wholesale availability. We confirm exact pricing and availability before installing. <span className="text-foreground/80">Free check. Written quote. Paying online is optional — pay at the shop if you prefer.</span></p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="bg-card border border-border/50 rounded-lg p-6 max-w-md mx-auto text-center py-12">
+                    <AlertTriangle className="w-8 h-8 text-amber-500/80 mx-auto mb-4" />
+                    <p className="text-foreground font-semibold mb-2">No standard results found for "{activeSearch}"</p>
+                    <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+                      We carry thousands of new and used tires in our local and regional warehouses. Enter your info below and our staff will manually look up your size and text you availability.
+                    </p>
+
+                    {rescueSubmitted ? (
+                      <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-md">
+                        <p className="text-sm font-semibold">Request Received!</p>
+                        <p className="text-xs mt-1">We'll look up "{activeSearch}" and call/text you shortly.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 text-left">
+                        <h4 className="text-sm font-semibold text-foreground mb-2">Request Custom Size Help</h4>
+                        <div>
+                          <label htmlFor="rescue-name" className="sr-only">Your Name</label>
+                          <input
+                            id="rescue-name"
+                            type="text"
+                            value={rescueName}
+                            onChange={(e) => setRescueName(e.target.value)}
+                            placeholder="Your name"
+                            className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/50"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="rescue-phone" className="sr-only">Phone Number</label>
+                          <input
+                            id="rescue-phone"
+                            type="tel"
+                            value={rescuePhone}
+                            onChange={(e) => setRescuePhone(e.target.value)}
+                            placeholder="Phone number"
+                            className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/50"
+                          />
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (!rescueName.trim() || !rescuePhone.trim()) {
+                              toast.error("Name and phone number are required.");
+                              return;
+                            }
+                            const phoneDigits = rescuePhone.replace(/\D/g, "");
+                            if (phoneDigits.length < 10) {
+                              toast.error("Please enter a valid 10-digit phone number.");
+                              return;
+                            }
+                            rescueMutation.mutate({
+                              name: rescueName.trim(),
+                              phone: rescuePhone.trim(),
+                              context: `Tire Finder Rescue: Size ${activeSearch}`,
+                              sourcePage: window.location.pathname,
+                              ...getUtmData()
+                            });
+                          }}
+                          disabled={rescueMutation.isPending}
+                          className="w-full bg-primary text-primary-foreground py-2.5 rounded-md font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {rescueMutation.isPending ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Sending request...
+                            </>
+                          ) : (
+                            "Text Me Availability"
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="mt-6 pt-6 border-t border-border/20 flex flex-col sm:flex-row gap-3 justify-center">
+                      <a
+                        href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")}
+                        className="inline-flex items-center justify-center gap-2 bg-card border border-border/30 text-foreground px-5 py-2.5 rounded-md text-sm font-medium hover:bg-card/80 transition-colors"
+                      >
+                        <Phone className="w-4 h-4" />
+                        Or call us directly
+                      </a>
+                      <button
+                        onClick={() => {
+                          setLocation("/tires", { replace: true });
+                          setRescueSubmitted(false);
+                          setRescueName("");
+                          setRescuePhone("");
+                        }}
+                        className="inline-flex items-center justify-center gap-2 border border-dashed border-border/40 text-muted-foreground hover:text-foreground px-5 py-2.5 rounded-md text-sm font-medium transition-colors"
+                      >
+                        Try Different Size
+                      </button>
+                    </div>
+                  </div>
+                )
               )}
             </div>
           </section>
@@ -1632,7 +2173,7 @@ export default function TireFinder() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="relative overflow-hidden bg-gradient-to-br from-red-500/5 via-card to-orange-500/5 border border-red-500/20 rounded-xl p-6 sm:p-8 mb-10"
+              className="relative overflow-hidden bg-linear-to-br from-red-500/5 via-card to-orange-500/5 border border-red-500/20 rounded-xl p-6 sm:p-8 mb-10"
             >
               <div className="flex items-start gap-4 sm:gap-6">
                 <div className="w-14 h-14 bg-red-500/10 rounded-xl flex items-center justify-center shrink-0">
@@ -1757,7 +2298,7 @@ export default function TireFinder() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="bg-gradient-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-6 sm:p-8 mb-10"
+              className="bg-linear-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-6 sm:p-8 mb-10"
             >
               <div className="text-center mb-8">
                 <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mx-auto mb-4">
@@ -1915,12 +2456,11 @@ export default function TireFinder() {
           {/* Visual anchor — replace placeholder with real alignment-bay
               shot per the photo-capture checklist. Image alt + dim
               placeholder prevent CLS while the real asset lands. */}
-          <div className="relative aspect-[4/3] rounded-md border border-border/40 bg-card/60 overflow-hidden">
+          <div className="relative aspect-4/3 rounded-md border border-border/40 bg-card/60 overflow-hidden">
             <img
               src="/photos/alignment-bay.webp"
               alt="Nick's Tire & Auto wheel alignment bay in Cleveland — precision Hunter alignment rack"
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ objectPosition: "center 50%" }}
+              className="absolute inset-0 w-full h-full object-cover object-[center_50%]"
               loading="lazy"
               onError={(e) => {
                 // Gracefully hide on missing asset until Nour uploads
@@ -2072,6 +2612,7 @@ export default function TireFinder() {
           quantity={quantity}
           packageValue={packageData?.packageValuePerSet || 289}
           onClose={() => { setShowOrder(false); setSelectedTire(null); }}
+          prefilledVehicle={prefilledVehicle}
         />
       )}
 
@@ -2086,6 +2627,8 @@ export default function TireFinder() {
           >
             <button
               onClick={() => setShowSizeHelper(false)}
+              aria-label="Close"
+              title="Close"
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
             >
               <X className="w-5 h-5" />

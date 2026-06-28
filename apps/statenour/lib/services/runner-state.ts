@@ -113,7 +113,7 @@ export type CaptureInboxItemView = {
   metadata: Record<string, unknown>;
 };
 
-const DEFAULT_SERVICE_ORDER = ["launcher", "app", "runner", "repair_supervisor", "upgrade_runner", "venice", "ale", "capture", "network"] as const;
+const DEFAULT_SERVICE_ORDER = ["launcher", "app", "runner", "repair_supervisor", "upgrade_runner", "ale", "capture", "network"] as const;
 const DEFAULT_INTEGRATION_ORDER = ["ale_session", "ale_refresh", "capture_sync"] as const;
 const LOCAL_STATUS_SNAPSHOT_PATH = "C:\\NOUR_OS\\state\\status_snapshot.json";
 
@@ -234,7 +234,6 @@ function degradedSnapshot(detail: string): SystemHealthSnapshot {
           app: emptyService("app", "ready", "Public control plane is serving cached-safe surfaces.", ""),
           runner: emptyService("runner", "degraded", "Local worker plane heartbeat is unavailable.", "Run Start NOUR OS to restore the local worker plane."),
           upgrade_runner: emptyService("upgrade_runner", "degraded", "Night Shift has not reported yet.", "Run or verify the Night Shift controller."),
-          venice: emptyService("venice", "ready", "Venice AI — cloud provider, always available.", ""),
           ale: emptyService("ale", "degraded", "Recovery cache cannot refresh while the data plane is degraded.", "Restore database connectivity, then refresh ALE."),
           capture: emptyService("capture", "degraded", "Capture inbox cannot refresh while the data plane is degraded.", "Restore database connectivity, then rerun the local runner."),
           network: emptyService("network", "degraded", "Mobile and remote URLs may be stale.", "Check the latest runner heartbeat.")
@@ -677,7 +676,7 @@ export async function getSystemHealthSnapshot(): Promise<SystemHealthSnapshot> {
   }
 
   try {
-    const [snapshot, serviceRows, integrationRows, recoveryRows, runnerNode, captureCount] = await Promise.all([
+    const [snapshot, serviceRows, integrationRows, runnerNode, captureCount] = await Promise.all([
       prisma.systemSnapshot.findUnique({
         where: { scope: "global" }
       }),
@@ -694,13 +693,6 @@ export async function getSystemHealthSnapshot(): Promise<SystemHealthSnapshot> {
             in: [...DEFAULT_INTEGRATION_ORDER]
           }
         }
-      }),
-      prisma.stagedRecoveryItem.findMany({
-        where: {
-          status: "open"
-        },
-        orderBy: [{ priorityScore: "desc" }, { updatedAt: "desc" }],
-        take: 5
       }),
       prisma.runnerNode.findFirst({
         orderBy: {
@@ -767,17 +759,8 @@ export async function getSystemHealthSnapshot(): Promise<SystemHealthSnapshot> {
       services,
       integrations,
       recovery: {
-        open_count: snapshot?.recoveryOpenCount ?? recoveryRows.length,
-        top_items: recoveryRows.map((row) => ({
-          entity_key: row.entityKey,
-          source: row.source,
-          title: row.title,
-          summary: row.summary,
-          priority_score: row.priorityScore,
-          status: row.status,
-          payload: (row.payload as Record<string, unknown>) || {},
-          updated_at: row.updatedAt.toISOString()
-        }))
+        open_count: snapshot?.recoveryOpenCount ?? 0,
+        top_items: []
       }
     };
   } catch (error) {
@@ -863,12 +846,7 @@ export async function getAleRecoverySnapshot(): Promise<AleRecoverySnapshot> {
   }
 
   try {
-    const [items, refresh] = await Promise.all([
-      prisma.stagedRecoveryItem.findMany({
-        where: { source: "ale_recent", status: "open" },
-        orderBy: [{ priorityScore: "desc" }, { updatedAt: "desc" }],
-        take: 20
-      }),
+    const [refresh] = await Promise.all([
       prisma.serviceHealth.findUnique({ where: { serviceKey: "ale_refresh" } })
     ]);
 
@@ -879,19 +857,10 @@ export async function getAleRecoverySnapshot(): Promise<AleRecoverySnapshot> {
       session_ready: Boolean(metadata.session_ready),
       final_url: typeof metadata.final_url === "string" ? metadata.final_url : undefined,
       final_title: typeof metadata.final_title === "string" ? metadata.final_title : undefined,
-      item_count: items.length,
+      item_count: 0,
       generated_at: refresh?.checkedAt.toISOString() || "",
       source: "ale_recent",
-      items: items.map((row) => ({
-        entity_key: row.entityKey,
-        source: row.source,
-        title: row.title,
-        summary: row.summary,
-        priority_score: row.priorityScore,
-        status: row.status,
-        payload: (row.payload as Record<string, unknown>) || {},
-        updated_at: row.updatedAt.toISOString()
-      }))
+      items: []
     };
   } catch (error) {
     return {
@@ -1077,74 +1046,9 @@ export async function replaceRecoverySnapshot(
     return;
   }
 
-  const runnerNode = options?.nodeKey
-    ? await prisma.runnerNode.findUnique({
-        where: { nodeKey: options.nodeKey }
-      })
-    : null;
+  // StagedRecoveryItem model removed — no-op
+  return;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.stagedRecoveryItem.deleteMany({
-      where: {
-        source: payload.source
-      }
-    });
-
-    if (payload.items.length > 0) {
-      await tx.stagedRecoveryItem.createMany({
-        data: payload.items.map((item) => ({
-          entityKey: item.entity_key,
-          source: item.source,
-          title: item.title,
-          summary: item.summary,
-          priorityScore: item.priority_score,
-          status: item.status,
-          payload: asJsonValue(item.payload || {}),
-          updatedAt: parseDate(item.updated_at) || new Date(),
-          generatedAt: parseDate(payload.generated_at) || new Date()
-        }))
-      });
-    }
-
-    await tx.serviceHealth.upsert({
-      where: { serviceKey: "ale_refresh" },
-      update: {
-        service: "ale_refresh",
-        status: toState(payload.status),
-        detail: payload.detail || "ALE refresh completed.",
-        recoveryAction: payload.session_ready ? "" : "Restore the ALE session and refresh again.",
-        checkedAt: parseDate(payload.generated_at) || new Date(),
-        lastSuccessAt: payload.status === "ready" || payload.status === "applied" ? parseDate(payload.generated_at) || new Date() : undefined,
-        lastFailureAt: payload.status === "failed" ? parseDate(payload.generated_at) || new Date() : undefined,
-        metadata: asJsonValue({
-          item_count: payload.item_count,
-          final_url: payload.final_url,
-          final_title: payload.final_title,
-          session_ready: payload.session_ready,
-          source: payload.source
-        }),
-        runnerNodeId: runnerNode?.id
-      },
-      create: {
-        serviceKey: "ale_refresh",
-        service: "ale_refresh",
-        status: toState(payload.status),
-        detail: payload.detail || "ALE refresh completed.",
-        recoveryAction: payload.session_ready ? "" : "Restore the ALE session and refresh again.",
-        checkedAt: parseDate(payload.generated_at) || new Date(),
-        lastSuccessAt: payload.status === "ready" || payload.status === "applied" ? parseDate(payload.generated_at) || new Date() : null,
-        lastFailureAt: payload.status === "failed" ? parseDate(payload.generated_at) || new Date() : null,
-        metadata: asJsonValue({
-          item_count: payload.item_count,
-          final_url: payload.final_url,
-          final_title: payload.final_title,
-          session_ready: payload.session_ready,
-          source: payload.source
-        }),
-        runnerNodeId: runnerNode?.id
-      }
-    });
-  });
 }
 
 export async function replaceCaptureInbox(
@@ -1441,60 +1345,15 @@ export async function completeWorkItem(input: {
       }
     });
 
-    const result = await tx.workResult.upsert({
-      where: { workItemId: input.workItemId },
-      update: {
-        status: mappedStatus,
-        payload: input.payload ? asJsonValue(input.payload) : undefined,
-        errorCode: input.errorCode || undefined,
-        errorMessage: input.errorMessage || undefined,
-        completedAt: new Date()
-      },
-      create: {
-        workItemId: input.workItemId,
-        status: mappedStatus,
-        payload: input.payload ? asJsonValue(input.payload) : undefined,
-        errorCode: input.errorCode || undefined,
-        errorMessage: input.errorMessage || undefined
-      }
-    });
+    // WorkResult model removed — no-op
+    const result = null;
 
     return { workItem, result };
   });
 }
 
 export async function waitForWorkItemResult<T>(workItemId: string, timeoutMs = 8500, pollMs = 350): Promise<WorkRequestResult<T>> {
-  if (isDemoMode) {
-    return {
-      kind: "processing",
-      workItemId
-    };
-  }
-
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const result = await prisma.workResult.findUnique({
-      where: { workItemId }
-    });
-    if (result?.status === WorkItemStatus.COMPLETED) {
-      return {
-        kind: "completed",
-        workItemId,
-        payload: (result.payload as T) || ({} as T)
-      };
-    }
-    if (result?.status === WorkItemStatus.FAILED) {
-      return {
-        kind: "failed",
-        workItemId,
-        errorCode: result.errorCode,
-        errorMessage: result.errorMessage
-      };
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, pollMs));
-  }
-
+  // WorkResult model removed — no-op
   return {
     kind: "processing",
     workItemId
@@ -1502,33 +1361,7 @@ export async function waitForWorkItemResult<T>(workItemId: string, timeoutMs = 8
 }
 
 export async function getWorkItemResult<T>(workItemId: string): Promise<WorkRequestResult<T>> {
-  if (isDemoMode) {
-    return {
-      kind: "processing",
-      workItemId
-    };
-  }
-
-  const result = await prisma.workResult.findUnique({
-    where: { workItemId }
-  });
-  if (result?.status === WorkItemStatus.COMPLETED) {
-    return {
-      kind: "completed",
-      workItemId,
-      payload: (result.payload as T) || ({} as T)
-    };
-  }
-
-  if (result?.status === WorkItemStatus.FAILED) {
-    return {
-      kind: "failed",
-      workItemId,
-      errorCode: result.errorCode,
-      errorMessage: result.errorMessage
-    };
-  }
-
+  // WorkResult model removed — no-op
   return {
     kind: "processing",
     workItemId

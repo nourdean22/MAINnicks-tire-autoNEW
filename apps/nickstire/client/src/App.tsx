@@ -21,9 +21,9 @@ import { SkipToContent } from "@/components/SEO";
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
   return (
-    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
+    <div className="min-h-screen bg-nick-dark flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 border-2 border-[#FDB913] border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-2 border-nick-yellow border-t-transparent rounded-full animate-spin" />
         <span className="text-[#A0A0A0] text-sm tracking-wider">
           LOADING...
         </span>
@@ -42,8 +42,7 @@ import Home from "./pages/Home";
 // which reads shared/services.ts and renders via FocusedServicePage.
 const GenericServicePage = lazy(() => import("./pages/GenericServicePage"));
 const Admin = lazy(() => import("./pages/Admin"));
-const AdminIgCarouselStudio = lazy(() => import("./pages/admin/IgCarouselStudio"));
-const AdminFacelessReelStudio = lazy(() => import("./pages/admin/FacelessReelStudio"));
+
 const AdminAdStudio = lazy(() => import("./pages/admin/AdStudio"));
 const Blog = lazy(() => import("./pages/Blog"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
@@ -153,9 +152,11 @@ function Router() {
   // wouldn't match /admin. Redirect uppercase paths to their lowercase
   // equivalents while preserving query string.
   useEffect(() => {
-    if (location !== location.toLowerCase()) {
-      const lower = location.toLowerCase();
-      setLocation(lower, { replace: true });
+    const [path] = location.split("?");
+    if (path !== path.toLowerCase()) {
+      const lowerPath = path.toLowerCase();
+      const search = typeof window !== "undefined" ? window.location.search : "";
+      setLocation(lowerPath + search, { replace: true });
     }
   }, [location, setLocation]);
 
@@ -252,8 +253,8 @@ function Router() {
             {/* Admin dashboard */}
             <Route path={"/admin"} component={Admin} />
             <Route path={"/admin/content"}>{() => <Redirect to="/admin?tab=content" />}</Route>
-            <Route path={"/admin/ig-studio"} component={AdminIgCarouselStudio} />
-            <Route path={"/admin/reel-studio"} component={AdminFacelessReelStudio} />
+            <Route path={"/admin/ig-studio"}>{() => <Redirect to="/admin?tab=instagram&sub=studio" />}</Route>
+            <Route path={"/admin/reel-studio"}>{() => <Redirect to="/admin?tab=instagram&sub=studio" />}</Route>
             <Route path={"/admin/ad-studio"} component={AdminAdStudio} />
             {/* City-specific landing pages for local SEO */}
             <Route path={"/cleveland-auto-repair"} component={CityPage} />

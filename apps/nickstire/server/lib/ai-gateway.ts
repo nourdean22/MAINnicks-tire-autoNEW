@@ -244,7 +244,6 @@ let lastRequestAt: number | null = null;
 type DailyStats = {
   date: string; // YYYY-MM-DD in ET
   total: number;
-  venice: number;
   openai: number;
   failures: number;
   fallbacks: number;
@@ -265,7 +264,7 @@ function getTodayET(): string {
 }
 
 function makeDailyStats(): DailyStats {
-  return { date: getTodayET(), total: 0, venice: 0, openai: 0, failures: 0, fallbacks: 0 };
+  return { date: getTodayET(), total: 0, openai: 0, failures: 0, fallbacks: 0 };
 }
 
 function ensureDailyReset() {

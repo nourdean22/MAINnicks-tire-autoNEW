@@ -1,0 +1,49 @@
+# Camera Bridge Agent Configuration
+
+mqtt:
+  host: "localhost"
+  port: 1883
+  topic: "frigate/events"
+
+detection:
+  minConfidence: 0.65
+  minDwellSeconds: 2
+  labels:
+    - "car"
+    - "truck"
+    - "motorcycle"
+    - "bus"
+  # Zones defined in Frigate config.yml
+  zones:
+    - "front_lot"
+    - "bay_entrance"
+
+backend:
+  # The endpoint URL of Statenour-OS
+  ingestUrl: "https://bdnick.info/api/devices/v380-shopsign/events"
+  # Name of environment variable containing the authentication sync key
+  authEnv: "STATENOUR_SYNC_KEY"
+  timeoutSeconds: 8
+  retryAttempts: 3
+
+storage:
+  enabled: true
+  # Snapshots and crops are saved in these subfolders relative to the storage path
+  storagePath: "./storage"
+  maxLocalGb: 5
+  snapshotRetentionDays: 7
+  plateCropRetentionDays: 14
+  maxPendingEvents: 500
+  cleanupEveryMinutes: 30
+
+plateCapture:
+  # Enabled/disabled. If true, runs the chosen ALPR adapter
+  enabled: true
+  # Mode: best_effort or strict
+  mode: "best_effort"
+  # ALPR provider adapter: "disabled", "mock", "plate_recognizer", "easyocr"
+  provider: "mock"
+  minConfidence: 0.55
+  confirmConfidence: 0.80
+  # Plate Recognizer API token (if using that adapter)
+  apiToken: ""

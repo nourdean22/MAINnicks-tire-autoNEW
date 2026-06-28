@@ -1,5 +1,5 @@
 import { streamText, stepCountIs } from "ai";
-import { getModel, getActiveProviderInfo, type ProviderName, type TaskType } from "@/lib/ai/provider";
+import { getModel, getActiveProviderInfo, isRuntimeProvider, type ProviderName, type TaskType } from "@/lib/ai/provider";
 import { buildSystemPrompt, detectTopicTier } from "@/lib/ai/system-prompt";
 import { detectQueryShape } from "@/lib/ai/query-shape";
 import { classifyTurn } from "@/lib/ai/turn-intelligence";
@@ -203,8 +203,17 @@ async function chatPostInner(req: Request) {
   const __partialRef = { text: "" };
   let recalledHits: any[] = [];
   let detectedContradictions: any[] = [];
-  // Provider override is tracked for logging + future provider switcher.
-  void providerOverride;
+  // Validate the per-request provider override against the runtime list
+  // (rejects retired `venice` + anything unsupported). A valid value is
+  // honored at the getModel call below — UNLESS a tool-mandatory force
+  // (python-execute / action intent) is active, which must win for
+  // tool_choice correctness. See the getModel call site.
+  const validatedProviderOverride = isRuntimeProvider(providerOverride)
+    ? providerOverride
+    : undefined;
+  if (providerOverride && !validatedProviderOverride) {
+    log.warn("provider_override_rejected", { requested: providerOverride });
+  }
 
   // ═══ PERF: Chat mode detection (with overrides) ═══
   // Three-layer priority for mode:
@@ -363,6 +372,7 @@ async function chatPostInner(req: Request) {
       })();
 
   let model: ReturnType<typeof getModel>;
+  let effectiveForce: ProviderName | undefined = undefined;
   try {
     // Apr 28 · Tag-team Venice + Ollama Cloud. When the prompt is in
     // content-mode (heavy v5.0 engine, ~70-100kc), prefer Ollama's
@@ -380,22 +390,31 @@ async function chatPostInner(req: Request) {
     // this push, so the override now lands on ollama for python-
     // execute turns. Strict tool_choice + qwen3 = tool fires
     // reliably + free tier covers our usage + 1M context window.
+    // Precedence: (1) tool-mandatory force (python-execute / action intent)
+    // pins ollama for strict tool_choice — ALWAYS wins; (2) a validated
+    // per-request user override; (3) default task ordering. toolMandatoryForce
+    // is the literal "ollama" (never nullish) when an intent is active, so
+    // `??` can never let the user override clobber the tool force. Do NOT
+    // replace `??` with a naive merge.
+    const toolMandatoryForce =
+      __pythonExecuteIntent || __actionIntent ? ("ollama" as const) : undefined;
+    effectiveForce = toolMandatoryForce ?? validatedProviderOverride;
     model = getModel(finalTaskType, {
       preferLargeContext: finalPreferLargeContext,
-      ...(__pythonExecuteIntent || __actionIntent
-        ? { forceProviderFirst: "ollama" as const }
-        : {}),
+      ...(effectiveForce ? { forceProviderFirst: effectiveForce } : {}),
     });
-    if (__pythonExecuteIntent || __actionIntent) {
+    if (toolMandatoryForce) {
       log.info("tool_provider_override", {
         forced: "ollama",
         reason: __pythonExecuteIntent ? "python_execute" : "action_intent",
       });
+    } else if (validatedProviderOverride) {
+      log.info("user_provider_override", { forced: validatedProviderOverride });
     }
   } catch (err) {
     recordError("chat:request", err, { reason: "no_provider" });
     return Response.json(
-      { error: "Nick AI is not available right now. No AI provider configured. Set VENICE_API_KEY, OLLAMA_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY." },
+      { error: "Nick AI is not available right now. No AI provider configured. Set OLLAMA_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY." },
       { status: 503 }
     );
   }
@@ -1086,19 +1105,69 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           } catch {
             /* snapshot is best-effort — proceed without it */
           }
-          const { reasonStreaming } = await import("@/lib/ai/reasoning/engine");
-          const reasoning = await reasonStreaming(
-            {
+
+          const __altPersist = buildOnFinish({
+            log,
+            convId,
+            conversationId,
+            provider,
+            modelId,
+            model,
+            mode,
+            modeOverride,
+            personality,
+            contentMode,
+            finalSystemPrompt,
+            systemPrompt,
+            finalTaskType,
+            userContent,
+            turnSignal,
+            contextBlocksFired,
+            deeperContextCount,
+            deeperContextTypes,
+            startedAt,
+            firstTokenRef: __firstTokenRef,
+            traceId: __traceId,
+            recordTrace,
+            messages,
+            topicTier,
+          });
+
+          const { simulateReasoningStream } = await import(
+            "@/lib/ai/chat/simulate-stream-from-text"
+          );
+          const { buildChatResponse } = await import(
+            "@/lib/services/chat/response-shape"
+          );
+
+          const streamResponse = simulateReasoningStream({
+            request: {
               question: userContent,
               brainContext: (liveSnapshot + finalSystemPrompt).slice(0, 24000),
             },
-            () => {},
-          );
-          winner = reasoning.trace.answer ?? "";
-          log.info("deep_reasoning_path", {
-            tier: reasoning.tier,
-            intent: turnSignal.intent,
-            hadSnapshot: liveSnapshot.length > 0,
+            chunkSize: 24,
+            chunkDelayMs: 8,
+            onComplete: (finalWinner) => {
+              log.info("deep_reasoning_path_completed", { intent: turnSignal.intent, hadSnapshot: liveSnapshot.length > 0 });
+              return __altPersist({ text: finalWinner, finishReason: "stop" });
+            }
+          });
+
+          return buildChatResponse({
+            streamResponse,
+            convId: convId!,
+            traceId: __traceId,
+            mode,
+            modeOverride,
+            personality,
+            turnSignal,
+            deeperContextCount,
+            deeperContextTypes,
+            contextBlocksFired,
+            classification,
+            recalledMemories: recalledHits,
+            contradictions: detectedContradictions,
+            onFinishPromise: Promise.resolve(),
           });
         } else if (regenOn) {
           const { generateText } = await import("ai");
@@ -1256,180 +1325,189 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   const __sameTurnFallback = streamWithFallback({
     taskType: finalTaskType,
     preferLargeContext: finalPreferLargeContext,
-    buildConfig: (__fbModel) => (({
-      model: __fbModel,
-      // v10.0.446 · prompt-quality audit fix #1 · cacheControl wiring.
-      // When Anthropic is the active fallback provider, fold the
-      // system prompt into messages with `cacheControl: ephemeral`
-      // so the 8-12K-token system prompt gets the 90% Anthropic
-      // prompt-cache discount. Mirrors lib/ai/provider.ts:1007-1027
-      // (the aiChat path that judge + adversarial use). Venice /
-      // Ollama / OpenAI keep the legacy `system: string` form —
-      // Venice/Ollama have no server-side caching; OpenAI auto-
-      // caches prefixes ≥1024 tokens regardless of message shape.
-      ...(inferProviderName(__fbModel) === "anthropic"
-        ? {
-            messages: [
-              {
-                role: "system" as const,
-                content: finalSystemPrompt,
-                providerOptions: {
-                  anthropic: { cacheControl: { type: "ephemeral" } },
-                },
-              },
-              ...(sanitizedModelMessages as readonly unknown[]),
-            ] as Parameters<typeof streamText>[0]["messages"],
-          }
-        : {
-            system: finalSystemPrompt,
-            // v10.0.529.58 · use sanitized messages · strips
-            // item_reference parts that Ollama + Venice + OpenAI
-            // chat-completions endpoints reject.
-            messages: sanitizedModelMessages as Parameters<typeof streamText>[0]["messages"],
-          }),
-    // Tools enabled for ALL providers — Venice supports OpenAI-compatible function calling.
-    // Pruned by chat-mode for speed — see lib/ai/chat-mode.ts.
-    tools: prunedTools,
-    // Smooth the token stream for perceived-speed. See note above.
-    experimental_transform: smoothStream({ delayInMs: 10, chunking: "word" }),
-    // Standard allows 3 tool-call steps; deep allows 5 for agentic
-    // workflows. Keep step counts tight so a confused tool chain can't
-    // blow through the whole context budget.
-    stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
-    // Context-aware brevity cap — see block above.
-    ...(maxOutputTokens ? { maxOutputTokens } : {}),
-    // Apr 19 · Adaptive temperature from the turn classifier.
-    // factual/procedural turns run tight (0.2-0.25), creative/emotional
-    // warm (0.6-0.75), casual middle (0.5). Overrides the provider
-    // default per request without touching provider config.
-    temperature: turnSignal.temperature,
-    // v10.0.175 · proactive tool forcing. Pre-classify the user's
-    // message: if it's clearly an action request ("add this task",
-    // "send the email", "schedule a follow-up"), pass toolChoice:
-    // "required" to remove the option to narrate. The model must
-    // call SOME tool — fabrication-by-narration becomes structurally
-    // impossible. Questions ("what tasks do I have?") fall through
-    // to the default `auto` so reads stay flexible.
-    //
-    // v10.0.520 · SPECIFIC tool forcing for python execution. The
-    // 2026-05-12 Chrome smoke test showed venice-uncensored has a
-    // strong training bias to WRITE python code text instead of
-    // calling runPython · even with an imperative tool description.
-    // When the user clearly asks to execute python, force the
-    // model's hand with `toolChoice: { type: "tool", toolName:
-    // "runPython" }`. This bypasses the model's discretion entirely
-    // · the only choice left is what python code to pass.
-    //
-    // Same pattern available for any future "model declines to call
-    // a tool we WANT called" case · add another regex+toolName
-    // branch above the generic action-intent block.
-    ...(() => {
-      // Python-execute · most specific gate, checked first. Reuse the
-      // hoisted `__pythonExecuteIntent` (computed once for the provider
-      // force) so the detection regex lives in exactly one place — the
-      // two can never drift apart on a future edit.
-      if (__pythonExecuteIntent) {
-        log.info("python_execute_intent_detected", { surface: "chat" });
-        return {
-          toolChoice: {
-            type: "tool" as const,
-            toolName: "runPython" as const,
-          },
-        };
-      }
+    forceProviderFirst: effectiveForce,
+    buildConfig: (__fbModel) => {
+      const fbProvider = inferProviderName(__fbModel) ?? provider;
+      const fbModelId =
+        typeof __fbModel === "object" && __fbModel && "modelId" in __fbModel
+          ? String((__fbModel as { modelId?: unknown }).modelId)
+          : modelId;
 
-      // Reuse the hoisted detection (computed above for the provider
-      // force) — one detectActionIntent call drives both the provider
-      // pick AND toolChoice, so the two can never disagree.
-      const intent = __actionIntent;
-      if (intent) {
-        log.info("action_intent_detected", {
-          intent: intent.intent,
-          expectedTool: intent.expectedTool,
-        });
-        return { toolChoice: "required" as const };
-      }
-      return {};
-    })(),
-    // v10.0.446 · `messages:` (and `system:` for non-Anthropic) are
-    // now set by the conditional spread above. The Anthropic branch
-    // folds the system prompt into messages[0] with cacheControl
-    // ephemeral; the non-Anthropic branch keeps the legacy split
-    // form (system + messages separately).
-    // v7.6 · Apr 29 · ChatMessage Batch A · C2 — capture TTFT on the
-    // first chunk. Cheap closure: only fires once, then noops.
-    // v10.0.20 — also accumulate text into __partialRef.text so a
-    // mid-stream onError can persist the actual partial reply.
-    // v10.0.26 — narrowed to the actual AI SDK v6 TextStreamPart
-    // shape: text-delta chunks expose `text: string` (not `textDelta`).
-    // Verified against node_modules/ai/dist/index.d.ts:2601.
-    // v10.0.27 (decision) — only accumulate text-delta, NOT
-    // reasoning-delta. The graceful-degradation message should match
-    // what the user saw on screen; reasoning streams render in a
-    // separate collapsed UI region (or are hidden) so mixing it into
-    // the assistant content would diverge from the user's view at
-    // failure time.
-    onChunk: ((chunk: unknown) => {
-      if (__firstTokenRef.value === null) __firstTokenRef.value = Date.now();
-      const c = chunk as { chunk?: { type?: string; text?: string } };
-      const inner = c?.chunk;
-      if (inner?.type === "text-delta" && typeof inner.text === "string") {
-        __partialRef.text += inner.text;
-      }
-    }) as Parameters<typeof streamText>[0]["onChunk"],
-    // v9.1.22 · onError handler. Without this, a mid-stream provider
-    // error (Venice 5xx during streaming, Anthropic transient drop)
-    // causes onFinish to NEVER fire — meaning the partial assistant
-    // text streamed to the user's screen vanishes from history on
-    // next reload. Now we capture the partial text + error and write
-    // a placeholder ChatMessage so reload shows what happened.
-    // May 02 · chat-route extract chunk 4 · onError handler moved
-    // verbatim to lib/services/chat/stream-error-handler.ts. Factory
-    // returns the callback wired with the deps it needs (convId,
-    // model, traceId, partial-text ref, recordTrace).
-    onError: buildStreamErrorHandler({
-      convId,
-      conversationId,
-      model,
-      traceId: __traceId,
-      provider,
-      modelId,
-      startedAt,
-      partial: __partialRef,
-      log,
-      recordTrace,
-    }) as Parameters<typeof streamText>[0]["onError"],
-    // May 02 · chat-route extract chunk 5 · onFinish moved to
-    // lib/services/chat/persist-assistant-turn.ts. Factory pattern
-    // returns the callback wired with all post-stream deps.
-    onFinish: buildOnFinish({
-      log,
-      convId,
-      conversationId,
-      provider,
-      modelId,
-      model,
-      mode,
-      modeOverride,
-      personality,
-      contentMode,
-      finalSystemPrompt,
-      systemPrompt,
-      finalTaskType,
-      userContent,
-      turnSignal,
-      contextBlocksFired,
-      deeperContextCount,
-      deeperContextTypes,
-      startedAt,
-      firstTokenRef: __firstTokenRef,
-      traceId: __traceId,
-      recordTrace,
-      messages,
-      topicTier,
-      onWorkComplete: resolveOnFinish,
-    }) as Parameters<typeof streamText>[0]["onFinish"],
-  }) as never),
+      return ({
+        model: __fbModel,
+        // v10.0.446 · prompt-quality audit fix #1 · cacheControl wiring.
+        // When Anthropic is the active fallback provider, fold the
+        // system prompt into messages with `cacheControl: ephemeral`
+        // so the 8-12K-token system prompt gets the 90% Anthropic
+        // prompt-cache discount. Mirrors lib/ai/provider.ts:1007-1027
+        // (the aiChat path that judge + adversarial use). Venice /
+        // Ollama / OpenAI keep the legacy `system: string` form —
+        // Venice/Ollama have no server-side caching; OpenAI auto-
+        // caches prefixes ≥1024 tokens regardless of message shape.
+        ...(inferProviderName(__fbModel) === "anthropic"
+          ? {
+              messages: [
+                {
+                  role: "system" as const,
+                  content: finalSystemPrompt,
+                  providerOptions: {
+                    anthropic: { cacheControl: { type: "ephemeral" } },
+                  },
+                },
+                ...(sanitizedModelMessages as readonly unknown[]),
+              ] as Parameters<typeof streamText>[0]["messages"],
+            }
+          : {
+              system: finalSystemPrompt,
+              // v10.0.529.58 · use sanitized messages · strips
+              // item_reference parts that Ollama + Venice + OpenAI
+              // chat-completions endpoints reject.
+              messages: sanitizedModelMessages as Parameters<typeof streamText>[0]["messages"],
+            }),
+        // Tools enabled for ALL providers — Venice supports OpenAI-compatible function calling.
+        // Pruned by chat-mode for speed — see lib/ai/chat-mode.ts.
+        tools: prunedTools,
+        // Smooth the token stream for perceived-speed. See note above.
+        experimental_transform: smoothStream({ delayInMs: 10, chunking: "word" }),
+        // Standard allows 3 tool-call steps; deep allows 5 for agentic
+        // workflows. Keep step counts tight so a confused tool chain can't
+        // blow through the whole context budget.
+        stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
+        // Context-aware brevity cap — see block above.
+        ...(maxOutputTokens ? { maxOutputTokens } : {}),
+        // Apr 19 · Adaptive temperature from the turn classifier.
+        // factual/procedural turns run tight (0.2-0.25), creative/emotional
+        // warm (0.6-0.75), casual middle (0.5). Overrides the provider
+        // default per request without touching provider config.
+        temperature: turnSignal.temperature,
+        // v10.0.175 · proactive tool forcing. Pre-classify the user's
+        // message: if it's clearly an action request ("add this task",
+        // "send the email", "schedule a follow-up"), pass toolChoice:
+        // "required" to remove the option to narrate. The model must
+        // call SOME tool — fabrication-by-narration becomes structurally
+        // impossible. Questions ("what tasks do I have?") fall through
+        // to the default `auto` so reads stay flexible.
+        //
+        // v10.0.520 · SPECIFIC tool forcing for python execution. The
+        // 2026-05-12 Chrome smoke test showed venice-uncensored has a
+        // strong training bias to WRITE python code text instead of
+        // calling runPython · even with an imperative tool description.
+        // When the user clearly asks to execute python, force the
+        // model's hand with `toolChoice: { type: "tool", toolName:
+        // "runPython" }`. This bypasses the model's discretion entirely
+        // · the only choice left is what python code to pass.
+        //
+        // Same pattern available for any future "model declines to call
+        // a tool we WANT called" case · add another regex+toolName
+        // branch above the generic action-intent block.
+        ...(() => {
+          // Python-execute · most specific gate, checked first. Reuse the
+          // hoisted `__pythonExecuteIntent` (computed once for the provider
+          // force) so the detection regex lives in exactly one place — the
+          // two can never drift apart on a future edit.
+          if (__pythonExecuteIntent) {
+            log.info("python_execute_intent_detected", { surface: "chat" });
+            return {
+              toolChoice: {
+                type: "tool" as const,
+                toolName: "runPython" as const,
+              },
+            };
+          }
+
+          // Reuse the hoisted detection (computed above for the provider
+          // force) — one detectActionIntent call drives both the provider
+          // pick AND toolChoice, so the two can never disagree.
+          const intent = __actionIntent;
+          if (intent) {
+            log.info("action_intent_detected", {
+              intent: intent.intent,
+              expectedTool: intent.expectedTool,
+            });
+            return { toolChoice: "required" as const };
+          }
+          return {};
+        })(),
+        // v10.0.446 · `messages:` (and `system:` for non-Anthropic) are
+        // now set by the conditional spread above. The Anthropic branch
+        // folds the system prompt into messages[0] with cacheControl
+        // ephemeral; the non-Anthropic branch keeps the legacy split
+        // form (system + messages separately).
+        // v7.6 · Apr 29 · ChatMessage Batch A · C2 — capture TTFT on the
+        // first chunk. Cheap closure: only fires once, then noops.
+        // v10.0.20 — also accumulate text into __partialRef.text so a
+        // mid-stream onError can persist the actual partial reply.
+        // v10.0.26 — narrowed to the actual AI SDK v6 TextStreamPart
+        // shape: text-delta chunks expose `text: string` (not `textDelta`).
+        // Verified against node_modules/ai/dist/index.d.ts:2601.
+        // v10.0.27 (decision) — only accumulate text-delta, NOT
+        // reasoning-delta. The graceful-degradation message should match
+        // what the user saw on screen; reasoning streams render in a
+        // separate collapsed UI region (or are hidden) so mixing it into
+        // the assistant content would diverge from the user's view at
+        // failure time.
+        onChunk: ((chunk: unknown) => {
+          if (__firstTokenRef.value === null) __firstTokenRef.value = Date.now();
+          const c = chunk as { chunk?: { type?: string; text?: string } };
+          const inner = c?.chunk;
+          if (inner?.type === "text-delta" && typeof inner.text === "string") {
+            __partialRef.text += inner.text;
+          }
+        }) as Parameters<typeof streamText>[0]["onChunk"],
+        // v9.1.22 · onError handler. Without this, a mid-stream provider
+        // error (Venice 5xx during streaming, Anthropic transient drop)
+        // causes onFinish to NEVER fire — meaning the partial assistant
+        // text streamed to the user's screen vanishes from history on
+        // next reload. Now we capture the partial text + error and write
+        // a placeholder ChatMessage so reload shows what happened.
+        // May 02 · chat-route extract chunk 4 · onError handler moved
+        // verbatim to lib/services/chat/stream-error-handler.ts. Factory
+        // returns the callback wired with the deps it needs (convId,
+        // model, traceId, partial-text ref, recordTrace).
+        onError: buildStreamErrorHandler({
+          convId,
+          conversationId,
+          model: __fbModel,
+          traceId: __traceId,
+          provider: fbProvider,
+          modelId: fbModelId,
+          startedAt,
+          partial: __partialRef,
+          log,
+          recordTrace,
+        }) as Parameters<typeof streamText>[0]["onError"],
+        // May 02 · chat-route extract chunk 5 · onFinish moved to
+        // lib/services/chat/persist-assistant-turn.ts. Factory pattern
+        // returns the callback wired with all post-stream deps.
+        onFinish: buildOnFinish({
+          log,
+          convId,
+          conversationId,
+          provider: fbProvider,
+          modelId: fbModelId,
+          model: __fbModel,
+          mode,
+          modeOverride,
+          personality,
+          contentMode,
+          finalSystemPrompt,
+          systemPrompt,
+          finalTaskType,
+          userContent,
+          turnSignal,
+          contextBlocksFired,
+          deeperContextCount,
+          deeperContextTypes,
+          startedAt,
+          firstTokenRef: __firstTokenRef,
+          traceId: __traceId,
+          recordTrace,
+          messages,
+          topicTier,
+          onWorkComplete: resolveOnFinish,
+        }) as Parameters<typeof streamText>[0]["onFinish"],
+      } as never);
+    },
   });
   result = __sameTurnFallback.result;
   // v10 B.5 · log fallback trace. If attempts.length > 1, a sync-

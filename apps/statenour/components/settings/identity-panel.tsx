@@ -246,9 +246,10 @@ export function IdentityPanel() {
                         }}
                         disabled={rowBusy}
                         title={isPinned ? "edit / clear override" : "pin override"}
-                        className="h-5 w-5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 inline-flex items-center justify-center"
+                        aria-label={isPinned ? `edit or clear ${AXIS_LABELS[key]} override` : `pin ${AXIS_LABELS[key]} override`}
+                        className="h-9 w-9 sm:h-5 sm:w-5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 inline-flex items-center justify-center"
                       >
-                        {isPinned ? <PinOff size={9} /> : <Pin size={9} />}
+                        {isPinned ? <PinOff size={9} aria-hidden /> : <Pin size={9} aria-hidden />}
                       </button>
                     )}
                   </div>

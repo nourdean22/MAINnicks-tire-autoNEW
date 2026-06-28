@@ -193,7 +193,7 @@ function CoachEventCard({
           // Mobile-tightening #2 (2026-05-27): bumped 7→9 (28→36pt) on
           // mobile · keeps the visual at 7 on desktop (lg:h-7 lg:w-7)
           // since hover-discovery isn't an issue on cursor surfaces.
-          "absolute top-1.5 right-1.5 inline-flex h-9 w-9 lg:h-7 lg:w-7 items-center justify-center",
+          "absolute top-1.5 right-1.5 inline-flex h-11 w-11 lg:h-7 lg:w-7 items-center justify-center",
           "rounded-md border border-transparent",
           "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
           "hover:bg-[var(--bg-raised)]/[0.2] hover:border-[var(--border-default)]",
@@ -201,7 +201,7 @@ function CoachEventCard({
           "focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
           "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
           // Always visible on touch (no hover state on iOS PWA)
-          "@media (hover: none) {!important opacity:100}",
+          "[@media(hover:none)]:opacity-100",
         ].join(" ")}
       >
         <X size={12} strokeWidth={2} />

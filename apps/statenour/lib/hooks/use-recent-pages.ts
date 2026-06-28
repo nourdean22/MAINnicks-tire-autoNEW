@@ -114,15 +114,17 @@ export function useRecentPages(): {
     const key = groupKey(pathname);
     if (!key) return; // skip-tracked path
 
-    setRecents((prev) => {
-      // Move-to-front · dedupe by href
-      const filtered = prev.filter((p) => p.href !== key);
-      const next: RecentPage[] = [
-        { href: key, label: deriveLabel(key), visitedAt: Date.now() },
-        ...filtered,
-      ].slice(0, MAX_ENTRIES);
-      saveRecents(next);
-      return next;
+    queueMicrotask(() => {
+      setRecents((prev) => {
+        // Move-to-front · dedupe by href
+        const filtered = prev.filter((p) => p.href !== key);
+        const next: RecentPage[] = [
+          { href: key, label: deriveLabel(key), visitedAt: Date.now() },
+          ...filtered,
+        ].slice(0, MAX_ENTRIES);
+        saveRecents(next);
+        return next;
+      });
     });
   }, [pathname]);
 

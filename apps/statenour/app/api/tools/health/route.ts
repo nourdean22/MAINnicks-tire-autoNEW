@@ -34,11 +34,12 @@ export async function GET() {
 
   // ── ENV VARS — categorized ──
   const envChecks: Record<string, string[]> = {
-    // ai: VENICE_API_KEY only — Venice is the PRIMARY provider and the
-    // Ollama/OpenAI/Anthropic fallbacks back it. Requiring the unset
-    // last-resort ANTHROPIC_API_KEY here falsely degraded the arsenal.
-    // Mirrors lib/services/tools-health.ts. (2026-06-02 audit.)
-    ai: ["VENICE_API_KEY"],
+    // ai: the runtime provider fleet. AI is operational as long as AT
+    // LEAST ONE provider key is present (Ollama/OpenAI/Gemini/Anthropic
+    // fallback chain). Venice was retired; keying off the now-unset
+    // VENICE_API_KEY made the arsenal read "down" while AI was fully
+    // operational. anyOf semantics — mirrors lib/services/tools-health.ts.
+    ai: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "OLLAMA_API_KEY"],
     voice: ["HUGGINGFACE_API_KEY"],
     files: ["GITHUB_TOKEN", "GOOGLE_SERVICE_ACCOUNT_KEY"],
     communication: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"],
@@ -46,12 +47,21 @@ export async function GET() {
     cron: ["CRON_SECRET"],
   };
 
+  // Categories whose keys are alternatives, not requirements: healthy when
+  // ANY ONE key is present. Mirrors lib/services/tools-health.ts.
+  const ANY_OF_CATEGORIES = new Set(["ai"]);
+
   for (const [category, vars] of Object.entries(envChecks)) {
     const present = vars.filter(v => !!process.env[v]);
     const missing = vars.filter(v => !process.env[v]);
+    const ok = ANY_OF_CATEGORIES.has(category) ? present.length > 0 : missing.length === 0;
     checks[`env_${category}`] = {
-      status: missing.length === 0 ? "ok" : present.length > 0 ? "degraded" : "down",
-      detail: missing.length === 0 ? "All set" : `Missing: ${missing.join(", ")}`,
+      status: ok ? "ok" : present.length > 0 ? "degraded" : "down",
+      detail: ok
+        ? "All set"
+        : ANY_OF_CATEGORIES.has(category)
+          ? `None set: ${vars.join(", ")}`
+          : `Missing: ${missing.join(", ")}`,
       checked: vars,
     };
   }

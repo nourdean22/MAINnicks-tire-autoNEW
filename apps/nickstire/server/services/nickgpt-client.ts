@@ -41,6 +41,12 @@ interface DraftOpts {
   temperature?: number;
   /** Optional · request timeout */
   timeoutMs?: number;
+  /** Optional · active booking context for status integration */
+  activeBooking?: {
+    vehicle: string | null;
+    stage: string;
+    service: string;
+  };
 }
 
 interface DraftResult {
@@ -49,6 +55,8 @@ interface DraftResult {
   source: "nickgpt-ollama" | "fallback-claude" | "fallback-openai";
   modelName: string;
   latencyMs: number;
+  intent?: string;
+  confidence?: number;
 }
 
 interface DraftError {
@@ -61,7 +69,7 @@ export type DraftResponse = DraftResult | DraftError;
 
 // Same default prompt as scripts/export-sms-corpus.ts SYSTEM_PROMPT —
 // keep in sync · the fine-tuned model expects it.
-const DEFAULT_SYSTEM_PROMPT = `You are Nick, the owner-operator of Nick's Tire & Auto in Cleveland/Euclid, Ohio. You text customers personally — never sound like a chatbot. Be direct, helpful, and real. Customers don't pay until they say yes to the work. You handle tire sales, brakes, oil changes, and check-engine/repair work. The ONLY prices you ever quote are: ${BUSINESS.usedTires.explanation}, conventional oil change $49, synthetic oil change $80. For ANY other repair, never guess a price — say "free check, written quote, you don't pay until you say yes." When you don't know an answer, say so and offer to call. Walk-ins welcome 7 days a week (Mon-Sat 8-6, Sun 9-4), 17625 Euclid Ave, (216) 862-0005. Keep replies under 320 characters when possible. Match the customer's tone — formal with formal, casual with casual.`;
+const DEFAULT_SYSTEM_PROMPT = `You are Nick, the owner-operator of Nick's Tire & Auto in Cleveland/Euclid, Ohio. You text customers personally — never sound like a chatbot. Be direct, helpful, and real. No emojis, use plain English. Customers don't pay until they say yes to the work. You handle tire sales, brakes, oil changes, and check-engine/repair work. The ONLY prices you ever quote are: ${BUSINESS.usedTires.explanation}, conventional oil change ${BUSINESS.oilChange.conventionalPrice}, synthetic oil change ${BUSINESS.oilChange.syntheticPrice}. For ANY other repair, never guess a price — say "free check, written quote, you don't pay until you say yes." When you don't know an answer, say so and offer to call. Walk-ins welcome 7 days a week (Mon-Sat 8-6, Sun 9-4), 17625 Euclid Ave, (216) 862-0005. Keep replies under 320 characters. Match the customer's tone.`;
 
 /**
  * True if the NickGPT path should be attempted. Both the env vars must
@@ -154,85 +162,98 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
   messages.push({ role: "user", content: opts.inboundMessage });
 
   if (anthropicKey) {
-    const modelName = process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: modelName,
-        max_tokens: opts.maxTokens,
-        system: opts.systemPrompt,
-        temperature: opts.temperature,
-        messages,
-      }),
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "<no body>");
-      throw new Error(`Anthropic HTTP ${resp.status} · ${text.slice(0, 200)}`);
+    try {
+      const modelName = process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: modelName,
+          max_tokens: opts.maxTokens,
+          system: opts.systemPrompt,
+          temperature: opts.temperature,
+          messages,
+        }),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "<no body>");
+        throw new Error(`Anthropic HTTP ${resp.status} · ${text.slice(0, 200)}`);
+      }
+      const json = (await resp.json()) as { content?: Array<{ text?: string }> };
+      const text = json.content?.[0]?.text?.trim() ?? "";
+      if (!text) throw new Error("Anthropic returned empty content");
+      return { text, source: "fallback-claude", modelName };
+    } catch (err) {
+      log.warn("Anthropic fallback draft generation failed, trying next provider", { error: err instanceof Error ? err.message : String(err) });
     }
-    const json = (await resp.json()) as { content?: Array<{ text?: string }> };
-    const text = json.content?.[0]?.text?.trim() ?? "";
-    if (!text) throw new Error("Anthropic returned empty content");
-    return { text, source: "fallback-claude", modelName };
   }
 
   if (geminiKey) {
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const baseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
-    const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${geminiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages: [{ role: "system", content: opts.systemPrompt }, ...messages],
-        max_tokens: opts.maxTokens,
-        temperature: opts.temperature,
-      }),
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "<no body>");
-      throw new Error(`Gemini HTTP ${resp.status} · ${text.slice(0, 200)}`);
+    try {
+      const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+      const baseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
+      const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${geminiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [{ role: "system", content: opts.systemPrompt }, ...messages],
+          max_tokens: opts.maxTokens,
+          temperature: opts.temperature,
+        }),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "<no body>");
+        throw new Error(`Gemini HTTP ${resp.status} · ${text.slice(0, 200)}`);
+      }
+      const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const text = json.choices?.[0]?.message?.content?.trim() ?? "";
+      if (!text) throw new Error("Gemini returned empty content");
+      return { text, source: "fallback-openai", modelName };
+    } catch (err) {
+      log.warn("Gemini fallback draft generation failed, trying next provider", { error: err instanceof Error ? err.message : String(err) });
     }
-    const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const text = json.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!text) throw new Error("Gemini returned empty content");
-    return { text, source: "fallback-openai", modelName };
   }
 
   if (openaiKey) {
-    const modelName = process.env.LLM_MODEL || "gpt-4o-mini";
-    const baseUrl = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openaiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages: [{ role: "system", content: opts.systemPrompt }, ...messages],
-        max_tokens: opts.maxTokens,
-        temperature: opts.temperature,
-      }),
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "<no body>");
-      throw new Error(`OpenAI HTTP ${resp.status} · ${text.slice(0, 200)}`);
+    try {
+      const modelName = process.env.LLM_MODEL || "gpt-4o-mini";
+      const base = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
+      const completionsUrl = `${base}/v1/chat/completions`;
+      const resp = await fetch(completionsUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openaiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [{ role: "system", content: opts.systemPrompt }, ...messages],
+          max_tokens: opts.maxTokens,
+          temperature: opts.temperature,
+        }),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "<no body>");
+        throw new Error(`OpenAI HTTP ${resp.status} · ${text.slice(0, 200)}`);
+      }
+      const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const text = json.choices?.[0]?.message?.content?.trim() ?? "";
+      if (!text) throw new Error("OpenAI returned empty content");
+      return { text, source: "fallback-openai", modelName };
+    } catch (err) {
+      log.warn("OpenAI fallback draft generation failed", { error: err instanceof Error ? err.message : String(err) });
     }
-    const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const text = json.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!text) throw new Error("OpenAI returned empty content");
-    return { text, source: "fallback-openai", modelName };
   }
 
-  throw new Error("No fallback LLM key available · set ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY");
+  throw new Error("All fallback LLM providers failed or no keys configured.");
 }
 
 /**
@@ -245,13 +266,23 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
  * `smart_sms_auto_reply`).
  */
 export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
-  const systemPrompt = opts.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+  let systemPrompt = opts.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
   const maxTokens = opts.maxTokens ?? DEFAULT_MAX_TOKENS;
   const temperature = opts.temperature ?? 0.5;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   if (!opts.inboundMessage || opts.inboundMessage.trim().length === 0) {
     return { ok: false, error: "Empty inboundMessage", source: "disabled" };
+  }
+
+  // Inject active booking context if available
+  if (opts.activeBooking) {
+    const bookingInfo = `\n\n[Active Booking Context: The customer currently has an active booking for a ${
+      opts.activeBooking.vehicle || "vehicle"
+    } receiving "${opts.activeBooking.service}". Current status of the job in the shop is: "${
+      opts.activeBooking.stage
+    }". You can use this to answer status/progress queries, but only bring it up if relevant to their text.]`;
+    systemPrompt = `${systemPrompt}${bookingInfo}`;
   }
 
   const enabled = await isNickGptEnabled();

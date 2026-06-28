@@ -61,13 +61,16 @@ export function PushNotificationToggle() {
         <button
           onClick={handleToggle}
           disabled={loading}
+          role="switch"
+          aria-checked={isSubscribed}
+          aria-label={isSubscribed ? "disable push notifications" : "enable push notifications"}
           className={cn(
             "relative w-11 h-6 rounded-full transition-colors",
             isSubscribed ? "bg-[var(--gold)]" : "bg-zinc-700",
             loading && "opacity-50"
           )}
         >
-          <span className={cn(
+          <span aria-hidden className={cn(
             "absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform",
             isSubscribed ? "left-[22px]" : "left-0.5"
           )} />
@@ -81,7 +84,7 @@ export function PushNotificationToggle() {
             : "Enable to receive alerts even when the browser is closed."}
       </p>
       {errorMessage && (
-        <p className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+        <p role="alert" className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
           ⚠ {errorMessage}
         </p>
       )}

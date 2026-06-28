@@ -438,7 +438,7 @@ export const brainTools = {
   //   searchBrainDumps  →  searchReflections (covers both sources)
 
   syncKnowledge: tool({
-    description: "Run the knowledge sync pipeline on demand. Three idempotent stages: (1) classify raw BrainDumps + promote substantial new chat messages, (2) rebalance priorities on backfill/journal-sourced tasks, (3) index substantial assistant chat messages as nick_advice memories. Use when Nour says 'sync my knowledge', 'process new thoughts', 'ingest recent chats', or 'catch up the brain'. Also runs automatically on a cron every 6 hours — call this tool when Nour wants an immediate refresh.",
+    description: "Run the knowledge sync pipeline on demand. Three idempotent stages: (1) promote substantial new chat messages to BrainDumps (AI classification of raw BrainDumps is currently disabled — no provider), (2) rebalance priorities on backfill/journal-sourced tasks, (3) index substantial assistant chat messages as nick_advice memories. Use when Nour says 'sync my knowledge', 'process new thoughts', 'ingest recent chats', or 'catch up the brain'.",
     inputSchema: z.object({}),
     execute: async () => {
       try {
@@ -616,12 +616,6 @@ export const brainTools = {
   // ingestJournal() directly before the model gets involved. Faster
   // + model can't forget to call the tool.
 
-  /**
-   * Run the full knowledge sync pipeline on demand. Same logic as
-   * the `/api/cron/knowledge-sync` cron — three stages: classify
-   * raw BrainDumps + promote new chat messages, rebalance task
-   * priorities, index new Nick wisdom. Idempotent.
-   */
   getBrainHealth: tool({
     description: "Get a full brain health report — memory count, learning velocity, prediction accuracy, wisdom promotions, contradiction resolution. Shows how smart the brain is getting.",
     inputSchema: z.object({}),
@@ -1138,6 +1132,176 @@ export const brainTools = {
         { type: "coding_preference" }
       );
       return { stored: true, preference };
+    },
+  }),
+
+  // 2026-06-20 · Power-dynamics analyzer · scores the operator's power
+  // position across all relationships. Pure core + IO wrapper pattern
+  // matching mental-health.ts. Engine: lib/brain/analyzers/power-dynamics.ts.
+  analyzePowerDynamics: tool({
+    description:
+      "Analyze Nour's power position across all relationships. Returns leverage scores (avg power balance, strongest/weakest positions, dependency ratio), influence metrics (plays executed, XP), network health (active/neglected/mentors/rivals), threats (drainers, rivals, unstable alliances), and concrete next moves. Use when Nour asks about power dynamics, leverage, relationship strategy, or 'who has power over me'.",
+    inputSchema: z.object({
+      days: z
+        .number()
+        .min(7)
+        .max(180)
+        .default(30)
+        .describe("Lookback window in days"),
+    }),
+    execute: async ({ days }) => {
+      const { analyzePowerDynamics } = await import(
+        "@/lib/brain/analyzers/power-dynamics"
+      );
+      return analyzePowerDynamics({ days });
+    },
+  }),
+
+  // 2026-06-20 · Dark psychology tactics lookup · queries BrainMemory for
+  // relevant tactical patterns (cognitive biases, manipulation, social
+  // engineering) matching the operator's current situation.
+  getDarkPsychologyTactics: tool({
+    description:
+      "Look up dark psychology tactics (cognitive biases, manipulation techniques, social engineering patterns) relevant to the operator's current situation. Returns matching entries with triggers, actions, and applicability. Use when Nour asks about persuasion, influence, manipulation, cognitive biases, or tactical social dynamics.",
+    inputSchema: z.object({
+      query: z
+        .string()
+        .min(3)
+        .max(300)
+        .describe("Situation or topic to find matching tactics for"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .optional()
+        .describe("How many to return. Default 3."),
+    }),
+    execute: async ({ query, limit }) => {
+      const cap = limit ?? 3;
+      const q = query.toLowerCase();
+      const rows = await prisma.brainMemory
+        .findMany({
+          where: {
+            category: BRAIN_CATEGORIES.DARK_PSYCHOLOGY,
+            deletedAt: null,
+          },
+          select: { key: true, content: true, metadata: true },
+          take: 50,
+        })
+        .catch((): never[] => []);
+
+      const scored = rows
+        .map((r) => {
+          const meta = (r.metadata as Record<string, unknown> | null) ?? {};
+          const triggers = Array.isArray(meta.triggers)
+            ? (meta.triggers as string[])
+            : [];
+          const hits = triggers.filter((t) => q.includes(t.toLowerCase()));
+          return { r, hits: hits.length, title: String(meta.title ?? r.key) };
+        })
+        .filter((s) => s.hits > 0)
+        .sort((a, b) => b.hits - a.hits)
+        .slice(0, cap);
+
+      return {
+        ok: true,
+        count: scored.length,
+        tactics: scored.map((s) => {
+          const meta = (s.r.metadata as Record<string, unknown> | null) ?? {};
+          return {
+            key: s.r.key,
+            title: s.title,
+            summary: String(meta.summary ?? ""),
+            actions: Array.isArray(meta.actions) ? (meta.actions as string[]) : [],
+            sourceBook: String(meta.sourceBook ?? ""),
+          };
+        }),
+      };
+    },
+  }),
+
+  // 2026-06-20 · Power-balance summary · lightweight read-only tool for
+  // the reasoning engine. Calls computePowerBalance() for the top 5
+  // people by interaction count. Returns name + balance + manual-lock.
+  getPowerBalanceSummary: tool({
+    description:
+      "Get power-balance scores for the top 5 people by interaction count. Returns each person's name, power balance (-1 to +1), and whether it's manually locked. Use when reasoning about relationship leverage across the network.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      const { computePowerBalance } = await import(
+        "@/lib/brain/power-balance-engine"
+      );
+      const people = await prisma.personProfile
+        .findMany({
+          where: { deletedAt: null },
+          select: { id: true, name: true, powerBalance: true, interactionCount: true },
+          orderBy: { interactionCount: "desc" },
+          take: 5,
+        })
+        .catch((): never[] => []);
+
+      const results = await Promise.all(
+        people.map(async (p) => {
+          const auto = await computePowerBalance(p.id).catch(() => null);
+          return {
+            name: p.name,
+            currentBalance: p.powerBalance ?? 0,
+            autoComputed: auto,
+          };
+        }),
+      );
+      return { count: results.length, people: results };
+    },
+  }),
+
+  // 2026-06-20 · Contextual Greene laws · wraps pickContextualLawsForPerson
+  // for the reasoning engine. Returns top 3 Greene laws applicable to a
+  // specific person right now, with rationale and concrete actions.
+  getContextualGreeneLaws: tool({
+    description:
+      "Get the top 3 Robert Greene laws applicable to a specific person right now, with rationale and concrete actions. Use when reasoning about relationship strategy for a specific contact.",
+    inputSchema: z.object({
+      personId: z.string().min(1).describe("PersonProfile ID"),
+    }),
+    execute: async ({ personId }) => {
+      const { pickContextualLawsForPerson } = await import(
+        "@/lib/ai/contextual-greene-laws"
+      );
+      const result = await pickContextualLawsForPerson(personId).catch(() => ({
+        laws: [],
+        source: "empty" as const,
+        generatedAt: new Date().toISOString(),
+      }));
+      return { count: result.laws.length, laws: result.laws, source: result.source };
+    },
+  }),
+
+  // ── Composure / control analyzer (Phase 2) ──────────────────────────
+  analyzeComposure: tool({
+    description:
+      "Analyze the operator's emotional regulation and composure. Scores mood stability, drift control, decision quality under stress, recovery speed, and trigger management. Returns a 0-100 composure score with specific guidance.",
+    inputSchema: z.object({
+      days: z.number().int().min(1).max(90).default(14).describe("Look-back window in days"),
+    }),
+    execute: async ({ days }) => {
+      const { analyzeComposure } = await import(
+        "@/lib/brain/analyzers/composure-control"
+      );
+      return analyzeComposure({ days });
+    },
+  }),
+
+  // ── Competitive intelligence analyzer (Phase 4) ─────────────────────
+  analyzeCompetitiveIntel: tool({
+    description:
+      "Analyze competitive landscape for Nick's Tire. Identifies competitor vulnerabilities (Chanakya-style), GSC keyword opportunities, and threats. Returns market position, exploit strategies, and guidance.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      const { analyzeCompetitiveIntel } = await import(
+        "@/lib/brain/analyzers/competitive-intel"
+      );
+      return analyzeCompetitiveIntel();
     },
   }),
 

@@ -1,30 +1,22 @@
 /**
  * Unified AI provider layer for NOUR OS v8.1
  *
- * Provider chain: Venice (x2 retry) → OpenAI → Anthropic.
- * Venice: MAXIMUM UNRESTRICTED MODE with task-adaptive intelligence.
+ * Provider chain: Ollama Cloud → Gemini → OpenAI → Anthropic.
+ * (Venice retired — removed from the runtime PROVIDERS list. The
+ * VENICE_PARAMS / clearVeniceQuotaExhausted exports remain as empty
+ * no-ops for getProviderStatus back-compat only.)
  *
- * Every Venice request gets:
- * - No safety prompts (include_venice_system_prompt: false)
- * - Think tag stripping (strip_thinking_response: true)
- * - Web search + scraping + citations (auto mode)
- * - 24h prompt caching for the 50K system prompt
- * - E2E encryption for business strategy privacy
- * - Task-adaptive reasoning effort, temperature, and penalties
+ * Per-task routing tunes the provider order, reasoning effort, and
+ * temperature; see getPreferredOrderForTask + getModel below.
  *
  * ──────────────────────────────────────────────────────────────
  * ⚠  KNOWN ISSUE — DO NOT USE FROM STANDALONE SCRIPTS
  *
  * This module WORKS in the Next.js runtime (API routes, crons) but
- * FAILS when imported from a standalone `tsx scripts/foo.ts` context.
- * The Vercel AI SDK's OpenAI-compatible client chokes on Venice's
- * `reasoning_content` field when called outside Next.js — every
- * generateText() call raises "Invalid JSON response".
- *
- * Script callers: use `scripts/_lib/safety.ts` → `callVenice()` which
- * hits https://api.venice.ai/api/v1/chat/completions directly via
- * fetch() and bypasses the SDK entirely. Simpler, faster, and
- * strictly more reliable for batch jobs.
+ * has historically been fragile when imported from a standalone
+ * `tsx scripts/foo.ts` context, where the Vercel AI SDK's
+ * OpenAI-compatible client can choke on provider-specific response
+ * fields outside Next.js.
  *
  * Do NOT try to replace aiChat() here — it works fine in Next.js
  * routes where 95% of the traffic lives, and the AI SDK handles
@@ -43,6 +35,14 @@ import {
   type LanguageModel,
 } from "ai";
 import { logger as rootLogger } from "@/lib/logger";
+import {
+  PROVIDERS_REGISTRY,
+  TASK_ROUTING_PREFERENCES,
+  type RuntimeProviderName,
+  type TaskType,
+} from "@/config/ai-providers";
+
+export type { RuntimeProviderName, TaskType };
 
 // v10.0.18 · structured logger for the provider layer. Surface tag
 // lets /system/* dashboards filter by domain without parsing free-form
@@ -61,34 +61,30 @@ function cleanEnv(val: string | undefined): string | undefined {
   return val.replace(/\\n/g, "").replace(/\\r/g, "").trim();
 }
 
-const ANTHROPIC_API_KEY = cleanEnv(process.env.ANTHROPIC_API_KEY);
-const ANTHROPIC_MODEL = cleanEnv(process.env.ANTHROPIC_MODEL) || "claude-sonnet-4-6";
+function getApiKey(provider: RuntimeProviderName): string | undefined {
+  const cfg = PROVIDERS_REGISTRY[provider];
+  for (const envKey of cfg.apiKeyEnv) {
+    const val = cleanEnv(process.env[envKey]);
+    if (val) return val;
+  }
+  return undefined;
+}
 
-const OPENAI_API_KEY = cleanEnv(process.env.OPENAI_API_KEY);
-const OPENAI_MODEL = cleanEnv(process.env.OPENAI_MODEL) || "gpt-4o-mini";
+export function resolveProviderModel(provider: RuntimeProviderName, taskType?: TaskType): string {
+  const cfg = PROVIDERS_REGISTRY[provider];
+  if (provider === "ollama" && taskType === "vision") {
+    return cleanEnv(process.env[cfg.visionModelEnv!]) || cfg.defaultVisionModel!;
+  }
+  return cleanEnv(process.env[cfg.modelEnv]) || cfg.defaultModel;
+}
 
-// Apr 28 · Ollama Cloud Pro — co-1st provider with Venice. Hosted models
-// have 1M-token context (qwen3-vl, deepseek-v4-flash, etc.) which fixes
-// our 65k Venice truncation problem on heavy content prompts. OpenAI-
-// compatible endpoint at https://ollama.com/v1/chat/completions, auth
-// via Bearer token. $20/mo flat fee, no per-token billing.
-const OLLAMA_API_KEY = cleanEnv(process.env.OLLAMA_API_KEY);
-// v10.0.529.45 · Cohere added to the embedding fallback chain after
-// Ollama Cloud refused embeddings on the operator's plan.
-const COHERE_API_KEY = cleanEnv(process.env.COHERE_API_KEY);
-const OLLAMA_MODEL =
-  cleanEnv(process.env.OLLAMA_MODEL) || "qwen3-vl:235b-instruct";
-// v-truth · separate VISION model. The default chat model (OLLAMA_MODEL) may
-// be a smarter TEXT-only model (e.g. qwen3.5:397b); image turns must still use
-// a multimodal model. createOllamaModel routes taskType:"vision" here. Default
-// keeps today's multimodal flagship so vision never regresses.
-const OLLAMA_VISION_MODEL =
-  cleanEnv(process.env.OLLAMA_VISION_MODEL) || "qwen3-vl:235b-instruct";
-const OLLAMA_BASE_URL =
-  cleanEnv(process.env.OLLAMA_BASE_URL) || "https://ollama.com";
-
-const GEMINI_API_KEY = cleanEnv(process.env.GEMINI_API_KEY) || cleanEnv(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
-const GEMINI_MODEL = cleanEnv(process.env.GEMINI_MODEL) || "gemini-3.5-flash";
+function getBaseUrl(provider: RuntimeProviderName): string | undefined {
+  const cfg = PROVIDERS_REGISTRY[provider];
+  if (cfg.baseUrlEnv) {
+    return cleanEnv(process.env[cfg.baseUrlEnv]) || cfg.defaultBaseUrl;
+  }
+  return undefined;
+}
 
 const AI_PROVIDER = cleanEnv(process.env.AI_PROVIDER) as
   | "ollama"
@@ -103,77 +99,73 @@ export type ProviderName =
   | "anthropic"
   | "gemini"
   | "emergency";
-export type TaskType = "fast" | "reason" | "deep" | "vision" | "embed" | "code" | "sql" | "math" | "creative" | "summary" | "classify" | "extract";
 
+/**
+ * Single source of truth for providers wired into the live runtime.
+ * Excludes the retired `venice` and `emergency`.
+ */
+export const RUNTIME_PROVIDERS = ["ollama", "gemini", "openai", "anthropic"] as const;
+
+/** True iff `v` is a provider the runtime can actually serve. */
+export function isRuntimeProvider(v: unknown): v is RuntimeProviderName {
+  return typeof v === "string" && (RUNTIME_PROVIDERS as readonly string[]).includes(v);
+}
+
+// Retired (Venice removed from runtime) · kept empty for getProviderStatus back-compat.
 export const VENICE_PARAMS = {};
 
 function createAnthropicModel(): LanguageModel {
-  const anthropic = createAnthropic({ apiKey: ANTHROPIC_API_KEY! });
-  return anthropic(ANTHROPIC_MODEL);
+  const apiKey = getApiKey("anthropic");
+  const modelId = resolveProviderModel("anthropic");
+  const anthropic = createAnthropic({ apiKey: apiKey! });
+  return anthropic(modelId);
 }
 
 function createOpenAIModel(): LanguageModel {
-  const openai = createOpenAI({ apiKey: OPENAI_API_KEY! });
-  return openai(OPENAI_MODEL);
+  const apiKey = getApiKey("openai");
+  const modelId = resolveProviderModel("openai");
+  const openai = createOpenAI({ apiKey: apiKey! });
+  return openai(modelId);
 }
 
 function createGoogleModel(taskType?: TaskType): LanguageModel {
-  const google = createGoogleGenerativeAI({ apiKey: GEMINI_API_KEY! });
-  return google(GEMINI_MODEL);
+  const apiKey = getApiKey("gemini");
+  const modelId = resolveProviderModel("gemini", taskType);
+  const google = createGoogleGenerativeAI({ apiKey: apiKey! });
+  return google(modelId);
 }
 
-// Apr 28 · Ollama Cloud Pro — uses createOpenAI with custom baseURL
-// since Ollama Cloud exposes an OpenAI-compatible /v1/chat/completions
-// endpoint. The 1M-context models (qwen3-vl:235b-instruct,
-// deepseek-v4-flash, kimi-k2.6) handle our heavy content-mode prompts
-// (~70-100kc) without truncation. taskType is currently unused —
-// Ollama doesn't have Venice's reasoning_effort knob — but the param
-// is kept for parity in case we add per-task model routing later
-// (e.g. fast → qwen3-coder-next, deep → deepseek-v4-pro).
 function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
+  const apiKey = getApiKey("ollama");
+  const modelId = resolveProviderModel("ollama", taskType);
+  const baseUrl = getBaseUrl("ollama");
   const ollama = createOpenAI({
-    apiKey: OLLAMA_API_KEY!,
-    baseURL: `${OLLAMA_BASE_URL}/v1`,
+    apiKey: apiKey!,
+    baseURL: baseUrl ? `${baseUrl}/v1` : undefined,
+    fetch: async (url, options) => {
+      if (options?.body && typeof options.body === "string") {
+        try {
+          const parsed = JSON.parse(options.body);
+          // Always enforce a strict upper bound to prevent infinite <think> loop drains
+          const MAX_TOKENS = 4096;
+          const requested = typeof parsed.max_tokens === "number" ? parsed.max_tokens : MAX_TOKENS;
+          const num_predict = Math.min(requested, MAX_TOKENS);
+          
+          parsed.options = { ...parsed.options, num_predict };
+          options.body = JSON.stringify(parsed);
+        } catch {}
+      }
+      return fetch(url, options);
+    },
   });
-  // v10.0.529.60 · CRITICAL · force the legacy Chat Completions
-  // path. AI SDK v6's createOpenAI() defaults to the new Responses
-  // API ({ input: [...] } body shape with item_reference parts).
-  // Ollama Cloud's /v1 endpoint only speaks Chat Completions
-  // ({ messages: [...] }) · the Responses-shape requests were getting
-  // 400 with 'input[N]: unknown input item type: "item_reference"'.
-  // Same fix Venice uses at line 492 · v529.58's sanitizer was on
-  // the wrong layer (after this) so it never saw the bad parts.
-  // v-truth · per-task model routing — vision turns need the multimodal
-  // model; all other turns use the (possibly smarter, text-only) chat model.
-  const ollamaModel = taskType === "vision" ? OLLAMA_VISION_MODEL : OLLAMA_MODEL;
-  return ollama.chat(ollamaModel);
+  return ollama.chat(modelId);
 }
 
 // ---------------------------------------------------------------------------
 // Availability checks
 // ---------------------------------------------------------------------------
 
-// Apr 27 · QUOTA-EXHAUSTED CIRCUIT BREAKER
-// When Venice returns 402 Payment Required (no balance) the API stays
-// broken until the user tops up. Without a circuit breaker every chat
-// call hits Venice, gets 402, cascades into 429 rate-limiting (Venice
-// counts failed attempts), and the user sees zero responses with no
-// explanation.
-//
-// Cooldown is 2 min (was 10) so a top-up self-recovers fast: every
-// 2 min isVeniceAvailable returns true, getModel sends one probe call
-// to Venice, success clears the breaker entirely, failure re-trips
-// it. Cost is one wasted request per 2 min during a quota outage.
-//
-// Direct calls to clearVeniceQuotaExhausted() let the venice-status
-// endpoint reset the breaker the moment it sees a non-402 from
-// Venice — so the user's "I added credits" doesn't have to wait the
-// full 2 min.
-// Reusable per-provider quota circuit-breaker. Venice (402 → cooldown)
-// and Ollama Cloud share identical breaker logic, so one factory closes
-// over the cooldown deadline and the two can never drift. The returned
-// methods close over `until` (not `this`), so detaching them onto the
-// exported names below is safe.
+// Reusable per-provider quota circuit-breaker.
 function makeQuotaBreaker(provider: ProviderName, cooldownMs: number) {
   let until = 0;
   return {
@@ -193,6 +185,10 @@ function makeQuotaBreaker(provider: ProviderName, cooldownMs: number) {
     isExhausted(): boolean {
       return Date.now() < until;
     },
+    remainingMs(): number {
+      const diff = until - Date.now();
+      return diff > 0 ? diff : 0;
+    },
   };
 }
 
@@ -204,36 +200,112 @@ function isVeniceAvailable(): boolean {
   return false;
 }
 
+const anthropicBreaker = makeQuotaBreaker("anthropic", PROVIDERS_REGISTRY.anthropic.cooldownMs);
+export const getAnthropicCooldownRemainingMs = anthropicBreaker.remainingMs;
+
 function isAnthropicAvailable(): boolean {
-  return !!ANTHROPIC_API_KEY;
+  if (anthropicBreaker.isExhausted()) return false;
+  return !!getApiKey("anthropic");
 }
+
+const openaiBreaker = makeQuotaBreaker("openai", PROVIDERS_REGISTRY.openai.cooldownMs);
+export const getOpenAiCooldownRemainingMs = openaiBreaker.remainingMs;
 
 function isOpenAIAvailable(): boolean {
-  return !!OPENAI_API_KEY;
+  if (openaiBreaker.isExhausted()) return false;
+  return !!getApiKey("openai");
 }
 
-// Apr 28 · Ollama Cloud Pro availability — same pattern as Venice
-// (key check + the shared quota breaker above). Empty key or placeholder
-// counts as unavailable so getModel falls through to the next provider.
-const ollamaBreaker = makeQuotaBreaker("ollama", 2 * 60_000);
+const ollamaBreaker = makeQuotaBreaker("ollama", PROVIDERS_REGISTRY.ollama.cooldownMs);
 export const markOllamaQuotaExhausted = ollamaBreaker.mark;
 export const clearOllamaQuotaExhausted = ollamaBreaker.clear;
 export const isOllamaQuotaExhausted = ollamaBreaker.isExhausted;
+export const getOllamaCooldownRemainingMs = ollamaBreaker.remainingMs;
 
-function isOllamaAvailable(): boolean {
-  if (!OLLAMA_API_KEY || OLLAMA_API_KEY.length < 20) return false;
-  if (isOllamaQuotaExhausted()) return false;
-  return true;
+// Background health check cache for Ollama v10.1
+let ollamaHealthCached = true;
+let lastOllamaCheckTime = 0;
+let isCheckingOllamaHealth = false;
+
+export async function probeOllamaHealth(): Promise<void> {
+  if (isCheckingOllamaHealth) return;
+  isCheckingOllamaHealth = true;
+  try {
+    const baseUrl = getBaseUrl("ollama");
+    const apiKey = getApiKey("ollama");
+    if (!baseUrl || !apiKey) {
+      ollamaHealthCached = false;
+      return;
+    }
+    const url = `${baseUrl}/v1/models`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
+
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      log.warn("ollama.health_check_failed", { status: res.status });
+      ollamaHealthCached = false;
+      return;
+    }
+
+    const data = await res.json();
+    const targetModel = resolveProviderModel("ollama");
+    const models = data?.data || [];
+    const hasTargetModel = models.some((m: any) => 
+      m.id === targetModel || 
+      m.id?.includes("glm-5.2") || 
+      m.id?.includes("glm-5")
+    );
+    
+    if (models.length > 0 && !hasTargetModel) {
+      log.warn("ollama.health_check_model_missing", { targetModel, available: models.map((m: any) => m.id) });
+      ollamaHealthCached = false;
+    } else {
+      ollamaHealthCached = true;
+    }
+  } catch (err) {
+    log.warn("ollama.health_check_exception", { error: String(err) });
+    ollamaHealthCached = false;
+  } finally {
+    lastOllamaCheckTime = Date.now();
+    isCheckingOllamaHealth = false;
+  }
 }
 
-// June 14 · Gemini — same pattern
-const geminiBreaker = makeQuotaBreaker("gemini", 2 * 60_000);
+function isOllamaAvailable(): boolean {
+  const apiKey = getApiKey("ollama");
+  if (!apiKey || apiKey.length < 20) return false;
+  if (isOllamaQuotaExhausted()) return false;
+
+  // Skip live health checks in testing to keep unit tests isolated and fast
+  if (process.env.NODE_ENV === "test") {
+    return true;
+  }
+
+  const now = Date.now();
+  if (now - lastOllamaCheckTime > 60_000) {
+    probeOllamaHealth().catch((e) => log.error("ollama.background_health_check_error", e));
+  }
+
+  return ollamaHealthCached;
+}
+
+const geminiBreaker = makeQuotaBreaker("gemini", PROVIDERS_REGISTRY.gemini.cooldownMs);
 export const markGeminiQuotaExhausted = geminiBreaker.mark;
 export const clearGeminiQuotaExhausted = geminiBreaker.clear;
 export const isGeminiQuotaExhausted = geminiBreaker.isExhausted;
+export const getGeminiCooldownRemainingMs = geminiBreaker.remainingMs;
 
 function isGeminiAvailable(): boolean {
-  if (!GEMINI_API_KEY) return false;
+  if (!getApiKey("gemini")) return false;
   if (isGeminiQuotaExhausted()) return false;
   return true;
 }
@@ -249,26 +321,37 @@ interface ProviderEntry {
   modelId: string;
 }
 
-// Provider order. Ollama Cloud is the default primary chat provider;
-// Venice, OpenAI, and Anthropic are fallbacks (in that order). The
-// `getModel(task, opts)` function below reorders this list to put Ollama
-// first when opts.preferLargeContext is set. Set the `AI_PROVIDER` env to
-// pin one provider (incident triage).
-const PROVIDERS: ProviderEntry[] = [
-  { name: "ollama", available: isOllamaAvailable, create: (t) => createOllamaModel(t), modelId: OLLAMA_MODEL },
-  { name: "gemini", available: isGeminiAvailable, create: (t) => createGoogleModel(t), modelId: GEMINI_MODEL },
-  { name: "openai", available: isOpenAIAvailable, create: () => createOpenAIModel(), modelId: OPENAI_MODEL },
-  { name: "anthropic", available: isAnthropicAvailable, create: () => createAnthropicModel(), modelId: ANTHROPIC_MODEL },
-];
+const PROVIDER_CREATORS: Record<RuntimeProviderName, (taskType?: TaskType) => LanguageModel> = {
+  ollama: (t) => createOllamaModel(t),
+  gemini: (t) => createGoogleModel(t),
+  openai: () => createOpenAIModel(),
+  anthropic: () => createAnthropicModel(),
+};
+
+const PROVIDER_AVAILABILITY: Record<RuntimeProviderName, () => boolean> = {
+  ollama: isOllamaAvailable,
+  gemini: isGeminiAvailable,
+  openai: isOpenAIAvailable,
+  anthropic: isAnthropicAvailable,
+};
+
+const PROVIDERS: ProviderEntry[] = RUNTIME_PROVIDERS.map((name) => ({
+  name,
+  available: PROVIDER_AVAILABILITY[name],
+  create: PROVIDER_CREATORS[name],
+  get modelId() {
+    return resolveProviderModel(name);
+  },
+}));
 
 // ---------------------------------------------------------------------------
 // v9.1.27 · Recently-failed provider tracker
 //
 // The chat route uses streamText() directly with a single model from
 // getModel(). Once SSE headers are sent, you can't switch providers
-// mid-stream. So if Venice errors mid-response on turn N, the user
+// mid-stream. So if ollama errors mid-response on turn N, the user
 // gets an interrupted stream — and if turn N+1 fires immediately
-// after, getModel() picks Venice AGAIN (it's still available()) and
+// after, getModel() picks ollama AGAIN (it's still available()) and
 // hits the same dead provider.
 //
 // Fix: when an onError fires, the chat route calls
@@ -316,19 +399,19 @@ export function getRecentlyFailedProviders(): Array<{
 /**
  * Returns the first available AI model based on the fallback chain.
  *
- * Default: Ollama Cloud 1st → Venice 2nd → OpenAI 3rd → Anthropic safety net.
- *   (v10.0.529.46 · Venice demoted after extended 402 outage.)
+ * Default: Ollama Cloud 1st → Gemini 2nd → OpenAI 3rd → Anthropic safety net.
+ *   (Venice retired — removed from the chain.)
  * With opts.preferLargeContext: same order · Ollama already 1st so the
  *   flag is now a no-op for the default chain but kept for clarity at
  *   the call site (signals intent in case the chain changes again).
  *
- * preferLargeContext is set by callers that know the prompt is bigger
- * than Venice's 65k system-prompt limit — content-mode chat, deep-mode
- * planning, etc. The chat route detects this via detectContentIntent
+ * preferLargeContext is set by callers that know the prompt is large —
+ * content-mode chat, deep-mode planning, etc. — and want Ollama's
+ * 1M-context models. The chat route detects this via detectContentIntent
  * and threads it down.
  *
- * TaskType controls Venice's reasoning_effort + temperature + penalties.
- * On Ollama it's currently a no-op but preserved for future per-task routing.
+ * TaskType tunes the per-task provider order (getPreferredOrderForTask)
+ * and, where supported, reasoning effort + temperature.
  */
 export interface GetModelOptions {
   /** Promote Ollama Cloud (1M-context models) to 1st in the chain. */
@@ -343,28 +426,7 @@ export interface GetModelOptions {
 }
 
 export function getPreferredOrderForTask(taskType: TaskType): ProviderName[] {
-  switch (taskType) {
-    case "fast":
-    case "sql":
-    case "summary":
-    case "classify":
-    case "extract":
-      return ["gemini", "ollama", "openai", "anthropic"];
-    case "reason":
-    case "vision":
-      return ["ollama", "gemini", "openai", "anthropic"];
-    case "deep":
-      return ["ollama", "openai", "anthropic", "gemini"];
-    case "code":
-      return ["ollama", "openai", "anthropic", "gemini"];
-    case "math":
-      return ["openai", "gemini", "ollama", "anthropic"];
-    case "creative":
-      return ["ollama", "gemini", "openai", "anthropic"];
-    case "embed":
-    default:
-      return ["ollama", "gemini", "openai", "anthropic"];
-  }
+  return TASK_ROUTING_PREFERENCES[taskType] || ["ollama", "gemini", "openai", "anthropic"];
 }
 
 export function getModel(
@@ -475,7 +537,7 @@ export function getProviderStatus(): {
   const seen = new Set<string>();
   const providers = PROVIDERS
     .filter((p) => {
-      // Deduplicate Venice entries for display
+      // Deduplicate provider entries for display
       if (seen.has(p.name)) return false;
       seen.add(p.name);
       return true;
@@ -702,12 +764,16 @@ export async function aiChat(
   const failures: ProviderFailure[] = [];
 
   for (const entry of toTry) {
+    const resolvedModelId = isRuntimeProvider(entry.name)
+      ? resolveProviderModel(entry.name, taskType)
+      : entry.modelId;
+
     // L.1 · early-bail if the external signal already aborted (operator
     // cancelled before this provider got its turn).
     if (externalSignal?.aborted) {
       failures.push({
         provider: entry.name,
-        modelId: entry.modelId,
+        modelId: resolvedModelId,
         durationMs: 0,
         message: "external abort before attempt",
         failureClass: "timeout",
@@ -723,7 +789,6 @@ export async function aiChat(
       ? AbortSignal.any([externalSignal, controller.signal])
       : controller.signal;
     const attemptStart = Date.now();
-    const resolvedModelId = entry.modelId;
     try {
       log.debug("provider.try", { provider: entry.name, model: resolvedModelId, taskType });
       const model = entry.create(taskType);
@@ -845,12 +910,9 @@ export async function aiChat(
       return {
         content: cleaned,
         provider: entry.name,
-        // v10.0.215 · use resolvedModelId, not entry.modelId. For Venice
-        // those diverge: entry.modelId is the env-configured VENICE_MODEL
-        // (typically a heavy heretic model), but resolveVeniceModelForTask
-        // routes most tasks through venice-uncensored. Pre-fix the
-        // /system/agent-traces dashboard reported the wrong model on
-        // every Venice success — analytics drift.
+        // Report the actually-resolved model id (resolvedModelId), not
+        // the configured entry.modelId, so /system/agent-traces shows the
+        // real model used for each turn.
         model: resolvedModelId,
         failures: failures.length > 0 ? failures : undefined,
         usage,
@@ -914,7 +976,10 @@ export async function aiChat(
 export async function getEmbedding(text: string): Promise<number[]> {
   const input = text.slice(0, 30_000);
 
-
+  const OLLAMA_API_KEY = getApiKey("ollama");
+  const OLLAMA_BASE_URL = getBaseUrl("ollama") || "https://ollama.com";
+  const COHERE_API_KEY = cleanEnv(process.env.COHERE_API_KEY);
+  const OPENAI_API_KEY = getApiKey("openai");
 
   // 2. Ollama Cloud (fallback) · v10.0.529.45 · added after Venice ran
   // out of credit during the operator's live persona-corpus import.

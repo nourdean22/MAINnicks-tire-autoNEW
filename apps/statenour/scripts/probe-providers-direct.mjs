@@ -4,13 +4,12 @@
  *
  * Read-only. Single tiny test request per provider.
  */
-const VENICE_KEY = process.env.VENICE_API_KEY;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 const OLLAMA_KEY = process.env.OLLAMA_API_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "https://ollama.com";
 
-function clean(v) { return v ? v.replace(/\\n|\\r/g, "").trim() : v; }
+function clean(v) { return v ? v.replace(/\n|\r/g, "").trim() : v; }
 
 async function probe(name, fn) {
   const t0 = Date.now();
@@ -27,23 +26,10 @@ async function probe(name, fn) {
 
 async function main() {
   console.log("\n=== Direct provider probe ===\n");
-  console.log(`VENICE_API_KEY    · ${VENICE_KEY ? `set (${clean(VENICE_KEY).length}ch)` : "MISSING"}`);
   console.log(`OLLAMA_API_KEY    · ${OLLAMA_KEY ? `set (${clean(OLLAMA_KEY).length}ch)` : "MISSING"}`);
   console.log(`OPENAI_API_KEY    · ${OPENAI_KEY ? `set (${clean(OPENAI_KEY).length}ch)` : "MISSING"}`);
   console.log(`ANTHROPIC_API_KEY · ${ANTHROPIC_KEY ? `set (${clean(ANTHROPIC_KEY).length}ch)` : "MISSING"}`);
   console.log("");
-
-  if (VENICE_KEY) {
-    await probe("venice", async () => {
-      const res = await fetch("https://api.venice.ai/api/v1/models", {
-        headers: { Authorization: `Bearer ${clean(VENICE_KEY)}` },
-      });
-      const body = await res.text();
-      let model = "?";
-      try { const j = JSON.parse(body); model = j?.data?.[0]?.id || "?"; } catch {}
-      return { ok: res.ok, status: res.status, body, model };
-    });
-  }
 
   if (OLLAMA_KEY) {
     await probe("ollama", async () => {

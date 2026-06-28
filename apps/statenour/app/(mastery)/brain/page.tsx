@@ -3,11 +3,12 @@
 /**
  * /brain — the unified self-model surface (Wave 2 consolidation).
  *
- * Four former pages merged into one tabbed surface (redirects, not
+ * Five former pages merged into one tabbed surface (redirects, not
  * deletes — see next.config.ts):
+ *   • Graph  ← the Obsidian/Ultron-style fullscreen live brain graph. Default tab.
  *   • Memory ← the former /brain hub dashboard (every self-model
  *     subsystem: maturity, skills, identity, beliefs, contradictions,
- *     predictions, nudges, telemetry). Default tab.
+ *     predictions, nudges, telemetry).
  *   • Board  ← the former /brain/board (multi-advisor consultation).
  *   • Wisdom ← the former /brain/wisdom (the wisdom-layer dashboard).
  *   • Reason ← the former /reason (the live tier-classified reasoning
@@ -34,6 +35,7 @@ import { WisdomTab } from "@/components/brain/wisdom-tab";
 import { ReasonTab } from "@/components/brain/reason-tab";
 import { BrainHealthView } from "@/components/brain/health-view";
 import { BrainContinuityView } from "@/components/brain/continuity-view";
+import { HomeBrainGraph } from "@/components/home/home-brain-graph";
 
 export default function BrainPage() {
   return (
@@ -42,12 +44,13 @@ export default function BrainPage() {
         eyebrow="Mastery"
         title="Brain"
         description="Everything the system knows about you · the self-model, advisors, wisdom, and live reasoning."
-        width="2xl"
+        width="3xl"
         rhythm="loose"
       >
         <PageTabs
-          defaultKey="memory"
+          defaultKey="graph"
           tabs={[
+            { key: "graph", label: "Graph", render: () => <HomeBrainGraph variant="full" /> },
             { key: "memory", label: "Memory", render: () => <MemoryTab /> },
             { key: "board", label: "Board", render: () => <BoardTab /> },
             { key: "wisdom", label: "Wisdom", render: () => <WisdomTab /> },

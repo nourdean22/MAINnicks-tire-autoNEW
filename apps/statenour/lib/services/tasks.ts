@@ -721,6 +721,15 @@ export async function updateTask(id: string, input: unknown) {
     throw new ServiceError("Task not found.", 404);
   }
 
+  if (
+    existing.loopKind === "DAILY" &&
+    payload.status === "WAITING" &&
+    existing.status !== "WAITING" &&
+    !payload.lastCompletedAt
+  ) {
+    payload.lastCompletedAt = new Date();
+  }
+
   if (payload.status === "DONE" || (payload.status === "ARCHIVED" && existing.loopKind === "PROMISE")) {
     const { checkTask } = await import("@/lib/services/task-actions");
     const checkRes = await checkTask({
@@ -786,6 +795,10 @@ export async function updateTask(id: string, input: unknown) {
     { source: "service:updateTask" },
   );
 
+  if (existing.status === "WAITING" && payload.status && payload.status !== "WAITING") {
+    import("@/lib/system/patience-xp").then(m => m.awardPatienceXP(id, existing.updatedAt)).catch(console.error);
+  }
+
   // 2026-06-09 · classifier learning · record a re-file (mission changed to a
   // different one) as a few-shot example for future classification.
   if (payload.missionId && payload.missionId !== existing.missionId) {
@@ -811,6 +824,21 @@ export async function updateTask(id: string, input: unknown) {
   if (before !== after) {
     if (after === "DOING") {
       emitTaskEventAsync({ taskId: id, kind: "started", source: "service:updateTask" });
+    } else if (after === "WAITING" && existing.loopKind !== "DAILY" && existing.loopKind !== "WEEKLY") {
+      emitTaskEventAsync({ taskId: id, kind: "waiting", source: "service:updateTask" });
+      const credit = await creditTaskStats(result.task.id).catch((err) => {
+        log.warn("task_stat_credit_failed", {
+          taskId: result.task.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return { statsCredited: 0, xpCredited: 0 };
+      });
+      completionReward = {
+        xpCredited: credit.xpCredited,
+        statsCredited: credit.statsCredited,
+        goalLifted: false,
+        streak: payload.streakCount ?? null,
+      };
     } else if (after === "DONE") {
       emitTaskEventAsync({ taskId: id, kind: "completed", source: "service:updateTask" });
       // v10.0.529.106 · Wave 52 · CRITICAL · pre-Wave-52 this path never

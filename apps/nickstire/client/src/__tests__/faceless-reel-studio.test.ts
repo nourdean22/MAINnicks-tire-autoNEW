@@ -269,7 +269,9 @@ describe("builders", () => {
     const pub = buildInstagramPublishChecklist(sample());
     const gate = pub.find((i) => i.label === "Publish button")!;
     expect(gate.ok).toBe(true);
-    expect(gate.detail).toBe(DISABLED_REASON);
+    // Enabled button must NOT show the stale disabled reason; it reflects the live gate.
+    expect(gate.detail).not.toBe(DISABLED_REASON);
+    expect(gate.detail).toContain("server-gated");
     expect(buildArchiveChecklist(sample()).length).toBeGreaterThan(3);
   });
 

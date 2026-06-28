@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 const log = logger.withSurface("services/finance");
@@ -161,58 +159,6 @@ export function parseCSV(csvText: string): CSVTransaction[] {
  * Saves parsed transactions to the database, skipping duplicates using deterministic hashes.
  */
 export async function syncTransactions(transactions: CSVTransaction[]): Promise<{ imported: number; skipped: number }> {
-  let imported = 0;
-  let skipped = 0;
-
-  for (let i = 0; i < transactions.length; i++) {
-    const tx = transactions[i];
-
-    // Create a deterministic hash for deduplication
-    const dateStr = tx.date.toISOString().slice(0, 10);
-    const hashBase = `${dateStr}:${tx.payee}:${tx.amountCents}:${tx.notes}:${i}`;
-    const hash = createHash("sha256").update(hashBase).digest("hex").slice(0, 32);
-    const plaidTransactionId = `csv:${hash}`;
-
-    try {
-      const created = await prisma.financialTransaction.create({
-        data: {
-          date: tx.date,
-          amountCents: tx.amountCents,
-          payee: tx.payee,
-          category: tx.category,
-          notes: tx.notes,
-          plaidTransactionId,
-        },
-      });
-
-      imported++;
-
-      // Trigger AI classification in background via Inngest
-      try {
-        const { getInngest } = await import("@/src/inngest/client");
-        await getInngest().send({
-          name: "finance/transaction.created",
-          data: {
-            transactionId: created.id,
-            payee: created.payee,
-            amountCents: created.amountCents,
-            category: created.category,
-            date: dateStr,
-          },
-        });
-      } catch (e) {
-        log.error("failed_dispatching_inngest_transaction_event", { error: String(e) });
-      }
-    } catch (err) {
-      if ((err as { code?: string }).code === "P2002") {
-        // Unique constraint violation (duplicate skipped)
-        skipped++;
-      } else {
-        log.error("error_importing_transaction", { error: String(err) });
-        throw err;
-      }
-    }
-  }
-
-  return { imported, skipped };
+  log.warn("sync_transactions_stubbed", { reason: "FinancialTransaction model removed 2026-06-21" });
+  return { imported: 0, skipped: transactions.length };
 }

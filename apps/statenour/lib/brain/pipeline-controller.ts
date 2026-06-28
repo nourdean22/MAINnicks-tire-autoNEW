@@ -39,7 +39,7 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 // ─── INBOUND: Process events from nickstire.org ──────────
 
 export interface ShopEvent {
-  type: "booking" | "lead" | "review" | "invoice" | "stage-change" | "campaign" | "emergency";
+  type: "booking" | "lead" | "review" | "invoice" | "stage-change" | "campaign" | "emergency" | "call";
   data: Record<string, unknown>;
   timestamp?: string;
 }
@@ -128,27 +128,26 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
       actions.push("alert.emergency");
       break;
     }
+
+    case "call": {
+      const duration = Number(event.data.durationSeconds || 0);
+      const phone = String(event.data.phone || "unknown");
+      await brainMemory.remember(
+        "insight",
+        `call_completed_${Date.now()}`,
+        `Phone call from ${phone} ended. Duration: ${duration}s. Reason: ${event.data.endedReason || "unknown"}. Mentioned: ${event.data.serviceMention || "none"}.`,
+        "pipeline_analysis"
+      );
+      actions.push("insight.call");
+      break;
+    }
   }
 
   // 3. Update environmental signals if business-relevant
   if (event.type === "booking" || event.type === "lead") {
     const dayOfWeek = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "long" });
-    const existingSignal = await prisma.environmentalSignal.findFirst({
-      where: { date: today(), category: BRAIN_CATEGORIES.OPERATIONAL },
-    });
-
-    if (!existingSignal) {
-      await prisma.environmentalSignal.create({
-        data: {
-          date: today(),
-          category: BRAIN_CATEGORIES.OPERATIONAL,
-          signal: `${dayOfWeek} activity: ${event.type} received`,
-          impact: "Tracking daily shop activity flow",
-          urgency: "low",
-          actionable: false,
-        },
-      });
-    }
+    // EnvironmentalSignal model removed — no-op
+    void dayOfWeek;
     actions.push("signal.operational");
   }
 

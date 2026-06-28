@@ -352,6 +352,19 @@ export default function VoiceReceptionistSection() {
                 color="text-amber-400"
                 trendLabel={`Forwarded: ${m.forwarded || 0}, Walk-ins: ${m.walkInDirectedCount || 0}`}
               />
+              {/* Inferred from call duration (VAPI exposes no "human answered"
+                  bit); 14d window; "—" until >=10 forwards make a % meaningful. */}
+              <StatCard
+                label="Warm-Transfer Connect (14d)"
+                value={m.warmTransferConnect?.reliable ? `${m.warmTransferConnect.rate}%` : "—"}
+                icon={<UserCheck className="w-4 h-4" />}
+                color="text-cyan-400"
+                trendLabel={
+                  m.warmTransferConnect?.reliable
+                    ? `inferred · ${m.warmTransferConnect.connected}/${m.warmTransferConnect.attempted} likely connected · ${m.warmTransferConnect.failed} failed`
+                    : `${m.warmTransferConnect?.attempted ?? 0} forwards (14d) · need 10+ for a rate`
+                }
+              />
             </MetricGrid>
           )}
 

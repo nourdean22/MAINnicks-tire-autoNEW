@@ -81,21 +81,21 @@ export function ConnectionStatus({
   const content = (
     <>
       <Icon
-        size={11}
+        size={14}
         className={cn(
           color,
           "shrink-0",
           status === "retrying" && "animate-spin"
         )}
       />
-      <span className={cn("text-[10px] font-medium", color)}>{label}</span>
+      <span className={cn("text-[12px] font-medium", color)}>{label}</span>
       {status === "queued" && onClear && (
         <button
           onClick={(e) => {
             e.stopPropagation();
             onClear();
           }}
-          className="ml-1 text-[9px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] underline"
+          className="ml-1 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] underline"
           aria-label="Clear offline queue"
         >
           clear
@@ -109,7 +109,7 @@ export function ConnectionStatus({
       <button
         onClick={onRetry}
         className={cn(
-          "fixed left-1/2 -translate-x-1/2 z-[50] flex items-center gap-1.5 px-2.5 py-1 rounded-full border backdrop-blur-sm transition-all hover:scale-105 [bottom:calc(80px+env(safe-area-inset-bottom))]",
+          "fixed left-1/2 -translate-x-1/2 z-[65] flex items-center gap-1.5 px-2.5 py-1 rounded-full border backdrop-blur-sm transition-all hover:scale-105 [bottom:calc(72px+env(safe-area-inset-bottom))]",
           bg,
           border
         )}
@@ -122,7 +122,7 @@ export function ConnectionStatus({
   return (
     <div
       className={cn(
-        "fixed left-1/2 -translate-x-1/2 z-[50] flex items-center gap-1.5 px-2.5 py-1 rounded-full border backdrop-blur-sm [bottom:calc(80px+env(safe-area-inset-bottom))]",
+        "fixed left-1/2 -translate-x-1/2 z-[65] flex items-center gap-1.5 px-2.5 py-1 rounded-full border backdrop-blur-sm [bottom:calc(72px+env(safe-area-inset-bottom))]",
         bg,
         border
       )}

@@ -94,7 +94,7 @@ describe("Environment & Health Probes", () => {
     const localShell = summary.find((s) => s.id === "local.shell");
 
     expect(verifiedSearch?.health).toBe("active"); // All env set
-    expect(browserNavigate?.health).toBe("missing_env"); // missing BROWSERBASE keys
+    expect(browserNavigate?.health).toBe("inert"); // parked-by-choice; env not counted as a setup gap
     expect(localShell?.health).toBe("blocked"); // status is blocked
   });
 });

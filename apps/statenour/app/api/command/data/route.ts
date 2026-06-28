@@ -38,7 +38,6 @@ async function computeCommandData() {
     unackedAlerts,
     recentAlerts,
     todayLaw,
-    todayStrategy,
     latestDeviceActivity,
     latestBusinessMetrics,
     recentMemoryAlerts,
@@ -88,18 +87,6 @@ async function computeCommandData() {
         orderBy: { id: "asc" },
         skip: Math.floor((Date.now() / 86400000) % 189),
         select: { number: true, title: true, essence: true, book: true, shopApplication: true },
-      })
-      .catch((): null => null),
-    prisma.dailyStrategy
-      .findFirst({
-        where: {
-          strategyDate: {
-            gte: new Date(
-              new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" })
-            ),
-          },
-        },
-        select: { briefing: true, shopAdvice: true, focusLaw: true },
       })
       .catch((): null => null),
     prisma.smartDevice
@@ -241,7 +228,7 @@ async function computeCommandData() {
     },
     strategic: {
       law: todayLaw,
-      strategy: todayStrategy,
+      strategy: null,
     },
     brief: {
       topTasks: (brief as any).topTasks?.slice(0, 3) ?? [],

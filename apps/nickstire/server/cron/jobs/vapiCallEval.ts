@@ -55,6 +55,7 @@ import { sendTelegram } from "../../services/telegram";
 import { getCallStateHistory } from "../../services/voice-call-state";
 import { createLogger } from "../../lib/logger";
 import { classifyCall } from "../../services/vapiCallClassifier";
+import { trailReachedTool, scoreBand, isConvertedScore } from "../../services/vapiConversionSignals";
 
 const log = createLogger("cron:vapi-eval");
 
@@ -238,7 +239,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       let reachedTool = false;
       try {
         const states = await getCallStateHistory(row.vapiCallId);
-        reachedTool = states.some((s) => s.state === "tool_called" || s.state === "confirmed");
+        reachedTool = trailReachedTool(states);
       } catch { /* state trail is optional · score without it */ }
 
       // Run new classifier service
@@ -316,6 +317,12 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           evalReasoning: reasoning,
           evalAt: new Date(),
           metadata: updatedMetadata,
+          // 2026-06-20 · reconcile the conversion flag from ground truth. The
+          // webhook stamps convertedToLead at row-insert; a last-second tool
+          // whose fire-and-forget state write lands after end-of-call would
+          // miss it — here the trail is complete. Set 1 when a tool was
+          // reached; never regress a flag already set (e.g. trail read failed).
+          convertedToLead: reachedTool ? 1 : row.convertedToLead,
         })
         .where(eq(vapiCallLogs.id, row.id));
     } catch (e) {
@@ -333,8 +340,13 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
   }
 
   const avgScore = Math.round(scored.reduce((s, c) => s + c.score, 0) / totalCalls);
-  const wastedCount = scored.filter((c) => c.outcome === "wasted").length;
-  const convertedCount = scored.filter((c) => c.outcome === "converted" || c.outcome === "exemplary").length;
+  // Band counts come from the SCORE, not the outcome category. The prior code
+  // compared c.outcome (a category like 'hard_conversion') against score-band
+  // labels ('wasted'/'converted'/'exemplary') — they never matched, so the
+  // nightly digest always reported 0 converted / 0 wasted. scoreBand maps the
+  // documented bands: <50 wasted · 50-69 info · 70-84 converted · 85+ exemplary.
+  const wastedCount = scored.filter((c) => scoreBand(c.score) === "wasted").length;
+  const convertedCount = scored.filter((c) => isConvertedScore(c.score)).length;
   const conversionRate = totalCalls > 0 ? Math.round((convertedCount / totalCalls) * 100) : 0;
 
   // F6 · degradation alert. Compare today's batch avg to the 30d baseline
@@ -366,6 +378,27 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
 
   if (shouldAlert) {
     try {
+      // Warm-transfer connect rate (14d) — rides the alert digest as context
+      // (no new nightly message; the always-on view is the admin Voice tile).
+      // READ-ONLY and INFERRED: VAPI exposes no "human answered" bit, so this is
+      // a duration proxy — see lib/warmTransferConnect.ts. Withheld until >=10
+      // forwards so a noisy window never surfaces a misleading %.
+      let connectLine = "";
+      try {
+        const { computeWarmTransferConnectRate } = await import("../../lib/warmTransferConnect");
+        const connectCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+        const transferRows = await d
+          .select({ endedReason: vapiCallLogs.endedReason, durationSeconds: vapiCallLogs.durationSeconds })
+          .from(vapiCallLogs)
+          .where(gte(vapiCallLogs.createdAt, connectCutoff));
+        const wt = computeWarmTransferConnectRate(transferRows);
+        connectLine = wt.reliable
+          ? `Warm-transfer connect (14d): ~${wt.rate}% inferred · ${wt.connected}/${wt.attempted} forwards · ${wt.failed} failed`
+          : `Warm-transfers (14d): ${wt.attempted} attempted · ${wt.failed} failed · connect % pending (need >=10)`;
+      } catch (wtErr) {
+        log.warn("[vapi-eval] connect-rate compute failed", { error: wtErr instanceof Error ? wtErr.message : String(wtErr) });
+      }
+
       const worst = scored
         .sort((a, b) => a.score - b.score)
         .slice(0, 3)
@@ -384,6 +417,8 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           : avgScore < 60 ? "⚠ Avg score below 60 — investigate the prompt or memory layer." :
           `${wastedCount} wasted calls — listen to the worst 3 and find the pattern.`,
       ];
+      // Slot the connect line right after the Converted/Wasted line (index 2).
+      if (connectLine) lines.splice(3, 0, connectLine);
       await sendTelegram(lines.join("\n"));
     } catch (e) {
       log.warn("[vapi-eval] telegram failed", { error: e instanceof Error ? e.message : String(e) });

@@ -478,7 +478,12 @@ export async function handleRunMigrations() {
     if (!d) return { success: false, error: "DB not available" };
 
     const migrations = [
+      // 2026-06-23 · social_drafts — Stored briefs/drafts from Carousel/Reel Studios
+      `CREATE TABLE IF NOT EXISTS social_drafts (id VARCHAR(64) PRIMARY KEY, contentType VARCHAR(16) NOT NULL, topic VARCHAR(255) NOT NULL, briefJson TEXT NOT NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_social_drafts_type (contentType), INDEX idx_social_drafts_created (createdAt))`,
+      // 2026-06-23 · customer_testimonials — Curated customer reviews and testimonials generated/validated by studios
+      `CREATE TABLE IF NOT EXISTS customer_testimonials (id INT AUTO_INCREMENT PRIMARY KEY, author VARCHAR(100) NULL, text TEXT NOT NULL, rating INT NOT NULL DEFAULT 5, source VARCHAR(50) NOT NULL DEFAULT 'manual', createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_testimonials_rating (rating))`,
       `CREATE TABLE IF NOT EXISTS chat_analytics (id int AUTO_INCREMENT PRIMARY KEY, sessionId int, hourOfDay int NOT NULL, dayOfWeek int NOT NULL, month int NOT NULL, messageCount int NOT NULL DEFAULT 0, converted int NOT NULL DEFAULT 0, leadScore int, duration int, createdAt timestamp NOT NULL DEFAULT (now()))`,
+
       `CREATE TABLE IF NOT EXISTS review_pipeline (id int AUTO_INCREMENT PRIMARY KEY, authorName varchar(255) NOT NULL, rating int NOT NULL, reviewText text, reviewTime int, relativeTime varchar(100), sentiment varchar(20), topicsJson text, keywordsJson text, urgency varchar(20), suggestedResponse text, status varchar(20) DEFAULT 'pending', createdAt timestamp NOT NULL DEFAULT (now()))`,
       `CREATE TABLE IF NOT EXISTS search_performance (id int AUTO_INCREMENT PRIMARY KEY, query varchar(500) NOT NULL, page varchar(500), clicks int DEFAULT 0, impressions int DEFAULT 0, ctr int DEFAULT 0, position int DEFAULT 0, date date, createdAt timestamp NOT NULL DEFAULT (now()))`,
       `CREATE TABLE IF NOT EXISTS pipeline_runs (id int AUTO_INCREMENT PRIMARY KEY, pipelineName varchar(100) NOT NULL, status varchar(20) NOT NULL, startedAt timestamp NOT NULL DEFAULT (now()), completedAt timestamp, durationMs int, resultJson text, error text)`,
@@ -549,6 +554,12 @@ export async function handleRunMigrations() {
       `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS metadata JSON DEFAULT NULL`,
       `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS audited_at TIMESTAMP NULL DEFAULT NULL`,
       `CREATE INDEX IF NOT EXISTS idx_vapi_audited_at ON vapi_call_logs (audited_at)`,
+      // 2026-06-21 · Phase 5.2 live IG insights — reach/saved/views/shares snapshots
+      // on instagram_analytics (views replaces Meta's deprecated plays). Idempotent.
+      `ALTER TABLE instagram_analytics ADD COLUMN IF NOT EXISTS reach INT DEFAULT NULL`,
+      `ALTER TABLE instagram_analytics ADD COLUMN IF NOT EXISTS saved INT DEFAULT NULL`,
+      `ALTER TABLE instagram_analytics ADD COLUMN IF NOT EXISTS views INT DEFAULT NULL`,
+      `ALTER TABLE instagram_analytics ADD COLUMN IF NOT EXISTS shares INT DEFAULT NULL`,
       // 2026-05-24 · drizzle/0061_service_affinity_v2.sql — SA v2 closed loop
       // 4 new tables: predictions/impressions/actions/outcomes. Enables
       // operator-flip activation gate via admin UI without TiDB Cloud login.
@@ -616,6 +627,67 @@ export async function handleRunMigrations() {
       // error (gracefully). Idempotent CREATE TABLE IF NOT EXISTS — the loop's
       // "already exists" catch makes re-runs no-ops.
       `CREATE TABLE IF NOT EXISTS scheduled_posts (id INT AUTO_INCREMENT PRIMARY KEY, platforms JSON NOT NULL, caption TEXT NOT NULL, imageUrl VARCHAR(1000) NULL, videoUrl VARCHAR(1000) NULL, imageUrls JSON NULL, scheduledAt TIMESTAMP NOT NULL, status VARCHAR(16) NOT NULL DEFAULT 'pending', postedAt TIMESTAMP NULL, igPostId VARCHAR(64) NULL, error VARCHAR(500) NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_scheduled_due (status, scheduledAt))`,
+      // Content Domination Engine tables (2026-06-24)
+      `CREATE TABLE IF NOT EXISTS content_manufacturing_campaigns (
+        id VARCHAR(64) PRIMARY KEY,
+        topic VARCHAR(128) NOT NULL,
+        persona VARCHAR(64) NOT NULL,
+        target_monthly_volume INT NOT NULL DEFAULT 30,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_campaign_topic (topic)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+      `CREATE TABLE IF NOT EXISTS social_content_inventory (
+        id VARCHAR(64) PRIMARY KEY,
+        campaign_id VARCHAR(64) NULL,
+        content_type ENUM('reel', 'carousel', 'post', 'story', 'poll') NOT NULL,
+        platform ENUM('instagram', 'facebook', 'both') NOT NULL DEFAULT 'both',
+        topic VARCHAR(128) NOT NULL,
+        series_name VARCHAR(128) NOT NULL,
+        episode_number INT NOT NULL DEFAULT 1,
+        hook_category VARCHAR(64) NOT NULL,
+        hook_text TEXT NOT NULL,
+        body_text TEXT NOT NULL,
+        visual_style VARCHAR(64) NOT NULL,
+        persona VARCHAR(64) NOT NULL,
+        score_curiosity INT NOT NULL DEFAULT 0,
+        score_emotion INT NOT NULL DEFAULT 0,
+        score_shareability INT NOT NULL DEFAULT 0,
+        score_comment_potential INT NOT NULL DEFAULT 0,
+        score_save_potential INT NOT NULL DEFAULT 0,
+        score_local_relevance INT NOT NULL DEFAULT 0,
+        score_revenue_relevance INT NOT NULL DEFAULT 0,
+        score_authority INT NOT NULL DEFAULT 0,
+        score_hook_strength INT NOT NULL DEFAULT 0,
+        score_overall INT NOT NULL DEFAULT 0,
+        gsc_query_seed VARCHAR(255) NULL,
+        weather_trigger_condition VARCHAR(128) NULL,
+        interactive_dm_keyword VARCHAR(64) NULL,
+        metrics_reach INT DEFAULT 0,
+        metrics_engagement INT DEFAULT 0,
+        metrics_shares INT DEFAULT 0,
+        metrics_saves INT DEFAULT 0,
+        metrics_comments INT DEFAULT 0,
+        metrics_bookings_attributed INT DEFAULT 0,
+        status VARCHAR(32) NOT NULL DEFAULT 'pending',
+        scheduled_at TIMESTAMP NULL DEFAULT NULL,
+        published_at TIMESTAMP NULL DEFAULT NULL,
+        asset_paths JSON NULL,
+        brief_json TEXT NULL,
+        error_message VARCHAR(500) NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_sci_status_scheduled (status, scheduled_at),
+        INDEX idx_sci_campaign (campaign_id),
+        INDEX idx_sci_topic_type (topic, content_type)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_reach INT DEFAULT 0`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_engagement INT DEFAULT 0`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_shares INT DEFAULT 0`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_saves INT DEFAULT 0`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_comments INT DEFAULT 0`,
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_bookings_attributed INT DEFAULT 0`
     ];
 
     let applied = 0;

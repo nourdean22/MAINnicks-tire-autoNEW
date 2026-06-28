@@ -21,7 +21,7 @@ something's wrong
      │
      ├── Nick is silent / errors out
      │       → /system/deployment-truth  (v10 — single-pane state of build + env + cron)
-     │       → /system/errors   (look for recent prisma/venice errors)
+     │       → /system/errors   (look for recent prisma/provider errors)
      │       → /system/ai-cost  (check error rate + burn rate)
      │       → /system/command-center  (NICK Prime mode + parity health)
      │       → /system/crons    (is brain-intelligence failing?)
@@ -29,7 +29,7 @@ something's wrong
      │       → v9.1.27 auto-rotates failed providers for 60s (cross-request,
      │         sticky window). Recently-failed providers skipped, then retried
      │         after window. v10 streamWithFallback adds same-turn rotation
-     │         pre-first-token (4 attempts: venice → ollama → openai → anthropic).
+     │         pre-first-token (attempts: ollama → gemini → openai → anthropic).
      │
      ├── a cron keeps failing
      │       → /system/crons → find it → open the last error
@@ -65,7 +65,7 @@ When bringing the Railway service online or resetting a machine:
    DATABASE_URL, DIRECT_URL
    AUTH_SECRET, AUTH_GOOGLE_CLIENT_ID, AUTH_GOOGLE_CLIENT_SECRET, AUTH_ALLOWED_EMAIL
    CRON_SECRET, STATENOUR_SYNC_KEY
-   VENICE_API_KEY                    (or at least one other AI provider)
+   OLLAMA_API_KEY                    (or at least one other AI provider)
    ```
    Verify with `pnpm check:env`.
 2. **Runtime env** (degrades gracefully if missing):
@@ -169,7 +169,7 @@ Triage process:
 3. **Expand the row** — stack trace + JSON context. Match against git log to find introducing commit.
 4. **Quick fixes:**
    - **Prisma schema mismatch** (e.g. `Expected Int, provided String`) — check the model; usually a caller bug.
-   - **Venice 5xx** — check `/system/ai-cost` for burn; provider may be degraded; temporarily pin `AI_PROVIDER=openai`.
+   - **Provider 5xx** — check `/system/ai-cost` for burn; provider may be degraded; temporarily pin `AI_PROVIDER=openai`.
    - **Cron auth 401** — CRON_SECRET not set or mismatched; check Railway env.
    - **Unauthorized on `/api/*`** — user not in `AUTH_ALLOWED_EMAIL` allowlist.
    - **Bridge sync 401** — `STATENOUR_SYNC_KEY` mismatch between nickstire and statenour.
@@ -183,11 +183,11 @@ Open `/system/ai-cost`:
 - **Burn rate card** — today's cost ÷ 7d average. Green < 1.1×, amber < 1.5×, rose > 1.5×.
 - **14-day trend** — if a spike lasts > 3 days, investigate.
 - **By feature** — identifies which Nick surface is costing most. Common offenders: `chat`, `strategy/daily`, `weekly-review`.
-- **By model** — Venice vs OpenAI mix. If OpenAI calls dominate → Venice is down → check provider health.
+- **By model** — Ollama vs OpenAI mix. If OpenAI calls dominate → Ollama is down → check provider health.
 
 **Knobs available now:**
 - Provider override: set `AI_PROVIDER=openai` env in Railway.
-- Model override: set `VENICE_MODEL=...` or `OPENAI_MODEL=...`.
+- Model override: set `OPENAI_MODEL=...` (or `OLLAMA_MODEL=...`).
 - Feature kill: temporarily comment out the feature's system-prompt inclusion.
 
 **Knobs coming (W11 power panel):**

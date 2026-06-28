@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SuggestionTelemetryPanel — live cache-hit + Venice vs heuristic
+ * SuggestionTelemetryPanel — live cache-hit + AI vs heuristic
  * split for the /api/ai/chat/suggestions endpoint. Helps Nour see
  * whether the two-layer warming actually pays off.
  *
@@ -23,8 +23,8 @@ interface Stats {
   requests: number;
   cacheHits: number;
   cacheHitRate: number;
-  veniceOk: number;
-  veniceFail: number;
+  aiOk: number;
+  aiFail: number;
   heuristic: number;
   errorFallback: number;
   avgLatencyMs: number;
@@ -67,9 +67,9 @@ export function SuggestionTelemetryPanel() {
   if (!stats) return null;
 
   const hitPct = Math.round(stats.cacheHitRate * 100);
-  const veniceTotal = stats.veniceOk + stats.veniceFail;
-  const veniceSuccessPct =
-    veniceTotal > 0 ? Math.round((stats.veniceOk / veniceTotal) * 100) : null;
+  const aiTotal = stats.aiOk + stats.aiFail;
+  const aiSuccessPct =
+    aiTotal > 0 ? Math.round((stats.aiOk / aiTotal) * 100) : null;
   const heuristicPct =
     stats.requests > 0 ? Math.round((stats.heuristic / stats.requests) * 100) : 0;
 
@@ -130,12 +130,12 @@ export function SuggestionTelemetryPanel() {
               </span>
             </div>
             <div className="flex flex-col gap-0.5">
-              <span className="text-[var(--text-tertiary)]">venice</span>
+              <span className="text-[var(--text-tertiary)]">ai</span>
               <span className="text-[var(--gold)] text-[12px] tabular-nums">
-                <AnimatedCounter value={stats.veniceOk} duration={600} />
-                {veniceSuccessPct !== null && stats.veniceFail > 0 && (
+                <AnimatedCounter value={stats.aiOk} duration={600} />
+                {aiSuccessPct !== null && stats.aiFail > 0 && (
                   <span className="text-[9px] text-[var(--text-tertiary)] ml-1">
-                    /{veniceSuccessPct}% ok
+                    /{aiSuccessPct}% ok
                   </span>
                 )}
               </span>
@@ -192,10 +192,10 @@ export function SuggestionTelemetryPanel() {
               pre-warming on more surfaces
             </div>
           )}
-          {veniceSuccessPct !== null && veniceSuccessPct < 70 && (
+          {aiSuccessPct !== null && aiSuccessPct < 70 && (
             <div className="flex items-center gap-2 text-[10px] text-red-400/80 border-l-2 border-red-400/40 pl-2">
               <AlertCircle size={10} />
-              venice success rate low ({veniceSuccessPct}%) — heuristic
+              ai success rate low ({aiSuccessPct}%) — heuristic
               fallback is carrying the load
             </div>
           )}

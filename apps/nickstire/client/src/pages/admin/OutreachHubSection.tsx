@@ -5,7 +5,7 @@
  * Tesla-style: one clean surface, tabs to navigate, all tools in one place.
  */
 import { lazy, Suspense } from "react";
-import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2, BarChart3 } from "lucide-react";
+import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2, BarChart3, Cpu } from "lucide-react";
 import { PageHeader, TabBar, useUrlFilter } from "./shared";
 // wave-181.x Outreach Hub Phase 2 · 3-line OutreachBrief above the
 // tab bar (queue/live/action) + GatewayPill hoisted into the hub
@@ -14,19 +14,20 @@ import { OutreachBrief } from "./outreach/OutreachBrief";
 import GatewayPill from "@/components/admin/GatewayPill";
 
 const SmsSection = lazy(() => import("./outreach/SmsSection"));
-const FollowUpsSection = lazy(() => import("./outreach/FollowUpsSection"));
 const CampaignsSection = lazy(() => import("./outreach/CampaignsSection"));
+const FollowUpsSection = lazy(() => import("./outreach/FollowUpsSection"));
 const ReviewRequestsSection = lazy(() => import("./outreach/ReviewRequestsSection"));
 const WinBackSection = lazy(() => import("./outreach/WinBackSection"));
 // wave-181.51 — SMS Performance read-out (reply + conversion attribution
 // per outbound send, rolled up per tier). Lives in OutreachHub because
 // it's the analytic counterpart to Messages/Campaigns/Follow-Ups.
 const SmsPerformanceSection = lazy(() => import("./outreach/SmsPerformanceSection"));
+const SmsOrchestratorSection = lazy(() => import("./outreach/SmsOrchestratorSection"));
 
 // 2026-05-19 Elon-cut · `reengage` tab deleted. Win-Back covers the same
 // cohort (lapsed customers receiving SMS); two surfaces was cognitive
 // overhead. Aliases `reengage`/`reengagement` still resolve to this hub.
-type OutreachTab = "sms" | "campaigns" | "followups" | "reviews" | "winback" | "performance";
+type OutreachTab = "sms" | "campaigns" | "followups" | "reviews" | "winback" | "performance" | "orchestrator";
 
 // Wave-129 — SMS (1-on-1 texting) is the most-used customer-touch surface,
 // so it leads. Campaigns/Follow-ups/etc. are scheduled/bulk tooling — they
@@ -40,6 +41,7 @@ const TABS: { id: OutreachTab; label: string; icon: React.ReactNode }[] = [
   { id: "reviews", label: "Reviews", icon: <Star className="w-3.5 h-3.5" /> },
   { id: "winback", label: "Win-Back", icon: <RotateCcw className="w-3.5 h-3.5" /> },
   { id: "performance", label: "Performance", icon: <BarChart3 className="w-3.5 h-3.5" /> },
+  { id: "orchestrator", label: "Orchestrator", icon: <Cpu className="w-3.5 h-3.5" /> },
 ];
 
 function TabSpinner() {
@@ -50,7 +52,7 @@ function TabSpinner() {
   );
 }
 
-const VALID_OUTREACH_TABS: OutreachTab[] = ["sms", "campaigns", "followups", "reviews", "winback", "performance"];
+const VALID_OUTREACH_TABS: OutreachTab[] = ["sms", "campaigns", "followups", "reviews", "winback", "performance", "orchestrator"];
 
 export default function OutreachHubSection() {
   // wave-129 — default tab moved from "campaigns" → "sms". Operator
@@ -125,6 +127,7 @@ export default function OutreachHubSection() {
         {tab === "reviews" && <ReviewRequestsSection />}
         {tab === "winback" && <WinBackSection />}
         {tab === "performance" && <SmsPerformanceSection />}
+        {tab === "orchestrator" && <SmsOrchestratorSection />}
       </Suspense>
     </div>
   );

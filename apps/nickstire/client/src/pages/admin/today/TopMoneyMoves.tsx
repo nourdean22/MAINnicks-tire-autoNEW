@@ -142,8 +142,24 @@ export function TopMoneyMoves() {
                 </h4>
 
                 <p className="text-[11px] text-muted-foreground leading-normal font-normal">
-                  {move.description}
+                  {move.reason || move.description}
                 </p>
+                
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/10">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Urgency:</span>
+                    <span className={`text-[10px] font-bold ${move.urgency >= 4 ? "text-red-400" : move.urgency === 3 ? "text-yellow-400" : "text-emerald-400"}`}>
+                      {move.urgency}/5
+                    </span>
+                  </div>
+                  <div className="w-1 h-1 rounded-full bg-border/50"></div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] uppercase tracking-wider text-muted-foreground">Confidence:</span>
+                    <span className={`text-[10px] font-bold ${move.confidence === "High" ? "text-emerald-400" : move.confidence === "Medium" ? "text-yellow-400" : "text-muted-foreground"}`}>
+                      {move.confidence}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <button

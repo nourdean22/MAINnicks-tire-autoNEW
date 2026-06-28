@@ -388,7 +388,7 @@ export const autopilotProcedures = {
     .mutation(async ({ input }) => {
       if (input.key === "providerPin") {
         if (
-          !["venice", "openai", "anthropic", "gemini", "auto"].includes(
+          !["openai", "anthropic", "gemini", "auto"].includes(
             String(input.value),
           )
         ) {

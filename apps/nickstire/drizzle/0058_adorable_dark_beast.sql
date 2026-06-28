@@ -1,0 +1,20 @@
+ALTER TABLE `sms_orchestrations` ADD `decision_trace_json` text;--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `risk_tier` varchar(50);--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `human_review_reason` text;--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `no_send_reason` text;--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `selected_template_key` varchar(100);--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `selected_variant_key` varchar(100);--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `template_version` varchar(50);--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `experiment_id` varchar(100);--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `journey_id` varchar(100);--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `correlation_id` varchar(100);--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `idempotency_key` varchar(255);--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `legacy_comparison_json` text;--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `shadow_would_send` boolean;--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `shadow_message_body` text;--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `legacy_message_body` text;--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `variant_assignment_reason` text;--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `is_control` boolean;--> statement-breakpoint
+ALTER TABLE `sms_orchestrations` ADD `traffic_weight` int;--> statement-breakpoint
+CREATE INDEX `idx_sms_orch_correlation` ON `sms_orchestrations` (`correlation_id`);--> statement-breakpoint
+CREATE INDEX `idx_sms_orch_idempotency` ON `sms_orchestrations` (`idempotency_key`);

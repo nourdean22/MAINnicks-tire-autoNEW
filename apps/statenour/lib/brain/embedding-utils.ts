@@ -38,11 +38,12 @@ async function writePgvectorColumn(
   try {
     if (!(await isPgvectorAvailable())) return;
     if (vec.length === 0) return;
-    const lit = vectorLiteral(vec);
+    // embedding_vec is constrained to vector(1024) in the database.
+    const lit = vectorLiteral(padToVectorDim(vec, 1024));
     // Cast literal → vector inline; safe because vectorLiteral
     // already sanitizes (only finite numbers + brackets/commas).
     await prisma.$executeRawUnsafe(
-      `UPDATE vector_embeddings SET embedding_vec = '${lit}'::vector WHERE id = $1`,
+      `UPDATE vector_embeddings SET embedding_vec = '${lit}'::vector(1024) WHERE id = $1`,
       rowId,
     );
 
@@ -148,6 +149,61 @@ export type EmbeddingSourceType =
   // Recall via knnSearch then surface in chat as context.
   | "document";
 
+async function markMemoryEmbeddingPending(memoryId: string): Promise<void> {
+  try {
+    const memory = await prisma.brainMemory.findUnique({
+      where: { id: memoryId },
+      select: { metadata: true },
+    });
+    if (memory) {
+      const currentMeta = (memory.metadata as Record<string, any>) || {};
+      if (currentMeta.embedding_status !== "pending") {
+        await prisma.brainMemory.update({
+          where: { id: memoryId },
+          data: {
+            metadata: {
+              ...currentMeta,
+              embedding_status: "pending",
+            },
+          },
+        });
+      }
+    }
+  } catch (err) {
+    log.warn("failed_to_mark_embedding_pending", {
+      memoryId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+async function markMemoryEmbeddingSuccess(memoryId: string): Promise<void> {
+  try {
+    const memory = await prisma.brainMemory.findUnique({
+      where: { id: memoryId },
+      select: { metadata: true },
+    });
+    if (memory) {
+      const currentMeta = (memory.metadata as Record<string, any>) || {};
+      if (currentMeta.embedding_status) {
+        const nextMeta = { ...currentMeta };
+        delete nextMeta.embedding_status;
+        await prisma.brainMemory.update({
+          where: { id: memoryId },
+          data: {
+            metadata: nextMeta,
+          },
+        });
+      }
+    }
+  } catch (err) {
+    log.warn("failed_to_mark_embedding_success", {
+      memoryId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 /**
  * Store or update an embedding for any source type.
  * Non-blocking — failures are logged but don't break the caller.
@@ -178,11 +234,19 @@ export async function storeGenericEmbedding(
     if (existing && existing.content === content) {
       // Identical content · no-op. The vector + native pgvector
       // column already represent this string.
+      if (sourceType === "brain_memory") {
+        await markMemoryEmbeddingSuccess(sourceId);
+      }
       return;
     }
 
     const vec = await getEmbedding(content);
-    if (vec.length === 0) return; // Embedding provider unavailable
+    if (vec.length === 0) {
+      if (sourceType === "brain_memory") {
+        await markMemoryEmbeddingPending(sourceId);
+      }
+      return; // Embedding provider unavailable
+    }
 
     if (existing) {
       await prisma.vectorEmbedding.update({
@@ -204,12 +268,19 @@ export async function storeGenericEmbedding(
       });
       void writePgvectorColumn(created.id, vec);
     }
+
+    if (sourceType === "brain_memory") {
+      await markMemoryEmbeddingSuccess(sourceId);
+    }
   } catch (err) {
     log.warn("store_failed", {
       sourceType,
       sourceId,
       error: err instanceof Error ? err.message : String(err),
     });
+    if (sourceType === "brain_memory") {
+      await markMemoryEmbeddingPending(sourceId);
+    }
   }
 }
 

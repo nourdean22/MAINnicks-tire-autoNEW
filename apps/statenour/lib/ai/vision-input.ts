@@ -119,6 +119,9 @@ async function callOllama(
       model: OLLAMA_VISION_MODEL,
       messages: toOpenAIShape(messages),
       max_tokens: options.maxOutputTokens ?? 1024,
+      options: {
+        num_predict: options.maxOutputTokens ?? 1024,
+      },
     }),
     signal: options.signal,
   });

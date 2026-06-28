@@ -133,8 +133,25 @@ export const CRONS: CronDef[] = [
     inngest: true,
     description: "Industry-intel RSS feeder → BrainMemory(industry_intel) for recallIndustryIntel (system prompt + /intel + plan-day). Revived 2026-05-31 (was deleted in Wave AE).",
   },
+  {
+    name: "intelligence-daily-brief",
+    schedule: "0 10 * * *",
+    mode: "active",
+    category: "review",
+    inngest: true,
+    description: "Daily Ingestion, claim verification, opportunity scoring & Executive Briefing — Inngest-native.",
+  },
+  {
+    name: "intelligence-weekly-brief",
+    schedule: "0 11 * * 0",
+    mode: "active",
+    category: "review",
+    inngest: true,
+    description: "Weekly Ingestion & Strategic Briefing — Inngest-native.",
+  },
 
   // ── COMPOSE ─────────────────────────────────────────────────────────
+
   {
     name: "mega",
     path: "/api/cron/mega?slot=morning",
@@ -355,15 +372,6 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
-    name: "daily-report",
-    schedule: "0 22 * * *",
-    mode: "active",
-    category: "review",
-    description: "Daily 10pm UTC · operator-day summary · what shipped, what stalled, what compounded.",
-    memory: 512,
-    maxDuration: 60,
-  },
-  {
     name: "journal-checkin",
     schedule: "0 23 * * *",
     mode: "active",
@@ -516,15 +524,6 @@ export const CRONS: CronDef[] = [
     maxDuration: 30,
   },
   {
-    name: "error-telegram-push",
-    schedule: "*/10 * * * *",
-    mode: "active",
-    category: "alert",
-    description: "Every 10min · single push pipe for fatal errors · operator gets 1 message per cluster, not 100.",
-    memory: 256,
-    maxDuration: 30,
-  },
-  {
     name: "proactive-push",
     schedule: "0 * * * *",
     mode: "active",
@@ -581,6 +580,14 @@ export const CRONS: CronDef[] = [
     category: "action",
     foldedInto: "mega-evening",
     description: "FOLDED into mega-evening · NICK_AUTONOMY-gated proactive engine (~22 rules: revenue-pace, urgent-leads, drift escalation, commitment enforcement, morning brief, expired-quote follow-up). Hard-skips when the flag is off. FAIL-CLOSED: every rule defers to /system/approvals unless an explicit `auto` AutomationPolicy exists — nothing auto-sends.",
+  },
+  {
+    name: "neglect-penalty",
+    schedule: "0 */4 * * *", // Runs every 4 hours
+    mode: "active",
+    category: "hygiene",
+    inngest: true,
+    description: "Systemic decay enforcer. Deducts XP from neglected missions that idle for >48h and fires a Telegram alert.",
   },
 ];
 

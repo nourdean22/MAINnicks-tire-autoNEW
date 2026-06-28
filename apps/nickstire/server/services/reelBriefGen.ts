@@ -146,13 +146,29 @@ export async function generateReelBriefAI(
     proprietaryEvidence,
   });
 
+  // Phase 5.4 + 3.3: feed what's performed back into generation + push a DM-share CTA.
+  let feedback = "";
+  try {
+    const { getReelGenerationSignal } = await import("../pipelines/instagram-data");
+    const sig = await getReelGenerationSignal();
+    if (sig.topThemes.length) {
+      feedback = `\n\nPERFORMANCE FEEDBACK: recent top-performing themes are ${sig.topThemes.join(", ")}. If one genuinely fits the grounded fact, lean toward it — never force it.`;
+    }
+  } catch (e) {
+    log.warn("reel generation signal skipped", { e: e instanceof Error ? e.message : String(e) });
+  }
+  const shareCta =
+    "\n\nSHARE CTA: the selectedCaption MUST include a natural prompt inviting the viewer to SEND the reel to someone who needs it (DM shares are a top reach lever) — e.g. \"send this to someone whose tires are bald.\" Keep it claim-safe: no prices, no guarantees, sell the visit not a quote.";
+
   const res = await invokeLLM({
     messages: [
       { role: "system", content: systemPrompt },
       {
         role: "user",
         content:
-          "Run the full process internally — ground the fact, ideate the concepts, score them, pick the single winner — then OUTPUT ONLY the winning reel as one JSON object matching the provided schema (contiguous storyboard beats, caption, hashtags). No prose, no markdown.",
+          "Run the full process internally — ground the fact, ideate the concepts, score them, pick the single winner — then OUTPUT ONLY the winning reel as one JSON object matching the provided schema (contiguous storyboard beats, caption, hashtags). No prose, no markdown." +
+          feedback +
+          shareCta,
       },
     ],
     // Large brief + gemini-2.5-flash thinking overhead — generous headroom.
@@ -167,6 +183,7 @@ export async function generateReelBriefAI(
     throw new Error("LLM returned no reel brief content");
   }
   const parsed = parseReelJson(content);
+  const kw = coerceKeyword(str(parsed.campaignKeyword));
 
   const storyboardBeats: StoryboardBeat[] = (Array.isArray(parsed.storyboardBeats) ? parsed.storyboardBeats : [])
     .map((raw: unknown, i: number) => {
@@ -183,6 +200,23 @@ export async function generateReelBriefAI(
         safeZoneNotes: str(b.safeZoneNotes),
       };
     });
+
+  // Programmatically append the final loop/CTA frame (Phase 1.3 visual CTA card)
+  const lastBeat = storyboardBeats[storyboardBeats.length - 1];
+  if (lastBeat) {
+    const endSec = lastBeat.endSecond;
+    storyboardBeats.push({
+      beatNumber: storyboardBeats.length + 1,
+      startSecond: endSec,
+      endSecond: endSec + 2, // 2-second hold card
+      visual: "Graphic display of Nick's Tire & Auto logo on brand yellow (#FDB913) background with clear text overlay",
+      motion: "Static hold with subtle camera zoom-in",
+      onScreenText: `SAVE THIS POST | DM us "${kw}"`,
+      purpose: "Provide a strong, clear, brand-aligned visual call to action on loop",
+      audioCue: "Fading music loop",
+      safeZoneNotes: "Center-aligned text, fully inside IG UI safe zones"
+    });
+  }
 
   const now = new Date().toISOString();
   const brief: ReelBrief = {
@@ -205,6 +239,7 @@ export async function generateReelBriefAI(
     concepts: [],
     winningConceptId: null,
     storyboardBeats,
+    promptPack: [],
     higgsfieldPromptPack: [],
     ffmpegAssemblyNotes: str(parsed.ffmpegAssemblyNotes),
     voiceoverScript: str(parsed.voiceoverScript),

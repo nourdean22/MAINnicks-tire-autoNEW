@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  # MQTT Broker (Eclipse Mosquitto)
+  # Essential for Frigate to publish object detection event payloads
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: camera_mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mqtt_config:/mosquitto/config
+      - mqtt_data:/mosquitto/data
+      - mqtt_log:/mosquitto/log
+    # Allow anonymous access for simple local setup; secure in prod if needed
+    command: ["/usr/sbin/mosquitto", "-c", "/mosquitto-no-auth.conf"]
+
+  # Frigate NVR (Local Object Detection Engine)
+  frigate:
+    container_name: frigate
+    privileged: true # needed for hardware acceleration / USB coral access
+    restart: unless-stopped
+    image: ghcr.io/blakeblackshear/frigate:0.13.2
+    shm_size: "128mb" # minimum shm size for 1080p camera stream
+    devices:
+      # Optional: GPU hardware acceleration templates (Uncomment depending on host GPU)
+      # - /dev/dri/renderD128:/dev/dri/renderD128 # Intel VAAPI
+      # - /dev/dxg:/dev/dxg # Windows WSL2 NVIDIA/DirectX
+      - /dev/bus/usb:/dev/bus/usb # Coral USB Accelerator
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./frigate/config.yml:/config/config.yml
+      - ./storage/media:/media/frigate
+    ports:
+      - "5000:5000" # Web UI / HTTP API
+      - "8554:8554" # RTSP rebroadcast stream (optional)
+      - "8555:8555" # WebRTC stream
+    environment:
+      - FRIGATE_MQTT_PASSWORD=
+    depends_on:
+      - mqtt
+
+volumes:
+  mqtt_config:
+  mqtt_data:
+  mqtt_log:

@@ -35,6 +35,11 @@ export function validateTwilioRequest(req: Request, res: Response, next: NextFun
   // ALWAYS regardless of environment. Log the bypass so it shows in
   // boot logs.
   if (!authToken) {
+    if (process.env.NODE_ENV === "production") {
+      log.error("[validateTwilioRequest] TWILIO_AUTH_TOKEN not set in production — webhook validation rejected (fail-closed).");
+      res.status(403).type("text/xml").send("<Response></Response>");
+      return;
+    }
     log.warn("[validateTwilioRequest] TWILIO_AUTH_TOKEN not set — webhook validation BYPASSED. Configure the token in any reachable environment.");
     return next();
   }

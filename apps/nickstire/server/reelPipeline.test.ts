@@ -20,18 +20,22 @@ function ctx(role: "admin" | "user" | null): TrpcContext {
             name: `${role} User`,
             loginMethod: "manus",
             role,
+            loyaltyPoints: 0,
+            loyaltyTier: "bronze",
+            totalVisits: 0,
+            totalSpent: 0,
             createdAt: new Date(),
             updatedAt: new Date(),
             lastSignedIn: new Date(),
           },
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
-    res: { clearCookie: () => {} } as TrpcContext["res"],
+    res: { clearCookie: () => {} } as unknown as TrpcContext["res"],
   };
 }
 
 describe("reel pipeline — enqueue proc auth", () => {
   it("contentAdmin.enqueueReelJob is registered", () => {
-    expect(appRouter._def.procedures["contentAdmin.enqueueReelJob"]).toBeDefined();
+    expect((appRouter._def.procedures as Record<string, any>)["contentAdmin.enqueueReelJob"]).toBeDefined();
   });
 
   it("rejects non-admin callers with FORBIDDEN (before any DB write)", async () => {
@@ -77,11 +81,23 @@ describe("reel pipeline — withTimeout", () => {
 
   it("rejects with a labeled timeout when the promise outlives the deadline", async () => {
     const slow = new Promise((res) => setTimeout(res, 10_000));
-    await expect(withTimeout(slow, 20, "gen beat 3")).rejects.toThrow(/gen beat 3 timed out after/);
+    try {
+      await withTimeout(slow, 20, "gen beat 3");
+      expect.fail("Should have rejected");
+    } catch (e: any) {
+      expect(e).toBeDefined();
+      expect(e.message).toMatch(/gen beat 3 timed out after/);
+    }
   });
 
   it("propagates the underlying rejection unchanged when it loses the race", async () => {
     const boom = Promise.reject(new Error("higgsfield 500"));
-    await expect(withTimeout(boom, 1000, "fast")).rejects.toThrow("higgsfield 500");
+    try {
+      await withTimeout(boom, 1000, "fast");
+      expect.fail("Should have rejected");
+    } catch (e: any) {
+      expect(e).toBeDefined();
+      expect(e.message).toBe("higgsfield 500");
+    }
   });
 });

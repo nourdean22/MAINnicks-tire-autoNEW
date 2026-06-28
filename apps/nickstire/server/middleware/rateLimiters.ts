@@ -1,9 +1,22 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import type { Request } from "express";
+
+const clientIp = (req: Request): string => {
+  const cfIp = req.headers["cf-connecting-ip"];
+  const raw = typeof cfIp === "string" ? cfIp : req.ip || "unknown";
+  // Normalize IPv6 to its subnet via express-rate-limit's helper so IPv6
+  // clients can't bypass limits by hopping addresses within their /64
+  // allocation (silences ERR_ERL_KEY_GEN_IPV6 from the v8 keyGenerator
+  // validator). IPv4 is returned unchanged; the "unknown" fallback is passed
+  // through untouched since it isn't an IP.
+  return raw === "unknown" ? raw : ipKeyGenerator(raw);
+};
 
 // Rate limiting for public API endpoints to prevent spam/abuse
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
+  keyGenerator: clientIp,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests. Please try again later or call us at (216) 862-0005." },
@@ -13,6 +26,7 @@ export const apiLimiter = rateLimit({
 export const formLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // 10 form submissions per hour per IP
+  keyGenerator: clientIp,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many submissions. Please call us directly at (216) 862-0005." },
@@ -22,6 +36,7 @@ export const formLimiter = rateLimit({
 export const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 30, // 30 AI requests per hour per IP
+  keyGenerator: clientIp,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many AI requests. Please try again later or call us at (216) 862-0005." },
@@ -31,6 +46,7 @@ export const aiLimiter = rateLimit({
 export const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 15,
+  keyGenerator: clientIp,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many file uploads. Please try again later." },

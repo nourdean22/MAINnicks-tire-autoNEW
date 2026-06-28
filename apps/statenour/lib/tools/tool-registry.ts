@@ -199,7 +199,7 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     approvalPolicy: "screenshot_required",
     requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"],
     auditLogRequired: true,
-    currentLimitations: ["Headless browser is currently disabled (inert)."],
+    currentLimitations: ["Intentionally parked - operator uses Claude-in-Chrome + computer-use for browser work; Stagehand SDK not installed."],
     costClass: "medium"
   },
   "browser.observe": {
@@ -216,7 +216,7 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     approvalPolicy: "none",
     requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"],
     auditLogRequired: false,
-    currentLimitations: ["Headless browser is currently disabled (inert)."],
+    currentLimitations: ["Intentionally parked - operator uses Claude-in-Chrome + computer-use for browser work; Stagehand SDK not installed."],
     costClass: "medium"
   },
   "browser.extract": {
@@ -233,7 +233,7 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     approvalPolicy: "none",
     requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"],
     auditLogRequired: false,
-    currentLimitations: ["Headless browser is currently disabled (inert)."],
+    currentLimitations: ["Intentionally parked - operator uses Claude-in-Chrome + computer-use for browser work; Stagehand SDK not installed."],
     costClass: "medium"
   },
   "browser.act": {
@@ -250,7 +250,7 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     approvalPolicy: "screenshot_required",
     requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"],
     auditLogRequired: true,
-    currentLimitations: ["Headless browser is currently disabled (inert)."],
+    currentLimitations: ["Intentionally parked - operator uses Claude-in-Chrome + computer-use for browser work; Stagehand SDK not installed."],
     costClass: "high"
   },
   "memory.pin": {
@@ -886,7 +886,10 @@ export function getToolHealthSummary(): ToolHealthInfo[] {
     if (cap.status === "blocked") {
       health = "blocked";
     } else if (cap.status === "inert") {
-      health = hasRequired ? "inert" : "missing_env";
+      // Parked-by-choice: env is irrelevant while inert, so it is NOT a setup
+      // gap. Report "inert" (not "missing_env") and clear missingEnv so the
+      // matrix's "Missing Setup Env" count only reflects tools we intend to run.
+      health = "inert";
     } else if (!hasRequired) {
       health = "missing_env";
     } else if (cap.optionalEnv && cap.optionalEnv.some((key) => !process.env[key])) {
@@ -897,7 +900,7 @@ export function getToolHealthSummary(): ToolHealthInfo[] {
       id: cap.id,
       status: cap.status,
       health,
-      missingEnv: missing,
+      missingEnv: cap.status === "inert" || cap.status === "blocked" ? [] : missing,
       riskClass: cap.riskClass
     };
   });

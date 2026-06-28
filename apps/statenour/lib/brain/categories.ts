@@ -46,6 +46,8 @@ export const BRAIN_CATEGORIES = {
   NICK_QUALITY: "nick_quality",
   REPLY_QUALITY: "reply_quality",
   NARRATOR_FEEDBACK: "narrator_feedback",
+  REPLY_TO_IMPROVE: "reply_to_improve",
+  VOICE_LATENCY_ALERT: "voice_latency_alert",
 
   // ── Brain · identity + beliefs ──
   BELIEF: "belief",
@@ -77,6 +79,11 @@ export const BRAIN_CATEGORIES = {
   SUGGESTION_HYPOTHESIS: "suggestion_hypothesis", // 2026-05-21 · suggestion-improve · per-kind improvement hypotheses derived from the suggestion-loop
   NUDGE_ACK: "nudge_ack",
   NUDGE_PIN_HYGIENE: "nudge_pin_hygiene",
+  SEMANTIC_EDGE: "semantic_edge",
+  RULE: "rule",
+  WIN: "win",
+  SCORE_EVENT: "score_event",
+  TOKEN_AGE_PUSHED: "token_age_pushed",
 
   // ── Brain · memory + learning ──
   BRAIN: "brain",
@@ -89,6 +96,7 @@ export const BRAIN_CATEGORIES = {
   SKILL: "skill",
   SKILL_PENDING: "skill_pending",
   TIMELINE: "timeline",
+  REFLECTION_EVENT: "reflection_event",
 
   // ── Brain · patterns (temporal + statistical) ──
   ACTION_FREQUENCY: "action_frequency",
@@ -144,6 +152,7 @@ export const BRAIN_CATEGORIES = {
   PRICING: "pricing",
   REVENUE: "revenue",
   REVENUE_TIMING: "revenue_timing",
+  REVENUE_MOVE: "revenue_move",
   SALES: "sales",
   SERVICE: "service",
   SHOP: "shop",
@@ -166,6 +175,12 @@ export const BRAIN_CATEGORIES = {
   HEALTH: "health",
   MENTAL: "mental",
   MIT: "mit",
+  PERSONAL: "personal",
+  SOCIAL: "social",
+  MIND: "mind",
+  MASTERY: "mastery",
+  DRIFT: "drift",
+  PREDICTION: "prediction",
   PERSONAL_DEVELOPMENT: "personal_development",
   PHYSICAL: "physical",
   PREFERENCE: "preference",
@@ -186,6 +201,7 @@ export const BRAIN_CATEGORIES = {
 
   // ── Meta / archive / stale markers ──
   ANCIENT_DEVICE_EVENTS: "ancient_device_events",
+  ARCHIVE_DOCUMENT: "archive_document",
   HQ_PIN_CANDIDATE: "hq_pin_candidate",
   ORPHAN_CONVERSATIONS: "orphan_conversations",
   OVERDUE_DECISIONS_REVIEWS: "overdue_decisions_reviews",
@@ -209,6 +225,11 @@ export const BRAIN_CATEGORIES = {
   SYSTEM_HEALTH_DIGEST: "system_health_digest",
   TASK_SESSION: "task_session",
   TOOLS: "tools",
+  SYSTEM_ALERT: "system_alert",
+  SYSTEM_DEDUPE: "system_dedupe",
+  SCHEMA_DRIFT_ALERT: "schema_drift_alert",
+  TELEMETRY_TEMPORAL_WARN: "telemetry_temporal_warn",
+  TELEMETRY_TOOL_VERB: "telemetry_tool_verb",
 
   // ── Tech / content ──
   ARCHITECTURE: "architecture",
@@ -224,9 +245,19 @@ export const BRAIN_CATEGORIES = {
   MACRO: "macro",
   OPERATIONAL: "operational",
   RESEARCH: "research",
+  RESEARCH_PACK: "research_pack",
+  RESEARCH_SOURCE: "research_source",
+  RESEARCH_CLAIM: "research_claim",
+  RESEARCH_QUESTION: "research_question",
+  RESEARCH_ACTION: "research_action",
+  RESEARCH_CONTRADICTION: "research_contradiction",
+  NOTEBOOKLM_PACK: "notebooklm_pack",
   TECH: "tech",
   UI: "ui",
   VIDEO: "video",
+  REFERENCE: "reference",
+  TOOL_TELEMETRY: "tool_telemetry",
+  TOOL_EMBEDDING: "tool_embedding",
 
   // ── Tasks + strategy ──
   PLANNING: "planning",
@@ -239,6 +270,7 @@ export const BRAIN_CATEGORIES = {
    *  into higher-level task_pattern rows weekly. Was hand-typed in 4+
    *  files for months — registering closes the typo-protection gap. */
   TASK_INSIGHT: "task_insight",
+  TASK_COMPLETION: "task_completion",
   /** 2026-05-23 · task #17 · synthesized pattern lane · written by
    *  pattern-clusterer + nick-suggestions. Read by next-move +
    *  NickSuggestions UI. Cross-pattern meta-themes (e.g. "your
@@ -303,6 +335,27 @@ export const BRAIN_CATEGORIES = {
    *  Content = JSON { moment, ledgerId, pinnedAt, kind: "peak" |
    *  "shift" | "insight" }. Written by tRPC markAlphaMoment. */
   ALPHA_MOMENT: "alpha_moment",
+
+  // ── Power Atlas · Dark Psychology extension (2026-06-20) ──
+  /** 2026-06-20 · Dark psychology corpus · cognitive biases, manipulation
+   *  techniques, social engineering patterns from P0WER handbook +
+   *  external repos. Key shape: `dp_<topic>`. Metadata mirrors GreeneEntry
+   *  shape: { title, summary, fullText, triggers[], actions[],
+   *  relatedKeys[], applicabilityPrompt, sourceBook }. Seeded via
+   *  scripts/seed-dark-psychology-corpus.ts. */
+  DARK_PSYCHOLOGY: "dark_psychology",
+  /** 2026-06-20 · Negotiation tactics · Voss "Never Split the Difference"
+   *  patterns (mirroring, labeling, calibrated questions, accusation audit).
+   *  Key shape: `neg_<pattern>`. Same metadata shape as DARK_PSYCHOLOGY. */
+  NEGOTIATION_TACTIC: "negotiation_tactic",
+  /** 2026-06-20 · Competitive intelligence · Chanakya Neeti principles for
+   *  systematic exploitation of competitor vulnerabilities. Key shape:
+   *  `ci_<principle>`. Same metadata shape as DARK_PSYCHOLOGY. */
+  COMPETITIVE_INTEL: "competitive_intel",
+  /** 2026-06-20 · Tactical playbook · concrete tactical patterns (anchoring,
+   *  scarcity, illusion of choice, Trojan networking). Key shape:
+   *  `tp_<pattern>`. Same metadata shape as DARK_PSYCHOLOGY. */
+  TACTICAL_PLAYBOOK: "tactical_playbook",
 
   // ── Wave AA · Missions-led IA (2026-05-28) ──
   /** 2026-05-28 · Wave AA Phase 3 · per-mission retrospective captured
@@ -634,7 +687,7 @@ export function canonicalCategory(category: string): string {
 export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
   "AI / Nick": [
     "ai", "ai_analysis", "ai_config", "nick_advice", "nick_quality",
-    "reply_quality", "narrator_feedback",
+    "reply_quality", "narrator_feedback", "reply_to_improve", "voice_latency_alert",
   ],
   "Brain · identity + beliefs": [
     "belief", "belief_candidate", "belief_manual", "belief_refresh_report",
@@ -644,12 +697,13 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
     "anomaly", "anti_pattern", "blind_spot", "causation", "contradiction",
     "correlation_alert", "counter_intuitive", "hidden_correlation",
     "pattern", "teaching_moment", "wisdom", "wisdom_contradiction",
-    "nudge_ack", "nudge_pin_hygiene",
+    "nudge_ack", "nudge_pin_hygiene", "semantic_edge", "rule", "win",
+    "score_event", "token_age_pushed",
   ],
   "Brain · memory + learning": [
     "brain", "brain_dump_importance", "emotional_arc", "learning_journal",
     "learning_velocity", "lesson", "reflection", "skill", "skill_pending",
-    "timeline",
+    "timeline", "reflection_event",
   ],
   "Brain · temporal patterns": [
     "action_frequency", "day_of_week", "effort_band_avg", "seasonal",
@@ -668,6 +722,7 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
     "habit_revenue_correlation", "industry", "invoice", "leads",
     "live_shop", "market", "marketing", "pricing", "revenue",
     "revenue_timing", "sales", "service", "shop", "staff_efficiency",
+    "revenue_move",
   ],
   "Chat / conversation": [
     "chat_importance", "chat_pattern", "chat_summary",
@@ -677,26 +732,39 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
     "coding_preference", "discipline", "feedback", "food", "health",
     "mental", "mit", "personal_development", "physical", "preference",
     "routines", "spiritual", "tomorrow_note", "weekly_target",
+    "personal", "social", "mind", "mastery", "drift", "prediction",
   ],
   "Relationships + people": [
     "relationships", "comms", "meetings",
+    "greene_law", "power_play", "relationship_digest_sent",
+    "relationship_birthday_sent", "kept_word", "alpha_moment",
+    "greene_contextual_pick", "relationships_picks_today",
+    "relationships_morning_brief", "relationships_weekly_synthesis",
+    "relationships_outreach",
+    "dark_psychology", "negotiation_tactic",
+    "competitive_intel", "tactical_playbook",
   ],
   "Meta · archive + stale": [
-    "ancient_device_events", "hq_pin_candidate", "orphan_conversations",
+    "ancient_device_events", "archive_document", "hq_pin_candidate", "orphan_conversations",
     "overdue_decisions_reviews",
   ],
   "System / ops": [
     "api", "automation", "backlog_triage", "browser", "crons", "env",
     "notifications", "system_health_digest", "task_session", "tools",
+    "system_alert", "system_dedupe", "schema_drift_alert",
+    "telemetry_temporal_warn", "telemetry_tool_verb",
   ],
   "Tech / content": [
     "architecture", "content", "data", "files", "local", "macro",
     "operational", "research", "tech", "ui", "video",
+    "research_pack", "research_source", "research_claim",
+    "research_question", "research_action", "research_contradiction",
+    "notebooklm_pack", "reference", "tool_telemetry", "tool_embedding",
   ],
   "Tasks + strategy": [
     "planning", "project_management", "strategic_plan", "strategy",
     "task_insight", "task_pattern", "orphan_tasks_nudge",
-    "board_consultation",
+    "board_consultation", "task_completion",
   ],
   "Legacy / deprecated": [
     "relationship", "skills", "business_read", "business_write",

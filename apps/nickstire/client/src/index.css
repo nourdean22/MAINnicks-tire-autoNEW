@@ -409,14 +409,14 @@
   /* ─── GLASS MORPHISM ─── */
   .glass {
     background: rgba(20, 20, 20, 0.85);
-    backdrop-filter: blur(24px) saturate(1.3);
     -webkit-backdrop-filter: blur(24px) saturate(1.3);
+    backdrop-filter: blur(24px) saturate(1.3);
     border: 1px solid rgba(42, 42, 42, 0.4);
   }
   .glass-subtle {
     background: rgba(14, 14, 14, 0.65);
-    backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
     border: 1px solid rgba(42, 42, 42, 0.35);
   }
 
@@ -443,8 +443,8 @@
   /* ─── STAT CARD (Neural Glassmorphism) ─── */
   .stat-card {
     background: linear-gradient(135deg, rgba(17, 17, 17, 0.8), rgba(10, 10, 10, 0.6)) !important;
-    backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
+    backdrop-filter: blur(16px) !important;
     border: 1px solid rgba(245, 166, 35, 0.08) !important;
     border-radius: var(--radius);
     padding: 1.25rem 1.5rem;
@@ -688,8 +688,8 @@
   .admin-topbar {
     height: 3.5rem;
     background: oklch(0.085 0.005 260 / 0.95);
-    backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
     border-bottom: 1px solid oklch(0.14 0.004 260);
   }
 
@@ -1653,3 +1653,33 @@ p.body-pretty {
   --ring-yellow-strong: rgba(255, 255, 255, 0.18);
   --brand-yellow: #E6E8EB;
 }
+
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+}
+
+@utility hide-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ─── MOBILE SHELL HARDENING ─── */
+@media (max-width: 640px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
+.admin-topbar {
+  min-height: calc(3.5rem + env(safe-area-inset-top, 0px));
+  height: auto !important;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.admin-content {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
+}
+

@@ -1,7 +1,7 @@
 /**
  * AI Tools Arsenal — Integration Registry
  *
- * Central registry for all 19 free-tier AI tools integrated into NOUR OS.
+ * Central registry for all 18 free-tier AI tools integrated into NOUR OS.
  * Each tool has: status, category, credentials location, API endpoints, and health check.
  *
  * Usage:
@@ -52,7 +52,9 @@ export interface IntegrationTool {
  */
 const TOOLS: Omit<IntegrationTool, "status">[] = [
   // CORE — actively used with credentials
-  { id: "venice", name: "Venice AI", category: "ai", tier: "free", signupUrl: "https://venice.ai", apiBaseUrl: "https://api.venice.ai/api/v1", envKeys: ["VENICE_API_KEY"], description: "Primary AI — unrestricted, web search, image gen, STT" },
+  // Venice AI retired — the provider was decommissioned and no code
+  // path calls it anymore (knowledge classification now no-ops). The
+  // VENICE_API_KEY env var has no live consumer.
   { id: "make", name: "Make.com", category: "automation", tier: "free", signupUrl: "https://www.make.com/en/register", apiBaseUrl: "https://hook.us1.make.com", envKeys: ["MAKE_WEBHOOK_URL", "MAKE_API_KEY"], webhookPath: "/api/webhooks/make", description: "Visual automation workflows — connects everything" },
   { id: "grok", name: "Grok", category: "ai", tier: "free", signupUrl: "https://x.com/i/grok", apiBaseUrl: "https://api.x.ai/v1", envKeys: ["XAI_API_KEY"], description: "xAI's model — real-time data, unfiltered" },
   { id: "fireflies", name: "Fireflies.ai", category: "meetings", tier: "free", signupUrl: "https://fireflies.ai", apiBaseUrl: "https://api.fireflies.ai/graphql", envKeys: ["FIREFLIES_API_KEY"], description: "Meeting transcription and AI summaries" },

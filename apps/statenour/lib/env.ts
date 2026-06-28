@@ -45,7 +45,6 @@ export const ENV_SPEC: Spec[] = [
   { key: "STATENOUR_SYNC_KEY",  tier: "required", when: () => PROD, description: "Shared secret for /api/sync" },
 
   // AI — at least one provider must be set. Validated as a group below.
-  { key: "VENICE_API_KEY",    tier: "runtime", description: "Primary AI provider (Venice GLM)" },
   { key: "OPENAI_API_KEY",    tier: "runtime", description: "Fallback AI provider" },
   { key: "ANTHROPIC_API_KEY", tier: "runtime", description: "Fallback AI provider" },
   { key: "GEMINI_API_KEY",    tier: "runtime", description: "Fallback AI provider", aliases: ["GOOGLE_GENERATIVE_AI_API_KEY"] },
@@ -71,7 +70,7 @@ export const ENV_SPEC: Spec[] = [
   { key: "NEXT_PUBLIC_APP_URL", tier: "runtime", description: "Public origin for absolute links" },
 
   // Optional override
-  { key: "AI_PROVIDER", tier: "runtime", description: "Pin AI provider: venice|openai|anthropic|gemini" },
+  { key: "AI_PROVIDER", tier: "runtime", description: "Pin AI provider: ollama|gemini|openai|anthropic" },
   { key: "LOCAL_DEV_BYPASS_AUTH", tier: "runtime", description: "Dev-only — set to '1' to skip auth in preview" },
 
   // ── WAVE-200 substrate (2026-05-17) ────────────────────────────────
@@ -84,6 +83,21 @@ export const ENV_SPEC: Spec[] = [
   { key: "LIVEKIT_URL",             tier: "runtime", description: "Wave-200 Phase 4 · LiveKit Cloud project URL (used by /api/voice/token + apps/voice worker)" },
   { key: "LIVEKIT_API_KEY",         tier: "runtime", description: "Wave-200 Phase 4 · LiveKit API key" },
   { key: "LIVEKIT_API_SECRET",      tier: "runtime", description: "Wave-200 Phase 4 · LiveKit API secret" },
+
+  // ── Operational / Tooling (read by scripts + runtime surfaces) ───────
+  { key: "APP_BASE_URL",              tier: "runtime", description: "Internal base URL for cron-generated links (falls back to NEXT_PUBLIC_APP_URL)" },
+  { key: "BUILD_TIME",                tier: "runtime", description: "Deploy/build timestamp for health digest" },
+  { key: "DAILY_AI_BUDGET_CENTS",     tier: "runtime", description: "Daily AI spend cap in cents — cost SLO gate" },
+  { key: "DEBUG_SQL",                 tier: "runtime", description: "Set to '1' to log raw Prisma SQL queries" },
+  { key: "NARRATOR_LLM_SYNTHESIS",    tier: "runtime", description: "Set to '1' to enable Ultron narrator LLM synthesis" },
+  { key: "NICK_PRIME_PROMPT",         tier: "runtime", description: "Toggle Nick prime prompt variant ('1' / '0')" },
+  { key: "OPERATOR_EMAIL",            tier: "runtime", description: "Fallback operator email for brain preference inference" },
+  { key: "GEMINI_MODEL",              tier: "runtime", description: "Override Gemini model for Google Search integration" },
+  { key: "ALLOW_PROD_WRITES",         tier: "runtime", description: "Dangerous script gate — set to '1' to permit prod mutations" },
+  { key: "CONFIRM_PROD",              tier: "runtime", description: "Dangerous script gate — set to '1' to confirm prod operations" },
+  { key: "POLICY_GATE_HARD",          tier: "runtime", description: "CI gate — set to '1' to enforce hard policy checks" },
+  { key: "POLICY_GATE_SOFT",          tier: "runtime", description: "CI gate — set to '1' to enforce soft policy warnings" },
+  { key: "PRE_PUSH_SKIP",             tier: "runtime", description: "Dev escape hatch — set to '1' to skip pre-push checks locally" },
 
   // ── PLATFORM (auto-set) ────────────────────────────────────────────
   { key: "NODE_ENV",              tier: "platform", description: "development | production | test" },
@@ -122,7 +136,7 @@ export function checkEnvHealth(): EnvHealth {
     }
   }
 
-  const aiKeys = ["VENICE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"];
+  const aiKeys = ["OLLAMA_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"];
   const atLeastOneAiProvider = aiKeys.some((k) => process.env[k] || process.env.GOOGLE_GENERATIVE_AI_API_KEY);
 
   return { missing, degraded, atLeastOneAiProvider };

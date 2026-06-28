@@ -4,7 +4,15 @@ Prisma models in one Neon Postgres instance · model count last
 verified 2026-05-21. This file is the map — if you're about to write a
 migration or add a feature, read the relevant section first.
 
-> **Model count:** 80 — verified via `grep -c "^model " prisma/schema.prisma`.
+> **Model count:** 88 — verified via `grep -c "^model " prisma/schema.prisma` (2026-06-21).
+
+> **NOUR OS consolidation models (#206) + migration `20260618000000_consolidated_models` (PR #217):**
+> 7 models — `Contact`, `Booking`, `Agreement`, `Product`,
+> `Order`, `ShortLink`, `LinkClick`
+> (back `/crm` `/links`) — are in `schema.prisma`. Their
+> tables are **REGISTERED but not yet applied to prod**; apply via the guarded
+> `apply-pending-migration` endpoint (key `20260618000000_consolidated_models`).
+> See `prisma/migrations-pending/README.md`.
 
 > **v526 prod index migration APPLIED (v529.1 · 2026-05-12):** 8
 > `CREATE INDEX CONCURRENTLY` + 14 `DROP INDEX CONCURRENTLY` ran via
@@ -100,7 +108,6 @@ migration or add a feature, read the relevant section first.
 │  MasteryScore       8-axis score history         │
 │  StrategicLaw       personal operating laws      │
 │  PersonProfile      people Nour interacts with   │
-│  EnvironmentalSignal external context            │
 └──────────────────────────────────────────────────┘
 
 ┌────────────────── TASKS / GOALS ─────────────────┐
@@ -109,18 +116,14 @@ migration or add a feature, read the relevant section first.
 │  Mission            project                      │
 │  Commitment         promises to self/others      │
 │  WorkItem           in-progress work             │
-│  WorkResult         outcome of a work item       │
 │  DailyExecutionState per-day snapshot of focus   │
-│  DailyStrategy      intentional daily plan       │
 │  PersonalDailyLog   energy/mood/habits per day   │
 │  Reflection         (above, shared)              │
-│  StagedRecoveryItem rescue queue for lost items  │
 └──────────────────────────────────────────────────┘
 
 ┌────────────────── ULTRON / SIGNALS ──────────────┐
 │  SituationLog       ultron situation card state  │
 │  DriftAlert         drift detection firings      │
-│  OperatorCheckIn    pulse check-ins              │
 │  OperatorProfile    Nour's current operator mode │
 │  OperatorPreference per-feature knobs            │
 │  ScheduledAction    future-scheduled actions     │
@@ -139,7 +142,6 @@ migration or add a feature, read the relevant section first.
 ┌────────────────── BODY / FINANCIAL ──────────────┐
 │  BodyTracking       weight + workout + sleep     │
 │  FinancialSnapshot  net delta + savings rate     │
-│  DailyEmpireSnapshot aggregate rollup            │
 └──────────────────────────────────────────────────┘
 
 ┌────────────────── DEVICE / HOME ─────────────────┐
@@ -159,7 +161,6 @@ migration or add a feature, read the relevant section first.
 │  ReviewLog          weekly/monthly review log    │
 │  UserPreference     user-facing settings         │
 │  RecoveryActionLog  recovery pattern log         │
-│  CommandResolution  command-palette usage log    │
 │  AutomationRule     automation rule catalog      │
 │  ExecutionInsight   execution pattern insight    │
 │  ArsenalLog         integration arsenal actions  │
@@ -203,7 +204,6 @@ ChatMessage.conversationId ↔ ChatConversation
 DeviceCommand.deviceId   ↔ SmartDevice
 DeviceEvent.deviceId     ↔ SmartDevice
 Reflection.taskId        ↔ Task (nullable)
-WorkResult.workItemId    ↔ WorkItem
 Commitment.taskId        ↔ Task (nullable)
 ```
 

@@ -28,6 +28,7 @@ import {
   type UIMessage,
   type UIMessageStreamWriter,
 } from "ai";
+import type { ReasoningRequest } from "@/lib/ai/reasoning/types";
 
 interface SimulateStreamArgs {
   /** The pre-computed reply text to ship as a stream. */
@@ -56,6 +57,19 @@ interface SimulateStreamArgs {
    * persistence failure must NEVER break the already-delivered stream.
    */
   onComplete?: () => void | Promise<void>;
+}
+
+interface SimulateReasoningStreamArgs {
+  /** The full request to run through the reasoning engine. */
+  request: ReasoningRequest;
+  /** Optional chunking size for final answer. */
+  chunkSize?: number;
+  /** Optional chunking delay for final answer. */
+  chunkDelayMs?: number;
+  /** Optional message ID generator. */
+  messageId?: string;
+  /** Called after reasoning + streaming completes. Gives the caller the final winner text. */
+  onComplete?: (winner: string) => void | Promise<void>;
 }
 
 /**
@@ -107,6 +121,63 @@ export function simulateStreamFromText({
           await onComplete();
         } catch {
           /* intentionally ignored — delivered stream must not break */
+        }
+      }
+    },
+  }) as ReadableStream<Parameters<UIMessageStreamWriter<UIMessage>["write"]>[0]>;
+
+  return createUIMessageStreamResponse({
+    stream: stream as Parameters<typeof createUIMessageStreamResponse>[0]["stream"],
+  });
+}
+
+/**
+ * Build a Response that actually RUNS the reasoning engine inside the Vercel AI
+ * execute stream block. This allows us to push live ReasoningStep annotations
+ * to the client BEFORE the final answer is ready.
+ */
+export function simulateReasoningStream({
+  request,
+  chunkSize = 0,
+  chunkDelayMs = 0,
+  messageId,
+  onComplete,
+}: SimulateReasoningStreamArgs): Response {
+  const stream = createUIMessageStream({
+    generateId: messageId ? () => messageId : undefined,
+    execute: async ({ writer }) => {
+      const { reasonStreaming } = await import("@/lib/ai/reasoning/engine");
+
+      const reasoning = await reasonStreaming(request, (step) => {
+        (writer as any).write({ type: "data", data: [{ type: "reasoning-step", step }] });
+      });
+
+      const winner = reasoning.trace.answer ?? "";
+      const textPartId = `text-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      writer.write({ type: "text-start", id: textPartId });
+
+      if (chunkSize > 0 && winner.length > chunkSize) {
+        let offset = 0;
+        while (offset < winner.length) {
+          const slice = winner.slice(offset, offset + chunkSize);
+          writer.write({ type: "text-delta", id: textPartId, delta: slice });
+          offset += chunkSize;
+          if (chunkDelayMs > 0 && offset < winner.length) {
+            await new Promise((r) => setTimeout(r, chunkDelayMs));
+          }
+        }
+      } else {
+        writer.write({ type: "text-delta", id: textPartId, delta: winner });
+      }
+
+      writer.write({ type: "text-end", id: textPartId });
+
+      if (onComplete) {
+        try {
+          await onComplete(winner);
+        } catch {
+          /* intentionally ignored */
         }
       }
     },

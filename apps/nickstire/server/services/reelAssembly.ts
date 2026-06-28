@@ -42,6 +42,9 @@ export interface ReelSegment {
 export const MAX_CLIP_SECONDS = 4;
 const MIN_BEAT_SECONDS = 0.8;
 const DEFAULT_BEAT_SECONDS = 3;
+/** Phase 3.1 save-payload: hold the final frame this long with a SAVE overlay. */
+export const SAVE_FREEZE_SECONDS = 3;
+const SAVE_CTA_TEXT = "SAVE THIS";
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
@@ -100,6 +103,7 @@ export interface FfmpegBuildOpts {
   clipPaths: string[];
   voPath: string | null;
   musicPath: string | null;
+  assPath: string | null;
   fontPath: string;
   outPath: string;
 }
@@ -111,14 +115,15 @@ export interface FfmpegBuildOpts {
  * the cut frame), VO loud over ducked music. Pure — no filesystem access.
  */
 export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
-  const { segs, clipPaths, voPath, musicPath, fontPath, outPath } = opts;
+  const { segs, clipPaths, voPath, musicPath, assPath, fontPath, outPath } = opts;
   if (segs.length !== clipPaths.length) {
     throw new Error(`segment/clip count mismatch: ${segs.length} segs vs ${clipPaths.length} clips`);
   }
   const total = segmentsTotalSeconds(segs);
-  // drawtext fontfile: forward slashes + escaped ':' so a Windows drive letter
-  // (C:/...) or any ':' in the path doesn't terminate the option early.
-  const fontEsc = fontPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+  const videoTotal = Number((total + SAVE_FREEZE_SECONDS).toFixed(2));
+  // The font is copied to the working directory so it's just 'font.ttf'.
+  // No Windows drive letter colon escaping hell.
+  const fontEsc = fontPath.replace(/\\/g, "/");
 
   const inputs: string[] = [];
   clipPaths.forEach((p) => inputs.push("-i", p));
@@ -130,56 +135,109 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   const musIdx = clipPaths.length + (haveVo ? 1 : 0);
 
   const fc: string[] = [];
-  // 1. normalize each beat to a trimmed vertical clip
+  // 1. normalize each beat to a trimmed vertical clip + a deterministic slow
+  //    push-in (Phase 4.1 motion): Ken Burns 1.0 -> 1.06 across the beat keeps a
+  //    static AI clip alive for watch-time. pzoom accumulates frame-to-frame
+  const zInc = (0.06 / Math.max(1, 30)).toFixed(6);
+  const XFADE_DUR = 0.5;
+  const XFADE_TRANSITION = "fade";
+
+  // 1. base sizing + Ken Burns pan/zoom + extend for xfade
   segs.forEach((s, i) => {
+    const pad = i < segs.length - 1 ? `:stop_duration=${XFADE_DUR}` : "";
     fc.push(
-      `[${i}:v]trim=0:${s.dur},setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30,format=yuv420p[v${i}]`,
+      `[${i}:v]trim=0:${s.dur},setpts=PTS-STARTPTS,` +
+        `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,` +
+        `zoompan=z='min(pzoom+${zInc},1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30,` +
+        `setsar=1,format=yuv420p,` +
+        `tpad=stop_mode=clone${pad}[v${i}]`,
     );
   });
-  // 2. concat all beats into one video stream
-  fc.push(`${segs.map((_, i) => `[v${i}]`).join("")}concat=n=${segs.length}:v=1:a=0[vc]`);
-  // 3. burn one caption per beat on a half-open time window
-  let cum = 0;
-  let label = "vc";
-  segs.forEach((s, i) => {
-    const start = cum;
-    const end = cum + s.dur;
-    cum = end;
-    const next = i === segs.length - 1 ? "vout" : `d${i}`;
-    fc.push(
-      `[${label}]drawtext=fontfile='${fontEsc}':text='${s.caption}':fontsize=${s.fontSize}:fontcolor=white:borderw=5:bordercolor=black:box=1:boxcolor=black@0.42:boxborderw=26:x=(w-text_w)/2:y=h-h/4:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${next}]`,
-    );
-    label = next;
-  });
+  // 2. xfade all beats into one video stream
+  if (segs.length > 1) {
+    let prev = "[v0]";
+    let cumOffset = 0;
+    for (let i = 1; i < segs.length; i++) {
+      cumOffset += segs[i - 1].dur;
+      const next = `[v${i}]`;
+      const out = i === segs.length - 1 ? "[vc]" : `[xf${i}]`;
+      fc.push(`${prev}${next}xfade=transition=${XFADE_TRANSITION}:duration=${XFADE_DUR}:offset=${cumOffset.toFixed(2)}${out}`);
+      prev = out;
+    }
+  } else {
+    fc.push(`[v0]copy[vc]`);
+  }
+  // 3. burn one caption per beat on a half-open time window, OR use dynamic ASS captions if available
+  if (assPath) {
+    // Escape for ffmpeg: backslashes become forward slashes, Windows drive letters (C:) need escaping
+    const assEsc = assPath.replace(/\\/g, "/").replace(/:/g, "\\\\:");
+    fc.push(`[vc]subtitles='${assEsc}':fontsdir='${path.dirname(fontEsc)}'[vcap]`);
+  } else {
+    let cum = 0;
+    let label = "vc";
+    segs.forEach((s, i) => {
+      const start = cum;
+      const end = cum + s.dur;
+      cum = end;
+      const next = i === segs.length - 1 ? "vcap" : `d${i}`;
+      const isHook = i === 0;
+      const size = isHook ? Math.round(s.fontSize * 1.35) : s.fontSize;
+      const yPos = isHook ? "(h-text_h)/2" : "h*0.62";
+      fc.push(
+        `[${label}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}.txt':fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yPos}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${next}]`,
+      );
+      label = next;
+    });
+  }
+
+  // 3b. Phase 3.1 save-payload: freeze the final frame for SAVE_FREEZE_SECONDS and
+  //     stamp a top-of-frame "SAVE THIS" prompt (works muted; a save is a top Meta
+  //     reach lever). tpad clone-holds the last rendered frame; the overlay shows
+  //     only during the freeze window so it never collides with beat captions.
+  fc.push(`[vcap]tpad=stop_mode=clone:stop_duration=${SAVE_FREEZE_SECONDS}[vpad]`);
+  fc.push(
+    `[vpad]drawtext=fontfile='${fontEsc}':textfile='caption_save.txt':fontsize=72:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=h*0.12:enable='gte(t,${total.toFixed(2)})'[vout]`,
+  );
 
   // 4. audio: VO loud over ducked music, degrading gracefully when either is absent
   const maps: string[] = ["-map", "[vout]"];
   if (haveVo && haveMusic) {
+    // Phase 4.2: duck the music DYNAMICALLY under the VO via sidechaincompress
+    // (keyed off the VO) instead of a static volume — music breathes back in the
+    // gaps. Both sources resampled to a common rate first (sidechaincompress
+    // requires it). Padded to videoTotal so music carries through the freeze.
     fc.push(
-      `[${voIdx}:a]volume=1.15[a0]`,
-      `[${musIdx}:a]volume=0.16[a1]`,
-      `[a0][a1]amix=inputs=2:duration=longest:normalize=0[am]`,
-      `[am]atrim=0:${total},asetpts=PTS-STARTPTS[aout]`,
+      `[${voIdx}:a]aresample=48000,volume=1.15,asplit=2[vo_mix][vo_key]`,
+      `[${musIdx}:a]aresample=48000,volume=0.6[mus_raw]`,
+      `[mus_raw][vo_key]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[mus_duck]`,
+      `[vo_mix][mus_duck]amix=inputs=2:duration=longest:normalize=0[am]`,
+      `[am]atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`,
     );
     maps.push("-map", "[aout]");
   } else if (haveVo) {
-    fc.push(`[${voIdx}:a]volume=1.15,atrim=0:${total},asetpts=PTS-STARTPTS[aout]`);
+    // aresample FIRST so loudnorm computes the apad/duration on a known 48k rate.
+    fc.push(`[${voIdx}:a]aresample=48000,volume=1.15,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
     maps.push("-map", "[aout]");
   } else if (haveMusic) {
-    fc.push(`[${musIdx}:a]volume=0.5,atrim=0:${total},asetpts=PTS-STARTPTS[aout]`);
+    fc.push(`[${musIdx}:a]aresample=48000,volume=0.5,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
     maps.push("-map", "[aout]");
   }
   const hasAudio = maps.includes("[aout]");
 
+  const filterStr = fc.join(";");
+  log.debug("=== FFmpeg Filtergraph ===");
+  log.debug(filterStr);
+  log.debug("==========================");
+
   return [
     ...inputs,
     "-filter_complex",
-    fc.join(";"),
+    filterStr,
     ...maps,
     "-r",
     "30",
     "-t",
-    String(total),
+    String(videoTotal),
     "-c:v",
     "libx264",
     "-profile:v",
@@ -220,15 +278,91 @@ export function resolveFontPath(): string {
   return candidates[0]; // let ffmpeg error loudly rather than silently drop text
 }
 
+let _antonFontPath: string | null = null;
+/**
+ * Resolve the reel caption font, preferring Nick's brand **Anton**. The Anton
+ * TTF already ships base64-embedded for the Ad Studio (adStudio/adAssets) — we
+ * materialize it once to a temp .ttf so ffmpeg `drawtext` can load it by path.
+ * Order: REEL_FONT_PATH override -> materialized Anton -> platform default.
+ * Never throws — any failure degrades to the platform font, never a missing
+ * caption.
+ */
+export async function resolveReelFontPath(): Promise<string> {
+  const override = process.env.REEL_FONT_PATH;
+  if (override && fs.existsSync(override)) return override;
+  try {
+    if (_antonFontPath && fs.existsSync(_antonFontPath)) return _antonFontPath;
+    const mod = (await import("./adStudio/adAssets")) as { ANTON_TTF_B64?: string };
+    const raw = mod.ANTON_TTF_B64;
+    if (raw && typeof raw === "string") {
+      const b64 = raw.replace(/^data:[^,]+,/, ""); // tolerate a data: URI prefix
+      const p = path.join(os.tmpdir(), "nt-reel-anton.ttf");
+      if (!fs.existsSync(p)) fs.writeFileSync(p, Buffer.from(b64, "base64"));
+      _antonFontPath = p;
+      return p;
+    }
+  } catch (e) {
+    log.warn("Anton font unavailable — using platform font", { e: e instanceof Error ? e.message : String(e) });
+  }
+  return resolveFontPath();
+}
+
+/**
+ * Probe a finished MP4 for the publish-gate hardening check (dimensions /
+ * duration / audio presence). Throws on a malformed probe so the caller can
+ * fail the job instead of shipping a broken reel.
+ */
+function ffprobeReel(file: string): Promise<{ width: number; height: number; duration: number; hasAudio: boolean }> {
+  return new Promise((resolve, reject) => {
+    const bin = process.env.FFPROBE_PATH || "ffprobe";
+    const child = spawn(bin, [
+      "-v", "error",
+      "-show_entries", "stream=width,height,codec_type",
+      "-show_entries", "format=duration",
+      "-of", "json",
+      file,
+    ], { shell: process.platform === "win32" && !process.env.FFPROBE_PATH });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (d) => (out += String(d)));
+    child.stderr.on("data", (d) => (err += String(d)));
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code !== 0) return reject(new Error(`ffprobe exited ${code}: ${err.slice(-300)}`));
+      try {
+        const j = JSON.parse(out) as {
+          streams?: Array<{ width?: number; height?: number; codec_type?: string }>;
+          format?: { duration?: string };
+        };
+        const v = (j.streams ?? []).find((s) => s.codec_type === "video");
+        const hasAudio = (j.streams ?? []).some((s) => s.codec_type === "audio");
+        resolve({
+          width: Number(v?.width ?? 0),
+          height: Number(v?.height ?? 0),
+          duration: Number(j.format?.duration ?? 0),
+          hasAudio,
+        });
+      } catch (e) {
+        reject(new Error(`ffprobe parse failed: ${e instanceof Error ? e.message : String(e)}`));
+      }
+    });
+  });
+}
+
 async function downloadTo(url: string, dest: string): Promise<void> {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`download failed ${r.status} for ${url}`);
   await fs.promises.writeFile(dest, Buffer.from(await r.arrayBuffer()));
 }
 
-function runFfmpeg(args: string[], timeoutMs = 5 * 60 * 1000): Promise<void> {
+function runFfmpeg(args: string[], timeoutMs = 5 * 60 * 1000, cwd?: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn("ffmpeg", args);
+    if (cwd) {
+       const cmdStr = ["ffmpeg", ...args.map(a => `"${a}"`)].join(" ");
+       fs.writeFileSync(path.join(cwd, "ffmpeg_debug.bat"), cmdStr);
+    }
+    const bin = process.env.FFMPEG_PATH || "ffmpeg";
+    const child = spawn(bin, args, { cwd, shell: process.platform === "win32" && !process.env.FFMPEG_PATH });
     let stderr = "";
     child.stderr.on("data", (d) => {
       stderr += String(d);
@@ -262,6 +396,37 @@ export interface AssembleResult {
  * the result via storagePut (public /generated URL — Meta-fetchable). Does NOT
  * publish — that's a separate, separately-gated stage.
  */
+/**
+ * Pick a background music bed for the reel. Prefers a committed loop in
+ * apps/nickstire/assets/reel-music whose filename matches the brief's
+ * archetype/tone; otherwise rotates deterministically (a given reel always gets
+ * the same bed). Returns an absolute path, or null when no beds are committed —
+ * assembly then degrades gracefully to a VO-only reel (never a silent/broken
+ * publish). Drop more .mp3/.wav loops into that folder and they're used automatically.
+ */
+export function pickMusicBed(brief: ReelAssemblyBrief): string | null {
+  try {
+    const dir = [
+      path.resolve(process.cwd(), "assets/reel-music"),
+      path.resolve(process.cwd(), "apps/nickstire/assets/reel-music"),
+    ].find((d) => fs.existsSync(d));
+    if (!dir) return null;
+    const beds = fs.readdirSync(dir).filter((f) => /\.(mp3|wav|m4a)$/i.test(f)).sort();
+    if (beds.length === 0) return null;
+    const tone = String(
+      (brief as { archetype?: string; tone?: string }).archetype ?? (brief as { tone?: string }).tone ?? "",
+    ).toLowerCase();
+    const matched = tone ? beds.find((b) => b.toLowerCase().includes(tone)) : undefined;
+    if (matched) return path.join(dir, matched);
+    const seed = String((brief as { id?: string | number }).id ?? brief.voiceoverScript ?? "");
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    return path.join(dir, beds[h % beds.length]);
+  } catch {
+    return null;
+  }
+}
+
 export async function assembleReel(
   brief: ReelAssemblyBrief,
   clipUrls: string[],
@@ -275,24 +440,60 @@ export async function assembleReel(
   const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `reel-${jobId}-`));
   try {
     const clipPaths: string[] = [];
-    for (let i = 0; i < clipUrls.length; i++) {
+    for (let i = 0; i < segs.length; i++) {
       const p = path.join(workDir, `clip-${i}.mp4`);
-      await downloadTo(clipUrls[i], p);
+      const url = clipUrls[i];
+      if (url.includes("/generated/")) {
+        const filename = url.split("/").pop();
+        const localPath = path.join(process.cwd(), "data", "generated", filename!);
+        await fs.promises.copyFile(localPath, p);
+      } else {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`failed to fetch clip ${i}`);
+        const buf = Buffer.from(await resp.arrayBuffer());
+        await fs.promises.writeFile(p, buf);
+      }
       clipPaths.push(p);
     }
-
-    const { generateVoiceover } = await import("./reelVoice");
+    const { generateVoiceover, generateAssSubtitles } = await import("./reelVoice");
     const vo = await generateVoiceover(brief.voiceoverScript);
     let voPath: string | null = null;
+    let assPath: string | null = null;
     if (vo) {
       voPath = path.join(workDir, `vo.${vo.ext}`);
       await fs.promises.writeFile(voPath, vo.buf);
+      if (vo.alignment) {
+        assPath = path.join(workDir, "captions.ass");
+        await fs.promises.writeFile(assPath, generateAssSubtitles(vo.alignment));
+      }
     }
 
     const outPath = path.join(workDir, "reel.mp4");
-    const args = buildFfmpegArgs({ segs, clipPaths, voPath, musicPath: null, fontPath: resolveFontPath(), outPath });
-    log.info("assembling reel", { jobId, beats: segs.length, total, usedVo: !!voPath });
-    await runFfmpeg(args);
+    const origFontPath = await resolveReelFontPath();
+    const localFontPath = path.join(workDir, "font.ttf");
+    await fs.promises.copyFile(origFontPath, localFontPath);
+
+    for (let i = 0; i < segs.length; i++) {
+      await fs.promises.writeFile(path.join(workDir, `caption_${i}.txt`), segs[i].caption, "utf-8");
+    }
+    await fs.promises.writeFile(path.join(workDir, "caption_save.txt"), SAVE_CTA_TEXT, "utf-8");
+
+    const args = buildFfmpegArgs({ segs, clipPaths, voPath, assPath, musicPath: pickMusicBed(brief), fontPath: "font.ttf", outPath });
+    log.info("assembling reel", { jobId, beats: segs.length, total, usedVo: !!voPath, usedAss: !!assPath });
+    await runFfmpeg(args, 5 * 60 * 1000, workDir);
+
+    // Publish-gate hardening: never ship a corrupt / wrong-aspect / silent reel.
+    // A failed assertion throws -> the job fails loudly instead of publishing garbage.
+    const probe = await ffprobeReel(outPath);
+    if (probe.width !== 1080 || probe.height !== 1920) {
+      throw new Error(`assembled reel wrong dimensions ${probe.width}x${probe.height} (expected 1080x1920)`);
+    }
+    if (!(probe.duration >= 3 && probe.duration <= 90)) {
+      throw new Error(`assembled reel duration ${probe.duration}s out of the 3-90s range`);
+    }
+    if (voPath && !probe.hasAudio) {
+      throw new Error("assembled reel has a VO input but no audio stream — mux failed");
+    }
 
     const mp4 = await fs.promises.readFile(outPath);
     const { storagePut } = await import("../storage");
@@ -301,7 +502,8 @@ export async function assembleReel(
     // job overwrite the same data/generated/reel.mp4. reel-<jobId>.mp4 keeps them distinct.
     const put = await storagePut(`reels/reel-${jobId}.mp4`, mp4, "video/mp4");
     log.info("reel assembled", { jobId, bytes: mp4.length, url: put.url });
-    return { mp4Url: put.url, durationSec: total, usedVo: !!voPath };
+    // Report the REAL file length (beats + the save-payload freeze), not just the beats.
+    return { mp4Url: put.url, durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath };
   } finally {
     fs.promises.rm(workDir, { recursive: true, force: true }).catch(() => {});
   }

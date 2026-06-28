@@ -1,4 +1,5 @@
-import { FloatingHome } from "@/components/layout/floating-home";
+import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
+import { MoreSheet } from "@/components/layout/more-sheet";
 import { PageTracker } from "@/components/brain/page-tracker";
 import { PageContextBridge } from "@/components/chat/page-context-bridge";
 import { SwipeNavigation } from "@/components/layout/swipe-navigation";
@@ -9,7 +10,6 @@ import { AmbientAura } from "@/components/hud/ambient-aura";
 import { NourStateProvider } from "@/lib/state/nour-state";
 import { BrainDumpModal } from "@/components/brain-dump-modal";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { BottomPulseTicker } from "@/components/ultron/bottom-pulse-ticker";
 // Phase H.2 (2026-05-18 PM) · DeepModeNudge · global watcher that
 // surfaces a tiny gold chip when the focused input matches the
 // reasoning classifier at tier ≥ deep · one-tap to /reason pre-filled.
@@ -28,6 +28,16 @@ import { TRPCProvider } from "@/components/providers/trpc-provider";
 // get a Promise<boolean>.
 import { MegaConfirmHost } from "@/components/operator/mega-confirm-dialog";
 
+// ── Render mode (audit-2026-06-21 CSP follow-up) ──────────────────────────
+// MUST be force-dynamic. middleware.ts stamps a per-request CSP nonce onto
+// every framework <script> via the request headers — but that only happens on
+// a live render. A statically prerendered (mastery) page ships with NO nonce,
+// so the runtime `'strict-dynamic'` CSP header blocks ALL of its scripts →
+// blank/skeleton page in every browser (Chrome, Safari, desktop, phone).
+// Dynamic rendering = a live nonce that matches the header. Mirrors
+// app/auth/sign-in/page.tsx, which already does this and works.
+export const dynamic = "force-dynamic";
+
 export default function MasteryLayout({
   children,
 }: {
@@ -36,6 +46,16 @@ export default function MasteryLayout({
   return (
     <TRPCProvider>
     <NourStateProvider>
+      {/* A11y · WCAG 2.4.1 Bypass Blocks · first focusable element in the
+          shell. Keyboard / screen-reader users jump past the ambient HUD,
+          tickers, and bottom nav straight to <main id="main-content">.
+          Visually hidden until focused (sr-only → not-sr-only on focus). */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-[var(--bg-elevated)] focus:px-4 focus:py-2 focus:text-[var(--text-primary)] focus:outline focus:outline-2 focus:outline-[var(--glass-border)]"
+      >
+        Skip to main content
+      </a>
       <NeuralBackground />
       <PageTracker />
       {/* v10.0.529.91 · Wave 35 · invisible · watches usePathname +
@@ -72,7 +92,7 @@ export default function MasteryLayout({
             under the ticker. md:pb-8 (32px) clears the ticker with a
             touch of breathing room; mobile keeps pb-20 (80px) to clear
             the orb stack too. */}
-        <main className="pb-20 md:pb-8">
+        <main id="main-content" className="pb-24">
           <div className="feed py-4 md:py-6 page-enter">
             {/* v11.1 · ErrorBoundary wraps the page content (not the
                 chrome). A broken panel still lets the orb, nav, and
@@ -84,8 +104,14 @@ export default function MasteryLayout({
           </div>
         </main>
       </AmbientAura>
-      {/* Floating orb — single nav surface for all viewports. */}
-      <FloatingHome />
+      {/* 2026-06-18 · IA reorg Phase 4 · the FloatingHome orb is RETIRED as
+          primary nav. BottomTabBar (4 daily tabs Home/Missions/Journal/Stats
+          + a "More" slot) is the fixed primary surface; MoreSheet is the
+          verb-grouped launcher behind "More" with the ⌘K Search tap-trigger.
+          The ambient BottomPulseTicker now rides inside BottomTabBar so the
+          whole bottom chrome is one stacked, safe-area-aware unit. */}
+      <BottomTabBar />
+      <MoreSheet />
       {/* Phase H.2 · global deep-mode hint · sees focused input, runs
           quick client classifier, chip appears bottom-right when
           verdict ≥ deep. One-tap to /reason. */}
@@ -95,21 +121,6 @@ export default function MasteryLayout({
       <MegaConfirmHost />
       {/* Global brain-dump capture — Cmd/Ctrl+Shift+J from anywhere. */}
       <BrainDumpModal />
-      {/* v7.3 · Apr 29 · BottomPulseTicker is GLOBAL now. Was scoped to
-          HQ (Ultron) only. Lifted to layout so emerging brain signals
-          (commitment scatter, late-night patterns, idle pulls) flow
-          ambiently across every page — and the bell can drop the
-          "EMERGING" tier entirely. Bell now reserved for true alerts. */}
-      {/* May 02 · iPhone safe-area · pb extends the dark backdrop into
-          the home-indicator zone so the colored strip + blur cover it
-          rather than leaving the indicator floating over transparent
-          content. h-5 BottomPulseTicker stays its 21px above the inset. */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-[60] bg-[var(--bg-void)]/60"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-      >
-        <BottomPulseTicker />
-      </div>
     </NourStateProvider>
     </TRPCProvider>
   );

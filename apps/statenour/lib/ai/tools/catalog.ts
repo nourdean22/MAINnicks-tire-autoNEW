@@ -64,7 +64,7 @@ export interface ToolMeta {
 }
 
 /**
- * The 113-tool catalog. Keep this alphabetized within each category
+ * The 114-tool catalog. Keep this alphabetized within each category
  * for easy diff review. New tools get appended to their category.
  */
 export const TOOL_CATALOG: ToolMeta[] = [
@@ -95,6 +95,8 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // v10.0.524 · #1 Cross-conversation recall + #4 multi-source search
   { name: "findRelatedConversations",     category: "brain",          battle: true,  cost: "cheap", riskClass: "low" },
   { name: "searchWebVerified",            category: "research",                      cost: "medium", riskClass: "low" },
+  { name: "last30days",                   category: "research",                      cost: "cheap",  riskClass: "medium" },
+  { name: "moneyprinter",                 category: "research",                      cost: "medium", riskClass: "medium", sideEffecting: true },
   // v10.0.524 · #6 skill suggestion + #10 anti-pattern surface
   { name: "suggestSkills",                category: "brain",          battle: true,  cost: "cheap", riskClass: "low" },
   { name: "surfaceAntiPatterns",          category: "brain",          battle: true,  cost: "free", riskClass: "low" },
@@ -230,6 +232,13 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // (updates Contradiction status, deprecates losing memory, writes
   // resolved_contradiction belief). Free per-call · pure DB.
   { name: "resolveContradiction",          category: "brain",          sideEffecting: true, cost: "free" },
+  // Machiavellian Power Dynamics integration · read-only analyzers + tactical lookups
+  { name: "analyzeCompetitiveIntel",       category: "brain",          battle: false, cost: "free" },
+  { name: "analyzeComposure",              category: "brain",          battle: false, cost: "free" },
+  { name: "analyzePowerDynamics",          category: "brain",          battle: false, cost: "free" },
+  { name: "getContextualGreeneLaws",       category: "brain",          battle: true,  cost: "free" },
+  { name: "getDarkPsychologyTactics",      category: "brain",          battle: true,  cost: "free" },
+  { name: "getPowerBalanceSummary",        category: "brain",          battle: true,  cost: "free" },
 
   // ── files (Drive + GitHub) ───────────────────────────────────────
   { name: "buildArchitectureMemory",      category: "files",          cost: "spendy", riskClass: "low" },
@@ -296,6 +305,10 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // external dependencies. Cheap to call but classed as battle:false
   // because expansion planning isn't a hot-path read; it's strategic.
   { name: "scoreLocation",                category: "business_read",  battle: false, cost: "free"   },
+
+  // v10.0.530 · Firecrawl web scraper · converts any URL into
+  // clean LLM-ready markdown. Cheap (one API call), read-only.
+  { name: "scrapeWebPage",                category: "research",       battle: true,  cost: "cheap",  riskClass: "low", requiredEnv: ["FIRECRAWL_API_KEY"] },
 ];
 
 /** Fast lookup: name → meta. Built once. */

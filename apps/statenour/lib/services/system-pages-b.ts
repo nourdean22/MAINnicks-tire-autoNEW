@@ -677,7 +677,7 @@ export async function applyPowerSetting(opts: {
 
 type PromptTier = "core" | "business" | "personal" | "strategy" | "full";
 
-const VENICE_LIMIT = 65_000;
+const PROMPT_LIMIT = 65_000;
 
 export interface PromptDiagnosticsView {
   ok: boolean;
@@ -686,7 +686,7 @@ export interface PromptDiagnosticsView {
     chars: number;
     words: number;
     tokensEst: number;
-    veniceLimit: number;
+    promptLimit: number;
     utilization: number;
     truncating: boolean;
     overBy: number;
@@ -780,9 +780,9 @@ export async function buildPromptDiagnostics(opts: {
   const tokensEst = Math.round(prompt.length / 3.5);
   const wordsEst = prompt.trim().split(/\s+/).length;
 
-  const overBy = prompt.length - VENICE_LIMIT;
+  const overBy = prompt.length - PROMPT_LIMIT;
   const truncating = overBy > 0;
-  const utilization = Math.round((prompt.length / VENICE_LIMIT) * 100);
+  const utilization = Math.round((prompt.length / PROMPT_LIMIT) * 100);
 
   return {
     ok: true,
@@ -795,7 +795,7 @@ export async function buildPromptDiagnostics(opts: {
       chars: prompt.length,
       words: wordsEst,
       tokensEst,
-      veniceLimit: VENICE_LIMIT,
+      promptLimit: PROMPT_LIMIT,
       utilization,
       truncating,
       overBy: Math.max(0, overBy),

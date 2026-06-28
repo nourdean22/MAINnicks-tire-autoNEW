@@ -703,7 +703,7 @@ const INTENT_META: Record<
   task:    { label: "Task",    icon: ListChecks,    color: "text-emerald-400",    bg: "bg-emerald-500/10",     border: "border-emerald-500/30",    action: "create an inbox task" },
   decide:  { label: "Decide",  icon: GitBranch,     color: "text-blue-400",       bg: "bg-blue-500/10",        border: "border-blue-500/30",       action: "log a decision for review" },
   dump:    { label: "Dump",    icon: NotebookPen,   color: "text-violet-400",     bg: "bg-violet-500/10",      border: "border-violet-500/30",     action: "brain dump · auto-classifies" },
-  park:    { label: "Park",    icon: Inbox,         color: "text-slate-400",      bg: "bg-slate-500/10",       border: "border-slate-500/30",      action: "park for Sunday review" },
+  park:    { label: "Park",    icon: Inbox,         color: "text-[var(--text-tertiary)]", bg: "bg-slate-500/10",       border: "border-slate-500/30",      action: "park for Sunday review" },
   search:  { label: "Search",  icon: Search,        color: "text-amber-400",      bg: "bg-amber-500/10",       border: "border-amber-500/30",      action: "search the knowledge base" },
   plan:    { label: "Plan",    icon: Sparkles,      color: "text-blue-400",       bg: "bg-blue-500/10",        border: "border-blue-500/30",       action: "AI compiles 3-6 steps" },
   reflect: { label: "Reflect", icon: Eye,           color: "text-emerald-400",    bg: "bg-emerald-500/10",     border: "border-emerald-500/30",    action: "open structured reflection" },

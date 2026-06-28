@@ -39,6 +39,7 @@ COPY apps/worker/package.json ./apps/worker/
 # @statenour/lenses · add new packages here when they ship.
 COPY packages/utils/package.json ./packages/utils/
 COPY packages/lenses/package.json ./packages/lenses/
+COPY packages/social-assets/package.json ./packages/social-assets/
 # Copy patches/ so the pnpm.patchedDependencies entries can apply
 COPY apps/statenour/patches ./apps/statenour/patches
 COPY apps/nickstire/patches ./apps/nickstire/patches
@@ -83,6 +84,9 @@ COPY --from=deps /repo/packages/utils/node_modules ./packages/utils/node_modules
 # this COPY the build stage fires `pnpm run build` in packages/lenses and
 # gets `sh: tsc: not found`. Same pattern as packages/utils above.
 COPY --from=deps /repo/packages/lenses/node_modules ./packages/lenses/node_modules
+# @nour/social-assets carries typescript (tsc) in its node_modules · its build
+# script needs it · same pattern as @nour/utils + @statenour/lenses above.
+COPY --from=deps /repo/packages/social-assets/node_modules ./packages/social-assets/node_modules
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/statenour ./apps/statenour
 # Tier-3 follow-up (2026-05-19): @nour/utils now ships pre-built dist/
@@ -98,6 +102,12 @@ COPY packages/utils ./packages/utils
 # but Docker context had no way to resolve. Same pattern as @nour/utils
 # above: copy source + build dist/ before next build.
 COPY packages/lenses ./packages/lenses
+# @nour/social-assets workspace package (static render pipeline · PR #298/#299).
+# Missing from this Dockerfile broke statenour deploys from 2026-06-23 (#305)
+# onward: apps/statenour/app/api/content/render-asset/route.ts imports it
+# (renderToPng/ReviewCard/ServiceWarning/GooglePost) but Docker had no way to
+# resolve it. Same pattern as @nour/utils + @statenour/lenses: copy + build dist/.
+COPY packages/social-assets ./packages/social-assets
 
 # Build @nour/utils first · emits dist/ so statenour's next build can
 # resolve the package via its proper exports map (./dist/index.js).
@@ -106,6 +116,10 @@ RUN pnpm run build
 
 # Build @statenour/lenses · emits packages/lenses/dist · same pattern.
 WORKDIR /repo/packages/lenses
+RUN pnpm run build
+
+# Build @nour/social-assets - emits packages/social-assets/dist - same pattern.
+WORKDIR /repo/packages/social-assets
 RUN pnpm run build
 
 # Build the Next.js app · produces apps/statenour/.next/standalone/
@@ -117,7 +131,21 @@ RUN pnpm run build
 
 # ── 3 · runtime ────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat python3 ca-certificates ffmpeg imagemagick py3-pip py3-wheel \
+ && pip install --no-cache-dir --break-system-packages \
+      moviepy==2.2.1 \
+      edge-tts==7.2.7 \
+      fastapi==0.136.3 \
+      uvicorn==0.32.1 \
+      openai==2.24.0 \
+      loguru==0.7.3 \
+      google-generativeai==0.8.6 \
+      requests==2.33.1 \
+      pydub==0.25.1 \
+      litellm==1.86.2 \
+      toml \
+      python-multipart==0.0.27 \
+      pyyaml==6.0.3
 
 # Non-root user for the runtime · standard hardening
 RUN addgroup --system --gid 1001 nodejs \
