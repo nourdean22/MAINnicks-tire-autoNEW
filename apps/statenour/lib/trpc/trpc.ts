@@ -61,7 +61,7 @@ export const middleware = t.middleware;
 export const publicProcedure = t.procedure;
 
 // ── Middleware · enforce operator session ───────────────────────────
-
+ 
 const enforceOperator = middleware(({ ctx, next }) => {
   if (!ctx.session) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -72,7 +72,25 @@ const enforceOperator = middleware(({ ctx, next }) => {
   });
 });
 
-export const operatorProcedure = t.procedure.use(enforceOperator);
+const mutationGateMiddleware = middleware(async ({ ctx, next, type }) => {
+  if (type === "mutation") {
+    try {
+      const { getFlag } = await import("@/lib/feature-flags");
+      const mutationLock = getFlag("NICK_MUTATION_LOCK")?.isOn ?? false;
+      if (mutationLock) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Mutations are currently locked by NICK_MUTATION_LOCK.",
+        });
+      }
+    } catch {
+      // safe fallback
+    }
+  }
+  return next();
+});
+
+export const operatorProcedure = t.procedure.use(enforceOperator).use(mutationGateMiddleware);
 
 // ── Note · withBudgetGate middleware ──────────────────────────────
 //

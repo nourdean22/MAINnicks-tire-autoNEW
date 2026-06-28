@@ -40,6 +40,7 @@ import {
   updateGoalSchema,
 } from "@/lib/services/goals";
 import { buildActionsBrain } from "@/lib/services/actions-brain";
+import { OutcomeRating } from "@prisma/client";
 import {
   checkTask,
   startTask,
@@ -445,6 +446,8 @@ export const taskRouter = router({
         cascadeChildren: z.boolean().optional(),
         completionNote: z.string().nullable().optional(),
         outcomeScore: z.number().int().min(1).max(100).nullable().optional(),
+        outcomeRating: z.nativeEnum(OutcomeRating).nullable().optional(),
+        outcomeLesson: z.string().nullable().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -455,6 +458,8 @@ export const taskRouter = router({
           cascadeChildren: input.cascadeChildren,
           completionNote: input.completionNote,
           outcomeScore: input.outcomeScore,
+          outcomeRating: input.outcomeRating,
+          outcomeLesson: input.outcomeLesson,
         });
       } catch (err) {
         if (err instanceof ServiceError) {

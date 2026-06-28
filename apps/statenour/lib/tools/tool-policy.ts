@@ -5,6 +5,7 @@ import {
   ApprovalPolicy,
   ToolCapability
 } from "./tool-registry";
+import { getFlag } from "@/lib/feature-flags";
 
 export type ToolDecisionType =
   | "allow"
@@ -52,6 +53,31 @@ export function evaluateToolAction(request: ToolActionRequest): ToolDecision {
   }
 
   const { riskClass, approvalPolicy, status } = cap;
+  
+  // 1.5. NICK_MUTATION_LOCK gate
+  const isMutation =
+    request.destructive ||
+    request.externalMutation ||
+    request.memoryWriteRequested ||
+    cap.writeAccess ||
+    cap.externalMutation ||
+    cap.memoryWriteAllowed;
+
+  if (isMutation) {
+    try {
+      const mutationLock = getFlag("NICK_MUTATION_LOCK")?.isOn ?? false;
+      if (mutationLock) {
+        return {
+          decision: "deny",
+          riskClass: cap.riskClass,
+          reason: `Action rejected: NICK_MUTATION_LOCK is active, preventing database/system mutations.`,
+          requiredApproval: "manual_only"
+        };
+      }
+    } catch {
+      // safe fallback if feature flags cannot be resolved
+    }
+  }
 
   // 2. Blocked tool -> deny
   if (status === "blocked" || cap.category === "local") {

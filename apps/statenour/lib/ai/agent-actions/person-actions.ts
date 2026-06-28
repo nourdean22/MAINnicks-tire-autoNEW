@@ -147,10 +147,11 @@ export async function handlePersonCreate(params: ActionParams, type: string): Pr
   }
 
   let undoToken: string | null = null;
+  let undoExpiresAt: Date | null = null;
   if (!resolution.matched && resolution.person) {
     const personId = resolution.person.id;
     undoToken = `undo_${personId}_${Date.now()}`;
-    const undoExpiresAt = new Date(Date.now() + 30 * 1000);
+    undoExpiresAt = new Date(Date.now() + 30 * 1000);
     await prisma.brainMemory
       .create({
         data: {
@@ -182,6 +183,7 @@ export async function handlePersonCreate(params: ActionParams, type: string): Pr
         ? "Already existed — matched an existing person, no duplicate created."
         : "Added a new person.",
       undoToken,
+      undoExpiresAt: undoExpiresAt ? undoExpiresAt.toISOString() : undefined,
     },
   };
 }

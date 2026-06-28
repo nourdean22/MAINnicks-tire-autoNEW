@@ -431,6 +431,8 @@ model Task {
   deletedAt               DateTime?      @map("deleted_at")
   completionNote          String?        @map("completion_note")
   outcomeScore            Int?           @map("outcome_score")
+  outcomeRating           OutcomeRating? @map("outcome_rating")
+  outcomeLesson           String?        @map("outcome_lesson") @db.Text
   /// v9.0-rc · Apr 30 · Proof attachment.
   /// Shape: { urls?: string[]; screenshots?: string[]; metrics?: Record<string,number>; notes?: string; observedAt?: string }
   /// Marking DONE without proof is allowed (soft enforcement) but the
@@ -3150,6 +3152,13 @@ model AgendaItem {
 
   @@index([status, category])
   @@map("agenda_items")
+}
+
+enum OutcomeRating {
+  OUTSTANDING
+  SATISFACTORY
+  SUBSTANDARD
+  FAILED
 }
 
 
