@@ -78,14 +78,10 @@ export function useLazyRenderMessages<T extends MessageLike>(
 
   // While streaming, mount everything so heights are stable and scroll
   // physics stay calm. Restore the lazy slice once the turn settles.
-  useEffect(() => {
-    if (isStreaming && visibleCount < total) {
-      setVisibleCount(total);
-    }
-  }, [isStreaming, total, visibleCount]);
+  const resolvedVisibleCount = isStreaming ? total : visibleCount;
 
   // Effective slice: when not in lazy mode, return all messages.
-  if (!isLong || visibleCount >= total) {
+  if (!isLong || resolvedVisibleCount >= total) {
     return {
       renderedMessages: messages,
       hasHidden: false,
@@ -94,7 +90,7 @@ export function useLazyRenderMessages<T extends MessageLike>(
     };
   }
 
-  const start = Math.max(0, total - visibleCount);
+  const start = Math.max(0, total - resolvedVisibleCount);
   return {
     renderedMessages: messages.slice(start),
     hasHidden: true,
