@@ -33,6 +33,7 @@ const PATTERNS = {
   okr: /\b(mit|main thing|top priority|okrs?|objectives?|key results?|weekly targets?|life goals?|set (a |my )?goal|north star|aim|targets?)\b/i,
   routine: /\b(weekly review|week (summary|recap|review)|end of day|eod|morning brief|daily pulse|analyze (my |this )?week)\b/i,
   browser: /\b(scrape|extract from (the )?page|automate (the )?browser|navigate (to|the)|click (on|the)? button|fill (out|in) (the )?form|browser (do|act|navigate|observe|extract))\b/i,
+  help: /\b(tools?|capabilities|functions?|what (can you do|actions can you|tools do you)|help (me|menu)?)\b/i,
 };
 
 describe("pruner keyword families · v10.0.509-510 fires correctly", () => {
@@ -122,6 +123,16 @@ describe("pruner keyword families · v10.0.509-510 fires correctly", () => {
       "Extract from the page",
       "Automate the browser to click X",
     ])("matches: %s", (q) => expect(PATTERNS.browser.test(q)).toBe(true));
+  });
+
+  describe("Help/tools family", () => {
+    it.each([
+      "what tools do you have?",
+      "list your capabilities",
+      "what are your functions",
+      "what can you do?",
+      "help menu",
+    ])("matches: %s", (q) => expect(PATTERNS.help.test(q)).toBe(true));
   });
 });
 

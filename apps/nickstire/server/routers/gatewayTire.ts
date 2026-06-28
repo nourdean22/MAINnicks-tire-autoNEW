@@ -830,6 +830,12 @@ export const gatewayTireRouter = router({
         })
       ).catch(e => log.warn("[gatewayTire:placeOrder] event bus tire order dispatch failed:", e));
 
+      // ─── Customer confirmation notification ───────────
+      const templateKey = isCommonSize ? "requestReceived" : "manualLookupReceived";
+      import("../services/customerMessageTemplates").then(({ sendCustomerMessage }) =>
+        sendCustomerMessage(orderNumber, templateKey)
+      ).catch(e => log.warn("[gatewayTire:placeOrder] Customer message dispatch failed:", e));
+
       // ─── Smart uncommon-size detection ────────────────
       // If the tire size isn't one we commonly stock, flag it for Gateway
       // ordering (isCommonSize computed above, before the event emit)
@@ -1189,6 +1195,17 @@ export const gatewayTireRouter = router({
       // ─── Status change notifications ─────────────────
       if (input.status && input.status !== currentOrder.status) {
         const orderDesc = `${currentOrder.quantity}x ${currentOrder.tireBrand} ${currentOrder.tireModel} (${currentOrder.tireSize})`;
+
+        // Trigger customer confirmation messaging asynchronously
+        if (input.status === "confirmed") {
+          import("../services/customerMessageTemplates").then(({ sendCustomerMessage }) =>
+            sendCustomerMessage(currentOrder.orderNumber, "availabilityConfirmed")
+          ).catch(e => log.warn("[updateOrder:customer-confirm] failed:", e));
+        } else if (input.status === "delivered") {
+          import("../services/customerMessageTemplates").then(({ sendCustomerMessage }) =>
+            sendCustomerMessage(currentOrder.orderNumber, "orderReady")
+          ).catch(e => log.warn("[updateOrder:customer-ready] failed:", e));
+        }
 
         // DELIVERED → Email shop + Telegram: tires arrived, ready to schedule
         if (input.status === "delivered") {

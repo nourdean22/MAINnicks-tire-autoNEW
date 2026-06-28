@@ -136,48 +136,50 @@ function safeWriteNote(
   body: string
 ): boolean {
   try {
-    const { content: newContent } = buildNoteContent(metadata, body);
+    let finalMetadata = { ...metadata };
 
-    if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, newContent, "utf-8");
-      return true;
-    }
-
-    // Check conflict
-    const localRaw = fs.readFileSync(filePath, "utf-8");
-    const localParsed = parseFrontmatter(localRaw);
-    
-    const storedHash = localParsed.metadata.hash;
-    const currentLocalHash = calculateHash(localParsed.content.trim());
-    
-    // If the local file's stored hash doesn't match the current body, the user has edited it
-    const isModified = storedHash && storedHash !== currentLocalHash;
-
-    if (isModified) {
-      // Sync Conflict! Write copy under Statenour/Quarantine/Conflicts/
-      const conflictDir = path.join(vaultPath, "Statenour", "Quarantine", "Conflicts");
-      if (!fs.existsSync(conflictDir)) {
-        fs.mkdirSync(conflictDir, { recursive: true });
+    if (fs.existsSync(filePath)) {
+      const localRaw = fs.readFileSync(filePath, "utf-8");
+      const localParsed = parseFrontmatter(localRaw);
+      
+      const storedHash = localParsed.metadata.hash;
+      const currentLocalHash = calculateHash(localParsed.content.trim());
+      
+      // Preserve review_due from local file if present
+      if (localParsed.metadata.review_due && !finalMetadata.review_due) {
+        finalMetadata.review_due = localParsed.metadata.review_due;
       }
 
-      const sanitizedTitle = sanitizeFilename(metadata.title || path.basename(filePath, ".md"));
-      const timestamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
-      const conflictFilename = `${sanitizedTitle}.conflict-${timestamp}.md`;
-      const conflictPath = path.join(conflictDir, conflictFilename);
+      // If the local file's stored hash doesn't match the current body, the user has edited it
+      const isModified = storedHash && storedHash !== currentLocalHash;
 
-      fs.writeFileSync(conflictPath, newContent, "utf-8");
-      
-      exportConflicts.push({
-        title: metadata.title || sanitizedTitle,
-        file: filePath,
-        conflictFile: conflictFilename
-      });
+      if (isModified) {
+        const { content: newContent } = buildNoteContent(finalMetadata, body);
+        // Sync Conflict! Write copy under Statenour/Quarantine/Conflicts/
+        const conflictDir = path.join(vaultPath, "Statenour", "Quarantine", "Conflicts");
+        if (!fs.existsSync(conflictDir)) {
+          fs.mkdirSync(conflictDir, { recursive: true });
+        }
 
-      console.warn(`  ⚠️  [Conflict] "${sanitizedTitle}" was modified locally in Obsidian. Staged version written to Quarantine/Conflicts/`);
-      return false;
+        const sanitizedTitle = sanitizeFilename(finalMetadata.title || path.basename(filePath, ".md"));
+        const timestamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
+        const conflictFilename = `${sanitizedTitle}.conflict-${timestamp}.md`;
+        const conflictPath = path.join(conflictDir, conflictFilename);
+
+        fs.writeFileSync(conflictPath, newContent, "utf-8");
+        
+        exportConflicts.push({
+          title: finalMetadata.title || sanitizedTitle,
+          file: filePath,
+          conflictFile: conflictFilename
+        });
+
+        console.warn(`  ⚠️  [Conflict] "${sanitizedTitle}" was modified locally in Obsidian. Staged version written to Quarantine/Conflicts/`);
+        return false;
+      }
     }
 
-    // Safe to overwrite
+    const { content: newContent } = buildNoteContent(finalMetadata, body);
     fs.writeFileSync(filePath, newContent, "utf-8");
     return true;
   } catch (err) {

@@ -88,8 +88,9 @@ export function buildSevenDayMessage(params: {
       serviceDescription: params.service,
     });
   }
+  const fName = firstName(params.name);
   return (
-    `Hey — Nick's Tire & Auto. That quote we wrote up is still good this week. ` +
+    `Hey ${fName}, Nick's Tire & Auto here. That quote we wrote up is still good this week. ` +
     `Free re-check, no charge, you don't pay until you say yes. ` +
     `Drop off any day. Reply STOP to opt out.`
   );
@@ -109,9 +110,10 @@ export function buildThirtyDayMessage(params: {
       serviceDescription: null,
     });
   }
+  const fName = firstName(params.name);
   return (
-    `Hey — it's been about a month. We'll still honor that quote, ` +
-    `free re-check first, and you don't pay until you say yes. ` +
+    `Hey ${fName}, Nick's Tire & Auto here. We still have that quote open for you from a month ago. ` +
+    `We'll honor that pricing, free re-check first, and you don't pay until you say yes. ` +
     `(216) 862-0005. Reply STOP to opt out.`
   );
 }

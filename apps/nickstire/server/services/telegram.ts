@@ -172,31 +172,14 @@ function divider(): string {
 
 // ─── Channel-Aware Send ─────────────────────────────
 
-/**
- * Send a message through a specific channel.
- * Critical channel: immediate send.
- * All other channels: queued for batch digest (every 5 minutes).
- */
 export async function sendTelegramMessage(
   text: string,
   channel: TelegramChannel = "system"
 ): Promise<boolean> {
   if (!isConfigured()) return false;
 
-  if (channel === "critical") {
-    // Critical messages bypass the queue
-    return sendRaw(text);
-  }
-
-  // Queue for batching
-  messageQueue[channel].push({
-    text,
-    channel,
-    queuedAt: Date.now(),
-  });
-  stats.queued++;
-
-  return true;
+  // Real-time dispatch: Bypass the 5-minute queue completely
+  return sendRaw(`[${channel.toUpperCase()}] ` + text);
 }
 
 /**
@@ -391,17 +374,9 @@ function formatChunk(messages: QueuedMessage[]): string {
   ].join("\n");
 }
 
-/** Start the batch flush timer */
+/** Start the batch flush timer (No-op after direct-dispatch upgrade) */
 export function startBatchTimer(): void {
-  if (batchTimer) return;
-  batchTimer = setInterval(() => {
-    flushMessageQueue().catch((err) => {
-      log.warn("Telegram batch flush failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
-  }, BATCH_INTERVAL_MS);
-  log.info("Telegram batch timer started (5 min interval)");
+  log.info("Telegram batch timer disabled (event-driven mode active)");
 }
 
 /** Stop the batch timer */

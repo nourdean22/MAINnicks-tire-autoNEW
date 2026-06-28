@@ -47,9 +47,9 @@ export const CAMPAIGNS: DripCampaign[] = [
     trigger: "post-service",
     isActive: true,
     steps: [
-      { stepNumber: 1, delayDays: 0, channel: "sms", messageTemplate: "Work's done at Nick's Tire & Auto, backed by our 12-month/12,000-mile warranty. Anything comes up, we're a call or text away: (216) 862-0005" },
-      { stepNumber: 2, delayDays: 3, channel: "sms", messageTemplate: "If we earned it, a quick word on Google means a lot — it helps the next Cleveland driver find us: nickstire.org/review — Nick & the team" },
-      { stepNumber: 3, delayDays: 30, channel: "sms", messageTemplate: "Checking in from Nick's — how's the car running? Anything you want a second look at, the check's free. (216) 862-0005" },
+      { stepNumber: 1, delayDays: 0, channel: "sms", messageTemplate: "Hey, thanks again for coming by Nick's Tire & Auto. If anything feels off or you have a question about the work, text or call us here. We'll take care of you. (216) 862-0005" },
+      { stepNumber: 2, delayDays: 3, channel: "sms", messageTemplate: "Hey, hope everything's been good since your visit. If we earned it, a quick Google review helps other Cleveland drivers find a shop they can trust: nickstire.org/review" },
+      { stepNumber: 3, delayDays: 30, channel: "sms", messageTemplate: "Checking in from Nick's — how's the car running? Anything you want a second look at, the check is free. Call or text (216) 862-0005" },
     ],
   },
   {
@@ -58,9 +58,9 @@ export const CAMPAIGNS: DripCampaign[] = [
     trigger: "new-customer",
     isActive: true,
     steps: [
-      { stepNumber: 1, delayDays: 0, channel: "sms", messageTemplate: "Welcome to Nick's Tire & Auto — save our number: (216) 862-0005. Send a friend our way and you both get $25 off your next visit." },
-      { stepNumber: 2, delayDays: 7, channel: "sms", messageTemplate: "Quick tip from Nick's: check your tire pressure monthly — low tires wear faster and cost you at the pump. Free air check anytime, just pull up." },
-      { stepNumber: 3, delayDays: 60, channel: "sms", messageTemplate: "About time for an oil change or a once-over? $49 conventional, $80 synthetic — walk in any day, no appointment. Nick's Tire & Auto, (216) 862-0005" },
+      { stepNumber: 1, delayDays: 0, channel: "sms", messageTemplate: "Welcome to Nick's Tire & Auto — save our number: (216) 862-0005. If you ever need help with tires, brakes, or check engine, text or call us anytime." },
+      { stepNumber: 2, delayDays: 7, channel: "sms", messageTemplate: "Quick tip from Nick's: checking your tire pressure monthly helps them wear evenly and last longer. Free air check anytime, just pull up." },
+      { stepNumber: 3, delayDays: 60, channel: "sms", messageTemplate: "About time for an oil change or tire check? conventional oil changes are $49 and synthetic is $80. Walk in any day — no appointment needed. (216) 862-0005" },
     ],
   },
   {
@@ -69,9 +69,9 @@ export const CAMPAIGNS: DripCampaign[] = [
     trigger: "at-risk",
     isActive: true,
     steps: [
-      { stepNumber: 1, delayDays: 0, channel: "sms", messageTemplate: "It's been a while — Nick's Tire & Auto is here 7 days a week. Due for an oil change or a once-over? $49 conventional, $80 synthetic, walk in any day. (216) 862-0005" },
-      { stepNumber: 2, delayDays: 14, channel: "sms", messageTemplate: "Still here at Nick's, walk-ins welcome Mon-Sat 8-6, Sun 9-4, no appointment. Whenever the car needs anything, just pull up. (216) 862-0005" },
-      { stepNumber: 3, delayDays: 30, channel: "sms", messageTemplate: "Free check on us this month — written quote, you don't pay until you say yes. Whenever it's easy, pull up any day. Nick's Tire & Auto, (216) 862-0005", condition: "only if no visit since enrollment" },
+      { stepNumber: 1, delayDays: 0, channel: "sms", messageTemplate: "It's been a while — Nick's Tire & Auto is here 7 days a week. Conventional oil changes are $49, full synthetic is $80. Walk in any day, no appointment. (216) 862-0005" },
+      { stepNumber: 2, delayDays: 14, channel: "sms", messageTemplate: "Still here at Nick's on Euclid. Walk-ins welcome Mon-Sat 8-6, Sun 9-4, no appointment needed. If the car needs anything checked, stop on by. (216) 862-0005" },
+      { stepNumber: 3, delayDays: 30, channel: "sms", messageTemplate: "Free check on us this month — written quote first, you don't pay until you say yes. Whenever it's easy, pull up any day. Nick's Tire & Auto, (216) 862-0005", condition: "only if no visit since enrollment" },
     ],
   },
   {
@@ -80,8 +80,8 @@ export const CAMPAIGNS: DripCampaign[] = [
     trigger: "declined-estimate",
     isActive: true,
     steps: [
-      { stepNumber: 1, delayDays: 7, channel: "sms", messageTemplate: "Following up from Nick's on that estimate — it still stands. Free re-check whenever you're ready, written quote, you don't pay until you say yes. Need to spread it out? $10 down. (216) 862-0005" },
-      { stepNumber: 2, delayDays: 30, channel: "sms", messageTemplate: "That estimate's still good at Nick's. Stop in whenever it's easy for a free re-check — no charge, no obligation. (216) 862-0005" },
+      { stepNumber: 1, delayDays: 7, channel: "sms", messageTemplate: "Following up from Nick's on that quote — it still stands. If cost was the holdup, we can go over payment options with you. Free re-check first. (216) 862-0005" },
+      { stepNumber: 2, delayDays: 30, channel: "sms", messageTemplate: "That quote is still in our system at Nick's. Stop in whenever it's easy for a free re-check — no charge, no obligation. (216) 862-0005" },
     ],
   },
 ];
