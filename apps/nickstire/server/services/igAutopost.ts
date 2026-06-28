@@ -836,7 +836,7 @@ async function generatePostImageGeminiDirect(prompt: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
 
-  const model = "gemini-2.5-flash-image";
+  const model = "gemini-3.1-flash-image";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   log.info("Generating image via Gemini Direct...", { model, prompt });
@@ -894,7 +894,7 @@ async function generateImageOpenRouter(prompt: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
 
-  const model = "google/gemini-2.5-flash-image";
+  const model = "google/gemini-3.1-flash-image";
   const url = "https://openrouter.ai/api/v1/chat/completions";
 
   log.info("Generating image via OpenRouter...", { model, prompt });
