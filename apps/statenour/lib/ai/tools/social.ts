@@ -31,6 +31,55 @@ export const socialTools = {
     },
   }),
 
+  stageCustomerAlert: tool({
+    description: "Stage an SMS outreach to a customer for approval. Writes a PENDING ActionReceipt and sends a Telegram approval prompt to Nour.",
+    inputSchema: z.object({
+      phone: z.string().describe("Phone number in E.164 format or standard 10-digit digits"),
+      message: z.string().describe("SMS message content, <= 160 characters"),
+      customerName: z.string().optional().describe("Optional customer name for context"),
+    }),
+    execute: async ({ phone, message, customerName }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const { sendTelegramWithButtons } = await import("@/lib/services/telegram");
+
+      const verificationPayload = {
+        phone,
+        message,
+        customerName: customerName || "Unknown Customer",
+      };
+
+      const receipt = await prisma.actionReceipt.create({
+        data: {
+          action: "shop.sendSms",
+          status: "PENDING",
+          sourceSystem: "twilio",
+          context: `SMS outreach approval for ${verificationPayload.customerName} (${phone}): "${message}"`,
+          verificationPayload,
+        },
+      });
+
+      const text = `📬 <b>Staged SMS Outreach</b>\n\n` +
+        `<b>To:</b> ${verificationPayload.customerName} (${phone})\n` +
+        `<b>Message:</b> "${message}"\n\n` +
+        `Awaiting your confirmation to send via Twilio SMS:`;
+
+      const buttons = [
+        [
+          { text: "✓ Approve & Send", callback_data: `approve:${receipt.id}` },
+          { text: "✗ Decline", callback_data: `deny:${receipt.id}` }
+        ]
+      ];
+
+      await sendTelegramWithButtons(text, buttons);
+
+      return {
+        status: "STAGED",
+        receiptId: receipt.id,
+        message: "SMS staged. Awaiting approval on your Telegram app.",
+      };
+    },
+  }),
+
   arsenalGmailInbox: tool({
     description: "List recent Gmail inbox threads · supports Gmail search syntax (e.g. 'is:unread newer_than:2d', 'from:supplier@x'). Returns subject/from/snippet/unread per thread. Requires GMAIL_REFRESH_TOKEN env (see docs/gmail-setup.md).",
     inputSchema: z.object({

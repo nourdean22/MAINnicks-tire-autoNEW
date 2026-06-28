@@ -3119,3 +3119,37 @@ model BriefingLog {
   @@map("briefing_logs")
 }
 
+enum AgendaItemCategory {
+  WITNESSED_COMMITMENT
+  STANDING_INTENTION
+  CONTRADICTION
+  NEGLECT_ALERT
+}
+
+enum AgendaItemStatus {
+  ACTIVE
+  RESOLVED
+  SNOOZED
+  ARCHIVED
+}
+
+model AgendaItem {
+  id           String             @id @default(cuid())
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+  title        String
+  description  String?            @db.Text
+  category     AgendaItemCategory
+  status       AgendaItemStatus   @default(ACTIVE)
+  source       String             // e.g. "chat", "journal", "prediction"
+  sourceId     String?            @map("source_id")
+  dueDate      DateTime?          @map("due_date")
+  lastNudgedAt DateTime?          @map("last_nudged_at")
+  escalateAt   DateTime?          @map("escalate_at")
+  metadata     Json?
+
+  @@index([status, category])
+  @@map("agenda_items")
+}
+
+

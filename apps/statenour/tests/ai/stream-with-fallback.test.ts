@@ -1,18 +1,36 @@
 /**
  * v10 Track B.5 · Tests for same-turn streamText fallback.
- *
- * Verifies the contract that closes the pre-first-token gap.
- * v9.1.27 already shipped cross-request rotation. v10 B.5 adds
- * same-turn rotation when streamText throws synchronously.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock the AI SDK streamText to control sync-throw behavior.
+// Mock the AI SDK ToolLoopAgent and stepCountIs
 const streamTextMock = vi.fn();
-vi.mock("ai", () => ({
-  streamText: (...args: unknown[]) => streamTextMock(...args),
-}));
+vi.mock("ai", () => {
+  return {
+    stepCountIs: vi.fn(),
+    ToolLoopAgent: vi.fn().mockImplementation((config) => {
+      return {
+        stream: () => {
+          try {
+            const res = streamTextMock(config.model);
+            return Promise.resolve({
+              fullStream: {
+                getReader: () => ({
+                  read: () => Promise.resolve({ done: true, value: undefined })
+                })
+              },
+              toUIMessageStreamResponse: () => res,
+              toolCalls: Promise.resolve([]),
+            });
+          } catch (err) {
+            return Promise.reject(err);
+          }
+        }
+      };
+    }),
+  };
+});
 
 // Mock provider — control which model getModel returns.
 const getModelMock = vi.fn();
@@ -29,25 +47,25 @@ beforeEach(() => {
 });
 
 describe("v10 B.5 · streamWithFallback", () => {
-  it("returns the streamText result on first-attempt success", () => {
+  it("returns the streamText result on first-attempt success", async () => {
     const fakeModel = { modelId: "gemini/gemini-3.5-flash" };
     const fakeResult = { __mockResult: true };
     getModelMock.mockReturnValueOnce(fakeModel);
     streamTextMock.mockReturnValueOnce(fakeResult);
 
-    const out = streamWithFallback({
+    const out = await streamWithFallback({
       taskType: "reason",
       buildConfig: (model) => ({ model, system: "test" }) as never,
     });
 
-    expect(out.result).toBe(fakeResult);
+    expect(out.result.toUIMessageStreamResponse()).toBeInstanceOf(Response);
     expect(out.provider).toBe("gemini");
     expect(out.attempts.length).toBe(1);
     expect(out.attempts[0].errorClass).toBeNull();
     expect(markProviderFailedMock).not.toHaveBeenCalled();
   });
 
-  it("retries with next provider on sync throw, succeeds on attempt 2", () => {
+  it("retries with next provider on sync throw, succeeds on attempt 2", async () => {
     const geminiModel = { modelId: "gemini/gemini-3.5-flash" };
     const ollamaModel = { modelId: "ollama/qwen3-235b" };
     const fakeResult = { __mockResult: true };
@@ -61,22 +79,21 @@ describe("v10 B.5 · streamWithFallback", () => {
       })
       .mockReturnValueOnce(fakeResult);
 
-    const out = streamWithFallback({
+    const out = await streamWithFallback({
       taskType: "reason",
       buildConfig: (model) => ({ model, system: "test" }) as never,
     });
 
-    expect(out.result).toBe(fakeResult);
+    expect(out.result.toUIMessageStreamResponse()).toBeInstanceOf(Response);
     expect(out.provider).toBe("ollama");
     expect(out.attempts.length).toBe(2);
     expect(out.attempts[0].errorClass).toBe("stream_text_sync_throw");
     expect(out.attempts[0].provider).toBe("gemini");
     expect(out.attempts[1].errorClass).toBeNull();
-    // Provider that failed got marked.
     expect(markProviderFailedMock).toHaveBeenCalledWith("gemini");
   });
 
-  it("throws when all attempts fail · trace attached to error", () => {
+  it("throws when all attempts fail · trace attached to error", async () => {
     const geminiModel = { modelId: "gemini/m" };
     const ollamaModel = { modelId: "ollama/m" };
     const openaiModel = { modelId: "gpt-4o" };
@@ -93,7 +110,7 @@ describe("v10 B.5 · streamWithFallback", () => {
 
     let thrown: unknown;
     try {
-      streamWithFallback({
+      await streamWithFallback({
         taskType: "reason",
         buildConfig: (model) => ({ model, system: "test" }) as never,
       });
@@ -111,7 +128,7 @@ describe("v10 B.5 · streamWithFallback", () => {
     expect(markProviderFailedMock).toHaveBeenCalledTimes(4);
   });
 
-  it("respects maxAttempts cap", () => {
+  it("respects maxAttempts cap", async () => {
     getModelMock.mockReturnValue({ modelId: "gemini/m" });
     streamTextMock.mockImplementation(() => {
       throw new Error("transient");
@@ -119,7 +136,7 @@ describe("v10 B.5 · streamWithFallback", () => {
 
     let thrown: unknown;
     try {
-      streamWithFallback({
+      await streamWithFallback({
         taskType: "reason",
         maxAttempts: 2,
         buildConfig: (model) => ({ model, system: "test" }) as never,
@@ -133,14 +150,14 @@ describe("v10 B.5 · streamWithFallback", () => {
     expect(wrapped.attempts!.length).toBe(2);
   });
 
-  it("getModel throwing 'no provider' breaks loop with no_provider_available", () => {
+  it("getModel throwing 'no provider' breaks loop with no_provider_available", async () => {
     getModelMock.mockImplementation(() => {
       throw new Error("No AI provider available");
     });
 
     let thrown: unknown;
     try {
-      streamWithFallback({
+      await streamWithFallback({
         taskType: "reason",
         buildConfig: (model) => ({ model, system: "test" }) as never,
       });
@@ -154,17 +171,16 @@ describe("v10 B.5 · streamWithFallback", () => {
     };
     expect(wrapped.attempts!.length).toBe(1);
     expect(wrapped.attempts![0].errorClass).toBe("no_provider_available");
-    // streamText was never called since getModel never returned.
     expect(streamTextMock).not.toHaveBeenCalled();
   });
 
-  it("provider name inferred from modelId · gpt-4 → openai", () => {
+  it("provider name inferred from modelId · gpt-4 → openai", async () => {
     const openaiModel = { modelId: "gpt-4o-2024-08-06" };
     const fakeResult = { __mockResult: true };
     getModelMock.mockReturnValueOnce(openaiModel);
     streamTextMock.mockReturnValueOnce(fakeResult);
 
-    const out = streamWithFallback({
+    const out = await streamWithFallback({
       taskType: "reason",
       buildConfig: (model) => ({ model, system: "test" }) as never,
     });
@@ -172,13 +188,13 @@ describe("v10 B.5 · streamWithFallback", () => {
     expect(out.provider).toBe("openai");
   });
 
-  it("provider name inferred from modelId · claude-3-5 → anthropic", () => {
+  it("provider name inferred from modelId · claude-3-5 → anthropic", async () => {
     const claudeModel = { modelId: "claude-3-5-sonnet-20241022" };
     const fakeResult = { __mockResult: true };
     getModelMock.mockReturnValueOnce(claudeModel);
     streamTextMock.mockReturnValueOnce(fakeResult);
 
-    const out = streamWithFallback({
+    const out = await streamWithFallback({
       taskType: "reason",
       buildConfig: (model) => ({ model, system: "test" }) as never,
     });
@@ -186,7 +202,7 @@ describe("v10 B.5 · streamWithFallback", () => {
     expect(out.provider).toBe("anthropic");
   });
 
-  it("buildConfig called fresh on each attempt with the chosen model", () => {
+  it("buildConfig called fresh on each attempt with the chosen model", async () => {
     const m1 = { modelId: "gemini/m" };
     const m2 = { modelId: "ollama/m" };
     getModelMock.mockReturnValueOnce(m1).mockReturnValueOnce(m2);
@@ -199,7 +215,7 @@ describe("v10 B.5 · streamWithFallback", () => {
     const buildConfig = vi.fn(
       (model: unknown) => ({ model, system: "test" }) as never,
     );
-    streamWithFallback({
+    await streamWithFallback({
       taskType: "reason",
       buildConfig,
     });

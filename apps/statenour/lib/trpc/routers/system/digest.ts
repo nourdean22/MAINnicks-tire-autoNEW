@@ -16,4 +16,14 @@ export const digestProcedures = {
   memoryEvals: operatorProcedure.query(async () => buildMemoryEvalReport()),
   /** F4 · recent action receipts (what Nick/system actually did). */
   receiptFeed: operatorProcedure.query(async () => buildActionReceiptFeed({ limit: 20 })),
+  /** Active and snoozed agenda items (witnessed commitments, standing intentions, etc.) */
+  agendaItems: operatorProcedure.query(async () => {
+    const { prisma } = await import("@/lib/prisma");
+    return prisma.agendaItem.findMany({
+      where: {
+        status: { in: ["ACTIVE", "SNOOZED"] }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+  }),
 };
