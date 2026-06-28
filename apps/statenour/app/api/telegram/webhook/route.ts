@@ -294,6 +294,98 @@ async function handleCallback(callback: {
       }
       return;
     }
+
+    if (action === "approve" || action === "deny") {
+      const receiptId = param;
+      const actReceipt = await prisma.actionReceipt.findUnique({ where: { id: receiptId } });
+      if (!actReceipt) {
+        await answerCallbackQuery(callback.id, "Receipt not found.");
+        return;
+      }
+
+      if (actReceipt.status !== "PENDING") {
+        if (messageId) {
+          await editTelegramMessage(messageId, `⚠️ Action already processed.`, chatId);
+        }
+        await answerCallbackQuery(callback.id, "Already processed.");
+        return;
+      }
+
+      if (action === "approve") {
+        const payload = actReceipt.verificationPayload as any;
+        if (!payload || typeof payload !== "object" || !payload.phone || !payload.message) {
+          console.error("[telegram:webhook] Malformed SMS payload on receipt:", receiptId, payload);
+          await prisma.actionReceipt.update({
+            where: { id: receiptId },
+            data: {
+              status: "FAILED",
+              context: `Malformed payload: ${JSON.stringify(payload)}`
+            }
+          });
+          if (messageId) {
+            await editTelegramMessage(messageId, `❌ SMS failed: Malformed payload.`, chatId);
+          }
+          await answerCallbackQuery(callback.id, "Malformed payload.");
+          return;
+        }
+
+        const { callNickstire } = await import("@/lib/ai/agent-actions/shop-actions");
+        try {
+          const res = await callNickstire("smsBot.send", { phone: String(payload.phone), message: String(payload.message) });
+          if (res) {
+            await prisma.actionReceipt.update({
+              where: { id: receiptId },
+              data: {
+                status: "SUCCESS",
+                executedAt: new Date()
+              }
+            });
+            if (messageId) {
+              await editTelegramMessage(
+                messageId,
+                `🔗 Approved & Sent ✓\n\n<b>To:</b> ${payload.customerName || "Unknown"} (${payload.phone})\n<b>Message:</b> "${payload.message}"`,
+                chatId
+              );
+            }
+            await answerCallbackQuery(callback.id, "SMS Dispatched!");
+          } else {
+            throw new Error("smsBot.send returned falsy response");
+          }
+        } catch (err) {
+          console.error("[telegram:webhook] SMS dispatch error:", err);
+          await prisma.actionReceipt.update({
+            where: { id: receiptId },
+            data: {
+              status: "FAILED",
+              context: err instanceof Error ? err.message : String(err)
+            }
+          });
+          if (messageId) {
+            await editTelegramMessage(messageId, `❌ SMS dispatch failed.`, chatId);
+          }
+          await answerCallbackQuery(callback.id, "Dispatch failed.");
+        }
+      } else {
+        await prisma.actionReceipt.update({
+          where: { id: receiptId },
+          data: {
+            status: "FAILED",
+            context: "Rejected by operator"
+          }
+        });
+        if (messageId) {
+          const payload = actReceipt.verificationPayload as any;
+          await editTelegramMessage(
+            messageId,
+            `❌ Staged SMS Declined.\n\n<b>To:</b> ${payload?.customerName || "Unknown"} (${payload?.phone})\n<b>Message:</b> "${payload?.message}"`,
+            chatId
+          );
+        }
+        await answerCallbackQuery(callback.id, "Declined.");
+      }
+      return;
+    }
+
     // Apr 17 separation pass — autopilot-morning approval flow retired
     // along with the cron that produced it. Shop-side approvals now
     // live in nickstire.org/admin.

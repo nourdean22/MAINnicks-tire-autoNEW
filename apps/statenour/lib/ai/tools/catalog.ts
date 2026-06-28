@@ -184,6 +184,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // (Nour's personal push channel).
   // v10.0.75 · sendToTelegram legacy alias retired (canonical: sendTelegram)
   { name: "sendTelegram",                 category: "comms",          sideEffecting: true, cost: "free" },
+  { name: "stageCustomerAlert",           category: "comms",          sideEffecting: true, cost: "free" },
 
   // ── ai_analysis ──────────────────────────────────────────────────
   { name: "analyzeImage",                 category: "ai_analysis",    cost: "spendy" },

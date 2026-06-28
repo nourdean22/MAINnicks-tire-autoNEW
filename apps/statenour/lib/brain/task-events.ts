@@ -94,6 +94,43 @@ export async function emitTaskEvent(input: TaskEventInput): Promise<void> {
         idempotencyKey: key,
       },
     });
+
+    if (input.kind === "completed") {
+      try {
+        const task = await prisma.task.findUnique({
+          where: { id: input.taskId },
+          select: { title: true }
+        });
+        if (task) {
+          const matchingAgendaItems = await prisma.agendaItem.findMany({
+            where: {
+              status: "ACTIVE",
+              category: "WITNESSED_COMMITMENT",
+            }
+          });
+          for (const item of matchingAgendaItems) {
+            const meta = item.metadata as any;
+            const isDirectLink = meta?.taskId === input.taskId;
+            const isTitleMatch = task.title && item.title && (
+              task.title.toLowerCase().includes(item.title.toLowerCase()) ||
+              item.title.toLowerCase().includes(task.title.toLowerCase())
+            );
+            if (isDirectLink || isTitleMatch) {
+              await prisma.agendaItem.update({
+                where: { id: item.id },
+                data: { status: "RESOLVED", updatedAt: new Date() }
+              });
+              log.info("resolved_witnessed_commitment", { agendaItemId: item.id, taskId: input.taskId });
+            }
+          }
+        }
+      } catch (err) {
+        log.warn("failed_to_resolve_commitments_on_task_complete", {
+          taskId: input.taskId,
+          err: err instanceof Error ? err.message : String(err)
+        });
+      }
+    }
   } catch (err) {
     log.warn("emit_failed", {
       kind: input.kind,

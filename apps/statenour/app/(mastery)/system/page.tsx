@@ -24,6 +24,7 @@ import { usePullRefresh } from "@/lib/hooks/use-pull-refresh";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { SystemHubGrid } from "@/components/system/hub-grid";
+import { AgendaDesk } from "@/components/system/agenda-desk";
 // ObservabilityRow · 4-tile ops telemetry (cost SLO · voice latency ·
 // eval pass rate · OS drift). Relocated from /ultron at v10.0.529.48.
 import { ObservabilityRow } from "@/components/ultron/observability/observability-row";
@@ -113,6 +114,9 @@ export default function SystemPage() {
   const receiptFeedQuery = trpc.system.receiptFeed.useQuery(undefined, {
     refetchInterval: 60_000,
   });
+  const agendaItemsQuery = trpc.system.agendaItems.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
 
   // The procedure return shapes are wider than these page-local view
   // interfaces (brain.status' `memories` is a Record<string,unknown>
@@ -129,7 +133,8 @@ export default function SystemPage() {
     healthQuery.isFetching ||
     changeDigestQuery.isFetching ||
     memoryEvalsQuery.isFetching ||
-    receiptFeedQuery.isFetching;
+    receiptFeedQuery.isFetching ||
+    agendaItemsQuery.isFetching;
   // Hydration fix (React #418) · the "Last refresh" wall-clock differs
   // between the SSR render and the first client render (server time vs
   // client time, ms apart). Gate it behind a mounted flag so the
@@ -149,8 +154,9 @@ export default function SystemPage() {
       changeDigestQuery.refetch(),
       memoryEvalsQuery.refetch(),
       receiptFeedQuery.refetch(),
-    ]);
-  }, [diagnosticsQuery, brainQuery, healthQuery, changeDigestQuery, memoryEvalsQuery, receiptFeedQuery]);
+      agendaItemsQuery.refetch(),
+    ] as any[]);
+  }, [diagnosticsQuery, brainQuery, healthQuery, changeDigestQuery, memoryEvalsQuery, receiptFeedQuery, agendaItemsQuery]);
 
   const { refreshing, onTouchStart, onTouchEnd } = usePullRefresh(refresh);
 
@@ -471,6 +477,9 @@ export default function SystemPage() {
             <div className="text-zinc-500 text-xs py-4">No recent receipts available.</div>
           )}
         </Panel>
+
+        {/* Agenda Desk Card */}
+        <AgendaDesk queryResult={agendaItemsQuery} />
       </div>
 
       {/* 2026-05-24 · Wave W Phase 1 · DELETION · the lower "DETAIL"

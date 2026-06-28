@@ -1322,7 +1322,7 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   });
 
   const { streamWithFallback, inferProviderName } = await import("@/lib/ai/stream-with-fallback");
-  const __sameTurnFallback = streamWithFallback({
+  const __sameTurnFallback = await streamWithFallback({
     taskType: finalTaskType,
     preferLargeContext: finalPreferLargeContext,
     forceProviderFirst: effectiveForce,
