@@ -82,6 +82,7 @@ vi.mock("@/lib/runtime", () => ({
 }));
 
 import { checkTask } from "@/lib/services/task-actions";
+import { OutcomeRating } from "@prisma/client";
 
 function setupOnceParent(opts: { id?: string; loopKind?: string } = {}) {
   const id = opts.id ?? "parent-1";
@@ -353,6 +354,43 @@ describe("checkTask · outcomes", () => {
     await expect(
       checkTask({ id: "parent-1", action: "complete", completionNote: longNote })
     ).rejects.toThrow(/must not exceed 1000 characters/i);
+  });
+
+  it("updates task with valid outcomeRating and outcomeLesson", async () => {
+    setupOnceParent();
+
+    await checkTask({
+      id: "parent-1",
+      action: "complete",
+      outcomeRating: OutcomeRating.OUTSTANDING,
+      outcomeLesson: "Always check the shadow database structure first.",
+    });
+
+    expect(mocks.task.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          outcomeRating: OutcomeRating.OUTSTANDING,
+          outcomeLesson: "Always check the shadow database structure first.",
+        }),
+      })
+    );
+  });
+
+  it("rejects invalid outcomeRating", async () => {
+    setupOnceParent();
+
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", outcomeRating: "AWESOME" as any })
+    ).rejects.toThrow(/must be one of: OUTSTANDING, SATISFACTORY, SUBSTANDARD, FAILED/i);
+  });
+
+  it("rejects excessively long outcomeLesson", async () => {
+    setupOnceParent();
+    const longLesson = "a".repeat(5001);
+
+    await expect(
+      checkTask({ id: "parent-1", action: "complete", outcomeLesson: longLesson })
+    ).rejects.toThrow(/must not exceed 5000 characters/i);
   });
 });
 

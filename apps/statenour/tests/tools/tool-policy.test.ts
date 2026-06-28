@@ -7,6 +7,22 @@ import {
   type ToolCapability
 } from "../../lib/tools/tool-registry";
 import { evaluateToolAction } from "../../lib/tools/tool-policy";
+import * as featureFlags from "@/lib/feature-flags";
+
+let mockMutationLock = false;
+
+vi.mock("@/lib/feature-flags", async (importOriginal) => {
+  const actual = await importOriginal<typeof featureFlags>();
+  return {
+    ...actual,
+    getFlag: vi.fn((key: string) => {
+      if (key === "NICK_MUTATION_LOCK") {
+        return { key: "NICK_MUTATION_LOCK", isOn: mockMutationLock };
+      }
+      return { key, isOn: false };
+    }),
+  };
+});
 
 describe("Tool Registry Completeness", () => {
   it("has all 26 core tool capabilities registered", () => {
@@ -265,6 +281,40 @@ describe("Permission Policy Engine Rules", () => {
       });
       expect(res.decision).toBe("require_owner");
       expect(res.requiredApproval).toBe("owner_required");
+    });
+  });
+
+  describe("NICK_MUTATION_LOCK gate", () => {
+    afterEach(() => {
+      mockMutationLock = false;
+    });
+
+    it("allows mutations when NICK_MUTATION_LOCK is false", () => {
+      mockMutationLock = false;
+      const res = evaluateToolAction({
+        toolId: "task.create",
+        actionType: "execute",
+      });
+      expect(res.decision).toBe("allow");
+    });
+
+    it("denies mutations when NICK_MUTATION_LOCK is true", () => {
+      mockMutationLock = true;
+      const res = evaluateToolAction({
+        toolId: "task.create",
+        actionType: "execute",
+      });
+      expect(res.decision).toBe("deny");
+      expect(res.reason).toContain("NICK_MUTATION_LOCK is active");
+    });
+
+    it("allows non-mutating queries even when NICK_MUTATION_LOCK is true", () => {
+      mockMutationLock = true;
+      const res = evaluateToolAction({
+        toolId: "web.search.verified",
+        actionType: "execute",
+      });
+      expect(res.decision).toBe("allow");
     });
   });
 });

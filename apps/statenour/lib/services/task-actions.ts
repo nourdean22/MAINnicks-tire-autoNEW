@@ -28,6 +28,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { OutcomeRating } from "@prisma/client";
 import { ServiceError } from "@/lib/utils/service-error";
 import { emitTaskCompleted } from "@/lib/db/brain-bus-emit";
 import { logger as rootLogger } from "@/lib/logger";
@@ -102,6 +103,8 @@ export async function checkTask(args: {
   cascadeChildren?: boolean;
   completionNote?: string | null;
   outcomeScore?: number | null;
+  outcomeRating?: OutcomeRating | null;
+  outcomeLesson?: string | null;
 }): Promise<CheckTaskResult> {
   const { id } = args;
   const action: CheckAction = args.action === "break" ? "break" : "complete";
@@ -128,6 +131,30 @@ export async function checkTask(args: {
       completionNote = trimmed === "" ? null : trimmed;
     } else {
       completionNote = null;
+    }
+  }
+
+  let outcomeRating: OutcomeRating | null | undefined = undefined;
+  if (args.outcomeRating !== undefined) {
+    if (args.outcomeRating !== null) {
+      const validRatings = [OutcomeRating.OUTSTANDING, OutcomeRating.SATISFACTORY, OutcomeRating.SUBSTANDARD, OutcomeRating.FAILED];
+      if (!validRatings.includes(args.outcomeRating)) {
+        throw new ServiceError("Outcome rating must be one of: OUTSTANDING, SATISFACTORY, SUBSTANDARD, FAILED", 400);
+      }
+    }
+    outcomeRating = args.outcomeRating;
+  }
+
+  let outcomeLesson: string | null | undefined = undefined;
+  if (args.outcomeLesson !== undefined) {
+    if (args.outcomeLesson !== null) {
+      const trimmed = String(args.outcomeLesson).trim();
+      if (trimmed.length > 5000) {
+        throw new ServiceError("Outcome lesson must not exceed 5000 characters", 400);
+      }
+      outcomeLesson = trimmed === "" ? null : trimmed;
+    } else {
+      outcomeLesson = null;
     }
   }
 
@@ -327,6 +354,8 @@ export async function checkTask(args: {
       startedAt: null,
       completionNote,
       outcomeScore,
+      outcomeRating,
+      outcomeLesson,
     },
     select: { id: true, status: true, loopKind: true, actualMinutes: true, effort: true },
   });
