@@ -3,7 +3,7 @@
 > **⚡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-06-28 · post the **ToolLoopAgent Upgrades & Agenda Desk UI wave — PR #403 merged**: upgraded stream-with-fallback.ts to ToolLoopAgent with maxSteps: 5; built thinking-guard.ts to remove <think> tag blocks on-the-fly and added a 3.5s Ollama model timeout; implemented stageCustomerAlert SMS tool with human-in-the-loop Telegram webhook approvals; logged witnessed commitments to AgendaItem database table during post-turn analysis; connected task completions to auto-resolve active commitments; integrated glassmorphic AgendaDesk dashboard component. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-06-28 · post the **Chat Agenda Context Injection wave — PR #405 merged**: queried active/snoozed `AgendaItem`s from DB and injected them as structured context into V1 system prompt parallel queries and V2 prime context layout; implemented rendering formats in V2 prompt compiler; updated tests in `command-center.test.ts` and `prompt-v2.test.ts`. Full detail: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 
