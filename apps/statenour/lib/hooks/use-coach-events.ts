@@ -102,20 +102,27 @@ export function useCoachEvents(
   const enabled = opts?.enabled ?? true;
   const active = !!surface && enabled;
 
+  const currentKey = `${surface}:${limit}:${active}`;
+  const [prevKey, setPrevKey] = useState(currentKey);
   const [events, setEvents] = useState<CoachEvent[]>(() =>
-    active ? getEntry(surface, limit).cached ?? [] : [],
+    active && surface ? getEntry(surface, limit).cached ?? [] : [],
   );
+
+  if (currentKey !== prevKey) {
+    setPrevKey(currentKey);
+    const e = active && surface ? getEntry(surface, limit) : null;
+    const initialEvents = e ? e.cached ?? [] : [];
+    setEvents(initialEvents);
+  }
 
   useEffect(() => {
     if (!active || !surface) {
-      queueMicrotask(() => setEvents([]));
       return;
     }
     const e = getEntry(surface, limit);
     const listener: Listener = (ev) => setEvents(ev);
     e.listeners.add(listener);
     ensurePoller(e);
-    if (e.cached) setEvents(e.cached);
     if (!e.cached || Date.now() - e.lastFetchAt > STALE_MS) void fetchEntry(e);
     return () => {
       e.listeners.delete(listener);

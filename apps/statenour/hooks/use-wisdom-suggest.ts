@@ -98,6 +98,25 @@ export function useWisdomSuggest(
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [killed, setKilled] = useState<boolean>(false);
 
+  const [prevDraft, setPrevDraft] = useState(draft);
+  const [prevKilled, setPrevKilled] = useState(killed);
+
+  if (draft !== prevDraft) {
+    setPrevDraft(draft);
+    if (draft.length === 0) {
+      if (dismissed.size > 0) setDismissed(new Set());
+      if (suggestions.length > 0) setSuggestions([]);
+    }
+  }
+
+  if (killed !== prevKilled) {
+    setPrevKilled(killed);
+    if (killed) {
+      if (suggestions.length > 0) setSuggestions([]);
+      if (loading) setLoading(false);
+    }
+  }
+
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -107,15 +126,6 @@ export function useWisdomSuggest(
   useEffect(() => {
     setKilled(readKillFlag());
   }, []);
-
-  // Reset dismissed-ids when the draft is fully cleared. Each "new
-  // composition" gets a clean slate · a wisdom dismissed for an old
-  // draft can re-appear for a totally different one.
-  useEffect(() => {
-    if (draft.length === 0 && dismissed.size > 0) {
-      setDismissed(new Set());
-    }
-  }, [draft, dismissed.size]);
 
   useEffect(() => {
     // Always reset any in-flight work first.
@@ -129,8 +139,6 @@ export function useWisdomSuggest(
     }
 
     if (killed) {
-      setSuggestions([]);
-      setLoading(false);
       return;
     }
     if (disabled) {
