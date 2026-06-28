@@ -251,7 +251,9 @@ export function useOfflineQueue(options: UseOfflineQueueOptions): UseOfflineQueu
   // shifts, which is already covered.
   useEffect(() => {
     if (isOnline && queue.length > 0) {
-      drainQueue();
+      setTimeout(() => {
+        void drainQueue();
+      }, 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline, queue.length]);
