@@ -122,7 +122,7 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     // We want to test getModel's logic directly. We can verify getModel returns the correct model.
     const model = getModel("reason", { preferLargeContext: true });
     // Since Ollama is first in the LargeContext sort chain, it should return Ollama's model ID
-    expect((model as any).modelId).toBe("glm-5.2");
+    expect((model as any).modelId).toBe("gpt-oss:120b");
   });
 
   it("aiChat falls back in the correct order when budget is nearing limit", async () => {
@@ -150,9 +150,9 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     // Check the order of models called:
     // Prio: ollama (0 cost) -> gemini (1) -> openai (2). anthropic (3) is skipped because hasCheaper is true.
     expect(attemptedModels).toEqual([
-      "glm-5.2",
+      "gpt-oss:120b",
       "gemini-3.5-flash",
-      "gpt-4o-mini",
+      "gpt-4o",
     ]);
   });
 

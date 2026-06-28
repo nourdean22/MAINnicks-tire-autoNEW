@@ -995,7 +995,7 @@ async function handlePhoto(
             "anthropic-version": "2023-06-01",
           },
           body: JSON.stringify({
-            model: "claude-sonnet-4-6",
+            model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest",
             max_tokens: 500,
             messages: [{
               role: "user",
