@@ -216,5 +216,11 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
       const { getActiveProviderInfo: getActiveProviderInfo2 } = await import("@/lib/ai/provider");
       expect(getActiveProviderInfo2("code").provider).toBe("openai");
     });
+
+    it("correctly resolves gpt-oss to the ollama provider instead of openai", async () => {
+      const { modelToProvider } = await import("@/lib/ai/provider-health");
+      expect(modelToProvider("gpt-oss:120b")).toBe("ollama");
+      expect(modelToProvider("gpt-4o")).toBe("openai");
+    });
   });
 });

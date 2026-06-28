@@ -3,7 +3,7 @@
 > **⚡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-06-28 · post the **Places Fallback & Instagram Reels Publishing Integration wave — PR #395 merged**: implemented Place API fallback review sync and tracking to the `shop_settings` DB table and wired the direct Meta Graph API publishing hook into the Statenour publish queue. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-06-28 · post the **Unaligned Reasoning Model upgrade — PR #397 merged**: whitelisted the raw, unaligned `gpt-oss` model family under the Ollama provider configuration and set active default OLLAMA_MODEL to `gpt-oss:120b`. Full detail: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 
