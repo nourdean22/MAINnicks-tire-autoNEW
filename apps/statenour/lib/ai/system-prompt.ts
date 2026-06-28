@@ -466,6 +466,7 @@ export async function buildSystemPromptUncached(
     openLeadCount,
     activeJobCount,
     healthGovernorContext,
+    agendaItemsContext,
   ] = await Promise.all([
     // v10.0.59 · Wave A part 2 · scores → identity_snapshot history
     // via legacy-shim (DailyScore retired Apr 19).
@@ -650,6 +651,15 @@ export async function buildSystemPromptUncached(
         return "";
       }
     })(),
+    (async () => {
+      try {
+        const { getAgendaItemsContext } = await import("@/lib/ai/context/agenda-context");
+        return await getAgendaItemsContext();
+      } catch (err) {
+        console.error("Agenda context error:", err);
+        return "";
+      }
+    })(),
   ]);
 
   // recentScores is no longer read by any prompt section (v11.1 ·
@@ -802,6 +812,11 @@ export async function buildSystemPromptUncached(
     recentDecisions,
     latestWeight,
   }));
+
+  if (agendaItemsContext) {
+    p.push("");
+    p.push(agendaItemsContext);
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // SECTION 4: CAMERA INTELLIGENCE
