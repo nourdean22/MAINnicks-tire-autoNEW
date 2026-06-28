@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, Activity, Clock, Zap, ShieldAlert } from "lucide-react";
+import { Brain, Activity, Clock, Zap, ShieldAlert, Inbox } from "lucide-react";
 import { today } from "@/lib/utils/datetime";
 import { trpc } from "@/lib/trpc/client";
 import { useEffect, useState } from "react";
@@ -10,6 +10,10 @@ export function HomeIdentityHeader() {
   const todayStr = today();
   
   const { data: inboxCount = 0 } = trpc.task.inboxCount.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+
+  const { data: captureInboxCount = 0 } = trpc.task.captureInboxCount.useQuery(undefined, {
     refetchInterval: 60_000,
   });
 
@@ -77,11 +81,23 @@ export function HomeIdentityHeader() {
           </div>
           
           <div className="flex items-center gap-2">
-            {inboxCount >= 10 && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs font-semibold text-rose-400 animate-pulse uppercase tracking-wider font-mono">
+            {inboxCount > 0 && (
+              <Link
+                href="/missions"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 transition uppercase tracking-wider font-mono cursor-pointer"
+              >
                 <Activity size={12} />
-                Inbox Backlog ({inboxCount})
-              </span>
+                Inbox ({inboxCount})
+              </Link>
+            )}
+            {captureInboxCount > 0 && (
+              <Link
+                href="/brain?tab=board"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs font-semibold text-blue-400 hover:bg-blue-500/20 transition uppercase tracking-wider font-mono cursor-pointer"
+              >
+                <Inbox size={12} />
+                Captures ({captureInboxCount})
+              </Link>
             )}
             {pendingApprovalsCount > 0 && (
               <Link
