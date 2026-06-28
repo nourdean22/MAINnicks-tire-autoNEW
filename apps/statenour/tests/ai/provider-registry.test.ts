@@ -123,7 +123,7 @@ describe("AI Provider Resolvers & Fallbacks", () => {
     process.env.OLLAMA_VISION_MODEL = "";
     expect(resolveProviderModel("ollama", "vision")).toBe("qwen3-vl:235b-instruct");
 
-    expect(resolveProviderModel("ollama", "reason")).toBe("glm-5.2");
+    expect(resolveProviderModel("ollama", "reason")).toBe("gpt-oss:120b");
     process.env.OLLAMA_MODEL = originalOllamaModel;
   });
 });
@@ -133,8 +133,8 @@ describe("AI Provider Health Telemetry Mapping", () => {
     // Test mapping of current/default models
     expect(modelToProvider("gemini-3.5-flash")).toBe("gemini");
     expect(modelToProvider("gpt-4o-mini")).toBe("openai");
-    expect(modelToProvider("claude-sonnet-4-6")).toBe("anthropic");
-    expect(modelToProvider("glm-5.2")).toBe("ollama");
+    expect(modelToProvider("claude-3-5-sonnet-latest")).toBe("anthropic");
+    expect(modelToProvider("gpt-oss:120b")).toBe("ollama");
 
     // Test mapping of custom/historical substrings
     expect(modelToProvider("glm-5")).toBe("ollama");
