@@ -73,6 +73,7 @@ export function ChatMessageList({
                   );
                 }
                 
+                // eslint-disable-next-line react-hooks/refs
                 const contextBlocks = extractContextBlocks(m, liveContextBlocksRef?.current || null);
                 const quality = extractQuality(m);
                 const citations = extractCitations(m);
