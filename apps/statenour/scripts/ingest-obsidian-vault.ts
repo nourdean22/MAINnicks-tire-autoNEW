@@ -27,7 +27,7 @@ function getFilesRecursive(dir: string, filter: (f: string) => boolean): string[
     const stat = fs.statSync(filePath);
     if (stat && stat.isDirectory()) {
       // Skip system or ignored folders
-      if (file !== ".obsidian" && file !== "node_modules" && file !== ".git") {
+      if (file !== ".obsidian" && file !== "node_modules" && file !== ".git" && file !== "Statenour") {
         results = results.concat(getFilesRecursive(filePath, filter));
       }
     } else if (filter(file)) {

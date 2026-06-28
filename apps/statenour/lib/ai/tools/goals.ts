@@ -13,6 +13,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { computeIsoWeekKey } from "@/lib/ai/context/command-center-state";
 
 export const goalsTools = {
   getProjections: tool({
@@ -282,9 +283,7 @@ export const goalsTools = {
       health: z.string().describe("Health/body target for the week"),
     }),
     execute: async ({ revenue, personal, health }) => {
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
-      const weekKey = weekStart.toISOString().slice(0, 10);
+      const weekKey = computeIsoWeekKey(new Date());
 
       const targets = { revenue, personal, health, setAt: new Date().toISOString() };
 
@@ -312,9 +311,7 @@ export const goalsTools = {
     description: "Get this week's 3 targets to check progress. Use mid-week to reference what was set on Monday.",
     inputSchema: z.object({}),
     execute: async () => {
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
-      const weekKey = weekStart.toISOString().slice(0, 10);
+      const weekKey = computeIsoWeekKey(new Date());
 
       const target = await prisma.brainMemory.findUnique({
         where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_TARGET, key: `week_${weekKey}` } },

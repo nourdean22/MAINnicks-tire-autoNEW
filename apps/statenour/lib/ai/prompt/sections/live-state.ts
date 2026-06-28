@@ -19,8 +19,8 @@ interface LiveStateInput {
   loopCount: number;
   commitmentCount: number;
   overdueCommitments: number;
-  openLeadCount: number;
-  activeJobCount: number;
+  openLeadCount?: number;
+  activeJobCount?: number;
   masteryScores: string[];
   activeAlerts: { ruleName: string; severity: string; message: string }[];
   brainAlerts: { category: string; content: string }[];
@@ -64,7 +64,7 @@ export function renderLiveState(input: LiveStateInput): string[] {
   // Nick pulls live numbers via the dailyPulse / queryNickstire tools. v-fix 2026-06-02.
   p.push(
     `- Business: $${(MONTHLY_REVENUE_TARGET / 1000).toFixed(0)}K/mo target` +
-      (openLeadCount > 0 || activeJobCount > 0
+      (openLeadCount !== undefined && activeJobCount !== undefined && (openLeadCount > 0 || activeJobCount > 0)
         ? ` · ${openLeadCount} leads · ${activeJobCount} jobs today`
         : ``),
   );

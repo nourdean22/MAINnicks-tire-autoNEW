@@ -259,7 +259,7 @@ function getFilesRecursive(dir: string): string[] {
     const filePath = path.join(dir, file);
     const stat = fs.statSync(filePath);
     if (stat && stat.isDirectory()) {
-      // Exclude system, backup, archive, quarantine and templates folders from strict validation
+      // Exclude system, backup, archive, quarantine, templates, and exported Statenour folders from strict validation
       if (
         file !== ".obsidian" &&
         file !== "node_modules" &&
@@ -267,7 +267,8 @@ function getFilesRecursive(dir: string): string[] {
         file !== ".statenour-backups" &&
         file !== "40_Archive" &&
         file !== "Quarantine" &&
-        file !== "Templates"
+        file !== "Templates" &&
+        file !== "Statenour"
       ) {
         results = results.concat(getFilesRecursive(filePath));
       }
