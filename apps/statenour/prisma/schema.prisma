@@ -3010,6 +3010,31 @@ model ContentStudioProject {
   @@map("content_studio_projects")
 }
 
+enum ActionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model ActionReceipt {
+  id                  String       @id @default(cuid())
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+  status              ActionStatus @default(PENDING)
+  action              String       @db.VarChar(255)
+  context             String?      @db.Text
+  
+  missionId           String?
+  mission             Mission?     @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  sourceSystem        String?      @map("source_system")
+  verificationPayload Json?        @map("verification_payload")
+  executedAt          DateTime?    @default(now()) @map("executed_at")
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([missionId])
+  @@map("action_receipts")
+}
+
 // ── Intelligence OS Core ──
 
 model RegisteredSource {
@@ -3092,30 +3117,5 @@ model BriefingLog {
 
   @@index([briefType, createdAt(sort: Desc)])
   @@map("briefing_logs")
-}
-
-enum ActionStatus {
-  PENDING
-  SUCCESS
-  FAILED
-}
-
-model ActionReceipt {
-  id                  String       @id @default(cuid())
-  createdAt           DateTime     @default(now()) @map("created_at")
-  updatedAt           DateTime     @updatedAt @map("updated_at")
-  status              ActionStatus @default(PENDING)
-  action              String       @db.VarChar(255)
-  context             String?      @db.Text
-  
-  missionId           String?
-  mission             Mission?     @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  sourceSystem        String?      @map("source_system")
-  verificationPayload Json?        @map("verification_payload")
-  executedAt          DateTime?    @default(now()) @map("executed_at")
-
-  @@index([status, createdAt(sort: Desc)])
-  @@index([missionId])
-  @@map("action_receipts")
 }
 
