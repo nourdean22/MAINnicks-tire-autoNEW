@@ -94,8 +94,8 @@ export function useStallDetection({
   abortMs = 30_000,
   onStall,
 }: UseStallDetectionOptions): StallStatus {
-  const [status, setStatus] = useState<StallStatus>("idle");
-  const lastGrowthRef = useRef<number>(Date.now());
+  const [status, setStatus] = useState<StallStatus>(isStreaming ? "healthy" : "idle");
+  const lastGrowthRef = useRef<number>(0);
   const lastLengthRef = useRef<number>(0);
   const stalledRef = useRef<boolean>(false);
   const onStallRef = useRef(onStall);
@@ -120,13 +120,18 @@ export function useStallDetection({
   // effect below does NOT tear down + recreate setInterval on every
   // token chunk. Previously, `messages` in the deps array thrashed
   // the interval 200+ times per long reply, leaking timers between
-  // renders. Updated assignment is render-time (safe pattern: ref
-  // mutation outside an effect doesn't cause renders).
+  // renders. Mutate ref inside useEffect to comply with React purity guidelines.
   const messagesRef = useRef(messages);
-  messagesRef.current = messages;
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // Derive status synchronously for idle states to avoid effect triggers
+  const resolvedStatus = isStreaming ? status : "idle";
+
   useEffect(() => {
     if (!isStreaming) {
-      setStatus("idle");
       stalledRef.current = false;
       lastLengthRef.current = 0;
       lastToolStateRef.current = "";
@@ -216,5 +221,5 @@ export function useStallDetection({
     // messagesRef.current so interval doesn't tear down per token.
   }, [isStreaming, warningMs, abortMs]);
 
-  return status;
+  return resolvedStatus;
 }
