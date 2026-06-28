@@ -58,7 +58,7 @@ export function useChatEditing(): ChatEditingState {
     if (!activeEditId) return;
     const saved = restore();
     if (saved && saved !== editValue) {
-      setEditValue(saved);
+      setTimeout(() => setEditValue(saved), 0);
     }
     // Intentionally narrow deps: only re-run when the active edit id flips.
     // editValue is excluded by design — we don't want to re-restore on every
