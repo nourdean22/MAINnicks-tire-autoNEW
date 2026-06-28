@@ -31,6 +31,8 @@ const safe = sanitizeForPrompt;
 export interface PromptV2Sections {
   /** v9.1.8 · Pinned context + top brain rules (sits near top of prompt). */
   anchors: string;
+  /** Active witnessed commitments, intentions, contradictions, or neglect alerts. */
+  agendaItems: string;
   /** v9.1.10 · "TODAY" + time-aware guidance + weekly rhythm + targets. */
   temporal: string;
   /** "Active commands" + "Open queue" + "Commitments". */
@@ -55,6 +57,7 @@ export interface PromptV2Sections {
 
 export function renderPromptV2(ctx: NickPrimeContext): PromptV2Sections {
   const anchors = renderAnchors(ctx);
+  const agendaItems = renderAgendaItems(ctx);
   const temporal = renderTemporal(ctx);
   const commands = renderCommands(ctx);
   const whyBlock = renderWhyBlock(ctx);
@@ -67,6 +70,7 @@ export function renderPromptV2(ctx: NickPrimeContext): PromptV2Sections {
 
   const totalChars =
     anchors.length +
+    agendaItems.length +
     temporal.length +
     commands.length +
     whyBlock.length +
@@ -79,6 +83,7 @@ export function renderPromptV2(ctx: NickPrimeContext): PromptV2Sections {
 
   return {
     anchors,
+    agendaItems,
     temporal,
     commands,
     whyBlock,
@@ -134,6 +139,32 @@ function renderAnchors(ctx: NickPrimeContext): string {
     for (const r of rules) {
       const conf = `${Math.round(r.confidence * 100)}%`;
       lines.push(`- [${safe(r.category, 30)}] (${conf}) ${safe(r.content, 140)}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Format active/snoozed agenda items (commitments, intentions, contradictions)
+ * as a Markdown block for V2 prompt compilation.
+ */
+function renderAgendaItems(ctx: NickPrimeContext): string {
+  const items = ctx.agendaItems ?? [];
+  if (items.length === 0) return "";
+
+  const lines: string[] = ["## ACTIVE AGENDA ITEMS"];
+  lines.push("These are the operator's active witnessed commitments, standing intentions, contradictions, or neglect alerts.");
+  lines.push("Hold Nour accountable to these commitments, address ongoing contradictions, or execute standing intentions.");
+
+  for (const item of items) {
+    const categoryLabel = item.category.replace(/_/g, " ");
+    const dueDateStr = item.dueDate
+      ? ` (Due: ${item.dueDate.slice(0, 10)})`
+      : "";
+    lines.push(`- [${safe(categoryLabel, 30)}] ${safe(item.title, 120)}${dueDateStr}`);
+    if (item.description) {
+      lines.push(`  Description: ${safe(item.description, 200)}`);
     }
   }
 
