@@ -57,6 +57,8 @@ interface UseRealtimeVoiceOpts {
 }
 
 export function useRealtimeVoice(opts: UseRealtimeVoiceOpts = {}) {
+  const { voice = "alloy", brainContext, operatorContext } = opts;
+
   const [isConnected, setIsConnected] = useState(false);
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
   const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
@@ -67,6 +69,13 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOpts = {}) {
   const dcRef = useRef<RTCDataChannel | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
+
+  const handleEventRef = useRef<((event: { type?: string; [k: string]: unknown }) => void) | null>(null);
+  const operatorContextRef = useRef(operatorContext);
+
+  useEffect(() => {
+    operatorContextRef.current = operatorContext;
+  }, [operatorContext]);
 
   const stop = useCallback(() => {
     try { dcRef.current?.close(); } catch {}
@@ -92,11 +101,11 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOpts = {}) {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          voice: opts.voice ?? "alloy",
-          brainContext: opts.brainContext,
+          voice: voice,
+          brainContext: brainContext,
           // Wave 40 · forward operator anchors so the spoken response
           // can naturally reference "this task" / "that decision" etc.
-          operatorContext: opts.operatorContext,
+          operatorContext: operatorContextRef.current,
         }),
       });
       if (!tokenRes.ok) {
@@ -140,7 +149,7 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOpts = {}) {
       dc.addEventListener("message", (e) => {
         try {
           const event = JSON.parse(e.data);
-          handleRealtimeEvent(event);
+          handleEventRef.current?.(event);
         } catch {
           // Non-JSON event, ignore
         }
@@ -173,12 +182,13 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOpts = {}) {
       setError((err as Error).message);
       stop();
     }
-  }, [opts.voice, opts.brainContext, stop]);
+  }, [voice, brainContext, stop]);
 
   // v10.0.529.100 · Wave 44 · function-call argument accumulator.
   // The Realtime API streams tool-call arguments in deltas · we buffer
   // by call_id and execute on the `.done` event.
   const fnArgsBufferRef = useRef<Map<string, { name: string; args: string }>>(new Map());
+
 
   // Handle incoming realtime events (transcripts, VAD, function calls)
   const handleRealtimeEvent = useCallback((event: { type?: string; [k: string]: unknown }) => {
@@ -296,6 +306,10 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOpts = {}) {
       })();
     }
   }, []);
+
+  useEffect(() => {
+    handleEventRef.current = handleRealtimeEvent;
+  }, [handleRealtimeEvent]);
 
   // Cleanup on unmount
   useEffect(() => {

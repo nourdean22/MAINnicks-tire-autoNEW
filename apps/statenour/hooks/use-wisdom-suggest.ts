@@ -117,14 +117,26 @@ export function useWisdomSuggest(
     }
   }
 
+  // Derive eligibility in render phase to avoid effect side-effects
+  const trimmed = draft.trim();
+  const isEligible = trimmed.length >= 25 && !trimmed.startsWith("/") && !killed;
+
+  // Resolve loading and suggestions states synchronously
+  const resolvedSuggestions = isEligible ? suggestions : [];
+  const resolvedLoading = isEligible && !disabled ? loading : false;
+
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Hydrate the kill-flag once on mount. Avoids an SSR/CSR mismatch ·
   // localStorage isn't available on the server, so the initial state
-  // is always `false` and we read the real value here.
+  // is always `false` and we read the real value here. Defer state update
+  // to avoid synchronous setState warning inside the effect block.
   useEffect(() => {
-    setKilled(readKillFlag());
+    const isKilled = readKillFlag();
+    if (isKilled) {
+      setTimeout(() => setKilled(true), 0);
+    }
   }, []);
 
   useEffect(() => {
@@ -138,21 +150,7 @@ export function useWisdomSuggest(
       timerRef.current = null;
     }
 
-    if (killed) {
-      return;
-    }
-    if (disabled) {
-      // Don't surface · but DON'T clear what's there. If a wisdom is
-      // already visible when a stream starts, keep showing it until
-      // the next keystroke after the stream ends. Cuts flicker.
-      setLoading(false);
-      return;
-    }
-
-    const trimmed = draft.trim();
-    if (trimmed.length < 25 || trimmed.startsWith("/")) {
-      setSuggestions([]);
-      setLoading(false);
+    if (!isEligible || disabled) {
       return;
     }
 
@@ -192,7 +190,7 @@ export function useWisdomSuggest(
         abortRef.current = null;
       }
     };
-  }, [draft, disabled, killed, debounceMs, dismissed]);
+  }, [draft, disabled, killed, debounceMs, dismissed, isEligible, trimmed]);
 
   const dismiss = useCallback((id: string) => {
     setDismissed((prev) => {
@@ -221,5 +219,5 @@ export function useWisdomSuggest(
     setSuggestions([]);
   }, []);
 
-  return { suggestions, loading, killed, dismiss, killForever };
+  return { suggestions: resolvedSuggestions, loading: resolvedLoading, killed, dismiss, killForever };
 }
