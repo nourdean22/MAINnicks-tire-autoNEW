@@ -35,9 +35,11 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "gpt-4o": { input: 2.50, output: 10.0 },
   "gpt-4o-mini": { input: 0.15, output: 0.60 },
   "gpt-5": { input: 5.0, output: 20.0 },
+  "gpt-oss": { input: 0, output: 0 },
   // ── Anthropic ────────────────────────────────────────────────────────
   "claude-sonnet-4-5": { input: 3.0, output: 15.0 },
   "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
+  "claude-3-5-sonnet": { input: 3.0, output: 15.0 },
   "claude-haiku-3.5": { input: 0.80, output: 4.0 },
   "claude-opus-4": { input: 15.0, output: 75.0 },
   // ── Image models (Venice) — flat per-image, mapped to per-call estimate
