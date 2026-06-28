@@ -646,18 +646,19 @@ function generateDynamicCapability(id: string): ToolCapability | null {
   }
 
   if (prefix === "person") {
+    const isWrite = /create|delete|remove/i.test(suffix);
     return {
       id,
       label: `Dynamic Person Action (${suffix})`,
       description: `Dynamically resolved relationship capability for person.${suffix}`,
       category: "system",
       status: "active",
-      riskClass: "medium",
+      riskClass: isWrite ? "high" : "medium",
       readAccess: true,
       writeAccess: true,
       externalMutation: false,
       memoryWriteAllowed: false,
-      approvalPolicy: "none",
+      approvalPolicy: isWrite ? "owner_required" : "none",
       requiredEnv: [],
       auditLogRequired: true,
       currentLimitations: []
