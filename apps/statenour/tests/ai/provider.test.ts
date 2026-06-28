@@ -223,4 +223,49 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
       expect(modelToProvider("gpt-4o")).toBe("openai");
     });
   });
+
+  describe("Ollama createOllamaModel fetch config", () => {
+    it("configures custom fetch that adds reasoning options for reasoning models", async () => {
+      const { createOpenAI } = await import("@ai-sdk/openai");
+      const { getModel } = await import("@/lib/ai/provider");
+
+      vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
+      vi.stubEnv("OLLAMA_MODEL", "gpt-oss:120b");
+
+      // Trigger creation of Ollama model
+      getModel("reason");
+
+      // Inspect createOpenAI mock calls
+      const lastCall = vi.mocked(createOpenAI).mock.calls.at(-1);
+      expect(lastCall).toBeDefined();
+      const configObj = lastCall?.[0];
+      expect(configObj?.fetch).toBeDefined();
+
+      // Test the custom fetch function with a reasoning model request body
+      const originalFetch = globalThis.fetch;
+      const fetchSpy = vi.fn().mockResolvedValue(new Response("{}"));
+      globalThis.fetch = fetchSpy;
+
+      try {
+        const bodyWithTools = JSON.stringify({
+          max_tokens: 2048,
+          tools: [{ name: "runPython" }],
+        });
+
+        await configObj.fetch("https://api.example.com", {
+          body: bodyWithTools,
+        });
+
+        expect(fetchSpy).toHaveBeenCalled();
+        const callArgs = fetchSpy.mock.calls[0];
+        const parsedBody = JSON.parse(callArgs[1].body);
+        expect(parsedBody.options.num_predict).toBe(2048);
+        // Excludes reasoning because tools are present
+        expect(parsedBody.reasoning?.exclude).toBe(true);
+        expect(parsedBody.include_reasoning).toBe(false);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+  });
 });

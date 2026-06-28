@@ -19,7 +19,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { createTaskAndEnrich } from "@/lib/services/tasks";
+import { createTaskAndEnrich, liftGoalOnTaskComplete } from "@/lib/services/tasks";
+import { creditTaskStats } from "@/lib/mastery/goal-stats";
+import { recordError } from "@/lib/errors/record-error";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { goalsTools } from "@/lib/ai/tools/goals";
@@ -183,7 +185,7 @@ const tasksCoreTools = {
     execute: async ({ taskId }) => {
       const task = await prisma.task.findUnique({
         where: { id: taskId },
-        select: { loopKind: true, streakCount: true, lastCompletedAt: true, status: true },
+        select: { loopKind: true, streakCount: true, lastCompletedAt: true, status: true, goalId: true },
       });
       if (!task) return { completed: false, error: "task not found" };
 
@@ -217,6 +219,18 @@ const tasksCoreTools = {
             snoozedUntil: null,
           },
         });
+
+        // credit character-sheet stat XP + lift the linked goal. Awaited via allSettled.
+        const settled = await Promise.allSettled([
+          creditTaskStats(taskId),
+          ...(task.goalId ? [liftGoalOnTaskComplete(task.goalId, taskId)] : []),
+        ]);
+        for (const r of settled) {
+          if (r.status === "rejected") {
+            recordError("ai:tool-exec", r.reason, { taskId, op: "task.complete-sideeffect-daily" });
+          }
+        }
+
         return {
           completed: true,
           loopKind: "DAILY",
@@ -235,6 +249,18 @@ const tasksCoreTools = {
           snoozedUntil: null,
         },
       });
+
+      // credit character-sheet stat XP + lift the linked goal. Awaited via allSettled.
+      const settled = await Promise.allSettled([
+        creditTaskStats(taskId),
+        ...(task.goalId ? [liftGoalOnTaskComplete(task.goalId, taskId)] : []),
+      ]);
+      for (const r of settled) {
+        if (r.status === "rejected") {
+          recordError("ai:tool-exec", r.reason, { taskId, op: "task.complete-sideeffect-once" });
+        }
+      }
+
       return { completed: true, taskId, loopKind: task.loopKind ?? "ONCE" };
     },
   }),
