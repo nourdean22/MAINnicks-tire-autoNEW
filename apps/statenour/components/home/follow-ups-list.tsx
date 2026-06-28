@@ -17,17 +17,16 @@ export function FollowUpsList() {
     },
   });
 
-  const [dismissed, setDismissed] = useState<string[]>([]);
-  const [loadingText, setLoadingText] = useState<string | null>(null);
-
-  useEffect(() => {
+  const [dismissed, setDismissed] = useState<string[]>(() => {
     try {
-      const stored = localStorage.getItem("statenour:dismissed-followups");
-      if (stored) {
-        setDismissed(JSON.parse(stored));
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("statenour:dismissed-followups");
+        return stored ? JSON.parse(stored) : [];
       }
     } catch {}
-  }, []);
+    return [];
+  });
+  const [loadingText, setLoadingText] = useState<string | null>(null);
 
   const handleDismiss = (text: string) => {
     const updated = [...dismissed, text];
