@@ -156,7 +156,7 @@ async function callOpenAI(model: string, messages: ChatMessage[], timeoutMs: num
     apiKey = process.env.GEMINI_API_KEY;
     baseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
     if (!model || model.includes("gpt-") || model.includes("llama-") || model.includes("claude-")) {
-      resolvedModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+      resolvedModel = process.env.GEMINI_MODEL || "gemini-3.5-flash";
     }
   }
 
@@ -390,9 +390,9 @@ export async function getAvailableModels(): Promise<{ provider: AIProvider; mode
   const result: { provider: AIProvider; models: string[] }[] = [];
 
   if (process.env.GEMINI_API_KEY) {
-    result.push({ provider: "openai", models: [process.env.GEMINI_MODEL || "gemini-2.5-flash", "text-embedding-3-small"] });
+    result.push({ provider: "openai", models: [process.env.GEMINI_MODEL || "gemini-3.5-flash", "text-embedding-3-small"] });
   } else if (process.env.OPENAI_API_KEY) {
-    result.push({ provider: "openai", models: [process.env.LLM_MODEL || "gpt-4o-mini", "text-embedding-3-small"] });
+    result.push({ provider: "openai", models: [process.env.LLM_MODEL || "gpt-4o", "text-embedding-3-small"] });
   }
 
   return result;
