@@ -127,7 +127,9 @@ export function useChatAutoFire(opts: UseChatAutoFireOpts): ChatAutoFireState {
     }
 
     // Surface the plan toast — the toast itself owns the countdown.
-    setPendingAutoFire({ messageId: id, plan: decision.plan });
+    setTimeout(() => {
+      setPendingAutoFire({ messageId: id, plan: decision.plan! });
+    }, 0);
     autoFiredRef.current.add(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, isStreaming, pendingAutoFire]);

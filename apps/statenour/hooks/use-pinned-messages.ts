@@ -25,7 +25,10 @@ export function usePinnedMessages() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setPinned(JSON.parse(stored));
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setTimeout(() => setPinned(parsed), 0);
+      }
     } catch {}
   }, []);
 

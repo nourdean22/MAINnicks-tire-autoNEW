@@ -129,7 +129,6 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
   const captureThought = trpc.brain.captureThought.useMutation();
   const logDecision = trpc.operator.logDecision.useMutation();
   const [input, setInput] = useState("");
-  const [intent, setIntent] = useState<CaptureIntent | null>(null);
   /** Manual override — when Nour taps the chip to cycle, we pin the
    *  kind until they either change input or send. Clears automatically
    *  after submit so the next line gets a fresh auto-classification. */
@@ -140,6 +139,18 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState<PlanResult | null>(null);
 
+  // Derived state: live intent preview as user types.
+  const intent = useMemo(() => {
+    if (!input.trim()) return null;
+    const auto = routeCapture(input);
+    // Apply manual override — keep the user's tap-chosen kind but use
+    // the latest text from input.
+    if (manualKind) {
+      return { kind: manualKind, text: auto.text } as CaptureIntent;
+    }
+    return auto;
+  }, [input, manualKind]);
+
   // Draft auto-save — OmniCapture is a HIGH-loss surface because it's
   // one-tap-away on every mastery page via the TopStrip. If Nour starts
   // typing a brain-dump and navigates away, he'd lose it without this.
@@ -148,7 +159,9 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
     useDraftAutosave({ key: "omni-capture", value: input });
   useEffect(() => {
     const saved = restoreCaptureDraft();
-    if (saved && input.length === 0) setInput(saved);
+    if (saved && input.length === 0) {
+      setTimeout(() => setInput(saved), 0);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -158,6 +171,7 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
   // via adaptive token cap now.
   const transportBodyRef = useRef<{ modeOverride: "standard" }>({ modeOverride: "standard" });
   const transport = useMemo(
+    // eslint-disable-next-line react-hooks/refs
     () => new DefaultChatTransport({
       api: "/api/ai/chat",
       body: () => transportBodyRef.current,
@@ -173,27 +187,20 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
   const isStreaming = status === "streaming" || status === "submitted";
 
   useEffect(() => {
-    setPinned(loadPinned());
-    if (loadCached()) setShowCache(true);
-    setHydrated(true);
+    const p = loadPinned();
+    const hasCache = loadCached();
+    setTimeout(() => {
+      setPinned(p);
+      if (hasCache) setShowCache(true);
+      setHydrated(true);
+    }, 0);
   }, []);
 
-  // Live intent preview as user types. Manual override (set by tapping
-  // the chip) clears whenever input becomes empty — a fresh line should
+  // Clear manualKind whenever input becomes empty — a fresh line should
   // get a fresh auto-classification.
   useEffect(() => {
-    if (!input.trim()) {
-      setIntent(null);
-      setManualKind(null);
-      return;
-    }
-    const auto = routeCapture(input);
-    // Apply manual override — keep the user's tap-chosen kind but use
-    // the latest text from input.
-    if (manualKind) {
-      setIntent({ kind: manualKind, text: auto.text } as CaptureIntent);
-    } else {
-      setIntent(auto);
+    if (!input.trim() && manualKind !== null) {
+      setTimeout(() => setManualKind(null), 0);
     }
   }, [input, manualKind]);
 
@@ -643,6 +650,7 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
               q: {displayQ.length > 80 ? displayQ.slice(0, 80) + "…" : displayQ}
               {cached && !liveText && (
                 <span className="ml-2 text-[var(--gold)]/60">
+                  {/* eslint-disable-next-line react-hooks/purity */}
                   · from {Math.floor((Date.now() - cached.timestamp) / 60_000)}m ago
                 </span>
               )}

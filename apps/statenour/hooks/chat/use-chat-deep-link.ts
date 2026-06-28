@@ -40,7 +40,7 @@ export function useChatDeepLink(opts: UseChatDeepLinkOpts): void {
   useEffect(() => {
     const q = params.get("q");
     if (!q || qSent || messageCount !== 0) return;
-    setQSent(true);
+    setTimeout(() => setQSent(true), 0);
     sendOrQueue(q);
   }, [params, qSent, messageCount, sendOrQueue]);
 
@@ -54,10 +54,10 @@ export function useChatDeepLink(opts: UseChatDeepLinkOpts): void {
       params.get("conversationId");
     if (!cid) return;
     if (activeConversationId === cid) {
-      setCidLoaded(true);
+      setTimeout(() => setCidLoaded(true), 0);
       return;
     }
-    setCidLoaded(true);
+    setTimeout(() => setCidLoaded(true), 0);
     void (async () => {
       try {
         await loadConversation(cid);

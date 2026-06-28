@@ -50,8 +50,12 @@ export function useIdleDetector(opts: UseIdleDetectorOpts = {}) {
   const extendedThresholdMs = opts.extendedThresholdMs;
   const disabled = opts.disabled ?? false;
 
-  const lastActivityRef = useRef<number>(Date.now());
+  const lastActivityRef = useRef<number>(0);
   const [msSinceActivity, setMsSinceActivity] = useState(0);
+
+  useEffect(() => {
+    lastActivityRef.current = Date.now();
+  }, []);
 
   // Reset timer on any activity event. Throttle to once per second so
   // mousemove storms don't thrash React state.

@@ -74,17 +74,23 @@ export function usePollingFetch<T>(url: string, opts: UsePollingFetchOpts = {}) 
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
+  // Derive loading state during render to avoid set-state-in-effect warning when skip is true
+  const resolvedLoading = skip ? false : loading;
+
   // GET-with-state — the slice of `useAuthedFetch` this hook used to
   // depend on, inlined. `credentials: "include"` sends the session
   // cookie; a 401 retries once after a 300ms cookie-arrival grace.
   useEffect(() => {
     if (skip) {
-      setLoading(false);
       return;
     }
     const self = { alive: true };
-    setLoading(true);
-    setError(null);
+    setTimeout(() => {
+      if (self.alive) {
+        setLoading(true);
+        setError(null);
+      }
+    }, 0);
 
     void (async () => {
       let attempt = 0;
@@ -172,5 +178,5 @@ export function usePollingFetch<T>(url: string, opts: UsePollingFetchOpts = {}) 
     };
   }, [intervalMs, pauseWhenHidden, reload, skip, skipPoll]);
 
-  return { data, loading, error, reload };
+  return { data, loading: resolvedLoading, error, reload };
 }

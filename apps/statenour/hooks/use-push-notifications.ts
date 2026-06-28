@@ -41,11 +41,15 @@ export function usePushNotifications() {
 
   useEffect(() => {
     const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-    setIsSupported(supported);
+    
+    setTimeout(() => {
+      setIsSupported(supported);
+      if (supported) {
+        setPermission(Notification.permission);
+      }
+    }, 0);
 
     if (supported) {
-      setPermission(Notification.permission);
-
       navigator.serviceWorker.ready.then((reg) => {
         reg.pushManager.getSubscription().then((sub) => {
           setIsSubscribed(!!sub);

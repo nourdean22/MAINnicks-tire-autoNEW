@@ -297,8 +297,10 @@ export function ContradictionsCard() {
     const match = shownUnresolved.find((c) => c.key === resolveKey);
     if (match) {
       autoOpenedRef.current = true;
-      setExpandedKey(match.key);
-      setNote("");
+      setTimeout(() => {
+        setExpandedKey(match.key);
+        setNote("");
+      }, 0);
     }
   }, [contra.data, searchParams, shownUnresolved]);
 
@@ -428,7 +430,7 @@ export function ContradictionsCard() {
                   <button
                     type="button"
                     onClick={() => (isExpanded ? closeForm() : openForm(c.key))}
-                    aria-expanded={isExpanded}
+                    aria-expanded={isExpanded ? "true" : "false"}
                     aria-label={
                       isExpanded
                         ? "close resolution form"

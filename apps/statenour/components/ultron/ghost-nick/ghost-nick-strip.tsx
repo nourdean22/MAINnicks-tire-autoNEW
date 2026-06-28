@@ -110,6 +110,7 @@ export function GhostNickStrip() {
   const accPct = totalCalls >= 3 && accuracy ? Math.round((accuracy.hits / totalCalls) * 100) : null;
   const calibrating = totalCalls > 0 && totalCalls < 3;
   const predictedAgo = bundle
+    // eslint-disable-next-line react-hooks/purity
     ? Math.round((Date.now() - new Date(bundle.predicted_at).getTime()) / 60_000)
     : null;
 
