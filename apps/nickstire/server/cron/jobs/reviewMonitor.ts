@@ -26,7 +26,22 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
     }
 
     const data = await response.json();
-    const reviews: any[] = data.result?.reviews || [];
+    const result = data.result || {};
+    const reviews: any[] = result.reviews || [];
+
+    // Sync backup stats to shop_settings DB table
+    const totalReviews = typeof result.user_ratings_total === "number" ? result.user_ratings_total : null;
+    const rating = typeof result.rating === "number" ? result.rating : null;
+
+    if (totalReviews !== null && rating !== null) {
+      try {
+        const { saveBackupStatsToDb } = await import("../../google-reviews");
+        await saveBackupStatsToDb(totalReviews, rating);
+        log.info(`[ReviewMonitor] Synced backup stats to DB: count=${totalReviews}, rating=${rating}`);
+      } catch (err) {
+        log.error("[ReviewMonitor] Failed to sync backup stats to DB:", err);
+      }
+    }
 
     if (!reviews.length) {
       return { recordsProcessed: 0, details: "No reviews returned from API" };

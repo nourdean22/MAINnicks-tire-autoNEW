@@ -1034,7 +1034,7 @@ export const operatorRouter = router({
         scheduledFor: z.string().max(64).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, action, reason, scheduledFor } = input;
       
       if (action === "approve") {
@@ -1072,6 +1072,30 @@ export const operatorRouter = router({
             publishedAt: new Date(),
           },
         });
+
+        // Trigger actual publish to Meta Graph API
+        const publishPlatforms: ("instagram" | "facebook")[] = [];
+        if (updated.platforms.includes("instagram")) publishPlatforms.push("instagram");
+        if (updated.platforms.includes("facebook")) publishPlatforms.push("facebook");
+
+        if (publishPlatforms.length > 0) {
+          try {
+            const { publishSocialPost } = await import("@/lib/services/social-actions");
+            const hostHeader = ctx.headers?.get("host") || undefined;
+            await publishSocialPost(
+              {
+                platforms: publishPlatforms,
+                imageUrl: updated.kind !== "reel" ? (updated.imageUrl || undefined) : undefined,
+                videoUrl: updated.kind === "reel" ? (updated.imageUrl || undefined) : undefined,
+                caption: updated.content,
+              },
+              hostHeader
+            );
+          } catch (pubErr) {
+            console.error("[operator:actOnPublishQueueItem] Failed to publish to Meta:", pubErr);
+          }
+        }
+
         return { ok: true as const, published: true as const, item: updated };
       }
       
