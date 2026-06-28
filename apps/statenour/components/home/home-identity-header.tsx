@@ -1,9 +1,10 @@
 "use client";
 
-import { Brain, Activity, Clock, Zap } from "lucide-react";
+import { Brain, Activity, Clock, Zap, ShieldAlert } from "lucide-react";
 import { today } from "@/lib/utils/datetime";
 import { trpc } from "@/lib/trpc/client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 export function HomeIdentityHeader() {
   const todayStr = today();
@@ -11,6 +12,16 @@ export function HomeIdentityHeader() {
   const { data: inboxCount = 0 } = trpc.task.inboxCount.useQuery(undefined, {
     refetchInterval: 60_000,
   });
+
+  const { data: pendingRequests = [] } = trpc.system.getPendingApprovals.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
+
+  const { data: approvalsData } = trpc.system.approvals.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
+
+  const pendingApprovalsCount = pendingRequests.length + (approvalsData?.rows.length ?? 0);
 
   const [timeStr, setTimeStr] = useState<string>("");
   const [greeting, setGreeting] = useState<string>("Welcome");
@@ -71,6 +82,15 @@ export function HomeIdentityHeader() {
                 <Activity size={12} />
                 Inbox Backlog ({inboxCount})
               </span>
+            )}
+            {pendingApprovalsCount > 0 && (
+              <Link
+                href="/system/actions"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs font-semibold text-amber-400 hover:bg-amber-500/20 transition uppercase tracking-wider font-mono cursor-pointer animate-pulse"
+              >
+                <ShieldAlert size={12} />
+                Approvals ({pendingApprovalsCount})
+              </Link>
             )}
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400 uppercase tracking-wider">
               <Zap size={12} />
