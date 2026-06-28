@@ -33,15 +33,24 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   }, [draft]);
 
   // Intelligence Hooks
-  const img = useImageAttachment();
+  const {
+    attached: imgAttached,
+    fileInputRef: imgFileInputRef,
+    cameraInputRef: imgCameraInputRef,
+    handleFileChange: handleImgFileChange,
+    clear: clearImg,
+    openGallery: openImgGallery,
+    readAsBase64: readImgAsBase64,
+    attachFromPaste: attachImgFromPaste,
+  } = useImageAttachment();
   const slash = useSlashCommands();
   const mentions = useMentionSuggestions();
 
   const sendOrQueue = async (textToSend: string) => {
-    if (!textToSend.trim() && !img.attached) return;
+    if (!textToSend.trim() && !imgAttached) return;
 
     const tempId = crypto.randomUUID();
-    const isImageAttached = !!img.attached;
+    const isImageAttached = !!imgAttached;
 
     // Optimistic Enqueue
     enqueuePending({
@@ -55,7 +64,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
 
     try {
       if (isImageAttached) {
-        const result = await img.readAsBase64();
+        const result = await readImgAsBase64();
         if (result) {
           type SendMessagePart =
             | { type: "text"; text: string }
@@ -71,7 +80,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             type: "file",
             mediaType: result.mimeType,
             url: result.base64,
-            filename: img.attached!.file.name,
+            filename: imgAttached!.file.name,
           });
 
           await chat.append({
@@ -80,7 +89,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             content: textToSend, // Still provide string content for logging/fallbacks
             parts: parts,
           });
-          img.clear();
+          clearImg();
         } else {
           await chat.sendText(textToSend);
         }
@@ -98,7 +107,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!draft.trim() && !img.attached) return;
+    if (!draft.trim() && !imgAttached) return;
     await sendOrQueue(draft.trim());
   };
 
@@ -168,12 +177,12 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
       )}
 
       {/* Attachment Preview UI */}
-      {img.attached && (
+      {imgAttached && (
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden mb-1">
           <AttachmentPreview
-            file={img.attached.file}
-            preview={img.attached.preview}
-            onClear={img.clear}
+            file={imgAttached.file}
+            preview={imgAttached.preview}
+            onClear={clearImg}
           />
         </div>
       )}
@@ -185,7 +194,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
         <div className="flex shrink-0 items-center gap-1 pb-1 pl-1">
           <button
             type="button"
-            onClick={img.openGallery}
+            onClick={openImgGallery}
             className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 transition-all duration-300 hover:bg-zinc-800 hover:text-zinc-200 hover:scale-105 active:scale-95"
             aria-label="Attach image"
           >
@@ -210,15 +219,15 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
         {/* Hidden File Inputs */}
         <input
           type="file"
-          ref={img.fileInputRef}
-          onChange={img.handleFileChange}
+          ref={imgFileInputRef}
+          onChange={handleImgFileChange}
           className="hidden"
           accept="image/*,application/pdf,.doc,.docx,.txt"
         />
         <input
           type="file"
-          ref={img.cameraInputRef}
-          onChange={img.handleFileChange}
+          ref={imgCameraInputRef}
+          onChange={handleImgFileChange}
           className="hidden"
           accept="image/*"
           capture="environment"
@@ -242,7 +251,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
               mentions.onInputChange(val, e.target.selectionStart ?? val.length);
             }}
             onPaste={(e) => {
-              const attached = img.attachFromPaste(e);
+              const attached = attachImgFromPaste(e);
               if (attached) {
                 e.preventDefault();
                 toast.success("Image attached from clipboard", { duration: 1500 });
@@ -264,10 +273,10 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
         <button
           type="submit"
           aria-label="Send message"
-          disabled={(!draft.trim() && !img.attached) || chat.status === "streaming"}
+          disabled={(!draft.trim() && !imgAttached) || chat.status === "streaming"}
           className={cn(
             "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-zinc-950 transition-all duration-300 disabled:opacity-50 active:scale-95",
-            (!draft.trim() && !img.attached) || chat.status === "streaming"
+            (!draft.trim() && !imgAttached) || chat.status === "streaming"
               ? "bg-zinc-100"
               : "bg-gradient-to-br from-white to-zinc-300 shadow-[0_0_20px_-5px_rgba(255,255,255,0.4)] hover:shadow-[0_0_25px_-2px_rgba(255,255,255,0.5)] hover:scale-105"
           )}
