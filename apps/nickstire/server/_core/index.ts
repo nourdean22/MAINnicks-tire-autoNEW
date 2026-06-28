@@ -74,6 +74,7 @@ import { registerNourChiefStrategistRoute } from "../routes/nour-chief-strategis
 import { registerNourOsQueryRoute } from "../routes/nour-os-query";
 import { registerAnalyticsRoutes } from "../routes/analyticsRoutes";
 import { requireAdminApiKey, registerAdminRoutes } from "../routes/adminRoutes";
+import { registerMetaRoutes } from "../routes/metaRoutes";
 import { registerPushRoutes } from "../routes/pushRoutes";
 import { runServerMigrations } from "../services/migrations";
 import { apiLimiter, formLimiter, aiLimiter, uploadLimiter } from "../middleware/rateLimiters";
@@ -369,6 +370,7 @@ async function startServer() {
   registerSimulatorRoute(app);
   registerNourChiefStrategistRoute(app);
   registerNourOsQueryRoute(app);
+  registerMetaRoutes(app);
 
   // Higher body limit for photo upload (base64 encoded images up to 7.5MB)
   app.use("/api/trpc/booking.uploadPhoto", express.json({ limit: "12mb" }));
