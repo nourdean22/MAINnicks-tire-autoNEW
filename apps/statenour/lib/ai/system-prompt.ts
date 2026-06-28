@@ -462,9 +462,6 @@ export async function buildSystemPromptUncached(
     habitData,
     recentVisionEvents,
     latestFinancial,
-    customerCount,
-    openLeadCount,
-    activeJobCount,
     healthGovernorContext,
     agendaItemsContext,
   ] = await Promise.all([
@@ -639,9 +636,6 @@ export async function buildSystemPromptUncached(
         }).catch((): null => null),
       null,
     ),
-    Promise.resolve(0).catch((): number => 0),
-    Promise.resolve(0).catch((): number => 0),
-    Promise.resolve(0).catch((): number => 0),
     (async () => {
       try {
         const { getHealthGovernorContext } = await import("@/lib/health-governor/health-governor-guardrails");
@@ -789,7 +783,6 @@ export async function buildSystemPromptUncached(
     commitmentCount,
     missionCount,
     overdueCommitments,
-    customerCount,
     weeklyTarget,
     weekKey,
   }));
@@ -801,8 +794,6 @@ export async function buildSystemPromptUncached(
     loopCount,
     commitmentCount,
     overdueCommitments,
-    openLeadCount,
-    activeJobCount,
     masteryScores,
     activeAlerts,
     brainAlerts,
@@ -960,9 +951,6 @@ export async function buildSystemPromptUncached(
   // SECTION 6: LIVE METRICS + LIVE SHOP STATUS
   // ═══════════════════════════════════════════════════════════════
   p.push(...renderLiveMetrics({
-    customerCount,
-    openLeadCount,
-    activeJobCount,
     latestFinancial,
     latestEmpire: null,
   }));

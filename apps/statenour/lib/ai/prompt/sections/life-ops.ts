@@ -17,7 +17,7 @@ interface LifeOpsInput {
   commitmentCount: number;
   missionCount: number;
   overdueCommitments: number;
-  customerCount: number;
+  customerCount?: number;
   // Pre-computed weekly target (already fetched by the caller; the
   // caller owns the weekKey since it lives inside an async block).
   weeklyTarget: { content: string; metadata: unknown } | null;
@@ -136,7 +136,7 @@ export function renderLifeOps(input: LifeOpsInput): string[] {
   p.push(`Active tasks: ${loopCount} | Active commitments: ${commitmentCount} | Active missions: ${missionCount}`);
   // customerCount is bridge-sourced + currently hardcoded 0 by the caller,
   // so this asserted "Customer base: 0 in DB". Only show when real. v-fix 2026-06-02.
-  if (customerCount > 0) p.push(`Customer base: ${customerCount} in DB`);
+  if (customerCount !== undefined && customerCount > 0) p.push(`Customer base: ${customerCount} in DB`);
   p.push(``);
 
   return p;

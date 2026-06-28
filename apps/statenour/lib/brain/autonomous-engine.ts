@@ -3,9 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { sendEmail } from "@/lib/services/email";
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { today, daysAgo, toDateString, hourET, weekdayET } from "@/lib/utils/datetime";
+import { today, daysAgo, toDateString, hourET, weekdayET, startOfMonthET } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { computeIsoWeekKey } from "@/lib/ai/context/command-center-state";
 
 const log = rootLogger.withSurface("brain/autonomous");
 
@@ -357,9 +358,7 @@ const RULES: ActionRule[] = [
       const dayOfWeek = weekdayET();
       const hour = hourET();
       if (dayOfWeek !== 3 || hour !== 12) return []; // Wednesday noon only
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
-      const weekKey = weekStart.toISOString().slice(0, 10);
+      const weekKey = computeIsoWeekKey(new Date());
       const targets = await prisma.brainMemory.findUnique({
         where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_TARGET, key: `week_${weekKey}` } },
       });
@@ -455,14 +454,17 @@ const RULES: ActionRule[] = [
       const day = weekdayET();
       const hour = hourET();
       if (day !== 5 || hour !== 14) return []; // Friday 2pm
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const monthStart = startOfMonthET();
       const data = await fetchBridge<{ totalDollars?: number }>("revenue_range", {
         since: monthStart.toISOString(),
       });
       if (data == null) return []; // bridge dead → don't false-alarm
       const monthRevenue = Number(data.totalDollars ?? 0);
-      const dayOfMonth = new Date().getDate();
-      const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+      const parts = today().split("-");
+      const year = Number(parts[0]);
+      const month = Number(parts[1]);
+      const dayOfMonth = Number(parts[2]);
+      const daysInMonth = new Date(year, month, 0).getDate();
       const projectedMonthly = dayOfMonth > 0 ? (monthRevenue / dayOfMonth) * daysInMonth : 0;
       const { MONTHLY_REVENUE_TARGET } = await import("@/lib/config/business");
       const target = MONTHLY_REVENUE_TARGET;
