@@ -215,7 +215,7 @@ export function PreferencesCard() {
   // unsaved edits (operator might be mid-drag when a refetch lands).
   useEffect(() => {
     if (draft || !data?.vector) return;
-    setDraft(data.vector);
+    setTimeout(() => setDraft(data.vector!), 0);
   }, [data?.vector, draft]);
 
   // Reset-confirm auto-clears after 4s if not pressed.
