@@ -18,7 +18,7 @@
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_IMAGE_MODEL =
-  process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
+  process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image";
 
 export interface ImageResult {
   base64: string;
@@ -199,7 +199,7 @@ export async function generateImageOpenRouter(
       Authorization: `Bearer ${openRouterKey}`,
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image",
+      model: "google/gemini-3.1-flash-image",
       messages: [{ role: "user", content: cappedPrompt }],
       modalities: ["image"],
     }),
@@ -247,7 +247,7 @@ export async function generateImageOpenRouter(
       detail: cappedPrompt.slice(0, 200),
       payload: {
         base64: b64,
-        model: "google/gemini-2.5-flash-image",
+        model: "google/gemini-3.1-flash-image",
         size: sizeHint,
         mimeType,
         createdAt: new Date().toISOString(),
@@ -272,7 +272,7 @@ export async function generateImageOpenRouter(
     imageUrl: `/api/images/${record.id}`,
     imageId: record.id,
     prompt: cappedPrompt,
-    model: "google/gemini-2.5-flash-image",
+    model: "google/gemini-3.1-flash-image",
     size: sizeHint,
   };
 }
