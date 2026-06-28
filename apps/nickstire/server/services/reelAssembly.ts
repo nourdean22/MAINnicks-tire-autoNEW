@@ -314,13 +314,14 @@ export async function resolveReelFontPath(): Promise<string> {
  */
 function ffprobeReel(file: string): Promise<{ width: number; height: number; duration: number; hasAudio: boolean }> {
   return new Promise((resolve, reject) => {
-    const child = spawn("ffprobe", [
+    const bin = process.env.FFPROBE_PATH || "ffprobe";
+    const child = spawn(bin, [
       "-v", "error",
       "-show_entries", "stream=width,height,codec_type",
       "-show_entries", "format=duration",
       "-of", "json",
       file,
-    ]);
+    ], { shell: process.platform === "win32" && !process.env.FFPROBE_PATH });
     let out = "";
     let err = "";
     child.stdout.on("data", (d) => (out += String(d)));
@@ -360,7 +361,8 @@ function runFfmpeg(args: string[], timeoutMs = 5 * 60 * 1000, cwd?: string): Pro
        const cmdStr = ["ffmpeg", ...args.map(a => `"${a}"`)].join(" ");
        fs.writeFileSync(path.join(cwd, "ffmpeg_debug.bat"), cmdStr);
     }
-    const child = spawn("ffmpeg", args, { cwd });
+    const bin = process.env.FFMPEG_PATH || "ffmpeg";
+    const child = spawn(bin, args, { cwd, shell: process.platform === "win32" && !process.env.FFMPEG_PATH });
     let stderr = "";
     child.stderr.on("data", (d) => {
       stderr += String(d);

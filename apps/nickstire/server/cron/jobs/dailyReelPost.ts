@@ -177,6 +177,14 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     if (!videoUrl) {
       return { recordsProcessed: 0, details: `Job ${job.id} assembled but mp4Url is missing` };
     }
+    
+    try {
+      const { assertPermanentPublicMediaUrl } = await import("../../services/socialPublish");
+      assertPermanentPublicMediaUrl(videoUrl);
+    } catch (err) {
+      log.error(`Job ${job.id} has invalid mp4Url`, { error: err instanceof Error ? err.message : String(err) });
+      return { recordsProcessed: 0, details: `Job ${job.id} URL invalid: ${err instanceof Error ? err.message : String(err)}` };
+    }
     let caption = job.caption || "";
     // Phase 3.3 safety: the AI caption carries the share-CTA, and publishToSocial
     // claim-gates reel captions — so an unsafe CTA would make the reel SILENTLY
@@ -215,24 +223,10 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
   }
 
   if (job.status === "failed") {
-    log.error(`Dynamic reel job ${job.id} failed: ${job.error}. Falling back to default safe video.`);
-    const videoUrl = "https://assets.mixkit.co/videos/preview/mixkit-car-mechanic-working-on-a-wheel-42289-large.mp4";
-    const idx0 = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
-    const caption = MANIFEST[idx0]?.caption || "Stop by Nick's Tire & Auto for a free check today!";
-    
-    log.info(`Publishing fallback video for failed job ${job.id}`);
-    const outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption });
-    const ig = outcome.results.find((r) => r.platform === "instagram");
-    if (!ig?.success) {
-      log.error(`Publishing fallback video failed for job ${job.id}`, { error: ig?.error });
-      return { recordsProcessed: 0, details: `Fallback publish failed: ${ig?.error ?? "unknown"} — not advancing index` };
-    }
-
-    await d.update(reelJobs).set({ status: "posted", igPostId: ig.postId }).where(eq(reelJobs.id, job.id));
-    const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
-    await setAutopostProgress(idx + 1, date);
-    log.info(`Successfully posted fallback reel for failed job ${job.id}`, { postId: ig.postId });
-    return { recordsProcessed: 1, details: `posted fallback reel for failed job ${job.id} (index: ${idx + 1})` };
+    return {
+      recordsProcessed: 0,
+      details: `Generation failed for job ${job.id}: ${job.error}; no fallback media posted and index not advanced`,
+    };
   }
 
   return { recordsProcessed: 0, details: `Unknown job status: ${job.status}` };

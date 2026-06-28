@@ -226,7 +226,7 @@ export const WARRANTY_SCHEDULE: Record<string, { months: number; miles: number; 
 export const FINANCING_OPTIONS = [
   {
     provider: "Acima",
-    type: "lease-to-own",
+    type: "lease_to_own",
     minAmount: 100,
     maxAmount: 5000,
     termMonths: [3, 6, 12],
@@ -236,7 +236,7 @@ export const FINANCING_OPTIONS = [
   },
   {
     provider: "Snap Finance",
-    type: "lease-to-own",
+    type: "lease_to_own",
     minAmount: 150,
     maxAmount: 5000,
     termMonths: [12],
@@ -246,7 +246,7 @@ export const FINANCING_OPTIONS = [
   },
   {
     provider: "Koalafi",
-    type: "lease-to-own",
+    type: "lease_to_own",
     minAmount: 200,
     maxAmount: 10000,
     termMonths: [6, 12, 18, 24],

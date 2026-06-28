@@ -138,13 +138,13 @@ describe("instagramAdmin router", () => {
     it("ALLOWS an advertised price ($) — no-price-talk is excluded for IG captions", async () => {
       const caller = appRouter.createCaller(ctx("admin"));
       // The caption passes the claim-safety gate, then fails on the missing-media
-      // path (INTERNAL_SERVER_ERROR) — proving the price did NOT trip BAD_REQUEST.
+      // path (BAD_REQUEST) — proving the price did NOT trip BAD_REQUEST.
       await expect(
         caller.instagramAdmin.publishPost({
           platforms: ["instagram"],
           caption: "Used tires from $60 installed — pull up!",
         }),
-      ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
   });
 

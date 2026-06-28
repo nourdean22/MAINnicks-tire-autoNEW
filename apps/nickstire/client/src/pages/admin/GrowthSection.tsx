@@ -19,7 +19,7 @@ import {
   Swords, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
   RefreshCw, Lock, Instagram,
 } from "lucide-react";
-import InstagramTab from "./InstagramTab";
+import { InstagramAdmin } from "./instagram/InstagramAdmin";
 import { Section, Panel } from "./shared";
 import { TabBar } from "./shared/table";
 import { trpc } from "@/lib/trpc";
@@ -110,7 +110,7 @@ export default function GrowthSection() {
         {tab === "photos" && <PhotoQueueTab />}
         {tab === "entity" && <EntityTab />}
         {tab === "competitors" && <CompetitorsTab />}
-        {tab === "instagram" && <InstagramTab />}
+        {tab === "instagram" && <InstagramAdmin />}
       </div>
     </Section>
   );
@@ -378,6 +378,8 @@ function ReplyCard({ reply, onApprove, onSkip, onMarkPosted, onSaveDraft, busy }
             onChange={(e) => setEditText(e.target.value)}
             rows={3}
             maxLength={500}
+            aria-label="Edit reply draft"
+            placeholder="Edit reply draft..."
             className="w-full bg-background/80 border border-border/40 rounded p-2 text-[11px] text-foreground/90 leading-relaxed focus:outline-none focus:border-primary/50"
           />
           <div className="flex items-center gap-2">

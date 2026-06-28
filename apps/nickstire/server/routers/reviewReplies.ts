@@ -292,4 +292,48 @@ export const reviewRepliesRouter = router({
       oldestApprovedAt,
     };
   }),
+
+  /** Intelligence Endpoint: Clusters reviews by theme to use as content seeds (admin) */
+  getContentClusters: adminProcedure.query(async () => {
+    const { reviewReplies } = await import("../../drizzle/schema");
+    const database = await db();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+    // Fetch all reviews to cluster them by keyword.
+    // In a full production pipeline, this would run asynchronously in a cron and store to a table.
+    // For Phase 2, we perform basic keyword extraction over the active review table.
+    const allReviews = await database.select({ text: reviewReplies.reviewText }).from(reviewReplies);
+
+    const clusters = [
+      { id: "brakes", label: "Brake Trust & Reliability", keywords: /brake|pad|rotor|squeak|grind/i, count: 0, sample: "" },
+      { id: "speed", label: "Speed & Efficiency", keywords: /fast|quick|speed|wait|time/i, count: 0, sample: "" },
+      { id: "honesty", label: "Honesty & Fair Pricing", keywords: /honest|fair|price|scam|up-sell|upsell|trust/i, count: 0, sample: "" },
+      { id: "tires", label: "Tire Emergencies", keywords: /tire|flat|patch|nail|blowout/i, count: 0, sample: "" },
+      { id: "service", label: "Friendly Customer Service", keywords: /friendly|helpful|nice|polite/i, count: 0, sample: "" }
+    ];
+
+    // Simple single-pass matching
+    for (const review of allReviews) {
+      if (!review.text) continue;
+      for (const cluster of clusters) {
+        if (cluster.keywords.test(review.text)) {
+          cluster.count++;
+          if (!cluster.sample) cluster.sample = review.text.slice(0, 100) + "...";
+        }
+      }
+    }
+
+    // Sort by most mentioned
+    clusters.sort((a, b) => b.count - a.count);
+
+    return {
+      totalReviewsAnalyzed: allReviews.length,
+      clusters: clusters.map(c => ({
+        id: c.id,
+        label: c.label,
+        count: c.count,
+        sample: c.sample
+      }))
+    };
+  }),
 });

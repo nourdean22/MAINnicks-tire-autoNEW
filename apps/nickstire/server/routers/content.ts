@@ -52,6 +52,7 @@ const reelBriefScoreInput = z.object({
     visual: z.string(),
     onScreenText: z.string(),
   }).passthrough()).default([]),
+  promptPack: z.array(z.object({ prompt: z.string() }).passthrough()).default([]),
   higgsfieldPromptPack: z.array(z.object({ prompt: z.string() }).passthrough()).default([]),
   concepts: z.array(z.object({
     id: z.string(),

@@ -42,8 +42,7 @@ import Home from "./pages/Home";
 // which reads shared/services.ts and renders via FocusedServicePage.
 const GenericServicePage = lazy(() => import("./pages/GenericServicePage"));
 const Admin = lazy(() => import("./pages/Admin"));
-const AdminIgCarouselStudio = lazy(() => import("./pages/admin/IgCarouselStudio"));
-const AdminFacelessReelStudio = lazy(() => import("./pages/admin/FacelessReelStudio"));
+
 const AdminAdStudio = lazy(() => import("./pages/admin/AdStudio"));
 const Blog = lazy(() => import("./pages/Blog"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
@@ -254,8 +253,8 @@ function Router() {
             {/* Admin dashboard */}
             <Route path={"/admin"} component={Admin} />
             <Route path={"/admin/content"}>{() => <Redirect to="/admin?tab=content" />}</Route>
-            <Route path={"/admin/ig-studio"} component={AdminIgCarouselStudio} />
-            <Route path={"/admin/reel-studio"} component={AdminFacelessReelStudio} />
+            <Route path={"/admin/ig-studio"}>{() => <Redirect to="/admin?tab=instagram&sub=studio" />}</Route>
+            <Route path={"/admin/reel-studio"}>{() => <Redirect to="/admin?tab=instagram&sub=studio" />}</Route>
             <Route path={"/admin/ad-studio"} component={AdminAdStudio} />
             {/* City-specific landing pages for local SEO */}
             <Route path={"/cleveland-auto-repair"} component={CityPage} />

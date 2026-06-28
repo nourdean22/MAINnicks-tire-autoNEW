@@ -65,7 +65,7 @@ export const ALLOWED_SERVICES = [
   "auto repair",
   "alignment and suspension",
   "E-Check / emissions help",
-  "$10-down lease-to-own financing",
+  "$10-down lease-to-own",
 ] as const;
 
 /** The ONLY approved used-tire price wording. Anything else price-shaped gets flagged. */

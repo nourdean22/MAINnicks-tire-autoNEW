@@ -90,6 +90,14 @@ export const healthProcedures = {
   healthSummary: operatorProcedure.query(async () => buildSystemHealth()),
 
   /**
+   * Returns the latest evaluated health governor decision.
+   */
+  governorState: operatorProcedure.query(async () => {
+    const { getLatestGovernorDecision } = await import("@/lib/health-governor/health-governor-guardrails");
+    return getLatestGovernorDecision();
+  }),
+
+  /**
    * Phase B.7a · owner-only · the chat-route operator rollup — latency,
    * cost, volume, error rate, quality, tool health, provider mix.
    * Replaces GET /api/system/chat-health · delegates to the shared
