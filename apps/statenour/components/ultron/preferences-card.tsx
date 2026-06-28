@@ -414,7 +414,7 @@ export function PreferencesCard() {
           type="button"
           onClick={() => setShowAddendum((v) => !v)}
           className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--gold)] transition-colors"
-          aria-expanded={showAddendum}
+          aria-expanded={showAddendum ? "true" : "false"}
         >
           {showAddendum ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           {addendum.length > 0 ? `show what Nick sees · ${addendum.length} chars` : "no prompt addendum yet · all axes neutral"}

@@ -223,6 +223,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           onChange={handleImgFileChange}
           className="hidden"
           accept="image/*,application/pdf,.doc,.docx,.txt"
+          title="Attach image from gallery"
         />
         <input
           type="file"
@@ -231,6 +232,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           className="hidden"
           accept="image/*"
           capture="environment"
+          title="Capture image from camera"
         />
 
         {/* Textarea Area */}
