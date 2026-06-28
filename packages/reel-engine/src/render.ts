@@ -13,6 +13,8 @@ export interface RenderReelOptions {
   outputPath: string;
 }
 
+let cachedBundleLocation: string | null = null;
+
 export async function renderReelVideo({
   template,
   data,
@@ -29,17 +31,22 @@ export async function renderReelVideo({
 
   console.log(`[Reel Engine] Resolving entryPoint at: ${resolvedEntryPoint}`);
 
-  // Create webpack bundle
-  const bundleLocation = await bundle({
-    entryPoint: resolvedEntryPoint,
-  });
+  // Create webpack bundle or reuse cache
+  if (!cachedBundleLocation) {
+    console.log(`[Reel Engine] Webpack bundle cache miss. Compiling...`);
+    cachedBundleLocation = await bundle({
+      entryPoint: resolvedEntryPoint,
+    });
+  } else {
+    console.log(`[Reel Engine] Webpack bundle cache hit. Reusing: ${cachedBundleLocation}`);
+  }
 
   const compositionId = template === "review" ? "ReviewVideoReel" : "ServiceAlertReel";
   console.log(`[Reel Engine] Selecting composition: ${compositionId}`);
 
   // Select composition and pass dynamic inputs
   const composition = await selectComposition({
-    serveUrl: bundleLocation,
+    serveUrl: cachedBundleLocation,
     id: compositionId,
     inputProps: data,
   });
@@ -48,7 +55,7 @@ export async function renderReelVideo({
   // Render media
   await renderMedia({
     composition,
-    serveUrl: bundleLocation,
+    serveUrl: cachedBundleLocation,
     codec: "h264",
     outputLocation: outputPath,
     inputProps: data,
