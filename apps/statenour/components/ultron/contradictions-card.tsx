@@ -140,7 +140,8 @@ const RESOLVE_META: Record<
 // "no longer" / "stop" / "never" word) is amber. Reversal (you said
 // "scratch that" / "actually") is emerald · operator-acknowledged.
 const SIGNAL_TONE: Record<SignalKind, string> = {
-  compound: "border-[var(--gold)]/45 bg-[var(--gold)]/[0.08] text-[var(--gold)]",
+  compound:
+    "border-[var(--gold)]/45 bg-[var(--gold)]/[0.08] text-[var(--gold)]",
   antonym: "border-rose-400/45 bg-rose-400/[0.08] text-rose-300",
   negation: "border-amber-400/45 bg-amber-400/[0.08] text-amber-300",
   reversal: "border-emerald-400/45 bg-emerald-400/[0.08] text-emerald-300",
@@ -170,7 +171,7 @@ function daysAgo(iso: string): number | null {
 export function buildReconcileSeed(
   newExcerpt: string,
   oldExcerpt: string,
-  daysApart: number,
+  daysApart: number
 ): string {
   return (
     `Help me reconcile two positions I've held.\n\n` +
@@ -191,7 +192,7 @@ export function ContradictionsCard() {
   // now rides in the mutation input object (tRPC has no path).
   const contra = trpc.system.contradictions.useQuery(
     { days: 14, includeResolved: true },
-    { refetchInterval: 300_000, staleTime: 300_000 },
+    { refetchInterval: 300_000, staleTime: 300_000 }
   );
   const utils = trpc.useUtils();
   const resolveMutation = trpc.system.resolveContradiction.useMutation();
@@ -240,7 +241,7 @@ export function ContradictionsCard() {
               : status === "current_wins"
                 ? "current wins · old position deprecated"
                 : "old wins · current statement deprecated",
-          { id: toastId },
+          { id: toastId }
         );
         closeForm();
         await utils.system.contradictions.invalidate();
@@ -250,7 +251,7 @@ export function ContradictionsCard() {
         setSubmittingKey(null);
       }
     },
-    [note, closeForm, resolveMutation, utils],
+    [note, closeForm, resolveMutation, utils]
   );
 
   // Sort and split memoized · avoids re-walking the items array on
@@ -261,14 +262,14 @@ export function ContradictionsCard() {
     useMemo(() => {
       const items = contra.data?.items ?? [];
       const unresolved = items
-        .filter((c) => c.status === "unresolved")
+        .filter(c => c.status === "unresolved")
         .sort((a, b) => {
           const simDelta = b.similarity - a.similarity;
           if (Math.abs(simDelta) > 0.02) return simDelta;
           return b.daysApart - a.daysApart;
         });
       const resolved = items
-        .filter((c) => c.status !== "unresolved" && c.resolvedAt)
+        .filter(c => c.status !== "unresolved" && c.resolvedAt)
         .sort((a, b) => {
           const at = new Date(a.resolvedAt!).getTime();
           const bt = new Date(b.resolvedAt!).getTime();
@@ -294,7 +295,7 @@ export function ContradictionsCard() {
     if (!contra.data) return;
     const resolveKey = searchParams?.get("resolve");
     if (!resolveKey) return;
-    const match = shownUnresolved.find((c) => c.key === resolveKey);
+    const match = shownUnresolved.find(c => c.key === resolveKey);
     if (match) {
       autoOpenedRef.current = true;
       setTimeout(() => {
@@ -343,21 +344,21 @@ export function ContradictionsCard() {
           className="mt-2.5 space-y-2.5"
           aria-label="Unresolved contradictions awaiting reconciliation"
         >
-          {shownUnresolved.map((c) => {
+          {shownUnresolved.map(c => {
             const isExpanded = expandedKey === c.key;
             const isSubmitting = submittingKey === c.key;
             const seedHref = `/chat?seed=${encodeURIComponent(
               buildReconcileSeed(c.newExcerpt, c.oldExcerpt, c.daysApart).slice(
                 0,
-                SEED_CAP,
-              ),
+                SEED_CAP
+              )
             )}`;
             return (
               <li
                 key={c.key}
                 className={cn(
                   "relative pl-3 pr-1 py-1 -mx-1 rounded-sm transition-colors",
-                  isExpanded && "bg-(--gold)/4",
+                  isExpanded && "bg-(--gold)/4"
                 )}
               >
                 {/* LEFT-EDGE TENSION GRADIENT · 2px rule per row that
@@ -367,11 +368,7 @@ export function ContradictionsCard() {
                     the contradiction before reading. */}
                 <span
                   aria-hidden="true"
-                  className="absolute left-0 top-1 bottom-1 w-px rounded-full"
-                  style={{
-                    background:
-                      "linear-gradient(180deg, var(--gold) 0%, var(--gold) 38%, rgb(251 191 36 / 0.65) 62%, rgb(251 191 36 / 0.25) 100%)",
-                  }}
+                  className="absolute left-0 top-1 bottom-1 w-px rounded-full contradiction-tension-gradient"
                 />
 
                 <div className="flex items-start gap-2">
@@ -414,7 +411,7 @@ export function ContradictionsCard() {
                       <span
                         className={cn(
                           "inline-block px-1.5 py-px rounded-sm border text-[9px] font-mono uppercase tracking-wide",
-                          SIGNAL_TONE[c.signal],
+                          SIGNAL_TONE[c.signal]
                         )}
                         title={`polarity signal · ${c.signal}`}
                       >
@@ -430,7 +427,7 @@ export function ContradictionsCard() {
                   <button
                     type="button"
                     onClick={() => (isExpanded ? closeForm() : openForm(c.key))}
-                    aria-expanded={isExpanded ? "true" : "false"}
+                    aria-expanded={isExpanded ? true : false}
                     aria-label={
                       isExpanded
                         ? "close resolution form"
@@ -441,7 +438,7 @@ export function ContradictionsCard() {
                       "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center",
                       isExpanded
                         ? "bg-(--gold)/15 text-(--gold) scale-95"
-                        : "text-(--text-tertiary) hover:text-(--gold) hover:bg-(--gold)/8",
+                        : "text-(--text-tertiary) hover:text-(--gold) hover:bg-(--gold)/8"
                     )}
                     title={isExpanded ? "close" : "weigh"}
                   >
@@ -468,7 +465,7 @@ export function ContradictionsCard() {
                             "both_valid",
                             "dismissed",
                           ] as ResolveChoice[]
-                        ).map((choice) => {
+                        ).map(choice => {
                           const meta = RESOLVE_META[choice];
                           const Icon = isSubmitting ? Loader2 : meta.icon;
                           return (
@@ -482,12 +479,14 @@ export function ContradictionsCard() {
                                 "flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10px] font-mono lowercase tracking-wide transition-all",
                                 "min-h-[44px] sm:min-h-[26px]",
                                 meta.tone,
-                                isSubmitting && "opacity-60 cursor-wait",
+                                isSubmitting && "opacity-60 cursor-wait"
                               )}
                             >
                               <Icon
                                 size={10}
-                                className={isSubmitting ? "animate-spin" : undefined}
+                                className={
+                                  isSubmitting ? "animate-spin" : undefined
+                                }
                               />
                               {meta.label}
                             </button>
@@ -505,7 +504,9 @@ export function ContradictionsCard() {
                       </label>
                       <textarea
                         value={note}
-                        onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+                        onChange={e =>
+                          setNote(e.target.value.slice(0, NOTE_MAX))
+                        }
                         placeholder="what changed · what context matters"
                         rows={1}
                         disabled={isSubmitting}
@@ -514,7 +515,7 @@ export function ContradictionsCard() {
                           "text-[11px] leading-snug px-2 py-1.5 text-(--text-primary)",
                           "placeholder:text-(--text-tertiary)",
                           "focus:border-(--gold)/40 focus:outline-none transition-colors",
-                          "min-h-[28px]",
+                          "min-h-[28px]"
                         )}
                         aria-label="resolution note (optional)"
                       />
