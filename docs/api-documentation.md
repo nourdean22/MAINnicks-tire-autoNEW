@@ -284,3 +284,35 @@ Statenour OS uses this endpoint to request real-time actions and analytical repo
 - `customer_search` / `customer_detail`: CRM 360 lookups.
 - `master_report`: Multi-engine business health scorecard.
 - `funnel_overview` / `funnel_first_visit`: Marketing funnels.
+
+---
+
+## 7. Runtime Metadata Discovery (`GET /api/_meta/procedures`)
+
+Used by autonomous AI agents to inspect the tRPC API landscape dynamically. It walks the tRPC router tree at runtime and reports all registered procedures, their query/mutation classification, and attached metadata blocks.
+
+- **Path**: `GET /api/_meta/procedures`
+- **Auth**: Either `X-Statenour-Sync-Key` (timing-safe sync key comparison) OR `Authorization: Bearer <ADMIN_API_KEY>`
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "count": 526,
+    "procedures": [
+      {
+        "path": "system.health",
+        "type": "query",
+        "meta": null
+      },
+      {
+        "path": "booking.create",
+        "type": "mutation",
+        "meta": {
+          "description": "Inserts a new tire booking ticket into drizzle database.",
+          "tier": "user"
+        }
+      }
+    ]
+  }
+  ```
+
