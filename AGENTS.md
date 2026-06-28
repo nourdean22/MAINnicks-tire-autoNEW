@@ -77,6 +77,10 @@ Co-Authored-By: <model name> <noreply@anthropic.com>
 - **Startup:** `powershell scripts/start-codebase-mcp.ps1` or via the `codebase-memory` entry in `mcp_config.json`.
 - **Docs:** `docs/codebase-memory-mcp.md` — IDE config for Antigravity + Claude Desktop.
 
+### last30days Research Engine
+- **Tool:** `last30days` in `apps/statenour/lib/ai/tools/system.ts` — runs deep search and aggregation queries across Reddit, Hacker News, Polymarket, GitHub, and YouTube.
+- **Integration:** Placed in `lib/ai/last30days` in `statenour` with output tracing enabled in `next.config.ts` and `python3` runtime packages added to the `Dockerfile`. Whitelisted in `reasoning-tools.ts` for Nick's reasoning loops.
+
 ---
 
 ---
