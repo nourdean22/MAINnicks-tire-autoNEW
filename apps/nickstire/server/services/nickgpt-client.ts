@@ -194,7 +194,7 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
 
   if (geminiKey) {
     try {
-      const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+      const modelName = process.env.GEMINI_MODEL || "gemini-3.5-flash";
       const baseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
       const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
         method: "POST",
@@ -224,7 +224,7 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
 
   if (openaiKey) {
     try {
-      const modelName = process.env.LLM_MODEL || "gpt-4o-mini";
+      const modelName = process.env.LLM_MODEL || "gpt-4o";
       const base = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
       const completionsUrl = `${base}/v1/chat/completions`;
       const resp = await fetch(completionsUrl, {
