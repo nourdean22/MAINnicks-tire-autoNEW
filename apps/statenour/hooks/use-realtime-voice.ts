@@ -151,7 +151,7 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOpts = {}) {
       await pc.setLocalDescription(offer);
 
       const realtimeRes = await fetch(
-        `https://api.openai.com/v1/realtime?model=${encodeURIComponent(session.model ?? "gpt-4o-realtime-preview")}`,
+        `https://api.openai.com/v1/realtime?model=${encodeURIComponent(session.model ?? "gpt-4o-realtime-preview-2024-12-17")}`,
         {
           method: "POST",
           headers: {

@@ -256,8 +256,8 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
       // wave-181.46. v2 difference: we now lean on confidence + reason
       // for diagnostic logs only · customer message is unchanged so
       // brand voice stays consistent.
-      const firstName = (p.customerName || "there").split(" ")[0] || "there"; // operator-log only, not in the customer message
-      const message = `Hey — Nick's. Looks like the car's about due for a check. Free check, written quote, you don't pay until you say yes. Walk in any day. Reply STOP to opt out.`;
+      const fName = (p.customerName || "").trim().split(/\s+/)[0] || "there";
+      const message = `Hey ${fName}, Nick's Tire & Auto here. Looks like your car is about due for a check. Free check, written quote, you don't pay until you say yes. Walk in any day. Reply STOP to opt out.`;
 
       const result = await sendSms(p.customerPhone, message, { via: "shop", skipPersist: true, variantKey: "cross_sell" });
       // wave-2026-06 (telemetry dedup) — a QUEUED send already has ONE tiered
@@ -270,7 +270,7 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
 
       if (result.success) {
         sent++;
-        log.info(`v2 cross-sell SMS sent to ${firstName} (${p.predictedService} · ${p.confidence}%)`, {
+        log.info(`v2 cross-sell SMS sent to ${fName} (${p.predictedService} · ${p.confidence}%)`, {
           reason: p.reason,
           predictionId: p.predictionId,
         });
@@ -307,7 +307,7 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
           log.warn("[jobs/crossSellOutreach] fire-and-forget failed:", e);
         });
       } else {
-        log.warn(`v2 cross-sell SMS failed for ${firstName}: ${result.error || "unknown"}`);
+        log.warn(`v2 cross-sell SMS failed for ${fName}: ${result.error || "unknown"}`);
       }
 
       // Rate-limit between sends (gateway-friendly · 1.5s spacing)

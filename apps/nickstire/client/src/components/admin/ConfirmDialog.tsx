@@ -125,7 +125,7 @@ export default function ConfirmDialog() {
               </div>
               <button
                 onClick={cancel}
-                className="shrink-0 -mt-1 -mr-1 inline-flex items-center justify-center w-8 h-8 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
+                className="shrink-0 -mt-2 -mr-2 sm:-mt-1 sm:-mr-1 inline-flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
                 aria-label="Cancel"
               >
                 <X className="w-4 h-4" />
@@ -134,14 +134,14 @@ export default function ConfirmDialog() {
             <div className="flex items-center justify-end gap-2 px-5 py-4 mt-2">
               <button
                 onClick={cancel}
-                className="px-4 py-2 text-[13px] font-medium text-foreground/70 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
+                className="px-4 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 text-[14px] sm:text-[13px] font-medium text-foreground/70 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
               >
                 {request.cancelLabel ?? "Cancel"}
               </button>
               <button
                 ref={confirmBtnRef}
                 onClick={confirm}
-                className={`px-4 py-2 rounded-md text-[13px] font-semibold transition-colors ${
+                className={`px-4 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-md text-[14px] sm:text-[13px] font-semibold transition-colors ${
                   tone === "danger"
                     ? "bg-red-500/90 text-white hover:bg-red-500"
                     : "bg-primary text-primary-foreground hover:bg-primary/90"

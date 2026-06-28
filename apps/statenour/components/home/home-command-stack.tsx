@@ -129,7 +129,7 @@ export function HomeCommandStack() {
   const { mode, nextMove, nextRep, risks, completedToday, criticalFew, nextMoveData } = summary;
 
   return (
-    <div className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border-white/10 p-4 shadow-xl space-y-4 animate-fade-in-scale">
+    <div className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border border-white/10 rounded-xl p-4 shadow-xl space-y-4 animate-fade-in-scale">
       {/* Background radial accent glow for premium look */}
       <div className="absolute top-0 right-0 w-48 h-48 bg-[var(--gold)]/5 rounded-full blur-3xl pointer-events-none" />
 

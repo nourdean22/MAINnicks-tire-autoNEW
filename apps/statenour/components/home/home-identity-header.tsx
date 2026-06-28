@@ -1,70 +1,84 @@
 "use client";
 
-/**
- * HomeIdentityHeader · Wave AC.b · 2026-05-28.
- *
- * Always-on affordance at the top of /home. Pre-this-fix the home page
- * looked identical to /chat on a quiet morning because NicksHomeBrief +
- * HomeOneTapMoves + HomeStatePulse all self-hide on null data. Operator
- * saw "morning, Nour." + the composer and couldn't tell they were on
- * /home vs /chat.
- *
- * This header is unconditional · 1 row · low visual weight · gold
- * eyebrow + date + a tiny "nick is listening" pulse dot. It functions
- * as the home page's identity stamp · proves the surface even when no
- * dynamic content has loaded yet.
- *
- * Server-renderable · no fetch · no state. Renders the same on every
- * mount (just shows today's date so it stays fresh without re-renders).
- */
-
-import { Brain } from "lucide-react";
+import { Brain, Activity, Clock, Zap } from "lucide-react";
 import { today } from "@/lib/utils/datetime";
 import { trpc } from "@/lib/trpc/client";
+import { useEffect, useState } from "react";
 
 export function HomeIdentityHeader() {
-  // Client-render the date string in a stable timezone-aware fashion.
-  // We don't import the day-of-week label here — too local + would
-  // need an i18n decision. The ISO date alone is the operator-grade
-  // marker (matches the rest of the OS).
   const todayStr = today();
   
   const { data: inboxCount = 0 } = trpc.task.inboxCount.useQuery(undefined, {
     refetchInterval: 60_000,
   });
 
+  const [timeStr, setTimeStr] = useState<string>("");
+  const [greeting, setGreeting] = useState<string>("Welcome");
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setTimeStr(now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }));
+      
+      const hour = now.getHours();
+      if (hour < 12) setGreeting("Good Morning");
+      else if (hour < 17) setGreeting("Good Afternoon");
+      else setGreeting("Good Evening");
+    };
+    
+    updateTime();
+    const timer = setInterval(updateTime, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <section
       aria-label="home identity"
-      className="flex items-center gap-2 px-1 pt-1"
+      className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-900/80 via-black to-zinc-950 border border-white/5 p-6 md:p-8 shadow-2xl mb-6 mt-2"
     >
-      <Brain
-        size={12}
-        className="text-[var(--gold)] shrink-0"
-        strokeWidth={1.75}
-      />
-      <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
-        nick · home
-      </span>
-      <span className="text-[var(--text-tertiary)]/40">·</span>
-      <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
-        {todayStr}
-      </span>
-      {inboxCount >= 10 && (
-        <>
-          <span className="text-[var(--text-tertiary)]/40">·</span>
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.25 rounded bg-rose-500/10 border border-rose-500/20 text-[9px] font-semibold text-rose-400 animate-pulse uppercase tracking-wider font-mono">
-            inbox backlog ({inboxCount})
-          </span>
-        </>
-      )}
-      <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-mono text-[var(--text-tertiary)]">
-        <span
-          aria-hidden
-          className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 animate-pulse"
-        />
-        ready
-      </span>
+      {/* Decorative background glow */}
+      <div className="absolute -top-24 -right-24 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div className="space-y-4">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-zinc-800/50 border border-white/5 backdrop-blur-md">
+            <Brain size={12} className="text-[var(--gold)] shrink-0" strokeWidth={2} />
+            <span className="text-[10px] font-mono uppercase tracking-widest text-[var(--gold)]/90">
+              Nour Command Center
+            </span>
+          </div>
+          
+          <div>
+            <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-zinc-200 to-zinc-500">
+              {greeting}, Nour.
+            </h1>
+            <p className="mt-2 text-sm text-zinc-400 max-w-xl">
+              All systems online. Your empire is ready for commands.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-row md:flex-col gap-3 md:items-end">
+          <div className="flex items-center gap-2 text-sm font-mono text-zinc-300 bg-zinc-900/50 px-3 py-1.5 rounded-lg border border-white/5">
+            <Clock size={14} className="text-zinc-500" />
+            {todayStr} {timeStr && <span className="text-zinc-500">· {timeStr}</span>}
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {inboxCount >= 10 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs font-semibold text-rose-400 animate-pulse uppercase tracking-wider font-mono">
+                <Activity size={12} />
+                Inbox Backlog ({inboxCount})
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400 uppercase tracking-wider">
+              <Zap size={12} />
+              Ready
+            </span>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

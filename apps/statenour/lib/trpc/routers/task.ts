@@ -1462,6 +1462,11 @@ export const taskRouter = router({
 
       await syncTaskPriorities();
 
+      if (task.status === "WAITING" && data.status && data.status !== "WAITING") {
+        const { awardPatienceXP } = await import("@/lib/system/patience-xp");
+        await awardPatienceXP(task.id, task.updatedAt).catch(console.error);
+      }
+
       const { invalidate } = await import("@/lib/utils/cache");
       invalidate("dashboard_brief");
       invalidate("ultron_command_center_state_v1");

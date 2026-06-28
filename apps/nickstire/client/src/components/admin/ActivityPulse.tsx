@@ -60,6 +60,9 @@ function mapEventType(evType: string): EventKind {
   if (evType.startsWith("review.")) return "review.new";
   if (evType.startsWith("callback.")) return "callback.created";
   if (evType.startsWith("customer.")) return "customer.synced";
+  if (evType !== "generic") {
+    console.warn("[ActivityPulse] unmapped event type:", evType);
+  }
   return "generic";
 }
 
@@ -147,7 +150,7 @@ export default function ActivityPulse({ disabled = false, className = "" }: Prop
 
   return (
     <div
-      className={`fixed bottom-4 right-4 z-40 flex flex-col-reverse gap-2 pointer-events-none ${className}`}
+      className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0))] right-4 z-40 flex flex-col-reverse gap-2 pointer-events-none ${className}`}
       aria-live="polite"
     >
       <AnimatePresence mode="sync">

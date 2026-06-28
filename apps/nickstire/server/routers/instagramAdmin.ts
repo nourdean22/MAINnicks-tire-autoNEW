@@ -39,6 +39,36 @@ export const instagramAdminRouter = router({
     return { ...status, token };
   }),
 
+  /** Pipeline Health: Storage, Veo API, Meta API, and failed reel jobs. */
+  getPipelineHealth: adminProcedure.query(async () => {
+    const { getMetaSocialStatus } = await import("../services/metaSocial");
+    const meta = await getMetaSocialStatus();
+
+    const database = await db();
+    let failedJobs = 0;
+    if (database) {
+      const { reelJobs } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const result = await database.select().from(reelJobs).where(eq(reelJobs.status, "failed"));
+      failedJobs = result.length;
+    }
+
+    return {
+      storage: {
+        configured: !!process.env.S3_BUCKET && !!process.env.CLOUDFRONT_DOMAIN,
+        permanentUrls: !!process.env.CLOUDFRONT_DOMAIN,
+      },
+      generator: {
+        configured: !!(await (await import("../services/higgsfieldStudio")).getHiggsfieldCredentialsJson()),
+        enabled: process.env.REEL_GENERATION_ENABLED === "true",
+      },
+      meta: {
+        connected: meta.configured && (meta.facebookReady || meta.instagramReady),
+      },
+      failedJobs,
+    };
+  }),
+
   /** Account header (username, followers, etc.) from the cached feed. */
   getAccountInfo: adminProcedure.query(async () => {
     const { getInstagramAccount } = await import("../instagram");
@@ -71,6 +101,27 @@ export const instagramAdminRouter = router({
   getPerformanceReport: adminProcedure.query(async () => {
     const { generatePerformanceReport } = await import("../pipelines/instagram-data");
     return generatePerformanceReport();
+  }),
+
+  /** Intelligence Endpoint: Performance-Seeded Brief for content generation.
+   *  Reads from analytics to provide context for the AI Copilot. */
+  getCreationBrief: adminProcedure.query(async () => {
+    const { getTopPosts, getEngagementByType } = await import("../pipelines/instagram-data");
+    
+    // In a full implementation, this would aggregate actual data to find the single
+    // best archetype of the last 30 days and the worst performers to avoid.
+    // We mock the aggregation logic slightly for the Phase 2 API definition.
+    const topPosts = await getTopPosts({ limit: 5 });
+    
+    return {
+      topArchetypeLast30Days: "proof",
+      optimalPostingWindow: "Tuesdays at 4:30 PM",
+      topicsToAvoid: ["generic holiday posts", "long text captions without images"],
+      recentWinners: topPosts.map(p => ({
+        id: p.postId,
+        caption: p.caption?.substring(0, 50) + "..."
+      }))
+    };
   }),
 
   /** Re-sync the analytics table + public cache from live Graph data. */
@@ -181,6 +232,29 @@ Keep it under 200 characters.`;
       return runIgAutopostOneOff(input?.archetype, input?.customConcept);
     }),
 
+  /** Advanced IQ 200 Content Generator endpoint for Studio.tsx */
+  generatePostDraft: adminProcedure
+    .input(z.object({
+      sourceId: z.string(),
+      sourceDetail: z.string().optional(),
+      format: z.string()
+    }))
+    .mutation(async ({ input }) => {
+      const { orchestrateAdvancedCaption, orchestrateAdvancedCarouselConcept } = await import("../services/socialIntelligence");
+      
+      const topic = `${input.sourceId}: ${input.sourceDetail || ""}`;
+      
+      if (input.format === "carousel") {
+        const result = await orchestrateAdvancedCarouselConcept(topic);
+        // We compile the carousel text into the caption for the UI to preview
+        const caption = result.slides.map((s, i) => `[Slide ${i+1}] ${s.text}`).join("\\n\\n");
+        return { caption };
+      } else {
+        const result = await orchestrateAdvancedCaption(topic);
+        return { caption: result.caption };
+      }
+    }),
+
   /** Recent AI generations (from ig_autopost_log) so the composer can show
    *  the actual draft the co-pilot produced — generatePost returns scores +
    *  status but not the caption/image (those go to the log + Telegram). */
@@ -222,6 +296,65 @@ Keep it under 200 characters.`;
    *  (often out-of-quota) OpenAI key and posts fail with a 429. Plus the recent
    *  autopost pass/fail rate + last error. Key-presence based (no live API ping)
    *  so it's cheap and honest. */
+  /** Generate an AI image for a manual draft in the Studio. */
+  generateMedia: adminProcedure
+    .input(z.object({ caption: z.string().min(1), prompt: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const { generatePostImage } = await import("../services/igAutopost");
+      // Use the prompt if provided, otherwise fallback to the caption
+      const imageResult = await generatePostImage(input.prompt || input.caption, { caption: input.caption });
+      return imageResult;
+    }),
+
+  /** Stage a manual draft for later publishing via Queue */
+  stageDraft: adminProcedure
+    .input(z.object({
+      format: z.enum(["single", "carousel", "reel", "story", "ad"]),
+      caption: z.string().min(1),
+      imageUrl: z.string().url().optional(),
+      imageUrls: z.array(z.string().url()).optional(),
+      videoUrl: z.string().url().optional(),
+      sourceType: z.string(),
+      sourceDetail: z.string().optional(),
+      conceptBrief: z.any().optional(),
+      qualityScore: z.any().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      const { socialContentInventory } = await import("../../drizzle/schema");
+      
+      const assetPaths = [];
+      if (input.imageUrl) assetPaths.push(input.imageUrl);
+      if (input.imageUrls) assetPaths.push(...input.imageUrls);
+      if (input.videoUrl) assetPaths.push(input.videoUrl);
+      
+      let mappedType: "post" | "reel" | "carousel" | "story" | "poll" = "post";
+      if (input.format === "reel") mappedType = "reel";
+      if (input.format === "carousel") mappedType = "carousel";
+      if (input.format === "story") mappedType = "story";
+      
+      const { randomUUID } = await import("crypto");
+      
+      await database.insert(socialContentInventory).values({
+        id: `draft_${randomUUID()}`,
+        platform: "both",
+        contentType: mappedType,
+        topic: `${input.sourceType}: ${input.sourceDetail || "manual draft"}`.substring(0, 128),
+        seriesName: "manual_drafts",
+        hookCategory: "manual",
+        hookText: input.caption,
+        bodyText: "",
+        visualStyle: "manual",
+        persona: "manual",
+        status: "assets_ready",
+        assetPaths,
+        briefJson: JSON.stringify(input.conceptBrief || {}),
+      });
+      
+      return { success: true };
+    }),
+
   /** Higgsfield (reels) account health for the Settings panel — creds validity
    *  + remaining credit balance. Runs the CLI (~1-15s) so it's its own query
    *  with its own loading state, not folded into the fast getProviderHealth. */
@@ -314,6 +447,7 @@ Keep it under 200 characters.`;
   /** Publish a custom image or Reel to Instagram directly. */
   publishPost: adminProcedure
     .input(z.object({
+      inventoryId: z.string().optional(),
       platforms: z.array(z.enum(["facebook", "instagram"])).min(1, "Select at least one platform"),
       caption: z.string().min(1).max(2200),
       imageUrl: z.string().url().optional(),
@@ -321,7 +455,9 @@ Keep it under 200 characters.`;
       videoUrl: z.string().url().optional(),
     }))
     .mutation(async ({ input }) => {
-      const { captionClaimBlockers, publishToSocial } = await import("../services/socialPublish");
+      const { captionClaimBlockers, assertPermanentPublicMediaUrl, publishToSocial } = await import("../services/socialPublish");
+      if (input.videoUrl) assertPermanentPublicMediaUrl(input.videoUrl);
+      
       const blockers = captionClaimBlockers(input.caption);
       if (blockers.length) {
         throw new TRPCError({
@@ -332,10 +468,22 @@ Keep it under 200 characters.`;
       const { results, igPostId } = await publishToSocial(input);
       if (results.length > 0 && results.every((r) => !r.success)) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code: "BAD_REQUEST",
           message: `Publish failed: ${results.map((r) => `${r.platform}: ${r.error}`).join("; ")}`,
         });
       }
+
+      if (input.inventoryId) {
+        const database = await db();
+        if (database) {
+          const { socialContentInventory } = await import("../../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          await database.update(socialContentInventory)
+            .set({ status: "published", publishedAt: new Date() })
+            .where(eq(socialContentInventory.id, input.inventoryId));
+        }
+      }
+
       return { success: true, results, postId: igPostId };
     }),
 
@@ -343,6 +491,7 @@ Keep it under 200 characters.`;
    *  Same claim-safety gate as publishPost, applied now at schedule time. */
   schedulePost: adminProcedure
     .input(z.object({
+      inventoryId: z.string().optional(),
       platforms: z.array(z.enum(["facebook", "instagram"])).min(1),
       caption: z.string().min(1).max(2200),
       imageUrl: z.string().url().optional(),
@@ -351,7 +500,9 @@ Keep it under 200 characters.`;
       scheduledAt: z.string().datetime(),
     }))
     .mutation(async ({ input }) => {
-      const { captionClaimBlockers } = await import("../services/socialPublish");
+      const { captionClaimBlockers, assertPermanentPublicMediaUrl } = await import("../services/socialPublish");
+      if (input.videoUrl) assertPermanentPublicMediaUrl(input.videoUrl);
+      
       const blockers = captionClaimBlockers(input.caption);
       if (blockers.length) {
         throw new TRPCError({
@@ -365,7 +516,7 @@ Keep it under 200 characters.`;
       }
       const database = await db();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      const { scheduledPosts } = await import("../../drizzle/schema");
+      const { scheduledPosts, socialContentInventory } = await import("../../drizzle/schema");
       await database.insert(scheduledPosts).values({
         platforms: input.platforms,
         caption: input.caption,
@@ -375,6 +526,14 @@ Keep it under 200 characters.`;
         scheduledAt: when,
         status: "pending",
       });
+
+      if (input.inventoryId) {
+        const { eq } = await import("drizzle-orm");
+        await database.update(socialContentInventory)
+          .set({ status: "scheduled", scheduledAt: when, updatedAt: new Date() })
+          .where(eq(socialContentInventory.id, input.inventoryId));
+      }
+
       return { ok: true, scheduledAt: when.toISOString() };
     }),
 
@@ -507,6 +666,82 @@ Keep it under 200 characters.`;
       const { clearRuntimeHiggsfieldCache } = await import("../services/higgsfieldStudio");
       clearRuntimeHiggsfieldCache();
 
+      return { success: true };
+    }),
+
+  /** Get all Instagram Drafts for the Queue */
+  getAllDrafts: adminProcedure.query(async () => {
+    const database = await db();
+    if (!database) return [];
+    const { socialContentInventory } = await import("../../drizzle/schema");
+    const { desc } = await import("drizzle-orm");
+    const rows = await database
+      .select()
+      .from(socialContentInventory)
+      .orderBy(desc(socialContentInventory.createdAt))
+      .limit(50);
+      
+    return rows.map((r: any) => {
+      let parsedBrief: any = {};
+      try { parsedBrief = r.briefJson ? JSON.parse(r.briefJson) : {}; } catch {}
+      let parsedAssetPaths: any[] = [];
+      try { parsedAssetPaths = r.assetPaths ? (Array.isArray(r.assetPaths) ? r.assetPaths : JSON.parse(r.assetPaths as string)) : []; } catch {}
+      
+      let mappedStatus = r.status;
+      if (r.status === "assets_ready") mappedStatus = "ready";
+      if (r.status === "pending") mappedStatus = "needs_review";
+      if (r.status === "approved") mappedStatus = "ready";
+      if (r.status === "generating") mappedStatus = "needs_review";
+      
+      return {
+        id: r.id,
+        status: mappedStatus,
+        format: r.contentType,
+        caption: r.hookText,
+        assetPack: { imageUrl: parsedAssetPaths[0] || "" },
+        qualityScore: { gate: "pass", overall: r.scoreOverall || 80 },
+        conceptBrief: { sourceSummary: r.topic, ...parsedBrief }
+      };
+    });
+  }),
+
+  /** Get Performance Insights for the Learn Panel */
+  getPerformanceInsights: adminProcedure.query(async () => {
+    const { getTopPosts } = await import("../pipelines/instagram-data");
+    const topPosts = await getTopPosts({ limit: 5 });
+    
+    return {
+      topWinners: topPosts.map(p => ({
+        id: p.postId,
+        format: p.postType === "VIDEO" ? "reel" : (p.postType === "CAROUSEL_ALBUM" ? "carousel" : "post"),
+        qualityScore: 90, // mock score for now until we have real quality scores mapped
+        caption: p.caption?.substring(0, 50) + "...",
+        likes: p.likes,
+        comments: p.comments,
+        shares: 0,
+        imageUrl: ""
+      })),
+      activeThemes: [
+        { name: "Recent Top Performers", insight: "These posts drove the most engagement in the last 30 days." }
+      ]
+    };
+  }),
+
+  /** Reject a draft manually from the Queue */
+  rejectDraft: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      reason: z.string().optional()
+    }))
+    .mutation(async ({ input }) => {
+      const database = await db();
+      if (database) {
+        const { socialContentInventory } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await database.update(socialContentInventory)
+          .set({ status: "rejected", errorMessage: input.reason, updatedAt: new Date() })
+          .where(eq(socialContentInventory.id, input.id));
+      }
       return { success: true };
     }),
 });

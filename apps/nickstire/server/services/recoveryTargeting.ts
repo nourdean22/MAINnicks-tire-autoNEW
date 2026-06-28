@@ -199,8 +199,8 @@ export function buildPersonalizedRecoveryMessage(params: {
 
   if (tier === "7d") {
     return (
-      `Hey ${name} — Nick's Tire & Auto. ${repeatPrefix}` +
-      `That ${moneyStr} ${serviceClause} quote on ${vehicleClause}? Still good this week. ` +
+      `Hey ${name}, Nick's Tire & Auto here. ${repeatPrefix}` +
+      `That ${moneyStr} quote for ${serviceClause} on the ${vehicleClause} is still good this week. ` +
       `Free re-check, no charge, you don't pay until you say yes. ` +
       `Drop off anytime. Reply STOP to opt out.`
     );
@@ -208,9 +208,9 @@ export function buildPersonalizedRecoveryMessage(params: {
 
   // 30d tier · slightly different framing · urgency cue without nagging
   return (
-    `Hey ${name} — ${repeatPrefix}` +
-    `it's been a month since we quoted ${moneyStr} for ${serviceClause} on ${vehicleClause}. ` +
-    `Car stuff doesn't fix itself. We'll honor that quote, free re-check first — ` +
-    `you don't pay until you say yes. (216) 862-0005. Reply STOP to opt out.`
+    `Hey ${name}, Nick's here. ${repeatPrefix}` +
+    `just following up on the ${moneyStr} quote for ${serviceClause} on the ${vehicleClause} from a month ago. ` +
+    `We'll honor that pricing, free re-check first, and you don't pay until you say yes. ` +
+    `(216) 862-0005. Reply STOP to opt out.`
   );
 }
