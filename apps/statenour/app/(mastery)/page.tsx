@@ -8,6 +8,7 @@ import { HomeNickDock } from "@/components/home/home-nick-dock";
 import { HomeBrainGraph } from "@/components/home/home-brain-graph";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { ObsidianEngineCard } from "@/components/obsidian/obsidian-engine-card";
+import { FollowUpsList } from "@/components/home/follow-ups-list";
 
 /**
  * The home route · 2026-06-22 · Redesigned Nour Command Center layout.
@@ -21,6 +22,7 @@ export default function HomePage() {
   return (
     <div className="mx-auto max-w-7xl px-3 sm:px-4 pb-32 space-y-4">
       <HomeIdentityHeader />
+      <FollowUpsList />
       <CoachEventBanner surface="home" />
       
       {/* Inline Command Dock at the Top */}

@@ -407,6 +407,23 @@ describe("v9.0-beta · prompt-v2 renderer", () => {
     expect(sections.agendaItems).toContain("[WITNESSED COMMITMENT] Verify tire supplier contract (Due: 2026-06-30)");
     expect(sections.agendaItems).toContain("Description: Follow up on financing options with DK Tire B2B");
   });
+
+  it("renders weekly review, follow-ups, and anticipated questions when present in context", () => {
+    const contextWithWeekly: NickPrimeContext = {
+      ...EMPTY_FIXTURE,
+      weeklyReview: "── WEEKLY REVIEWS (cross-week memory · last 14d) ──\nWeek of 2026-06-07:\n  Focus: build NOUR OS\n  Patterns: shiny-object syndrome",
+      followUps: ["Verify dk-tire invoice on Monday"],
+      anticipatedQuestions: ["What is the primary blocker for NOUR OS?"],
+    };
+
+    const sections = renderPromptV2(contextWithWeekly);
+    expect(sections.recentThinking).toContain("── WEEKLY REVIEWS");
+    expect(sections.recentThinking).toContain("Week of 2026-06-07:");
+    expect(sections.recentThinking).toContain("## Follow-Ups Needed");
+    expect(sections.recentThinking).toContain("Verify dk-tire invoice on Monday");
+    expect(sections.recentThinking).toContain("## Anticipated Questions for Today");
+    expect(sections.recentThinking).toContain("What is the primary blocker for NOUR OS?");
+  });
 });
 
 describe("v9.0-beta · prompt-v2 entry point", () => {

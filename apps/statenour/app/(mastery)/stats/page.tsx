@@ -85,6 +85,16 @@ const IdentityArcCard = dynamic(
   { ssr: false, loading: () => <div className="h-[200px] rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" /> },
 );
 
+const RecurringEnemiesCard = dynamic(
+  () => import("@/components/mastery/recurring-enemies-card").then((m) => m.RecurringEnemiesCard),
+  { ssr: false, loading: () => <div className="h-[210px] rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" /> },
+);
+
+const GraduatedSkillsCard = dynamic(
+  () => import("@/components/mastery/graduated-skills-card").then((m) => m.GraduatedSkillsCard),
+  { ssr: false, loading: () => <div className="h-[210px] rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" /> },
+);
+
 const CalibrationSection = dynamic(
   () => import("@/components/stats/calibration-section").then((m) => m.CalibrationSection),
   { ssr: false, loading: () => <SectionFallback /> },
@@ -166,6 +176,12 @@ function StatsContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <LevelUpDirectiveCard />
               <IdentityArcCard />
+            </div>
+
+            {/* ENEMIES & GRADUATED SKILLS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <RecurringEnemiesCard />
+              <GraduatedSkillsCard />
             </div>
 
             {/* ① WHO YOU ARE · the character sheet (the stats — the hero). */}
