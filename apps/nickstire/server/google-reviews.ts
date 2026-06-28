@@ -84,6 +84,55 @@ async function getReviewStatsFromDb(): Promise<{ count: number; rating: number }
 }
 
 /**
+ * Keep backup review stats fresh in the shop_settings table.
+ * Does not clear the in-memory cache to avoid fetch loops.
+ */
+async function saveBackupStatsToDb(count: number, rating: number): Promise<void> {
+  try {
+    const { getDb } = await import("./db");
+    const d = await getDb();
+    if (!d) return;
+
+    const existingCount = await d.select().from(shopSettings).where(eq(shopSettings.key, "reviewCount")).limit(1);
+    const existingRating = await d.select().from(shopSettings).where(eq(shopSettings.key, "reviewRating")).limit(1);
+
+    const dbCountVal = existingCount[0]?.value;
+    const dbRatingVal = existingRating[0]?.value;
+
+    if (dbCountVal !== String(count)) {
+      if (existingCount.length > 0) {
+        await d.update(shopSettings).set({ value: String(count), updatedBy: "system_sync" }).where(eq(shopSettings.key, "reviewCount"));
+      } else {
+        await d.insert(shopSettings).values({
+          key: "reviewCount",
+          value: String(count),
+          label: "Google Review Count",
+          category: "general",
+          updatedBy: "system_sync",
+        });
+      }
+    }
+
+    if (dbRatingVal !== String(rating)) {
+      if (existingRating.length > 0) {
+        await d.update(shopSettings).set({ value: String(rating), updatedBy: "system_sync" }).where(eq(shopSettings.key, "reviewRating"));
+      } else {
+        await d.insert(shopSettings).values({
+          key: "reviewRating",
+          value: String(rating),
+          label: "Google Review Rating",
+          category: "general",
+          updatedBy: "system_sync",
+        });
+      }
+    }
+  } catch (err) {
+    log.warn("[GoogleReviews] Failed to save backup stats to DB:", err);
+  }
+}
+
+
+/**
  * Save review stats to the DB (used by admin mutation).
  */
 export async function saveReviewStatsToDb(stats: { count?: number; rating?: number }): Promise<void> {
@@ -215,6 +264,9 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
     cachedData = reviewData;
     cacheTimestamp = Date.now();
     failCount = 0;
+
+    // Asynchronously save backup stats to DB (non-blocking, no cache bust)
+    void saveBackupStatsToDb(reviewData.totalReviews, reviewData.rating);
 
     // Reviews fetched successfully
     return reviewData;
