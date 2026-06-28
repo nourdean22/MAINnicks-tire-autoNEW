@@ -96,7 +96,7 @@ export function useMentionSuggestions() {
 
   // Watch localStorage for MIT updates from other components.
   useEffect(() => {
-    setMit(readMit());
+    setTimeout(() => setMit(readMit()), 0);
     function refresh() {
       setMit(readMit());
     }

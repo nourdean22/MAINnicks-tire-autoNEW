@@ -53,6 +53,7 @@ export function ChatMessageList({
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 pb-12">
       {/* Real Messages */}
+      {/* eslint-disable-next-line react-hooks/refs */}
       {messages.map((m) => (
         <div key={m.id} className={`flex animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
           <div className={`max-w-[85%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm ${

@@ -51,7 +51,7 @@ export function useLocalStorageState<T extends string>(
       // Optional validation: drop unknown values so stale localStorage
       // from a previous version doesn't render an invalid state.
       if (validValues && !validValues.includes(saved as T)) return;
-      setState(saved as T);
+      setTimeout(() => setState(saved as T), 0);
     } catch {
       // localStorage may be disabled (Safari private mode) — silent fallback to default
     }

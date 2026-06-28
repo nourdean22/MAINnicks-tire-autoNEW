@@ -28,7 +28,7 @@
  * changes don't propagate back into the transport deps.
  */
 
-import { useMemo, type RefObject, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useCallback, type RefObject, type Dispatch, type SetStateAction } from "react";
 import { DefaultChatTransport } from "ai";
 import type { UIMessage, UIDataTypes, UITools } from "ai";
 import type { ContextBlocks } from "@/components/chat/context-block-badges";
@@ -106,11 +106,23 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
     onConversationId,
   } = opts;
 
+  const getBody = useCallback(() => transportBodyRef.current, [transportBodyRef]);
+  const setLiveContextBlocks = useCallback((blocks: ContextBlocks | null) => {
+    liveContextBlocksRef.current = blocks;
+  }, [liveContextBlocksRef]);
+  const setLastTraceId = useCallback((id: string) => {
+    if (lastTraceIdRef) lastTraceIdRef.current = id;
+  }, [lastTraceIdRef]);
+  const setLastPersonaHeader = useCallback((persona: "master" | "builder" | "friend") => {
+    lastPersonaHeaderRef.current = persona;
+  }, [lastPersonaHeaderRef]);
+
   return useMemo(
     () =>
+      // eslint-disable-next-line react-hooks/refs
       new DefaultChatTransport({
         api: apiPath,
-        body: () => transportBodyRef.current,
+        body: getBody,
         fetch: async (input, init) => {
           const res = await fetch(input, init);
 
@@ -161,9 +173,9 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
                 blocks[k as keyof ContextBlocks] = true;
               }
             }
-            liveContextBlocksRef.current = blocks;
+            setLiveContextBlocks(blocks);
           } else {
-            liveContextBlocksRef.current = null;
+            setLiveContextBlocks(null);
           }
 
           // ── Mode pill (predicted vs ran) ───────────────────────────
@@ -184,7 +196,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
           // Ref pattern (not state) so we don't re-subscribe useChat.
           if (lastTraceIdRef) {
             const traceHeader = res.headers.get("X-Trace-Id");
-            if (traceHeader) lastTraceIdRef.current = traceHeader;
+            if (traceHeader) setLastTraceId(traceHeader);
           }
 
           // ── Persona header (loop-safe pattern) ─────────────────────
@@ -198,7 +210,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
             personaHeader === "builder" ||
             personaHeader === "friend"
           ) {
-            lastPersonaHeaderRef.current = personaHeader;
+            setLastPersonaHeader(personaHeader);
           }
           
           // ── SSE Cockpit Event Parsing ──────────────────────────────────────

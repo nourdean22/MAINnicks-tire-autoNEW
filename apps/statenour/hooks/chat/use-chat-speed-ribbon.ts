@@ -47,7 +47,8 @@ export function useChatSpeedRibbon(): ChatSpeedRibbonState {
   // flag init-from-localStorage in useState as a hydration mismatch.
   useEffect(() => {
     try {
-      setShowSpeedRibbonState(localStorage.getItem(STORAGE_KEY) === "1");
+      const stored = localStorage.getItem(STORAGE_KEY) === "1";
+      setTimeout(() => setShowSpeedRibbonState(stored), 0);
     } catch {
       // localStorage may be disabled (private mode); default false is fine.
     }

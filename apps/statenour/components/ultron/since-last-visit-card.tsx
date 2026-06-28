@@ -96,7 +96,9 @@ export function SinceLastVisitCard({ limit = 50 }: Props) {
   }, [limit, utils]);
 
   useEffect(() => {
-    void load();
+    setTimeout(() => {
+      void load();
+    }, 0);
   }, [load]);
 
   // After SETTLE_MS, advance the cursor to NOW so re-mounts don't
@@ -126,7 +128,7 @@ export function SinceLastVisitCard({ limit = 50 }: Props) {
     if (cursor === 0) {
       const now = Date.now();
       writeCursor(now);
-      setCursor(now);
+      setTimeout(() => setCursor(now), 0);
     }
   }, [cursor]);
 

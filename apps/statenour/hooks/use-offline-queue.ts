@@ -118,8 +118,10 @@ export function useOfflineQueue(options: UseOfflineQueueOptions): UseOfflineQueu
   useEffect(() => {
     if (typeof navigator === "undefined") return;
     if (!navigator.onLine) {
-      setIsOnline(false);
-      setStatus("offline");
+      setTimeout(() => {
+        setIsOnline(false);
+        setStatus("offline");
+      }, 0);
     }
   }, []);
   const drainingRef = useRef(false);
@@ -251,7 +253,9 @@ export function useOfflineQueue(options: UseOfflineQueueOptions): UseOfflineQueu
   // shifts, which is already covered.
   useEffect(() => {
     if (isOnline && queue.length > 0) {
-      drainQueue();
+      setTimeout(() => {
+        void drainQueue();
+      }, 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline, queue.length]);

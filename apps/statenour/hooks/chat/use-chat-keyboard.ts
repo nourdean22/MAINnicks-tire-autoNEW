@@ -101,7 +101,9 @@ export function useChatKeyboard(opts: UseChatKeyboardOpts): void {
   // previously included `messages`, which mutates on every stream
   // chunk). Used only by the Cmd+Shift+E export shortcut.
   const messagesRef = useRef(messages);
-  messagesRef.current = messages;
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
