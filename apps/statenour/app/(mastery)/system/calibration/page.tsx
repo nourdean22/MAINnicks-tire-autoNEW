@@ -27,7 +27,7 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Sparkline } from "@/components/ui/sparkline";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, Grid3x3, Sparkles } from "lucide-react";
+import { ChevronLeft, Grid3x3, Sparkles, Award } from "lucide-react";
 
 type Mood = "energized" | "neutral" | "depleted" | "scattered";
 
@@ -104,6 +104,16 @@ export default function CalibrationPage() {
       { refetchOnWindowFocus: false },
     );
 
+  const {
+    data: judgeData,
+    isLoading: isJudgeLoading,
+    error: judgeError,
+    refetch: refetchJudge,
+  } = trpc.system.judgeEvalCalibration.useQuery(
+    { sinceDays: 30 },
+    { refetchOnWindowFocus: false },
+  );
+
   return (
     <StandardPage
       eyebrow="NOUR OS · System"
@@ -141,7 +151,10 @@ export default function CalibrationPage() {
               (dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : undefined)
             }
             source="brain · suggestion_loop"
-            onReload={() => void refetch()}
+            onReload={() => {
+              void refetch();
+              void refetchJudge();
+            }}
           />
           <Link
             href="/system"
@@ -353,6 +366,123 @@ export default function CalibrationPage() {
             </tbody>
           </table>
         </div>
+      </GlassCard>
+
+      <GlassCard className="p-6">
+        <div className="flex items-center gap-2">
+          <Award size={16} className="text-[var(--gold)]" aria-hidden />
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+            LLM Judge Calibration
+          </h2>
+        </div>
+        <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+          Measures agreement % between LLM judge verdicts (did V2 beat V1?) and your manual thumbs-up/down on chat replies.
+        </p>
+
+        {isJudgeLoading ? (
+          <div className="mt-4 text-xs text-[var(--text-tertiary)]">Loading calibration metrics...</div>
+        ) : judgeError ? (
+          <div className="mt-4 text-xs text-rose-400">Failed to load judge calibration: {judgeError.message}</div>
+        ) : judgeData ? (
+          <div className="mt-4 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-[var(--bg-elevated)]/40 p-4 border border-[var(--border-default)]">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono uppercase text-[var(--text-secondary)]">Verdict:</span>
+                  <span className={cn(
+                    "text-xs font-semibold px-2 py-0.5 rounded border uppercase tracking-wider",
+                    judgeData.verdict === "well-calibrated" && "bg-emerald-500/10 border-emerald-500/30 text-emerald-300",
+                    judgeData.verdict === "moderate" && "bg-amber-500/10 border-amber-500/30 text-amber-300",
+                    judgeData.verdict === "miscalibrated" && "bg-rose-500/10 border-rose-500/30 text-rose-300",
+                    judgeData.verdict === "preliminary" && "bg-[var(--bg-surface)] border-[var(--border-default)] text-[var(--text-secondary)]"
+                  )}>
+                    {judgeData.verdict.replace("-", " ")}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[var(--text-tertiary)] max-w-md">
+                  {judgeData.verdictReason}
+                </p>
+              </div>
+
+              <div className="text-right">
+                <div className="text-2xl font-bold font-mono text-[var(--gold)]">
+                  {judgeData.agreementPct >= 0 ? `${judgeData.agreementPct.toFixed(1)}%` : "—"}
+                </div>
+                <div className="text-[10px] text-[var(--text-tertiary)] font-mono uppercase">
+                  Agreement (n={judgeData.totalScored})
+                </div>
+              </div>
+            </div>
+
+            {judgeData.totalScored > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)]/20 p-3">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-2">
+                    Confusion Matrix
+                  </div>
+                  <table className="w-full text-center border-separate border-spacing-1">
+                    <thead>
+                      <tr>
+                        <th className="text-[9px] font-mono text-[var(--text-tertiary)] text-left">Judge ↓ / Human →</th>
+                        <th className="text-[9px] font-mono text-emerald-400 py-0.5 bg-emerald-500/5 rounded border border-emerald-500/10">+1 Thumbs Up</th>
+                        <th className="text-[9px] font-mono text-rose-400 py-0.5 bg-rose-500/5 rounded border border-rose-500/10">-1 Thumbs Down</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="text-[10px] font-semibold text-zinc-300 text-left font-mono">Preferred V2</td>
+                        <td className="bg-emerald-500/10 text-emerald-300 text-xs font-mono py-1.5 rounded border border-emerald-500/20" title="Agreement: Judge picked V2, Human liked V2">
+                          {judgeData.matrix.find(c => c.judge === "v2" && c.human === "thumbs_up")?.count ?? 0}
+                        </td>
+                        <td className="bg-rose-500/10 text-rose-300 text-xs font-mono py-1.5 rounded border border-rose-500/20" title="Disagree: Judge picked V2, Human disliked V2 (False Positive)">
+                          {judgeData.matrix.find(c => c.judge === "v2" && c.human === "thumbs_down")?.count ?? 0}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="text-[10px] font-semibold text-zinc-300 text-left font-mono">Preferred V1</td>
+                        <td className="bg-rose-500/10 text-rose-300 text-xs font-mono py-1.5 rounded border border-rose-500/20" title="Disagree: Judge picked V1, Human liked V2 (False Negative)">
+                          {judgeData.matrix.find(c => c.judge === "v1" && c.human === "thumbs_up")?.count ?? 0}
+                        </td>
+                        <td className="bg-emerald-500/10 text-emerald-300 text-xs font-mono py-1.5 rounded border border-emerald-500/20" title="Agreement: Judge picked V1, Human disliked V2">
+                          {judgeData.matrix.find(c => c.judge === "v1" && c.human === "thumbs_down")?.count ?? 0}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)]/20 p-3 space-y-2 flex flex-col justify-between">
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-1">
+                      Exclusion Summary
+                    </div>
+                    <ul className="text-[11px] text-[var(--text-secondary)] space-y-1 font-mono">
+                      <li className="flex justify-between">
+                        <span>Tied judgments:</span>
+                        <span className="text-[var(--text-primary)]">{judgeData.ties}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span>No human feedback:</span>
+                        <span className="text-[var(--text-primary)]">{judgeData.noOperatorReaction}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span>No source message:</span>
+                        <span className="text-[var(--text-primary)]">{judgeData.noSourceMessage}</span>
+                      </li>
+                    </ul>
+                  </div>
+                  <p className="text-[10px] text-[var(--text-tertiary)] italic">
+                    Ties, unrated replies, and synthetic evaluations are excluded from calibration percentages.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--text-tertiary)] py-4 text-center border border-dashed border-[var(--border-default)] rounded-lg">
+                No human-evaluated comparisons in the last 30 days to calibrate the LLM judge.
+              </p>
+            )}
+          </div>
+        ) : null}
       </GlassCard>
 
       <p className="text-[11px] text-[var(--text-tertiary)]">
