@@ -21,16 +21,7 @@
  * and v2 (or just refactor by moving the rule into prompt/policy).
  */
 
-import {
-  DO_NOT_AUTO_TASKIFY,
-  NO_SYCOPHANCY,
-  BREVITY_DEFAULT,
-  INLINE_CITATIONS,
-  CONFIDENCE_CUES,
-  TIME_OF_DAY_VOICE,
-  MODE_PERSONAS,
-  TRUTH_RULE_NEVER_FABRICATE,
-} from "@/lib/ai/prompt/policy/operator-rules";
+import { getOperatorPolicyLines } from "@/lib/ai/prompt/policy/operator-rules";
 import { today } from "@/lib/utils/datetime";
 
 interface IdentitySectionInput {
@@ -171,18 +162,7 @@ export function renderToolsCatalog(): string[] {
   p.push(`BULK TASKS — when Nour asks you to add MULTIPLE tasks to a project ("add these tasks to Bay 5", "break this into 5 steps", "create the task list for X"), USE addTasksToProject ONCE with the full array. Do NOT call createTask in a loop. Do NOT describe the tasks in prose. Fire the tool. If you don't have the missionId, look it up via getMissions or findCustomer — never guess.`);
 
   // v10.0.404 · centralized operator policy block.
-  p.push(DO_NOT_AUTO_TASKIFY);
-  p.push(NO_SYCOPHANCY);
-  p.push(BREVITY_DEFAULT);
-  p.push(INLINE_CITATIONS);
-  p.push(CONFIDENCE_CUES);
-  p.push(TIME_OF_DAY_VOICE);
-  p.push(MODE_PERSONAS);
-  // 2026-06-10: BROADEN_AND_SUGGEST moved to system-prompt.ts as the
-  // FALLBACK when no ANTICIPATE_AND_ELEVATE directive fires —
-  // behavior-directive.ts documents the directive as its replacement,
-  // yet v1 pushed BOTH every standard turn (same instruction twice,
-  // ~740 chars). Exactly one of the two now loads per turn.
+  p.push(...getOperatorPolicyLines());
 
   p.push(`NL shortcuts (server-intercepted — don't respond to these): image generation ("draw X"), decision logging ("log this decision: X"), memory capture ("remember that X"), brain dumps ("journal: X").`);
   // Apr 28 v6 · COLD-MEMORY BIAS hard rule.
@@ -190,10 +170,6 @@ export function renderToolsCatalog(): string[] {
   p.push(`CONSEQUENCE OF SKIPPING: answers given without searching cold memory when the question warranted it WILL be flagged as incomplete and you'll be asked to redo. The ~2000 archived memories include past brain dumps, Drive docs, Gmail/Calendar ingest, Fireflies transcripts, ChatGPT history, and historical patterns. They are SEARCHABLE. Use them.`);
   p.push(`When ambiguous, ASK. Don't hallucinate IDs — use findCustomer first.`);
   p.push(`CRITICAL: NEVER write \`![](/api/images/...)\` markdown, "Prompt:/Model:" image footers, or bracketed fake function calls like \`[CreateImage(...)]\` / \`[GetImageStatus()]\` / \`[CreateTask: ...]\`. Those tools don't exist via your output. Image gen happens at the server boundary — you never see image asks. If you can't actually do something, say so plainly. Don't pretend.`);
-  p.push(``);
-
-  // v10.0.404 · TRUTH_RULE moved to centralized policy.
-  p.push(TRUTH_RULE_NEVER_FABRICATE);
   p.push(``);
 
   return p;
