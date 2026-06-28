@@ -105,6 +105,15 @@ export async function pruneTools(
     if (allTools[name]) kept[name] = allTools[name];
   }
 
+  // ── Exact tool name mention ──
+  // If the user explicitly mentions a tool name (case-insensitive check), always include it
+  for (const name of Object.keys(allTools)) {
+    const lowerName = name.toLowerCase();
+    if (text.includes(lowerName)) {
+      kept[name] = allTools[name];
+    }
+  }
+
   // ── SEMANTIC LAYER (when available) ──
   // If the tool embedding cache is warm AND we have a user message
   // embedding, rank tools by cosine similarity. Deep mode gets a
@@ -300,6 +309,27 @@ export async function pruneTools(
   // Covers spelling mistakes like "scheduale", "publis", "generat"
   if (/\b(instagram|insta|ig|facebook|fb|post|posts|posting|autopost|autoposter|autoposting|publish|publis|publsih|generate|generat|pre-?generate|schedule|scheduale|schedul)\b/.test(text)) {
     addMatching(/InstagramAutopost/i);
+  }
+
+  // v10.0.530 · Tools / capabilities / help
+  // Surfaces a rich, representative set of tools across all families when
+  // the operator asks about capabilities or help.
+  if (/\b(tools?|capabilities|functions?|what (can you do|actions can you|tools do you)|help (me|menu)?)\b/.test(text)) {
+    const helpTools = [
+      "getTasks", "createTask", "addTasksToProject", "completeTask", "setTaskPriority",
+      "getCommitments", "createCommitment", "updateCommitment",
+      "getMissions", "createMissionPlan",
+      "dailyPulse", "weeklyReview", "endOfDay",
+      "searchMemories", "searchColdMemory", "searchConversations",
+      "findCustomer", "queryNickstire", "compareLiveRevenue",
+      "runPython", "searchWebVerified", "generateImage",
+      "runDeviceCommand", "sendTelegram", "composeEmail",
+      "getBlindSpots", "surfaceAntiPatterns", "suggestSkills",
+      "getBodyData", "getHabitStreaks", "getMasteryScores"
+    ];
+    for (const name of helpTools) {
+      if (allTools[name]) kept[name] = allTools[name];
+    }
   }
 
   // If nothing matched, add a small default bundle so the model

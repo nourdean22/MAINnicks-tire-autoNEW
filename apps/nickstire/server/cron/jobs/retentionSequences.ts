@@ -69,48 +69,48 @@ const RETENTION_TIERS: RetentionTier[] = [
     minDays: 5,
     maxDays: 9,
     flags: ["sms_retention_sequences", "retention_7day"],
-    message: (_name, _vehicle) =>
-      `Quick check-in from Nick's — how's everything running after the work? We stand behind it, so reply here if you need anything.`,
+    message: (name, _vehicle) =>
+      `Hey ${name.split(" ")[0] || "there"}, quick check-in from Nick's Tire & Auto. How's everything running after the work? We stand behind it, so reply here if you need anything.`,
   },
   {
     days: 14,
     minDays: 12,
     maxDays: 16,
     flags: ["sms_retention_sequences", "retention_14day"],
-    message: (_name, _vehicle) =>
-      `Two weeks in. Want a second look at anything from the work? The re-check's free and you don't pay until you say yes. ${STORE_PHONE}`,
+    message: (name, _vehicle) =>
+      `Hey ${name.split(" ")[0] || "there"}, two weeks in. Want a second look at anything from the work? The check is free and you don't pay until you say yes. ${STORE_PHONE}`,
   },
   {
     days: 45,
     minDays: 40,
     maxDays: 50,
     flags: ["sms_retention_sequences", "retention_45day"],
-    message: (_name, _vehicle) =>
-      `About that time for an oil change or rotation — $49 conventional, $80 synthetic. Walk in any day, first-come, first-served. ${STORE_PHONE}\n\nReply STOP to opt out.`,
+    message: (name, _vehicle) =>
+      `Hey ${name.split(" ")[0] || "there"}, about that time for an oil change or tire check? conventional is $49, synthetic is $80. Walk in any day, first-come, first-served. ${STORE_PHONE}\n\nReply STOP to opt out.`,
   },
   {
     days: 90,
     minDays: 85,
     maxDays: 95,
     flags: ["sms_retention_sequences"],
-    message: (_name, _vehicle) =>
-      `Been about 3 months. Worth a quick check whenever it's easy — free, written quote, you don't pay until you say yes. Drop it off any day, Mon-Sat 8-6.\n\nReply STOP to opt out.`,
+    message: (name, _vehicle) =>
+      `Hey ${name.split(" ")[0] || "there"}, been about 3 months. Worth a quick check whenever it's easy — free check, written quote, you don't pay until you say yes. Drop it off any day. (216) 862-0005\n\nReply STOP to opt out.`,
   },
   {
     days: 180,
     minDays: 175,
     maxDays: 185,
     flags: ["sms_retention_sequences"],
-    message: (_name, _vehicle) =>
-      `Six months since we saw you. Free check, written quote, you don't pay until you say yes. Pull up any day. ${STORE_PHONE}\n\nReply STOP to opt out.`,
+    message: (name, _vehicle) =>
+      `Hey ${name.split(" ")[0] || "there"}, six months since we saw you. Free check, written quote, you don't pay until you say yes. Pull up any day. ${STORE_PHONE}\n\nReply STOP to opt out.`,
   },
   {
     days: 365,
     minDays: 360,
     maxDays: 370,
     flags: ["sms_retention_sequences"],
-    message: (_name, _vehicle) =>
-      `Been about a year \u2014 worth a once-over whenever you're ready. Same shop, same fair pricing, walk in any day. ${STORE_PHONE}\n\nReply STOP to opt out.`,
+    message: (name, _vehicle) =>
+      `Hey ${name.split(" ")[0] || "there"}, been about a year — worth a once-over whenever you're ready. Same shop, same fair pricing, walk in any day. ${STORE_PHONE}\n\nReply STOP to opt out.`,
   },
 ];
 

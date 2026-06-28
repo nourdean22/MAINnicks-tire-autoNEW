@@ -179,6 +179,8 @@ function fixNoteFrontmatter(content: string): string | null {
   const bodyLines = lines.slice(closingIndex + 1);
 
   let hasStatus = false;
+  let statusVal: string | null = null;
+  let hasReviewDue = false;
   let hasSource = false;
   let hasUpdatedAt = false;
   let modified = false;
@@ -192,21 +194,32 @@ function fixNoteFrontmatter(content: string): string | null {
 
     const key = trimmedLine.substring(0, colonIdx).trim();
     let val = trimmedLine.substring(colonIdx + 1).trim();
+    const strippedVal = val.replace(/^['"]|['"]$/g, "");
 
     if (key === "status") {
       hasStatus = true;
-      const lowerVal = val.toLowerCase();
-      if (val !== lowerVal) {
+      statusVal = strippedVal.toLowerCase();
+      const lowerVal = strippedVal.toLowerCase();
+      if (strippedVal !== lowerVal) {
         modified = true;
-        return line.replace(val, lowerVal);
+        const needsQuotes = val.startsWith('"') || val.startsWith("'");
+        const quoteChar = val[0];
+        const replacementVal = needsQuotes ? `${quoteChar}${lowerVal}${quoteChar}` : lowerVal;
+        return line.replace(val, replacementVal);
       }
+    }
+    if (key === "review_due") {
+      hasReviewDue = true;
     }
     if (key === "source") {
       hasSource = true;
-      const lowerVal = val.toLowerCase();
+      const lowerVal = strippedVal.toLowerCase();
       if (lowerVal !== "obsidian" && lowerVal !== "statenour") {
         modified = true;
-        return line.replace(val, "obsidian");
+        const needsQuotes = val.startsWith('"') || val.startsWith("'");
+        const quoteChar = val[0];
+        const replacementVal = needsQuotes ? `${quoteChar}obsidian${quoteChar}` : "obsidian";
+        return line.replace(val, replacementVal);
       }
     }
     if (key === "updated_at") {
@@ -221,6 +234,12 @@ function fixNoteFrontmatter(content: string): string | null {
   }
   if (!hasUpdatedAt) {
     newYamlLines.push(`updated_at: ${new Date().toISOString()}`);
+    modified = true;
+  }
+  if (statusVal === "active" && !hasReviewDue) {
+    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const defaultReviewDue = nextWeek.toISOString().slice(0, 10);
+    newYamlLines.push(`review_due: ${defaultReviewDue}`);
     modified = true;
   }
 
@@ -454,7 +473,7 @@ async function main() {
           content = fixedContent;
           const reParsed = parseFrontmatter(content);
           metadata = reParsed.metadata;
-          logPass(`Fixed frontmatter in-place (normalized status, source, or updated_at).`, noteFile);
+          logPass(`Fixed frontmatter in-place (normalized status, source, or updated_at) for ${path.basename(noteFile)}.`);
         } catch (writeErr) {
           logFail(`Failed to write fixed frontmatter: ${writeErr}`, noteFile);
         }
@@ -562,7 +581,7 @@ function getSuggestedFix(message: string): string | undefined {
   return undefined;
 }
 
-function finishReport(noteFilesList: string[]) {
+function finishReport(noteFilesList: string[] = []) {
   const quarantinedFiles: QuarantinedFileInfo[] = [];
   const quarantineDir = path.join(vaultPath, "Statenour", "Quarantine");
   if (fs.existsSync(quarantineDir)) {

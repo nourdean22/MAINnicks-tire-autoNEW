@@ -59,15 +59,15 @@ const MAX_REPLY_CHARS = 300;
  */
 const DEFAULT_REPLIES: Record<string, string> = {
   "tire-replacement":
-    "Got the photo · looks like the tire needs replacement. We have your size in stock most days. No charge to look. Call/text 216-862-0005 when you're ready.",
+    "Got the photo · looks like the tire needs replacement. We have your size in stock most days. No charge to look. Call/text (216) 862-0005 when you're ready.",
   "tire-repair":
-    "Got the photo · we can patch that if it's in the tread. Bring it by — usually 20 min. No charge if it's not patchable. 216-862-0005.",
+    "Got the photo · we can patch that if it's in the tread. Bring it by — usually 20 min. No charge if it's not patchable. (216) 862-0005.",
   "brake-service":
-    "Saw the brake photo · we'd want to check pad thickness + rotor condition in-person before pricing. Free inspection. 216-862-0005.",
+    "Saw the brake photo · we'd want to check pad thickness + rotor condition in-person before pricing. Free inspection. (216) 862-0005.",
   "inspection-needed":
-    "Thanks for the photo · we'd want eyes on it to give you a real answer. Free 15-min inspection. 216-862-0005.",
+    "Thanks for the photo · we'd want eyes on it to give you a real answer. Free 15-min inspection. (216) 862-0005.",
   unclear:
-    "Got the photo. Hard to tell from one angle — could you swing by for a free look? 216-862-0005.",
+    "Got the photo. Hard to tell from one angle — could you swing by for a free look? (216) 862-0005.",
 };
 
 function pickDefaultReply(serviceSuggest?: string): string {

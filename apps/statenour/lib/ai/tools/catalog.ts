@@ -95,6 +95,8 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // v10.0.524 · #1 Cross-conversation recall + #4 multi-source search
   { name: "findRelatedConversations",     category: "brain",          battle: true,  cost: "cheap", riskClass: "low" },
   { name: "searchWebVerified",            category: "research",                      cost: "medium", riskClass: "low" },
+  { name: "last30days",                   category: "research",                      cost: "cheap",  riskClass: "medium" },
+  { name: "moneyprinter",                 category: "research",                      cost: "medium", riskClass: "medium", sideEffecting: true },
   // v10.0.524 · #6 skill suggestion + #10 anti-pattern surface
   { name: "suggestSkills",                category: "brain",          battle: true,  cost: "cheap", riskClass: "low" },
   { name: "surfaceAntiPatterns",          category: "brain",          battle: true,  cost: "free", riskClass: "low" },

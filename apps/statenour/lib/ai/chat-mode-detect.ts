@@ -31,7 +31,7 @@ export function detectChatMode(
 
   // Explicit strategy / pattern / analysis keywords
   if (
-    /\b(plan|strategy|strategic|analyze|analyse|blind ?spot|drift|forecast|pattern|pipeline|week ahead|month ahead|review|reflect|deep dive|situation|battle|enemy|enemies|power move)\b/.test(
+    /\b(plan|strategy|strategic|analyze|analyse|blind ?spot|drift|forecast|pattern|pipeline|week ahead|month ahead|review|reflect|deep dive|situation|battle|enemy|enemies|power move|tools?|capabilities|functions?|what can you do)\b/.test(
       text
     )
   ) {
