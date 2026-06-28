@@ -3,15 +3,15 @@ import path from "path";
 import fs from "fs";
 
 // Load env variables first
-dotenv.config({ path: path.resolve("C:/Users/nourd/NOURCITY/.env") });
+dotenv.config({ path: path.resolve("C:/Users/nourd/NOURCITY/apps/nickstire/.env") });
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_CRM_ID;
 const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
 
-if (!SPREADSHEET_ID || !email || !rawKey) {
-  console.error("Missing Google Sheets credentials in .env");
-  process.exit(1);
+const hasSheetsCreds = !!SPREADSHEET_ID && !!email && !!rawKey;
+if (!hasSheetsCreds) {
+  console.warn("⚠️ Google Sheets integration not fully configured. Sheets sync steps will be skipped.");
 }
 
 // Helper to check and create directories

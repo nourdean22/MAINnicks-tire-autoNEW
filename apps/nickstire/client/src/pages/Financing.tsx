@@ -60,7 +60,7 @@ interface RankedProvider {
 const RANKED_PROVIDERS: RankedProvider[] = [
   {
     id: "acima",
-    name: "Acima Credit",
+    name: "Acima",
     tier: "primary",
     tierLabel: "TRY FIRST",
     tierBadge: "Most chosen",

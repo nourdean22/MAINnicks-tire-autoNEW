@@ -24,7 +24,7 @@ export const paymentsRouter = router({
       methods: [
         { id: "card", name: "Credit/Debit Card", enabled: isStripeConfigured(), icon: "credit-card" },
         { id: "snap", name: "Snap Finance", enabled: true, icon: "zap", applyUrl: "https://getsnap.snapfinance.com/lease/en-US/consumer/apply/landing" },
-        { id: "acima", name: "Acima Credit", enabled: true, icon: "shield", applyUrl: "https://acima.us/1TjEOYtr6C" },
+        { id: "acima", name: "Acima", enabled: true, icon: "shield", applyUrl: "https://acima.us/1TjEOYtr6C" },
         { id: "cash", name: "Pay at Shop", enabled: true, icon: "banknote" },
       ],
     };

@@ -226,7 +226,7 @@ describe("Ezytire Environment Variables", () => {
     expect(screen.getByText("Online payment will be available once staff confirms pricing.")).toBeTruthy();
     expect(screen.queryByText(/Pay Now/)).toBeNull();
     expect(screen.queryByText("Snap Finance")).toBeNull();
-    expect(screen.queryByText("Acima Credit")).toBeNull();
+    expect(screen.queryByText("Acima")).toBeNull();
   });
 });
 

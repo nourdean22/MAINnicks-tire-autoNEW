@@ -321,7 +321,7 @@ export default function ChatWidget() {
               {showLeadCapture && !leadSubmitted && (
                 <div className="bg-foreground/[0.03] border border-primary/15 rounded-xl p-3.5 space-y-2.5">
                   <p className="text-[11px] text-emerald-400/70 text-center mb-2">
-                    We offer lease-to-own financing — approved on the spot, no credit check. Ask us about it.
+                    We offer lease-to-own options — approved on the spot. Ask us about it.
                   </p>
                   <p className="text-foreground/70 text-[12px]">
                     Want us to call you with a free assessment?
