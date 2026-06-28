@@ -3,16 +3,17 @@ import {
   getToolCapabilities,
   getToolCapability,
   getMissingEnvForTool,
-  getToolHealthSummary
-} from "@/lib/tools/tool-registry";
-import { evaluateToolAction } from "@/lib/tools/tool-policy";
+  getToolHealthSummary,
+  type ToolCapability
+} from "../../lib/tools/tool-registry";
+import { evaluateToolAction } from "../../lib/tools/tool-policy";
 
 describe("Tool Registry Completeness", () => {
   it("has all 26 core tool capabilities registered", () => {
     const list = getToolCapabilities();
     expect(list.length).toBeGreaterThanOrEqual(26);
 
-    const ids = list.map((t) => t.id);
+    const ids = list.map((t: ToolCapability) => t.id);
     const expected = [
       "web.search.verified",
       "web.search.arsenal",
@@ -89,9 +90,9 @@ describe("Environment & Health Probes", () => {
 
   it("calculates correct tool health summary based on env state", () => {
     const summary = getToolHealthSummary();
-    const verifiedSearch = summary.find((s) => s.id === "web.search.verified");
-    const browserNavigate = summary.find((s) => s.id === "browser.navigate");
-    const localShell = summary.find((s) => s.id === "local.shell");
+    const verifiedSearch = summary.find((s: any) => s.id === "web.search.verified");
+    const browserNavigate = summary.find((s: any) => s.id === "browser.navigate");
+    const localShell = summary.find((s: any) => s.id === "local.shell");
 
     expect(verifiedSearch?.health).toBe("active"); // All env set
     expect(browserNavigate?.health).toBe("inert"); // parked-by-choice; env not counted as a setup gap
@@ -205,6 +206,24 @@ describe("Permission Policy Engine Rules", () => {
 
       const res = evaluateToolAction({ toolId: "task.create", actionType: "execute" });
       expect(res.decision).toBe("allow");
+    });
+
+    it("resolves dynamic person actions, gating creations/deletions while allowing reads/others", () => {
+      const capCreate = getToolCapability("person.create");
+      expect(capCreate).not.toBeNull();
+      expect(capCreate?.approvalPolicy).toBe("owner_required");
+      expect(capCreate?.riskClass).toBe("high");
+
+      const resCreate = evaluateToolAction({ toolId: "person.create", actionType: "execute" });
+      expect(resCreate.decision).toBe("require_owner");
+
+      const capUpdate = getToolCapability("person.update");
+      expect(capUpdate).not.toBeNull();
+      expect(capUpdate?.approvalPolicy).toBe("none");
+      expect(capUpdate?.riskClass).toBe("medium");
+
+      const resUpdate = evaluateToolAction({ toolId: "person.update", actionType: "execute" });
+      expect(resUpdate.decision).toBe("allow");
     });
 
     it("resolves dynamic memory writes and requires owner approval", () => {
