@@ -94,6 +94,14 @@ export const CRONS: CronDef[] = [
     description: "Operator morning brief — Inngest-native.",
   },
   {
+    name: "proactive-push-cron",
+    schedule: "0 * * * *",
+    mode: "active",
+    category: "alert",
+    inngest: true,
+    description: "Proactive Telegram pushes & governance nudges — Inngest-native.",
+  },
+  {
     name: "goal-pruner",
     schedule: "0 12 * * *",
     mode: "active",
