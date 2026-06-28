@@ -59,6 +59,7 @@ export type DataDomain =
   // Drive corpus + indexes. /knowledge page subscribes for targeted
   // refresh instead of "any" fanout.
   | "knowledge"
+  | "people"
   | "any";
 
 export interface DataChangeDetail {

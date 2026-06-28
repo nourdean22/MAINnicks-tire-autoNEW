@@ -33,15 +33,16 @@ export interface UndoResult {
   alreadyUndone?: boolean;
   /** true when this call performed the revert. */
   undone?: boolean;
-  toolName?: "snoozeTask" | "archiveGoal";
+  toolName?: "snoozeTask" | "archiveGoal" | "person.create";
   entityId?: string;
 }
 
 interface UndoPayload {
-  toolName: "snoozeTask" | "archiveGoal";
+  toolName: "snoozeTask" | "archiveGoal" | "person.create";
   taskId?: string;
   goalId?: string;
-  originalStatus: string;
+  personId?: string;
+  originalStatus?: string;
 }
 
 /**
@@ -107,6 +108,9 @@ export async function consumeUndoToken(token: string): Promise<UndoResult> {
       if (!payload.goalId) {
         throw new ServiceError("missing goalId", 400);
       }
+      if (!payload.originalStatus) {
+        throw new ServiceError("missing originalStatus", 400);
+      }
       await prisma.lifeGoal.update({
         where: { id: payload.goalId },
         data: {
@@ -114,6 +118,15 @@ export async function consumeUndoToken(token: string): Promise<UndoResult> {
           deletedAt: null,
           updatedAt: new Date(),
         },
+      });
+      break;
+    }
+    case "person.create": {
+      if (!payload.personId) {
+        throw new ServiceError("missing personId", 400);
+      }
+      await prisma.personProfile.delete({
+        where: { id: payload.personId },
       });
       break;
     }
@@ -134,6 +147,6 @@ export async function consumeUndoToken(token: string): Promise<UndoResult> {
     ok: true,
     undone: true,
     toolName: payload.toolName,
-    entityId: payload.taskId ?? payload.goalId,
+    entityId: payload.taskId ?? payload.goalId ?? payload.personId,
   };
 }

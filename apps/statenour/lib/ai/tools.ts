@@ -25,7 +25,7 @@ import { socialTools } from "@/lib/ai/tools/social";
 import { systemTools } from "@/lib/ai/tools/system";
 import { metaTools } from "@/lib/ai/tools/meta";
 
-export const nourTools = {
+export const rawTools = {
   ...brainTools,
   ...tasksTools,
   ...businessTools,
@@ -34,3 +34,44 @@ export const nourTools = {
   ...systemTools,
   ...metaTools,
 };
+
+function wrapToolsWithEmptyHandling<T extends Record<string, any>>(tools: T): T {
+  const wrapped: Record<string, any> = {};
+  for (const [name, tool] of Object.entries(tools)) {
+    if (!tool.execute) {
+      wrapped[name] = tool;
+      continue;
+    }
+    const originalExecute = tool.execute;
+    wrapped[name] = {
+      ...tool,
+      execute: async (args: any) => {
+        const res = await originalExecute(args);
+        
+        const isQueryName = /^(get|find|list|search|locate|read|query|fetch)/i.test(name);
+        const isEmptyArray = Array.isArray(res) && res.length === 0;
+        const isEmptyDataObject =
+          res &&
+          typeof res === "object" &&
+          "data" in res &&
+          Array.isArray(res.data) &&
+          res.data.length === 0;
+        const isNullOrUndefined = res === null || res === undefined;
+
+        if (isQueryName && (isNullOrUndefined || isEmptyArray || isEmptyDataObject)) {
+          return {
+            success: true,
+            count: 0,
+            data: [],
+            status: "no_data_found",
+            message: "Query completed successfully, but zero matching records were found.",
+          };
+        }
+        return res;
+      },
+    };
+  }
+  return wrapped as T;
+}
+
+export const nourTools = wrapToolsWithEmptyHandling(rawTools);
