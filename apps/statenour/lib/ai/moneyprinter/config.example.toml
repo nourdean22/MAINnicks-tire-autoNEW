@@ -123,7 +123,7 @@ openai_api_key = ""
 openai_base_url = ""
 # Check your available models at https://platform.openai.com/account/limits
 # 如果使用兼容供应商，请填写该平台要求的模型 ID。
-openai_model_name = "gpt-4o-mini"
+openai_model_name = "gpt-4o"
 
 ########## AIHubMix API Key
 # AIHubMix is OpenAI-compatible and can use one API key to access multiple models.
@@ -172,7 +172,7 @@ azure_api_version = "2024-02-15-preview"
 
 ########## Gemini API Key
 gemini_api_key = ""
-gemini_model_name = "gemini-2.5-flash"
+gemini_model_name = "gemini-3.5-flash"
 
 ########## Grok API Key
 grok_api_key = ""

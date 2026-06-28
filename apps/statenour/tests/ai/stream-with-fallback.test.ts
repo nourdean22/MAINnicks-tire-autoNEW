@@ -30,7 +30,7 @@ beforeEach(() => {
 
 describe("v10 B.5 · streamWithFallback", () => {
   it("returns the streamText result on first-attempt success", () => {
-    const fakeModel = { modelId: "gemini/gemini-2.5-flash" };
+    const fakeModel = { modelId: "gemini/gemini-3.5-flash" };
     const fakeResult = { __mockResult: true };
     getModelMock.mockReturnValueOnce(fakeModel);
     streamTextMock.mockReturnValueOnce(fakeResult);
@@ -48,7 +48,7 @@ describe("v10 B.5 · streamWithFallback", () => {
   });
 
   it("retries with next provider on sync throw, succeeds on attempt 2", () => {
-    const geminiModel = { modelId: "gemini/gemini-2.5-flash" };
+    const geminiModel = { modelId: "gemini/gemini-3.5-flash" };
     const ollamaModel = { modelId: "ollama/qwen3-235b" };
     const fakeResult = { __mockResult: true };
 
