@@ -228,6 +228,15 @@ export const taskRouter = router({
     });
   }),
 
+  captureInboxCount: operatorProcedure.query(async () => {
+    return prisma.captureInboxItem.count({
+      where: {
+        status: "active",
+        triageStatus: "NEW",
+      },
+    });
+  }),
+
   /**
    * /missions?taskId= deep-link support · owner-only · fetch a single task
    * with its view model properties by ID.
