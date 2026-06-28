@@ -479,11 +479,9 @@ export function registerBridgeRoutes(app: Express): void {
         const vehicle = [c.vehicleYear, c.vehicleMake, c.vehicleModel].filter(Boolean).join(" ");
         const vehicleLine = vehicle ? ` on your ${vehicle}` : "";
 
-        // Personalized message: thank you + referral + review
-        const msg = `Hi ${firstName}! Thank you for choosing Nick's Tire & Auto for your recent service${vehicleLine}. ` +
-          `We appreciate your business! If you were happy with our work, we'd love a quick Google review: https://g.page/r/nickstire/review ` +
-          `Know someone who needs tires or auto service? Refer a friend and both of you get 10% off your next visit! ` +
-          `— Nick's Tire & Auto (216) 862-0005`;
+        const msg = `Hey ${firstName}, Nick's Tire & Auto here. Thanks again for trusting us with the work${vehicleLine}. ` +
+          `If we earned it, a quick Google review helps other Cleveland drivers find us: https://g.page/r/nickstire/review. ` +
+          `If you send a friend our way, we'll take care of you both on your next visits. Call or text us anytime at (216) 862-0005.`;
 
         messages.push({ phone: c.phone, name: `${c.firstName} ${c.lastName}`, message: msg });
       }
