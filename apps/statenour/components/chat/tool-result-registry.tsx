@@ -143,6 +143,22 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
       return o?.title ? `"${o.title}" · history preserved` : null;
     },
   },
+  "person.create": {
+    label: "Adding contact",
+    doneLabel: "Contact added",
+    runningLabel: "Adding contact…",
+    icon: Users,
+    color: "purple",
+    link: { href: "/people", label: "View people" },
+    linkFn: (out) => {
+      const o = out as { id?: string } | null;
+      return o?.id ? { href: `/people#person-${o.id}`, label: "View contact" } : null;
+    },
+    subtitle: (out) => {
+      const o = out as { name?: string; note?: string } | null;
+      return o?.name ? `${o.name} · ${o.note ?? "Added to people"}` : null;
+    },
+  },
   logGoalProgress: {
     label: "Logging progress",
     doneLabel: "Progress logged",

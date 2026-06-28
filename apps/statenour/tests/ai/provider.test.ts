@@ -222,6 +222,15 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
       expect(modelToProvider("gpt-oss:120b")).toBe("ollama");
       expect(modelToProvider("gpt-4o")).toBe("openai");
     });
+
+    it("respects forceProviderFirst parameter to prioritize anthropic for mutations", async () => {
+      vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
+      vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+
+      const { getModel } = await import("@/lib/ai/provider");
+      const model = getModel("reason", { forceProviderFirst: "anthropic" });
+      expect((model as any).modelId).toContain("claude");
+    });
   });
 
   describe("Ollama createOllamaModel fetch config", () => {
