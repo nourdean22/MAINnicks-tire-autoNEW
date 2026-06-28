@@ -119,6 +119,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
 
   return useMemo(
     () =>
+      // eslint-disable-next-line react-hooks/refs
       new DefaultChatTransport({
         api: apiPath,
         body: getBody,
