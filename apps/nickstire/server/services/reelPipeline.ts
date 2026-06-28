@@ -19,12 +19,12 @@ const log = createLogger("services:reel-pipeline");
 
 const MAX_ATTEMPTS = 3;
 
-/** Per-clip Higgsfield gen timeout. seedance renders take minutes, so this is
+/** Per-clip Veo/generator timeout. seedance renders take minutes, so this is
  *  generous — its only job is to cap a HUNG CLI poll (the failure mode that
  *  otherwise parks a job in `generating` forever) so it rejects into the normal
  *  retry path instead of wedging the pipeline. Env-overridable. */
 const GEN_CLIP_TIMEOUT_MS = Number(process.env.REEL_GEN_CLIP_TIMEOUT_MS) || 6 * 60_000;
-/** Re-host fetch of an already-finished Higgsfield clip — short; it exists. */
+/** Re-host fetch of an already-finished generated clip — short; it exists. */
 const CLIP_FETCH_TIMEOUT_MS = Number(process.env.REEL_CLIP_FETCH_TIMEOUT_MS) || 90_000;
 /** How long a job may sit in a working status (`generating`/`assembling`)
  *  WITHOUT a progress write before the sweeper treats it as orphaned and
@@ -36,7 +36,7 @@ const STUCK_JOB_MS = Number(process.env.REEL_STUCK_JOB_MS) || 12 * 60_000;
 
 /** Reject `p` if it doesn't settle within `ms`. Clears the timer on either
  *  outcome so a resolved promise never leaks a dangling handle. NOTE: this
- *  unblocks the JOB, not the underlying op — a timed-out Higgsfield CLI
+ *  unblocks the JOB, not the underlying op — a timed-out generator CLI
  *  subprocess keeps running until it exits on its own; we just stop awaiting it. */
 export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -60,6 +60,7 @@ export interface ReelJobBrief {
   selectedCaption?: string;
   hashtags?: string[];
   storyboardBeats?: Array<{ beatNumber: number; visual: string; onScreenText?: string }>;
+  promptPack?: Array<{ beatNumber: number; prompt: string }>;
   higgsfieldPromptPack?: Array<{ beatNumber: number; prompt: string }>;
   voiceoverScript?: string;
 }
@@ -147,6 +148,7 @@ export async function processNextReelJob(): Promise<{
     const clipUrls: string[] = [];
     for (const beat of beats) {
       const prompt =
+        brief.promptPack?.find((p) => p.beatNumber === beat.beatNumber)?.prompt ??
         brief.higgsfieldPromptPack?.find((p) => p.beatNumber === beat.beatNumber)?.prompt ?? beat.visual;
       if (!prompt || !prompt.trim()) throw new Error(`beat ${beat.beatNumber} has no prompt`);
       // Timeout-guarded: a hung Veo poll otherwise blocks here forever with
@@ -198,7 +200,7 @@ export async function processNextReelJob(): Promise<{
  * MP4 (`assets_ready -> assembling -> assembled`, mp4Url set). STOPS at
  * `assembled` — publishing is a separate, separately-gated stage. Retry on
  * failure returns the job to `assets_ready` (never `queued`, which would
- * re-spend Higgsfield credits re-generating clips).
+ * re-spend generator credits re-generating clips).
  *
  * SAFETY: same REEL_GENERATION_ENABLED kill-switch as the gen stage — a hard
  * no-op until the operator arms the pipeline.
@@ -215,7 +217,7 @@ export async function processNextAssemblyJob(): Promise<{
   const d = await getDb();
   if (!d) return { processed: false };
 
-  const { reelJobs } = await import("../../drizzle/schema");
+  const { reelJobs, socialContentInventory } = await import("../../drizzle/schema");
   const { eq, and, asc } = await import("drizzle-orm");
 
   const rows = await d
@@ -247,6 +249,19 @@ export async function processNextAssemblyJob(): Promise<{
     const { mp4Url, durationSec } = await assembleReel(brief, clipUrls, job.id);
 
     await d.update(reelJobs).set({ status: "assembled", mp4Url, error: null }).where(eq(reelJobs.id, job.id));
+
+    if (job.briefId && job.briefId !== "unknown") {
+      await d
+        .update(socialContentInventory)
+        .set({
+          status: "assets_ready",
+          assetPaths: [mp4Url],
+          errorMessage: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(socialContentInventory.id, job.briefId));
+    }
+
     log.info("reel job assembled", { jobId: job.id, mp4Url, durationSec });
     return { processed: true, jobId: job.id, status: "assembled" };
   } catch (err) {
@@ -261,7 +276,7 @@ export async function processNextAssemblyJob(): Promise<{
 
 /**
  * Requeue reel jobs orphaned in a working status. A job lands here when its
- * stage stops making progress: a hung Higgsfield/ffmpeg call that somehow
+ * stage stops making progress: a hung Veo/ffmpeg call that somehow
  * escapes the per-call timeout, or — the un-catchable case — a process restart
  * mid-stage, where no try/catch runs and the row is stranded in `generating`/
  * `assembling` forever (the stage claimers only ever pick up `queued`/
@@ -269,7 +284,7 @@ export async function processNextAssemblyJob(): Promise<{
  *
  * `generating` -> `queued` (clips aren't persisted until `assets_ready`, so a
  * re-gen is required). `assembling` -> `assets_ready` (clips already exist — we
- * never re-gen and never re-spend Higgsfield credits). Honors MAX_ATTEMPTS so a
+ * never re-gen and never re-spend generator credits). Honors MAX_ATTEMPTS so a
  * job that keeps wedging is parked `failed` instead of looping. The status-
  * guarded UPDATE makes it idempotent and safe against a worker that revives the
  * job between our SELECT and UPDATE.

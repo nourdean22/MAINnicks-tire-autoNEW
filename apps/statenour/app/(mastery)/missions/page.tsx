@@ -48,6 +48,7 @@ import { MissionsQuickAdd } from "@/components/missions/missions-quick-add";
 import { NicksMorningBrief } from "@/components/missions/nicks-morning-brief";
 import { TopMissionToday } from "@/components/missions/top-mission-today";
 import { MissionsHealthStrip } from "@/components/missions/missions-health-strip";
+import { HealthGovernorStrip } from "@/components/missions/health-governor-strip";
 import { MissionsRescueStrip } from "@/components/missions/missions-rescue-strip";
 import { MissionRetroModal } from "@/components/missions/mission-retro-modal";
 import { MissionEditDrawer } from "@/components/missions/mission-edit-drawer";
@@ -905,6 +906,10 @@ function MissionsPageInner() {
        *  first · then deadline urgency · then open-count). Self-hides
        *  when nothing qualifies. */}
       <TopMissionToday missions={missions} tasks={tasks} />
+
+      <Suspense fallback={<div className="h-16 w-full animate-pulse rounded-lg bg-zinc-900/50 border border-zinc-800" />}>
+        <HealthGovernorStrip />
+      </Suspense>
 
       {/* Wave AO · 2026-05-28 · 1-glance triage chip per active mission ·
        *  in_flight (amber) · healthy (green) · behind (gold) · stalled

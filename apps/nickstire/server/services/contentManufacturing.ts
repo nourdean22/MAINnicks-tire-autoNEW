@@ -987,7 +987,38 @@ export async function runManufacturingPipeline(
         const draftId = `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         
         let assetPaths: string[] = [];
-        if (contentType === "carousel") {
+        let finalStatus = "approved";
+        let finalBriefJson = draft.briefJson;
+
+        if (contentType === "reel") {
+          try {
+            log.info("Generating Reel Brief and Enqueueing Job...");
+            const { generateReelBriefAI } = await import("./reelBriefGen");
+            const { enqueueReelJob } = await import("./reelPipeline");
+
+            const { brief } = await generateReelBriefAI({ topic });
+            brief.id = draftId;
+
+            const { jobId } = await enqueueReelJob(brief, "cron");
+
+            finalStatus = "generating";
+            assetPaths = [];
+            
+            let parsedBrief = {};
+            try {
+              parsedBrief = JSON.parse(draft.briefJson);
+            } catch (e) {
+              // Ignore
+            }
+            finalBriefJson = JSON.stringify({
+              ...parsedBrief,
+              reelJobId: jobId,
+              reelBrief: brief,
+            });
+          } catch (e) {
+            log.warn("Reel generation failed, falling back", { e: e instanceof Error ? e.message : String(e) });
+          }
+        } else if (contentType === "carousel") {
           try {
             log.info("Generating Option C Hybrid Carousel Assets...");
             const { generateImage } = await import("../_core/imageGeneration");
@@ -1041,8 +1072,8 @@ export async function runManufacturingPipeline(
           gscQuerySeed: isAbsurdDraft ? draft.hookText : (bestHook?.hookText || ""),
           weatherTriggerCondition: draft.weatherTriggerCondition || null,
           interactiveDmKeyword: draft.interactiveDmKeyword,
-          status: "approved",
-          briefJson: draft.briefJson,
+          status: finalStatus,
+          briefJson: finalBriefJson,
           assetPaths: assetPaths
         });
 

@@ -115,52 +115,52 @@ export const REPLY_CONFIGS: Record<string, ReplyConfig> = {
 
 const TEMPLATE_VARIANTS: Record<string, string[]> = {
   vapi_confirmation: [
-    "We're all set. Here's our info: 17625 Euclid Ave, Cleveland. Call or text us here if anything changes.",
-    "Confirmed. We're at 17625 Euclid Ave, Cleveland. Pull up when you get here and we'll help you out.",
-    "Got you down. You can reach us at {shopPhone}. Address is 17625 Euclid Ave. See you soon."
+    "Got your request at Nick's Tire & Auto. We're walk-in and first come, first served — but we saw your message and we'll help you when you pull up. Open Mon-Sat 8-6, Sun 9-4. Questions? {shopPhone}",
+    "We got your request. We're at 17625 Euclid Ave, Cleveland. Just pull up when you're ready and we'll take care of you. Mon-Sat 8-6, Sun 9-4. Questions? {shopPhone}",
+    "Got you down. Nick's is first come, first served, so walk in anytime. We're at 17625 Euclid Ave, open 7 days. Questions? Call or text {shopPhone}"
   ],
   vapi_forwarded_call_followup: [
-    "Sorry if you couldn't get through just now — text us here and we'll help you out right away. - Nick's Tire & Auto",
-    "Tried to catch your call but missed you. Just text us what you need and the crew will get on it.",
-    "Sorry we missed your call. What can we help you with? Text us here or call back when you can."
+    "Hey, this is Nick's Tire & Auto on Euclid. We saw your request and wanted to help. What's going on with the car — tires, brakes, check engine, or something else?",
+    "Hey, this is Nick's Tire & Auto. Sorry we missed your call. Text us what's going on with the car and the crew will get on it.",
+    "Hey, this is the team at Nick's. We missed your call — what can we help you with today? Text or call us back at {shopPhone}."
   ],
   after_hours_capture: [
-    "Thanks for reaching out to Nick's. We're closed right now, but we'll reach back out when we open at {nextOpen}.",
-    "We're closed for the day, but we've got your message and we'll call you back when we open at {nextOpen}.",
-    "Got your request. We're closed right now, but we'll call you back when we open tomorrow morning."
+    "Thanks for reaching out to Nick's Tire & Auto. We're closed right now, but we got your message. We'll reach back out when we open at {nextOpen}.",
+    "Thanks for texting Nick's. We're closed for the day, but we've got your message. We'll text or call you back tomorrow morning when we open.",
+    "Got your request. We're closed right now, but we'll reach back out when we open. If it's urgent, text us what's going on with the car."
   ],
   stale_lead_followup: [
-    "Still need help with your vehicle? Reply YES or call us at {shopPhone} to get it sorted out.",
-    "Just following up on your request. Let us know if you still need us to take a look.",
-    "Hey, just checking if you still need that service. We can work you in if you bring it by."
+    "Hey, this is Nick's on Euclid. Just checking if you still need help with the car? Let us know or call us at {shopPhone} to get it sorted.",
+    "Hey, just checking if you still need that service we talked about. We can work you in if you bring the car by.",
+    "Following up from Nick's. Let us know if you still need us to take a look at the car. Pull up anytime."
   ],
   abandoned_form_recovery: [
-    "Looks like you didn't finish booking your visit at Nick's. Need help getting it set up? Reply here!",
-    "Just noticed you started booking but didn't finish. Text us here if you have any questions.",
-    "Want to finish setting up your visit? Let us know if you need help or just walk in anytime."
+    "Looks like you started checking tires or booking a visit at Nick's but didn't finish. Text us here if you have any questions or just walk in anytime.",
+    "Hey, this is Nick's Tire & Auto. We saw you started booking but didn't finish. Let us know if you need help or have questions about tires or service.",
+    "Want to finish setting up your visit? Just walk in anytime we're open, or text us here if you need a quick answer."
   ],
   "booking_reminder:confirmation-request": [
-    "Still planning to swing by? Reply YES to confirm or let us know if you need to reschedule. {shopPhone}",
-    "Checking if you're still coming in. Text YES to let us know, or walk in anytime open.",
+    "Still planning to swing by? Reply YES to let us know, or just walk in anytime open. {shopPhone}",
+    "Checking if you're still coming in today. Text YES to confirm, or walk in whenever it's easy.",
     "Are we still good for your visit? Reply YES to confirm. Walk-ins are always welcome too."
   ],
   "booking_reminder:24h-before": [
-    "See you tomorrow at Nick's. We're first-come, first-served, so earlier is usually better.",
+    "Reminder from Nick's: we're expecting you tomorrow. We're first come, first served, so earlier is usually better. Open Mon-Sat 8-6, Sun 9-4.",
     "Reminder for your visit tomorrow. Stop by anytime we're open and we'll work you in.",
     "We'll see you tomorrow. Pull up when you get here and we'll check it out."
   ],
   "booking_reminder:1h-before": [
-    "You're up within the hour at 17625 Euclid Ave. Pull right in when you get here.",
+    "Just a heads up — we're expecting you soon at 17625 Euclid Ave. Pull up when you're ready. Questions? {shopPhone}",
     "Just a heads up we're expecting you soon. Pull in and the crew will get you sorted.",
     "We'll see you in about an hour. Call or text if you need help finding us."
   ],
   "booking_reminder:thank-you": [
-    "Thanks for choosing Nick's. All work is backed by our warranty. Let us know if you need anything else.",
+    "Hey, thanks again for coming by Nick's. If anything feels off or you have a question about the work, text or call us here. We'll take care of you. {shopPhone}",
     "Thanks for coming by today. Reach out if anything comes up — we'll make it right.",
     "Appreciate your business. Let us know if we can help you with anything down the road."
   ],
   "booking_reminder:maintenance-reminder": [
-    "Due for an oil change? conventional is $49, synthetic is $80. Walk in anytime, no appointment.",
+    "Due for an oil change? conventional is $49, synthetic is $80. Walk in any day, no appointment. Nick's Tire & Auto, {shopPhone}",
     "Time for routine maintenance? Conventional oil changes are $49, synthetic is $80. Stop by.",
     "Need an oil change or tire check? Stop by 17625 Euclid Ave. We'll inspect everything first."
   ],
@@ -170,47 +170,47 @@ const TEMPLATE_VARIANTS: Record<string, string[]> = {
     "Friendly reminder about your {service} service. Pull up when you're ready and we'll check it out."
   ],
   review_request: [
-    "If we earned it, a quick review on Google helps a ton: nickstire.org/review. Thanks!",
+    "Hey, hope everything's been good since your visit. If we earned it, a quick review helps Cleveland drivers find us: nickstire.org/review. Thanks!",
     "Hope we did a good job for you. If you have a minute, leave us a review: nickstire.org/review.",
     "Mind sharing your experience? A quick Google review helps us out: nickstire.org/review."
   ],
   price_question_oil: [
-    "Our oil changes are $49 for conventional and $80 for full synthetic. Bring it by and we'll get it done.",
+    "Oil changes are $49 for conventional and $80 for full synthetic. Walk in any day — no appointment needed.",
     "Conventional oil change is $49, synthetic is $80. Includes a free vehicle check. Stop by anytime.",
     "It's $49 for conventional and $80 for full synthetic. Just pull up when you're ready."
   ],
   price_question_tires: [
-    "Used tires start at $60 installed for most standard sizes. Bring it by and we'll find a match.",
-    "We do used tires for $60 installed for standard sizes. Pull up and we'll check what we have in stock.",
+    "Used tires start around $60 installed for most standard sizes. Pull up and we'll check your size and what we have in stock before you decide.",
+    "We do used tires starting around $60 installed for standard sizes. Pull up and we'll check what we have in stock.",
     "Used tires are $60 installed for most sizes. Walk in anytime and we'll check your size."
   ],
   price_question_brakes: [
-    "Brakes start at $149 per axle. We'll inspect them first and give you a quote before doing any work.",
-    "Brake service starts at $149/axle. Stop by and we'll look them over for free first.",
-    "Brakes start at $149 per axle. Bring it in and we'll inspect them for you."
+    "Brake work starts with a check first (brakes start around $149 per axle). Bring it in and we'll look it over, show you what's worn, and give you the price before doing anything.",
+    "Brakes start around $149 per axle. We'll inspect them first and give you a quote before doing any work.",
+    "Brake check is free first. Bring it in and we'll inspect them for you."
   ],
   price_question_alignment: [
-    "Alignments start at $79. Bring it by and we'll get your vehicle squared away.",
+    "Alignment starts at $79. If the car pulls, shakes, or the tires are wearing uneven, bring it by and we'll check it first.",
     "Standard alignment starts at $79. Just pull up during business hours.",
     "Wheel alignment starts at $79. We'll inspect your steering and suspension first."
   ],
   price_question_diagnostic: [
-    "We do a free check first. Bring it in, we'll look it over, and let you know what it needs.",
-    "Diagnostics start with a free check. We'll scan the codes and let you know the cost first.",
+    "Diagnostics start with a free check first. Bring it by and we'll scan it, look it over, and tell you what it needs before doing any work.",
+    "We do a free check first. We'll scan the codes and let you know the cost first.",
     "Just bring it by. We'll check it out for free and tell you the price before we touch anything."
   ],
   hours_location: [
-    "We're at 17625 Euclid Ave, Cleveland. Open Mon-Sat 8-6, Sun 9-4. Pull up when you get here.",
+    "We're at 17625 Euclid Ave, Cleveland. Open Mon-Sat 8-6, Sun 9-4. Walk-ins welcome. Call or text {shopPhone}.",
     "17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8-6, Sun 9-4. Walk-ins welcome.",
     "We are located at 17625 Euclid Ave. Mon-Sat 8am-6pm, Sun 9am-4pm. Stop by anytime."
   ],
   same_day_visit: [
-    "Yes, come by today. We're first-come, first-served, so earlier is usually better.",
+    "Yes, you can come by today. We're first-come, first-served, so earlier is better. If you can drop it off, that helps us work it in faster.",
     "Yes, you can stop by today. If you can drop it off, that helps us work it in faster.",
     "Yes, bring it in. We're open till 6 today. Pull right up."
   ],
   drop_off: [
-    "Yes, dropping it off is perfect. We can work it in and text you as soon as it's ready.",
+    "Dropping it off is perfect. Bring the keys in, tell us what's going on, and we'll call or text you before doing any work.",
     "Drop-off is no problem. We'll inspect it and call you with a quote before doing anything.",
     "You can drop it off anytime we're open. We'll text you when the job is done."
   ]

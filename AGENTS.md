@@ -77,6 +77,14 @@ Co-Authored-By: <model name> <noreply@anthropic.com>
 - **Startup:** `powershell scripts/start-codebase-mcp.ps1` or via the `codebase-memory` entry in `mcp_config.json`.
 - **Docs:** `docs/codebase-memory-mcp.md` — IDE config for Antigravity + Claude Desktop.
 
+### last30days Research Engine
+- **Tool:** `last30days` in `apps/statenour/lib/ai/tools/system.ts` — runs deep search and aggregation queries across Reddit, Hacker News, Polymarket, GitHub, and YouTube.
+- **Integration:** Placed in `lib/ai/last30days` in `statenour` with output tracing enabled in `next.config.ts` and `python3` runtime packages added to the `Dockerfile`. Whitelisted in `reasoning-tools.ts` for Nick's reasoning loops.
+
+### MoneyPrinterTurbo Video Generator
+- **Tool:** `moneyprinter` in `apps/statenour/lib/ai/tools/system.ts` — generates high-definition short videos automatically from a topic or a custom script.
+- **Integration:** Placed in `lib/ai/moneyprinter` in `statenour` with output tracing enabled in `next.config.ts`. System packages `ffmpeg`, `imagemagick`, `py3-pip`, and python dependencies are installed inside the production `Dockerfile`. Credentials are dynamically mapped to `config.toml` at runtime.
+
 ---
 
 ---

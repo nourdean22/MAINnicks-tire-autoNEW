@@ -39,6 +39,36 @@ export const instagramAdminRouter = router({
     return { ...status, token };
   }),
 
+  /** Pipeline Health: Storage, Veo API, Meta API, and failed reel jobs. */
+  getPipelineHealth: adminProcedure.query(async () => {
+    const { getMetaSocialStatus } = await import("../services/metaSocial");
+    const meta = await getMetaSocialStatus();
+
+    const database = await db();
+    let failedJobs = 0;
+    if (database) {
+      const { reelJobs } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const result = await database.select().from(reelJobs).where(eq(reelJobs.status, "failed"));
+      failedJobs = result.length;
+    }
+
+    return {
+      storage: {
+        configured: !!process.env.S3_BUCKET && !!process.env.CLOUDFRONT_DOMAIN,
+        permanentUrls: !!process.env.CLOUDFRONT_DOMAIN,
+      },
+      generator: {
+        configured: !!(await (await import("../services/higgsfieldStudio")).getHiggsfieldCredentialsJson()),
+        enabled: process.env.REEL_GENERATION_ENABLED === "true",
+      },
+      meta: {
+        connected: meta.configured && (meta.facebookReady || meta.instagramReady),
+      },
+      failedJobs,
+    };
+  }),
+
   /** Account header (username, followers, etc.) from the cached feed. */
   getAccountInfo: adminProcedure.query(async () => {
     const { getInstagramAccount } = await import("../instagram");
@@ -276,39 +306,53 @@ Keep it under 200 characters.`;
       return imageResult;
     }),
 
-  /** Post a manual draft directly to Instagram (and Facebook). */
-  publishManualDraft: adminProcedure
-    .input(z.object({ caption: z.string().min(1), imageUrl: z.string().url("Must be a valid URL") }))
+  /** Stage a manual draft for later publishing via Queue */
+  stageDraft: adminProcedure
+    .input(z.object({
+      format: z.enum(["single", "carousel", "reel", "story", "ad"]),
+      caption: z.string().min(1),
+      imageUrl: z.string().url().optional(),
+      imageUrls: z.array(z.string().url()).optional(),
+      videoUrl: z.string().url().optional(),
+      sourceType: z.string(),
+      sourceDetail: z.string().optional(),
+      conceptBrief: z.any().optional(),
+      qualityScore: z.any().optional(),
+    }))
     .mutation(async ({ input }) => {
-      const { postToInstagram, postToFacebook } = await import("../services/metaSocial");
-      // Execute the live post
-      const [igResult, fbResult] = await Promise.allSettled([
-        postToInstagram({ caption: input.caption, imageUrl: input.imageUrl }),
-        postToFacebook({ message: input.caption, imageUrl: input.imageUrl })
-      ]);
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      const { socialContentInventory } = await import("../../drizzle/schema");
       
-      const results = [];
-      if (igResult.status === "fulfilled") {
-        results.push({ platform: "instagram", ...igResult.value });
-      } else {
-        results.push({ platform: "instagram", success: false, error: String(igResult.reason) });
-      }
-      if (fbResult.status === "fulfilled") {
-        results.push({ platform: "facebook", ...fbResult.value });
-      } else {
-        results.push({ platform: "facebook", success: false, error: String(fbResult.reason) });
-      }
+      const assetPaths = [];
+      if (input.imageUrl) assetPaths.push(input.imageUrl);
+      if (input.imageUrls) assetPaths.push(...input.imageUrls);
+      if (input.videoUrl) assetPaths.push(input.videoUrl);
       
-      // If Instagram failed, throw an error because it's the primary engine.
-      const ig = results.find(r => r.platform === "instagram");
-      if (ig && !ig.success) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `Instagram post failed: ${ig.error}`,
-        });
-      }
+      let mappedType: "post" | "reel" | "carousel" | "story" | "poll" = "post";
+      if (input.format === "reel") mappedType = "reel";
+      if (input.format === "carousel") mappedType = "carousel";
+      if (input.format === "story") mappedType = "story";
       
-      return { success: true, results };
+      const { randomUUID } = await import("crypto");
+      
+      await database.insert(socialContentInventory).values({
+        id: `draft_${randomUUID()}`,
+        platform: "both",
+        contentType: mappedType,
+        topic: `${input.sourceType}: ${input.sourceDetail || "manual draft"}`.substring(0, 128),
+        seriesName: "manual_drafts",
+        hookCategory: "manual",
+        hookText: input.caption,
+        bodyText: "",
+        visualStyle: "manual",
+        persona: "manual",
+        status: "assets_ready",
+        assetPaths,
+        briefJson: JSON.stringify(input.conceptBrief || {}),
+      });
+      
+      return { success: true };
     }),
 
   /** Higgsfield (reels) account health for the Settings panel — creds validity
@@ -403,6 +447,7 @@ Keep it under 200 characters.`;
   /** Publish a custom image or Reel to Instagram directly. */
   publishPost: adminProcedure
     .input(z.object({
+      inventoryId: z.string().optional(),
       platforms: z.array(z.enum(["facebook", "instagram"])).min(1, "Select at least one platform"),
       caption: z.string().min(1).max(2200),
       imageUrl: z.string().url().optional(),
@@ -410,7 +455,9 @@ Keep it under 200 characters.`;
       videoUrl: z.string().url().optional(),
     }))
     .mutation(async ({ input }) => {
-      const { captionClaimBlockers, publishToSocial } = await import("../services/socialPublish");
+      const { captionClaimBlockers, assertPermanentPublicMediaUrl, publishToSocial } = await import("../services/socialPublish");
+      if (input.videoUrl) assertPermanentPublicMediaUrl(input.videoUrl);
+      
       const blockers = captionClaimBlockers(input.caption);
       if (blockers.length) {
         throw new TRPCError({
@@ -421,10 +468,22 @@ Keep it under 200 characters.`;
       const { results, igPostId } = await publishToSocial(input);
       if (results.length > 0 && results.every((r) => !r.success)) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code: "BAD_REQUEST",
           message: `Publish failed: ${results.map((r) => `${r.platform}: ${r.error}`).join("; ")}`,
         });
       }
+
+      if (input.inventoryId) {
+        const database = await db();
+        if (database) {
+          const { socialContentInventory } = await import("../../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          await database.update(socialContentInventory)
+            .set({ status: "published", publishedAt: new Date() })
+            .where(eq(socialContentInventory.id, input.inventoryId));
+        }
+      }
+
       return { success: true, results, postId: igPostId };
     }),
 
@@ -432,6 +491,7 @@ Keep it under 200 characters.`;
    *  Same claim-safety gate as publishPost, applied now at schedule time. */
   schedulePost: adminProcedure
     .input(z.object({
+      inventoryId: z.string().optional(),
       platforms: z.array(z.enum(["facebook", "instagram"])).min(1),
       caption: z.string().min(1).max(2200),
       imageUrl: z.string().url().optional(),
@@ -440,7 +500,9 @@ Keep it under 200 characters.`;
       scheduledAt: z.string().datetime(),
     }))
     .mutation(async ({ input }) => {
-      const { captionClaimBlockers } = await import("../services/socialPublish");
+      const { captionClaimBlockers, assertPermanentPublicMediaUrl } = await import("../services/socialPublish");
+      if (input.videoUrl) assertPermanentPublicMediaUrl(input.videoUrl);
+      
       const blockers = captionClaimBlockers(input.caption);
       if (blockers.length) {
         throw new TRPCError({
@@ -454,7 +516,7 @@ Keep it under 200 characters.`;
       }
       const database = await db();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      const { scheduledPosts } = await import("../../drizzle/schema");
+      const { scheduledPosts, socialContentInventory } = await import("../../drizzle/schema");
       await database.insert(scheduledPosts).values({
         platforms: input.platforms,
         caption: input.caption,
@@ -464,6 +526,14 @@ Keep it under 200 characters.`;
         scheduledAt: when,
         status: "pending",
       });
+
+      if (input.inventoryId) {
+        const { eq } = await import("drizzle-orm");
+        await database.update(socialContentInventory)
+          .set({ status: "scheduled", scheduledAt: when, updatedAt: new Date() })
+          .where(eq(socialContentInventory.id, input.inventoryId));
+      }
+
       return { ok: true, scheduledAt: when.toISOString() };
     }),
 
@@ -601,39 +671,58 @@ Keep it under 200 characters.`;
 
   /** Get all Instagram Drafts for the Queue */
   getAllDrafts: adminProcedure.query(async () => {
-    // Return sample data for now or fetch from actual DB table if exists
-    // since we're replacing DraftBoardPanel which used contentAdmin.allCarouselDrafts
-    return [
-      {
-        id: "draft_1",
-        status: "ready",
-        format: "carousel",
-        caption: "Tire alignment explained. #cleveland #auto",
-        assetPack: { imageUrl: "https://nickstire.org/logo.png" },
-        qualityScore: { gate: "pass", overall: 92 },
-        conceptBrief: { sourceSummary: "FAQ: How often should I align my tires?" }
-      }
-    ];
+    const database = await db();
+    if (!database) return [];
+    const { socialContentInventory } = await import("../../drizzle/schema");
+    const { desc } = await import("drizzle-orm");
+    const rows = await database
+      .select()
+      .from(socialContentInventory)
+      .orderBy(desc(socialContentInventory.createdAt))
+      .limit(50);
+      
+    return rows.map((r: any) => {
+      let parsedBrief: any = {};
+      try { parsedBrief = r.briefJson ? JSON.parse(r.briefJson) : {}; } catch {}
+      let parsedAssetPaths: any[] = [];
+      try { parsedAssetPaths = r.assetPaths ? (Array.isArray(r.assetPaths) ? r.assetPaths : JSON.parse(r.assetPaths as string)) : []; } catch {}
+      
+      let mappedStatus = r.status;
+      if (r.status === "assets_ready") mappedStatus = "ready";
+      if (r.status === "pending") mappedStatus = "needs_review";
+      if (r.status === "approved") mappedStatus = "ready";
+      if (r.status === "generating") mappedStatus = "needs_review";
+      
+      return {
+        id: r.id,
+        status: mappedStatus,
+        format: r.contentType,
+        caption: r.hookText,
+        assetPack: { imageUrl: parsedAssetPaths[0] || "" },
+        qualityScore: { gate: "pass", overall: r.scoreOverall || 80 },
+        conceptBrief: { sourceSummary: r.topic, ...parsedBrief }
+      };
+    });
   }),
 
   /** Get Performance Insights for the Learn Panel */
   getPerformanceInsights: adminProcedure.query(async () => {
+    const { getTopPosts } = await import("../pipelines/instagram-data");
+    const topPosts = await getTopPosts({ limit: 5 });
+    
     return {
-      topWinners: [
-        {
-          id: "win_1",
-          format: "carousel",
-          qualityScore: 94,
-          caption: "Brake check special! Keep your family safe.",
-          likes: 120,
-          comments: 15,
-          shares: 5,
-          imageUrl: "https://nickstire.org/logo.png"
-        }
-      ],
+      topWinners: topPosts.map(p => ({
+        id: p.postId,
+        format: p.postType === "VIDEO" ? "reel" : (p.postType === "CAROUSEL_ALBUM" ? "carousel" : "post"),
+        qualityScore: 90, // mock score for now until we have real quality scores mapped
+        caption: p.caption?.substring(0, 50) + "...",
+        likes: p.likes,
+        comments: p.comments,
+        shares: 0,
+        imageUrl: ""
+      })),
       activeThemes: [
-        { name: "Pothole Season", insight: "High engagement on suspension repair content." },
-        { name: "Winter Prep", insight: "Early interest in snow tires." }
+        { name: "Recent Top Performers", insight: "These posts drove the most engagement in the last 30 days." }
       ]
     };
   }),
@@ -645,8 +734,14 @@ Keep it under 200 characters.`;
       reason: z.string().optional()
     }))
     .mutation(async ({ input }) => {
-      // Stub for reject
-      log.info("Rejecting draft: " + input.id);
+      const database = await db();
+      if (database) {
+        const { socialContentInventory } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await database.update(socialContentInventory)
+          .set({ status: "rejected", errorMessage: input.reason, updatedAt: new Date() })
+          .where(eq(socialContentInventory.id, input.id));
+      }
       return { success: true };
     }),
 });

@@ -280,7 +280,7 @@ export async function getHiggsfieldAccountHealth(): Promise<{
       settled = true;
       cleanupTempFile(tempCredsFile);
       const raw = `${stdout}${stderr}`.trim();
-      const m = raw.match(/([\d][\d,]*)\s*(?:credits?|\bcr\b)/i) || raw.match(/balance["':\s]+([\d][\d,]*)/i);
+      const m = raw.match(/([\d,]+(?:\.\d+)?)\s*(?:credits?|\bcr\b)/i) || raw.match(/balance["':\s]+([\d,]+(?:\.\d+)?)/i);
       const parsed = m ? Number(m[1].replace(/,/g, "")) : NaN;
       resolve({ credsValid, balanceCredits: Number.isFinite(parsed) ? parsed : null, raw: raw.slice(0, 500) });
     };
@@ -324,7 +324,8 @@ export async function stitchVideos(videoUrls: string[]): Promise<Buffer> {
     // Step 3: Run ffmpeg
     log.info("Stitching clips with ffmpeg...");
     await new Promise<void>((resolve, reject) => {
-      const child = spawn("ffmpeg", [
+      const bin = process.env.FFMPEG_PATH || "ffmpeg";
+      const child = spawn(bin, [
         "-f",
         "concat",
         "-safe",
@@ -335,7 +336,7 @@ export async function stitchVideos(videoUrls: string[]): Promise<Buffer> {
         "copy",
         "-y",
         outputFile.replace(/\\/g, "/")
-      ]);
+      ], { shell: process.platform === "win32" && !process.env.FFMPEG_PATH });
 
       let stderr = "";
       child.stderr.on("data", (data) => {

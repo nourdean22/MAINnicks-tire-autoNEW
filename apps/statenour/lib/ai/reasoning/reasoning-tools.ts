@@ -56,6 +56,7 @@ const REASONING_TOOL_WHITELIST = new Set([
   "getCameraIntelligence",
   "findCustomer",
   // System reads (if any read-safe ones exist)
+  "last30days",
   // Brain reads — analyzers + Greene + power dynamics + dark psychology
   "analyzeMentalHealth",
   "analyzeGoals",
