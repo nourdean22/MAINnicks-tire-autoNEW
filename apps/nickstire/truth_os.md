@@ -8,7 +8,11 @@
 - **#220 (LIVE, `3c182f36`) `nickstire/reel-quality-gate`** — the 75-pt reel quality gate is enforced server-side (`content.generateReelBrief` returns the score; new `content.validateReelBrief` mutation). Reuses the already-server-imported pure `facelessReelStudio` module (no duplication).
 - Both passed full nickstire gates (tsc 0, suite green) and merged to main 2026-06-19. Full session detail: `apps/statenour/docs/sessions/2026-06-19.md`.
 
-## 🟢 Latest shipped — 2026-06-20 (Tier 1: unpaid-invoice money loop + prompt attribution)
+## 🟢 Latest shipped — 2026-06-29 (Refund / Stripe Writeback LIVE)
+
+- **#250 Refund / Stripe Writeback integration (LIVE):** Enabled stripe refund triggers (`refundTireOrderPayment`, `triggerRefund`) and webhook-driven refund writeback loop. When a refund is initiated in the admin Tire Orders cockpit, the request goes to Stripe via `stripe.refunds.create` and the outcome writes back dynamically. Out-of-band refunds on the Stripe dashboard also sync status to the local invoices/tire-orders tables via the `charge.refunded` webhook listener (`processStripeRefundEvent`).
+
+## 🟢 Shipped — 2026-06-20 (Tier 1: unpaid-invoice money loop + prompt attribution)
 
 - **#246 unpaid-invoice admin queue (LIVE, `77bf00d0`):** Money → **Unpaid** tab lists `pending`/`partial` invoices (highest balance first, then oldest) with per-row Call/SMS — turns the #241 `unpaidInvoicesSum` into a worklist. New read-only `invoices.unpaidList` adminProcedure; no outreach side effects.
 - **#247 unpaid-invoice recovery cron (LIVE, dry-run, `288bbd98`):** daily 7d/30d courteous SMS payment reminder for pending/partial invoices, mirroring `declinedWorkRecovery`. **OFF until `FEATURE_UNPAID_INVOICE_RECOVERY=1`** on Railway (`MAINnicks-tire-auto`). Migration **0072** (4 camelCase `paymentReminder*` columns) applied to prod. Claim-safe copy (no $ amounts → debt-collection safety), at-most-once claim; opt-out + STOP footer + durable per-phone daily cap inherited from `sendSms()`. `INVOICE_RECOVERY_MAX_PER_RUN` default 30.
@@ -21,7 +25,7 @@
 - **#229 lead-count alignment (LIVE):** the daily owner report (`cron/jobs/dailyReport.ts`, Telegram + SMS) and the Sheets dashboard sync (`cron/jobs/dashboardSync.ts`) now count leads with `countActionableLeads()` (`shared/leadSource.ts`) instead of a raw `SELECT COUNT(*)` — excluding web-callback leads already counted as a `callback_requests` row (same person, two rows). Daily report, morning brief, Money Risks, and admin-stats now share one lead definition. Voice rack-check leads (callbackId null) + real web leads still count.
 - **#231 GSC snippet tune (LIVE):** from the first 90-day GSC window. `/services` (pos 3.4 but 0.4% CTR over 2,264 imp) retitled to "Cleveland Auto Repair & Tires · No Pay Til You Say Yes | Nick's" + 4.9-star/1,700+ social-proof description (also fixed a SEOHead↔routes.ts title drift). `/diagnose` (the interactive symptom-checker TOOL) was titled "Auto Diagnostics Cleveland", cannibalizing `/diagnostics` (the service page, already ahead at pos 24.7 vs 28.8) — repointed to "What's Wrong With My Car? Free Symptom Checker · Nick's Tire & Auto" so commercial signal consolidates into `/diagnostics`. NOT a redirect (both pages intentional). `routes.ts` kept in sync with each SEOHead; titles <=70, desc <=165. Prerendered regenerated (`190b67a6` via prerender-refresh) + LIVE-verified via bot-facing HTML.
 - **On-page audit verdict (no code change — would be churn):** `/brakes` (pos 34) + `/oil-change` (pos 47) are already fully on-page-optimized (FAQ schema, internal links across 27 files, price-led tuned snippets, live GSC-tracking comments). Their position is a domain-authority/age problem (90-day GSC window), not on-page. Next lever is GBP (add categories Brake shop + Oil change service; reviews; posts) + time.
-- **Refunds unchanged:** operator confirmed "no auto refunds" — the Ops Hub registry keeps its "no automatic refunds" stance. A #9 rewrite (the registry's "no stripe.refunds call" line is technically contradicted by the admin-gated AUTO-REFUND button in `TireOrdersSection`) was **reverted per operator — do not re-flag.**
+- **Refund writeback active:** The admin-gated AUTO-REFUND button in `TireOrdersSection` is fully live and supported per operator authorization.
 
 ## 🟢 Shipped — 2026-06-18 (Ad Studio + IG reel/ad campaigns)
 
@@ -63,7 +67,7 @@ Eleven PRs squash-merged to main in one evening (#42, #44, #45, #46, #47, #48, #
 - Online tire checkout hardened (#42): durable webhook dedup (atomic conditional UPDATE), price-tamper guards, collision retry, Sheets sync revival, Telegram per order, cancel/refund-risk alerts. Pay Now stays ENABLED (operator decision).
 - ONE admin cockpit for tire orders (#46): the Money→Tire Orders tab and the #41 command center are consolidated; protection banners (payments.health / refund / stale-session) live there. Old URLs redirect.
 - Google Sheets "Tire Orders" tab exists with the 24 canonical headers (operator-verified live edit). **Watch item: first synced order row not yet observed.**
-- Still NO `stripe.refunds` call anywhere — refunds remain manual by design, pending owner approval of `docs/refund-writeback-design.md`.
+- **Refund writeback active**: Stripe refund calls (`stripe.refunds.create`) are enabled, with full writeback sync support for online tire checkout and manual invoice dashboard refunds.
 
 **Admin shell — three new top-level sections:**
 - **Ops Hub** (#47): owner-action registry (danger-zone truth), reports corpus, PREVIEW-ONLY customer message templates (no send path exists — it throws by design).
