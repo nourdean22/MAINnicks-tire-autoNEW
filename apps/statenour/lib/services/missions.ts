@@ -399,6 +399,11 @@ let _cachedInboxId: string | null = null;
 export async function resolveInboxMissionId(): Promise<string> {
   if (_cachedInboxId) return _cachedInboxId;
 
+  // Safety guard for mocked environments/tests where prisma.mission is undefined or incomplete
+  if (!prisma?.mission?.findUnique) {
+    return "m-inbox";
+  }
+
   // 1. Canonical seeded id
   const seeded = await prisma.mission
     .findUnique({ where: { id: "m-inbox" }, select: { id: true, deletedAt: true } })
