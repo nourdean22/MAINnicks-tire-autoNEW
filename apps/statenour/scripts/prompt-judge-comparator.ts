@@ -27,6 +27,18 @@
  * (top-50 always-on floor).
  */
 
+// server-only shim for tsx CLI environments
+import Module from "node:module";
+import { resolve as pathResolve } from "node:path";
+const NOOP_PATH = pathResolve(process.cwd(), "scripts", ".server-only-noop.js");
+const origResolve = Module._resolveFilename;
+// @ts-ignore
+Module._resolveFilename = function (request: string, ...args: unknown[]) {
+  if (request === "server-only") return NOOP_PATH;
+  // @ts-ignore
+  return origResolve.apply(this, [request, ...args]);
+};
+
 import { prisma } from "@/lib/prisma";
 import { judgeReply, type JudgeReport, type JudgeRubric } from "@/lib/ai/judge-eval";
 import { aiChat } from "@/lib/ai/provider";
