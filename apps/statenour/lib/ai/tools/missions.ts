@@ -28,7 +28,7 @@ export const missionsTools = {
   }),
 
   addTasksToProject: tool({
-    description: "Create multiple tasks under a mission (project) in bulk. Use when Nour needs to break down a project into several specific tasks at once.",
+    description: "Create multiple tasks under a mission (project) in bulk. Use when Nour needs to break down a project into several specific tasks at once, or lock in a daily/weekly routine with multiple schedule blocks.",
     inputSchema: z.object({
       missionId: z.string(),
       tasks: z.array(z.object({
@@ -36,6 +36,12 @@ export const missionsTools = {
         nextPhysicalAction: z.string().describe("The literal first physical step"),
         effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
         context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
+        loopKind: z.enum(["ONCE", "DAILY", "PROMISE", "WEEKLY"]).default("ONCE"),
+        recurringDays: z.array(z.number().int().min(0).max(6)).optional().describe("For WEEKLY loopKind · 0=Sunday .. 6=Saturday"),
+        dueDate: z.string().optional().describe("ISO date string"),
+        goalId: z.string().optional().describe("Associated goal ID"),
+        promiseTo: z.string().optional().describe("Promised to who (e.g. 'Dania', 'myself')"),
+        personId: z.string().optional().describe("Associated person ID"),
       })).min(1),
     }),
     execute: async ({ missionId, tasks }) => {
@@ -46,13 +52,19 @@ export const missionsTools = {
           missionId,
           nextPhysicalAction: t.nextPhysicalAction,
           effort: t.effort,
-          roiScore: 50,
+          roiScore: t.loopKind === "PROMISE" ? 80 : 50,
           frictionScore: 30,
           energyRequired: "MEDIUM",
           context: t.context,
           finishCondition: t.title,
+          loopKind: t.loopKind as any,
+          recurringDays: t.recurringDays ?? [],
+          dueDate: t.dueDate ? new Date(t.dueDate) : null,
+          goalId: t.goalId ?? null,
+          promiseTo: t.promiseTo ?? null,
+          personId: t.personId ?? null,
         });
-        createdTasks.push({ taskId: task.id, title: task.title });
+        createdTasks.push({ taskId: task.id, title: task.title, loopKind: task.loopKind });
       }
       return { created: true, count: createdTasks.length, missionId, tasks: createdTasks };
     },
@@ -70,6 +82,12 @@ export const missionsTools = {
         nextPhysicalAction: z.string().describe("The literal first physical step"),
         effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
         context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
+        loopKind: z.enum(["ONCE", "DAILY", "PROMISE", "WEEKLY"]).default("ONCE"),
+        recurringDays: z.array(z.number().int().min(0).max(6)).optional().describe("For WEEKLY loopKind · 0=Sunday .. 6=Saturday"),
+        dueDate: z.string().optional().describe("ISO date string"),
+        goalId: z.string().optional().describe("Associated goal ID"),
+        promiseTo: z.string().optional().describe("Promised to who"),
+        personId: z.string().optional().describe("Associated person ID"),
       })).min(1).max(20),
     }),
     execute: async ({ title, domain, priority, successMetric, tasks }) => {
@@ -99,6 +117,12 @@ export const missionsTools = {
           roiScore: Math.max(10, 90 - i * 10),
           frictionScore: 30,
           energyRequired: "MEDIUM",
+          loopKind: t.loopKind as any,
+          recurringDays: t.recurringDays ?? [],
+          dueDate: t.dueDate ? new Date(t.dueDate) : null,
+          goalId: t.goalId ?? null,
+          promiseTo: t.promiseTo ?? null,
+          personId: t.personId ?? null,
         });
         createdTasks.push(task);
       }

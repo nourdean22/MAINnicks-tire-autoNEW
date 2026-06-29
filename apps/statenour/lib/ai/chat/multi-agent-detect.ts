@@ -139,7 +139,8 @@ export async function runAutoDecompose(
       synthesis.length === 0 ||
       synthesis.includes("All sub-agents failed") ||
       synthesis.includes("Synthesis stage failed") ||
-      synthesis.includes("Sub-agent outcomes are unknown")
+      synthesis.includes("Sub-agent outcomes are unknown") ||
+      report.results.some((r) => r.failed)
     ) {
       return "";
     }

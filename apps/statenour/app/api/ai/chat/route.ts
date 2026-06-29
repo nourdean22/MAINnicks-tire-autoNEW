@@ -75,7 +75,7 @@ async function chatPostInner(req: Request) {
 
   const {
     body,
-    messages,
+    messages: rawMessages,
     conversationId,
     modeOverride,
     providerOverride,
@@ -95,6 +95,11 @@ async function chatPostInner(req: Request) {
     lastReflectionId,
     lastMissionId,
   } = gate;
+
+  const { sanitizeMessageHistory } = await import(
+    "@/lib/ai/chat/sanitize-history"
+  );
+  const messages = sanitizeMessageHistory(rawMessages as Parameters<typeof sanitizeMessageHistory>[0]);
 
   let convId = conversationId;
   void body; // body kept for downstream interceptors that read raw fields
@@ -147,10 +152,6 @@ async function chatPostInner(req: Request) {
   // mid-stream before the cleaned history reloads. Easier: don't show
   // the model the URL pattern at all. Replaces with `[image rendered]`
   // — preserves the semantic meaning, kills the pattern.
-  const { sanitizeMessageHistory } = await import(
-    "@/lib/ai/chat/sanitize-history"
-  );
-  sanitizeMessageHistory(messages as Parameters<typeof sanitizeMessageHistory>[0]);
 
   // ═══ PERF: DB writes run IN PARALLEL with prompt building ═══
   // Previously we blocked on prisma.chatConversation.create +
