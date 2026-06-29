@@ -115,6 +115,23 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     currentLimitations: ["No cross-source verification."],
     costClass: "low"
   },
+  "judge-eval": {
+    id: "judge-eval",
+    label: "LLM-as-judge Evaluation",
+    description: "Evaluates Nick assistant replies using a fast LLM against a 5-axis rubric.",
+    category: "system",
+    status: "active",
+    riskClass: "low",
+    readAccess: true,
+    writeAccess: false,
+    externalMutation: false,
+    memoryWriteAllowed: false,
+    approvalPolicy: "none",
+    requiredEnv: [],
+    auditLogRequired: false,
+    currentLimitations: [],
+    costClass: "low"
+  },
   "document.ingest_url": {
     id: "document.ingest_url",
     label: "Ingest Document from URL",
