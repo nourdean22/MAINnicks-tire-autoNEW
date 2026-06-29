@@ -200,7 +200,6 @@ const nextConfig: NextConfig = {
     { source: "/system/agent-traces", destination: "/system/logs", permanent: false },
     // Devops sprawl → /system hub.
     { source: "/system/deployment-truth", destination: "/system", permanent: false },
-    { source: "/system/schema-history", destination: "/system", permanent: false },
     { source: "/system/migrations", destination: "/system", permanent: false },
     { source: "/system/repos", destination: "/system", permanent: false },
     // Admin sprawl → /system hub.

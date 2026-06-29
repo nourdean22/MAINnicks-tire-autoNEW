@@ -1015,6 +1015,8 @@ interface LedgerEntryView {
   appliedBy: string | null;
   approvedBy: string | null;
   rollbackPlan: string | null;
+  sqlSummary: string | null;
+  prismaDiff: string | null;
   createdAt: string;
 }
 
@@ -1064,6 +1066,8 @@ export async function buildSchemaHistory(opts: {
       appliedBy: e.appliedBy,
       approvedBy: e.approvedBy,
       rollbackPlan: e.rollbackPlan,
+      sqlSummary: e.sqlSummary,
+      prismaDiff: e.prismaDiff,
       createdAt: e.createdAt.toISOString(),
     })),
   };
