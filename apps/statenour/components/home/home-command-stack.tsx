@@ -31,15 +31,29 @@ export function HomeCommandStack() {
     staleTime: 60 * 1000,
   });
 
+  const ccStateQuery = trpc.operator.commandCenterState.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+  });
+
   const tasks = (tasksQuery.data ?? []) as Task[];
   const stats = (statsQuery.data ?? []) as StatLevel[];
   const journalAction = journalActionQuery.data;
+  const ccState = ccStateQuery.data;
 
   const summary = useMemo(() => {
-    if (tasksQuery.isLoading || statsQuery.isLoading || nextMoveQuery.isLoading) return null;
+    if (
+      tasksQuery.isLoading ||
+      statsQuery.isLoading ||
+      nextMoveQuery.isLoading ||
+      ccStateQuery.isLoading
+    ) {
+      return null;
+    }
 
-    // 1. Compute Mode
-    const doingTask = tasks.find((t) => t.status === "DOING");
+    // 1. Compute Mode using CommandCenterState active command ID
+    const activeTaskId = ccState?.commands?.active?.id;
+    const doingTask = activeTaskId ? tasks.find((t) => t.id === activeTaskId) : undefined;
     const activeTasks = tasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED");
     
     let modeLabel = "Calm System Planning";
@@ -118,7 +132,17 @@ export function HomeCommandStack() {
       criticalFew: nextMoveQuery.data?.criticalFew || null,
       nextMoveData: nextMoveQuery.data || null,
     };
-  }, [tasks, stats, journalAction, nextMoveQuery.data, tasksQuery.isLoading, statsQuery.isLoading, nextMoveQuery.isLoading]);
+  }, [
+    tasks,
+    stats,
+    journalAction,
+    nextMoveQuery.data,
+    tasksQuery.isLoading,
+    statsQuery.isLoading,
+    nextMoveQuery.isLoading,
+    ccState,
+    ccStateQuery.isLoading,
+  ]);
 
   if (!summary) {
     return (

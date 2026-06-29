@@ -6,8 +6,7 @@ clarity-status: CLEAR
 hitl-status: REVIEWED
 hitl-pending-count: 0
 points-passed: 1-9
-rag-ingestable: false
-document-sha256: 269bbb63896c1311f12af78d16c83f51ebc1d784b364c73dab564fd52db6f253
+document-sha256: 231286ff0a755de559555b2ccf12863ba65708ccda0f408f6586b0df6b958d62
 hitl-claims:
   - id: claim-fpie001
     text: "Reasoning engine critique stage sanitizes the question and draft inputs using sanitizeForPrompt."

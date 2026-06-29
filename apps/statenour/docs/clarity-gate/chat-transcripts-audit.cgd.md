@@ -6,8 +6,7 @@ clarity-status: CLEAR
 hitl-status: REVIEWED
 hitl-pending-count: 0
 points-passed: 1-9
-rag-ingestable: false
-document-sha256: 554f1bd9899ed3618acfedb857af83dfd6b63feeae536aeeeed76ab488e56475
+document-sha256: de9067e691d7c2298fadcf9b6c9d2077b11dde0f8cd6236f7e28bee461044a68
 hitl-claims:
   - id: claim-ch001
     text: "Sub-agent execution is failing and leaking raw system synthesis errors into user chat."

@@ -107,11 +107,13 @@ export interface ReflectionSummary {
 
 /** v9.1.8 · Pinned brain memory — Nour's permanent context slots. */
 export interface PinnedMemorySummary {
+  id: string;
   key: string;
   content: string;
   source: string | null;
   seenCount: number;
   updatedAt: string;
+  metadata: any;
 }
 
 /** v9.1.8 · Top hard-rule brain memory (identity/feedback/brand). */
@@ -498,11 +500,13 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
         orderBy: { updatedAt: "desc" },
         take: 6,
         select: {
+          id: true,
           key: true,
           content: true,
           source: true,
           seenCount: true,
           updatedAt: true,
+          metadata: true,
         },
       })
       .catch(() => [] as Array<PinnedMemoryRow>),
@@ -1042,20 +1046,24 @@ function toReflectionSummary(r: ReflectionRow): ReflectionSummary {
 }
 
 interface PinnedMemoryRow {
+  id: string;
   key: string;
   content: string;
   source: string | null;
   seenCount: number;
   updatedAt: Date;
+  metadata: any;
 }
 
 function toPinnedMemorySummary(p: PinnedMemoryRow): PinnedMemorySummary {
   return {
+    id: p.id,
     key: p.key,
     content: p.content,
     source: p.source,
     seenCount: p.seenCount,
     updatedAt: p.updatedAt.toISOString(),
+    metadata: p.metadata,
   };
 }
 

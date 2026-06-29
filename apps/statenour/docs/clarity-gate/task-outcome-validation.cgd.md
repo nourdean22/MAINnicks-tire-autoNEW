@@ -6,8 +6,7 @@ clarity-status: CLEAR
 hitl-status: REVIEWED
 hitl-pending-count: 0
 points-passed: 1-9
-rag-ingestable: false
-document-sha256: 55fe4dd5903be1219df038e142e6d663697aeae23903a0d48186b23316f8f116
+document-sha256: 8c574b43cae1f8e758732aa7c58e9cded47eb7b3796d3d0c780926de957af4b6
 hitl-claims:
   - id: claim-ts001
     text: "Task completion validates and saves outcomeScore, outcomeRating, and outcomeLesson."

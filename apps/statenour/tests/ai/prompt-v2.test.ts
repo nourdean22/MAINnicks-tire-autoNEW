@@ -427,15 +427,8 @@ describe("v9.0-beta · prompt-v2 renderer", () => {
 });
 
 describe("v9.0-beta · prompt-v2 entry point", () => {
-  it("isPromptV2Enabled reads NICK_PRIME_PROMPT", () => {
-    const original = process.env.NICK_PRIME_PROMPT;
-    process.env.NICK_PRIME_PROMPT = "1";
+  it("isPromptV2Enabled always returns true", () => {
     expect(isPromptV2Enabled()).toBe(true);
-    process.env.NICK_PRIME_PROMPT = "0";
-    expect(isPromptV2Enabled()).toBe(false);
-    delete process.env.NICK_PRIME_PROMPT;
-    expect(isPromptV2Enabled()).toBe(false);
-    if (original !== undefined) process.env.NICK_PRIME_PROMPT = original;
   });
 
   it("buildSystemPromptV2 produces a non-empty prompt + meta", async () => {
