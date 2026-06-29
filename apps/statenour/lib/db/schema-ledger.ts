@@ -174,6 +174,8 @@ export async function listRecentSchemaChanges(opts: {
     appliedBy: string | null;
     approvedBy: string | null;
     rollbackPlan: string | null;
+    sqlSummary: string | null;
+    prismaDiff: string | null;
     createdAt: Date;
   }>
 > {
@@ -196,6 +198,8 @@ export async function listRecentSchemaChanges(opts: {
       appliedBy: true,
       approvedBy: true,
       rollbackPlan: true,
+      sqlSummary: true,
+      prismaDiff: true,
       createdAt: true,
     },
   });
