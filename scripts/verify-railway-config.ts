@@ -54,20 +54,9 @@ function checkLocalEnv(): Record<string, string> {
 
 function checkRailwayEnv(): Record<string, string> | null {
   try {
-    // Attempt to run railway variables list command
-    const output = execSync("railway variables", { stdio: ["pipe", "pipe", "ignore"], encoding: "utf-8" });
-    const railwayEnv: Record<string, string> = {};
-    const lines = output.split("\n");
-    for (const line of lines) {
-      const trimmed = line.trim();
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx !== -1) {
-        const key = trimmed.slice(0, eqIdx).trim();
-        const val = trimmed.slice(eqIdx + 1).trim();
-        railwayEnv[key] = val;
-      }
-    }
-    return railwayEnv;
+    // Attempt to run railway variables list command with JSON output
+    const output = execSync("railway variables --json", { stdio: ["pipe", "pipe", "ignore"], encoding: "utf-8" });
+    return JSON.parse(output);
   } catch {
     return null;
   }
