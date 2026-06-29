@@ -1211,7 +1211,7 @@ export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Pr
  *   · the next phase already has spawned tasks
  *   · this is the final phase (no next phase)
  */
-async function maybeSpawnNextPhase(missionId: string, phaseName: string): Promise<void> {
+export async function maybeSpawnNextPhase(missionId: string, phaseName: string): Promise<void> {
   // 1. Are there any other open tasks in this phase? If yes, the
   //    current task isn't the "last" — bail.
   const openInPhase = await prisma.task.count({
