@@ -6,8 +6,7 @@ clarity-status: CLEAR
 hitl-status: REVIEWED
 hitl-pending-count: 0
 points-passed: 1-9
-rag-ingestable: false
-document-sha256: 29f8a321c90f44a0c4ee77b87bb50a6517db775a96ea68ebdcf00111a898dc14
+document-sha256: 9ae4abb0870d6885d33c7730587812e85708f580abb2922de7362eaefc9ec326
 hitl-claims:
   - id: claim-cpj001
     text: "Registry of judge-eval capability in tool-registry.ts allows evaluation script execution without guardian policy blocks."
