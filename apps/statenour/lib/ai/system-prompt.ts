@@ -302,16 +302,11 @@ export function detectTopicTier(message: string): TopicTier {
  *   · NICK_PRIME_PROMPT === "1" / "on"     → v2 only (production cutover)
  */
 type PromptMode = "off" | "shadow" | "on";
-function resolvePromptMode(): PromptMode {
-  const v = (process.env.NICK_PRIME_PROMPT ?? "").toLowerCase();
-  if (v === "1" || v === "on") return "on";
-  if (v === "shadow") return "shadow";
-  return "off";
-}
 
 export async function buildSystemPrompt(
   tier?: TopicTier,
   userMessage?: string | null,
+  conversationId?: string | null,
 ): Promise<string> {
   const effectiveTier = tier || "full";
   // Content-mode key: changes the cache slot when the user's message
@@ -328,7 +323,36 @@ export async function buildSystemPrompt(
   // — without it the 300s cache would serve a non-SMS prompt to an SMS
   // ask (or pin an SMS prompt for 5min of ordinary turns).
   const slot = deepMode ? "deep" : contentMode ? "content" : detectSmsIntent(userMessage) ? "sms" : "default";
-  const mode = resolvePromptMode();
+
+  // Resolve prompt mode dynamically, supporting canary hashing
+  const rawEnv = (process.env.NICK_PRIME_PROMPT ?? "").toLowerCase().trim();
+  let mode: PromptMode = "off";
+
+  if (rawEnv === "shadow") {
+    mode = "shadow";
+  } else if (rawEnv === "1" || rawEnv === "on") {
+    mode = "on";
+  } else if (rawEnv === "canary" || rawEnv === "canary-10" || rawEnv === "canary-10%") {
+    if (conversationId) {
+      const { createHash } = await import("node:crypto");
+      const hash = createHash("sha1").update(conversationId).digest("hex");
+      const val = parseInt(hash.slice(0, 4), 16);
+      const pct = (val / 65535) * 100;
+      mode = pct < 10 ? "on" : "shadow";
+    } else {
+      mode = "off";
+    }
+  } else if (rawEnv === "canary-50" || rawEnv === "canary-50%") {
+    if (conversationId) {
+      const { createHash } = await import("node:crypto");
+      const hash = createHash("sha1").update(conversationId).digest("hex");
+      const val = parseInt(hash.slice(0, 4), 16);
+      const pct = (val / 65535) * 100;
+      mode = pct < 50 ? "on" : "shadow";
+    } else {
+      mode = "off";
+    }
+  }
 
   // v9.1.3 · "on" mode skips v1 entirely. Caches under a separate key
   // so v1 + v2 cache slots don't collide if Nour flips the flag mid-

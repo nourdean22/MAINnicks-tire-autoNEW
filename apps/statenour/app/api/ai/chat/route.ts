@@ -485,7 +485,7 @@ async function chatPostInner(req: Request) {
   // chat still works — just without grounded context.
   const promptPromise: Promise<PromptFetchResult> = cachedPrompt
     ? Promise.resolve({ systemPrompt: cachedPrompt, fromCache: true })
-    : buildSystemPrompt(topicTier, userContent)
+    : buildSystemPrompt(topicTier, userContent, convId)
         .then((p) => {
           setCachedPrompt(provider, topicTier, p, contentMode);
           return { systemPrompt: p, fromCache: false };
