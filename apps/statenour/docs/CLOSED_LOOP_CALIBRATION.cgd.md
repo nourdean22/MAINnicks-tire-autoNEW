@@ -6,7 +6,7 @@ clarity-status: CLEAR
 hitl-status: REVIEWED
 hitl-pending-count: 0
 points-passed: 1-9
-document-sha256: ad6ddf28f37cf91a9846f4993fd48a6df7b4a8ab6dbedacfaba9c63351900431
+document-sha256: ce96b944820310570d8c21d1f7beada32a37761cf89781f18d6ba887aa0956f8
 hitl-claims:
   - id: claim-0ef4081e
     text: "The nightly cron skips tasks that do not meet the minimum evidence standards (no completion note, actualMinutes = 0 or null, and no proof)."
