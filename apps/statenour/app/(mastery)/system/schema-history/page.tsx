@@ -188,6 +188,7 @@ function SchemaHistoryInner() {
           <select
             value={limit}
             onChange={(e) => updateFilters(env, parseInt(e.target.value, 10))}
+            title="Limit entries count"
             className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 text-xs font-medium text-[var(--text-secondary)] focus:outline-none focus:ring-1 focus:ring-sky-500"
           >
             {[25, 50, 100, 200].map((l) => (

@@ -15,7 +15,7 @@ import {
   ChangeType,
   ChangeMethod,
   ChangeEnvironment,
-} from "@/lib/db/schema-ledger";
+} from "../lib/db/schema-ledger";
 
 function parseArgs() {
   const args = process.argv.slice(2);
