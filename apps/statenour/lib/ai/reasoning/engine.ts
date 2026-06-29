@@ -50,6 +50,7 @@ import { classifyReasoning } from "./classifier";
 import { TIER_CONFIG } from "./tier-config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
+import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
 
 const log = rootLogger.withSurface("ai/reasoning/engine");
 
@@ -568,7 +569,7 @@ Output JSON only:
         : null,
       {
         role: "user",
-        content: `QUESTION:\n${question}\n\nDRAFT:\n${draft}`,
+        content: `QUESTION:\n${sanitizeForPrompt(question)}\n\nDRAFT:\n${sanitizeForPrompt(draft)}`,
       },
     ].filter((m): m is { role: "system" | "user" | "assistant"; content: string } => m !== null),
     "fast",
@@ -627,7 +628,7 @@ OUTPUT: the refined answer only · no commentary · no preamble.`,
         : null,
       {
         role: "user",
-        content: `QUESTION:\n${question}\n\nORIGINAL DRAFT:\n${draft}\n\nISSUES:\n${critique.issues.map((i) => `- ${i}`).join("\n")}\n\nSUGGESTIONS:\n${critique.suggestions.map((s) => `- ${s}`).join("\n")}`,
+        content: `QUESTION:\n${sanitizeForPrompt(question)}\n\nORIGINAL DRAFT:\n${sanitizeForPrompt(draft)}\n\nISSUES:\n${critique.issues.map((i) => `- ${sanitizeForPrompt(i)}`).join("\n")}\n\nSUGGESTIONS:\n${critique.suggestions.map((s) => `- ${sanitizeForPrompt(s)}`).join("\n")}`,
       },
     ].filter((m): m is { role: "system" | "user" | "assistant"; content: string } => m !== null),
     "reason",
