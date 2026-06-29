@@ -135,7 +135,15 @@ export async function runAutoDecompose(
 
     const report = await runMultiAgent({ goal, subAgents });
     const synthesis = (report.synthesis ?? "").trim();
-    return synthesis.length > 0 ? synthesis : "";
+    if (
+      synthesis.length === 0 ||
+      synthesis.includes("All sub-agents failed") ||
+      synthesis.includes("Synthesis stage failed") ||
+      synthesis.includes("Sub-agent outcomes are unknown")
+    ) {
+      return "";
+    }
+    return synthesis;
   } catch {
     // Graceful · any orchestrator failure → caller falls through to the
     // normal stream. The turn still works.

@@ -119,7 +119,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete process.env.NICK_PRIME_PROMPT;
+  process.env.NICK_PRIME_PROMPT = "";
 });
 
 describe("v9.1.3 · prompt routing flag", () => {
@@ -128,7 +128,7 @@ describe("v9.1.3 · prompt routing flag", () => {
   // are slower than dev boxes and the cumulative async ladder can push
   // past 5s under contention.
   it("env unset → v1 path (no v2 call)", async () => {
-    delete process.env.NICK_PRIME_PROMPT;
+    process.env.NICK_PRIME_PROMPT = "";
     const { buildSystemPrompt } = await import("@/lib/ai/system-prompt");
 
     // Call only catches whether v2 mock fired. Don't assert prompt
