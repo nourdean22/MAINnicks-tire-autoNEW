@@ -1505,9 +1505,9 @@ export async function checkMirrorHealth(): Promise<{
     sessionActive: mirrorSession !== null && Date.now() < (mirrorSession?.expiresAt || 0),
   };
 
-  // CRITICAL: Invoice data is more than 1 day stale
-  if (staleDays !== null && staleDays > 1) {
-    const msg = `🚨 ALG DATA STALE: Last invoice is ${staleDays} days old! ` +
+  // CRITICAL: Sync is actively failing AND data is stale (to prevent weekend false alarms)
+  if (consecutiveFailures > 2 && staleDays !== null && staleDays > 3) {
+    const msg = `🚨 ALG DATA STALE & SYNC FAILING: Last invoice is ${staleDays} days old! ` +
       `Consecutive sync failures: ${consecutiveFailures}. ` +
       `Dashboard stats, revenue, and NOUR OS are all showing outdated data. ` +
       `Check AUTO_LABOR_USERNAME/PASSWORD env vars and ShopDriver endpoint availability.`;
@@ -1515,7 +1515,7 @@ export async function checkMirrorHealth(): Promise<{
     return { recordsProcessed: 0, details: `STALE: ${staleDays}d old | fails: ${consecutiveFailures}` };
   }
 
-  // WARNING: Some failures but data not yet stale
+  // WARNING: Sync is failing consecutively but data not yet deeply stale
   if (consecutiveFailures > 2) {
     return { recordsProcessed: 0, details: `WARNING: ${consecutiveFailures} consecutive failures | data: ${staleDays ?? "?"}d old` };
   }
