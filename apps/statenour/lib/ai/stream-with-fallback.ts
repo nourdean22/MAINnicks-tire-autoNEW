@@ -179,7 +179,7 @@ export async function streamWithFallback(
                         if (visiblePart.length > 0) {
                           visibleTextAccumulated += visiblePart;
                           hasCommittedStream = true;
-                          controller.enqueue({ type: "text-delta", textDelta: visiblePart });
+                          controller.enqueue({ type: "text-delta", text: visiblePart });
                         }
                         textBuffer = textBuffer.slice(lastOpenBracket);
                         break;
