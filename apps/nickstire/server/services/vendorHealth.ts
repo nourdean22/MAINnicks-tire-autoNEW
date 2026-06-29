@@ -334,54 +334,100 @@ async function checkGatewayTire(): Promise<VendorHealthResult> {
   }
 }
 
-async function checkTwilio(): Promise<VendorHealthResult> {
+async function checkCapevace(): Promise<VendorHealthResult> {
   const start = Date.now();
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const username = process.env.SHOP_SMS_GATEWAY_USERNAME;
+  const password = process.env.SHOP_SMS_GATEWAY_PASSWORD;
+  const baseUrl = process.env.SHOP_SMS_GATEWAY_URL || "https://api.sms-gate.app/3rdparty/v1";
 
-  if (!accountSid || !authToken) {
+  if (!username || !password) {
     return {
-      vendor: "Twilio SMS",
+      vendor: "Capevace SMS Gateway",
       status: "not_configured",
       checks: [{ name: "credentials", passed: false, latencyMs: 0, error: "No credentials configured" }],
       checkedAt: new Date().toISOString(),
     };
   }
 
+  const auth = Buffer.from(`${username}:${password}`).toString("base64");
+
   try {
     const res = await withTimeout(
-      fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}.json`, {
-        headers: {
-          Authorization: "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64"),
-        },
+      fetch(`${baseUrl}/device`, {
+        headers: { Authorization: `Basic ${auth}` },
       }),
-      5000
+      8000
     );
 
     const ok = res.status === 200;
     const latency = Date.now() - start;
 
-    trackApiCost("Twilio SMS", 0); // account fetch is free
-    updateSLA("Twilio SMS", ok, latency);
+    if (!ok) {
+      updateSLA("Capevace SMS Gateway", false, latency);
+      return {
+        vendor: "Capevace SMS Gateway",
+        status: "degraded",
+        checks: [
+          { name: "credentials", passed: true, latencyMs: 0 },
+          { name: "gateway_verify", passed: false, latencyMs: latency, error: `API returned ${res.status}` },
+        ],
+        checkedAt: new Date().toISOString(),
+      };
+    }
+
+    const devices = (await res.json()) as Array<{ id: string; name?: string; lastSeen?: string }>;
+    if (!devices.length) {
+      updateSLA("Capevace SMS Gateway", false, latency);
+      return {
+        vendor: "Capevace SMS Gateway",
+        status: "degraded",
+        checks: [
+          { name: "credentials", passed: true, latencyMs: 0 },
+          { name: "gateway_verify", passed: false, latencyMs: latency, error: "No devices registered" },
+        ],
+        checkedAt: new Date().toISOString(),
+      };
+    }
+
+    const { pickGatewayDevice, isGatewayOnline } = await import("../lib/gateway-device");
+    const dev = pickGatewayDevice(devices, process.env.SHOP_SMS_GATEWAY_DEVICE_ID);
+    if (!dev) {
+      updateSLA("Capevace SMS Gateway", false, latency);
+      return {
+        vendor: "Capevace SMS Gateway",
+        status: "degraded",
+        checks: [
+          { name: "credentials", passed: true, latencyMs: 0 },
+          { name: "gateway_verify", passed: false, latencyMs: latency, error: "Configured device not found" },
+        ],
+        checkedAt: new Date().toISOString(),
+      };
+    }
+
+    const lastSeenMs = dev.lastSeen ? new Date(dev.lastSeen).getTime() : 0;
+    const ageMin = lastSeenMs ? Math.round((Date.now() - lastSeenMs) / 60_000) : 999;
+    const online = isGatewayOnline(ageMin);
+
+    updateSLA("Capevace SMS Gateway", online, latency);
 
     return {
-      vendor: "Twilio SMS",
-      status: ok ? "healthy" : "degraded",
+      vendor: "Capevace SMS Gateway",
+      status: online ? "healthy" : "degraded",
       checks: [
         { name: "credentials", passed: true, latencyMs: 0 },
-        { name: "account_verify", passed: ok, latencyMs: latency, error: ok ? undefined : `API returned ${res.status}` },
+        { name: "gateway_verify", passed: online, latencyMs: latency, error: online ? undefined : `Last seen ${ageMin}m ago` },
       ],
       checkedAt: new Date().toISOString(),
     };
   } catch (err: unknown) {
     const latency = Date.now() - start;
-    updateSLA("Twilio SMS", false, latency);
+    updateSLA("Capevace SMS Gateway", false, latency);
     return {
-      vendor: "Twilio SMS",
+      vendor: "Capevace SMS Gateway",
       status: "down",
       checks: [
         { name: "credentials", passed: true, latencyMs: 0 },
-        { name: "account_verify", passed: false, latencyMs: latency, error: (err as Error).message },
+        { name: "gateway_verify", passed: false, latencyMs: latency, error: (err as Error).message },
       ],
       checkedAt: new Date().toISOString(),
     };
@@ -610,7 +656,7 @@ export async function getVendorHealthReport(): Promise<{
     checkGoogleSheets(),
     checkGmail(),
     checkGatewayTire(),
-    checkTwilio(),
+    checkCapevace(),
     checkStripe(),
     checkAutoLabor(),
     checkNourOsBridge(),
@@ -619,7 +665,7 @@ export async function getVendorHealthReport(): Promise<{
 
   const vendorNames = [
     "Database", "Google Sheets CRM", "Gmail Notifications", "Gateway Tire B2B",
-    "Twilio SMS", "Stripe Payments", "Auto Labor Guide", "NOUR OS Bridge", "Telegram",
+    "Capevace SMS Gateway", "Stripe Payments", "Auto Labor Guide", "NOUR OS Bridge", "Telegram",
   ];
 
   const results: VendorHealthResult[] = settled.map((r, i) => {
