@@ -37,11 +37,11 @@
     "social:verify": "pnpm --filter @nour/social-assets test"
   },
   "devDependencies": {
-    "@types/node": "25.9.2",
+    "@types/node": "25.9.4",
     "lefthook": "2.1.9",
     "sherif": "1.12.0",
     "syncpack": "15.3.2",
-    "turbo": "^2.5.8",
+    "turbo": "^2.10.0",
     "typescript": "catalog:"
   },
   "engines": {
