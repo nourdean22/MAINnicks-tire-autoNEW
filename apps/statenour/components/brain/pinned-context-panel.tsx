@@ -463,6 +463,8 @@ export function PinnedContextPanel() {
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
                       rows={Math.min(6, Math.max(2, editContent.split("\n").length + 1))}
+                      title="Edit pin content"
+                      placeholder="Edit pin content..."
                       className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-md px-2 py-1.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--gold)]/40 resize-none"
                     />
                     <div className="flex items-center gap-2">
