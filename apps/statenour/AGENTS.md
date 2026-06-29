@@ -3,7 +3,7 @@
 > **⚡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-06-28 · post the **Chat Agenda Context Injection wave — PR #405 merged**: queried active/snoozed `AgendaItem`s from DB and injected them as structured context into V1 system prompt parallel queries and V2 prime context layout; implemented rendering formats in V2 prompt compiler; updated tests in `command-center.test.ts` and `prompt-v2.test.ts`. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-06-29 · post the **Chat Transcripts Diagnostic & Reliability wave — branch `docs/chat-transcripts-audit` pending merge**: ① audit and document issues/errors in the last 5 chat transcripts (`chat-transcripts-audit.cgd.md`), confirming Clarity Gate v2.1 CLEAR; ② fix sub-agent synthesis leak by implementing graceful fallback in `runAutoDecompose` to a single response stream on any sub-agent executor error; ③ update `identity.ts` system prompt rules to prevent agent passivity and inbox ID begging by mandating a `getMissions` tool pre-fetch if task parameters are incomplete. Full detail: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 
