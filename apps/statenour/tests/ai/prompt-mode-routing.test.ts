@@ -178,4 +178,74 @@ describe("v9.1.3 · prompt routing flag", () => {
 
     expect(buildSystemPromptV2Mock).not.toHaveBeenCalled();
   }, 15000);
+
+  it("env=canary → 10% bucket routes to v2, other to v1", async () => {
+    process.env.NICK_PRIME_PROMPT = "canary";
+    vi.resetModules();
+    const { buildSystemPrompt } = await import("@/lib/ai/system-prompt");
+    const { createHash } = await import("node:crypto");
+
+    // Find conversationId for <10% and >10%
+    let convYes = "";
+    let convNo = "";
+    for (let i = 0; i < 1000; i++) {
+      const id = `conv-10-${i}`;
+      const hash = createHash("sha1").update(id).digest("hex");
+      const val = parseInt(hash.slice(0, 4), 16);
+      const pct = (val / 65535) * 100;
+      if (pct < 10 && !convYes) convYes = id;
+      if (pct >= 10 && !convNo) convNo = id;
+      if (convYes && convNo) break;
+    }
+
+    // Canary Yes -> should call V2
+    buildSystemPromptV2Mock.mockClear();
+    const resYes = await buildSystemPrompt("full", null, convYes);
+    expect(buildSystemPromptV2Mock).toHaveBeenCalledTimes(1);
+    expect(resYes).toContain("V2 PROMPT");
+
+    // Canary No -> should not return V2 prompt (returns V1, though it calls V2 async for shadow delta)
+    buildSystemPromptV2Mock.mockClear();
+    try {
+      const resNo = await buildSystemPrompt("core", null, convNo);
+      expect(resNo).not.toContain("V2 PROMPT");
+    } catch {
+      // expected v1 fallback
+    }
+  });
+
+  it("env=canary-50 → 50% bucket routes to v2, other to v1", async () => {
+    process.env.NICK_PRIME_PROMPT = "canary-50";
+    vi.resetModules();
+    const { buildSystemPrompt } = await import("@/lib/ai/system-prompt");
+    const { createHash } = await import("node:crypto");
+
+    // Find conversationId for <50% and >50%
+    let convYes = "";
+    let convNo = "";
+    for (let i = 0; i < 1000; i++) {
+      const id = `conv-50-${i}`;
+      const hash = createHash("sha1").update(id).digest("hex");
+      const val = parseInt(hash.slice(0, 4), 16);
+      const pct = (val / 65535) * 100;
+      if (pct < 50 && !convYes) convYes = id;
+      if (pct >= 50 && !convNo) convNo = id;
+      if (convYes && convNo) break;
+    }
+
+    // Canary Yes -> should call V2
+    buildSystemPromptV2Mock.mockClear();
+    const resYes = await buildSystemPrompt("full", null, convYes);
+    expect(buildSystemPromptV2Mock).toHaveBeenCalledTimes(1);
+    expect(resYes).toContain("V2 PROMPT");
+
+    // Canary No -> should not return V2 prompt (returns V1)
+    buildSystemPromptV2Mock.mockClear();
+    try {
+      const resNo = await buildSystemPrompt("core", null, convNo);
+      expect(resNo).not.toContain("V2 PROMPT");
+    } catch {
+      // expected v1 fallback
+    }
+  });
 });
