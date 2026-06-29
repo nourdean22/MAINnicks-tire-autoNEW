@@ -97,7 +97,10 @@ function stalenessLabel(days: number) {
 
 export function PinnedContextPanel() {
   const utils = trpc.useUtils();
-  const pinsQuery = trpc.brain.pinned.useQuery({ withStats: true });
+  const ccStateQuery = trpc.operator.commandCenterState.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+  });
   const createMutation = trpc.brain.createPin.useMutation();
   const updateMutation = trpc.brain.updatePin.useMutation();
   const deleteMutation = trpc.brain.deletePin.useMutation();
@@ -115,16 +118,51 @@ export function PinnedContextPanel() {
   // `listPins` returns `{ pins, count, stats? }` as a loose record · the
   // panel's local PinRow / PinStats interfaces pin the shape it renders.
   const pins =
-    (pinsQuery.data?.pins as PinRow[] | undefined) ??
-    (pinsQuery.isError ? [] : null);
-  const stats = (pinsQuery.data?.stats as PinStats | undefined) ?? null;
-  const loading = pinsQuery.isLoading;
-  const loadedAt = pinsQuery.dataUpdatedAt || null;
-  const error = pinsQuery.isError ? pinsQuery.error.message : null;
+    (ccStateQuery.data?.brainAnchors?.pinned as PinRow[] | undefined) ??
+    (ccStateQuery.isError ? [] : null);
+  const brainRules = ccStateQuery.data?.brainAnchors?.rules ?? null;
+  const loading = ccStateQuery.isLoading;
+  const loadedAt = ccStateQuery.dataUpdatedAt || null;
+  const error = ccStateQuery.isError ? ccStateQuery.error.message : null;
 
   const load = useCallback(() => {
-    void utils.brain.pinned.invalidate();
+    void utils.operator.commandCenterState.invalidate();
   }, [utils]);
+
+  const stats = useMemo<PinStats | null>(() => {
+    if (!pins) return null;
+    let freshPins = 0;
+    let stalePins = 0;
+    let veryStalePins = 0;
+    let totalChars = 0;
+    const bySource: Record<string, number> = {};
+
+    pins.forEach((pin) => {
+      const days = daysAgo(pin.updatedAt);
+      if (days >= VERY_STALE_DAYS) {
+        veryStalePins++;
+      } else if (days >= STALE_DAYS) {
+        stalePins++;
+      } else {
+        freshPins++;
+      }
+      totalChars += pin.content.length;
+      const src = pin.source || "unknown";
+      bySource[src] = (bySource[src] || 0) + 1;
+    });
+
+    return {
+      freshPins,
+      stalePins,
+      veryStalePins,
+      totalChars,
+      avgChars: pins.length > 0 ? Math.round(totalChars / pins.length) : 0,
+      bySource,
+      injectedCount: Math.min(pins.length, INJECTION_CAP),
+      estimatedPromptTokens: Math.round(totalChars / 4),
+      oldestUpdatedAt: pins.length > 0 ? pins[pins.length - 1].updatedAt : null,
+    };
+  }, [pins]);
 
   // If the user arrives here via Cmd+Shift+P (/brain#pinned-context)
   // or any deep link, scroll the panel into view + open the add-new
@@ -149,7 +187,7 @@ export function PinnedContextPanel() {
       try {
         await deleteMutation.mutateAsync({ id });
         toast.success("unpinned");
-        await utils.brain.pinned.invalidate();
+        await utils.operator.commandCenterState.invalidate();
       } catch (e) {
         toast.error(`unpin failed: ${e instanceof Error ? e.message : e}`);
       } finally {
@@ -175,7 +213,7 @@ export function PinnedContextPanel() {
         // 10.15 — fire a one-shot green pulse on the affected pin
         setReinforcedId(pin.id);
         setTimeout(() => setReinforcedId(null), 950);
-        await utils.brain.pinned.invalidate();
+        await utils.operator.commandCenterState.invalidate();
       } catch (e) {
         toast.error(`reinforce failed: ${e instanceof Error ? e.message : e}`);
       } finally {
@@ -216,7 +254,7 @@ export function PinnedContextPanel() {
         });
         toast.success("pin updated");
         cancelEdit();
-        await utils.brain.pinned.invalidate();
+        await utils.operator.commandCenterState.invalidate();
       } catch (e) {
         toast.error(`update failed: ${e instanceof Error ? e.message : e}`);
       } finally {
@@ -239,7 +277,7 @@ export function PinnedContextPanel() {
       setNewContent("");
       setNewLabel("");
       setAddOpen(false);
-      await utils.brain.pinned.invalidate();
+      await utils.operator.commandCenterState.invalidate();
     } catch (e) {
       toast.error(`pin failed: ${e instanceof Error ? e.message : e}`);
     }
@@ -535,6 +573,37 @@ export function PinnedContextPanel() {
             );
           })}
         </ul>
+      )}
+
+      {/* Hot Rules sub-section */}
+      {!loading && brainRules && brainRules.length > 0 && (
+        <div className="pt-3 border-t border-white/5 space-y-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--gold)]/80">
+            <Sparkles size={11} />
+            <span>Active Hot Rules</span>
+            <span className="text-[9px] text-[var(--text-tertiary)] font-normal font-mono normal-case">
+              high-confidence constraints
+            </span>
+          </div>
+          <ul className="space-y-1.5">
+            {brainRules.map((rule) => (
+              <li
+                key={rule.key}
+                className="text-[11.5px] leading-relaxed text-[var(--text-secondary)] bg-white/[0.01] border border-white/5 rounded-md p-2 flex items-start gap-2"
+              >
+                <span className="inline-flex px-1.5 py-0.5 rounded border border-[var(--gold)]/20 bg-[var(--gold)]/5 text-[8px] font-mono uppercase tracking-wider text-[var(--gold)] shrink-0 mt-0.5">
+                  {rule.category}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-mono text-[9px] text-[var(--text-tertiary)] uppercase tracking-wider mb-0.5">
+                    {rule.key} · confidence {Math.round(rule.confidence * 100)}%
+                  </p>
+                  <p className="whitespace-pre-wrap break-words">{rule.content}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </GlassCard>
     </div>

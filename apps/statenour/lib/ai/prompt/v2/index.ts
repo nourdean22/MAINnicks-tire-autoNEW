@@ -52,7 +52,7 @@ export interface PromptV2Output {
 }
 
 export function isPromptV2Enabled(): boolean {
-  return process.env.NICK_PRIME_PROMPT === "1";
+  return true;
 }
 
 export async function buildSystemPromptV2(): Promise<PromptV2Output> {

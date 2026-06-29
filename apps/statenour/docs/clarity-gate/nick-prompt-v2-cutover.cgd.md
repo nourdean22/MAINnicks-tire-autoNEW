@@ -6,8 +6,7 @@ clarity-status: CLEAR
 hitl-status: REVIEWED
 hitl-pending-count: 0
 points-passed: 1-9
-rag-ingestable: false
-document-sha256: e16187439a0085585a35c7cd08d2913d11b53064cb1bbf744bf0aba12f78206b
+document-sha256: 2fba4d774db2cb8bc9ea3e75ea08774b48c8c289fd0d700e4e230b5f63733093
 hitl-claims:
   - id: claim-db001a1a
     text: "NICK_PRIME_PROMPT shadow mode has run with zero build failures."

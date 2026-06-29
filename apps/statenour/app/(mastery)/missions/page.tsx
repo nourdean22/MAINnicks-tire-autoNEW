@@ -98,6 +98,10 @@ function MissionsPageInner() {
   const statsQuery = trpc.operator.characterSheet.useQuery(undefined, {
     staleTime: 60_000,
   });
+  const ccStateQuery = trpc.operator.commandCenterState.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+  });
 
   // wave-AA-audit · derived arrays wrapped in useMemo so the useCallback
   // dependencies below stay stable across renders. Pre-fix, the bare
@@ -217,8 +221,9 @@ function MissionsPageInner() {
 
   // Memoized selector for the focused task in Execution Mode
   const focusedTask = useMemo(() => {
-    // 1. First choice: a task that is currently in "DOING" status
-    const doingTask = tasks.find((t) => t.status === "DOING");
+    // 1. First choice: active task from CommandCenterState
+    const activeTaskId = ccStateQuery.data?.commands?.active?.id;
+    const doingTask = activeTaskId ? tasks.find((t) => t.id === activeTaskId) : undefined;
     if (doingTask) return doingTask;
 
     // 1.5 Second choice: a task queued by the operator (Queue next)
@@ -280,7 +285,7 @@ function MissionsPageInner() {
     });
 
     return sortedOpen[0] || null;
-  }, [tasks, queuedTaskId]);
+  }, [tasks, queuedTaskId, ccStateQuery.data?.commands?.active?.id]);
 
   const focusedTaskMission = useMemo(() => {
     if (!focusedTask || !focusedTask.missionId) return null;
@@ -406,6 +411,7 @@ function MissionsPageInner() {
       utils.task.list.invalidate(),
       utils.task.missions.invalidate(),
       utils.operator.characterSheet.invalidate(),
+      utils.operator.commandCenterState.invalidate(),
     ]);
   }, [utils]);
 
