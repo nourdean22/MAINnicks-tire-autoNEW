@@ -1,7 +1,6 @@
-# Refund / Writeback — Design (NOT IMPLEMENTED)
+# Refund / Writeback — Specification (APPROVED & LIVE)
 
-Status: **design only · requires explicit owner approval · no refund code
-exists** (verified 2026-06-10: zero `stripe.refunds` calls in the repo).
+Status: **APPROVED & LIVE** (as of 2026-06-29 under operator authorization).
 
 ## Today's manual workflow (the only refund path)
 
@@ -14,7 +13,7 @@ exists** (verified 2026-06-10: zero `stripe.refunds` calls in the repo).
    `refunded` enum value exists but has no writer). The banner clears only
    when staff knows it's handled.
 
-## Proposed future mutation (separate, owner-approved PR)
+## Implemented mutation (Approved & Shipped)
 
 `gatewayTire.refundOrder` (adminProcedure):
 
