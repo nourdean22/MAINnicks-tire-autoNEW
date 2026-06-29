@@ -28,11 +28,12 @@ export const missionsTools = {
   }),
 
   addTasksToProject: tool({
-    description: "Create multiple tasks under a mission (project) in bulk. Use when Nour needs to break down a project into several specific tasks at once, or lock in a daily/weekly routine with multiple schedule blocks.",
+    description: "Create multiple tasks under missions (projects) in bulk. Use when Nour needs to break down a project into several specific tasks at once, or lock in a daily/weekly routine with multiple schedule blocks.",
     inputSchema: z.object({
-      missionId: z.string(),
+      missionId: z.string().optional().describe("Fallback mission ID if not specified per-task"),
       tasks: z.array(z.object({
         title: z.string(),
+        missionId: z.string().optional().describe("Specific mission ID for this task. Use to route different tasks to different missions (e.g. Health, Business, Personal)"),
         nextPhysicalAction: z.string().describe("The literal first physical step"),
         effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
         context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
@@ -47,9 +48,10 @@ export const missionsTools = {
     execute: async ({ missionId, tasks }) => {
       const createdTasks = [];
       for (const t of tasks) {
+        const activeMissionId = t.missionId || missionId || "m-inbox";
         const task = await createTaskAndEnrich({
           title: t.title,
-          missionId,
+          missionId: activeMissionId,
           nextPhysicalAction: t.nextPhysicalAction,
           effort: t.effort,
           roiScore: t.loopKind === "PROMISE" ? 80 : 50,
@@ -64,9 +66,9 @@ export const missionsTools = {
           promiseTo: t.promiseTo ?? null,
           personId: t.personId ?? null,
         });
-        createdTasks.push({ taskId: task.id, title: task.title, loopKind: task.loopKind });
+        createdTasks.push({ taskId: task.id, title: task.title, loopKind: task.loopKind, missionId: activeMissionId });
       }
-      return { created: true, count: createdTasks.length, missionId, tasks: createdTasks };
+      return { created: true, count: createdTasks.length, fallbackMissionId: missionId, tasks: createdTasks };
     },
   }),
 
