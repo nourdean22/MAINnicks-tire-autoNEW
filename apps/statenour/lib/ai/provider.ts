@@ -75,6 +75,12 @@ export function resolveProviderModel(provider: RuntimeProviderName, taskType?: T
   if (provider === "ollama" && taskType === "vision") {
     return cleanEnv(process.env[cfg.visionModelEnv!]) || cfg.defaultVisionModel!;
   }
+  if (provider === "openrouter") {
+    if (taskType === "reason" || taskType === "deep" || taskType === "code") {
+      return cleanEnv(process.env.OPENROUTER_REASONING_MODEL) || "google/gemini-2.5-pro";
+    }
+    return cleanEnv(process.env[cfg.modelEnv]) || cfg.defaultModel;
+  }
   return cleanEnv(process.env[cfg.modelEnv]) || cfg.defaultModel;
 }
 
@@ -91,6 +97,7 @@ const AI_PROVIDER = cleanEnv(process.env.AI_PROVIDER) as
   | "openai"
   | "anthropic"
   | "gemini"
+  | "openrouter"
   | undefined;
 
 export type ProviderName =
@@ -98,13 +105,14 @@ export type ProviderName =
   | "openai"
   | "anthropic"
   | "gemini"
+  | "openrouter"
   | "emergency";
 
 /**
  * Single source of truth for providers wired into the live runtime.
  * Excludes the retired `venice` and `emergency`.
  */
-export const RUNTIME_PROVIDERS = ["ollama", "gemini", "openai", "anthropic"] as const;
+export const RUNTIME_PROVIDERS = ["ollama", "gemini", "openai", "anthropic", "openrouter"] as const;
 
 /** True iff `v` is a provider the runtime can actually serve. */
 export function isRuntimeProvider(v: unknown): v is RuntimeProviderName {
@@ -133,6 +141,16 @@ function createGoogleModel(taskType?: TaskType): LanguageModel {
   const modelId = resolveProviderModel("gemini", taskType);
   const google = createGoogleGenerativeAI({ apiKey: apiKey! });
   return google(modelId);
+}
+
+function createOpenRouterModel(taskType?: TaskType): LanguageModel {
+  const apiKey = getApiKey("openrouter");
+  const modelId = resolveProviderModel("openrouter", taskType);
+  const openrouter = createOpenAI({
+    apiKey: apiKey!,
+    baseURL: "https://openrouter.ai/api/v1",
+  });
+  return openrouter(modelId);
 }
 
 function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
@@ -330,6 +348,10 @@ function isGeminiAvailable(): boolean {
   return true;
 }
 
+function isOpenRouterAvailable(): boolean {
+  return !!getApiKey("openrouter");
+}
+
 // ---------------------------------------------------------------------------
 // Ordered provider list
 // ---------------------------------------------------------------------------
@@ -346,6 +368,7 @@ const PROVIDER_CREATORS: Record<RuntimeProviderName, (taskType?: TaskType) => La
   gemini: (t) => createGoogleModel(t),
   openai: () => createOpenAIModel(),
   anthropic: () => createAnthropicModel(),
+  openrouter: (t) => createOpenRouterModel(t),
 };
 
 const PROVIDER_AVAILABILITY: Record<RuntimeProviderName, () => boolean> = {
@@ -353,6 +376,7 @@ const PROVIDER_AVAILABILITY: Record<RuntimeProviderName, () => boolean> = {
   gemini: isGeminiAvailable,
   openai: isOpenAIAvailable,
   anthropic: isAnthropicAvailable,
+  openrouter: isOpenRouterAvailable,
 };
 
 const PROVIDERS: ProviderEntry[] = RUNTIME_PROVIDERS.map((name) => ({
@@ -655,6 +679,7 @@ const PROVIDER_RATES_PER_1M_TOKENS: Record<
   gemini: { input: 0.075, output: 0.30 }, // Gemini 2.5/3.5 Flash rates
   openai: { input: 2.5, output: 10.0 }, // gpt-4o-mini-ish average
   anthropic: { input: 3.0, output: 15.0 }, // Claude Sonnet-ish average
+  openrouter: { input: 0.15, output: 0.60 }, // OpenRouter Gemini 2.5 rates
   none: { input: 0.0, output: 0.0 },
 };
 
@@ -1141,7 +1166,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
       const res = await fetch("https://api.openai.com/v1/embeddings", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY}` },
-        body: JSON.stringify({ model: "text-embedding-3-small", input }),
+        body: JSON.stringify({ model: "text-embedding-3-small", input, dimensions: 1024 }),
         signal: AbortSignal.timeout(15_000), // wave-181.90 follow-up · final fallback · give it more room
       });
       if (res.ok) {
@@ -1161,8 +1186,40 @@ export async function getEmbedding(text: string): Promise<number[]> {
     }
   }
 
+  // 6. OpenRouter (fallback embeddings)
+  const OPENROUTER_API_KEY = cleanEnv(process.env.OPENROUTER_API_KEY);
+  if (OPENROUTER_API_KEY) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/embeddings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+          "HTTP-Referer": "https://bdnick.info",
+          "X-Title": "Nour OS",
+        },
+        body: JSON.stringify({ model: "openai/text-embedding-3-small", input, dimensions: 1024 }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const vec = data.data?.[0]?.embedding;
+        if (vec && vec.length > 0) return vec;
+      } else {
+        const errBody = await res.text().catch(() => "");
+        console.warn(
+          `[ai:embedding] OpenRouter failed (${res.status}): ${errBody.slice(0, 200)}`
+        );
+      }
+    } catch (err) {
+      console.warn(
+        `[ai:embedding] OpenRouter fetch threw: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
   log.warn("embedding.all_failed", {
-    tried: ["ollama", "cohere", "hf", "openai"],
+    tried: ["ollama", "cohere", "hf", "openai", "openrouter"],
   });
   return [];
 }

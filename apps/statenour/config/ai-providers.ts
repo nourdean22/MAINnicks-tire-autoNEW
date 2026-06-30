@@ -1,6 +1,6 @@
 export const AI_PROVIDER_COOLDOWN_MS = 2 * 60_000;
 
-export type RuntimeProviderName = "ollama" | "gemini" | "openai" | "anthropic";
+export type RuntimeProviderName = "ollama" | "gemini" | "openai" | "anthropic" | "openrouter";
 
 export type TaskType =
   | "fast"
@@ -66,19 +66,27 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     cooldownMs: AI_PROVIDER_COOLDOWN_MS,
     modelSubstrings: ["claude"],
   },
+  openrouter: {
+    id: "openrouter",
+    apiKeyEnv: ["OPENROUTER_API_KEY"],
+    modelEnv: "OPENROUTER_MODEL",
+    defaultModel: "google/gemini-2.5-flash",
+    cooldownMs: AI_PROVIDER_COOLDOWN_MS,
+    modelSubstrings: ["gemini", "claude", "gpt"],
+  },
 };
 
 export const TASK_ROUTING_PREFERENCES: Record<TaskType, RuntimeProviderName[]> = {
-  fast: ["gemini", "ollama", "openai", "anthropic"],
-  sql: ["ollama", "gemini", "openai", "anthropic"],
-  summary: ["gemini", "ollama", "openai", "anthropic"],
-  classify: ["gemini", "ollama", "openai", "anthropic"],
-  extract: ["gemini", "ollama", "openai", "anthropic"],
-  reason: ["ollama", "gemini", "openai", "anthropic"],
-  vision: ["gemini", "ollama", "openai", "anthropic"],
-  deep: ["ollama", "gemini", "openai", "anthropic"],
-  code: ["ollama", "gemini", "openai", "anthropic"],
-  math: ["ollama", "gemini", "openai", "anthropic"],
-  creative: ["ollama", "gemini", "openai", "anthropic"],
-  embed: ["gemini", "ollama", "openai", "anthropic"],
+  fast: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
+  sql: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
+  summary: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
+  classify: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
+  extract: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
+  reason: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
+  vision: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
+  deep: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
+  code: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
+  math: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
+  creative: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
+  embed: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
 };

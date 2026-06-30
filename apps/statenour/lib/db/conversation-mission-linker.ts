@@ -1,4 +1,5 @@
 import { prisma as defaultPrisma } from "@/lib/prisma";
+import { padToVectorDim } from "@/lib/db/pgvector";
 
 type PrismaLike = typeof defaultPrisma;
 
@@ -118,11 +119,12 @@ async function ensureConversationMissionColumn(prisma: PrismaLike): Promise<void
 }
 
 async function writeVectorColumns(prisma: PrismaLike, id: string, vec: number[]): Promise<void> {
-  const lit = vectorLiteral(vec);
+  const lit1024 = vectorLiteral(padToVectorDim(vec, 1024));
+  const lit1536 = vectorLiteral(padToVectorDim(vec, 1536));
   await prisma.$executeRawUnsafe(
     `UPDATE vector_embeddings
-     SET embedding_vec = '${lit}'::vector,
-         embedding_vec_1536 = CASE WHEN ${vec.length} = 1536 THEN '${lit}'::vector(1536) ELSE embedding_vec_1536 END
+     SET embedding_vec = '${lit1024}'::vector(1024),
+         embedding_vec_1536 = '${lit1536}'::vector(1536)
      WHERE id = '${id.replace(/'/g, "''")}'`,
   );
 }
