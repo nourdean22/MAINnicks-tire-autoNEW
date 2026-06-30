@@ -58,7 +58,8 @@ describe("v10 B.5 · streamWithFallback", () => {
       buildConfig: (model) => ({ model, system: "test" }) as never,
     });
 
-    expect(out.result.toUIMessageStreamResponse()).toBeInstanceOf(Response);
+    const streamRes = out.result.toUIMessageStreamResponse();
+    expect(streamRes.headers.get("Content-Type")).toBe("text/event-stream; charset=utf-8");
     expect(out.provider).toBe("gemini");
     expect(out.attempts.length).toBe(1);
     expect(out.attempts[0].errorClass).toBeNull();
@@ -84,7 +85,8 @@ describe("v10 B.5 · streamWithFallback", () => {
       buildConfig: (model) => ({ model, system: "test" }) as never,
     });
 
-    expect(out.result.toUIMessageStreamResponse()).toBeInstanceOf(Response);
+    const streamRes2 = out.result.toUIMessageStreamResponse();
+    expect(streamRes2.headers.get("Content-Type")).toBe("text/event-stream; charset=utf-8");
     expect(out.provider).toBe("ollama");
     expect(out.attempts.length).toBe(2);
     expect(out.attempts[0].errorClass).toBe("stream_text_sync_throw");
