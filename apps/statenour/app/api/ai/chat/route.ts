@@ -904,9 +904,8 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     );
     const intent = turnSignal.intent as Parameters<typeof shouldGateForIntent>[0];
     if (shouldGateForIntent(intent)) {
-      // Prepend the hard directive so the model treats it as a top-
-      // priority constraint over the rest of the system prompt.
-      finalSystemPrompt = `${REGEN_SYSTEM_PREFIX}\n\n${finalSystemPrompt}`;
+      // Append the hard directive so the static system prompt prefix remains cached.
+      finalSystemPrompt = `${finalSystemPrompt}\n\n${REGEN_SYSTEM_PREFIX}`;
       log.info("high_spec_gate_active", {
         intent,
         addedChars: REGEN_SYSTEM_PREFIX.length,
@@ -928,12 +927,12 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   // is much higher than the cost of an extra tool call.
   //
   // Detector + hard-hint assembly moved verbatim to
-  // app/api/ai/chat/customer-shape-hint.ts. The route just prepends the
+  // app/api/ai/chat/customer-shape-hint.ts. The route just appends the
   // returned block; behavior is byte-identical.
   const userTextSlice = userContent.slice(0, 1500);
   const { buildCustomerShapeHint } = await import("./customer-shape-hint");
   const customerHint = buildCustomerShapeHint(userTextSlice);
-  if (customerHint) finalSystemPrompt = customerHint + finalSystemPrompt;
+  if (customerHint) finalSystemPrompt = finalSystemPrompt + "\n\n" + customerHint;
 
   // v10.0.511 · GSC pre-fetch + inject · the 2026-05-12 smoke tests
   // showed venice-uncensored consistently ignores the tool-call-first
@@ -954,11 +953,11 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   // hit is acceptable for the failure-mode it eliminates.
   //
   // Regex + bridge call + all 3 branches moved verbatim to
-  // app/api/ai/chat/gsc-prefetch.ts. The route just prepends the
+  // app/api/ai/chat/gsc-prefetch.ts. The route just appends the
   // returned block; behavior is byte-identical.
   const { buildGscPrefetch } = await import("./gsc-prefetch");
   const gscBlock = await buildGscPrefetch(userTextSlice);
-  if (gscBlock) finalSystemPrompt = gscBlock + finalSystemPrompt;
+  if (gscBlock) finalSystemPrompt = finalSystemPrompt + "\n\n" + gscBlock;
 
   // Venice params (web search, scraping, no safety prompt, think strip) are injected
   // via custom fetch wrapper in provider.ts — NOT providerOptions (AI SDK ignores custom fields).
