@@ -997,9 +997,18 @@ INSTRUCTIONS:
         { role: "user", content: input.prompt }
       ], "reason");
 
+      const { createDraft } = await import("@/lib/content/drafts");
+      const draft = await createDraft({
+        content: result.content,
+        source: `assistant-${input.personaKey}`,
+        kind: "post",
+      });
+
       return {
         content: result.content,
-        provider: result.provider
+        provider: result.provider,
+        draftId: draft.id,
+        draftKey: draft.key,
       };
     }),
 

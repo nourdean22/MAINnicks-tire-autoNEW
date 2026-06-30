@@ -37,3 +37,7 @@ export { crmFollowups } from "./crm-followups";
 
 // Intelligence OS workflows
 export { intelligenceDailyBrief, intelligenceWeeklyBrief } from "./intelligence-brief";
+
+// Social Publication workflows
+export { socialPublishQueue } from "./social-publish";
+
