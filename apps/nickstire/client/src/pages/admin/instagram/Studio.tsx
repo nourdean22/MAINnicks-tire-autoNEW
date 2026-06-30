@@ -24,14 +24,17 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
   const [sourceDetail, setSourceDetail] = useState("");
   const [content, setContent] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const [score, setScore] = useState<Pick<ContentQualityScore, "overall" | "gate" | "reasoning"> | null>(null);
 
   const generateMedia = trpc.instagramAdmin.generateMedia.useMutation({
     onSuccess: (data) => {
       setMediaUrl(data.url);
+      setMediaError(null);
       toast.success("Media generated automatically!");
     },
     onError: (err) => {
+      setMediaError(err.message);
       toast.error("Failed to generate media", { description: err.message });
     }
   });
@@ -286,7 +289,10 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                     <Button 
                       variant="secondary" 
                       size="sm" 
-                      onClick={() => generateMedia.mutate({ caption: content })}
+                      onClick={() => {
+                        setMediaError(null);
+                        generateMedia.mutate({ caption: content });
+                      }}
                       disabled={generateMedia.isPending || !content}
                     >
                       {generateMedia.isPending ? (
@@ -314,6 +320,17 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                         onClick={() => setMediaUrl("")}
                       >
                         <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : mediaError ? (
+                    <div className="flex flex-col items-center justify-center h-[120px] rounded-md border border-dashed border-red-500/40 text-sm bg-red-500/5 gap-2 px-4">
+                      <div className="flex items-center gap-2 text-red-500">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span className="font-medium">Media generation failed</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground text-center line-clamp-2">{mediaError}</p>
+                      <Button variant="outline" size="sm" onClick={() => { setMediaError(null); generateMedia.mutate({ caption: content }); }} disabled={!content}>
+                        <RefreshCw className="h-3 w-3 mr-1" /> Retry
                       </Button>
                     </div>
                   ) : (

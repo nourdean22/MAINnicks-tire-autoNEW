@@ -38,9 +38,11 @@ export async function generateImage(
           },
         ],
         generationConfig: {
-          responseModalities: ["IMAGE"],
+          // TEXT+IMAGE prevents silent failures when safety filters block IMAGE-only
+          responseModalities: ["TEXT", "IMAGE"],
         },
       }),
+      signal: AbortSignal.timeout(60_000), // image gen can take 30-50s
     });
 
     if (response.ok) {

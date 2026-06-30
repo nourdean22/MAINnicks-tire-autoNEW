@@ -832,14 +832,14 @@ async function generatePostImageHiggsfield(prompt: string): Promise<string> {
  * convert the generated PNG to JPEG and re-host it, then hand the JPEG url
  * to Instagram. Facebook tolerates either; we use the same JPEG for both.
  */
-async function generatePostImageGeminiDirect(prompt: string): Promise<string> {
+async function generatePostImageGeminiDirect(prompt: string): Promise<{ url: string; mimeType: string }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
 
   const model = "gemini-3.1-flash-image";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-  log.info("Generating image via Gemini Direct...", { model, prompt });
+  log.info("Generating image via Gemini Direct...", { model, promptLen: prompt.length });
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -853,14 +853,17 @@ async function generatePostImageGeminiDirect(prompt: string): Promise<string> {
         },
       ],
       generationConfig: {
-        responseModalities: ["IMAGE"],
+        // TEXT+IMAGE prevents silent failures when safety filters block IMAGE-only
+        responseModalities: ["TEXT", "IMAGE"],
       },
     }),
+    signal: AbortSignal.timeout(60_000), // image gen can take 30-50s
   });
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
-    throw new Error(`Gemini Direct image generation failed (${response.status} ${response.statusText}): ${errorText}`);
+    log.error("Gemini Direct image API error", { status: response.status, errorText: errorText.slice(0, 500) });
+    throw new Error(`Gemini Direct image generation failed (${response.status} ${response.statusText}): ${errorText.slice(0, 300)}`);
   }
 
   const data = (await response.json()) as any;
@@ -876,19 +879,29 @@ async function generatePostImageGeminiDirect(prompt: string): Promise<string> {
   }
 
   if (!b64) {
-    throw new Error("Gemini Direct image generation failed: no inlineData in response");
+    // Log what we DID get back -- often text-only when the image was blocked
+    const textParts = parts.filter((p: any) => p.text).map((p: any) => p.text).join(" ");
+    log.error("Gemini Direct returned no image data", {
+      partsCount: parts.length,
+      textResponse: textParts.slice(0, 200),
+      finishReason: data.candidates?.[0]?.finishReason,
+    });
+    throw new Error(`Gemini Direct image generation failed: no inlineData in response (finishReason: ${data.candidates?.[0]?.finishReason || "unknown"})`);
   }
 
+  const ext = mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : "png";
   const buffer = Buffer.from(b64, "base64");
   const { storagePut } = await import("../storage");
   const { url: uploadedUrl } = await storagePut(
-    `generated/${Date.now()}.png`,
+    `generated/${Date.now()}.${ext}`,
     buffer,
     mimeType
   );
   if (!uploadedUrl) throw new Error("storagePut returned no url for Gemini image");
-  return uploadedUrl;
+  log.info("Gemini image generated", { mimeType, bytes: buffer.length });
+  return { url: uploadedUrl, mimeType };
 }
+
 
 async function generateImageOpenRouter(prompt: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -1001,15 +1014,18 @@ export async function generatePostImage(
   }
 
   let pngUrl: string;
+  let alreadyJpeg = false;
   if (provider === "gemini") {
     try {
       if (process.env.GEMINI_API_KEY) {
         try {
-          pngUrl = await generatePostImageGeminiDirect(prompt);
+          const result = await generatePostImageGeminiDirect(prompt);
+          pngUrl = result.url;
+          // If Gemini returned JPEG, skip the expensive sharp conversion
+          alreadyJpeg = result.mimeType.includes("jpeg") || result.mimeType.includes("jpg");
         } catch (geminiErr) {
           log.warn("Gemini Direct image generation failed, falling back to OpenRouter", {
             err: geminiErr instanceof Error ? geminiErr.message : String(geminiErr),
-            prompt
           });
           pngUrl = await generateImageOpenRouter(prompt);
         }
@@ -1019,7 +1035,6 @@ export async function generatePostImage(
     } catch (err) {
       log.warn("Gemini/OpenRouter image generation failed, falling back to fallback provider", {
         err: err instanceof Error ? err.message : String(err),
-        prompt
       });
       pngUrl = await generatePostImageFallback(prompt);
     }
@@ -1027,6 +1042,10 @@ export async function generatePostImage(
     pngUrl = await generatePostImageFallback(prompt);
   }
 
+  // Skip conversion if Gemini already returned JPEG — saves a sharp import + double upload
+  if (alreadyJpeg) {
+    return { url: pngUrl, format: "jpeg", kind: "ai" };
+  }
   const jpegUrl = await convertHostedPngToJpeg(pngUrl);
   return { url: jpegUrl, format: "jpeg", kind: "ai" };
 }

@@ -34,9 +34,29 @@ export async function storagePut(
 
   if (!bucket) {
     const path = await import("path");
-    const body = typeof data === "string" ? Buffer.from(data) : data;
+    const fs = await import("fs");
+    const body = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
     const filename = path.basename(key) || "file.jpg";
-    
+
+    // Primary: write to local data/generated/ (Express serves at /generated/)
+    try {
+      const genDir = path.join(process.cwd(), "data", "generated");
+      if (!fs.existsSync(genDir)) {
+        fs.mkdirSync(genDir, { recursive: true });
+      }
+      const localPath = path.join(genDir, filename);
+      fs.writeFileSync(localPath, body);
+      const siteUrl = process.env.SITE_URL || "https://nickstire.org";
+      const url = `${siteUrl}/generated/${filename}`;
+      log.info("storagePut: saved locally", { filename, bytes: body.length });
+      return { key, url };
+    } catch (localErr) {
+      log.warn("Local file write failed, falling back to Catbox", {
+        err: localErr instanceof Error ? localErr.message : String(localErr),
+      });
+    }
+
+    // Fallback: Catbox.moe (unreliable free host — last resort)
     const formData = new FormData();
     formData.append("reqtype", "fileupload");
     const blob = new Blob([body as any], { type: contentType });
@@ -46,6 +66,7 @@ export async function storagePut(
       const response = await fetch("https://catbox.moe/user/api.php", {
         method: "POST",
         body: formData,
+        signal: AbortSignal.timeout(15_000),
       });
       if (!response.ok) {
         throw new Error(`Catbox HTTP error: ${response.statusText}`);
@@ -56,7 +77,7 @@ export async function storagePut(
       }
       return { key, url };
     } catch (e) {
-      log.error("Catbox upload failed:", e);
+      log.error("Catbox upload also failed:", e);
       throw e;
     }
   }
