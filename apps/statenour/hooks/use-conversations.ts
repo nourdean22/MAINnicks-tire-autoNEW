@@ -8,7 +8,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import type { UIMessage } from "ai";
 
 // hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice — every
@@ -73,6 +73,8 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isLoadingConvo, setIsLoadingConvo] = useState(false);
+  const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
    * Re-fetch the conversation list from the server. Called on mount,
@@ -127,6 +129,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
 
   const loadConvo = useCallback(
     async (id: string) => {
+      setIsLoadingConvo(true);
       try {
         // Clear the in-memory messages FIRST so any lingering SDK-
         // generated ids from a concurrent stream can't collide with
@@ -228,6 +231,8 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
         }
       } catch {
         onError?.("Couldn't load conversation.");
+      } finally {
+        setIsLoadingConvo(false);
       }
     },
     [setMessages, onError, utils]
@@ -309,9 +314,9 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
   // conversation when the user archives the convo they're currently
   // viewing — keeps the message pane from showing a now-hidden convo.
   const patchConvoFlag = useCallback(
-    async (id: string, flag: "starred" | "archived" | "muted", next: boolean) => {
-      // Optimistic write — flip the timestamp on the matching row so
-      // the drawer's filled-icon state updates without a refetch.
+    (id: string, flag: "starred" | "archived" | "muted", next: boolean) => {
+      // Immediate optimistic write — flip the timestamp so the drawer's
+      // filled-icon state updates without waiting for the server round-trip.
       const ts = next ? new Date().toISOString() : null;
       setConvos((prev) =>
         prev.map((c) =>
@@ -321,43 +326,42 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
               ? { ...c, starredAt: ts }
               : flag === "muted"
                 ? { ...c, mutedAt: ts }
-                : c, // archived rows are filtered out of the list, so
-                     // no local-state change needed — reloadConvos
-                     // (below) will drop them.
+                : c, // archived rows are filtered by reloadConvos
         ),
       );
-      try {
-        // `updateConversation`'s typed input is { id, archived?,
-        // starred?, muted?, title? } — build the one-flag patch with an
-        // explicit key so the computed-key narrows cleanly. mutateAsync
-        // throws TRPCError on failure, caught by the catch below.
-        await updateConversationMutation.mutateAsync({
-          id,
-          ...(flag === "starred"
-            ? { starred: next }
-            : flag === "muted"
-              ? { muted: next }
-              : { archived: next }),
-        });
-        if (flag === "archived" && next) {
-          // Drop the now-archived convo from the visible list.
-          setConvos((prev) => prev.filter((c) => c.id !== id));
+
+      // Debounce the API call — cancel any pending call and schedule a
+      // new one. Last call within 300 ms wins; prevents double-tap spam.
+      if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
+      patchTimerRef.current = setTimeout(async () => {
+        try {
+          await updateConversationMutation.mutateAsync({
+            id,
+            ...(flag === "starred"
+              ? { starred: next }
+              : flag === "muted"
+                ? { muted: next }
+                : { archived: next }),
+          });
+          if (flag === "archived" && next) {
+            setConvos((prev) => prev.filter((c) => c.id !== id));
+          }
+        } catch {
+          // Revert optimistic flip.
+          setConvos((prev) =>
+            prev.map((c) =>
+              c.id !== id
+                ? c
+                : flag === "starred"
+                  ? { ...c, starredAt: next ? null : ts }
+                  : flag === "muted"
+                    ? { ...c, mutedAt: next ? null : ts }
+                    : c,
+            ),
+          );
+          onError?.(`Couldn't ${next ? "set" : "clear"} ${flag}`);
         }
-      } catch {
-        // Revert optimistic flip.
-        setConvos((prev) =>
-          prev.map((c) =>
-            c.id !== id
-              ? c
-              : flag === "starred"
-                ? { ...c, starredAt: next ? null : ts }
-                : flag === "muted"
-                  ? { ...c, mutedAt: next ? null : ts }
-                  : c,
-          ),
-        );
-        onError?.(`Couldn't ${next ? "set" : "clear"} ${flag}`);
-      }
+      }, 300);
     },
     [onError, updateConversationMutation],
   );
@@ -368,6 +372,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     setActiveId,
     showHistory,
     setShowHistory,
+    isLoadingConvo,
     loadConvo,
     deleteConvo,
     newChat,

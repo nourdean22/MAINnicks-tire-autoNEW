@@ -262,11 +262,11 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                onSubmit(e as any);
+                sendOrQueue(draft.trim());
               }
             }}
             placeholder="Send a message to Statenour OS..."
-            className="max-h-[200px] min-h-[44px] w-full resize-none bg-transparent px-2 py-2.5 text-[15px] text-zinc-200 outline-none placeholder:text-zinc-500"
+            className="max-h-[200px] min-h-[44px] w-full resize-none bg-transparent px-2 py-2.5 text-[16px] text-zinc-200 outline-none placeholder:text-zinc-500"
             rows={1}
           />
         </div>
