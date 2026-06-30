@@ -37,6 +37,7 @@ import {
   publishToInstagram,
   publishReelToInstagram,
   publishToFacebook,
+  checkMetaConnection,
   type PublishResult,
 } from "@/lib/social/meta-publish";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
@@ -54,8 +55,8 @@ export interface SocialScheduleView {
   };
   profiles?: BufferProfile[];
   meta?: {
-    instagram: "connected" | "missing credentials";
-    facebook: "connected" | "missing credentials";
+    instagram: string;
+    facebook: string;
   };
   error?: string;
 }
@@ -67,9 +68,10 @@ export interface SocialScheduleView {
  */
 export async function getSocialSchedule(): Promise<SocialScheduleView> {
   try {
-    const [connection, profiles] = await Promise.all([
+    const [connection, profiles, metaConn] = await Promise.all([
       checkBufferConnection(),
       listBufferProfiles().catch(() => []),
+      checkMetaConnection().catch((err) => ({ ok: false, error: sanitizeError(err) })),
     ]);
     const hasMetaIg = !!(
       process.env.META_PAGE_ACCESS_TOKEN?.trim() && 
@@ -84,8 +86,16 @@ export async function getSocialSchedule(): Promise<SocialScheduleView> {
       connection,
       profiles,
       meta: {
-        instagram: hasMetaIg ? "connected" : "missing credentials",
-        facebook: hasMetaFb ? "connected" : "missing credentials",
+        instagram: metaConn.ok && hasMetaIg
+          ? "connected"
+          : !hasMetaIg
+            ? "missing credentials"
+            : `error: ${metaConn.error || "failed"}`,
+        facebook: metaConn.ok && hasMetaFb
+          ? "connected"
+          : !hasMetaFb
+            ? "missing credentials"
+            : `error: ${metaConn.error || "failed"}`,
       },
     };
   } catch (err) {
