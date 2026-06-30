@@ -50,6 +50,34 @@ export function useChatStream(): ChatRuntimeController {
     }
   });
 
+  // Auto-retry on transient network errors (iOS PWA backgrounding, fetch kill).
+  // Stable ref so the effect dep is only chat.error — not regenerate itself.
+  const retryCountRef = useRef(0);
+  const regenerateRef = useRef(chat.regenerate);
+  regenerateRef.current = chat.regenerate;
+
+  useEffect(() => {
+    if (!chat.error) {
+      retryCountRef.current = 0;
+      return;
+    }
+    if (retryCountRef.current >= 2) return;
+
+    const msg = (chat.error.message ?? "").toLowerCase();
+    const isNetworkKill =
+      msg.includes("failed to fetch") ||
+      msg.includes("networkerror") ||
+      msg.includes("fetch failed") ||
+      msg.includes("load failed");
+
+    if (!isNetworkKill) return;
+
+    retryCountRef.current++;
+    const delay = 1500 * retryCountRef.current;
+    const t = setTimeout(() => regenerateRef.current?.(), delay);
+    return () => clearTimeout(t);
+  }, [chat.error]);
+
   // Streaming Error Guard
   useStreamingErrorGuard({
     isStreaming: chat.status === "streaming" || chat.status === "submitted",
