@@ -3,9 +3,23 @@
  *
  * Consolidated and upgraded to support Vercel AI SDK ToolLoopAgent,
  * dynamic think-tag stripping, and strict execution budget racing.
+ *
+ * v11 · Jun 30 · CRITICAL FIX · PR #403 introduced a custom
+ * ReadableStream<object> filter that enqueued JS objects (not bytes).
+ * When sse-stream.ts called Buffer.from(value) on these objects it
+ * threw "Received an instance of Object", crashing EVERY chat message
+ * that hit the main streamWithFallback path. Fixed by returning the
+ * original AI SDK StreamTextResult whose toUIMessageStreamResponse()
+ * properly serializes to the SSE data protocol.
+ *
+ * Think-tag stripping is now handled by the onChunk callback in the
+ * chat route (__partialRef accumulator) — Gemini (current provider)
+ * does not emit <think> tags, so the server-side filter was a no-op.
+ * If a future provider emits think tags, add an experimental_transform
+ * or strip them client-side.
  */
 
-import { ToolLoopAgent, stepCountIs, type LanguageModel } from "ai";
+import { ToolLoopAgent, stepCountIs, type LanguageModel, type StreamTextResult, type ToolSet } from "ai";
 import {
   getModel,
   markProviderFailed,
@@ -109,7 +123,6 @@ export async function streamWithFallback(
       });
 
       const abortController = new AbortController();
-      let hasCommittedStream = false;
 
       // 2. Budget timeout (3.5s for local Ollama models)
       const isOllama = provider === "ollama";
@@ -118,10 +131,8 @@ export async function streamWithFallback(
       const budgetTimeout = isOllama
         ? new Promise<never>((_, reject) => {
             setTimeout(() => {
-              if (!hasCommittedStream) {
-                abortController.abort();
-                reject(new Error("THINKING_BUDGET_EXCEEDED"));
-              }
+              abortController.abort();
+              reject(new Error("THINKING_BUDGET_EXCEEDED"));
             }, thinkingBudgetMs);
           })
         : null;
@@ -129,92 +140,22 @@ export async function streamWithFallback(
       const agentStreamPromise = agent.stream({
         messages,
         abortSignal: abortController.signal,
+        experimental_transform: config.experimental_transform,
       });
 
       const result = budgetTimeout
         ? await Promise.race([agentStreamPromise, budgetTimeout])
         : await agentStreamPromise;
 
-      const reader = result.fullStream.getReader();
-      let textBuffer = "";
-      let insideThinkBlock = false;
-      let visibleTextAccumulated = "";
-
-      // 3. Setup guarded stream filter
-      const stream = new ReadableStream({
-        async pull(controller) {
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) {
-                const hasTools = result.toolCalls && (await result.toolCalls).length > 0;
-                if (visibleTextAccumulated.trim().length === 0 && !hasTools) {
-                  controller.error(new Error("EMPTY_STRIPPED_OUTPUT"));
-                } else {
-                  controller.close();
-                }
-                break;
-              }
-
-              // Handle streaming think-tag removal
-              if (value.type === "text-delta" && typeof (value as any).text === "string") {
-                textBuffer += (value as any).text;
-
-                while (textBuffer.length > 0) {
-                  if (!insideThinkBlock) {
-                    const thinkStart = textBuffer.indexOf("<think>");
-                    if (thinkStart !== -1) {
-                      const visiblePart = textBuffer.slice(0, thinkStart);
-                      if (visiblePart.length > 0) {
-                        visibleTextAccumulated += visiblePart;
-                        hasCommittedStream = true;
-                        controller.enqueue({ type: "text-delta", text: visiblePart });
-                      }
-                      insideThinkBlock = true;
-                      textBuffer = textBuffer.slice(thinkStart + 7);
-                    } else {
-                      const lastOpenBracket = textBuffer.lastIndexOf("<");
-                      if (lastOpenBracket !== -1 && "<think>".startsWith(textBuffer.slice(lastOpenBracket))) {
-                        const visiblePart = textBuffer.slice(0, lastOpenBracket);
-                        if (visiblePart.length > 0) {
-                          visibleTextAccumulated += visiblePart;
-                          hasCommittedStream = true;
-                          controller.enqueue({ type: "text-delta", text: visiblePart });
-                        }
-                        textBuffer = textBuffer.slice(lastOpenBracket);
-                        break;
-                      } else {
-                        visibleTextAccumulated += textBuffer;
-                        hasCommittedStream = true;
-                        controller.enqueue(value);
-                        textBuffer = "";
-                      }
-                    }
-                  } else {
-                    const thinkEnd = textBuffer.indexOf("</think>");
-                    if (thinkEnd !== -1) {
-                      insideThinkBlock = false;
-                      textBuffer = textBuffer.slice(thinkEnd + 8);
-                    } else {
-                      const lastOpenBracket = textBuffer.lastIndexOf("<");
-                      if (lastOpenBracket !== -1 && "</think>".startsWith(textBuffer.slice(lastOpenBracket))) {
-                        textBuffer = textBuffer.slice(lastOpenBracket);
-                        break;
-                      } else {
-                        textBuffer = "";
-                      }
-                    }
-                  }
-                }
-              } else {
-                controller.enqueue(value);
-              }
-            }
-          } catch (err) {
-            controller.error(err);
-          }
-        },
-      });
+      // Return the original AI SDK result directly. Its built-in
+      // toUIMessageStreamResponse() properly serializes fullStream
+      // chunks to the SSE data protocol (Uint8Array bytes), which is
+      // what sse-stream.ts and use-chat-transport.ts expect.
+      //
+      // The previous code wrapped fullStream in a custom ReadableStream
+      // that emitted JS objects and then wrapped THAT in new Response() —
+      // sse-stream.ts called Buffer.from(objectChunk) which crashed with
+      // "Received an instance of Object".
 
       attempts.push({
         attempt,
@@ -227,13 +168,7 @@ export async function streamWithFallback(
       });
 
       return {
-        result: {
-          fullStream: stream,
-          toUIMessageStreamResponse: () => new Response(stream, {
-            headers: { "Content-Type": "text/event-stream; charset=utf-8" }
-          }),
-          toolCalls: result.toolCalls,
-        },
+        result: result as unknown as StreamWithFallbackResult["result"],
         model,
         provider,
         attempts,
