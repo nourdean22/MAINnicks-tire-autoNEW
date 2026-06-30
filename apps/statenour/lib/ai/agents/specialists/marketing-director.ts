@@ -58,7 +58,7 @@ INSTRUCTIONS FOR LIVE CHAT:
 - Answer the user's request with expert authority, specific numbers, and concrete actionable workflows.
 - If the user switches topics to something unrelated to marketing or your role, append "[[HANDBACK: out of domain]]" on a line by itself.`;
 
-  const chatMessages = input.messages.slice(-6).map(m => ({ 
+  const chatMessages = input.messages.map(m => ({ 
     role: m.role as "system" | "user" | "assistant", 
     content: m.content 
   }));
