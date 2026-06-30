@@ -20,7 +20,14 @@ vi.mock("ai", () => {
                   read: () => Promise.resolve({ done: true, value: undefined })
                 })
               },
-              toUIMessageStreamResponse: () => res,
+              toUIMessageStreamResponse: () => {
+                if (res && typeof res === "object" && "__mockResult" in res) {
+                  return new Response("mock body", {
+                    headers: { "Content-Type": "text/event-stream; charset=utf-8" },
+                  });
+                }
+                return res;
+              },
               toolCalls: Promise.resolve([]),
             });
           } catch (err) {
@@ -55,7 +62,7 @@ describe("v10 B.5 · streamWithFallback", () => {
 
     const out = await streamWithFallback({
       taskType: "reason",
-      buildConfig: (model) => ({ model, system: "test" }) as never,
+      buildConfig: (model: any) => ({ model, system: "test" }) as never,
     });
 
     const streamRes = out.result.toUIMessageStreamResponse();
@@ -82,7 +89,7 @@ describe("v10 B.5 · streamWithFallback", () => {
 
     const out = await streamWithFallback({
       taskType: "reason",
-      buildConfig: (model) => ({ model, system: "test" }) as never,
+      buildConfig: (model: any) => ({ model, system: "test" }) as never,
     });
 
     const streamRes2 = out.result.toUIMessageStreamResponse();
@@ -114,7 +121,7 @@ describe("v10 B.5 · streamWithFallback", () => {
     try {
       await streamWithFallback({
         taskType: "reason",
-        buildConfig: (model) => ({ model, system: "test" }) as never,
+        buildConfig: (model: any) => ({ model, system: "test" }) as never,
       });
     } catch (err) {
       thrown = err;
@@ -141,7 +148,7 @@ describe("v10 B.5 · streamWithFallback", () => {
       await streamWithFallback({
         taskType: "reason",
         maxAttempts: 2,
-        buildConfig: (model) => ({ model, system: "test" }) as never,
+        buildConfig: (model: any) => ({ model, system: "test" }) as never,
       });
     } catch (err) {
       thrown = err;
@@ -161,7 +168,7 @@ describe("v10 B.5 · streamWithFallback", () => {
     try {
       await streamWithFallback({
         taskType: "reason",
-        buildConfig: (model) => ({ model, system: "test" }) as never,
+        buildConfig: (model: any) => ({ model, system: "test" }) as never,
       });
     } catch (err) {
       thrown = err;
@@ -184,7 +191,7 @@ describe("v10 B.5 · streamWithFallback", () => {
 
     const out = await streamWithFallback({
       taskType: "reason",
-      buildConfig: (model) => ({ model, system: "test" }) as never,
+      buildConfig: (model: any) => ({ model, system: "test" }) as never,
     });
 
     expect(out.provider).toBe("openai");
@@ -198,7 +205,7 @@ describe("v10 B.5 · streamWithFallback", () => {
 
     const out = await streamWithFallback({
       taskType: "reason",
-      buildConfig: (model) => ({ model, system: "test" }) as never,
+      buildConfig: (model: any) => ({ model, system: "test" }) as never,
     });
 
     expect(out.provider).toBe("anthropic");

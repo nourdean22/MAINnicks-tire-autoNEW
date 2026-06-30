@@ -6,7 +6,7 @@ clarity-status: CLEAR
 hitl-status: REVIEWED
 hitl-pending-count: 0
 points-passed: 1-9
-document-sha256: db6f80675167ad1b1a931bda5aadaa5efb90560f18da39db7a08278493721d8d
+document-sha256: 91c1451538b7a94e3a4ab9dec14a221d34b25e3976a074a03021a6d8e33ffb55
 hitl-claims:
   - id: claim-backup-tables-exist
     text: "The following 10 temporary tables currently exist in the live TiDB database instance."
