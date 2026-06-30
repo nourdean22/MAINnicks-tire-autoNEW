@@ -17,6 +17,7 @@ flag to enable it.
 | `financial-analyst`  | Net worth · savings rate · spending categories · cash flow · debt   |
 | `decision-coach`     | Trade-offs · weighing options · past-Nour patterns · recovery paths |
 | `schedule-keeper`    | Calendar shape · free blocks · day rhythm · reschedules (task #16)  |
+| `marketing-director` | Marketing campaigns · SEO/AEO optimization · copywriting · social channels |
 
 Distinguishing schedule-keeper from decision-coach is the
 trickiest call: schedule-keeper is "WHERE in time" (placement) ·
