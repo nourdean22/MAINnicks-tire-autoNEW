@@ -90,10 +90,10 @@ export function ChatMessageList({
                 if (m.role === "user") {
                   return (
                     <UserMessageBubble 
-                      key={i} 
-                      text={part.text} 
-                      onClick={() => {}} 
-                      onLongPress={() => setActionSheetMsg({ id: m.id, role: "user", text: part.text })} 
+                      key={`${m.id}-part-${i}`}
+                      text={part.text}
+                      onClick={() => {}}
+                      onLongPress={() => setActionSheetMsg({ id: m.id, role: "user", text: part.text })}
                     />
                   );
                 }
@@ -108,7 +108,7 @@ export function ChatMessageList({
 
                 return (
                   <AssistantMessageShell
-                    key={i}
+                    key={`${m.id}-part-${i}`}
                     text={part.text}
                     messageId={m.id}
                     onLongPress={() => setActionSheetMsg({ id: m.id, role: "assistant", text: part.text })}
@@ -130,16 +130,16 @@ export function ChatMessageList({
                 const toolName = part.type.replace("tool-", "");
                 if (isKnownToolName(toolName)) {
                   return (
-                    <ToolResultCard 
-                      key={i} 
-                      toolName={toolName} 
-                      state={(part as any).state} 
-                      output={(part as any).output} 
+                    <ToolResultCard
+                      key={`${m.id}-part-${i}`}
+                      toolName={toolName}
+                      state={(part as any).state}
+                      output={(part as any).output}
                     />
                   );
                 }
                 return (
-                  <div key={i} className="mt-3 rounded-xl border border-zinc-700/50 bg-zinc-950 p-3 text-sm font-mono text-zinc-400">
+                  <div key={`${m.id}-part-${i}`} className="mt-3 rounded-xl border border-zinc-700/50 bg-zinc-950 p-3 text-sm font-mono text-zinc-400">
                     <span className="text-zinc-500">[{toolName}]</span>
                     {(part as any).state === "output-available" && (
                       <div className="mt-2 pl-2 border-l border-zinc-700">Done.</div>
