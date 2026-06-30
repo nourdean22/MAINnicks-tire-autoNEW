@@ -30,6 +30,7 @@
 
 import { useMemo, useCallback, type RefObject, type Dispatch, type SetStateAction } from "react";
 import { DefaultChatTransport } from "ai";
+import { toast } from "sonner";
 import type { UIMessage, UIDataTypes, UITools } from "ai";
 import type { ContextBlocks } from "@/components/chat/context-block-badges";
 import type { Personality } from "@/lib/chat/types";
@@ -219,6 +220,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let buffer = "";
+            let toastedDecodeError = false;
 
             const sseStream = new ReadableStream({
               async start(controller) {
@@ -269,6 +271,10 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
                             controller.enqueue(bytes);
                           } catch (err) {
                             console.error("[use-chat-transport] Failed to decode chunk:", err, "dataVal:", dataVal);
+                            if (!toastedDecodeError) {
+                              toastedDecodeError = true;
+                              toast.error("Stream decode error — response may be incomplete", { duration: 4000 });
+                            }
                           }
                         } else if (currentEvent) {
                           try {
@@ -291,6 +297,9 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
                 } finally {
                   reader.releaseLock();
                 }
+              },
+              cancel() {
+                reader.cancel().catch(() => {});
               },
             });
 
