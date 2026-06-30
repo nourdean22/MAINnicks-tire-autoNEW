@@ -366,6 +366,14 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     [onError, updateConversationMutation],
   );
 
+  // Clean up any pending debounce timer when the hook unmounts to
+  // prevent state updates on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
+    };
+  }, []);
+
   return {
     convos,
     activeId,

@@ -2,6 +2,7 @@
 
 import { useRef, useCallback, useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
+import { toast } from "sonner";
 import { useChatTransport } from "@/hooks/chat/use-chat-transport";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStall } from "@/hooks/chat/use-chat-stall";
@@ -94,7 +95,12 @@ export function useChatStream(): ChatRuntimeController {
     messages: chat.messages as any,
     isStreaming: chat.status === "streaming" || chat.status === "submitted",
     stop: chat.stop,
-    setError: () => setConnection("degraded")
+    setError: (msg) => {
+      setConnection("degraded");
+      // Surface the stall message as a toast — on iOS PWA the user has
+      // no console, so the message was previously silently discarded.
+      if (msg) toast.error(msg, { duration: 6000 });
+    }
   });
 
   // We could expose stallStatus or triggerStallHandler via the store if needed,
