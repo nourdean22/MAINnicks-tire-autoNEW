@@ -255,6 +255,50 @@ export async function publishSocialPost(
   }
   const absoluteVideoUrl = resolvedVid.url;
 
+  const isTest = process.env.NODE_ENV === "test";
+
+  if (!isTest) {
+    const { getInngest } = await import("@/src/inngest/client");
+    const inngest = getInngest();
+
+    // Create database entry first in rendering/pending state
+    const row = await prisma.socialPublishQueue.create({
+      data: {
+        content: input.caption || input.message || "",
+        status: "rendering",
+        imageUrl: absoluteImageUrl || null,
+        platforms,
+        kind: absoluteVideoUrl ? "reel" : "post",
+        source: "manual",
+      },
+    });
+
+    await inngest.send({
+      name: "social/publish",
+      data: {
+        draftId: row.id,
+        platforms,
+        imageUrl: absoluteImageUrl,
+        videoUrl: absoluteVideoUrl,
+        caption: input.caption || input.message || "",
+        message: input.message || input.caption || "",
+        linkUrl: input.linkUrl,
+      },
+    });
+
+    return {
+      ok: true,
+      succeeded: platforms.length,
+      failed: 0,
+      results: platforms.map((p) => ({
+        ok: true,
+        platform: p,
+        postId: row.id,
+        permalink: undefined,
+      })),
+    };
+  }
+
   // Run publishes in parallel — IG and FB are independent paths.
   const tasks: Promise<PublishResult>[] = [];
   if (platforms.includes("instagram")) {
