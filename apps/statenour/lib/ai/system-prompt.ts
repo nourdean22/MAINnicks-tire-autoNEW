@@ -55,7 +55,19 @@ export async function buildSystemPrompt(
   const { detectContentIntent, detectContentDeepIntent, detectSmsIntent } = await import("./business-knowledge");
   const contentMode = detectContentIntent(userMessage);
   const deepMode = contentMode && detectContentDeepIntent(userMessage);
-  const slot = deepMode ? "deep" : contentMode ? "content" : detectSmsIntent(userMessage) ? "sms" : "default";
+
+  const { detectStitchPromptIntent } = await import("@nour/ai-capabilities");
+  const isStitchPrompt = userMessage ? detectStitchPromptIntent(userMessage) : false;
+
+  const slot = isStitchPrompt
+    ? "stitch_prompt"
+    : deepMode
+      ? "deep"
+      : contentMode
+        ? "content"
+        : detectSmsIntent(userMessage)
+          ? "sms"
+          : "default";
 
   // Use the date + 4h bucket in the cache key to partition by time-of-day
   const _now = new Date();
@@ -70,7 +82,17 @@ export async function buildSystemPrompt(
   return cached(cacheKey, 300, async () => {
     const { buildSystemPromptV2 } = await import("./prompt/v2");
     const out = await buildSystemPromptV2();
-    return trimPromptToBudget(out.prompt, 58000);
+    let prompt = trimPromptToBudget(out.prompt, 58000);
+
+    if (slot === "stitch_prompt") {
+      const { resolveDesignContext, buildEnhancePromptSystemInstructions } = await import("@nour/ai-capabilities");
+      const projectPath = process.cwd();
+      const brandContext = resolveDesignContext(projectPath, "statenour");
+      const enhanceInstructions = buildEnhancePromptSystemInstructions(brandContext);
+      prompt = `${prompt}\n\n## Capability: Stitch Prompt Engineering\n\n${enhanceInstructions}`;
+    }
+
+    return prompt;
   });
 }
 
@@ -80,7 +102,19 @@ export async function buildSystemPromptUncached(
 ): Promise<string> {
   const { buildSystemPromptV2 } = await import("./prompt/v2");
   const out = await buildSystemPromptV2();
-  return trimPromptToBudget(out.prompt, 58000);
+  let prompt = trimPromptToBudget(out.prompt, 58000);
+
+  if (userMessage) {
+    const { detectStitchPromptIntent, resolveDesignContext, buildEnhancePromptSystemInstructions } = await import("@nour/ai-capabilities");
+    if (detectStitchPromptIntent(userMessage)) {
+      const projectPath = process.cwd();
+      const brandContext = resolveDesignContext(projectPath, "statenour");
+      const enhanceInstructions = buildEnhancePromptSystemInstructions(brandContext);
+      prompt = `${prompt}\n\n## Capability: Stitch Prompt Engineering\n\n${enhanceInstructions}`;
+    }
+  }
+
+  return prompt;
 }
 
 export function trimPromptToBudget(prompt: string, maxLimit = 58000): string {
