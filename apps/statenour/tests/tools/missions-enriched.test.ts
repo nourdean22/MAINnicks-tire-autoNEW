@@ -1,50 +1,49 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { prisma } from "@/lib/prisma";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+// Mock prisma and the task service so this test runs without a DB connection.
+// Pattern mirrors guardian.test.ts, tool-policy.test.ts, etc.
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    mission: {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      delete: vi.fn(),
+    },
+    task: {
+      findMany: vi.fn(),
+      deleteMany: vi.fn(),
+    },
+    taskEvent: {
+      deleteMany: vi.fn(),
+    },
+  },
+}));
+
+vi.mock("@/lib/services/tasks", () => ({
+  createTaskAndEnrich: vi.fn(),
+}));
+
+import { createTaskAndEnrich } from "@/lib/services/tasks";
 import { missionsTools } from "@/lib/ai/tools/missions";
 
+const MISSION_ID = "test-mission-id";
+
 describe("missionsTools - addTasksToProject enriched bulk creation", () => {
-  let tempMissionId: string;
-
-  beforeEach(async () => {
-    // Create a temporary mission to link tasks to
-    const m = await prisma.mission.create({
-      data: {
-        title: "Test Enriched Mission",
-        domain: "PERSONAL",
-        priority: 50,
-        roiScore: 50,
-        neglectCost: 35,
-        status: "ACTIVE",
-      },
-    });
-    tempMissionId = m.id;
-  });
-
-  afterEach(async () => {
-    // Clean up created tasks and missions
-    const tasks = await prisma.task.findMany({
-      where: { missionId: tempMissionId },
-      select: { id: true },
-    });
-    const taskIds = tasks.map(t => t.id);
-    if (taskIds.length > 0) {
-      await prisma.taskEvent.deleteMany({
-        where: { taskId: { in: taskIds } },
-      });
-    }
-    await prisma.task.deleteMany({
-      where: { missionId: tempMissionId },
-    });
-    await prisma.mission.delete({
-      where: { id: tempMissionId },
-    });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Mirror loopKind / recurringDays back from args so execute's return
+    // value reflects what was passed (same contract as the real service).
+    vi.mocked(createTaskAndEnrich).mockImplementation(async (args) => ({
+      id: `task-${Math.random().toString(36).slice(2)}`,
+      title: args.title,
+      loopKind: args.loopKind,
+      recurringDays: args.recurringDays ?? [],
+    }) as any);
   });
 
   it("should create tasks in bulk with correct loopKind and recurringDays", async () => {
-    const executeFn = missionsTools.addTasksToProject.execute;
-    
-    const result = await executeFn({
-      missionId: tempMissionId,
+    const result = await missionsTools.addTasksToProject.execute({
+      missionId: MISSION_ID,
       tasks: [
         {
           title: "Monday Morning Reset",
@@ -60,29 +59,25 @@ describe("missionsTools - addTasksToProject enriched bulk creation", () => {
           effort: "M5",
           context: "HOME",
           loopKind: "DAILY",
-        }
+        },
       ],
     });
 
     expect(result.created).toBe(true);
     expect(result.count).toBe(2);
 
-    // Verify in database
-    const dbTasks = await prisma.task.findMany({
-      where: { missionId: tempMissionId },
-      orderBy: { title: "asc" },
-    });
+    // Verify createTaskAndEnrich received the right loopKind + recurringDays
+    // for each task — this is the core business logic the test guards.
+    expect(createTaskAndEnrich).toHaveBeenCalledTimes(2);
 
-    expect(dbTasks.length).toBe(2);
-    
-    // Drink Water Daily
-    expect(dbTasks[0].title).toBe("Drink Water Daily");
-    expect(dbTasks[0].loopKind).toBe("DAILY");
-    expect(dbTasks[0].recurringDays).toEqual([]);
+    const calls = vi.mocked(createTaskAndEnrich).mock.calls;
+    const weeklyArgs = calls.find(([a]) => a.title === "Monday Morning Reset")?.[0];
+    const dailyArgs  = calls.find(([a]) => a.title === "Drink Water Daily")?.[0];
 
-    // Monday Morning Reset
-    expect(dbTasks[1].title).toBe("Monday Morning Reset");
-    expect(dbTasks[1].loopKind).toBe("WEEKLY");
-    expect(dbTasks[1].recurringDays).toEqual([1]);
+    expect(weeklyArgs?.loopKind).toBe("WEEKLY");
+    expect(weeklyArgs?.recurringDays).toEqual([1]);
+
+    expect(dailyArgs?.loopKind).toBe("DAILY");
+    expect(dailyArgs?.recurringDays).toEqual([]);
   });
 });
