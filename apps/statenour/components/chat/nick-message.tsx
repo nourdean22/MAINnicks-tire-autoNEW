@@ -31,6 +31,7 @@ import { trpc } from "@/lib/trpc/client";
 import { InlineChart, parseChartSpec } from "@/components/chat/inline-chart";
 import { EmailDraftCard, parseEmailDraft } from "@/components/chat/email-draft-card";
 import { ImageWithUpscale } from "@/components/chat/image-with-upscale";
+import { StitchPromptCard } from "@/components/chat/stitch-prompt-card";
 
 // v10.0.49 · Helper for the rich-render <pre> intercept. Streamdown
 // passes the inner <code> element's children as either a string, an
@@ -115,7 +116,7 @@ export function NickMessage({
   // this component re-renders on every token; the regex chain ran
   // hundreds of times against ever-growing text. quickActions array
   // identity also changes on every render which forces child re-mounts.
-  const { clean, actions, quickActions } = useMemo(() => {
+  const { clean, actions, quickActions, parsedStitchPrompt } = useMemo(() => {
     const cleaned = text
       .replace(/<think>[\s\S]*?<\/think>/gi, "")
       .replace(/<\/?think>/gi, "")
@@ -132,10 +133,22 @@ export function NickMessage({
         if (p.type) acts.push(p.type.replace(".", " · "));
       } catch {}
     }
+
+    let stitchPrompt = null;
+    try {
+      if (cleaned.startsWith("{") && cleaned.endsWith("}")) {
+        const parsed = JSON.parse(cleaned);
+        if (parsed && typeof parsed === "object" && parsed.oneLinePurpose && parsed.designSystem && parsed.finalPromptMarkdown) {
+          stitchPrompt = parsed;
+        }
+      }
+    } catch {}
+
     return {
       clean: cleaned,
       actions: acts,
       quickActions: detectQuickActions(cleaned),
+      parsedStitchPrompt: stitchPrompt,
     };
   }, [text]);
 
@@ -153,16 +166,19 @@ export function NickMessage({
           streaming && "nick-prose--streaming",
         )}
       >
-        <Streamdown
-          remarkPlugins={[remarkGfm]}
-          parseIncompleteMarkdown={true}
-          mode={streaming ? "streaming" : "static"}
-          /* v11.1 · `components` cast below is intentional. Streamdown
-             types each override strictly by HTML element — MDProps is
-             our shared loose shape that's runtime-compatible but not
-             structurally identical. Cast via unknown so TypeScript
-             doesn't require rewriting all 23 override signatures. */
-          components={{
+        {parsedStitchPrompt ? (
+          <StitchPromptCard data={parsedStitchPrompt} />
+        ) : (
+          <Streamdown
+            remarkPlugins={[remarkGfm]}
+            parseIncompleteMarkdown={true}
+            mode={streaming ? "streaming" : "static"}
+            /* v11.1 · `components` cast below is intentional. Streamdown
+               types each override strictly by HTML element — MDProps is
+               our shared loose shape that's runtime-compatible but not
+               structurally identical. Cast via unknown so TypeScript
+               doesn't require rewriting all 23 override signatures. */
+            components={{
 
             // Headings
             h1: ({ children }: MDProps) => <p className="text-[var(--gold)] font-semibold text-[13.5px] mt-3 mb-1">{children}</p>,
@@ -301,6 +317,7 @@ export function NickMessage({
         >
           {clean}
         </Streamdown>
+      )}
       </div>
       {actions.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
