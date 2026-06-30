@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 // hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice.
 // `/api/ai/transcribe` takes a multipart `FormData` audio Blob — tRPC's
@@ -211,6 +211,17 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
     if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
     setAudioLevel(0);
     setIsRecording(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      continuousRef.current = false;
+      if (levelRafRef.current) cancelAnimationFrame(levelRafRef.current);
+      if (silenceRafRef.current) cancelAnimationFrame(silenceRafRef.current);
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      try { mediaRecorderRef.current?.stop(); } catch {}
+      audioCtxRef.current?.close().catch(() => {});
+    };
   }, []);
 
   return {

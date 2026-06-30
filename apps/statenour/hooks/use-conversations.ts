@@ -75,6 +75,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
   const [loadingMore, setLoadingMore] = useState(false);
   const [isLoadingConvo, setIsLoadingConvo] = useState(false);
   const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadRequestRef = useRef(0);
 
   /**
    * Re-fetch the conversation list from the server. Called on mount,
@@ -129,6 +130,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
 
   const loadConvo = useCallback(
     async (id: string) => {
+      const thisRequest = ++loadRequestRef.current;
       setIsLoadingConvo(true);
       try {
         // Clear the in-memory messages FIRST so any lingering SDK-
@@ -140,6 +142,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
         // `chat.conversation` throws NOT_FOUND on a missing id (caught
         // by the catch below) · the result is always a conversation.
         const conversation = await utils.chat.conversation.fetch({ id });
+        if (thisRequest !== loadRequestRef.current) return;
         const data = { conversation };
         if (data.conversation) {
           setActiveId(id);
@@ -230,9 +233,10 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
           setShowHistory(false);
         }
       } catch {
+        if (thisRequest !== loadRequestRef.current) return;
         onError?.("Couldn't load conversation.");
       } finally {
-        setIsLoadingConvo(false);
+        if (thisRequest === loadRequestRef.current) setIsLoadingConvo(false);
       }
     },
     [setMessages, onError, utils]
