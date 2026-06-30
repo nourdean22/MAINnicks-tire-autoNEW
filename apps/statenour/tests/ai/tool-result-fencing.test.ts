@@ -68,6 +68,13 @@ describe("v10.0.529.5 · fenceContent", () => {
     const out = fenceContent("searchDocuments", "external_doc", benign);
     expect(out).toContain(benign);
   });
+
+  it("truncates content exceeding 4000 characters and appends a warning", () => {
+    const longContent = "A".repeat(5000);
+    const out = fenceContent("searchDocuments", "external_doc", longContent);
+    expect(out).toContain("[TRUNCATED due to context limit. Original size: 5000 characters.");
+    expect(out.length).toBeLessThan(5000);
+  });
 });
 
 describe("v10.0.529.5 · TOOL_DATA_FENCING_RULE", () => {

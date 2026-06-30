@@ -89,7 +89,13 @@ export function fenceContent(
     // fencing (which is the load-bearing defense).
   }
 
-  const body = annotation ? `${annotation}\n${sanitized}` : sanitized;
+  let body = annotation ? `${annotation}\n${sanitized}` : sanitized;
+  const MAX_TOOL_RESULT_LENGTH = 4000;
+  if (body.length > MAX_TOOL_RESULT_LENGTH) {
+    const originalLength = body.length;
+    body = body.slice(0, MAX_TOOL_RESULT_LENGTH) +
+      `\n\n... [TRUNCATED due to context limit. Original size: ${originalLength} characters. If you need details, ask the operator or refine your query parameters] ...`;
+  }
   return `<tool_data tool="${toolName}" source="${source}">\n${body}\n</tool_data tool="${toolName}">`;
 }
 

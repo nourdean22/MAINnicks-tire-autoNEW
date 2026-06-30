@@ -6,7 +6,7 @@ clarity-status: CLEAR
 hitl-status: REVIEWED
 hitl-pending-count: 0
 points-passed: 1-9
-document-sha256: f534379154b622884b1e5e235bc0bdbcf47fd088cb8697c60cbe12fd80f479a4
+document-sha256: 64867c44b7674f3ed08c54c10d9d9535b9d5e383d912a6faa640bccb6c986885
 hitl-claims:
   - id: claim-token-exp-user
     text: "Long-lived user access tokens expire in 60 days."
