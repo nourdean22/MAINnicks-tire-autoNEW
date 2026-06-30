@@ -250,7 +250,7 @@ export function ConversationDrawer({
           // the collapsed URL bar in the height calc, so the drawer
           // extended UNDER it · last history row was unreachable. 100dvh
           // tracks the dynamic visual viewport · iOS-correct.
-          maxHeight: "calc(100dvh - 80px)",
+          maxHeight: "calc(100dvh - 80px - env(safe-area-inset-bottom, 0px))",
           animation: "slideUpHistory 0.28s ease-out",
         }}
       >
