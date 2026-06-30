@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
@@ -24,15 +24,26 @@ function useScrollToBottom<T extends HTMLElement>() {
     // but only if we were already at bottom. To implement "only when at bottom", 
     // we use a MutationObserver.
     
+    // Throttle to one scroll check per animation frame — during fast
+    // streaming the observer fires for every character, which on iOS
+    // causes battery drain and choppy animation at 300+ callbacks/sec.
+    let rafId: number | null = null;
     const observer = new MutationObserver(() => {
-      if (container.scrollHeight - container.scrollTop - container.clientHeight < 150) {
-        endRef.current?.scrollIntoView({ behavior: "smooth" });
-      }
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (container.scrollHeight - container.scrollTop - container.clientHeight < 150) {
+          endRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
+      });
     });
 
     observer.observe(container, { childList: true, subtree: true, characterData: true });
 
-    return () => observer.disconnect();
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, []);
 
   return { containerRef, endRef };
@@ -57,6 +68,41 @@ export function ChatIsland() {
   });
   const { containerRef, endRef } = useScrollToBottom<HTMLDivElement>();
 
+  // ── Island ref for iOS keyboard height compensation ──────────────────
+  // On iOS PWA, window.innerHeight doesn't change when the software
+  // keyboard opens, but window.visualViewport.height does. By setting
+  // the island height to visualViewport.height the flex layout shrinks
+  // naturally, keeping the composer above the keyboard.
+  const islandRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const syncHeight = () => {
+      if (islandRef.current) {
+        islandRef.current.style.height = `${vv.height}px`;
+      }
+    };
+    vv.addEventListener("resize", syncHeight);
+    vv.addEventListener("scroll", syncHeight);
+    syncHeight();
+    return () => {
+      vv.removeEventListener("resize", syncHeight);
+      vv.removeEventListener("scroll", syncHeight);
+    };
+  }, []);
+
+  // ── Escape key closes the conversation drawer ────────────────────────
+  const closeDrawer = useCallback(() => setHistoryDrawerOpen(false), [setHistoryDrawerOpen]);
+  useEffect(() => {
+    if (!historyDrawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeDrawer();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [historyDrawerOpen, closeDrawer]);
+
   useEffect(() => {
     const handleCockpitEvent = (e: Event) => {
       const customEvent = e as CustomEvent<{ type: string; payload: any }>;
@@ -72,7 +118,10 @@ export function ChatIsland() {
   }, [setMemoryData]);
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-linear-to-br from-zinc-950 via-[#0a0a0a] to-black text-zinc-100">
+    <div
+      ref={islandRef}
+      className="flex h-full w-full flex-col overflow-hidden bg-linear-to-br from-zinc-950 via-[#0a0a0a] to-black text-zinc-100"
+    >
       {/* Header Area */}
       <header className="z-10 flex items-center justify-between border-b border-white/5 bg-black/40 px-4 py-3 backdrop-blur-xl">
         <h1 className="text-sm font-medium tracking-wide text-zinc-300 drop-shadow-sm">STATENOUR CHAT</h1>
@@ -134,6 +183,7 @@ export function ChatIsland() {
           <ChatMessageList
             messages={chat.messages}
             isLoading={chat.status === "streaming" || chat.status === "submitted"}
+            isLoadingConvo={convProps.isLoadingConvo}
             error={chat.error}
             liveContextBlocksRef={chat.liveContextBlocksRef}
             onRetry={() => chat.regenerate()}
@@ -149,8 +199,9 @@ export function ChatIsland() {
         )}
       </div>
 
-      {/* Composer Area */}
-      <div className="border-t border-white/5 bg-black/40 backdrop-blur-xl px-4 pt-4 pb-16 z-10 relative">
+      {/* Composer Area — pb-safe clears the fixed BottomTabBar (pulse ticker
+          32px + nav 52px + env(safe-area-inset-bottom)) on all iPhones. */}
+      <div className="border-t border-white/5 bg-black/40 backdrop-blur-xl px-4 pt-4 pb-safe z-10 relative">
         <ChatComposer chat={chat} />
       </div>
 
@@ -163,7 +214,10 @@ export function ChatIsland() {
 
       {/* Conversation Drawer Overlay — full-width on mobile, fixed 320px sidebar on desktop */}
       {historyDrawerOpen && (
-        <div className="absolute inset-y-0 left-0 w-full sm:w-80 bg-black/40 backdrop-blur-xl border-r border-white/5 z-50 flex flex-col">
+        <div
+          className="absolute inset-y-0 left-0 w-full sm:w-80 bg-black/40 backdrop-blur-xl border-r border-white/5 z-50 flex flex-col"
+          style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}
+        >
           <ConversationDrawer
             convos={convProps.convos}
             activeId={convProps.activeId}

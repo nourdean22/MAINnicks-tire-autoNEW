@@ -2,6 +2,7 @@
 
 import { useRef, useCallback, useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
+import { toast } from "sonner";
 import { useChatTransport } from "@/hooks/chat/use-chat-transport";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStall } from "@/hooks/chat/use-chat-stall";
@@ -50,6 +51,34 @@ export function useChatStream(): ChatRuntimeController {
     }
   });
 
+  // Auto-retry on transient network errors (iOS PWA backgrounding, fetch kill).
+  // Stable ref so the effect dep is only chat.error — not regenerate itself.
+  const retryCountRef = useRef(0);
+  const regenerateRef = useRef(chat.regenerate);
+  regenerateRef.current = chat.regenerate;
+
+  useEffect(() => {
+    if (!chat.error) {
+      retryCountRef.current = 0;
+      return;
+    }
+    if (retryCountRef.current >= 2) return;
+
+    const msg = (chat.error.message ?? "").toLowerCase();
+    const isNetworkKill =
+      msg.includes("failed to fetch") ||
+      msg.includes("networkerror") ||
+      msg.includes("fetch failed") ||
+      msg.includes("load failed");
+
+    if (!isNetworkKill) return;
+
+    retryCountRef.current++;
+    const delay = 1500 * retryCountRef.current;
+    const t = setTimeout(() => regenerateRef.current?.(), delay);
+    return () => clearTimeout(t);
+  }, [chat.error]);
+
   // Streaming Error Guard
   useStreamingErrorGuard({
     isStreaming: chat.status === "streaming" || chat.status === "submitted",
@@ -66,7 +95,12 @@ export function useChatStream(): ChatRuntimeController {
     messages: chat.messages as any,
     isStreaming: chat.status === "streaming" || chat.status === "submitted",
     stop: chat.stop,
-    setError: () => setConnection("degraded")
+    setError: (msg) => {
+      setConnection("degraded");
+      // Surface the stall message as a toast — on iOS PWA the user has
+      // no console, so the message was previously silently discarded.
+      if (msg) toast.error(msg, { duration: 6000 });
+    }
   });
 
   // We could expose stallStatus or triggerStallHandler via the store if needed,

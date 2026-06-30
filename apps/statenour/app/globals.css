@@ -454,9 +454,11 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
   .feed { padding: 0 32px; }
 }
 
-/* Safe area for mobile bottom tabs */
+/* Safe area for mobile bottom tabs.
+ * Clears the full BottomTabBar stack: BottomPulseTicker (32px mobile) +
+ * nav row (52px) = 84px, plus device safe-area-inset-bottom. */
 .pb-safe {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
 }
 
 /* ═══════════════════════════════════════════════════════

@@ -23,6 +23,13 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   const resolvePending = useChatUiStore((s) => s.resolvePending);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (mentionTimerRef.current) clearTimeout(mentionTimerRef.current);
+    };
+  }, []);
 
   // Auto-resize
   useEffect(() => {
@@ -165,7 +172,9 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             if (atIndex !== -1) {
               const newBefore = textBeforeCaret.slice(0, atIndex) + "@" + m.label + " ";
               setDraft(newBefore + textAfterCaret);
-              setTimeout(() => {
+              if (mentionTimerRef.current) clearTimeout(mentionTimerRef.current);
+              mentionTimerRef.current = setTimeout(() => {
+                mentionTimerRef.current = null;
                 const newPos = newBefore.length;
                 textareaRef.current?.setSelectionRange(newPos, newPos);
                 textareaRef.current?.focus();
@@ -262,11 +271,11 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                onSubmit(e as any);
+                sendOrQueue(draft.trim());
               }
             }}
             placeholder="Send a message to Statenour OS..."
-            className="max-h-[200px] min-h-[44px] w-full resize-none bg-transparent px-2 py-2.5 text-[15px] text-zinc-200 outline-none placeholder:text-zinc-500"
+            className="max-h-[200px] min-h-[44px] w-full resize-none bg-transparent px-2 py-2.5 text-[16px] text-zinc-200 outline-none placeholder:text-zinc-500"
             rows={1}
           />
         </div>

@@ -12,6 +12,7 @@ import { ReasoningTraceModal } from "@/components/chat/reasoning-trace-modal";
 import { ReasoningTraceLive } from "@/components/chat/reasoning-trace-live";
 import { extractContextBlocks, extractQuality, extractCitations } from "@/lib/chat/extract-message-metadata";
 import { toast } from "sonner";
+import { useLazyRenderMessages } from "@/hooks/chat/use-lazy-render-messages";
 
 async function copyToClipboard(text: string): Promise<void> {
   if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -27,12 +28,14 @@ async function copyToClipboard(text: string): Promise<void> {
 export function ChatMessageList({
   messages,
   isLoading,
+  isLoadingConvo,
   error,
   liveContextBlocksRef,
   onRetry,
 }: {
   messages: UIMessage[],
   isLoading: boolean,
+  isLoadingConvo?: boolean,
   error: Error | undefined,
   liveContextBlocksRef?: React.RefObject<any>,
   onRetry?: () => void,
@@ -41,7 +44,18 @@ export function ChatMessageList({
   const [actionSheetMsg, setActionSheetMsg] = useState<{ id: string; role: "user" | "assistant"; text: string } | null>(null);
   const [reasoningTraceMsg, setReasoningTraceMsg] = useState<string | null>(null);
 
+  const { renderedMessages, hasHidden, hiddenCount, showOlder } = useLazyRenderMessages(messages, isLoading);
+
   if (messages.length === 0 && pending.length === 0) {
+    if (isLoadingConvo) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center p-8">
+          <div className="animate-pulse text-xs font-semibold uppercase tracking-widest text-zinc-600">
+            Loading conversation...
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex h-full flex-col items-center justify-center p-8 text-center">
         <h2 className="text-xl font-semibold text-zinc-400">NOUR OS</h2>
@@ -52,9 +66,19 @@ export function ChatMessageList({
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 pb-12">
+      {/* Show-older banner — only when lazy-rendering a long conversation */}
+      {hasHidden && (
+        <button
+          onClick={showOlder}
+          className="mx-auto rounded-full border border-zinc-700 bg-zinc-900 px-4 py-1.5 text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-200 active:scale-95"
+        >
+          Show {hiddenCount} older {hiddenCount === 1 ? "message" : "messages"}
+        </button>
+      )}
+
       {/* Real Messages */}
       {/* eslint-disable-next-line react-hooks/refs */}
-      {messages.map((m) => (
+      {renderedMessages.map((m) => (
         <div key={m.id} className={`flex animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
           <div className={`max-w-[85%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm ${
             m.role === "user" 
@@ -66,10 +90,10 @@ export function ChatMessageList({
                 if (m.role === "user") {
                   return (
                     <UserMessageBubble 
-                      key={i} 
-                      text={part.text} 
-                      onClick={() => {}} 
-                      onLongPress={() => setActionSheetMsg({ id: m.id, role: "user", text: part.text })} 
+                      key={`${m.id}-part-${i}`}
+                      text={part.text}
+                      onClick={() => {}}
+                      onLongPress={() => setActionSheetMsg({ id: m.id, role: "user", text: part.text })}
                     />
                   );
                 }
@@ -84,7 +108,7 @@ export function ChatMessageList({
 
                 return (
                   <AssistantMessageShell
-                    key={i}
+                    key={`${m.id}-part-${i}`}
                     text={part.text}
                     messageId={m.id}
                     onLongPress={() => setActionSheetMsg({ id: m.id, role: "assistant", text: part.text })}
@@ -106,16 +130,16 @@ export function ChatMessageList({
                 const toolName = part.type.replace("tool-", "");
                 if (isKnownToolName(toolName)) {
                   return (
-                    <ToolResultCard 
-                      key={i} 
-                      toolName={toolName} 
-                      state={(part as any).state} 
-                      output={(part as any).output} 
+                    <ToolResultCard
+                      key={`${m.id}-part-${i}`}
+                      toolName={toolName}
+                      state={(part as any).state}
+                      output={(part as any).output}
                     />
                   );
                 }
                 return (
-                  <div key={i} className="mt-3 rounded-xl border border-zinc-700/50 bg-zinc-950 p-3 text-sm font-mono text-zinc-400">
+                  <div key={`${m.id}-part-${i}`} className="mt-3 rounded-xl border border-zinc-700/50 bg-zinc-950 p-3 text-sm font-mono text-zinc-400">
                     <span className="text-zinc-500">[{toolName}]</span>
                     {(part as any).state === "output-available" && (
                       <div className="mt-2 pl-2 border-l border-zinc-700">Done.</div>
