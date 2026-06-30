@@ -98,6 +98,18 @@ describe("router · keyword pre-filter (with flag ON)", () => {
     expect(vi.mocked(aiChat)).not.toHaveBeenCalled();
   });
 
+  it("routes obvious marketing messages without an LLM call", async () => {
+    const decision = await routeMessage({
+      messages: [
+        { role: "user", content: "can you help me design a TikTok strategy for my store?" },
+      ],
+    });
+    expect(decision.route).toBe("marketing-director");
+    expect(decision.reason).toMatch(/keyword.*marketing/);
+    expect(decision.confidence).toBeGreaterThan(0.8);
+    expect(vi.mocked(aiChat)).not.toHaveBeenCalled();
+  });
+
   it("classifies the LATEST user message, not earlier ones", async () => {
     const decision = await routeMessage({
       messages: [
@@ -260,6 +272,12 @@ describe("classifyByKeyword (pure helper)", () => {
   it("returns financial route when only financial family hits", () => {
     expect(classifyByKeyword("what's my net worth this month").route).toBe(
       "financial-analyst",
+    );
+  });
+
+  it("returns marketing route when only marketing family hits", () => {
+    expect(classifyByKeyword("need a new copywriting campaign").route).toBe(
+      "marketing-director",
     );
   });
 

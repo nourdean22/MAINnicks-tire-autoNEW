@@ -92,6 +92,7 @@ describe("RoutingDecision · output shape contract", () => {
     "financial-analyst",
     "decision-coach",
     "schedule-keeper",
+    "marketing-director",
   ]);
 
   const routingDecision = z.object({
@@ -132,6 +133,15 @@ describe("RoutingDecision · output shape contract", () => {
       route: "schedule-keeper",
       reason: "keyword: schedule signals matched",
       confidence: 0.9,
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("accepts a marketing-director decision", () => {
+    const parsed = routingDecision.safeParse({
+      route: "marketing-director",
+      reason: "keyword: marketing signals matched",
+      confidence: 0.95,
     });
     expect(parsed.success).toBe(true);
   });

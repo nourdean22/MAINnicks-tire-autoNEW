@@ -149,6 +149,8 @@ export const MUNGER: Persona = {
     "Plain prose, max 200 words. Include 1 named mental model applied to this question.",
 };
 
+import { getMarketingPersonas } from "../agents/marketing/loader";
+
 // ── Registry for lookup by key ──
 
 export const PERSONAS: Record<string, Persona> = {
@@ -163,6 +165,7 @@ export const PERSONAS: Record<string, Persona> = {
   [BUFFETT.key]: BUFFETT,
   [NAVAL.key]: NAVAL,
   [MUNGER.key]: MUNGER,
+  ...getMarketingPersonas(),
 };
 
 /** Look up a persona by key · returns null when not found · caller
