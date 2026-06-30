@@ -368,7 +368,7 @@ export default function PhotoImproverPage() {
           </a>
           <div className="flex gap-1 flex-wrap mt-3">
             <Link
-              href={`/social?imageUrl=${encodeURIComponent(`/api/images/${data.rebrandedImageId}`)}`}
+              href={`/content?tab=publish&imageUrl=${encodeURIComponent(`/api/images/${data.rebrandedImageId}`)}`}
               className="rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-[10px] text-violet-200 hover:bg-violet-500/15 inline-flex items-center gap-1"
             >
               <Send className="h-3 w-3" /> publish

@@ -53,6 +53,10 @@ export interface SocialScheduleView {
     error?: string;
   };
   profiles?: BufferProfile[];
+  meta?: {
+    instagram: "connected" | "missing credentials";
+    facebook: "connected" | "missing credentials";
+  };
   error?: string;
 }
 
@@ -67,7 +71,23 @@ export async function getSocialSchedule(): Promise<SocialScheduleView> {
       checkBufferConnection(),
       listBufferProfiles().catch(() => []),
     ]);
-    return { ok: true, connection, profiles };
+    const hasMetaIg = !!(
+      process.env.META_PAGE_ACCESS_TOKEN?.trim() && 
+      (process.env.META_IG_USER_ID?.trim() || process.env.META_INSTAGRAM_ACCOUNT_ID?.trim())
+    );
+    const hasMetaFb = !!(
+      process.env.META_PAGE_ACCESS_TOKEN?.trim() && 
+      (process.env.META_PAGE_ID?.trim() || process.env.META_FACEBOOK_PAGE_ID?.trim())
+    );
+    return {
+      ok: true,
+      connection,
+      profiles,
+      meta: {
+        instagram: hasMetaIg ? "connected" : "missing credentials",
+        facebook: hasMetaFb ? "connected" : "missing credentials",
+      },
+    };
   } catch (err) {
     return { ok: false, error: sanitizeError(err) };
   }
