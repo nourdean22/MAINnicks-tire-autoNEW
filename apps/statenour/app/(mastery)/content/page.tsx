@@ -24,6 +24,7 @@
 import { StandardPage } from "@/components/layout/standard-page";
 import { PageTabs } from "@/components/layout/page-tabs";
 import { DraftsTab } from "@/components/content/drafts-tab";
+import { AssistantTab } from "@/components/content/assistant-tab";
 import { HistoryTab } from "@/components/content/history-tab";
 import { PublishTab } from "@/components/content/publish-tab";
 import { OutreachTab } from "@/components/content/outreach-tab";
@@ -41,6 +42,7 @@ export default function ContentPage() {
         defaultKey="drafts"
         tabs={[
           { key: "drafts", label: "Drafts", render: () => <DraftsTab /> },
+          { key: "assistant", label: "AI Assistant", render: () => <AssistantTab /> },
           { key: "history", label: "History", render: () => <HistoryTab /> },
           { key: "publish", label: "Publish", render: () => <PublishTab /> },
           { key: "outreach", label: "Outreach", render: () => <OutreachTab /> },

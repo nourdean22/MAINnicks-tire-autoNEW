@@ -963,6 +963,60 @@ export const operatorRouter = router({
       return { ok: true as const, rejected: true as const };
     }),
 
+  generateMarketingContent: operatorProcedure
+    .input(
+      z.object({
+        personaKey: z.string().min(1),
+        prompt: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { getMarketingPersonas } = await import("@/lib/ai/agents/marketing/loader");
+      const { personaToSystemPrompt } = await import("@/lib/ai/personas");
+      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+
+      const personas = getMarketingPersonas();
+      const persona = personas[input.personaKey];
+      if (!persona) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Unknown marketing persona key: ${input.personaKey}`,
+        });
+      }
+
+      const aiChat = makeTracedAiChat(`generator-${input.personaKey}`, "brain");
+      const systemPrompt = `${personaToSystemPrompt(persona)}
+      
+INSTRUCTIONS:
+- You are generating copy/content based on the operator's prompt.
+- Provide expert, high-impact copy or suggestions.
+- Do not add conversational fluff or meta-commentary at the beginning. Get straight to the generated content.`;
+
+      const result = await aiChat([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: input.prompt }
+      ], "reason");
+
+      return {
+        content: result.content,
+        provider: result.provider
+      };
+    }),
+
+  getMarketingPersonas: operatorProcedure
+    .query(async () => {
+      const { getMarketingPersonas } = await import("@/lib/ai/agents/marketing/loader");
+      const personas = getMarketingPersonas();
+      
+      return Object.entries(personas).map(([key, p]) => ({
+        key,
+        name: p.role || key,
+        description: p.goal || "",
+        emoji: (p as any).emoji || "🤖",
+        color: (p as any).color || "#a1a1aa",
+      }));
+    }),
+
   listPublishQueue: operatorProcedure
     .input(
       z.object({

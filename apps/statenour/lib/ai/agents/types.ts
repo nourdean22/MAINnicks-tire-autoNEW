@@ -22,7 +22,8 @@ export type SpecialistRoute =
   | "general"
   | "financial-analyst"
   | "decision-coach"
-  | "schedule-keeper";
+  | "schedule-keeper"
+  | "marketing-director";
 
 export interface RoutingDecision {
   /** Which specialist (or general Nick) should handle this turn. */

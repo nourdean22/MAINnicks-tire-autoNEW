@@ -107,6 +107,57 @@ async function chatPostInner(req: Request) {
     role?: string;
   };
 
+  // ── Specialist Sub-Agent Routing ──
+  const { isSpecialistRoutingEnabled } = await import("@/lib/ai/agents/types");
+  if (isSpecialistRoutingEnabled()) {
+    const mappedMessages = messages.map(m => {
+      const msg = m as any;
+      let content = "";
+      if (typeof msg.content === "string") {
+        content = msg.content;
+      } else if (msg.parts && Array.isArray(msg.parts)) {
+        content = msg.parts
+          .map((p: any) => (p && typeof p.text === "string" ? p.text : ""))
+          .filter(Boolean)
+          .join(" ");
+      }
+      const role = (msg.role === "user" || msg.role === "assistant" || msg.role === "system")
+        ? (msg.role as "user" | "assistant" | "system")
+        : ("user" as const);
+      return { role, content };
+    }).filter(m => m.content.length > 0);
+
+    const { routeMessage } = await import("@/lib/ai/agents/router");
+    const decision = await routeMessage({ messages: mappedMessages });
+    
+    if (decision.route === "marketing-director") {
+      log.info("specialist_routing_match", { route: decision.route, reason: decision.reason });
+      const { runMarketingDirector } = await import("@/lib/ai/agents/specialists/marketing-director");
+      const specResult = await runMarketingDirector({ messages: mappedMessages });
+      
+      if (specResult.handBack) {
+        log.info("specialist_handback", { route: decision.route, reason: specResult.reason });
+      } else {
+        const { persistUserTurn } = await import("@/lib/services/chat/persist-user-turn");
+        const resolvedConvId = await persistUserTurn({
+          convId,
+          lastUserMsg,
+          userContent,
+          log,
+          recordError,
+        });
+
+        const { buildFastStream } = await import("@/lib/ai/chat/handlers/shared");
+        return buildFastStream(
+          resolvedConvId,
+          specResult.content,
+          "specialist_marketing",
+          specResult.provider || "reason"
+        );
+      }
+    }
+  }
+
   // Apr 28 · Content-mode detection runs early so it can drive both
   // (a) provider selection — Ollama Cloud (1M context) gets promoted
   //     when content-mode fires, since the v5.0 engine inflates the
