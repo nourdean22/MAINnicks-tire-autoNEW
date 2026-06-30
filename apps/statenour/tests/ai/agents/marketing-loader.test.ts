@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import { getMarketingPersonas } from "@/lib/ai/agents/marketing/loader";
 
 describe("marketing agents loader", () => {
-  it("successfully loads and maps all 36 marketing personas", () => {
+  it("successfully loads and maps all 27 marketing personas", () => {
     const personas = getMarketingPersonas();
     const keys = Object.keys(personas);
 
-    expect(keys.length).toBe(36);
+    expect(keys.length).toBe(27);
     
     // Check specific agent properties to confirm parse accuracy
     const aeoFoundations = personas["marketing-aeo-foundations"];
