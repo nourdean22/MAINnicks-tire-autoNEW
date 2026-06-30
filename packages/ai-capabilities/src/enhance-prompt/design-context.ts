@@ -90,7 +90,11 @@ export function resolveDesignContext(
     }
   }
 
-  if (appName === "nickstire" || (projectPath && projectPath.includes("nickstire"))) {
+  if (
+    appName === "nickstire" ||
+    appName === "statenour" ||
+    (projectPath && (projectPath.includes("nickstire") || projectPath.includes("statenour")))
+  ) {
     return NICKSTIRE_BRAND_CONTEXT;
   }
 
