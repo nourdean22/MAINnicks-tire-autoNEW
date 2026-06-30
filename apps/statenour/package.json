@@ -76,6 +76,7 @@
     "@next/env": "16.2.3",
     "@nour/social-assets": "workspace:*",
     "@nour/utils": "workspace:*",
+    "@nour/ai-capabilities": "workspace:*",
     "@prisma/adapter-neon": "^7.6.0",
     "@prisma/client": "catalog:",
     "@react-three/drei": "10.7.7",
