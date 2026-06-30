@@ -20,7 +20,14 @@ vi.mock("ai", () => {
                   read: () => Promise.resolve({ done: true, value: undefined })
                 })
               },
-              toUIMessageStreamResponse: () => res,
+              toUIMessageStreamResponse: () => {
+                if (res && typeof res === "object" && "__mockResult" in res) {
+                  return new Response("mock body", {
+                    headers: { "Content-Type": "text/event-stream; charset=utf-8" },
+                  });
+                }
+                return res;
+              },
               toolCalls: Promise.resolve([]),
             });
           } catch (err) {
@@ -49,9 +56,7 @@ beforeEach(() => {
 describe("v10 B.5 · streamWithFallback", () => {
   it("returns the streamText result on first-attempt success", async () => {
     const fakeModel = { modelId: "gemini/gemini-3.5-flash" };
-    const fakeResult = {
-      headers: new Headers({ "Content-Type": "text/event-stream; charset=utf-8" })
-    };
+    const fakeResult = { __mockResult: true };
     getModelMock.mockReturnValueOnce(fakeModel);
     streamTextMock.mockReturnValueOnce(fakeResult);
 
@@ -71,9 +76,7 @@ describe("v10 B.5 · streamWithFallback", () => {
   it("retries with next provider on sync throw, succeeds on attempt 2", async () => {
     const geminiModel = { modelId: "gemini/gemini-3.5-flash" };
     const ollamaModel = { modelId: "ollama/qwen3-235b" };
-    const fakeResult = {
-      headers: new Headers({ "Content-Type": "text/event-stream; charset=utf-8" })
-    };
+    const fakeResult = { __mockResult: true };
 
     getModelMock
       .mockReturnValueOnce(geminiModel)
