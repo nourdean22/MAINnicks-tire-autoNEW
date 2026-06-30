@@ -149,8 +149,9 @@ export function ChatIsland() {
         )}
       </div>
 
-      {/* Composer Area */}
-      <div className="border-t border-white/5 bg-black/40 backdrop-blur-xl px-4 pt-4 pb-16 z-10 relative">
+      {/* Composer Area — pb-safe clears the fixed BottomTabBar (pulse ticker
+          32px + nav 52px + env(safe-area-inset-bottom)) on all iPhones. */}
+      <div className="border-t border-white/5 bg-black/40 backdrop-blur-xl px-4 pt-4 pb-safe z-10 relative">
         <ChatComposer chat={chat} />
       </div>
 
