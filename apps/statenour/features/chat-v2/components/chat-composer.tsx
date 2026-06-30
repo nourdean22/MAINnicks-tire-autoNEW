@@ -98,7 +98,9 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           });
           clearImg();
         } else {
+          toast.error("Couldn't read the image — sending text only.", { duration: 3000 });
           await chat.sendText(textToSend);
+          clearImg();
         }
       } else {
         await chat.sendText(textToSend);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { runDirectAction } from "@/lib/chat/direct-actions";
 
 /**
@@ -26,7 +27,7 @@ export function ActionConfirmSlider({
       onSuccess?.();
     } catch (e) {
       console.error(e);
-      // Let parent handle error state via toast
+      toast.error("Action failed — please try again.", { duration: 4000 });
     } finally {
       setIsExecuting(false);
       setIsConfirming(false);
