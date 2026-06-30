@@ -244,11 +244,21 @@ export function PublishTab() {
             </div>
             <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2 text-xs">
               <div className="text-[10px] uppercase tracking-wider text-zinc-500">Meta IG</div>
-              <div className="mt-1 font-mono text-zinc-400">requires Meta env + image</div>
+              <div className={cn(
+                "mt-1 font-mono",
+                scheduleQuery.data?.meta?.instagram === "connected" ? "text-emerald-300" : "text-rose-300"
+              )}>
+                {scheduleQuery.data?.meta?.instagram ?? "checking…"}
+              </div>
             </div>
             <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2 text-xs">
               <div className="text-[10px] uppercase tracking-wider text-zinc-500">Meta FB</div>
-              <div className="mt-1 font-mono text-zinc-400">requires Meta env + image</div>
+              <div className={cn(
+                "mt-1 font-mono",
+                scheduleQuery.data?.meta?.facebook === "connected" ? "text-emerald-300" : "text-rose-300"
+              )}>
+                {scheduleQuery.data?.meta?.facebook ?? "checking…"}
+              </div>
             </div>
           </div>
         </Panel>
