@@ -6,7 +6,7 @@ clarity-status: CLEAR
 hitl-status: REVIEWED
 hitl-pending-count: 0
 points-passed: 1-9
-document-sha256: 95cc5bb11e7414d9ad5aaa9e235891b7ca78b4f56122ff31bb598b9a604a9395
+document-sha256: 0e24773c3bb0d68b4c80f82a6b3847e56a2a012f9bd837e54c03e3654e1cfbcf
 hitl-claims:
   - id: claim-calibration-threshold
     text: "To graduate from a preliminary verdict to a confident assessment, we require a minimum sample size of n >= 30 rated comparisons with an agreement rate of >= 70%."
