@@ -46,4 +46,20 @@ describe("prompt v2 routing", () => {
     expect(buildSystemPromptV2Mock).toHaveBeenCalledTimes(1);
     expect(res).toContain("V2 PROMPT");
   });
+
+  it("routes to stitch_prompt slot and appends Stitch capability instructions when Stitch intent is matched", async () => {
+    const { buildSystemPrompt } = await import("@/lib/ai/system-prompt");
+
+    const res = await buildSystemPrompt("core", "enhance prompt for my dashboard");
+    expect(res).toContain("V2 PROMPT");
+    expect(res).toContain("## Capability: Stitch Prompt Engineering");
+  });
+
+  it("does not load Stitch capability instructions for unrelated tasks", async () => {
+    const { buildSystemPrompt } = await import("@/lib/ai/system-prompt");
+
+    const res = await buildSystemPrompt("core", "write me an Instagram caption");
+    expect(res).toContain("V2 PROMPT");
+    expect(res).not.toContain("## Capability: Stitch Prompt Engineering");
+  });
 });
