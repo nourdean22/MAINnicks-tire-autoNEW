@@ -106,6 +106,7 @@ async function getRecentTelemetry(): Promise<Record<ProviderName, { calls: numbe
     gemini: { ...empty },
     openai: { ...empty },
     anthropic: { ...empty },
+    openrouter: { ...empty },
     emergency: { ...empty },
   };
   try {

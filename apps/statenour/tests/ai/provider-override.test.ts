@@ -42,9 +42,9 @@ describe("isRuntimeProvider · runtime-lane type guard", () => {
 });
 
 describe("RUNTIME_PROVIDERS · the canonical runtime-lane list", () => {
-  it("is exactly the four live lanes, in chain order", () => {
-    expect(RUNTIME_PROVIDERS).toEqual(["ollama", "gemini", "openai", "anthropic"]);
-    expect(RUNTIME_PROVIDERS).toHaveLength(4);
+  it("is exactly the five live lanes, in chain order", () => {
+    expect(RUNTIME_PROVIDERS).toEqual(["ollama", "gemini", "openai", "anthropic", "openrouter"]);
+    expect(RUNTIME_PROVIDERS).toHaveLength(5);
   });
 
   it("excludes the retired venice + emergency lanes", () => {
