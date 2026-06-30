@@ -44,6 +44,9 @@ const DECISION_SIGNALS =
 const SCHEDULE_SIGNALS =
   /\b(when can i|when am i (free|available|open|booked)|schedule (a|the|that|this|my|in)|re[- ]?schedule|free (block|slot|window|hour|time)|(deep|focus|time)[- ]?block|overcommitted|overscheduled|too packed|too booked|push (it|this|that)[^.]{0,40}\b(to|until)\b[^.]{0,40}(tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|next month)|move (it|this|that)[^.]{0,40}\b(to|until)\b[^.]{0,40}(tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|next month)|my calendar|on my calendar|fit (a|the|that|this) .{0,40}(into|in)\b)/i;
 
+const MARKETING_SIGNALS =
+  /\b(marketing|seo|aeo|copywriting|campaign|social media|ad copy|newsletter|funnel|growth hack|brand voice|content strategy|tiktok strategy|weibo strategy|instagram curator|email strategist|reddit community|bilibili content|baidu seo|app store optimizer)\b/i;
+
 const aiChat = makeTracedAiChat("specialist-router", "brain");
 
 /**
@@ -67,16 +70,17 @@ interface LlmClassification {
 
 const CLASSIFY_SYSTEM_PROMPT = `You are a routing classifier. Given a user message you decide which agent should handle it.
 
-Four possible routes:
+Five possible routes:
 - "financial-analyst" · the user is asking about money, net worth, savings rate, spending categories, cash flow, debt, investment portfolio, monthly budget, or income trends. Pure financial-data questions.
 - "decision-coach" · the user is asking for help thinking through a CHOICE. Trade-offs, "should I", weighing options, decision criteria, recovery paths, referencing past decisions or past-self patterns.
 - "schedule-keeper" · the user is asking about the SHAPE OF THEIR TIME — when to do a task, where to fit something in their day/week, free blocks, rescheduling, day rhythm, overcommitment. Time-placement questions, not choice-framing.
+- "marketing-director" · the user is asking about marketing, search engine optimization (SEO), answer engine optimization (AEO), copywriting, ad campaigns, social media strategy, growth hacking, newsletter funnels, or brand voice auditing.
 - "general" · everything else · greetings, tasks, brain dumps, business/shop ops, content writing, code, casual chat, mixed topics.
 
 Distinguishing schedule-keeper from decision-coach: schedule-keeper is "when / where to place this in time" · decision-coach is "which option / should I do X". "Should I reschedule the meeting?" → decision-coach. "Reschedule my meeting to Thursday" → schedule-keeper.
 
 Reply with STRICT JSON only, no markdown, no commentary:
-{ "route": "general" | "financial-analyst" | "decision-coach" | "schedule-keeper", "confidence": 0..1, "reason": "short explanation under 80 chars" }
+{ "route": "general" | "financial-analyst" | "decision-coach" | "schedule-keeper" | "marketing-director", "confidence": 0..1, "reason": "short explanation under 80 chars" }
 
 When in doubt, choose "general". Specialists are narrow.`;
 
@@ -112,7 +116,8 @@ async function classifyViaLlm(userContent: string): Promise<RoutingDecision> {
     const route =
       parsed.value.route === "financial-analyst" ||
       parsed.value.route === "decision-coach" ||
-      parsed.value.route === "schedule-keeper"
+      parsed.value.route === "schedule-keeper" ||
+      parsed.value.route === "marketing-director"
         ? parsed.value.route
         : "general";
     const confidence =
@@ -167,17 +172,19 @@ export async function routeMessage(
   }
 
   // ── Pass 1 · keyword pre-filter ──
-  // Three specialist families · each has its own anchored signal regex.
+  // Four specialist families · each has its own anchored signal regex.
   // If exactly ONE family hits → return immediately · cheap path.
   // If TWO+ families hit on the same message → ambiguous · LLM tiebreak.
   // If ZERO families hit → general · skip the LLM call.
   const hitsFinancial = FINANCIAL_SIGNALS.test(userContent);
   const hitsDecision = DECISION_SIGNALS.test(userContent);
   const hitsSchedule = SCHEDULE_SIGNALS.test(userContent);
+  const hitsMarketing = MARKETING_SIGNALS.test(userContent);
   const hitCount =
     (hitsFinancial ? 1 : 0) +
     (hitsDecision ? 1 : 0) +
-    (hitsSchedule ? 1 : 0);
+    (hitsSchedule ? 1 : 0) +
+    (hitsMarketing ? 1 : 0);
 
   if (hitCount === 0) {
     return {
@@ -201,11 +208,17 @@ export async function routeMessage(
         confidence: 0.9,
       };
     }
-    // hitsSchedule must be true if hitCount === 1 and the other two are false
+    if (hitsSchedule) {
+      return {
+        route: "schedule-keeper",
+        reason: "keyword: schedule signals matched",
+        confidence: 0.9,
+      };
+    }
     return {
-      route: "schedule-keeper",
-      reason: "keyword: schedule signals matched",
-      confidence: 0.9,
+      route: "marketing-director",
+      reason: "keyword: marketing signals matched",
+      confidence: 0.95,
     };
   }
 
@@ -229,10 +242,12 @@ export function classifyByKeyword(userContent: string): RoutingDecision {
   const hitsFinancial = FINANCIAL_SIGNALS.test(userContent);
   const hitsDecision = DECISION_SIGNALS.test(userContent);
   const hitsSchedule = SCHEDULE_SIGNALS.test(userContent);
+  const hitsMarketing = MARKETING_SIGNALS.test(userContent);
   const hitCount =
     (hitsFinancial ? 1 : 0) +
     (hitsDecision ? 1 : 0) +
-    (hitsSchedule ? 1 : 0);
+    (hitsSchedule ? 1 : 0) +
+    (hitsMarketing ? 1 : 0);
   if (hitCount >= 2) {
     return {
       route: "general",
@@ -259,6 +274,13 @@ export function classifyByKeyword(userContent: string): RoutingDecision {
       route: "schedule-keeper",
       reason: "keyword: schedule signals matched",
       confidence: 0.9,
+    };
+  }
+  if (hitsMarketing) {
+    return {
+      route: "marketing-director",
+      reason: "keyword: marketing signals matched",
+      confidence: 0.95,
     };
   }
   return {
