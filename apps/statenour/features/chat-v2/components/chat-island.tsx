@@ -24,15 +24,26 @@ function useScrollToBottom<T extends HTMLElement>() {
     // but only if we were already at bottom. To implement "only when at bottom", 
     // we use a MutationObserver.
     
+    // Throttle to one scroll check per animation frame — during fast
+    // streaming the observer fires for every character, which on iOS
+    // causes battery drain and choppy animation at 300+ callbacks/sec.
+    let rafId: number | null = null;
     const observer = new MutationObserver(() => {
-      if (container.scrollHeight - container.scrollTop - container.clientHeight < 150) {
-        endRef.current?.scrollIntoView({ behavior: "smooth" });
-      }
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (container.scrollHeight - container.scrollTop - container.clientHeight < 150) {
+          endRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
+      });
     });
 
     observer.observe(container, { childList: true, subtree: true, characterData: true });
 
-    return () => observer.disconnect();
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, []);
 
   return { containerRef, endRef };
@@ -203,7 +214,10 @@ export function ChatIsland() {
 
       {/* Conversation Drawer Overlay — full-width on mobile, fixed 320px sidebar on desktop */}
       {historyDrawerOpen && (
-        <div className="absolute inset-y-0 left-0 w-full sm:w-80 bg-black/40 backdrop-blur-xl border-r border-white/5 z-50 flex flex-col">
+        <div
+          className="absolute inset-y-0 left-0 w-full sm:w-80 bg-black/40 backdrop-blur-xl border-r border-white/5 z-50 flex flex-col"
+          style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}
+        >
           <ConversationDrawer
             convos={convProps.convos}
             activeId={convProps.activeId}

@@ -23,6 +23,13 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   const resolvePending = useChatUiStore((s) => s.resolvePending);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (mentionTimerRef.current) clearTimeout(mentionTimerRef.current);
+    };
+  }, []);
 
   // Auto-resize
   useEffect(() => {
@@ -165,7 +172,9 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             if (atIndex !== -1) {
               const newBefore = textBeforeCaret.slice(0, atIndex) + "@" + m.label + " ";
               setDraft(newBefore + textAfterCaret);
-              setTimeout(() => {
+              if (mentionTimerRef.current) clearTimeout(mentionTimerRef.current);
+              mentionTimerRef.current = setTimeout(() => {
+                mentionTimerRef.current = null;
                 const newPos = newBefore.length;
                 textareaRef.current?.setSelectionRange(newPos, newPos);
                 textareaRef.current?.focus();
