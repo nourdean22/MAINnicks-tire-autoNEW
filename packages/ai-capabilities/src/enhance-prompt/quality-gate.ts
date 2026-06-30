@@ -70,7 +70,7 @@ export function validateEnhancedPrompt(
 
   // Check 6: Targeted edits constraints
   if (isTargetedEdit) {
-    const hasPreserveConstraint = output.constraints.some(c =>
+    const hasPreserveConstraint = output.constraints.some((c: string) =>
       c.toLowerCase().includes("preserve") || c.toLowerCase().includes("only")
     );
     if (!hasPreserveConstraint) {
