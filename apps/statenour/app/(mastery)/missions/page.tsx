@@ -3,8 +3,7 @@
 import { Suspense, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { LevelUpModal } from "@/components/missions/level-up-modal";
-import { XpParticle } from "@/components/missions/xp-particle";
+
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { OmniCaptureModal } from "@/components/actions/omni-capture-modal";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
@@ -16,9 +15,7 @@ import { TopMissionToday } from "@/components/missions/top-mission-today";
 import { MissionsHealthStrip } from "@/components/missions/missions-health-strip";
 import { HealthGovernorStrip } from "@/components/missions/health-governor-strip";
 import { MissionsRescueStrip } from "@/components/missions/missions-rescue-strip";
-import { MissionRetroModal } from "@/components/missions/mission-retro-modal";
-import { MissionEditDrawer } from "@/components/missions/mission-edit-drawer";
-import { TaskEditSheet } from "@/components/missions/task-edit-sheet";
+
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import { ExecutionPanel } from "@/components/missions/execution-panel";
 import { TaskFilters } from "@/components/actions/task-filters";
@@ -36,6 +33,8 @@ import { useMissionFilters } from "./hooks/use-mission-filters";
 import { useExecutionFocus } from "./hooks/use-execution-focus";
 import { useMissionActions } from "./hooks/use-mission-actions";
 import { MissionDispatchProvider } from "./context/mission-dispatch-context";
+import { useMissionUIStore } from "./state/use-mission-ui-store";
+import { MissionModalsManager } from "./components/mission-modals-manager";
 
 export default function MissionsPage() {
   return (
@@ -46,41 +45,24 @@ export default function MissionsPage() {
 }
 
 function MissionsPageInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const taskIdParam = searchParams.get("taskId");
   const telemetry = useMissionSurfaceTelemetry("missions");
 
-  // Data
-  const { tasks, missions, statsQuery, healthQuery, taskDetailQuery, ccStateQuery } = useMissionsData(taskIdParam);
-  const { customDomains, setCustomDomains } = useCustomDomains();
+  // Global UI State
+  const executionModeActive = useMissionUIStore((s) => s.executionModeActive);
+  const setExecutionModeActive = useMissionUIStore((s) => s.setExecutionModeActive);
+  const queuedTaskId = useMissionUIStore((s) => s.queuedTaskId);
+  const setQueuedTaskId = useMissionUIStore((s) => s.setQueuedTaskId);
+  const openMissionEdit = useMissionUIStore((s) => s.openMissionEdit);
 
-  // Local UI State
-  const [retroState, setRetroState] = useState<{ missionId: string; title: string } | null>(null);
-  const [levelUpState, setLevelUpState] = useState<LevelUpPayload | null>(null);
-  const [xpParticle, setXpParticle] = useState<{ xp: number; key: number }>({ xp: 0, key: 0 });
-  const [missionEditOpen, setMissionEditOpen] = useState(false);
-  const [missionEditId, setMissionEditId] = useState<string | null>(null);
-  const [missionEditInitial, setMissionEditInitial] = useState<any>(undefined);
-  const [taskEditOpen, setTaskEditOpen] = useState(false);
-  const [taskEditTarget, setTaskEditTarget] = useState<Task | null>(null);
-  const [executionModeActive, setExecutionModeActive] = useState(false);
-  const [queuedTaskId, setQueuedTaskId] = useState<string | null>(null);
+  // Data
+  const { tasks, missions, statsQuery, healthQuery, ccStateQuery } = useMissionsData(taskIdParam);
+  const { customDomains, setCustomDomains } = useCustomDomains();
 
   // Extracted logic
   const filters = useMissionFilters(tasks, missions);
-  const actions = useMissionActions({
-    tasks: tasks,
-    missions: missions,
-    setRetroState,
-    setLevelUpState,
-    setXpParticle,
-    setTaskEditTarget,
-    setTaskEditOpen,
-    setMissionEditId,
-    setMissionEditInitial,
-    setMissionEditOpen,
-  });
+  const actions = useMissionActions({ tasks, missions });
 
   const { focusedTask, focusedTaskMission } = useExecutionFocus(
     tasks,
@@ -93,7 +75,7 @@ function MissionsPageInner() {
     setQueuedTaskId(taskId);
     const task = tasks.find((t) => t.id === taskId);
     toast.success(`Queued “${task?.title || "task"}” next in Execution Mode.`);
-  }, [tasks]);
+  }, [tasks, setQueuedTaskId]);
 
   const visibleTaskIds = useMemo(() => {
     const set = new Set<string>();
@@ -121,19 +103,54 @@ function MissionsPageInner() {
     });
   }, [tasks, visibleTaskIds, filters.filtersActive, executionModeActive, filters.searchQuery, filters.kindFilter, filters.domainFilter, missions]);
 
-  if (executionModeActive) {
-    return (
-      <MissionDispatchProvider actions={actions}>
-        <div className="space-y-4 max-w-3xl pb-[env(safe-area-inset-bottom,0px)]">
-          <HiddenRiskWarning
-            summary={hiddenRiskSummary}
-            executionModeActive={executionModeActive}
-            filterKey={filterKey}
-            onClearFilters={filters.handleClearFilters}
-            onExitFocusMode={() => setExecutionModeActive(false)}
-            onQueueNext={handleQueueNext}
+  const stats = statsQuery.data ?? [];
+  const totalLevel = stats.reduce((s: number, x: any) => s + (x.level || 0), 0);
+  const totalXp = Math.round(stats.reduce((s: number, x: any) => s + (x.xp || 0), 0));
+  const dailyTasks = tasks.filter((t) => t.loopKind === "DAILY" && t.status !== "DONE" && t.status !== "ARCHIVED");
+  const maxStreak = dailyTasks.length > 0 ? Math.max(...dailyTasks.map((t) => (t as any).streakCount ?? 0)) : 0;
+
+  return (
+    <MissionDispatchProvider actions={actions}>
+      <div className="space-y-4 max-w-3xl pb-[env(safe-area-inset-bottom,0px)]">
+        {!executionModeActive && (
+          <PageHeader
+            eyebrow="Mastery Loop"
+            title="Missions & Tasks"
+            description="Deploy your focus, complete active campaigns, and level up your character sheet."
+            actions={
+              statsQuery.isLoading ? (
+                <div className="h-8 w-32 rounded bg-zinc-900/50 animate-pulse border border-zinc-800" />
+              ) : (
+                <div className="flex items-center gap-2 rounded-lg border border-[var(--gold)]/20 bg-[var(--gold)]/[0.03] backdrop-blur-md px-3 py-1.5 text-xs font-mono text-[var(--gold)]/90">
+                  <div className="flex items-center gap-1.5 pr-2 border-r border-[var(--gold)]/10">
+                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Lvl</span>
+                    <span className="font-bold tabular-nums text-white">{totalLevel}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-0.5 pr-2 border-r border-[var(--gold)]/10">
+                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider">XP</span>
+                    <span className="font-bold tabular-nums text-white">{totalXp.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-amber-500 animate-pulse">🔥</span>
+                    <span className="font-bold tabular-nums text-white">{maxStreak}d</span>
+                  </div>
+                </div>
+              )
+            }
           />
-          {focusedTask ? (
+        )}
+
+        <HiddenRiskWarning
+          summary={hiddenRiskSummary}
+          executionModeActive={executionModeActive}
+          filterKey={filterKey}
+          onClearFilters={filters.handleClearFilters}
+          onExitFocusMode={() => setExecutionModeActive(false)}
+          onQueueNext={handleQueueNext}
+        />
+
+        {executionModeActive ? (
+          focusedTask ? (
             <ExecutionPanel
               task={focusedTask}
               mission={focusedTaskMission}
@@ -158,212 +175,110 @@ function MissionsPageInner() {
                 Exit Focus Mode
               </button>
             </div>
-          )}
-          <TaskEditSheet
-            key={taskEditTarget?.id ?? "none"}
-            open={taskEditOpen}
-            onClose={() => setTaskEditOpen(false)}
-            task={taskEditTarget}
-            missions={missions}
-            onSaved={() => setTaskEditOpen(false)}
-          />
-        </div>
-      </MissionDispatchProvider>
-    );
-  }
-
-  const stats = statsQuery.data ?? [];
-  const totalLevel = stats.reduce((s: number, x: any) => s + (x.level || 0), 0);
-  const totalXp = Math.round(stats.reduce((s: number, x: any) => s + (x.xp || 0), 0));
-  const dailyTasks = tasks.filter((t) => t.loopKind === "DAILY" && t.status !== "DONE" && t.status !== "ARCHIVED");
-  const maxStreak = dailyTasks.length > 0 ? Math.max(...dailyTasks.map((t) => (t as any).streakCount ?? 0)) : 0;
-
-  return (
-    <MissionDispatchProvider actions={actions}>
-      <div className="space-y-4 max-w-3xl pb-[env(safe-area-inset-bottom,0px)]">
-        <PageHeader
-          eyebrow="Mastery Loop"
-          title="Missions & Tasks"
-          description="Deploy your focus, complete active campaigns, and level up your character sheet."
-          actions={
-            statsQuery.isLoading ? (
-              <div className="h-8 w-32 rounded bg-zinc-900/50 animate-pulse border border-zinc-800" />
-            ) : (
-              <div className="flex items-center gap-2 rounded-lg border border-[var(--gold)]/20 bg-[var(--gold)]/[0.03] backdrop-blur-md px-3 py-1.5 text-xs font-mono text-[var(--gold)]/90">
-                <div className="flex items-center gap-1.5 pr-2 border-r border-[var(--gold)]/10">
-                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Lvl</span>
-                  <span className="font-bold tabular-nums text-white">{totalLevel}</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-0.5 pr-2 border-r border-[var(--gold)]/10">
-                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider">XP</span>
-                  <span className="font-bold tabular-nums text-white">{totalXp.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-amber-500 animate-pulse">🔥</span>
-                  <span className="font-bold tabular-nums text-white">{maxStreak}d</span>
-                </div>
-              </div>
-            )
-          }
-        />
-
-        <OmniCaptureModal onCapture={(text) => void actions.handleQuickAdd(text)} />
-        <NickSidePane
-          page="missions"
-          coachSurface="tasks"
-          presets={["Which mission should I push today?", "Which mission is stalling?", "What's the next move across all my missions?", "Summarize my week so far."]}
-        />
-        <CoachEventBanner surface="tasks" />
-        <NicksMorningBrief tasks={tasks} missions={missions} />
-        <TopMissionToday missions={missions} tasks={tasks} />
-
-        <Suspense fallback={<div className="h-16 w-full animate-pulse rounded-lg bg-zinc-900/50 border border-zinc-800" />}>
-          <HealthGovernorStrip />
-        </Suspense>
-
-        <MissionsHealthStrip missions={missions} tasks={tasks} />
-
-        <MissionsRescueStrip
-          tasks={tasks}
-        />
-
-        <HiddenRiskWarning
-          summary={hiddenRiskSummary}
-          executionModeActive={executionModeActive}
-          filterKey={filterKey}
-          onClearFilters={filters.handleClearFilters}
-          onExitFocusMode={() => setExecutionModeActive(false)}
-          onQueueNext={handleQueueNext}
-        />
-
-        <MissionsQuickAdd onSubmit={actions.handleQuickAdd} busy={actions.submitting} />
-
-        <div className="flex items-center gap-2 px-1">
-          <button
-            type="button"
-            onClick={() => {
-              setMissionEditId(null);
-              setMissionEditInitial(undefined);
-              setMissionEditOpen(true);
-              telemetry.event("createMissionOpen", { source: "button" });
-            }}
-            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/90 hover:bg-[var(--gold)]/[0.08]"
-          >
-            + new mission
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setExecutionModeActive(true);
-              telemetry.event("executionModeOpen", { source: "button" });
-            }}
-            className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-amber-400 hover:bg-amber-500/10"
-          >
-            ⚡ Execution Mode
-          </button>
-          <button
-            type="button"
-            onClick={() => filters.setShowFilters((v) => !v)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] transition-colors",
-              filters.showFilters ? "border-amber-500/50 bg-amber-500/10 text-amber-400" : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200"
-            )}
-          >
-            {filters.showFilters ? "✕ Close Filters" : "⚙️ Filters"}
-          </button>
-          <span className="text-[10px] font-mono text-[var(--text-tertiary)]/70">
-            or type <code className="px-1 rounded bg-[var(--bg-raised)]/10 text-[var(--text-tertiary)]">create mission &lt;name&gt;</code> above
-          </span>
-        </div>
-
-        {filters.showFilters && (
-          <TaskFilters
-            showFilters={filters.showFilters}
-            kindFilter={filters.kindFilter}
-            setKindFilter={filters.setKindFilter}
-            domainFilter={filters.domainFilter}
-            setDomainFilter={filters.setDomainFilter}
-            searchQuery={filters.searchQuery}
-            setSearchQuery={filters.setSearchQuery}
-            onceCount={filters.onceCount}
-            dailyCount={filters.dailyCount}
-            promiseCount={filters.promiseCount}
-            activeCount={filters.activeCount}
-            activeDomains={filters.activeDomains}
-            customDomains={customDomains}
-            setCustomDomains={setCustomDomains}
-            addingDomain={filters.addingDomain}
-            setAddingDomain={filters.setAddingDomain}
-            newDomainInput={filters.newDomainInput}
-            setNewDomainInput={filters.setNewDomainInput}
-            filterEditMode={filters.filterEditMode}
-            setFilterEditMode={filters.setFilterEditMode}
-          />
-        )}
-
-        {filters.filtersActive && (
-          <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
-            <ActiveFiltersStrip
-              filters={[
-                ...(filters.searchQuery.trim() ? [{ label: `search · "${filters.searchQuery.trim().slice(0, 20)}"`, onRemove: () => filters.setSearchQuery("") }] : []),
-                ...(filters.kindFilter !== "all" ? [{ label: `kind · ${filters.kindFilter}`, onRemove: () => filters.setKindFilter("all") }] : []),
-                ...(filters.domainFilter ? [{ label: `domain · ${filters.domainFilter}`, onRemove: () => filters.setDomainFilter(null) }] : []),
-              ]}
-              onClearAll={filters.handleClearFilters}
+          )
+        ) : (
+          <>
+            <OmniCaptureModal onCapture={(text) => void actions.handleQuickAdd(text)} />
+            <NickSidePane
+              page="missions"
+              coachSurface="tasks"
+              presets={["Which mission should I push today?", "Which mission is stalling?", "What's the next move across all my missions?", "Summarize my week so far."]}
             />
-          </div>
+            <CoachEventBanner surface="tasks" />
+            <NicksMorningBrief tasks={tasks} missions={missions} />
+            <TopMissionToday missions={missions} tasks={tasks} />
+
+            <Suspense fallback={<div className="h-16 w-full animate-pulse rounded-lg bg-zinc-900/50 border border-zinc-800" />}>
+              <HealthGovernorStrip />
+            </Suspense>
+
+            <MissionsHealthStrip missions={missions} tasks={tasks} />
+            <MissionsRescueStrip tasks={tasks} />
+            <MissionsQuickAdd onSubmit={actions.handleQuickAdd} busy={actions.submitting} />
+
+            <div className="flex items-center gap-2 px-1">
+              <button
+                type="button"
+                onClick={() => {
+                  openMissionEdit(null, undefined);
+                  telemetry.event("createMissionOpen", { source: "button" });
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/90 hover:bg-[var(--gold)]/[0.08]"
+              >
+                + new mission
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExecutionModeActive(true);
+                  telemetry.event("executionModeOpen", { source: "button" });
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-amber-400 hover:bg-amber-500/10"
+              >
+                ⚡ Execution Mode
+              </button>
+              <button
+                type="button"
+                onClick={() => filters.setShowFilters((v) => !v)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] transition-colors",
+                  filters.showFilters ? "border-amber-500/50 bg-amber-500/10 text-amber-400" : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200"
+                )}
+              >
+                {filters.showFilters ? "✕ Close Filters" : "⚙️ Filters"}
+              </button>
+              <span className="text-[10px] font-mono text-[var(--text-tertiary)]/70">
+                or type <code className="px-1 rounded bg-[var(--bg-raised)]/10 text-[var(--text-tertiary)]">create mission &lt;name&gt;</code> above
+              </span>
+            </div>
+
+            {filters.showFilters && (
+              <TaskFilters
+                showFilters={filters.showFilters}
+                kindFilter={filters.kindFilter}
+                setKindFilter={filters.setKindFilter}
+                domainFilter={filters.domainFilter}
+                setDomainFilter={filters.setDomainFilter}
+                searchQuery={filters.searchQuery}
+                setSearchQuery={filters.setSearchQuery}
+                onceCount={filters.onceCount}
+                dailyCount={filters.dailyCount}
+                promiseCount={filters.promiseCount}
+                activeCount={filters.activeCount}
+                activeDomains={filters.activeDomains}
+                customDomains={customDomains}
+                setCustomDomains={setCustomDomains}
+                addingDomain={filters.addingDomain}
+                setAddingDomain={filters.setAddingDomain}
+                newDomainInput={filters.newDomainInput}
+                setNewDomainInput={filters.setNewDomainInput}
+                filterEditMode={filters.filterEditMode}
+                setFilterEditMode={filters.setFilterEditMode}
+              />
+            )}
+
+            {filters.filtersActive && (
+              <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
+                <ActiveFiltersStrip
+                  filters={[
+                    ...(filters.searchQuery.trim() ? [{ label: `search · "${filters.searchQuery.trim().slice(0, 20)}"`, onRemove: () => filters.setSearchQuery("") }] : []),
+                    ...(filters.kindFilter !== "all" ? [{ label: `kind · ${filters.kindFilter}`, onRemove: () => filters.setKindFilter("all") }] : []),
+                    ...(filters.domainFilter ? [{ label: `domain · ${filters.domainFilter}`, onRemove: () => filters.setDomainFilter(null) }] : []),
+                  ]}
+                  onClearAll={filters.handleClearFilters}
+                />
+              </div>
+            )}
+
+            <MissionFeed
+              missions={filters.filteredMissions}
+              tasks={filters.filteredTasks}
+              autonomicHealth={healthQuery.data?.autonomic}
+            />
+          </>
         )}
 
-        <MissionFeed
-          missions={filters.filteredMissions}
-          tasks={filters.filteredTasks}
-          autonomicHealth={healthQuery.data?.autonomic}
-        />
-
-        {retroState && (
-          <MissionRetroModal
-            missionId={retroState.missionId}
-            missionTitle={retroState.title}
-            onClose={() => setRetroState(null)}
-            onSaved={async () => {
-              setRetroState(null);
-              toast.success("Mission retro saved.");
-            }}
-          />
-        )}
-
-        <MissionEditDrawer
-          key={missionEditId ?? "new"}
-          open={missionEditOpen}
-          onClose={() => setMissionEditOpen(false)}
-          missionId={missionEditId}
-          initial={missionEditInitial}
-          onSaved={() => setMissionEditOpen(false)}
-        />
-
-        <TaskEditSheet
-          key={taskEditTarget?.id ?? "none"}
-          open={taskEditOpen}
-          onClose={() => setTaskEditOpen(false)}
-          task={taskEditTarget}
-          missions={missions}
-          onSaved={() => setTaskEditOpen(false)}
-        />
-
-        {levelUpState && (
-          <LevelUpModal
-            newLevel={levelUpState.newLevel}
-            tierName={levelUpState.tierName}
-            tierEmoji={levelUpState.tierEmoji}
-            onClose={() => setLevelUpState(null)}
-          />
-        )}
-
-        {xpParticle.xp > 0 && (
-          <div className="fixed inset-0 pointer-events-none z-[9999]" aria-hidden="true">
-            <XpParticle xp={xpParticle.xp} triggerKey={xpParticle.key} />
-          </div>
-        )}
+        <MissionModalsManager missions={missions} />
       </div>
     </MissionDispatchProvider>
   );

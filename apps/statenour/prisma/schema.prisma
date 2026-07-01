@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "windows"]
 }
 
@@ -212,42 +212,42 @@ enum CaptureConversionTarget {
 }
 
 model Mission {
-  id                 String               @id @default(cuid())
+  id                 String        @id @default(cuid())
   title              String
   domain             MissionDomain
-  status             MissionStatus        @default(ACTIVE)
+  status             MissionStatus @default(ACTIVE)
   priority           Int
   roiScore           Int
   neglectCost        Int
   successMetric      String?
   deadline           DateTime?
-  weeklyReviewNote   String?              @db.Text
+  weeklyReviewNote   String?       @db.Text
   manualRankOverride Int?
   /// 2026-06-09 · domain-anchored missions. systemKind="GENERAL" marks a
   /// system-managed per-domain anchor (the classifier's catch-all · protected
   /// from delete · excluded from project caps/counts). canonicalDomain is one
   /// of the 6 life domains (health/mind/business/social/spiritual/personal) —
   /// the real routing key; the legacy `domain` enum stays for back-compat.
-  systemKind         String?              @map("system_kind") @db.VarChar(16)
-  canonicalDomain    String?              @map("canonical_domain") @db.VarChar(24)
+  systemKind         String?       @map("system_kind") @db.VarChar(16)
+  canonicalDomain    String?       @map("canonical_domain") @db.VarChar(24)
   /// v7.8 · Apr 29 · Universal audit. Who created vs who last
   /// updated. Values: "user" (explicit Nour click) · "nick" (AI
   /// agent action) · "cron:<jobName>" · "bridge:<system>" · "system".
-  createdBy          String?              @default("system") @map("created_by") @db.VarChar(64)
-  updatedBy          String?              @default("system") @map("updated_by") @db.VarChar(64)
+  createdBy          String?       @default("system") @map("created_by") @db.VarChar(64)
+  updatedBy          String?       @default("system") @map("updated_by") @db.VarChar(64)
   /// v7.9 · Apr 29 · Universal soft-delete. NULL = active. Set on
   /// "delete" so the row is recoverable. Default queries should
   /// filter `deletedAt: null` (use the lib/db/soft-delete helpers).
-  deletedAt          DateTime?            @map("deleted_at")
+  deletedAt          DateTime?     @map("deleted_at")
   /// Full AI-generated plan data: phases, risks, pro tips, tools,
   /// decision points, done checklist, learning path, coach history.
   /// Populated by /api/ai/plan-project mode=plan, extended by mode=
   /// learn and mode=guide. Shape documented in lib/ai/project-plan.ts.
   planData           Json?
-  
+
   /// Defines what sourceSystem is required for canClaimDone()
   completionCriteria Json?
-  
+
   tasks              Task[]
   chatConversations  ChatConversation[]
   socialPublishItems SocialPublishQueue[]
@@ -3019,18 +3019,18 @@ enum ActionStatus {
 }
 
 model ActionReceipt {
-  id                  String       @id @default(cuid())
-  createdAt           DateTime     @default(now()) @map("created_at")
-  updatedAt           DateTime     @updatedAt @map("updated_at")
-  status              ActionStatus @default(PENDING)
-  action              String       @db.VarChar(255)
-  context             String?      @db.Text
-  
+  id        String       @id @default(cuid())
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+  status    ActionStatus @default(PENDING)
+  action    String       @db.VarChar(255)
+  context   String?      @db.Text
+
   missionId           String?
-  mission             Mission?     @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  sourceSystem        String?      @map("source_system")
-  verificationPayload Json?        @map("verification_payload")
-  executedAt          DateTime?    @default(now()) @map("executed_at")
+  mission             Mission?  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  sourceSystem        String?   @map("source_system")
+  verificationPayload Json?     @map("verification_payload")
+  executedAt          DateTime? @default(now()) @map("executed_at")
 
   @@index([status, createdAt(sort: Desc)])
   @@index([missionId])
@@ -3143,7 +3143,7 @@ model AgendaItem {
   description  String?            @db.Text
   category     AgendaItemCategory
   status       AgendaItemStatus   @default(ACTIVE)
-  source       String             // e.g. "chat", "journal", "prediction"
+  source       String // e.g. "chat", "journal", "prediction"
   sourceId     String?            @map("source_id")
   dueDate      DateTime?          @map("due_date")
   lastNudgedAt DateTime?          @map("last_nudged_at")
@@ -3161,4 +3161,21 @@ enum OutcomeRating {
   FAILED
 }
 
+model IntelligenceSignal {
+  id                 String   @id @default(cuid())
+  source             String
+  url                String?
+  title              String
+  summary            String   @db.Text
+  derivativeContext  String?  @db.Text
+  actionabilityIndex Int      @default(0)
+  status             String   @default("NEW")
+  metadata           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
+  @@index([actionabilityIndex, status])
+  @@index([source, createdAt])
+  @@index([createdAt])
+  @@map("intelligence_signals")
+}
