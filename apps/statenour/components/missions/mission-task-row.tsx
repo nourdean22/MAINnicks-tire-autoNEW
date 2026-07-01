@@ -38,33 +38,22 @@ import { StreakBadge } from "@/components/missions/streak-badge";
 
 export interface MissionTaskRowProps {
   task: Task;
-  onComplete: (id: string) => void | Promise<void>;
-  onStart?: (id: string) => void | Promise<void>;
-  onDelete?: (id: string) => void | Promise<void>;
-  /** Wave AB.c · operator taps the pencil → page opens TaskEditSheet
-   *  with this task · move-to-mission + status + due + energy + etc. */
-  onEdit?: (task: Task) => void;
   /** Indent level · 0 = top, 1 = subtask. */
   indent?: 0 | 1;
-  /** Wave AJ · 2026-05-28 · ↑/↓ reorder · parent passes index + total
-   *  so the row can disable the arrows at the ends. onMove fires with
-   *  direction · parent computes swap + calls reorderTask mutation. */
+  /** Wave AJ · 2026-05-28 · ↑/↓ reorder. Parent passes index + total
+   *  so the row can disable the arrows at the ends. */
   index?: number;
   totalTasks?: number;
-  onMove?: (taskId: string, direction: "up" | "down") => void;
-  /** Wave AV · 2026-05-28 · snooze for recurring (DAILY) tasks.
-   *  Parent calls task.update with { snoozedUntil, status: "WAITING" }
-   *  and the existing task-resurface cron flips WAITING→READY when
-   *  the timestamp matures. snoozedUntilIso is a wall-clock ISO. */
-  onSnooze?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
-  onDecompose?: (id: string) => void | Promise<void>;
 
+  isDragged?: boolean;
   isDraggedOver?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: () => void;
   onDragOver?: (e: React.DragEvent) => void;
   onDragLeave?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
+  isNicksPick?: boolean;
+  rationale?: string;
 }
 
 /** Tomorrow at 6am local · the resurface cron flips WAITING→READY when
@@ -88,25 +77,24 @@ function nextMonday6am(): string {
   return d.toISOString();
 }
 
+import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
+
 export function MissionTaskRow({
   task,
-  onComplete,
-  onStart,
-  onDelete,
-  onEdit,
   indent = 0,
   index,
   totalTasks,
-  onMove,
-  onSnooze,
-  onDecompose,
+  isDragged,
   isDraggedOver,
   onDragStart,
   onDragEnd,
   onDragOver,
   onDragLeave,
   onDrop,
+  isNicksPick,
+  rationale,
 }: MissionTaskRowProps) {
+  const actions = useMissionDispatch();
   const [busy, setBusy] = useState<
     "complete" | "start" | "delete" | "snooze" | "decompose" | null
   >(null);
@@ -160,10 +148,8 @@ export function MissionTaskRow({
     isDaily &&
     typeof snoozedUntil === "string" &&
     Date.parse(snoozedUntil) > Date.now();
-  const canMoveUp =
-    onMove != null && typeof index === "number" && index > 0;
+  const canMoveUp = typeof index === "number" && index > 0;
   const canMoveDown =
-    onMove != null &&
     typeof index === "number" &&
     typeof totalTasks === "number" &&
     index < totalTasks - 1;
@@ -244,7 +230,7 @@ export function MissionTaskRow({
           setShowSparkles(true);
           setBusy("complete");
           try {
-            await onComplete(task.id);
+            await actions.handleCompleteTask(task.id);
           } finally {
             setBusy(null);
           }
@@ -327,9 +313,15 @@ export function MissionTaskRow({
           isDoing ||
           isComplex ||
           task.waitingOn ||
-          (task as unknown as { loopKind?: string }).loopKind === "DAILY") && (
+          (task as unknown as { loopKind?: string }).loopKind === "DAILY" ||
+          isNicksPick) && (
           <div className="mt-0.5 flex items-center gap-2 text-[9px] font-mono uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
             {isDoing && <span className="text-amber-400">doing</span>}
+            {isNicksPick && (
+              <span className="text-[var(--gold)]/80 px-1 py-0.5 rounded border border-[var(--gold)]/20 bg-[var(--gold)]/[0.04]">
+                ✨ NICK'S PICK *(hypothesis)*
+              </span>
+            )}
             {isComplex && <span className="text-[var(--gold)]/80">✨ complex</span>}
             {task.waitingOn && (
               <span className="text-violet-300/80">⏸ {task.waitingOn}</span>
@@ -347,7 +339,7 @@ export function MissionTaskRow({
              *  the streak. Pill opens a tiny popover · 2 presets ·
              *  Tomorrow 6am · Next Mon 6am · resurface cron flips
              *  WAITING→READY when the mark matures. */}
-            {isDaily && onSnooze && (
+            {isDaily && (
               <span
                 ref={snoozeWrapRef}
                 className="relative inline-flex"
@@ -383,7 +375,7 @@ export function MissionTaskRow({
                         setBusy("snooze");
                         setSnoozeOpen(false);
                         try {
-                          await onSnooze(task.id, tomorrow6am());
+                          await actions.handleSnoozeTask(task.id, tomorrow6am());
                         } finally {
                           setBusy(null);
                         }
@@ -399,7 +391,7 @@ export function MissionTaskRow({
                         setBusy("snooze");
                         setSnoozeOpen(false);
                         try {
-                          await onSnooze(task.id, nextMonday6am());
+                          await actions.handleSnoozeTask(task.id, nextMonday6am());
                         } finally {
                           setBusy(null);
                         }
@@ -418,7 +410,7 @@ export function MissionTaskRow({
                           try {
                             // Pass empty string · parent normalizes to null
                             // via the validator (snoozedUntil: nullableDate).
-                            await onSnooze(task.id, "");
+                            await actions.handleSnoozeTask(task.id, "");
                           } finally {
                             setBusy(null);
                           }
@@ -458,23 +450,21 @@ export function MissionTaskRow({
        *  to edit/start/delete any task. */}
       {!isDone && (
         <div className="flex items-center gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
-          {onEdit && (
-            <button
-              type="button"
-              onClick={() => onEdit(task)}
-              aria-label="edit task"
-              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10 active:scale-95 transition-transform"
-            >
-              <Pencil size={12} strokeWidth={2} />
-            </button>
-          )}
-          {onDecompose && isComplex && (
+          <button
+            type="button"
+            onClick={() => actions.handleEditTask(task)}
+            aria-label="edit task"
+            className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10 active:scale-95 transition-transform"
+          >
+            <Pencil size={12} strokeWidth={2} />
+          </button>
+          {isComplex && (
             <button
               type="button"
               onClick={async () => {
                 setBusy("decompose");
                 try {
-                  await onDecompose(task.id);
+                  await actions.handleDecomposeTask(task.id);
                 } finally {
                   setBusy(null);
                 }
@@ -487,13 +477,13 @@ export function MissionTaskRow({
               <Sparkles size={12} strokeWidth={2} />
             </button>
           )}
-          {onStart && !isDoing && (
+          {!isDoing && (
             <button
               type="button"
               onClick={async () => {
                 setBusy("start");
                 try {
-                  await onStart(task.id);
+                  await actions.handleStartTask(task.id);
                 } finally {
                   setBusy(null);
                 }
@@ -505,24 +495,22 @@ export function MissionTaskRow({
               <Play size={12} strokeWidth={2} />
             </button>
           )}
-          {onDelete && (
-            <button
-              type="button"
-              onClick={async () => {
-                setBusy("delete");
-                try {
-                  await onDelete(task.id);
-                } finally {
-                  setBusy(null);
-                }
-              }}
-              disabled={busy === "delete"}
-              aria-label="delete"
-              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10 active:scale-95 transition-transform disabled:opacity-50"
-            >
-              <Trash2 size={12} strokeWidth={2} />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={async () => {
+              setBusy("delete");
+              try {
+                await actions.handleDeleteTask(task.id);
+              } finally {
+                setBusy(null);
+              }
+            }}
+            disabled={busy === "delete"}
+            aria-label="delete"
+            className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10 active:scale-95 transition-transform disabled:opacity-50"
+          >
+            <Trash2 size={12} strokeWidth={2} />
+          </button>
           {/* Wave AJ · 2026-05-28 · task reorder · operator's missing
            *  resort affordance · ↑/↓ swap rank with neighbor · arrows
            *  fade at the ends to signal terminal position.
@@ -531,14 +519,21 @@ export function MissionTaskRow({
            *  Pre-this-fix the icons were color-tertiary at idle and only
            *  lit up on hover — invisible on touch. Matches the
            *  MissionCard mission-reorder polish from this wave. */}
-          {onMove && (canMoveUp || canMoveDown) && (
+          {(canMoveUp || canMoveDown) && (
             <span className="inline-flex rounded-md border border-[var(--border-default)]/60 bg-[var(--bg-raised)]/[0.06] overflow-hidden">
               <button
                 type="button"
-                onClick={() => {
-                  if (canMoveUp) onMove(task.id, "up");
+                onClick={async () => {
+                  if (canMoveUp) {
+                    setBusy("moveUp" as any);
+                    try {
+                      await actions.handleMoveTask(task.id, "up");
+                    } finally {
+                      setBusy(null);
+                    }
+                  }
                 }}
-                disabled={!canMoveUp}
+                disabled={!canMoveUp || busy !== null}
                 aria-label="move up"
                 title="move up"
                 className={cn(
@@ -556,10 +551,17 @@ export function MissionTaskRow({
               />
               <button
                 type="button"
-                onClick={() => {
-                  if (canMoveDown) onMove(task.id, "down");
+                onClick={async () => {
+                  if (canMoveDown) {
+                    setBusy("moveDown" as any);
+                    try {
+                      await actions.handleMoveTask(task.id, "down");
+                    } finally {
+                      setBusy(null);
+                    }
+                  }
                 }}
-                disabled={!canMoveDown}
+                disabled={!canMoveDown || busy !== null}
                 aria-label="move down"
                 title="move down"
                 className={cn(

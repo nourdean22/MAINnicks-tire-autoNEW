@@ -27,22 +27,10 @@ const ISSUE_LABEL: Record<string, string> = {
 
 export interface MissionsRescueStripProps {
   tasks?: Task[];
-  onCompleteTask?: (id: string) => void | Promise<void>;
-  onStartTask?: (id: string) => void | Promise<void>;
-  onDeleteTask?: (id: string) => void | Promise<void>;
-  onEditTask?: (task: Task) => void;
-  onSnoozeTask?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
-  onDecomposeTask?: (id: string) => void | Promise<void>;
 }
 
 export function MissionsRescueStrip({
   tasks,
-  onCompleteTask,
-  onStartTask,
-  onDeleteTask,
-  onEditTask,
-  onSnoozeTask,
-  onDecomposeTask,
 }: MissionsRescueStripProps) {
   const [open, setOpen] = useState(false);
   const [expandedAnchorId, setExpandedAnchorId] = useState<string | null>(null);
@@ -152,12 +140,6 @@ export function MissionsRescueStrip({
                       <MissionTaskRow
                         key={task.id}
                         task={task}
-                        onComplete={onCompleteTask || (() => {})}
-                        onStart={onStartTask}
-                        onDelete={onDeleteTask}
-                        onEdit={onEditTask}
-                        onSnooze={onSnoozeTask}
-                        onDecompose={onDecomposeTask}
                       />
                     ))}
                   </div>
