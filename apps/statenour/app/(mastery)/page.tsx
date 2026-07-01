@@ -1,6 +1,5 @@
-import { NicksHomeBrief } from "@/components/home/nicks-home-brief";
-import { HomeCommandStack } from "@/components/home/home-command-stack";
-import { HomeActionHub } from "@/components/home/home-action-hub";
+import { ExecutiveActionMatrix } from "@/components/home/executive-action-matrix";
+import { NicksMorningBrief } from "@/components/missions/nicks-morning-brief";
 import { HomeJournalHub } from "@/components/home/home-journal-hub";
 import { HomeStatePulse } from "@/components/home/home-state-pulse";
 import { HomeIdentityHeader } from "@/components/home/home-identity-header";
@@ -14,7 +13,7 @@ import { FollowUpsList } from "@/components/home/follow-ups-list";
  * The home route · 2026-06-22 · Redesigned Nour Command Center layout.
  *
  * Wide responsive grid:
- *   - Left Main: existing home card bento stack
+ *   - Left Main: new action matrix + journal
  *   - Right Side: HomeBrainGraph (sticky on desktop, compact preview on mobile)
  *   - Floating Bottom: HomeNickDock command bar
  */
@@ -31,9 +30,8 @@ export default function HomePage() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_520px]">
         {/* Main Left Bento Stack */}
         <main className="space-y-4 min-w-0">
-          <NicksHomeBrief />
-          <HomeCommandStack />
-          <HomeActionHub />
+          <NicksMorningBrief />
+          <ExecutiveActionMatrix />
           <HomeJournalHub />
           <ObsidianEngineCard />
           <HomeStatePulse />
