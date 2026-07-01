@@ -1,0 +1,89 @@
+{
+  "timestamp": "2026-06-27T19:33:21.646Z",
+  "mode": "apply",
+  "db": "ep-quiet-wave-am320eo1.c-5.us-east-1.aws.neon.tech",
+  "missionsCreated": [
+    {
+      "key": "shop",
+      "id": "cmqwrcjik0000rlk81tlm5jx9",
+      "title": "Shop Operations"
+    },
+    {
+      "key": "health",
+      "id": "cmqwrck1y0002rlk8ogpoqamp",
+      "title": "Health"
+    },
+    {
+      "key": "personal",
+      "id": "cmqwrck7s0004rlk8gx3jbzs7",
+      "title": "Personal OS"
+    }
+  ],
+  "missionsReused": [],
+  "tasksCreated": [
+    {
+      "id": "cmqwrckg60007rlk8h7wo0k91",
+      "title": "Subaru radiator replacement"
+    },
+    {
+      "id": "cmqwrckqb000arlk8ypp5sgq6",
+      "title": "GBP-to-Instagram review automation"
+    },
+    {
+      "id": "cmqwrcl7m000hrlk8g8v30ifh",
+      "title": "Take MiraLAX tonight"
+    },
+    {
+      "id": "cmqwrclp0000mrlk89iafn8ps",
+      "title": "Add fiber powder back to daily intake"
+    },
+    {
+      "id": "cmqwrcm5k000rrlk824wpa0to",
+      "title": "Save final text templates into CRM"
+    },
+    {
+      "id": "cmqwrcmpg000wrlk83vo77bv8",
+      "title": "Review all three texts for tone/brevity/compliance"
+    },
+    {
+      "id": "cmqwrcn900011rlk8la6szg52",
+      "title": "Weigh in + log body"
+    },
+    {
+      "id": "cmqwrcnqs0016rlk8qnca70iy",
+      "title": "Fiber powder in Fairlife"
+    },
+    {
+      "id": "cmqwrcp7u001brlk8mju3idjm",
+      "title": "Check + contact urgent leads"
+    },
+    {
+      "id": "cmqwrcqvd001grlk81em96ms2",
+      "title": "Follow up on invoices pending >3 days"
+    },
+    {
+      "id": "cmqwrcs1q001lrlk8y87hmwdn",
+      "title": "5-min journal"
+    }
+  ],
+  "tasksArchived": [],
+  "tasksRepaired": [],
+  "orphansRelinked": [],
+  "mutations": [
+    "Created mission \"Shop Operations\" [cmqwrcjik0000rlk81tlm5jx9] (canonicalDomain: business)",
+    "Created mission \"Health\" [cmqwrck1y0002rlk8ogpoqamp] (canonicalDomain: health)",
+    "Created mission \"Personal OS\" [cmqwrck7s0004rlk8gx3jbzs7] (canonicalDomain: personal)",
+    "Created keep task \"Subaru radiator replacement\" [cmqwrckg60007rlk8h7wo0k91] in mission cmqwrck7s0004rlk8gx3jbzs7",
+    "Created keep task \"GBP-to-Instagram review automation\" [cmqwrckqb000arlk8ypp5sgq6] in mission cmqwrcjik0000rlk81tlm5jx9",
+    "Created keep task \"Take MiraLAX tonight\" [cmqwrcl7m000hrlk8g8v30ifh] in mission cmqwrck1y0002rlk8ogpoqamp",
+    "Created keep task \"Add fiber powder back to daily intake\" [cmqwrclp0000mrlk89iafn8ps] in mission cmqwrck1y0002rlk8ogpoqamp",
+    "Created keep task \"Save final text templates into CRM\" [cmqwrcm5k000rrlk824wpa0to] in mission cmqwrcjik0000rlk81tlm5jx9",
+    "Created keep task \"Review all three texts for tone/brevity/compliance\" [cmqwrcmpg000wrlk83vo77bv8] in mission cmqwrcjik0000rlk81tlm5jx9",
+    "Created DAILY loop \"Weigh in + log body\" [cmqwrcn900011rlk8la6szg52]",
+    "Created DAILY loop \"Fiber powder in Fairlife\" [cmqwrcnqs0016rlk8qnca70iy]",
+    "Created DAILY loop \"Check + contact urgent leads\" [cmqwrcp7u001brlk8mju3idjm]",
+    "Created DAILY loop \"Follow up on invoices pending >3 days\" [cmqwrcqvd001grlk81em96ms2]",
+    "Created DAILY loop \"5-min journal\" [cmqwrcs1q001lrlk8y87hmwdn]",
+    "Upserted BodyTracking row for 2026-06-27 with restart logs"
+  ]
+}

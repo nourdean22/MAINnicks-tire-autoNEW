@@ -1,0 +1,32 @@
+# AIE Sensor Grid Configuration
+# Defines the targets for the intelligence scrapers and research engines.
+
+competitor_watch:
+  - name: "Tire Market Leader A"
+    domain: "discounttire.com"
+    targets:
+      - path: "/promotions"
+        intent: "pricing_shifts"
+      - path: "/tires/brands"
+        intent: "inventory_changes"
+
+  - name: "Local Competitor B"
+    domain: "conrads.com"
+    targets:
+      - path: "/specials"
+        intent: "pricing_shifts"
+
+saas_and_ai:
+  - name: "OpenAI"
+    keywords: ["OpenAI release", "GPT-5", "OpenAI pricing"]
+  - name: "Anthropic"
+    keywords: ["Claude 3.5 Sonnet", "Anthropic API update"]
+  - name: "Cursor / AI Coding"
+    keywords: ["Cursor IDE", "AI code editor", "agentic coding"]
+
+market_sentiment:
+  - reddit: ["r/Justrolledintotheshop", "r/MechanicAdvice", "r/SaaS", "r/MachineLearning"]
+  - hackernews: ["AI agents", "LLM pricing", "B2B SaaS"]
+
+cyber_risk:
+  - keywords: ["zero day vulnerability", "PostgreSQL exploit", "Next.js CVE", "Cloudflare outage"]
