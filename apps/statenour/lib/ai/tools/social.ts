@@ -88,6 +88,7 @@ export const socialTools = {
     }),
     execute: async ({ maxResults, query }) => {
       const { listInbox, isGmailConfigured } = await import("@/lib/integrations/gmail");
+      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
       if (!isGmailConfigured()) {
         return { error: "GMAIL_REFRESH_TOKEN not set · see docs/gmail-setup.md" };
       }
@@ -98,7 +99,7 @@ export const socialTools = {
           id: t.id,
           subject: t.subject.slice(0, 200),
           from: t.from.slice(0, 200),
-          snippet: t.snippet.slice(0, 300),
+          snippet: fenceContent("arsenalGmailInbox", "external_doc", t.snippet.slice(0, 300)),
           messageCount: t.messageCount,
           unread: t.unread,
         })),
@@ -114,6 +115,7 @@ export const socialTools = {
     }),
     execute: async ({ threadId }) => {
       const { getThread, isGmailConfigured } = await import("@/lib/integrations/gmail");
+      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
       if (!isGmailConfigured()) {
         return { error: "GMAIL_REFRESH_TOKEN not set · see docs/gmail-setup.md" };
       }
@@ -126,7 +128,7 @@ export const socialTools = {
           from: m.from.slice(0, 200),
           to: m.to.slice(0, 200),
           date: m.date,
-          body: m.body.slice(0, 4000),
+          body: fenceContent("arsenalGmailReadThread", "external_doc", m.body.slice(0, 4000)),
         })),
         source: "arsenal/gmail",
       };
