@@ -18,22 +18,23 @@ the gotchas that bite everyone.
 1. [The four apps at a glance](#the-four-apps-at-a-glance)
 2. [Tech stack](#tech-stack)
 3. [Repository topology](#repository-topology)
-4. [Prerequisites](#prerequisites)
-5. [Getting started](#getting-started)
-6. [The Turborepo + pnpm pipeline](#the-turborepo--pnpm-pipeline)
-7. [Per-app architecture](#per-app-architecture)
-8. [How the apps talk to each other](#how-the-apps-talk-to-each-other)
-9. [Environment variables](#environment-variables)
-10. [Scripts reference](#scripts-reference)
-11. [Databases](#databases)
-12. [Testing](#testing)
-13. [Verify gates & git hooks](#verify-gates--git-hooks)
-14. [Continuous integration](#continuous-integration)
-15. [Deployment (Railway)](#deployment-railway)
-16. [Working on the shared `main` branch](#working-on-the-shared-main-branch)
-17. [Troubleshooting](#troubleshooting)
-18. [Conventions & rules of the road](#conventions--rules-of-the-road)
-19. [Documentation map](#documentation-map)
+4. [Monorepo Strategy & Governance](#monorepo-strategy--governance)
+5. [Prerequisites](#prerequisites)
+6. [Getting started](#getting-started)
+7. [The Turborepo + pnpm pipeline](#the-turborepo--pnpm-pipeline)
+8. [Per-app architecture](#per-app-architecture)
+9. [How the apps talk to each other](#how-the-apps-talk-to-each-other)
+10. [Environment variables](#environment-variables)
+11. [Scripts reference](#scripts-reference)
+12. [Databases](#databases)
+13. [Testing](#testing)
+14. [Verify gates & git hooks](#verify-gates--git-hooks)
+15. [Continuous integration](#continuous-integration)
+16. [Deployment (Railway)](#deployment-railway)
+17. [Working on the shared `main` branch](#working-on-the-shared-main-branch)
+18. [Troubleshooting](#troubleshooting)
+19. [Conventions & rules of the road](#conventions--rules-of-the-road)
+20. [Documentation map](#documentation-map)
 
 ---
 
@@ -112,6 +113,26 @@ via Railway dashboard commands (see [Deployment](#deployment-railway)).
 > A change inside `packages/**` makes Turbo treat **all consuming apps as affected** — so a
 > `@nour/utils` edit will rebuild statenour (and anything else that imports it) on the next
 > `--affected` build or push.
+
+---
+
+## Monorepo Strategy & Governance
+
+This monorepo operates under a strict strategic playbook to mitigate the inherent risks of centralized code. A monorepo forces collaboration, which means without machine-enforced governance, the `main` branch will fracture.
+
+### 1. Machine-Enforced Code Ownership & Boundaries
+Human reviews fail at scale. We use implicit ownership and automated path-based CI triggers.
+- **Conway's Law Mitigation**: Apps remain strictly decoupled. `apps/nickstire` and `apps/statenour` do not import each other. The only cross-app boundaries are `/api/bridge/*` contracts and `packages/*`.
+- **Blast Radius**: A single bad bump in a shared library (`packages/*`) can take down the entire workspace. Turborepo's affected-graph execution ensures that CI only builds and tests what was actually impacted, isolating the blast radius.
+
+### 2. Trunk-Based Development
+Long-lived branches guarantee unresolvable merge conflicts. **All changes go to `main`**. We employ Trunk-Based Development with high-fidelity test coverage and strict CI verify gates (pre-push hooks) to protect the trunk. 
+
+### 3. Git Performance
+Git natively struggles as monorepos grow. To prevent degraded local I/O performance on developer machines:
+- Use **Git Sparse-Checkout** if you are only working on a single app for an extended period.
+- Routinely clean up stale worktrees (`git worktree prune`) and drop unused caches.
+- For massive scaling, consider Microsoft's **Scalar**, though our current Turborepo + pnpm caching handles our scale well.
 
 ---
 
