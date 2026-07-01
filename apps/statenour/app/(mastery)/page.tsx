@@ -8,6 +8,7 @@ import { HomeBrainGraph } from "@/components/home/home-brain-graph";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { ObsidianEngineCard } from "@/components/obsidian/obsidian-engine-card";
 import { FollowUpsList } from "@/components/home/follow-ups-list";
+import { NotebookLMCockpit } from "@/components/home/notebooklm-cockpit";
 
 /**
  * The home route · 2026-06-22 · Redesigned Nour Command Center layout.
@@ -32,6 +33,7 @@ export default function HomePage() {
         <main className="space-y-4 min-w-0">
           <NicksMorningBrief />
           <ExecutiveActionMatrix />
+          <NotebookLMCockpit />
           <HomeJournalHub />
           <ObsidianEngineCard />
           <HomeStatePulse />

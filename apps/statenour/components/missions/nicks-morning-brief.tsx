@@ -24,13 +24,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Brain } from "lucide-react";
 import type { Project, Task } from "@/components/actions/shared";
 import { isUserProject } from "@/lib/services/mission-helpers";
+import { trpc } from "@/lib/trpc/client";
 
 interface NicksMorningBriefProps {
-  missions: Project[];
-  tasks: Task[];
+  missions?: Project[];
+  tasks?: Task[];
 }
 
-export function NicksMorningBrief({ missions, tasks }: NicksMorningBriefProps) {
+export function NicksMorningBrief({ missions: propsMissions, tasks: propsTasks }: NicksMorningBriefProps = {}) {
   const [brief, setBrief] = useState<string | null>(null);
 
   // wave-AA-audit · derive the active mission count up here so the
@@ -39,6 +40,12 @@ export function NicksMorningBrief({ missions, tasks }: NicksMorningBriefProps) {
   // .length === 0) { setBrief(null); setLoading(false); return; }` which
   // triggered the react-hooks/set-state-in-effect rule. Now we either
   // run the fetch or no-op, with a single state path.
+  const { data: serverMissions } = trpc.task.missions.useQuery(undefined, {
+    enabled: !propsMissions,
+  });
+  
+  const missions = (propsMissions || serverMissions || []) as Project[];
+
   const activeCount = useMemo(
     () =>
       missions.filter((m) => m.status === "ACTIVE" && isUserProject(m))
