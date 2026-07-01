@@ -6,37 +6,25 @@ import { formatReward, type TaskReward, type LevelUpPayload } from "@/lib/master
 import type { Task, Project } from "@/components/actions/shared";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import { useRouter } from "next/navigation";
+import { useMissionUIStore } from "../state/use-mission-ui-store";
 
 const log = rootLogger.withSurface("missions/actions");
 
 export interface MissionActionsParams {
   tasks: Task[];
   missions: Project[];
-  setRetroState: (state: { missionId: string; title: string } | null) => void;
-  setLevelUpState: (payload: LevelUpPayload | null) => void;
-  setXpParticle: (payload: { xp: number; key: number }) => void;
-  setTaskEditTarget: (task: Task | null) => void;
-  setTaskEditOpen: (open: boolean) => void;
-  setMissionEditId: (id: string | null) => void;
-  setMissionEditInitial: (initial: any) => void;
-  setMissionEditOpen: (open: boolean) => void;
 }
 
-export function useMissionActions({
-  tasks,
-  missions,
-  setRetroState,
-  setLevelUpState,
-  setXpParticle,
-  setTaskEditTarget,
-  setTaskEditOpen,
-  setMissionEditId,
-  setMissionEditInitial,
-  setMissionEditOpen,
-}: MissionActionsParams) {
+export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const telemetry = useMissionSurfaceTelemetry("missions");
+
+  const setRetroState = useMissionUIStore((s) => s.setRetroState);
+  const setLevelUpState = useMissionUIStore((s) => s.setLevelUpState);
+  const triggerXpParticle = useMissionUIStore((s) => s.triggerXpParticle);
+  const openTaskEdit = useMissionUIStore((s) => s.openTaskEdit);
+  const openMissionEdit = useMissionUIStore((s) => s.openMissionEdit);
 
   const createTask = trpc.task.create.useMutation();
   const updateTask = trpc.task.update.useMutation();
@@ -136,7 +124,7 @@ export function useMissionActions({
           if (reward?.levelUp) setLevelUpState(reward.levelUp);
           if (reward?.xpCredited) xpAdded = reward.xpCredited;
         }
-        if (xpAdded > 0) setXpParticle({ xp: xpAdded, key: Date.now() });
+        if (xpAdded > 0) triggerXpParticle(xpAdded);
         await refetchAll();
 
         if (wasOpen && task?.missionId && !isRecurring) {
@@ -151,7 +139,7 @@ export function useMissionActions({
         toast.error("Could not complete task.");
       }
     },
-    [tasks, missions, updateTask, checkTaskMut, refetchAll, telemetry, router, setLevelUpState, setXpParticle, setRetroState],
+    [tasks, missions, updateTask, checkTaskMut, refetchAll, telemetry, router, setLevelUpState, triggerXpParticle, setRetroState],
   );
 
   const handleStartTask = useCallback(
@@ -197,29 +185,26 @@ export function useMissionActions({
 
   const handleEditTask = useCallback(
     (task: Task) => {
-      setTaskEditTarget(task);
-      setTaskEditOpen(true);
+      openTaskEdit(task);
       telemetry.event("editTaskOpen", { taskId: task.id });
     },
-    [setTaskEditTarget, setTaskEditOpen, telemetry],
+    [openTaskEdit, telemetry],
   );
 
   const handleEditMission = useCallback(
     (missionId: string) => {
       const mission = missions.find((m) => m.id === missionId);
       if (!mission) return;
-      setMissionEditId(missionId);
-      setMissionEditInitial({
+      openMissionEdit(missionId, {
         title: mission.title,
         status: mission.status,
         domain: mission.domain ?? null,
         description: mission.description ?? null,
         deadline: mission.deadline ?? null,
       });
-      setMissionEditOpen(true);
       telemetry.event("editMissionOpen", { missionId });
     },
-    [missions, setMissionEditId, setMissionEditInitial, setMissionEditOpen, telemetry],
+    [missions, openMissionEdit, telemetry],
   );
 
   const handleSnoozeTask = useCallback(
