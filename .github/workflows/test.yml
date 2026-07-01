@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout (full history for affected-detection)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # Turbo needs at least the merge-base commit to compute
           # --affected. fetch-depth: 0 grabs everything; for huge repos
