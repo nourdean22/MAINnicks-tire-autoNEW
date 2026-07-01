@@ -6,10 +6,13 @@ source: user
 ---
 
 # CIITTY: Core Agent Operating Rules
+**v2.1 — July 2026**
 
 CIITTY is an elite, high-agency operating framework designed to help the agent think clearly, build effectively, and adapt to the needs of the task.
 
 Its purpose is to encourage strong reasoning, thoughtful execution, useful creativity, and responsible use of tools while remaining grounded in the realities of the codebase, product, and business context.
+
+> **Stack Reality:** This is a pnpm + Turborepo polyglot monorepo hosted on Railway (Nixpacks). Two production apps: `apps/statenour` (bdnick.info) and `apps/nickstire` (nickstire.org). The toolchain is pnpm workspaces + `turbo run --affected` — NOT Bazel, NOT Lerna, NOT Yarn Workspaces. Always operate within this reality.
 
 ---
 
@@ -20,173 +23,313 @@ Use when:
 - Structuring Drizzle/Prisma client queries, optimizing database schemas, or integrating Neon serverless databases.
 - Performing command-line/terminal operations on Windows via PowerShell.
 - Documenting tasks, creating walkthroughs, or reporting progress to the user.
+- Executing any cross-app change that could affect both `statenour` and `nickstire`.
 
 ---
 
 ## 0. Core Operating Principle
 **Understand the situation before acting.**
 
-A typical workflow is:
 ```mermaid
 graph LR
     A[Understand] --> B[Explore] --> C[Plan] --> D[Execute] --> E[Verify] --> F[Communicate]
 ```
+
 Adapt the process to the task. Some problems require deep investigation, others benefit from rapid iteration. Favor clarity, evidence, and practical outcomes.
+
+**Blind Spot Check (Mandatory for any significant change):**
+Before executing, internally answer:
+1. What could break across the other app in this monorepo?
+2. Does the lockfile (`pnpm-lock.yaml`) need regenerating?
+3. Will this trigger a Railway build? Is the pre-push gate (`turbo build --affected`) going to pass?
+4. Is there a migration, cron schedule, or environment variable dependency I am ignoring?
 
 ---
 
 ## 1. Working Modes
 Different tasks benefit from different mindsets. Consider which mode best fits the work.
 
-*   **Audit Mode:** Focus on understanding, evaluating, and identifying opportunities, risks, or inconsistencies.
-*   **Build Mode:** Focus on implementing features, improvements, or fixes while respecting existing architecture and patterns.
-*   **Review Mode:** Focus on quality, maintainability, correctness, and overall impact.
-*   **Debug Mode:** Focus on identifying root causes, validating assumptions, and resolving issues efficiently.
-*   **Refactor Mode:** Focus on improving structure, readability, maintainability, and developer experience.
-*   **Design Mode:** Focus on usability, workflows, visual hierarchy, and product experience.
-*   **Research Mode:** Focus on gathering information, comparing options, and generating informed recommendations.
-*   **Safety Mode:** Focus on risk awareness, sensitive systems, external integrations, credentials, data handling, and operational impact.
+| Mode | Focus |
+|------|-------|
+| **Audit** | Understanding, evaluating, identifying risks and inconsistencies |
+| **Build** | Implementing features/fixes while respecting existing architecture |
+| **Review** | Quality, maintainability, correctness, overall impact |
+| **Debug** | Root cause identification, assumption validation, efficient resolution |
+| **Refactor** | Structure, readability, maintainability, developer experience |
+| **Design** | Usability, workflows, visual hierarchy, product experience |
+| **Research** | Gathering information, comparing options, informed recommendations |
+| **Safety** | Risk awareness, credentials, data handling, operational impact |
+| **Migration** | Moving code between repos/apps, restructuring folders, preserving history |
+| **Governance** | Enforcing ownership rules, AGENTS.md compliance, branch hygiene |
 
 ---
 
-## 2. Repository & Product Awareness
-Before making significant changes:
-*   **Codebase Familiarity:** Understand the relevant area of the codebase, review project guidance and documentation, identify existing patterns before introducing new ones, and understand the likely impact of changes.
-*   **Reversibility:** Prefer working in a way that keeps changes understandable, reviewable, and reversible.
-*   **Business Context:** Preserve important business context, respect existing workflows, prioritize usefulness over novelty, avoid assumptions when facts are available, and consider operational impact alongside technical quality.
-*   **Product Fit:** For customer-facing systems, accuracy and trust matter more than cleverness. For internal systems, clarity and efficiency matter more than complexity.
-*   **Scope Awareness:** Understand the intended goal before expanding the solution (What is being solved? What is affected? What assumptions exist? What can be deferred?). Keep solutions proportional to the problem.
+## 2. Monorepo Architecture & Product Awareness
+
+### Repo Layout (Actual)
+```
+NOURCITY/
+├── apps/
+│   ├── statenour/     ← Railway → bdnick.info  (Next.js 15, App Router)
+│   └── nickstire/     ← Railway → nickstire.org (Vite PWA + Express server)
+├── packages/          ← Shared internal packages (types, utils)
+├── scripts/           ← PowerShell ops scripts (worktree-setup.ps1, security-scan.ps1)
+├── docs/              ← Architecture decisions, AI capability docs
+├── .agents/           ← Agent frameworks (CIITTY), skills, workflows
+└── pnpm-workspace.yaml
+```
+
+### Before Making Significant Changes:
+- **Codebase Familiarity:** Read the per-app `AGENTS.md` first (`apps/<app>/AGENTS.md`). It contains app-specific rules, known gotchas, and architectural constraints.
+- **Reversibility:** Keep changes understandable, reviewable, and reversible. Squash-merge branches; never rewrite shared history.
+- **Business Context:** Preserve important business context, respect existing workflows, prioritize usefulness over novelty.
+- **Scope Awareness:** What is being solved? What is affected? What assumptions exist? What can be deferred? Keep solutions proportional to the problem.
+- **Cross-App Impact:** A change in `packages/` or `pnpm-lock.yaml` affects BOTH apps. Always run `turbo run --affected` before claiming a change is safe.
+
+### Dependency Management (This Stack)
+- **Package manager:** `pnpm` with workspaces (NOT yarn, NOT npm, NOT Lerna)
+- **Build orchestration:** Turborepo (`turbo run build --affected`) with remote caching
+- **Install rule:** `pnpm install --frozen-lockfile --filter "<app>..."` — the `...` suffix is mandatory; bare `--filter` skips workspace deps
+- **Lockfile rule:** If `package.json` changes (deps added/moved/removed), always regenerate `pnpm-lock.yaml` locally and commit it. Railway uses frozen lockfile mode in CI — a stale lockfile = failed build.
+- **Dependency updates:** Use Dependabot/Renovate PRs reviewed by the operator. Never bulk-upgrade without testing both apps.
 
 ---
 
-## 3. UI/UX Design & Premium Aesthetics (Visual Kinetics)
+## 3. Branching, CI/CD & Release Strategy
+
+### Branch Model (Trunk-Based)
+```
+main (protected) ← squash-merge only via PR
+  └── <app>/<task>   ← e.g. statenour/fix-chat-stream
+  └── nickstire/<task>
+  └── chore/<task>
+  └── docs/<task>
+```
+
+**Hard rules:**
+- **NEVER push directly to `main`** — use named branches + PR
+- Stage only explicit file paths (`git add <file>`) — never `git add -A`
+- Never use `--no-verify` or force-push shared history
+- Scope commits to the assigned task ONLY
+
+### CI Gate (Pre-Push)
+The `.husky/pre-push` hook runs `turbo build --affected`. This must pass before any push lands.
+
+| App | Full verification command |
+|-----|--------------------------|
+| statenour | `pnpm typecheck && pnpm lint && pnpm test && pnpm verify:hard` |
+| nickstire | `pnpm run verify` (run serially on Windows: `--pool=forks --poolOptions.forks.singleFork=true`) |
+
+**Piping vitest to `tail` masks exit codes** — always read the summary line directly.
+
+### Worktree Pattern
+For concurrent agent sessions, use `scripts/worktree-setup.ps1`:
+```powershell
+powershell scripts/worktree-setup.ps1 -branchName <branch> -targetDir .worktrees/<name>
+```
+This creates NTFS junctions for `node_modules` instantly (no `pnpm install` needed). Clean up after merge: `git worktree remove .worktrees/<name>`.
+
+### Railway Deployment
+- Apps deploy automatically from `main` via Railway GitHub integration
+- Selective builds: Railway rebuilds only the service whose source changed
+- If a build fails: check `pnpm-lock.yaml` sync, check Nixpacks compatibility, check Dockerfile (statenour) for system package availability
+
+---
+
+## 4. UI/UX Design & Premium Aesthetics (Visual Kinetics)
 Build interfaces that are clear, useful, and enjoyable to use. Design should support real user behavior and real tasks.
 
-*   **Design Principles:** Establish a strong visual hierarchy, intuitive workflows, responsive layouts, accessibility, consistency, useful feedback, and reduced friction.
-*   **Design Tokens & CSS Variables:** Establish central style tokens for colors, sizing, spacing, and animations in `index.css`. Maintain consistency across all layouts.
-*   **Premium Color Palettes:** Implement curated dark modes using deep slates, obsidians, and custom charcoal backgrounds. Use soft border highlights (`rgba(255, 255, 255, 0.08)`) and vibrant accents (HSL-tailored gradients).
-*   **Fluid Typography:** Import high-end typography (e.g., Google Fonts like Inter, Outfit, or DM Sans). Set up clean font scales, proper line heights, and letter spacing.
-*   **Micro-interactions & Keyframes:** Embed interactive hover states, glassmorphic card overlays (`backdrop-filter: blur(12px)`), scale transformations (`scale(1.02)`), and smooth bezier curves (`transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1)`).
-*   **Optical Balancing & Spatial Grid:** Design using a strict 8px grid system. Use negative space intentionally to reduce visual noise and emphasize primary action buttons.
+- **Design Principles:** Strong visual hierarchy, intuitive workflows, responsive layouts, accessibility, consistency, useful feedback, reduced friction.
+- **Design Tokens & CSS Variables:** Central style tokens for colors, sizing, spacing, and animations in `index.css`. Maintain consistency across all layouts.
+- **Premium Color Palettes:** Curated dark modes using deep slates, obsidians, and custom charcoal backgrounds. Soft border highlights (`rgba(255, 255, 255, 0.08)`) and vibrant accents (HSL-tailored gradients).
+- **Fluid Typography:** Google Fonts (Inter, Outfit, DM Sans). Clean font scales, proper line heights, letter spacing.
+- **Micro-interactions & Keyframes:** Interactive hover states, glassmorphic card overlays (`backdrop-filter: blur(12px)`), scale transformations (`scale(1.02)`), smooth bezier curves (`transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1)`).
+- **Optical Balancing & Spatial Grid:** Strict 8px grid system. Use negative space intentionally.
+- **iOS PWA Touch:** Minimum 48×48px touch targets. Active tap scales (`active:scale-95`). Never use `window.confirm/alert/prompt` — silently suppressed in iOS PWA. Use two-tap DOM pattern for destructive actions.
 
 ---
 
-## 4. Resilient Database & Systems Thinking
-When working with databases, APIs, integrations, or infrastructure, favor solutions that remain understandable over time and support future growth.
+## 5. Resilient Database & Systems Thinking
 
-*   **Schema Engineering:** Ensure database schemas have explicit relations, cascade constraints, unique indexes on lookups, and correct nullability.
-*   **Prisma Client Optimization:** Prevent N+1 query problems. Use `select` and `include` projections to fetch only necessary data. Export and reuse a single global Prisma Client instance in serverless handlers to prevent connection leaks.
-*   **Neon Serverless Integration:** Optimize connection configurations for Neon serverless scaling. Use Neon's WebSocket driver or connection pooler endpoints (`-pooler`) where high-concurrency connections are expected.
-*   **Security & Sanitization:** Keep the database safe. Read credentials exclusively from `process.env.DATABASE_URL`. Prevent SQL injection by utilizing Prisma's parameterized queries and sanitizing raw inputs.
-
----
-
-## 5. Tools, Connectors, & Multi-Agent Collaboration
-Use available tools and integrations thoughtfully. Favor the simplest approach that accomplishes the objective.
-
-*   **Terminal & Shell Reliability:** On Windows, run commands through PowerShell defensively. Handle backslashes, escape parameters correctly, configure encoding parameters, and override pagination blocks (e.g., set `PAGER=cat` and limit verbose outputs).
-*   **MCP Server Invocation:** Eagerly call native tools. For lazy-loaded MCP tools, read schemas thoroughly before invoking. Handle SSE (Server-Sent Events) and gRPC connection timeouts gracefully.
-*   **Dynamic Permission Mitigation:** If a terminal command, file operation, or network request encounters a permission barrier, immediately analyze the path and request the narrowest required scope via `ask_permission`. Never let a permission block halt execution.
-*   **Ollama Reviewer Orchestration:** Route complex code blocks to your local Ollama-reviewer for security, risk, or edge-case reviews. Automatically sanitize active API keys, tokens, and passwords before passing them to external or local LLM instances.
+- **Schema Engineering:** Explicit relations, cascade constraints, unique indexes on lookups, correct nullability. Never run `prisma migrate` with `--accept-data-loss` — drops pgvector/tsvector columns.
+- **Prisma Client Optimization:** Prevent N+1 queries. Use `select`/`include` projections. Export and reuse a single global Prisma Client instance to prevent connection leaks in serverless handlers.
+- **Neon Serverless Integration:** Use `-pooler` endpoints for high-concurrency. Use WebSocket driver where needed. Connection string is from `process.env.DATABASE_URL` — never hardcoded.
+- **pgvector Discipline:** Query pgvector fields ONLY via raw SQL (`lib/db/pgvector.ts`). Never touch the vector dimension via Prisma ORM.
+- **Security & Sanitization:** Credentials from `process.env` only. Prisma parameterized queries prevent SQL injection. Sanitize raw inputs before any raw SQL.
+- **Fault-Tolerant Patterns:** Wrap risky operations (e.g. join on a table that may not exist post-migration) in try/catch with graceful fallback. Log the fallback reason. Never let a missing table crash the entire API.
+- **Cache Invalidation:** Server-side cache keys (`lib/utils/cache.ts`) must be invalidated after mutations. Common keys: `dashboard_brief`, `ultron_command_center_state_v1`. Missing invalidation = stale data bug.
 
 ---
 
-## 6. Verification, Lifecycle, & Diagnostics
-Verify work whenever practical. Be transparent about what was verified and what remains uncertain.
+## 6. Code Ownership & Governance
 
-*   **Empowered TDD Cycle:** Implement features using Test-Driven Development. Write failing unit and integration tests (Red), implement minimal code to pass (Green), and optimize structure (Refactor). Keep test coverage comprehensive.
-*   **Root-Cause Diagnostics:** When debugging runtime exceptions, compilation failures, or test crashes, inspect variables, read local logs, check database states, and trace stack traces. Implement a permanent architectural fix rather than a quick patch.
-*   **Safe Codebase Refactoring:** Refactor legacy code using modular boundaries. Isolate functions, define clean TypeScript interfaces, run regression tests incrementally, and ensure zero features are broken during structural changes.
+### Ownership Model (This Repo)
+Instead of CODEOWNERS files, this repo uses:
+- **Per-app `AGENTS.md`** files as the authoritative source of rules for each app
+- **Operator-gated merges** — agent pushes branches, operator merges PRs
+- **`.agents/frameworks/ciitty/SKILL.md`** (this file) as the cross-cutting ruleset
 
----
+### Change Attribution
+All AI-generated commits MUST include:
+```
+Co-Authored-By: <model name> <noreply@anthropic.com>
+```
 
-## 7. Reporting & Communication
-Summaries should be concise, accurate, and useful. Adapt reporting depth to the complexity of the task.
+### PR Final Report Format
+Every PR must include:
+- Branch name & commit SHA
+- Changed files list
+- Checks run (typecheck / lint / test / build)
+- PR link
+- Intentional exclusions
 
-*   **Decisions & Risks:** Document important decisions, surface risks early, provide useful handoffs, and keep context organized.
-*   **Honesty & Uncertainty:** Distinguish evidence from assumptions. Communicate uncertainty honestly. Confidence should reflect available evidence.
-*   **Typical Report Layout:**
-    *   **Summary:** (High-level overview of the work)
-    *   **Changes:** (Files modified and what was added)
-    *   **Verification:** (What tests were run and validation results)
-    *   **Risks:** (Potential impacts or operational concerns)
-    *   **Open Questions:** (Things requiring feedback or decision)
-    *   **Recommendations:** (Proposed next steps)
-
----
-
-## 8. Creativity & Highest-Level Behavior
-Be thoughtful, adaptable, and effective. Seek understanding before certainty. Use judgment rather than rigid process.
-
-*   **Creative Focus:** Look for opportunities to simplify workflows, improve usability, uncover leverage, reduce friction, strengthen architecture, and create reusable solutions. Balance innovation with practicality.
-*   **Limitation Awareness:** Be honest about limitations. Be ambitious when appropriate and cautious when necessary.
-*   **When in Doubt:**
-    1.  Understand the problem.
-    2.  Make the next useful move.
-    3.  Verify what matters.
-    4.  Communicate clearly.
+### Governance Checks (Automated)
+| Check | Tool | Blocking? |
+|-------|------|-----------|
+| TypeScript errors | `tsc --noEmit` | ✅ Yes |
+| ESLint errors | `eslint` | ✅ Yes |
+| Build (affected apps) | `turbo build --affected` | ✅ Yes (pre-push) |
+| pnpm audit | `scripts/security-scan.ps1` | Advisory |
+| pgvector dimension | Manual | ✅ Critical |
 
 ---
 
-## 9. Autonomous Discovery, Extensions, & Self-Expansion
-You are empowered with full agency to discover, install, prototype, and integrate new skills, packages, and tools:
-*   **Autonomously Search for Solutions:** When facing missing features or unfamiliar systems, proactively search NPM, PyPI, GitHub, and community repositories for tools or MCP servers that can solve the problem.
-*   **Proactive Installations:** If a task requires external packages or tools, proactively use `npm install`, `pnpm add`, or `npx` commands. Do not wait for explicit permission to expand capabilities.
-*   **Custom Skill Synthesis:** If you discover a repeated workflow, write a new custom skill file (`SKILL.md`) in the local `.agents/skills` or `.claude/skills` directories to upgrade the development environment permanently.
-*   **Connector Prototyping:** Autonomously write lightweight wrapper scripts in Javascript, TypeScript, or Python to test connection states, interface with external APIs, and bridge systems together.
+## 7. Tools, Connectors, & Multi-Agent Collaboration
+
+- **Terminal & Shell Reliability (Windows PowerShell):**
+  - DO NOT chain commands with `&&` — use `;` or separate tool calls
+  - Bash `cwd` resets to `C:\` between calls — always set explicit paths
+  - Strings with unicode (arrows, emoji) in `Edit old_string` often fail — use ASCII-only anchors from a fresh Read
+  - Pre-push "IO error: provided value is too long" / symlink warnings = non-fatal Windows-path noise
+  - Set `PAGER=cat` and limit verbose outputs for paging commands
+
+- **MCP Server Invocation:** Read schemas before invoking lazy-loaded MCP tools. Handle SSE and gRPC timeouts gracefully.
+
+- **Dynamic Permission Mitigation:** If a permission barrier is hit, request the narrowest required scope via `ask_permission`. Never let a block halt execution.
+
+- **Ollama Reviewer Orchestration:** Route complex code blocks to local Ollama-reviewer for security/risk reviews. Sanitize active API keys before passing to external LLM instances.
 
 ---
 
-## 10. Context Harvesting & Chronological History Reconstruction
-Make accurate choices by actively reading the project's background, past decisions, and system logs:
-*   **Reconstruct Conversation Context:** Actively read conversation logs (`transcript.jsonl`) under `<appDataDir>\brain\<conversation-id>\.system_generated\logs\` to understand previous goals, debugging cycles, and user preferences.
-*   **Leverage Knowledge Items (KIs):** Before starting any task, check `<appDataDir>\knowledge` for summaries and artifacts documenting local patterns, architectural rules, or past bug fixes.
-*   **Audit Version Control History:** Run git inspections (`git status`, `git log -n <count>`, `git diff`) to trace the history of a module, why specific decisions were made, and which files changed together.
-*   **Examine Task Logs:** Analyze logs of background tasks (`.log` files in `.system_generated/tasks/` or `.claude-server-commander-logs/`) to diagnose compiler crashes, process exits, or connection failures.
+## 8. Verification, Lifecycle, & Diagnostics
+
+- **TDD Cycle:** Write failing tests (Red) → minimal implementation (Green) → optimize (Refactor). Keep coverage comprehensive.
+- **Root-Cause Diagnostics:** When debugging: inspect variables, read local logs, check DB state, trace stack traces. Fix root causes permanently — never patch symptoms.
+- **Safe Refactoring:** Use modular boundaries. Define clean TypeScript interfaces. Run regression tests incrementally. Zero features broken.
+- **Vitest Windows Note:** Always run serially on Windows: `pnpm exec vitest run --pool=forks --poolOptions.forks.singleFork=true`. Piping to `tail` masks exit codes.
+
+### Success Metrics to Track
+| Signal | Target |
+|--------|--------|
+| CI pipeline pass rate | > 95% on first push |
+| Pre-push build time | < 90s (turbo cache) |
+| TypeScript error count | 0 errors |
+| ESLint blocking errors | 0 errors |
+| Test pass rate | 100% |
+| Task DB write → UI visible | < 15s (missions refetch) |
 
 ---
 
-## 11. Elite Cognitive Reframing & Devil's Advocacy
-Enhance system stability by acting as your own toughest critic:
-*   **Premise Challenging:** Before deploying key architectures, run a silent "pre-mortem." Write down exactly how the database migration, state-change component, or system connector could crash under scale, and adjust the design to prevent it.
-*   **Verify Assumptions:** Distinguish compiler warnings from syntax checks. Never assume a module works because it builds; verify integration parameters and edge-case boundary errors before completing a task.
+## 9. Reporting & Communication
+
+- **Decisions & Risks:** Document important decisions, surface risks early, provide useful handoffs.
+- **Honesty & Uncertainty:** Distinguish evidence from assumptions. Confidence reflects available evidence.
+
+**Standard Report Layout:**
+```
+## Summary       — High-level overview of the work
+## Changes       — Files modified and what was added/removed
+## Verification  — What checks ran and their results (exact exit codes)
+## Risks         — Potential impacts or operational concerns
+## Open Questions — Items requiring operator feedback or decision
+## Branch / PR   — branch · SHA · PR link
+```
 
 ---
 
-## 11.1 Cross-Ring Integration, GenAI Autoposting, & Grounding
-Ensure reliable execution of multi-platform automation, media generation pipelines, and grounding:
-*   **Cross-Ring Bridge Queries:** Bridge communications across domains securely using structured actions (e.g., via `/api/nour-os/query`) instead of direct DB queries. Enable manual overrides that temporarily toggle configurations (like `legacy_autopost_live`) inside a secure `try...finally` block.
-*   **Fail-Safe Generative Media:** Design media generation pipelines (e.g. Higgsfield video reels, image generation) with graceful fallbacks (e.g., falling back to Venice/OpenAI for images) and return localized error payloads to client UI studios instead of throwing HTTP 500 errors. Use ffmpeg copy demuxing (`-c copy`) for instant clip stitching without server re-encoding overhead.
-*   **Typo-Resilient Chat Pruning:** Always configure chat-mode tool pruner keyword matchers to cover common spelling errors and shorthand variations (e.g., `scheduale`, `publis`, `generat`, `ig`, `insta`) so critical tools are never pruned out when a user misspells a command.
-*   **Real-time Web Grounding:** Use AI SDK tool integration to run search engines (like Google Search Grounding `google.tools.googleSearch({})`) to provide real-time facts and citations, preventing model hallucinations.
+## 10. Creativity & Highest-Level Behavior
+
+- **Creative Focus:** Simplify workflows, improve usability, uncover leverage, reduce friction, strengthen architecture, create reusable solutions. Balance innovation with practicality.
+- **Limitation Awareness:** Be honest about limitations. Ambitious when appropriate, cautious when necessary.
+- **When in Doubt:**
+  1. Understand the problem.
+  2. Make the next useful move.
+  3. Verify what matters.
+  4. Communicate clearly.
+
+**Asymmetric Risk Assessment:** For every action, ask: what is the cost of inaction vs. the cost of getting it wrong? If the status quo is more expensive, move. If the downside of the change is catastrophic (e.g. dropping pgvector columns, corrupting `pnpm-lock.yaml`), gate aggressively.
 
 ---
 
-## 11.2 Google Services Ecosystem & Memory Grounding (The Google Power Stack)
+## 11. Autonomous Discovery, Extensions, & Self-Expansion
+
+- **Autonomously Search for Solutions:** When facing missing features or unfamiliar systems, proactively search NPM, PyPI, GitHub, and community repositories for tools or MCP servers.
+- **Proactive Installations:** If a task requires external packages, use `pnpm add` (not `npm install`) within the correct workspace. Always check if the package already exists in the monorepo root.
+- **Custom Skill Synthesis:** If a repeated workflow is discovered, write a new `SKILL.md` in `.agents/skills/` to upgrade the development environment permanently.
+- **Connector Prototyping:** Write lightweight wrapper scripts (JS/TS/Python) to test connection states, interface with external APIs, bridge systems. Store in `apps/<app>/scratch/` and exclude from git.
+
+---
+
+## 12. Context Harvesting & Chronological History Reconstruction
+
+- **Reconstruct Conversation Context:** Read `transcript.jsonl` under `<appDataDir>\brain\<conversation-id>\.system_generated\logs\` to understand previous goals, debugging cycles, and user preferences.
+- **Leverage Knowledge Items (KIs):** Check `<appDataDir>\knowledge` for summaries and artifacts documenting local patterns, architectural rules, past bug fixes — before any research.
+- **Audit Version Control History:** `git log --oneline -10`, `git diff`, `git log origin/<branch>..HEAD` — trace why decisions were made and which files changed together.
+- **Examine Task Logs:** Analyze `.log` files in `.system_generated/tasks/` to diagnose compiler crashes, process exits, connection failures.
+- **Per-App Memory:** Check `apps/<app>/.remember/remember.md` for last-session handoff notes before touching that app.
+
+---
+
+## 13. Elite Cognitive Reframing & Devil's Advocacy
+
+**Pre-Mortem (Run Silently Before Any Major Architectural Change):**
+Before deploying, mentally simulate: How does this database migration, state-change component, or system connector crash under scale? Adjust the design to prevent it.
+
+**Verify Assumptions:** Never assume a module works because it builds. Verify integration parameters and edge-case boundary errors before completing a task. Distinguish compiler warnings from blocking errors.
+
+**Forgotten Factor Protocol:** Before closing any task, ask:
+- What risk or dependency am I ignoring?
+- What would break in production that didn't break in local tests?
+- Does the other app (statenour/nickstire) need any corresponding change?
+- Is there a cron, webhook, or Railway env var that depends on what I just changed?
+
+---
+
+## 14. Cross-App Integration, GenAI, & Real-Time Grounding
+
+- **Cross-Ring Bridge Queries:** Bridge communications across domains securely using structured actions (`/api/nour-os/query`) instead of direct DB queries. Toggle configurations inside `try...finally` blocks.
+- **Fail-Safe Generative Media:** Design media pipelines with graceful fallbacks (Venice/OpenAI for images). Return localized error payloads to client UI instead of HTTP 500. Use ffmpeg copy demuxing (`-c copy`) for instant clip stitching.
+- **Typo-Resilient Chat Pruning:** Configure tool pruner keyword matchers to cover common spelling errors and shorthand variations (`scheduale`, `publis`, `generat`, `ig`, `insta`).
+- **Real-time Web Grounding:** Use AI SDK tool integration (Google Search Grounding `google.tools.googleSearch({})`) to provide real-time facts and prevent hallucinations.
+- **Deep Reasoning Tool Fencing:** When the reasoning engine calls business tools (via `runToolGather()`), all output is wrapped via `fenceContent()` to prevent prompt injection. The engine OBSERVES, never ACTS. Whitelist is in `lib/ai/reasoning/reasoning-tools.ts`.
+
+---
+
+## 15. Google Services Ecosystem & Memory Grounding
+
 Maximize the $200/month Google AI Ultra subscription, 20TB Google Drive, Gmail, Calendar, GBP, and GSC integrations:
-*   **Google Drive Ingest Heuristics:** Document ingestion crons (`ingest-drive`) must parse files into structured categories within long-term `BrainMemory` based on name and content:
-    *   `brand_rules`: Guidelines, style manuals, and voice briefs.
-    *   `business_context`: Standard operating procedures (SOPs), supplier docs, and operation guides.
-    *   `marketing_context`: Ad creatives, campaign targets, and audience logs.
-    *   `revenue_playbook`: Sales scripts, pricing tiers, and conversions.
-*   **Multi-Account Gmail Triage & Drafts:** Classify incoming emails on schedules and alert the operator for high-priority items. When composing email responses, write directly to the Gmail Drafts folder using `proposeDraft` interfaces so the user can easily review and send.
-*   **Google Calendar Automation:** Event lookup and creation tools (`proposeCalendarEvent`) must respect the operator's timezone (Cleveland ET). Always check for double-bookings and propose focus blocks.
-*   **GBP & GSC Marketing Ingestion:** Generate Google Business Profile (GBP) posts rotating weekly through structural themes: Proof, Anti, Math, and Seasonal. Run Search Console (`GSC`) keyword reports to ground marketing suggestions in real search query volumes.
+
+- **Google Drive Ingest Heuristics:** `ingest-drive` crons parse files into `BrainMemory` categories:
+  - `brand_rules`: Guidelines, style manuals, voice briefs
+  - `business_context`: SOPs, supplier docs, operation guides
+  - `marketing_context`: Ad creatives, campaign targets, audience logs
+  - `revenue_playbook`: Sales scripts, pricing tiers, conversions
+- **Multi-Account Gmail Triage:** Classify incoming emails on schedule, alert operator for high-priority. Compose to Gmail Drafts via `proposeDraft` for operator review.
+- **Google Calendar Automation:** `proposeCalendarEvent` respects operator timezone (Cleveland ET). Always check for double-bookings.
+- **GBP & GSC Marketing Ingestion:** Weekly GBP posts rotating through: Proof, Anti, Math, Seasonal themes. GSC keyword reports ground marketing suggestions in real search volumes.
 
 ---
 
-## 11.3 iOS PWA Visual Dynamics & suppressed Confirms
-Both Statenour OS and Nick's Tire run as standalone iOS PWAs:
-*   **suppressed Native Dialogs:** Standard browser native methods (`window.confirm`, `window.alert`, `window.prompt`) are silently blocked by the iOS PWA container.
-*   **Two-Tap DOM Pattern:** Never use native confirm modals. Always implement custom, in-DOM sliding dialogs, two-tap buttons, or custom drawer overlays for destructive actions (e.g., delete confirmation, live posting overrides).
-*   **Tactile Aesthetics:** Ensure touch targets are at least 48x48px. Maintain visual feedback using active tap scales (`active:scale-95`) and glassmorphic micro-animations.
+## 16. Statenour-OS Standing Rules
 
----
-
-## 12. Statenour-OS Standing Rules
-To ensure safety and reliability in this specific repository context:
-*   **No Direct Main Push:** NEVER push directly to `main`. Always use named task branches or git worktrees, committing with the format `<type> · statenour · <summary>` and the `Co-Authored-By:` tag.
-*   **Strict Pre-Push Gating:** Ensure the full verification suite runs clean via `pnpm verify:hard` (incorporating typecheck, lint, test, raw-SQL audit, cron checks, prompt-size, and prisma validation).
-*   **Database Constraints:** Never run Prisma actions using `--accept-data-loss` (which drops the raw pgvector/tsvector columns). Query pgvector fields exclusively via raw SQL (`lib/db/pgvector.ts`).
-*   **Inbox Classification:** inbox missions are distinct from user projects. Always use `isInboxMission()` (`lib/services/mission-helpers.ts`) for identifying inbox boundaries.
-*   **Model Drift Prevention:** Avoid referencing specific model versions (e.g. `glm-5.1:cloud`) in active code or prose instructions. Dynamic configurations and `lib/ai/provider.ts` are the source of truth.
+| Rule | Detail |
+|------|--------|
+| **No direct main push** | ALWAYS use named branches. Format: `<type>/<summary>` |
+| **Commit format** | `type(scope): description` + `Co-Authored-By:` tag |
+| **Pre-push gate** | `pnpm verify:hard` must pass — typecheck + lint + test + raw-SQL audit + cron + prompt-size + prisma |
+| **pgvector** | Never `--accept-data-loss`. Query via `lib/db/pgvector.ts` raw SQL only |
+| **Inbox missions** | Use `isInboxMission()` from `lib/services/mission-helpers.ts` |
+| **Model references** | Never hardcode model versions in code. Use `lib/ai/provider.ts` |
+| **iOS PWA dialogs** | Never `window.confirm/alert/prompt`. Use two-tap DOM pattern |
+| **Task visibility** | Tasks created via chat appear on /missions within 15s (refetchInterval:15_000 — PR #455) |
+| **lockfile sync** | After any dep change, regenerate `pnpm-lock.yaml` and commit before pushing |
