@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Send, MessageSquare, Terminal, Search, Inbox, CheckCircle, Activity, Sparkles } from "lucide-react";
+import { Send, MessageSquare, Terminal, Search, Inbox, CheckCircle, Activity, Sparkles, LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { trpc } from "@/lib/trpc/client";
 
@@ -12,7 +12,7 @@ interface ModeConfig {
   key: DockMode;
   label: string;
   placeholder: string;
-  icon: any;
+  icon: LucideIcon;
   prefix: string;
 }
 
