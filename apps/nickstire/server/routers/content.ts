@@ -24,6 +24,7 @@ import {
   getCurrentSeason,
 } from "../content-generator";
 import { z } from "zod";
+import { GBP_ARCHETYPES } from "@shared/const";
 
 import { createLogger } from "../lib/logger";
 import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
@@ -173,7 +174,7 @@ export const contentAdminRouter = router({
   // into business.google.com manually because GBP Posts API is deprecated.
   generateGBPPost: adminProcedure
     .input(z.object({
-      forceArchetype: z.enum(["proof", "anti", "math", "seasonal"]).optional(),
+      forceArchetype: z.enum(GBP_ARCHETYPES).optional(),
       dryRun: z.boolean().optional(),
       requiresReview: z.boolean().optional(),
     }).optional())
