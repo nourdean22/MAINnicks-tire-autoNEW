@@ -81,6 +81,7 @@ import {
   instagramAdminRouter,
   gbpRouter,
   smsOrchestratorRouter,
+  socialPipelineRouter,
 } from "./routers/index";
 import { voiceAgentRouter } from "./routers/voiceAgent";
 import { vapiRouter } from "./routers/vapi";
@@ -248,6 +249,10 @@ export const appRouter = router({
   // wave_metrics table populated by the closedLoopMeasure daily cron.
   // See server/routers/closedLoop.ts.
   closedLoop: closedLoopRouter,
+
+  // Social pipeline unified status — single read-only endpoint showing
+  // all env + DB kill-switches for the content/social automation stack.
+  socialPipeline: socialPipelineRouter,
 });
 
 export type AppRouter = typeof appRouter;
