@@ -43,20 +43,6 @@ export interface MissionCardProps {
   mission: Project;
   tasks: Task[];
   defaultExpanded?: boolean;
-  onAddTask: (
-    payload: { title: string; missionId: string },
-  ) => void | Promise<void>;
-  onCompleteTask: (id: string) => void | Promise<void>;
-  onStartTask?: (id: string) => void | Promise<void>;
-  onDeleteTask?: (id: string) => void | Promise<void>;
-  onCompleteMission?: (missionId: string) => void | Promise<void>;
-  onArchiveMission?: (missionId: string) => void | Promise<void>;
-  /** Wave AB.c · operator taps the pencil on the header → page opens
-   *  MissionEditDrawer with this mission. */
-  onEditMission?: (missionId: string) => void;
-  /** Wave AB.c · operator taps the pencil on a task row → page opens
-   *  TaskEditSheet with the full task. */
-  onEditTask?: (task: Task) => void;
   /** Optional · Phase 2 · the single Nick-picked task for this mission.
    *  When provided, the row renders pinned at the top with a gold
    *  treatment + a "Nick's pick" eyebrow. */
@@ -64,19 +50,10 @@ export interface MissionCardProps {
   /** Optional · Phase 2 · Nick's 1-line rationale for the pick. */
   nicksPickRationale?: string;
   /** Wave AJ · 2026-05-28 · ↑/↓ reorder. Parent passes index + total
-   *  so the card can disable arrows at the ends. onMove fires with
-   *  direction · parent computes the swap + calls reorderMission. */
-  index?: number;
+   *  so the card can disable arrows at the ends. */
+  missionIdx?: number;
   totalMissions?: number;
-  onMoveMission?: (missionId: string, direction: "up" | "down") => void;
-  /** Wave AJ · task reorder within the mission. Same pattern · the
-   *  card passes through to MissionTaskRow per row. */
-  onMoveTask?: (taskId: string, direction: "up" | "down") => void;
-  /** Wave AV · 2026-05-28 · snooze a DAILY task. Parent sets
-   *  snoozedUntil + flips status to WAITING · cron resurfaces when
-   *  the timestamp matures. Empty string clears the snooze. */
-  onSnoozeTask?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
-  onDecomposeTask?: (id: string) => void | Promise<void>;
+  isDragged?: boolean;
 
   isDraggedOver?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
@@ -86,26 +63,17 @@ export interface MissionCardProps {
   onDrop?: (e: React.DragEvent) => void;
 }
 
+import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
+
 export function MissionCard({
   mission,
   tasks,
   defaultExpanded = true,
-  onAddTask,
-  onCompleteTask,
-  onStartTask,
-  onDeleteTask,
-  onCompleteMission,
-  onArchiveMission,
-  onEditMission,
-  onEditTask,
   nicksPickTaskId,
   nicksPickRationale,
-  index,
+  missionIdx,
   totalMissions,
-  onMoveMission,
-  onMoveTask,
-  onSnoozeTask,
-  onDecomposeTask,
+  isDragged,
   isDraggedOver,
   onDragStart,
   onDragEnd,
@@ -113,13 +81,9 @@ export function MissionCard({
   onDragLeave,
   onDrop,
 }: MissionCardProps) {
-  const canMoveUp =
-    onMoveMission != null && typeof index === "number" && index > 0;
-  const canMoveDown =
-    onMoveMission != null &&
-    typeof index === "number" &&
-    typeof totalMissions === "number" &&
-    index < totalMissions - 1;
+  const actions = useMissionDispatch();
+  const canMoveUp = typeof missionIdx === "number" && missionIdx > 0;
+  const canMoveDown = typeof missionIdx === "number" && typeof totalMissions === "number" && missionIdx < totalMissions - 1;
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [adding, setAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -190,12 +154,12 @@ export function MissionCard({
       if (targetIndex < sourceIndex) {
         // Moving up
         for (let i = sourceIndex; i > targetIndex; i--) {
-          await onMoveTask?.(task.id, "up");
+          await actions.handleMoveTask(task.id, "up");
         }
       } else {
         // Moving down
         for (let i = sourceIndex; i < targetIndex; i++) {
-          await onMoveTask?.(task.id, "down");
+          await actions.handleMoveTask(task.id, "down");
         }
       }
     } catch (err) {
@@ -208,7 +172,7 @@ export function MissionCard({
     if (!trimmed) return;
     setSubmitting(true);
     try {
-      await onAddTask({ title: trimmed, missionId: mission.id });
+      await actions.handleAddTask({ title: trimmed, missionId: mission.id });
       setNewTaskTitle("");
       setAdding(false);
     } finally {
@@ -247,25 +211,23 @@ export function MissionCard({
         aria-label={`${expanded ? "collapse" : "expand"} mission ${mission.title}`}
         className="w-full flex items-center gap-2 px-3 py-3 text-left active:scale-[0.995] transition-transform"
       >
-        {onMoveMission && (
-          <div
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              setIsMissionDraggable(true);
-            }}
-            onMouseUp={(e) => {
-              e.stopPropagation();
-              setIsMissionDraggable(false);
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-            className="p-1 cursor-grab active:cursor-grabbing text-zinc-500 hover:text-[var(--gold)] transition-colors shrink-0"
-            aria-label="Drag to reorder mission"
-          >
-            <GripVertical size={14} />
-          </div>
-        )}
+        <div
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            setIsMissionDraggable(true);
+          }}
+          onMouseUp={(e) => {
+            e.stopPropagation();
+            setIsMissionDraggable(false);
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+          className="p-1 cursor-grab active:cursor-grabbing text-zinc-500 hover:text-[var(--gold)] transition-colors shrink-0"
+          aria-label="Drag to reorder mission"
+        >
+          <GripVertical size={14} />
+        </div>
         {expanded ? (
           <ChevronDown
             size={14}
@@ -318,13 +280,13 @@ export function MissionCard({
          *  with hover-only background · invisible on mobile · operators
          *  didn't know reorder existed. Now they read as tappable at
          *  idle. Tightened to w-8 to free horizontal budget on mobile. */}
-        {onMoveMission && (canMoveUp || canMoveDown) && (
+        {(canMoveUp || canMoveDown) && (
           <span className="shrink-0 inline-flex rounded-md border border-[var(--border-default)]/60 bg-[var(--bg-raised)]/[0.06] overflow-hidden">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (canMoveUp) onMoveMission(mission.id, "up");
+                if (canMoveUp) actions.handleMoveMission(mission.id, "up");
               }}
               disabled={!canMoveUp}
               aria-label={`move mission ${mission.title} up`}
@@ -346,7 +308,7 @@ export function MissionCard({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (canMoveDown) onMoveMission(mission.id, "down");
+                if (canMoveDown) actions.handleMoveMission(mission.id, "down");
               }}
               disabled={!canMoveDown}
               aria-label={`move mission ${mission.title} down`}
@@ -367,26 +329,24 @@ export function MissionCard({
          *   wave-AB.d-mobile · bumped from h-6 (24px) to h-11 (44px) ·
          *   Apple HIG tap-target floor · `active:scale-95` adds tap
          *   feedback since the iOS pressed-state isn't free here. */}
-        {onEditMission && (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            actions.handleEditMission(mission.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
               e.stopPropagation();
-              onEditMission(mission.id);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.stopPropagation();
-                onEditMission(mission.id);
-              }
-            }}
-            aria-label={`edit mission ${mission.title}`}
-            className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05] active:scale-95 transition-transform cursor-pointer"
-          >
-            <Pencil size={14} strokeWidth={1.75} />
-          </span>
-        )}
+              actions.handleEditMission(mission.id);
+            }
+          }}
+          aria-label={`edit mission ${mission.title}`}
+          className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05] active:scale-95 transition-transform cursor-pointer"
+        >
+          <Pencil size={14} strokeWidth={1.75} />
+        </span>
       </button>
 
       {/* Progress bar · hidden when mission has 0 tasks total · the
@@ -425,33 +385,31 @@ export function MissionCard({
                 No tasks yet. Add one below.
               </p>
             )}
-            {sortedOpen.map((task, taskIdx) => (
-              <div
-                key={task.id}
-                className={cn(
-                  nicksPickTaskId === task.id &&
-                    "border-l-2 border-l-[var(--gold)]/70",
-                )}
-              >
-                <MissionTaskRow
-                  task={task}
-                  onComplete={onCompleteTask}
-                  onStart={onStartTask}
-                  onDelete={onDeleteTask}
-                  onEdit={onEditTask}
-                  index={taskIdx}
-                  totalTasks={sortedOpen.length}
-                  onMove={onMoveTask}
-                  onSnooze={onSnoozeTask}
-                  onDecompose={onDecomposeTask}
-                  onDragStart={(e) => handleTaskDragStart(e, taskIdx)}
-                  onDragOver={(e) => handleTaskDragOver(e, taskIdx)}
-                  onDragLeave={handleTaskDragLeave}
-                  onDrop={(e) => handleTaskDrop(e, taskIdx)}
-                  isDraggedOver={draggedOverTaskIdx === taskIdx}
-                />
-              </div>
-            ))}
+            {sortedOpen.map((task, taskIdx) => {
+              const isNicksPick = nicksPickTaskId === task.id;
+              return (
+                <div
+                  key={task.id}
+                  className={cn(
+                    isNicksPick && "border-l-2 border-l-[var(--gold)]/70",
+                  )}
+                >
+                  <MissionTaskRow
+                    task={task}
+                    isNicksPick={isNicksPick}
+                    rationale={isNicksPick ? nicksPickRationale : undefined}
+                    index={taskIdx}
+                    totalTasks={sortedOpen.length}
+                    onDragStart={(e) => handleTaskDragStart(e, taskIdx)}
+                    onDragOver={(e) => handleTaskDragOver(e, taskIdx)}
+                    onDragLeave={handleTaskDragLeave}
+                    onDrop={(e) => handleTaskDrop(e, taskIdx)}
+                    isDragged={draggedTaskIdx === taskIdx}
+                    isDraggedOver={draggedOverTaskIdx === taskIdx}
+                  />
+                </div>
+              );
+            })}
             {doneTasks.length > 0 && (
               <details className="px-2">
                 <summary className="px-1 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] cursor-pointer hover:text-[var(--text-secondary)] list-none">
@@ -459,12 +417,7 @@ export function MissionCard({
                 </summary>
                 <div>
                   {doneTasks.map((task) => (
-                    <MissionTaskRow
-                      key={task.id}
-                      task={task}
-                      onComplete={onCompleteTask}
-                      onEdit={onEditTask}
-                    />
+                    <MissionTaskRow key={task.id} task={task} />
                   ))}
                 </div>
               </details>
@@ -516,26 +469,22 @@ export function MissionCard({
           </div>
 
           {/* Footer · mission actions */}
-          {(onCompleteMission || onArchiveMission) && openTasks.length === 0 && doneTasks.length > 0 && (
+          {openTasks.length === 0 && doneTasks.length > 0 && (
             <div className="border-t border-[var(--border-default)]/40 px-3 py-2 flex items-center justify-between gap-2">
-              {onCompleteMission && (
-                <button
-                  type="button"
-                  onClick={() => onCompleteMission(mission.id)}
-                  className="text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)] hover:underline"
-                >
-                  complete mission ↗
-                </button>
-              )}
-              {onArchiveMission && (
-                <button
-                  type="button"
-                  onClick={() => onArchiveMission(mission.id)}
-                  className="text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
-                >
-                  archive
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => actions.handleCompleteMission(mission.id)}
+                className="text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)] hover:underline"
+              >
+                complete mission ↗
+              </button>
+              <button
+                type="button"
+                onClick={() => actions.handleArchiveMission(mission.id)}
+                className="text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+              >
+                archive
+              </button>
             </div>
           )}
         </div>
