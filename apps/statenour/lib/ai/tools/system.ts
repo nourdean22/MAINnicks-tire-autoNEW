@@ -442,6 +442,7 @@ export const systemTools = {
       const { searchVideo, isError } = await import(
         "@/lib/integrations/videodb"
       );
+      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
 
       const sessions = await prisma.brainMemory.findMany({
         where: { category: "videodb_session", deletedAt: null },
@@ -484,7 +485,7 @@ export const systemTools = {
               videoId: meta.videoId,
               capturedAt: s.createdAt.toISOString(),
               timestamp: h.start,
-              snippet: h.snippet.slice(0, 400),
+              snippet: fenceContent("searchSessionRecordings", "external_doc", h.snippet.slice(0, 400)),
               similarity: Number(h.similarity.toFixed(3)),
               title: s.content,
             });
@@ -534,6 +535,7 @@ export const systemTools = {
       const { searchVideo, isError } = await import(
         "@/lib/integrations/videodb"
       );
+      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
 
       const since = new Date(`${sinceDate}T00:00:00Z`);
       const until = untilDate
@@ -596,7 +598,7 @@ export const systemTools = {
               videoId: meta.videoId,
               capturedAt: s.createdAt.toISOString(),
               timestamp: h.start,
-              snippet: h.snippet.slice(0, 400),
+              snippet: fenceContent("recallFromSession", "external_doc", h.snippet.slice(0, 400)),
               similarity: Number(h.similarity.toFixed(3)),
               title: s.content,
             });
@@ -1226,10 +1228,12 @@ export const systemTools = {
         const pythonCmd = process.platform === "win32" ? "python" : "python3";
         const { stdout, stderr } = await execFilePromise(pythonCmd, args, { env, timeout: 60000 });
 
+        const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
+
         return {
           ok: true,
-          stdout,
-          stderr,
+          stdout: stdout ? fenceContent("last30days", "external_web", stdout) : stdout,
+          stderr: stderr ? fenceContent("last30days", "external_web", stderr) : stderr,
         };
       } catch (err) {
         const { sanitizeError } = await import("@/lib/utils/sanitize-error");
