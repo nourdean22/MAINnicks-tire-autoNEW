@@ -1,39 +1,212 @@
 # AGENTS.md · nickstire-dev
+**Last refreshed:** 2026-07-01 · post CIITTY v2.1 upgrade
 
-Full project context + operating directive: [`CLAUDE.md`](./CLAUDE.md). What's true in prod: [`truth_os.md`](./truth_os.md). Don't-touch list: [`PROTECTED-CORE.md`](./PROTECTED-CORE.md).
+> **Read first:** [`CLAUDE.md`](./CLAUDE.md) — operator context, identity, core rules, mode detection. Then [`truth_os.md`](./truth_os.md) for what is live in prod. Then [`PROTECTED-CORE.md`](./PROTECTED-CORE.md) for the no-touch list.
+>
+> **Cross-cutting repo rules** (branching, shared main, Windows PowerShell, pnpm): root [`AGENTS.md`](../../AGENTS.md) + [`CIITTY v2.1`](../../.agents/frameworks/ciitty/SKILL.md).
 
-## Package Manager
-Use **pnpm** (9+): `pnpm install`, `pnpm dev`, `pnpm run verify` (master gate).
-Fresh git worktrees need `pnpm install --frozen-lockfile` first or the pre-push hook fails with "turbo not found".
+---
 
-## File-Scoped Commands
+## 1 · Where We Are
+
+**App:** Nick's Tire & Auto — `apps/nickstire/` in the NOURCITY monorepo. Deploys to **nickstire.org** via Railway from `main`.
+
+**Stack:**
+- **Client:** Vite 7 + React 19 + TypeScript + Tailwind CSS 4 (PWA, iOS standalone)
+- **Server:** Express 4 + tRPC 11
+- **DB:** Drizzle ORM → MySQL (TiDB Cloud)
+- **Auth/SMS/Voice:** VAPI · Twilio · Stripe
+- **Infra:** Railway (Nixpacks) · pnpm 9+ · Node 20+ · Vitest
+
+**Two companion apps share this monorepo:** `apps/statenour` (bdnick.info). Changes to `packages/` or `pnpm-lock.yaml` affect both.
+
+---
+
+## 2 · Repo Layout (Where Work Happens)
+
+```
+apps/nickstire/
+├── client/
+│   └── src/
+│       └── pages/admin/   ← Admin UI (React pages)
+├── server/
+│   ├── routers/           ← tRPC routers (API surface)
+│   ├── services/          ← Business logic
+│   └── cron/              ← Scheduled jobs
+├── shared/
+│   ├── types.ts           ← Union types (add new section here)
+│   ├── nav.tsx            ← Navigation (add new section here)
+│   ├── constants.tsx      ← SECTION_TITLES (add new section here)
+│   └── routes.ts          ← Route registry (validate:routes reads this)
+├── drizzle/
+│   └── schema.ts          ← DB source of truth
+└── AGENTS.md              ← This file
+```
+
+**Adding a new admin section?** Update ALL of:
+1. `shared/types.ts` (union)
+2. `shared/nav.tsx`
+3. `shared/constants.tsx` (SECTION_TITLES)
+4. `Admin.tsx` (lazy import, render branch, TAB_ALIASES, VALID_SECTIONS)
+
+**Adding a new route?** Register it in `shared/routes.ts` — `validate:routes` fails otherwise.
+
+---
+
+## 3 · Package Manager & Commands
+
+Use **pnpm 9+** exclusively (never npm, never yarn).
+
 | Task | Command |
 |------|---------|
-| Typecheck (whole app — no per-file) | `pnpm run check` |
+| Install deps | `pnpm install --frozen-lockfile` |
+| Dev server | `pnpm dev` |
+| **Master verify gate** | `pnpm run verify` |
+| Typecheck (whole app) | `pnpm run check` |
 | Test one file | `pnpm exec vitest run path/to/file.test.ts --pool=forks --poolOptions.forks.singleFork=true` |
-| Full suite (MUST be serial on Windows) | `pnpm exec vitest run --pool=forks --poolOptions.forks.singleFork=true` |
-| Route registry | `pnpm run validate:routes` |
-| Brand voice / source / hooks | `pnpm run lint:brand-voice` · `lint:source` · `lint:hooks` |
+| Full suite (serial — Windows) | `pnpm exec vitest run --pool=forks --poolOptions.forks.singleFork=true` |
+| Route registry check | `pnpm run validate:routes` |
+| Brand / source / hook linting | `pnpm run lint:brand-voice` · `lint:source` · `lint:hooks` |
 
-Parallel vitest rotates 5s-timeout import flakes on this box — always pass the single-fork flags.
+> **Vitest note:** Parallel vitest rotates 5s-timeout import flakes on Windows — always pass `--pool=forks --poolOptions.forks.singleFork=true`.
 
-## Commit Attribution
-AI commits MUST include:
+> **Worktree note:** Fresh worktrees created via `scripts/worktree-setup.ps1` do NOT need `pnpm install` — `node_modules` are junctioned automatically. Only run `pnpm install --frozen-lockfile` if deps changed.
+
+---
+
+## 4 · Branching & CI/CD
+
+### Branch Model (Trunk-Based)
 ```
-Co-Authored-By: <model name> <noreply@anthropic.com>
+main (protected) ← squash-merge only, operator gates
+  └── nickstire/<task>    ← all nickstire work
+  └── chore/<task>
+  └── docs/<task>
 ```
 
-## Key Conventions
-- **NEVER push `main`** — named branches (`nickstire/<task>`) + PR; operator merges (repo rule 2026-06-11; see root `AGENTS.md`).
-- **Stage only your files by explicit path** — never `git add -A` (concurrent agent sessions share `main`).
-- **PRs are squash-merged** — never stack branches on another open PR's commits; if you must build ahead, expect a cherry-pick rebuild after the parent lands.
-- **Migrations are hand-applied SQL** (`drizzle/*.sql`) — there is no auto-migrate; never run one without explicit approval.
-- **Never hand-edit `prerendered/`** — run `pnpm run prerender` (currently broken on Windows; CI regenerates).
-- **iOS PWA**: `window.confirm/alert/prompt` are silently suppressed — use in-DOM confirms (two-tap pattern).
-- **Claim safety**: no invented warranties/wait-times/reviews, no "guaranteed", "Payment Programs" not "financing". Used-tire pricing is two-tier — WEB says "from $25 installed (select 12-inch; most $40-80)", quoting channels say $60. Do not "fix" either direction.
-- **External side effects are owner-gated**: no live GBP/IG/FB posting, review replies, SMS/email sends, Stripe/refund calls, or supplier orders. Build preview/draft/copy-only; kill-switches flip only in dedicated approved PRs.
-- New admin section = update all of: `shared/types.ts` (union) · `shared/nav.tsx` · `shared/constants.tsx` (SECTION_TITLES) · `Admin.tsx` (lazy import, render branch, TAB_ALIASES, VALID_SECTIONS).
-- New route = register in `shared/routes.ts` or `validate:routes` fails.
+**Hard rules:**
+- **NEVER push directly to `main`** — use `nickstire/<task>` branches + PR
+- Stage only explicit file paths — never `git add -A`
+- PRs are squash-merged — never stack on another open PR's commits
+- Scope every commit to the assigned task ONLY
 
-## Layout (where work happens)
-`server/routers/` tRPC · `server/services/` logic · `server/cron/` jobs · `client/src/pages/admin/` admin UI · `shared/` cross-imports · `drizzle/schema.ts` DB source of truth.
+### CI Gate (Pre-Push)
+`.husky/pre-push` runs `turbo build --affected`. This MUST pass before push.
+
+Full verify gate (run before pushing):
+```powershell
+cd apps/nickstire; pnpm run verify
+```
+
+### Success Metrics
+| Signal | Target |
+|--------|--------|
+| `pnpm run verify` | Exit 0 |
+| TypeScript errors | 0 |
+| Test pass rate | 100% |
+| Route registry | All routes registered |
+| Brand voice violations | 0 |
+
+---
+
+## 5 · Code Ownership & Governance
+
+There is no `CODEOWNERS` file. Ownership is enforced by:
+
+| Layer | Mechanism |
+|-------|-----------|
+| App-level rules | This file (`apps/nickstire/AGENTS.md`) |
+| Protected code | [`PROTECTED-CORE.md`](./PROTECTED-CORE.md) — never modify without explicit approval |
+| Cross-cutting rules | Root [`AGENTS.md`](../../AGENTS.md) + CIITTY v2.1 |
+| PR gate | Operator merges all PRs — no direct main push |
+| DB schema | `drizzle/schema.ts` is source of truth — migrations are hand-applied SQL |
+| External side effects | All owner-gated (see §6) |
+
+**Governance checks (automated):**
+- `pnpm run validate:routes` — every route in `shared/routes.ts`
+- `pnpm run lint:brand-voice` — claim safety enforcement
+- `pnpm run lint:source` — source dependency rules
+- `pnpm run lint:hooks` — hook conventions
+
+**PR final report format** (required):
+```
+Branch: nickstire/<task> · SHA: <short>
+Changed files: <list>
+Checks run: check ✅ · verify ✅ · validate:routes ✅
+Intentional exclusions: <none or explain>
+```
+
+---
+
+## 6 · Key Conventions & Standing Rules
+
+### Database
+- **Migrations are hand-applied SQL** (`drizzle/*.sql`) — no auto-migrate; never run without explicit operator approval
+- `drizzle/schema.ts` is the source of truth — don't edit generated files directly
+- TiDB Cloud (MySQL) — NOT Postgres; Drizzle ORM, NOT Prisma
+
+### Content & Claim Safety
+- **No invented warranties, wait-times, or reviews** — no "guaranteed", no fabricated timelines
+- **Payment language:** "Payment Programs" not "financing"
+- **Used-tire pricing is two-tier:** WEB says "from $25 installed (select 12-inch; most $40-80)"; quoting channels say $60. Do NOT "fix" either direction — both are intentional
+- **Brand voice linting** (`lint:brand-voice`) enforces these — run it before pushing
+
+### External Side Effects (Owner-Gated)
+Never execute live without explicit operator approval in a dedicated PR:
+- Live GBP / Instagram / Facebook posts
+- Review replies
+- SMS or email sends
+- Stripe / refund calls
+- Supplier orders
+
+**Build preview/draft/copy-only**. Kill-switches flip only in approved PRs.
+
+### iOS PWA
+- `window.confirm / alert / prompt` are silently suppressed in iOS standalone — **never use them**
+- Use in-DOM confirms (two-tap pattern) for any destructive action
+- Minimum 48×48px touch targets
+
+### Prerendering
+- **Never hand-edit `prerendered/`** — run `pnpm run prerender` (currently broken on Windows; CI regenerates)
+
+---
+
+## 7 · Common Gotchas / Lessons Learned
+
+- **pnpm frozen-lockfile mode in CI:** After any `package.json` dep change (add/move/remove), regenerate `pnpm-lock.yaml` locally and commit it — Railway CI will reject stale lockfiles.
+- **Vitest parallel flakes on Windows:** Always pass `--pool=forks --poolOptions.forks.singleFork=true` — parallel runs rotate 5s-timeout import errors.
+- **Shared types/nav/constants are a quad:** Adding a new admin section requires updating all four files in `shared/` — missing one breaks the UI silently.
+- **Route registry is the gate:** `validate:routes` fails if a new route isn't in `shared/routes.ts` — don't skip this check.
+- **TiDB is MySQL-compatible, not Postgres:** Never use Postgres-only SQL constructs (e.g. `RETURNING`, `ON CONFLICT DO UPDATE`). Drizzle's MySQL dialect handles this, but raw SQL must be MySQL-safe.
+- **SMS/VAPI = server/** — voice and SMS logic lives in `server/`, not client. The client triggers via tRPC; never call Twilio/VAPI directly from the browser.
+- **Brand voice is a CI gate:** Claim safety violations (`lint:brand-voice`) block the verify pipeline — intentional, not a fluke.
+
+---
+
+## 8 · How to Resume in a Fresh Session
+
+```powershell
+cd C:\Users\nourd\NOURCITY
+git fetch origin
+powershell scripts/worktree-setup.ps1 -branchName nickstire/<task> -targetDir .worktrees/<name>
+cd .worktrees/<name>/apps/nickstire
+git log --oneline -10
+# Read truth_os.md for current prod state
+# Read PROTECTED-CORE.md for no-touch list
+pnpm run verify   # full gate — must be green before any work
+```
+
+---
+
+## 9 · Agent Framework Reference
+
+This app is governed by **CIITTY v2.1** — the monorepo-wide agent operating framework.
+
+📄 [`/.agents/frameworks/ciitty/SKILL.md`](../../.agents/frameworks/ciitty/SKILL.md)
+
+Key rules that always apply here:
+- **Blind Spot Check** before any change: does this break statenour? does pnpm-lock.yaml need updating? will Railway rebuild?
+- **Forgotten Factor Protocol**: before closing — what route/cron/webhook/env var depends on what I just changed?
+- **No direct main push** — always `nickstire/<task>` branch
+- **Lockfile sync** — any dep change = regenerate and commit `pnpm-lock.yaml`
+- **Owner-gated side effects** — never execute live external actions without approved PR
