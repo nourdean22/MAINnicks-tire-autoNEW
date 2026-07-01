@@ -562,20 +562,6 @@ async function chatPostInner(req: Request) {
   const COMMAND_INTENT_PATTERN =
     /\b(snooze|archive|pin|complete|done|do (it|that|this)|go ahead|yes|reframe|update|move|log|drop|archive|delete)\b/i;
   const forceRecall = COMMAND_INTENT_PATTERN.test(userContent);
-  const auxPromise: Promise<[string | null, string | null, import("@/lib/ai/predictive-prefetch").PrefetchResult[]]> =
-    userContent.length > 10 || forceRecall
-      ? Promise.all([
-          import("@/lib/brain/conversation-memory")
-            .then((m) => m.detectCrossSessionThread(userContent))
-            .catch((): null => null),
-          import("@/lib/brain/contextual-recall")
-            .then((m) =>
-              m.getContextualMemories([userContent], mode === "deep" ? 10 : 5)
-            )
-            .catch((): null => null),
-          prefetchIntents(userContent).catch(() => [] as import("@/lib/ai/predictive-prefetch").PrefetchResult[]),
-        ])
-      : Promise.resolve([null, null, []]);
 
   // Conversation compression runs in parallel too — compress old
   // messages into a summary block if the history has grown past the
@@ -625,54 +611,21 @@ async function chatPostInner(req: Request) {
       ? embedUserMessage(userContent).catch((): number[] => [])
       : Promise.resolve([]);
 
-  // v10.0.92 · Hybrid memory recall — pipes user-embedding through
-  // the recall lib so we avoid a second Venice call. Runs in parallel
-  // with the prompt build + aux + compression. Wall-clock cost is
-  // ~max(KNN query, 50ms) since the embedding is already in flight.
-  // Skips on greetings (<10 chars) — same pattern as auxPromise.
-  type RecallBlock = { promptBlock: string; hitCount: number; ms: number };
-  const recallPromise: Promise<RecallBlock | null> =
-    userContent.length > 10
-      ? userEmbeddingPromise.then(async (emb) => {
-          if (!emb || emb.length === 0) return null;
-          try {
-            const { recallMemoriesForQuery, formatRecallForPrompt } =
-              await import("@/lib/brain/memory-recall");
-            const report = await recallMemoriesForQuery(userContent, {
-              embedding: emb,
-              limit: mode === "deep" ? 8 : 5,
-            });
-            if (report.hits.length === 0) return null;
-            recalledHits = report.hits; // Populate raw hits!
-            return {
-              promptBlock: formatRecallForPrompt(report.hits),
-              hitCount: report.hits.length,
-              ms: report.durationMs,
-            };
-          } catch (err) {
-            recordError("chat:recall", err, { stage: "hybrid-recall" });
-            return null;
-          }
-        })
-      : Promise.resolve(null);
+
 
   // Await the parallel work — max of the six pipelines.
   // (DB write + user embedding + memory recall are folded in so
   // their latency is hidden inside the max.)
   const [
     { systemPrompt: rawSystemPrompt, fromCache },
-    aux,
     compression,
     resolvedConvId,
     userEmbedding,
-    recallBlock,
   ] = await Promise.all([
     promptPromise,
-    auxPromise,
     compressPromise,
     dbWritePromise,
     userEmbeddingPromise,
-    recallPromise,
   ]);
   convId = resolvedConvId;
 
@@ -708,156 +661,24 @@ async function chatPostInner(req: Request) {
     lastMissionId,
   });
 
-  const [threadContext, contextMemories, prefetchResults] = aux;
-
-  if (threadContext) {
-    systemPrompt += `\n\n# CROSS-SESSION THREAD\n${threadContext.slice(0, 1000)}`;
-  }
-  if (contextMemories) {
-    systemPrompt += `\n\n# CONTEXT MEMORIES\n${contextMemories.slice(0, mode === "deep" ? 2000 : 1000)}`;
-  }
-
-  // v-truth · NICK_ANTICIPATORY_RECALL (default-OFF) · embedding-based
-  // likely-next lane: pre-warm the memories Nick will need NEXT turn from
-  // the conversation trajectory (topic pivots). Self-gates -> "" when off
-  // (zero added latency); 2s-capped + graceful, never breaks the chat.
-  try {
-    const { anticipateMemories } = await import("@/lib/brain/anticipatory-recall");
-    const likelyNext = await anticipateMemories(
-      messages as { role: string; content: string }[],
-      contextMemories ?? "",
-    );
-    if (likelyNext) systemPrompt += `\n\n${likelyNext}`;
-  } catch {
-    /* additive lane — never break chat */
-  }
-
-  // v10.0.163 · Entity truth-grounding. Pre-fetch DB state for any
-  // project/mission named in the recent turns and inject it as
-  // ground truth so the model can't claim a different count.
-  // Composes with the L1 prompt rule + L2 rewrite + L3 history
-  // neutralization to close the fabrication loop end-to-end.
-  // Best-effort — failure here just means no grounding block, the
-  // chat path stays unaffected.
-  try {
-    const { buildTruthGroundingBlock } = await import(
-      "@/lib/ai/chat/truth-grounding"
-    );
-    const groundingBlock = await buildTruthGroundingBlock(messages as never);
-    if (groundingBlock) {
-      systemPrompt += `\n\n${groundingBlock}`;
-      log.info("truth_grounding_injected", {
-        blockLength: groundingBlock.length,
-      });
-    }
-  } catch (err) {
-    log.warn("truth_grounding_failed", {
-      error: sanitizeError(err),
-    });
-  }
-
-  // v10.0.526 · Arc B Feature 5 · Proactive Contradiction Surfacing.
-  // The contradiction-surfacer detects contradictions on the WRITE
-  // path (importance-scorer post-hook). This call is the READ path:
-  // when the operator's CURRENT message semantically overlaps an
-  // unresolved contradiction from the last 60d, inject a soft nudge
-  // so Nick asks "which is current?" without short-circuiting the
-  // actual answer. Idempotent per (conversation, day, contradiction)
-  // — re-surfacing the same alert every turn would burn trust.
-  try {
-    const { findRelevantContradictions, buildContradictionAlertBlock } = await import(
-      "@/lib/brain/contradiction-injector"
-    );
-    const hit = await findRelevantContradictions({
-      userMessage: userContent,
-      conversationId: convId,
-    });
-    if (hit) {
-      detectedContradictions = [hit]; // Populate raw contradictions!
-      systemPrompt += `\n\n${buildContradictionAlertBlock(hit)}`;
-      log.info("contradiction_alert_injected", {
-        contradictionKey: hit.key,
-        similarity: Number(hit.similarity.toFixed(3)),
-        daysApart: hit.daysApart,
-        signal: hit.signal,
-      });
-    }
-  } catch (err) {
-    log.warn("contradiction_alert_failed", {
-      error: sanitizeError(err),
-    });
-  }
-
-  // v10.0.92 · Hybrid memory recall block — runs alongside contextual-
-  // recall (which uses keyword + recency). The hybrid version uses
-  // KNN cosine on embedding_vec_1536 + recency boost + confidence
-  // weighting + category whitelist. The two compose: contextual-recall
-  // catches keyword-perfect matches; hybrid catches semantically-
-  // related-but-different-wording memories. Both can fire on the same
-  // turn without overlap because the prompt sections are distinct.
-  if (recallBlock?.promptBlock) {
-    systemPrompt += `\n\n# ${recallBlock.promptBlock}`;
-    log.info("hybrid_recall_injected", {
-      hits: recallBlock.hitCount,
-      ms: recallBlock.ms,
-    });
-  }
-
-  // v10.0.235 · Strategic Frameworks injection · when the user message
-  // matches any business / money / strategy / pricing / marketing
-  // intent, we inject a "STRATEGIC LENS" block listing 1-3 relevant
-  // frameworks (Business Model Canvas, JTBD, Launch Strategy,
-  // Monetization, Pricing, Growth Engine, Awareness Stages, Competitive
-  // Landscape, Kotler Macro). Nick reasons through the framework and
-  // surfaces the lens by name so Nour gets depth instead of hot-take.
-  // The registry is extensible — add a new framework file to grow Nick
-  // into more of a business genius over time.
-  // v10.0.242 · expanded telemetry · log which lenses fired + scores so
-  // we can audit which frameworks Nick is actually using vs lens-injection
-  // dead-weight. pickFrameworks runs again here (cheap · ~44 regex tests)
-  // for visibility into the picker's decision.
-  // v10.0.264 · centralized lens-fire telemetry via recordLensFire.
-  // Pre-fix this was inline log.info · 8 surfaces had the same pattern
-  // duplicated. Now each writes to the SystemMetric table for the
-  // /admin/lens-stats dashboard alongside the existing log line.
-  try {
-    const { pickFrameworks, composeStrategicLensBlock } = await import(
-      "@/lib/ai/strategic-frameworks"
-    );
-    const { recordLensFire } = await import(
-      "@/lib/ai/strategic-frameworks/record-lens-fire"
-    );
-    const lensBlock = composeStrategicLensBlock(userContent);
-    if (lensBlock) {
-      systemPrompt += `\n\n${lensBlock}`;
-      const matches = pickFrameworks(userContent);
-      recordLensFire({ surface: "chat", matches, lensBlockLength: lensBlock.length });
-    }
-  } catch (err) {
-    log.warn("strategic_lens_failed", {
-      error: sanitizeError(err),
-    });
-  }
-
-  // May 02 · chat-route extract chunk 3 · brain-context assembly
-  // (parallel-load 7 brain modules with 3s timeouts, rerank by user-
-  // embedding similarity, deeper-context telemetry, prefetch append)
-  // moved verbatim to lib/services/chat/brain-context.ts. Returns the
-  // addendum + fire-flags + deeper-context counts; route appends the
-  // addendum to systemPrompt and surfaces the rest on the response.
   const { buildBrainContext } = await import("@/lib/services/chat/brain-context");
   const brainCtx = await buildBrainContext({
     userContent,
     mode,
     userEmbedding,
-    contextMemories,
-    prefetchResults,
+    forceRecall,
+    messages: messages as Array<{ role: string; content: string }>,
+    convId,
     log,
   });
+  
   systemPrompt += brainCtx.systemPromptAddendum;
   const contextBlocksFired = brainCtx.contextBlocksFired;
   const deeperContextCount = brainCtx.deeperContextCount;
   const deeperContextTypes = brainCtx.deeperContextTypes;
+  
+  if (brainCtx.recalledHits) recalledHits = brainCtx.recalledHits;
+  if (brainCtx.detectedContradictions) detectedContradictions = brainCtx.detectedContradictions;
 
   // chat-route extract (2026-05-31) · the system-prompt finalization
   // block (per-provider truncation, Greene-law load, personality
