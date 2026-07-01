@@ -255,3 +255,5 @@ pnpm inngest:dev                 # Inngest local dev runner (port 8288)
 **Quality gate live on every push**: `pre-push` hook + GitHub Actions
 CI + cron-manifest guard + schema-drift check. Zero broken deploys
 is the goal.
+   
+ 
