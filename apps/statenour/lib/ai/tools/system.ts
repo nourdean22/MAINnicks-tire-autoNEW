@@ -763,6 +763,29 @@ export const systemTools = {
   }),
 
   // ═══════════════════════════════════════════════════════════
+  // NOTEBOOKLM — Google Grounding Engine
+  // ═══════════════════════════════════════════════════════════
+
+  arsenalNotebookLM: tool({
+    description: "Use Google NotebookLM via the connected MCP server. Allows deep grounding against custom uploaded source documents. Use 'notebookAlias' to route to specialized Memory Vaults.",
+    inputSchema: z.object({
+      action: z.string().describe("The NotebookLM MCP tool to call (e.g., 'ask_question', 'list_notebooks')"),
+      notebookAlias: z.enum(["statenour-intel", "competitor-research", "financial-models"]).optional().describe("Target a specific memory vault. If provided, the system will inject the correct notebook_id."),
+      params: z.record(z.string(), z.unknown()).optional().describe("Arguments for the MCP tool"),
+    }),
+    execute: async ({ action, notebookAlias, params }) => {
+      const { notebookLMProvider } = await import("@/lib/intelligence/search/notebooklm-mcp");
+      const result = await notebookLMProvider.call(action, params, notebookAlias);
+      // We slice string outputs to avoid blowing up the context window if the tool returns a massive JSON
+      return { 
+        action, 
+        result: typeof result.results === 'string' ? result.results.slice(0, 4000) : result.results,
+        error: result.error
+      };
+    },
+  }),
+
+  // ═══════════════════════════════════════════════════════════
   // GITHUB — Read/write code, create PRs, manage repos
   // ═══════════════════════════════════════════════════════════
 
