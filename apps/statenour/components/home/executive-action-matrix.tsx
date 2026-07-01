@@ -22,6 +22,9 @@ interface StatLevel {
   xpIntoLevel: number;
 }
 
+const EMPTY_TASKS: Task[] = [];
+const EMPTY_STATS: StatLevel[] = [];
+
 export function ExecutiveActionMatrix() {
   const [activeTab, setActiveTab] = useState<"triage" | "hygiene" | "suggestions">("triage");
   const [movesCount, setMovesCount] = useState(0);
@@ -42,8 +45,8 @@ export function ExecutiveActionMatrix() {
     staleTime: 30000,
   });
 
-  const tasks = (tasksQuery.data ?? []) as Task[];
-  const stats = (statsQuery.data ?? []) as StatLevel[];
+  const tasks = (tasksQuery.data ?? EMPTY_TASKS) as Task[];
+  const stats = (statsQuery.data ?? EMPTY_STATS) as StatLevel[];
   const findingsCount = hygieneData?.rescue?.findings?.length ?? 0;
   const activeTasks = tasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED");
   const inboxCount = activeTasks.filter((t) => t.status === "INBOX").length;
