@@ -17,7 +17,7 @@ import { useState } from "react";
 import {
   TrendingUp, MapPin, Star, MessageCircleQuestion, Camera, Building2,
   Swords, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
-  RefreshCw, Lock, Instagram,
+  RefreshCw, Lock, Instagram, Activity,
 } from "lucide-react";
 import { InstagramAdmin } from "./instagram/InstagramAdmin";
 import { Section, Panel } from "./shared";
@@ -204,7 +204,82 @@ function LocalGrowthTab() {
           <li>Once a week: log the Competitors tab numbers against the baseline.</li>
         </ol>
       </Panel>
+
+      <SocialPipelineHealth />
     </div>
+  );
+}
+
+/* ── Social Pipeline Health ──────────────────────────────────── */
+
+function SocialPipelineHealth() {
+  const { data, isLoading } = trpc.socialPipeline.status.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) return (
+    <Panel title="Social Pipeline Health" icon={<Activity className="w-4 h-4" />}>
+      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+    </Panel>
+  );
+
+  if (!data) return null;
+
+  const { readiness, envGates, dbFlags } = data;
+
+  return (
+    <Panel title="Social Pipeline Health" icon={<Activity className="w-4 h-4" />}>
+      <div className="flex items-center gap-2 mb-3"><ModeBadge mode="read-only" /><span className="text-[10px] text-foreground/40">live status of all automation kill-switches</span></div>
+
+      {/* Composite readiness */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+        {([
+          ["IG Live Posting", readiness.igLivePosting],
+          ["Reel Generation", readiness.reelPipeline],
+          ["Reel Publishing", readiness.reelPublish],
+          ["Reel Auto-Post", readiness.reelAutopost],
+          ["GBP Posting", readiness.gbpPosting],
+          ["SMS Path Open", readiness.smsPathOpen],
+        ] as [string, boolean][]).map(([label, armed]) => (
+          <div key={label} className={`px-2 py-1.5 rounded border text-[10px] font-semibold flex items-center gap-1.5 ${
+            armed
+              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+              : "bg-foreground/5 text-foreground/40 border-border/20"
+          }`}>
+            {armed ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+            {label}
+          </div>
+        ))}
+      </div>
+
+      {/* Env gates */}
+      <p className="text-[9px] uppercase tracking-wider text-foreground/40 font-semibold mb-1">Environment Gates (Railway)</p>
+      <div className="space-y-1 mb-3">
+        {envGates.map((g) => (
+          <div key={g.key} className="flex items-center gap-2 text-[10px]">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${g.armed ? "bg-emerald-400" : "bg-foreground/20"}`} />
+            <span className="font-mono text-foreground/60 min-w-0 truncate">{g.key}</span>
+            <span className={`ml-auto shrink-0 ${g.armed ? "text-emerald-400" : "text-foreground/30"}`}>
+              {g.armed ? "ARMED" : "OFF"}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* DB flags */}
+      <p className="text-[9px] uppercase tracking-wider text-foreground/40 font-semibold mb-1">Feature Flags (Database)</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+        {dbFlags.map((f) => (
+          <div key={f.key} className="flex items-center gap-2 text-[10px]">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${f.armed ? "bg-emerald-400" : "bg-foreground/20"}`} />
+            <span className="font-mono text-foreground/60 min-w-0 truncate">{f.key}</span>
+            <span className={`ml-auto shrink-0 ${f.armed ? "text-emerald-400" : "text-foreground/30"}`}>
+              {f.armed ? "ON" : "OFF"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Panel>
   );
 }
 
