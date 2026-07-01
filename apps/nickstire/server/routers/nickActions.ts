@@ -9,6 +9,7 @@
  */
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
+import { IG_ARCHETYPES } from "@shared/const";
 import { logAdminAction } from "../services/auditTrail";
 
 // ─── Sub-module imports ─────────────────────────────────
@@ -137,7 +138,7 @@ export const nickActionsRouter = router({
   fireIgAutopostNow: adminProcedure
     .input(z.object({
       forceArchetype: z
-        .enum(["proof", "anti", "math", "seasonal", "question", "process"])
+        .enum(IG_ARCHETYPES)
         .optional(),
     }))
     .mutation(async ({ input }) => {

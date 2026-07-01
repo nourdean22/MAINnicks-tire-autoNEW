@@ -26,3 +26,16 @@ export function buildPlaceDetailsUrl(apiKey: string, fields: string = "reviews")
 export const STORE_NAME = "Nick's Tire & Auto";
 export const STORE_PHONE = "(216) 862-0005";
 export const STORE_ADDRESS = "17625 Euclid Ave, Cleveland, OH 44112";
+
+// ─── Content Archetypes (single source of truth) ────────────────
+// GBP uses 4 archetypes; IG uses 6 (superset). Import from here —
+// do NOT redeclare inline in routers.
+// See: docs/content-pipeline.md for archetype definitions.
+
+/** GBP post archetypes — proof (50%), anti (15%), math (15%), seasonal (20%) */
+export const GBP_ARCHETYPES = ["proof", "anti", "math", "seasonal"] as const;
+export type GBPArchetypeConst = (typeof GBP_ARCHETYPES)[number];
+
+/** IG post archetypes — GBP superset + question + process */
+export const IG_ARCHETYPES = ["proof", "anti", "math", "seasonal", "question", "process"] as const;
+export type IGArchetypeConst = (typeof IG_ARCHETYPES)[number];

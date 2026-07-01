@@ -19,17 +19,16 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { desc } from "drizzle-orm";
+import { desc, sql, gte, and, eq } from "drizzle-orm";
 import { router, adminProcedure } from "../_core/trpc";
 import { checkReviewReply, buildReplyPromptRules, hasBlockingFindings } from "@shared/reviewReplyQa";
+import { IG_ARCHETYPES } from "@shared/const";
 import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:instagramAdmin");
-
-const ARCHETYPES = ["proof", "anti", "math", "seasonal", "question", "process"] as const;
 
 export const instagramAdminRouter = router({
   /** Connection diagnostics: credential/token status + durable-store fingerprint. */
@@ -104,17 +103,46 @@ export const instagramAdminRouter = router({
   }),
 
   /** Intelligence Endpoint: Performance-Seeded Brief for content generation.
-   *  Reads from analytics to provide context for the AI Copilot. */
+   *  Reads from analytics to provide context for the AI Copilot.
+   *  topArchetypeLast30Days is computed from real ig_autopost_log data
+   *  (was hardcoded to "proof" — fixed 2026-07-01 per Clarity Gate audit). */
   getCreationBrief: adminProcedure.query(async () => {
-    const { getTopPosts, getEngagementByType } = await import("../pipelines/instagram-data");
-    
-    // In a full implementation, this would aggregate actual data to find the single
-    // best archetype of the last 30 days and the worst performers to avoid.
-    // We mock the aggregation logic slightly for the Phase 2 API definition.
+    const { getTopPosts } = await import("../pipelines/instagram-data");
     const topPosts = await getTopPosts({ limit: 5 });
-    
+
+    // Compute best-performing archetype from the last 30 days of posted content.
+    // Falls back to "proof" (highest base rate at 50%) if no data exists yet.
+    let topArchetype = "proof";
+    try {
+      const database = await db();
+      if (database) {
+        const { igAutopostLog } = await import("../../drizzle/schema");
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const rows = await database
+          .select({
+            archetype: igAutopostLog.archetype,
+            avgScore: sql<number>`AVG(${igAutopostLog.overallScore})`.as("avgScore"),
+          })
+          .from(igAutopostLog)
+          .where(
+            and(
+              eq(igAutopostLog.status, "posted"),
+              gte(igAutopostLog.createdAt, thirtyDaysAgo),
+            ),
+          )
+          .groupBy(igAutopostLog.archetype)
+          .orderBy(sql`avgScore DESC`)
+          .limit(1);
+        if (rows.length > 0 && rows[0].archetype) {
+          topArchetype = rows[0].archetype;
+        }
+      }
+    } catch (err) {
+      log.warn("Failed to compute top archetype from ig_autopost_log, using fallback", err);
+    }
+
     return {
-      topArchetypeLast30Days: "proof",
+      topArchetypeLast30Days: topArchetype,
       optimalPostingWindow: "Tuesdays at 4:30 PM",
       topicsToAvoid: ["generic holiday posts", "long text captions without images"],
       recentWinners: topPosts.map(p => ({
@@ -224,7 +252,7 @@ Keep it under 200 characters.`;
    *  is enabled — so this is safe to expose without a live-publish toggle. */
   generatePost: adminProcedure
     .input(z.object({
-      archetype: z.enum(ARCHETYPES).optional(),
+      archetype: z.enum(IG_ARCHETYPES).optional(),
       customConcept: z.string().trim().max(1000).optional(),
     }).optional())
     .mutation(async ({ input }) => {
