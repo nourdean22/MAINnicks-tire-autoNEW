@@ -491,13 +491,13 @@
   .glow-yellow { /* removed */ }
   .glow-teal { /* removed */ }
 
-  /* ─── PREMIUM BUTTON ─── */
-  .btn-premium {
+  /* ─── SHEEN BUTTON ─── */
+  .btn-sheen {
     position: relative;
     overflow: hidden;
     transition: all 0.2s ease;
   }
-  .btn-premium::after {
+  .btn-sheen::after {
     content: '';
     position: absolute;
     inset: 0;
