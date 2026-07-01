@@ -62,3 +62,4 @@ export { localGrowthRouter } from "./localGrowth";
 export { instagramAdminRouter } from "./instagramAdmin";
 export { gbpRouter } from "./gbp";
 export { smsOrchestratorRouter } from "./smsOrchestrator";
+export { socialPipelineRouter } from "./socialPipeline";
