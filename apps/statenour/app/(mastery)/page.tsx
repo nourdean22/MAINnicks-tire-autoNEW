@@ -19,7 +19,7 @@ import { FollowUpsList } from "@/components/home/follow-ups-list";
  */
 export default function HomePage() {
   return (
-    <div className="mx-auto max-w-7xl px-3 sm:px-4 pb-32 space-y-4">
+    <div className="mx-auto max-w-7xl px-3 sm:px-4 pb-8 space-y-4">
       <HomeIdentityHeader />
       <FollowUpsList />
       <CoachEventBanner surface="home" />
