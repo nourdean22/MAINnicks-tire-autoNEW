@@ -136,87 +136,94 @@ export function HomeNickDock() {
   const canSend = text.trim().length > 0;
 
   return (
-    <div className="w-full glass-card border border-(--gold)/20 bg-[#0A0A0A]/90 backdrop-blur-lg shadow-(--shadow-gold-strong) p-2 sm:p-3 space-y-2 rounded-xl">
-      {/* Mode Selectors */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-(--border-default) scrollbar-none">
-        {MODES.map((mode) => {
-          const Icon = mode.icon;
-          const isActive = mode.key === activeMode;
-          return (
+    <div className="w-full relative group">
+      {/* Ambient glow that intensifies on focus/hover */}
+      <div className="absolute -inset-0.5 bg-gradient-to-r from-[var(--gold)]/0 via-[var(--gold)]/10 to-[var(--gold)]/0 rounded-xl blur opacity-0 group-focus-within:opacity-100 transition duration-1000 group-hover:duration-200" />
+      
+      <div className="relative w-full glass-card border border-[var(--gold)]/20 bg-black/60 backdrop-blur-2xl shadow-[0_0_40px_rgba(0,0,0,0.5)] p-2 sm:p-3 space-y-2 rounded-xl transition-all">
+        {/* Mode Selectors */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-2 border-b border-white/5 scrollbar-none mask-fade-edges-x">
+          {MODES.map((mode) => {
+            const Icon = mode.icon;
+            const isActive = mode.key === activeMode;
+            return (
+              <button
+                key={mode.key}
+                type="button"
+                onClick={() => {
+                  setActiveMode(mode.key);
+                  taRef.current?.focus();
+                }}
+                className={cn(
+                  "shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-[0.15em] transition-all duration-300 inline-flex items-center gap-1.5 min-h-[36px]",
+                  isActive
+                    ? "bg-gradient-to-br from-[var(--gold)]/10 to-[var(--gold)]/5 text-[var(--gold)] border border-[var(--gold)]/30 shadow-[0_0_10px_rgba(255,215,0,0.1)]"
+                    : "text-zinc-500 border border-transparent hover:text-zinc-300 hover:bg-white/[0.02]"
+                )}
+              >
+                <Icon size={12} className={cn(isActive && "text-[var(--gold)] animate-pulse")} />
+                {mode.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Anticipated Questions (Smart Replies) */}
+        {anticipatedQuestions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1 px-1 border-b border-white/5 pb-2">
+            {anticipatedQuestions.map((q) => (
+              <button
+                key={q}
+                type="button"
+                onClick={() => {
+                  setText(q);
+                  taRef.current?.focus();
+                }}
+                className="px-2.5 py-1 rounded-full text-[11px] bg-zinc-900/50 border border-white/5 text-zinc-400 hover:text-[var(--gold)] hover:border-[var(--gold)]/30 hover:bg-[var(--gold)]/5 transition-all text-left"
+              >
+                <Sparkles size={10} className="inline mr-1 text-[var(--gold)]/70" />
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Input Textarea & Send button */}
+        <div className="flex items-end gap-2 pt-1 relative">
+          <textarea
+            ref={taRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={currentMode.placeholder}
+            rows={1}
+            className={cn(
+              "flex-1 min-h-[44px] resize-none bg-transparent px-3 py-2.5 text-[15px] sm:text-[16px] leading-snug",
+              "text-white placeholder:text-zinc-600 font-medium",
+              "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none",
+              "transition-all duration-300"
+            )}
+          />
+
+          <div className="flex items-center gap-1 shrink-0 pb-1">
+            <span className="hidden sm:inline text-[9px] font-mono text-zinc-600 select-none mr-2">
+              ⌘↵ to send
+            </span>
             <button
-              key={mode.key}
               type="button"
-              onClick={() => {
-                setActiveMode(mode.key);
-                taRef.current?.focus();
-              }}
+              onClick={handleSend}
+              disabled={!canSend}
+              aria-label="send message"
               className={cn(
-                "shrink-0 px-2.5 py-1.5 rounded text-[10px] font-mono uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 min-h-[36px]",
-                isActive
-                  ? "bg-(--gold)/10 text-(--gold) border border-(--gold)/30"
-                  : "text-(--text-tertiary) border border-transparent hover:text-(--text-secondary)"
+                "inline-flex items-center justify-center h-10 w-10 rounded-lg transition-all duration-300 active:scale-95 group/btn",
+                canSend
+                  ? "bg-gradient-to-br from-[var(--gold)] to-amber-500 text-black shadow-[0_0_15px_rgba(255,215,0,0.4)] hover:shadow-[0_0_25px_rgba(255,215,0,0.6)]"
+                  : "bg-zinc-900 text-zinc-700 border border-white/5"
               )}
             >
-              <Icon size={12} className={cn(isActive && "text-(--gold)")} />
-              {mode.label}
+              <Send size={16} strokeWidth={2.5} className={cn(canSend && "group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform")} />
             </button>
-          );
-        })}
-      </div>
-
-      {/* Anticipated Questions (Smart Replies) */}
-      {anticipatedQuestions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-1 px-1 border-b border-(--border-default) pb-2">
-          {anticipatedQuestions.map((q) => (
-            <button
-              key={q}
-              type="button"
-              onClick={() => {
-                setText(q);
-                taRef.current?.focus();
-              }}
-              className="px-2.5 py-1 rounded-full text-[11px] bg-zinc-800/40 border border-white/5 text-zinc-300 hover:text-white hover:border-(--gold)/30 hover:bg-(--gold)/5 transition text-left"
-            >
-              ✨ {q}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Input Textarea & Send button */}
-      <div className="flex items-end gap-2 pt-1">
-        <textarea
-          ref={taRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={currentMode.placeholder}
-          rows={1}
-          className={cn(
-            "flex-1 min-h-[44px] resize-none bg-transparent px-3 py-2.5 text-[15px] sm:text-[16px] leading-snug",
-            "text-(--text-primary) placeholder:text-(--text-tertiary)/50",
-            "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
-          )}
-        />
-
-        <div className="flex items-center gap-1">
-          <span className="hidden sm:inline text-[9px] font-mono text-(--text-tertiary)/30 select-none mr-2">
-            ⌘↵ to send
-          </span>
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={!canSend}
-            aria-label="send message"
-            className={cn(
-              "shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-md transition-all active:scale-95",
-              canSend
-                ? "bg-(--gold) text-(--text-inverse) hover:bg-(--gold-dim)"
-                : "bg-(--border-default) text-(--text-tertiary)/30"
-            )}
-          >
-            <Send size={16} strokeWidth={2} />
-          </button>
+          </div>
         </div>
       </div>
     </div>
