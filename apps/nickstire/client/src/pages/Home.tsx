@@ -234,7 +234,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             <StampLetters
               text="Drop off for repairs."
               delay={0.55}
-              className="text-[#FDB913]"
+              className="text-nick-yellow"
             />
           </h1>
 
@@ -267,7 +267,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               animationFillMode: "forwards",
             }}
           >
-            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913] font-semibold">$25</span> installed. Written estimate before any wrench moves. Explore <Link href="/financing" className="underline text-primary hover:text-primary-foreground">payment programs for repairs</Link>, get <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> today.
+            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-nick-yellow font-semibold">$25</span> installed. Written estimate before any wrench moves. Explore <Link href="/financing" className="underline text-primary hover:text-primary-foreground">payment programs for repairs</Link>, get <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> today.
           </p>
 
           {/* Symptom Search Widget */}
@@ -280,10 +280,10 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             }}
           >
             {/* Ambient Glow Aura */}
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-[#FDB913]/20 to-red-500/20 rounded-xl blur opacity-35 group-focus-within:opacity-60 transition duration-500" />
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-nick-yellow/20 to-red-500/20 rounded-xl blur opacity-35 group-focus-within:opacity-60 transition duration-500" />
             
             <div className="relative flex items-center bg-[#0C0F14]/75 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
-              <span className="pl-4 text-[#FDB913]">
+              <span className="pl-4 text-nick-yellow">
                 <Activity className="w-5 h-5 animate-pulse" />
               </span>
               <input
@@ -295,7 +295,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               />
               <button
                 type="submit"
-                className="bg-[#FDB913] hover:bg-[#e0a30b] text-[#0A0A0A] font-bold text-sm px-6 py-3.5 transition-colors flex items-center gap-1.5 shrink-0"
+                className="bg-nick-yellow hover:bg-nick-yellow/90 text-nick-dark font-bold text-sm px-6 py-3.5 transition-colors flex items-center gap-1.5 shrink-0"
               >
                 DIAGNOSE
                 <ArrowRight className="w-4 h-4" />
@@ -333,7 +333,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             <Link
               href="/tires"
               onClick={() => trackEvent("tire_quote_cta_click", { source: "hero" })}
-              className="group relative inline-flex items-center bg-[#FDB913] text-[#0A0A0A] pl-7 pr-2 py-2 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913] hover:shadow-[0_6px_32px_rgba(253,185,19,0.55)] active:scale-[0.98]"
+              className="group relative inline-flex items-center bg-nick-yellow text-nick-dark pl-7 pr-2 py-2 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-nick-yellow hover:shadow-[0_6px_32px_rgba(253,185,19,0.55)] active:scale-[0.98]"
               aria-label="Order tires online from Nick's Tire and Auto"
             >
               <span className="py-1.5">ORDER TIRES</span>
@@ -344,7 +344,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             <a
               href="#booking"
               onClick={() => trackEvent("booking_cta_click", { source: "hero" })}
-              className="group relative inline-flex items-center bg-[#FDB913] text-[#0A0A0A] pl-7 pr-2 py-2 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913] hover:shadow-[0_6px_32px_rgba(253,185,19,0.55)] active:scale-[0.98] btn-premium"
+              className="group relative inline-flex items-center bg-nick-yellow text-nick-dark pl-7 pr-2 py-2 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-nick-yellow hover:shadow-[0_6px_32px_rgba(253,185,19,0.55)] active:scale-[0.98] btn-sheen"
               aria-label="Schedule a drop-off at Nick's Tire and Auto"
             >
               <span className="py-1.5">SCHEDULE DROP-OFF</span>
@@ -362,7 +362,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             <a
               href={BUSINESS.phone.href}
               onClick={() => trackPhoneClick("hero")}
-              className="group inline-flex items-center justify-center gap-2 bg-red-500 text-white px-6 py-3 rounded-lg font-bold text-base shadow-[0_4px_24px_rgba(239,68,68,0.3)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-red-600 hover:shadow-[0_6px_32px_rgba(239,68,68,0.45)] active:scale-[0.98] btn-premium"
+              className="group inline-flex items-center justify-center gap-2 bg-red-500 text-white px-6 py-3 rounded-lg font-bold text-base shadow-[0_4px_24px_rgba(239,68,68,0.3)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-red-600 hover:shadow-[0_6px_32px_rgba(239,68,68,0.45)] active:scale-[0.98] btn-sheen"
               aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.display}`}
             >
               <Phone className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:rotate-[-8deg]" />
@@ -373,7 +373,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => trackEvent("directions_click", { source: "hero" })}
-              className="group inline-flex items-center justify-center gap-2 border-2 border-[#FDB913]/40 text-[#FDB913]/90 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913]/10 hover:border-[#FDB913]/70 hover:text-[#FDB913] active:scale-[0.98] btn-premium"
+              className="group inline-flex items-center justify-center gap-2 border-2 border-nick-yellow/40 text-nick-yellow/90 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-nick-yellow/10 hover:border-nick-yellow/70 hover:text-nick-yellow active:scale-[0.98] btn-sheen"
               aria-label="Get directions to Nick's Tire and Auto on Euclid Ave"
             >
               <MapPin className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-y-[-2px]" />
@@ -389,10 +389,10 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:text-base motion-safe:animate-[fadeIn_0.6s_ease-out_0.9s_both]"
             style={{ opacity: 0 }}
           >
-            <span className="inline-flex items-center gap-1.5 text-[#FDB913]">
+            <span className="inline-flex items-center gap-1.5 text-nick-yellow">
               <span className="flex gap-0.5">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-[#FDB913] text-[#FDB913]" />
+                  <Star key={i} className="w-4 h-4 fill-nick-yellow text-nick-yellow" />
                 ))}
               </span>
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
@@ -441,7 +441,7 @@ function TrustNumbers({ reviewData }: { reviewData: HomeReviewData }) {
           {stats.map((s, i) => (
             <FadeIn key={s.label} delay={i * 0.1}>
               <div className={`text-center ${i === 1 ? "lg:border-l lg:border-border" : ""}`}>
-                <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono text-gradient-yellow letterpress-gold">
+                <div className="text-3xl lg:text-4xl font-bold text-nick-yellow tracking-tight font-mono text-gradient-yellow letterpress-gold">
                   {s.kind === "count" ? (
                     <CountUpNumber
                       to={s.to}
@@ -466,7 +466,7 @@ function TrustNumbers({ reviewData }: { reviewData: HomeReviewData }) {
 // ─── USED TIRES CALLOUT — "Too good to be true" hook ────
 function UsedTiresCallout() {
   return (
-    <section className="bg-[#FDB913] py-20 lg:py-28 relative overflow-hidden">
+    <section className="bg-nick-yellow py-20 lg:py-28 relative overflow-hidden">
       {/* CSS-only spinning tire decoration — pure border-radius +
           conic-gradient + radial, zero asset bytes. Sells the
           dimensional feel without WebGL or GLB downloads. Hidden
@@ -491,7 +491,7 @@ function UsedTiresCallout() {
               <a
                 href={BUSINESS.phone.href}
                 onClick={() => trackPhoneClick("used-tires-callout")}
-                className="inline-flex items-center justify-center gap-2 bg-black text-[#FDB913] px-8 py-3.5 rounded-lg font-bold text-base hover:bg-black/90 transition-colors"
+                className="inline-flex items-center justify-center gap-2 bg-black text-nick-yellow px-8 py-3.5 rounded-lg font-bold text-base hover:bg-black/90 transition-colors"
               >
                 <Phone className="w-5 h-5" />
                 {BUSINESS.phone.display}
@@ -592,13 +592,13 @@ function Services() {
           <div className="relative container pb-20">
             <FadeIn>
               {/* Section label — small caps, gold, sets the architecture */}
-              <p className="text-[11px] uppercase tracking-[0.22em] font-bold text-[#FDB913] mb-3 drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
+              <p className="text-[11px] uppercase tracking-[0.22em] font-bold text-nick-yellow mb-3 drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
                 The Service
               </p>
               <h2 className="font-heading text-4xl lg:text-6xl font-bold text-foreground tracking-tight uppercase drop-shadow-[0_4px_16px_rgba(0,0,0,0.7)]">
                 {s.title}
               </h2>
-              <p className="mt-2 text-[#FDB913] font-semibold text-lg drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]">{s.price}</p>
+              <p className="mt-2 text-nick-yellow font-semibold text-lg drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]">{s.price}</p>
               <p className="mt-3 text-lg text-foreground/75 max-w-md font-light drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
                 {s.desc}
               </p>
@@ -880,7 +880,7 @@ function TriageGrid() {
       <div className="container">
         <FadeIn>
           <div className="text-center mb-10">
-            <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-2">
+            <div className="text-nick-yellow text-[10px] font-mono uppercase tracking-widest mb-2">
               What's your car telling you?
             </div>
             <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-black text-foreground uppercase tracking-tight">
@@ -965,7 +965,7 @@ function PriceCompareSection() {
       <div className="container">
         <FadeIn>
           <div className="text-center mb-10 max-w-2xl mx-auto">
-            <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-2">
+            <div className="text-nick-yellow text-[10px] font-mono uppercase tracking-widest mb-2">
               The honest math
             </div>
             <h2 className="font-heading text-3xl sm:text-4xl font-black text-foreground uppercase tracking-tight">
@@ -1262,7 +1262,7 @@ export default function Home() {
       <section className="bg-[oklch(0.055_0.004_260)] py-14 border-t border-border/30 halftone-light">
         <div className="container">
           <div className="max-w-2xl mx-auto text-center mb-8">
-            <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-2">
+            <div className="text-nick-yellow text-[10px] font-mono uppercase tracking-widest mb-2">
               The Drop-Off Flywheel
             </div>
             <h2 className="font-heading text-3xl sm:text-4xl font-black text-foreground uppercase tracking-tight">
