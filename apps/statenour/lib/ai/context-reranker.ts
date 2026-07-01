@@ -80,6 +80,7 @@ export interface RerankedBlock {
   content: string;
   similarity: number;     // 0-1
   kept: boolean;          // false if dropped by threshold
+  critical?: boolean;     // true if block MUST NOT be dropped
 }
 
 export interface RerankOptions {
@@ -101,7 +102,7 @@ export interface RerankOptions {
  */
 export async function rerankContextBlocks(
   userEmbedding: number[],
-  blocks: Array<{ name: string; content: string }>,
+  blocks: Array<{ name: string; content: string; critical?: boolean }>,
   options: RerankOptions = {},
 ): Promise<RerankedBlock[]> {
   const { dropThreshold = 0.12, embedWindow = 400 } = options;
@@ -113,6 +114,7 @@ export async function rerankContextBlocks(
       content: b.content,
       similarity: 0,
       kept: true,
+      critical: b.critical,
     }));
   }
 
@@ -134,6 +136,7 @@ export async function rerankContextBlocks(
       content: b.content,
       similarity: sim,
       kept: sim >= dropThreshold || b.content.trim().length > 0 && sim === 0,
+      critical: b.critical,
       // ^ keep blocks even when embedding failed (sim=0, vec=[]) —
       // losing a whole block to a flaky embedder is worse than a bit
       // of noise. Drop only when we HAVE a score and it's below bar.
@@ -145,7 +148,7 @@ export async function rerankContextBlocks(
   for (let i = 0; i < scored.length; i++) {
     const vec = embeddings[i];
     if (vec.length > 0) {
-      scored[i].kept = scored[i].similarity >= dropThreshold;
+      scored[i].kept = scored[i].critical || scored[i].similarity >= dropThreshold;
     }
   }
 
@@ -159,6 +162,6 @@ export async function rerankContextBlocks(
  */
 export function formatRerankSummary(ranked: RerankedBlock[]): string {
   return ranked
-    .map((r) => `${r.name}=${r.similarity.toFixed(2)}${r.kept ? "" : "*DROP"}`)
+    .map((r) => `${r.name}${r.critical ? "!" : ""}=${r.similarity.toFixed(2)}${r.kept ? "" : "*DROP"}`)
     .join(" · ");
 }

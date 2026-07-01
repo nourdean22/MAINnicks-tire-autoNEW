@@ -63,10 +63,9 @@ export interface BuildBrainContextInput {
   mode: ChatMode;
   /** Pre-computed user embedding from the prefetch step. Empty array = skip rerank. */
   userEmbedding: number[];
-  /** The already-fetched contextMemories string. Used for deeper-context extraction. */
-  contextMemories: string | null;
-  /** Predictive prefetch results from the parallel prefetch step. */
-  prefetchResults: PrefetchResult[];
+  forceRecall: boolean;
+  messages: Array<{ role: string; content: string }>;
+  convId: string;
   log: ChatLogger;
 }
 
@@ -80,6 +79,8 @@ export interface BuildBrainContextOutput {
   contextBlocksFired: ContextBlocksFired;
   deeperContextCount: number;
   deeperContextTypes: string[];
+  recalledHits?: any[];
+  detectedContradictions?: any[];
 }
 
 const EMPTY_FIRED: ContextBlocksFired = {
@@ -91,7 +92,7 @@ const EMPTY_FIRED: ContextBlocksFired = {
 export async function buildBrainContext(
   input: BuildBrainContextInput,
 ): Promise<BuildBrainContextOutput> {
-  const { userContent, mode, userEmbedding, contextMemories, prefetchResults, log } = input;
+  const { userContent, mode, userEmbedding, forceRecall, messages, convId, log } = input;
 
   // Apr 19 · Task context injection — fires in parallel with the
   // brain blocks below. Surfaces the live DOING/READY queue so Nick
@@ -120,11 +121,22 @@ export async function buildBrainContext(
 
   let addendum = "";
   let contextBlocksFired: ContextBlocksFired = { ...EMPTY_FIRED };
+  let finalContextMemories: string | null = null;
+  let recalledHits: any[] = [];
+  let detectedContradictions: any[] = [];
 
   try {
     const [
       recallMod, skillsMod, identityMod, ghostMod,
       qualMod, beliefsMod, nudgeMod, concernsMod, anticipatedMod, physicalMod,
+      conversationMemoryMod,
+      contextualRecallMod,
+      predictivePrefetchMod,
+      memoryRecallMod,
+      truthGroundingMod,
+      contradictionInjectorMod,
+      strategicFrameworksMod,
+      anticipatoryRecallMod,
     ] = await Promise.all([
       import("@/lib/brain/chat-recall").catch(() => null),
       import("@/lib/brain/skill-extractor").catch(() => null),
@@ -142,11 +154,28 @@ export async function buildBrainContext(
       // take rides in as warm context (never short-circuits the reply).
       import("@/lib/brain/anticipated-questions").catch(() => null),
       import("@/lib/brain/physical-business").catch(() => null),
+      
+      // Newly moved context mods
+      import("@/lib/brain/conversation-memory").catch(() => null),
+      import("@/lib/brain/contextual-recall").catch(() => null),
+      import("@/lib/ai/predictive-prefetch").catch(() => null),
+      import("@/lib/brain/memory-recall").catch(() => null),
+      import("@/lib/ai/chat/truth-grounding").catch(() => null),
+      import("@/lib/brain/contradiction-injector").catch(() => null),
+      import("@/lib/ai/strategic-frameworks").catch(() => null),
+      import("@/lib/brain/anticipatory-recall").catch(() => null),
     ]);
 
     const [
       recallBlock, skillsBlock, identityBlock, ghostBlock,
       qBlock, bBlock, nBlock, concernsBlock, anticipatedBlock, physicalBlock,
+      threadContext,
+      contextMemories,
+      prefetchResults,
+      hybridRecallReport,
+      groundingBlock,
+      contradictionHit,
+      strategicLensBlock,
     ] = await Promise.all([
       userContent.length > 10 && recallMod
         ? withTimeout(recallMod.buildChatRecallBlock(userContent, mode === "deep" ? 6 : 4), 3000, "")
@@ -185,7 +214,49 @@ export async function buildBrainContext(
       physicalMod
         ? withTimeout(physicalMod.buildPhysicalBusinessContextBlock(), 3000, "")
         : Promise.resolve(""),
+      
+      // Newly moved fetchers
+      (userContent.length > 10 || forceRecall) && conversationMemoryMod
+        ? conversationMemoryMod.detectCrossSessionThread(userContent).catch(() => null)
+        : Promise.resolve(null),
+      (userContent.length > 10 || forceRecall) && contextualRecallMod
+        ? contextualRecallMod.getContextualMemories([userContent], mode === "deep" ? 10 : 5).catch(() => null)
+        : Promise.resolve(null),
+      (userContent.length > 10 || forceRecall) && predictivePrefetchMod
+        ? predictivePrefetchMod.prefetchIntents(userContent).catch(() => [])
+        : Promise.resolve([]),
+      userContent.length > 10 && memoryRecallMod && userEmbedding.length > 0
+        ? memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: mode === "deep" ? 8 : 5 }).catch(() => null)
+        : Promise.resolve(null),
+      truthGroundingMod
+        ? truthGroundingMod.buildTruthGroundingBlock(messages as never).catch(() => null)
+        : Promise.resolve(null),
+      contradictionInjectorMod
+        ? contradictionInjectorMod.findRelevantContradictions({ userMessage: userContent, conversationId: convId }).catch(() => null)
+        : Promise.resolve(null),
+      strategicFrameworksMod
+        ? Promise.resolve(strategicFrameworksMod.composeStrategicLensBlock(userContent))
+        : Promise.resolve(null),
     ]);
+
+    const anticipatoryBlock = anticipatoryRecallMod && contextMemories
+      ? await anticipatoryRecallMod.anticipateMemories(messages as never, contextMemories).catch(() => null)
+      : null;
+    
+    if (strategicLensBlock && strategicFrameworksMod) {
+      import("@/lib/ai/strategic-frameworks/record-lens-fire").then(({ recordLensFire }) => {
+        const matches = strategicFrameworksMod.pickFrameworks(userContent);
+        recordLensFire({ surface: "chat", matches, lensBlockLength: strategicLensBlock.length });
+      }).catch(() => {});
+    }
+
+    const contradictionAlertBlock = contradictionHit && contradictionInjectorMod
+      ? contradictionInjectorMod.buildContradictionAlertBlock(contradictionHit)
+      : null;
+
+    const hybridRecallBlock = hybridRecallReport && memoryRecallMod
+      ? memoryRecallMod.formatRecallForPrompt(hybridRecallReport.hits)
+      : null;
 
     // Apr 19 · Task queue injection. Runs in the same promise race
     // (started at taskContextPromise above), so it's free time-wise.
@@ -211,6 +282,14 @@ export async function buildBrainContext(
       { name: "anticipated", content: anticipatedBlock },
       { name: "physical", content: physicalBlock },
       { name: "tasks", content: taskBlock },
+      { name: "Cross-Session Thread", content: threadContext ? `# CROSS-SESSION THREAD\n${threadContext.slice(0, 1000)}` : "", critical: true },
+      { name: "Context Memories", content: contextMemories ? `# CONTEXT MEMORIES\n${contextMemories.slice(0, mode === "deep" ? 2000 : 1000)}` : "", critical: true },
+      { name: "Anticipated Memories", content: anticipatoryBlock || "" },
+      { name: "Hybrid Recall", content: hybridRecallBlock ? `# ${hybridRecallBlock}` : "" },
+      { name: "Truth Grounding", content: groundingBlock || "", critical: true },
+      { name: "Contradiction Alert", content: contradictionAlertBlock || "", critical: true },
+      { name: "Strategic Lens", content: strategicLensBlock || "", critical: true },
+      { name: "Predictive Prefetch", content: prefetchResults?.length ? formatPrefetchContext(prefetchResults as PrefetchResult[]) || "" : "", critical: true }
     ].filter((b) => b.content && b.content.trim().length > 0);
 
     let reranked: Awaited<ReturnType<typeof rerankContextBlocks>> = rawBlocks.map((b) => ({
@@ -218,6 +297,7 @@ export async function buildBrainContext(
       content: b.content,
       similarity: 0,
       kept: true,
+      critical: b.critical,
     }));
     if (userEmbedding.length > 0 && rawBlocks.length > 1) {
       try {
@@ -247,11 +327,16 @@ export async function buildBrainContext(
       qualitative: !!qBlock,
       beliefs: !!bBlock,
       nudges: !!nBlock,
-      contradictions: !!(nBlock && /contradiction/i.test(nBlock)),
+      contradictions: !!(nBlock && /contradiction/i.test(nBlock)) || !!contradictionAlertBlock,
       concerns: !!concernsBlock,
       anticipated: !!anticipatedBlock,
       physical: !!physicalBlock,
+      hybridRecall: !!hybridRecallBlock,
     };
+    
+    finalContextMemories = contextMemories;
+    if (hybridRecallReport) recalledHits = hybridRecallReport.hits;
+    if (contradictionHit) detectedContradictions = [contradictionHit];
 
     log.info("brain_blocks_assembled", {
       recall: !!recallBlock,
@@ -261,6 +346,7 @@ export async function buildBrainContext(
       qualitative: !!qBlock,
       beliefs: !!bBlock,
       nudges: !!nBlock,
+      hybridRecall: !!hybridRecallBlock,
     });
   } catch (err) {
     log.warn("brain_blocks_failed", { err: err instanceof Error ? err.message : String(err) });
@@ -274,10 +360,10 @@ export async function buildBrainContext(
   // ChatMessage.tokenUsage for history-aware rendering.
   let deeperContextCount = 0;
   const deeperContextTypes: string[] = [];
-  if (contextMemories) {
-    const deeperIdx = contextMemories.indexOf("### Deeper Context");
+  if (finalContextMemories) {
+    const deeperIdx = finalContextMemories.indexOf("### Deeper Context");
     if (deeperIdx >= 0) {
-      const deeperSection = contextMemories.slice(deeperIdx);
+      const deeperSection = finalContextMemories.slice(deeperIdx);
       const matches = deeperSection.match(/\[(Strategic Laws|Reflections|Brain Dumps|Past Replies)[^\]]*\]/g) ?? [];
       deeperContextCount = matches.length;
       const typeSet = new Set<string>();
@@ -292,21 +378,16 @@ export async function buildBrainContext(
       });
     }
   }
-  if (prefetchResults && prefetchResults.length > 0) {
-    const prefetchBlock = formatPrefetchContext(prefetchResults);
-    if (prefetchBlock) {
-      addendum += `\n\n${prefetchBlock}`;
-      log.info("predictive_prefetch", {
-        blockCount: prefetchResults.length,
-        labels: prefetchResults.map((r) => r.label),
-      });
-    }
-  }
+  
+  // Note: Predictive prefetch formatting is already handled up in the rawBlocks assembly,
+  // so we don't manually append it again here.
 
   return {
     systemPromptAddendum: addendum,
     contextBlocksFired,
     deeperContextCount,
     deeperContextTypes,
+    recalledHits,
+    detectedContradictions,
   };
 }
