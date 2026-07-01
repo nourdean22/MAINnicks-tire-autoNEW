@@ -36,28 +36,9 @@ import { MissionTaskRow } from "./mission-task-row";
 export interface MissionFeedProps {
   missions: Project[];
   tasks: Task[];
-  onAddTask: (
-    payload: { title: string; missionId: string },
-  ) => void | Promise<void>;
-  onCompleteTask: (id: string) => void | Promise<void>;
-  onStartTask?: (id: string) => void | Promise<void>;
-  onDeleteTask?: (id: string) => void | Promise<void>;
-  onCompleteMission?: (missionId: string) => void | Promise<void>;
-  onArchiveMission?: (missionId: string) => void | Promise<void>;
-  onEditMission?: (missionId: string) => void;
-  onEditTask?: (task: Task) => void;
   /** Phase 2 · per-mission Nick's-pick task id + rationale, keyed by
    *  mission id. */
   nicksPicks?: Record<string, { taskId: string; rationale: string }>;
-  /** Wave AJ · 2026-05-28 · ↑/↓ reorder · the feed passes through to
-   *  MissionCard with index + total computed from activeMissions.
-   *  The page owns the tRPC mutation that writes the new rank. */
-  onMoveMission?: (missionId: string, direction: "up" | "down") => void;
-  onMoveTask?: (taskId: string, direction: "up" | "down") => void;
-  /** Wave AV · 2026-05-28 · DAILY task snooze · passes through to each
-   *  MissionCard → MissionTaskRow · page wires task.update mutation. */
-  onSnoozeTask?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
-  onDecomposeTask?: (id: string) => void | Promise<void>;
   autonomicHealth?: {
     lastRunAt: string | null;
     status: string | null;
@@ -65,24 +46,15 @@ export interface MissionFeedProps {
   };
 }
 
+import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
+
 export function MissionFeed({
   missions,
   tasks,
-  onAddTask,
-  onCompleteTask,
-  onStartTask,
-  onDeleteTask,
-  onCompleteMission,
-  onArchiveMission,
-  onEditMission,
-  onEditTask,
   nicksPicks,
-  onMoveMission,
-  onMoveTask,
-  onSnoozeTask,
-  onDecomposeTask,
   autonomicHealth,
 }: MissionFeedProps) {
+  const actions = useMissionDispatch();
   const { activeMissions, tasksByMission, unattached } = useMemo(() => {
     const activeMissions = missions
       .filter((m) => m.status === "ACTIVE" && isUserProject(m))
@@ -155,12 +127,12 @@ export function MissionFeed({
       if (targetIndex < sourceIndex) {
         // Moving up
         for (let i = sourceIndex; i > targetIndex; i--) {
-          await onMoveMission?.(mission.id, "up");
+          await actions.handleMoveMission(mission.id, "up");
         }
       } else {
         // Moving down
         for (let i = sourceIndex; i < targetIndex; i++) {
-          await onMoveMission?.(mission.id, "down");
+          await actions.handleMoveMission(mission.id, "down");
         }
       }
     } catch (err) {
@@ -289,22 +261,11 @@ export function MissionFeed({
               mission={mission}
               tasks={tasksByMission.get(mission.id) ?? []}
               defaultExpanded={activeMissions.length <= 3}
-              onAddTask={onAddTask}
-              onCompleteTask={onCompleteTask}
-              onStartTask={onStartTask}
-              onDeleteTask={onDeleteTask}
-              onCompleteMission={onCompleteMission}
-              onArchiveMission={onArchiveMission}
-              onEditMission={onEditMission}
-              onEditTask={onEditTask}
               nicksPickTaskId={nicksPicks?.[mission.id]?.taskId}
               nicksPickRationale={nicksPicks?.[mission.id]?.rationale}
-              index={missionIdx}
+              missionIdx={missionIdx}
               totalMissions={activeMissions.length}
-              onMoveMission={onMoveMission}
-              onMoveTask={onMoveTask}
-              onSnoozeTask={onSnoozeTask}
-              onDecomposeTask={onDecomposeTask}
+              isDragged={draggedMissionIdx === missionIdx}
               isDraggedOver={draggedOverMissionIdx === missionIdx}
               onDragStart={(e) => handleMissionDragStart(e, missionIdx)}
               onDragOver={(e) => handleMissionDragOver(e, missionIdx)}
@@ -341,12 +302,6 @@ export function MissionFeed({
               <MissionTaskRow
                 key={task.id}
                 task={task}
-                onComplete={onCompleteTask}
-                onStart={onStartTask}
-                onDelete={onDeleteTask}
-                onEdit={onEditTask}
-                onSnooze={onSnoozeTask}
-                onDecompose={onDecomposeTask}
               />
             ))}
           </div>
