@@ -17,4 +17,4 @@ jobs:
         # is enabled in Settings -> Security & analysis, at which point this
         # begins reporting real findings without gating every PR.
         continue-on-error: true
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
