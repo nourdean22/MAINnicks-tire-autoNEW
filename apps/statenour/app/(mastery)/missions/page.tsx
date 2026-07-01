@@ -86,9 +86,16 @@ function MissionsPageInner() {
   const utils = trpc.useUtils();
   const tasksQuery = trpc.task.list.useQuery(
     {},
-    { refetchOnWindowFocus: false },
+    {
+      // v10.0.530 · poll every 15 s so tasks Nick creates via chat
+      // appear on /missions without a hard refresh. Pre-fix the page
+      // never auto-refetched tasks (only health had a 30s interval).
+      refetchInterval: 15_000,
+      refetchOnWindowFocus: false,
+    },
   );
   const missionsQuery = trpc.task.missions.useQuery(undefined, {
+    refetchInterval: 30_000,
     refetchOnWindowFocus: false,
   });
   const healthQuery = trpc.system.healthSummary.useQuery(undefined, {
