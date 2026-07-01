@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Dependency Review
         # Non-blocking: the repo does not have GitHub Dependency Graph
         # enabled, so this action errors with "Dependency review is not
