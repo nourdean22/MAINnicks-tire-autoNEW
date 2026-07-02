@@ -61,6 +61,7 @@ COPY --from=deps /repo/apps/statenour/node_modules ./apps/statenour/node_modules
 COPY --from=deps /repo/packages/utils/node_modules ./packages/utils/node_modules
 COPY --from=deps /repo/packages/lenses/node_modules ./packages/lenses/node_modules
 COPY --from=deps /repo/packages/social-assets/node_modules ./packages/social-assets/node_modules
+COPY --from=deps /repo/packages/ai-capabilities/node_modules ./packages/ai-capabilities/node_modules
 
 # Copy full pruned source files
 COPY --from=pruner /app/out/full/ ./
@@ -69,6 +70,7 @@ COPY --from=pruner /app/out/full/ ./
 RUN pnpm --filter @nour/utils run build
 RUN pnpm --filter @statenour/lenses run build
 RUN pnpm --filter @nour/social-assets run build
+RUN pnpm --filter @nour/ai-capabilities run build
 
 # Build the Next.js app · produces apps/statenour/.next/standalone/
 ENV NODE_ENV=production
