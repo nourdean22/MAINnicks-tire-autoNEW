@@ -19,7 +19,7 @@ Write-Host "Only run this if it's your first time or your session expired." -For
 $response = Read-Host "Run authentication now? (y/N)"
 if ($response -eq 'y') {
     Write-Host "Running: npx notebooklm-mcp-auth..." -ForegroundColor Cyan
-    npx notebooklm-mcp-auth
+    npx -y --package=notebooklm-mcp-server notebooklm-mcp-auth
 }
 
 Write-Host ""
@@ -29,7 +29,8 @@ Write-Host ""
 
 # Note: notebooklm-mcp-server might need specific flags for SSE transport.
 # We run it in the background so we can also start the tunnel.
-$mcpProcess = Start-Process -NoNewWindow -PassThru -FilePath "npx" -ArgumentList "notebooklm-mcp-server --transport sse --port $Port"
+$npxCmd = (Get-Command npx).Source
+$mcpProcess = Start-Process -NoNewWindow -PassThru -FilePath $npxCmd -ArgumentList "-y --package=notebooklm-mcp-server notebooklm-mcp-server --transport sse --port $Port"
 
 Start-Sleep -Seconds 3
 
