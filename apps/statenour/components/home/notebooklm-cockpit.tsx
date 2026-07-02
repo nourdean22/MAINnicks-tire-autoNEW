@@ -117,13 +117,16 @@ export function NotebookLMCockpit() {
       <div className="relative z-10 flex-1 flex flex-col justify-center">
         {health === "connected" ? (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 rounded bg-black/40 px-3 py-2.5 border border-white/5 focus-within:border-[var(--gold)]/50 transition-colors shadow-inner">
-              <Search className="h-4 w-4 text-[var(--gold)]/40" />
-              <input 
-                type="text" 
-                placeholder="Ask NotebookLM..." 
-                className="w-full bg-transparent text-sm text-white/90 outline-none placeholder:text-white/30 font-mono" 
-              />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <a 
+                href="https://notebooklm.google.com/notebook/f693fd67-77a6-47d9-8cdd-bfd187807f02" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-2 rounded bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/20 hover:text-[var(--gold)] px-3 py-2.5 border border-[var(--gold)]/30 transition-colors shadow-[0_0_15px_rgba(255,215,0,0.05)] text-[10px] font-mono font-bold uppercase tracking-wider"
+              >
+                <Search className="h-3 w-3" />
+                Open NotebookLM Workspace
+              </a>
             </div>
             
             <div 
