@@ -27,10 +27,8 @@ Write-Host "[2/3] Starting NotebookLM MCP Server on port $Port..." -ForegroundCo
 Write-Host "(Press Ctrl+C at any time to stop both the server and the tunnel)" -ForegroundColor Gray
 Write-Host ""
 
-# Note: notebooklm-mcp-server might need specific flags for SSE transport.
-# We run it in the background so we can also start the tunnel.
-# Use cmd.exe to launch npx to avoid Win32 application errors on Windows
-$mcpProcess = Start-Process -NoNewWindow -PassThru -FilePath "cmd.exe" -ArgumentList "/c npx -y --package=notebooklm-mcp-server notebooklm-mcp-server --transport sse --port $Port"
+# Use mcp-proxy to wrap the stdio server and expose an SSE endpoint
+$mcpProcess = Start-Process -NoNewWindow -PassThru -FilePath "cmd.exe" -ArgumentList "/c npx -y mcp-proxy --port $Port --shell -- npx -y --package=notebooklm-mcp-server notebooklm-mcp-server"
 Start-Sleep -Seconds 3
 
 if ($mcpProcess.HasExited) {
