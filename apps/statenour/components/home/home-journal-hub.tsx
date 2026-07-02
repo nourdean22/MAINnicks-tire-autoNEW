@@ -147,7 +147,7 @@ export function HomeJournalHub() {
             >
               <div className="space-y-2">
                 <span className="text-[9px] font-mono uppercase tracking-widest text-[var(--gold)]/60 group-hover:text-[var(--gold)]/90 transition-colors block">
-                  extracted next move
+                  extracted next move (projected)
                   {nextAction.domain && <span className="ml-1.5 text-zinc-500">#{nextAction.domain}</span>}
                 </span>
                 <p className="text-[14px] font-medium text-zinc-200 leading-snug break-words group-hover:text-white transition-colors">

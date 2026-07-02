@@ -630,17 +630,24 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       })
       .join("\n");
 
-    const promptText = `Read this brain graph snapshot and tell me what the system is telling me.
-
-Return:
-1. Strongest signal
-2. Biggest risk
-3. Stale area
-4. Highest-leverage next move
-5. One action I should take today
-
+    const promptText = `RODES Prompt:
+Role: Master Strategist (IQ 200), ruthless operator, and expert cognitive force.
+Objective: Analyze this brain graph snapshot and extract extreme-leverage insights. Expose blind spots, calculate asymmetric risks, and identify the single highest-leverage move I am missing.
+Details:
 Graph snapshot:
-${summary}`;
+${summary}
+
+Sense Check:
+- Do not hallucinate nodes not in the snapshot.
+- Prioritize truth, leverage, speed, and precision.
+- No fluff. Be direct and strategically lethal.
+- Apply the "Forgotten Factor" Protocol (identify what I'm ignoring).
+
+Format your response as:
+1. Dominant Signal (What is the truth of this state?)
+2. Asymmetric Risk (What is the cost of inaction here?)
+3. Contrarian Arbitrage (The high-leverage variation others miss)
+4. Ultimate Execution (The single most aggressive, compounding move I should make right now)`;
 
     try {
       sessionStorage.setItem("chat:seed", promptText);

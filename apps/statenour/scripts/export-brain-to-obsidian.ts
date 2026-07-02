@@ -437,7 +437,8 @@ async function main() {
         let body = `# 🧠 Brain Memories: ${cleanCatName}\n\n`;
         body += `*Last Synced: ${new Date().toLocaleString()}*\n\n`;
 
-        for (const mem of catMemories) {
+        // Cap to 100 most recent items to prevent Obsidian from freezing on huge files
+        for (const mem of catMemories.slice(0, 100)) {
           body += `## Key: ${mem.key}\n`;
           body += `- **Created:** ${mem.createdAt.toLocaleString()}\n`;
           body += `- **Confidence:** ${mem.confidence}\n\n`;

@@ -176,7 +176,7 @@ describe("A6 · Settings GroupHeading declares role=region landmark", () => {
     // to / skip past. The page is a "use client" tRPC shell that can't
     // SSR in isolation, so we lock the contract source-side · the SAME
     // pattern as the A6 ticker tests + A7 ReasoningTrace above.
-    const src = readSource("app/(mastery)/settings/page.tsx");
+    const src = readSource("components/settings/settings-console.tsx");
     expect(src).toContain("const headingId = useId();");
     // Each divider is a navigable landmark labelled by its own heading.
     expect(src).toContain('role="region"');
