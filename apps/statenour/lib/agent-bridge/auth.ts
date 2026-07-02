@@ -1,5 +1,5 @@
 export function assertBridgeAuth(req: Request) {
-  if (process.env.AGENT_BRIDGE_ENABLED !== "true" && process.env.MCP_ENABLED !== "true") {
+  if (process.env.AGENT_BRIDGE_ENABLED !== "true") {
     throw new Error("Agent Bridge is disabled.");
   }
   
@@ -9,8 +9,7 @@ export function assertBridgeAuth(req: Request) {
   }
   
   const token = authHeader.split(" ")[1];
-  // Support both token names during migration
-  const secret = process.env.AGENT_BRIDGE_SECRET_TOKEN || process.env.MCP_SECRET_TOKEN;
+  const secret = process.env.AGENT_BRIDGE_SECRET_TOKEN;
   
   if (!secret) {
     throw new Error("Server configuration error: AGENT_BRIDGE_SECRET_TOKEN is missing. Failing closed.");
