@@ -397,7 +397,13 @@ async function main() {
           OR: [
             { key: { startsWith: "obsidian_" } },
             { category: "morning_brief_audio" },
-            { category: "suggestion_hypothesis" }
+            { category: "suggestion_hypothesis" },
+            { category: "ARCHIVE_DOCUMENT" },
+            { category: "GMAIL_THREAD" },
+            { category: "GMAIL_OUTGOING" },
+            { category: "archive_document" },
+            { category: "gmail_thread" },
+            { category: "gmail_outgoing" }
           ]
         }
       },
