@@ -189,9 +189,9 @@ export async function pruneTools(
   // Brain / recall / memory / wisdom / decisions
   // Triggers Nour uses constantly · "what did I", "remember when",
   // "what would Greene say", "skills I have", "previous decision",
-  // "simulate", "anti-pattern"
-  if (/\b(remember|recall|what did i|what was the|previous|last time|history|conversation|chat history|skills i|my skills|greene|laws? of|wisdom|advise me|simulate|anti.?pattern|cold memory|blind spots?|decision (history|replay|journal)|reflect|reflection|brain health|emotional state|contradict|which is current|current belief|changed my mind|i was wrong|never mind|scratch that|i still believe)\b/.test(text)) {
-    addMatching(/search|memory|conversation|reflection|greene|wisdom|simulate|anti.?pattern|brain|emotional|decision|skill|cold|contradiction|resolveContradiction/i);
+  // "simulate", "anti-pattern", "notebooklm"
+  if (/\b(remember|recall|what did i|what was the|previous|last time|history|conversation|chat history|skills i|my skills|greene|laws? of|wisdom|advise me|simulate|anti.?pattern|cold memory|blind spots?|decision (history|replay|journal)|reflect|reflection|brain health|emotional state|contradict|which is current|current belief|changed my mind|i was wrong|never mind|scratch that|i still believe|notebooklm|notebook|notebook lm)\b/.test(text)) {
+    addMatching(/search|memory|conversation|reflection|greene|wisdom|simulate|anti.?pattern|brain|emotional|decision|skill|cold|contradiction|resolveContradiction|notebooklm/i);
   }
 
   // Code / repo / GitHub / deploy
