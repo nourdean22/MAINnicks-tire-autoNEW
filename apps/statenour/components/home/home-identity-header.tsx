@@ -4,6 +4,8 @@ import { Brain, Activity, Clock, Zap, ShieldAlert, Inbox } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import Link from "next/link";
 import { useCommanderGreeting } from "@/lib/hooks/use-commander-greeting";
+import { NicksMorningBrief } from "@/components/missions/nicks-morning-brief";
+import { HomeStatePulse } from "@/components/home/home-state-pulse";
 
 export function HomeIdentityHeader() {
   const { todayStr, timeStr, greeting } = useCommanderGreeting();
@@ -48,9 +50,9 @@ export function HomeIdentityHeader() {
             <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-zinc-200 to-zinc-400">
               {greeting}, Nour.
             </h1>
-            <p className="mt-2 text-sm text-zinc-400 max-w-xl">
-              All systems online. The intelligence engine is primed and waiting for commands.
-            </p>
+            <div className="mt-2 flex items-center h-6">
+              <HomeStatePulse />
+            </div>
           </div>
         </div>
 
@@ -96,6 +98,10 @@ export function HomeIdentityHeader() {
             )}
           </div>
         </div>
+      </div>
+      
+      <div className="relative z-10 mt-6 border-t border-[var(--gold)]/10 pt-4">
+        <NicksMorningBrief />
       </div>
     </section>
   );
