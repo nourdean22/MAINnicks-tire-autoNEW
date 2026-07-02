@@ -29,9 +29,8 @@ Write-Host ""
 
 # Note: notebooklm-mcp-server might need specific flags for SSE transport.
 # We run it in the background so we can also start the tunnel.
-$npxCmd = (Get-Command npx).Source
-$mcpProcess = Start-Process -NoNewWindow -PassThru -FilePath $npxCmd -ArgumentList "-y --package=notebooklm-mcp-server notebooklm-mcp-server --transport sse --port $Port"
-
+# Use cmd.exe to launch npx to avoid Win32 application errors on Windows
+$mcpProcess = Start-Process -NoNewWindow -PassThru -FilePath "cmd.exe" -ArgumentList "/c npx -y --package=notebooklm-mcp-server notebooklm-mcp-server --transport sse --port $Port"
 Start-Sleep -Seconds 3
 
 if ($mcpProcess.HasExited) {
