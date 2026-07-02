@@ -1,5 +1,5 @@
 import { streamText, convertToModelMessages } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { getModel } from '@/lib/ai/provider';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
@@ -30,8 +30,8 @@ Rules for this interaction:
 DO NOT output markdown headers unless necessary. DO NOT be robotic. Be human, brilliant, and deeply aligned with Nour's success.
     `;
 
-    // Normalize messages because `sendMessage({ text: '...' })` sends `text` directly without `parts`,
-    // which causes `convertToModelMessages` to crash with "Cannot read properties of undefined (reading 'map')"
+    // Normalize messages because \`sendMessage({ text: '...' })\` sends \`text\` directly without \`parts\`,
+    // which causes \`convertToModelMessages\` to crash with "Cannot read properties of undefined (reading 'map')"
     const normalizedMessages = messages.map((m: any) => {
       if (m.parts) return m;
       if (m.content) return { ...m, parts: [{ type: 'text', text: m.content }] };
@@ -40,7 +40,7 @@ DO NOT output markdown headers unless necessary. DO NOT be robotic. Be human, br
     });
 
     const result = await streamText({
-      model: openai('gpt-4o'),
+      model: getModel('reason'),
       messages: await convertToModelMessages(normalizedMessages),
       system: systemPrompt,
       temperature: 0.8, // Slightly higher for creativity
