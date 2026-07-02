@@ -30,9 +30,18 @@ Rules for this interaction:
 DO NOT output markdown headers unless necessary. DO NOT be robotic. Be human, brilliant, and deeply aligned with Nour's success.
     `;
 
+    // Normalize messages because `sendMessage({ text: '...' })` sends `text` directly without `parts`,
+    // which causes `convertToModelMessages` to crash with "Cannot read properties of undefined (reading 'map')"
+    const normalizedMessages = messages.map((m: any) => {
+      if (m.parts) return m;
+      if (m.content) return { ...m, parts: [{ type: 'text', text: m.content }] };
+      if (m.text) return { ...m, parts: [{ type: 'text', text: m.text }] };
+      return { ...m, parts: [{ type: 'text', text: '' }] };
+    });
+
     const result = await streamText({
       model: openai('gpt-4o'),
-      messages: await convertToModelMessages(messages),
+      messages: await convertToModelMessages(normalizedMessages),
       system: systemPrompt,
       temperature: 0.8, // Slightly higher for creativity
     });
