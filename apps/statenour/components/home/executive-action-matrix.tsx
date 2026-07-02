@@ -218,7 +218,7 @@ export function ExecutiveActionMatrix() {
           <div className="flex items-center gap-2 border-b border-[var(--gold)]/10 pb-3 mb-4">
             <button onClick={() => setActiveTab("triage")} className={cn("text-[9px] font-mono uppercase tracking-widest px-2.5 py-1.5 rounded transition", activeTab === "triage" ? "bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/20" : "text-white/40 hover:text-white/70")}>Triage ({inboxCount})</button>
             <button onClick={() => setActiveTab("hygiene")} className={cn("text-[9px] font-mono uppercase tracking-widest px-2.5 py-1.5 rounded transition", activeTab === "hygiene" ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" : "text-white/40 hover:text-white/70")}>Drift ({findingsCount})</button>
-            <button onClick={() => setActiveTab("suggestions")} className={cn("text-[9px] font-mono uppercase tracking-widest px-2.5 py-1.5 rounded transition", activeTab === "suggestions" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" : "text-white/40 hover:text-white/70")}>AI Ops ({movesCount})</button>
+            <button onClick={() => setActiveTab("suggestions")} className={cn("text-[9px] font-mono uppercase tracking-widest px-2.5 py-1.5 rounded transition", activeTab === "suggestions" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" : "text-white/40 hover:text-white/70")}>AI Ops (Projected: {movesCount})</button>
           </div>
 
           <div className="flex-1 overflow-y-auto min-h-[220px] max-h-[300px] scrollbar-thin">
