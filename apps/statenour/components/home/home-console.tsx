@@ -1,7 +1,7 @@
 "use client";
 
 import { HomeIdentityHeader } from "./home-identity-header";
-import { HomeNickDock } from "./home-nick-dock";
+import { CognitivePartner } from "./cognitive-partner";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { FollowUpsList } from "./follow-ups-list";
 import { ExecutiveActionMatrix } from "./executive-action-matrix";
@@ -15,7 +15,7 @@ export function HomeConsole() {
       {/* 1. Identity & Operator Vitals */}
       <section aria-label="Operator Identity" className="space-y-4">
         <HomeIdentityHeader />
-        <HomeNickDock />
+        <CognitivePartner />
       </section>
 
       {/* 2. Elite Command Center */}

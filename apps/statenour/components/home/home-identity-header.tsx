@@ -4,7 +4,6 @@ import { Brain, Activity, Clock, Zap, ShieldAlert, Inbox } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import Link from "next/link";
 import { useCommanderGreeting } from "@/lib/hooks/use-commander-greeting";
-import { NicksMorningBrief } from "@/components/missions/nicks-morning-brief";
 import { HomeStatePulse } from "@/components/home/home-state-pulse";
 
 export function HomeIdentityHeader() {
@@ -98,10 +97,6 @@ export function HomeIdentityHeader() {
             )}
           </div>
         </div>
-      </div>
-      
-      <div className="relative z-10 mt-6 border-t border-[var(--gold)]/10 pt-4">
-        <NicksMorningBrief />
       </div>
     </section>
   );
