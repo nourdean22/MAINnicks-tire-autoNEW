@@ -192,7 +192,7 @@ function startWatcher() {
   }
 
   // Heartbeat interval (updates lastRunAt timestamp every 30s to signal daemon is active)
-  setInterval(() => {
+  setInterval(async () => {
     try {
       const existingStatus = readEngineStatus();
       if (existingStatus) {
