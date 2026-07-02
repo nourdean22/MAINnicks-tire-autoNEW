@@ -184,18 +184,18 @@ export function buildReconcileSeed(
 export function ContradictionsCard() {
   // Phase B.6c (2026-05-22) · migrated off `useUltronFetch("/api/system/
   // contradictions?days=14&includeResolved=true")` + an `authedFetch`
-  // POST onto `trpc.system.contradictions` (reactive read · 5-min
-  // refetchInterval) + `trpc.system.resolveContradiction` (mutation).
+  // POST onto `trpc.systemBrain.contradictions` (reactive read · 5-min
+  // refetchInterval) + `trpc.systemBrain.resolveContradiction` (mutation).
   // The legacy `?days=14&includeResolved=true` query string is now a
   // typed input object. The procedure returns `{ items, summary }`
   // directly · the legacy envelope unwrap is gone. The `key` path param
   // now rides in the mutation input object (tRPC has no path).
-  const contra = trpc.system.contradictions.useQuery(
+  const contra = trpc.systemBrain.contradictions.useQuery(
     { days: 14, includeResolved: true },
     { refetchInterval: 300_000, staleTime: 300_000 }
   );
   const utils = trpc.useUtils();
-  const resolveMutation = trpc.system.resolveContradiction.useMutation();
+  const resolveMutation = trpc.systemBrain.resolveContradiction.useMutation();
 
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [note, setNote] = useState("");

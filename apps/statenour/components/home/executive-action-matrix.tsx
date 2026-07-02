@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
-import { ArrowRight, ShieldAlert, Zap, Target, CheckCircle2, Inbox, Sparkles } from "lucide-react";
+import { ArrowRight, ShieldAlert, Zap, Target, CheckCircle2, Inbox, Sparkles, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { InboxTasksTriage } from "./inbox-tasks-triage";
 import { InboxTriageCard } from "./inbox-triage-card";
@@ -26,7 +26,6 @@ const EMPTY_TASKS: Task[] = [];
 const EMPTY_STATS: StatLevel[] = [];
 
 export function ExecutiveActionMatrix() {
-  const [activeTab, setActiveTab] = useState<"triage" | "hygiene" | "suggestions">("triage");
   const [movesCount, setMovesCount] = useState(0);
 
   // 1. Core Data
@@ -66,186 +65,159 @@ export function ExecutiveActionMatrix() {
     return () => { cancelled = true; };
   }, []);
 
-  // 2. Synthesize Executive Summary
-  const summary = useMemo(() => {
-    if (tasksQuery.isLoading || ccStateQuery.isLoading) return null;
+  // 2. Synthesize AI Operator Briefing (200 IQ Pass)
+  const aiBriefing = useMemo(() => {
+    if (tasksQuery.isLoading || ccStateQuery.isLoading || nextMoveQuery.isLoading) {
+      return { status: "loading", title: "ANALYZING...", message: "Calculating asymmetric leverage...", actionType: "loading", color: "text-[var(--text-tertiary)]" };
+    }
 
     const activeTaskId = ccStateQuery.data?.commands?.active?.id;
     const doingTask = activeTaskId ? tasks.find((t) => t.id === activeTaskId) : undefined;
-    
-    let modeLabel = "System Planning";
-    let modeColor = "text-[var(--text-tertiary)] border-[var(--border-default)] bg-[var(--bg-base)]/40";
-    let modeIcon = Target;
+    const criticalFew = nextMoveQuery.data?.criticalFew || [];
 
     if (doingTask) {
-      modeLabel = "Execution Mode";
-      modeColor = "text-[var(--gold)] border-[var(--gold)]/30 bg-[var(--gold)]/5";
-      modeIcon = Zap;
-    } else if (activeTasks.length > 0) {
-      modeLabel = "Strategic Progress";
-      modeColor = "text-cyan-400 border-cyan-500/30 bg-cyan-500/5";
-      modeIcon = Target;
+      return {
+        status: "executing",
+        title: "ACTIVE ENGAGEMENT",
+        message: `Nour, you are currently executing [${doingTask.title}]. Maintain focus and close the loop. Do not context switch until completion.`,
+        actionType: "execute",
+        color: "text-[var(--gold)]"
+      };
     }
 
-    const nextRep = stats.length > 0 
-      ? stats.reduce<StatLevel | null>((best, x) => (x.progressPct > (best?.progressPct ?? 0) ? x : best), null)
-      : null;
+    if (findingsCount >= 3) {
+      return {
+        status: "critical",
+        title: "SYSTEM DRIFT DETECTED",
+        message: `Nour, your system drift is compounding (${findingsCount} unresolved flaws). The cost of inaction is severe technical debt. Halt revenue operations and clear the hygiene queue immediately.`,
+        actionType: "hygiene",
+        color: "text-rose-400"
+      };
+    }
 
-    const completedToday = tasks.filter(
-      (t) => t.status === "DONE" && t.lastCompletedAt && new Date(t.lastCompletedAt).toDateString() === new Date().toDateString()
-    ).length;
+    if (inboxCount >= 7) {
+      return {
+        status: "warning",
+        title: "INBOX OVERFLOW",
+        message: `Nour, you are bleeding leverage. Your inbox has ${inboxCount} unclassified raw items. Unprocessed material creates cognitive drag. Triage now to reveal hidden bottlenecks.`,
+        actionType: "triage",
+        color: "text-amber-400"
+      };
+    }
+
+    if (criticalFew.length > 0) {
+      const target = criticalFew[0];
+      return {
+        status: "nominal",
+        title: "SYSTEMS NOMINAL",
+        message: `Hygiene is clear. The Focus Lane is open. The highest leverage asymmetric move is to execute [${target.title}] (Expected ROI: ~${target.roiScore} est.). *(Projected calculation, unverified hypothesis)*.`,
+        actionType: "execute",
+        color: "text-cyan-400"
+      };
+    }
 
     return {
-      mode: { label: modeLabel, color: modeColor, Icon: modeIcon },
-      doingTask,
-      nextRep,
-      completedToday,
-      criticalFew: nextMoveQuery.data?.criticalFew || [],
+      status: "idle",
+      title: "ALL QUEUES CLEAR",
+      message: `You are operating at peak operational efficiency. Awaiting your next command to expand the empire.`,
+      actionType: "suggestions",
+      color: "text-emerald-400"
     };
-  }, [tasks, stats, ccStateQuery.data, nextMoveQuery.data, tasksQuery.isLoading, ccStateQuery.isLoading, activeTasks.length]);
+  }, [tasks, findingsCount, inboxCount, ccStateQuery.data, nextMoveQuery.data, tasksQuery.isLoading, ccStateQuery.isLoading, nextMoveQuery.isLoading]);
 
-  if (!summary) {
+  // 3. Execution Engine UI
+  const completedToday = tasks.filter(
+    (t) => t.status === "DONE" && t.lastCompletedAt && new Date(t.lastCompletedAt).toDateString() === new Date().toDateString()
+  ).length;
+
+  if (aiBriefing.status === "loading") {
     return <div className="h-48 rounded-xl border border-[var(--gold)]/10 bg-black/40 animate-pulse" aria-hidden />;
   }
 
-  const { mode, doingTask, nextRep, completedToday, criticalFew } = summary;
+  const criticalFew = nextMoveQuery.data?.criticalFew || [];
 
   return (
-    <div className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-black border border-[var(--gold)]/10 rounded-xl p-0 shadow-2xl animate-fade-in-scale">
-      {/* Background radial accent glow for premium look */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-48 bg-[var(--gold)]/5 rounded-full blur-[80px] pointer-events-none" />
+    <div className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-black border border-[var(--gold)]/10 rounded-xl p-0 shadow-2xl animate-fade-in-scale flex flex-col">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-48 bg-[var(--gold)]/10 rounded-full blur-[100px] pointer-events-none" />
 
-      {/* Top Header Row */}
-      <div className="relative px-5 py-3 border-b border-[var(--gold)]/10 flex items-center justify-between">
+      {/* Top Header Row - The AI Briefing */}
+      <div className="relative p-6 border-b border-[var(--gold)]/15 bg-black/40 space-y-3 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--gold)]">
-            Executive Matrix
+          <Sparkles size={14} className={cn("pulse-live", aiBriefing.color)} />
+          <h2 className={cn("text-xs font-mono uppercase tracking-[0.2em]", aiBriefing.color)}>
+            {aiBriefing.title}
           </h2>
-          <span className={cn(
-            "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm border text-[9px] font-mono uppercase tracking-widest",
-            mode.color
-          )}>
-            <mode.Icon size={10} className="pulse-live" />
-            {mode.label}
-          </span>
         </div>
-        <div className="flex items-center gap-2">
-          {inboxCount > 0 && (
-            <span className="text-[10px] font-mono text-amber-500/80 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-              {inboxCount} Triage
-            </span>
-          )}
-          {findingsCount > 0 && (
-            <span className="text-[10px] font-mono text-rose-500/80 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-              {findingsCount} Drift
-            </span>
-          )}
-        </div>
+        <p className="text-[13px] leading-relaxed text-white/80 font-medium max-w-2xl">
+          {aiBriefing.message}
+        </p>
       </div>
 
-      <div className="relative grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-[var(--gold)]/10">
+      <div className="relative flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-[var(--gold)]/10">
         
-        {/* Left Side: Strategic Execution */}
-        <div className="p-5 space-y-5">
-          <div className="space-y-3">
-            <h3 className="text-[10px] font-mono uppercase tracking-widest text-[var(--text-tertiary)] flex justify-between items-center">
-              <span>Tactical Execution</span>
-              {doingTask && <span className="text-[var(--gold)] animate-pulse">ACTIVE REP</span>}
-            </h3>
-            
-            {doingTask ? (
-              <Link 
-                href={`/missions#task-${doingTask.id}`}
-                className="flex items-center justify-between p-3 rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/5 hover:bg-[var(--gold)]/10 transition group"
-              >
-                <div className="space-y-1">
-                  <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--gold)]/80">Executing Now</span>
-                  <p className="text-[13px] font-semibold text-white/90 leading-snug">{doingTask.title}</p>
-                </div>
-                <ArrowRight size={14} className="text-[var(--gold)] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-              </Link>
-            ) : criticalFew.length > 0 ? (
-              <div className="space-y-2">
-                {criticalFew.slice(0, 3).map((task) => (
-                  <Link
-                    key={task.id}
-                    href={`/missions#task-${task.id}`}
-                    className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-white/5 bg-white/[0.01] hover:border-[var(--gold)]/30 hover:bg-white/[0.03] transition group"
-                  >
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <p className="text-xs font-medium text-white/85 truncate group-hover:text-white transition-colors">
-                        {task.title}
-                      </p>
-                    </div>
-                    <ArrowRight size={12} className="text-[var(--gold)] shrink-0 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-                  </Link>
-                ))}
-              </div>
+        {/* Left Side: Strategic Targets */}
+        <div className="p-6 space-y-6 lg:w-1/2 flex flex-col bg-black/10">
+          <h3 className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/70">
+            Asymmetric Targets (Highest Leverage)
+          </h3>
+          
+          <div className="flex-1 space-y-2">
+            {criticalFew.length > 0 ? (
+              criticalFew.slice(0, 3).map((task) => (
+                <Link
+                  key={task.id}
+                  href={`/missions#task-${task.id}`}
+                  className="flex items-center justify-between gap-3 p-3 rounded-lg border border-white/5 bg-white/[0.01] hover:border-[var(--gold)]/30 hover:bg-white/[0.03] transition group"
+                >
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <p className="text-xs font-medium text-white/90 truncate group-hover:text-white transition-colors">
+                      {task.title}
+                    </p>
+                    <span className="text-[9px] font-mono uppercase text-[var(--text-tertiary)]">{task.lane} lane • roi: {task.roiScore}</span>
+                  </div>
+                  <ArrowRight size={14} className="text-[var(--gold)] shrink-0 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                </Link>
+              ))
             ) : (
-              <div className="p-4 rounded-lg border border-dashed border-white/10 text-center">
-                <span className="text-xs text-white/40">No immediate targets identified.</span>
+              <div className="p-6 rounded-xl border border-dashed border-white/10 bg-black/20 text-center flex flex-col items-center gap-3 shadow-inner">
+                <Target size={18} className="text-white/20" />
+                <span className="text-[11px] font-medium text-white/40 uppercase tracking-widest font-mono">No Immediate Targets Identified</span>
               </div>
             )}
           </div>
 
-          {/* Stat Progression / Proof */}
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            {nextRep ? (
-              <Link href="/stats" className="p-3 rounded-lg border border-white/5 bg-black/20 hover:border-[var(--gold)]/30 transition group">
-                <span className="text-[9px] font-mono uppercase tracking-wider text-white/40 block mb-1">Target Stat</span>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <span className="text-sm">{nextRep.icon}</span>
-                  <span className="text-[11px] font-semibold text-white/90 truncate">{nextRep.shortLabel || nextRep.label}</span>
-                </div>
-                <div className="h-1 rounded-full bg-white/5 overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${nextRep.progressPct}%`, backgroundColor: nextRep.color }} />
-                </div>
-              </Link>
-            ) : <div />}
-
-            <Link href="/journal" className="p-3 rounded-lg border border-white/5 bg-black/20 hover:border-[var(--gold)]/30 transition group flex flex-col justify-between">
-              <span className="text-[9px] font-mono uppercase tracking-wider text-white/40 block mb-1">Daily Proof</span>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className={cn(completedToday > 0 ? "text-emerald-400" : "text-white/30")} />
-                <span className="text-[11px] font-medium text-white/80">{completedToday} loops closed</span>
-              </div>
-            </Link>
-          </div>
+          {/* Daily Execution Proof */}
+          <Link href="/journal" className="p-4 rounded-xl border border-white/5 bg-black/40 hover:border-[var(--gold)]/40 hover:bg-black/60 transition-all duration-300 group flex items-center justify-between shadow-lg">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-[var(--gold)]/60 group-hover:text-[var(--gold)]/90 transition-colors">Daily Compounding Proof</span>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={16} className={cn(completedToday > 0 ? "text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]" : "text-white/20")} />
+              <span className="text-xs font-semibold text-white/90">{completedToday} loops closed</span>
+            </div>
+          </Link>
         </div>
 
-        {/* Right Side: Operational Triage */}
-        <div className="p-5 flex flex-col bg-black/20">
-          <div className="flex items-center gap-2 border-b border-[var(--gold)]/10 pb-3 mb-4">
-            <button onClick={() => setActiveTab("triage")} className={cn("text-[9px] font-mono uppercase tracking-widest px-2.5 py-1.5 rounded transition", activeTab === "triage" ? "bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/20" : "text-white/40 hover:text-white/70")}>Triage ({inboxCount})</button>
-            <button onClick={() => setActiveTab("hygiene")} className={cn("text-[9px] font-mono uppercase tracking-widest px-2.5 py-1.5 rounded transition", activeTab === "hygiene" ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" : "text-white/40 hover:text-white/70")}>Drift ({findingsCount})</button>
-            <button onClick={() => setActiveTab("suggestions")} className={cn("text-[9px] font-mono uppercase tracking-widest px-2.5 py-1.5 rounded transition", activeTab === "suggestions" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" : "text-white/40 hover:text-white/70")}>AI Ops (Projected: {movesCount})</button>
-          </div>
+        {/* Right Side: Tactical Queue (Dynamic based on AI Briefing) */}
+        <div className="p-6 bg-gradient-to-b from-black/40 to-black/20 lg:w-1/2 flex flex-col shadow-inner">
+          <h3 className="text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/70 mb-4 flex items-center gap-2">
+            <Zap size={12} className="text-[var(--gold)]" />
+            Tactical Execution Queue
+          </h3>
 
-          <div className="flex-1 overflow-y-auto min-h-[220px] max-h-[300px] scrollbar-thin">
-            {activeTab === "triage" && (
-              inboxCount > 0 ? <InboxTasksTriage isNested /> : (
-                <div className="h-full flex flex-col items-center justify-center text-center space-y-2 opacity-60">
-                  <Inbox size={20} className="text-[var(--gold)]/50" />
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--gold)]">Inbox Clear</p>
-                </div>
-              )
+          <div className="flex-1 overflow-y-auto max-h-[300px] scrollbar-thin">
+            {aiBriefing.actionType === "hygiene" && <InboxTriageCard isNested />}
+            {aiBriefing.actionType === "triage" && <InboxTasksTriage isNested />}
+            {aiBriefing.actionType === "execute" && (
+               <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-90 py-12">
+                 <div className="p-4 rounded-full bg-cyan-950/30 border border-cyan-900/50">
+                   <Zap size={28} className="text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.4)]" />
+                 </div>
+                 <div className="space-y-1">
+                   <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-400">Hygiene & Triage Complete</p>
+                   <p className="text-xs text-white/50">Proceed directly to strategic targets.</p>
+                 </div>
+               </div>
             )}
-            {activeTab === "hygiene" && (
-              findingsCount > 0 ? <InboxTriageCard isNested /> : (
-                <div className="h-full flex flex-col items-center justify-center text-center space-y-2 opacity-60">
-                  <ShieldAlert size={20} className="text-emerald-500/50" />
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-500">Systems Nominal</p>
-                </div>
-              )
-            )}
-            {activeTab === "suggestions" && (
-              movesCount > 0 ? <HomeOneTapMoves isNested /> : (
-                <div className="h-full flex flex-col items-center justify-center text-center space-y-2 opacity-60">
-                  <Sparkles size={20} className="text-[var(--gold)]/50" />
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--gold)]">Cache Exhausted</p>
-                </div>
-              )
-            )}
+            {aiBriefing.actionType === "suggestions" && <HomeOneTapMoves isNested />}
           </div>
         </div>
 

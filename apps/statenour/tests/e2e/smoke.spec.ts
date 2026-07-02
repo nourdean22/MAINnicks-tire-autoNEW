@@ -53,14 +53,14 @@ for (const p of PAGES) {
 // ── API contracts ─────────────────────────────────────────────────
 
 const API_ENDPOINTS = [
-  { method: "GET", path: "/api/system/rate-limits", expectKeys: ["tone", "label", "providers"] },
-  { method: "GET", path: "/api/system/costs?days=7", expectKeys: ["budget", "health", "latency"] },
+  { method: "GET", path: "/api/trpc/system.rateLimits", expectKeys: ["result"] },
+  { method: "GET", path: "/api/trpc/system.costs?input=" + encodeURIComponent(JSON.stringify({ days: 7 })), expectKeys: ["result"] },
   { method: "GET", path: "/api/intel", expectKeys: ["industry", "stories", "performers"] },
   { method: "GET", path: "/api/content/history?days=30", expectKeys: ["count", "rows", "stats"] },
   { method: "GET", path: "/api/social/recent-images", expectKeys: ["images"] },
   // v10.0.378 · new API endpoints from this sprint
   { method: "GET", path: "/api/brain/wisdom", expectKeys: ["total", "totalRecalls", "groupings"] },
-  { method: "GET", path: "/api/system/observability", expectKeys: ["windowSize", "errorRate", "routes"] },
+  { method: "GET", path: "/api/trpc/system.observability", expectKeys: ["result"] },
 ];
 
 for (const e of API_ENDPOINTS) {
@@ -96,26 +96,29 @@ test("chat: send a message + assistant reply lands within 30s", async ({ page })
 // ── Content-intent classifier sanity ──────────────────────────────
 
 test("content-intent: post office is NOT classified as content", async ({ request }) => {
-  const res = await request.get("/api/system/prompt?msg=" + encodeURIComponent("the post office is closed today"));
+  const res = await request.get("/api/trpc/system.promptDiagnostics?input=" + encodeURIComponent(JSON.stringify({ msg: "the post office is closed today" })));
   expect(res.status()).toBe(200);
-  const body = (await res.json()) as { intent?: { isContent?: boolean; confidence?: number } };
-  expect(body.intent?.isContent, "post office should be NOT-CONTENT").toBe(false);
-  expect(body.intent?.confidence ?? 1).toBeLessThan(0.5);
+  const body = (await res.json()) as any;
+  const intent = body.result?.data?.intent;
+  expect(intent?.isContent, "post office should be NOT-CONTENT").toBe(false);
+  expect(intent?.confidence ?? 1).toBeLessThan(0.5);
 });
 
 test("content-intent: 'give me an instagram post' IS classified as content", async ({ request }) => {
-  const res = await request.get("/api/system/prompt?msg=" + encodeURIComponent("give me an instagram post for nicks tire"));
+  const res = await request.get("/api/trpc/system.promptDiagnostics?input=" + encodeURIComponent(JSON.stringify({ msg: "give me an instagram post for nicks tire" })));
   expect(res.status()).toBe(200);
-  const body = (await res.json()) as { intent?: { isContent?: boolean; confidence?: number } };
-  expect(body.intent?.isContent, "instagram post should be CONTENT").toBe(true);
-  expect(body.intent?.confidence ?? 0).toBeGreaterThan(0.7);
+  const body = (await res.json()) as any;
+  const intent = body.result?.data?.intent;
+  expect(intent?.isContent, "instagram post should be CONTENT").toBe(true);
+  expect(intent?.confidence ?? 0).toBeGreaterThan(0.7);
 });
 
 test("content-intent: 'for the gram' (slang) IS classified as content", async ({ request }) => {
-  const res = await request.get("/api/system/prompt?msg=" + encodeURIComponent("for the gram"));
+  const res = await request.get("/api/trpc/system.promptDiagnostics?input=" + encodeURIComponent(JSON.stringify({ msg: "for the gram" })));
   expect(res.status()).toBe(200);
-  const body = (await res.json()) as { intent?: { isContent?: boolean; confidence?: number } };
-  expect(body.intent?.isContent, "for the gram should be CONTENT").toBe(true);
+  const body = (await res.json()) as any;
+  const intent = body.result?.data?.intent;
+  expect(intent?.isContent, "for the gram should be CONTENT").toBe(true);
 });
 
 // ── v10.0.378 · chat composer · new buttons mount ─────────────────

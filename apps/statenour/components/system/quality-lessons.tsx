@@ -125,7 +125,7 @@ export function QualityLessonsView() {
   // invalidated so the list re-runs, matching the prior `await load()`.
   // FreshnessChip's timestamp comes from React Query's dataUpdatedAt.
   const utils = trpc.useUtils();
-  const lessonsQuery = trpc.system.antiPatterns.useQuery();
+  const lessonsQuery = trpc.systemBrain.antiPatterns.useQuery();
   const feed: Feed | null = lessonsQuery.data ?? null;
   const loading = lessonsQuery.isPending;
   const fetchedAt = lessonsQuery.dataUpdatedAt
@@ -133,9 +133,9 @@ export function QualityLessonsView() {
     : null;
   const load = () => void lessonsQuery.refetch();
 
-  const createMutation = trpc.system.createAntiPattern.useMutation();
-  const revisitMutation = trpc.system.revisitAntiPattern.useMutation();
-  const deleteMutation = trpc.system.deleteAntiPattern.useMutation();
+  const createMutation = trpc.systemBrain.createAntiPattern.useMutation();
+  const revisitMutation = trpc.systemBrain.revisitAntiPattern.useMutation();
+  const deleteMutation = trpc.systemBrain.deleteAntiPattern.useMutation();
   const saving = createMutation.isPending;
 
   const filtered = useMemo(() => {

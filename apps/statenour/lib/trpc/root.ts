@@ -12,6 +12,8 @@ import { router } from "./trpc";
 import { nickRouter } from "./routers/nick";
 import { operatorRouter } from "./routers/operator";
 import { systemRouter } from "./routers/system";
+import { systemAutomationRouter } from "./routers/system-automation";
+import { systemBrainRouter } from "./routers/system-brain";
 import { chatRouter } from "./routers/chat";
 import { browserRouter } from "./routers/browser";
 import { taskRouter } from "./routers/task";
@@ -19,11 +21,15 @@ import { journalRouter } from "./routers/journal";
 import { brainRouter } from "./routers/brain";
 import { aiRouter } from "./routers/ai";
 import { contentStudioRouter } from "./routers/content-studio";
+import { intelligenceRouter } from "./routers/intelligence";
+import { observabilityRouter } from "./routers/observability";
 
 export const appRouter = router({
   nick: nickRouter,
   operator: operatorRouter,
   system: systemRouter,
+  systemAutomation: systemAutomationRouter,
+  systemBrain: systemBrainRouter,
   chat: chatRouter,
   browser: browserRouter,
   task: taskRouter,
@@ -31,6 +37,8 @@ export const appRouter = router({
   brain: brainRouter,
   ai: aiRouter,
   contentStudio: contentStudioRouter,
+  intelligence: intelligenceRouter,
+  observability: observabilityRouter,
 });
 
 /** Type-only export for the client · NEVER import appRouter on the

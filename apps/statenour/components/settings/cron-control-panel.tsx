@@ -101,7 +101,7 @@ export function CronControlPanel() {
   // derived from React Query's dataUpdatedAt so the FreshnessChip stays
   // accurate. load()/refresh repoint to refetch.
   const utils = trpc.useUtils();
-  const catalogQuery = trpc.system.cronCatalog.useQuery(undefined, {
+  const catalogQuery = trpc.systemAutomation.cronCatalog.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
   const rows: CronRow[] | null = catalogQuery.data ?? null;
@@ -116,8 +116,8 @@ export function CronControlPanel() {
   // mutations. setCronEnabled is jobName-keyed (the NN mutation, reused
   // here); triggerCron is path-keyed (new in UU.2, maps the panel's
   // existing trigger(path, jobName) signature 1:1).
-  const setCronEnabledMutation = trpc.system.setCronEnabled.useMutation();
-  const triggerCronMutation = trpc.system.triggerCron.useMutation();
+  const setCronEnabledMutation = trpc.systemAutomation.setCronEnabled.useMutation();
+  const triggerCronMutation = trpc.systemAutomation.triggerCron.useMutation();
 
   const toggle = useCallback(
     async (jobName: string, nextEnabled: boolean) => {

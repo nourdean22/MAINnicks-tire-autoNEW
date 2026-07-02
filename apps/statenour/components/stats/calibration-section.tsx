@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ErrorCard } from "@/components/ui/error-card";
+import { trpc } from "@/lib/trpc/client";
 import {
   Check,
   X,
@@ -66,12 +67,17 @@ interface BrainMemory {
 }
 
 export function CalibrationSection() {
-  const [pending, setPending] = useState<CalibrationReviewItem[]>([]);
-  const [history, setHistory] = useState<CalibrationReviewItem[]>([]);
-  const [lessons, setLessons] = useState<BrainMemory[]>([]);
-  const [scoreboard, setScoreboard] = useState<Scoreboard | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading: loading, error: queryError, refetch } = trpc.intelligence.calibrationReviews.useQuery(undefined, {
+    staleTime: 1000 * 60, // 1 min
+    refetchOnWindowFocus: true,
+  });
+
+  const pending = (data?.pending || []) as any[];
+  const history = (data?.history || []) as any[];
+  const lessons = (data?.lessons || []) as any[];
+  const scoreboard = (data?.scoreboard || null) as any;
+  const error = queryError?.message || null;
+
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -84,28 +90,25 @@ export function CalibrationSection() {
   const [correctionDescription, setCorrectionDescription] = useState<string>("");
   const [correctionNote, setCorrectionNote] = useState<string>("");
 
-  const load = useCallback(async () => {
-    try {
-      setError(null);
-      const res = await fetch("/api/system/calibration/reviews");
-      if (!res.ok) throw new Error("Failed to fetch calibration data");
-      const data = await res.json();
-      setPending(data.pending || []);
-      setHistory(data.history || []);
-      setLessons(data.lessons || []);
-      setScoreboard(data.scoreboard || null);
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : String(err));
-      toast.error("Failed to load calibration details");
-    } finally {
-      setLoading(false);
+  const resolveMutation = trpc.intelligence.resolveCalibration.useMutation({
+    onSuccess: (_, variables) => {
+      toast.success(variables.action === "approve" ? "Approved outcome proposal" : "Submitted resolution");
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to resolve calibration item");
     }
-  }, []);
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const bulkResolveMutation = trpc.intelligence.bulkResolveCalibration.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Bulk action completed: processed ${result.processedCount} items`);
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to execute bulk action");
+    }
+  });
 
   const handleResolve = async (
     id: string,
@@ -114,36 +117,16 @@ export function CalibrationSection() {
   ) => {
     setResolvingId(id);
     try {
-      const payload: Record<string, any> = { action };
-      if (action === "correct" && overrideOutcome) {
-        payload.approvedActualOutcome = overrideOutcome;
-      }
-      if (correctionNote) {
-        payload.correctionNote = correctionNote;
-      }
-
-      const res = await fetch(`/api/system/calibration/reviews/${id}/resolve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      await resolveMutation.mutateAsync({
+        id,
+        action,
+        approvedActualOutcome: action === "correct" && overrideOutcome ? overrideOutcome : undefined,
+        correctionNote: correctionNote || undefined
       });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to resolve review item");
-      }
-
-      toast.success(action === "approve" ? "Approved outcome proposal" : "Submitted resolution");
-      
       // Reset correction forms
       setCorrectingId(null);
       setCorrectionNote("");
       setCorrectionDescription("");
-      
-      // Reload
-      await load();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to resolve calibration item");
     } finally {
       setResolvingId(null);
     }
@@ -152,22 +135,7 @@ export function CalibrationSection() {
   const handleBulkAction = async (action: "approve_low_risk" | "reject_stale") => {
     setBulkLoading(true);
     try {
-      const res = await fetch("/api/system/calibration/reviews/bulk-resolve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to execute bulk action");
-      }
-
-      const data = await res.json();
-      toast.success(`Bulk action completed: processed ${data.processedCount} items`);
-      await load();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to execute bulk action");
+      await bulkResolveMutation.mutateAsync({ action });
     } finally {
       setBulkLoading(false);
     }
@@ -266,7 +234,7 @@ export function CalibrationSection() {
           title="Calibration failed to load"
           message={error}
           domain="system:calibration"
-          onRetry={load}
+          onRetry={() => refetch()}
         />
       </div>
     );
