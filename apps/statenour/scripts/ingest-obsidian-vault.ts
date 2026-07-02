@@ -440,7 +440,7 @@ async function main() {
     statusPayload.quarantinedFiles = quarantinedFilesList;
     statusPayload.stats.quarantined = quarantinedFilesList.length;
 
-    writeEngineStatus(statusPayload);
+    await writeEngineStatus(statusPayload);
   } catch (writeErr) {
     console.error("  ⚠️ Failed to write engine status file:", writeErr);
   }

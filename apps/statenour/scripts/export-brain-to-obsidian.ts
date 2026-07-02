@@ -539,7 +539,7 @@ async function main() {
       }
     };
 
-    writeEngineStatus(statusPayload);
+    await writeEngineStatus(statusPayload);
   } catch (writeErr) {
     console.error("  ⚠️ Failed to write engine status file:", writeErr);
   }

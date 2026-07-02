@@ -197,7 +197,7 @@ function startWatcher() {
       const existingStatus = readEngineStatus();
       if (existingStatus) {
         existingStatus.lastRunAt = new Date().toISOString();
-        writeEngineStatus(existingStatus);
+        await writeEngineStatus(existingStatus);
       }
     } catch {}
   }, 30000);
