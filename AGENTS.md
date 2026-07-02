@@ -2,10 +2,11 @@
 
 Two apps share this repo: `apps/statenour` (Railway → bdnick.info) and `apps/nickstire` (Railway → nickstire.org). **Per-app detail lives in `apps/<app>/AGENTS.md` — read that first for the app you're touching.** This file is only the cross-cutting rules that recur. Claude-specific extras: [`CLAUDE.md`](./CLAUDE.md).
 
-## Branching — NEVER push `main` (operator rule, 2026-06-11)
+## Branching — Autonomous Merging Allowed
 
-- Work on named branches only: `nickstire/<task>` · `statenour/<task>` · `docs/<task>` · `chore/<task>`. Push the branch, open a PR; the **operator merges**. (`~/push-main.sh` is retired for agents.) If explicitly authorized by the operator to merge and deploy directly, use the `gh` CLI:
+- Work on named branches only: `nickstire/<task>` · `statenour/<task>` · `docs/<task>` · `chore/<task>`. Push the branch, then create and merge the PR yourself using the `gh` CLI. (Remove the dummy IDE token first):
   ```bash
+  Remove-Item Env:\GITHUB_TOKEN -ErrorAction SilentlyContinue
   gh pr create --head <branch> --title "<message>" --body "<body>"
   gh pr merge <pr-number> --squash --delete-branch
   ```
