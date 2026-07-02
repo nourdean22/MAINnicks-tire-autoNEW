@@ -36,7 +36,7 @@ DO NOT output markdown headers unless necessary. DO NOT be robotic. Be human, br
       temperature: 0.8, // Slightly higher for creativity
     });
 
-    return result.toTextStreamResponse();
+    return result.toUIMessageStreamResponse();
   } catch (error) {
     console.error('Partner Stream Error:', error);
     return NextResponse.json({ error: 'Failed to stream partner response' }, { status: 500 });
