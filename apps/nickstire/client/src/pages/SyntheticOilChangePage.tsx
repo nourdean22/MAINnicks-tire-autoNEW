@@ -73,11 +73,14 @@ function Hero() {
             >
               <Phone className="w-5 h-5" /> {BUSINESS.phone.display}
             </a>
+            {/* 2026-07-02 operator rule · oil changes are first-come,
+                first-served sit-and-wait — no drop-off. Same swap as
+                /oil-change (see serviceConversionData "oil-change"). */}
             <a
               href="#booking"
               className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-7 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
             >
-              SCHEDULE DROP-OFF
+              CAN I COME NOW?
             </a>
           </div>
         </FadeIn>
@@ -230,8 +233,8 @@ function BookingSection() {
     <section id="booking" className="py-16 bg-card/20 border-t border-border/20">
       <div className="container max-w-4xl">
         <FadeIn>
-          <h2 className="font-bold text-3xl text-foreground tracking-tight">BOOK YOUR OIL CHANGE</h2>
-          <p className="text-foreground/60 mt-2">Fill out below, we&apos;ll confirm by text. Or walk in — 17625 Euclid Ave, Cleveland OH.</p>
+          <h2 className="font-bold text-3xl text-foreground tracking-tight">CAN I COME NOW? YES — PULL UP.</h2>
+          <p className="text-foreground/60 mt-2">Oil changes are first-come, first-served. No appointment, no drop-off — pull up, have a seat, and most are done in about 15 minutes. 17625 Euclid Ave, Cleveland OH. Or send your info below and we&apos;ll text you back.</p>
         </FadeIn>
         <FadeIn delay={0.1}>
           <div className="mt-6 bg-card border border-border/30 rounded-lg p-6">
