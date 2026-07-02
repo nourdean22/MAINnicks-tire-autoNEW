@@ -237,7 +237,7 @@ export function ObsidianEngineCard() {
       {/* Manual Commands */}
       <div className="border-t border-white/5 pt-3 space-y-2">
         <span className="text-[8px] font-mono uppercase tracking-wider text-white/40 block">
-          Terminal Control
+          Terminal Control <span className="text-purple-400/50">(Local CLI)</span>
         </span>
         <div className="space-y-1.5">
           {[
