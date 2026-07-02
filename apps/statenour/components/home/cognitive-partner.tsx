@@ -63,6 +63,17 @@ const MODES: ModeConfig[] = [
   },
 ];
 
+const getMessageText = (m: any) => {
+  if (typeof m.content === "string" && m.content) return m.content;
+  if (m.parts && Array.isArray(m.parts)) {
+    return m.parts
+      .filter((p: any) => p.type === "text" && !!p.text)
+      .map((p: any) => p.text)
+      .join("");
+  }
+  return "";
+};
+
 export function CognitivePartner() {
   const router = useRouter();
   const [activeMode, setActiveMode] = useState<DockMode>("ask");
@@ -156,7 +167,7 @@ export function CognitivePartner() {
   );
 
   const canSend = input.trim().length > 0 && !isLoading;
-  const visibleMessages = messages.filter((m: any) => m.content !== "Wake up. Give me the morning brief.");
+  const visibleMessages = messages.filter((m: any) => getMessageText(m) !== "Wake up. Give me the morning brief.");
 
   return (
     <div className="w-full relative group space-y-4">
@@ -172,8 +183,8 @@ export function CognitivePartner() {
             
             <div className="flex-1 space-y-4 text-sm text-zinc-300">
               {visibleMessages.map((msg: any, idx: number) => (
-                <div key={idx} className={cn("leading-relaxed", msg.role === "user" ? "text-zinc-500 italic" : "text-zinc-200")}>
-                  {msg.role === "user" ? `You: ${msg.content}` : msg.content}
+                <div key={idx} className={cn("leading-relaxed whitespace-pre-wrap", msg.role === "user" ? "text-zinc-500 italic" : "text-zinc-200")}>
+                  {msg.role === "user" ? `You: ${getMessageText(msg)}` : getMessageText(msg)}
                 </div>
               ))}
             </div>
