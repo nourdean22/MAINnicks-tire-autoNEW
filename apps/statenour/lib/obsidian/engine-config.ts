@@ -5,6 +5,7 @@
 import path from "path";
 import fs from "fs";
 import { ObsidianEngineStatus } from "./types";
+import { prisma } from "../prisma";
 
 export interface ObsidianEngineConfig {
   vaultPath: string;
@@ -78,7 +79,34 @@ export function readEngineStatus(): ObsidianEngineStatus | null {
   }
 }
 
-export function writeEngineStatus(status: ObsidianEngineStatus): void {
+export async function writeEngineStatus(status: ObsidianEngineStatus): Promise<void> {
   ensureRuntimeDir();
   fs.writeFileSync(getStatusFilePath(), JSON.stringify(status, null, 2), "utf-8");
+
+  try {
+    const existing = await prisma.localSyncLog.findFirst({
+      where: { module: "obsidian_engine", action: "status" }
+    });
+
+    if (existing) {
+      await prisma.localSyncLog.update({
+        where: { id: existing.id },
+        data: {
+          details: JSON.stringify(status),
+          count: existing.count + 1,
+        }
+      });
+    } else {
+      await prisma.localSyncLog.create({
+        data: {
+          module: "obsidian_engine",
+          action: "status",
+          details: JSON.stringify(status),
+          count: 1,
+        }
+      });
+    }
+  } catch (err) {
+    console.warn("[Obsidian Engine] Failed to sync status to database:", err);
+  }
 }

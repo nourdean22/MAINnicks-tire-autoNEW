@@ -639,7 +639,7 @@ function finishReport(noteFilesList: string[] = []) {
         }
       };
 
-      writeEngineStatus(statusPayload);
+      await writeEngineStatus(statusPayload);
     } catch (writeErr) {
       if (!jsonMode) {
         console.error("  ⚠️ Failed to write engine status file:", writeErr);
