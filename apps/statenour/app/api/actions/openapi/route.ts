@@ -33,7 +33,8 @@ export async function GET(req: Request) {
               }
             }
           }
-        }
+        },
+        security: [{ bearerAuth: [] }]
       }
     };
   }
@@ -53,7 +54,8 @@ export async function GET(req: Request) {
       securitySchemes: {
         bearerAuth: {
           type: "http",
-          scheme: "bearer"
+          scheme: "bearer",
+          bearerFormat: "StateNourBridgeToken"
         }
       }
     },

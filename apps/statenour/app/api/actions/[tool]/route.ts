@@ -5,11 +5,11 @@ import { auditBridgeCall } from "@/lib/agent-bridge/audit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(req: Request, { params }: { params: { tool: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ tool: string }> }) {
   try {
     assertBridgeAuth(req);
     
-    const toolName = params.tool;
+    const { tool: toolName } = await params;
     const tools = getBridgeSafeTools("actions");
     const tool = tools.find(t => t.name === toolName);
     
