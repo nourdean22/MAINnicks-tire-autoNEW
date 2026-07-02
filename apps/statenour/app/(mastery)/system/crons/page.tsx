@@ -37,9 +37,9 @@ import { CronFoldTree } from "@/components/system/cron-fold-tree";
 import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
-// authedFetch read is `trpc.system.cronDeck.useQuery`; the kill-switch
-// toggle + run-now POSTs are `trpc.system.setCronEnabled` /
-// `trpc.system.runManifestCron` mutations. The 30s poll maps to
+// authedFetch read is `trpc.systemAutomation.cronDeck.useQuery`; the kill-switch
+// toggle + run-now POSTs are `trpc.systemAutomation.setCronEnabled` /
+// `trpc.systemAutomation.runManifestCron` mutations. The 30s poll maps to
 // `refetchInterval`; per-job busy state stays as local Sets.
 import { trpc } from "@/lib/trpc/client";
 
@@ -208,7 +208,7 @@ export default function CronsPage() {
   // de-duplication so the AbortController the prior code juggled is no
   // longer needed.
   const utils = trpc.useUtils();
-  const cronDeckQuery = trpc.system.cronDeck.useQuery(undefined, {
+  const cronDeckQuery = trpc.systemAutomation.cronDeck.useQuery(undefined, {
     refetchInterval: 30_000,
   });
   const feed: FeedResponse | null =
@@ -216,8 +216,8 @@ export default function CronsPage() {
   const loading = cronDeckQuery.isPending || cronDeckQuery.isFetching;
   const load = () => void cronDeckQuery.refetch();
 
-  const toggleMutation = trpc.system.setCronEnabled.useMutation();
-  const runMutation = trpc.system.runManifestCron.useMutation();
+  const toggleMutation = trpc.systemAutomation.setCronEnabled.useMutation();
+  const runMutation = trpc.systemAutomation.runManifestCron.useMutation();
 
   const rows = useMemo(() => {
     if (!feed) return [] as CronRow[];
