@@ -298,7 +298,7 @@ async function main() {
   // 1. Vault Directory Check
   if (!fs.existsSync(vaultPath)) {
     logFail(`Vault directory not found at: ${vaultPath}`);
-    finishReport();
+    await finishReport();
     return;
   }
   logPass(`Vault directory exists: ${vaultPath}`);
@@ -560,7 +560,7 @@ async function main() {
     }
   }
 
-  finishReport(noteFiles);
+  await finishReport(noteFiles);
 }
 
 function getSuggestedFix(message: string): string | undefined {
@@ -582,7 +582,7 @@ function getSuggestedFix(message: string): string | undefined {
   return undefined;
 }
 
-function finishReport(noteFilesList: string[] = []) {
+async function finishReport(noteFilesList: string[] = []) {
   const quarantinedFiles: QuarantinedFileInfo[] = [];
   const quarantineDir = path.join(vaultPath, "Statenour", "Quarantine");
   if (fs.existsSync(quarantineDir)) {

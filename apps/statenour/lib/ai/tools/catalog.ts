@@ -270,6 +270,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "arsenalPreTaskFanout",         category: "research",       cost: "spendy" }, // v10.0.372 · multi-lens fan-out
   { name: "arsenalDeepResearch",          category: "research",       cost: "spendy" }, // v10.0.373 · multi-round autonomous research
   { name: "arsenalMultiAgent",            category: "research",       cost: "spendy" }, // v10.0.374 · parallel sub-agents
+  { name: "arsenalNotebookLM",            category: "research",       battle: true, cost: "free" },
   { name: "arsenalGmailInbox",            category: "comms",          cost: "free" }, // v10.0.379 · gmail inbox list
   { name: "arsenalGmailReadThread",       category: "comms",          cost: "free" }, // v10.0.379 · gmail thread fetch
   { name: "getCronStatus",                category: "research",       battle: true, cost: "free" },
