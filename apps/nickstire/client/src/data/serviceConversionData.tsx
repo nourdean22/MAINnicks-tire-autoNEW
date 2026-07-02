@@ -19,10 +19,21 @@
 import type { ServicePageConfig } from "@/components/FocusedServicePage";
 import { Disc, Activity, Wrench, AlertTriangle, Clock, Snowflake, Thermometer, Battery, Zap } from "lucide-react";
 
-/** A subset of ServicePageConfig containing only the conversion fields. */
+/** A subset of ServicePageConfig containing only the conversion fields.
+ *  heroSecondaryCta / ctaHeadline / ctaSub are included so per-slug
+ *  entries can override the operating-model CTAs (e.g. oil changes are
+ *  sit-and-wait FCFS — no drop-off — so /oil-change swaps the hero
+ *  SCHEDULE DROP-OFF for "CAN I COME NOW?"). */
 export type ConversionFields = Pick<
   ServicePageConfig,
-  "anchorTable" | "fearStats" | "lossStats" | "crossSell" | "curiosityArc"
+  | "anchorTable"
+  | "fearStats"
+  | "lossStats"
+  | "crossSell"
+  | "curiosityArc"
+  | "heroSecondaryCta"
+  | "ctaHeadline"
+  | "ctaSub"
 >;
 
 /**
@@ -39,6 +50,14 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
   // OIL CHANGE — info tone (preventive)
   // ════════════════════════════════════════════════════════
   "oil-change": {
+    // 2026-07-02 operator rule · oil changes are first-come, first-served
+    // sit-and-wait — there is NO drop-off for this service. The generic
+    // SCHEDULE DROP-OFF hero CTA was wrong here; "CAN I COME NOW?" jumps
+    // to the #booking section, whose headline answers the question.
+    heroSecondaryCta: { label: "CAN I COME NOW?", href: "#booking" },
+    ctaHeadline: "CAN I COME NOW? YES — PULL UP.",
+    ctaSub:
+      "Oil changes are first-come, first-served. No appointment, no drop-off — pull up, have a seat, and most are done in about 15 minutes. Or send your info below and we'll text you back.",
     // Curiosity arc (2026-05-30) — oil change is the "cheaper than you think"
     // service; hero hook plays the pleasant-surprise gap (no $), stakes hook =
     // honest compounding cost the fear stats back up.
@@ -82,7 +101,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         label: "in extra fuel from old oil",
         reason: "Thick, contaminated oil increases internal friction. The engine fights itself — fuel economy quietly drops 8-12% before you notice. Fresh oil pays for itself in about 3 months at current Cleveland gas prices.",
         ctaHref: "#booking",
-        ctaLabel: "BOOK OIL CHANGE",
+        ctaLabel: "COME IN TODAY",
       },
     ],
     crossSell: {
