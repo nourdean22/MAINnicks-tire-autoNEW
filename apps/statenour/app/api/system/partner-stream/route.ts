@@ -1,6 +1,7 @@
-import { streamText } from 'ai';
+import { streamText, convertToModelMessages } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { NextResponse } from 'next/server';
+
 export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
@@ -31,7 +32,7 @@ DO NOT output markdown headers unless necessary. DO NOT be robotic. Be human, br
 
     const result = await streamText({
       model: openai('gpt-4o'),
-      messages,
+      messages: await convertToModelMessages(messages),
       system: systemPrompt,
       temperature: 0.8, // Slightly higher for creativity
     });
