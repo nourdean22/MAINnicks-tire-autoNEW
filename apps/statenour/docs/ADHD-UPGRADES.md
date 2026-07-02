@@ -54,4 +54,4 @@ Statenour addresses these friction points with three core principles:
 All data actions are integrated with the existing backend API surfaces:
 * Logs are posted to `/api/body/vitals` using the mapped low/restful/optimized values.
 * Focus review completions call the `trpc.brain.forgetMemoryByKey` mutation to soft-delete reviews.
-* Calibration resolutions call `/api/system/calibration/reviews/{id}/resolve` with the mapped status updates and ROI corrections.
+* Calibration resolutions call the `intelligence.resolveCalibration` tRPC endpoint with the mapped status updates and ROI corrections.

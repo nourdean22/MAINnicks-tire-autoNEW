@@ -142,7 +142,7 @@ export default function ActionsPage() {
     { refetchInterval: 30_000 },
   );
 
-  const approvalsQuery = trpc.system.getPendingApprovals.useQuery(undefined, {
+  const approvalsQuery = trpc.systemAutomation.getPendingApprovals.useQuery(undefined, {
     refetchInterval: 5_000,
   });
 

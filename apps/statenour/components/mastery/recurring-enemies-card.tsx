@@ -7,11 +7,11 @@ import { useState } from "react";
 
 export function RecurringEnemiesCard() {
   const utils = trpc.useContext();
-  const lessonsQ = trpc.system.antiPatterns.useQuery(undefined, {
+  const lessonsQ = trpc.systemBrain.antiPatterns.useQuery(undefined, {
     staleTime: 60_000,
   });
 
-  const revisitMutation = trpc.system.revisitAntiPattern.useMutation({
+  const revisitMutation = trpc.systemBrain.revisitAntiPattern.useMutation({
     onSuccess: async () => {
       await utils.system.antiPatterns.invalidate();
     },
