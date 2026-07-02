@@ -124,23 +124,24 @@ export function ObsidianEngineCard() {
   const label = statusLabel[currentHealth as keyof typeof statusLabel] || statusLabel.degraded;
 
   return (
-    <div className="glass-card relative overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/80 border-white/10 p-4 shadow-xl space-y-4">
-      <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
+    <section className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-950 via-zinc-900 to-black border border-white/10 p-5 shadow-2xl transition-all hover:border-purple-500/30 flex flex-col gap-4">
+      <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-purple-500/5 rounded-full blur-[60px] pointer-events-none" />
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/5 pb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-4 mb-4 gap-3 relative z-10">
+        <div className="flex flex-row-reverse sm:flex-row items-center justify-end sm:justify-start gap-2">
+          <span className="text-[10px] text-white/45 font-mono uppercase tracking-wider flex items-center gap-1.5">
+            <FileText size={12} className="text-purple-400/50" />
+            Obsidian Local Engine
+          </span>
           <span className={cn(
             "inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[9px] font-mono uppercase tracking-wider",
             currentHealth === "healthy" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
             currentHealth === "degraded" ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
             "text-rose-400 border-rose-500/20 bg-rose-500/5"
           )}>
-            <span className={cn("h-1.5 w-1.5 rounded-full animate-pulse shadow-sm", pulseColor)} />
+            <span className={cn("h-1.5 w-1.5 rounded-full shadow-sm animate-pulse", pulseColor)} />
             {label}
-          </span>
-          <span className="text-[10px] text-white/45 font-mono uppercase tracking-wider">
-            Obsidian Local Engine
           </span>
         </div>
 
@@ -260,6 +261,6 @@ export function ObsidianEngineCard() {
           ))}
         </div>
       </div>
-    </div>
+    </section>
   );
 }
