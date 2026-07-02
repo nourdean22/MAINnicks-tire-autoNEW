@@ -89,65 +89,78 @@ export function NotebookLMCockpit() {
   };
 
   return (
-    <section className="group relative rounded-xl border border-[var(--glass-border)] bg-[var(--bg-surface)] p-4 shadow-sm transition-all hover:border-[var(--gold)]/30">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <HardDrive className="h-5 w-5 text-[var(--gold)]" />
-          <h2 className="font-display text-xl font-bold uppercase tracking-wide text-[var(--text-primary)]">
-            NotebookLM Grounding
-          </h2>
-        </div>
-        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest">
-          <span className={`h-1.5 w-1.5 rounded-full ${health === 'connected' ? 'bg-emerald-400' : health === 'loading' ? 'bg-amber-400 animate-pulse' : 'bg-rose-400'}`} />
-          <span className="text-[var(--text-tertiary)]">{health}</span>
+    <section className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-950 via-zinc-900 to-black border border-white/10 p-5 shadow-2xl transition-all hover:border-[var(--gold)]/30 flex flex-col">
+      <div className="absolute -top-24 -right-24 w-64 h-64 bg-[var(--gold)]/5 rounded-full blur-[60px] pointer-events-none" />
+      
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-4 mb-4 gap-3 relative z-10">
+        <div className="flex flex-row-reverse sm:flex-row items-center justify-end sm:justify-start gap-2">
+          <span className="text-[10px] text-white/45 font-mono uppercase tracking-wider flex items-center gap-1.5">
+            <HardDrive size={12} className="text-[var(--gold)]/50" />
+            NotebookLM Engine
+          </span>
+          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[9px] font-mono uppercase tracking-wider ${
+            health === 'connected' ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5' : 
+            health === 'loading' ? 'text-amber-400 border-amber-500/20 bg-amber-500/5' : 
+            'text-rose-400 border-rose-500/20 bg-rose-500/5'
+          }`}>
+            <span className={`h-1.5 w-1.5 rounded-full shadow-sm ${
+              health === 'connected' ? 'bg-emerald-500 shadow-emerald-500/50' : 
+              health === 'loading' ? 'bg-amber-500 shadow-amber-500/50 animate-pulse' : 
+              'bg-rose-500 shadow-rose-500/50 animate-pulse'
+            }`} />
+            {health === 'connected' ? 'calm · online' : health === 'loading' ? 'connecting...' : 'mcp disconnected'}
+          </span>
         </div>
       </div>
       
-      {health === "connected" ? (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 rounded-lg bg-[var(--bg-base)] px-3 py-2 border border-[var(--border-default)] focus-within:border-[var(--gold)] transition-colors">
-            <Search className="h-4 w-4 text-[var(--text-tertiary)]" />
-            <input 
-              type="text" 
-              placeholder="Ask NotebookLM..." 
-              className="w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] font-mono" 
-            />
+      <div className="relative z-10 flex-1 flex flex-col justify-center">
+        {health === "connected" ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 rounded bg-black/40 px-3 py-2.5 border border-white/5 focus-within:border-[var(--gold)]/50 transition-colors shadow-inner">
+              <Search className="h-4 w-4 text-[var(--gold)]/40" />
+              <input 
+                type="text" 
+                placeholder="Ask NotebookLM..." 
+                className="w-full bg-transparent text-sm text-white/90 outline-none placeholder:text-white/30 font-mono" 
+              />
+            </div>
+            
+            <div 
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`border border-dashed rounded p-6 flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer bg-black/20 group/drop ${
+                isDragging ? "border-[var(--gold)]/50 text-[var(--gold)] bg-[var(--gold)]/5" : "border-white/10 text-white/40 hover:border-[var(--gold)]/30 hover:text-[var(--gold)]/80"
+              }`}
+            >
+               {isUploading ? (
+                 <RefreshCw className="h-5 w-5 animate-spin text-[var(--gold)]" />
+               ) : (
+                 <UploadCloud className="h-5 w-5 group-hover/drop:scale-110 transition-transform" />
+               )}
+               <span className="text-[10px] uppercase font-mono tracking-wider">
+                 {isUploading ? uploadStatus : (uploadStatus || "Drop source file to ingest")}
+               </span>
+            </div>
           </div>
-          
-          <div 
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`border border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer bg-[var(--bg-base)] group/drop ${
-              isDragging ? "border-[var(--gold)] text-[var(--gold)] bg-[var(--gold)]/5" : "border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--gold)] hover:text-[var(--gold)]"
-            }`}
-          >
-             {isUploading ? (
-               <RefreshCw className="h-5 w-5 animate-spin text-[var(--gold)]" />
-             ) : (
-               <UploadCloud className="h-5 w-5 group-hover/drop:scale-110 transition-transform" />
-             )}
-             <span className="text-xs uppercase font-mono tracking-wider">
-               {isUploading ? uploadStatus : (uploadStatus || "Drop source file to ingest")}
-             </span>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-black/20 rounded border border-white/5">
+            <AlertCircle className="h-6 w-6 text-rose-500/80" />
+            <div className="space-y-1">
+              <p className="text-xs font-mono font-bold tracking-wider text-rose-400 uppercase">MCP Disconnected</p>
+              <p className="text-[10px] text-white/40 max-w-[220px] mx-auto font-mono">Verify your sidecar is running and <span className="text-rose-300/70">NOTEBOOKLM_MCP_URL</span> is set.</p>
+            </div>
+            <button 
+              onClick={checkHealth} 
+              className="mt-2 flex items-center gap-2 rounded px-4 py-2 text-[10px] font-mono uppercase tracking-wider text-[var(--bg-void)] bg-[var(--gold)] hover:bg-[var(--gold-dim)] transition-colors font-bold shadow-[0_0_15px_rgba(255,215,0,0.15)]"
+            >
+              <RefreshCw className={`h-3 w-3 ${health === 'loading' ? 'animate-spin' : ''}`} />
+              Check Health
+            </button>
           </div>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-[var(--bg-base)] rounded-lg border border-[var(--border-default)]">
-          <AlertCircle className="h-6 w-6 text-rose-400" />
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-[var(--text-primary)]">MCP Disconnected</p>
-            <p className="text-xs text-[var(--text-tertiary)] max-w-[220px] mx-auto">Verify your sidecar is running and <span className="font-mono text-rose-300">NOTEBOOKLM_MCP_URL</span> is set.</p>
-          </div>
-          <button 
-            onClick={checkHealth} 
-            className="mt-2 flex items-center gap-2 rounded px-4 py-2 text-xs font-mono uppercase tracking-wider text-[var(--bg-void)] bg-[var(--gold)] hover:bg-[var(--gold-dim)] transition-colors font-bold"
-          >
-            <RefreshCw className={`h-3 w-3 ${health === 'loading' ? 'animate-spin' : ''}`} />
-            Check Health
-          </button>
-        </div>
-      )}
+        )}
+      </div>
     </section>
   );
 }
