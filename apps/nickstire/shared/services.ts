@@ -507,7 +507,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Oil Change Cleveland · From $49 · Same-Day Walk-In | Nick's",
     metaDescription: "Cleveland oil change from $49 (full synthetic from $80) — new filter + free multi-point check, in and out before your coffee's cold. Walk-ins 7 days. (216) 862-0005",
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
-    heroSubline: "Looking for an oil change in Cleveland? Conventional or synthetic-blend just $49 with coupon code OIL2999. Full synthetic from $80. New filter, free multi-point inspection. In and out before your coffee's cold. Walk-ins welcome, no appointment needed.",
+    heroSubline: "Looking for an oil change in Cleveland? Conventional or synthetic-blend just $49 with coupon code OIL2999. Full synthetic from $80. New filter, free multi-point inspection. First-come, first-served — no appointment, no drop-off. Pull up, have a seat, and you're out before your coffee's cold.",
     heroCTA: "GET YOUR OIL CHANGED",
     turnaround: "Most oil changes done in 15 minutes. No appointment needed. We're the fastest in the city — check our reviews.",
     pricingNote: "Free multi-point inspection with every oil change · Correct oil weight per manufacturer spec",

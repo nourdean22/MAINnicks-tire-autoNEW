@@ -42,7 +42,12 @@ import { useConversionTracking } from "@/hooks/useConversionTracking";
 // sign + 3 open bays + tire stacks (the strongest first-impression
 // trust image). Vertical fallback for mobile keeps the sign visible
 // when object-cover crops aggressively on phones.
-const HERO_IMG = "/photos/exterior-facade-wide.webp";
+// 2026-07-02 operator fix · hero restored to the edited pro-pack
+// storefront photo (blue sky, straight-on, full sign + bays + tire
+// stacks). The tilted exterior-facade-wide.webp swap buried the sign
+// under the H1 and read gloomy. All the gradient/object-position
+// tuning below was originally calibrated for THIS photo.
+const HERO_IMG = "/photos/shop-exterior-hero-wide-sign-bays.webp";
 const HERO_IMG_MOBILE = "/photos/shopfront-clear-vertical-sign-bays.webp";
 
 // Service-tile + WhyUs photos — wave-16 placement-guide pull:
@@ -102,7 +107,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
         <img
           src={HERO_IMG}
           alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
-          className="w-full h-full object-cover [object-position:center_30%]"
+          className="w-full h-full object-cover [object-position:center_42%]"
           loading="eager"
           fetchPriority="high"
           width="1920"

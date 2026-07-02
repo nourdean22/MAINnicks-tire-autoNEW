@@ -158,6 +158,10 @@ export interface ServicePageConfig {
   ctaHeadline?: string;
   /** Bottom-of-page CTA sub */
   ctaSub?: string;
+  /** Hero secondary CTA override. Defaults to SCHEDULE DROP-OFF → #booking.
+   *  Sit-and-wait FCFS services (oil changes) have NO drop-off — customers
+   *  pull up and wait — so they swap in "CAN I COME NOW?" here. */
+  heroSecondaryCta?: { label: string; href: string };
 
   // ─── CONVERSION ARCHITECTURE (v1.1) ──────────────────────
   // All optional. When provided, renders the corresponding conversion
@@ -291,10 +295,10 @@ function Hero({ config }: { config: ServicePageConfig }) {
               <Phone className="w-5 h-5" /> {BUSINESS.phone.display}
             </a>
             <a
-              href="#booking"
+              href={config.heroSecondaryCta?.href ?? "#booking"}
               className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-7 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
             >
-              SCHEDULE DROP-OFF
+              {config.heroSecondaryCta?.label ?? "SCHEDULE DROP-OFF"}
             </a>
           </div>
         </FadeIn>
