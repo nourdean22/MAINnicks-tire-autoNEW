@@ -18,11 +18,11 @@ export function HomeIdentityHeader() {
     refetchInterval: 60_000,
   });
 
-  const { data: pendingRequests = [] } = trpc.system.getPendingApprovals.useQuery(undefined, {
+  const { data: pendingRequests = [] } = trpc.systemAutomation.getPendingApprovals.useQuery(undefined, {
     refetchInterval: 30_000,
   });
 
-  const { data: approvalsData } = trpc.system.approvals.useQuery(undefined, {
+  const { data: approvalsData } = trpc.systemAutomation.approvals.useQuery(undefined, {
     refetchInterval: 30_000,
   });
 
@@ -39,10 +39,10 @@ export function HomeIdentityHeader() {
 
       <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-[var(--gold)]/20 backdrop-blur-md shadow-[0_0_15px_rgba(255,215,0,0.05)]">
-            <Brain size={14} className="text-[var(--gold)] shrink-0 pulse-live" strokeWidth={2} />
-            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--gold)]/90">
-              Nour Command Center
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/60 border border-[var(--gold)]/30 backdrop-blur-xl shadow-[0_0_20px_rgba(255,215,0,0.1)]">
+            <Brain size={14} className="text-[var(--gold)] shrink-0 pulse-live drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]" strokeWidth={2} />
+            <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[var(--gold)]/90 font-bold">
+              Cognitive Command Center
             </span>
           </div>
           
@@ -56,10 +56,10 @@ export function HomeIdentityHeader() {
           </div>
         </div>
 
-        <div className="flex flex-row md:flex-col gap-3 md:items-end">
-          <div className="flex items-center gap-2 text-sm font-mono text-zinc-300 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5 backdrop-blur-sm">
-            <Clock size={14} className="text-[var(--gold)]/60" />
-            {todayStr} {timeStr && <span className="text-[var(--gold)]/60">· {timeStr}</span>}
+        <div className="flex flex-row md:flex-col gap-4 md:items-end">
+          <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-widest text-zinc-300 bg-black/60 px-4 py-2 rounded-lg border border-[var(--gold)]/20 backdrop-blur-md shadow-inner">
+            <Clock size={14} className="text-[var(--gold)]/80" />
+            {todayStr} {timeStr && <span className="text-[var(--gold)]">· {timeStr}</span>}
           </div>
           
           <div className="flex items-center gap-2">
@@ -91,9 +91,9 @@ export function HomeIdentityHeader() {
               </Link>
             )}
             {inboxCount === 0 && pendingApprovalsCount === 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--gold)]/10 border border-[var(--gold)]/20 text-[10px] font-mono text-[var(--gold)] uppercase tracking-wider shadow-[0_0_10px_rgba(255,215,0,0.05)]">
-                <Zap size={12} className="pulse-live" />
-                Ready
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--gold)]/10 border border-[var(--gold)]/30 text-[10px] font-mono font-bold text-[var(--gold)] uppercase tracking-widest shadow-[0_0_15px_rgba(255,215,0,0.1)]">
+                <Zap size={14} className="pulse-live drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]" />
+                SYSTEMS OPTIMAL
               </span>
             )}
           </div>

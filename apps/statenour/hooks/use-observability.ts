@@ -29,7 +29,7 @@
  * instead of a noisy red card.
  */
 
-import { useUltronFetch } from "@/lib/ultron/client-cache";
+import { trpc } from "@/lib/trpc/client";
 
 // ── Shape contracts (loose — endpoints may evolve, tiles defend) ─────────
 
@@ -99,35 +99,30 @@ export type TileState<T> =
   | { kind: "empty" }
   | { kind: "error"; message: string };
 
-interface RawFetch<T> {
-  data: T | null;
-  loading: boolean;
+interface TrpcQuery<T> {
+  data: T | undefined;
+  isLoading: boolean;
   refetch: () => void;
 }
 
 /**
- * Classify a raw useUltronFetch result into the four-state model the
+ * Classify a tRPC useQuery result into the four-state model the
  * tiles consume. Empty = the endpoint returned 200 but with no signal
  * to display (e.g. no eval has run yet). Error = network/HTTP failure.
- *
- * We can't distinguish 404 from 500 cleanly because useUltronFetch
- * swallows the status into a boolean; the existing pattern (cars-today
- * card) treats those identically as "endpoint not live yet" → empty.
- * That mirrors the rest of the app — the tile is graceful, not noisy.
  */
-function classify<T>(
-  raw: RawFetch<T>,
+function classify<T, U>(
+  raw: TrpcQuery<T>,
   isEmpty: (d: T) => boolean,
-): TileState<T> {
-  if (raw.loading && raw.data === null) return { kind: "loading" };
-  if (raw.data === null) {
-    // Loading finished but data is still null → fetch failed or 404.
-    // No status code available here; treat as empty so the tile shows
-    // a quiet "endpoint not live yet" hint instead of a red panel.
+  mapFn?: (d: T) => U,
+): TileState<U> {
+  if (raw.isLoading && raw.data === undefined) return { kind: "loading" };
+  if (raw.data === undefined) {
     return { kind: "empty" };
   }
   if (isEmpty(raw.data)) return { kind: "empty" };
-  return { kind: "ready", data: raw.data };
+  
+  const mapped = mapFn ? mapFn(raw.data) : (raw.data as unknown as U);
+  return { kind: "ready", data: mapped };
 }
 
 // ── Public hook ──────────────────────────────────────────────────────────
@@ -145,51 +140,91 @@ interface UseObservabilityResult {
  * Each endpoint polls on its own cadence appropriate to its volatility.
  */
 export function useObservability(): UseObservabilityResult {
-  // 60s poll for cost (it ticks per-conversation · users want fresh).
-  const cost = useUltronFetch<CostSloShape>("/api/system/cost-slo", {
-    ttlMs: 30_000,
-    pollMs: 60_000,
+  const costQuery = trpc.observability.costSlo.useQuery(undefined, {
+    refetchInterval: 60_000,
   });
 
-  // 60s poll for voice (it spikes around active call windows).
-  const voice = useUltronFetch<VoiceLatencyShape>("/api/system/voice-latency", {
-    ttlMs: 30_000,
-    pollMs: 60_000,
+  const voiceQuery = trpc.observability.voiceLatency.useQuery(undefined, {
+    refetchInterval: 60_000,
   });
 
-  // 5min poll for eval (regression runs are nightly — fast poll is wasteful).
-  const evals = useUltronFetch<EvalResultsShape>("/api/system/eval-results?limit=8", {
-    ttlMs: 300_000,
-    pollMs: 300_000,
+  const evalsQuery = trpc.observability.evalResults.useQuery({ limit: 8 }, {
+    refetchInterval: 300_000,
   });
 
-  // 5min poll for OS snapshot (structural shape — slow-moving).
-  const osSnapshot = useUltronFetch<OsSnapshotShape>("/api/system/os-snapshot", {
-    ttlMs: 300_000,
-    pollMs: 300_000,
+  const osSnapshotQuery = trpc.observability.osSnapshot.useQuery(undefined, {
+    refetchInterval: 300_000,
   });
 
   return {
-    cost: classify(cost, (d) =>
-      // Empty when neither today's burn nor the sparkline has anything.
-      (d.burnUsdToday ?? 0) === 0 && (d.burn7d?.length ?? 0) === 0,
+    cost: classify(
+      costQuery,
+      (d) => (d.today?.burnCents ?? 0) === 0 && (d.sparkline7d?.length ?? 0) === 0,
+      (d) => ({
+        burnUsdToday: d.today?.burnCents != null ? d.today.burnCents / 100 : 0,
+        dailyBudgetUsd: d.budget?.dailyCents != null ? d.budget.dailyCents / 100 : 0,
+        burn7d: d.sparkline7d?.map((s: any) => s.costCents / 100) || [],
+        forecastUsdEod: d.forecast?.forecastCents != null ? d.forecast.forecastCents / 100 : 0,
+        topConversations: d.topConversations?.map((c: any) => ({
+          id: c.conversationId ?? c.key,
+          label: c.key,
+          usd: c.costCents / 100,
+        })) || [],
+      })
     ),
-    voice: classify(voice, (d) =>
-      (d.p50Ms ?? 0) === 0 && (d.recentMs?.length ?? 0) === 0,
+    voice: classify(
+      voiceQuery,
+      (d) => (d.stages?.[0]?.p50 ?? 0) === 0 && (d.breach?.recentP50s?.length ?? 0) === 0,
+      (d) => ({
+        p50Ms: d.stages?.[0]?.p50,
+        p95Ms: d.stages?.[0]?.p95,
+        recentMs: d.breach?.recentP50s?.map((r: any) => r.p50) || [],
+        breachStreak: d.breach?.streak ?? 0,
+        redThresholdMs: d.target?.ms ?? 800,
+        amberThresholdMs: d.target ? d.target.ms * 0.75 : 500,
+      })
     ),
-    evals: classify(evals, (d) => (d.results?.length ?? 0) === 0),
-    osSnapshot: classify(osSnapshot, (d) =>
-      !d.now ||
-      (((d.now.routes ?? 0) +
-        (d.now.crons ?? 0) +
-        (d.now.tools ?? 0) +
-        (d.now.monsters ?? 0)) === 0),
+    evals: classify(
+      evalsQuery,
+      (d) => (d.results?.length ?? 0) === 0,
+      (d) => d
+    ),
+    osSnapshot: classify(
+      osSnapshotQuery,
+      (d) => !d.drift || ((d.drift.regressions?.length ?? 0) === 0 && (d.drift.improvements?.length ?? 0) === 0),
+      (d) => {
+        const getMetric = (metric: string) => {
+          const row = d.drift?.regressions?.find((r: any) => r.metric === metric) || d.drift?.improvements?.find((r: any) => r.metric === metric);
+          return row ? { today: row.today, baseline: row.baseline } : undefined;
+        };
+        const routes = getMetric("routes.count");
+        const crons = getMetric("crons.count");
+        const tools = getMetric("tools.count");
+        const monsters = getMetric("monster.files");
+
+        return {
+          now: {
+            routes: routes?.today,
+            crons: crons?.today,
+            tools: tools?.today,
+            monsters: monsters?.today,
+          },
+          prior: {
+            routes: routes?.baseline,
+            crons: crons?.baseline,
+            tools: tools?.baseline,
+            monsters: monsters?.baseline,
+          },
+          generatedAt: d.drift?.date,
+          monsterLocThreshold: 800,
+        };
+      }
     ),
     reload: () => {
-      cost.refetch();
-      voice.refetch();
-      evals.refetch();
-      osSnapshot.refetch();
+      costQuery.refetch();
+      voiceQuery.refetch();
+      evalsQuery.refetch();
+      osSnapshotQuery.refetch();
     },
   };
 }

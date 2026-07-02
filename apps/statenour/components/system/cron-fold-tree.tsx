@@ -68,7 +68,7 @@ export function CronFoldTree() {
   // route returned `{ rows, summary, generatedAt }` directly (no
   // `{data}` wrap); the procedure returns the same shape. One-shot
   // fetch on mount — no interval, matching the prior behaviour.
-  const treeQuery = trpc.system.cronTree.useQuery();
+  const treeQuery = trpc.systemAutomation.cronTree.useQuery();
   const data: ApiResponse | null = treeQuery.data ?? null;
   const error = treeQuery.error
     ? treeQuery.error.message || "load failed"
