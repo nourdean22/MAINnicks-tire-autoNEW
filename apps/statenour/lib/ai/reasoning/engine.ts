@@ -696,15 +696,19 @@ PLAN: ${plan || "(no plan)"}`,
       for (const call of step.toolCalls ?? []) {
         toolsCalled.push(call.toolName);
       }
-      // toolResults items are TypedToolResult — access via runtime cast
-      // since the generic type doesn't expose `.result` directly.
+      // forensic-audit HIGH · AI SDK v6 (StaticToolResult) exposes the tool
+      // return value as `output`, NOT `result` (verified against installed
+      // ai@6.0.162 index.d.ts). Reading `.result` yielded undefined →
+      // JSON.stringify(undefined) is undefined → .slice() threw → the outer
+      // catch swallowed it → NICK_DEEP_REASONING drafted with ZERO live data
+      // (fabricated figures — the exact failure the feature prevents).
       for (const res of step.toolResults ?? []) {
-        const entry = res as unknown as { toolName: string; result: unknown };
-        const resultStr = typeof entry.result === "string"
-          ? entry.result
-          : JSON.stringify(entry.result, null, 2);
+        const entry = res as unknown as { toolName: string; output: unknown };
+        const resultStr = typeof entry.output === "string"
+          ? entry.output
+          : JSON.stringify(entry.output, null, 2);
         toolOutputs.push(
-          `## ${entry.toolName} result\n${resultStr.slice(0, 2000)}`,
+          `## ${entry.toolName} result\n${(resultStr ?? "").slice(0, 2000)}`,
         );
       }
     }
