@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { toast } from "sonner";
 
 // hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice.
 // `/api/ai/transcribe` takes a multipart `FormData` audio Blob — tRPC's
@@ -88,6 +89,10 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
             // /api/ai/transcribe returning 404 forever (route never built).
             // Now we surface the failure so operator knows mic ≠ stream.
             console.warn(`[voice-input] transcribe HTTP ${res.status}`);
+            // forensic-audit MEDIUM · surface via toast, not just console —
+            // there is no console on the standalone iOS PWA, so the utterance
+            // used to vanish with zero feedback and the mic looked dead.
+            toast.error("Voice transcription failed — try again");
             return;
           }
           const data = await res.json();
@@ -95,9 +100,11 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
             onTranscript(data.text);
           } else if (data.error) {
             console.warn(`[voice-input] transcribe error: ${data.error}`);
+            toast.error("Voice transcription failed — try again");
           }
         } catch (err) {
           console.warn(`[voice-input] transcribe request failed:`, err);
+          toast.error("Voice transcription failed — check your connection");
         } finally {
           setTranscribing(false);
         }
@@ -106,7 +113,10 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
     } catch {
-      // Mic access denied
+      // forensic-audit MEDIUM · mic permission denied / unavailable — was a
+      // bare silent catch; tell the operator so the dead mic button isn't a
+      // mystery.
+      toast.error("Microphone unavailable — check permissions");
     }
   }, [onTranscript]);
 
