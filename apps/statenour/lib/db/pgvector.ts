@@ -234,10 +234,19 @@ export async function knnSearch(
       return rows;
     }
   } catch (err) {
-    // Most likely the column doesn't exist yet (pre-migration). Cache
-    // the negative so we don't spam the log.
-    cachedAvailability = { at: Date.now(), available: false };
-    console.warn("[pgvector] knn query failed (column missing?):", err);
+    // forensic-audit HIGH · only cache a NEGATIVE when the error means the
+    // pgvector column/extension is genuinely absent (pre-migration). A
+    // TRANSIENT error (Neon blip, dim-mismatched query literal) must NOT
+    // poison the process-wide cache: that also gates isPgvectorAvailable()
+    // and silently disabled ALL dual-writes for 5 min (memories written with
+    // NULL embeddings, invisible to recall). Persistent "does not exist" →
+    // cache; anything else → fail just this query and retry next time.
+    const msg = err instanceof Error ? err.message : String(err);
+    const columnOrExtMissing = /does not exist|undefined column|no such|relation .* does not exist/i.test(msg);
+    if (columnOrExtMissing) {
+      cachedAvailability = { at: Date.now(), available: false };
+    }
+    console.warn("[pgvector] knn query failed:", err);
     return null;
   }
 }

@@ -83,6 +83,18 @@ export const POST = apiHandler(
         throw new ServiceError("Customer email missing from session payload", 400);
       }
 
+      // forensic-audit HIGH · idempotency. Stripe delivers at-least-once and
+      // retries on any slow/failed/duplicate delivery; without this guard each
+      // redelivery created a second 'paid' Order (revenue double-counted) and
+      // re-fired the Inngest fulfillment workflow. Ack duplicates without
+      // reprocessing. (A unique constraint on stripeSessionId is the
+      // migration-wave backstop.)
+      const existingOrder = await prisma.order.findFirst({ where: { stripeSessionId } });
+      if (existingOrder) {
+        log.info("stripe_duplicate_ignored", { stripeSessionId, orderId: existingOrder.id });
+        return { received: true };
+      }
+
       // 1. Find or create Contact
       let contact = await prisma.contact.findUnique({
         where: { email },
