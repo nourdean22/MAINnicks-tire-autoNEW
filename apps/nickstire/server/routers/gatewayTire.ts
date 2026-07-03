@@ -659,18 +659,29 @@ export const gatewayTireRouter = router({
       let refCode = "NT-";
       for (let i = 0; i < 6; i++) refCode += chars[Math.floor(Math.random() * chars.length)];
 
-      // Also create a booking for installation tracking
-      await d.insert(bookings).values({
-        name: input.customerName,
-        phone: input.customerPhone,
-        email: input.customerEmail || null,
-        service: "Tire Order & Installation",
-        vehicle: input.vehicleInfo || "Not specified",
-        referenceCode: refCode,
-        message: `ONLINE TIRE ORDER ${orderNumber}\n${input.quantity}x ${input.tireBrand} ${input.tireModel} (${input.tireSize})\nInstall: ${input.installPreference.replace("-", " ")}\nNick's Premium Installation Package: INCLUDED\nTotal: $${(totalAmount / 100).toFixed(2)}${input.customerNotes ? `\nNotes: ${input.customerNotes}` : ""}`,
-        preferredTime: (timeMap[input.installPreference] || "no-preference") as "morning" | "afternoon" | "no-preference",
-        stage: "received",
-      });
+      // Also create a booking for installation tracking.
+      // forensic-audit MEDIUM · non-fatal. This sat un-transacted between the
+      // recordOrder() idempotency claim and the invoice creation, so a failure
+      // here aborted the whole mutation AFTER the order was already claimed +
+      // inserted — the customer's retry then returned { success:true,
+      // duplicate:true, totalAmount:0 } for a phantom order with no booking and
+      // no invoice. The order + invoice (the money-critical writes) now always
+      // complete; a booking-insert failure is logged for manual recovery.
+      try {
+        await d.insert(bookings).values({
+          name: input.customerName,
+          phone: input.customerPhone,
+          email: input.customerEmail || null,
+          service: "Tire Order & Installation",
+          vehicle: input.vehicleInfo || "Not specified",
+          referenceCode: refCode,
+          message: `ONLINE TIRE ORDER ${orderNumber}\n${input.quantity}x ${input.tireBrand} ${input.tireModel} (${input.tireSize})\nInstall: ${input.installPreference.replace("-", " ")}\nNick's Premium Installation Package: INCLUDED\nTotal: $${(totalAmount / 100).toFixed(2)}${input.customerNotes ? `\nNotes: ${input.customerNotes}` : ""}`,
+          preferredTime: (timeMap[input.installPreference] || "no-preference") as "morning" | "afternoon" | "no-preference",
+          stage: "received",
+        });
+      } catch (bookingErr) {
+        log.error(`[gatewayTire:placeOrder] installation booking insert failed for order ${orderNumber} — order + invoice still created; booking needs manual recovery:`, bookingErr instanceof Error ? bookingErr.message : bookingErr);
+      }
 
       const pricePerTire = input.pricePerTireCents / 100;
       const totalDollars = totalAmount / 100;

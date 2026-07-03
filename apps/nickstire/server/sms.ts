@@ -611,6 +611,11 @@ interface SendSmsOptions {
   isInternal?: boolean;
   /** Explicitly bypass customer opt-out footer */
   skipOptOutFooter?: boolean;
+  /** forensic-audit MEDIUM · skip ONLY the 5-min in-memory cooldown (the daily
+   *  cap still applies). Used for inbound auto-replies: a customer's second
+   *  question within 5 min of the first reply must still be answered — the
+   *  cooldown is anti-spam for OUTBOUND sends, not for 1:1 responses. */
+  skipShortCooldown?: boolean;
   /**
    * Routing override.
    * - undefined (default · wave-181.60): shop-first — tries the F25e
@@ -854,12 +859,13 @@ setInterval(() => {
  * cap+1, which still reads as "over the cap" and blocks. Cleanup cron
  * prunes stale rows after 25h.
  */
-async function checkDailyLimit(phone: string): Promise<boolean> {
+async function checkDailyLimit(phone: string, opts?: { skipShortCooldown?: boolean }): Promise<boolean> {
   const now = Date.now();
 
-  // Short-term cooldown (in-memory)
+  // Short-term cooldown (in-memory) — skipped for inbound auto-replies, which
+  // are 1:1 responses to the customer's own message (the daily cap still runs).
   const lastSent = smsLastSentMap.get(phone);
-  if (lastSent && now - lastSent < SMS_COOLDOWN_MS) {
+  if (!opts?.skipShortCooldown && lastSent && now - lastSent < SMS_COOLDOWN_MS) {
     log.warn("SMS cooldown active", {
       phone: phone.slice(-4),
       secondsAgo: Math.round((now - lastSent) / 1000),
@@ -1055,7 +1061,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   // receiving SMS until the opt-out cache caught up (TCPA risk) and a
   // single phone could receive unlimited SMS in 24h.
   if (!opts?.transactional && !opts?._forceImmediate && !opts?.skipOptOutCheck) {
-    if (!(await checkDailyLimit(normalizedEarly))) {
+    if (!(await checkDailyLimit(normalizedEarly, { skipShortCooldown: opts?.skipShortCooldown }))) {
       return { success: false, error: "Daily SMS limit reached for this number" };
     }
   }
