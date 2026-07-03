@@ -1130,16 +1130,24 @@ export const invoicesRouter = router({
         refundId = refund.id;
 
         // 4. Update the database atomically
+        // forensic-audit HIGH · a partial refund (amountCents < total) used
+        // to flip the invoice to 'refunded', after which the early guard
+        // blocked ever refunding the remaining balance. Mark 'partial'
+        // unless this refund covers the full total, so subsequent refunds
+        // of the remainder are still permitted. (Cumulative multi-partial
+        // accounting needs a refundedAmount column — migration wave.)
+        const isFullRefund = input.amountCents >= (invoice.totalAmount ?? 0);
+        const refundStatus = isFullRefund ? "refunded" : "partial";
         const [claim] = await d.execute(sql`
           UPDATE invoices
-          SET paymentStatus = 'refunded',
+          SET paymentStatus = ${refundStatus},
               updatedAt = NOW()
           WHERE id = ${invoice.id} AND paymentStatus IN ('paid', 'partial')
         `);
 
         if (((claim as unknown as { affectedRows?: number }).affectedRows ?? 0) > 0) {
-          // If invoice is linked to a tire order, also mark tire order refunded
-          if (tireOrder) {
+          // Only mark the linked tire order fully refunded on a full refund.
+          if (tireOrder && isFullRefund) {
             await d.update(tireOrders)
               .set({ paymentStatus: "refunded", updatedAt: new Date() })
               .where(eq(tireOrders.orderNumber, tireOrder.orderNumber));
