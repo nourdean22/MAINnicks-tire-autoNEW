@@ -54,27 +54,37 @@ export function NotebookLMCockpit() {
       reader.readAsDataURL(file);
       reader.onload = async () => {
         setUploadStatus("Ingesting to MCP...");
-        const base64 = reader.result as string;
-        const res = await fetch("/api/research/notebooklm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "add_source",
-            params: {
-              filename: file.name,
-              filetype: file.type,
-              base64
-            }
-          })
-        });
-        if (res.ok) {
-          setUploadStatus("Ingested successfully");
-          setTimeout(() => setUploadStatus(null), 3000);
-        } else {
-          setUploadStatus("Ingestion failed");
+        // forensic-audit MEDIUM · the fetch runs inside this async onload, so a
+        // rejected fetch (network drop — common on iOS PWA) never reached the
+        // outer try/catch → setIsUploading(false) was skipped → the drop-zone
+        // spinner spun forever. Guard here so it always clears.
+        try {
+          const base64 = reader.result as string;
+          const res = await fetch("/api/research/notebooklm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "add_source",
+              params: {
+                filename: file.name,
+                filetype: file.type,
+                base64
+              }
+            })
+          });
+          if (res.ok) {
+            setUploadStatus("Ingested successfully");
+            setTimeout(() => setUploadStatus(null), 3000);
+          } else {
+            setUploadStatus("Ingestion failed");
+            setTimeout(() => setUploadStatus(null), 4000);
+          }
+        } catch {
+          setUploadStatus("Ingestion failed (network)");
           setTimeout(() => setUploadStatus(null), 4000);
+        } finally {
+          setIsUploading(false);
         }
-        setIsUploading(false);
       };
       reader.onerror = () => {
         setUploadStatus("Error reading file");
