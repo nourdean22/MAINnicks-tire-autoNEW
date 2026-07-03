@@ -68,7 +68,16 @@ export async function fetchAndStoreReviews(): Promise<{ fetched: number; newCoun
 
   const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${PLACE_ID}&fields=reviews&key=${API_KEY}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) }); // wave-181.92
+  if (!res.ok) throw new Error(`Google Places HTTP ${res.status}`);
   const data = await res.json();
+
+  // forensic-audit MEDIUM · Places returns HTTP 200 with a status field on
+  // key/billing/place-id problems (REQUEST_DENIED / OVER_QUERY_LIMIT / NOT_FOUND).
+  // Without this an expired key looked like a successful { fetched: 0 } and new
+  // negative reviews silently stopped reaching the operator.
+  if (data.status && data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+    throw new Error(`Google Places error: ${data.status}${data.error_message ? ` — ${data.error_message}` : ""}`);
+  }
 
   const reviews: PlaceReview[] = data.result?.reviews ?? [];
   let newCount = 0;
@@ -91,6 +100,10 @@ export async function fetchAndStoreReviews(): Promise<{ fetched: number; newCoun
       time: review.time,
       responded: false,
     };
+    // forensic-audit MEDIUM · only count a review as new if it actually
+    // persisted; the old code ran newCount++ even when the create was caught,
+    // overstating what was stored.
+    let persisted = true;
     await prisma.brainMemory
       .create({
         data: {
@@ -102,12 +115,13 @@ export async function fetchAndStoreReviews(): Promise<{ fetched: number; newCoun
         },
       })
       .catch((err) => {
+        persisted = false;
         log.warn("review_persist_failed", {
           key,
           error: err instanceof Error ? err.message : String(err),
         });
       });
-    newCount++;
+    if (persisted) newCount++;
   }
 
   return { fetched: reviews.length, newCount };
