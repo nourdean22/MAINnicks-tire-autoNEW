@@ -362,6 +362,12 @@ async function pgvectorSemanticSearch(
       knnSearch(queryVec, { sourceType: st, limit: fanLimit, metric: "cosine" }),
     ),
   );
+  // forensic-audit MEDIUM · knnSearch returns null on FAILURE and [] on a
+  // successful-but-empty query. If EVERY source-type query failed, return null
+  // so semanticSearch falls through to the legacy in-memory cosine scan —
+  // previously `h ?? []` coerced the failures to [] and the function reported
+  // "no matches" instead of falling back.
+  if (hitsByType.length > 0 && hitsByType.every((h) => h === null)) return null;
   const allHits = hitsByType.flatMap((h) => h ?? []);
   if (allHits.length === 0) return [];
 

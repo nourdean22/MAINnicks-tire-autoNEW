@@ -75,8 +75,14 @@ export async function POST(req: Request) {
     const results = [];
 
     for (const event of events) {
-      const { type, data, timestamp } = event;
+      // forensic-audit MEDIUM · default data + per-event isolation. A missing
+      // `data` used to throw at data.name (TypeError → 500 → nickstire retries
+      // the WHOLE batch → duplicate lead alerts already delivered); and any one
+      // event's failure (e.g. an emergency Telegram re-throw) 500'd the batch
+      // the same way. Guard the shape and isolate each event.
+      const { type, data = {}, timestamp } = event ?? {};
 
+      try {
       switch (type) {
         case "nickstire:lead": {
           // Instant lead alert to Telegram
@@ -186,6 +192,15 @@ export async function POST(req: Request) {
           error: err instanceof Error ? err.message : String(err),
         });
       });
+      } catch (err) {
+        // Isolate this event's failure — never fail the whole batch (that
+        // caused nickstire to retry and re-deliver already-sent alerts).
+        log.error("nickstire_webhook_event_failed", {
+          eventType: type,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        results.push({ type, action: "error", status: "failed" });
+      }
     }
 
     return NextResponse.json({ received: events.length, results });

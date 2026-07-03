@@ -173,6 +173,22 @@ async function runExecutorCore(today: string) {
       continue;
     }
 
+    // forensic-audit MEDIUM · claim-before-execute. The batch was selected by
+    // executedAt:null and only stamped AFTER each action ran, so two overlapping
+    // runs (a retry, or a manual runNow while the first is still mid-flight)
+    // both saw the same rows and double-executed them (duplicate task nudges,
+    // journal commits, SMS-outreach drafts). Atomically flip executedAt first;
+    // only the run that wins the claim executes. On failure the row stays
+    // claimed (at-most-once) — an AI action must not auto-retry side effects.
+    const claim = await prisma.autonomousAction.updateMany({
+      where: { id: r.id, executedAt: null },
+      data: { executedAt: new Date() },
+    });
+    if (claim.count === 0) {
+      skipped++;
+      continue;
+    }
+
     let exec: ExecutionResult;
     try {
       exec = await executeNickAction({
