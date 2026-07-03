@@ -32,21 +32,10 @@ interface CustomerLookup {
 }
 
 export default function LoyaltyAdminSection() {
-  const [phone, setPhone] = useState("");
-  const [points, setPoints] = useState("");
-  const [desc, setDesc] = useState("");
-
-  // wave-143 — `awardPointsByPhone` replaces the client-side
-  // `customers.list.fetch() + JS phone match` pattern, which silently missed any
-  // customer past page 1 of the paginated list.
-  // wave-187 — removed the unused `awardPoints` (by-userId) binding; the button
-  // only ever called `awardPointsByPhone`. The router proc is left intact in case
-  // of other callers.
-  const awardPointsByPhone = trpc.loyalty.awardPointsByPhone.useMutation({
-    onSuccess: () => { setPhone(""); setPoints(""); setDesc(""); toast.success("Points awarded"); },
-    onError: (err: { message: string }) => toast.error(err.message),
-  });
-
+  // forensic-audit HIGH · the "Award Points by phone" panel was retired: the
+  // server proc credited a random users-table row (customers.id used as
+  // users.id), never the intended customer. Loyalty is users-based; there is
+  // no correct customer→user bridge. Reward-catalog management stays.
   const { data: rewards, isLoading: rewardsLoading } = trpc.loyalty.rewards.useQuery();
   const utils = trpc.useUtils();
   const [rewardForm, setRewardForm] = useState({ title: "", description: "", pointsCost: "", discountValue: "" });
@@ -85,7 +74,7 @@ export default function LoyaltyAdminSection() {
     <div className="space-y-8">
       <PageHeader
         title="Loyalty Program"
-        subtitle="Award points · manage rewards · track redemption ROI · cheapest-cost reward = most accessible"
+        subtitle="Manage rewards · track redemption ROI · cheapest-cost reward = most accessible"
         icon={<Trophy className="w-5 h-5" />}
       />
 
@@ -116,29 +105,7 @@ export default function LoyaltyAdminSection() {
         </>
       )}
 
-      {/* Award Points */}
-      <div className="bg-card border border-border/30 p-5">
-        <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">AWARD POINTS</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          {/* wave-120 — added type="tel" + inputMode hints for proper iOS keyboard */}
-          <input placeholder="Customer Phone" type="tel" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
-          <input placeholder="Points" type="number" inputMode="numeric" value={points} onChange={e => setPoints(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
-          <input placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
-          <button
-            onClick={() => {
-              awardPointsByPhone.mutate({
-                phone,
-                points: parseInt(points) || 0,
-                description: desc || "Manual award",
-              });
-            }}
-            disabled={awardPointsByPhone.isPending || !phone || !points}
-            className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wide disabled:opacity-50"
-          >
-            {awardPointsByPhone.isPending ? "AWARDING..." : "AWARD"}
-          </button>
-        </div>
-      </div>
+      {/* Award Points by phone retired — see component header. */}
 
       {/* Manage Rewards */}
       <div>
