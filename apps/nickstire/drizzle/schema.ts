@@ -1247,7 +1247,7 @@ export const invoices = mysqlTable("invoices", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
-  index("idx_invoice_booking").on(table.bookingId),
+  uniqueIndex("uniq_invoice_booking").on(table.bookingId),
   index("idx_invoice_work_order").on(table.workOrderId),
   index("idx_invoice_customer").on(table.customerName),
   index("idx_invoice_date").on(table.invoiceDate),
