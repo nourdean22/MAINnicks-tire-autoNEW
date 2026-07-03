@@ -116,12 +116,17 @@ export async function GET(req: NextRequest) {
     })
   );
 
+  // forensic-audit MEDIUM · was always { ok: true } / HTTP 200 even when every
+  // engine threw, so mega's failure counter and /system/crons diagnostics never
+  // saw it fail — people-intelligence/decision-patterns/emotional-arc could stay
+  // dead for weeks with zero alert. Reflect total failure in ok + status.
+  const allFailed = engines.length > 0 && errors.length === engines.length;
   return NextResponse.json({
-    ok: true,
+    ok: !allFailed,
     enginesRun: engines.length,
     errors: errors.length,
     errorDetails: errors.length > 0 ? errors : undefined,
     results,
     timestamp: new Date().toISOString(),
-  });
+  }, { status: allFailed ? 500 : 200 });
 }
