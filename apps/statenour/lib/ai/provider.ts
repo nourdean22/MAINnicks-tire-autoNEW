@@ -492,8 +492,13 @@ export function getModel(
     preferred = getPreferredOrderForTask(taskType);
   }
 
+  // forensic-audit MEDIUM · a provider absent from `preferred` returned
+  // indexOf -1 and thus sorted FIRST. The preferLargeContext list omits
+  // openrouter, so OPENROUTER_API_KEY promoted it to 1st — opposite of the
+  // "Ollama first" intent. Rank unlisted providers LAST, not first.
   const ordered = [...PROVIDERS].sort((a, b) => {
-    return preferred.indexOf(a.name) - preferred.indexOf(b.name);
+    const ra = preferred.indexOf(a.name); const rb = preferred.indexOf(b.name);
+    return (ra === -1 ? preferred.length : ra) - (rb === -1 ? preferred.length : rb);
   });
 
   if (AI_PROVIDER) {
@@ -540,8 +545,13 @@ function activeModelIdFor(entry: ProviderEntry, taskType: TaskType): string {
 
 export function getActiveProviderInfo(taskType: TaskType = "reason"): { provider: ProviderName; modelId: string } {
   const preferred = getPreferredOrderForTask(taskType);
+  // forensic-audit MEDIUM · a provider absent from `preferred` returned
+  // indexOf -1 and thus sorted FIRST. The preferLargeContext list omits
+  // openrouter, so OPENROUTER_API_KEY promoted it to 1st — opposite of the
+  // "Ollama first" intent. Rank unlisted providers LAST, not first.
   const ordered = [...PROVIDERS].sort((a, b) => {
-    return preferred.indexOf(a.name) - preferred.indexOf(b.name);
+    const ra = preferred.indexOf(a.name); const rb = preferred.indexOf(b.name);
+    return (ra === -1 ? preferred.length : ra) - (rb === -1 ? preferred.length : rb);
   });
 
   if (AI_PROVIDER) {
