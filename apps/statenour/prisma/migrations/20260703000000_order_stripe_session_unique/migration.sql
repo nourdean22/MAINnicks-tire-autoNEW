@@ -1,0 +1,41 @@
+-- 2026-07-03 · orders.stripe_session_id UNIQUE (forensic-audit backstop)
+--
+-- NOTE: the Prisma model `Order` maps to table `orders` (@@map("orders")) and
+-- the field `stripeSessionId` maps to column `stripe_session_id`.
+--
+-- Backstops the Stripe webhook idempotency guard (app-level findFirst dedup +
+-- fail-closed signature, PR #495 wave 3) against a concurrent double-delivery
+-- race where two webhook deliveries could both pass the findFirst check before
+-- either inserts. The column is nullable → Postgres allows multiple NULLs, so
+-- unpaid / non-Stripe orders are unaffected; only non-null session ids must be
+-- unique. This is a HARDENING backstop — the app already prevents duplicates in
+-- normal operation, so the pre-check below should be clean.
+--
+-- pgvector-safe: touches only an ordinary column. NEVER apply via
+-- `prisma db push --accept-data-loss` (it silently drops embedding_vec* + the
+-- chat_messages tsvector column).
+--
+-- ── PRE-CHECK (MUST return 0 rows before applying) ──────────────────────────
+--   SELECT stripe_session_id, COUNT(*) FROM orders
+--     WHERE stripe_session_id IS NOT NULL
+--     GROUP BY stripe_session_id
+--     HAVING COUNT(*) > 1;
+--   -- If any rows come back, dedupe (keep the earliest per session id) BEFORE
+--   -- applying — CREATE UNIQUE INDEX will otherwise fail.
+--
+-- ── HOW TO APPLY (uses the autocommit pg driver; CONCURRENTLY cannot run
+--    inside Prisma's implicit transaction wrap) ──────────────────────────────
+--   1. Confirm prod: prisma migrate status   (source of truth, not release:db)
+--   2. pnpm tsx scripts/apply-pending-migration.ts 20260703000000_order_stripe_session_unique
+--   3. Move this dir from migrations-pending/ → migrations/
+--   4. prisma migrate resolve --applied 20260703000000_order_stripe_session_unique
+--   5. prisma migrate status   # must be clean
+--   6. pnpm typecheck          # regenerated client
+--
+-- The index name below is Prisma's @unique convention for this mapped table
+-- (<table>_<column>_key = orders_stripe_session_id_key), so `prisma migrate
+-- status` stays clean after resolve. Confirm with `prisma migrate diff` if in
+-- doubt.
+
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "orders_stripe_session_id_key"
+  ON "orders" ("stripe_session_id");
