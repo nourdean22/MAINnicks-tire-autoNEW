@@ -6,9 +6,9 @@ Read-only pass. Zero code changes. All paths relative to `apps/nickstire/` unles
 
 ## STOP THE BLEEDING
 
-**1 · Cloudflare proxy is OFF — rate limits are bypassable today (live-verified 2026-07-03).** `curl -I https://nickstire.org` returns `server: railway-hikari`, `x-railway-edge: iad1`, and **no `cf-ray`** — Cloudflare is DNS-only (grey-cloud); traffic hits Railway's edge directly, contradicting `DEPLOY.md:3` ("Cloudflare-proxied"). The rate limiter keys on the client-controllable `cf-connecting-ip` header first (`server/middleware/rateLimiters.ts:4-13`), so any bot can rotate that header to bypass the form/API/AI limits on the quote, callback, booking, and AI endpoints right now. Fix is minutes: either orange-cloud the DNS record in Cloudflare (and then restrict origin ingress), or stop trusting `cf-connecting-ip` and key on `req.ip` with `trust proxy` set for Railway.
+**1 · Cloudflare proxy is OFF — rate limits are bypassable today (live-verified 2026-07-03) `[VOLATILE — DNS state; re-verify with curl before acting]`.** `curl -I https://nickstire.org` returns `server: railway-hikari`, `x-railway-edge: iad1`, and **no `cf-ray`** — Cloudflare is DNS-only (grey-cloud); traffic hits Railway's edge directly, contradicting `DEPLOY.md:3` ("Cloudflare-proxied"). The rate limiter keys on the client-controllable `cf-connecting-ip` header first (`server/middleware/rateLimiters.ts:4-13`), so any bot can rotate that header to bypass the form/API/AI limits on the quote, callback, booking, and AI endpoints right now. Fix is estimated at minutes of work: either orange-cloud the DNS record in Cloudflare (and then restrict origin ingress), or stop trusting `cf-connecting-ip` and key on `req.ip` with `trust proxy` set for Railway.
 
-**2 · `RESEND_API_KEY` is unset in production — lead email alerts are dead (live-verified).** `https://nickstire.org/api/health` reports `email: not_configured`, which maps directly to `process.env.RESEND_API_KEY` (`server/lib/health.ts:72`). Every `notifyNewLead` email silently fails into `integration_failures`; operator lead alerting currently rides on Telegram/SMS alone. Set the key on Railway or consciously accept Telegram-only.
+**2 · `RESEND_API_KEY` is unset in production — lead email alerts are dead (live-verified 2026-07-03 twice: `/api/health` + `railway variables`) `[VOLATILE — env state; re-verify before acting]`.** `https://nickstire.org/api/health` reports `email: not_configured`, which maps directly to `process.env.RESEND_API_KEY` (`server/lib/health.ts:72`). Every `notifyNewLead` email silently fails into `integration_failures`; operator lead alerting currently rides on Telegram/SMS alone. Set the key on Railway or consciously accept Telegram-only.
 
 **3 · Secrets in git history — rotation deferred by operator (2026-07-03).** `docs/MIGRATION_AUDIT.md` was redacted in HEAD (PR #49), but per `truth_os.md` the leaked Stripe secret, TiDB URL, and vendor passwords remain in git history. Operator has explicitly deferred rotation for now — recorded here so it doesn't silently evaporate. No new committed secrets in the working tree (`git ls-files apps/nickstire | grep -i env` → only `.env.example`; client grep clean).
 
@@ -52,17 +52,19 @@ The master-prompt premise ("SSR fix exists only as a prompt/branch that never me
 
 **P0-2 · Migration journal drift: 32 of 86 SQL files are orphans a fresh deploy will never apply**
 - **File:** `scripts/db-migrate.ts:225` (`for (const entry of journal.entries)`); `drizzle/meta/_journal.json` (54 entries) vs `drizzle/*.sql` (86 files)
-- **Evidence:** journal skips 0038, 0039, 0046, 0051, 0057–0074 and all duplicate-numbered files — including load-bearing ones (`0065_ig_autopost_log`, `0071_scheduled_posts`, `0072_unpaid_invoice_recovery`, `0074_social_studio_memory`). The runner warns about journal-entries-missing-files (`:205-210`) but is silent on the inverse. Prod works only because these were hand-applied.
+- **Evidence:** journal skips 0038, 0039, 0046, 0051, 0057–0074 and all duplicate-numbered files — including load-bearing ones (`0065_ig_autopost_log`, `0071_scheduled_posts`, `0072_unpaid_invoice_recovery`, `0074_social_studio_memory`). The runner warns about journal-entries-missing-files (`:205-210`) but is silent on the inverse. Prod presumably works because these were hand-applied [inferred from journal drift, not observed — verify against the live schema before treating as fact].
 - **Risk impact:** any DB rebuild, disaster recovery, or staging clone comes up missing tables that `drizzle/schema.ts` and live server code reference → runtime `ER_NO_SUCH_TABLE` across crons, social pipeline, and invoice recovery. This is silent data-layer debt on the money system.
 - **Fix:** register every orphan SQL file in `_journal.json` in correct order (or fold them into journaled equivalents), and add an orphan-file check to `db-migrate.ts` that fails loudly when `drizzle/*.sql` ⊄ journal. Definition of done: file count == journal count and the runner errors on any future orphan. **Effort: M**
 
 ## P1 Findings
 
-**P1-1 · Meta CAPI is dormant by construction until its token is set**
+**P1-1 · Meta CAPI token IS set on Railway (live-verified 2026-07-03) — remaining work is validation, not provisioning**
+
+> **CORRECTION (2026-07-03, local session):** `railway variables --service MAINnicks-tire-auto` confirms `META_CAPI_ACCESS_TOKEN` **and** `META_CAPI_PIXEL_ID` are both present in production. The original finding below assumed the token was likely missing; presence is now verified. Presence ≠ validity — token acceptance by Meta is unverified (see fix). `[VOLATILE — env state]`
 - **File:** `server/meta-capi.ts:40-42,128-134`
 - **Evidence:** `getAccessToken()` returns `process.env.META_CAPI_ACCESS_TOKEN || null`; when null every `sendCAPIEvent` resolves `{success:false}` at debug level. Dedup design is otherwise correct (client eventID → `event_id`, pixel `958472373260171` matches both sides: `client/index.html:157` / `meta-capi.ts:35`).
-- **Impact:** all server-side conversion recovery (the 30–40% of pixel events lost to ad blockers/iOS) is off; measurement is silently lying low.
-- **Fix:** set `META_CAPI_ACCESS_TOKEN` on Railway, verify a Lead event in Meta Events Manager shows "server" + deduplicated, and change the token-missing path to log at warn-once level. **Effort: S**
+- **Impact:** if the token were missing or invalid, all server-side conversion recovery (the roughly 30–40% of pixel events estimated lost to ad blockers/iOS — industry estimate, uncited) would be off; measurement would be silently lying low.
+- **Fix:** ~~set `META_CAPI_ACCESS_TOKEN` on Railway~~ (already set — verified 2026-07-03); verify a Lead event in Meta Events Manager shows "server" + deduplicated, and change the token-missing path to log at warn-once level. **Effort: S**
 
 **P1-2 · Google Sheets CRM writes fail silently — retry and failure-log never engage**
 - **File:** `server/sheets-sync.ts:128-162,181`; caller `server/routers/lead.ts:168-197`
@@ -124,7 +126,7 @@ The master-prompt premise ("SSR fix exists only as a prompt/branch that never me
 | D-2 | P2 | Logical FKs are bare ints — no `references()`, no cascade semantics (TiDB-typical, but orphaning is silent) | `drizzle/schema.ts:666,827` |
 | D-3 | P2 | N+1 await-in-loop across ~8 cron jobs (bounded by batch sizes) | `server/cron/jobs/crossSellOutreach.ts:217,242,285` et al. |
 | O-1 | P2 | Cron failures logged (`logTierJob "failed"`) but no Telegram/Sentry alert on arbitrary failure; inner catches return "skipped" | `server/cron/scheduler.ts:196-199,236,316,672` |
-| O-2 | P2 | Sentry is a silent no-op unless `SENTRY_DSN` set — verify on Railway or it's a dead dependency | `server/lib/sentry.ts:34-38,91` |
+| O-2 | P2 | Sentry IS a silent no-op in prod: `SENTRY_DSN` verified ABSENT on Railway (2026-07-03, `railway variables`) — dead dependency until set `[VOLATILE — env state]` | `server/lib/sentry.ts:34-38,91` |
 | O-3 | P2 | Duplicate `unhandledRejection` handlers; `uncaughtException` hard-exits without the SIGTERM drain path | `server/lib/logger.ts:147-156` vs `server/_core/index.ts:1131-1159` |
 | W-1 | P2 | 5 raw `alert()` calls in admin — silently suppressed in iOS PWA, operator gets no feedback | `client/src/pages/admin/outreach/SmsOrchestratorSection.tsx:117,120,128,142,144` |
 | W-2 | P2 | SW pre-cached HTML shell can serve a stale app version; no offline fallback page | `client/public/sw.js:12-21,66-76` |
@@ -156,14 +158,14 @@ The master-prompt premise ("SSR fix exists only as a prompt/branch that never me
 
 ## Fix Queue (RANKED)
 
-Score = (revenue×3 + risk×2 + speed×1) / effort (S=1, M=2, L=3). Scales 0–5.
+Score = (revenue×3 + risk×2 + speed×1) / effort (S=1, M=2, L=3). Scales 0–5. **PROJECTED VALUES — auditor prioritization heuristic, not measured data.**
 
 *Re-ranked 2026-07-03 after live verification (Cloudflare proxy OFF, RESEND unset) and operator answers (GBP locality = Cleveland; secret rotation deferred).*
 
 | # | Fix | Branch | rev | risk | spd | eff | Score |
 |---|---|---|---|---|---|---|---|
 | 1 | Wire TextMeQuote: GA4 + Pixel Lead + pixelEventId/UserData + UTM in payload (P0-1) | `nickstire/audit-fix-01-quote-tracking` | 5 | 2 | 1 | S | (15+4+1)/1 = **20.0** |
-| 2 | Arm prod env in one move: `META_CAPI_ACCESS_TOKEN` + `RESEND_API_KEY` + `SENTRY_DSN` on Railway; add all three to `/api/health` configured-markers; verify CAPI dedup in Events Manager (P1-1 + Bleeding #2 + O-2). Verify vars via `railway variables \| grep -E "META_CAPI\|SENTRY_DSN\|RESEND"` | `nickstire/audit-fix-02-env-arm` | 4 | 2 | 1 | S | (12+4+1)/1 = **17.0** (force-ranked above #3: one S-effort move turns on server conversions, lead email alerts, AND error telemetry) |
+| 2 | Arm prod env in one move: `RESEND_API_KEY` + `SENTRY_DSN` on Railway (**`META_CAPI_ACCESS_TOKEN` is ALREADY SET — verified 2026-07-03 via `railway variables --service MAINnicks-tire-auto`; do not overwrite**); add all three to `/api/health` configured-markers; verify CAPI dedup in Events Manager (P1-1 + Bleeding #2 + O-2) | `nickstire/audit-fix-02-env-arm` | 4 | 2 | 1 | S | (12+4+1)/1 = **17.0** (force-ranked above #3: one S-effort move turns on server conversions, lead email alerts, AND error telemetry) |
 | 3 | Unify NAP locality to **Cleveland** (GBP-confirmed by operator): fix the three static JSON schemas + ai.txt/llms\*.txt to match `shared/business.ts`; keep "Euclid Ave/near Euclid border" phrasing in prose copy; regen prerender (P1-3) | `nickstire/audit-fix-03-nap-cleveland` | 4 | 2 | 1 | S | (12+4+1)/1 = **17.0** |
 | 4 | Make `appendRow` throw → Sheets failures retry + log to integration_failures (P1-2) | `nickstire/audit-fix-04-sheets-fail-loud` | 3 | 3 | 1 | S | (9+6+1)/1 = **16.0** |
 | 5 | Kill the rate-limit bypass: stop trusting `cf-connecting-ip` (key on `req.ip` + `trust proxy` for Railway) — or orange-cloud the CF DNS record and lock origin (S-1, live-verified) | `nickstire/audit-fix-05-ratelimit-key` | 1 | 5 | 1 | S | (3+10+1)/1 = **14.0** |
@@ -179,7 +181,7 @@ Note on #10: it scores low on impact÷effort because it costs nothing until the 
 
 ## What I Did NOT Audit
 
-- **Live production behavior** — no requests were made to nickstire.org; everything is code-level. Actual GSC indexation counts, real CWV field data, and whether `META_CAPI_ACCESS_TOKEN`/`SENTRY_DSN` are set on Railway are unverifiable from the repo.
+- **Live production behavior** — no requests were made to nickstire.org; everything is code-level. Actual GSC indexation counts and real CWV field data are unverifiable from the repo. ~~Whether `META_CAPI_ACCESS_TOKEN`/`SENTRY_DSN` are set on Railway~~ — CLOSED 2026-07-03 by local session: `META_CAPI_ACCESS_TOKEN` + `META_CAPI_PIXEL_ID` present; `SENTRY_DSN` and `RESEND_API_KEY` absent (`railway variables --service MAINnicks-tire-auto`).
 - **The VAPI/SMS conversation quality layer** (prompts, call outcomes) — logic wiring only, not efficacy.
 - **`pnpm audit` CVE sweep** — not run (read-only pass; `scripts/security-scan.ps1` exists for this); lockfile versions were not cross-checked against advisory databases.
 - **Admin UX beyond primitives** — admin sections were checked for alert()/size/`any` only, not workflow correctness.
