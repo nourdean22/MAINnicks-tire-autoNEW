@@ -1799,17 +1799,15 @@ export function startTieredScheduler(): void {
             const { sql } = await import("drizzle-orm");
             const d = await getDb();
             if (d) {
-              // wave-117 — was raw SQL using camelCase `startedAt` /
-              // `jobName` against the cron_log table whose actual MySQL
-              // column names are snake_case `started_at` / `job_name`
-              // (drizzle/schema.ts:1928,1934). On strict MySQL this
-              // threw "Unknown column"; on permissive MySQL it returned
-              // 0 rows. Either way the catch block swallowed and
-              // "proceeded" — so the boot guard ALWAYS fired the daily
-              // tier on every Railway restart, re-running 34 jobs
-              // including all retention SMS sequences. Real customer-
-              // SMS spam risk every time the dyno cycled.
-              const [rows] = await d.execute(sql`SELECT MAX(started_at) AS lastRun FROM cron_log WHERE job_name = 'tier:daily'`);
+              // forensic-audit CRITICAL · the guard queried cron_log for
+              // job_name='tier:daily', but logTierJob only ever writes
+              // per-JOB names (e.g. 'retention-all') — no 'tier:daily' row
+              // is ever written, so this always saw NULL and the daily tier
+              // re-fired on EVERY Railway restart, re-sending retention /
+              // cross-sell / declined-work SMS to real customers (up to 3x
+              // on a multi-restart deploy day). Read the persisted tier
+              // state that resetSkipCount() actually writes on every run.
+              const [rows] = await d.execute(sql`SELECT last_run_at AS lastRun FROM cron_tier_skip_state WHERE tier_name = 'daily'`);
               const last = (rows as Array<{ lastRun: Date | null }>)[0]?.lastRun;
               if (last && Date.now() - new Date(last).getTime() < 20 * 3600_000) {
                 log.info("daily tier: last run < 20h ago, skipping startup fire");

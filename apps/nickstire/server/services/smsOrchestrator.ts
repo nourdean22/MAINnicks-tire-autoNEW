@@ -146,6 +146,11 @@ export function humanizeCopy(body: string): string {
  */
 export async function loadCustomerContext(phone: string): Promise<CustomerContext> {
   const normalizedPhone = normalizePhone(phone) || phone.replace(/\D/g, "").slice(-10);
+  // forensic-audit CRITICAL · DB columns store the last-10 digits, but
+  // normalizePhone yields E.164 (+1XXXXXXXXXX). Matching `LIKE '%+1...'`
+  // against a 10-digit column never matched → customer context / opt-out
+  // silently failed. phone10 is the canonical 10-digit match key.
+  const phone10 = normalizedPhone.replace(/\D/g, "").slice(-10);
   const db = await getDbTyped();
   
   const ctx: CustomerContext = {
@@ -168,7 +173,7 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
       vehicleModel: customers.vehicleModel
     })
     .from(customers)
-    .where(like(customers.phone, `%${normalizedPhone}`))
+    .where(like(customers.phone, `%${phone10}`))
     .limit(1);
 
     if (cust) {
@@ -186,7 +191,7 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
     // 2. Load open bookings
     const activeBookings = await db.select()
       .from(bookings)
-      .where(and(like(bookings.phone, `%${normalizedPhone}`), sql`${bookings.status} IN ('new', 'confirmed')`))
+      .where(and(like(bookings.phone, `%${phone10}`), sql`${bookings.status} IN ('new', 'confirmed')`))
       .orderBy(desc(bookings.createdAt))
       .limit(1);
     if (activeBookings && activeBookings.length > 0) {
@@ -203,7 +208,7 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
     // 3. Load open callback requests
     const openCallbacks = await db.select()
       .from(callbackRequests)
-      .where(and(like(callbackRequests.phone, `%${normalizedPhone}`), sql`${callbackRequests.status} IN ('new', 'pending')`))
+      .where(and(like(callbackRequests.phone, `%${phone10}`), sql`${callbackRequests.status} IN ('new', 'pending')`))
       .orderBy(desc(callbackRequests.createdAt))
       .limit(1);
     if (openCallbacks && openCallbacks.length > 0) {
@@ -218,7 +223,7 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
     // 4. Load open leads
     const openLeads = await db.select()
       .from(leads)
-      .where(and(like(leads.phone, `%${normalizedPhone}`), sql`${leads.status} NOT IN ('lost', 'sold', 'archived')`))
+      .where(and(like(leads.phone, `%${phone10}`), sql`${leads.status} NOT IN ('lost', 'sold', 'archived')`))
       .orderBy(desc(leads.createdAt))
       .limit(1);
     if (openLeads && openLeads.length > 0) {
@@ -234,7 +239,7 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
     // 5. Load active estimate
     const activeEsts = await db.select()
       .from(algEstimates)
-      .where(like(algEstimates.customerPhone, `%${normalizedPhone}`))
+      .where(like(algEstimates.customerPhone, `%${phone10}`))
       .orderBy(desc(algEstimates.estimateDate))
       .limit(1);
     if (activeEsts && activeEsts.length > 0) {
@@ -249,7 +254,7 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
     // 6. Load last 5 SMS messages
     const [conv] = await db.select({ id: smsConversations.id })
       .from(smsConversations)
-      .where(like(smsConversations.phone, `%${normalizedPhone}`))
+      .where(like(smsConversations.phone, `%${phone10}`))
       .limit(1);
 
     if (conv) {
@@ -285,7 +290,7 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
       serviceMention: vapiCallLogs.serviceMention
     })
     .from(vapiCallLogs)
-    .where(like(vapiCallLogs.phoneNumber, `%${normalizedPhone}`))
+    .where(like(vapiCallLogs.phoneNumber, `%${phone10}`))
     .orderBy(desc(vapiCallLogs.id))
     .limit(1);
     if (lastVapi && lastVapi.length > 0) {
@@ -400,6 +405,8 @@ export async function getRolloutMode(eventType: string): Promise<"off" | "shadow
  */
 export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOrchestratorResult> {
   const normalizedPhone = normalizePhone(event.phone) || event.phone.replace(/\D/g, "").slice(-10);
+  // forensic-audit CRITICAL · 10-digit match key (see loadCustomerContext).
+  const phone10 = normalizedPhone.replace(/\D/g, "").slice(-10);
   const db = await getDbTyped();
 
   // Exclude test/fake phone numbers from matching the exact logic or logs when needed, but keep logging.
@@ -733,11 +740,27 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
 
       const parsed = parseSmsResponse(event.body);
       if (parsed.intent === "unsubscribe" || (parsed.autoAction === "unsubscribe-customer")) {
-        if (db) {
+        if (db && phone10.length === 10) {
           await db.update(customers)
             .set({ smsOptOut: 1 })
-            .where(like(customers.phone, `%${normalizedPhone}`));
-            
+            .where(like(customers.phone, `%${phone10}`));
+
+          // forensic-audit CRITICAL · the DB UPDATE alone left sendSms's
+          // in-memory opt-out cache stale (next automated send still went
+          // out — TCPA risk) and wrote no compliance record. Mirror the
+          // smsBot/gateway opt-out path: invalidate the cache write-through
+          // and log a TCPA-defensible opt-out entry.
+          // Best-effort: a failure here must NEVER downgrade the opt-out.
+          try {
+            const { markPhoneOptedOut } = await import("../sms");
+            markPhoneOptedOut?.(phone10);
+          } catch (e) {
+            log.warn("[smsOrchestrator] opt-out cache invalidation failed", { error: e instanceof Error ? e.message : String(e) });
+          }
+          import("./complianceLog")
+            .then(({ logSmsOptOut }) => logSmsOptOut?.({ phone: phone10, via: "keyword", keyword: event.body }))
+            .catch((e) => log.warn("[smsOrchestrator] opt-out compliance log failed", { error: e instanceof Error ? e.message : String(e) }));
+
           if (orchestrationId) {
             const { trackOrchestrationOutcome } = await import("./smsLearningEngine");
             await trackOrchestrationOutcome(orchestrationId, "customer_opted_out", "1", "customers", String(ctx.customerRecord?.id || ""));
@@ -1326,6 +1349,11 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
  */
 export async function getCustomerJourneyTimeline(phone: string) {
   const normalizedPhone = normalizePhone(phone) || phone.replace(/\D/g, "").slice(-10);
+  // forensic-audit CRITICAL · DB columns store the last-10 digits, but
+  // normalizePhone yields E.164 (+1XXXXXXXXXX). Matching `LIKE '%+1...'`
+  // against a 10-digit column never matched → customer context / opt-out
+  // silently failed. phone10 is the canonical 10-digit match key.
+  const phone10 = normalizedPhone.replace(/\D/g, "").slice(-10);
   const db = await getDbTyped();
   if (!db) return [];
 
@@ -1341,7 +1369,7 @@ export async function getCustomerJourneyTimeline(phone: string) {
   try {
     const [conv] = await db.select({ id: smsConversations.id })
       .from(smsConversations)
-      .where(like(smsConversations.phone, `%${normalizedPhone}`))
+      .where(like(smsConversations.phone, `%${phone10}`))
       .limit(1);
 
     if (conv) {
@@ -1406,7 +1434,7 @@ export async function getCustomerJourneyTimeline(phone: string) {
 
     const vapis = await db.select()
       .from(vapiCallLogs)
-      .where(like(vapiCallLogs.phoneNumber, `%${normalizedPhone}`))
+      .where(like(vapiCallLogs.phoneNumber, `%${phone10}`))
       .limit(50);
 
     for (const v of vapis) {
@@ -1422,7 +1450,7 @@ export async function getCustomerJourneyTimeline(phone: string) {
 
     const dbLeads = await db.select()
       .from(leads)
-      .where(like(leads.phone, `%${normalizedPhone}`))
+      .where(like(leads.phone, `%${phone10}`))
       .limit(50);
 
     for (const l of dbLeads) {
@@ -1438,7 +1466,7 @@ export async function getCustomerJourneyTimeline(phone: string) {
 
     const dbBookings = await db.select()
       .from(bookings)
-      .where(like(bookings.phone, `%${normalizedPhone}`))
+      .where(like(bookings.phone, `%${phone10}`))
       .limit(50);
 
     for (const b of dbBookings) {
@@ -1454,7 +1482,7 @@ export async function getCustomerJourneyTimeline(phone: string) {
 
     const callbacks = await db.select()
       .from(callbackRequests)
-      .where(like(callbackRequests.phone, `%${normalizedPhone}`))
+      .where(like(callbackRequests.phone, `%${phone10}`))
       .limit(50);
 
     for (const c of callbacks) {
@@ -1470,7 +1498,7 @@ export async function getCustomerJourneyTimeline(phone: string) {
 
     const dbInvoices = await db.select()
       .from(invoices)
-      .where(like(invoices.customerPhone, `%${normalizedPhone}`))
+      .where(like(invoices.customerPhone, `%${phone10}`))
       .limit(50);
 
     for (const i of dbInvoices) {

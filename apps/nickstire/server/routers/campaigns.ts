@@ -160,14 +160,21 @@ export const campaignsRouter = router({
       const targetCustomers = await getSegmentCustomers(input.segment);
       const sampleCustomers = targetCustomers.slice(0, 5);
 
-      return sampleCustomers.map(c => ({
-        customer: c.firstName,
-        phone: c.phone,
-        message: withOptOut(
-          input.customMessage ||
-          CAMPAIGN_TEMPLATES[input.template](c.firstName, input.customMessage)
-        ),
-      }));
+      // forensic-audit CRITICAL · previously returned only the 5 sample rows.
+      // The client derived the send-confirmation count from samples.length,
+      // so the dialog read "Send to 5" while send() blasts the ENTIRE
+      // segment. Return the true segment size alongside the samples.
+      return {
+        targetCount: targetCustomers.length,
+        samples: sampleCustomers.map(c => ({
+          customer: c.firstName,
+          phone: c.phone,
+          message: withOptOut(
+            input.customMessage ||
+            CAMPAIGN_TEMPLATES[input.template](c.firstName, input.customMessage)
+          ),
+        })),
+      };
     }),
 
   /** Send campaign SMS to all target customers (with rate limiting).

@@ -60,6 +60,12 @@ export function ChatIsland() {
 
   const historyDrawerOpen = useChatUiStore((s) => s.historyDrawerOpen);
   const setHistoryDrawerOpen = useChatUiStore((s) => s.setHistoryDrawerOpen);
+  // forensic-audit CRITICAL · the transport body reads conversationId from
+  // this store, but drawer select/new/delete only updated useConversations'
+  // local activeId — so follow-up messages were persisted to a stale/null
+  // conversation. Sync the store on explicit drawer actions (the stream's
+  // X-Conversation-Id write still owns the new-conversation-created case).
+  const setActiveConversationId = useChatUiStore((s) => s.setActiveConversationId);
 
   const chat = useChatStream();
   const convProps = useConversations({
@@ -225,11 +231,11 @@ export function ChatIsland() {
             hasMoreConvos={convProps.hasMoreConvos}
             loadingMore={convProps.loadingMore}
             onLoadMore={convProps.loadMoreConvos}
-            onSelectConvo={convProps.loadConvo}
-            onDeleteConvo={(id, e) => convProps.deleteConvo(id, e)}
+            onSelectConvo={(id) => { setActiveConversationId(id); void convProps.loadConvo(id); }}
+            onDeleteConvo={(id, e) => { if (convProps.activeId === id) setActiveConversationId(null); void convProps.deleteConvo(id, e); }}
             onRename={convProps.renameConvo}
             onTogglePin={convProps.togglePin}
-            onNewChat={convProps.newChat}
+            onNewChat={() => { setActiveConversationId(null); convProps.newChat(); }}
             onToggleStar={(id) => {
               const convo = convProps.convos.find(c => c.id === id);
               if (convo) convProps.patchConvoFlag(id, "starred", !convo.starredAt);
