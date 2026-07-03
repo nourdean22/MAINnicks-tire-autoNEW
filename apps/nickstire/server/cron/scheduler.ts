@@ -549,6 +549,21 @@ export function startTieredScheduler(): void {
     // Optimized order: data quality → brain sync → intelligence → actions → outreach
     jobs: [
       {
+        // forensic-audit HIGH · MOVED from the daily tier. Confirmation calls
+        // self-gate to a 15:00–17:59 ET window, but the daily tier fires once
+        // per 24h phased by boot time, so that window was almost never hit and
+        // the feature was effectively dead (logged "completed · Outside
+        // window"). The hourly (2h) tier always has a tick inside any 3h
+        // window; the job's at-most-once claim + 24h dedup make repeated
+        // ticks safe. Self-gates on VAPI env + FEATURE_CONFIRMATION_CALLS
+        // (OFF by default). Still registered in registerAllJobs for HTTP.
+        name: "confirmation-calls",
+        handler: async () => {
+          const { runConfirmationCalls } = await import("./jobs/confirmationCalls");
+          return runConfirmationCalls();
+        },
+      },
+      {
         name: "feedback-cycle", // FIRST: decay memories, check anomalies, pacing — feeds into intelligence quality
         handler: async () => {
           const { runFeedbackCycle } = await import("../services/feedbackLoop");
@@ -1178,21 +1193,6 @@ export function startTieredScheduler(): void {
         },
       },
       {
-        // wave-181.84 · AgentPhone Confirmation Bot · was registered ONLY in
-        // registerAllJobs() (the HTTP-trigger registry), but ABSENT from this
-        // tiered scheduler — and _core/index.ts boots ONLY startTieredScheduler(),
-        // so it NEVER fired on a timer (FEATURE_CONFIRMATION_CALLS=1 did nothing).
-        // code-underneath audit · logic finding #1. Now in the daily tier next
-        // to its outreach siblings. Safe to schedule unconditionally: self-gates
-        // on VAPI env + FEATURE_CONFIRMATION_CALLS (OFF by default) + at-most-once
-        // claims + a per-run cap. Left in registerAllJobs for the HTTP path.
-        name: "confirmation-calls",
-        handler: async () => {
-          const { runConfirmationCalls } = await import("./jobs/confirmationCalls");
-          return runConfirmationCalls();
-        },
-      },
-      {
         // wave-181.85 · AgentPhone Voice Recovery escalation · same timer-dead
         // bug, same fix — now in the daily tier. Self-gates on FEATURE_VOICE_
         // RECOVERY (OFF by default) + AGENTPHONE_RECOVERY_AGENT_ID / VAPI env +
@@ -1799,17 +1799,15 @@ export function startTieredScheduler(): void {
             const { sql } = await import("drizzle-orm");
             const d = await getDb();
             if (d) {
-              // wave-117 — was raw SQL using camelCase `startedAt` /
-              // `jobName` against the cron_log table whose actual MySQL
-              // column names are snake_case `started_at` / `job_name`
-              // (drizzle/schema.ts:1928,1934). On strict MySQL this
-              // threw "Unknown column"; on permissive MySQL it returned
-              // 0 rows. Either way the catch block swallowed and
-              // "proceeded" — so the boot guard ALWAYS fired the daily
-              // tier on every Railway restart, re-running 34 jobs
-              // including all retention SMS sequences. Real customer-
-              // SMS spam risk every time the dyno cycled.
-              const [rows] = await d.execute(sql`SELECT MAX(started_at) AS lastRun FROM cron_log WHERE job_name = 'tier:daily'`);
+              // forensic-audit CRITICAL · the guard queried cron_log for
+              // job_name='tier:daily', but logTierJob only ever writes
+              // per-JOB names (e.g. 'retention-all') — no 'tier:daily' row
+              // is ever written, so this always saw NULL and the daily tier
+              // re-fired on EVERY Railway restart, re-sending retention /
+              // cross-sell / declined-work SMS to real customers (up to 3x
+              // on a multi-restart deploy day). Read the persisted tier
+              // state that resetSkipCount() actually writes on every run.
+              const [rows] = await d.execute(sql`SELECT last_run_at AS lastRun FROM cron_tier_skip_state WHERE tier_name = 'daily'`);
               const last = (rows as Array<{ lastRun: Date | null }>)[0]?.lastRun;
               if (last && Date.now() - new Date(last).getTime() < 20 * 3600_000) {
                 log.info("daily tier: last run < 20h ago, skipping startup fire");

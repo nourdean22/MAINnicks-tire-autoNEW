@@ -773,20 +773,28 @@ export async function getLoyaltyTransactions(userId: number, limit: number = 20)
 export async function awardPoints(userId: number, points: number, description: string, serviceHistoryId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // Get current balance
-  const [user] = await db.select({ loyaltyPoints: users.loyaltyPoints }).from(users).where(eq(users.id, userId)).limit(1);
-  if (!user) throw new Error("User not found");
-  const newBalance = user.loyaltyPoints + points;
-  // Update user balance
-  await db.update(users).set({ loyaltyPoints: newBalance }).where(eq(users.id, userId));
-  // Log transaction
-  await db.insert(loyaltyTransactions).values({
-    userId,
-    type: "earn",
-    points,
-    balanceAfter: newBalance,
-    description,
-    serviceHistoryId: serviceHistoryId || null,
+  // forensic-audit HIGH · was a read-modify-write with no atomicity — two
+  // concurrent awards lost updates, and a crash between the balance write
+  // and the ledger insert desynced them. Atomic increment + ledger in one
+  // transaction; balanceAfter is re-read inside the tx so the ledger is exact.
+  let newBalance = 0;
+  await db.transaction(async (tx: any) => {
+    const [res] = await tx.execute(sql`
+      UPDATE users SET loyaltyPoints = loyaltyPoints + ${points} WHERE id = ${userId}
+    `);
+    if (((res as { affectedRows?: number }).affectedRows ?? 0) === 0) {
+      throw new Error("User not found");
+    }
+    const [u] = await tx.select({ loyaltyPoints: users.loyaltyPoints }).from(users).where(eq(users.id, userId)).limit(1);
+    newBalance = u?.loyaltyPoints ?? 0;
+    await tx.insert(loyaltyTransactions).values({
+      userId,
+      type: "earn",
+      points,
+      balanceAfter: newBalance,
+      description,
+      serviceHistoryId: serviceHistoryId || null,
+    });
   });
   // Check tier upgrade
   await updateLoyaltyTier(userId);
@@ -800,21 +808,31 @@ export async function redeemReward(userId: number, rewardId: number) {
   const [reward] = await db.select().from(loyaltyRewards).where(eq(loyaltyRewards.id, rewardId)).limit(1);
   if (!reward) throw new Error("Reward not found");
   if (!reward.isActive) throw new Error("Reward is no longer available");
-  // Get user balance
-  const [user] = await db.select({ loyaltyPoints: users.loyaltyPoints }).from(users).where(eq(users.id, userId)).limit(1);
-  if (!user) throw new Error("User not found");
-  if (user.loyaltyPoints < reward.pointsCost) throw new Error("Not enough points");
-  const newBalance = user.loyaltyPoints - reward.pointsCost;
-  // Update user balance
-  await db.update(users).set({ loyaltyPoints: newBalance }).where(eq(users.id, userId));
-  // Log transaction
-  await db.insert(loyaltyTransactions).values({
-    userId,
-    type: "redeem",
-    points: -reward.pointsCost,
-    balanceAfter: newBalance,
-    description: `Redeemed: ${reward.title}`,
-    rewardId,
+  // forensic-audit HIGH · was read-check-write with no guard — a double-tap
+  // on the PWA let two redeems both pass the balance check and both deduct,
+  // double-spending points against one balance. Atomic conditional deduct
+  // (WHERE loyaltyPoints >= cost + affectedRows check is the claim) plus the
+  // ledger insert, in one transaction.
+  let newBalance = 0;
+  await db.transaction(async (tx: any) => {
+    const [res] = await tx.execute(sql`
+      UPDATE users SET loyaltyPoints = loyaltyPoints - ${reward.pointsCost}
+      WHERE id = ${userId} AND loyaltyPoints >= ${reward.pointsCost}
+    `);
+    if (((res as { affectedRows?: number }).affectedRows ?? 0) === 0) {
+      // 0 rows = user missing OR insufficient/already-spent balance.
+      throw new Error("Not enough points");
+    }
+    const [u] = await tx.select({ loyaltyPoints: users.loyaltyPoints }).from(users).where(eq(users.id, userId)).limit(1);
+    newBalance = u?.loyaltyPoints ?? 0;
+    await tx.insert(loyaltyTransactions).values({
+      userId,
+      type: "redeem",
+      points: -reward.pointsCost,
+      balanceAfter: newBalance,
+      description: `Redeemed: ${reward.title}`,
+      rewardId,
+    });
   });
   return { success: true, newBalance, reward };
 }
@@ -888,6 +906,21 @@ export async function getPendingReviewRequests() {
     ))
     .orderBy(reviewRequests.scheduledAt)
     .limit(50);
+}
+
+/**
+ * forensic-audit HIGH · atomic pre-send claim. Flips pending→sent up front so
+ * overlapping scheduler runs (or a crash/deploy between send and mark) can't
+ * re-send the same review-request SMS to a customer. Only the caller that
+ * gets affectedRows>0 owns the row and should actually send.
+ */
+export async function claimReviewRequest(id: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const updateResult = await db.update(reviewRequests)
+    .set({ status: "sent", sentAt: new Date() })
+    .where(and(eq(reviewRequests.id, id), eq(reviewRequests.status, "pending")));
+  return ((updateResult[0] as unknown as { affectedRows?: number })?.affectedRows ?? 0) > 0;
 }
 
 /**

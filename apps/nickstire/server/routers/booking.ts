@@ -19,7 +19,7 @@ import { scheduleRemindersForBooking, getNextInvoiceNumber, createInvoice } from
 import { shopSettings } from "../../drizzle/schema";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { bookings } from "../../drizzle/schema";
+import { bookings, invoices } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
@@ -61,6 +61,15 @@ function estimateLaborFromService(service: string): { hours: number; description
 
 /** Auto-create an invoice when a booking is marked completed */
 async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void> {
+  // forensic-audit HIGH · dedup. Re-marking a booking 'completed' (double-tap,
+  // or confirmed→completed→confirmed→completed) re-ran this and created a
+  // second pending invoice for the same job — invoices has no unique
+  // bookingId. Skip if one already exists.
+  const [existingInvoice] = await d.select({ id: invoices.id }).from(invoices).where(eq(invoices.bookingId, booking.id)).limit(1);
+  if (existingInvoice) {
+    log.info(`[Booking] Invoice already exists for booking #${booking.id} — skipping auto-create`);
+    return;
+  }
   const invoiceNumber = await getNextInvoiceNumber();
   const labor = estimateLaborFromService(booking.service || "General Repair");
 

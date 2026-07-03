@@ -39,8 +39,14 @@ export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp:
 
   try {
     const accessToken = await getAccessToken("primary");
-    // Since Google Search Console and GBP are accessed via REST API:
-    const gscUrl = "https://www.googleapis.com/webmasters/v3/sites/https%3A%2F%2Fbdnick.info%2FsearchAnalytics/query";
+    // forensic-audit HIGH · the endpoint is /sites/{encodeURIComponent(siteUrl)}/
+    // searchAnalytics/query. Previously 'searchAnalytics' was encoded INTO the
+    // site id (site became '...bdnick.info/searchAnalytics', path became just
+    // '/query'), so every call 404'd and silently fell back to fabricated
+    // "realistic mock" metrics that were written to OpportunityLog/intelligence
+    // docs as real business data.
+    const siteUrl = "https://bdnick.info/";
+    const gscUrl = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`;
     
     // Call Google Search Console API for last 14 days metrics
     const gscRes = await fetch(gscUrl, {

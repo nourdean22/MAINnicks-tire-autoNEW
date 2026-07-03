@@ -77,9 +77,15 @@ export async function scheduleBookingReminders(
   if (preferredDate) {
     const apptDate = new Date(preferredDate);
 
-    // 24 hours before
+    // forensic-audit HIGH · apptDate = new Date('YYYY-MM-DD') is UTC
+    // midnight; the old `setHours(getHours()-24)` read server-local time
+    // and landed ~28-38h early (evening two days out) while the template
+    // says "expecting you tomorrow". Fire the EVENING BEFORE at 6pm ET so
+    // "tomorrow" is accurate, using the same ET→UTC conversion as the 1h
+    // path below.
     const reminder24h = new Date(apptDate);
-    reminder24h.setHours(reminder24h.getHours() - 24);
+    reminder24h.setUTCDate(reminder24h.getUTCDate() - 1);
+    reminder24h.setUTCHours(etHourToUtcHour(reminder24h, 18), 0, 0, 0);
     if (reminder24h > new Date()) {
       reminders.push({ type: "24h-before", scheduledFor: reminder24h });
     }

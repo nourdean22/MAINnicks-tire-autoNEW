@@ -40,6 +40,15 @@ const PUBLIC_PREFIXES = [
   "/api/agent",
   "/api/actions",     // GPT Custom Actions bridge (own Bearer auth)
   "/api/mcp",         // MCP bridge (own Bearer auth)
+  // forensic-audit HIGH · header-token-authenticated server-to-server
+  // surfaces. Each route runs its OWN auth (requireSyncAuth / verifyVapiSecret
+  // / x-sync-key), but they carry no NextAuth cookie, so the session
+  // middleware 401'd them before that auth could run — breaking the Windows
+  // device agent, nickstire camera sync, and live VAPI voice-tool calls.
+  // Same whitelist pattern as /api/agent and /api/actions above.
+  "/api/devices",     // device RPC queue/ack/upsert (own x-sync-key auth)
+  "/api/vapi",        // VAPI voice webhooks + tools (own X-Vapi-Secret auth)
+  "/api/nour-os",     // nour-os bridge query (own x-sync-key auth)
   "/auth",            // Sign-in/sign-out pages
   "/_next",           // Next.js internals
   "/favicon",
