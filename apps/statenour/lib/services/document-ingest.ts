@@ -31,8 +31,13 @@ import {
   knnSearch,
   vectorLiteral,
   assertSafeVectorLiteral,
+  padToVectorDim,
+  VECTOR_DIM_1536,
 } from "@/lib/db/pgvector";
 import { parseDocument } from "@/lib/integrations/document-parser";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("services/document-ingest");
 
 const CHUNK_TARGET_CHARS = 800;
 const CHUNK_OVERLAP_CHARS = 100;
@@ -239,14 +244,30 @@ function chunkText(text: string): string[] {
 }
 
 async function writeVectorColumn(rowId: string, vec: number[]): Promise<void> {
+  // forensic-audit MEDIUM · was writing the UNPADDED embedding into the
+  // fixed-dim embedding_vec column (throws on a dim mismatch), swallowing the
+  // failure with a bare catch (zero logging), and never populating
+  // embedding_vec_1536 — so document Q&A recall (which reads the 1536 column)
+  // found nothing and nothing explained why. Mirror the canonical writer:
+  // pad + write both columns + log failures.
+  if (vec.length === 0) return;
   try {
-    const lit = vectorLiteral(vec);
+    const lit = vectorLiteral(padToVectorDim(vec, 1024));
     assertSafeVectorLiteral(lit);
     await prisma.$executeRawUnsafe(
-      `UPDATE vector_embeddings SET embedding_vec = '${lit}'::vector WHERE id = $1`,
+      `UPDATE vector_embeddings SET embedding_vec = '${lit}'::vector(1024) WHERE id = $1`,
       rowId,
     );
-  } catch {
-    /* column may not exist · graceful */
+  } catch (err) {
+    log.warn("document_ingest_vec_write_failed", { rowId, error: err instanceof Error ? err.message : String(err) });
+  }
+  try {
+    const lit1536 = vectorLiteral(padToVectorDim(vec, VECTOR_DIM_1536));
+    await prisma.$executeRawUnsafe(
+      `UPDATE vector_embeddings SET embedding_vec_1536 = '${lit1536}'::vector(${VECTOR_DIM_1536}) WHERE id = $1`,
+      rowId,
+    );
+  } catch (err) {
+    log.warn("document_ingest_vec1536_write_failed", { rowId, error: err instanceof Error ? err.message : String(err) });
   }
 }
