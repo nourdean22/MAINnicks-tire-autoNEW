@@ -67,6 +67,8 @@ export default function CampaignsSection() {
   const [customMessage, setCustomMessage] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [preview, setPreview] = useState<Array<{ customer: string; phone: string; message: string }>>([]);
+  // forensic-audit CRITICAL · true segment size (preview only returns 5 samples).
+  const [previewCount, setPreviewCount] = useState(0);
   const [creating, setCreating] = useState(false);
 
   const { data: campaigns, refetch: refetchCampaigns } = trpc.campaigns.list.useQuery();
@@ -91,7 +93,10 @@ export default function CampaignsSection() {
     setPreviewLoading(true);
     try {
       const result = await previewQuery.refetch();
-      if (result.data) setPreview(result.data);
+      if (result.data) {
+        setPreview(result.data.samples);
+        setPreviewCount(result.data.targetCount);
+      }
     } catch (e) {
       // wave-112 — was console.error only (silent failure); now actionable
       console.error("Failed to load preview:", e);
@@ -116,7 +121,7 @@ export default function CampaignsSection() {
     // confirmDialog is iOS-PWA-safe vs window.confirm (suppressed in
     // standalone mode per wave-139). Includes target-count + segment
     // name + a clear "real outbound SMS" warning.
-    const targetCount = preview?.length ?? 0;
+    const targetCount = previewCount;
     const ok = await confirmDialog({
       title: `Send to ${targetCount} customers?`,
       message: `This will fire a REAL outbound SMS campaign to ${targetCount} customers in the "${selectedSegment}" segment from the F25e shop gateway (216-862-0005). Each customer counts toward their daily SMS cap. Opt-outs are filtered automatically. There is no undo.`,
