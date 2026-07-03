@@ -179,11 +179,18 @@ async function runTier(tier: Tier): Promise<void> {
       continue;
     }
 
+    // forensic-audit HIGH · Promise.race does NOT cancel the losing promise,
+    // so on timeout job.handler() keeps running as a zombie. If we then
+    // released the lock in `finally`, the next tick (or another dyno) could
+    // acquire it and run the SAME job concurrently — double-sending customer
+    // SMS/calls. Track the timeout and DON'T release the lock in that case;
+    // let it expire via its TTL, which keeps the zombie's slot reserved.
+    let timedOut = false;
     try {
       const result = await Promise.race([
         job.handler(),
         new Promise<never>((_, reject) => {
-          jobTimer = setTimeout(() => reject(new Error("timeout")), 4 * 60 * 1000);
+          jobTimer = setTimeout(() => { timedOut = true; reject(new Error("timeout")); }, 4 * 60 * 1000);
         }),
       ]) as { recordsProcessed?: number; details?: string };
       completed++;
@@ -199,10 +206,13 @@ async function runTier(tier: Tier): Promise<void> {
       logTierJob(job.name, "failed", dur, 0, err instanceof Error ? err.message : String(err)).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
     } finally {
       if (jobTimer) clearTimeout(jobTimer);
-      // Release the DB lock only if we actually acquired it. Fallback
-      // path never wrote a row, so there's nothing to delete.
-      if (lockResult.status === "acquired") {
+      // Release the DB lock only if we actually acquired it AND the job did
+      // not time out. On timeout the handler is still running — releasing
+      // here would let the next tick double-fire it; the lock's TTL cleans up.
+      if (lockResult.status === "acquired" && !timedOut) {
         await releaseCronLock(lockResult);
+      } else if (lockResult.status === "acquired" && timedOut) {
+        log.warn(`[${tier.name}] ${job.name} timed out — holding lock until TTL to prevent concurrent re-fire`, { errorId: "CRON_TIMEOUT_LOCK_HELD" });
       }
     }
   }
