@@ -15,8 +15,12 @@ export async function processAppointmentReminders24h(): Promise<{ recordsProcess
     const result = await processScheduledSms();
     return { recordsProcessed: result.sent + result.failed };
   } catch (err) {
+    // forensic-audit MEDIUM · re-throw so runTier logs status='failed' and the
+    // cron-failure observer alerts. Swallowing + returning recordsProcessed:0
+    // made a totally-broken run look 'completed', so booking reminders could
+    // stop reaching customers for weeks with zero alert.
     log.error("24h reminder processing failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0 };
+    throw err instanceof Error ? err : new Error(String(err));
   }
 }
 
