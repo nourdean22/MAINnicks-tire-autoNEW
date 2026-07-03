@@ -6,7 +6,7 @@
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { invoices } from "../../drizzle/schema";
 
 import { db } from "../lib/db-helper";
@@ -162,6 +162,20 @@ export const paymentsRouter = router({
         return { success: false, error: `Payment not confirmed: ${status.status}` };
       }
 
+      // forensic-audit HIGH · bind the intent to THIS invoice. Without this
+      // a customer/attacker could confirm invoice B using invoice A's
+      // paymentIntentId when the two totals matched — marking B paid with
+      // no money collected. createPaymentIntent stamps metadata.invoiceNumber,
+      // so enforce it when present.
+      if (status.invoiceNumber && status.invoiceNumber !== input.invoiceNumber) {
+        log.warn("[payments.confirmPayment] intent/invoice mismatch — refusing to mark paid", {
+          requestedInvoice: input.invoiceNumber,
+          intentInvoice: status.invoiceNumber,
+          paymentIntentId: input.paymentIntentId,
+        });
+        return { success: false, error: "Payment does not belong to this invoice" };
+      }
+
       // wave-122 (CRITICAL S1/S5) — amount verification gate. Prior code
       // marked the invoice paid based ONLY on Stripe `succeeded` status
       // without checking that the captured amount matched the invoice
@@ -188,26 +202,33 @@ export const paymentsRouter = router({
         card: "card", snap: "financing", acima: "financing", cash: "cash", other: "other",
       };
 
-      // Update invoice to paid
-      await d.update(invoices)
-        .set({
-          paymentStatus: "paid",
-          paymentMethod: methodMap[input.paymentMethod] || "other",
-        })
-        .where(and(
-          eq(invoices.invoiceNumber, input.invoiceNumber),
-          eq(invoices.customerPhone, input.phone),
-        ));
+      // forensic-audit HIGH · conditional claim (paymentStatus <> 'paid').
+      // Previously an unconditional UPDATE that always emitted invoicePaid,
+      // so it raced the payment_intent.succeeded webhook and double-fired
+      // the fan-out (duplicate manager SMS/Telegram/journey). Only emit if
+      // WE flipped the row from unpaid → paid.
+      const [claim] = await d.execute(sql`
+        UPDATE invoices
+        SET paymentStatus = 'paid',
+            paymentMethod = ${methodMap[input.paymentMethod] || "other"},
+            updatedAt = NOW()
+        WHERE invoiceNumber = ${input.invoiceNumber}
+          AND customerPhone = ${input.phone}
+          AND paymentStatus <> 'paid'
+      `);
+      const claimed = ((claim as unknown as { affectedRows?: number }).affectedRows ?? 0) > 0;
 
-      // Unified event bus
-      import("../services/eventBus").then(({ emit }) =>
-        emit.invoicePaid({
-          invoiceNumber: input.invoiceNumber,
-          customerName: "Payment confirmed",
-          totalAmount: status.amountReceived / 100,
-          method: input.paymentMethod,
-        })
-      ).catch((e) => { log.warn("[routers/payments] fire-and-forget failed:", e); });
+      // Unified event bus — only on the winning claim (webhook may also fire).
+      if (claimed) {
+        import("../services/eventBus").then(({ emit }) =>
+          emit.invoicePaid({
+            invoiceNumber: input.invoiceNumber,
+            customerName: "Payment confirmed",
+            totalAmount: status.amountReceived / 100,
+            method: input.paymentMethod,
+          })
+        ).catch((e) => { log.warn("[routers/payments] fire-and-forget failed:", e); });
+      }
 
       return { success: true };
     }),

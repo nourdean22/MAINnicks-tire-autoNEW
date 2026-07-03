@@ -376,19 +376,24 @@ export async function finalizeTireOrderPayment(params: {
 export async function getPaymentStatus(paymentIntentId: string): Promise<{
   status: "succeeded" | "processing" | "requires_payment_method" | "requires_action" | "canceled" | "unknown";
   amountReceived: number;
+  // forensic-audit HIGH · surfaced so confirmPayment can verify the intent
+  // was created FOR this invoice (prevents replaying one payment against a
+  // different same-amount invoice).
+  invoiceNumber: string | null;
 }> {
   const stripe = await getStripe();
-  if (!stripe) return { status: "unknown", amountReceived: 0 };
+  if (!stripe) return { status: "unknown", amountReceived: 0, invoiceNumber: null };
 
   try {
     const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
     return {
       status: intent.status as any,
       amountReceived: intent.amount_received || 0,
+      invoiceNumber: (intent.metadata?.invoiceNumber as string | undefined) ?? null,
     };
   } catch (e) {
     log.warn("[services/payments] operation failed:", e);
-    return { status: "unknown", amountReceived: 0 };
+    return { status: "unknown", amountReceived: 0, invoiceNumber: null };
   }
 }
 
