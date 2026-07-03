@@ -74,7 +74,10 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [isLoadingConvo, setIsLoadingConvo] = useState(false);
-  const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // forensic-audit MEDIUM · debounce timers keyed by conversation+flag (was a
+  // single shared timer, so a toggle on a different conversation within 300ms
+  // cancelled the first's pending server write).
+  const patchTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const loadRequestRef = useRef(0);
 
   /**
@@ -336,8 +339,10 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
 
       // Debounce the API call — cancel any pending call and schedule a
       // new one. Last call within 300 ms wins; prevents double-tap spam.
-      if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
-      patchTimerRef.current = setTimeout(async () => {
+      const timerKey = `${id}:${flag}`;
+      const existingTimer = patchTimersRef.current.get(timerKey);
+      if (existingTimer) clearTimeout(existingTimer);
+      patchTimersRef.current.set(timerKey, setTimeout(async () => {
         try {
           await updateConversationMutation.mutateAsync({
             id,
@@ -365,7 +370,8 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
           );
           onError?.(`Couldn't ${next ? "set" : "clear"} ${flag}`);
         }
-      }, 300);
+        patchTimersRef.current.delete(timerKey);
+      }, 300));
     },
     [onError, updateConversationMutation],
   );
@@ -373,8 +379,9 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
   // Clean up any pending debounce timer when the hook unmounts to
   // prevent state updates on an unmounted component.
   useEffect(() => {
+    const timers = patchTimersRef.current;
     return () => {
-      if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
+      timers.forEach((t) => clearTimeout(t));
     };
   }, []);
 
