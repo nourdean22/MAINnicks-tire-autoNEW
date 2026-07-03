@@ -639,7 +639,12 @@ export const systemTools = {
     execute: async ({ query }) => {
       const { analyzeRealTime } = await import("@/lib/integrations/grok");
       const result = await analyzeRealTime(query);
-      return { content: result?.content?.slice(0, 2000), model: "grok", source: "arsenal" };
+      // forensic-audit MEDIUM · fence external web content (prompt-injection).
+      // The arsenal* tools returned raw Grok/Perplexity/Google text unfenced
+      // while every sibling web tool fences it, so injected instructions in a
+      // page reached the next model step without the <tool_data> guard.
+      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
+      return { content: fenceContent("arsenalResearch", "external_web", result?.content?.slice(0, 2000) ?? ""), model: "grok", source: "arsenal" };
     },
   }),
 
@@ -649,14 +654,15 @@ export const systemTools = {
       query: z.string().describe("Web search query"),
     }),
     execute: async ({ query }) => {
+      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
       if (process.env.PERPLEXITY_API_KEY) {
         const { researchTopic } = await import("@/lib/integrations/perplexity");
         const result = await researchTopic(query);
-        return { content: result?.content?.slice(0, 2000), model: "perplexity", source: "arsenal" };
+        return { content: fenceContent("arsenalWebSearch", "external_web", result?.content?.slice(0, 2000) ?? ""), model: "perplexity", source: "arsenal" };
       }
       const { askGoogleSearch } = await import("@/lib/integrations/google-search");
       const result = await askGoogleSearch(query);
-      return { content: result?.content?.slice(0, 2000), model: result.model, source: "google" };
+      return { content: fenceContent("arsenalWebSearch", "external_web", result?.content?.slice(0, 2000) ?? ""), model: result.model, source: "google" };
     },
   }),
 
@@ -704,10 +710,12 @@ export const systemTools = {
     execute: async ({ question }) => {
       const { runDeepResearch } = await import("@/lib/ai/deep-research");
       const report = await runDeepResearch({ question });
+      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
       return {
         plan: report.plan,
         roundCount: report.rounds.length,
-        synthesis: report.synthesis.slice(0, 4000),
+        // forensic-audit MEDIUM · fence the web-derived synthesis (injection).
+        synthesis: fenceContent("arsenalDeepResearch", "external_web", report.synthesis.slice(0, 4000)),
         citations: report.allCitations.slice(0, 20),
         durationMs: report.durationMs,
         source: "arsenal/deep-research",
@@ -1338,11 +1346,17 @@ export const systemTools = {
 
         if (configContent) {
           let updatedContent = configContent;
+          // forensic-audit MEDIUM · match ANY current value, not just the empty
+          // string / literal default. The old regexes only replaced
+          // `openai_api_key = ""`, so once the first run baked a key into the
+          // persisted config.toml a rotated OPENAI_API_KEY never propagated;
+          // and the base-URL regex required the literal api.openai.com default,
+          // silently discarding OPENAI_BASE_URL on every run.
           if (process.env.OPENAI_API_KEY) {
-            updatedContent = updatedContent.replace(/openai_api_key\s*=\s*""/, `openai_api_key = "${process.env.OPENAI_API_KEY}"`);
+            updatedContent = updatedContent.replace(/openai_api_key\s*=\s*"[^"]*"/, `openai_api_key = "${process.env.OPENAI_API_KEY}"`);
           }
           if (process.env.OPENAI_BASE_URL) {
-            updatedContent = updatedContent.replace(/openai_base_url\s*=\s*"https:\/\/api.openai.com\/v1"/, `openai_base_url = "${process.env.OPENAI_BASE_URL}"`);
+            updatedContent = updatedContent.replace(/openai_base_url\s*=\s*"[^"]*"/, `openai_base_url = "${process.env.OPENAI_BASE_URL}"`);
           }
           if (process.env.PEXELS_API_KEY) {
             updatedContent = updatedContent.replace(/pexels_api_keys\s*=\s*\[\]/, `pexels_api_keys = ["${process.env.PEXELS_API_KEY}"]`);
