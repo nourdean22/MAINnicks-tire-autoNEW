@@ -1249,7 +1249,13 @@ export const systemTools = {
         };
 
         const pythonCmd = process.platform === "win32" ? "python" : "python3";
-        const { stdout, stderr } = await execFilePromise(pythonCmd, args, { env, timeout: 60000 });
+        // forensic-audit HIGH · last30days fans out across Reddit/HN/GitHub/
+        // YouTube/Polymarket with 30s-per-request timeouts; the engine's own
+        // SKILL.md documents typical 5-min runs, so 60s SIGTERM'd nearly every
+        // real invocation. Match the documented runtime + raise maxBuffer so a
+        // large multi-platform digest doesn't overflow the 1MB default.
+        // (Called inside the chat SSE stream, which stays open for the run.)
+        const { stdout, stderr } = await execFilePromise(pythonCmd, args, { env, timeout: 300000, maxBuffer: 10 * 1024 * 1024 });
 
         const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
 
@@ -1367,7 +1373,13 @@ export const systemTools = {
         };
 
         const pythonCmd = process.platform === "win32" ? "python" : "python3";
-        const { stdout, stderr } = await execFilePromise(pythonCmd, args, { env, timeout: 180000 });
+        // forensic-audit HIGH · the moneyprinter pipeline (LLM script → TTS →
+        // multi-MB Pexels B-roll → 1080p ffmpeg render) routinely exceeds 3
+        // min on Railway's shared CPU, so 180s SIGTERM'd mid-encode and the
+        // default 1MB maxBuffer overflowed on verbose ffmpeg stdio. Raise both.
+        // (A background/async job is the ideal long-term shape; this is the
+        // surgical fix so the tool stops failing on every attempt.)
+        const { stdout, stderr } = await execFilePromise(pythonCmd, args, { env, timeout: 420000, maxBuffer: 10 * 1024 * 1024 });
 
         return {
           ok: true,
