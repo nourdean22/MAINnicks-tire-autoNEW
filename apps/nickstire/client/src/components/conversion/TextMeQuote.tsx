@@ -20,6 +20,9 @@
 import { useState, useCallback } from "react";
 import { MessageSquare, Loader2, CheckCircle, Phone as PhoneIcon, ShieldCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { trackLeadSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
+import { getUtmData } from "@/lib/utm";
+import { trackFormSubmission } from "@/lib/ga4";
 import { BUSINESS } from "@shared/business";
 
 interface TextMeQuoteProps {
@@ -69,11 +72,20 @@ export default function TextMeQuote({
       const problem = serviceLabel
         ? `Text-me-quote request for: ${serviceLabel}.`
         : `Text-me-quote request from website.`;
+      // Meta Pixel Lead (returns eventID for server CAPI dedup) + GA4 +
+      // UTM attribution — same wiring as LeadPopup.tsx handleSubmit.
+      const eventId = trackLeadSubmission({ source, problem });
+      const userData = getUserDataForCAPI();
+      const utmData = getUtmData();
+      trackFormSubmission("lead", { service: serviceLabel, source, eventId });
       mutation.mutate({
         name: trimmedName,
         phone: cleanedPhone,
         problem,
         source,
+        pixelEventId: eventId,
+        pixelUserData: userData,
+        ...utmData,
       });
     },
     [name, phone, serviceLabel, source, mutation]
