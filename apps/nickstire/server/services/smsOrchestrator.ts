@@ -1229,6 +1229,10 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
         : await sendSms(normalizedPhone, finalBodyToSend, {
             via: "shop",
             transactional: isTransactional,
+            // forensic-audit MEDIUM · inbound auto-replies bypass the 5-min
+            // cooldown (not the daily cap) so a customer's rapid follow-up
+            // question still gets answered.
+            skipShortCooldown: event.type === "inbound_sms",
             variantKey: finalVariantKey,
             skipPersist: false,
           });

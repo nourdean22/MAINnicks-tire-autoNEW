@@ -28,8 +28,40 @@ import type { Express, Request, Response, NextFunction } from "express";
 import express from "express";
 import { timingSafeEqual } from "crypto";
 import { createLogger } from "../lib/logger";
+import { BUSINESS } from "@shared/business";
 
 const log = createLogger("statenour-bridge");
+
+/**
+ * forensic-audit MEDIUM · 'today' in the shop's timezone, not the TiDB server's
+ * UTC day. Returns the ET date string (for the ET-stored preferredDate varchar)
+ * plus the UTC instant bounds of the ET day (for UTC timestamp columns like
+ * createdAt / invoiceDate). Previously these used CURDATE(), so after ~8pm ET
+ * the HQ ticker showed 0 for a day that still had a full afternoon of work.
+ */
+function shopTodayBounds(): { todayET: string; startUtc: Date; endUtc: Date } {
+  const tz = BUSINESS.timezone;
+  const fmt = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: tz }); // "YYYY-MM-DD"
+  const offsetMin = (instant: Date): number => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, hour12: false,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }).formatToParts(instant);
+    const m: Record<string, string> = {};
+    for (const p of parts) m[p.type] = p.value;
+    const asUTC = Date.UTC(+m.year, +m.month - 1, +m.day, +m.hour === 24 ? 0 : +m.hour, +m.minute, +m.second);
+    return (asUTC - instant.getTime()) / 60000;
+  };
+  const zonedMidnightUtc = (dateStr: string): Date => {
+    const naive = new Date(`${dateStr}T00:00:00Z`);
+    return new Date(naive.getTime() - offsetMin(naive) * 60000);
+  };
+  const now = new Date();
+  const todayET = fmt(now);
+  const tomorrowET = fmt(new Date(new Date(`${todayET}T12:00:00Z`).getTime() + 24 * 3600 * 1000));
+  return { todayET, startUtc: zonedMidnightUtc(todayET), endUtc: zonedMidnightUtc(tomorrowET) };
+}
 
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -175,8 +207,11 @@ export function registerStatenourBridgeRoutes(app: Express): void {
         return res.status(503).json({ error: "DB unavailable" });
       }
 
-      // Count bookings by stage where DATE(createdAt) = today OR preferredDate = today
-      // + total invoices today (paid)
+      // forensic-audit MEDIUM · 'today' in the shop's timezone (Cleveland ET),
+      // not the TiDB server's UTC day. preferredDate is an ET-stored varchar
+      // (compare to the ET date string); createdAt / invoiceDate are UTC
+      // timestamps (compare against the ET day's UTC bounds).
+      const { todayET, startUtc, endUtc } = shopTodayBounds();
       const [bookingRows, invoiceRows] = await Promise.all([
         exec(d, sql`
           SELECT
@@ -185,13 +220,13 @@ export function registerStatenourBridgeRoutes(app: Express): void {
             SUM(CASE WHEN stage = 'ready' THEN 1 ELSE 0 END) AS ready,
             COUNT(*) AS total_bookings
           FROM bookings
-          WHERE (DATE(createdAt) = CURDATE() OR preferredDate = DATE_FORMAT(CURDATE(), '%Y-%m-%d'))
+          WHERE ((createdAt >= ${startUtc} AND createdAt < ${endUtc}) OR preferredDate = ${todayET})
             AND status != 'cancelled'
         `),
         exec(d, sql`
           SELECT COUNT(*) AS paid, COALESCE(SUM(totalAmount), 0) AS totalCents, COALESCE(AVG(totalAmount), 0) AS avgCents
           FROM invoices
-          WHERE DATE(invoiceDate) = CURDATE()
+          WHERE invoiceDate >= ${startUtc} AND invoiceDate < ${endUtc}
             AND paymentStatus = 'paid'
         `),
       ]);
