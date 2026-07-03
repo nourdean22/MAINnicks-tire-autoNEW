@@ -549,6 +549,21 @@ export function startTieredScheduler(): void {
     // Optimized order: data quality → brain sync → intelligence → actions → outreach
     jobs: [
       {
+        // forensic-audit HIGH · MOVED from the daily tier. Confirmation calls
+        // self-gate to a 15:00–17:59 ET window, but the daily tier fires once
+        // per 24h phased by boot time, so that window was almost never hit and
+        // the feature was effectively dead (logged "completed · Outside
+        // window"). The hourly (2h) tier always has a tick inside any 3h
+        // window; the job's at-most-once claim + 24h dedup make repeated
+        // ticks safe. Self-gates on VAPI env + FEATURE_CONFIRMATION_CALLS
+        // (OFF by default). Still registered in registerAllJobs for HTTP.
+        name: "confirmation-calls",
+        handler: async () => {
+          const { runConfirmationCalls } = await import("./jobs/confirmationCalls");
+          return runConfirmationCalls();
+        },
+      },
+      {
         name: "feedback-cycle", // FIRST: decay memories, check anomalies, pacing — feeds into intelligence quality
         handler: async () => {
           const { runFeedbackCycle } = await import("../services/feedbackLoop");
@@ -1175,21 +1190,6 @@ export function startTieredScheduler(): void {
           // Off by default - FEATURE_UNPAID_INVOICE_RECOVERY=1 on Railway enables live
           // sends; without it this is a dry-run (logs + Telegram alert, no SMS out).
           return runUnpaidInvoiceRecovery({ maxSends: Number(process.env.INVOICE_RECOVERY_MAX_PER_RUN) || 30 });
-        },
-      },
-      {
-        // wave-181.84 · AgentPhone Confirmation Bot · was registered ONLY in
-        // registerAllJobs() (the HTTP-trigger registry), but ABSENT from this
-        // tiered scheduler — and _core/index.ts boots ONLY startTieredScheduler(),
-        // so it NEVER fired on a timer (FEATURE_CONFIRMATION_CALLS=1 did nothing).
-        // code-underneath audit · logic finding #1. Now in the daily tier next
-        // to its outreach siblings. Safe to schedule unconditionally: self-gates
-        // on VAPI env + FEATURE_CONFIRMATION_CALLS (OFF by default) + at-most-once
-        // claims + a per-run cap. Left in registerAllJobs for the HTTP path.
-        name: "confirmation-calls",
-        handler: async () => {
-          const { runConfirmationCalls } = await import("./jobs/confirmationCalls");
-          return runConfirmationCalls();
         },
       },
       {

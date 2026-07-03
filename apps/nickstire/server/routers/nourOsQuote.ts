@@ -11,10 +11,23 @@ import { z } from "zod";
 const NOUR_OS_API = process.env.NOUR_OS_API_URL ?? "https://bdnick.info";
 
 async function fetchNourOS(path: string, init?: RequestInit) {
-  const res = await fetch(`${NOUR_OS_API}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
+  // forensic-audit HIGH · the public /tires procedures await this fetch
+  // directly; with no timeout a stalled upstream (bdnick.info mid-deploy)
+  // held customer requests open for undici's ~300s default → infinite
+  // spinner. Cap at 8s and surface a clean error.
+  let res: Response;
+  try {
+    res = await fetch(`${NOUR_OS_API}${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...init?.headers },
+      signal: init?.signal ?? AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      throw new Error("NOUR-OS API timed out");
+    }
+    throw err;
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`NOUR-OS API error (${res.status}): ${text}`);

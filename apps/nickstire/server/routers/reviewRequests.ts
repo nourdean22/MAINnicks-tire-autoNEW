@@ -16,6 +16,7 @@ import {
   createReviewRequest,
   getReviewRequests,
   getPendingReviewRequests,
+  claimReviewRequest,
   markReviewRequestSent,
   markReviewRequestFailed,
   markReviewRequestClicked,
@@ -170,6 +171,12 @@ export async function processReviewRequestQueue() {
   let failed = 0;
 
   for (const req of batch) {
+    // forensic-audit HIGH · claim the row (pending→sent) BEFORE sending. If a
+    // concurrent run or a prior crash already claimed it, skip — otherwise a
+    // send-then-mark gap re-sent the same review SMS on the next run.
+    const claimed = await claimReviewRequest(req.id);
+    if (!claimed) continue;
+
     // Build tracking URL — uses the public redirect endpoint
     const trackingUrl = `${SITE_URL}/api/review-click/${req.trackingToken}`;
     const message = buildReviewMessage(req.customerName, req.service, trackingUrl, settings.messageTemplate);

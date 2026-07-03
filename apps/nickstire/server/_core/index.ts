@@ -1030,7 +1030,15 @@ ${urls.join("\n")}
       return res.sendStatus(403);
     }
     const { createHmac } = await import("crypto");
-    const expectedSig = "sha256=" + createHmac("sha256", appSecret).update(req.body).digest("hex");
+    // forensic-audit HIGH · the global express.json (with verify) parses the
+    // body first and sets req._body, so the route-level express.raw is
+    // skipped and req.body is a PARSED OBJECT — createHmac.update(object)
+    // threw a TypeError that killed the handler with no response, so FB
+    // retried then disabled the webhook. Use the exact signed bytes the
+    // global verify stashed on req.rawBody.
+    const rawBuf: Buffer = (req as unknown as { rawBody?: Buffer }).rawBody
+      ?? (Buffer.isBuffer(req.body) ? req.body : Buffer.from(typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? "")));
+    const expectedSig = "sha256=" + createHmac("sha256", appSecret).update(rawBuf).digest("hex");
     if (signature.length !== expectedSig.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
       console.warn("[Messenger] Invalid signature — possible forged request");
       return res.sendStatus(403);
@@ -1044,7 +1052,7 @@ ${urls.join("\n")}
     // for-of loops below can't crash on unexpected types.
     let body: { object?: string; entry?: Array<{ messaging?: Array<{ message?: { text?: string }; sender?: { id?: string } }> }> };
     try {
-      body = JSON.parse(req.body.toString());
+      body = JSON.parse(rawBuf.toString());
     } catch (err) {
       console.warn("[Messenger] Webhook body was not valid JSON", { err: err instanceof Error ? err.message : String(err) });
       return res.status(400).json({ error: "invalid json body" });
