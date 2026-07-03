@@ -391,7 +391,7 @@ function SafetyGateModal({
 
 function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: () => void }) {
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.winback.campaignDetail.useQuery({ id: campaignId });
+  const { data, isLoading, error } = trpc.winback.campaignDetail.useQuery({ id: campaignId });
   const { data: preview } = trpc.winback.preview.useQuery({ campaignId });
   const { data: recentSends } = trpc.winback.recentSends.useQuery({ campaignId, limit: 20 });
   const [isSafetyGateOpen, setIsSafetyGateOpen] = useState(false);
@@ -435,6 +435,18 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
     },
     onError: (e) => toast.error(`Process failed: ${e.message}`),
   });
+
+  // forensic-audit MEDIUM · was `if (isLoading || !data) <spinner>` with no
+  // error branch, so a failed campaignDetail query (500 / network drop) left
+  // the operator on an endless spinner. Surface the error + a way back.
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <p className="text-sm text-red-400">Failed to load campaign: {error.message}</p>
+        <button onClick={onBack} className="px-3 py-1.5 border border-border bg-card rounded text-xs hover:bg-accent transition-colors">Back</button>
+      </div>
+    );
+  }
 
   if (isLoading || !data) {
     return (

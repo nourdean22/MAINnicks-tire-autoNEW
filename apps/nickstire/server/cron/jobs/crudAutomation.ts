@@ -571,6 +571,7 @@ export async function notifyNewVips(): Promise<{ recordsProcessed: number; detai
 
     const { sendSms } = await import("../../sms");
     let notified = 0;
+    const notifiedIds: number[] = [];
 
     for (const vip of vips) {
       try {
@@ -588,20 +589,24 @@ export async function notifyNewVips(): Promise<{ recordsProcessed: number; detai
         );
         if (result.success) {
           notified++;
+          notifiedIds.push(Number(vip.id));
         }
       } catch (err) {
         log.warn("notifyNewVips: SMS failed", { error: err instanceof Error ? err.message : String(err), customerId: vip.id });
       }
     }
 
-    // Also update the customer_metrics table isVip flag for these customers
-    if (notified > 0) {
+    // forensic-audit MEDIUM · flag ONLY the customers actually notified in this
+    // batch. The old blanket UPDATE set isVip=1 for EVERY qualifying customer
+    // after texting at most 20, so everyone past the batch was marked VIP
+    // without ever being texted — and the `cm.isVip IS NULL OR = 0` selection
+    // filter then excluded them from all future runs (permanently skipped).
+    if (notifiedIds.length > 0) {
       try {
         await d.execute(sql`
-          UPDATE customer_metrics cm
-          INNER JOIN customers c ON cm.customerId = c.id
-          SET cm.isVip = 1
-          WHERE c.totalVisits >= 3 AND c.totalSpent >= 200000
+          UPDATE customer_metrics
+          SET isVip = 1
+          WHERE customerId IN (${sql.raw(notifiedIds.join(","))})
         `);
       } catch { /* customer_metrics table may not exist yet */ }
 
