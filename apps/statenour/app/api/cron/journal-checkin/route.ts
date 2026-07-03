@@ -11,7 +11,7 @@
 import { prisma } from "@/lib/prisma";
 import { cronHandler } from "@/lib/utils/http";
 import { sendTelegram } from "@/lib/services/telegram";
-import { today, toDateString, daysAgo } from "@/lib/utils/datetime";
+import { today, toDateString, daysAgo, startOfDayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const maxDuration = 30;
@@ -34,7 +34,10 @@ export const GET = cronHandler(async (req) => {
       where: {
         status: "DONE",
         updatedAt: {
-          gte: new Date(new Date().setHours(0, 0, 0, 0)),
+          // forensic-audit MEDIUM · was setHours(0,0,0,0) = server-local (UTC on
+          // Railway) midnight, ~4-5h off Eastern, so the evening check-in
+          // counted only the last ~3 hours ("0 tasks done today" every night).
+          gte: startOfDayET(),
         },
       },
     }).catch(() => 0),
