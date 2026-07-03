@@ -38,7 +38,7 @@ const PUBLIC_PREFIXES = [
   // regardless of middleware. Whitelisting here lets the Bearer-only
   // bridge path through.
   "/api/agent",
-  "/api/actions",     // GPT Custom Actions bridge (own Bearer auth)
+  "/api/actions/",    // GPT Custom Actions bridge (own Bearer auth). forensic-audit LOW · trailing slash so it no longer also exempts the unrelated /api/actions-brain route.
   "/api/mcp",         // MCP bridge (own Bearer auth)
   // forensic-audit HIGH · header-token-authenticated server-to-server
   // surfaces. Each route runs its OWN auth (requireSyncAuth / verifyVapiSecret
