@@ -594,6 +594,9 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
+      zod-to-json-schema:
+        specifier: ^3.24.1
+        version: 3.25.2(zod@4.4.3)
       zustand:
         specifier: 5.0.14
         version: 5.0.14(@types/react@19.2.14)(immer@11.1.8)(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
