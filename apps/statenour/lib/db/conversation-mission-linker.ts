@@ -93,7 +93,10 @@ function missionEmbeddingText(mission: MissionRow): string {
 }
 
 function vectorLiteral(vec: number[]): string {
-  return `[${vec.map((n) => Number(n).toPrecision(8)).join(",")}]`;
+  // forensic-audit LOW · sanitize non-finite values (a single NaN/Infinity from
+  // a malformed provider embedding otherwise produced 'NaN' in the SQL literal,
+  // which Postgres rejects — aborting the whole mission-link backfill run).
+  return `[${vec.map((n) => (Number.isFinite(n) ? Number(n).toPrecision(8) : "0")).join(",")}]`;
 }
 
 async function ensureConversationMissionColumn(prisma: PrismaLike): Promise<void> {
