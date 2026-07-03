@@ -74,6 +74,11 @@ export default function OverviewSection() {
     utils.lead.list.invalidate();
     utils.callback.list.invalidate();
     utils.workOrders.list.invalidate();
+    // forensic-audit MEDIUM · the priority queue + today's bookings render from
+    // overviewMediumBundle (line ~170), which was never invalidated — so the
+    // queue kept showing the acted-on row for up to the bundle's refetchInterval
+    // and the operator thought the tap failed. Invalidate it too.
+    utils.adminDashboard.overviewMediumBundle.invalidate();
   };
   const bookingUpdateStatus = trpc.booking.updateStatus.useMutation({
     onSuccess: () => { toast.success("Booking updated"); refetchQueues(); },
