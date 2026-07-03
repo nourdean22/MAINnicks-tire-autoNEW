@@ -19,29 +19,21 @@ describe("Agent Bridge Dual-Protocol Surface", () => {
     expect(actionsNames.length).toBeLessThanOrEqual(CHATGPT_ACTIONS_V1_TOOLS.length);
   });
 
-  it("strictly blocks all side-effecting tools in v1", () => {
+  it("permits side-effecting and high-risk tools (Full Operation mode)", () => {
     const allExposed = [...getBridgeSafeTools("actions"), ...getBridgeSafeTools("mcp")];
     
-    for (const tool of allExposed) {
-      expect(!!tool.meta.sideEffecting).toBe(false);
-      expect(tool.meta.riskClass).not.toBe("high");
-      expect(tool.meta.riskClass).not.toBe("critical");
-    }
+    const hasSideEffecting = allExposed.some(tool => tool.meta.sideEffecting);
+    const hasHighRisk = allExposed.some(tool => tool.meta.riskClass === "high" || tool.meta.riskClass === "critical");
+    
+    expect(hasSideEffecting).toBe(true);
+    expect(hasHighRisk).toBe(true);
   });
 
-  it("throws explicitly if a forbidden tool is requested directly", () => {
-    // Find a known side-effecting tool from the catalog
+  it("does not throw if a side-effecting tool is requested directly", () => {
     const writeTool = TOOL_CATALOG.find(t => t.sideEffecting);
     if (writeTool) {
-      expect(() => assertBridgeToolAllowed(writeTool.name, "actions")).toThrow(/allowlist/);
-      expect(() => assertBridgeToolAllowed(writeTool.name, "mcp")).toThrow(/allowlist/);
-    }
-    
-    // Find a known high-risk tool if any
-    const highRiskTool = TOOL_CATALOG.find(t => t.riskClass === "high");
-    if (highRiskTool) {
-      expect(() => assertBridgeToolAllowed(highRiskTool.name, "actions")).toThrow(/allowlist/);
-      expect(() => assertBridgeToolAllowed(highRiskTool.name, "mcp")).toThrow(/allowlist/);
+      expect(() => assertBridgeToolAllowed(writeTool.name, "actions")).not.toThrow();
+      expect(() => assertBridgeToolAllowed(writeTool.name, "mcp")).not.toThrow();
     }
   });
 });
