@@ -6,7 +6,11 @@ Read-only pass. Zero code changes. All paths relative to `apps/nickstire/` unles
 
 ## STOP THE BLEEDING
 
-**Secrets in git history — rotation still outstanding.** `docs/MIGRATION_AUDIT.md` was redacted in HEAD (PR #49), but per `truth_os.md` ("Safety/correctness fixes that must hold") the leaked Stripe secret, TiDB URL, and vendor passwords **remain in git history**. This is a standing owner-urgent action item, not a new finding: rotate the Stripe secret key, TiDB credentials, and vendor passwords, then confirm in `truth_os.md`. No new committed secrets found in the working tree (`git ls-files apps/nickstire | grep -i env` → only `.env.example`; client grep clean).
+**1 · Cloudflare proxy is OFF — rate limits are bypassable today (live-verified 2026-07-03).** `curl -I https://nickstire.org` returns `server: railway-hikari`, `x-railway-edge: iad1`, and **no `cf-ray`** — Cloudflare is DNS-only (grey-cloud); traffic hits Railway's edge directly, contradicting `DEPLOY.md:3` ("Cloudflare-proxied"). The rate limiter keys on the client-controllable `cf-connecting-ip` header first (`server/middleware/rateLimiters.ts:4-13`), so any bot can rotate that header to bypass the form/API/AI limits on the quote, callback, booking, and AI endpoints right now. Fix is minutes: either orange-cloud the DNS record in Cloudflare (and then restrict origin ingress), or stop trusting `cf-connecting-ip` and key on `req.ip` with `trust proxy` set for Railway.
+
+**2 · `RESEND_API_KEY` is unset in production — lead email alerts are dead (live-verified).** `https://nickstire.org/api/health` reports `email: not_configured`, which maps directly to `process.env.RESEND_API_KEY` (`server/lib/health.ts:72`). Every `notifyNewLead` email silently fails into `integration_failures`; operator lead alerting currently rides on Telegram/SMS alone. Set the key on Railway or consciously accept Telegram-only.
+
+**3 · Secrets in git history — rotation deferred by operator (2026-07-03).** `docs/MIGRATION_AUDIT.md` was redacted in HEAD (PR #49), but per `truth_os.md` the leaked Stripe secret, TiDB URL, and vendor passwords remain in git history. Operator has explicitly deferred rotation for now — recorded here so it doesn't silently evaporate. No new committed secrets in the working tree (`git ls-files apps/nickstire | grep -i env` → only `.env.example`; client grep clean).
 
 ---
 
@@ -110,7 +114,7 @@ The master-prompt premise ("SSR fix exists only as a prompt/branch that never me
 | T-2 | P2 | No consent gating / Consent Mode; 3 trackers fire unconditionally | `client/index.html:127-176` |
 | T-3 | P3 | 8 dead pixel wrappers (booking, callback, fleet, tire-search, directions…) — attribution intent unrealized | `client/src/lib/metaPixel.ts:91-249` |
 | T-4 | P3 | CallbackModal sends no pixel/UTM though the server CAPI path is ready | `client/src/components/CallbackModal.tsx:65-69` vs `server/routers/callback.ts:174-186` |
-| S-1 | P2 | Rate-limit key trusts spoofable `cf-connecting-ip` unless CF-only ingress enforced | `server/middleware/rateLimiters.ts:4-13` |
+| S-1 | **P1** (elevated — live-verified: CF proxy is OFF, header is client-controllable today; see STOP THE BLEEDING #1) | Rate-limit key trusts spoofable `cf-connecting-ip` | `server/middleware/rateLimiters.ts:4-13` |
 | S-2 | P2 | `/api/bridge/diag` = arbitrary-SELECT executor behind one shared key (guards present; cross-table reads possible) | `server/_core/bridge-routes.ts:670-706` |
 | S-3 | P2 | CSP `script-src 'unsafe-inline'` negates most XSS defense (GA/Pixel justification) | `server/middleware/securityHeaders.ts:48-64` |
 | S-4 | P3 | Webhooks not rate-limited (all signature-verified — low value target) | `server/_core/index.ts:668,768,1015` |
@@ -154,20 +158,24 @@ The master-prompt premise ("SSR fix exists only as a prompt/branch that never me
 
 Score = (revenue×3 + risk×2 + speed×1) / effort (S=1, M=2, L=3). Scales 0–5.
 
+*Re-ranked 2026-07-03 after live verification (Cloudflare proxy OFF, RESEND unset) and operator answers (GBP locality = Cleveland; secret rotation deferred).*
+
 | # | Fix | Branch | rev | risk | spd | eff | Score |
 |---|---|---|---|---|---|---|---|
 | 1 | Wire TextMeQuote: GA4 + Pixel Lead + pixelEventId/UserData + UTM in payload (P0-1) | `nickstire/audit-fix-01-quote-tracking` | 5 | 2 | 1 | S | (15+4+1)/1 = **20.0** |
-| 2 | Unify NAP locality across static JSON/ai.txt/llms + business.ts, regen prerender (P1-3) | `nickstire/audit-fix-02-nap-locality` | 4 | 2 | 1 | S | (12+4+1)/1 = **17.0** |
-| 3 | Make `appendRow` throw → Sheets failures retry + log to integration_failures (P1-2) | `nickstire/audit-fix-03-sheets-fail-loud` | 3 | 3 | 1 | S | (9+6+1)/1 = **16.0** |
-| 4 | Set `META_CAPI_ACCESS_TOKEN` + verify dedup live in Events Manager (P1-1) | `nickstire/audit-fix-04-capi-arm` | 4 | 1 | 1 | S | (12+2+1)/1 = **15.0** |
-| 5 | Nav "Financing" → "Payment Programs" + Acima placement review (P1-7) | `nickstire/audit-fix-05-payment-programs-label` | 2 | 3 | 1 | S | (6+6+1)/1 = **13.0** |
-| 6 | Global Express error middleware + narrow migration-runner tolerated codes (P1-6 + P1-5) | `nickstire/audit-fix-06-error-hardening` | 1 | 4 | 1 | S | (3+8+1)/1 = **12.0** |
-| 7 | Tel-click CAPI (`sendContactEvent` from logCall) + directions tracking (P1-4) | `nickstire/audit-fix-07-call-directions-capi` | 3 | 1 | 1 | S | (9+2+1)/1 = **12.0 → force-ranked below #6** (risk-weighted; #6 protects money, #7 measures it) |
-| 8 | GA4 page_view on wouter route change (T-1) | `nickstire/audit-fix-08-spa-pageview` | 2 | 1 | 1 | S | (6+2+1)/1 = **9.0** |
-| 9 | Compress/resize the 24 >300KB images; keep responsive variants (P-1) | `nickstire/audit-fix-09-image-diet` | 1 | 1 | 3 | S | (3+2+3)/1 = **8.0** |
+| 2 | Arm prod env in one move: `META_CAPI_ACCESS_TOKEN` + `RESEND_API_KEY` + `SENTRY_DSN` on Railway; add all three to `/api/health` configured-markers; verify CAPI dedup in Events Manager (P1-1 + Bleeding #2 + O-2). Verify vars via `railway variables \| grep -E "META_CAPI\|SENTRY_DSN\|RESEND"` | `nickstire/audit-fix-02-env-arm` | 4 | 2 | 1 | S | (12+4+1)/1 = **17.0** (force-ranked above #3: one S-effort move turns on server conversions, lead email alerts, AND error telemetry) |
+| 3 | Unify NAP locality to **Cleveland** (GBP-confirmed by operator): fix the three static JSON schemas + ai.txt/llms\*.txt to match `shared/business.ts`; keep "Euclid Ave/near Euclid border" phrasing in prose copy; regen prerender (P1-3) | `nickstire/audit-fix-03-nap-cleveland` | 4 | 2 | 1 | S | (12+4+1)/1 = **17.0** |
+| 4 | Make `appendRow` throw → Sheets failures retry + log to integration_failures (P1-2) | `nickstire/audit-fix-04-sheets-fail-loud` | 3 | 3 | 1 | S | (9+6+1)/1 = **16.0** |
+| 5 | Kill the rate-limit bypass: stop trusting `cf-connecting-ip` (key on `req.ip` + `trust proxy` for Railway) — or orange-cloud the CF DNS record and lock origin (S-1, live-verified) | `nickstire/audit-fix-05-ratelimit-key` | 1 | 5 | 1 | S | (3+10+1)/1 = **14.0** |
+| 6 | Nav "Financing" → "Payment Programs" + Acima placement review (P1-7) | `nickstire/audit-fix-06-payment-programs-label` | 2 | 3 | 1 | S | (6+6+1)/1 = **13.0** |
+| 7 | Global Express error middleware + narrow migration-runner tolerated codes (P1-6 + P1-5) | `nickstire/audit-fix-07-error-hardening` | 1 | 4 | 1 | S | (3+8+1)/1 = **12.0** |
+| 8 | Tel-click CAPI (`sendContactEvent` from logCall) + directions tracking (P1-4) | `nickstire/audit-fix-08-call-directions-capi` | 3 | 1 | 1 | S | (9+2+1)/1 = **12.0 → force-ranked below #7** (#7 protects money, #8 measures it) |
+| 9 | GA4 page_view on wouter route change (T-1) | `nickstire/audit-fix-09-spa-pageview` | 2 | 1 | 1 | S | (6+2+1)/1 = **9.0** |
 | 10 | Reconcile migration journal + orphan-check in db-migrate + verify gate (P0-2, P1-8) | `nickstire/audit-fix-10-migration-journal` | 1 | 5 | 1 | M | (3+10+1)/2 = **7.0** |
 
-Note on #10: it scores low on impact÷effort because it costs nothing until the day it costs everything — **its P0 severity stands independent of rank; do not let it fall off the board.** Items 1, 4, and 7 together answer "does this make the phone ring or protect money": they make every dollar of ad spend measurable against the actions that ring the phone.
+Dropped from top-10 by the re-rank (still worth doing): image diet for the 24 >300KB files (score 8.0), framer-motion bundle isolation (5.5).
+
+Note on #10: it scores low on impact÷effort because it costs nothing until the day it costs everything — **its P0 severity stands independent of rank; do not let it fall off the board.** Items 1, 2, and 8 together answer "does this make the phone ring or protect money": they make every dollar of ad spend measurable against the actions that ring the phone, and #2 additionally restores the operator's email alert on every new lead.
 
 ## What I Did NOT Audit
 
@@ -177,13 +185,13 @@ Note on #10: it scores low on impact÷effort because it costs nothing until the 
 - **Admin UX beyond primitives** — admin sections were checked for alert()/size/`any` only, not workflow correctness.
 - **Forgotten Factor:** this audit did not test the *interaction* between the SW cache and prerender freshness (a returning mobile visitor may see a staler shell than Googlebot sees pages), and it did not audit `packages/` workspace deps (`@nour/gbp-publisher`, `@nour/utils`) that nickstire imports — a defect there is invisible to this pass.
 
-## Open Questions
+## Open Questions — RESOLVED 2026-07-03
 
-1. Is `META_CAPI_ACCESS_TOKEN` set on Railway? (Code path says all CAPI is a no-op without it — unverifiable from repo.)
-2. Is `SENTRY_DSN` set on Railway? (Otherwise every `captureException` is a silent no-op.)
-3. Have the git-history secrets (Stripe/TiDB/vendor) been rotated since `docs/MIGRATION_AUDIT.md` was redacted? `truth_os.md` still lists rotation as owner-urgent.
-4. Is origin ingress Cloudflare-only at the network layer? (Determines whether the `cf-connecting-ip` rate-limit key is P2 or P3.)
-5. Which locality is registered on the Google Business Profile — Euclid or Cleveland? (Decides the winning side of P1-3.)
+1. ~~Is `META_CAPI_ACCESS_TOKEN` set on Railway?~~ Not verifiable from this environment (no Railway credentials; CLI unavailable). Folded into fix #2 with the exact verification command. Related live fact: `META_PIXEL_ID` unset in prod (`/api/health` → `using_default`) — harmless, hardcoded ID matches both sides.
+2. ~~Is `SENTRY_DSN` set on Railway?~~ Same — folded into fix #2. Bonus live finding: `RESEND_API_KEY` **confirmed unset** in prod via `/api/health` (`email: not_configured`) → lead email alerts dead (STOP THE BLEEDING #2).
+3. ~~Git-history secret rotation?~~ Operator deferred (2026-07-03). Recorded in STOP THE BLEEDING #3.
+4. ~~Cloudflare-only ingress?~~ **ANSWERED — NO.** Live headers show Railway edge directly, no `cf-ray`. Cloudflare is DNS-only. S-1 elevated to P1; fix queue #5. `DEPLOY.md:3` is a documentation error ("Cloudflare-proxied").
+5. ~~GBP locality?~~ **ANSWERED — Cleveland** (operator, 2026-07-03; shop sits near the Euclid border on Euclid Ave). Structured data unifies on `addressLocality: "Cleveland"` — the static JSON files (business-data/services-schema/reviews-schema/ai.txt/llms\*.txt currently saying "Euclid") are the side to change; `shared/business.ts` is already correct. Keep "near the Euclid border / on Euclid Ave" in prose — that's geography, not NAP.
 
 ---
 
