@@ -38,6 +38,8 @@ const PUBLIC_PREFIXES = [
   // regardless of middleware. Whitelisting here lets the Bearer-only
   // bridge path through.
   "/api/agent",
+  "/api/actions",     // GPT Custom Actions bridge (own Bearer auth)
+  "/api/mcp",         // MCP bridge (own Bearer auth)
   "/auth",            // Sign-in/sign-out pages
   "/_next",           // Next.js internals
   "/favicon",
