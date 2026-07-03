@@ -190,20 +190,10 @@ export async function executeAutoAction(parsed: ParsedResponse, phone: string, c
             await sendSms(phone, `Hi! ${priceResult.service} starts at ${priceResult.price} at Nick's. Drop off anytime for a free check -- no appointment needed. (216) 862-0005`, { via: "shop" });
             log.info("Auto-responded with price quote", { phone: phone.slice(-4), service: priceResult.service });
 
-            // Create a lead from this SMS inquiry
+            // Operator directive 2026-07-03: the AI answered the text —
+            // do NOT mint a lead row from it. Journey analytics stays so
+            // the touchpoint is still attributable if they convert later.
             if (db) {
-              const { leads: leadsTable } = await import("../../drizzle/schema");
-              await db.insert(leadsTable).values({
-                name: `SMS Inquiry (***${phone.slice(-4)})`,
-                phone,
-                source: "sms",
-                problem: `Asked about ${priceResult.service} pricing`,
-                urgencyScore: 3,
-                status: "new",
-              });
-              log.info("Lead created from SMS price inquiry", { phone: phone.slice(-4), service: priceResult.service });
-
-              // Fire journey event
               const { trackJourneyEvent } = await import("./journeyTracker");
               await trackJourneyEvent({ phone, eventType: "first_chat", metadata: { source: "sms_price_inquiry", service: priceResult.service } });
             }
