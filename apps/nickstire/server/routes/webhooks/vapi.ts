@@ -634,8 +634,12 @@ router.post("/vapi", async (req: Request, res: Response) => {
                 } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
                   confirmStatus = "confirmed";
                 } else {
-                  // Default · ambiguous transcript with content → confirmed
-                  confirmStatus = "confirmed";
+                  // forensic-audit MEDIUM · was "ambiguous content → confirmed",
+                  // so a voicemail/no-answer call where only the AI spoke was
+                  // recorded as a confirmed appointment and the operator never
+                  // followed up. Default to no_answer — a false follow-up is far
+                  // cheaper than a missed no-show.
+                  confirmStatus = "no_answer";
                 }
               } else {
                 confirmStatus = "no_answer";

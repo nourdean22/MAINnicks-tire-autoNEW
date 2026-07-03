@@ -273,6 +273,10 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
+                // forensic-audit MEDIUM · mirror the send-button disabled guard
+                // so Enter can't fire a second send mid-stream (which
+                // interleaved two streaming turns / forked the conversation).
+                if (chat.status === "streaming" || (!draft.trim() && !imgAttached)) return;
                 sendOrQueue(draft.trim());
               }
             }}
