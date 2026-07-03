@@ -396,7 +396,18 @@ export async function getRolloutMode(eventType: string): Promise<"off" | "shadow
     log.error("Failed to query rollout mode", err);
   }
 
-  // Default every migrated callsite to shadow first unless it is already proven safe.
+  // Operator decision (2026-07) · inbound SMS auto-replies are ON by default now
+  // (live_send). This only lifts the rollout-mode gate; the actual auto-send is
+  // still gated by BOTH the smart_sms_auto_reply and nickgpt_low_risk_autosend_
+  // enabled feature flags (operator-toggled in the admin Feature Flags panel),
+  // per-message low-risk intent classification (>=0.85 confidence), the
+  // complaint/legal detector, the repeated-message guard, and the opt-out cache.
+  // Complaints and complex/low-confidence intents still route to human review;
+  // only deterministic low-risk replies (hours, prices, oil-change, etc.) auto-
+  // send. A sms_orch_inbound_sms_mode row in appSecretKv overrides this default.
+  if (eventType === "inbound_sms") return "live_send";
+
+  // Every other migrated callsite stays shadow until proven safe.
   return "shadow";
 }
 
