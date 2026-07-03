@@ -103,7 +103,10 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
       const { like } = await import("drizzle-orm");
       const { markPhoneOptedOut } = await import("../sms");
       const db = await getDb();
-      if (db) {
+      // forensic-audit MEDIUM · guard against an empty/short normalized phone
+      // (alphanumeric sender ID, malformed webhook) — otherwise `%${phone}`
+      // degenerates to LIKE '%' and opts out EVERY customer in the table.
+      if (db && phone && phone.replace(/\D/g, "").length >= 10) {
         await db.update(customers).set({ smsOptOut: 1 }).where(like(customers.phone, `%${phone}`));
       }
       // wave-142a — write-through invalidation so the opt-out cache
