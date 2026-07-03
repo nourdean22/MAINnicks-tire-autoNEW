@@ -82,6 +82,18 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     status: process.env.META_PIXEL_ID ? "configured" : "using_default",
   };
 
+  // Meta CAPI check (configured?) — server-side conversions are silently
+  // dormant without the token (audit P1-1); surface it here.
+  checks.metaCapi = {
+    status: process.env.META_CAPI_ACCESS_TOKEN ? "configured" : "not_configured",
+  };
+
+  // Sentry check (configured?) — sentry.ts is a silent no-op without a DSN
+  // (audit O-2); surface it here.
+  checks.sentry = {
+    status: process.env.SENTRY_DSN ? "configured" : "not_configured",
+  };
+
   // AI Gateway check
   try {
     const { getGatewayHealth } = await import("./ai-gateway");
