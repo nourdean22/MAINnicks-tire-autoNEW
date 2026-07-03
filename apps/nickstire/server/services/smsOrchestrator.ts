@@ -866,20 +866,12 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
           selectedTemplateKey = experimentAssignment.selectedTemplateKey;
           selectedVariantKey = experimentAssignment.variantKey;
 
-          if (leadProblem && db) {
-            try {
-              const [newLead] = await db.insert(leads).values({
-                name: ctx.customerRecord ? `${ctx.customerRecord.firstName} ${ctx.customerRecord.lastName || ""}`.trim() : `SMS Inquiry (***${normalizedPhone.slice(-4)})`,
-                phone: normalizedPhone,
-                source: "sms",
-                problem: leadProblem,
-                urgencyScore: 3,
-                status: "new",
-              }).$returningId();
-              relatedLeadId = newLead?.id;
-            } catch (leadErr) {
-              log.warn("Failed to create lead for deterministic price request", leadErr);
-            }
+          // Operator directive 2026-07-03: inbound texts the AI already
+          // answered must NOT surface as new leads — the conversation is
+          // handled. relatedLeadId still links when an active lead exists
+          // (set above); we just no longer mint one from the text itself.
+          if (leadProblem) {
+            log.info("SMS price inquiry auto-handled — no lead created", { phone: normalizedPhone.slice(-4) });
           }
         }
         else {
