@@ -49,7 +49,13 @@ export const GET = cronHandler(async () => {
         deletedAt: null,
         createdAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
       },
-      take: 20, // Scope control: resolve at most 20 predictions per run to prevent timeout/slamming the TiDB bridge
+      // forensic-audit MEDIUM · was take:20 with no orderBy, so once ~20
+      // already-resolved rows existed the window filled with them and pending
+      // predictions starved forever. Process OLDEST-first and widen the window
+      // so genuinely-pending rows are reached; the stale-expiry below stops
+      // resolved rows from re-accumulating in the pending pool.
+      orderBy: { createdAt: "asc" },
+      take: 100,
     });
 
     const pending = unresolved.filter((p) => {
@@ -82,14 +88,20 @@ export const GET = cronHandler(async () => {
           }
         }
 
-        // Auto-resolution fallback for predictions older than 7 days
+        // forensic-audit MEDIUM · DO NOT fabricate an outcome. The old code set
+        // actualScore = engagementPred × random(0.7-1.2) and fed it to
+        // resolvePrediction, poisoning the calibration stats (meanErrorPct,
+        // within20PctRate) that get injected into system prompts with invented
+        // numbers. For a stale prediction with no fetchable real actual, mark it
+        // expired so it leaves the pending pool WITHOUT corrupting calibration.
         const ageMs = Date.now() - new Date(p.createdAt).getTime();
         const isStale = ageMs > 7 * 24 * 60 * 60 * 1000;
         if (actualScore === null && isStale) {
-          const predictions = (meta?.predictions as any[]) ?? [];
-          const engagementPred = predictions.find((pred: any) => pred.metric === "engagement")?.value ?? 5;
-          const multiplier = 0.7 + Math.random() * 0.5;
-          actualScore = Math.round(engagementPred * multiplier);
+          await prisma.brainMemory.update({
+            where: { id: p.id },
+            data: { metadata: { ...(meta ?? {}), resolved: true, resolvedOutcome: "expired_unverifiable" } as any },
+          });
+          continue;
         }
 
         if (actualScore !== null) {

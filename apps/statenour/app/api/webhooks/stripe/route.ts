@@ -57,7 +57,14 @@ export const POST = apiHandler(
         throw new ServiceError("Invalid signature", 400);
       }
     } else {
-      log.info("stripe_webhook_no_secret_skip_verification");
+      // forensic-audit MEDIUM · fail CLOSED. This route is middleware-exempt
+      // (/api/webhooks is public); with the secret unset the handler used to
+      // process unauthenticated payloads, so any anonymous caller could POST a
+      // forged checkout.session.completed and mint 'paid' Orders from
+      // attacker-controlled data. Match the make/inbound-crm webhooks which
+      // 503 when unconfigured rather than accepting forgeries.
+      log.error("stripe_webhook_secret_unset_rejecting");
+      throw new ServiceError("Webhook not configured", 503);
     }
 
     let event;

@@ -930,6 +930,10 @@ async function vapiFetch(path: string, init: RequestInit = {}): Promise<Response
   if (!apiKey) throw new Error("VAPI_API_KEY not configured");
   return fetch(`${VAPI_BASE}${path}`, {
     ...init,
+    // forensic-audit MEDIUM · no timeout meant a VAPI hang blocked the caller
+    // for undici's ~300s default — hanging admin Voice queries (infinite
+    // spinner) and serializing the outbound-call crons. 15s cap.
+    signal: init.signal ?? AbortSignal.timeout(15_000),
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
