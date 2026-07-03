@@ -2930,7 +2930,7 @@ model Order {
   contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Restrict)
   productId       String   @map("product_id")
   product         Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
-  stripeSessionId String?  @map("stripe_session_id")
+  stripeSessionId String?  @unique @map("stripe_session_id")
   amountCents     Int      @map("amount_cents")
   status          String   @default("pending") // "pending", "paid", "refunded"
   metadata        Json?
