@@ -1012,12 +1012,16 @@ export async function aiChat(
 /**
  * Generate embeddings for semantic memory recall.
  *
- * Primary: Venice `text-embedding-bge-m3` (BAAI BGE-M3, 1024 dims).
- *          This is the ONLY embedding model Venice currently serves.
- *          Confirmed via the Venice OpenAPI spec on Apr 15 — the prior
- *          code was passing `text-embedding-ada-002` which Venice
- *          silently rejected, making the whole chain fail.
- * Fallback: OpenAI `text-embedding-3-small` (1536 dims).
+ * Chain: Cohere embed-v4.0 -> HF e5-large -> OpenAI text-embedding-3-small
+ * (dimensions: 1024) -> OpenRouter. Every provider in the chain is pinned
+ * to 1024 dims so the vector space never desyncs on fallover.
+ *
+ * Ollama Cloud was REMOVED from this chain (2026-07-04): it refused
+ * embeddings in prod (404 /api/embeddings + 401 /api/embed — see the
+ * Cohere note below), burned up to 20s of timeouts per call, and its
+ * default model (nomic-embed-text) is 768-dim which would poison the
+ * 1024-dim space if it ever started responding. Ollama remains a CHAT
+ * provider (getModel) — only embeddings dropped it.
  *
  * IMPORTANT: dimensions differ between providers. Cosine similarity
  * across a mixed-dimension pair returns 0 (see cosineSim in
@@ -1031,85 +1035,8 @@ export async function aiChat(
 export async function getEmbedding(text: string): Promise<number[]> {
   const input = text.slice(0, 30_000);
 
-  const OLLAMA_API_KEY = getApiKey("ollama");
-  const OLLAMA_BASE_URL = getBaseUrl("ollama") || "https://ollama.com";
   const COHERE_API_KEY = cleanEnv(process.env.COHERE_API_KEY);
   const OPENAI_API_KEY = getApiKey("openai");
-
-  // 2. Ollama Cloud (fallback) · v10.0.529.45 · added after Venice ran
-  // out of credit during the operator's live persona-corpus import.
-  // Ollama Cloud exposes the NATIVE /api/embed endpoint (not the
-  // OpenAI-compatible /v1/embeddings). Response shape:
-  //   { embeddings: [[...]], model: "...", total_duration: ... }
-  // OLLAMA_EMBED_MODEL defaults to nomic-embed-text · 768-dim · the
-  // standard reliable model on Ollama Cloud.
-  if (OLLAMA_API_KEY) {
-    try {
-      const model =
-        cleanEnv(process.env.OLLAMA_EMBED_MODEL) || "nomic-embed-text";
-      // Ollama Cloud returned 401 on /api/embed in field test · the
-      // legacy /api/embeddings endpoint (plural · prompt-not-input) is
-      // more widely exposed on cloud + self-hosted installs. Try that
-      // shape first · fall through to /api/embed if 4xx.
-      const tryEndpoint = async (
-        path: string,
-        body: Record<string, unknown>,
-      ): Promise<number[] | null> => {
-        const res = await fetch(`${OLLAMA_BASE_URL}${path}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${OLLAMA_API_KEY}`,
-          },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(10_000), // wave-181.90 follow-up
-        });
-        if (!res.ok) {
-          const errBody = await res.text().catch(() => "");
-          console.warn(
-            `[ai:embedding] Ollama ${path} failed (${res.status}): ${errBody.slice(0, 200)}`,
-          );
-          return null;
-        }
-        const data = await res.json();
-        const vec: number[] | undefined = Array.isArray(data?.embeddings)
-          ? data.embeddings[0]
-          : data?.embedding;
-        if (Array.isArray(vec) && vec.length > 0) return vec;
-        return null;
-      };
-      const legacy = await tryEndpoint("/api/embeddings", { model, prompt: input });
-      if (legacy) return legacy;
-      const res = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${OLLAMA_API_KEY}`,
-        },
-        body: JSON.stringify({ model, input }),
-        signal: AbortSignal.timeout(10_000), // wave-181.90 follow-up
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const vec: number[] | undefined = Array.isArray(data?.embeddings)
-          ? data.embeddings[0]
-          : data?.embedding;
-        if (Array.isArray(vec) && vec.length > 0) return vec;
-        console.warn(
-          `[ai:embedding] Ollama returned 200 but no embedding in payload (keys: ${Object.keys(data ?? {}).join(",")})`,
-        );
-      } else {
-        const errBody = await res.text().catch(() => "");
-        console.warn(
-          `[ai:embedding] Ollama failed (${res.status}): ${errBody.slice(0, 200)}`,
-        );
-      }
-    } catch (err) {
-      console.warn(
-        `[ai:embedding] Ollama fetch threw: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }
 
   // 3. Cohere · v10.0.529.45 · added after Ollama Cloud refused
   // embeddings (401 on /api/embed · 404 on /v1/embeddings). The
@@ -1229,7 +1156,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
   }
 
   log.warn("embedding.all_failed", {
-    tried: ["ollama", "cohere", "hf", "openai", "openrouter"],
+    tried: ["cohere", "hf", "openai", "openrouter"],
   });
   return [];
 }

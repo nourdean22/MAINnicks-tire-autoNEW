@@ -208,6 +208,14 @@ export async function knnSearch(
   // it impossible for a malformed embedding response to produce a
   // tainted SQL string.
   assertSafeVectorLiteral(lit);
+  // The variable-width embedding_vec column holds rows written by
+  // different providers over time (legacy 1536-dim OpenAI, current
+  // 1024-dim chain). Comparing across widths makes Postgres abort the
+  // WHOLE query with 22000 "different vector dimensions" — one legacy
+  // row kills recall entirely. Restrict the scan to rows matching the
+  // query vector's width; other-width rows are semantically
+  // incomparable anyway (cross-model cosine is meaningless).
+  const dim = Math.trunc(embedding.length);
 
   try {
     if (sourceType) {
@@ -217,6 +225,7 @@ export async function knnSearch(
                 embedding_vec ${op} '${lit}'::vector AS distance
          FROM vector_embeddings
          WHERE "sourceType" = $1 AND embedding_vec IS NOT NULL
+           AND vector_dims(embedding_vec) = ${dim}
          ORDER BY embedding_vec ${op} '${lit}'::vector
          LIMIT ${limit}`,
         sourceType,
@@ -228,6 +237,7 @@ export async function knnSearch(
                 embedding_vec ${op} '${lit}'::vector AS distance
          FROM vector_embeddings
          WHERE embedding_vec IS NOT NULL
+           AND vector_dims(embedding_vec) = ${dim}
          ORDER BY embedding_vec ${op} '${lit}'::vector
          LIMIT ${limit}`,
       );

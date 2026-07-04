@@ -156,6 +156,7 @@ async function buildNearDupAdjacency(
           AND b."sourceId" IN (${Prisma.join(memoryIds)})
           AND a.embedding_vec IS NOT NULL
           AND b.embedding_vec IS NOT NULL
+          AND vector_dims(a.embedding_vec) = vector_dims(b.embedding_vec)
           AND (a.embedding_vec <=> b.embedding_vec) < ${COSINE_DISTANCE_THRESHOLD}
       `.catch(() => null as Array<{ a: string; b: string; distance: number }> | null);
 
