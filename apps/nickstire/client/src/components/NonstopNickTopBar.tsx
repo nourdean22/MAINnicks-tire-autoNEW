@@ -27,8 +27,8 @@ export default function NonstopNickTopBar() {
       data-testid="nonstop-nick-top-bar"
     >
       <span className="text-black text-[11px] sm:text-[12px] font-black uppercase tracking-wide leading-tight">
-        Flat fixed for $0 — Nonstop Nick members get the small tire stuff
-        covered · $7.99/mo
+        Stuck in the Euclid Ave line? Nonstop Nick members pull up anytime —
+        flats fixed for $0 · $7.99/mo
       </span>
       <span aria-hidden="true" className="text-black font-black text-[12px]">
         &rarr;

@@ -42,6 +42,13 @@ import FrictionlessIntentPanel from "@/components/conversion/FrictionlessIntentP
 // interactive estimator became a one-line reassurance strip — customers
 // see "from ~$12/week" and apply; Acima owns the numbers.
 import AcimaLeaseStrip from "@/components/payments/AcimaLeaseStrip";
+// 2026-07-04 line-hopper wave: /tires gets its own Nonstop Nick surface.
+// The global NonstopNickTopBar is deliberately suppressed on this route
+// (buying-intent pages own their messaging), so the membership pitch lives
+// here instead — PAS intro + the LIVE join card (phone -> Stripe hosted
+// Checkout via trpc.memberships.startCheckout, same tested component as
+// /nonstop-nick and /book). Copy states only shipped benefits.
+import NonstopNickJoin from "@/components/NonstopNickJoin";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -1833,6 +1840,66 @@ export default function TireFinder() {
             </div>
           </div>
         </section>
+      )}
+
+      {/* ─── NONSTOP NICK MEMBERSHIP — the recurring-revenue surface ─────
+          Problem→Agitate→Solve intro + the live join card. Every claim
+          below is a SHIPPED benefit (mirrors NonstopNickJoin tier copy) —
+          no queue-priority or discount promises that aren't honored at
+          the counter. A flat $/mo price is not "payment math" in the
+          operator-directive sense (no inputs, no computed totals — the
+          tires-conversion pins stay intact). Hidden once a search is
+          active, same rule as the conversion block above. */}
+      {!activeSearch && (
+        <>
+          <section className="py-10 sm:py-12">
+            <div className="container max-w-3xl mx-auto text-center">
+              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#FDB913] mb-2">
+                Nonstop Nick membership
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-black text-foreground mb-3">
+                Never lose a Sunday to a flat again.
+              </h2>
+              <p className="text-foreground/70 text-sm sm:text-base max-w-2xl mx-auto mb-2">
+                Cleveland potholes don't check your calendar, and a flat never
+                shows up on a convenient afternoon. At a chain that means a
+                plastic chair, burnt coffee, and a $1,200 sales pitch.
+              </p>
+              <p className="text-foreground/70 text-sm sm:text-base max-w-2xl mx-auto mb-6">
+                Members make it an errand instead: pull up anytime and the
+                small tire stuff is covered.
+              </p>
+              <ul className="text-left max-w-md mx-auto space-y-2.5 text-sm text-foreground/80">
+                <li className="flex gap-2">
+                  <CircleCheck className="w-4 h-4 text-[#FDB913] mt-0.5 shrink-0" />
+                  <span>
+                    <strong className="text-foreground">Flats fixed for $0</strong>{" "}
+                    — nails, screws, slow leaks. Pull up anytime.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <CircleCheck className="w-4 h-4 text-[#FDB913] mt-0.5 shrink-0" />
+                  <span>
+                    <strong className="text-foreground">
+                      Rotations, valve stems, rim cleans, air-ups
+                    </strong>{" "}
+                    — covered on the base plan.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <CircleCheck className="w-4 h-4 text-[#FDB913] mt-0.5 shrink-0" />
+                  <span>
+                    <strong className="text-foreground">
+                      Plus plan: 15% off any repair
+                    </strong>{" "}
+                    — parts &amp; labor, $9.99/mo.
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </section>
+          <NonstopNickJoin />
+        </>
       )}
 
       {/* ─── RESULTS ─── */}
