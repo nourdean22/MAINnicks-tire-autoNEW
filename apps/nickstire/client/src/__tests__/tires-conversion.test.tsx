@@ -2,9 +2,11 @@
  * Tires conversion reconstruction — regression pins.
  *
  * Guards the four new /tires conversion surfaces:
- *  1. AcimaEstimator — lease math (4%/wk · 52wk · 90-day EPO) and the
- *     VOCABULARY BOUNDARY: outside the verbatim Acima disclaimer, the
- *     component must never say financing/APR/loan/interest/down payment
+ *  1. AcimaLeaseStrip — quiet reassurance, NOT a calculator (operator
+ *     directive 2026-07-04: customers must never do payment math on
+ *     /tires — the no-inputs test pins that). Plus the VOCABULARY
+ *     BOUNDARY: outside the verbatim Acima disclaimer, the component
+ *     must never say financing/APR/loan/interest/down payment
  *     (Acima merchant terms prohibit presenting lease-to-own as credit).
  *  2. FrictionlessIntentPanel — plate-quote submissions ride
  *     trpc.lead.submit with a valid DB source enum + UTM spread, and
@@ -53,7 +55,7 @@ vi.mock("@/lib/utm", () => ({
   }),
 }));
 
-import AcimaEstimator, { estimateLease, ACIMA_DISCLAIMER } from "@/components/payments/AcimaEstimator";
+import AcimaLeaseStrip, { anchorWeekly, ACIMA_DISCLAIMER } from "@/components/payments/AcimaLeaseStrip";
 import FrictionlessIntentPanel from "@/components/conversion/FrictionlessIntentPanel";
 import UsedTireTrustProtocol from "@/components/conversion/UsedTireTrustProtocol";
 import FeeComparisonTable from "@/components/conversion/FeeComparisonTable";
@@ -61,31 +63,30 @@ import FeeComparisonTable from "@/components/conversion/FeeComparisonTable";
 beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
-describe("AcimaEstimator — lease math", () => {
-  it("computes weekly, 52-week total, and 90-day early purchase for the $299 anchor", () => {
-    const est = estimateLease(299);
-    expect(est.weekly).toBe(12); // 299 * 0.04 ≈ $12/wk
-    expect(est.fiftyTwoWeekTotal).toBe(624); // 12 * 52
-    expect(est.ninetyDayPurchase).toBe(349); // 299 cash + $50 initial payment
+describe("AcimaLeaseStrip — quiet reassurance, no payment math", () => {
+  it("derives the ~$12/week anchor from the $299 set at 4%/wk", () => {
+    expect(anchorWeekly(299)).toBe(12);
+    render(<AcimaLeaseStrip />);
+    expect(screen.getByText(/\$12\/week/)).toBeTruthy();
   });
 
-  it("renders the derived numbers from the default $299 price", () => {
-    render(<AcimaEstimator />);
-    expect(screen.getByTestId("acima-weekly").textContent).toContain("$12");
-    expect(screen.getByTestId("acima-total").textContent).toContain("624");
-    expect(screen.getByTestId("acima-epo").textContent).toContain("349");
-  });
-
-  it("recomputes when the price input changes", () => {
-    render(<AcimaEstimator />);
-    fireEvent.change(screen.getByLabelText(/tire set cash price/i), { target: { value: "500" } });
-    expect(screen.getByTestId("acima-weekly").textContent).toContain("$20"); // 500*0.04
-    expect(screen.getByTestId("acima-total").textContent).toContain("1,040");
-    expect(screen.getByTestId("acima-epo").textContent).toContain("550");
+  it("renders NO inputs or totals — customers never do payment math here", () => {
+    const { container } = render(<AcimaLeaseStrip />);
+    // Operator directive: zero interactive payment surfaces on /tires.
+    expect(container.querySelector("input")).toBeNull();
+    expect(container.querySelector("select")).toBeNull();
+    expect(container.querySelector("textarea")).toBeNull();
+    // The old estimator's 52-week total ($624 on the $299 anchor) must
+    // never reappear — it invited mid-funnel deliberation.
+    expect(container.textContent).not.toContain("624");
+    expect(container.textContent).not.toMatch(/52-week/i);
+    // The apply link is the only action.
+    const apply = screen.getByRole("link", { name: /apply/i });
+    expect(apply.getAttribute("href")).toContain("acima.us");
   });
 
   it("keeps lending vocabulary out of everything except the verbatim disclaimer", () => {
-    const { container } = render(<AcimaEstimator />);
+    const { container } = render(<AcimaLeaseStrip />);
     const disclaimer = screen.getByTestId("acima-disclaimer");
     expect(disclaimer.textContent).toContain(ACIMA_DISCLAIMER);
 
@@ -95,10 +96,9 @@ describe("AcimaEstimator — lease math", () => {
     expect(outsideDisclaimer).not.toMatch(/\bloan\b/i);
     expect(outsideDisclaimer).not.toMatch(/\binterest\b/i);
     expect(outsideDisclaimer).not.toMatch(/down payment/i);
-    // Required lease-to-own vocabulary is present
+    // Required program naming is present (payment-mechanics phrases like
+    // "Weekly Lease Payment" were dropped on purpose — quiet strip).
     expect(outsideDisclaimer).toMatch(/Lease-to-Own/i);
-    expect(outsideDisclaimer).toMatch(/Weekly Lease Payment/i);
-    expect(outsideDisclaimer).toMatch(/Initial Payment/i);
   });
 });
 
