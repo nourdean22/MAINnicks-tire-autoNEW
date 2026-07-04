@@ -17,7 +17,8 @@
  *   tone="info"    = preventive / maintenance (oil, tires, alignment)
  */
 import type { ServicePageConfig } from "@/components/FocusedServicePage";
-import { Disc, Activity, Wrench, AlertTriangle, Clock, Snowflake, Thermometer, Battery, Zap } from "lucide-react";
+import { Disc, Activity, Wrench, AlertTriangle, Clock, Snowflake, Thermometer, Battery, Zap, CheckCircle } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 
 /** A subset of ServicePageConfig containing only the conversion fields.
  *  heroSecondaryCta / ctaHeadline / ctaSub are included so per-slug
@@ -32,6 +33,8 @@ export type ConversionFields = Pick<
   | "crossSell"
   | "curiosityArc"
   | "heroSecondaryCta"
+  | "heroTertiaryCta"
+  | "pricingOverride"
   | "ctaHeadline"
   | "ctaSub"
 >;
@@ -142,6 +145,53 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
   // EMISSIONS / OHIO E-CHECK — warning tone (compliance + cascade)
   // ════════════════════════════════════════════════════════
   emissions: {
+    // Operator call (2026-07-04): NO repair prices on this page — dollar
+    // ranges scare customers into price-shopping before we've seen the
+    // car. The pricing-tier grid is replaced by a trust/approval block
+    // (pricingOverride below). The anchorTable stays: it prices the
+    // COMPETITORS high and us at "Free estimate" — anchoring, not pricing.
+    // The quick scan is a pull-up service (like tires) — no drop-off, no
+    // waiting room — hence the third hero button straight to Maps.
+    heroTertiaryCta: {
+      label: "COME GET A SCAN",
+      href: BUSINESS.urls.googleMapsDirections,
+      external: true,
+    },
+    pricingOverride: (
+      <div className="max-w-3xl mx-auto text-center">
+        <h2 className="font-bold text-3xl sm:text-4xl text-foreground tracking-tight">
+          THE MONEY PART? COME TALK TO US.
+        </h2>
+        <p className="text-foreground/70 mt-4 text-[15px] leading-relaxed">
+          No price list here on purpose — a number on a website can&apos;t see
+          your car, and every failure is different. Here&apos;s what we can
+          tell you: payment programs get people approved here every week,
+          including plenty of folks who came in thinking their credit was too
+          far gone. No credit history needed to check, and checking
+          doesn&apos;t ding your score. Come talk to us before you write the
+          car off.
+        </p>
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+          {[
+            "Free readiness scan before the state test — pull up, no drop-off needed",
+            "Written estimate before any wrench moves — you don't pay until you say yes",
+            "Four payment providers compete for your approval — no hard credit pull to check",
+            "If the repair costs more than the car is worth, we tell you straight",
+          ].map((item) => (
+            <div key={item} className="flex items-start gap-3 bg-card/40 border border-border/20 rounded px-4 py-3">
+              <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <span className="text-[13px] text-foreground/90">{item}</span>
+            </div>
+          ))}
+        </div>
+        <a
+          href="/financing"
+          className="inline-flex items-center justify-center mt-8 min-h-[44px] px-6 rounded-md bg-primary text-primary-foreground font-bold tracking-wide hover:opacity-90 transition-colors"
+        >
+          SEE PAYMENT OPTIONS
+        </a>
+      </div>
+    ),
     anchorTable: {
       serviceName: "Ohio E-Check repair — Cleveland market quotes",
       rows: [

@@ -48,7 +48,7 @@ function slugToTitle(path: string): string {
 import BookingForm from "./BookingForm";
 import FadeIn from "./FadeIn";
 import { BUSINESS } from "@shared/business";
-import { Phone, CheckCircle, Clock, ShieldCheck, DollarSign, ChevronDown, Star } from "lucide-react";
+import { Phone, CheckCircle, Clock, ShieldCheck, DollarSign, ChevronDown, Star, MapPin } from "lucide-react";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 // Conversion-architecture overlays (Batch 1 components, plumbed in Batch 3
@@ -162,6 +162,13 @@ export interface ServicePageConfig {
    *  Sit-and-wait FCFS services (oil changes) have NO drop-off — customers
    *  pull up and wait — so they swap in "CAN I COME NOW?" here. */
   heroSecondaryCta?: { label: string; href: string };
+  /** Optional THIRD hero button rendered after the secondary CTA.
+      `external: true` opens in a new tab (e.g. Google Maps directions). */
+  heroTertiaryCta?: { label: string; href: string; external?: boolean };
+  /** When set, replaces the pricing-tier grid inside the #pricing section
+      (title/sub/tiers all skipped). The section wrapper + anchor stay so
+      the hero "What's it cost?" chip still resolves. */
+  pricingOverride?: React.ReactNode;
 
   // ─── CONVERSION ARCHITECTURE (v1.1) ──────────────────────
   // All optional. When provided, renders the corresponding conversion
@@ -300,6 +307,17 @@ function Hero({ config }: { config: ServicePageConfig }) {
             >
               {config.heroSecondaryCta?.label ?? "SCHEDULE DROP-OFF"}
             </a>
+            {config.heroTertiaryCta && (
+              <a
+                href={config.heroTertiaryCta.href}
+                {...(config.heroTertiaryCta.external
+                  ? { target: "_blank", rel: "noopener noreferrer" }
+                  : {})}
+                className="inline-flex items-center justify-center gap-2 border-2 border-primary/50 text-primary px-7 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-primary/10 hover:border-primary transition-colors"
+              >
+                <MapPin className="w-5 h-5" /> {config.heroTertiaryCta.label}
+              </a>
+            )}
           </div>
         </FadeIn>
         <FadeIn delay={0.4}>
@@ -369,6 +387,13 @@ function PricingSection({ config }: { config: ServicePageConfig }) {
     // PricingSection always renders, so this anchor resolves on every page.
     <section id="pricing" className="scroll-mt-20 py-16 bg-background">
       <div className="container max-w-5xl">
+        {/* pricingOverride — swaps the whole title/sub/tier grid for a
+            custom block (e.g. /emissions trust-over-pricing) while keeping
+            the #pricing anchor alive for the hero curiosity chip. */}
+        {config.pricingOverride ? (
+          <FadeIn>{config.pricingOverride}</FadeIn>
+        ) : (
+        <>
         <FadeIn>
           <h2 className="font-bold text-3xl sm:text-4xl text-foreground tracking-tight">{config.pricingTitle}</h2>
           <p className="text-foreground/60 mt-2">{config.pricingSub}</p>
@@ -392,6 +417,8 @@ function PricingSection({ config }: { config: ServicePageConfig }) {
           ))}
         </div>
         <p className="text-[11px] text-foreground/40 text-center mt-4">Most vehicles. Pricing varies by vehicle and parts. Call for exact quote.</p>
+        </>
+        )}
       </div>
     </section>
   );
