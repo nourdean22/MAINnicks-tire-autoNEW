@@ -1918,7 +1918,7 @@ export default function TireFinder() {
               </ul>
             </div>
           </section>
-          <NonstopNickJoin />
+          <NonstopNickJoin source="tires_page" />
         </>
       )}
 

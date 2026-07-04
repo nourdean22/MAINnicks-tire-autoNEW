@@ -45,8 +45,8 @@ function stubLocation(search = "") {
 }
 
 /** Render the join card and return queries scoped to THIS render only. */
-function setup() {
-  const { container } = render(<NonstopNickJoin />);
+function setup(props: { source?: string } = {}) {
+  const { container } = render(<NonstopNickJoin {...props} />);
   return within(container);
 }
 
@@ -84,11 +84,18 @@ describe("NonstopNickJoin", () => {
     expect(h.mutate).not.toHaveBeenCalled();
   });
 
-  it("submits digits-only phone with the selected base plan", () => {
+  it("submits digits-only phone with the selected base plan (default membership_page source)", () => {
     const q = setup();
     fireEvent.change(q.getByLabelText(/your phone number/i), { target: { value: "(216) 555-0123" } });
     fireEvent.click(q.getByRole("button", { name: /Join — / }));
-    expect(h.mutate).toHaveBeenCalledWith({ phone: "2165550123", plan: "nonstop-nick" });
+    expect(h.mutate).toHaveBeenCalledWith({ phone: "2165550123", plan: "nonstop-nick", source: "membership_page" });
+  });
+
+  it("carries the mount site's source into the mutation (per-surface attribution)", () => {
+    const q = setup({ source: "tires_page" });
+    fireEvent.change(q.getByLabelText(/your phone number/i), { target: { value: "2165550123" } });
+    fireEvent.click(q.getByRole("button", { name: /Join — / }));
+    expect(h.mutate).toHaveBeenCalledWith({ phone: "2165550123", plan: "nonstop-nick", source: "tires_page" });
   });
 
   it("carries the plus plan when selected (CTA price follows)", () => {
@@ -97,7 +104,7 @@ describe("NonstopNickJoin", () => {
     expect(q.getByRole("button", { name: /Join — \$9\.99\/mo/ })).toBeTruthy();
     fireEvent.change(q.getByLabelText(/your phone number/i), { target: { value: "2165550123" } });
     fireEvent.click(q.getByRole("button", { name: /Join — / }));
-    expect(h.mutate).toHaveBeenCalledWith({ phone: "2165550123", plan: "nonstop-nick-plus" });
+    expect(h.mutate).toHaveBeenCalledWith({ phone: "2165550123", plan: "nonstop-nick-plus", source: "membership_page" });
   });
 
   it("shows the honest fallback message when no checkout URL comes back", () => {
