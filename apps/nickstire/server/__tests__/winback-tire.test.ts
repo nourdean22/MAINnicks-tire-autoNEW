@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { invoices, tireOrders, serviceHistory } from "../../drizzle/schema";
 
+// Prevent mock pollution from other test files in singleFork serial mode —
+// this file needs the REAL drizzle schema and sms module.
+vi.unmock("../../drizzle/schema");
+vi.unmock("../sms");
+
 describe("Walk-In Calculator & Win-Back tire_customer Segment", () => {
   it("Used Tire preset has 0 labor hours (no double labor)", async () => {
     const { PRESETS } = await import("../../client/src/pages/admin/WalkInCalculatorSection");

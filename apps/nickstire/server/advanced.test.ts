@@ -3,6 +3,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Prevent mock pollution from other test files in singleFork serial mode —
+// this file needs the REAL drizzle schema.
+vi.unmock("../drizzle/schema");
+
 // Mock the database module
 const mockDb = {
   select: vi.fn().mockReturnThis(),

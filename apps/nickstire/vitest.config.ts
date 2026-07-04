@@ -17,6 +17,11 @@ export default defineConfig({
   test: {
     environment: "node",
     testTimeout: 30000,
+    // singleFork serial mode (canonical on Windows) shares one process across
+    // all test files — auto-revert vi.stubEnv / vi.stubGlobal before each test
+    // so stubs can never leak across files.
+    unstubEnvs: true,
+    unstubGlobals: true,
     include: [
       "server/**/*.test.ts",
       "server/**/*.spec.ts",
