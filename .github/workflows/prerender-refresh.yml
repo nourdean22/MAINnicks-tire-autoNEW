@@ -46,6 +46,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The server bundle imports workspace packages (@nour/gbp-publisher,
+      # @nour/utils) as externals resolved via node_modules symlinks — their
+      # dist/ must exist or the server dies at import with
+      # ERR_MODULE_NOT_FOUND before it can even validate env. This is what
+      # actually killed runs #21-#25 (run #25's boot log finally showed it);
+      # the regen script builds only the app, not its workspace deps.
+      # "^..." = dependencies of the app, excluding the app itself.
+      - name: Build workspace packages (server runtime deps)
+        run: pnpm exec turbo run build --filter "nicks-tire-auto^..."
+
       - name: Regenerate prerendered HTML
         working-directory: apps/nickstire
         env:
@@ -53,9 +63,9 @@ jobs:
           # Boot-only dummies. server/_core/index.ts REQUIRED_ENV hard-exits
           # without OWNER_OPEN_ID / ADMIN_API_KEY / STATENOUR_SYNC_KEY and
           # enforces >=32 chars on the key material (the old 31-char
-          # JWT_SECRET failed that check). This is what silently killed
-          # scheduled runs #21-#23: server exit 1 -> 30s health timeout ->
-          # "[regen] Server failed to start".
+          # JWT_SECRET failed that check). Required for boot — though run
+          # #25 showed the FIRST killer was the unbuilt workspace deps
+          # above; this gate is what the server checks right after imports.
           JWT_SECRET: "prerender-dummy-jwt-secret-not-used-1234567890"
           ADMIN_API_KEY: "prerender-dummy-admin-key-not-used-1234567890"
           STATENOUR_SYNC_KEY: "prerender-dummy-sync-key-not-used-1234567890"
