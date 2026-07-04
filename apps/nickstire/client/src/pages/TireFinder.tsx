@@ -31,6 +31,14 @@ import TrustBlock from "@/components/TrustBlock";
 // + fear stats before they get lost in size selection.
 import AnchorAdjustmentTable from "@/components/conversion/AnchorAdjustmentTable";
 import FearCalibrationBlock from "@/components/conversion/FearCalibrationBlock";
+// tires-conversion-reconstruction wave — PAS hero + anti-chain fee table +
+// used-tire trust protocol + Acima lease-to-own estimator + frictionless
+// intent panel (text-TIRE / plate lookup riding the trpc.lead.submit
+// pipeline: DB lead row + owner Telegram alert + customer SMS confirm).
+import FeeComparisonTable from "@/components/conversion/FeeComparisonTable";
+import UsedTireTrustProtocol from "@/components/conversion/UsedTireTrustProtocol";
+import FrictionlessIntentPanel from "@/components/conversion/FrictionlessIntentPanel";
+import AcimaEstimator from "@/components/payments/AcimaEstimator";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -1465,17 +1473,32 @@ export default function TireFinder() {
               Find new or used tires for your vehicle. Beyond tire fitting, Nick's on Euclid Ave offers same-day <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake repair in Euclid</Link> and fast <Link href="/diagnostics" className="underline text-primary hover:text-primary-foreground font-semibold">check engine light diagnostics</Link>. Walk in 7 days, explore our soft-pull <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing options for repairs</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground font-semibold">contact Nick’s Tire & Auto</Link> today.
             </p>
 
-            {/* Value proposition callout */}
-            <div className="mt-6 inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-4 py-2">
-              <Gift className="w-4 h-4 text-emerald-400" />
-              <span className="text-sm text-emerald-400 font-medium">
-                Installation package included in this estimate.
-              </span>
+            {/* PAS hook — physics, not superlatives. The h1 above keeps
+                the ranking keywords; this block does the persuading. */}
+            <div className="mt-7 max-w-2xl mx-auto text-left bg-card/70 border border-red-500/25 rounded-xl p-5 sm:p-6">
+              <p className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight uppercase text-foreground">
+                Your tires pump water. <span className="text-red-400">Worn tread can't.</span> You surf.
+              </p>
+              <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+                A healthy tire channels gallons of water out of the contact patch every second at
+                highway speed. At <strong className="text-foreground">4/32″ of tread</strong> the
+                grooves are half gone — in a wet downpour your stopping distance stretches by about{" "}
+                <strong className="text-red-300">87 feet</strong>. That's two Cleveland RTA transit
+                buses parked between where you should have stopped and where you actually do.
+              </p>
+              <p className="mt-2 text-sm text-foreground/80 leading-relaxed">
+                The fix is cheaper than the deductible: inspected used tires from{" "}
+                <strong className="text-primary">$25 installed</strong>, new sets with mounting,
+                balancing, valve stems, TPMS reset, and disposal already in the price.
+              </p>
             </div>
 
-            {/* Tire Haiku */}
-            <div className="mt-4 text-[12px] text-foreground/60 max-w-xl mx-auto leading-relaxed">
-              Real wholesale prices · Installation package included in this estimate · Same-day on in-stock
+            {/* Value proposition callout */}
+            <div className="mt-5 inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-4 py-2">
+              <Gift className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm text-emerald-400 font-medium">
+                $0 add-on fees — the sticker price is the installed price.
+              </span>
             </div>
           </motion.div>
 
@@ -1731,6 +1754,21 @@ export default function TireFinder() {
         </div>
       </section>
 
+      {/* ─── FRICTIONLESS INTENT PANEL ───────────────────────────────
+          The fast lane for the 60%+ of visitors who don't know their
+          tire size: text "TIRE" to the shop line, or drop a license
+          plate + phone and the crew decodes the fitment and texts a
+          quote. Submissions ride trpc.lead.submit (pending lead row +
+          owner Telegram alert + customer SMS confirmation). Hidden once
+          a search is active — the visitor is already in the funnel. */}
+      {!activeSearch && !prefilledVehicle && (
+        <section className="py-8 sm:py-10">
+          <div className="container max-w-4xl mx-auto">
+            <FrictionlessIntentPanel />
+          </div>
+        </section>
+      )}
+
       {/* ─── CONVERSION ARCHITECTURE — anchor + fear stats ───────────
           Sits between the search hero and the results so visitors who
           scroll past the search box (or who arrive via direct link
@@ -1777,6 +1815,16 @@ export default function TireFinder() {
                   },
                 ]}
               />
+            </div>
+
+            {/* Anti-big-chain fee autopsy — the "common enemy" frame. */}
+            <div className="mt-12">
+              <FeeComparisonTable />
+            </div>
+
+            {/* Lease-to-Own estimator — strictly Acima vocabulary. */}
+            <div className="mt-12">
+              <AcimaEstimator />
             </div>
           </div>
         </section>
@@ -2260,24 +2308,19 @@ export default function TireFinder() {
                     Used Tires Euclid & Cleveland — Inspected, Installed, Honest
                   </h2>
                   <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                    Not everyone needs brand-new rubber. We carry a large selection of inspected used tires — every one passes a 4-point exam (tread depth, sidewall, DOT date, plug history) before it earns a spot on your car. Same professional installation, same included mount/balance/valve stems/disposal, same coffee — just a friendlier number on the receipt. Payment programs on the spot if you need them.
+                    "Used tires" earned a bad name because most lots sell whatever rolls in. We don't.
+                    Every casing has to clear all four gates below before it's allowed on the rack —
+                    the ones that fail get scrapped, not discounted. Same professional installation,
+                    same included mount/balance/valve stems/disposal — just a friendlier number on the
+                    receipt. Payment programs on the spot if you need them.
                   </p>
                   <p className="text-[10px] text-muted-foreground/60 mt-1.5">
                     Select 12-inch sizes from $25 installed; most standard passenger sizes $40–$80 installed.
                   </p>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
-                    {[
-                      { label: "Inspected", desc: "Every tire checked for safety" },
-                      { label: "Affordable", desc: "Fraction of new tire cost" },
-                      { label: "Same Install", desc: "Full premium package included" },
-                      { label: "In Stock", desc: "Large selection available now" },
-                    ].map((item) => (
-                      <div key={item.label} className="bg-background/50 rounded-lg p-3">
-                        <p className="text-xs font-medium text-foreground">{item.label}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</p>
-                      </div>
-                    ))}
+                  {/* The 4-point trust protocol — hard gates, not marketing adjectives. */}
+                  <div className="mt-5">
+                    <UsedTireTrustProtocol />
                   </div>
 
                   <p className="text-sm text-muted-foreground mt-5 leading-relaxed">
