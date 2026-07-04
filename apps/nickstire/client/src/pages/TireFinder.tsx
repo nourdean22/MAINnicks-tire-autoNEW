@@ -32,13 +32,16 @@ import TrustBlock from "@/components/TrustBlock";
 import AnchorAdjustmentTable from "@/components/conversion/AnchorAdjustmentTable";
 import FearCalibrationBlock from "@/components/conversion/FearCalibrationBlock";
 // tires-conversion-reconstruction wave — PAS hero + anti-chain fee table +
-// used-tire trust protocol + Acima lease-to-own estimator + frictionless
+// used-tire trust protocol + Acima lease-to-own strip + frictionless
 // intent panel (text-TIRE / plate lookup riding the trpc.lead.submit
 // pipeline: DB lead row + owner Telegram alert + customer SMS confirm).
 import FeeComparisonTable from "@/components/conversion/FeeComparisonTable";
 import UsedTireTrustProtocol from "@/components/conversion/UsedTireTrustProtocol";
 import FrictionlessIntentPanel from "@/components/conversion/FrictionlessIntentPanel";
-import AcimaEstimator from "@/components/payments/AcimaEstimator";
+// 2026-07-04 operator directive: no payment math on /tires. The
+// interactive estimator became a one-line reassurance strip — customers
+// see "from ~$12/week" and apply; Acima owns the numbers.
+import AcimaLeaseStrip from "@/components/payments/AcimaLeaseStrip";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -1822,9 +1825,11 @@ export default function TireFinder() {
               <FeeComparisonTable />
             </div>
 
-            {/* Lease-to-Own estimator — strictly Acima vocabulary. */}
+            {/* Lease-to-Own reassurance strip — strictly Acima
+                vocabulary, deliberately no calculator (operator: don't
+                make customers think about payment). */}
             <div className="mt-12">
-              <AcimaEstimator />
+              <AcimaLeaseStrip />
             </div>
           </div>
         </section>
