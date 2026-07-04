@@ -125,6 +125,7 @@ export async function runSemanticLinker(
       WHERE ve.embedding_vec IS NOT NULL
         AND ve."sourceType" = 'brain_memory'
         AND ve."sourceId" != $1
+        AND vector_dims(ve.embedding_vec) = vector_dims('${vecLit}'::vector)
       ORDER BY ve.embedding_vec <=> '${vecLit}'::vector
       LIMIT ${TOP_K}
       `,
