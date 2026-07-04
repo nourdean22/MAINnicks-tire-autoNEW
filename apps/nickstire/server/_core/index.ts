@@ -393,6 +393,7 @@ async function startServer() {
   app.get("/sitemap.xml", async (_req, res) => {
     const { SITEMAP_ROUTES, BLOG_SLUGS } = await import("@shared/routes");
     const { getPublishedArticles } = await import("../content-generator");
+    const { isRedirectedPath } = await import("./redirects");
     const baseUrl = SITE_URL;
     const now = new Date().toISOString().split("T")[0];
 
@@ -407,11 +408,14 @@ async function startServer() {
 
     const allBlogSlugs = Array.from(new Set([...BLOG_SLUGS, ...dynamicSlugs]));
 
+    // GSC audit 2026-07-04: never emit a URL that 301s (redirects.ts is the
+    // truth). Catches registry aliases AND DB-published slugs that were later
+    // redirected (e.g. /blog/car-ac-not-blowing-cold).
     const urls = [
-      ...SITEMAP_ROUTES.map(p =>
+      ...SITEMAP_ROUTES.filter(p => !isRedirectedPath(p.path)).map(p =>
         `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
       ),
-      ...allBlogSlugs.map(s =>
+      ...allBlogSlugs.filter(s => !isRedirectedPath(`/blog/${s}`)).map(s =>
         `  <url>\n    <loc>${baseUrl}/blog/${s}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`
       ),
     ];
@@ -515,10 +519,12 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
   // Sub-sitemaps for services and locations
   app.get("/sitemap-services.xml", async (_req, res) => {
     const { SITEMAP_ROUTES } = await import("@shared/routes");
+    const { isRedirectedPath } = await import("./redirects");
     const baseUrl = SITE_URL;
     const now = new Date().toISOString().split("T")[0];
     const serviceRoutes = SITEMAP_ROUTES.filter(r =>
-      r.group === "service" || r.group === "seo-service" || r.group === "vehicle" || r.group === "problem" || r.group === "seasonal"
+      (r.group === "service" || r.group === "seo-service" || r.group === "vehicle" || r.group === "problem" || r.group === "seasonal")
+      && !isRedirectedPath(r.path)
     );
     const urls = serviceRoutes.map(p =>
       `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
@@ -531,10 +537,11 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 
   app.get("/sitemap-locations.xml", async (_req, res) => {
     const { SITEMAP_ROUTES } = await import("@shared/routes");
+    const { isRedirectedPath } = await import("./redirects");
     const baseUrl = SITE_URL;
     const now = new Date().toISOString().split("T")[0];
     const locationRoutes = SITEMAP_ROUTES.filter(r =>
-      r.group === "city" || r.group === "neighborhood"
+      (r.group === "city" || r.group === "neighborhood") && !isRedirectedPath(r.path)
     );
     const urls = locationRoutes.map(p =>
       `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
@@ -1079,7 +1086,10 @@ ${urls.join("\n")}
   // Must run BEFORE prerender middleware so bots hitting alias URLs get
   // redirected to the canonical URL immediately (no stale prerender served).
   {
-    const { installRedirects } = await import("./redirects");
+    const { installRedirects, trailingSlashRedirect, hostCanonicalRedirect } = await import("./redirects");
+    // Host first (www → apex), then slash-strip, then the alias 301 fires.
+    app.use(hostCanonicalRedirect);
+    app.use(trailingSlashRedirect);
     installRedirects(app);
   }
 

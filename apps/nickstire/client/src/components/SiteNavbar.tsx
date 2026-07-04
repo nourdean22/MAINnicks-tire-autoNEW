@@ -93,7 +93,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
             Diagnose
           </Link>
           <Link
-            href="/estimate"
+            href="/pricing"
             className="text-[13px] font-medium text-foreground/70 hover:text-foreground transition-colors duration-200"
           >
             Estimate
@@ -158,7 +158,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
                   Diagnose My Car
                 </Link>
                 <Link
-                  href="/estimate"
+                  href="/pricing"
                   onClick={() => setMobileOpen(false)}
                   className="flex items-center justify-center gap-2 py-3.5 bg-foreground/[0.05] border border-foreground/[0.08] text-foreground/70 font-semibold text-[15px] rounded-lg"
                 >
