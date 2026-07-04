@@ -1,5 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { invoices } from "../../drizzle/schema";
+
+// Prevent mock pollution from other test files in singleFork serial mode —
+// this file needs the REAL drizzle schema.
+vi.unmock("../../drizzle/schema");
 
 // Mock the database helper
 const mockExecute = vi.fn();
@@ -28,13 +32,18 @@ vi.mock("../services/shopDriverMirror", () => ({
   getSession: mockGetSession,
 }));
 
-// Mock global fetch
+// Mock global fetch — stubbed per test and restored after, so the stub can
+// never leak into other files in singleFork serial mode.
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
 
 describe("Stripe Refund Writeback to ShopDriver Integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("fetch", mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("should skip writeback if invoiceNumber is missing in metadata", async () => {

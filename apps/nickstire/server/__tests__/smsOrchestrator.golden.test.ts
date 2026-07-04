@@ -693,15 +693,17 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
   // 40. Replay Engine dry-run
   it("40. Replay Engine dry-run -> does not transmit messages when REPLAY_DRY_RUN env is true", async () => {
     process.env.REPLAY_DRY_RUN = "true";
+    try {
+      const res = await orchestrateSms({
+        type: "vapi_forwarded_call_followup",
+        phone: "2165550040",
+      });
 
-    const res = await orchestrateSms({
-      type: "vapi_forwarded_call_followup",
-      phone: "2165550040",
-    });
-
-    expect(res.status).toBe("sent");
-    expect(mockSendSms).not.toHaveBeenCalled();
-    delete process.env.REPLAY_DRY_RUN;
+      expect(res.status).toBe("sent");
+      expect(mockSendSms).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.REPLAY_DRY_RUN;
+    }
   });
 });
 

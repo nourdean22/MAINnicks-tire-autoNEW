@@ -27,6 +27,10 @@ describe("cron rethrow contract · wave-181.3 + .15 silent-failure fixes", () =>
 
     afterEach(() => {
       vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+      // vi.doMock registrations are not file-scoped in singleFork serial
+      // mode — drop them so later files get the real featureFlags module.
+      vi.doUnmock("../../services/featureFlags");
     });
 
     it("REJECTS when an inner dependency throws (wave-181.3 contract)", async () => {
@@ -51,6 +55,10 @@ describe("cron rethrow contract · wave-181.3 + .15 silent-failure fixes", () =>
 
     afterEach(() => {
       vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+      // vi.doMock registrations are not file-scoped in singleFork serial
+      // mode — drop them so later files get the real featureFlags module.
+      vi.doUnmock("../../services/featureFlags");
     });
 
     // wave-181.60 · switched from `rejects.toThrow(/regex/)` to manual

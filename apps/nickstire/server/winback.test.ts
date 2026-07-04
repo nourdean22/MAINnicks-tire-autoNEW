@@ -4,38 +4,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock Twilio
-vi.mock("twilio", () => {
-  return {
-    default: () => ({
-      messages: {
-        create: vi.fn().mockResolvedValue({ sid: "SM_test_123" }),
-      },
-    }),
-  };
-});
-
-// Mock the database module
-const mockDb = {
-  select: vi.fn().mockReturnThis(),
-  from: vi.fn().mockReturnThis(),
-  where: vi.fn().mockReturnThis(),
-  orderBy: vi.fn().mockReturnThis(),
-  limit: vi.fn().mockReturnThis(),
-  offset: vi.fn().mockReturnThis(),
-  innerJoin: vi.fn().mockReturnThis(),
-  groupBy: vi.fn().mockReturnThis(),
-  insert: vi.fn().mockReturnThis(),
-  values: vi.fn().mockReturnThis(),
-  $returningId: vi.fn().mockResolvedValue([{ id: 1 }]),
-  update: vi.fn().mockReturnThis(),
-  set: vi.fn().mockReturnThis(),
-  execute: vi.fn().mockResolvedValue(undefined),
-};
-
-vi.mock("../server/db", () => ({
-  getDb: () => mockDb,
-}));
+// NOTE: this file tests pure template/scheduling logic with inline fixtures —
+// it imports no app modules. It previously carried vi.mock("twilio") and a
+// partial vi.mock("../server/db") that were never used here, but leaked into
+// later files in singleFork serial mode and broke tests needing the real db.
 
 describe("Win-Back Campaign System", () => {
   beforeEach(() => {

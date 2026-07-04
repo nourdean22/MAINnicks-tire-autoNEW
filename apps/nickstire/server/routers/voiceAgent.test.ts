@@ -4,6 +4,9 @@ import { vi } from "vitest";
 vi.doUnmock("../db");
 vi.doUnmock("../lib/db-helper");
 vi.doUnmock("../../drizzle/schema");
+vi.doUnmock("drizzle-orm");
+vi.doUnmock("drizzle-orm/mysql2");
+vi.doUnmock("mysql2/promise");
 
 import { describe, expect, it, afterEach } from "vitest";
 import { appRouter } from "../routers";

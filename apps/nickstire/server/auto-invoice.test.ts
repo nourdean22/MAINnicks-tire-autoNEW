@@ -4,6 +4,14 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Prevent mock pollution from other test files in singleFork serial mode —
+// this file needs the REAL db, email-notify, and drizzle/mysql2 modules.
+vi.unmock("./db");
+vi.unmock("./email-notify");
+vi.unmock("drizzle-orm");
+vi.unmock("drizzle-orm/mysql2");
+vi.unmock("mysql2/promise");
+
 // ─── Email Notification System Tests ────────────────────
 describe("Email Notification System", () => {
   it("should export getDeliveryLog function", async () => {

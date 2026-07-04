@@ -1,5 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import { tireOrders, invoices } from "../../drizzle/schema";
+
+// Prevent mock pollution from other test files in singleFork serial mode —
+// this file needs the REAL drizzle schema.
+vi.unmock("../../drizzle/schema");
+
+const ORIG_STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 
 // Mock the database helper
 const mockExecute = vi.fn();
@@ -46,6 +52,11 @@ describe("Stripe Refund & Database Writeback Integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.STRIPE_SECRET_KEY = "test_stripe_secret_key";
+  });
+
+  afterAll(() => {
+    if (ORIG_STRIPE_SECRET_KEY === undefined) delete process.env.STRIPE_SECRET_KEY;
+    else process.env.STRIPE_SECRET_KEY = ORIG_STRIPE_SECRET_KEY;
   });
 
   it("should fail when order does not exist in the database", async () => {

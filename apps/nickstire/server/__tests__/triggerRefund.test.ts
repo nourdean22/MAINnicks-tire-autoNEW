@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import type { TrpcContext } from "../_core/context";
 
 // Use vi.hoisted to ensure all mocks are created before any imports are evaluated
@@ -92,10 +92,17 @@ function createAdminContext(): TrpcContext {
   };
 }
 
+const ORIG_STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+
 describe("tRPC invoices.triggerRefund procedure", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.STRIPE_SECRET_KEY = "test_stripe_secret_key";
+  });
+
+  afterAll(() => {
+    if (ORIG_STRIPE_SECRET_KEY === undefined) delete process.env.STRIPE_SECRET_KEY;
+    else process.env.STRIPE_SECRET_KEY = ORIG_STRIPE_SECRET_KEY;
   });
 
   it("should throw error if invoice is not found", async () => {
