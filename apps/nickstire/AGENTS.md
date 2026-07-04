@@ -1,5 +1,5 @@
 # AGENTS.md · nickstire-dev
-**Last refreshed:** 2026-07-01 · post CIITTY v2.1 upgrade
+**Last refreshed:** 2026-07-04 · singleFork test-hygiene rules (PRs #515/#517)
 
 > **Read first:** [`CLAUDE.md`](./CLAUDE.md) — operator context, identity, core rules, mode detection. Then [`truth_os.md`](./truth_os.md) for what is live in prod. Then [`PROTECTED-CORE.md`](./PROTECTED-CORE.md) for the no-touch list.
 >
@@ -69,6 +69,15 @@ Use **pnpm 9+** exclusively (never npm, never yarn).
 | Brand / source / hook linting | `pnpm run lint:brand-voice` · `lint:source` · `lint:hooks` |
 
 > **Vitest note:** Parallel vitest rotates 5s-timeout import flakes on Windows — always pass `--pool=forks --poolOptions.forks.singleFork=true`.
+
+> **Test hygiene (singleFork):** serial mode shares ONE process across ALL test files — one `globalThis`, one `process.env`, one `vi.mock` registry, one jsdom document. Leaks show up as order-dependent "intermittent" failures in *unrelated* files (purged repo-wide in PRs #515/#517). Rules for every test file:
+> - Needs a REAL shared module (db, drizzle schema/orm, mysql2, sms, email-notify)? Hoist `vi.unmock("<specifier>")` at the top — pattern precedent: `server/routers/voiceAgent.test.ts`.
+> - Never leave an unused/partial `vi.mock` factory in a file (a dead partial db mock in winback.test.ts was the original flake source).
+> - `vi.stubGlobal` / direct `global.fetch =` → restore in `afterEach` via `vi.unstubAllGlobals()`. `vi.doMock` → matching `vi.doUnmock` in `afterEach` (doMocks are NOT file-scoped here). The config-level `unstubGlobals`/`unstubEnvs` flags are a safety net, not a license to skip per-file cleanup.
+> - `process.env.X = ...` → restore-or-delete in afterEach/afterAll. Two known foot-guns: `if (orig) env.X = orig` leaks when orig was undefined; `env.X = undefined` stores the literal string `"undefined"`.
+> - Cleanup inside a test body must be `try/finally` — a failed assertion skips trailing cleanup lines (fake timers, env deletes).
+> - RTL renders are auto-unmounted by the `afterEach(cleanup)` in `client/src/__tests__/setup.ts` (RTL auto-cleanup can't self-register because `globals: true` is off) — don't remove it.
+> - Prove order-independence before shipping test changes: `pnpm exec vitest run --pool=forks --poolOptions.forks.singleFork=true --sequence.shuffle.files --sequence.seed=N` forces a deterministic file order; sweep a few seeds.
 
 > **Worktree note:** Fresh worktrees created via `scripts/worktree-setup.ps1` do NOT need `pnpm install` — `node_modules` are junctioned automatically. Only run `pnpm install --frozen-lockfile` if deps changed.
 
@@ -175,6 +184,7 @@ Never execute live without explicit operator approval in a dedicated PR:
 
 - **pnpm frozen-lockfile mode in CI:** After any `package.json` dep change (add/move/remove), regenerate `pnpm-lock.yaml` locally and commit it — Railway CI will reject stale lockfiles.
 - **Vitest parallel flakes on Windows:** Always pass `--pool=forks --poolOptions.forks.singleFork=true` — parallel runs rotate 5s-timeout import errors.
+- **singleFork = shared process:** `vi.mock`/global/env/DOM state leaks across test FILES in serial mode. Follow the Test-hygiene rules in §3 — a leaked partial mock surfaces as intermittent `No "X" export is defined on the "Y" mock` failures in unrelated files.
 - **Shared types/nav/constants are a quad:** Adding a new admin section requires updating all four files in `shared/` — missing one breaks the UI silently.
 - **Route registry is the gate:** `validate:routes` fails if a new route isn't in `shared/routes.ts` — don't skip this check.
 - **TiDB is MySQL-compatible, not Postgres:** Never use Postgres-only SQL constructs (e.g. `RETURNING`, `ON CONFLICT DO UPDATE`). Drizzle's MySQL dialect handles this, but raw SQL must be MySQL-safe.
