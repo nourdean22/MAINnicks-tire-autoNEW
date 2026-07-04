@@ -455,7 +455,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does it cost to fix an E-Check failure in Cleveland?",
-        answer: "E-Check repair costs in Cleveland range from $100 for a simple sensor replacement to $1,500 or more for catalytic converter replacement. The most common repairs — oxygen sensors and EVAP leaks — typically cost between $150 and $400. A proper diagnosis identifies the exact cause so you avoid replacing parts unnecessarily."
+        answer: "The cost depends entirely on what caused the failure — a loose gas cap and a catalytic converter are very different repairs. That is why Nick's starts with a free readiness check and a written estimate before any work: you see exactly what failed and what fixing it takes before you commit to anything. Payment programs are available, and checking approval does not require a credit history or a hard credit pull."
       },
       {
         question: "How long does it take to fix an emissions problem?",
