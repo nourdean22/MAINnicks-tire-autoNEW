@@ -60,4 +60,18 @@ describe("NonstopNickTopBar", () => {
       expect(screen.queryByTestId("nonstop-nick-top-bar")).toBeNull();
     },
   );
+
+  // 2026-07-04 overlap fix — the bar renders inside SiteNavbar's fixed
+  // cluster and collapses on scroll. Collapsed = visually clipped
+  // (max-h-0), hidden from the a11y tree, and out of the tab order —
+  // but still mounted so the height transition can play.
+  it("collapses out of view + tab order when the navbar reports scroll", () => {
+    mockLocation.path = "/";
+    render(<NonstopNickTopBar collapsed />);
+    const bar = screen.getByTestId("nonstop-nick-top-bar");
+    expect(bar.getAttribute("tabindex")).toBe("-1");
+    const wrapper = bar.parentElement as HTMLElement;
+    expect(wrapper.className).toContain("max-h-0");
+    expect(wrapper.getAttribute("aria-hidden")).toBe("true");
+  });
 });
