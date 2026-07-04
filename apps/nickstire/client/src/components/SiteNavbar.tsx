@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import BrandMark from "@/components/BrandMark";
+import NonstopNickTopBar from "@/components/NonstopNickTopBar";
 
 // Tires sits FIRST — highest customer intent. Without this entry, tire-
 // buyers landing on the homepage had no nav-level path to /tires (they
@@ -58,6 +59,13 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
           : "bg-transparent"
       }`}
     >
+      {/* Membership band lives INSIDE the fixed nav cluster (2026-07-04
+          overlap fix — see NonstopNickTopBar header). Collapses once the
+          page scrolls so the persistent strip is only ever the navbar.
+          Hidden while the emergency closed-banner is up: that banner
+          already offsets the nav by 56px and stacking three strips is
+          exactly what the original LCP note forbids. */}
+      {!hasEmergencyBanner && <NonstopNickTopBar collapsed={scrolled} />}
       <div className="container flex items-center justify-between h-[60px]">
         {/* ─── BRAND MARK + WORDMARK ─── */}
         <Link href="/" className="flex items-center gap-2.5 group">

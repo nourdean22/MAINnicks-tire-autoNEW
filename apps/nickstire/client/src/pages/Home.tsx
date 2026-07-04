@@ -263,13 +263,21 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               tailwind.config (motion-safe + reduce-motion-respecting). Same
               visual effect; one fewer animated component for framer-motion
               to manage at hero mount. */}
+          {/* 2026-07-04 reduced-motion fix · the inline opacity:0 that
+              paired with these motion-safe:animate-[…_both] classes made
+              the subhead, symptom form, CTA stack, trust strip, and live
+              counter PERMANENTLY invisible when prefers-reduced-motion is
+              on (Windows "show animations" off, iOS Reduce Motion) — the
+              animation never runs, so nothing ever set opacity back to 1.
+              Live-verified on the operator's machine: computed opacity 0
+              on all five. The `_both` fill already supplies the pre-delay
+              hidden frame from the keyframes for motion users, so the
+              inline style was pure downside. Same fix on all five nodes. */}
           <p
             className="mt-6 text-base sm:text-lg lg:text-xl font-sans text-[#D4D4D4] max-w-sm body-pretty motion-safe:animate-[fadeIn_0.6s_ease-out_0.5s_both]"
             style={{
               textShadow:
                 "0 1px 6px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.6)",
-              opacity: 0,
-              animationFillMode: "forwards",
             }}
           >
             Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-nick-yellow font-semibold">$25</span> installed. Written estimate before any wrench moves. Explore <Link href="/financing" className="underline text-primary hover:text-primary-foreground">payment programs for repairs</Link>, get <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> today.
@@ -279,10 +287,6 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
           <form
             onSubmit={handleSymptomSearch}
             className="relative mt-8 max-w-md w-full group motion-safe:animate-[fadeInUp_0.6s_ease-out_0.6s_both]"
-            style={{
-              opacity: 0,
-              animationFillMode: "forwards",
-            }}
           >
             {/* Ambient Glow Aura */}
             <div className="absolute -inset-0.5 bg-gradient-to-r from-nick-yellow/20 to-red-500/20 rounded-xl blur opacity-35 group-focus-within:opacity-60 transition duration-500" />
@@ -323,10 +327,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               Magnetic physics from wave-31 preserved on all three:
               custom cubic-bezier, active:scale, group-hover icon
               choreography. */}
-          <div
-            className="mt-8 flex flex-col sm:flex-row gap-3 motion-safe:animate-[fadeInUp_0.6s_ease-out_0.7s_both]"
-            style={{ opacity: 0 }}
-          >
+          <div className="mt-8 flex flex-col sm:flex-row gap-3 motion-safe:animate-[fadeInUp_0.6s_ease-out_0.7s_both]">
             {/* ORDER TIRES — first CTA. Tire-buying is the highest-
                 revenue intent landing on this hero; previously customers
                 had no above-the-fold path to /tires (had to scroll past
@@ -390,10 +391,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               4.9★ · FCFS · $25-80 tires · Payment programs · Open 7 days.
               Replaces "Financing" (banned) with "Payment programs."
               Drops "free coffee · free opinions" — moved to body. */}
-          <div
-            className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:text-base motion-safe:animate-[fadeIn_0.6s_ease-out_0.9s_both]"
-            style={{ opacity: 0 }}
-          >
+          <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:text-base motion-safe:animate-[fadeIn_0.6s_ease-out_0.9s_both]">
             <span className="inline-flex items-center gap-1.5 text-nick-yellow">
               <span className="flex gap-0.5">
                 {[...Array(5)].map((_, i) => (
@@ -407,10 +405,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             <span className="text-[#A0A0A0]">&bull; Payment programs available</span>
             <span className="text-[#A0A0A0]">&bull; Open 7 days incl. Sunday</span>
           </div>
-          <div
-            className="mt-3 motion-safe:animate-[fadeIn_0.5s_ease-out_1.1s_both]"
-            style={{ opacity: 0 }}
-          >
+          <div className="mt-3 motion-safe:animate-[fadeIn_0.5s_ease-out_1.1s_both]">
             <LiveVisitorCounter minToShow={3} />
           </div>
         </div>
