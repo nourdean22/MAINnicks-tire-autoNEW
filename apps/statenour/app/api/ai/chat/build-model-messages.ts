@@ -14,10 +14,20 @@
  *   2. item_reference sanitizer (v10.0.529.58) · walk the converted
  *      messages and strip any content part whose .type isn't in the
  *      chat-completions-safe whitelist (text/image/file/tool-call/
- *      tool-result/reasoning). Drops the item_reference parts that
+ *      tool-result). Drops the item_reference parts that
  *      Venice/Ollama/OpenAI chat-completions endpoints 400 on. Fully-
  *      filtered messages collapse to a single empty text part so the
  *      provider doesn't reject an empty turn.
+ *      2026-07-04 · the whitelist also defends the OpenAI Responses
+ *      API against replayed reasoning items: "reasoning" was removed
+ *      after a prod invalid_prompt 400 (invalid_union: "expected
+ *      string, received array" / reasoning item "summary: expected
+ *      array, received undefined") poisoned a conversation — persisted
+ *      assistant reasoning parts replayed on every turn are converted
+ *      by the Responses API into strict `reasoning` input items the
+ *      stored shape can't satisfy. History replay never needs the
+ *      chain-of-thought; same-turn multi-step reasoning does not pass
+ *      through here (this runs once, before streamText).
  *
  * Returns the sanitized model-message array. The caller casts it to the
  * AI-SDK `messages` param shape at the streamText call site (unchanged).
@@ -127,13 +137,21 @@ export async function buildModelMessages(
   // in the chat-completions-safe whitelist. Preserves text · image ·
   // file · tool-call · tool-result · drops item_reference (and any
   // future unknown types). Idempotent · adds <1ms per turn.
+  // 2026-07-04 · "reasoning" REMOVED from the whitelist. Replayed
+  // assistant reasoning parts (persisted by reasoning-capable models,
+  // e.g. ollama gpt-oss) 400 the OpenAI Responses API on every
+  // subsequent turn: invalid_prompt / invalid_union — "expected
+  // string, received array" and reasoning item "summary: expected
+  // array, received undefined". isRetryable:false → poison-pill
+  // conversation. Stripping is safe: this function only sees request
+  // history (runs once, pre-streamText), so same-turn multi-step
+  // reasoning is unaffected.
   const CHAT_COMPLETIONS_SAFE_TYPES = new Set([
     "text",
     "image",
     "file",
     "tool-call",
     "tool-result",
-    "reasoning",
   ]);
   const sanitizedModelMessages = (() => {
     const src = modelMessages as Array<{ role?: string; content?: unknown }>;
@@ -149,8 +167,9 @@ export async function buildModelMessages(
       });
       if (filtered.length === content.length) return msg;
       // Drop messages whose content array got fully filtered out · they
-      // were 100% item_reference and have no body left to send. Otherwise
-      // the provider would 400 on an empty user/assistant turn.
+      // were 100% stripped types (item_reference, or reasoning-only
+      // assistant turns) and have no body left to send. Otherwise the
+      // provider would 400 on an empty user/assistant turn.
       if (filtered.length === 0) {
         return { ...msg, content: [{ type: "text", text: "" }] };
       }
