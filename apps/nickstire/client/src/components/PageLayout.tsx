@@ -10,6 +10,7 @@ import StickyTrustBar from "@/components/StickyTrustBar";
 import FomoTicker from "@/components/FomoTicker";
 import ChatWidget from "@/components/ChatWidget";
 import NotificationBar from "@/components/NotificationBar";
+import NonstopNickTopBar from "@/components/NonstopNickTopBar";
 import ReviewCTA from "@/components/ReviewCTA";
 import ScrollProgressBar from "@/components/ScrollProgressBar";
 import UrgencyWidget from "@/components/conversion/UrgencyWidget";
@@ -53,6 +54,9 @@ export default function PageLayout({
           Ambient brand reinforcement on every customer-facing page. */}
       <ScrollProgressBar />
       <NotificationBar />
+      {/* Membership band sits at the absolute top, ABOVE the navbar, and
+          scrolls away with the page (not fixed — see component note). */}
+      <NonstopNickTopBar />
       <SiteNavbar activeHref={activeHref} />
       <StickyTrustBar />
       <main id="main-content" className="flex-1">

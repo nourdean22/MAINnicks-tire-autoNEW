@@ -1245,6 +1245,33 @@ export default function Home() {
           <ShopStatusWidget compact />
         </div>
       </section>
+      {/* ── SUNDAY + NONSTOP NICK — adjacent to the live status strip.
+          The Sunday hours are the structural differentiator (chains are
+          closed); the membership is the retention hook. Copy stays inside
+          the FCFS doctrine: no line-skipping claims, no capacity warnings —
+          just the real benefit ($0 small tire stuff on one vehicle). */}
+      <section className="bg-background py-10 border-b border-border/30">
+        <div className="container max-w-3xl mx-auto text-center px-4">
+          <div className="text-nick-yellow text-[10px] font-mono uppercase tracking-widest mb-2">
+            Sunday flat? We&apos;re open.
+          </div>
+          <h2 className="font-heading text-2xl sm:text-3xl font-black text-foreground uppercase tracking-tight">
+            Chains close Sunday. Nick&apos;s runs 9 to 4.
+          </h2>
+          <p className="text-foreground/60 text-sm mt-3 max-w-xl mx-auto leading-relaxed">
+            Most tire chains in Cleveland go dark on Sunday &mdash; we&apos;re on
+            Euclid Ave working the line 9 AM to 4 PM. Nonstop Nick members
+            pull up and get flat repairs, valve stems, rotation, and air-ups
+            for $0 on their registered vehicle &mdash; $7.99/mo.
+          </p>
+          <Link
+            href="/nonstop-nick"
+            className="inline-flex items-center justify-center mt-5 min-h-[44px] px-6 rounded-full bg-nick-yellow text-black text-[13px] font-black uppercase tracking-wide active:scale-95 transition-transform hover:brightness-110"
+          >
+            See what&apos;s covered &rarr;
+          </Link>
+        </div>
+      </section>
       <TrustStrip />
       <RiseInView className="parallax-rise"><UsedTiresCallout /></RiseInView>
       <RiseInView className="parallax-rise"><TrustNumbers reviewData={reviewData} /></RiseInView>

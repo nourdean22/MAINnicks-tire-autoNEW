@@ -11,6 +11,7 @@
  * Restore the form: `git show <wave-181.95>:client/src/pages/BookingPage.tsx`
  */
 import BookingWizard from "@/components/BookingWizard";
+import NonstopNickJoin from "@/components/NonstopNickJoin";
 import { SEOHead } from "@/components/SEO";
 import PageLayout from "@/components/PageLayout";
 import { BUSINESS } from "@shared/business";
@@ -44,6 +45,29 @@ export default function BookingPage() {
           </div>
 
           <BookingWizard source="booking-page" />
+
+          {/* Membership cross-sell at the drop-off decision point. Reuses
+              the live NonstopNickJoin card (phone → Stripe hosted Checkout)
+              rather than a second bespoke signup UI. Copy stays inside the
+              FCFS pit-stop doctrine: we work cars in order — the membership
+              sells $0 small-tire-stuff coverage, not line-skipping. */}
+          <div className="mt-12 rounded-2xl border border-white/[0.08] bg-[#0f172a]/80 backdrop-blur-[12px] p-5 sm:p-7">
+            <p className="text-[11px] font-bold tracking-[0.18em] text-primary uppercase mb-2">
+              While you&apos;re here
+            </p>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+              Nonstop Nick &middot; the small tire stuff, covered
+            </h2>
+            <p className="mt-2 text-[14px] text-foreground/70 leading-relaxed">
+              $7.99/mo on one registered vehicle: flat repairs, valve stems,
+              rotation, rim cleans, and air-ups &mdash; $0 at the counter,
+              every visit. Nick+ at $9.99/mo adds 15% off any repair, parts
+              and labor.
+            </p>
+            <div className="mt-4">
+              <NonstopNickJoin />
+            </div>
+          </div>
 
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div className="text-center">
