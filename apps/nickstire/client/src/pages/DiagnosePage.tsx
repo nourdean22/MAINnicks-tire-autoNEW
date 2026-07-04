@@ -499,21 +499,62 @@ export default function DiagnosePage() {
               }
             })}} />
 
-            <FadeIn>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center">
-                  <Activity className="w-6 h-6 text-primary" />
+            {/* Two-column hero at lg: headline column + the "don't wait"
+                card filling the previously-empty right half of the hero.
+                Stacks under the headline on mobile. */}
+            <div className="grid lg:grid-cols-[1fr_400px] gap-8 lg:gap-12 items-center">
+              <FadeIn>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center">
+                    <Activity className="w-6 h-6 text-primary" />
+                  </div>
+                  <span className="font-mono text-primary/70 text-xs tracking-wide">AI-Powered Diagnostic Tool</span>
                 </div>
-                <span className="font-mono text-primary/70 text-xs tracking-wide">AI-Powered Diagnostic Tool</span>
-              </div>
-              <h1 className="font-heading text-4xl lg:text-6xl text-foreground tracking-tight leading-[0.95]">
-                WHAT'S WRONG WITH<br />
-                <span className="text-primary">MY CAR</span>?
-              </h1>
-              <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
-                Tap an area on the car below to select the problem zone, describe your symptoms, and our AI will provide a preliminary diagnosis in seconds. If you have brake squealing or grinding, check out our <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake symptoms list</Link>. For shaking or vibrations, check our <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tire options</Link>, see our <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing options for repairs</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground font-semibold">contact us</Link> directly.
-              </p>
-            </FadeIn>
+                <h1 className="font-heading text-4xl lg:text-6xl text-foreground tracking-tight leading-[0.95]">
+                  WHAT'S WRONG WITH<br />
+                  <span className="text-primary">MY CAR</span>?
+                </h1>
+                <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
+                  Tap an area on the car below to select the problem zone, describe your symptoms, and our AI will provide a preliminary diagnosis in seconds. If you have brake squealing or grinding, check out our <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake symptoms list</Link>. For shaking or vibrations, check our <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tire options</Link>, see our <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing options for repairs</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground font-semibold">contact us</Link> directly.
+                </p>
+              </FadeIn>
+
+              <FadeIn>
+                <div className="rounded-2xl border border-white/[0.08] bg-[oklch(0.08_0.005_260)]/85 backdrop-blur-[12px] p-6 sm:p-7">
+                  <p className="font-mono text-primary/70 text-[10px] uppercase tracking-widest mb-2">
+                    Straight talk
+                  </p>
+                  <h2 className="font-heading text-2xl sm:text-3xl font-black text-foreground uppercase tracking-tight leading-tight">
+                    Don&apos;t guess.<br />
+                    Don&apos;t wait.<br />
+                    <span className="text-primary">Get down here.</span>
+                  </h2>
+                  <p className="mt-3 text-foreground/65 text-sm leading-relaxed">
+                    Googling a noise at midnight doesn&apos;t fix it &mdash; and
+                    small problems get expensive while you sit on them. Bring
+                    us the worry instead: we read the codes, show you
+                    what&apos;s actually going on, and answer every question
+                    you&apos;ve got. We love this work &mdash; it&apos;s why the
+                    bays are open 7 days a week.
+                  </p>
+                  <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                    <a
+                      href={BUSINESS.phone.href}
+                      onClick={() => trackPhoneClick("diagnose-dont-wait-card")}
+                      className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-primary text-black text-[13px] font-black uppercase tracking-wide active:scale-95 transition-transform hover:brightness-110"
+                    >
+                      Call {BUSINESS.phone.display}
+                    </a>
+                    <Link
+                      href="/booking"
+                      className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-full border border-white/15 text-foreground text-[13px] font-bold uppercase tracking-wide active:scale-95 transition-transform hover:border-white/30"
+                    >
+                      How drop-off works
+                    </Link>
+                  </div>
+                </div>
+              </FadeIn>
+            </div>
           </div>
         </section>
 
