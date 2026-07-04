@@ -1501,6 +1501,24 @@ export default function TireFinder() {
                 <strong className="text-primary">$25 installed</strong>, new sets with mounting,
                 balancing, valve stems, TPMS reset, and disposal already in the price.
               </p>
+              {/* 2026-07-04 operator ask: membership hook INSIDE the PAS
+                  card — the reader is mid-fear about tires right here, so
+                  the "$0 flats forever" line lands at peak relevance. The
+                  anchor scrolls to the in-page join card (live Stripe
+                  checkout) instead of navigating away. Shipped benefits
+                  only, kill-list clean. */}
+              <p className="mt-3 pt-3 border-t border-border/40 text-sm leading-relaxed">
+                <span className="text-foreground/70">
+                  And once you're on good rubber, keep it a solved problem —{" "}
+                </span>
+                <a
+                  href="#nonstop-nick"
+                  onClick={() => trackEvent("nonstop_nick_hook_click", { source: "tires_pas_card" })}
+                  className="font-bold text-[#FDB913] hover:underline whitespace-nowrap"
+                >
+                  Nonstop Nick fixes flats for $0, anytime · $7.99/mo &darr;
+                </a>
+              </p>
             </div>
 
             {/* Value proposition callout */}
@@ -1852,7 +1870,9 @@ export default function TireFinder() {
           active, same rule as the conversion block above. */}
       {!activeSearch && (
         <>
-          <section className="py-10 sm:py-12">
+          {/* id + scroll-mt: anchor target for the PAS-card hook link
+              above (scroll-mt clears the fixed navbar). */}
+          <section id="nonstop-nick" className="py-10 sm:py-12 scroll-mt-24">
             <div className="container max-w-3xl mx-auto text-center">
               <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#FDB913] mb-2">
                 Nonstop Nick membership
