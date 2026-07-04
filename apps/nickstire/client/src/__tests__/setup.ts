@@ -1,4 +1,13 @@
 import "@testing-library/jest-dom/vitest";
+import { afterEach } from "vitest";
+import { cleanup } from "@testing-library/react";
+
+// RTL auto-cleanup never registers here (it requires vitest `globals: true`),
+// and in singleFork serial mode the jsdom document persists across client
+// test files — unmount after every test so renders can't leak across files.
+afterEach(() => {
+  cleanup();
+});
 
 // Polyfill IntersectionObserver for jsdom (used by framer-motion, lazy loading, etc.)
 if (typeof globalThis.IntersectionObserver === "undefined") {
