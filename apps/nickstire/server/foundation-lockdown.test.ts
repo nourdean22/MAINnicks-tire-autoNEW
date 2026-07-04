@@ -94,6 +94,81 @@ describe("Sitemap Consistency", () => {
       expect(r.changefreq).toMatch(/^(always|hourly|daily|weekly|monthly|yearly|never)$/);
     }
   });
+
+  // GSC audit 2026-07-04: 12 sitemap URLs answered 301 (9 registry aliases +
+  // 3 DB blog slugs). A redirecting <loc> is a contradictory crawl signal.
+  // Registry flags AND the emission-time isRedirectedPath filter both guard
+  // this now; these tests pin each layer.
+  it("no sitemap-flagged route is a server-side 301 alias", async () => {
+    const { SITEMAP_ROUTES } = await import("../shared/routes");
+    const { REDIRECTED_PATHS } = await import("./_core/redirects");
+    const redirected = new Set(REDIRECTED_PATHS);
+    const offenders = SITEMAP_ROUTES.filter((r) => redirected.has(r.path)).map((r) => r.path);
+    expect(offenders).toEqual([]);
+  });
+
+  it("isRedirectedPath (sitemap emission filter) matches the redirect table", async () => {
+    const { isRedirectedPath } = await import("./_core/redirects");
+    // registry alias + DB-sourced blog slug + a live money page
+    expect(isRedirectedPath("/appointment")).toBe(true);
+    expect(isRedirectedPath("/blog/car-ac-not-blowing-cold")).toBe(true);
+    expect(isRedirectedPath("/tires")).toBe(false);
+  });
+});
+
+describe("trailingSlashRedirect middleware", () => {
+  async function run(url: string, method = "GET") {
+    const { trailingSlashRedirect } = await import("./_core/redirects");
+    const p = url.split("?")[0];
+    let redirect: { code: number; target: string } | null = null;
+    let nexted = false;
+    const req = { method, path: p, url } as any;
+    const res = { redirect: (code: number, target: string) => { redirect = { code, target }; } } as any;
+    trailingSlashRedirect(req, res, () => { nexted = true; });
+    return { redirect, nexted };
+  }
+
+  it("301-strips the trailing slash on extensionless GET paths", async () => {
+    const r = await run("/services/");
+    expect(r.nexted).toBe(false);
+    expect(r.redirect).toEqual({ code: 301, target: "/services" });
+  });
+
+  it("preserves the query string", async () => {
+    const r = await run("/tires/?size=205-55r16");
+    expect(r.redirect).toEqual({ code: 301, target: "/tires?size=205-55r16" });
+  });
+
+  it("passes through root, api, file, and non-GET requests untouched", async () => {
+    expect((await run("/")).nexted).toBe(true);
+    expect((await run("/api/webhooks/twilio/")).nexted).toBe(true);
+    expect((await run("/photos/shop.webp")).nexted).toBe(true);
+    expect((await run("/services/", "POST")).nexted).toBe(true);
+    expect((await run("/services")).nexted).toBe(true);
+  });
+});
+
+describe("hostCanonicalRedirect middleware", () => {
+  async function run(hostname: string, originalUrl = "/tires?size=205") {
+    const { hostCanonicalRedirect } = await import("./_core/redirects");
+    let redirect: { code: number; target: string } | null = null;
+    let nexted = false;
+    const req = { hostname, originalUrl } as any;
+    const res = { redirect: (code: number, target: string) => { redirect = { code, target }; } } as any;
+    hostCanonicalRedirect(req, res, () => { nexted = true; });
+    return { redirect, nexted };
+  }
+
+  it("301s www to the apex, preserving path + query", async () => {
+    const r = await run("www.nickstire.org");
+    expect(r.nexted).toBe(false);
+    expect(r.redirect).toEqual({ code: 301, target: "https://nickstire.org/tires?size=205" });
+  });
+
+  it("leaves the apex (and localhost) untouched", async () => {
+    expect((await run("nickstire.org")).nexted).toBe(true);
+    expect((await run("localhost")).nexted).toBe(true);
+  });
 });
 
 describe("Route Coverage", () => {
