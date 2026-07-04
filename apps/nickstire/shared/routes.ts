@@ -384,7 +384,9 @@ const SERVICE_PAGES: RouteEntry[] = [
     title: "General Auto Repair Services — Nick's Tire & Auto Cleveland",
     description: "Cleveland auto shop where the written estimate hits the counter before any wrench moves. Brakes, suspension, steering, exhaust. Walk-ins 7 days. (216) 862-0005.",
     group: "service",
-    sitemap: true,
+    // 301s to /auto-repair-near-me (server/_core/redirects.ts) — a
+    // redirecting URL must not be in the sitemap (GSC audit 2026-07-04).
+    sitemap: false,
     prerender: true,
   },
   {
@@ -707,7 +709,8 @@ const CITY_PAGES: RouteEntry[] = [
     title: "Looking for Moe's Tire? — Nick's Tire & Auto, Euclid OH",
     description: "Moe's Tire customers welcome at Nick's. Same neighborhood, same walk-in friendly service. 4.9★ from 1,700+ reviews. (216) 862-0005",
     group: "landing",
-    sitemap: true,
+    // 301s to /moes-tire-euclid (redirects.ts) — keep out of sitemap.
+    sitemap: false,
     prerender: true,
   },
   {
@@ -717,7 +720,8 @@ const CITY_PAGES: RouteEntry[] = [
     title: "Moe's Tire — Now Nick's Tire & Auto, Euclid OH",
     description: "Looking for Moe's Tire? Nick's Tire & Auto serves the same Euclid neighborhood. Walk-ins 7 days. 4.9★ from 1,700+ reviews. (216) 862-0005",
     group: "landing",
-    sitemap: true,
+    // 301s to /moes-tire-euclid (redirects.ts) — keep out of sitemap.
+    sitemap: false,
     prerender: true,
   },
   {
@@ -727,7 +731,8 @@ const CITY_PAGES: RouteEntry[] = [
     title: "Moe's Tires — Now Nick's Tire & Auto, Euclid OH",
     description: "Looking for Moe's Tires? Nick's Tire & Auto serves the same Euclid neighborhood. Walk-ins 7 days. 4.9★ from 1,700+ reviews. (216) 862-0005",
     group: "landing",
-    sitemap: true,
+    // 301s to /moes-tire-euclid (redirects.ts) — keep out of sitemap.
+    sitemap: false,
     prerender: true,
   },
   {
@@ -761,7 +766,8 @@ const CITY_PAGES: RouteEntry[] = [
     title: "Muffler Shop Sunday Cleveland — Nick's Tire & Auto",
     description: "Cleveland exhaust + muffler repair, open Sunday 9-4. Catalytic converter, full exhaust, weld jobs. Walk-ins welcome. (216) 862-0005",
     group: "seo-service",
-    sitemap: true,
+    // 301s to /muffler-shop-open-sunday-cleveland (redirects.ts).
+    sitemap: false,
     prerender: true,
   },
   {
@@ -771,7 +777,8 @@ const CITY_PAGES: RouteEntry[] = [
     title: "Sunday Mechanic Cleveland — Auto Repair Open Sundays | Nick's",
     description: "Cleveland auto shop open Sundays 9-4. Brakes, tires, check-engine light, exhaust, oil — full service. Walk-ins welcome. (216) 862-0005",
     group: "seo-service",
-    sitemap: true,
+    // 301s to /muffler-shop-open-sunday-cleveland (redirects.ts).
+    sitemap: false,
     prerender: true,
   },
   {
@@ -1022,7 +1029,8 @@ const UTILITY_PAGES: RouteEntry[] = [
     title: "Auto Repair Cost Estimator — Nick's Tire & Auto",
     description: "Get an instant repair cost estimate for your vehicle. Transparent pricing from Nick's Tire & Auto, Cleveland. No surprises.",
     group: "utility",
-    sitemap: true,
+    // 301s to /pricing (redirects.ts) — keep out of sitemap.
+    sitemap: false,
     prerender: true,
   },
   {
@@ -1092,7 +1100,8 @@ const UTILITY_PAGES: RouteEntry[] = [
     title: "Repair Cost Estimator — Nick's Tire & Auto",
     description: "Estimate your auto repair cost online. Transparent pricing from Nick's Tire & Auto, Cleveland. Know the cost before you visit.",
     group: "utility",
-    sitemap: true,
+    // 301s to /pricing (redirects.ts) — keep out of sitemap.
+    sitemap: false,
     prerender: true,
   },
   {
@@ -1148,7 +1157,8 @@ const UTILITY_PAGES: RouteEntry[] = [
     title: "Schedule Service — Nick's Tire & Auto Cleveland",
     description: "Book your auto repair appointment online at Nick's Tire & Auto. Tires, brakes, oil changes, diagnostics. Walk-ins also welcome 7 days a week.",
     group: "utility",
-    sitemap: true,
+    // 301s to /booking (redirects.ts) — keep out of sitemap.
+    sitemap: false,
     prerender: true,
   },
   {

@@ -161,6 +161,53 @@ export function installRedirects(app: Express): void {
 export const REDIRECTED_PATHS = REDIRECTS.map(r => r.from);
 export { REDIRECTS };
 
+// Membership check for sitemap emission. The 2026-07-04 GSC audit found 12
+// sitemap URLs answering 301 (9 registry aliases + 3 DB-published blog slugs
+// that were later redirected). A sitemap must list only final 200 URLs — a
+// redirecting <loc> is a contradictory crawl signal. Every sitemap handler
+// filters through this so a future alias added to REDIRECTS drops out of the
+// sitemap automatically, whatever source it comes from (registry, BLOG_SLUGS,
+// or the articles DB).
+const REDIRECTED_SET = new Set(REDIRECTED_PATHS);
+export function isRedirectedPath(pathname: string): boolean {
+  return REDIRECTED_SET.has(pathname);
+}
+
+// Host canonicalization — 301 any www.nickstire.org request to the apex.
+// As of the 2026-07-04 GSC audit, www has NO DNS record (NXDOMAIN): inbound
+// www links die before reaching us. Once the operator adds the www CNAME in
+// the registrar panel, Railway will serve the app on that host too — this
+// middleware makes it a proper 301 instead of duplicate-host content.
+// req.hostname is proxy-safe: app.set("trust proxy", ...) runs at startup.
+export function hostCanonicalRedirect(req: Request, res: Response, next: NextFunction): void {
+  if (req.hostname === "www.nickstire.org") {
+    return void res.redirect(301, `https://nickstire.org${req.originalUrl}`);
+  }
+  next();
+}
+
+// Trailing-slash 301 normalization — the safe subset of canonicalPathMiddleware
+// below. That helper also LOWERCASES the whole path, which would 301 any
+// uppercase asset filename into a path that doesn't exist on a case-sensitive
+// filesystem; it was never installed for that reason. This one only strips a
+// trailing slash on extensionless GET paths (/services/ → /services), where
+// both variants currently serve 200 and split crawl signals.
+export function trailingSlashRedirect(req: Request, res: Response, next: NextFunction): void {
+  const p = req.path;
+  if (
+    req.method !== "GET" ||
+    p.length <= 1 ||
+    !p.endsWith("/") ||
+    p.includes(".") ||
+    p.startsWith("/api/")
+  ) {
+    return next();
+  }
+  const stripped = p.slice(0, -1);
+  const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect(301, stripped + qs);
+}
+
 // Helper: middleware that also lowercases + strips trailing slashes.
 // Helps consolidate /Brakes, /brakes/, /brakes → all end up at /brakes.
 export function canonicalPathMiddleware(req: Request, res: Response, next: NextFunction): void {
