@@ -3,7 +3,11 @@
  * Tests SMS templates, retention sequences, confirmation flow,
  * and scheduling logic.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
+
+// Prevent mock pollution from other test files in singleFork serial mode —
+// this file needs the REAL sms module.
+vi.unmock("../sms");
 
 // Mock Twilio
 export const mockTwilioCreate = vi.fn().mockResolvedValue({ sid: "SM_test_footer" });
@@ -14,6 +18,31 @@ vi.mock("twilio", () => ({
     },
   }),
 }));
+
+// Tests below mutate these env vars and use fake timers. In singleFork serial
+// mode the process is shared across files, so restore both after every test —
+// even when an assertion fails mid-test.
+const SMS_ENV_KEYS = [
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_AUTH_TOKEN",
+  "TWILIO_PHONE_NUMBER",
+  "SMS_KILL_SWITCH",
+  "OWNER_PHONE_NUMBER",
+  "SHOP_SMS_GATEWAY_USERNAME",
+  "SHOP_SMS_GATEWAY_PASSWORD",
+] as const;
+const SMS_ORIG_ENV: Record<string, string | undefined> = Object.fromEntries(
+  SMS_ENV_KEYS.map((k) => [k, process.env[k]]),
+);
+
+afterEach(() => {
+  vi.useRealTimers();
+  for (const k of SMS_ENV_KEYS) {
+    const v = SMS_ORIG_ENV[k];
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+});
 
 describe("SMS Templates", () => {
   it("all templates return non-empty strings", async () => {

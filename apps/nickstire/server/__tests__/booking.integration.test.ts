@@ -6,6 +6,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { z } from "zod";
 
+// Prevent mock pollution from other test files in singleFork serial mode —
+// this file needs the REAL sms module.
+vi.unmock("../sms");
+
 // Test the booking input schema validation
 const bookingSchema = z.object({
   name: z.string().min(1).max(200),

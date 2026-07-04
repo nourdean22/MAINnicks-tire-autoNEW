@@ -4,6 +4,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Prevent mock pollution from other test files in singleFork serial mode —
+// this file needs the REAL sms module.
+vi.unmock("./sms");
+
 // We test the pure functions directly by importing the module
 // The actual Twilio client is only created at runtime when sendSms is called
 

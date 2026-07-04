@@ -71,7 +71,8 @@ describe("metaRoutes - GET /api/_meta/procedures", () => {
     const hasHealth = procedures.some((p: any) => p.path === "system.health");
     expect(hasHealth).toBe(true);
 
-    // Restore environment
-    process.env.STATENOUR_SYNC_KEY = originalSyncKey;
+    // Restore environment (assigning undefined would store the string "undefined")
+    if (originalSyncKey === undefined) delete process.env.STATENOUR_SYNC_KEY;
+    else process.env.STATENOUR_SYNC_KEY = originalSyncKey;
   });
 });

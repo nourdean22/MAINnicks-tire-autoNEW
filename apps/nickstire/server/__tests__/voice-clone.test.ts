@@ -18,6 +18,7 @@ describe("voice-clone service", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     process.env = { ...origEnv };
   });
 

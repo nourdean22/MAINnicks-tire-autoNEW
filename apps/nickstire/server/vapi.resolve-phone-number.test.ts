@@ -25,6 +25,7 @@ beforeEach(() => {
   delete process.env.VAPI_API_KEY;
 });
 afterEach(() => {
+  vi.unstubAllGlobals();
   process.env = { ...OLD_ENV };
 });
 

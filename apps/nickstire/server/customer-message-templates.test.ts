@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   TEMPLATE_BUILDERS,
   sendCustomerMessage,
@@ -77,6 +77,8 @@ const ORDER: OrderMessageInput = {
   totalAmount: 544.0,
 };
 
+const ORIG_ENABLE_CUSTOMER_CONFIRMATIONS = process.env.ENABLE_CUSTOMER_CONFIRMATIONS;
+
 describe("customer message templates", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -88,6 +90,16 @@ describe("customer message templates", () => {
     loggedActionParams = [];
     currentTableName = "";
     delete process.env.ENABLE_CUSTOMER_CONFIRMATIONS;
+  });
+
+  // Tests mutate this flag; restore it after every test so it never leaks
+  // into other files in singleFork serial mode.
+  afterEach(() => {
+    if (ORIG_ENABLE_CUSTOMER_CONFIRMATIONS === undefined) {
+      delete process.env.ENABLE_CUSTOMER_CONFIRMATIONS;
+    } else {
+      process.env.ENABLE_CUSTOMER_CONFIRMATIONS = ORIG_ENABLE_CUSTOMER_CONFIRMATIONS;
+    }
   });
 
   it("renders all five templates with order facts", () => {

@@ -10,6 +10,12 @@
  */
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 
+// Prevent mock pollution from other test files in singleFork serial mode —
+// this file needs the REAL db module and drizzle schema.
+vi.unmock("../db");
+vi.unmock("../../drizzle/schema");
+vi.unmock("drizzle-orm");
+
 // ─── DB mocks for integration-like unit tests ────────────────────────────────
 const mockSelect = vi.fn();
 const mockUpdate = vi.fn();
