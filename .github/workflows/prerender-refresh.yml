@@ -10,10 +10,12 @@ name: Prerender refresh
 #
 # REQUIRED repo secrets (Settings -> Secrets and variables -> Actions):
 #   DATABASE_URL  the regen boots the prod server to prerender against it
-#   JWT_SECRET    any non-empty value works; prerender does not authenticate
-# The regen self-restores prerendered/ if it aborts, so a failed run is safe
-# — it just leaves the committed tree untouched. The runner must be able to
-# reach the database; if TiDB has IP allowlisting, allow GitHub Actions IPs.
+# All other REQUIRED_ENV vars (server/_core/index.ts) are boot-only here and
+# get >=32-char dummies below — prerender renders public pages and never
+# authenticates. The regen self-restores prerendered/ if it aborts, so a
+# failed run is safe — it just leaves the committed tree untouched. The
+# runner must be able to reach the database; if TiDB has IP allowlisting,
+# allow GitHub Actions IPs.
 
 on:
   schedule:
@@ -48,8 +50,23 @@ jobs:
         working-directory: apps/nickstire
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRERENDER_RO || secrets.DATABASE_URL }}
-          JWT_SECRET: "prerender-dummy-secret-not-used"
+          # Boot-only dummies. server/_core/index.ts REQUIRED_ENV hard-exits
+          # without OWNER_OPEN_ID / ADMIN_API_KEY / STATENOUR_SYNC_KEY and
+          # enforces >=32 chars on the key material (the old 31-char
+          # JWT_SECRET failed that check). This is what silently killed
+          # scheduled runs #21-#23: server exit 1 -> 30s health timeout ->
+          # "[regen] Server failed to start".
+          JWT_SECRET: "prerender-dummy-jwt-secret-not-used-1234567890"
+          ADMIN_API_KEY: "prerender-dummy-admin-key-not-used-1234567890"
+          STATENOUR_SYNC_KEY: "prerender-dummy-sync-key-not-used-1234567890"
+          OWNER_OPEN_ID: "prerender-dummy-owner"
         run: pnpm run regen
+
+      # The regen script points at this log when the server fails to boot,
+      # but it was never surfaced in CI — runs #21-#23 failed blind.
+      - name: Server boot log (on failure)
+        if: failure()
+        run: cat apps/nickstire/tmp/regen-server.log || true
 
       - name: Commit refreshed prerender
         run: |
