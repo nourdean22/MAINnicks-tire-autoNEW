@@ -143,11 +143,11 @@ export const CRONS: CronDef[] = [
   },
   {
     name: "intelligence-daily-brief",
-    schedule: "0 10 * * *",
+    schedule: "15 10 * * *",
     mode: "active",
     category: "review",
     inngest: true,
-    description: "Daily Ingestion, claim verification, opportunity scoring & Executive Briefing — Inngest-native.",
+    description: "Daily Ingestion, claim verification, opportunity scoring & Executive Briefing — Inngest-native. Staggered +15min off operator-morning-brief (0 10) to avoid double high-priority push + AI-provider contention.",
   },
   {
     name: "intelligence-weekly-brief",
