@@ -138,7 +138,18 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
         // Heuristic: provider name appears in the modelId. Match
         // against the known provider names we manage in PROVIDERS.
         const { markProviderFailed, markGeminiQuotaExhausted } = await import("@/lib/ai/provider");
-        if (modelInfo.includes("ollama") || modelInfo.includes("Ollama"))
+        // 2026-07-04 (audit P2) · OpenRouter FIRST — vendor-prefixed ids
+        // ("google/gemini-*") otherwise match the gemini branch below and
+        // ban the healthy native lane instead of the failing OpenRouter.
+        // Prefix exceptions (NOT OpenRouter): "models/" is Google's native
+        // form; "gemini/"/"ollama/" name the provider outright and fall
+        // through to their own branches. Mirrors inferProviderName in
+        // lib/ai/stream-with-fallback.ts.
+        const slashIdx = modelInfo.indexOf("/");
+        const slashPrefix = slashIdx > 0 ? modelInfo.slice(0, slashIdx).toLowerCase() : null;
+        if (slashPrefix && !["models", "gemini", "ollama"].includes(slashPrefix))
+          markProviderFailed("openrouter");
+        else if (modelInfo.includes("ollama") || modelInfo.includes("Ollama"))
           markProviderFailed("ollama");
         else if (modelInfo.startsWith("gpt-") || modelInfo.includes("openai"))
           markProviderFailed("openai");

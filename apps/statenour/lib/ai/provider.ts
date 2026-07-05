@@ -150,7 +150,13 @@ function createOpenRouterModel(taskType?: TaskType): LanguageModel {
     apiKey: apiKey!,
     baseURL: "https://openrouter.ai/api/v1",
   });
-  return openrouter(modelId);
+  // 2026-07-04 (chat-pipeline audit P2) · MUST be .chat(), not the bare
+  // callable: in @ai-sdk/openai v3 the provider CALLABLE defaults to the
+  // RESPONSES API, so this was posting to openrouter.ai/api/v1/responses —
+  // the strict zod validator behind the prod invalid_prompt/invalid_union
+  // 400s (poison-pill incident). Chat Completions is the endpoint the
+  // item_reference sanitizer in build-model-messages.ts was built for.
+  return openrouter.chat(modelId);
 }
 
 function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
