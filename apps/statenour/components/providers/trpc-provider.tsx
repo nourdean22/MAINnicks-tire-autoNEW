@@ -26,11 +26,16 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Match the legacy useAuthedFetch behavior · 30s stale ·
-            // refetch on window focus · gives the operator a fresh
-            // feel without thrashing the network.
+            // 30s stale window keeps data feeling fresh without thrashing
+            // the network. refetchOnWindowFocus is OFF: this app runs as
+            // an iOS PWA where the operator foregrounds it constantly
+            // (answering a text, app-switching), and every focus would
+            // otherwise re-fire EVERY mounted query at once (12+ on
+            // /system). Pages needing live data already poll via
+            // refetchInterval, so they stay current on their own timer —
+            // focus-refetch is pure redundant load on a PWA.
             staleTime: 30_000,
-            refetchOnWindowFocus: true,
+            refetchOnWindowFocus: false,
             retry: 1,
           },
           mutations: {
