@@ -178,6 +178,7 @@ Respond with a JSON object only · no prose · shape: {"objection": "<≤320 cha
 export const criticizeRecommendation = withGuardian("adversarial-critic", _criticize, {
   timeoutMs: 8_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal post-stream critique sub-op
 });
 
 /**

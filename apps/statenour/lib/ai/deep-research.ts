@@ -142,11 +142,13 @@ Synthesize a tight cited report.`;
 const planSubQueries = withGuardian("research-planner", _planSubQueries, {
   timeoutMs: 12_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal sub-step of arsenal.deepResearch
 });
 
 const synthesize = withGuardian("research-synth", _synthesize, {
   timeoutMs: 15_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal synthesis sub-step of arsenal.deepResearch
 });
 
 export async function runDeepResearch(args: {

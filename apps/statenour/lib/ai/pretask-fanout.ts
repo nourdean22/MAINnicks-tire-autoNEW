@@ -99,6 +99,7 @@ async function callLens(systemPrompt: string, userPrompt: string): Promise<strin
 const guardedLens = withGuardian("pretask-lens", callLens, {
   timeoutMs: 10_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal per-lens sub-step of arsenalPreTaskFanout
 });
 
 /**

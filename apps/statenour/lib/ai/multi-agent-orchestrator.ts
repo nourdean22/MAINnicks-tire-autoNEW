@@ -156,6 +156,7 @@ async function callSubAgent(
 const guardedSubAgent = withGuardian("multi-agent-sub", callSubAgent, {
   timeoutMs: 12_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal sub-step of arsenal.multiAgent
 });
 
 // v10.0.529.106 · Wave 59 · routes through aiChat() provider chain
@@ -192,6 +193,7 @@ async function callSynthesizer(args: {
 const guardedSynthesizer = withGuardian("multi-agent-synth", callSynthesizer, {
   timeoutMs: 15_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal synthesis sub-step of arsenal.multiAgent
 });
 
 /**

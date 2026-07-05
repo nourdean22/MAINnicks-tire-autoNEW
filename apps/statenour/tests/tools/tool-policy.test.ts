@@ -318,19 +318,16 @@ describe("Permission Policy Engine Rules", () => {
     });
   });
 
-  // 2026-07-05 · per-source search guardian IDs. Before registration these
-  // returned deny "Unknown tool ID", which broke chat web search entirely
-  // ("All sources failed: … Action denied: Unknown tool ID: google-search").
-  describe("per-source web search guardian IDs are registered + allowed", () => {
-    beforeEach(() => { mockMutationLock = false; });
-
+  // 2026-07-05 · per-source search guardian IDs (google-search, etc.) are
+  // internal sub-ops wrapped by withGuardian(..., { reliabilityOnly: true }),
+  // which skips the policy engine entirely. They are therefore NOT registered
+  // here (that was PR #539's workaround, now superseded). evaluateToolAction
+  // never sees them; the guardian-registry-drift test enforces the opt.
+  describe("per-source web search guardian IDs are internal reliabilityOnly sub-ops (not registered)", () => {
     it.each(["google-search", "perplexity-search", "tavily-search", "exa-search"])(
-      "%s resolves to a capability and is allowed (not 'Unknown tool ID')",
+      "%s is NOT a registered AI-dispatchable tool",
       (id) => {
-        expect(getToolCapability(id)).toBeTruthy();
-        const res = evaluateToolAction({ toolId: id, actionType: "execute" });
-        expect(res.decision).toBe("allow");
-        expect(res.reason).not.toContain("Unknown tool ID");
+        expect(getToolCapability(id)).toBeNull();
       },
     );
   });

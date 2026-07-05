@@ -85,4 +85,5 @@ async function _askGoogleSearch(
 export const askGoogleSearch = withGuardian("google-search", _askGoogleSearch, {
   timeoutMs: 25_000,
   maxRetries: 2,
+  reliabilityOnly: true, // internal per-source sub-op behind web.search.* tools
 });
