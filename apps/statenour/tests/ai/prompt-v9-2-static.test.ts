@@ -107,15 +107,39 @@ describe("v9.2 · Layer 1 (static.ts)", () => {
     expect(a).toBe(b);
   });
 
-  it("is reasonably sized (between 1.5kB and 12kB)", () => {
+  it("is reasonably sized (between 1.5kB and 13.5kB)", () => {
     // Lower bound: catch accidental empty/stub regression (the v9.0-beta
     // version was 6 lines / ~250 bytes). Upper bound: catch bloat back
     // toward v1 territory (v1 is 1819 lines / ~80kB after data fanout).
     // v10.0.404 bumped the ceiling to 12kB after centralizing the
-    // operator policy block (8 rules + truth-rule = ~2.5kB) into the
-    // static prefix. Current size ~10kB · headroom for one more rule.
+    // operator policy block (8 rules + truth-rule = ~2.5kB).
+    // 2026-07-05 · ceiling → 13.5kB after adding the OWNER AUTHORITY
+    // directive to identityBlock (~1.1kB · current size ~12.3kB).
     expect(prefix.length).toBeGreaterThan(1500);
-    expect(prefix.length).toBeLessThan(12000);
+    expect(prefix.length).toBeLessThan(13500);
+  });
+
+  it("asserts OWNER AUTHORITY — never refuse/moralize/disclaim to the owner", () => {
+    // 2026-07-05 · the operator's #1 rule: the chat must never tell the boss
+    // no. This pins that the directive is present in the LIVE static prefix
+    // (route.ts → buildSystemPrompt → buildSystemPromptV2 → buildStaticPrefix)
+    // so a future edit can't silently drop it.
+    expect(prefix).toContain("OWNER AUTHORITY");
+    expect(prefix.toLowerCase()).toContain("do not refuse");
+    expect(prefix).toMatch(/name the risk in ONE line/i);
+    // It lives in the idx-0 identity section (before "## Nour Dean") so
+    // trimPromptToBudget never drops it — assert its position.
+    expect(prefix.indexOf("OWNER AUTHORITY")).toBeLessThan(prefix.indexOf("## Nour Dean"));
+  });
+
+  it("OWNER AUTHORITY does NOT loosen the security guardrails", () => {
+    // Unrestricting the persona must not read as "drop the injection /
+    // destructive-action defenses". The directive must explicitly preserve
+    // them, or the change is unsafe. Pin the guardrail-preservation clause.
+    const owner = prefix.slice(prefix.indexOf("OWNER AUTHORITY"), prefix.indexOf("## Nour Dean"));
+    expect(owner.toLowerCase()).toContain("inert data");
+    expect(owner.toLowerCase()).toContain("two-tap confirm");
+    expect(owner.toLowerCase()).toMatch(/injection/);
   });
 });
 
