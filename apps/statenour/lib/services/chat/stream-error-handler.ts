@@ -141,7 +141,13 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
         // 2026-07-04 (audit P2) · OpenRouter FIRST — vendor-prefixed ids
         // ("google/gemini-*") otherwise match the gemini branch below and
         // ban the healthy native lane instead of the failing OpenRouter.
-        if (modelInfo.includes("/"))
+        // Prefix exceptions (NOT OpenRouter): "models/" is Google's native
+        // form; "gemini/"/"ollama/" name the provider outright and fall
+        // through to their own branches. Mirrors inferProviderName in
+        // lib/ai/stream-with-fallback.ts.
+        const slashIdx = modelInfo.indexOf("/");
+        const slashPrefix = slashIdx > 0 ? modelInfo.slice(0, slashIdx).toLowerCase() : null;
+        if (slashPrefix && !["models", "gemini", "ollama"].includes(slashPrefix))
           markProviderFailed("openrouter");
         else if (modelInfo.includes("ollama") || modelInfo.includes("Ollama"))
           markProviderFailed("ollama");

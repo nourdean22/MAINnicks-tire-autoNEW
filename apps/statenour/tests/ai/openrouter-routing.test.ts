@@ -48,6 +48,14 @@ describe("inferProviderName · openrouter recognition", () => {
     expect(inferProviderName({ modelId: "claude-3-5-sonnet-latest" })).toBe("anthropic");
     expect(inferProviderName({ modelId: "gpt-oss:120b-ollama" })).toBe("ollama");
   });
+
+  it("prefix exceptions stay native: models/ (Google form) and provider-name prefixes", () => {
+    // Google's native API id form — must NOT be claimed by openrouter.
+    expect(inferProviderName({ modelId: "models/gemini-2.5-flash" })).toBe("gemini");
+    // Provider-name-prefixed shapes (telemetry/fixtures) keep their lanes.
+    expect(inferProviderName({ modelId: "gemini/gemini-3.5-flash" })).toBe("gemini");
+    expect(inferProviderName({ modelId: "ollama/qwen3-235b" })).toBe("ollama");
+  });
 });
 
 describe("getModel · openrouter lane uses Chat Completions, not the Responses API", () => {
