@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { readBriefStamp, shouldFireBrief, markBriefFired, todayStamp } from "@/lib/home/cognitive-partner-brief";
 
 type DockMode = "ask" | "execute" | "review" | "search" | "capture" | "task";
 
@@ -101,11 +102,17 @@ export function CognitivePartner() {
 
   const isLoading = status === "streaming" || status === "submitted";
 
-  // Proactive trigger on mount
+  // Proactive brief on mount — gated to once per calendar day.
+  // useChat state does not survive unmount/remount, so messages.length
+  // is always 0 on mount; without the day-stamp gate this fired a paid
+  // LLM stream on EVERY Home visit. See lib/home/cognitive-partner-brief.
   useEffect(() => {
-    // Only trigger if we have no messages at all (fresh mount)
     if (messages.length === 0 && !isLoading) {
-      sendMessage({ text: "Wake up. Give me the morning brief." });
+      const today = todayStamp();
+      if (shouldFireBrief(readBriefStamp(), today)) {
+        markBriefFired(today);
+        sendMessage({ text: "Wake up. Give me the morning brief." });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
