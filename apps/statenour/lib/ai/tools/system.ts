@@ -649,20 +649,53 @@ export const systemTools = {
   }),
 
   arsenalWebSearch: tool({
-    description: "Use Perplexity (or Google Search Grounding if Perplexity is unconfigured) for web search with AI-powered summarization. Powered by the Arsenal integration chain.",
+    description: "Web search with AI summarization via Perplexity (or Google Search Grounding if Perplexity is unconfigured); automatically falls back to the multi-source quorum if the primary source is unavailable. Powered by the Arsenal integration chain.",
     inputSchema: z.object({
       query: z.string().describe("Web search query"),
     }),
     execute: async ({ query }) => {
       const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
-      if (process.env.PERPLEXITY_API_KEY) {
-        const { researchTopic } = await import("@/lib/integrations/perplexity");
-        const result = await researchTopic(query);
-        return { content: fenceContent("arsenalWebSearch", "external_web", result?.content?.slice(0, 2000) ?? ""), model: "perplexity", source: "arsenal" };
+      const fence = (s: string | undefined) =>
+        fenceContent("arsenalWebSearch", "external_web", (s ?? "").slice(0, 2000));
+
+      // Primary · one cheap source (Perplexity if configured, else Google
+      // grounding). Wrapped so a single dead source — revoked key, timeout,
+      // retired model — degrades to the multi-source quorum instead of throwing
+      // (which the model would otherwise surface as a confident failure claim).
+      try {
+        if (process.env.PERPLEXITY_API_KEY) {
+          const { researchTopic } = await import("@/lib/integrations/perplexity");
+          const r = await researchTopic(query);
+          if (r?.content?.trim()) {
+            return { content: fence(r.content), model: "perplexity", source: "arsenal" };
+          }
+        } else {
+          const { askGoogleSearch } = await import("@/lib/integrations/google-search");
+          const r = await askGoogleSearch(query);
+          if (r?.content?.trim()) {
+            return { content: fence(r.content), model: r.model, source: "google" };
+          }
+        }
+      } catch (err) {
+        const { logger } = await import("@/lib/logger");
+        logger
+          .withSurface("ai/tools/arsenalWebSearch")
+          .warn("primary_source_failed_falling_back_to_quorum", {
+            error: String((err as { message?: string })?.message ?? err).slice(0, 200),
+          });
       }
-      const { askGoogleSearch } = await import("@/lib/integrations/google-search");
-      const result = await askGoogleSearch(query);
-      return { content: fenceContent("arsenalWebSearch", "external_web", result?.content?.slice(0, 2000) ?? ""), model: result.model, source: "google" };
+
+      // Fallback · multi-source quorum (Promise.allSettled · never throws on
+      // partial failure). Keeps "search on X" alive when the primary is down;
+      // surfaces an honest all-sources-failed note rather than an empty result.
+      const { multiSourceSearch } = await import("@/lib/ai/multi-search");
+      const q = await multiSourceSearch(query);
+      const body =
+        q.consensus?.trim() ||
+        q.sources.map((s) => `${s.name}: ${s.content}`).join("\n\n").trim() ||
+        q.disagreement ||
+        "Web search returned no results from any source.";
+      return { content: fence(body), model: "multi-source", source: "arsenal/fallback" };
     },
   }),
 
