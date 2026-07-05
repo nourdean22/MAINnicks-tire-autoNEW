@@ -5,22 +5,11 @@
  * maintainability split — pure mechanical move, mirrors the ./today/
  * and ./customers/ extraction precedent. No behavior change.
  */
-import React, { useState, lazy, Suspense, useMemo } from "react";
-import { trpc, type RouterOutputs } from "@/lib/trpc";
+import React from "react";
+import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Link } from "wouter";
-import { confirmDialog } from "@/components/admin/ConfirmDialog";
-import {
-  StatCard, StatusDot, PageHeader, TabBar, formatDate, LoadingState, ErrorState,
-  useUrlFilter,
-} from "../shared";
-import {
-  Bell, CheckCircle2, ChevronRight, FileText, Loader2, Newspaper,
-  Sparkles, XCircle, TrendingUp, Search, Calendar, Target, Zap,
-  ArrowUpRight, Lightbulb, Tag, Trash2, Eye, EyeOff, AlertTriangle,
-  ChevronDown, ChevronUp, RefreshCw, BarChart3, ShieldCheck,
-  Settings, Link2, Copy, Check, ExternalLink
-} from "lucide-react";
+import { StatCard, LoadingState, ErrorState } from "../shared";
+import { Loader2, Sparkles, TrendingUp, Search, Calendar, Target, Zap, Lightbulb } from "lucide-react";
 
 type ImpactLevel = "high" | "medium" | "low";
 
@@ -70,7 +59,12 @@ const SEASONAL_TOPICS: Record<string, ContentIdea[]> = {
 
 export function AIIdeasEngine() {
   const { data: chatFunnel, isLoading: chatLoading, isError: chatError, refetch: refetchChat } = trpc.intelligence.chatFunnel.useQuery();
-  const { data: seasonal, isLoading: seasonalLoading, isError: seasonalError, refetch: refetchSeasonal } = trpc.intelligence.seasonalDemand.useQuery();
+  // `data` intentionally not bound — this query drives the loading/error/
+  // refetch UI for the seasonal panel, but the seasonal IDEAS come from the
+  // static SEASONAL_TOPICS table above, not from this response. (2026-07-05:
+  // removed the dead `data: seasonal` binding that was flagged unused — the
+  // query still runs; only the unused local went away.)
+  const { isLoading: seasonalLoading, isError: seasonalError, refetch: refetchSeasonal } = trpc.intelligence.seasonalDemand.useQuery();
   const { data: competitor, isLoading: compLoading, isError: compError, refetch: refetchComp } = trpc.intelligence.competitorGap.useQuery();
   const { data: contentPerf, isLoading: contentLoading, isError: contentError, refetch: refetchContent } = trpc.intelligence.contentPerformance.useQuery();
 
