@@ -264,7 +264,14 @@ export async function pruneTools(
   // v10.0.524 · #1 Cross-conversation recall. Operator references
   // past discussions · "last time we talked about", "what did I
   // say about X", "pull up that thread".
-  if (/\b(last (time|week|month)|previously|earlier we|we discussed|we talked about|what did i (say|discuss|mention)|pull up|prior conversation|that thread|the thread about|past chat|history of|continuing from)\b/.test(text)) {
+  // 2026-07-04 · phrasing gap fix (chat-pipeline audit): the live
+  // incident question "what else we chatted about today in other
+  // sessions?" matched NOTHING — "sessions", plural "conversations",
+  // and "we chatted" were never triggers, so the transcript tools were
+  // pruned out on exactly the query class they exist for. Qualified
+  // forms only ("other sessions", "my chats") so "gym session" doesn't
+  // fire. MIRRORED in tests/ai/chat-mode-keyword-families.test.ts.
+  if (/\b(last (time|week|month)|previously|earlier we|we discussed|we (talked|chatted) about|we chatted|chatted (about|today|yesterday)|what did i (say|discuss|mention)|pull up|prior conversation|that thread|the thread about|past chat|history of|continuing from|(other|past|previous|earlier|prior|all|my) (sessions?|convos?|conversations?|chats?|threads?)|in another (session|conversation|chat|thread))\b/.test(text)) {
     addMatching(/findRelatedConversations|searchConversations/);
   }
 
