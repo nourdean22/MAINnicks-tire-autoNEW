@@ -69,7 +69,136 @@ function bridgeAuth(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
+// ─── Custom GPT Actions OpenAPI schema ──────────────────────────────
+// 2026-07-05 · public OpenAPI 3.1 schema so a ChatGPT Custom GPT can
+// "Import from URL" (https://nickstire.org/api/actions/openapi) and call
+// the /api/bridge/* endpoints — the mirror of statenour's
+// /api/actions/openapi. The schema itself is NOT a secret and is served
+// unauthenticated (ChatGPT fetches it during import without a key); every
+// OPERATION it describes still requires the X-Bridge-Key header at call
+// time (bridgeAuth). Set BRIDGE_API_KEY as the action's API key in the GPT
+// builder, auth type "API Key", custom header name "X-Bridge-Key".
+type BridgeOp = {
+  method: "get" | "post";
+  path: string;
+  id: string;
+  summary: string;
+  properties?: Record<string, { type: string; description: string; items?: { type: string }; default?: unknown }>;
+  required?: string[];
+};
+
+const BRIDGE_OPS: BridgeOp[] = [
+  { method: "get", path: "/api/bridge/health", id: "bridge_health", summary: "Bridge + DB health and sync counters." },
+  { method: "get", path: "/api/bridge/shop-snapshot", id: "bridge_shop_snapshot", summary: "Live shop snapshot: work orders, bookings, leads, revenue signals." },
+  { method: "get", path: "/api/bridge/analytics", id: "bridge_analytics", summary: "Traffic + funnel analytics rollup." },
+  { method: "get", path: "/api/bridge/intelligence", id: "bridge_intelligence", summary: "Aggregated business intelligence brief." },
+  { method: "get", path: "/api/bridge/cron-status", id: "bridge_cron_status", summary: "Status of scheduled cron jobs." },
+  { method: "get", path: "/api/bridge/probe-alg", id: "bridge_probe_alg", summary: "Probe the ALG invoice integration." },
+  {
+    method: "post", path: "/api/bridge/actions/mark-contacted", id: "bridge_mark_contacted",
+    summary: "Mark a lead as contacted.",
+    properties: { leadId: { type: "integer", description: "The lead id to mark contacted (positive integer)." } },
+    required: ["leadId"],
+  },
+  {
+    method: "post", path: "/api/bridge/actions/quick-note", id: "bridge_quick_note",
+    summary: "Log a quick operator note.",
+    properties: {
+      note: { type: "string", description: "Note body (1–2000 chars)." },
+      context: { type: "string", description: "Optional short context tag (≤200 chars)." },
+    },
+    required: ["note"],
+  },
+  {
+    method: "post", path: "/api/bridge/ingest-reports", id: "bridge_ingest_reports",
+    summary: "Ingest a batch of invoice/analytics report rows.",
+    properties: {
+      invoices: { type: "array", description: "1–10000 invoice records.", items: { type: "object" } },
+      analytics: { type: "object", description: "Optional analytics key/value map." },
+    },
+    required: ["invoices"],
+  },
+  {
+    method: "post", path: "/api/bridge/sms-campaign", id: "bridge_sms_campaign",
+    summary: "DESTRUCTIVE: run a win-back SMS campaign to real customers. dryRun defaults to true — set dryRun:false to actually send.",
+    properties: {
+      dryRun: { type: "boolean", description: "If true (default), simulate without sending. Set false to send real texts.", default: true },
+      limit: { type: "integer", description: "Max recipients (1–500, default 50)." },
+      daysSince: { type: "integer", description: "Target customers inactive at least this many days (0–365, default 30)." },
+    },
+  },
+  { method: "post", path: "/api/bridge/backfill-history", id: "bridge_backfill_history", summary: "DESTRUCTIVE: backfill historical data (writes to the DB)." },
+  { method: "post", path: "/api/bridge/trigger-mirror", id: "bridge_trigger_mirror", summary: "DESTRUCTIVE: trigger a data mirror/sync run." },
+  { method: "post", path: "/api/bridge/full-sync", id: "bridge_full_sync", summary: "DESTRUCTIVE: force a full data sync (heavy; writes)." },
+  {
+    method: "post", path: "/api/bridge/run-job", id: "bridge_run_job",
+    summary: "DESTRUCTIVE: run an allowlisted background job by name (e.g. dashboard-sync, vendor-health, self-healing, customer-segmentation, enrich-customer-data, weather-intel).",
+    properties: { jobName: { type: "string", description: "Allowlisted job name; a non-allowlisted name returns 403 with the allowed list." } },
+    required: ["jobName"],
+  },
+  {
+    method: "post", path: "/api/bridge/diag", id: "bridge_diag",
+    summary: "Run a read-only SELECT diagnostic query (SELECT-only, single statement, ≤2000 chars; writes are rejected).",
+    properties: { query: { type: "string", description: "A single read-only SELECT statement." } },
+    required: ["query"],
+  },
+];
+
+function buildBridgeOpenApi(): Record<string, unknown> {
+  const paths: Record<string, unknown> = {};
+  for (const op of BRIDGE_OPS) {
+    const operation: Record<string, unknown> = {
+      operationId: op.id,
+      summary: op.summary,
+      description: op.summary,
+      responses: {
+        "200": { description: "Success", content: { "application/json": { schema: { type: "object" } } } },
+      },
+    };
+    if (op.method === "post") {
+      operation.requestBody = {
+        required: !!(op.required && op.required.length),
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: op.properties ?? {},
+              ...(op.required && op.required.length ? { required: op.required } : {}),
+            },
+          },
+        },
+      };
+    }
+    paths[op.path] = { [op.method]: operation };
+  }
+  return {
+    openapi: "3.1.0",
+    info: {
+      title: "Nick's Tire & Auto Bridge",
+      description: "Remote command interface (nickstire.org) for a Custom GPT. All operations require the X-Bridge-Key header.",
+      version: "1.0.0",
+    },
+    servers: [{ url: "https://nickstire.org" }],
+    paths,
+    components: {
+      securitySchemes: {
+        BridgeKey: { type: "apiKey", in: "header", name: "X-Bridge-Key" },
+      },
+    },
+    security: [{ BridgeKey: [] }],
+  };
+}
+
+const BRIDGE_OPENAPI_SCHEMA = buildBridgeOpenApi();
+
 export function registerBridgeRoutes(app: Express): void {
+  // ─── Custom GPT Actions schema (public; per-op auth still enforced) ──
+  app.get("/api/actions/openapi", (_req, res) => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.json(BRIDGE_OPENAPI_SCHEMA);
+  });
+
   // ─── Health Check ──────────────────────────────────────
   app.get("/api/bridge/health", bridgeAuth, async (_req, res) => {
     try {
