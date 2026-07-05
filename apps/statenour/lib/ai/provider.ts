@@ -1064,6 +1064,13 @@ export async function getEmbedding(text: string): Promise<number[]> {
           texts: [input],
           input_type: "search_document",
           embedding_types: ["float"],
+          // 2026-07-04 (audit) · PIN the dimension. The chain contract
+          // above says every provider is 1024-dim, but without this
+          // param embed-v4.0 uses its server default (>1024) — and
+          // knnSearch filters rows by the RAW query-vector width, so an
+          // unpinned query scans the wrong partition and recall goes
+          // silently empty.
+          output_dimension: 1024,
         }),
         signal: AbortSignal.timeout(10_000), // wave-181.90 follow-up
       });
@@ -1074,7 +1081,19 @@ export async function getEmbedding(text: string): Promise<number[]> {
           data?.embeddings?.float?.[0] ??
           // v1 fallback shape · { embeddings: [[...]] }
           (Array.isArray(data?.embeddings) ? data.embeddings[0] : undefined);
-        if (Array.isArray(vec) && vec.length > 0) return vec;
+        if (Array.isArray(vec) && vec.length > 0) {
+          if (vec.length !== 1024) {
+            // Belt for env-pinned models that ignore output_dimension:
+            // never let an off-contract width escape into the vector
+            // space. padToVectorDim is the single canonical normalizer.
+            console.warn(
+              `[ai:embedding] Cohere returned ${vec.length}-dim (contract: 1024) — normalizing`,
+            );
+            const { padToVectorDim } = await import("@/lib/db/pgvector");
+            return padToVectorDim(vec, 1024);
+          }
+          return vec;
+        }
         console.warn(
           `[ai:embedding] Cohere returned 200 but no embedding in payload (keys: ${Object.keys(data ?? {}).join(",")})`,
         );

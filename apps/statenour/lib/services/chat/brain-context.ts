@@ -216,31 +216,39 @@ export async function buildBrainContext(
         : Promise.resolve(""),
       
       // Newly moved fetchers
+      // 2026-07-04 (audit) · these six were awaited with bare .catch()
+      // — the module's 3s-timeout contract (header above) didn't cover
+      // them, so one slow Neon trip (or the LLM call below) meant
+      // unbounded blocking BEFORE the stream opens. Now wrapped like
+      // the first ten blocks. Pinned by tests/ai/brain-context-timeouts.
       (userContent.length > 10 || forceRecall) && conversationMemoryMod
-        ? conversationMemoryMod.detectCrossSessionThread(userContent).catch(() => null)
+        ? withTimeout(conversationMemoryMod.detectCrossSessionThread(userContent), 3000, null)
         : Promise.resolve(null),
       (userContent.length > 10 || forceRecall) && contextualRecallMod
-        ? contextualRecallMod.getContextualMemories([userContent], mode === "deep" ? 10 : 5).catch(() => null)
+        ? withTimeout(contextualRecallMod.getContextualMemories([userContent], mode === "deep" ? 10 : 5), 3000, null)
         : Promise.resolve(null),
       (userContent.length > 10 || forceRecall) && predictivePrefetchMod
-        ? predictivePrefetchMod.prefetchIntents(userContent).catch(() => [])
+        ? withTimeout(predictivePrefetchMod.prefetchIntents(userContent), 3000, [])
         : Promise.resolve([]),
       userContent.length > 10 && memoryRecallMod && userEmbedding.length > 0
-        ? memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: mode === "deep" ? 8 : 5 }).catch(() => null)
+        ? withTimeout(memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: mode === "deep" ? 8 : 5 }), 3000, null)
         : Promise.resolve(null),
       truthGroundingMod
-        ? truthGroundingMod.buildTruthGroundingBlock(messages as never).catch(() => null)
+        ? withTimeout(truthGroundingMod.buildTruthGroundingBlock(messages as never), 3000, null)
         : Promise.resolve(null),
       contradictionInjectorMod
-        ? contradictionInjectorMod.findRelevantContradictions({ userMessage: userContent, conversationId: convId }).catch(() => null)
+        ? withTimeout(contradictionInjectorMod.findRelevantContradictions({ userMessage: userContent, conversationId: convId }), 3000, null)
         : Promise.resolve(null),
       strategicFrameworksMod
         ? Promise.resolve(strategicFrameworksMod.composeStrategicLensBlock(userContent))
         : Promise.resolve(null),
     ]);
 
+    // 2026-07-04 (audit) · anticipateMemories is an LLM call awaited
+    // SERIALLY after the parallel batch — the single biggest unbounded
+    // stream-open delay in the module. Bounded to the same 3s.
     const anticipatoryBlock = anticipatoryRecallMod && contextMemories
-      ? await anticipatoryRecallMod.anticipateMemories(messages as never, contextMemories).catch(() => null)
+      ? await withTimeout(anticipatoryRecallMod.anticipateMemories(messages as never, contextMemories), 3000, null)
       : null;
     
     if (strategicLensBlock && strategicFrameworksMod) {
