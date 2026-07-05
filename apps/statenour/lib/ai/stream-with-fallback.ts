@@ -32,6 +32,13 @@ export function inferProviderName(model: LanguageModel | unknown): ProviderName 
     typeof model === "object" && model && "modelId" in model
       ? String((model as { modelId?: unknown }).modelId)
       : "";
+  // 2026-07-04 (audit P2) · OpenRouter FIRST: its model ids are
+  // vendor-prefixed ("google/gemini-2.5-flash", "openai/gpt-4o") — the
+  // slash is unique to OpenRouter in this codebase. Without this branch,
+  // "google/gemini-*" fell through to the gemini check below, so a failing
+  // OpenRouter was never failure-marked (re-picked forever) while the
+  // HEALTHY native gemini lane got banned in its place.
+  if (modelId.includes("/")) return "openrouter";
   if (modelId.includes("gemini") || modelId.includes("google") || modelId.includes("Google")) return "gemini";
   if (modelId.includes("ollama") || modelId.includes("Ollama")) return "ollama";
   if (modelId.startsWith("gpt-") || modelId.includes("openai")) return "openai";
