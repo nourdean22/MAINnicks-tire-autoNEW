@@ -13,9 +13,12 @@
  *      untouched > 60d.
  *   5. Ghost CronJobLog — recent log rows for jobs whose route no
  *      longer exists.
- *   6. Dead vercel.json schedules — crons scheduled but route missing.
- *   7. Audit log category distribution — eventTypes dominating > 40%
+ *   6. Audit log category distribution — eventTypes dominating > 40%
  *      of a 7d window (noise candidates).
+ *
+ * (The old "dead vercel.json schedules" check was removed with the
+ *  Railway migration — vercel.json no longer exists, and cron routes
+ *  vs. manifest are now covered by `pnpm check:crons`.)
  *
  * Run: pnpm exec tsx scripts/quality-sweep-v2.ts
  *
@@ -190,30 +193,7 @@ async function checkGhostCronLogs() {
   log(`${ghosts} ghost cron names logging to DB`);
 }
 
-// ── 6. Dead vercel.json schedules ──────────────────────────
-async function checkDeadSchedules() {
-  section("vercel.json schedules pointing at missing routes");
-  const raw = fs.readFileSync(path.join(ROOT, "vercel.json"), "utf8");
-  const parsed = JSON.parse(raw) as { crons?: Array<{ path: string; schedule: string }> };
-  const routeDirs = fs
-    .readdirSync(path.join(ROOT, "app/api/cron"), { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name);
-  const routes = new Set(routeDirs);
-  let dead = 0;
-  for (const c of parsed.crons ?? []) {
-    const match = c.path.match(/\/api\/cron\/([^/?]+)/);
-    if (!match) continue;
-    const name = match[1];
-    if (!routes.has(name)) {
-      dead++;
-      log(`  ${c.path} (${c.schedule}) — no route exists`);
-    }
-  }
-  log(`${dead} scheduled crons pointing at missing routes`);
-}
-
-// ── 7. Audit log noise ─────────────────────────────────────
+// ── 6. Audit log noise ─────────────────────────────────────
 async function checkAuditNoise() {
   section("AuditEvent noise — types dominating > 40% of 7d window");
   const since = new Date(Date.now() - 7 * 86400_000);
@@ -241,7 +221,6 @@ async function main() {
   await checkEmptyTables();
   await checkColdMemory();
   await checkGhostCronLogs();
-  await checkDeadSchedules();
   await checkAuditNoise();
   await checkDeadRoutes();
   await checkOrphanExports();
