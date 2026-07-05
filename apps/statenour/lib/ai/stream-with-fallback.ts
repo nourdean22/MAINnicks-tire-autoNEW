@@ -49,6 +49,15 @@ export function inferProviderName(model: LanguageModel | unknown): ProviderName 
   }
   if (modelId.includes("gemini") || modelId.includes("google") || modelId.includes("Google")) return "gemini";
   if (modelId.includes("ollama") || modelId.includes("Ollama")) return "ollama";
+  // 2026-07-05 (audit P3) · ollama's native id form is "name:tag"
+  // ("gpt-oss:120b" — the deployed OLLAMA default — "llama3.1:8b",
+  // "qwen3:14b"). Pre-P3 the startsWith("gpt-") branch below claimed
+  // "gpt-oss:120b" for openai, so ollama failures banned the HEALTHY
+  // openai lane and the (since-removed) ollama budget gate never fired.
+  // No other provider uses colon-tag ids: OpenRouter ids are
+  // slash-prefixed (caught above); native OpenAI/Anthropic/Gemini ids
+  // never contain ":".
+  if (/^[\w.-]+:[\w.-]+$/.test(modelId)) return "ollama";
   if (modelId.startsWith("gpt-") || modelId.includes("openai")) return "openai";
   if (modelId.includes("claude") || modelId.includes("anthropic")) return "anthropic";
   return null;
@@ -81,6 +90,95 @@ export interface StreamWithFallbackOptions {
   preferLargeContext?: boolean;
   forceProviderFirst?: ProviderName;
   maxAttempts?: number;
+  /**
+   * 2026-07-05 (audit P3 · b) · how long the first-chunk probe waits
+   * for a decisive stream part before committing to the attempt.
+   * Default 10s. See probeFirstChunk below.
+   */
+  firstChunkTimeoutMs?: number;
+}
+
+/**
+ * Stream parts the probe skips as "not decisive": they're emitted by
+ * the SDK before the provider has produced anything, so they prove
+ * neither life nor death. Everything else decides the attempt:
+ * `error` → FAIL (rotate provider) · any other part → COMMIT.
+ */
+const PRE_CONTENT_PART_TYPES = new Set(["start", "start-step"]);
+
+type ProbeOutcome =
+  | { kind: "content" | "ended" | "timeout" }
+  | { kind: "error-part"; message: string };
+
+function extractPartErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  try {
+    const json = JSON.stringify(err);
+    return json && json !== "{}" ? json.slice(0, 300) : String(err);
+  } catch {
+    return String(err);
+  }
+}
+
+/**
+ * 2026-07-05 (audit P3 · b) · first-chunk probe. streamText NEVER
+ * rejects on provider HTTP errors — it returns synchronously and the
+ * failure surfaces later as a stream `error` part. Pre-P3 the fallback
+ * loop judged an attempt only by whether the call threw, so same-turn
+ * failover never engaged for a real provider failure.
+ *
+ * The probe reads a tee of `result.fullStream` (each `.fullStream`
+ * access tees the base stream — verified in ai@6.0.162 — so the
+ * route's later toUIMessageStreamResponse() still sees EVERY part from
+ * the start; no re-emit needed). It waits up to `timeoutMs` for the
+ * first decisive part:
+ *   · `error` before any content → attempt FAILED (rotate provider)
+ *   · any content part           → COMMIT
+ *   · stream ended / timeout     → COMMIT (a slow provider is not a
+ *     dead provider; mid-stream onError still covers late failures —
+ *     never make the turn worse than the pre-probe status quo)
+ * The probe reader is cancelled on settle (its tee branch stops
+ * buffering); cancelling one tee branch does not cancel the source.
+ */
+async function probeFirstChunk(
+  fullStream: ReadableStream,
+  timeoutMs: number,
+): Promise<ProbeOutcome> {
+  const reader = fullStream.getReader();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<ProbeOutcome>((resolve) => {
+    timer = setTimeout(() => resolve({ kind: "timeout" }), timeoutMs);
+  });
+  const read = (async (): Promise<ProbeOutcome> => {
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return { kind: "ended" };
+        const type =
+          value && typeof value === "object" && "type" in value
+            ? String((value as { type?: unknown }).type)
+            : "";
+        if (type === "error") {
+          return {
+            kind: "error-part",
+            message: extractPartErrorMessage((value as { error?: unknown }).error),
+          };
+        }
+        if (!PRE_CONTENT_PART_TYPES.has(type)) return { kind: "content" };
+      }
+    } catch {
+      // Reader failure (e.g. cancelled under us) — treat as ended so
+      // the attempt commits; the stream's own error handling owns it.
+      return { kind: "ended" };
+    }
+  })();
+  try {
+    return await Promise.race([read, timeout]);
+  } finally {
+    clearTimeout(timer);
+    reader.cancel().catch(() => {});
+  }
 }
 
 export async function streamWithFallback(
@@ -144,12 +242,66 @@ export async function streamWithFallback(
       // gate never matched the deployed ollama ids ("gpt-oss:120b"
       // classifies as openai via startsWith("gpt-")).
       const abortController = new AbortController();
+
+      // 2026-07-05 (audit P3 · b) · onError gate. With onError now
+      // actually wired (P3 · a), a pre-first-token provider failure
+      // would fire the route's graceful-degradation handler (persisting
+      // a "stream interrupted" stub row) EVEN THOUGH the probe below
+      // rotates to a healthy provider and the turn recovers. Gate the
+      // callback on the probe's verdict:
+      //   · undecided → buffer the event
+      //   · committed → forward (and flush anything buffered — the tee
+      //     preserves part order, so an error the probe classified as
+      //     mid-stream is always forwarded exactly once)
+      //   · failed    → drop; rotation owns the failure (attempt row +
+      //     markProviderFailed), no stub row for a recovered turn
+      let probeVerdict: "committed" | "failed" | null = null;
+      const pendingErrors: Array<{ error: unknown }> = [];
+      const routeOnError = config.onError as
+        | ((event: { error: unknown }) => unknown)
+        | undefined;
       const result = streamText({
         ...config,
         model,
         stopWhen: config.stopWhen ?? stepCountIs(5),
         abortSignal: abortController.signal,
+        onError: (event: { error: unknown }) => {
+          if (probeVerdict === "committed") {
+            routeOnError?.(event);
+            return;
+          }
+          if (probeVerdict === "failed") return;
+          pendingErrors.push(event);
+        },
       });
+
+      const probeOutcome = await probeFirstChunk(
+        result.fullStream as ReadableStream,
+        opts.firstChunkTimeoutMs ?? 10_000,
+      );
+      if (probeOutcome.kind === "error-part") {
+        probeVerdict = "failed";
+        pendingErrors.length = 0;
+        abortController.abort();
+        attempts.push({
+          attempt,
+          provider,
+          modelId,
+          startedAt,
+          failedAt: new Date().toISOString(),
+          errorClass: "first_chunk_error_part",
+          errorMessage: probeOutcome.message,
+        });
+        lastError = new Error(probeOutcome.message);
+        if (provider) {
+          markProviderFailed(provider);
+        }
+        continue;
+      }
+      probeVerdict = "committed";
+      for (const event of pendingErrors.splice(0)) {
+        routeOnError?.(event);
+      }
 
       // Return the original AI SDK result directly. Its built-in
       // toUIMessageStreamResponse() properly serializes fullStream
