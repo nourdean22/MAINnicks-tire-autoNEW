@@ -28,10 +28,12 @@ export type AdminSection =
 // 2026-05-09 — `reEngagement` removed from AdminSection union. Was a zombie
 // top-level route after the wave-103 era half-migration to OutreachHub.
 // Now lives ONLY as the 6th OutreachHub tab (campaigns?outreachTab=reengage).
-// 2026-05-24 — `intelligence` removed (Intelligence Dispersal Wave 3).
-// Signals dispersed to statenour /scoreboard + various briefs. The
-// `intelligence` URL alias survives in Admin.tsx TAB_ALIASES so legacy
-// bookmarks redirect to "overview".
+// 2026-05-24 — `intelligence` removed (Intelligence Dispersal Wave 3);
+// 2026-06-24 — RE-ADDED by the content war room / autonomous publishing
+// engine (#326, IntelligenceHQSection). It is live in this union and in
+// ADMIN_REGISTRY — the removal note above is history, not current state.
+// (Stale-comment fix from the 2026-07-05 admin maintainability wave: the
+// old note said "removed" while the code two lines up said otherwise.)
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 

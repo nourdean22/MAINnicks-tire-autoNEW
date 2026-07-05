@@ -112,6 +112,15 @@ const PII_PATTERNS = [
     pattern: /\b(216|330|440|234)\s*[\-.\s]?\s*\d{3}\s*[\-.\s]?\s*\d{4}\b/g,
     why: "Hardcoded Cleveland-area phone in source · looks like real customer data committed by accident",
     fix: "Use a fixture file with explicit test marker OR use 555-prefix phones (555-0100 is RFC-reserved for fiction)",
+    // 2026-07-05 · the shop's own PUBLIC line is not PII — it's plastered
+    // on every page of the site. Before this allowlist, adding the
+    // business number anywhere tripped the pre-commit gate (exit 1) and
+    // trained `--no-verify` bypasses. Checked per MATCHED SUBSTRING
+    // (digits-normalized), so a real customer number on the same line
+    // still flags. Deliberately NOT allowlisted: the 216862000X
+    // check-live-sms fixtures (can't prove those aren't real subscriber
+    // numbers — the linter's own advice says use 555 for fiction).
+    allowDigits: new Set(["2168620005"]),
   },
   {
     pattern: /[a-zA-Z0-9._%+-]+@(gmail|yahoo|hotmail|outlook|aol|icloud)\.com\b/g,
@@ -209,16 +218,32 @@ function getAddedLines(relPath) {
   }
 }
 
+/**
+ * True when the line violates the rule. A rule with `allowDigits` only
+ * violates if at least one matched substring is NOT an allowlisted
+ * number after stripping non-digits — so the shop's public line never
+ * flags, but a real customer number sharing the line still does.
+ */
+function ruleViolates(rule, text) {
+  if (!rule.allowDigits) {
+    const hit = rule.pattern.test(text);
+    rule.pattern.lastIndex = 0;
+    return hit;
+  }
+  const matches = [...text.matchAll(rule.pattern)];
+  rule.pattern.lastIndex = 0;
+  return matches.some((m) => !rule.allowDigits.has(m[0].replace(/\D/g, "")));
+}
+
 function scanFile(relPath, mode) {
   const violations = [];
   if (mode === "pre-commit") {
     const addedLines = getAddedLines(relPath);
     for (const { lineNum, text } of addedLines) {
       for (const rule of PII_PATTERNS) {
-        if (rule.pattern.test(text)) {
+        if (ruleViolates(rule, text)) {
           violations.push({ relPath, lineNum, text: text.trim().slice(0, 120), why: rule.why, fix: rule.fix });
         }
-        rule.pattern.lastIndex = 0;
       }
     }
   } else {
@@ -226,10 +251,9 @@ function scanFile(relPath, mode) {
       const content = readFileSync(resolve(APP_ROOT, relPath), "utf8");
       content.split("\n").forEach((text, i) => {
         for (const rule of PII_PATTERNS) {
-          if (rule.pattern.test(text)) {
+          if (ruleViolates(rule, text)) {
             violations.push({ relPath, lineNum: i + 1, text: text.trim().slice(0, 120), why: rule.why, fix: rule.fix });
           }
-          rule.pattern.lastIndex = 0;
         }
       });
     } catch { /* file removed or unreadable */ }

@@ -5,22 +5,12 @@
  * maintainability split — pure mechanical move, mirrors the ./today/
  * and ./customers/ extraction precedent. No behavior change.
  */
-import React, { useState, lazy, Suspense, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Link } from "wouter";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
-import {
-  StatCard, StatusDot, PageHeader, TabBar, formatDate, LoadingState, ErrorState,
-  useUrlFilter,
-} from "../shared";
-import {
-  Bell, CheckCircle2, ChevronRight, FileText, Loader2, Newspaper,
-  Sparkles, XCircle, TrendingUp, Search, Calendar, Target, Zap,
-  ArrowUpRight, Lightbulb, Tag, Trash2, Eye, EyeOff, AlertTriangle,
-  ChevronDown, ChevronUp, RefreshCw, BarChart3, ShieldCheck,
-  Settings, Link2, Copy, Check, ExternalLink
-} from "lucide-react";
+import { StatCard, formatDate, LoadingState, ErrorState } from "../shared";
+import { Bell, CheckCircle2, FileText, Loader2, Newspaper, Sparkles, XCircle, Calendar, Target, Zap, Trash2, Eye, EyeOff, AlertTriangle, ChevronDown, ChevronUp, RefreshCw, BarChart3 } from "lucide-react";
 import { GBPPostGenerator } from "./GBPPostGenerator";
 import { CommandQueue } from "./CommandQueue";
 type Article = NonNullable<RouterOutputs["contentAdmin"]["allArticles"]>[number];
