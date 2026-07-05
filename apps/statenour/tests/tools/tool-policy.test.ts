@@ -317,4 +317,21 @@ describe("Permission Policy Engine Rules", () => {
       expect(res.decision).toBe("allow");
     });
   });
+
+  // 2026-07-05 · per-source search guardian IDs. Before registration these
+  // returned deny "Unknown tool ID", which broke chat web search entirely
+  // ("All sources failed: … Action denied: Unknown tool ID: google-search").
+  describe("per-source web search guardian IDs are registered + allowed", () => {
+    beforeEach(() => { mockMutationLock = false; });
+
+    it.each(["google-search", "perplexity-search", "tavily-search", "exa-search"])(
+      "%s resolves to a capability and is allowed (not 'Unknown tool ID')",
+      (id) => {
+        expect(getToolCapability(id)).toBeTruthy();
+        const res = evaluateToolAction({ toolId: id, actionType: "execute" });
+        expect(res.decision).toBe("allow");
+        expect(res.reason).not.toContain("Unknown tool ID");
+      },
+    );
+  });
 });
