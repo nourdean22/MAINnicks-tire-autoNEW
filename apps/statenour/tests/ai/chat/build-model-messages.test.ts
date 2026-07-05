@@ -107,6 +107,32 @@ describe("buildModelMessages · replayed reasoning parts (2026-07-04 Responses A
     expect(roles).toEqual(["user", "user"]);
   });
 
+  it("DROPS a compressed-path assistant turn with empty STRING content (2026-07-05 audit)", async () => {
+    // conversation-compress.ts maps recent tool-only/empty turns via
+    // extractText, which returns "" — STRING content (not an array). That
+    // bypassed pass 3's hollow scrub (which only walked arrays) and reached
+    // streamText; some providers 400 on empty assistant content. The string
+    // branch now gets the same hollow protection as the array branch.
+    const out = await sanitize([
+      { role: "user", content: "wtf" },
+      { role: "assistant", content: "" },
+      { role: "user", content: "?" },
+    ]);
+    const roles = (out as Array<{ role?: string }>).map((m) => m.role);
+    expect(roles).toEqual(["user", "user"]);
+  });
+
+  it("DROPS a whitespace-only STRING assistant turn but KEEPS real string content", async () => {
+    const out = await sanitize([
+      { role: "user", content: "hi" },
+      { role: "assistant", content: "   \n  " }, // whitespace-only → hollow
+      { role: "assistant", content: "real reply" }, // real → survives
+    ]);
+    const kept = (out as Array<{ role?: string; content?: unknown }>);
+    expect(kept.map((m) => m.role)).toEqual(["user", "assistant"]);
+    expect(kept[1].content).toBe("real reply");
+  });
+
   it("strips ORPHANED tool-calls (no matching tool-result) but keeps paired ones", async () => {
     // A stream that died mid-tool-call persists the call with no result;
     // replaying it 400s strict endpoints. Paired call/result must survive.
