@@ -115,7 +115,11 @@ export function ChatMessageList({
                     contextBlocks={contextBlocks}
                     quality={quality}
                     citations={citations}
-                    onRegen={() => { toast("Regen triggered (coming soon)"); }}
+                    // 2026-07-04 audit P4 · was a dead "coming soon" toast —
+                    // the QualityBar's REGEN chip (the quality-gate escape
+                    // hatch) did nothing in chat-v2. Wire it to the same
+                    // regenerate() the Retry card uses.
+                    onRegen={() => onRetry?.()}
                   >
                     <ReasoningTraceLive steps={reasoningSteps} />
                     <NickMessage 
