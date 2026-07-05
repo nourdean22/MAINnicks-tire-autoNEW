@@ -1,347 +1,24 @@
 /**
  * Admin router — dashboard stats, analytics, weekly reports, follow-ups.
  */
-import { adminProcedure, publicProcedure, router } from "../_core/trpc";
+import { adminProcedure, publicProcedure, router } from "../../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { sendNotification, getDeliveryLog } from "../email-notify";
-import { getAnalyticsSnapshots, getBookingServiceBreakdown } from "../db";
-import { getDashboardStats, getSiteHealth } from "../admin-stats";
+import { sendNotification, getDeliveryLog } from "../../email-notify";
+import { getAnalyticsSnapshots, getBookingServiceBreakdown } from "../../db";
+import { getDashboardStats, getSiteHealth } from "../../admin-stats";
 import { z } from "zod";
 import { eq, ne, desc, gte, sql, inArray, and, isNull } from "drizzle-orm";
-import { bookings, leads, callbackRequests, customerNotifications, callEvents } from "../../drizzle/schema";
-import { sanitizeText, sanitizePhone, csvSafe } from "../sanitize";
-import { saveReviewStatsToDb } from "../google-reviews";
+import { bookings, leads, callbackRequests, customerNotifications, callEvents } from "../../../drizzle/schema";
+import { sanitizeText, sanitizePhone, csvSafe } from "../../sanitize";
+import { saveReviewStatsToDb } from "../../google-reviews";
 
-import { db } from "../lib/db-helper";
-import { BoundedTtlMap } from "../lib/boundedTtlMap";
+import { db } from "../../lib/db-helper";
+import { BoundedTtlMap } from "../../lib/boundedTtlMap";
 
-import { createLogger } from "../lib/logger";
+import { createLogger } from "../../lib/logger";
 
 const log = createLogger("routers:admin");
-
-async function runHygieneScan() {
-  const d = await db();
-  if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-  const { eq, and, or, gte, lt } = await import("drizzle-orm");
-
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-  const oneEightyDaysAgo = new Date();
-  oneEightyDaysAgo.setDate(oneEightyDaysAgo.getDate() - 180);
-
-  const maskPhoneNum = (numString: string) => {
-    const digits = numString.replace(/\D/g, "");
-    return digits.length > 4 ? `***-***-${digits.slice(-4)}` : numString;
-  };
-
-  const maskPersonName = (fullName: string) => {
-    const parts = fullName.split(" ");
-    return parts.map(p => p.slice(0, 1) + ".").join(" ");
-  };
-
-  const isFakePattern = (name: string, phone: string, problemOrMessage: string | null) => {
-    const n = name.toLowerCase();
-    const p = (problemOrMessage || "").toLowerCase();
-    const ph = phone.replace(/\D/g, "");
-
-    // Exclude Vapi AI receptionist logs
-    if (p.includes("[voice-agent]")) {
-      return false;
-    }
-
-    if (
-      n.includes("test") ||
-      n.includes("asdf") ||
-      n.includes("qwerty") ||
-      n.includes("dummy") ||
-      n.includes("demo") ||
-      n.includes("foo bar") ||
-      n === "foo" ||
-      n === "bar" ||
-      n.includes("john doe") ||
-      n.includes("jane doe") ||
-      n.includes("john smith") ||
-      n.includes("jane smith") ||
-      p.includes("this is a test") ||
-      p.includes("test message")
-    ) {
-      return true;
-    }
-
-    if (
-      ph.includes("555") ||
-      ph.length < 7 ||
-      /^(.)\1+$/.test(ph) ||
-      ph === "1234567890" ||
-      ph === "0123456789"
-    ) {
-      return true;
-    }
-
-    if ((n === "caller" || n === "customer") && ph.length < 10) {
-      return true;
-    }
-
-    return false;
-  };
-
-  // Perform database-level filtering
-  const dbLeads = await d
-    .select({
-      id: leads.id,
-      name: leads.name,
-      phone: leads.phone,
-      problem: leads.problem,
-      status: leads.status,
-      createdAt: leads.createdAt,
-    })
-    .from(leads)
-    .where(
-      or(
-        gte(leads.createdAt, oneEightyDaysAgo),
-        and(eq(leads.status, "new"), lt(leads.createdAt, ninetyDaysAgo))
-      )
-    );
-
-  const dbBookings = await d
-    .select({
-      id: bookings.id,
-      name: bookings.name,
-      phone: bookings.phone,
-      message: bookings.message,
-      service: bookings.service,
-      status: bookings.status,
-      createdAt: bookings.createdAt,
-    })
-    .from(bookings)
-    .where(
-      or(
-        gte(bookings.createdAt, oneEightyDaysAgo),
-        and(eq(bookings.status, "new"), lt(bookings.createdAt, ninetyDaysAgo))
-      )
-    );
-
-  const dbCallbacks = await d
-    .select({
-      id: callbackRequests.id,
-      name: callbackRequests.name,
-      phone: callbackRequests.phone,
-      context: callbackRequests.context,
-      status: callbackRequests.status,
-      createdAt: callbackRequests.createdAt,
-    })
-    .from(callbackRequests)
-    .where(
-      or(
-        gte(callbackRequests.createdAt, oneEightyDaysAgo),
-        and(
-          eq(callbackRequests.status, "new"),
-          lt(callbackRequests.createdAt, ninetyDaysAgo)
-        )
-      )
-    );
-
-  const fakeLeads: any[] = [];
-  const duplicateLeads: any[] = [];
-  const staleLeads: any[] = [];
-  const processedLeadIds = new Set<number>();
-
-  for (const l of dbLeads) {
-    if (l.createdAt < oneEightyDaysAgo) continue;
-    const isVoiceAgent = (l.problem || "").toLowerCase().includes("[voice-agent]");
-    if (!isVoiceAgent && isFakePattern(l.name, l.phone, l.problem)) {
-      fakeLeads.push({
-        id: l.id,
-        name: maskPersonName(l.name),
-        phone: maskPhoneNum(l.phone),
-        createdAt: l.createdAt,
-        details: l.problem ? l.problem.slice(0, 100) : "",
-        table: "leads"
-      });
-    }
-  }
-
-  const sortedLeads = dbLeads
-    .filter((l: any) => l.createdAt >= oneEightyDaysAgo)
-    .sort((a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime());
-  for (let i = 0; i < sortedLeads.length; i++) {
-    const leadA = sortedLeads[i];
-    const pA = leadA.phone.replace(/\D/g, "");
-    if (processedLeadIds.has(leadA.id) || fakeLeads.some(f => f.id === leadA.id) || pA.length < 7) continue;
-
-    for (let j = i + 1; j < sortedLeads.length; j++) {
-      const leadB = sortedLeads[j];
-      const pB = leadB.phone.replace(/\D/g, "");
-      if (processedLeadIds.has(leadB.id) || fakeLeads.some(f => f.id === leadB.id) || pB.length < 7) continue;
-
-      if (pA === pB) {
-        const timeDiffHours = Math.abs(leadA.createdAt.getTime() - leadB.createdAt.getTime()) / (1000 * 60 * 60);
-        if (timeDiffHours <= 24) {
-          duplicateLeads.push({
-            id: leadB.id,
-            name: maskPersonName(leadB.name),
-            phone: maskPhoneNum(leadB.phone),
-            createdAt: leadB.createdAt,
-            details: `Duplicate of Lead #${leadA.id} within 24h`,
-            table: "leads"
-          });
-          processedLeadIds.add(leadB.id);
-        }
-      }
-    }
-  }
-
-  for (const l of dbLeads) {
-    if (l.createdAt >= ninetyDaysAgo) continue;
-    if (fakeLeads.some(f => f.id === l.id) || duplicateLeads.some(d => d.id === l.id)) continue;
-    if (l.status === "new") {
-      staleLeads.push({
-        id: l.id,
-        name: maskPersonName(l.name),
-        phone: maskPhoneNum(l.phone),
-        createdAt: l.createdAt,
-        details: `New lead older than 90 days`,
-        table: "leads"
-      });
-    }
-  }
-
-  const fakeBookings: any[] = [];
-  const duplicateBookings: any[] = [];
-  const staleBookings: any[] = [];
-  const processedBookingIds = new Set<number>();
-
-  for (const b of dbBookings) {
-    if (b.createdAt < oneEightyDaysAgo) continue;
-    const isVoiceAgent = (b.message || "").toLowerCase().includes("[voice-agent]");
-    if (!isVoiceAgent && (isFakePattern(b.name, b.phone, b.message) || (b.phone.replace(/\D/g, "").length < 10 && b.phone.replace(/\D/g, "").length > 0))) {
-      fakeBookings.push({
-        id: b.id,
-        name: maskPersonName(b.name),
-        phone: maskPhoneNum(b.phone),
-        createdAt: b.createdAt,
-        details: b.service || "",
-        table: "bookings"
-      });
-    }
-  }
-
-  const sortedBookings = dbBookings
-    .filter((b: any) => b.createdAt >= oneEightyDaysAgo)
-    .sort((a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime());
-  for (let i = 0; i < sortedBookings.length; i++) {
-    const bookingA = sortedBookings[i];
-    const pA = bookingA.phone.replace(/\D/g, "");
-    if (processedBookingIds.has(bookingA.id) || fakeBookings.some(f => f.id === bookingA.id) || pA.length < 7) continue;
-
-    for (let j = i + 1; j < sortedBookings.length; j++) {
-      const bookingB = sortedBookings[j];
-      const pB = bookingB.phone.replace(/\D/g, "");
-      if (processedBookingIds.has(bookingB.id) || fakeBookings.some(f => f.id === bookingB.id) || pB.length < 7) continue;
-
-      if (pA === pB) {
-        const timeDiffHours = Math.abs(bookingA.createdAt.getTime() - bookingB.createdAt.getTime()) / (1000 * 60 * 60);
-        if (timeDiffHours <= 24) {
-          duplicateBookings.push({
-            id: bookingB.id,
-            name: maskPersonName(bookingB.name),
-            phone: maskPhoneNum(bookingB.phone),
-            createdAt: bookingB.createdAt,
-            details: `Duplicate booking for phone within 24h`,
-            table: "bookings"
-          });
-          processedBookingIds.add(bookingB.id);
-        }
-      }
-    }
-  }
-
-  for (const b of dbBookings) {
-    if (b.createdAt >= ninetyDaysAgo) continue;
-    if (fakeBookings.some(f => f.id === b.id) || duplicateBookings.some(d => d.id === b.id)) continue;
-    if (b.status === "new") {
-      staleBookings.push({
-        id: b.id,
-        name: maskPersonName(b.name),
-        phone: maskPhoneNum(b.phone),
-        createdAt: b.createdAt,
-        details: `New booking older than 90 days`,
-        table: "bookings"
-      });
-    }
-  }
-
-  const fakeCallbacks: any[] = [];
-  const duplicateCallbacks: any[] = [];
-  const staleCallbacks: any[] = [];
-  const processedCallbackIds = new Set<number>();
-
-  for (const c of dbCallbacks) {
-    if (c.createdAt < oneEightyDaysAgo) continue;
-    const isVoiceAgent = (c.context || "").toLowerCase().includes("[voice-agent]");
-    if (!isVoiceAgent && isFakePattern(c.name, c.phone, c.context)) {
-      fakeCallbacks.push({
-        id: c.id,
-        name: maskPersonName(c.name),
-        phone: maskPhoneNum(c.phone),
-        createdAt: c.createdAt,
-        details: c.context || "",
-        table: "callbacks"
-      });
-    }
-  }
-
-  const sortedCallbacks = dbCallbacks
-    .filter((c: any) => c.createdAt >= oneEightyDaysAgo)
-    .sort((a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime());
-  for (let i = 0; i < sortedCallbacks.length; i++) {
-    const callbackA = sortedCallbacks[i];
-    const pA = callbackA.phone.replace(/\D/g, "");
-    if (processedCallbackIds.has(callbackA.id) || fakeCallbacks.some(f => f.id === callbackA.id) || pA.length < 7) continue;
-
-    for (let j = i + 1; j < sortedCallbacks.length; j++) {
-      const callbackB = sortedCallbacks[j];
-      const pB = callbackB.phone.replace(/\D/g, "");
-      if (processedCallbackIds.has(callbackB.id) || fakeCallbacks.some(f => f.id === callbackB.id) || pB.length < 7) continue;
-
-      if (pA === pB) {
-        const timeDiffHours = Math.abs(callbackA.createdAt.getTime() - callbackB.createdAt.getTime()) / (1000 * 60 * 60);
-        if (timeDiffHours <= 24) {
-          duplicateCallbacks.push({
-            id: callbackB.id,
-            name: maskPersonName(callbackB.name),
-            phone: maskPhoneNum(callbackB.phone),
-            createdAt: callbackB.createdAt,
-            details: `Duplicate callback within 24h`,
-            table: "callbacks"
-          });
-          processedCallbackIds.add(callbackB.id);
-        }
-      }
-    }
-  }
-
-  for (const c of dbCallbacks) {
-    if (c.createdAt >= ninetyDaysAgo) continue;
-    if (fakeCallbacks.some(f => f.id === c.id) || duplicateCallbacks.some(d => d.id === c.id)) continue;
-    if (c.status === "new") {
-      staleCallbacks.push({
-        id: c.id,
-        name: maskPersonName(c.name),
-        phone: maskPhoneNum(c.phone),
-        createdAt: c.createdAt,
-        details: `New/pending callback older than 90 days`,
-        table: "callbacks"
-      });
-    }
-  }
-
-  return {
-    fake: [...fakeLeads, ...fakeBookings, ...fakeCallbacks],
-    duplicates: [...duplicateLeads, ...duplicateBookings, ...duplicateCallbacks],
-    stale: [...staleLeads, ...staleBookings, ...staleCallbacks],
-  };
-}
+import { runHygieneScan } from "./hygiene";
 
 export const adminDashboardRouter = router({
   stats: adminProcedure.query(async () => {
@@ -359,13 +36,13 @@ export const adminDashboardRouter = router({
    * dashboard. See server/services/adminBundle.ts.
    */
   overviewMediumBundle: adminProcedure.query(async () => {
-    const { getOverviewMediumBundle } = await import("../services/adminBundle");
+    const { getOverviewMediumBundle } = await import("../../services/adminBundle");
     return getOverviewMediumBundle();
   }),
 
   /** Full system diagnostics — predictive health, trends, anomalies, recovery history */
   systemDiagnostics: adminProcedure.query(async () => {
-    const { generateDiagnosticReport } = await import("../lib/self-healing");
+    const { generateDiagnosticReport } = await import("../../lib/self-healing");
     return generateDiagnosticReport();
   }),
 
@@ -379,7 +56,7 @@ export const adminDashboardRouter = router({
   integrationFailures: adminProcedure
     .input(z.object({ limit: z.number().int().min(1).max(100).default(30) }).optional())
     .query(async ({ input }) => {
-      const { getRecentIntegrationFailures } = await import("../integration-failures");
+      const { getRecentIntegrationFailures } = await import("../../integration-failures");
       return getRecentIntegrationFailures(input?.limit ?? 30);
     }),
 
@@ -403,7 +80,7 @@ export const adminDashboardRouter = router({
 
   /** Unified sync health check — real API probes for every vendor */
   syncHealth: adminProcedure.query(async () => {
-    const { getVendorHealthReport } = await import("../services/vendorHealth");
+    const { getVendorHealthReport } = await import("../../services/vendorHealth");
     const report = await getVendorHealthReport();
 
     // Map to legacy shape for backward compat with existing UI
@@ -429,7 +106,7 @@ export const adminDashboardRouter = router({
 
   /** Force re-check all vendor health (clears cache) */
   refreshHealth: adminProcedure.mutation(async () => {
-    const { clearHealthCache, getVendorHealthReport } = await import("../services/vendorHealth");
+    const { clearHealthCache, getVendorHealthReport } = await import("../../services/vendorHealth");
     clearHealthCache();
     return getVendorHealthReport();
   }),
@@ -450,7 +127,7 @@ export const adminDashboardRouter = router({
 
   /** Run smoke tests on all integrations */
   smokeTest: adminProcedure.mutation(async () => {
-    const { runSmokeTests } = await import("../services/integrationLogger");
+    const { runSmokeTests } = await import("../../services/integrationLogger");
     return runSmokeTests();
   }),
 
@@ -461,7 +138,7 @@ export const adminDashboardRouter = router({
       limit: z.number().int().min(1).max(200).default(50),
     }).optional())
     .query(async ({ input }) => {
-      const { getRecentEvents, getEventSummary } = await import("../services/integrationLogger");
+      const { getRecentEvents, getEventSummary } = await import("../../services/integrationLogger");
       return {
         events: getRecentEvents({ vendor: input?.vendor, limit: input?.limit }),
         summary: getEventSummary(),
@@ -509,14 +186,14 @@ export const adminDashboardRouter = router({
         href?: string;
       }> };
       try {
-        const { getDb } = await import("../db");
+        const { getDb } = await import("../../db");
         const d = await getDb();
         if (!d) return empty;
         const { sql, eq, and, gte, isNull, lte, desc } = await import("drizzle-orm");
 
         switch (input.kind) {
           case "cars_in_shop": {
-            const { workOrders } = await import("../../drizzle/schema");
+            const { workOrders } = await import("../../../drizzle/schema");
             const rows = await d
               .select({
                 id: workOrders.id,
@@ -547,7 +224,7 @@ export const adminDashboardRouter = router({
           }
           case "revenue_today":
           case "jobs_closed_today": {
-            const { invoices } = await import("../../drizzle/schema");
+            const { invoices } = await import("../../../drizzle/schema");
             const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
             const rows = await d
               .select({
@@ -577,7 +254,7 @@ export const adminDashboardRouter = router({
             };
           }
           case "pending_callbacks": {
-            const { callbackRequests } = await import("../../drizzle/schema");
+            const { callbackRequests } = await import("../../../drizzle/schema");
             const rows = await d
               .select({
                 id: callbackRequests.id,
@@ -612,7 +289,7 @@ export const adminDashboardRouter = router({
             };
           }
           case "walk_aways": {
-            const { algEstimates } = await import("../../drizzle/schema");
+            const { algEstimates } = await import("../../../drizzle/schema");
             const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
             const rows = await d
               .select({
@@ -648,7 +325,7 @@ export const adminDashboardRouter = router({
             };
           }
           case "fresh_leads": {
-            const { leads } = await import("../../drizzle/schema");
+            const { leads } = await import("../../../drizzle/schema");
             const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
             const rows = await d
               .select({
@@ -686,7 +363,7 @@ export const adminDashboardRouter = router({
           // chat_sessions rows ordered by createdAt desc, surfacing
           // the AI-extracted vehicle/problem and conversion status.
           case "chat_sessions": {
-            const { chatSessions, leads } = await import("../../drizzle/schema");
+            const { chatSessions, leads } = await import("../../../drizzle/schema");
             // wave-124 — was filtered to last 7 days but the operator's
             // card shows TOTAL sessions all-time. If chat traffic is
             // sparse, a 7d filter renders empty drawer while card shows
@@ -742,7 +419,7 @@ export const adminDashboardRouter = router({
           // queried separately and merged in JS by createdAt desc since
           // the tables differ in shape (no clean SQL UNION). 24h window.
           case "intake_today": {
-            const { leads, callbackRequests, chatSessions, bookings, vapiCallLogs } = await import("../../drizzle/schema");
+            const { leads, callbackRequests, chatSessions, bookings, vapiCallLogs } = await import("../../../drizzle/schema");
             const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
             // Query each source. Each returns a {createdAt, kind, ...} shape.
             const [leadRows, callbackRows, chatRows, bookingRows, vapiRows] = await Promise.all([
@@ -823,7 +500,7 @@ export const adminDashboardRouter = router({
             };
           }
           case "lapsed_vips": {
-            const { customers } = await import("../../drizzle/schema");
+            const { customers } = await import("../../../drizzle/schema");
             const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
             const rows = await d
               .select({
@@ -859,7 +536,7 @@ export const adminDashboardRouter = router({
             };
           }
           case "negative_reviews": {
-            const { reviewReplies } = await import("../../drizzle/schema");
+            const { reviewReplies } = await import("../../../drizzle/schema");
             const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
             const rows = await d
               .select({
@@ -890,7 +567,7 @@ export const adminDashboardRouter = router({
             };
           }
           case "today_bookings": {
-            const { bookings } = await import("../../drizzle/schema");
+            const { bookings } = await import("../../../drizzle/schema");
             const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
             const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
             const rows = await d
@@ -952,11 +629,11 @@ export const adminDashboardRouter = router({
     }> = [];
 
     try {
-      const { getDb } = await import("../db");
+      const { getDb } = await import("../../db");
       const d = await getDb();
       if (!d) return { briefs: [], generatedAt: new Date().toISOString() };
 
-      const { callbackRequests, leads, bookings, algEstimates, reviewReplies, specials } = await import("../../drizzle/schema");
+      const { callbackRequests, leads, bookings, algEstimates, reviewReplies, specials } = await import("../../../drizzle/schema");
       const { sql, eq, and, gte, lte, isNull } = await import("drizzle-orm");
 
       // 1. Pending callbacks (highest urgency — every minute = lost trust)
@@ -1150,7 +827,7 @@ export const adminDashboardRouter = router({
     }))
     .query(async ({ input }) => {
       try {
-        const { getDb } = await import("../db");
+        const { getDb } = await import("../../db");
         const d = await getDb();
         if (!d) return null;
         const { sql, eq, and, gte, isNull } = await import("drizzle-orm");
@@ -1159,7 +836,7 @@ export const adminDashboardRouter = router({
           case "customers": {
             // Lapsed VIP customers — high LTV, haven't visited in 6+ months
             try {
-              const { customers } = await import("../../drizzle/schema");
+              const { customers } = await import("../../../drizzle/schema");
               const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
               const [vipLapsed] = await d
                 .select({ count: sql<number>`count(*)` })
@@ -1186,7 +863,7 @@ export const adminDashboardRouter = router({
           case "leads": {
             // Stale unactioned leads
             try {
-              const { leads } = await import("../../drizzle/schema");
+              const { leads } = await import("../../../drizzle/schema");
               const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
               const [stale] = await d
                 .select({ count: sql<number>`count(*)` })
@@ -1210,7 +887,7 @@ export const adminDashboardRouter = router({
           case "callTrackingView": {
             // Pending callbacks
             try {
-              const { callbackRequests } = await import("../../drizzle/schema");
+              const { callbackRequests } = await import("../../../drizzle/schema");
               const [pending] = await d
                 .select({ count: sql<number>`count(*)` })
                 .from(callbackRequests)
@@ -1230,7 +907,7 @@ export const adminDashboardRouter = router({
           case "declinedEstimates": {
             // Walk-aways pending recovery
             try {
-              const { algEstimates } = await import("../../drizzle/schema");
+              const { algEstimates } = await import("../../../drizzle/schema");
               const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
               const [wa] = await d
                 .select({
@@ -1275,7 +952,7 @@ export const adminDashboardRouter = router({
           case "reEngagement": {
             // Negative reviews from last 7 days
             try {
-              const { reviewReplies } = await import("../../drizzle/schema");
+              const { reviewReplies } = await import("../../../drizzle/schema");
               const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
               const [neg] = await d
                 .select({ count: sql<number>`count(*)` })
@@ -1315,7 +992,7 @@ export const adminDashboardRouter = router({
             let retention7dOn = true;
             let retention14dOn = true;
             try {
-              const { featureFlags } = await import("../../drizzle/schema");
+              const { featureFlags } = await import("../../../drizzle/schema");
               const flags = await d
                 .select({ key: featureFlags.key, value: featureFlags.value })
                 .from(featureFlags)
@@ -1442,7 +1119,7 @@ export const adminDashboardRouter = router({
         archivedCount++;
       }
 
-      const { logAdminAction } = await import("../services/auditTrail");
+      const { logAdminAction } = await import("../../services/auditTrail");
       logAdminAction({
         action: "database.hygiene_prune",
         entityType: "system",
@@ -1453,524 +1130,4 @@ export const adminDashboardRouter = router({
 
       return { success: true, deleted: deletedCount, archived: archivedCount };
     }),
-});
-
-export const analyticsRouter = router({
-  snapshots: adminProcedure
-    .input(z.object({ days: z.number().default(30) }).optional())
-    .query(async ({ input }) => {
-      return getAnalyticsSnapshots(input?.days ?? 30);
-    }),
-  serviceBreakdown: adminProcedure.query(async () => {
-    return getBookingServiceBreakdown();
-  }),
-  funnel: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return { bookings: 0, leads: 0, completed: 0, converted: 0 };
-    const [bookingCount] = await d.select({ count: sql<number>`count(*)` }).from(bookings);
-    const [leadCount] = await d.select({ count: sql<number>`count(*)` }).from(leads);
-    const [completedCount] = await d.select({ count: sql<number>`count(*)` }).from(bookings).where(eq(bookings.status, "completed"));
-    const [convertedCount] = await d.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "booked"));
-    return {
-      bookings: bookingCount?.count ?? 0,
-      leads: leadCount?.count ?? 0,
-      completed: completedCount?.count ?? 0,
-      converted: convertedCount?.count ?? 0,
-    };
-  }),
-});
-
-export const followUpsRouter = router({
-  run: adminProcedure.mutation(async () => {
-    const { runFollowUps } = await import("../follow-ups");
-    return runFollowUps();
-  }),
-  pending: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return [];
-    return d.select().from(customerNotifications)
-      .where(eq(customerNotifications.status, "pending"))
-      .orderBy(desc(customerNotifications.createdAt))
-      .limit(50);
-  }),
-  recent: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return [];
-    // Exclude status='pending' — those rows are already shown in the
-    // `pending` query above. Without this filter, when total rows < 50
-    // the operator sees every pending item twice (once in PENDING, once
-    // in RECENT). `recent` is the sent/failed/skipped history list.
-    return d.select().from(customerNotifications)
-      .where(ne(customerNotifications.status, "pending"))
-      .orderBy(desc(customerNotifications.createdAt))
-      .limit(50);
-  }),
-  // wave-115 — per-item cancel: marks a pending follow-up as "skipped"
-  // so it never sends. Useful when the customer already called back or
-  // the booking was canceled.
-  cancel: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const [existing] = await d.select().from(customerNotifications)
-        .where(eq(customerNotifications.id, input.id)).limit(1);
-      if (!existing) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Follow-up not found" });
-      }
-      if (existing.status !== "pending") {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `Can only cancel pending follow-ups (this one is "${existing.status}")`,
-        });
-      }
-      await d.update(customerNotifications)
-        .set({ status: "skipped" })
-        .where(eq(customerNotifications.id, input.id));
-      return { ok: true as const, id: input.id };
-    }),
-  // wave-115 — per-item retry: takes a "failed" follow-up and re-queues
-  // it as "pending" so the next runFollowUps() picks it up. Idempotent —
-  // does nothing on already-pending or already-sent rows.
-  retry: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const [existing] = await d.select().from(customerNotifications)
-        .where(eq(customerNotifications.id, input.id)).limit(1);
-      if (!existing) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Follow-up not found" });
-      }
-      if (existing.status !== "failed") {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `Can only retry failed follow-ups (this one is "${existing.status}")`,
-        });
-      }
-      await d.update(customerNotifications)
-        .set({ status: "pending" })
-        .where(eq(customerNotifications.id, input.id));
-      return { ok: true as const, id: input.id };
-    }),
-});
-
-export const weeklyReportRouter = router({
-  generate: adminProcedure.mutation(async () => {
-    const d = await db();
-    if (!d) return { error: "Database not available" };
-
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-    // wave-168: replaced unbounded `select().from(...)` row-scans with COUNT/SUM
-    // aggregates. Pre-fix this fetched every row in bookings/leads/callbacks/
-    // notifications from the last 7 days into Node memory just to compute
-    // totals + breakdowns. At hundreds of weekly rows it OOMs the dyno; the
-    // exact same class of bug wave-158 fixed for getDashboardStats().
-
-    const [bookingAgg] = await d.select({
-      total: sql<number>`COUNT(*)`,
-      completed: sql<number>`SUM(CASE WHEN ${bookings.status} = 'completed' THEN 1 ELSE 0 END)`,
-      cancelled: sql<number>`SUM(CASE WHEN ${bookings.status} = 'cancelled' THEN 1 ELSE 0 END)`,
-      emergency: sql<number>`SUM(CASE WHEN ${bookings.urgency} = 'emergency' THEN 1 ELSE 0 END)`,
-    }).from(bookings).where(gte(bookings.createdAt, weekAgo));
-
-    const bookingByService = await d.select({
-      service: bookings.service,
-      count: sql<number>`COUNT(*)`,
-    }).from(bookings).where(gte(bookings.createdAt, weekAgo)).groupBy(bookings.service);
-
-    const bookingByUrgency = await d.select({
-      urgency: sql<string>`COALESCE(${bookings.urgency}, 'whenever')`,
-      count: sql<number>`COUNT(*)`,
-    }).from(bookings).where(gte(bookings.createdAt, weekAgo)).groupBy(sql`COALESCE(${bookings.urgency}, 'whenever')`);
-
-    const [leadAgg] = await d.select({
-      total: sql<number>`COUNT(*)`,
-      highUrgency: sql<number>`SUM(CASE WHEN ${leads.urgencyScore} >= 4 THEN 1 ELSE 0 END)`,
-      converted: sql<number>`SUM(CASE WHEN ${leads.status} = 'booked' THEN 1 ELSE 0 END)`,
-    }).from(leads).where(gte(leads.createdAt, weekAgo));
-
-    const leadBySource = await d.select({
-      source: leads.source,
-      count: sql<number>`COUNT(*)`,
-    }).from(leads).where(gte(leads.createdAt, weekAgo)).groupBy(leads.source);
-
-    const [callbackAgg] = await d.select({
-      total: sql<number>`COUNT(*)`,
-      completed: sql<number>`SUM(CASE WHEN ${callbackRequests.status} = 'completed' THEN 1 ELSE 0 END)`,
-      pending: sql<number>`SUM(CASE WHEN ${callbackRequests.status} = 'new' THEN 1 ELSE 0 END)`,
-    }).from(callbackRequests).where(gte(callbackRequests.createdAt, weekAgo));
-
-    const [notifAgg] = await d.select({
-      sent: sql<number>`SUM(CASE WHEN ${customerNotifications.status} = 'sent' THEN 1 ELSE 0 END)`,
-      pending: sql<number>`SUM(CASE WHEN ${customerNotifications.status} = 'pending' THEN 1 ELSE 0 END)`,
-    }).from(customerNotifications).where(gte(customerNotifications.createdAt, weekAgo));
-
-    const serviceBreakdown: Record<string, number> = {};
-    bookingByService.forEach((r: { service: string; count: number }) => { serviceBreakdown[r.service] = Number(r.count); });
-
-    const urgencyBreakdown: Record<string, number> = {};
-    bookingByUrgency.forEach((r: { urgency: string; count: number }) => { urgencyBreakdown[r.urgency] = Number(r.count); });
-
-    const sources: Record<string, number> = {};
-    leadBySource.forEach((r: { source: string; count: number }) => { sources[r.source] = Number(r.count); });
-
-    const report = {
-      period: { start: weekAgo.toISOString(), end: now.toISOString() },
-      bookings: {
-        total: Number(bookingAgg?.total ?? 0),
-        completed: Number(bookingAgg?.completed ?? 0),
-        cancelled: Number(bookingAgg?.cancelled ?? 0),
-        emergency: Number(bookingAgg?.emergency ?? 0),
-        serviceBreakdown,
-        urgencyBreakdown,
-      },
-      leads: {
-        total: Number(leadAgg?.total ?? 0),
-        highUrgency: Number(leadAgg?.highUrgency ?? 0),
-        converted: Number(leadAgg?.converted ?? 0),
-        sources,
-      },
-      callbacks: {
-        total: Number(callbackAgg?.total ?? 0),
-        completed: Number(callbackAgg?.completed ?? 0),
-        pending: Number(callbackAgg?.pending ?? 0),
-      },
-      notifications: {
-        sent: Number(notifAgg?.sent ?? 0),
-        pending: Number(notifAgg?.pending ?? 0),
-      },
-    };
-
-    const topServices = Object.entries(serviceBreakdown)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 5)
-      .map(([s, c]) => `  ${s}: ${c}`)
-      .join("\n");
-
-    sendNotification({
-      category: "weekly_report",
-      subject: `Weekly Report: ${report.bookings.total} bookings, ${report.leads.total} leads`,
-      body: `NICK'S TIRE & AUTO — WEEKLY INTELLIGENCE REPORT\n${"-".repeat(50)}\nPeriod: ${weekAgo.toLocaleDateString()} — ${now.toLocaleDateString()}\n\nBOOKINGS: ${report.bookings.total} total\n  Completed: ${report.bookings.completed}\n  Emergency: ${report.bookings.emergency}\n  Cancelled: ${report.bookings.cancelled}\n\nTop Services:\n${topServices || "  No bookings this week"}\n\nLEADS: ${report.leads.total} total\n  High Urgency: ${report.leads.highUrgency}\n  Converted to Booking: ${report.leads.converted}\n\nCALLBACKS: ${report.callbacks.total} total\n  Completed: ${report.callbacks.completed}\n  Still Pending: ${report.callbacks.pending}\n\nFOLLOW-UPS SENT: ${report.notifications.sent}\nFOLLOW-UPS PENDING: ${report.notifications.pending}`,
-    }).catch((e) => { log.warn("[routers/admin] fire-and-forget failed:", e); });
-
-    return report;
-  }),
-});
-
-// ─── CALL REVIEW REQUEST (auto-SMS after call CTA) ────
-/**
- * Schedule a review request SMS 2 hours after someone clicks a Call CTA.
- * Uses the existing review request infrastructure (createReviewRequest + processQueue cron).
- * Gated behind the `sms_review_requests` feature flag.
- */
-async function scheduleCallReviewRequest(phoneNumber: string): Promise<void> {
-  const { isEnabled } = await import("../services/featureFlags");
-  if (!(await isEnabled("sms_review_requests"))) return;
-
-  const { isPhoneOnReviewCooldown, createReviewRequest, getReviewSettings } = await import("../db");
-  const crypto = await import("crypto");
-
-  const digits = phoneNumber.replace(/\D/g, "");
-  const normalizedPhone = digits.slice(-10);
-  if (normalizedPhone.length !== 10) return;
-
-  const settings = await getReviewSettings();
-  if (!settings.enabled) return;
-
-  // Check cooldown — don't spam people who already got a review request
-  const onCooldown = await isPhoneOnReviewCooldown(normalizedPhone, settings.cooldownDays);
-  if (onCooldown) return;
-
-  // Schedule 2 hours from now
-  const scheduledAt = new Date();
-  scheduledAt.setMinutes(scheduledAt.getMinutes() + 120);
-
-  const trackingToken = crypto.randomBytes(24).toString("hex");
-
-  await createReviewRequest({
-    bookingId: 0, // no booking — triggered by call CTA
-    customerName: "Caller",
-    phone: normalizedPhone,
-    service: "Phone Inquiry",
-    status: "pending",
-    scheduledAt,
-    trackingToken,
-  });
-
-  // wave-165: redact phone PII in Railway stdout. console.info bypasses
-  // the createLogger redaction layer, so full customer phones were
-  // landing in retained dyno logs visible to anyone with project access.
-  const phoneTail = normalizedPhone.slice(-4);
-  console.info(`[calltracking:review] Scheduled for phone ending ***${phoneTail} at ${scheduledAt.toISOString()}`);
-}
-
-// ─── CALL TRACKING ─────────────────────────────────────
-
-// wave-141b — IP rate limit on logCall (15 events/min/IP). The procedure
-// is publicProcedure because legit phone-click tracking fires from the
-// public site, but the SMS-scheduling side-effect (scheduleCallReviewRequest)
-// made it an SMS-spam vector — any actor could POST arbitrary phone
-// numbers + trigger review-request SMS to them. Combined with the
-// per-phone cooldown already inside scheduleCallReviewRequest, this
-// prevents both burst-spray attacks and same-target floods.
-const logCallIpLimit = new BoundedTtlMap<number>({ ttlMs: 60_000, maxEntries: 10_000 });
-const LOG_CALL_MAX_PER_MIN = 15;
-
-export const callTrackingRouter = router({
-  /** Log a phone click event from the frontend */
-  logCall: publicProcedure
-    // NULLISH fields — frontend sends `null` when UTM is absent.
-    // Previous `.optional()` only allowed missing keys, not `null` values,
-    // which made the whole payload fail validation and meant we had
-    // ZERO rows in call_events despite active phone-click instrumentation.
-    .input(z.object({
-      phoneNumber: z.string().max(20),
-      sourcePage: z.string().max(500).nullish(),
-      clickElement: z.string().max(200).nullish(),
-      utmSource: z.string().max(100).nullish(),
-      utmMedium: z.string().max(100).nullish(),
-      utmCampaign: z.string().max(255).nullish(),
-      landingPage: z.string().max(500).nullish(),
-      referrer: z.string().max(500).nullish(),
-      userAgent: z.string().max(500).nullish(),
-      // journey-join migration 0068 — localStorage visitor id + the Meta
-      // pixel event_id the client's Contact event fired with.
-      sessionId: z.string().max(64).nullish(),
-      eventId: z.string().max(64).nullish(),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      // wave-141b — per-IP rate limit guards the SMS side-effect.
-      const ip = ctx.req?.ip || ctx.req?.socket?.remoteAddress || "unknown";
-      const count = (logCallIpLimit.get(ip) ?? 0) + 1;
-      logCallIpLimit.set(ip, count);
-      if (count > LOG_CALL_MAX_PER_MIN) {
-        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many call-tracking events from this client" });
-      }
-
-      const d = await db();
-      if (!d) return { success: false };
-      try {
-        await d.insert(callEvents).values({
-          phoneNumber: input.phoneNumber,
-          sourcePage: input.sourcePage || null,
-          clickElement: input.clickElement || null,
-          utmSource: input.utmSource || null,
-          utmMedium: input.utmMedium || null,
-          utmCampaign: input.utmCampaign || null,
-          landingPage: input.landingPage || null,
-          referrer: input.referrer || null,
-          userAgent: input.userAgent || null,
-          sessionId: input.sessionId || null,
-          eventId: input.eventId || null,
-        });
-
-        // Schedule review request SMS 2 hours after call CTA click
-        // Gated behind sms_review_requests feature flag
-        scheduleCallReviewRequest(input.phoneNumber).catch((err) => {
-          log.error("[CallTracking] Review request scheduling failed:", err);
-        });
-
-        return { success: true };
-      } catch (err) {
-        log.error("[CallTracking] Error logging call:", err);
-        return { success: false };
-      }
-    }),
-
-  /** Get all call events (admin) */
-  list: adminProcedure
-    .input(z.object({ limit: z.number().default(100) }).optional())
-    .query(async ({ input }) => {
-      const d = await db();
-      if (!d) return [];
-      return d.select().from(callEvents)
-        .orderBy(desc(callEvents.createdAt))
-        .limit(input?.limit ?? 100);
-    }),
-});
-
-// ─── CUSTOMER EVENTS — generic visual/interaction event log ─────────
-/**
- * Generic event sink for the customer-facing site (PhotoRibbon photo
- * views, sticky-CTA Hold-A-Bay clicks, scroll-depth milestones, etc.).
- * Pairs with callTracking — that one is phone-only; this is everything
- * else. Public log, admin summary.
- */
-export const customerEventsRouter = router({
-  /** Log a customer-facing event from the frontend */
-  log: publicProcedure
-    .input(z.object({
-      eventName: z.string().min(1).max(64),
-      eventData: z.record(z.string(), z.unknown()).optional(),
-      sourcePage: z.string().max(500).nullish(),
-      utmSource: z.string().max(100).nullish(),
-      utmMedium: z.string().max(100).nullish(),
-      utmCampaign: z.string().max(255).nullish(),
-      referrer: z.string().max(500).nullish(),
-      userAgent: z.string().max(500).nullish(),
-      sessionId: z.string().max(64).nullish(),
-    }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) return { success: false };
-      try {
-        const { customerEvents } = await import("../../drizzle/schema");
-        await d.insert(customerEvents).values({
-          eventName: input.eventName,
-          eventData: (input.eventData ?? null) as unknown as object,
-          sourcePage: input.sourcePage || null,
-          utmSource: input.utmSource || null,
-          utmMedium: input.utmMedium || null,
-          utmCampaign: input.utmCampaign || null,
-          referrer: input.referrer || null,
-          userAgent: input.userAgent || null,
-          sessionId: input.sessionId || null,
-        });
-        return { success: true };
-      } catch (err) {
-        log.error("[CustomerEvents] Error logging event:", err);
-        return { success: false };
-      }
-    }),
-
-  /** Per-event totals + last-N-day series for the admin dashboard.
-   *  Keep response small — full timeline lives in `recent` if needed. */
-  summary: adminProcedure
-    .input(z.object({
-      days: z.number().min(1).max(180).default(30),
-    }).optional())
-    .query(async ({ input }) => {
-      const d = await db();
-      if (!d) return { totals: [], recent: [], days: 30 };
-      const { customerEvents } = await import("../../drizzle/schema");
-      const days = input?.days ?? 30;
-      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-      const { sql, gte } = await import("drizzle-orm");
-
-      // Per-event totals over the window
-      const totalsRows = await d
-        .select({
-          eventName: customerEvents.eventName,
-          count: sql<number>`COUNT(*)`,
-        })
-        .from(customerEvents)
-        .where(gte(customerEvents.createdAt, since))
-        .groupBy(customerEvents.eventName)
-        .orderBy(sql`COUNT(*) DESC`)
-        .limit(20);
-
-      // Most-recent 50 events for the dashboard "live tail"
-      const recent = await d
-        .select()
-        .from(customerEvents)
-        .orderBy(desc(customerEvents.createdAt))
-        .limit(50);
-
-      return {
-        totals: totalsRows.map((r: typeof totalsRows[number]) => ({
-          eventName: r.eventName,
-          count: Number(r.count),
-        })),
-        recent,
-        days,
-      };
-    }),
-
-  /** Top photos in PhotoRibbon by view count — supports the admin
-   *  "which photos are working?" question for content tuning. */
-  topRibbonPhotos: adminProcedure
-    .input(z.object({
-      days: z.number().min(1).max(180).default(30),
-      limit: z.number().min(1).max(50).default(20),
-    }).optional())
-    .query(async ({ input }) => {
-      const d = await db();
-      if (!d) return [];
-      const { customerEvents } = await import("../../drizzle/schema");
-      const days = input?.days ?? 30;
-      const limit = input?.limit ?? 20;
-      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-      const { sql, and, eq, gte } = await import("drizzle-orm");
-
-      // Pull JSON.src from eventData. MySQL's JSON_EXTRACT works here
-      // because we typed the column as `json`. Drizzle's runtime helper
-      // is overkill — raw sql is fine and indexable on (eventName,
-      // createdAt) which is the access pattern.
-      const rows = await d
-        .select({
-          src: sql<string>`JSON_UNQUOTE(JSON_EXTRACT(${customerEvents.eventData}, '$.src'))`,
-          count: sql<number>`COUNT(*)`,
-        })
-        .from(customerEvents)
-        .where(and(
-          eq(customerEvents.eventName, "ribbon_photo_view"),
-          gte(customerEvents.createdAt, since),
-        ))
-        .groupBy(sql`JSON_UNQUOTE(JSON_EXTRACT(${customerEvents.eventData}, '$.src'))`)
-        .orderBy(sql`COUNT(*) DESC`)
-        .limit(limit);
-
-      return rows.map((r: typeof rows[number]) => ({
-        src: r.src,
-        count: Number(r.count),
-      }));
-    }),
-});
-
-// ─── DATA EXPORT ───────────────────────────────────────
-export const exportRouter = router({
-  bookings: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return { csv: "", count: 0 };
-    const rows = await d.select().from(bookings).orderBy(desc(bookings.createdAt)).limit(10000);
-    const headers = ["ID", "Name", "Phone", "Email", "Service", "Vehicle", "Status", "Urgency", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: typeof rows[number]) => [
-      r.id, csvSafe(r.name), csvSafe(r.phone), csvSafe(r.email), csvSafe(r.service), csvSafe(r.vehicle), r.status, r.urgency || "",
-      csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
-      new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
-    return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
-  }),
-
-  leads: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return { csv: "", count: 0 };
-    const rows = await d.select().from(leads).orderBy(desc(leads.createdAt)).limit(10000);
-    const headers = ["ID", "Name", "Phone", "Email", "Source", "Problem", "Urgency Score", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: typeof rows[number]) => [
-      r.id, csvSafe(r.name), csvSafe(r.phone), csvSafe(r.email), r.source, csvSafe(r.problem), r.urgencyScore ?? "", r.status,
-      csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
-      new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
-    return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
-  }),
-
-  calls: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return { csv: "", count: 0 };
-    const rows = await d.select().from(callEvents).orderBy(desc(callEvents.createdAt)).limit(10000);
-    const headers = ["ID", "Phone Number", "Source Page", "Click Element", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: typeof rows[number]) => [
-      r.id, csvSafe(r.phoneNumber), csvSafe(r.sourcePage), csvSafe(r.clickElement),
-      csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
-      new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
-    return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
-  }),
-
-  callbacks: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return { csv: "", count: 0 };
-    const rows = await d.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt)).limit(10000);
-    const headers = ["ID", "Name", "Phone", "Context", "Source Page", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: typeof rows[number]) => [
-      r.id, csvSafe(r.name), csvSafe(r.phone), csvSafe(r.context), csvSafe(r.sourcePage), r.status,
-      csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
-      new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
-    return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
-  }),
 });
