@@ -33,6 +33,9 @@ export const membershipsRouter = router({
       name: z.string().max(255).optional(),
       // Which tier: $7.99 base or $9.99+ (15% repair discount). Defaults to base.
       plan: z.enum(["nonstop-nick", "nonstop-nick-plus"]).optional(),
+      // Which surface sold the signup (tires_page / booking_page / membership_page).
+      // Free-form-but-short: lands in Stripe metadata as signup_source for attribution.
+      source: z.string().max(40).optional(),
     }))
     .mutation(async ({ input }) => {
       const phone = normalizeMembershipPhone(input.phone);
@@ -46,6 +49,7 @@ export const membershipsRouter = router({
         phone,
         customerEmail: input.email,
         customerName: input.name,
+        source: input.source,
         successUrl: `${origin}/nonstop-nick?joined=1`,
         cancelUrl: `${origin}/nonstop-nick`,
       });

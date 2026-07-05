@@ -19,7 +19,7 @@ import NonstopNickJoin from "@/components/NonstopNickJoin";
 const CONFIG: ServicePageConfig = {
   // One-tap Join card rendered near the fold (under the AEO answer). Stripe-backed
   // when STRIPE_NONSTOP_NICK_PRICE_ID is set; degrades to call/walk-in until then.
-  signupSlot: <NonstopNickJoin />,
+  signupSlot: <NonstopNickJoin source="membership_page" />,
   canonicalPath: "/nonstop-nick",
   title: "Nonstop Nick — $7.99/mo Tire Membership | Nick's Tire & Auto",
   description:

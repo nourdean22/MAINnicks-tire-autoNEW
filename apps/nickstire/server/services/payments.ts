@@ -169,6 +169,8 @@ export async function createMembershipCheckout(params: {
   phone: string;
   customerEmail?: string;
   customerName?: string;
+  /** Which surface sold the signup (tires_page / booking_page / membership_page). */
+  source?: string;
   successUrl: string;
   cancelUrl: string;
 }): Promise<{ url: string; sessionId: string } | { error: string }> {
@@ -190,6 +192,9 @@ export async function createMembershipCheckout(params: {
     phone: params.phone,
     customerName: params.customerName || "",
     source: "nickstire.org",
+    // Per-surface attribution: which page's Join card sold the membership.
+    // (The webhook reads only plan/phone — this key rides along for reporting.)
+    signup_source: params.source || "",
   };
 
   try {
