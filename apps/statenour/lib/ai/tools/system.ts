@@ -649,7 +649,7 @@ export const systemTools = {
   }),
 
   arsenalWebSearch: tool({
-    description: "Web search with AI summarization via Perplexity (or Google Search Grounding if Perplexity is unconfigured); automatically falls back to the multi-source quorum if the primary source is unavailable. Powered by the Arsenal integration chain.",
+    description: "Web search with AI summarization. Prefers Perplexica (self-hosted, free, unlimited); falls back to Perplexity/Google, then to the multi-source quorum if the primary is unavailable. Powered by the Arsenal integration chain.",
     inputSchema: z.object({
       query: z.string().describe("Web search query"),
     }),
@@ -658,12 +658,19 @@ export const systemTools = {
       const fence = (s: string | undefined) =>
         fenceContent("arsenalWebSearch", "external_web", (s ?? "").slice(0, 2000));
 
-      // Primary · one cheap source (Perplexity if configured, else Google
-      // grounding). Wrapped so a single dead source — revoked key, timeout,
-      // retired model — degrades to the multi-source quorum instead of throwing
-      // (which the model would otherwise surface as a confident failure claim).
+      // Primary · one source, cheapest-free-first: Perplexica (self-hosted,
+      // unlimited) → Perplexity (if keyed) → Google grounding. Wrapped so a
+      // single dead source — revoked key, timeout, retired model, sidecar down
+      // — degrades to the multi-source quorum instead of throwing (which the
+      // model would otherwise surface as a confident failure claim).
       try {
-        if (process.env.PERPLEXITY_API_KEY) {
+        if (process.env.PERPLEXICA_API_URL) {
+          const { askPerplexica } = await import("@/lib/integrations/perplexica");
+          const r = await askPerplexica(query);
+          if (r?.content?.trim()) {
+            return { content: fence(r.content), model: "perplexica", source: "arsenal/perplexica" };
+          }
+        } else if (process.env.PERPLEXITY_API_KEY) {
           const { researchTopic } = await import("@/lib/integrations/perplexity");
           const r = await researchTopic(query);
           if (r?.content?.trim()) {
