@@ -77,18 +77,70 @@ describe("buildModelMessages · replayed reasoning parts (2026-07-04 Responses A
     ]);
   });
 
-  it("collapses a reasoning-ONLY assistant turn to the empty-text shape", async () => {
+  it("DROPS a reasoning-ONLY assistant turn entirely (hollow turns never replay)", async () => {
     const out = await sanitize([
+      { role: "user", content: [{ type: "text", text: "hi" }] },
       {
         role: "assistant",
         content: [{ type: "reasoning", text: "pure reasoning, no reply text" }],
       },
     ]);
 
-    const assistant = (out as Array<{ role?: string; content?: unknown }>)[0];
-    // Same collapse the item_reference path uses: never an empty
-    // content array (providers 400 on empty turns), never reasoning.
-    expect(assistant.content).toEqual([{ type: "text", text: "" }]);
+    // 2026-07-04 audit: the old collapse-to-empty-text substitute was
+    // itself a poison shape — an empty text item in a Responses `input`
+    // union is a classic invalid_union trigger. Hollow turns get dropped.
+    expect((out as unknown[]).length).toBe(1);
+    expect((out as Array<{ role?: string }>)[0].role).toBe("user");
+  });
+
+  it("DROPS the hydrated empty-text assistant turn (the live poison shape)", async () => {
+    // use-conversations.ts hydration fabricates {type:'text',text:''} for
+    // assistant rows persisted with content:"" (tool-call-only turns) —
+    // the exact shape replayed on every turn of the poisoned conversation.
+    const out = await sanitize([
+      { role: "user", content: [{ type: "text", text: "wtf" }] },
+      { role: "assistant", content: [{ type: "text", text: "" }] },
+      { role: "user", content: [{ type: "text", text: "?" }] },
+    ]);
+
+    const roles = (out as Array<{ role?: string }>).map((m) => m.role);
+    expect(roles).toEqual(["user", "user"]);
+  });
+
+  it("strips ORPHANED tool-calls (no matching tool-result) but keeps paired ones", async () => {
+    // A stream that died mid-tool-call persists the call with no result;
+    // replaying it 400s strict endpoints. Paired call/result must survive.
+    const out = await sanitize([
+      {
+        role: "assistant",
+        content: [
+          { type: "tool-call", toolCallId: "orphan-1", toolName: "bookSlot", input: {} },
+          { type: "text", text: "let me check that" },
+        ],
+      },
+      {
+        role: "assistant",
+        content: [
+          { type: "tool-call", toolCallId: "paired-1", toolName: "getRevenue", input: {} },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          { type: "tool-result", toolCallId: "paired-1", toolName: "getRevenue", output: { ok: true } },
+          { type: "tool-result", toolCallId: "orphan-2", toolName: "ghost", output: {} },
+        ],
+      },
+    ]);
+
+    const ids = (out as Array<{ content?: Array<{ type?: string; toolCallId?: string }> }>)
+      .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+      .filter((p) => p.type === "tool-call" || p.type === "tool-result")
+      .map((p) => p.toolCallId);
+    expect(ids.sort()).toEqual(["paired-1", "paired-1"]);
+    // The first assistant turn keeps its text after losing the orphan call.
+    const first = (out as Array<{ content?: unknown }>)[0];
+    expect(first.content).toEqual([{ type: "text", text: "let me check that" }]);
   });
 
   it("still strips item_reference parts (original v10.0.529.58 behavior intact)", async () => {
