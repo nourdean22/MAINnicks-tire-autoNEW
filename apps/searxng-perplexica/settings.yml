@@ -1,0 +1,24 @@
+# SearXNG settings · Perplexica-compatible.
+# use_default_settings:true inherits SearXNG's full default config; we only
+# override what Perplexica needs:
+#   - search.formats += json   (Perplexica calls the JSON API; default is html-only)
+#   - server.limiter: false    (the bot limiter would 429 the internal API caller)
+# The secret_key literal "ultrasecretkey" is substituted with $SEARXNG_SECRET
+# by the image entrypoint at boot; if substitution is unavailable it still boots
+# with the literal (acceptable for an internal, non-public metasearch instance).
+use_default_settings: true
+
+server:
+  secret_key: "ultrasecretkey"
+  limiter: false
+  image_proxy: true
+
+search:
+  formats:
+    - html
+    - json
+  autocomplete: "google"
+
+engines:
+  - name: wolframalpha
+    disabled: false
