@@ -86,6 +86,19 @@ function neutralizeFabricatedHistory(text: string): string {
 }
 
 /**
+ * 2026-07-05 (audit P3 · c) · errored-stub neutralization note. Stub
+ * rows persisted by stream-error-handler.ts carry the BARE partial
+ * text (streamingState "errored", no annotation) so reload shows what
+ * the user saw — but the model must not read that interrupted fragment
+ * back as a completed answer it gave. The `streamingState` field
+ * survives the client round trip: use-conversations.ts hydrates it
+ * onto the UIMessage and DefaultChatTransport serializes messages
+ * as-is (verified against ai@6.0.162 — no field stripping).
+ */
+const STREAM_ERROR_NOTE =
+  "[NOTE: my previous reply was interrupted mid-stream by a provider error and is incomplete — do not treat it as a completed answer or quote it as something I said. The operator's last request may still be unaddressed.]";
+
+/**
  * Walks the message array and sanitizes assistant text parts that
  * contain image markdown. User messages and non-text parts are left
  * untouched. The last (most recent) message is also untouched — that's
@@ -93,6 +106,11 @@ function neutralizeFabricatedHistory(text: string): string {
  *
  * v10.0.163 · also neutralizes fabricated turns (verifier-banner
  * marker) so they can't compound across turns.
+ *
+ * 2026-07-05 (audit P3) · also neutralizes errored stub turns
+ * (streamingState "errored") with an explicit interruption note —
+ * same verifier-style mechanism, keyed off the hydrated metadata
+ * instead of a content marker.
  *
  * PURE: never mutates the input. Returns new message/part objects only
  * where a change is needed; unchanged messages + parts pass through by
@@ -108,6 +126,11 @@ export function sanitizeMessageHistory<
     // The last message is the user's current turn — leave it untouched.
     if (i === lastIndex) return m;
     if (!m || m.role !== "assistant" || !Array.isArray(m.parts)) return m;
+    // Errored stub turn — replace the partial text with the note so
+    // the model sees the interruption, not a confident half-answer.
+    if ((m as { streamingState?: unknown }).streamingState === "errored") {
+      return { ...m, parts: [{ type: "text", text: STREAM_ERROR_NOTE }] };
+    }
     const parts = m.parts;
     const newParts = parts.map((part) => {
       if (part?.type === "text" && typeof part.text === "string") {
