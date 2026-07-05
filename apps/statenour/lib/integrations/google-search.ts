@@ -42,8 +42,10 @@ async function _askGoogleSearch(
   const apiKey = getApiKey();
   const google = createGoogleGenerativeAI({ apiKey });
   
-  // Default to gemini-2.0-flash which has excellent performance and supports grounding
-  const modelId = opts.model || process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  // Default to gemini-2.5-flash (GA · grounding-capable · cheap). gemini-2.0-flash
+  // was RETIRED by Google in 2026 and now 404s ("model no longer available"),
+  // which silently broke this source even with a valid key. Override via GEMINI_MODEL.
+  const modelId = opts.model || process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
   const model = google(modelId);
 
