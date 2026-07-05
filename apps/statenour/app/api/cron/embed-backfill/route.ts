@@ -37,10 +37,18 @@ export const GET = cronHandler(async () => {
     const embedded = await prisma.vectorEmbedding
       .findMany({ where: { sourceType: "brain_memory" }, select: { sourceId: true }, orderBy: { createdAt: "desc" }, take: 5000 });
     const embeddedSet = new Set(embedded.map((e) => e.sourceId));
+    // BrainMemory is retention='forever' (decays by confidence, never
+    // deleted) so it grows unbounded and rows carry large content
+    // (e.g. base64 audio). This block picks the top ~15 by confidence,
+    // so a bounded highest-confidence window is all it needs — an
+    // unbounded scan materializes the whole table twice a day to keep
+    // 15 rows. `take: 200` matches brain_dump/reflection below; a
+    // backlog drains over the twice-daily cadence.
     const memories = await prisma.brainMemory.findMany({
       where: { confidence: { gte: 0.2 } },
       orderBy: { confidence: "desc" },
       select: { id: true, category: true, key: true, content: true },
+      take: 200,
     });
     const missing = memories.filter((m) => !embeddedSet.has(m.id));
     const batch = missing.slice(0, BATCH_PER_TYPE);
