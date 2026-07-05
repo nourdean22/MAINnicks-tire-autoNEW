@@ -165,6 +165,7 @@ async function _bgeRerank<T>(args: {
 const guardedBgeRerank = withGuardian("bge-rerank", _bgeRerank, {
   timeoutMs: 12_000, // larger budget · parallel single-pair calls
   maxRetries: 1,
+  reliabilityOnly: true, // internal Stage-4 recall rerank sub-op
 });
 
 /**

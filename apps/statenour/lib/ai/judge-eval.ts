@@ -179,6 +179,7 @@ function clamp(n: unknown): number {
 export const judgeReply = withGuardian("judge-eval", _judgeReply, {
   timeoutMs: 8_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal post-stream telemetry sub-op (was a stale registry entry)
 });
 
 /**

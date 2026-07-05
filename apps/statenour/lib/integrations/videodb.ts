@@ -223,6 +223,7 @@ async function _uploadVideo(
 export const uploadVideo = withGuardian("videodb-upload", _uploadVideo, {
   timeoutMs: 60_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal sub-op of the videodb capture endpoint
 });
 
 // ── indexSpokenWords ─────────────────────────────────────────────────
@@ -260,7 +261,7 @@ async function _indexSpokenWords(
 export const indexSpokenWords = withGuardian(
   "videodb-index-spoken",
   _indexSpokenWords,
-  { timeoutMs: 30_000, maxRetries: 2 },
+  { timeoutMs: 30_000, maxRetries: 2, reliabilityOnly: true },
 );
 
 // ── indexScenes ──────────────────────────────────────────────────────
@@ -298,6 +299,7 @@ async function _indexScenes(
 export const indexScenes = withGuardian("videodb-index-scenes", _indexScenes, {
   timeoutMs: 60_000,
   maxRetries: 2,
+  reliabilityOnly: true, // internal sub-op of the videodb capture endpoint
 });
 
 // ── searchVideo ──────────────────────────────────────────────────────
@@ -363,6 +365,7 @@ async function _searchVideo(
 export const searchVideo = withGuardian("videodb-search", _searchVideo, {
   timeoutMs: 25_000,
   maxRetries: 2,
+  reliabilityOnly: true, // internal sub-op behind media.session_search
 });
 
 // ── getTranscript ────────────────────────────────────────────────────
@@ -412,7 +415,7 @@ async function _getTranscript(
 export const getTranscript = withGuardian(
   "videodb-transcript",
   _getTranscript,
-  { timeoutMs: 25_000, maxRetries: 1 },
+  { timeoutMs: 25_000, maxRetries: 1, reliabilityOnly: true },
 );
 
 // ── Type guards · narrow union returns ───────────────────────────────

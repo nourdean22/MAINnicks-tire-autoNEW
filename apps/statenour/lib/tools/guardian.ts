@@ -122,6 +122,23 @@ export interface GuardianOptions {
   isErrorAs200?: (result: unknown) => boolean;
   /** Custom schema validator · returns true if valid. */
   validateSchema?: (result: unknown) => boolean;
+  /**
+   * Reliability-only mode · skip the AI-tool policy/approval block
+   * (evaluateToolAction + approval + memory-review) and run ONLY the
+   * retry/timeout infrastructure.
+   *
+   * Set this for INTERNAL sub-operations — provider calls, rerankers,
+   * research/agent sub-steps, server-side pipelines behind an API route —
+   * i.e. anything the AI does NOT dispatch directly as a top-level tool.
+   * Those ids are not in TOOL_REGISTRY, so without this flag the policy
+   * gate denies them "Unknown tool ID" (see PR history · google-search).
+   *
+   * SECURITY · this is a COMPILE-TIME wrap option captured in the closure,
+   * never read from the runtime payload. A dotted, AI-dispatchable tool
+   * must NEVER be marked reliabilityOnly (the drift-guard test enforces
+   * this) or it would bypass the policy gate + NICK_MUTATION_LOCK.
+   */
+  reliabilityOnly?: boolean;
 }
 
 export class GuardianError extends Error {
@@ -231,11 +248,15 @@ export function withGuardian<T, A extends unknown[]>(
     ((r: unknown) =>
       Boolean(r && typeof r === "object" && "error" in (r as object)));
   const validateSchema = opts.validateSchema;
+  // Captured at wrap time · never derived from the runtime payload.
+  const reliabilityOnly = opts.reliabilityOnly ?? false;
 
   return async function guarded(...args: A): Promise<T> {
     const bypassPolicy = guardianBypassStorage.getStore() === true;
 
-    if (!bypassPolicy) {
+    // reliabilityOnly sub-ops skip the AI-tool policy/approval block entirely
+    // and run only the retry/timeout loop below.
+    if (!bypassPolicy && !reliabilityOnly) {
       const payload = args[0] !== undefined ? args[0] : {};
       const decision = evaluateToolAction({
         toolId: toolName,

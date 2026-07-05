@@ -224,6 +224,7 @@ async function mintRealtimeSession(args: {
 const guardedMint = withGuardian("openai-realtime-session", mintRealtimeSession, {
   timeoutMs: 15_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal server-side sub-op behind /api/realtime/session
 });
 
 export async function POST(req: NextRequest) {

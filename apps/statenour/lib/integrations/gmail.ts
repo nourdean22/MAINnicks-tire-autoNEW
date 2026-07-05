@@ -103,6 +103,7 @@ async function _refreshAccessToken(): Promise<string> {
 const refreshAccessToken = withGuardian("gmail-token", _refreshAccessToken, {
   timeoutMs: 8_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal OAuth token-refresh sub-op
 });
 
 async function getAccessToken(): Promise<string> {
@@ -138,6 +139,7 @@ async function gmailFetch(path: string, init: RequestInit = {}): Promise<Respons
 const guardedGmailFetch = withGuardian("gmail-fetch", gmailFetch, {
   timeoutMs: 12_000,
   maxRetries: 2,
+  reliabilityOnly: true, // internal authed-fetch sub-op behind gmail.* tools
 });
 
 // ── Header helpers ────────────────────────────────────────────────

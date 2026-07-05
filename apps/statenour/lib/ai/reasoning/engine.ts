@@ -1564,6 +1564,7 @@ export const reason = withGuardian(
   {
     timeoutMs: 180_000,
     maxRetries: 0, // each step has its own retry budget
+    reliabilityOnly: true, // internal pipeline behind /api/nick/reason + trpc, not an AI-dispatched tool
   },
 );
 

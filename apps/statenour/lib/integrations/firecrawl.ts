@@ -96,6 +96,7 @@ async function _scrapeUrl(
 export const scrapeUrl = withGuardian("firecrawl-scrape", _scrapeUrl, {
   timeoutMs: 30_000,
   maxRetries: 2,
+  reliabilityOnly: true, // internal sub-op behind the scrapeWebPage tool
 });
 
 /** Quick check if Firecrawl is configured */

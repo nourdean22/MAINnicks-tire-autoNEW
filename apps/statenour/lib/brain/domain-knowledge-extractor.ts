@@ -215,11 +215,13 @@ async function _verifyFact(fact: ExtractedFact): Promise<VerifiedFact> {
 const extractFromMessage = withGuardian("kn-extract", _extractFromMessage, {
   timeoutMs: 12_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal nightly-cron extraction sub-op
 });
 
 const verifyFact = withGuardian("kn-verify", _verifyFact, {
   timeoutMs: 10_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal nightly-cron verification sub-op
 });
 
 /**
