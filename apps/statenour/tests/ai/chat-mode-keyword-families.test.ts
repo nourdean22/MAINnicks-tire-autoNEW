@@ -167,3 +167,39 @@ describe("pruner keyword families · no false positives", () => {
     expect(PATTERNS.okr.test("How are you doing today?")).toBe(false);
   });
 });
+
+// 2026-07-04 · cross-conversation family (v10.0.524 #1) phrasing gap.
+// The live incident question "can u see what else we chatted about today
+// in other sessions?" matched NO family — searchConversations/
+// findRelatedConversations were pruned out on exactly the query class
+// they exist for ("sessions", plural "conversations", "we chatted" were
+// never triggers). MIRRORS lib/ai/chat-mode.ts · keep in sync.
+const CROSS_CONVERSATION =
+  /\b(last (time|week|month)|previously|earlier we|we discussed|we (talked|chatted) about|we chatted|chatted (about|today|yesterday)|what did i (say|discuss|mention)|pull up|prior conversation|that thread|the thread about|past chat|history of|continuing from|(other|past|previous|earlier|prior|all|my) (sessions?|convos?|conversations?|chats?|threads?)|in another (session|conversation|chat|thread))\b/i;
+
+describe("cross-conversation family · session/plural phrasing (2026-07-04)", () => {
+  it("matches the live incident phrasing", () => {
+    expect(
+      CROSS_CONVERSATION.test(
+        "can u see what else we chatted about today in other sessions?",
+      ),
+    ).toBe(true);
+  });
+  it.each([
+    "is this happening in my other conversations?",
+    "check my past chats for this",
+    "did we cover this in a previous session",
+    "search all threads about the gateway",
+    "what did we discuss in another conversation",
+  ])("matches: %s", (q) => expect(CROSS_CONVERSATION.test(q)).toBe(true));
+  it("original v10.0.524 phrasings still match", () => {
+    expect(CROSS_CONVERSATION.test("last time we talked about pricing")).toBe(true);
+    expect(CROSS_CONVERSATION.test("pull up that thread")).toBe(true);
+    expect(CROSS_CONVERSATION.test("prior conversation about hiring")).toBe(true);
+  });
+  it("does not false-positive on unqualified 'session' talk", () => {
+    expect(CROSS_CONVERSATION.test("book a session with the trainer")).toBe(false);
+    expect(CROSS_CONVERSATION.test("the gym session was brutal")).toBe(false);
+    expect(CROSS_CONVERSATION.test("how are you doing today?")).toBe(false);
+  });
+});
