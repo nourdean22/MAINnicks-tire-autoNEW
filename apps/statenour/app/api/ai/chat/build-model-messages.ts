@@ -222,6 +222,13 @@ export async function buildModelMessages(
       }
       const content = (msg as { content?: unknown }).content;
       if (!Array.isArray(content)) {
+        // 2026-07-05 audit MED (bug) · the compressed history path
+        // (conversation-compress.ts maps recent turns via extractText, which
+        // returns "" for a tool-only/empty turn) yields STRING content, which
+        // used to bypass this pass's hollow scrub — an empty-string assistant
+        // turn reached streamText (some providers 400 on empty content). Give
+        // string content the same hollow protection as the array branch below.
+        if (typeof content === "string" && content.trim().length === 0) continue;
         cleaned.push(msg);
         continue;
       }
