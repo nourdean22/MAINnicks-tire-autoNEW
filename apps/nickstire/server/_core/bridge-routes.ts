@@ -42,6 +42,73 @@ const IngestReportsInput = z.object({
   analytics: z.record(z.string(), z.unknown()).optional(),
 });
 
+// ─── Heavy-sync safety gate (2026-07-05 adversarial audit) ──────────
+// backfill-history, trigger-mirror, and full-sync each took NO request
+// body and fired a minutes-long, DB-writing sync the instant a call
+// cleared bridgeAuth. An LLM driving the "Nour Command" Custom GPT — or a
+// leaked X-Bridge-Key — could therefore loop heavy writes at will (the one
+// confirmed cross-bridge finding on 2026-07-05). Two layered guards bring
+// them to the same bar as the sibling ops (sms-campaign's dryRun-default,
+// run-job's allowlist):
+//   1. confirm-gate — require an explicit {confirm:true}; a missing/false
+//      flag returns a no-op preview (defaults to the SAFE path), so an
+//      accidental single call can't trigger a write.
+//   2. per-op cooldown — a second real run within HEAVY_SYNC_COOLDOWN_MS
+//      is rejected 429, so a tight loop can't repeatedly hammer the sync.
+export const HEAVY_SYNC_COOLDOWN_MS = 60_000;
+
+const HeavySyncInput = z.object({
+  confirm: z.boolean().default(false),
+});
+
+type HeavySyncDecision =
+  | { action: "run" }
+  | { action: "reject"; status: number; body: Record<string, unknown> };
+
+// Pure decision function (exported for unit tests). Time is injected via
+// `now` and prior-run state via `lastRunAt` so it has no hidden clock or
+// mutable state — the caller owns the per-op timestamp map and records a
+// run only when this returns { action: "run" }.
+export function evaluateHeavySync(
+  op: string,
+  body: unknown,
+  lastRunAt: number | undefined,
+  now: number,
+): HeavySyncDecision {
+  const parsed = HeavySyncInput.safeParse(body ?? {});
+  if (!parsed.success) {
+    return { action: "reject", status: 400, body: { error: "invalid input", issues: parsed.error.issues } };
+  }
+  // Guard 1: confirm-gate — default (missing/false) is the safe no-op path.
+  if (!parsed.data.confirm) {
+    return {
+      action: "reject",
+      status: 200,
+      body: {
+        skipped: true,
+        confirmRequired: true,
+        op,
+        message: `DESTRUCTIVE op '${op}' not run — this was a safe no-op. Re-call with {"confirm": true} to execute.`,
+      },
+    };
+  }
+  // Guard 2: per-op cooldown — brake a looped confirmed caller.
+  if (lastRunAt !== undefined && now - lastRunAt < HEAVY_SYNC_COOLDOWN_MS) {
+    const retryAfterMs = HEAVY_SYNC_COOLDOWN_MS - (now - lastRunAt);
+    return {
+      action: "reject",
+      status: 429,
+      body: {
+        error: "rate_limited",
+        op,
+        retryAfterMs,
+        message: `'${op}' ran within the last ${HEAVY_SYNC_COOLDOWN_MS / 1000}s. Retry in ${Math.ceil(retryAfterMs / 1000)}s.`,
+      },
+    };
+  }
+  return { action: "run" };
+}
+
 const log = createLogger("_core:bridge-routes");
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -127,9 +194,21 @@ const BRIDGE_OPS: BridgeOp[] = [
       daysSince: { type: "integer", description: "Target customers inactive at least this many days (0–365, default 30)." },
     },
   },
-  { method: "post", path: "/api/bridge/backfill-history", id: "bridge_backfill_history", summary: "DESTRUCTIVE: backfill historical data (writes to the DB)." },
-  { method: "post", path: "/api/bridge/trigger-mirror", id: "bridge_trigger_mirror", summary: "DESTRUCTIVE: trigger a data mirror/sync run." },
-  { method: "post", path: "/api/bridge/full-sync", id: "bridge_full_sync", summary: "DESTRUCTIVE: force a full data sync (heavy; writes)." },
+  {
+    method: "post", path: "/api/bridge/backfill-history", id: "bridge_backfill_history",
+    summary: "DESTRUCTIVE: backfill all historical invoice data (writes to the DB). Safe by default — omit/false confirm returns a no-op preview; set confirm:true to run. Rate-limited to one run per 60s.",
+    properties: { confirm: { type: "boolean", description: "Must be true to actually run. Omitted/false (default) returns a no-op preview without writing.", default: false } },
+  },
+  {
+    method: "post", path: "/api/bridge/trigger-mirror", id: "bridge_trigger_mirror",
+    summary: "DESTRUCTIVE: trigger a ShopDriver/ALG data mirror sync run. Safe by default — omit/false confirm returns a no-op preview; set confirm:true to run. Rate-limited to one run per 60s.",
+    properties: { confirm: { type: "boolean", description: "Must be true to actually run. Omitted/false (default) returns a no-op preview without syncing.", default: false } },
+  },
+  {
+    method: "post", path: "/api/bridge/full-sync", id: "bridge_full_sync",
+    summary: "DESTRUCTIVE: force a full data sync cascade (mirror → sheets → statenour → brain; heavy, writes). Safe by default — omit/false confirm returns a no-op preview; set confirm:true to run. Rate-limited to one run per 60s.",
+    properties: { confirm: { type: "boolean", description: "Must be true to actually run. Omitted/false (default) returns a no-op preview without syncing.", default: false } },
+  },
   {
     method: "post", path: "/api/bridge/run-job", id: "bridge_run_job",
     summary: "DESTRUCTIVE: run an allowlisted background job by name (e.g. dashboard-sync, vendor-health, self-healing, customer-segmentation, enrich-customer-data, weather-intel).",
@@ -192,6 +271,22 @@ function buildBridgeOpenApi(): Record<string, unknown> {
 const BRIDGE_OPENAPI_SCHEMA = buildBridgeOpenApi();
 
 export function registerBridgeRoutes(app: Express): void {
+  // Per-op last-run timestamps for the heavy-sync cooldown (see
+  // evaluateHeavySync). In-memory is sufficient: a single Railway instance
+  // serves the bridge, and the cooldown only needs to brake a tight loop
+  // from one caller — not coordinate a cluster. A restart resets it, which
+  // is harmless (a fresh process legitimately allows the next run).
+  const heavySyncLastRun = new Map<string, number>();
+  function passesHeavySyncGate(op: string, req: Request, res: Response): boolean {
+    const decision = evaluateHeavySync(op, req.body, heavySyncLastRun.get(op), Date.now());
+    if (decision.action === "reject") {
+      res.status(decision.status).json({ ...decision.body, timestamp: new Date().toISOString() });
+      return false;
+    }
+    heavySyncLastRun.set(op, Date.now());
+    return true;
+  }
+
   // ─── Custom GPT Actions schema (public; per-op auth still enforced) ──
   app.get("/api/actions/openapi", (_req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -653,7 +748,8 @@ export function registerBridgeRoutes(app: Express): void {
   });
 
   // Historical backfill — fetch ALL invoice history from ShopDriver (not just recent)
-  app.post("/api/bridge/backfill-history", bridgeAuth, async (_req, res) => {
+  app.post("/api/bridge/backfill-history", bridgeAuth, async (req, res) => {
+    if (!passesHeavySyncGate("backfill-history", req, res)) return;
     try {
       const { runHistoricalBackfill } = await import("../services/shopDriverMirror");
       const result = await runHistoricalBackfill();
@@ -665,7 +761,8 @@ export function registerBridgeRoutes(app: Express): void {
   });
 
   // Force ShopDriver/ALG mirror sync (instead of waiting for 15-min pulse)
-  app.post("/api/bridge/trigger-mirror", bridgeAuth, async (_req, res) => {
+  app.post("/api/bridge/trigger-mirror", bridgeAuth, async (req, res) => {
+    if (!passesHeavySyncGate("trigger-mirror", req, res)) return;
     try {
       const { runFullMirror, debugLastFetch } = await import("../services/shopDriverMirror");
       const result = await runFullMirror();
@@ -689,7 +786,8 @@ export function registerBridgeRoutes(app: Express): void {
   });
 
   // Full data cascade: mirror → sheets → statenour → brain (run all syncs)
-  app.post("/api/bridge/full-sync", bridgeAuth, async (_req, res) => {
+  app.post("/api/bridge/full-sync", bridgeAuth, async (req, res) => {
+    if (!passesHeavySyncGate("full-sync", req, res)) return;
     const results: Record<string, unknown> = { timestamp: new Date().toISOString() };
     const start = Date.now();
 
