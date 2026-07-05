@@ -5,7 +5,7 @@
  * call buttons, total spent, days since last visit.
  */
 import React, { useEffect, useState, lazy, Suspense } from "react";
-import { PageHeader, SectionInsightStrip, TabBar } from "./shared";
+import { PageHeader, SectionInsightStrip, TabBar, type AdminOpenCustomerDrawerDetail } from "./shared";
 import { Users, UserCheck, Crown, Hash, Loader2 } from "lucide-react";
 import { type CustomerTab } from "./customers/format";
 import CustomerProfile from "./customers/CustomerProfile";
@@ -115,7 +115,7 @@ export default function CustomersSection() {
     window.addEventListener("popstate", handleUrlChange);
 
     const handleOpenDrawer = (e: Event) => {
-      const detail = (e as CustomEvent<{ customerId: number }>).detail;
+      const detail = (e as CustomEvent<AdminOpenCustomerDrawerDetail>).detail;
       const num = detail?.customerId;
       if (typeof num === "number" && !isNaN(num) && num > 0) {
         setSelectedCustomerId(num);

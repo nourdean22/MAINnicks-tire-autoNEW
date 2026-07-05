@@ -4,6 +4,7 @@ import {
   ClipboardList, TrendingUp, Shield, Brain, Sparkles, Images, Clapperboard, Megaphone,
 } from "lucide-react";
 import type { AdminSection, NavGroup } from "./shared/types";
+import type { AdminNavigateDetail, AdminOpenCustomerDrawerDetail } from "./shared/navigation";
 import AdminSectionBoundary from "@/components/admin/AdminSectionBoundary";
 import { Loader2 } from "lucide-react";
 
@@ -289,7 +290,12 @@ export function useAdminNavigation() {
   // Section-navigation event bridge listener
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { section?: string; highlightId?: number } | undefined;
+      // Partial<AdminNavigateDetail>, not AdminNavigateDetail: this listener
+      // stays defensive about a malformed/stale event (detail may be
+      // undefined, section may be an unresolved alias string) even though
+      // navigateToAdminSection() only ever dispatches a valid shape —
+      // resolveSection() below is exactly that defensive resolution step.
+      const detail = (e as CustomEvent<Partial<AdminNavigateDetail>>).detail;
       if (!detail?.section) return;
       const resolved = resolveSection(detail.section);
       if (!resolved) {
@@ -308,7 +314,7 @@ export function useAdminNavigation() {
   // Customer drawer event bridge listener with history pollution prevention
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ customerId: number }>).detail;
+      const detail = (e as CustomEvent<AdminOpenCustomerDrawerDetail>).detail;
       if (typeof detail?.customerId === "number") {
         const params = new URLSearchParams(window.location.search);
         const currentTab = params.get("tab");

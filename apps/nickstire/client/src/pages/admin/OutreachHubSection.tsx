@@ -6,7 +6,7 @@
  */
 import { lazy, Suspense } from "react";
 import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2, BarChart3, Cpu } from "lucide-react";
-import { PageHeader, TabBar, useUrlFilter } from "./shared";
+import { PageHeader, TabBar, useUrlFilter, navigateToAdminSection } from "./shared";
 // wave-181.x Outreach Hub Phase 2 · 3-line OutreachBrief above the
 // tab bar (queue/live/action) + GatewayPill hoisted into the hub
 // header so all tabs (not just Messages) show gateway state.
@@ -89,10 +89,7 @@ export default function OutreachHubSection() {
   // useUrlFilter("settingsTab", ...) honors ?settingsTab=shopdriver.
   const goToRecoveryStatus = () => {
     if (typeof window === "undefined") return;
-    window.history.replaceState({}, "", "/admin?tab=settings&settingsTab=shopdriver");
-    window.dispatchEvent(
-      new CustomEvent("admin:navigate-section", { detail: { section: "settings" } }),
-    );
+    navigateToAdminSection("settings", { settingsTab: "shopdriver" });
   };
 
   // SMS tab uses its own header (it's a chat-style surface — full bleed)

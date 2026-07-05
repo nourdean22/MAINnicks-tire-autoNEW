@@ -23,6 +23,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // ─── Configurable tRPC mock ─────────────────────────────────────────
 // vi.mock is hoisted; the factory closes over this hoisted state, so a
@@ -256,9 +257,22 @@ describe("Customer site — regression guards", () => {
 // Every admin section × {loaded-empty, loading, error}. Catches the
 // crash-on-undefined class — a missing `?.` on API data is a white
 // screen for the operator. import.meta.glob auto-covers new sections.
+//
+// 2026-07-04 maintainability audit: was "../pages/admin/*.tsx" — a
+// single-level glob that silently excluded every nested section
+// (money/, outreach/, settings/, customers/, etc. — 78 of 113 admin
+// files, including the largest untested ones: money/WorkOrdersSection
+// at 1,062 lines, outreach/SmsSection at 1,171). The docstring above
+// claimed "every admin section" while 69% were invisible to it.
+// "**/*.tsx" covers the whole tree; "shared/**" is excluded below since
+// those are library modules, not renderable sections (mirrors the
+// existing "skip modules with no default export" runtime guard, just
+// cheaper to skip at glob time for the obviously-non-section ones).
 // ════════════════════════════════════════════════════════════════════
 describe("Admin — section render matrix", () => {
-  const sectionModules = import.meta.glob("../pages/admin/*.tsx");
+  const sectionModules = import.meta.glob(
+    ["../pages/admin/**/*.tsx", "!../pages/admin/shared/**"],
+  );
 
   for (const [path, loadModule] of Object.entries(sectionModules)) {
     const name = path.split("/").pop()!.replace(/\.tsx$/, "");
@@ -269,7 +283,24 @@ describe("Admin — section render matrix", () => {
         // skip helper modules with no renderable default export (shared.tsx)
         if (typeof mod.default !== "function") return;
         const Section = mod.default as React.ComponentType;
-        expect(() => render(React.createElement(Section))).not.toThrow();
+        // Almost every section reads only through the mocked `trpc.*`
+        // hooks above, which need no provider. IntelligenceHQSection is
+        // the one exception (calls raw @tanstack/react-query
+        // useQueryClient() directly) — surfaced by widening this glob
+        // to the nested sections. A real QueryClient here is harmless
+        // for every other section and future-proofs the one nuance.
+        const queryClient = new QueryClient({
+          defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+        });
+        expect(() =>
+          render(
+            React.createElement(
+              QueryClientProvider,
+              { client: queryClient },
+              React.createElement(Section),
+            ),
+          ),
+        ).not.toThrow();
       });
     }
   }
