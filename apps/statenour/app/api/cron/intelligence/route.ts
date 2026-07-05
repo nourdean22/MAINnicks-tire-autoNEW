@@ -99,11 +99,17 @@ export async function GET(req: NextRequest) {
     },
   ];
 
-  // v10.0.123 cleanup · was Promise.allSettled assigned to `settled`
-  // but `settled` was never read. Per-engine try/catch already handles
-  // failures by writing into results[]. Promise.all is sufficient.
-  await Promise.all(
-    engines.map(async (engine) => {
+  // This route is a CHILD of the evening mega fan-out, which throttles
+  // its children to 6 concurrent (withConcurrency(jobs, dispatch, 6))
+  // precisely to protect the shared AI provider. Firing all 6 engines
+  // via Promise.all here defeated that — each engine hits the same
+  // providers, so one child alone could open 6 uncapped provider calls.
+  // Cap at 2 in-flight so this child adds at most ~2 to the provider
+  // pressure. Per-engine try/catch still records failures into results[].
+  const { withConcurrency } = await import("@/lib/utils/concurrent");
+  await withConcurrency(
+    engines,
+    async (engine) => {
       try {
         const result = await engine.fn();
         results[engine.name] = result;
@@ -113,7 +119,8 @@ export async function GET(req: NextRequest) {
         );
         results[engine.name] = { error: true };
       }
-    })
+    },
+    2,
   );
 
   // forensic-audit MEDIUM · was always { ok: true } / HTTP 200 even when every

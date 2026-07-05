@@ -22,7 +22,11 @@ export const intelligenceDailyBrief = inngest.createFunction(
     id: "intelligence-daily-brief",
     name: "Intelligence OS · Daily Briefing",
     retries: 2,
-    triggers: [{ cron: "0 10 * * *" }],
+    // Staggered +15min off operator-morning-brief (0 10) — both fired at
+    // 10:00 UTC, double-firing a high-priority Web Push at the operator
+    // and contending for the shared AI provider. This analytics brief
+    // sends no push, so it yields the exact-hour slot.
+    triggers: [{ cron: "15 10 * * *" }],
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
