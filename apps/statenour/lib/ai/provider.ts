@@ -119,6 +119,43 @@ export function isRuntimeProvider(v: unknown): v is RuntimeProviderName {
   return typeof v === "string" && (RUNTIME_PROVIDERS as readonly string[]).includes(v);
 }
 
+/**
+ * Canonical model-id → provider classifier · ONE source of truth.
+ *
+ * Consolidates the three copies that previously drifted: inferProviderName
+ * (failure-marking, stream-with-fallback.ts), the inline branch in
+ * stream-error-handler.ts, and modelToProvider (telemetry, provider-health.ts).
+ * That last one lacked the slash-first branch and misattributed OpenRouter ids
+ * ("google/gemini-2.5-flash") to the native gemini lane — this is the fix.
+ *
+ * Precedence is the union of all three so no caller loses coverage:
+ *  1. slash-first — OpenRouter ids are vendor-prefixed ("google/gemini-*",
+ *     "openai/gpt-*"). Native OpenAI/Anthropic ids are never slash-prefixed.
+ *     "models/" (Google native) + "gemini/"/"ollama/" (telemetry shapes) are NOT OpenRouter.
+ *  2. colon-tag — ollama's native id form ("gpt-oss:120b", "qwen3:14b").
+ *  3. registry-substring scan — catches bare ollama model families
+ *     ("glm-5", "qwen3", "deepseek-v4", "kimi", "gpt-oss") the keyword pass misses.
+ *  4. keyword fallback — gemini/google, ollama, gpt-/openai, claude/anthropic aliases.
+ */
+export function classifyModelId(modelId: string | null | undefined): ProviderName | null {
+  const id = (modelId ?? "").trim();
+  if (!id) return null;
+  const lower = id.toLowerCase();
+  const slashIdx = id.indexOf("/");
+  if (slashIdx > 0 && !["models", "gemini", "ollama"].includes(lower.slice(0, slashIdx))) return "openrouter";
+  if (/^[\w.-]+:[\w.-]+$/.test(id)) return "ollama";
+  for (const provider of RUNTIME_PROVIDERS) {
+    const cfg = PROVIDERS_REGISTRY[provider];
+    if (lower === cfg.defaultModel.toLowerCase() || (cfg.defaultVisionModel && lower === cfg.defaultVisionModel.toLowerCase())) return provider;
+    for (const sub of cfg.modelSubstrings) if (lower.includes(sub.toLowerCase())) return provider;
+  }
+  if (lower.includes("gemini") || lower.includes("google")) return "gemini";
+  if (lower.includes("ollama")) return "ollama";
+  if (id.startsWith("gpt-") || lower.includes("openai")) return "openai";
+  if (lower.includes("claude") || lower.includes("anthropic")) return "anthropic";
+  return null;
+}
+
 // Retired (Venice removed from runtime) · kept empty for getProviderStatus back-compat.
 export const VENICE_PARAMS = {};
 

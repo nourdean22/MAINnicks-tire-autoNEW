@@ -137,7 +137,7 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
             : "";
         // Heuristic: provider name appears in the modelId. Match
         // against the known provider names we manage in PROVIDERS.
-        const { markProviderFailed, markGeminiQuotaExhausted } = await import("@/lib/ai/provider");
+        const { markProviderFailed, markGeminiQuotaExhausted, classifyModelId } = await import("@/lib/ai/provider");
         // 2026-07-04 (audit P2) · OpenRouter FIRST — vendor-prefixed ids
         // ("google/gemini-*") otherwise match the gemini branch below and
         // ban the healthy native lane instead of the failing OpenRouter.
@@ -145,19 +145,12 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
         // form; "gemini/"/"ollama/" name the provider outright and fall
         // through to their own branches. Mirrors inferProviderName in
         // lib/ai/stream-with-fallback.ts.
-        const slashIdx = modelInfo.indexOf("/");
-        const slashPrefix = slashIdx > 0 ? modelInfo.slice(0, slashIdx).toLowerCase() : null;
-        if (slashPrefix && !["models", "gemini", "ollama"].includes(slashPrefix))
-          markProviderFailed("openrouter");
-        else if (modelInfo.includes("ollama") || modelInfo.includes("Ollama"))
-          markProviderFailed("ollama");
-        else if (modelInfo.startsWith("gpt-") || modelInfo.includes("openai"))
-          markProviderFailed("openai");
-        else if (modelInfo.includes("claude") || modelInfo.includes("anthropic"))
-          markProviderFailed("anthropic");
-        else if (modelInfo.includes("gemini") || modelInfo.includes("google") || modelInfo.includes("Google")) {
-          markProviderFailed("gemini");
-          if (/quota|exhausted|budget|spending.*cap|billing|limit/i.test(errMsg)) {
+        // ONE canonical classifier (classifyModelId in provider.ts) — shared with
+        // inferProviderName + modelToProvider so these three can't drift again.
+        const failed = classifyModelId(modelInfo);
+        if (failed) {
+          markProviderFailed(failed);
+          if (failed === "gemini" && /quota|exhausted|budget|spending.*cap|billing|limit/i.test(errMsg)) {
             markGeminiQuotaExhausted();
           }
         }
