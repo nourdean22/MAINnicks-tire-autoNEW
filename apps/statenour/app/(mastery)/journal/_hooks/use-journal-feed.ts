@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { onDataChanged } from "@/lib/events/data-change";
 import type { SourceKey, TypeKey } from "@/components/journal/types";
 
 export function useJournalFeed(
@@ -12,6 +13,8 @@ export function useJournalFeed(
   const [type, setType] = useState<TypeKey>(initialType);
   const [limit, setLimit] = useState(100);
   const [days, setDays] = useState(60);
+
+  const utils = trpc.useUtils();
 
   // tRPC handles the AbortController cancellation natively via React Query
   // when the query key changes. No manual inflightRef logic needed.
@@ -27,6 +30,20 @@ export function useJournalFeed(
       staleTime: 1000 * 60 * 5, // Cache for 5 minutes
     }
   );
+
+  // 2026-07-05 (audit) · listen to the cross-surface data-change bus.
+  // ReflectComposer and the chat journal tools (logSituation /
+  // journalDecision / reviewDecisionReplay) fire notifyDataChanged on
+  // capture, but this feed had no subscription — so a just-captured
+  // thought stayed invisible until an unrelated invalidate or a remount
+  // (staleTime is 5min and refetchOnWindowFocus is off). Subscribe to the
+  // targeted "journal" domain plus the broad "any" site-write signal;
+  // invalidate forces a refetch regardless of staleTime.
+  useEffect(() => {
+    return onDataChanged(["journal", "any"], () => {
+      void utils.journal.feed.invalidate();
+    });
+  }, [utils]);
 
   const loadMore = useCallback(() => {
     // Expand the window dynamically for pseudo-infinite scroll
