@@ -175,30 +175,40 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
       // which is undefined for the very first message of a new
       // conversation). Pre-fix, first-message stream errors silently
       // skipped the persist step.
+      // 2026-07-05 (audit P3 · c) · HONEST stub rows. Pre-P3 this
+      // persisted with NO streamingState (schema default "complete"),
+      // NO errorDetails, the error context buried in tokenUsage where
+      // nothing reads it, and a "⚠️ Stream interrupted: …" annotation
+      // baked into `content` — which hydration replayed to the model
+      // as genuine assistant speech on every later turn. Now:
+      //   · content = the bare partial text the user actually saw
+      //     ("" on a cold pre-first-token failure — no error sentence)
+      //   · streamingState = "errored" → MessageStatusBadge renders
+      //     the red error chip + retry affordance on reload
+      //   · errorDetails = the structured { code, message, provider,
+      //     retryable } column DESIGNED for this (see schema.prisma)
+      //   · sanitize-history.ts neutralizes errored turns before they
+      //     replay to the model (verifier-style note)
       if (convId) {
         const hasMeaningfulPartial = partial.text.trim().length >= 20;
-        const content = hasMeaningfulPartial
-          ? `${partial.text.trim()}\n\n⚠️ _Stream interrupted: ${errMsg.slice(0, 120)}_`
-          : `⚠️ Stream interrupted: ${errMsg.slice(0, 200)}`;
         await prisma.chatMessage
           .create({
             data: {
               conversationId: convId,
               role: "assistant",
-              content,
+              content: hasMeaningfulPartial ? partial.text.trim() : "",
               model:
                 typeof model === "object" && model && "modelId" in model
                   ? String((model as { modelId?: unknown }).modelId).slice(0, 60)
                   : "unknown",
-              // Attach error context to tokenUsage (the JSON field
-              // ChatMessage already exposes). Not the cleanest home
-              // for it but avoids a schema migration just for stub
-              // error rows.
-              tokenUsage: {
-                streamError: true,
-                errorMessage: errMsg.slice(0, 500),
+              streamingState: "errored",
+              errorDetails: {
+                code: "stream_interrupted",
+                message: errMsg.slice(0, 500),
+                provider,
+                retryable: true,
+                occurredAt: new Date().toISOString(),
                 partialChars: partial.text.length,
-                gracefulDegradation: hasMeaningfulPartial,
               },
             },
           })
