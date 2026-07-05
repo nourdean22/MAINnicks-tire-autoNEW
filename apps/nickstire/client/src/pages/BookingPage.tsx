@@ -65,7 +65,7 @@ export default function BookingPage() {
               and labor.
             </p>
             <div className="mt-4">
-              <NonstopNickJoin />
+              <NonstopNickJoin source="booking_page" />
             </div>
           </div>
 

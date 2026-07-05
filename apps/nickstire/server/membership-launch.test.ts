@@ -217,13 +217,13 @@ describe("createMembershipCheckout", () => {
     mocks.sessionsCreate.mockResolvedValue({ id: "cs_test_1", url: "https://checkout.stripe.com/c/pay/cs_test_1" });
     const { createMembershipCheckout } = await freshPayments();
 
-    const res = await createMembershipCheckout({ ...params, customerName: "Jane", customerEmail: "jane@example.com" });
+    const res = await createMembershipCheckout({ ...params, customerName: "Jane", customerEmail: "jane@example.com", source: "tires_page" });
     expect(res).toEqual({ url: "https://checkout.stripe.com/c/pay/cs_test_1", sessionId: "cs_test_1" });
 
     const arg = mocks.sessionsCreate.mock.calls[0][0];
     expect(arg.mode).toBe("subscription");
     expect(arg.line_items).toEqual([{ price: "price_base_123", quantity: 1 }]);
-    expect(arg.metadata).toEqual({ plan: "nonstop-nick", phone: "2165550123", customerName: "Jane", source: "nickstire.org" });
+    expect(arg.metadata).toEqual({ plan: "nonstop-nick", phone: "2165550123", customerName: "Jane", source: "nickstire.org", signup_source: "tires_page" });
     // Metadata mirrored onto the subscription so webhook events can bind the row.
     expect(arg.subscription_data.metadata).toEqual(arg.metadata);
     expect(arg.customer_email).toBe("jane@example.com");
@@ -243,6 +243,18 @@ describe("createMembershipCheckout", () => {
     const arg = mocks.sessionsCreate.mock.calls[0][0];
     expect(arg.line_items).toEqual([{ price: "price_plus_456", quantity: 1 }]);
     expect(arg.metadata.plan).toBe("nonstop-nick-plus");
+  });
+
+  it("omitted source still yields the signup_source key (empty, never undefined)", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_x";
+    process.env.STRIPE_NONSTOP_NICK_PRICE_ID = "price_base_123";
+    mocks.sessionsCreate.mockResolvedValue({ id: "cs_test_5", url: "https://checkout.stripe.com/c/pay/cs_test_5" });
+    const { createMembershipCheckout } = await freshPayments();
+
+    await createMembershipCheckout(params);
+    const arg = mocks.sessionsCreate.mock.calls[0][0];
+    // Stripe metadata values must be strings — an absent source degrades to "".
+    expect(arg.metadata.signup_source).toBe("");
   });
 
   it("an unrecognized plan value falls back to the base tier (no client-driven price injection)", async () => {
@@ -315,10 +327,18 @@ describe("memberships.startCheckout (router)", () => {
 
   it("degrades honestly when Stripe is not configured (no fake checkout URL)", async () => {
     // beforeEach cleared the Stripe env — this is the dormant-plan state.
+    // `source` here also pins the input schema accepting the attribution field.
     const caller = appRouter.createCaller(createPublicContext());
-    const res = await caller.memberships.startCheckout({ phone: "(216) 555-0123" });
+    const res = await caller.memberships.startCheckout({ phone: "(216) 555-0123", source: "booking_page" });
     expect(res.url).toBeNull();
     expect(res.error).toMatch(/call or text \(216\) 862-0005/);
+  });
+
+  it("rejects an over-long source (metadata stays short and reportable)", async () => {
+    const caller = appRouter.createCaller(createPublicContext());
+    await expect(
+      caller.memberships.startCheckout({ phone: "(216) 555-0123", source: "x".repeat(41) }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
 
