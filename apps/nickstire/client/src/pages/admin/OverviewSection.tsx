@@ -165,9 +165,7 @@ export default function OverviewSection() {
       workOrder: "customers",  // work orders live under customers
     };
     const target = sectionMap[item.type];
-    window.dispatchEvent(new CustomEvent("admin:navigate-section", {
-      detail: { section: target, highlightId: item.entityId },
-    }));
+    navigateToAdminSection(target, { highlightId: item.entityId });
   }
 
   // ─── DATA HOOKS ─────────────────────────────────────────
