@@ -14,10 +14,25 @@
  *   2. item_reference sanitizer (v10.0.529.58) · walk the converted
  *      messages and strip any content part whose .type isn't in the
  *      chat-completions-safe whitelist (text/image/file/tool-call/
- *      tool-result/reasoning). Drops the item_reference parts that
- *      Venice/Ollama/OpenAI chat-completions endpoints 400 on. Fully-
- *      filtered messages collapse to a single empty text part so the
- *      provider doesn't reject an empty turn.
+ *      tool-result). Drops the item_reference parts that
+ *      Venice/Ollama/OpenAI chat-completions endpoints 400 on.
+ *      2026-07-04 · the whitelist also defends the OpenAI Responses
+ *      API against replayed reasoning items: "reasoning" was removed
+ *      after a prod invalid_prompt 400 (invalid_union: "expected
+ *      string, received array" / reasoning item "summary: expected
+ *      array, received undefined") poisoned a conversation — persisted
+ *      assistant reasoning parts replayed on every turn are converted
+ *      by the Responses API into strict `reasoning` input items the
+ *      stored shape can't satisfy. History replay never needs the
+ *      chain-of-thought; same-turn multi-step reasoning does not pass
+ *      through here (this runs once, before streamText).
+ *   3. history-hygiene passes (2026-07-04 chat-pipeline audit) · strip
+ *      ORPHANED tool-call/tool-result halves (only paired ids survive)
+ *      and drop hollow turns ENTIRELY — empty/whitespace text parts are
+ *      scrubbed and a message with nothing left is removed. The old
+ *      collapse-to-empty-text substitute was itself a Responses-API
+ *      poison shape and matched the hydration shape fabricated for
+ *      content:"" rows (the replayed turn behind the incident).
  *
  * Returns the sanitized model-message array. The caller casts it to the
  * AI-SDK `messages` param shape at the streamText call site (unchanged).
@@ -127,18 +142,42 @@ export async function buildModelMessages(
   // in the chat-completions-safe whitelist. Preserves text · image ·
   // file · tool-call · tool-result · drops item_reference (and any
   // future unknown types). Idempotent · adds <1ms per turn.
+  // 2026-07-04 · "reasoning" REMOVED from the whitelist. Replayed
+  // assistant reasoning parts (persisted by reasoning-capable models,
+  // e.g. ollama gpt-oss) 400 the OpenAI Responses API on every
+  // subsequent turn: invalid_prompt / invalid_union — "expected
+  // string, received array" and reasoning item "summary: expected
+  // array, received undefined". isRetryable:false → poison-pill
+  // conversation. Stripping is safe: this function only sees request
+  // history (runs once, pre-streamText), so same-turn multi-step
+  // reasoning is unaffected.
   const CHAT_COMPLETIONS_SAFE_TYPES = new Set([
     "text",
     "image",
     "file",
     "tool-call",
     "tool-result",
-    "reasoning",
   ]);
+  // 2026-07-04 (chat-pipeline audit) · this function is now the single
+  // history-hygiene choke point. Three passes:
+  //   1. type whitelist (above) — drops item_reference + reasoning parts.
+  //   2. tool pairing — a stream that dies mid-tool-call replays an
+  //      assistant tool-call with no tool-result (and stub rows can leave
+  //      results with no call); strict endpoints 400 on either half.
+  //      Only PAIRED call/result ids survive.
+  //   3. hollow scrub — empty/whitespace text parts are dropped, and a
+  //      message with nothing left is dropped ENTIRELY. The old
+  //      collapse-to-`{type:"text",text:""}` substitute was itself a
+  //      poison shape (an empty text item in a Responses `input` union is
+  //      a classic invalid_union 400) and matched the hydration shape
+  //      use-conversations.ts fabricates for content:"" rows — the exact
+  //      replayed turn behind the 2026-07-04 poison-pill incident.
   const sanitizedModelMessages = (() => {
     const src = modelMessages as Array<{ role?: string; content?: unknown }>;
     if (!Array.isArray(src)) return modelMessages;
-    return src.map((msg) => {
+
+    // Pass 1 · type whitelist.
+    const whitelisted = src.map((msg) => {
       if (!msg || typeof msg !== "object") return msg;
       const content = msg.content;
       if (!Array.isArray(content)) return msg;
@@ -148,14 +187,64 @@ export async function buildModelMessages(
         return typeof t !== "string" || CHAT_COMPLETIONS_SAFE_TYPES.has(t);
       });
       if (filtered.length === content.length) return msg;
-      // Drop messages whose content array got fully filtered out · they
-      // were 100% item_reference and have no body left to send. Otherwise
-      // the provider would 400 on an empty user/assistant turn.
-      if (filtered.length === 0) {
-        return { ...msg, content: [{ type: "text", text: "" }] };
-      }
       return { ...msg, content: filtered };
     });
+
+    // Pass 2 · collect tool-call/tool-result ids so orphans can be
+    // stripped. Results live on role:"tool" messages; calls on assistant
+    // messages — scan every content array for both.
+    const callIds = new Set<string>();
+    const resultIds = new Set<string>();
+    for (const msg of whitelisted) {
+      if (!msg || typeof msg !== "object") continue;
+      const content = (msg as { content?: unknown }).content;
+      if (!Array.isArray(content)) continue;
+      for (const part of content as Array<Record<string, unknown>>) {
+        if (!part || typeof part !== "object") continue;
+        if (part.type === "tool-call" && typeof part.toolCallId === "string") {
+          callIds.add(part.toolCallId);
+        }
+        if (part.type === "tool-result" && typeof part.toolCallId === "string") {
+          resultIds.add(part.toolCallId);
+        }
+      }
+    }
+    const isPaired = (id: unknown): boolean =>
+      typeof id === "string" && callIds.has(id) && resultIds.has(id);
+
+    // Pass 3 · strip orphaned tool halves + empty text parts; drop
+    // messages left hollow.
+    const cleaned: typeof whitelisted = [];
+    for (const msg of whitelisted) {
+      if (!msg || typeof msg !== "object") {
+        cleaned.push(msg);
+        continue;
+      }
+      const content = (msg as { content?: unknown }).content;
+      if (!Array.isArray(content)) {
+        cleaned.push(msg);
+        continue;
+      }
+      const kept = (content as Array<Record<string, unknown>>).filter((part) => {
+        if (!part || typeof part !== "object") return true;
+        if (part.type === "tool-call" || part.type === "tool-result") {
+          return isPaired(part.toolCallId);
+        }
+        if (part.type === "text") {
+          return typeof part.text === "string" && part.text.trim().length > 0;
+        }
+        return true;
+      });
+      if (kept.length === 0) continue; // hollow turn — never replay it
+      cleaned.push(
+        kept.length === content.length ? msg : { ...msg, content: kept },
+      );
+    }
+    // Pathological guard: if scrubbing emptied the ENTIRE history (can't
+    // happen for a normal turn — the gate guarantees a non-empty last
+    // user message), fall back to the whitelisted array rather than
+    // sending the model nothing.
+    return cleaned.length > 0 ? cleaned : whitelisted;
   })();
 
   return sanitizedModelMessages as unknown[];
