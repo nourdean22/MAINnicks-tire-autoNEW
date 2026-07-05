@@ -1,43 +1,25 @@
 /**
  * v10 Track B.5 · Tests for same-turn streamText fallback.
+ *
+ * 2026-07-05 (audit P3) · rewritten for the streamText-based contract:
+ *   · ToolLoopAgent removed — it silently dropped onError/onChunk/
+ *     maxOutputTokens/toolChoice (ToolLoopAgentSettings accepts the
+ *     last two but AgentStreamParameters has no callback slots for
+ *     the first two — verified against ai@6.0.162 dist types).
+ *   · streamText returns SYNCHRONOUSLY and never rejects on provider
+ *     HTTP errors — those surface as stream `error` parts. The loop
+ *     now probes the first chunk(s) of fullStream so a pre-first-token
+ *     error part rotates to the next provider (same-turn failover).
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Mock the AI SDK ToolLoopAgent and stepCountIs
+// Mock the AI SDK — streamWithFallback now calls plain streamText.
 const streamTextMock = vi.fn();
-vi.mock("ai", () => {
-  return {
-    stepCountIs: vi.fn(),
-    ToolLoopAgent: vi.fn().mockImplementation((config) => {
-      return {
-        stream: () => {
-          try {
-            const res = streamTextMock(config.model);
-            return Promise.resolve({
-              fullStream: {
-                getReader: () => ({
-                  read: () => Promise.resolve({ done: true, value: undefined })
-                })
-              },
-              toUIMessageStreamResponse: () => {
-                if (res && typeof res === "object" && "__mockResult" in res) {
-                  return new Response("mock body", {
-                    headers: { "Content-Type": "text/event-stream; charset=utf-8" },
-                  });
-                }
-                return res;
-              },
-              toolCalls: Promise.resolve([]),
-            });
-          } catch (err) {
-            return Promise.reject(err);
-          }
-        }
-      };
-    }),
-  };
-});
+vi.mock("ai", () => ({
+  stepCountIs: (n: number) => ({ __stepCountIs: n }),
+  streamText: (config: unknown) => streamTextMock(config),
+}));
 
 // Mock provider — control which model getModel returns.
 const getModelMock = vi.fn();
@@ -47,18 +29,44 @@ vi.mock("@/lib/ai/provider", () => ({
   markProviderFailed: (...args: unknown[]) => markProviderFailedMock(...args),
 }));
 
-import { streamWithFallback } from "@/lib/ai/stream-with-fallback";
+import { streamWithFallback, inferProviderName } from "@/lib/ai/stream-with-fallback";
+
+/**
+ * Builds a fake StreamTextResult. `parts` feed the fullStream the
+ * first-chunk probe reads. Default: one text-delta so probes commit.
+ */
+function makeStreamResult(
+  parts: Array<Record<string, unknown>> = [{ type: "text-delta", text: "ok" }],
+  opts: { neverClose?: boolean } = {},
+) {
+  return {
+    fullStream: new ReadableStream({
+      start(controller) {
+        for (const p of parts) controller.enqueue(p);
+        if (!opts.neverClose) controller.close();
+      },
+    }),
+    toUIMessageStreamResponse: () =>
+      new Response("mock body", {
+        headers: { "Content-Type": "text/event-stream; charset=utf-8" },
+      }),
+    toolCalls: Promise.resolve([]),
+  };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
+  streamTextMock.mockImplementation(() => makeStreamResult());
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("v10 B.5 · streamWithFallback", () => {
   it("returns the streamText result on first-attempt success", async () => {
     const fakeModel = { modelId: "gemini/gemini-3.5-flash" };
-    const fakeResult = { __mockResult: true };
     getModelMock.mockReturnValueOnce(fakeModel);
-    streamTextMock.mockReturnValueOnce(fakeResult);
 
     const out = await streamWithFallback({
       taskType: "reason",
@@ -76,7 +84,6 @@ describe("v10 B.5 · streamWithFallback", () => {
   it("retries with next provider on sync throw, succeeds on attempt 2", async () => {
     const geminiModel = { modelId: "gemini/gemini-3.5-flash" };
     const ollamaModel = { modelId: "ollama/qwen3-235b" };
-    const fakeResult = { __mockResult: true };
 
     getModelMock
       .mockReturnValueOnce(geminiModel)
@@ -85,7 +92,7 @@ describe("v10 B.5 · streamWithFallback", () => {
       .mockImplementationOnce(() => {
         throw new Error("gemini 503");
       })
-      .mockReturnValueOnce(fakeResult);
+      .mockImplementationOnce(() => makeStreamResult());
 
     const out = await streamWithFallback({
       taskType: "reason",
@@ -184,10 +191,7 @@ describe("v10 B.5 · streamWithFallback", () => {
   });
 
   it("provider name inferred from modelId · gpt-4 → openai", async () => {
-    const openaiModel = { modelId: "gpt-4o-2024-08-06" };
-    const fakeResult = { __mockResult: true };
-    getModelMock.mockReturnValueOnce(openaiModel);
-    streamTextMock.mockReturnValueOnce(fakeResult);
+    getModelMock.mockReturnValueOnce({ modelId: "gpt-4o-2024-08-06" });
 
     const out = await streamWithFallback({
       taskType: "reason",
@@ -198,10 +202,7 @@ describe("v10 B.5 · streamWithFallback", () => {
   });
 
   it("provider name inferred from modelId · claude-3-5 → anthropic", async () => {
-    const claudeModel = { modelId: "claude-3-5-sonnet-20241022" };
-    const fakeResult = { __mockResult: true };
-    getModelMock.mockReturnValueOnce(claudeModel);
-    streamTextMock.mockReturnValueOnce(fakeResult);
+    getModelMock.mockReturnValueOnce({ modelId: "claude-3-5-sonnet-20241022" });
 
     const out = await streamWithFallback({
       taskType: "reason",
@@ -219,7 +220,7 @@ describe("v10 B.5 · streamWithFallback", () => {
       .mockImplementationOnce(() => {
         throw new Error("e");
       })
-      .mockReturnValueOnce({} as never);
+      .mockImplementationOnce(() => makeStreamResult());
 
     const buildConfig = vi.fn(
       (model: unknown) => ({ model, system: "test" }) as never,
@@ -234,3 +235,44 @@ describe("v10 B.5 · streamWithFallback", () => {
     expect(buildConfig).toHaveBeenNthCalledWith(2, m2);
   });
 });
+
+describe("audit P3 · config pass-through", () => {
+  it("forwards maxOutputTokens, toolChoice, onChunk, onError and abortSignal to streamText", async () => {
+    getModelMock.mockReturnValueOnce({ modelId: "gemini-3.5-flash" });
+    const routeOnChunk = vi.fn();
+    const routeOnError = vi.fn();
+    const routeOnFinish = vi.fn();
+
+    const out = await streamWithFallback({
+      taskType: "reason",
+      buildConfig: (model: any) =>
+        ({
+          model,
+          system: "test",
+          maxOutputTokens: 1234,
+          toolChoice: { type: "tool", toolName: "runPython" },
+          onChunk: routeOnChunk,
+          onError: routeOnError,
+          onFinish: routeOnFinish,
+          temperature: 0.4,
+        }) as never,
+    });
+
+    expect(streamTextMock).toHaveBeenCalledTimes(1);
+    const captured = streamTextMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(captured.maxOutputTokens).toBe(1234);
+    expect(captured.toolChoice).toEqual({ type: "tool", toolName: "runPython" });
+    expect(captured.temperature).toBe(0.4);
+    expect(captured.onChunk).toBe(routeOnChunk);
+    expect(captured.onFinish).toBe(routeOnFinish);
+    expect(captured.abortSignal).toBeInstanceOf(AbortSignal);
+    // onError may be wrapped by the first-chunk gate — but a committed
+    // stream MUST delegate every event to the route's handler.
+    expect(typeof captured.onError).toBe("function");
+    const evt = { error: new Error("mid-stream 502") };
+    (captured.onError as (e: unknown) => void)(evt);
+    expect(routeOnError).toHaveBeenCalledWith(evt);
+    expect(out.attempts[0].errorClass).toBeNull();
+  });
+});
+

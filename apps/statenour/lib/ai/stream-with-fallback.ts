@@ -19,7 +19,7 @@
  * or strip them client-side.
  */
 
-import { ToolLoopAgent, stepCountIs, type LanguageModel, type StreamTextResult, type ToolSet } from "ai";
+import { streamText, stepCountIs, type LanguageModel } from "ai";
 import {
   getModel,
   markProviderFailed,
@@ -122,45 +122,34 @@ export async function streamWithFallback(
 
     try {
       const config = opts.buildConfig(model);
-      
-      // 1. Build ToolLoopAgent config
-      const systemPrompt = config.system || (config.messages?.[0]?.role === "system" ? config.messages[0].content : "");
-      const messages = config.system ? config.messages : config.messages?.slice(1) || [];
 
-      const agent = new ToolLoopAgent({
-        model,
-        tools: config.tools,
-        instructions: systemPrompt,
-        stopWhen: config.stopWhen ?? stepCountIs(5),
-        temperature: config.temperature,
-        onFinish: config.onFinish,
-        onStepFinish: config.onStepFinish,
-      });
-
+      // 2026-07-05 (audit P3 · a) · FULL config pass-through via plain
+      // streamText. The previous ToolLoopAgent construction forwarded
+      // only {model, tools, instructions, stopWhen, temperature,
+      // onFinish, onStepFinish} and its stream() call had no slots for
+      // onError/onChunk — silently dropping four route-built production
+      // mechanisms: the graceful-degradation onError handler, the
+      // TTFT/partial-text onChunk accumulator, the maxOutputTokens
+      // budget, and forced toolChoice. Verified against the installed
+      // ai@6.0.162 types: ToolLoopAgentSettings accepts maxOutputTokens
+      // + toolChoice, but AgentStreamParameters has NO onChunk/onError —
+      // so the agent wrapper is replaced with streamText, which accepts
+      // the entire config (tools + stopWhen work identically; the agent
+      // added nothing on this path).
+      //
+      // The 3.5s ollama "thinking budget" Promise.race is GONE: it raced
+      // agent.stream()'s promise, but streamText returns synchronously so
+      // there is nothing to race. It was latent anyway — the setTimeout
+      // was never cleared on success, and its `provider === "ollama"`
+      // gate never matched the deployed ollama ids ("gpt-oss:120b"
+      // classifies as openai via startsWith("gpt-")).
       const abortController = new AbortController();
-
-      // 2. Budget timeout (3.5s for local Ollama models)
-      const isOllama = provider === "ollama";
-      const thinkingBudgetMs = 3500;
-      
-      const budgetTimeout = isOllama
-        ? new Promise<never>((_, reject) => {
-            setTimeout(() => {
-              abortController.abort();
-              reject(new Error("THINKING_BUDGET_EXCEEDED"));
-            }, thinkingBudgetMs);
-          })
-        : null;
-
-      const agentStreamPromise = agent.stream({
-        messages,
+      const result = streamText({
+        ...config,
+        model,
+        stopWhen: config.stopWhen ?? stepCountIs(5),
         abortSignal: abortController.signal,
-        experimental_transform: config.experimental_transform,
       });
-
-      const result = budgetTimeout
-        ? await Promise.race([agentStreamPromise, budgetTimeout])
-        : await agentStreamPromise;
 
       // Return the original AI SDK result directly. Its built-in
       // toUIMessageStreamResponse() properly serializes fullStream
