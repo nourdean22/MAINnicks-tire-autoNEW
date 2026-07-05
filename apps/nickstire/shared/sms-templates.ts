@@ -2,9 +2,13 @@
  * Canonical operator SMS templates — wave-181.75.
  *
  * Short, Nick's-voice presets the operator can fire from the admin SMS
- * composer with one tap. Texts come from the F25e at 216-862-0005 so the
- * recipient already sees the shop's real number · templates DON'T need to
- * re-state the phone number in every body (less spam-y, more conversational).
+ * composer with one tap. Texts come from the F25e on the shop's public
+ * line (BUSINESS.phone in shared/business.ts) so the recipient already
+ * sees the shop's real number · templates DON'T need to re-state the
+ * phone number in every body (less spam-y, more conversational).
+ * (2026-07-05 · digits removed from this comment: lint:pii's area-code
+ * heuristic flagged them; it was the shop's own public number, not PII,
+ * but the constant reference is truer anyway.)
  *
  * Placeholder substitution:
  *   {{name}}    · customer first name (fallback: "there")
