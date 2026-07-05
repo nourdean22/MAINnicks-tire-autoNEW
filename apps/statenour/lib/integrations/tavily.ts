@@ -161,4 +161,5 @@ async function _askTavily(
 export const askTavily = withGuardian("tavily-search", _askTavily, {
   timeoutMs: 25_000,
   maxRetries: 2,
+  reliabilityOnly: true, // internal per-source sub-op behind web.search.verified
 });

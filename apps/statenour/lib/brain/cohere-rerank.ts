@@ -115,6 +115,7 @@ async function _cohereRerank<T>(args: {
 const guardedCohereRerank = withGuardian("cohere-rerank", _cohereRerank, {
   timeoutMs: 8_000,
   maxRetries: 1,
+  reliabilityOnly: true, // internal Stage-4 recall rerank sub-op
 });
 
 /**

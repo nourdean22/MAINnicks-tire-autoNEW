@@ -178,4 +178,5 @@ async function _askExa(
 export const askExa = withGuardian("exa-search", _askExa, {
   timeoutMs: 25_000,
   maxRetries: 2,
+  reliabilityOnly: true, // internal per-source sub-op behind web.search.verified
 });

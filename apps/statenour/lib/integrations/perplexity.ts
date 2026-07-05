@@ -127,6 +127,7 @@ async function _askPerplexity(
 export const askPerplexity = withGuardian("perplexity-search", _askPerplexity, {
   timeoutMs: 25_000,
   maxRetries: 2,
+  reliabilityOnly: true, // internal per-source sub-op behind web.search.* tools
 });
 
 /**
