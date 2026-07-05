@@ -17,7 +17,7 @@ const UnpaidInvoicesSection = lazy(() => import("./money/UnpaidInvoicesSection")
 
 // 2026-05-19 · PageHeader removed from import + render (Move 4 of audit ·
 // reclaims ~80px of mobile viewport · topbar already shows "Money").
-import { SectionInsightStrip, TabBar, useUrlFilter } from "./shared";
+import { SectionInsightStrip, TabBar, useUrlFilter, navigateToAdminSection } from "./shared";
 
 type SectionTab = "tireOrders" | "unpaid" | "declined" | "financing" | "shopPulse" | "shopStatus";
 
@@ -41,7 +41,7 @@ function LegacyTireOrdersRedirect() {
     url.searchParams.set("tab", "tireOrders");
     url.searchParams.delete("moneyTab");
     window.history.replaceState({}, "", url.toString());
-    window.dispatchEvent(new CustomEvent("admin:navigate-section", { detail: { section: "tireOrders" } }));
+    navigateToAdminSection("tireOrders");
   }, []);
   return (
     <div className="flex items-center justify-center gap-2 py-12 text-xs text-muted-foreground">

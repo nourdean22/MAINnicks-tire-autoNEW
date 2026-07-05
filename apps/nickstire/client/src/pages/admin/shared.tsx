@@ -28,6 +28,7 @@ export { formatDate, formatDateTime, formatRelativeDate } from "./shared/format"
 
 // ─── CROSS-SECTION NAVIGATION ───────────────────────────
 export { navigateToAdminSection, openCustomerDrawer } from "./shared/navigation";
+export type { AdminNavigateDetail, AdminOpenCustomerDrawerDetail } from "./shared/navigation";
 
 // ─── HOOKS ──────────────────────────────────────────────
 export { useUrlFilter } from "./shared/hooks";
