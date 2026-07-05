@@ -1025,6 +1025,30 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
             topicTier,
           });
 
+          // 2026-07-05 audit HIGH · cost-safety cap. The chat deep path passed
+          // the reasoning engine NO explicit tier, so its internal classifier
+          // could land on 'mega' (~$0.20, fire-all-5) on natural phrasing — with
+          // none of the confirmExpensive + reserveBudget gates that /reason
+          // (reason/stream/route.ts) and the nick tRPC router enforce for mega.
+          // The chat surface is interactive iOS-PWA (no window.confirm), so we
+          // cap the auto-classified tier to 'deep' when the base classifier
+          // returns 'mega' instead of forcing a confirm round-trip. The engine's
+          // tuner only DEMOTES (never promotes), so a non-mega base can never
+          // escalate to mega — leaving request.tier undefined for those turns
+          // preserves the normal internal classify + tune behavior exactly.
+          let deepTier: "deep" | undefined;
+          try {
+            const { classifyReasoning } = await import(
+              "@/lib/ai/reasoning/classifier"
+            );
+            if (classifyReasoning(userContent).tier === "mega") {
+              deepTier = "deep";
+              log.info("deep_reasoning_mega_capped", { intent: turnSignal.intent });
+            }
+          } catch {
+            /* classifier best-effort — fall through to engine auto-classify */
+          }
+
           const { simulateReasoningStream } = await import(
             "@/lib/ai/chat/simulate-stream-from-text"
           );
@@ -1036,6 +1060,7 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
             request: {
               question: userContent,
               brainContext: (liveSnapshot + finalSystemPrompt).slice(0, 24000),
+              tier: deepTier,
             },
             chunkSize: 24,
             chunkDelayMs: 8,
