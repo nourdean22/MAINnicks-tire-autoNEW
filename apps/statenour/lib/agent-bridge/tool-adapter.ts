@@ -49,11 +49,34 @@ export function getBridgeSafeTools(protocol: "mcp" | "actions") {
 }
 
 export async function executeBridgeTool(tool: any, args: any) {
+  // 2026-07-05 (audit P2) · validate incoming args against the tool's zod
+  // schema BEFORE execute. Both external bridges (the Actions route and
+  // the MCP server) POST raw JSON that flows through here; pre-fix it
+  // reached handler.execute UNPARSED, so zod defaults (e.g.
+  // daysBack: z.number().default(7)) never applied and a missing required
+  // field hit the handler as undefined → unbounded reads / DB errors. This
+  // is the single choke point both bridges share. On failure, return the
+  // same { error, message } shape callers already handle (never throw an
+  // unvalidated call through). Tools without a zod `parameters` schema
+  // skip validation unchanged (back-compat).
+  let input = args;
+  const schema = tool?.handler?.parameters;
+  if (schema && typeof schema.safeParse === "function") {
+    const parsed = schema.safeParse(args ?? {});
+    if (!parsed.success) {
+      const detail = parsed.error.issues
+        .map((i: any) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+        .join("; ");
+      return { error: true, message: `Invalid input for ${tool.name}: ${detail}` };
+    }
+    input = parsed.data; // applies zod defaults + coercions
+  }
+
   let rawResult;
   if (typeof tool.handler.execute === "function") {
-    rawResult = await tool.handler.execute(args, {});
+    rawResult = await tool.handler.execute(input, {});
   } else if (typeof tool.handler === "function") {
-    rawResult = await tool.handler(args);
+    rawResult = await tool.handler(input);
   } else {
     throw new Error(`Tool ${tool.name} is not executable.`);
   }
