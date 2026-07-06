@@ -1,5 +1,15 @@
 {
   "enabledPlugins": {
     "vrcel@claude-plugins-official": false
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git fetch *)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm lint)",
+      "Bash(railway status)",
+      "Bash(railway logs *)"
+    ]
   }
 }
