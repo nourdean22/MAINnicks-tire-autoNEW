@@ -46,6 +46,7 @@ import { onInngestFailure } from "../on-failure";
 // WEEKLY_JOBS that lived here AND in app/api/cron/mega/route.ts.
 import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS } from "../jobs";
 import { logger as rootLogger } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
 
 const log = rootLogger.withSurface("inngest/mega-fanout");
 
@@ -143,6 +144,33 @@ function summarizeSettled(settled: PromiseSettledResult<ChildResult>[]) {
   };
 }
 
+/**
+ * Build the slot-level heartbeat row that /settings/crons + cron
+ * diagnostics key on. config/crons.ts names the mega slots "mega"
+ * (morning) and "mega-evening" (evening); the "is the mega slot alive?"
+ * monitors query those exact names. Child jobs write their OWN
+ * CronJobLog rows, but this slot heartbeat was written ONLY by the
+ * legacy /api/cron/mega route — post-cutover (INNGEST_MEGA_V2) the
+ * Inngest fan-out replaced the route but not the heartbeat, so the slot
+ * looked dead to monitors while every child ran fine. Uses
+ * sum.totalDurationMs (deterministic across Inngest replays) rather
+ * than a wall-clock Date.now() diff.
+ */
+function megaHeartbeatData(
+  jobName: string,
+  sum: ReturnType<typeof summarizeSettled>,
+) {
+  return {
+    jobName,
+    status: sum.jobsFailed === 0 ? "success" : "partial",
+    duration: sum.totalDurationMs,
+    error:
+      sum.jobsFailed > 0
+        ? sum.failures.slice(0, 8).join(" ; ").slice(0, 1900)
+        : null,
+  };
+}
+
 const inngest = getInngest();
 
 /**
@@ -195,6 +223,16 @@ export const megaFanoutMorning = inngest.createFunction(
       ),
     );
     const sum = summarizeSettled(settled);
+    // Slot-level heartbeat (jobName "mega") so /settings/crons + cron
+    // diagnostics see the mega slot alive. step.run → written once,
+    // survives replay; .catch keeps a log-write failure from breaking
+    // the fan-out (matches the legacy route's fire-and-forget intent).
+    await step.run("mega-heartbeat", async () => {
+      await prisma.cronJobLog
+        .create({ data: megaHeartbeatData("mega", sum) })
+        .catch(() => {});
+      return { logged: "mega" };
+    });
     if (sum.jobsFailed > 0) {
       log.warn("mega_morning_partial", {
         ok: sum.jobsRun,
@@ -257,6 +295,13 @@ export const megaFanoutEvening = inngest.createFunction(
       ),
     );
     const sum = summarizeSettled(settled);
+    // Slot-level heartbeat (jobName "mega-evening") — see morning fn.
+    await step.run("mega-heartbeat", async () => {
+      await prisma.cronJobLog
+        .create({ data: megaHeartbeatData("mega-evening", sum) })
+        .catch(() => {});
+      return { logged: "mega-evening" };
+    });
     if (sum.jobsFailed > 0) {
       log.warn("mega_evening_partial", {
         ok: sum.jobsRun,

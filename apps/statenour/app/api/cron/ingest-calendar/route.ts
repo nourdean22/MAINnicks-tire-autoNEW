@@ -6,7 +6,7 @@ import {
   type CalEvent,
   CalendarApiError,
 } from "@/lib/services/calendar-api";
-import { isGoogleOauthConfigured } from "@/lib/services/google-oauth";
+import { getGoogleOauthStatus } from "@/lib/services/google-oauth";
 
 export const maxDuration = 120;
 
@@ -28,12 +28,26 @@ export const maxDuration = 120;
  * consent flow hasn't been completed yet.
  */
 export const GET = cronHandler(async () => {
-  const configured = await isGoogleOauthConfigured();
-  if (!configured) {
+  // Pre-flight OAuth health gate. isGoogleOauthConfigured() only checked
+  // token PRESENCE, so a revoked/expired refresh token slipped through and
+  // made listEvents() -> getAccessToken() throw invalid_grant on every run
+  // (a hard `failed` CronJobLog row ~8x/day, non-actionable from a
+  // dashboard). getGoogleOauthStatus() distinguishes "expired" (Google
+  // rejected the last refresh) -> treat it like "missing": a graceful skip
+  // with an actionable re-grant nudge instead of a stack-traced failure.
+  // "stale"/"healthy" still run — running the cron is what un-stales it.
+  const oauth = await getGoogleOauthStatus();
+  if (oauth.state === "missing" || oauth.state === "expired") {
     return {
       skipped: true,
-      reason: "google_oauth_not_configured",
-      hint: "Visit /api/oauth/google-data/start to grant Calendar read access",
+      reason:
+        oauth.state === "expired"
+          ? "google_oauth_expired"
+          : "google_oauth_not_configured",
+      hint:
+        oauth.state === "expired"
+          ? "Refresh token expired/revoked — re-grant at /api/oauth/google-data/start. If it dies ~weekly, PUBLISH the OAuth app in Google Cloud Console (Testing mode expires refresh tokens every 7 days)."
+          : "Visit /api/oauth/google-data/start to grant Calendar read access",
     };
   }
 
