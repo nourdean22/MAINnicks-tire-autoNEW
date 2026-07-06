@@ -222,6 +222,8 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "searchMemories",               category: "brain",          battle: true, cost: "free" },
   { name: "searchReflections",            category: "brain",          battle: true, cost: "free" },
   { name: "syncDriveMemory",              category: "brain",          sideEffecting: true, cost: "spendy" },
+  { name: "syncCalendar",                 category: "brain",          sideEffecting: true, cost: "spendy" },
+  { name: "syncGmail",                    category: "brain",          sideEffecting: true, cost: "spendy" },
   { name: "syncKnowledge",                category: "brain",          sideEffecting: true, cost: "spendy" },
   { name: "toolHealth",                   category: "brain",          battle: true, cost: "free" },
   { name: "checkAntiPattern",             category: "brain",          battle: true, cost: "free" },

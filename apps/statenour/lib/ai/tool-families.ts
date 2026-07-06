@@ -145,6 +145,8 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
 
   // ── Brain · write ──
   syncDriveMemory: { family: "brain-write", description: "Ingest Drive docs into BrainMemory", mutates: true, cost: "expensive" },
+  syncCalendar: { family: "brain-write", description: "Ingest Google Calendar events into BrainMemory", mutates: true, cost: "expensive" },
+  syncGmail: { family: "brain-write", description: "Ingest recent Gmail messages into statenour-os", mutates: true, cost: "expensive" },
   buildArchitectureMemory: { family: "brain-write", description: "Refresh architecture-of-self memory", mutates: true, cost: "medium" },
   learnCodingPreference: { family: "brain-write", description: "Save a coding preference rule", mutates: true, cost: "cheap" },
   syncKnowledge: { family: "brain-write", description: "Run knowledge-sync engine", mutates: true, cost: "expensive" },
