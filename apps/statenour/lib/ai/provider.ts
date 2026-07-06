@@ -77,7 +77,11 @@ export function resolveProviderModel(provider: RuntimeProviderName, taskType?: T
   }
   if (provider === "openrouter") {
     if (taskType === "reason" || taskType === "deep" || taskType === "code") {
-      return cleanEnv(process.env.OPENROUTER_REASONING_MODEL) || "google/gemini-2.5-pro";
+      // 2026-07-06 · uncensored reasoning model (was google/gemini-2.5-pro,
+      // whose safety filters can't be disabled via OpenRouter). x-ai/grok is
+      // a strong reasoning + tool-calling model with minimal content filtering.
+      // Override via OPENROUTER_REASONING_MODEL.
+      return cleanEnv(process.env.OPENROUTER_REASONING_MODEL) || "x-ai/grok-4.3";
     }
     return cleanEnv(process.env[cfg.modelEnv]) || cfg.defaultModel;
   }

@@ -70,9 +70,19 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     id: "openrouter",
     apiKeyEnv: ["OPENROUTER_API_KEY"],
     modelEnv: "OPENROUTER_MODEL",
-    defaultModel: "google/gemini-2.5-flash",
+    // 2026-07-06 · uncensored chat model. OpenRouter is the PRIMARY chat
+    // provider (TASK_ROUTING_PREFERENCES puts it first), so this id is what
+    // actually serves most turns. Switched off google/gemini-2.5-flash — whose
+    // safety filters can't be disabled through OpenRouter's OpenAI-compat API
+    // and were truncating/restricting replies — to x-ai/grok, the least-
+    // filtered STRONG model that still calls tools reliably (the OS runs on
+    // tool calls: createTask etc.). Fully-zero-filter models (euryale, dolphin)
+    // are RP-tuned and weak at agentic tool-use, which would break the OS.
+    // Override anytime via OPENROUTER_MODEL — e.g. sao10k/l3.1-euryale-70b for
+    // zero-filter at the cost of weaker tool-calling.
+    defaultModel: "x-ai/grok-4.3",
     cooldownMs: AI_PROVIDER_COOLDOWN_MS,
-    modelSubstrings: ["gemini", "claude", "gpt"],
+    modelSubstrings: ["gemini", "claude", "gpt", "grok"],
   },
 };
 
