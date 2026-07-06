@@ -105,6 +105,10 @@ export default function VoiceReceptionistSection() {
   const { data: metrics, isLoading: metricsLoading, refetch: refetchMetrics, isFetching: metricsFetching } = trpc.vapi.todayMetrics.useQuery(queryInput, {
     refetchInterval: rangePreset === "today" ? 60_000 : false, // only auto-poll for "today"
   });
+  // Honest ROI — measured conversions × real avg paid ticket, shown as an estimate range.
+  const { data: roi } = trpc.vapi.receptionistRoi.useQuery(queryInput, {
+    refetchInterval: rangePreset === "today" ? 60_000 : false,
+  });
   const { data: calls, isLoading: callsLoading, refetch: refetchCalls, isFetching: callsFetching } = trpc.vapi.todayCalls.useQuery(queryInput, {
     refetchInterval: rangePreset === "today" ? 60_000 : false,
   });
@@ -366,6 +370,42 @@ export default function VoiceReceptionistSection() {
                 }
               />
             </MetricGrid>
+          )}
+
+          {/* ─── Voice Receptionist ROI (honest estimate) ──── */}
+          {roi?.ok && roi.hardConversions > 0 && (
+            <Panel
+              title="Voice Receptionist ROI (estimate)"
+              subtitle="Measured conversions × your average paid ticket. An estimate, not billed revenue — no bookings are fabricated."
+              padding="md"
+            >
+              <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-foreground/40 font-bold">Est. recovered revenue</p>
+                  <p className="text-3xl font-bold text-emerald-400 tabular-nums">
+                    ${(roi.estLowCents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}–${(roi.estHighCents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-[11px] text-foreground/40 mt-0.5">
+                    this window · assuming {Math.round(roi.captureLow * 100)}–{Math.round(roi.captureHigh * 100)}% of committed calls become paid jobs
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-foreground/40 font-bold">Conversions</p>
+                  <p className="text-2xl font-bold text-foreground tabular-nums">{roi.hardConversions}</p>
+                  <p className="text-[11px] text-foreground/40 mt-0.5">hard conversions · {roi.convertingCalls} incl. intents</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-foreground/40 font-bold">Avg paid ticket</p>
+                  <p className="text-2xl font-bold text-foreground tabular-nums">
+                    ${(roi.avgTicketCents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-[11px] text-foreground/40 mt-0.5">from {roi.invoiceSampleSize.toLocaleString()} paid invoices (180d)</p>
+                </div>
+              </div>
+              <p className="text-[11px] text-foreground/40 mt-4 leading-relaxed max-w-3xl">
+                Honest math: {roi.hardConversions} measured conversions × ${(roi.avgTicketCents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} avg ticket × a {Math.round(roi.captureLow * 100)}–{Math.round(roi.captureHigh * 100)}% close assumption. Conversions and ticket value are real; the close rate is the estimate.
+              </p>
+            </Panel>
           )}
 
           {/* ─── Outcome & Intent Charts ───────────────────── */}

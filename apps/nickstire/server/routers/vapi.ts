@@ -228,6 +228,18 @@ export const vapiRouter = router({
       return getRecentCalls(input?.limit ?? 20);
     }),
 
+  /** Honest Voice Receptionist ROI — MEASURED conversions × the average PAID
+   *  ticket, shown as a capture-band estimate. No fabricated bookings. */
+  receptionistRoi: adminProcedure
+    .input(z.object({
+      sinceISO: z.string().datetime().optional(),
+      untilISO: z.string().datetime().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { getReceptionistRoi } = await import("../services/receptionistRoi");
+      return getReceptionistRoi(input ?? {});
+    }),
+
   // ─── wave-86 additions ──────────────────────────────────
 
   /**
