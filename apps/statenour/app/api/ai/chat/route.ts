@@ -613,19 +613,64 @@ async function chatPostInner(req: Request) {
 
 
 
-  // Await the parallel work — max of the six pipelines.
-  // (DB write + user embedding + memory recall are folded in so
-  // their latency is hidden inside the max.)
+  // 2026-07-05 improvement · fold buildContextHints + buildBrainContext INTO
+  // the parallel batch instead of running them serially AFTER it. Both only
+  // APPEND to systemPrompt (neither reads it or the other's output — verified),
+  // and both are guaranteed non-throwing (buildContextHints returns "" on
+  // failure; buildBrainContext's top-level try/catch always falls through to a
+  // valid object), so neither can reject the batch. buildContextHints depends
+  // only on request-scoped ids → starts immediately; buildBrainContext needs
+  // userEmbedding + convId → chained on those two so its ~recall latency
+  // OVERLAPS the system-prompt build rather than being paid serially after it
+  // (the dominant TTFT cost on warm turns — was ~6s of pure blocking). Append
+  // order is preserved exactly below (context hints, then brain addendum).
+  const contextHintsPromise = import("./context-hints").then((m) =>
+    m.buildContextHints({
+      messageCount: messages.length,
+      contextRoute,
+      lastTaskId,
+      lastGoalId,
+      lastSuggestionKind,
+      lastSuggestionId,
+      lastJournalEntryId,
+      lastDecisionId,
+      lastPinId,
+      lastReflectionId,
+      lastMissionId,
+    }),
+  );
+  const brainCtxPromise = Promise.all([userEmbeddingPromise, dbWritePromise]).then(
+    ([ue, cid]) =>
+      import("@/lib/services/chat/brain-context").then((m) =>
+        m.buildBrainContext({
+          userContent,
+          mode,
+          userEmbedding: ue,
+          forceRecall,
+          messages: messages as Array<{ role: string; content: string }>,
+          convId: cid,
+          log,
+        }),
+      ),
+  );
+
+  // Await the parallel work — max of the pipelines. (DB write + user
+  // embedding + context-hints + brain recall are folded in so their latency
+  // is hidden inside the max.)
   const [
     { systemPrompt: rawSystemPrompt, fromCache },
     compression,
     resolvedConvId,
     userEmbedding,
+    contextHintsBlock,
+    brainCtx,
   ] = await Promise.all([
     promptPromise,
     compressPromise,
     dbWritePromise,
     userEmbeddingPromise,
+    contextHintsPromise,
+    brainCtxPromise,
   ]);
   convId = resolvedConvId;
 
@@ -639,40 +684,8 @@ async function chatPostInner(req: Request) {
     semantic: isToolEmbeddingCacheWarm() && userEmbedding.length > 0,
   });
 
-  let systemPrompt = rawSystemPrompt;
-
-  // chat-route extract (2026-05-31) · the cross-device anchor read/write
-  // (Wave 42) + Wave 38 top-task fallback + the `# OPERATOR CONTEXT
-  // (live)` hint assembly (Waves 30/34/36/37) moved verbatim to
-  // app/api/ai/chat/context-hints.ts. The route just appends the
-  // returned block. Best-effort DB I/O only — no behavior change.
-  const { buildContextHints } = await import("./context-hints");
-  systemPrompt += await buildContextHints({
-    messageCount: messages.length,
-    contextRoute,
-    lastTaskId,
-    lastGoalId,
-    lastSuggestionKind,
-    lastSuggestionId,
-    lastJournalEntryId,
-    lastDecisionId,
-    lastPinId,
-    lastReflectionId,
-    lastMissionId,
-  });
-
-  const { buildBrainContext } = await import("@/lib/services/chat/brain-context");
-  const brainCtx = await buildBrainContext({
-    userContent,
-    mode,
-    userEmbedding,
-    forceRecall,
-    messages: messages as Array<{ role: string; content: string }>,
-    convId,
-    log,
-  });
-  
-  systemPrompt += brainCtx.systemPromptAddendum;
+  // Append order preserved: raw prompt → context hints → brain addendum.
+  let systemPrompt = rawSystemPrompt + contextHintsBlock + brainCtx.systemPromptAddendum;
   const contextBlocksFired = brainCtx.contextBlocksFired;
   const deeperContextCount = brainCtx.deeperContextCount;
   const deeperContextTypes = brainCtx.deeperContextTypes;
