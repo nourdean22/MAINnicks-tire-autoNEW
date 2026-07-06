@@ -60,6 +60,17 @@ export default function TrafficFunnelSection() {
     { refetchInterval: 60_000 },
   );
 
+  // SEO fix drafts (phase 4 · GSC Act) — AI-drafted title/meta for buried service
+  // pages. Read-only: a human applies the shared/services.ts edit; nothing writes live.
+  const seoDrafts = trpc.seoTools.seoFixDrafts.useQuery(undefined, { staleTime: 300_000 });
+  const genDrafts = trpc.seoTools.generateSeoFixDrafts.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Drafted ${r.drafts.length} SEO fix${r.drafts.length === 1 ? "" : "es"}`);
+      seoDrafts.refetch();
+    },
+    onError: (e: { message: string }) => toast.error("Draft failed: " + e.message),
+  });
+
   const maxCount = useMemo(() => {
     if (!data) return 1;
     return Math.max(...data.stages.map((s) => s.count), 1);
@@ -117,6 +128,73 @@ export default function TrafficFunnelSection() {
           </div>
         }
       />
+
+      {/* ─── SEO FIX DRAFTS (buried pages · AI-drafted, human applies) ─── */}
+      <div className="border border-border/30 bg-card p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="font-bold text-sm text-foreground tracking-wide flex items-center gap-2">
+              <Search className="w-4 h-4 text-primary" /> SEO FIX DRAFTS
+            </h3>
+            <p className="text-foreground/50 text-[11px] mt-0.5 max-w-2xl">
+              AI-drafted title + meta for buried service pages (high impressions, page 2+). Apply by editing{" "}
+              <span className="font-mono">shared/services.ts</span> — nothing is written to the live site.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => genDrafts.mutate()}
+            disabled={genDrafts.isPending}
+            className="flex items-center gap-1.5 border border-primary/30 text-primary bg-primary/5 px-3 py-1.5 text-[11px] font-bold tracking-wide hover:bg-primary/10 disabled:opacity-50"
+          >
+            {genDrafts.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+            {genDrafts.isPending ? "DRAFTING…" : "DRAFT FIXES"}
+          </button>
+        </div>
+
+        {seoDrafts.data?.drafts && seoDrafts.data.drafts.length > 0 ? (
+          <div className="space-y-3">
+            {seoDrafts.data.drafts.map((d) => (
+              <div key={d.slug} className="border border-border/20 p-3 space-y-2">
+                <div className="flex items-center gap-3 flex-wrap text-[11px]">
+                  <span className="font-mono text-primary">{d.page}</span>
+                  <span className="text-foreground/40">{formatNumber(d.impressions)} impr · pos {d.position}</span>
+                </div>
+                <div className="grid gap-2 text-[11px]">
+                  <div>
+                    <span className="text-foreground/40 uppercase tracking-[0.1em] text-[9px] font-bold">Title</span>
+                    <p className="text-foreground/40 line-through">{d.currentTitle}</p>
+                    <p className="text-emerald-400 font-medium">{d.proposedTitle} <span className="text-foreground/30">({d.proposedTitle.length})</span></p>
+                  </div>
+                  <div>
+                    <span className="text-foreground/40 uppercase tracking-[0.1em] text-[9px] font-bold">Meta description</span>
+                    <p className="text-foreground/40 line-through">{d.currentDescription}</p>
+                    <p className="text-emerald-400 font-medium">{d.proposedDescription} <span className="text-foreground/30">({d.proposedDescription.length})</span></p>
+                  </div>
+                  <p className="text-foreground/50 italic">{d.rationale}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(`metaTitle: ${JSON.stringify(d.proposedTitle)},\nmetaDescription: ${JSON.stringify(d.proposedDescription)},`);
+                    toast.success("Copied services.ts snippet");
+                  }}
+                  className="text-[10px] text-foreground/50 hover:text-foreground underline"
+                >
+                  Copy services.ts snippet
+                </button>
+              </div>
+            ))}
+            {seoDrafts.data.generatedAt && (
+              <p className="text-[10px] text-foreground/30">Drafted {new Date(seoDrafts.data.generatedAt).toLocaleString()}</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-[11px] text-foreground/40 italic">
+            No drafts yet. Click &ldquo;Draft Fixes&rdquo; to generate improved title/meta for the buried pages.
+          </p>
+        )}
+      </div>
 
       {/* ─── ALERTS ─────────────────────────────────────── */}
       {data.alerts.length > 0 && (
