@@ -63,6 +63,15 @@ up. The right next eval-cron metric is `warm_transfer_connect_rate_14d`
 · numerator = forwards followed by a logged human-call activity ·
 denominator = all forwards.
 
+## Self-improving loops (VAPI + GSC · shipped 2026-07-06)
+
+Both acquisition systems now close LEARN→ACT→VERIFY. Prod-truth detail: `truth_os.md` (2026-07-06 block). Design + verified hooks: agent memory `nickstire-self-improving-loops`. Router pointers:
+
+- **VAPI (LIVE):** `vapi-call-eval` cron → per-intent `type:'lesson'` memories (`source:'vapi_eval_cron'`, conf 0.6, only when an intent misses ≥2×/run) → top-3 lessons ≥0.65 conf appended to the receptionist prompt ONLY on the manual **Push Latest Config** (`vapi.ts` `updateAssistant`). No auto caller; a single bad call can't leak (must reinforce past 0.65 first).
+- **GSC (code-complete, DORMANT):** buried-page + SEO-win `type:'pattern'` memories inside `runGscPipeline`; `seoFixDrafts` = draft-only (`shopSettings` KV `seo_fix_drafts`, zero live meta writes). Only verified trigger is the env-gated `gsc-pipeline` cron (`GOOGLE_SEARCH_CONSOLE_KEY` unset → skipped) → won't run until GSC auth is set. **No ungated 12h `gsc-data` job exists in `scheduler.ts`** (prior "ungated 12h" note was wrong).
+- **Honest metrics:** misdial reclassification (`vapiCallClassifier.ts:125`) makes `abandoned_before_connect` mean a real lost caller; `receptionistRoi` tile = hard-conversions × avg paid invoice × 40–70% band.
+- **SEO STOPPED (operator, 2026-07-06):** Ahrefs free DR = **0** for nickstire.org vs 66–94 for page-1 chains → head-term SEO unwinnable; operator chose no further SEO build. Don't reopen unprompted.
+
 ## Recent waves (2026-05-24 → 05-26)
 
 ## Recent waves (2026-05-24 → 05-26)
