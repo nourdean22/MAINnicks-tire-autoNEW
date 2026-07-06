@@ -1301,6 +1301,25 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
   try {
     const config = injectWebhookSecret(buildAssistantConfig(serverUrl));
 
+    // self-improving loop (phase 2) · append the highest-confidence learned
+    // lessons to the system prompt on THIS manual re-push only. buildAssistantConfig
+    // stays pure (its test asserts the static prompt); the append lives here so
+    // lessons reach the receptionist exclusively via the operator's "Push Latest
+    // Config" — updateAssistant has no automated caller. getPromptLessons returns
+    // "" until a lesson has reinforced to >=0.65 (a real recurring pattern), so a
+    // one-off never alters the prompt. Best-effort: a memory read failure never
+    // blocks a legitimate prompt/tool push.
+    try {
+      const { getPromptLessons } = await import("./nickMemory");
+      const lessonsBlock = await getPromptLessons();
+      const sysMsg = config.model?.messages?.[0];
+      if (lessonsBlock && sysMsg && typeof sysMsg.content === "string") {
+        sysMsg.content += lessonsBlock;
+      }
+    } catch (lessonErr) {
+      log.warn("Vapi updateAssistant · lesson-append skipped", { error: lessonErr instanceof Error ? lessonErr.message : String(lessonErr) });
+    }
+
     // wave-141 · pre-fetch the live assistant + carry its dashboard-managed
     // transferCall destination into the config, so this re-push updates the
     // prompt + tool list WITHOUT resetting the operator's transfer number.

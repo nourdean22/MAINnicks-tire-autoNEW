@@ -428,18 +428,15 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
     }
   }
 
-  // 4. Persist compound-learning memories to nick memory.
+  // 4. Persist compound-learning LESSONS to nick memory.
+  //
+  // (Removed the daily "insight" rollup that used to live here: its content
+  // changed every run so it never reinforced — it just accumulated one dead
+  // ~0.85 row/day in the shared 500-cap memory pool, crowding out the lessons
+  // below. The same digest still goes to Telegram above; the memory copy added
+  // no value. Surfaced by the PR #566 self-improving-loop review.)
   try {
     const { remember } = await import("../../services/nickMemory");
-
-    // Daily rollup — a low-value digest kept for continuity with the Telegram
-    // alert. Its content changes every run, so it never reinforces.
-    await remember({
-      type: "insight",
-      content: `Daily VAPI eval: ${totalCalls} calls · avg ${avgScore}/100 · converted ${convertedCount} (${conversionRate}%) · wasted ${wastedCount}.`,
-      source: "vapi_eval_cron",
-      confidence: 0.85,
-    });
 
     // Structured lessons — cluster this run's coachable misses (a lost_opportunity
     // outcome, or a soft info-only score of 50-69) by the intents the classifier
