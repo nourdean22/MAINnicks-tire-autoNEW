@@ -35,6 +35,17 @@ function isErroredAssistantTurn(m: UIMessage): boolean {
   return m.role === "assistant" && (m as { streamingState?: string }).streamingState === "errored";
 }
 
+/**
+ * True when a reply was cut off by the output-token cap — persist-assistant-turn
+ * maps finishReason==="length" → streamingState:"truncated". The text is useful
+ * (a real partial answer), so unlike an errored turn we keep the bubble and just
+ * append a "cut off · regenerate" affordance (2026-07-06 bug fix — chat-v2
+ * previously rendered these as ordinary complete replies with no indication).
+ */
+function isTruncatedAssistantTurn(m: UIMessage): boolean {
+  return m.role === "assistant" && (m as { streamingState?: string }).streamingState === "truncated";
+}
+
 /** The visible partial reply on an errored turn — `""` on a cold (pre-first-token) failure. */
 function erroredPartialText(m: UIMessage): string {
   return (m.parts ?? [])
@@ -171,27 +182,37 @@ export function ChatMessageList({
                   .map((a: any) => a.step);
 
                 return (
-                  <AssistantMessageShell
-                    key={`${m.id}-part-${i}`}
-                    text={part.text}
-                    messageId={m.id}
-                    onLongPress={() => setActionSheetMsg({ id: m.id, role: "assistant", text: part.text })}
-                    contextBlocks={contextBlocks}
-                    quality={quality}
-                    citations={citations}
-                    // 2026-07-04 audit P4 · was a dead "coming soon" toast —
-                    // the QualityBar's REGEN chip (the quality-gate escape
-                    // hatch) did nothing in chat-v2. Wire it to the same
-                    // regenerate() the Retry card uses.
-                    onRegen={() => onRetry?.()}
-                  >
-                    <ReasoningTraceLive steps={reasoningSteps} />
-                    <NickMessage 
-                      text={part.text} 
-                      streaming={isLoading && m.id === messages[messages.length - 1]?.id} 
+                  <div key={`${m.id}-part-${i}`}>
+                    <AssistantMessageShell
+                      text={part.text}
                       messageId={m.id}
-                    />
-                  </AssistantMessageShell>
+                      onLongPress={() => setActionSheetMsg({ id: m.id, role: "assistant", text: part.text })}
+                      contextBlocks={contextBlocks}
+                      quality={quality}
+                      citations={citations}
+                      // 2026-07-04 audit P4 · was a dead "coming soon" toast —
+                      // the QualityBar's REGEN chip (the quality-gate escape
+                      // hatch) did nothing in chat-v2. Wire it to the same
+                      // regenerate() the Retry card uses.
+                      onRegen={() => onRetry?.()}
+                    >
+                      <ReasoningTraceLive steps={reasoningSteps} />
+                      <NickMessage
+                        text={part.text}
+                        streaming={isLoading && m.id === messages[messages.length - 1]?.id}
+                        messageId={m.id}
+                      />
+                    </AssistantMessageShell>
+                    {isTruncatedAssistantTurn(m) && (
+                      <button
+                        onClick={() => onRetry?.()}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/[0.06] px-2.5 py-1 text-[11px] font-semibold text-amber-300 transition-all hover:bg-amber-500/[0.12] active:scale-95"
+                      >
+                        <AlertTriangle size={12} className="shrink-0" />
+                        Response cut off — tap to regenerate
+                      </button>
+                    )}
+                  </div>
                 );
               }
               if (part.type.startsWith("tool-")) {
