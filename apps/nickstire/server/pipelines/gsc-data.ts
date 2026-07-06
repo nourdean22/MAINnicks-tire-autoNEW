@@ -1169,6 +1169,44 @@ export async function runGscPipeline(): Promise<{
     log.error("[GSC Pipeline] opportunity-learn failed:", oppErr);
   }
 
+  // self-improving loop (phase 5 · GSC Verify) · record WINS, not just problems.
+  // A page that WAS buried (page 2+) and has now climbed to page 1 is the loop
+  // paying off — its "SEO opportunity" pattern decays naturally (it stops being
+  // flagged), so we stamp a positive, stable win memory the brain/operator can see
+  // and Telegram the recovery. Reinforce/decay for the rest is already emergent:
+  // a persistent problem keeps recurring (reinforces), a solved one stops (decays
+  // via decayMemories). Reuses the detectRankingChanges result computed above.
+  try {
+    const recovered = new Map<string, { from: number; to: number }>();
+    for (const c of rankingChanges) {
+      if (c.direction !== "improved" || !c.page) continue;
+      if (c.previousPosition < 15 || c.currentPosition >= 11) continue; // was buried -> now page 1
+      const prev = recovered.get(c.page);
+      const climb = c.previousPosition - c.currentPosition;
+      if (!prev || climb > prev.from - prev.to) {
+        recovered.set(c.page, { from: Math.round(c.previousPosition), to: Math.round(c.currentPosition) });
+      }
+    }
+    if (recovered.size > 0) {
+      const { remember } = await import("../services/nickMemory");
+      for (const [page] of recovered) {
+        await remember({
+          type: "pattern",
+          content: `SEO win: "${page}" climbed from page 2+ to page 1 — the title/meta + on-page work is paying off. Keep what worked.`,
+          source: "gsc_pipeline",
+          confidence: 0.7,
+        });
+      }
+      try {
+        const { sendTelegram } = await import("../services/telegram");
+        const lines = [...recovered.entries()].slice(0, 5).map(([page, r]) => `"${page}" · #${r.from} → #${r.to}`);
+        await sendTelegram(`📈 SEO WINS · ${recovered.size} page(s) climbed to page 1:\n\n${lines.join("\n")}\n\nThe self-improving loop is paying off.`);
+      } catch { /* telegram is best-effort */ }
+    }
+  } catch (winErr) {
+    log.error("[GSC Pipeline] win-detection failed:", winErr);
+  }
+
   return {
     sync,
     insights: {
