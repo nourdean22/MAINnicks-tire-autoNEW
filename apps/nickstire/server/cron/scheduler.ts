@@ -1639,41 +1639,6 @@ export function startTieredScheduler(): void {
                 `\n\nInvestigate content or technical issues.`
               );
             }
-            // self-improving loop (phase 3 · GSC Learn) · persist the buried-money-
-            // page opportunities findCtrOpportunities already computes, instead of
-            // discarding them to a count. type:'pattern' (NOT 'lesson') so the VOICE
-            // receptionist prompt — which reads only lessons — is never polluted with
-            // SEO advice; the chat/reasoning brain (getMemoryContext) still sees them.
-            // Content is STABLE per page so remember() reinforces chronic offenders
-            // day over day; a later phase drafts the title/meta fix behind a two-tap.
-            try {
-              const { findCtrOpportunities } = await import("../pipelines/gsc-data");
-              const { remember } = await import("../services/nickMemory");
-              const opps = await findCtrOpportunities({ minImpressions: 150, limit: 30 });
-              const byPage = new Map<string, { impressions: number; posSum: number }>();
-              for (const o of opps) {
-                if (!o.page || o.avgPosition < 15) continue; // only genuinely buried (page 2+)
-                const cur = byPage.get(o.page) ?? { impressions: 0, posSum: 0 };
-                cur.impressions += o.impressions;
-                cur.posSum += o.avgPosition * o.impressions;
-                byPage.set(o.page, cur);
-              }
-              const buried = [...byPage.entries()]
-                .map(([page, v]) => ({ page, impressions: v.impressions }))
-                .sort((a, b) => b.impressions - a.impressions)
-                .slice(0, 5);
-              for (const b of buried) {
-                await remember({
-                  type: "pattern",
-                  content: `SEO opportunity: "${b.page}" draws high search impressions but ranks on page 2+, so it earns almost no clicks. Improve its title/meta and on-page depth to climb toward page 1.`,
-                  source: "gsc_pipeline_cron",
-                  confidence: 0.6,
-                });
-              }
-            } catch (oppErr) {
-              log.warn("[cron/scheduler] gsc opportunity-learn skipped", { error: oppErr instanceof Error ? oppErr.message : String(oppErr) });
-            }
-
             return { recordsProcessed: result.sync?.fetched || 0, details: `${result.sync?.fetched || 0} rows synced, ${drops.length} ranking drops` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "GSC pipeline skipped" }; }
         },
