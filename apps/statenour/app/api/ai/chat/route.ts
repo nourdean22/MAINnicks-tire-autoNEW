@@ -990,7 +990,16 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           turnSignal.intent === "decision" ||
           turnSignal.intent === "analytical");
 
-      if (deepOn || regenOn || selfConsistencyOn || multiAgentOn) {
+      // v10.0.534 · action requests must NEVER route to a reasoning path —
+      // the deepOn branch CANNOT call tools (it pre-fetches a snapshot and
+      // reasons over it), so an action like "sync my calendar" got NARRATED
+      // ("Calendar sync complete") instead of actually calling syncCalendar.
+      // A live agent_traces test (2026-07-06) proved it: the sync turn ran
+      // deep → tool_calls=0, toolsCalled=[]. When detectActionIntent fires
+      // (incl. python-execute), suppress ALL reasoning gates so the turn
+      // falls through to the normal tool-FORCING streamText path below, where
+      // toolChoice:"required" makes the model call the real tool.
+      if (!__actionIntent && (deepOn || regenOn || selfConsistencyOn || multiAgentOn)) {
         let winner = "";
         // Shared generateText config for the regen + self-consistency
         // branches (identical shape) — hoisted so a new field is added
