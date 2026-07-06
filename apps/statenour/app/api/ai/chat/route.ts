@@ -879,6 +879,26 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     }
     prunedTools = forced as unknown as typeof nourTools;
   }
+  // 2026-07-06 bug fix · force the ACTION-INTENT's expected tool into the
+  // pruned set. pruneTools attaches read-only CORE_TOOLS + keyword/semantic
+  // families, but a keyword-less action turn ("add it", "do it") with a cold
+  // embedding cache drops the write tool (e.g. createTask). The
+  // toolChoice:"required" force below (action_intent_detected) then makes the
+  // model act with ONLY read-only tools — so it fabricates "done" or admits
+  // the tool is unavailable. Guarantee the expected tool is present so the
+  // force is coherent. Respects the disabledTools blocklist above (never
+  // re-add a tool the operator deliberately disabled). expectedTool may be a
+  // "toolA|toolB" alternation (action-claim-detector), so split on "|".
+  if (__actionIntent?.expectedTool) {
+    const all = nourTools as unknown as Record<string, unknown>;
+    const disabled = new Set(aiConfig?.disabledTools ?? []);
+    const forced = { ...prunedTools } as Record<string, unknown>;
+    for (const raw of __actionIntent.expectedTool.split("|")) {
+      const name = raw.trim();
+      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
+    }
+    prunedTools = forced as unknown as typeof nourTools;
+  }
 
   const toolCountAll = Object.keys(nourTools).length;
   const toolCountPruned = Object.keys(prunedTools).length;
