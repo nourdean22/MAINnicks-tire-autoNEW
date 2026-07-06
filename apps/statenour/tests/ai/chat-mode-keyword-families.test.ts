@@ -203,3 +203,80 @@ describe("cross-conversation family · session/plural phrasing (2026-07-04)", ()
     expect(CROSS_CONVERSATION.test("how are you doing today?")).toBe(false);
   });
 });
+
+// ─────────────────────────────────────────────────────────────
+// v10.0.531 · tool-attachment audit families. MIRRORS the 13-family
+// block in lib/ai/chat-mode.ts. Keep in sync: a pattern change there
+// lands here FIRST. Each family: fires on natural phrasing + no
+// false-positive on adjacent phrasing.
+// ─────────────────────────────────────────────────────────────
+const P531 = {
+  chart: /\b(chart of|pie chart|bar chart|line chart|render (a |the )?chart|visuali[sz]e|visuali[sz]ation|graph (of|this|the)|plot (of|this|the) (data|tasks|metrics))\b/i,
+  queryNickstire: /\b(query (the )?(shop|business|nickstire)|shop data|business data|bookings?|pending callbacks?|work orders?|status of (our|the) (bookings?|jobs?|orders?))\b/i,
+  health: /\b(mental health|how (am|'?m) i doing (emotional|mental)|am i okay|am i ok\b|burn(ing)? ?out|burnout|overwork(ing|ed)?|work.?life balance|workload sustainable|work health|composure|am i composed|emotional regulation|how('?s| is) my (mood|stress|mental)|how stressed)\b/i,
+  trends: /\b(trend(ing|s| analysis)?|what'?s changing|what changed|top movers?|moving (up|down)|biggest changes?|shifts? in my)\b/i,
+  scrape: /\b(scrape|scraping|extract (the )?(content|text) from|read (the |this |that )?(page|webpage|web page|url|link)|convert (the )?(page|url) to markdown|fetch (the )?(page|url))\b/i,
+  decision: /\b(should i|help me (think through|decide)|thinking through|before i decide|risks? before|pros and cons|weigh (this|the) (option|choice|decision)|i'?m considering|what if i)\b/i,
+  power: /\b(power (dynamics?|balance|position)|leverage (over|across|with)|who (has|holds) power|relationship (leverage|strategy)|cognitive bias|manipulation (tactics?|techniques?)|psychology tactics?|dark psychology)\b/i,
+  last30: /\b(trending (in the )?last (month|30 ?days|week)|recent sentiment|what (are )?people (discussing|saying) (lately|recently)|last 30 days|reddit sentiment)\b/i,
+  video: /\b(tiktok|reel|short video|make (a |the )?video|generate (a |the )?video|create (a |the )?(short )?video|youtube short|video from (this|that|the) script)\b/i,
+  dashboard: /\b(dashboard|business summary|what needs (my )?attention|what'?s urgent|show me (my )?alerts?|attention (alerts?|items?)|needs? action)\b/i,
+  cron: /\b(cron|crons|cron jobs?|scheduled (tasks?|jobs?)|are my (crons?|jobs?) running|job status|which (crons?|jobs?) failed)\b/i,
+  competitive: /\b(competitive (analysis|intel|intelligence)|competitors?|where are we weak|our (weakness|vulnerabilit)|market position|how do we (compare|stack up))\b/i,
+  sms: /\b(sms|text (the |this |a )?customer|send (an? )?(sms|text) to|stage (a |an )?(customer )?(alert|sms|text)|(customer )?outreach via (sms|text))\b/i,
+  logSituation: /\b(log (this |the )?situation|record (this|a) (strategic )?(moment|situation)|i just (encountered|hit|ran into)|note this situation)\b/i,
+};
+
+describe("v10.0.531 tool-attachment families · fire on natural phrasing", () => {
+  it.each([
+    ["chart", "show me a chart of my tasks"],
+    ["chart", "render a pie chart of the data"],
+    ["queryNickstire", "query the shop data"],
+    ["queryNickstire", "what's the status of our bookings"],
+    ["health", "am I burning out?"],
+    ["health", "mental health check"],
+    ["health", "how stressed am I lately"],
+    ["trends", "what's changing in my metrics"],
+    ["trends", "show me the top movers"],
+    ["scrape", "scrape this webpage for me"],
+    ["scrape", "read the page and convert to markdown"],
+    ["decision", "should I take this job"],
+    ["decision", "help me think through this choice"],
+    ["power", "what are the power dynamics here"],
+    ["power", "what manipulation tactics are at play"],
+    ["last30", "what are people saying lately about EVs"],
+    ["video", "make a short video from this script"],
+    ["video", "generate a tiktok"],
+    ["dashboard", "show me my alerts"],
+    ["dashboard", "what needs my attention"],
+    ["cron", "are my crons running"],
+    ["cron", "which jobs failed"],
+    ["competitive", "run a competitive analysis"],
+    ["competitive", "where are we weak vs competitors"],
+    ["sms", "stage an SMS to the customer for review"],
+    ["sms", "text this customer"],
+    ["logSituation", "log this situation for me"],
+    ["logSituation", "record this strategic moment"],
+  ])("%s fires on: %s", (fam, q) => expect(P531[fam as keyof typeof P531].test(q)).toBe(true));
+});
+
+describe("v10.0.531 families · no false positives", () => {
+  it("health family doesn't match a good workout", () => {
+    expect(P531.health.test("the gym was a good workout today")).toBe(false);
+  });
+  it("trends family doesn't match 'change my password'", () => {
+    expect(P531.trends.test("change my password please")).toBe(false);
+  });
+  it("dashboard family catches the PLURAL 'alerts' (the whole bug)", () => {
+    expect(P531.dashboard.test("show me alerts")).toBe(true);
+  });
+  it("cron family doesn't match casual 'job done'", () => {
+    expect(P531.cron.test("i got the job done")).toBe(false);
+  });
+  it("sms family doesn't match casual 'text'", () => {
+    expect(P531.sms.test("what does the text say")).toBe(false);
+  });
+  it("chart family doesn't fire on 'chart-topping'", () => {
+    expect(P531.chart.test("that was a chart-topping song")).toBe(false);
+  });
+});
