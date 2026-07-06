@@ -89,6 +89,8 @@ interface ScoredCall {
   outcome: string;
   reasoning: string;
   phoneTail4: string;
+  /** Intents the classifier extracted (e.g. new_tire, brakes) — used to cluster misses into lessons. */
+  intents: string[];
 }
 
 export async function processVapiCallEval(): Promise<ProcessResult> {
@@ -305,6 +307,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           outcome: bucketed,
           reasoning,
           phoneTail4: (row.phoneNumber ?? "").replace(/\D/g, "").slice(-4),
+          intents: result.intents,
         });
       }
 
@@ -425,17 +428,45 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
     }
   }
 
-  // 4. Persist insight to nick memory for compound learning
+  // 4. Persist compound-learning memories to nick memory.
   try {
     const { remember } = await import("../../services/nickMemory");
+
+    // Daily rollup — a low-value digest kept for continuity with the Telegram
+    // alert. Its content changes every run, so it never reinforces.
     await remember({
       type: "insight",
       content: `Daily VAPI eval: ${totalCalls} calls · avg ${avgScore}/100 · converted ${convertedCount} (${conversionRate}%) · wasted ${wastedCount}.`,
       source: "vapi_eval_cron",
       confidence: 0.85,
     });
+
+    // Structured lessons — cluster this run's coachable misses (a lost_opportunity
+    // outcome, or a soft info-only score of 50-69) by the intents the classifier
+    // extracted. The lesson text is STABLE per intent, so remember() reinforces a
+    // recurring pattern day over day (confidence compounds) instead of writing a
+    // throwaway string. This turns getMemoryContext() from a rollup feed into a
+    // ranked "what to fix" list a later phase can splice into the assistant prompt.
+    const misses = scored.filter(
+      (c) => c.outcome === "lost_opportunity" || scoreBand(c.score) === "info",
+    );
+    const missesByIntent = new Map<string, number>();
+    for (const c of misses) {
+      for (const intent of c.intents) {
+        missesByIntent.set(intent, (missesByIntent.get(intent) ?? 0) + 1);
+      }
+    }
+    for (const [intent, count] of missesByIntent) {
+      if (count < 2) continue; // a single miss isn't a pattern worth a lesson
+      await remember({
+        type: "lesson",
+        content: `Callers about "${intent}" keep ending without a booking (lost or info-only). Qualify the ${intent} ask faster and offer a manager transfer earlier so the call converts.`,
+        source: "vapi_eval_cron",
+        confidence: 0.6,
+      });
+    }
   } catch (e) {
-    log.warn("[vapi-eval] nickMemory.remember failed", { error: e instanceof Error ? e.message : String(e) });
+    log.warn("[vapi-eval] nickMemory persist failed", { error: e instanceof Error ? e.message : String(e) });
   }
 
   const durMs = Date.now() - start;
