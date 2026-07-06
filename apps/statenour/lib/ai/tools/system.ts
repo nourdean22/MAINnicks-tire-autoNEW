@@ -668,19 +668,24 @@ export const systemTools = {
           const { askPerplexica } = await import("@/lib/integrations/perplexica");
           const r = await askPerplexica(query);
           if (r?.content?.trim()) {
-            return { content: fence(r.content), model: "perplexica", source: "arsenal/perplexica" };
+            // 2026-07-05 improvement · attribute web claims. arsenalWebSearch was
+            // the lone web tool discarding citations (searchWebVerified /
+            // arsenalDeepResearch already ship them). Each source returns
+            // { url, title? }[]; forward them unfenced (URLs are metadata, not
+            // model-followable instructions) so the message can render pills.
+            return { content: fence(r.content), citations: r.citations ?? [], model: "perplexica", source: "arsenal/perplexica" };
           }
         } else if (process.env.PERPLEXITY_API_KEY) {
           const { researchTopic } = await import("@/lib/integrations/perplexity");
           const r = await researchTopic(query);
           if (r?.content?.trim()) {
-            return { content: fence(r.content), model: "perplexity", source: "arsenal" };
+            return { content: fence(r.content), citations: r.citations ?? [], model: "perplexity", source: "arsenal" };
           }
         } else {
           const { askGoogleSearch } = await import("@/lib/integrations/google-search");
           const r = await askGoogleSearch(query);
           if (r?.content?.trim()) {
-            return { content: fence(r.content), model: r.model, source: "google" };
+            return { content: fence(r.content), citations: r.citations ?? [], model: r.model, source: "google" };
           }
         }
       } catch (err) {
@@ -702,7 +707,7 @@ export const systemTools = {
         q.sources.map((s) => `${s.name}: ${s.content}`).join("\n\n").trim() ||
         q.disagreement ||
         "Web search returned no results from any source.";
-      return { content: fence(body), model: "multi-source", source: "arsenal/fallback" };
+      return { content: fence(body), citations: q.citations ?? [], model: "multi-source", source: "arsenal/fallback" };
     },
   }),
 
