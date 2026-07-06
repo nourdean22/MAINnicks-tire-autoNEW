@@ -931,6 +931,10 @@ export async function aiChat(
       const useAnthropicCache = entry.name === "anthropic" && systemPrompt && systemPrompt.length > 200;
       const result = await generateText({
         model,
+        // 2026-07-06 · no Gemini content filtering on the internal LLM path
+        // either (reasoning · judge · critic · kn-extract all route through
+        // aiChat). Ignored by non-Google providers.
+        providerOptions: { google: GEMINI_SAFETY_OFF },
         ...(useAnthropicCache
           ? {
               // Pass system as message-shaped to attach providerOptions.
@@ -1303,6 +1307,7 @@ export function aiStream(messages: AiMessage[], taskType: TaskType = "reason"): 
 
         const result = streamText({
           model,
+          providerOptions: { google: GEMINI_SAFETY_OFF }, // 2026-07-06 · no Gemini content filtering
           system: systemMessages.map((m) => m.content).join("\n\n") || undefined,
           messages: nonSystemMessages.map((m) => ({
             role: m.role as "user" | "assistant",

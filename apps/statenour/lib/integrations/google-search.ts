@@ -11,6 +11,7 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { withGuardian } from "@/lib/tools/guardian";
+import { GEMINI_SAFETY_OFF } from "@/lib/ai/provider";
 
 export interface GoogleSearchCitation {
   url: string;
@@ -52,6 +53,7 @@ async function _askGoogleSearch(
   const result = await generateText({
     model,
     prompt: question,
+    providerOptions: { google: GEMINI_SAFETY_OFF }, // 2026-07-06 · no Gemini content filtering
     tools: {
       googleSearch: google.tools.googleSearch({}) as any,
     },
