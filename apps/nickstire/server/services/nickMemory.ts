@@ -163,21 +163,33 @@ export async function getMemoryContext(): Promise<string> {
   return context;
 }
 
+/** The ONLY source that writes receptionist-coaching lessons (vapiCallEval · phase 1). */
+export const RECEPTIONIST_LESSON_SOURCE = "vapi_eval_cron";
+
 /**
- * Top learned LESSONS, ranked for injection into the VAPI receptionist prompt.
+ * Rank + filter lessons for injection into the VAPI receptionist prompt. Pure, so
+ * it is unit-testable (see nickMemory.promptLessons.test.ts).
  *
- * Only lessons reinforced to >= minConfidence (default 0.65) qualify — a fresh
- * lesson starts at 0.6 (see vapiCallEval), so a one-off never reaches the live
- * prompt until it has recurred at least once. Ranked by confidence * uses.
+ * CRITICAL: restricted to source 'vapi_eval_cron'. Other subsystems (statenour
+ * alerts, data-accuracy checks, the event bus) also write type:'lesson' rows; a
+ * /verify against the LIVE memory pool found those would otherwise win by
+ * uses×confidence and get spliced into the live prompt (e.g. "Data accuracy: N
+ * invoices missing phone") — junk for a voice agent. Only lessons reinforced to
+ * >= minConfidence (default 0.65) qualify (a fresh lesson starts at 0.6), ranked
+ * by confidence * uses.
  */
-export async function topPromptLessons(opts?: { max?: number; minConfidence?: number }): Promise<NickMemory[]> {
+export function rankPromptLessons(lessons: NickMemory[], opts?: { max?: number; minConfidence?: number }): NickMemory[] {
   const max = opts?.max ?? 3;
   const minConfidence = opts?.minConfidence ?? 0.65;
-  const lessons = await recall({ type: "lesson", limit: 50 });
   return lessons
-    .filter((m) => m.confidence >= minConfidence)
+    .filter((m) => m.source === RECEPTIONIST_LESSON_SOURCE && m.confidence >= minConfidence)
     .sort((a, b) => (b.confidence * b.uses) - (a.confidence * a.uses))
     .slice(0, max);
+}
+
+export async function topPromptLessons(opts?: { max?: number; minConfidence?: number }): Promise<NickMemory[]> {
+  const lessons = await recall({ type: "lesson", limit: 50 });
+  return rankPromptLessons(lessons, opts);
 }
 
 /**
