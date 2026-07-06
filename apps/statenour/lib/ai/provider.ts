@@ -180,6 +180,35 @@ function createGoogleModel(taskType?: TaskType): LanguageModel {
   return google(modelId);
 }
 
+/**
+ * 2026-07-06 · Gemini safety-filter override. Passed via
+ * `providerOptions.google` at the streamText / generateText call sites (the
+ * @ai-sdk/google v3 API — safetySettings is a per-call GoogleLanguageModelOptions
+ * field, NOT a model-creation option). Ignored by non-Google providers.
+ *
+ * Why: safetySettings were UNSET everywhere, so Gemini applied its DEFAULT
+ * filters, which can TRUNCATE a reply mid-generation on flagged content — the
+ * leading suspect behind the operator's "messages don't finish" report (a
+ * ~44-token mid-sentence cut that NO maxOutputTokens cap explains: query-shape
+ * budgets 300-1600, mode default 1200, aiChat 1500-8000). The truncated turn
+ * was the model AFFIRMING it is "unrestricted / will do anything" — squarely
+ * in the dangerous-content / harassment filters. Disabling them removes that
+ * truncation vector AND matches OWNER AUTHORITY: a single-operator personal OS,
+ * not a public product, so provider-side content filtering is an unwanted
+ * restriction on the owner.
+ */
+export const GEMINI_SAFETY_OFF: {
+  safetySettings: Array<{ category: string; threshold: string }>;
+} = {
+  safetySettings: [
+    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
+  ],
+};
+
 function createOpenRouterModel(taskType?: TaskType): LanguageModel {
   const apiKey = getApiKey("openrouter");
   const modelId = resolveProviderModel("openrouter", taskType);
