@@ -283,6 +283,19 @@ see the consolidated summary at the bottom of this doc.
 
 ## Stage C · The parallel prefetch (`Promise.all` over six pipelines)
 
+> ⚠️ **Stale (as of 2026-07-05) — Stage C/D below predate two refactors.**
+> The `auxPromise` / `recallPromise` shape and the separate `threadContext` /
+> `contextMemories` appends described here were superseded by the 2026-05-31
+> `lib/services/chat/brain-context.ts` extraction (recall is now bundled into
+> `buildBrainContext().systemPromptAddendum`), and PR #554 (2026-07-05) folded
+> `buildContextHints` + `buildBrainContext` **into** the main `Promise.all`
+> (brainCtx chained on `userEmbedding` + `convId`) so recall overlaps the
+> prompt build instead of running as a serial tail. The current batch is
+> `[promptPromise, compressPromise, dbWritePromise, userEmbeddingPromise,
+> contextHintsPromise, brainCtxPromise]`. Read the current `route.ts` +
+> `docs/sessions/2026-07-05.md` for ground truth until this walkthrough is
+> reconciled (tracked as a separate doc task).
+
 This is the perf trick that takes the route from 4-8s of serial
 work down to `max(each_pipeline)` ≈ 1-3s.
 
