@@ -25,6 +25,63 @@ async function copyToClipboard(text: string): Promise<void> {
   }
 }
 
+/**
+ * True when a message is a persisted stream-interruption stub —
+ * stream-error-handler.ts writes an assistant row with
+ * `streamingState:"errored"` on a mid/pre-stream failure. Hydrated onto the
+ * UIMessage by use-conversations.ts.
+ */
+function isErroredAssistantTurn(m: UIMessage): boolean {
+  return m.role === "assistant" && (m as { streamingState?: string }).streamingState === "errored";
+}
+
+/** The visible partial reply on an errored turn — `""` on a cold (pre-first-token) failure. */
+function erroredPartialText(m: UIMessage): string {
+  return (m.parts ?? [])
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join("")
+    .trim();
+}
+
+/**
+ * The explicit interrupted-turn affordance for a persisted errored stub row
+ * (2026-07-05 audit HIGH). The v2 parts-only render path never read
+ * `streamingState`, so a reloaded errored turn used to show a BLANK assistant
+ * bubble with no error chip and no retry (the MessageStatusBadge lived only on
+ * the dead components/chat list). Shows the partial reply if any, plus a red
+ * "interrupted" chip and a Retry button wired to the same regenerate.
+ */
+function InterruptedTurnCard({ message, onRetry }: { message: UIMessage; onRetry?: () => void }) {
+  const partialText = erroredPartialText(message);
+  return (
+    <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="max-w-[85%] rounded-2xl border border-red-900/40 bg-red-950/25 px-5 py-3.5 shadow-sm">
+        {partialText.length > 0 && (
+          <div className="mb-3 whitespace-pre-wrap text-[15px] leading-relaxed text-zinc-200">{partialText}</div>
+        )}
+        <div className="flex items-center gap-2 text-red-400">
+          <AlertTriangle size={15} className="shrink-0" />
+          <span className="text-[13px] font-semibold">Response interrupted</span>
+        </div>
+        <p className="mt-1 text-[11px] text-red-400/60">
+          {partialText.length > 0
+            ? "The reply was cut off — tap to regenerate."
+            : "This turn failed before any reply — tap to try again."}
+        </p>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="mt-3 rounded-lg bg-red-500/15 px-5 py-2 text-[12px] font-semibold text-red-300 transition-all hover:bg-red-500/25 active:scale-95"
+          >
+            Retry
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ChatMessageList({
   messages,
   isLoading,
@@ -79,47 +136,11 @@ export function ChatMessageList({
       {/* Real Messages */}
       {/* eslint-disable-next-line react-hooks/refs */}
       {renderedMessages.map((m) => {
-        // 2026-07-05 audit HIGH · persisted errored stub rows. On a stream
-        // interruption stream-error-handler.ts writes an assistant row with
-        // streamingState:"errored" and content = the bare partial ("" on a
-        // cold pre-first-token failure). use-conversations hydrates that to
-        // parts:[{type:"text",text:""}] + streamingState:"errored". The v2
-        // render path below maps parts only and never read streamingState, so
-        // a reloaded errored turn showed a BLANK assistant bubble with no error
-        // chip and no retry (the MessageStatusBadge lived only on the dead
-        // components/chat list). Render an explicit interrupted-turn card here.
-        if (m.role === "assistant" && (m as any).streamingState === "errored") {
-          const partialText = (m.parts ?? [])
-            .filter((p: any) => p.type === "text")
-            .map((p: any) => p.text as string)
-            .join("")
-            .trim();
-          return (
-            <div key={m.id} className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="max-w-[85%] rounded-2xl border border-red-900/40 bg-red-950/25 px-5 py-3.5 shadow-sm">
-                {partialText.length > 0 && (
-                  <div className="mb-3 whitespace-pre-wrap text-[15px] leading-relaxed text-zinc-200">{partialText}</div>
-                )}
-                <div className="flex items-center gap-2 text-red-400">
-                  <AlertTriangle size={15} className="shrink-0" />
-                  <span className="text-[13px] font-semibold">Response interrupted</span>
-                </div>
-                <p className="mt-1 text-[11px] text-red-400/60">
-                  {partialText.length > 0
-                    ? "The reply was cut off — tap to regenerate."
-                    : "This turn failed before any reply — tap to try again."}
-                </p>
-                {onRetry && (
-                  <button
-                    onClick={onRetry}
-                    className="mt-3 rounded-lg bg-red-500/15 px-5 py-2 text-[12px] font-semibold text-red-300 transition-all hover:bg-red-500/25 active:scale-95"
-                  >
-                    Retry
-                  </button>
-                )}
-              </div>
-            </div>
-          );
+        // A persisted errored stub row renders as an explicit interrupted-turn
+        // card instead of the blank bubble the parts-only path below would
+        // produce (2026-07-05 audit HIGH — see InterruptedTurnCard).
+        if (isErroredAssistantTurn(m)) {
+          return <InterruptedTurnCard key={m.id} message={m} onRetry={onRetry} />;
         }
         return (
         <div key={m.id} className={`flex animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
