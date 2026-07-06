@@ -159,6 +159,35 @@ export async function getMemoryContext(): Promise<string> {
 }
 
 /**
+ * Top learned LESSONS, ranked for injection into the VAPI receptionist prompt.
+ *
+ * Only lessons reinforced to >= minConfidence (default 0.65) qualify — a fresh
+ * lesson starts at 0.6 (see vapiCallEval), so a one-off never reaches the live
+ * prompt until it has recurred at least once. Ranked by confidence * uses.
+ */
+export async function topPromptLessons(opts?: { max?: number; minConfidence?: number }): Promise<NickMemory[]> {
+  const max = opts?.max ?? 3;
+  const minConfidence = opts?.minConfidence ?? 0.65;
+  const lessons = await recall({ type: "lesson", limit: 50 });
+  return lessons
+    .filter((m) => m.confidence >= minConfidence)
+    .sort((a, b) => (b.confidence * b.uses) - (a.confidence * a.uses))
+    .slice(0, max);
+}
+
+/**
+ * The top lessons as a compact block for the receptionist system prompt, or ""
+ * if none qualify. Appended ONLY by updateAssistant() on the operator's manual
+ * "Push Latest Config" re-push — never an automated path.
+ */
+export async function getPromptLessons(opts?: { max?: number; minConfidence?: number }): Promise<string> {
+  const top = await topPromptLessons(opts);
+  if (top.length === 0) return "";
+  const lines = top.map((m) => `- ${m.content}`).join("\n");
+  return `\n\n## WHAT WE'VE LEARNED (from recent calls · apply when relevant)\n${lines}`;
+}
+
+/**
  * Auto-learn from operator command interactions
  */
 export async function learnFromInteraction(command: string, response: string): Promise<void> {

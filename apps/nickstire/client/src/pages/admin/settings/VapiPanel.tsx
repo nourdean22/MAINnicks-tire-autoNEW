@@ -27,6 +27,11 @@ export default function VapiPanel() {
     staleTime: 60_000,
     enabled: status?.connected ?? false,
   });
+  // Lessons the receptionist prompt will absorb on the next "Push Latest Config".
+  const { data: promptLessons } = trpc.vapi.promptLessons.useQuery(undefined, {
+    staleTime: 60_000,
+    enabled: status?.connected ?? false,
+  });
   const createAssistant = trpc.vapi.createAssistant.useMutation({
     onSuccess: (result) => {
       if (result.success) {
@@ -126,6 +131,21 @@ export default function VapiPanel() {
               </button>
             )}
           </div>
+          {promptLessons && promptLessons.length > 0 && (
+            <div className="border border-primary/20 bg-primary/[0.04] p-2.5">
+              <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-primary/80 mb-1">
+                Learned lessons appended on next push ({promptLessons.length})
+              </p>
+              <ul className="space-y-1">
+                {promptLessons.map((l: { content: string; confidence: number; uses: number }, i: number) => (
+                  <li key={i} className="text-[11px] text-foreground/70 leading-snug">
+                    · {l.content}{" "}
+                    <span className="text-foreground/40 font-mono">({Math.round(l.confidence * 100)}%, {l.uses}x)</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {status.assistants.map((a: { id: string; name: string; createdAt: string }) => (
             <div key={a.id} className="flex items-center justify-between gap-3 text-[11px] py-1.5 border-b border-border/10">
               <span className="text-foreground font-medium truncate">{a.name}</span>
