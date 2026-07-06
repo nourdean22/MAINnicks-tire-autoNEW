@@ -327,7 +327,7 @@ export const systemTools = {
   // "describing" with "doing" for any quantitative question.
   searchWebVerified: tool({
     description:
-      "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding). Returns consensus when sources agree, or flags the disagreement when they diverge. Use for factual claims where being wrong matters: news, statistics, recent events, technical specs. Confidence ≥0.66 means 2+ sources agree. Prefer this over single-source web search when the operator's question is verifiable.",
+      "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding + Perplexica). Returns consensus when sources agree, or flags the disagreement when they diverge. Use for factual claims where being wrong matters: news, statistics, recent events, technical specs. Confidence ≥0.66 means 2+ sources agree. Prefer this over single-source web search when the operator's question is verifiable.",
     inputSchema: z.object({
       query: z
         .string()
@@ -335,7 +335,7 @@ export const systemTools = {
         .max(500)
         .describe("The natural-language question or claim to verify."),
       sources: z
-        .array(z.enum(["perplexity", "tavily", "exa", "google"]))
+        .array(z.enum(["perplexity", "tavily", "exa", "google", "perplexica"]))
         .optional()
         .describe(
           "Restrict to these sources. Default: all configured sources.",

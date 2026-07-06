@@ -24,6 +24,7 @@ const mockPerplexity = vi.fn();
 const mockTavily = vi.fn();
 const mockExa = vi.fn();
 const mockGoogle = vi.fn();
+const mockPerplexica = vi.fn();
 
 vi.mock("@/lib/integrations/perplexity", () => ({
   askPerplexity: (...args: unknown[]) => mockPerplexity(...args),
@@ -37,6 +38,13 @@ vi.mock("@/lib/integrations/exa", () => ({
 vi.mock("@/lib/integrations/google-search", () => ({
   askGoogleSearch: (...args: unknown[]) => mockGoogle(...args),
 }));
+// 2026-07-05 · Perplexica is the free self-hosted 5th source; hasPerplexica
+// reads PERPLEXICA_API_URL (same as the real impl) so the existing env-driven
+// availability pattern controls it too.
+vi.mock("@/lib/integrations/perplexica", () => ({
+  askPerplexica: (...args: unknown[]) => mockPerplexica(...args),
+  hasPerplexica: () => Boolean(process.env.PERPLEXICA_API_URL),
+}));
 
 import { multiSourceSearch, __test__ } from "../../lib/ai/multi-search";
 
@@ -47,15 +55,19 @@ const { tokenize, jaccardSimilarity, dedupCitations, AGREEMENT_THRESHOLD } = __t
 const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
-  // Default · all keys present so dispatch happens.
+  // Default · the four metered keys present so dispatch happens. Perplexica
+  // is OFF by default (delete its URL) so the existing 4-source assertions are
+  // unchanged; the dedicated test below opts it in explicitly.
   process.env.PERPLEXITY_API_KEY = "test-pplx";
   process.env.TAVILY_API_KEY = "test-tav";
   process.env.EXA_API_KEY = "test-exa";
   process.env.GEMINI_API_KEY = "test-gemini";
+  delete process.env.PERPLEXICA_API_URL;
   mockPerplexity.mockReset();
   mockTavily.mockReset();
   mockExa.mockReset();
   mockGoogle.mockReset();
+  mockPerplexica.mockReset();
 });
 
 afterEach(() => {
@@ -171,6 +183,30 @@ describe("v10.0.524 · multiSourceSearch orchestrator", () => {
     // We assert at least the quorum-fraction floor (3/3 sources returned).
     expect(result.confidence).toBeGreaterThanOrEqual(0.5);
     expect(result.citations.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("includes Perplexica as a quorum source when PERPLEXICA_API_URL is set", async () => {
+    // 2026-07-05 · the free self-hosted 5th source joins the quorum when
+    // configured. Off by default (beforeEach deletes the URL); opt in here.
+    process.env.PERPLEXICA_API_URL = "http://perplexica.test:3000";
+    mockPerplexity.mockResolvedValue({
+      content: "The James Webb Space Telescope launched on December 25, 2021.",
+      citations: [{ url: "https://nasa.gov/jwst" }],
+      model: "sonar",
+    });
+    mockPerplexica.mockResolvedValue({
+      content: "JWST launched December 25, 2021 aboard an Ariane 5 rocket.",
+      citations: [{ url: "https://esa.int/jwst" }],
+      model: "perplexica",
+    });
+
+    const result = await multiSourceSearch("When did JWST launch?", {
+      sources: ["perplexity", "perplexica"],
+    });
+
+    expect(mockPerplexica).toHaveBeenCalledTimes(1);
+    expect(result.sources.map((s) => s.name)).toContain("perplexica");
+    expect(result.citations.some((c) => c.source === "perplexica")).toBe(true);
   });
 
   it("returns consensus + confidence ≥ 0.66 when ALL 3 sources agree on the golden test", async () => {
