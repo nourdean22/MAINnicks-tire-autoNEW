@@ -34,6 +34,7 @@ import { askPerplexity, type PerplexityResponse } from "@/lib/integrations/perpl
 import { askTavily, type TavilyResponse } from "@/lib/integrations/tavily";
 import { askExa, type ExaResponse } from "@/lib/integrations/exa";
 import { askGoogleSearch } from "@/lib/integrations/google-search";
+import { askPerplexica, hasPerplexica } from "@/lib/integrations/perplexica";
 // v10.0.525 · #12 silent-failure-hunter H1 fix · the all-sources-
 // failed path was returning empty without any log surface, which
 // risks the very fabrication searchWebVerified exists to prevent.
@@ -41,7 +42,7 @@ import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("ai/multi-search");
 
-export type SourceName = "perplexity" | "tavily" | "exa" | "google";
+export type SourceName = "perplexity" | "tavily" | "exa" | "google" | "perplexica";
 
 export interface MultiSourceCitation {
   url: string;
@@ -83,7 +84,10 @@ export interface MultiSourceOptions {
 /* ---------- internals ---------- */
 
 const DEFAULT_TIMEOUT_MS = 8_000;
-const ALL_SOURCES: SourceName[] = ["perplexity", "tavily", "exa", "google"];
+// 2026-07-05 improvement · Perplexica added LAST so dedupCitations (keep-first)
+// preserves the metered sources' authoritative order (perplexity > tavily >
+// exa); the free self-hosted source is lowest dedup precedence — no reorder.
+const ALL_SOURCES: SourceName[] = ["perplexity", "tavily", "exa", "google", "perplexica"];
 
 /**
  * Race a promise against a timeout. Resolves to the promise's
@@ -107,6 +111,7 @@ function hasApiKey(source: SourceName): boolean {
   if (source === "tavily") return Boolean(process.env.TAVILY_API_KEY);
   if (source === "exa") return Boolean(process.env.EXA_API_KEY);
   if (source === "google") return Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+  if (source === "perplexica") return hasPerplexica();
   return false;
 }
 
@@ -204,7 +209,15 @@ export async function multiSourceSearch(
   query: string,
   opts: MultiSourceOptions = {},
 ): Promise<MultiSourceResult> {
-  const requested = opts.sources?.length ? opts.sources : ALL_SOURCES;
+  // 2026-07-05 · Perplexica joins the DEFAULT quorum only when actually
+  // configured. Confidence = successes / requested.length, so listing an
+  // unconfigured source in the default set would DILUTE every score on
+  // deployments that don't run Perplexica (weakening the anti-fabrication
+  // signal) — it never succeeds but still grows the denominator. Explicit
+  // `opts.sources` is always honored verbatim.
+  const requested = opts.sources?.length
+    ? opts.sources
+    : ALL_SOURCES.filter((s) => s !== "perplexica" || hasPerplexica());
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   // Skip sources whose API key isn't configured · not an error.
@@ -260,6 +273,23 @@ export async function multiSourceSearch(
         askExa(query, baseOpts),
         timeoutMs,
         "exa",
+      );
+      return {
+        name,
+        content: r.content,
+        citations: r.citations,
+        model: r.model,
+      };
+    }
+    if (name === "perplexica") {
+      // Free self-hosted 5th source. askPerplexica is already withGuardian-
+      // wrapped (reliabilityOnly); the withTimeout here is the same per-source
+      // budget the metered sources get. 'balanced' mode trades a little speed
+      // for better retrieval on verification queries.
+      const r = await withTimeout(
+        askPerplexica(query, { optimizationMode: "balanced" }),
+        timeoutMs,
+        "perplexica",
       );
       return {
         name,
