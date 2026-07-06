@@ -109,8 +109,19 @@ export function ChatMessageList({
   onRetry?: () => void,
 }) {
   const pending = useChatUiStore((s) => s.pending);
+  const setDraft = useChatUiStore((s) => s.setDraft);
   const [actionSheetMsg, setActionSheetMsg] = useState<{ id: string; role: "user" | "assistant"; text: string } | null>(null);
   const [reasoningTraceMsg, setReasoningTraceMsg] = useState<string | null>(null);
+
+  // 2026-07-06 bug fix · tap-to-edit a sent message. The UserMessageBubble is
+  // titled "Tap to edit" but chat-v2 wired onClick to a no-op, so there was no
+  // way to edit/correct a previously-sent message. Load its text into the
+  // composer draft (useLongPress now distinguishes a tap from a drag-select, so
+  // this doesn't fire when the user selects text to copy).
+  const editMessage = (text: string) => {
+    setDraft(text);
+    toast("Loaded into composer — edit and resend", { duration: 1600 });
+  };
 
   const { renderedMessages, hasHidden, hiddenCount, showOlder } = useLazyRenderMessages(messages, isLoading);
 
@@ -167,7 +178,7 @@ export function ChatMessageList({
                     <UserMessageBubble 
                       key={`${m.id}-part-${i}`}
                       text={part.text}
-                      onClick={() => {}}
+                      onClick={() => editMessage(part.text)}
                       onLongPress={() => setActionSheetMsg({ id: m.id, role: "user", text: part.text })}
                     />
                   );
@@ -291,6 +302,14 @@ export function ChatMessageList({
         onCopy={() => {
           if (actionSheetMsg?.text) copyToClipboard(actionSheetMsg.text);
         }}
+        onEdit={
+          actionSheetMsg?.role === "user"
+            ? () => {
+                if (actionSheetMsg?.text) editMessage(actionSheetMsg.text);
+                setActionSheetMsg(null);
+              }
+            : undefined
+        }
         onSaveAsBelief={() => {
           toast("Save as belief triggered (memory port pending)");
         }}
