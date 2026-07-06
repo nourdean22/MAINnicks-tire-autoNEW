@@ -1,5 +1,5 @@
 import { streamText, stepCountIs } from "ai";
-import { getModel, getActiveProviderInfo, isRuntimeProvider, type ProviderName, type TaskType } from "@/lib/ai/provider";
+import { getModel, getActiveProviderInfo, isRuntimeProvider, GEMINI_SAFETY_OFF, type ProviderName, type TaskType } from "@/lib/ai/provider";
 import { buildSystemPrompt, detectTopicTier } from "@/lib/ai/system-prompt";
 import { detectQueryShape } from "@/lib/ai/query-shape";
 import { classifyTurn } from "@/lib/ai/turn-intelligence";
@@ -1285,6 +1285,13 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
 
       return ({
         model: __fbModel,
+        // 2026-07-06 · disable Gemini's default safety filters (per-call, via
+        // providerOptions.google — the @ai-sdk/google v3 API). Ignored by
+        // non-Google providers. Gemini's defaults can truncate a reply
+        // mid-generation on flagged content (the likely "messages don't
+        // finish" cause) and are an unwanted restriction on this owner-operated
+        // OS. See GEMINI_SAFETY_OFF in lib/ai/provider.ts.
+        providerOptions: { google: GEMINI_SAFETY_OFF },
         // v10.0.446 · prompt-quality audit fix #1 · cacheControl wiring.
         // When Anthropic is the active fallback provider, fold the
         // system prompt into messages with `cacheControl: ephemeral`
