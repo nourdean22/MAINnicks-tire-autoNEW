@@ -98,3 +98,34 @@ describe("detectActionIntent · still fires on legit task language", () => {
     expect(detectActionIntent("we're done with the inventory audit")?.intent).toBe("task-complete");
   });
 });
+
+// v10.0.533 · data-sync. A live agent_traces read proved "sync my calendar"
+// was answered as prose ("Calendar synced") with zero tools called — no sync
+// concept existed, so toolChoice was never forced. These lock the new concept
+// firing on real sync phrasings AND staying quiet on a meeting "sync up".
+describe("detectActionIntent · data-sync (v10.0.533)", () => {
+  it.each([
+    "sync my calendar",
+    "sync my gmail",
+    "refresh my inbox",
+    "sync my drive",
+    "pull my latest emails",
+    "ingest my latest docs",
+    "refresh my knowledge base",
+  ])("fires data-sync on: %s", (q) => {
+    const r = detectActionIntent(q);
+    expect(r?.intent).toBe("data-sync");
+    // expectedTool is the full alternation; the route splits on "|" and
+    // attaches all three sync tools, then toolChoice:"required" lets the
+    // model pick the right one.
+    expect(r?.expectedTool).toContain("syncCalendar");
+  });
+  it("does NOT fire on a meeting 'sync up' with a distant calendar mention", () => {
+    expect(
+      detectActionIntent("we should sync up with the team about the calendar next week"),
+    ).toBeNull();
+  });
+  it("does NOT fire on a calendar read question", () => {
+    expect(detectActionIntent("what's on my calendar today?")).toBeNull();
+  });
+});
