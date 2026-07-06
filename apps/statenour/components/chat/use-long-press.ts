@@ -26,6 +26,10 @@ export function useLongPress({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startRef = useRef<{ x: number; y: number } | null>(null);
   const firedRef = useRef(false);
+  // 2026-07-06 · track drag so a drag-to-SELECT (copy text) is not mistaken
+  // for a tap and does NOT trigger onClick (e.g. tap-to-edit). Without this,
+  // making the bubble text selectable would fire onClick on every select.
+  const movedRef = useRef(false);
 
   const clear = useCallback(() => {
     if (timerRef.current) {
@@ -37,6 +41,7 @@ export function useLongPress({
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       firedRef.current = false;
+      movedRef.current = false;
       startRef.current = { x: e.clientX, y: e.clientY };
       clear();
       timerRef.current = setTimeout(() => {
@@ -52,13 +57,16 @@ export function useLongPress({
       if (!startRef.current) return;
       const dx = e.clientX - startRef.current.x;
       const dy = e.clientY - startRef.current.y;
-      if (Math.hypot(dx, dy) > moveTolerance) clear();
+      if (Math.hypot(dx, dy) > moveTolerance) {
+        movedRef.current = true; // this was a drag (scroll or text-select), not a tap
+        clear();
+      }
     },
     [moveTolerance, clear],
   );
 
   const onPointerUp = useCallback(() => {
-    if (!firedRef.current && startRef.current && onClick) {
+    if (!firedRef.current && !movedRef.current && startRef.current && onClick) {
       onClick();
     }
     clear();
