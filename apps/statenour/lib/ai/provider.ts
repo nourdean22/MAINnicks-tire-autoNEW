@@ -1075,7 +1075,40 @@ export async function aiChat(
  * stored vectors may need a one-time backfill if you switched
  * providers since the records were written.
  */
+// 2026-07-05 improvement · request-scoped embed memo. The SAME userContent is
+// embedded 2x+ per recall turn (route.ts prefetch + semanticSearch) and at 6+
+// more same-turn sites (anticipated-questions, contradiction-injector,
+// contextual-recall, calibration). A short-TTL text-keyed memo collapses ALL
+// of them → ~one Cohere round-trip saved per turn. Module-level so it survives
+// a warm lambda and resets on cold start (same lifecycle + pattern as
+// context-reranker.ts's EMBED_CACHE). getEmbedding has a fixed text-only
+// signature with a hardcoded input_type, so a text key is safe. Successes only
+// — never cache the [] fail-soft path, so a transient embedder error retries.
+const EMBED_MEMO = new Map<string, { vec: number[]; expiresAt: number }>();
+const EMBED_MEMO_TTL_MS = 45_000;
+
+// djb2 — tiny, fast, no deps. Cache-key only over the embed window, so a
+// collision would at worst reuse a fresh-enough vector for ~45s (never a
+// correctness issue). Mirrors hashContent in context-reranker.ts.
+function embedMemoKey(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return `${s.length}:${h >>> 0}`;
+}
+
 export async function getEmbedding(text: string): Promise<number[]> {
+  const memoKey = embedMemoKey(text.slice(0, 30_000));
+  const now = Date.now();
+  const hit = EMBED_MEMO.get(memoKey);
+  if (hit && hit.expiresAt > now) return hit.vec;
+
+  const vec = await getEmbeddingUncached(text);
+  // Cache successes only; the [] fail-soft path must stay retryable.
+  if (vec.length > 0) EMBED_MEMO.set(memoKey, { vec, expiresAt: now + EMBED_MEMO_TTL_MS });
+  return vec;
+}
+
+async function getEmbeddingUncached(text: string): Promise<number[]> {
   const input = text.slice(0, 30_000);
 
   const COHERE_API_KEY = cleanEnv(process.env.COHERE_API_KEY);
