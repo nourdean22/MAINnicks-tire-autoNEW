@@ -67,10 +67,15 @@ export async function remember(params: {
       const [countResult] = await d.select({ count: sql<number>`count(*)` }).from(shopSettings)
         .where(sql`${shopSettings.key} LIKE 'nick_memory_%'`);
       if ((countResult?.count ?? 0) >= 500) {
-        // Delete the lowest-confidence memory to make room
+        // Evict the lowest-confidence memory to make room — but NEVER a
+        // 'preference' (the operator's durable settings; only decayMemories may
+        // remove those, after real staleness). Tiebreak on least-recently-
+        // reinforced so a stale row is chosen ahead of a fresh equal-confidence
+        // one. Type/age-blind eviction was flagged by the PR #566 review as able
+        // to silently drop a load-bearing operator preference.
         const lowest = await d.select().from(shopSettings)
-          .where(sql`${shopSettings.key} LIKE 'nick_memory_%'`)
-          .orderBy(sql`JSON_EXTRACT(value, '$.confidence') ASC`)
+          .where(sql`${shopSettings.key} LIKE 'nick_memory_%' AND JSON_UNQUOTE(JSON_EXTRACT(value, '$.type')) <> 'preference'`)
+          .orderBy(sql`JSON_EXTRACT(value, '$.confidence') ASC, COALESCE(JSON_UNQUOTE(JSON_EXTRACT(value, '$.lastReinforced')), JSON_UNQUOTE(JSON_EXTRACT(value, '$.createdAt'))) ASC`)
           .limit(1);
         if (lowest.length > 0) {
           await d.delete(shopSettings).where(sql`${shopSettings.id} = ${lowest[0].id}`);
