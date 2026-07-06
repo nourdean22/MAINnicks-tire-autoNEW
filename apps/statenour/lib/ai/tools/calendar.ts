@@ -184,4 +184,60 @@ export const calendarTools = {
     },
   }),
 
+  // 2026-07-06 · manual ingest trigger. The Google OAuth callback page tells
+  // the operator to "say 'sync my calendar' in chat", but no tool existed —
+  // only getTodaySchedule (live read) + the scheduled ingest cron. This makes
+  // that promise real: it calls the same ingest cron on-demand (Bearer),
+  // pulling past-7d + next-14d events into BrainMemory. Auto-attaches via the
+  // existing calendar keyword family (tool name contains "Calendar").
+  syncCalendar: tool({
+    description:
+      "Manually trigger a Google Calendar ingest — pulls the past 7 days + next 14 days of events into BrainMemory (long-term recall) right now instead of waiting for the scheduled cron. Use when Nour says 'sync my calendar', 'refresh my calendar', or 'pull my latest events'. Returns ingest stats; if OAuth is expired it returns an actionable re-grant hint.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      try {
+        const base =
+          process.env.NEXT_PUBLIC_SITE_URL ||
+          process.env.APP_BASE_URL ||
+          "http://localhost:3000";
+        const res = await fetch(`${base}/api/cron/ingest-calendar`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? ""}` },
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (!res.ok) {
+          return { ok: false, error: `Calendar sync failed with HTTP ${res.status}` };
+        }
+        const json = (await res.json()) as { data?: Record<string, unknown> };
+        const data = json.data ?? (json as Record<string, unknown>);
+        // The cron reuses `skipped` as BOTH a boolean (OAuth skip path) and a
+        // count (events filtered on the success path) — disambiguate strictly.
+        if (data.skipped === true) {
+          return {
+            ok: false,
+            skipped: true,
+            reason: data.reason ?? "calendar ingest skipped",
+            hint: data.hint,
+          };
+        }
+        const past = Number(data.pastStored ?? 0);
+        const upcoming = Number(data.upcomingStored ?? 0);
+        return {
+          ok: true,
+          pastStored: past,
+          upcomingStored: upcoming,
+          hint:
+            past + upcoming > 0
+              ? `Ingested ${past + upcoming} calendar events (${past} past, ${upcoming} upcoming). Ask about your schedule to reach them.`
+              : "Calendar already up to date — no new events to ingest.",
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : "Unknown calendar sync error",
+        };
+      }
+    },
+  }),
+
 };

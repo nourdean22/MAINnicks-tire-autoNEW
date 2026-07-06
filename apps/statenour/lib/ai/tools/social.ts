@@ -212,4 +212,59 @@ export const socialTools = {
   // (revenue, reviews, dashboards) kept since autonicks's role is
   // "oversee the shop at a high level + link to admin for details."
 
+  // 2026-07-06 · manual Gmail ingest trigger — companion to syncCalendar /
+  // syncDriveMemory. The OAuth callback page advertises "sync my gmail" but no
+  // tool existed. Calls the ingest-gmail cron on-demand (Bearer). Auto-attaches
+  // via the existing email keyword family (tool name contains "gmail").
+  syncGmail: tool({
+    description:
+      "Manually trigger a Gmail ingest — pulls recent messages into statenour-os (classification + BrainMemory) right now instead of waiting for the scheduled cron. Use when Nour says 'sync my gmail', 'refresh my inbox', or 'pull my latest emails'. Returns ingest stats; if OAuth is expired it returns an actionable re-grant hint.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      try {
+        const base =
+          process.env.NEXT_PUBLIC_SITE_URL ||
+          process.env.APP_BASE_URL ||
+          "http://localhost:3000";
+        const res = await fetch(`${base}/api/cron/ingest-gmail`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? ""}` },
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (!res.ok) {
+          return { ok: false, error: `Gmail sync failed with HTTP ${res.status}` };
+        }
+        const json = (await res.json()) as { data?: Record<string, unknown> };
+        const data = json.data ?? (json as Record<string, unknown>);
+        // `skipped` is a boolean on the no-account skip path, a count on success.
+        if (data.skipped === true) {
+          return {
+            ok: false,
+            skipped: true,
+            reason: data.reason ?? "gmail ingest skipped",
+            configuredAccounts: data.configuredAccounts ?? 0,
+            hint: "No Google account connected — re-grant at /api/oauth/google-data/start.",
+          };
+        }
+        const outgoing = Number(data.outgoingStored ?? 0);
+        const inbound = Number(data.inboundStored ?? 0);
+        return {
+          ok: true,
+          outgoingStored: outgoing,
+          inboundStored: inbound,
+          classified: Number(data.classified ?? 0),
+          hint:
+            outgoing + inbound > 0
+              ? `Ingested ${outgoing + inbound} Gmail messages (${inbound} inbound, ${outgoing} outgoing). Ask about your inbox to reach them.`
+              : "Inbox already up to date — no new messages to ingest.",
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : "Unknown gmail sync error",
+        };
+      }
+    },
+  }),
+
 };
