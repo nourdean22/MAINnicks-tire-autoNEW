@@ -113,10 +113,16 @@ export function classifyCall(input: ClassificationInput): ClassificationResult {
     /silence-timed-out|assistant-error|websocket|error-/i.test(input.endedReason || "") ||
     /error|unable to hear|websocket closed/i.test(text.toLowerCase()) && input.durationSeconds < 20;
 
-  // 3. Detect Spam / Wrong Number
+  // 3. Detect Spam / Wrong Number / misdial
   const isSpamOrWrongNumber =
     /wrong number|spam|robocall|telemarket|solicitation|marketer/i.test(text.toLowerCase()) ||
-    ((input.transcript || "").toLowerCase().trim() === "hello" && input.durationSeconds < 15);
+    ((input.transcript || "").toLowerCase().trim() === "hello" && input.durationSeconds < 15) ||
+    // A sub-2s call with no spoken words (and not a warm transfer) is a misdial /
+    // robocall / pocket-dial — NOT a real customer who abandoned. Verified against
+    // prod: 81% of "abandons" hang up in <=1s (avg 0.7s) with no transcript, while
+    // first-token latency is a healthy 244ms — so it is not dead-air. Routing these
+    // here keeps abandoned_before_connect meaning a GENUINE lost customer, not phone spam.
+    ((input.transcript || "").trim().length < 3 && input.durationSeconds <= 2 && input.endedReason !== "assistant-forwarded-call");
 
   // Determine outcome taxonomy
   let outcome: VapiOutcomeCategory = "unknown";
@@ -136,7 +142,7 @@ export function classifyCall(input: ClassificationInput): ClassificationResult {
     reasoningParts.push("Technical Failure: call ended due to silence-timeout, assistant error, or audio websocket issues");
   } else if (isSpamOrWrongNumber) {
     outcome = "spam_or_wrong_number";
-    reasoningParts.push("Spam/Wrong Number: transcript indicates robocall, wrong number, or spam");
+    reasoningParts.push("Spam / wrong number / misdial: robocall or wrong-number keywords, or a sub-2s hangup with no spoken words");
   } else if (isAbandoned) {
     outcome = "abandoned_before_connect";
     reasoningParts.push("Abandoned: call ended before audio connect or <= 5s duration");
