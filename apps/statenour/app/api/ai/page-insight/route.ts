@@ -13,8 +13,9 @@
  *     question?: string   // optional specific question
  *   }
  *
- * Returns a streaming text response — Venice-powered, task=reason,
- * 600 tokens max, using the full system prompt so Nick has context
+ * Returns a streaming text response — provider-routed (task=reason,
+ * whatever getModel resolves; OpenRouter is primary), 600 tokens max,
+ * using the full system prompt so Nick has context
  * about who Nour is while analyzing page-specific data.
  */
 
@@ -72,8 +73,8 @@ function describeFraming(page: string): string {
 
 // Truncate JSON data to keep the prompt reasonable — page data can
 // get big (full customer lists, full revenue history, etc.). 8K chars
-// is plenty for analysis and keeps the total request under Venice's
-// context window.
+// is plenty for analysis and keeps the total request under the
+// model's context window.
 function safeStringify(data: unknown, maxChars = 8000): string {
   try {
     const json = JSON.stringify(data, null, 2);
