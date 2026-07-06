@@ -172,6 +172,37 @@ export const ACTION_VOCAB: readonly ActionConcept[] = [
     objects: ["priority"],
     gap: 30,
   },
+  // ── Data sync / ingest (calendar · gmail · drive) ──
+  // v10.0.533 · a live agent_traces read (2026-07-06) proved "sync my
+  // calendar" was answered as PROSE ("Calendar synced. No new events.")
+  // with toolsCalled=[] — no sync concept existed, so the intent detector
+  // never forced toolChoice and the claim detector never caught the
+  // fabricated "synced". The model claimed an action it didn't take. The
+  // `tool` alternation attaches all three sync tools (route splits on "|");
+  // toolChoice:"required" then makes the model call the right one instead
+  // of narrating. Objects cover each sync tool's domain.
+  {
+    intent: "data-sync",
+    tool: "syncCalendar|syncGmail|syncDriveMemory",
+    imperative: ["sync", "resync", "re-sync", "refresh", "pull", "ingest"],
+    past: ["synced", "resynced", "re-synced", "refreshed", "pulled", "ingested"],
+    objects: [
+      "calendar",
+      "gmail",
+      "email",
+      "emails",
+      "inbox",
+      "drive",
+      "docs",
+      "documents",
+      "knowledge base",
+      "knowledge",
+    ],
+    // Tight gap (15, vs the usual 30): "sync my calendar" is a 4-char
+    // verb→object hop, but a loose gap would false-fire on "sync up with
+    // the team about the calendar" (a meeting, not a data ingest).
+    gap: 15,
+  },
   // ── Linking / moving (claim-only — input forms are ambiguous) ──
   // Both fold into `updateTask` (the real tool that absorbed
   // reframe/move/link — tasks.ts) — `linkResource`/`moveTask` were
