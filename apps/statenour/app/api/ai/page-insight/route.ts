@@ -19,7 +19,7 @@
  */
 
 import { streamText } from "ai";
-import { getModel } from "@/lib/ai/provider";
+import { getModel, GEMINI_SAFETY_OFF } from "@/lib/ai/provider";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import { getCachedPrompt, setCachedPrompt } from "@/lib/ai/system-prompt-cache";
 import { getActiveProviderInfo } from "@/lib/ai/provider";
@@ -210,6 +210,7 @@ Rules for this analysis:
     // prompt is the cache-stable portion · userPrompt stays fresh.
     const result = streamText({
       model,
+      providerOptions: { google: GEMINI_SAFETY_OFF }, // 2026-07-06 · no Gemini content filtering
       messages: [
         {
           role: "system",
