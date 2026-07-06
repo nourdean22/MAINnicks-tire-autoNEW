@@ -67,6 +67,17 @@ describe("vapiCallClassifier · classifyCall outcomes", () => {
       transcript: null,
     });
     expect(res3.outcome).toBe("abandoned_before_connect");
+
+    // REGRESSION: a sub-2s hangup with NO spoken words is a misdial / robocall, not a
+    // real abandon (verified against prod: 81% of "abandons" hang up in <=1s at avg 0.7s).
+    // It must route to the junk bucket so abandoned_before_connect means a real lost caller.
+    const misdial = classifyCall({
+      durationSeconds: 1,
+      endedReason: "customer-hungup",
+      aiSummary: "The user hung up immediately.",
+      transcript: "",
+    });
+    expect(misdial.outcome).toBe("spam_or_wrong_number");
   });
 
   it("classifies spam and wrong numbers correctly", () => {
