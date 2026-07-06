@@ -23,6 +23,27 @@ export async function register() {
   // time other than ensure the module is loaded (so it's hot when
   // onRequestError fires).
   await import("@/lib/observability/tracer");
+
+  // v10.0.532 · warm the tool-embedding cache at BOOT, not lazily on the
+  // first chat request. The chat route (app/api/ai/chat/route.ts) kicks off
+  // warmToolEmbeddings() fire-and-forget, so the FIRST message after a
+  // restart/deploy raced an un-warmed cache → isToolEmbeddingCacheWarm() was
+  // false → semantic tool-ranking OFF → the keyword-family fallback → any
+  // tool without a keyword family got pruned and the model hallucinated
+  // "no tool" (the whole class the v10.0.531 audit patched by hand).
+  // statenour-web is a persistent container, so ONE boot-time warm keeps the
+  // cache hot for every subsequent request — making semantic ranking the
+  // PRIMARY path (keyword families become the backup, and NEW tools attach
+  // automatically without a hand-written family). Fire-and-forget: hydrate is
+  // ~200ms from VectorEmbedding (well before the first user message), and a
+  // failure just defers to the existing request-time warmup. Never blocks
+  // boot; never throws.
+  try {
+    const { warmToolEmbeddings } = await import("@/lib/ai/tool-embeddings");
+    void warmToolEmbeddings().catch(() => {});
+  } catch {
+    // never let embedding warm-up break server boot
+  }
 }
 
 /**
