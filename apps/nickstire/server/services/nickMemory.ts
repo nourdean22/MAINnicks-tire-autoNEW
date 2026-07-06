@@ -582,6 +582,35 @@ export function getTopQuestions(limit = 5): Array<{ topic: string; count: number
     .slice(0, limit);
 }
 
+const DECAY_STEP_MS = 30 * 24 * 60 * 60 * 1000; // 30 days per 0.05 decay step
+
+/**
+ * Confidence a memory should hold given its ORIGINAL confidence and age.
+ * Decays 0.05 per 30-day step, floored at 0.10. Pure + idempotent (target is
+ * always computed from the original), so re-running never over-decays.
+ *
+ * FIX: the previous inline guard only decayed while `confidence > 0.3`, and every
+ * 0.05-step confidence (0.85, 0.70, 0.65, 0.60, 0.50…) lands EXACTLY on 0.30 — so
+ * memories froze at 0.30, never reached the <0.15 prune floor, and decayMemories
+ * effectively never pruned anything (the 500-cap eviction was the only GC). The
+ * round() kills float drift (0.85 - 0.55 = 0.30000000000000004).
+ */
+export function decayedConfidence(originalConfidence: number, ageMs: number): number {
+  if (ageMs <= DECAY_STEP_MS) return originalConfidence;
+  const factor = Math.floor(ageMs / DECAY_STEP_MS) * 0.05;
+  return Math.max(0.1, Math.round((originalConfidence - factor) * 100) / 100);
+}
+
+/**
+ * Whether a decayed memory should be pruned. Operator `preference` rows are NEVER
+ * auto-pruned (durable settings — same protection as the 500-cap eviction);
+ * everything else is removed once decayed below 0.15 and untouched for 90+ days.
+ */
+export function isPrunableMemory(type: string, confidence: number, ageMs: number): boolean {
+  if (type === "preference") return false;
+  return confidence < 0.15 && ageMs > DECAY_STEP_MS * 3;
+}
+
 /**
  * Memory decay — reduce confidence of old, unused memories.
  * Called from the feedback cycle. Prevents stale knowledge from dominating.
@@ -598,7 +627,6 @@ export async function decayMemories(): Promise<number> {
 
     let decayed = 0;
     const now = Date.now();
-    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 
     for (const row of rows) {
       try {
@@ -606,22 +634,19 @@ export async function decayMemories(): Promise<number> {
         const lastUsed = new Date(data.lastReinforced || data.createdAt).getTime();
         const age = now - lastUsed;
 
-        // Idempotent decay: compute target confidence from ORIGINAL, not current
-        // This prevents re-applying decay every 2h cycle
+        // Idempotent decay: target is always computed from the ORIGINAL confidence
+        // (stored on first decay), so re-running the cycle never over-decays.
         const originalConfidence = data.originalConfidence || data.confidence;
-        if (!data.originalConfidence) data.originalConfidence = data.confidence; // Store original on first decay
-        if (age > thirtyDaysMs && data.confidence > 0.3) {
-          const decayFactor = Math.floor(age / thirtyDaysMs) * 0.05;
-          const targetConfidence = Math.max(0.1, originalConfidence - decayFactor);
-          if (data.confidence !== targetConfidence) {
-            data.confidence = targetConfidence;
-            await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(sql`${shopSettings.id} = ${row.id}`);
-            decayed++;
-          }
+        if (!data.originalConfidence) data.originalConfidence = data.confidence;
+        const target = decayedConfidence(originalConfidence, age);
+        if (data.confidence !== target) {
+          data.confidence = target;
+          await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(sql`${shopSettings.id} = ${row.id}`);
+          decayed++;
         }
 
-        // Prune dead memories (confidence < 0.15 and unused for 90d)
-        if (data.confidence < 0.15 && age > thirtyDaysMs * 3) {
+        // Prune dead memories (decayed below 0.15, untouched 90d+) — never a preference.
+        if (isPrunableMemory(data.type, data.confidence, age)) {
           await d.delete(shopSettings).where(sql`${shopSettings.id} = ${row.id}`);
           decayed++;
         }
