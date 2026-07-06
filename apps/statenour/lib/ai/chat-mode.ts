@@ -105,6 +105,19 @@ export async function pruneTools(
     if (allTools[name]) kept[name] = allTools[name];
   }
 
+  // 2026-07-06 · the most-used WRITE tools are always attached too. They were
+  // excluded from the read-only CORE_TOOLS, so a keyword-less action turn
+  // ("add it", "try again") with a cold embedding cache left the operator
+  // unable to create/complete a task at all — the model fabricated "done" or
+  // reported the tool unavailable. DO_NOT_AUTO_TASKIFY in the system prompt
+  // still gates eager firing; availability != invocation. (Detected-action
+  // turns are ALSO force-injected in route.ts via __actionIntent.expectedTool;
+  // this covers the turns where intent detection misses.)
+  const ACTION_CORE = ["createTask", "completeTask"];
+  for (const name of ACTION_CORE) {
+    if (allTools[name]) kept[name] = allTools[name];
+  }
+
   // ── Exact tool name mention ──
   // If the user explicitly mentions a tool name (case-insensitive check), always include it
   for (const name of Object.keys(allTools)) {
