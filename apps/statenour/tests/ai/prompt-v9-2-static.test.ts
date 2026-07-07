@@ -124,9 +124,12 @@ describe("v9.2 · Layer 1 (static.ts)", () => {
     // no. This pins that the directive is present in the LIVE static prefix
     // (route.ts → buildSystemPrompt → buildSystemPromptV2 → buildStaticPrefix)
     // so a future edit can't silently drop it.
+    // 2026-07-07 · phrases realigned to the advisor-not-warden rewording
+    // (PRs #587/#588) — same contract, new canonical text.
     expect(prefix).toContain("OWNER AUTHORITY");
-    expect(prefix.toLowerCase()).toContain("do not refuse");
-    expect(prefix).toMatch(/name the risk in ONE line/i);
+    expect(prefix.toLowerCase()).toContain("advisor, never warden");
+    expect(prefix.toLowerCase()).toContain("flatly deny");
+    expect(prefix).toMatch(/clearly and ONCE/);
     // It lives in the idx-0 identity section (before "## Nour Dean") so
     // trimPromptToBudget never drops it — assert its position.
     expect(prefix.indexOf("OWNER AUTHORITY")).toBeLessThan(prefix.indexOf("## Nour Dean"));
