@@ -26,7 +26,7 @@ surface should use them — they carry the principles below for free:
 The CSS classes they emit (`.page-header` `.page-title` `.page-copy`
 `.section-head` `.section-title` `.section-copy` `.eyebrow`
 `.empty-state` `.empty-title` `.empty-copy`) are now defined once in
-`app/globals.css` (v10.0.352). Any page that uses these components
+`app/styles/base.css` (v10.0.352 · moved from globals.css in the 2026-07-07 layer split — globals.css is now an import manifest). Any page that uses these components
 inherits the rhythm automatically.
 
 ---
@@ -97,7 +97,7 @@ from cramped.
 Gold (`--gold` `#FDB913`) is the **only** brand color. Use it for:
 
 - Active state borders (`var(--border-active)`)
-- Brand-anchor top edge on cards (cascade in globals.css)
+- Brand-anchor top edge on cards (cascade in app/styles/effects.css)
 - Focus rings (`:focus-visible`)
 - Selection background
 - Scrollbar thumb
@@ -141,7 +141,7 @@ When adding a new mastery surface:
 3. Lean on the existing tokens — `--text-primary` `--gold` etc — never
    raw hex
 4. No new CSS classes for layout primitives — extend the existing
-   `.page-*` `.section-*` `.empty-*` family in `globals.css`
+   `.page-*` `.section-*` `.empty-*` family in `app/styles/base.css`
 5. Run a visual scan after — does it look type-led, generously spaced,
    restrained? If not, simplify.
 
