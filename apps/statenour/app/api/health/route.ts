@@ -2,6 +2,7 @@
 // xlcz1rbthtyc9xz5avtbuesdd ref · 8 consecutive deploys failed at
 // COPY package.json step despite no real changes · forced a watched-
 // file source change (this comment) to trigger fresh context upload.
+import { NextResponse } from "next/server";
 import { apiHandler } from "@/lib/utils/http";
 import { buildSystemHealth } from "@/lib/services/system-pages";
 
@@ -17,4 +18,12 @@ import { buildSystemHealth } from "@/lib/services/system-pages";
  * lives inside the service. This route stays mounted as the
  * coexistence / rollback path.
  */
-export const GET = apiHandler(async () => buildSystemHealth());
+export const GET = apiHandler(async () => {
+  const health = await buildSystemHealth();
+  // Reflect degradation in the HTTP status, not just the JSON body. A bare
+  // 200-when-degraded lets Railway's healthcheck keep a DB-severed instance
+  // in rotation; returning 503 lets the platform evict/restart it. (apiHandler
+  // passes a raw Response through and still stamps X-Request-Id.)
+  const httpStatus = health.status === "healthy" ? 200 : 503;
+  return NextResponse.json(health, { status: httpStatus });
+});
