@@ -25,7 +25,15 @@ the phased plan to add them safely, one verified pair at a time.
 (a message without its conversation). `SET NULL` for optional/nullable links. **`RESTRICT` or `SET NULL`
 — never `CASCADE` — for financial/audit/history records** (invoices, payments, loyalty ledger).
 
-## Shipped (12 FKs · nickstire went 0 → 12)
+## Shipped (31 FKs · nickstire went 0 → 31)
+
+**Wave 4/5 (2026-07-07) added 19** — all pre-checked 0 orphans (pure additive, no data writes), types verified, applied to prod:
+- **14 SET NULL** (optional/money-adjacent links): `leads.{callbackId→callback_requests, bookingId→bookings, invoiceId→invoices}`, `invoices.bookingId→bookings`, `estimates_log.{invoiceId→invoices, bookingId→bookings}`, `alg_estimates.{matched_invoice_id→invoices, customer_id→customers}`, `vapi_call_logs.{leadId→leads, callbackId→callback_requests}`, `payments.customer_id→customers`, `tire_orders.{customerId→customers, bookingId→bookings}`, `warranties.customer_id→customers`
+- **4 RESTRICT** (protect records): `payments.invoice_id→invoices`, `loyalty_transactions.userId→users` (points ledger), `job_assignments.technicianId→technicians` (**technicians ARE deleted** — guards labor records), `warranties.work_order_id→work_orders`
+- **1 CASCADE**: `job_assignments.bookingId→bookings`
+- **Skipped:** `invoices.workOrderId→work_orders` — `int` vs `varchar(36)` type mismatch, no DB FK possible (kept as a soft link, noted in `schema.ts`).
+
+### Waves 1–3 (12 FKs)
 
 | Child.column | → Parent | ON DELETE | Note |
 |---|---|---|---|
