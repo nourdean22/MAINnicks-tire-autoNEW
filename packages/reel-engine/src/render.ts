@@ -11,11 +11,40 @@ export interface RenderReelOptions {
   template: "review" | "alert";
   data: Record<string, any>;
   outputPath: string;
+  /** Wall-clock cap for the whole bundle+render pipeline. Defaults to REEL_RENDER_TIMEOUT_MS env or 10 minutes. */
+  timeoutMs?: number;
 }
 
 let cachedBundleLocation: string | null = null;
 
-export async function renderReelVideo({
+const DEFAULT_RENDER_TIMEOUT_MS = 10 * 60 * 1000;
+
+// The worker's video cron holds an isRendering mutex for the lifetime of this
+// promise — without a wall-clock bound, one hung Chromium render (e.g. a
+// stalled remote font fetch) disables the reel pipeline until process restart.
+// A timeout rejection unblocks the caller; the underlying render process may
+// keep running until it exits on its own or the worker restarts.
+function withWallClockTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`[Reel Engine] ${label} timed out after ${Math.round(ms / 1000)}s`)),
+      ms
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
+
+export async function renderReelVideo(options: RenderReelOptions): Promise<void> {
+  const timeoutMs =
+    options.timeoutMs ??
+    (Number(process.env.REEL_RENDER_TIMEOUT_MS) > 0
+      ? Number(process.env.REEL_RENDER_TIMEOUT_MS)
+      : DEFAULT_RENDER_TIMEOUT_MS);
+  return withWallClockTimeout(doRenderReelVideo(options), timeoutMs, `render (${options.template})`);
+}
+
+async function doRenderReelVideo({
   template,
   data,
   outputPath,

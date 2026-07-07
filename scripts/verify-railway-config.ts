@@ -87,7 +87,9 @@ function verifyConfig() {
       action = `Define ${key} in apps/statenour/.env.local`;
     } else if (isRailwaySet === false) {
       action = `Sync to Railway production`;
-      commandsToRun.push(`railway variables:set ${key}="${local[key] || process.env[key] || "VALUE"}"`);
+      // Never interpolate the real secret — this output lands in terminals,
+      // logs, and screen-shares. The operator pastes the value from .env.local.
+      commandsToRun.push(`railway variables:set ${key}="<paste value from apps/statenour/.env.local>"`);
     }
 
     reports.push({
