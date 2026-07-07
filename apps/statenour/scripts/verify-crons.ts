@@ -17,7 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { CRONS, expectedCronRouteNames } from "../config/crons";
-import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS } from "../src/inngest/jobs";
+import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS } from "../lib/inngest/jobs";
 
 const cwd = process.cwd();
 
@@ -146,7 +146,7 @@ if (candidates.length > 0 && activeSchedules.length > SOFT_CAP - 4) {
 
 // ── 5 · jobs.ts fan-out refs → filesystem ────────────────────────────
 // config/crons.ts (checks 1-2) is METADATA. The mega fan-out
-// (src/inngest/jobs.ts) is what actually FIRES crons — a ref there to a
+// (lib/inngest/jobs.ts) is what actually FIRES crons — a ref there to a
 // deleted route 404s and starves the fan-out. Wave AE (2026-05-28)
 // deleted ~51 routes but left their jobs.ts refs, silently killing ~70%
 // of crons for 2 days. No check looked here. Now it does.
@@ -191,7 +191,7 @@ for (const c of CRONS) {
   // Inngest-native crons fire via their own Inngest cron trigger, not the fan-out.
   if (fanoutRefs.has(c.name) || INDEPENDENT.has(c.name) || c.inngest) continue;
   fail(
-    `${c.name} is mode:"active" but is NOT in the mega fan-out (src/inngest/jobs.ts) and fires nowhere — wire it into jobs.ts or mark it mode:"dormant"`,
+    `${c.name} is mode:"active" but is NOT in the mega fan-out (lib/inngest/jobs.ts) and fires nowhere — wire it into jobs.ts or mark it mode:"dormant"`,
   );
   phantomActive++;
 }
