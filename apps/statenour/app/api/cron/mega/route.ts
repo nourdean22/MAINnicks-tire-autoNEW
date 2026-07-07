@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 // Pre-fix the same MORNING/EVENING/WEEKLY arrays were also defined
 // in src/inngest/functions/mega-fanout.ts · drift bait. Now both
 // consumers import from src/inngest/jobs.ts.
-import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS } from '@/src/inngest/jobs';
+import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS } from '@/lib/inngest/jobs';
 
 function safeEqual(a: string, b: string): boolean {
   if (!a || !b) return false;

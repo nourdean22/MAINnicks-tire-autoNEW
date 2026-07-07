@@ -2,6 +2,15 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * @deprecated GlassCard (`@/components/ui/glass-card`) is the canonical card
+ * primitive - do not use Card in new code. This legacy shadcn card remains
+ * only for the structured CardHeader/CardContent/CardTitle API still used by
+ * components/stats/body-section.tsx and calibration-section.tsx. Migrating it
+ * onto .neural-glass would double-pad against the slot px utilities (hand-CSS
+ * beats Tailwind at equal specificity - see the dialog.tsx note in
+ * globals.css), so those two screens migrate deliberately, not by restyle.
+ */
 function Card({
   className,
   size = "default",

@@ -18,7 +18,7 @@ import { logger as rootLogger } from "@/lib/logger";
 
 // v10.0.31 — structured logger for financial-page errors.
 const flog = rootLogger.withSurface("financial/page");
-import { Card } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/glass-card";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils";
@@ -52,7 +52,7 @@ function fmt(v: number | null | undefined): string {
 
 function StatCard({ label, value, numValue, danger }: { label: string; value: string; numValue?: number; danger?: boolean }) {
   return (
-    <Card className="p-3 bg-[var(--bg-raised)] border-[var(--border-default)] glow-on-hover">
+    <GlassCard className="p-3 glow-on-hover">
       <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">{label}</p>
       {numValue !== undefined ? (
         <AnimatedCounter
@@ -63,7 +63,7 @@ function StatCard({ label, value, numValue, danger }: { label: string; value: st
       ) : (
         <p className={cn("font-mono text-lg font-semibold mt-0.5", danger && "text-[var(--status-red)]")}>{value}</p>
       )}
-    </Card>
+    </GlassCard>
   );
 }
 
@@ -220,7 +220,7 @@ export function FinancialTab() {
 
       {/* ═══ REVENUE FORECAST CHART ═══ */}
       {chartData.length > 0 && (
-        <Card className="p-4 bg-[var(--bg-raised)] border-[var(--border-default)]">
+        <GlassCard className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <BarChart3 size={14} className="text-[var(--gold)]" />
@@ -264,11 +264,11 @@ export function FinancialTab() {
               <ReferenceLine y={MONTHLY_TARGET} stroke="#22c55e" strokeDasharray="6 3" label={{ value: `$${(MONTHLY_TARGET / 1000).toFixed(0)}K target`, fill: "#22c55e", fontSize: 10, position: "insideTopRight" }} />
             </AreaChart>
           </ResponsiveContainer>
-        </Card>
+        </GlassCard>
       )}
 
       {/* Monthly Target Progress Bar */}
-      <Card className="p-4 bg-[var(--bg-raised)] border-[var(--border-default)]">
+      <GlassCard className="p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Target size={14} className="text-[var(--gold)]" />
@@ -317,7 +317,7 @@ export function FinancialTab() {
           <span className="font-mono">{pctToTarget.toFixed(0)}%</span>
           <span>${MONTHLY_TARGET.toLocaleString()} goal</span>
         </div>
-      </Card>
+      </GlassCard>
 
       {/* 2026-05-24 · Wave X.f activation · monthly second-location
           ranking from the `monthly-location-rank` cron. Pre-fix the
@@ -334,7 +334,7 @@ export function FinancialTab() {
             <h2 className="text-lg font-bold mb-3 lowercase tracking-wider">personal finance</h2>
 
             {/* Net Worth Hero */}
-            <Card className="p-5 bg-[var(--bg-raised)] border-[var(--border-default)] mb-3">
+            <GlassCard className="p-5 mb-3">
               <div className="flex items-center gap-2 mb-1">
                 <DollarSign size={14} className="text-[var(--gold)]" />
                 <span className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">Net Worth</span>
@@ -344,7 +344,7 @@ export function FinancialTab() {
               ) : (
                 <p className="font-mono text-3xl font-bold">—</p>
               )}
-            </Card>
+            </GlassCard>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-2 stagger-in">
@@ -358,7 +358,7 @@ export function FinancialTab() {
 
             {/* Savings Rate */}
             {latest.savingsRatePct !== null && (
-              <Card className="p-3 flex items-center gap-3 bg-[var(--bg-raised)] border-[var(--border-default)] mt-3">
+              <GlassCard className="p-3 flex items-center gap-3 mt-3">
                 {latest.savingsRatePct >= 20 ? (
                   <TrendingUp size={16} className="text-[var(--status-green)]" />
                 ) : (
@@ -368,14 +368,14 @@ export function FinancialTab() {
                   <p className="text-xs text-[var(--text-tertiary)]">Savings Rate</p>
                   <p className="font-mono font-semibold">{latest.savingsRatePct}%</p>
                 </div>
-              </Card>
+              </GlassCard>
             )}
 
             {latest.notes && (
-              <Card className="p-3 bg-[var(--bg-raised)] border-[var(--border-default)] mt-3">
+              <GlassCard className="p-3 mt-3">
                 <p className="text-xs text-[var(--text-tertiary)] mb-1">Notes</p>
                 <p className="text-sm">{latest.notes}</p>
-              </Card>
+              </GlassCard>
             )}
           </div>
         </>

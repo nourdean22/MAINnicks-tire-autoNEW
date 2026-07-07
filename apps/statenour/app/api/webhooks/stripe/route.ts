@@ -173,7 +173,7 @@ export const POST = apiHandler(
 
       // 4. Send event to Inngest for down-stream workflows
       try {
-        const { getInngest } = await import("@/src/inngest/client");
+        const { getInngest } = await import("@/lib/inngest/client");
         await getInngest().send({
           name: "stripe/checkout.completed",
           data: {
