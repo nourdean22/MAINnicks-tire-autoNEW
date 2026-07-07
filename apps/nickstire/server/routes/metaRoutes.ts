@@ -6,9 +6,16 @@ import { createLogger } from "../lib/logger";
 const log = createLogger("meta-routes");
 
 function safeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
   try {
-    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+    // Compare against self on length mismatch to hold the comparison time
+    // constant (a bare early-return leaks whether the lengths matched).
+    if (bufA.length !== bufB.length) {
+      timingSafeEqual(bufA, bufA);
+      return false;
+    }
+    return timingSafeEqual(bufA, bufB);
   } catch {
     return false;
   }
