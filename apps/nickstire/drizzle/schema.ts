@@ -823,8 +823,10 @@ export type InsertSmsConversation = typeof smsConversations.$inferInsert;
  */
 export const smsMessages = mysqlTable("sms_messages", {
   id: int("id").autoincrement().primaryKey(),
-  /** Link to conversation */
-  conversationId: int("conversationId").notNull(),
+  /** Link to conversation. DB-level FK fk_sms_msg_conv (BE-DATA-1, 2026-07-07). */
+  conversationId: int("conversationId")
+    .notNull()
+    .references(() => smsConversations.id, { onDelete: "cascade" }),
   /** Message direction */
   direction: mysqlEnum("direction", ["inbound", "outbound"]).notNull(),
   /** Message body */
