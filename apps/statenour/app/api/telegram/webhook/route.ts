@@ -1212,6 +1212,17 @@ async function handleUrl(
   chatId: string
 ): Promise<void> {
   try {
+    // SSRF defense — even though this path is owner-gated (only the operator's
+    // Telegram reaches it), a pasted link could point at a private/metadata
+    // host. Block it before the server-side fetch, matching the scrapeWebPage
+    // and ingestDocumentFromUrl hardening.
+    const { assertPublicUrl } = await import("@/lib/utils/url-safety");
+    const safety = await assertPublicUrl(url);
+    if (!safety.safe) {
+      await sendTelegram(`Refused to fetch that URL: ${safety.reason}`, chatId);
+      return;
+    }
+
     await sendTelegram(`🔗 Analyzing: ${url.slice(0, 60)}...`, chatId);
 
     // Fetch the page content
