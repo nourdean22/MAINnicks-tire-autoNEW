@@ -99,6 +99,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "moneyprinter",                 category: "research",                      cost: "medium", riskClass: "medium", sideEffecting: true },
   // v10.0.524 · #6 skill suggestion + #10 anti-pattern surface
   { name: "suggestSkills",                category: "brain",          battle: true,  cost: "cheap", riskClass: "low" },
+  { name: "getSkillProtocol",             category: "brain",          battle: true,  cost: "free", riskClass: "low" },
   { name: "surfaceAntiPatterns",          category: "brain",          battle: true,  cost: "free", riskClass: "low" },
   // v10.0.525 · Session-recording recall (VideoDB · operator captures
   // own sessions externally, submits to /api/system/videodb-sessions)
