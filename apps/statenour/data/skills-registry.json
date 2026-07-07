@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-05-07T17:24:27.891Z",
-  "totalSkills": 1423,
+  "totalSkills": 1424,
   "sourceRoots": [
     "~\\.claude\\skills",
     "~\\.claude\\plugins\\marketplaces\\andrej-karpathy-skills\\skills",
@@ -6501,6 +6501,26 @@
       "source": "community",
       "risk": "unknown",
       "path": "C:\\Users\\nourd\\.claude\\skills\\matplotlib"
+    },
+    {
+      "name": "maxforge-alpha",
+      "description": "Weekly bio-business + market-narrative intelligence report. Use when the operator asks for a \"MaxForge\" report, \"alpha report\", \"weekly intelligence\", \"narrative alpha stocks\", options/flow-confirmed tickers, or a digest of looksmaxxing / longevity / peptide / bio-aesthetics trends with business + content ideas. Grounds EVERY time-sensitive claim in live tools and tags each claim verified vs. unverified — never fabricates prices, short interest, options flow, or social-virality numbers.",
+      "category": "research",
+      "tags": [
+        "intelligence-report",
+        "narrative-alpha",
+        "equities",
+        "looksmaxxing",
+        "longevity",
+        "peptides",
+        "business-ideas",
+        "content-ideas",
+        "weekly-digest",
+        "market-research"
+      ],
+      "source": "user",
+      "risk": "medium",
+      "path": "C:\\Users\\nourd\\.claude\\skills\\maxforge-alpha"
     },
     {
       "name": "maxia",
