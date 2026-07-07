@@ -687,7 +687,16 @@ export async function handleRunMigrations() {
       `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_shares INT DEFAULT 0`,
       `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_saves INT DEFAULT 0`,
       `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_comments INT DEFAULT 0`,
-      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_bookings_attributed INT DEFAULT 0`
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_bookings_attributed INT DEFAULT 0`,
+      // 2026-07-07 · BE-DATA-1 · first DB-level FK on nickstire (120 tables had
+      // zero). sms_messages.conversationId -> sms_conversations.id. Applied to
+      // prod TiDB v8.5.3 first (pre-check: 0 orphans of 8,776 rows; verified
+      // constraint present). ON DELETE CASCADE is inert in practice — nothing
+      // in server/ ever deletes a conversation. Not natively idempotent (TiDB
+      // has no ADD CONSTRAINT IF NOT EXISTS), but the loop's catch tolerates the
+      // "Duplicate foreign key constraint name" re-run error. Drizzle def:
+      // drizzle/schema.ts smsMessages.conversationId.references(...).
+      `ALTER TABLE sms_messages ADD CONSTRAINT fk_sms_msg_conv FOREIGN KEY (conversationId) REFERENCES sms_conversations(id) ON DELETE CASCADE`
     ];
 
     let applied = 0;
