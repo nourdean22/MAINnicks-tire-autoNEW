@@ -25,18 +25,27 @@ the phased plan to add them safely, one verified pair at a time.
 (a message without its conversation). `SET NULL` for optional/nullable links. **`RESTRICT` or `SET NULL`
 — never `CASCADE` — for financial/audit/history records** (invoices, payments, loyalty ledger).
 
-## Shipped
+## Shipped (12 FKs · nickstire went 0 → 12)
 
 | Child.column | → Parent | ON DELETE | Note |
 |---|---|---|---|
-| `sms_messages.conversationId` | `sms_conversations.id` | CASCADE `[V]` | PR #602 · 0 orphans of 8,776 |
-| `invoices.customerId` | `customers.id` | SET NULL `[V]` | this wave · 0 orphans of 2,792 (395 NULL) |
+| `sms_messages.conversationId` | `sms_conversations.id` | CASCADE `[V]` | wave 1 (PR #602) · 0 orphans of 8,776 |
+| `invoices.customerId` | `customers.id` | SET NULL `[V]` | wave 2 (PR #603) · 0 orphans of 2,792 |
+| `inspection_items.inspectionId` | `vehicle_inspections.id` | CASCADE `[V]` | wave 3 · 0 orphans |
+| `customer_metrics.customerId` | `customers.id` | CASCADE `[V]` | wave 3 · 0 orphans |
+| `vehicles.customer_id` | `customers.id` | CASCADE `[V]` | wave 3 · 0 orphans |
+| `work_order_items.work_order_id` | `work_orders.id` | CASCADE `[V]` | wave 3 · uuid FK · 0 orphans |
+| `work_order_transitions.work_order_id` | `work_orders.id` | CASCADE `[V]` | wave 3 · uuid FK · 0 orphans |
+| `qc_checklists.work_order_id` | `work_orders.id` | CASCADE `[V]` | wave 3 · uuid FK · 0 orphans |
+| `prediction_impressions.prediction_id` | `service_affinity_predictions.id` | CASCADE `[V]` | wave 3 · bigint FK · 0 orphans |
+| `prediction_actions.prediction_id` | `service_affinity_predictions.id` | CASCADE `[V]` | wave 3 · bigint FK · 0 orphans |
+| `sms_orchestration_outcomes.orchestration_id` | `sms_orchestrations.id` | CASCADE `[V]` | wave 3 · 0 orphans |
+| `work_orders.customer_id` | `customers.id` | SET NULL `[V]` | wave 3 · 1 orphan pointer NULLed (row preserved) |
 
 ## Deferred (blocked on a decision)
 
 | Child.column | → Parent | Blocker |
 |---|---|---|
-| `work_orders.customer_id` | `customers.id` | **1 orphan of 1 row** — points at a missing customer; operator cleans/deletes that lone row, then SET NULL applies |
 | `*` phone10 unique index (BE-DATA-2) | — | data clean (0 collisions), but a unique index changes future write-failure semantics → needs a customer-insert-path audit first |
 
 ## Candidate waves (each row = pre-check then apply)

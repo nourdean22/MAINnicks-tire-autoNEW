@@ -704,7 +704,23 @@ export async function handleRunMigrations() {
       // Loop-catch tolerates the "Duplicate ... constraint" re-run error.
       // (work_orders.customer_id -> customers.id was DEFERRED — its lone row is
       //  an orphan pointing at a missing customer; operator cleans that 1 row.)
-      `ALTER TABLE invoices ADD CONSTRAINT fk_invoices_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL`
+      `ALTER TABLE invoices ADD CONSTRAINT fk_invoices_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL`,
+      // 2026-07-07 · BE-DATA-1 wave 3 · 9 ownership CASCADE FKs (parents never
+      // deleted in server/ -> cascade dormant) + work_orders->customers SET NULL.
+      // All applied to prod TiDB first (per-pair pre-check: 0 orphans; the one
+      // work_orders orphan pointer was NULLed, row preserved). Types verified
+      // (varchar(36) UUID + bigint keys match parents). Loop-catch tolerates the
+      // Duplicate-constraint re-run error. Drizzle defs: drizzle/schema.ts .references().
+      `ALTER TABLE inspection_items ADD CONSTRAINT fk_inspection_items_inspection FOREIGN KEY (inspectionId) REFERENCES vehicle_inspections(id) ON DELETE CASCADE`,
+      `ALTER TABLE customer_metrics ADD CONSTRAINT fk_customer_metrics_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE`,
+      `ALTER TABLE vehicles ADD CONSTRAINT fk_vehicles_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE`,
+      `ALTER TABLE work_order_items ADD CONSTRAINT fk_wo_items_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,
+      `ALTER TABLE work_order_transitions ADD CONSTRAINT fk_wo_transitions_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,
+      `ALTER TABLE qc_checklists ADD CONSTRAINT fk_qc_checklists_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,
+      `ALTER TABLE prediction_impressions ADD CONSTRAINT fk_pred_impressions_pred FOREIGN KEY (prediction_id) REFERENCES service_affinity_predictions(id) ON DELETE CASCADE`,
+      `ALTER TABLE prediction_actions ADD CONSTRAINT fk_pred_actions_pred FOREIGN KEY (prediction_id) REFERENCES service_affinity_predictions(id) ON DELETE CASCADE`,
+      `ALTER TABLE sms_orchestration_outcomes ADD CONSTRAINT fk_sms_orch_outcomes_orch FOREIGN KEY (orchestration_id) REFERENCES sms_orchestrations(id) ON DELETE CASCADE`,
+      `ALTER TABLE work_orders ADD CONSTRAINT fk_work_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL`
     ];
 
     let applied = 0;
