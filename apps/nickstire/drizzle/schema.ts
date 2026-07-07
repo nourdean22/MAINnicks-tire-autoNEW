@@ -505,7 +505,7 @@ export type InsertVehicleInspection = typeof vehicleInspections.$inferInsert;
  */
 export const inspectionItems = mysqlTable("inspection_items", {
   id: int("id").autoincrement().primaryKey(),
-  inspectionId: int("inspectionId").notNull(),
+  inspectionId: int("inspectionId").notNull().references(() => vehicleInspections.id, { onDelete: "cascade" }),
   /** Component being inspected */
   component: varchar("component", { length: 255 }).notNull(),
   /** Category grouping */
@@ -1162,7 +1162,7 @@ export type InsertJobAssignment = typeof jobAssignments.$inferInsert;
  */
 export const customerMetrics = mysqlTable("customer_metrics", {
   id: int("id").autoincrement().primaryKey(),
-  customerId: int("customerId").notNull(),
+  customerId: int("customerId").notNull().references(() => customers.id, { onDelete: "cascade" }),
   /** Total revenue from this customer */
   totalRevenue: int("totalRevenue").default(0).notNull(),
   /** Number of completed jobs */
@@ -1922,7 +1922,7 @@ export const appointmentReminders = mysqlTable("appointment_reminders", {
  */
 export const vehicles = mysqlTable("vehicles", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  customerId: int("customer_id").notNull(),
+  customerId: int("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
   year: int("year"),
   make: varchar("make", { length: 50 }),
   model: varchar("model", { length: 50 }),
@@ -1949,7 +1949,8 @@ export const vehicles = mysqlTable("vehicles", {
 export const workOrders = mysqlTable("work_orders", {
   id: varchar("id", { length: 36 }).primaryKey(),
   orderNumber: varchar("order_number", { length: 20 }).notNull(),
-  customerId: int("customer_id"),
+  /** DB-level FK fk_work_orders_customer · ON DELETE SET NULL (nullable link). */
+  customerId: int("customer_id").references(() => customers.id, { onDelete: "set null" }),
   vehicleId: varchar("vehicle_id", { length: 36 }),
   /** Full lifecycle status */
   status: varchar("status", { length: 30 }).default("draft").notNull(),
@@ -2017,7 +2018,7 @@ export const workOrders = mysqlTable("work_orders", {
  */
 export const workOrderItems = mysqlTable("work_order_items", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull().references(() => workOrders.id, { onDelete: "cascade" }),
   type: varchar("type", { length: 20 }).notNull(), // 'labor' | 'part' | 'tire' | 'fee' | 'sublet'
   description: varchar("description", { length: 500 }).notNull(),
   partNumber: varchar("part_number", { length: 50 }),
@@ -2062,7 +2063,7 @@ export const workOrderItems = mysqlTable("work_order_items", {
  */
 export const workOrderTransitions = mysqlTable("work_order_transitions", {
   id: int("id").autoincrement().primaryKey(),
-  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull().references(() => workOrders.id, { onDelete: "cascade" }),
   fromStatus: varchar("from_status", { length: 30 }),
   toStatus: varchar("to_status", { length: 30 }).notNull(),
   changedBy: varchar("changed_by", { length: 100 }),
@@ -2503,7 +2504,7 @@ export const serviceAffinityPredictions = mysqlTable("service_affinity_predictio
 
 export const predictionImpressions = mysqlTable("prediction_impressions", {
   id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
-  predictionId: bigint("prediction_id", { mode: "number" }).notNull(),
+  predictionId: bigint("prediction_id", { mode: "number" }).notNull().references(() => serviceAffinityPredictions.id, { onDelete: "cascade" }),
   shownAt: timestamp("shown_at").defaultNow().notNull(),
   // Enforced at app layer: 'admin_roster' | 'customer_drawer' | 'sms_queue' | 'statenour_brain'
   surface: varchar("surface", { length: 64 }).notNull(),
@@ -2514,7 +2515,7 @@ export const predictionImpressions = mysqlTable("prediction_impressions", {
 
 export const predictionActions = mysqlTable("prediction_actions", {
   id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
-  predictionId: bigint("prediction_id", { mode: "number" }).notNull(),
+  predictionId: bigint("prediction_id", { mode: "number" }).notNull().references(() => serviceAffinityPredictions.id, { onDelete: "cascade" }),
   // Enforced at app layer: 'sms_sent' | 'dismissed' | 'snoozed' | 'called' | 'modified'
   action: varchar("action", { length: 32 }).notNull(),
   actedAt: timestamp("acted_at").defaultNow().notNull(),
@@ -2665,7 +2666,7 @@ export type InsertBay = typeof bays.$inferInsert;
  */
 export const qcChecklists = mysqlTable("qc_checklists", {
   id: int("id").autoincrement().primaryKey(),
-  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull().references(() => workOrders.id, { onDelete: "cascade" }),
   completedBy: varchar("completed_by", { length: 100 }),
   reviewedBy: varchar("reviewed_by", { length: 100 }),
   status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | in_progress | passed | failed | waived
@@ -3481,7 +3482,7 @@ export type InsertSmsOrchestration = typeof smsOrchestrations.$inferInsert;
 
 export const smsOrchestrationOutcomes = mysqlTable("sms_orchestration_outcomes", {
   id: int("id").autoincrement().primaryKey(),
-  orchestrationId: int("orchestration_id").notNull(),
+  orchestrationId: int("orchestration_id").notNull().references(() => smsOrchestrations.id, { onDelete: "cascade" }),
   outcomeType: varchar("outcome_type", { length: 100 }).notNull(),
   outcomeValue: text("outcome_value"),
   sourceTable: varchar("source_table", { length: 100 }),
