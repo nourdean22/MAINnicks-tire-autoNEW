@@ -74,5 +74,7 @@ export const GET = apiHandler(
     // 4. Perform 302 redirect
     return NextResponse.redirect(redirectUrl, 302);
   },
-  { auth: "none" }
+  // Unauthenticated by design (public redirector), but each hit is 3 DB
+  // writes — rate-limit per IP so a scraper can't flood ShortLink/LinkClick.
+  { auth: "none", rateLimit: "general" }
 );
