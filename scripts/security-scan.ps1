@@ -42,16 +42,22 @@ Set-Location $repoRoot
 
 Write-Host "[security-scan] Running pnpm audit (severity >= $Severity)..." -ForegroundColor Cyan
 
-# pnpm audit returns non-zero when vulns found — we capture and parse
+# pnpm audit returns non-zero when vulns found — we capture and parse.
+# EAP must be Continue here: with "Stop", the first stderr line (e.g. a Node
+# deprecation warning) throws and we lose the entire JSON payload on stdout.
+$prevEap = $ErrorActionPreference
 try {
+  $ErrorActionPreference = "Continue"
   $auditRaw = pnpm audit --json --audit-level $Severity 2>&1
   $exitCode = $LASTEXITCODE
 } catch {
   $auditRaw = $_.Exception.Message
   $exitCode = 1
+} finally {
+  $ErrorActionPreference = $prevEap
 }
 
-$rawText = $auditRaw -join "`n"
+$rawText = ($auditRaw | ForEach-Object { "$_" }) -join "`n"
 
 # Build structured report
 $timestamp = Get-Date -Format "o"
@@ -62,70 +68,105 @@ $report = @{
   exitCode  = $exitCode
 }
 
-# pnpm audit --json outputs NDJSON (one JSON object per advisory)
-# Collect all advisories into an array
 $advisories = @()
 $critCount = 0
 $highCount = 0
 $modCount  = 0
 $lowCount  = 0
+$parsedOk  = $false
 
-foreach ($line in ($rawText -split "`n")) {
-  $trimmed = $line.Trim()
-  if (-not $trimmed -or -not $trimmed.StartsWith("{")) { continue }
+# pnpm@10 emits ONE npm-style JSON document, often preceded by Node
+# deprecation warnings (merged stderr). Locate the JSON payload by first
+# brace instead of assuming the stream starts with '{'.
+$jsonStart = $rawText.IndexOf('{')
+if ($jsonStart -ge 0) {
   try {
-    $obj = $trimmed | ConvertFrom-Json
-    # pnpm audit JSON lines have a "type" field
-    if ($obj.type -eq "auditAdvisory") {
-      $adv = $obj.data.advisory
-      $advisories += @{
-        id       = $adv.id
-        title    = $adv.title
-        severity = $adv.severity
-        module   = $adv.module_name
-        url      = $adv.url
-        range    = $adv.vulnerable_versions
+    $parsed = $rawText.Substring($jsonStart) | ConvertFrom-Json
+    if ($parsed.metadata -or $parsed.advisories) {
+      if ($parsed.advisories) {
+        foreach ($prop in $parsed.advisories.PSObject.Properties) {
+          $adv = $prop.Value
+          $advisories += @{
+            id       = $adv.id
+            title    = $adv.title
+            severity = $adv.severity
+            module   = $adv.module_name
+            url      = $adv.url
+            range    = $adv.vulnerable_versions
+            patched  = $adv.patched_versions
+          }
+        }
       }
-      switch ($adv.severity) {
-        "critical" { $critCount++ }
-        "high"     { $highCount++ }
-        "moderate" { $modCount++ }
-        "low"      { $lowCount++ }
+      if ($parsed.metadata.vulnerabilities) {
+        $v = $parsed.metadata.vulnerabilities
+        $critCount = [int]$v.critical
+        $highCount = [int]$v.high
+        $modCount  = [int]$v.moderate
+        $lowCount  = [int]$v.low
+        $report["dependencies"] = $parsed.metadata.dependencies
+      } else {
+        foreach ($a in $advisories) {
+          switch ($a.severity) {
+            "critical" { $critCount++ }
+            "high"     { $highCount++ }
+            "moderate" { $modCount++ }
+            "low"      { $lowCount++ }
+          }
+        }
       }
-    }
-    elseif ($obj.type -eq "auditSummary") {
-      $report["summary"] = $obj.data
+      $parsedOk = $true
     }
   } catch {
-    # Non-JSON line, skip
+    # fall through to NDJSON handling below
   }
 }
 
-# If no NDJSON parsed, try standard npm-style JSON
-if ($advisories.Count -eq 0 -and $rawText.Trim().StartsWith("{")) {
-  try {
-    $parsed = $rawText | ConvertFrom-Json
-    if ($parsed.metadata) {
-      $report["vulnerabilities"] = @{
-        total    = $parsed.metadata.vulnerabilities.total
-        info     = if ($parsed.metadata.vulnerabilities.info) { $parsed.metadata.vulnerabilities.info } else { 0 }
-        low      = if ($parsed.metadata.vulnerabilities.low) { $parsed.metadata.vulnerabilities.low } else { 0 }
-        moderate = if ($parsed.metadata.vulnerabilities.moderate) { $parsed.metadata.vulnerabilities.moderate } else { 0 }
-        high     = if ($parsed.metadata.vulnerabilities.high) { $parsed.metadata.vulnerabilities.high } else { 0 }
-        critical = if ($parsed.metadata.vulnerabilities.critical) { $parsed.metadata.vulnerabilities.critical } else { 0 }
+# Legacy fallback: NDJSON (one JSON object per line, older pnpm/npm formats)
+if (-not $parsedOk) {
+  foreach ($line in ($rawText -split "`n")) {
+    $trimmed = $line.Trim()
+    if (-not $trimmed -or -not $trimmed.StartsWith("{")) { continue }
+    try {
+      $obj = $trimmed | ConvertFrom-Json
+      if ($obj.type -eq "auditAdvisory") {
+        $adv = $obj.data.advisory
+        $advisories += @{
+          id       = $adv.id
+          title    = $adv.title
+          severity = $adv.severity
+          module   = $adv.module_name
+          url      = $adv.url
+          range    = $adv.vulnerable_versions
+        }
+        switch ($adv.severity) {
+          "critical" { $critCount++ }
+          "high"     { $highCount++ }
+          "moderate" { $modCount++ }
+          "low"      { $lowCount++ }
+        }
+        $parsedOk = $true
       }
-      $critCount = $report["vulnerabilities"]["critical"]
-      $highCount = $report["vulnerabilities"]["high"]
-      $modCount  = $report["vulnerabilities"]["moderate"]
-      $lowCount  = $report["vulnerabilities"]["low"]
-      $report["dependencies"] = $parsed.metadata.dependencies
+      elseif ($obj.type -eq "auditSummary") {
+        $report["summary"] = $obj.data
+        $parsedOk = $true
+      }
+    } catch {
+      # Non-JSON line, skip
     }
-  } catch {
-    # Fallback: just store raw
   }
 }
 
-# Always store counts
+# pnpm audit exits non-zero when vulnerabilities exist. If it exited
+# non-zero and we parsed nothing, the scanner is blind — fail loudly
+# instead of reporting a clean result.
+if (-not $parsedOk -and $exitCode -ne 0) {
+  $report["parseError"] = $true
+  Write-Host "[security-scan] ERROR: pnpm audit exited $exitCode but its output could not be parsed." -ForegroundColor Red
+  Write-Host "[security-scan] Refusing to report a clean result. Raw output head:" -ForegroundColor Red
+  Write-Host ($rawText.Substring(0, [Math]::Min(800, $rawText.Length)))
+  exit 1
+}
+
 $report["vulnerabilities"] = @{
   critical = $critCount
   high     = $highCount
