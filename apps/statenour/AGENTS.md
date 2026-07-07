@@ -1,9 +1,9 @@
-﻿# AGENTS.md Â· statenour-os
+# AGENTS.md Â· statenour-os
 
 > **âš¡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) â€” app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) â€” when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-06-29 Â· post the **Chat Transcripts, System Prompt, and Bulk Tool Upgrades wave â€” PR #437 and PR #438 merged**: â‘  registered calibration schema change in ledger; â‘¡ implemented graceful fallback in `runAutoDecompose` to a single response stream on any sub-agent executor error; â‘¢ updated `identity.ts` system prompt rules to prevent agent passivity and inbox ID begging by mandating a `getMissions` tool pre-fetch; â‘£ enriched bulk task/routine creation tools with loop/routine configuration inputs (`loopKind`, `recurringDays`, etc.); â‘¤ resolved accessibility, ARIA, and relative import warnings. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-07-07 · post the **full-repo bug-audit statenour wave — PR #593, awaiting operator merge**: timing-safe bridge auth (+contract tests) · arsenalNotebookLM read-only allowlist · moneyprinter single-flight + atomic config write · /api/short rate limit · prompt drift-guard realigned to the #587/#588 persona wording (main suite was RED). Companion: repo security wave PR #591 + audit register PR #594. Full detail: RECONCILIATION top entry.
 
 ## 1 Â· Where we are right now
 
