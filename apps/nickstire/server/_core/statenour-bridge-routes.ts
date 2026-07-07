@@ -689,7 +689,10 @@ export function registerStatenourBridgeRoutes(app: Express): void {
         service: body.service,
         externalApplicationId: applicationId,
         status,
-        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+        // Use req.ip (respects the configured trust proxy) rather than the
+        // leftmost x-forwarded-for entry, which is client-controlled/spoofable.
+        // Attribution metadata only, but keep it honest.
+        ipAddress: req.ip || null,
       });
 
       res.json({

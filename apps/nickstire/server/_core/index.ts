@@ -35,6 +35,14 @@ if (missingRequired.length) {
   console.error(`FATAL: Missing required env vars: ${missingRequired.join(", ")}`);
   process.exit(1);
 }
+// Both apps in the monorepo read DATABASE_URL, but nickstire is MySQL/TiDB and
+// statenour is Postgres. A wrong-engine URL leaking in (root .env, a worktree
+// env copy) otherwise surfaces as an opaque mysql2 pool error deep in a request.
+// Fail loudly at boot on the scheme instead.
+if (process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith("mysql://")) {
+  console.error("FATAL: DATABASE_URL must be a mysql:// URL for nickstire (got a wrong-engine URL — Postgres?)");
+  process.exit(1);
+}
 // JWT_SECRET must be at least 32 characters to be cryptographically useful
 if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
   console.error("FATAL: JWT_SECRET must be at least 32 characters long");
@@ -1114,6 +1122,24 @@ ${urls.join("\n")}
   } else {
     serveStatic(app);
   }
+
+  // Terminal error handler — MUST be the last middleware registered. Hand-rolled
+  // REST routes that throw synchronously (or call next(err)) land here with a
+  // sanitized, request-id-correlated JSON response instead of Express's default
+  // stack-leaking handler. tRPC errors are handled separately by its onError hook.
+  app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (res.headersSent) return next(err);
+    const appErr = isAppError(err) ? err : AppError.fromUnknown(err, req.path);
+    if (!appErr.isOperational) {
+      serverLog.error("unhandled_route_error", {
+        path: req.path,
+        requestId: res.locals.requestId,
+        error: appErr.message,
+      });
+    }
+    const { status, body } = errorToHttpResponse(appErr);
+    res.status(status).json({ ...body, requestId: res.locals.requestId });
+  });
 
   const preferredPort = parseInt(process.env.PORT || "3000", 10);
   const port = await findAvailablePort(preferredPort);
