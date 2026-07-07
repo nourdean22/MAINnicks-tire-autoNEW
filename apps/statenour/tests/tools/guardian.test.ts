@@ -2,7 +2,7 @@
  * Guardian wrapper behavior corpus · v10.0.357
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/tools/tool-policy", () => ({
   evaluateToolAction: () => ({
@@ -12,7 +12,12 @@ vi.mock("@/lib/tools/tool-policy", () => ({
   }),
 }));
 
-import { classify, withGuardian, GuardianError } from "@/lib/tools/guardian";
+import {
+  classify,
+  withGuardian,
+  GuardianError,
+  __resetGuardianBreakers,
+} from "@/lib/tools/guardian";
 
 describe("classify · failure categorization", () => {
   it("auth_expired on 401", () => {
@@ -149,5 +154,139 @@ describe("withGuardian · schema validation", () => {
     });
     await expect(guarded()).rejects.toMatchObject({ category: "schema_mismatch" });
     expect(calls).toBe(1);
+  });
+});
+
+describe("withGuardian · circuit breaker", () => {
+  beforeEach(() => {
+    __resetGuardianBreakers();
+  });
+
+  it("opens after N consecutive backend failures and fast-fails without calling fn", async () => {
+    let calls = 0;
+    const fn = async () => {
+      calls++;
+      throw new Error("fetch failed"); // → network_failure (a tripping category)
+    };
+    const guarded = withGuardian("cb-open", fn, {
+      reliabilityOnly: true,
+      maxRetries: 0,
+      breakerThreshold: 3,
+      breakerCooldownMs: 10_000,
+    });
+
+    // 3 real failures trip the breaker; fn is called each time.
+    for (let i = 0; i < 3; i++) {
+      await expect(guarded()).rejects.toMatchObject({ category: "network_failure" });
+    }
+    expect(calls).toBe(3);
+
+    // 4th call is fast-failed by the open breaker — fn is NOT invoked.
+    await expect(guarded()).rejects.toMatchObject({ category: "circuit_open" });
+    expect(calls).toBe(3);
+  });
+
+  it("half-open probe after cooldown: a success resets the breaker", async () => {
+    let calls = 0;
+    let mode: "fail" | "ok" = "fail";
+    const fn = async () => {
+      calls++;
+      if (mode === "fail") throw new Error("fetch failed");
+      return { ok: true };
+    };
+    const guarded = withGuardian("cb-halfopen", fn, {
+      reliabilityOnly: true,
+      maxRetries: 0,
+      breakerThreshold: 2,
+      breakerCooldownMs: 40,
+    });
+
+    // Trip it (2 failures), confirm the 3rd fast-fails.
+    await expect(guarded()).rejects.toMatchObject({ category: "network_failure" });
+    await expect(guarded()).rejects.toMatchObject({ category: "network_failure" });
+    await expect(guarded()).rejects.toMatchObject({ category: "circuit_open" });
+    expect(calls).toBe(2);
+
+    // Let the cooldown elapse, flip to success — the next call probes and resets.
+    await new Promise((r) => setTimeout(r, 60));
+    mode = "ok";
+    await expect(guarded()).resolves.toMatchObject({ ok: true });
+    expect(calls).toBe(3); // the probe ran
+
+    // Breaker is closed again: one fresh failure must NOT immediately re-open.
+    mode = "fail";
+    await expect(guarded()).rejects.toMatchObject({ category: "network_failure" });
+    expect(calls).toBe(4);
+  });
+
+  it("does NOT trip on auth failures (config error, not a down backend)", async () => {
+    let calls = 0;
+    const fn = async () => {
+      calls++;
+      throw Object.assign(new Error("unauthorized"), { status: 401 });
+    };
+    const guarded = withGuardian("cb-auth", fn, {
+      reliabilityOnly: true,
+      maxRetries: 0,
+      breakerThreshold: 2,
+      breakerCooldownMs: 10_000,
+    });
+
+    for (let i = 0; i < 5; i++) {
+      await expect(guarded()).rejects.toMatchObject({ category: "auth_expired" });
+    }
+    // Breaker never opened — every call reached fn.
+    expect(calls).toBe(5);
+  });
+
+  it("half-open admits exactly ONE probe under concurrent fan-out (no thundering herd)", async () => {
+    let calls = 0;
+    const fn = async () => {
+      calls++;
+      // stay down; slow enough that all concurrent probes would overlap
+      await new Promise((r) => setTimeout(r, 20));
+      throw new Error("fetch failed");
+    };
+    const guarded = withGuardian("cb-herd", fn, {
+      reliabilityOnly: true,
+      maxRetries: 0,
+      breakerThreshold: 2,
+      breakerCooldownMs: 30,
+    });
+
+    // Trip the breaker (2 sequential failures).
+    await expect(guarded()).rejects.toMatchObject({ category: "network_failure" });
+    await expect(guarded()).rejects.toMatchObject({ category: "network_failure" });
+    const callsAfterTrip = calls; // 2
+
+    // Let the cooldown elapse, then fire 10 concurrent calls at once.
+    await new Promise((r) => setTimeout(r, 40));
+    const results = await Promise.allSettled(Array.from({ length: 10 }, () => guarded()));
+
+    // Exactly ONE became the probe (reached fn); the other 9 were fast-failed.
+    expect(calls - callsAfterTrip).toBe(1);
+    const circuitOpen = results.filter(
+      (r) => r.status === "rejected" && (r.reason as GuardianError)?.category === "circuit_open",
+    );
+    expect(circuitOpen.length).toBe(9);
+  });
+
+  it("circuitBreaker:false disables the breaker entirely", async () => {
+    let calls = 0;
+    const fn = async () => {
+      calls++;
+      throw new Error("fetch failed");
+    };
+    const guarded = withGuardian("cb-disabled", fn, {
+      reliabilityOnly: true,
+      maxRetries: 0,
+      circuitBreaker: false,
+      breakerThreshold: 2,
+    });
+
+    for (let i = 0; i < 5; i++) {
+      await expect(guarded()).rejects.toMatchObject({ category: "network_failure" });
+    }
+    expect(calls).toBe(5); // no fast-fail, breaker disabled
   });
 });
