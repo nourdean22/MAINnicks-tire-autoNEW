@@ -34,6 +34,14 @@
 
 When the operator invokes `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`, `/using-superpowers`, `/antigravity-workflows`, or `/prompt-library` â€” treat them as MANDATORY framing for the work.
 
+### Frontend conventions (2026-07-07 consistency wave)
+
+- **Card primitive** — `GlassCard` (`components/ui/glass-card.tsx`) is canonical. `components/ui/card.tsx` is @deprecated legacy (kept only for the structured CardHeader/Content API in `components/stats/*`); never import it in new code.
+- **Token write-path** — new styling uses the Tailwind theme-bridge utilities (`bg-elevated`, `bg-raised`, `text-fg-secondary`, `border-glass`, `text-gold`, …) declared in `app/styles/tokens.css` `@theme inline`. Raw `bg-[var(--…)]` arbitrary values are legacy read-path only.
+- **Stylesheet layers** — `app/globals.css` is an import manifest only; real CSS lives in `app/styles/{tokens,base,effects}.css`. Import order = cascade order; append within the right layer, never reorder.
+- **Bottom chrome** — page content clears the fixed tab-bar/ticker with `pb-[var(--bottom-chrome-h)]` (owned by `bottom-tab-bar.tsx` + `tokens.css`). Never hand-tune per-page bottom padding.
+- **Folder convention** — domain UI in `components/<domain>/`, shared primitives in `components/ui/`, server/shared logic in `lib/` (inngest moved `src/inngest` → `lib/inngest`, 2026-07-07; `src/` is retired). `features/` is frozen to the existing `chat-v2` + `missions` slices — don't add new top-level conventions.
+
 ### Commit format
 
 `<type> Â· statenour Â· <one-line summary>` subject + context / implementation / verify paragraphs + `Co-Authored-By: <model name> <noreply@anthropic.com>`.

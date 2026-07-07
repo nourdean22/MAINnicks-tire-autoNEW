@@ -23,8 +23,8 @@
 
 import { serve } from "inngest/next";
 import { NextResponse, type NextRequest } from "next/server";
-import { getInngest, isInngestFullyConfigured } from "@/src/inngest/client";
-import * as functions from "@/src/inngest/functions";
+import { getInngest, isInngestFullyConfigured } from "@/lib/inngest/client";
+import * as functions from "@/lib/inngest/functions";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

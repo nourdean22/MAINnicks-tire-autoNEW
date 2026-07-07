@@ -1331,7 +1331,7 @@ async function emitApprovalResponse(
     return;
   }
   try {
-    const { getInngest } = await import("@/src/inngest/client");
+    const { getInngest } = await import("@/lib/inngest/client");
     const inngest = getInngest();
     await inngest.send({
       name: "bulk-sms/approval-response",

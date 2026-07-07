@@ -5,7 +5,7 @@ import { logger as rootLogger } from "@/lib/logger";
 
 // v10.0.31 — structured logger for knowledge-page errors.
 const log = rootLogger.withSurface("knowledge/page");
-import { Card } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -197,9 +197,9 @@ export default function KnowledgePage() {
           </Button>
           <span className="text-sm text-[var(--nour-text-secondary)] truncate">{selectedFile}</span>
         </div>
-        <Card className="p-4 bg-[var(--nour-surface)] border-[var(--nour-border)]">
+        <GlassCard className="p-4">
           <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-[var(--nour-text)]">{content}</pre>
-        </Card>
+        </GlassCard>
       </div>
     );
   }
@@ -284,12 +284,12 @@ export default function KnowledgePage() {
           </h2>
           <div className="space-y-2 stagger-in">
             {results.map((r) => (
-              <Card
+              <GlassCard
                 /* v10.0.31 — was key={i} (array index) which breaks
                    reconciliation on result reorder/partial update.
                    path is unique per result. */
                 key={r.path}
-                className="p-3 bg-[var(--nour-surface)] border-[var(--nour-border)] cursor-pointer hover:border-[var(--nour-gold)] transition-colors glow-on-hover"
+                className="p-3 cursor-pointer hover:border-[var(--nour-gold)] transition-colors glow-on-hover"
                 onClick={() => openFile(r.path)}
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -301,7 +301,7 @@ export default function KnowledgePage() {
                 {r.matches[0] && (
                   <p className="text-xs text-[var(--nour-text-secondary)] line-clamp-2 font-mono">{r.matches[0]}</p>
                 )}
-              </Card>
+              </GlassCard>
             ))}
           </div>
         </section>
@@ -320,9 +320,9 @@ export default function KnowledgePage() {
           ) : (
           <div className="grid grid-cols-1 gap-2 stagger-in">
             {sortedFiltered.map((f) => (
-              <Card
+              <GlassCard
                 key={f.path}
-                className="p-3 bg-[var(--nour-surface)] border-[var(--nour-border)] cursor-pointer hover:border-[var(--nour-text-secondary)] transition-colors glow-on-hover"
+                className="p-3 cursor-pointer hover:border-[var(--nour-text-secondary)] transition-colors glow-on-hover"
                 onClick={() => openFile(f.path)}
               >
                 <div className="flex items-center gap-2">
@@ -331,7 +331,7 @@ export default function KnowledgePage() {
                   <Badge variant="outline" className="text-[10px] h-4 shrink-0">{f.category}</Badge>
                   <span className="text-[10px] text-[var(--nour-text-secondary)] font-mono shrink-0">{(f.size / 1024).toFixed(1)}K</span>
                 </div>
-              </Card>
+              </GlassCard>
             ))}
           </div>
           )}
