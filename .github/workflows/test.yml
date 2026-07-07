@@ -105,10 +105,17 @@ jobs:
         env:
           STALE_DOCS_STRICT: '1'
 
-      # ─── Security audit (always runs · cheap + non-blocking) ─────────
-      - name: Dependency audit (high+ severity)
+      # ─── Security audit (high+ · advisory, non-blocking) ─────────────
+      - name: Dependency audit (high+ severity · advisory)
         continue-on-error: true
         run: pnpm audit --prod --audit-level=high
+
+      # ─── Security gate (critical · BLOCKING) ─────────────────────────
+      # A newly-introduced CRITICAL-severity vulnerable dependency fails the
+      # build. High+ stays advisory above to avoid churn on transitive highs;
+      # critical is the hard line. (After PR #591 the tree is 0 critical.)
+      - name: Dependency audit (critical severity · blocking)
+        run: pnpm audit --prod --audit-level=critical
 
       # ─── Summary ──────────────────────────────────────────────────────
       - name: Summary

@@ -21,7 +21,7 @@
 
 - **NEVER push `main`.** Named branches (`statenour/<task>` Â· `docs/<task>` Â· `chore/<task>`) + PR; the operator merges. Prefer a fresh `.worktrees/<name>` worktree off origin/main (concurrent sessions share this repo).
 - Stage only your files by explicit path Â· never `git add -A` Â· never `--no-verify` Â· scope to the assigned task only.
-- `apps/statenour/scripts/pre-push-check.sh` is a stale Vercel-era artifact â€” NOT the active hook; ignore it. The real hook is the repo-root `.husky/pre-push` (`turbo build` for affected apps).
+- `apps/statenour/scripts/pre-push-check.sh` is a stale Vercel-era artifact â€” NOT the active hook; ignore it. The real hook is the repo-root `lefthook.yml` (`pre-push` -> `turbo build --affected`; Husky is not used).
 
 ### House rules
 
@@ -122,7 +122,7 @@ These are the targets to hold. If any go red, stop and diagnose before pushing m
 | TypeScript errors | 0 | `pnpm typecheck` |
 | ESLint blocking | 0 | `pnpm lint` |
 | Test pass rate | 100% (read summary, not `$?`) | `pnpm test` |
-| Pre-push build | âœ… turbo cache hit | `.husky/pre-push` |
+| Pre-push build | âœ… turbo cache hit | `lefthook.yml` (pre-push) |
 | Task DB â†’ UI visible | < 15s | `/missions` refetchInterval (PR #455) |
 | Prisma migration state | Matches prod | `pnpm prisma migrate status` |
 
