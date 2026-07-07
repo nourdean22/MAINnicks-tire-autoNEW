@@ -1205,8 +1205,10 @@ export type InsertCustomerMetric = typeof customerMetrics.$inferInsert;
  */
 export const invoices = mysqlTable("invoices", {
   id: int("id").autoincrement().primaryKey(),
-  /** Link to imported customer if matched */
-  customerId: int("customerId"),
+  /** Link to imported customer if matched. DB-level FK fk_invoices_customer
+   *  (BE-DATA-1, 2026-07-07) · ON DELETE SET NULL — never cascade-delete an
+   *  invoice; unlink it. Nullable: an unmatched import legitimately has none. */
+  customerId: int("customerId").references(() => customers.id, { onDelete: "set null" }),
   /** Link to booking if matched */
   bookingId: int("bookingId"),
   /** Link to work order if matched */

@@ -696,7 +696,15 @@ export async function handleRunMigrations() {
       // has no ADD CONSTRAINT IF NOT EXISTS), but the loop's catch tolerates the
       // "Duplicate foreign key constraint name" re-run error. Drizzle def:
       // drizzle/schema.ts smsMessages.conversationId.references(...).
-      `ALTER TABLE sms_messages ADD CONSTRAINT fk_sms_msg_conv FOREIGN KEY (conversationId) REFERENCES sms_conversations(id) ON DELETE CASCADE`
+      `ALTER TABLE sms_messages ADD CONSTRAINT fk_sms_msg_conv FOREIGN KEY (conversationId) REFERENCES sms_conversations(id) ON DELETE CASCADE`,
+      // 2026-07-07 · BE-DATA-1 wave 2 · invoices.customerId -> customers.id.
+      // ON DELETE SET NULL — an invoice is a financial record; never cascade-
+      // delete it, just unlink. Nullable (395 of 2,792 rows are legitimately
+      // unmatched imports). Applied to prod first (pre-check: 0 orphans).
+      // Loop-catch tolerates the "Duplicate ... constraint" re-run error.
+      // (work_orders.customer_id -> customers.id was DEFERRED — its lone row is
+      //  an orphan pointing at a missing customer; operator cleans that 1 row.)
+      `ALTER TABLE invoices ADD CONSTRAINT fk_invoices_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL`
     ];
 
     let applied = 0;
