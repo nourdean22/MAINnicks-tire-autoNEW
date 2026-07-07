@@ -1,0 +1,156 @@
+/* Split from app/globals.css (2026-07-07) - import order in globals.css IS the cascade order; do not reorder. */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * NOUR OS — Dark Industrial Command Center
+ * Void black. Gold accents. Glass depth. Information density.
+ * Typography: Barlow Condensed (display) + Inter/Geist (body)
+ */
+
+:root {
+  /* ═══ BACKGROUNDS — layered depth, never pure black ═══ */
+  --bg-void: #050505;
+  --bg-base: #0A0A0A;
+  --bg-raised: #111111;
+  --bg-elevated: #1A1A1A;
+  --bg-surface: #222222;
+
+  /* ═══ Legacy aliases ═══ */
+  --nour-bg: var(--bg-void);
+  --nour-surface: var(--bg-raised);
+  --nour-border: #1F1F1F;
+
+  /* ═══ TEXT — never pure white ═══ */
+  --text-primary: #F0F0F0;
+  --text-secondary: #A3A3A3;
+  /* v10.0.526 · a11y A1 fix · was #666 (3.03-3.55:1 on dark backgrounds
+     · fails WCAG AA for normal text · affected 208 DOM elements per the
+     v525 mobile audit). Re-aliased to #909090 (~5.0:1 on --bg-elevated
+     · passes AA). Editorial-minimalist aesthetic preserved · only the
+     contrast lifts. */
+  --text-tertiary: #909090;
+  --text-inverse: #0A0A0A;
+  --nour-text: var(--text-primary);
+  /* v10.0.452 · a11y · was `var(--text-tertiary)` (#666 on #111 = 3.28:1
+     · fails WCAG AA for normal text). The alias name promises "secondary"
+     but delivered "tertiary" — re-aliased to --text-secondary (#A3A3A3
+     on #111 ≈ 6.4:1 · passes WCAG AA). Affects all 13 usages across the
+     4 consumer files (globals.css · auth/sign-in · knowledge · error).
+     Audit provenance: motion+a11y audit Finding L3 (LOW · contrast). */
+  --nour-text-secondary: var(--text-secondary);
+
+  /* ═══ ACCENT — Nick's Gold ═══ */
+  --gold: #FDB913;
+  --gold-dim: #D49A0E;
+  --gold-glow: rgba(253, 185, 19, 0.15);
+  --gold-ghost: rgba(253, 185, 19, 0.08);
+  --nour-gold: var(--gold);
+
+  /* v10.0.294 · brand-anchor shadows · richer depth on cards + buttons.
+     soft = ambient resting glow · strong = active / hover · deep =
+     cinematic layered drop for hero panels. */
+  --shadow-gold-soft: 0 4px 20px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(253, 185, 19, 0.04);
+  --shadow-gold-strong: 0 0 30px rgba(253, 185, 19, 0.08), 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-deep: 0 20px 60px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  /* ═══ STATUS ═══ */
+  --status-green: #22C55E;
+  --status-yellow: #F59E0B;
+  --status-red: #EF4444;
+  --status-blue: #3B82F6;
+  /* v10.0.529.54 · renamed --status-purple → --status-ai to remove the
+     standing invitation to add purple gradients (banned per the
+     operator's anti-AI-slop UI gate). Kept as alias so any inline
+     fallback that still references --status-purple resolves to the
+     same value during a deprecation window. */
+  --status-ai: #A855F7;
+  --status-purple: var(--status-ai);
+  --nour-success: var(--status-green);
+  --nour-danger: var(--status-red);
+  /* v10.0.529.54 · canonical --danger token so inline
+     `var(--danger,#dc2626)` fallbacks across components resolve here
+     instead of hardcoding a hex that doesn't match --status-red. */
+  --danger: var(--status-red);
+
+  /* ═══ BORDERS ═══ */
+  --border-default: #1F1F1F;
+  --border-hover: #333333;
+  --border-active: var(--gold);
+
+  /* ═══ LAYOUT — bottom chrome (BottomTabBar + ticker) ═══
+     Owned by components/layout/bottom-tab-bar.tsx. Page content pads
+     with pb-[var(--bottom-chrome-h)] instead of hand-tuned pb-24/pb-20
+     magic numbers (which regressed 3x — see git history of
+     (mastery)/layout.tsx). Includes the iOS safe-area inset the old
+     fixed value ignored. */
+  --bottom-chrome-h: calc(6rem + env(safe-area-inset-bottom, 0px));
+
+  /* ═══ GLASS ═══ */
+  --glass-bg: rgba(17, 17, 17, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-blur: 12px;
+
+  /* ═══ TYPOGRAPHY ═══ */
+  --font-display: var(--font-barlow), 'Barlow Condensed', var(--font-geist-sans), sans-serif;
+  /* v10.0.529.54 · removed 'Inter' fallback · Inter is the AI-design
+     fingerprint operator's anti-slop UI gate explicitly bans.
+     Geist is loaded as a variable font via next/font/google · falls
+     to system sans-serif on the rare event Geist fails. */
+  --font-body: var(--font-geist-sans), sans-serif;
+
+  /* shadcn tokens — gold accent */
+  --background: oklch(0.05 0 0);
+  --foreground: oklch(0.94 0 0);
+  --card: oklch(0.07 0 0);
+  --card-foreground: oklch(0.94 0 0);
+  --popover: oklch(0.07 0 0);
+  --popover-foreground: oklch(0.94 0 0);
+  --primary: oklch(0.78 0.16 85);
+  --primary-foreground: oklch(0.1 0 0);
+  --secondary: oklch(0.1 0 0);
+  --secondary-foreground: oklch(0.7 0 0);
+  --muted: oklch(0.1 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.1 0 0);
+  --accent-foreground: oklch(0.7 0 0);
+  --destructive: oklch(0.5 0.22 25);
+  --border: oklch(0.14 0 0);
+  --input: oklch(0.12 0 0);
+  --ring: oklch(0.78 0.16 85);
+  --chart-1: oklch(0.78 0.16 85);
+  --chart-2: oklch(0.65 0.12 85);
+  --chart-3: oklch(0.45 0 0);
+  --chart-4: oklch(0.3 0 0);
+  --chart-5: oklch(0.2 0 0);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.04 0 0);
+  --sidebar-foreground: oklch(0.7 0 0);
+  --sidebar-primary: oklch(0.78 0.16 85);
+  --sidebar-primary-foreground: oklch(0.1 0 0);
+  --sidebar-accent: oklch(0.08 0 0);
+  --sidebar-accent-foreground: oklch(0.7 0 0);
+  --sidebar-border: oklch(0.12 0 0);
+  --sidebar-ring: oklch(0.78 0.16 85);
+}
+
+/* ── Tailwind theme bridge (2026-07-07 consistency wave) ─────────────
+   Maps the NOUR OS custom properties into Tailwind v4 color tokens so
+   components write `bg-elevated` / `text-fg-secondary` / `border-glass`
+   instead of `bg-[var(--bg-elevated)]` arbitrary values.
+   WRITE-PATH RULE: new code uses these utilities; raw var() arbitrary
+   values are legacy read-path only. */
+@theme inline {
+  --color-void: var(--bg-void);
+  --color-base-layer: var(--bg-base);
+  --color-raised: var(--bg-raised);
+  --color-elevated: var(--bg-elevated);
+  --color-surface: var(--bg-surface);
+  --color-fg: var(--text-primary);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-tertiary: var(--text-tertiary);
+  --color-gold: var(--gold);
+  --color-gold-dim: var(--gold-dim);
+  --color-glass: var(--glass-border);
+  --color-edge: var(--border-default);
+  --color-edge-hover: var(--border-hover);
+}

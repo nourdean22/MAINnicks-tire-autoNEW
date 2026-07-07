@@ -1,0 +1,269 @@
+/* Split from app/globals.css (2026-07-07) - import order in globals.css IS the cascade order; do not reorder. */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--bg-void);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.01em;
+}
+
+/* ═══════════════════════════════════════════════════════
+   DISPLAY TYPOGRAPHY — Barlow Condensed
+   ═══════════════════════════════════════════════════════ */
+h1, .font-display { font-family: var(--font-display); }
+h1 { font-weight: 700; font-size: 1.75rem; letter-spacing: -0.02em; text-transform: uppercase; color: var(--text-primary); }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; letter-spacing: -0.01em; text-transform: uppercase; color: var(--text-primary); }
+h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color: var(--text-primary); }
+
+/* ═══════════════════════════════════════════════════════
+   GLASS CARDS — layered depth, frosted glass
+   ═══════════════════════════════════════════════════════ */
+.glass-card {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.glass-card:hover { border-color: var(--border-hover); }
+.glass-card-active { border-color: var(--gold) !important; box-shadow: 0 0 20px var(--gold-glow); }
+.glass-card-critical { border-color: var(--status-red) !important; box-shadow: 0 0 20px rgba(239,68,68,0.15); }
+.glass-card-success { border-color: var(--status-green) !important; box-shadow: 0 0 20px rgba(34,197,94,0.15); }
+
+/* ═══════════════════════════════════════════════════════
+   UTILITY CLASSES
+   ═══════════════════════════════════════════════════════ */
+.stat-number { font-family: var(--font-display); font-weight: 800; font-variant-numeric: tabular-nums; }
+.section-label { font-family: var(--font-display); font-size: 0.6875rem; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.08em; }
+.text-gold { color: var(--gold); }
+.bg-gold { background-color: var(--gold); }
+.border-gold { border-color: var(--gold); }
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.352 · EDITORIAL LAYOUT CLASSES (minimalist-ui adapted for dark)
+   These classes are referenced from <PageHeader>, <PanelHeader>,
+   <EmptyState> in components/layout/ui.tsx but were previously
+   undefined — components rendered structurally with zero bespoke
+   styling. Defining them once here applies the editorial rhythm to
+   every StandardPage / PageHeader adopter across the entire app.
+
+   Principles applied (warm-white minimalist · re-tuned for gold-on-
+   dark): generous spacing rhythm, tight tracking on display titles,
+   capped reading width on body copy (≤60ch), restrained eyebrow,
+   no decoration · the layout itself becomes the design.
+   ═══════════════════════════════════════════════════════ */
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-default);
+}
+@media (min-width: 768px) {
+  .page-header {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+}
+.page-header > div:first-child {
+  /* Cap title block width so long descriptions wrap naturally instead
+     of stretching across a 1280px-wide page. 60ch is the editorial
+     sweet-spot for readability per minimalist-ui §3 typographic rule. */
+  max-width: 60ch;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.page-title {
+  /* Inherits h1 base (Barlow Condensed, uppercase, gold accent fall-
+     through). Override font-size for a more editorial scale: 28px on
+     mobile / 36px on desktop. Tighter tracking + reduced top-margin
+     so the eyebrow → title relationship reads as a single unit. */
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin: 0.125rem 0 0 0;
+}
+@media (min-width: 768px) {
+  .page-title { font-size: 2.25rem; }
+}
+.page-copy {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0.5rem 0 0 0;
+  letter-spacing: 0.005em;
+}
+.page-copy:empty { display: none; }
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+/* Section header (PanelHeader) — same rhythm but smaller scale.
+   Used by sub-section heads inside StandardPage children. */
+.section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+@media (min-width: 768px) {
+  .section-head {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin: 0.125rem 0 0 0;
+}
+.section-copy {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  max-width: 60ch;
+  margin: 0.25rem 0 0 0;
+}
+.section-copy:empty { display: none; }
+
+/* Empty state — quiet, centered, editorial · no decoration · just type.
+   Used everywhere lists/grids may be blank. Stops short of being a
+   decorative card · borders + padding only. */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.375rem;
+  padding: 2.5rem 1.5rem;
+  border: 1px dashed var(--border-default);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 0;
+}
+.empty-copy {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--text-tertiary);
+  max-width: 50ch;
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.352 · EDITORIAL SERIF (optional · opt-in via class)
+   Per minimalist-ui §3 · pair the condensed display sans with an
+   editorial serif for hero quotes / journal entries / blockquote-
+   like passages. NOT a global override · drop-in via class only so
+   the operator-grade dark identity stays intact.
+
+   Usage: <p class="text-editorial">…</p>
+   Or for hero headlines on landing-style pages:
+   <h2 class="text-display-serif">…</h2>
+   ═══════════════════════════════════════════════════════ */
+.text-display-serif {
+  font-family: var(--font-editorial), 'Instrument Serif', 'Lyon Text', 'Newsreader', Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  text-transform: none;
+  font-style: normal;
+}
+.text-editorial {
+  font-family: var(--font-editorial), 'Instrument Serif', 'Newsreader', Georgia, serif;
+  font-weight: 400;
+  font-style: italic;
+  font-size: 1.125rem;
+  line-height: 1.5;
+  letter-spacing: 0.005em;
+  color: var(--text-secondary);
+}
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.368 · A11Y · sr-only screen-reader-only utility
+   Standard pattern · visible to screen readers, invisible visually.
+   Used by aria-live status announcers in voice mode + reasoning trace.
+   ═══════════════════════════════════════════════════════ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.352 · CARD PADDING NORMALIZATION
+   Per minimalist-ui §5: bento cards use 24-40px internal padding.
+   Many of our cards use cramped 12-16px which reads as dense rather
+   than premium. Bumping the rounded-lg dark-card pattern to 20px
+   (1.25rem) when there's no explicit p-* utility — Tailwind p-4
+   wins via specificity if the author wanted tighter padding.
+
+   Targets the same selector as the brand-anchor cascade so it lands
+   on every card surface across the OS without per-component edits.
+   ═══════════════════════════════════════════════════════ */
+:is(section, div).rounded-lg:is(
+  [class*="border-[var(--border-default)]"],
+  [class*="border-white/10"],
+  [class*="border-zinc-800"],
+  [class*="border-zinc-900"]
+):not([data-no-anchor]):not(button):not(a):not([class*=" p-"]):not([class^="p-"]) {
+  padding: 1.25rem;
+}

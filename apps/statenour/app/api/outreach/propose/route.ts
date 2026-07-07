@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     }
 
     const { getInngest, isInngestFullyConfigured } = await import(
-      "@/src/inngest/client"
+      "@/lib/inngest/client"
     );
 
     if (!isInngestFullyConfigured()) {

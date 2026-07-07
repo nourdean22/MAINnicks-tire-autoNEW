@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { signIn } from "@/auth";
 import { getAuthRuntimeMode, getOperatorSession } from "@/lib/auth";
-import { Card } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[var(--nour-bg)] p-4">
-      <Card className="w-full max-w-sm p-8 bg-[var(--nour-surface)] border-[var(--nour-border)] text-center">
+      <GlassCard className="w-full max-w-sm p-8 text-center">
         <div className="w-10 h-10 rounded-xl bg-[var(--nour-gold)] text-[var(--text-primary)] font-mono text-sm font-bold flex items-center justify-center mx-auto mb-6">
           N
         </div>
@@ -59,7 +59,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             <p>Set AUTH_SECRET, AUTH_GOOGLE_CLIENT_ID, AUTH_GOOGLE_CLIENT_SECRET, and AUTH_ALLOWED_EMAIL in your environment to enable production auth.</p>
           </div>
         )}
-      </Card>
+      </GlassCard>
     </main>
   );
 }
