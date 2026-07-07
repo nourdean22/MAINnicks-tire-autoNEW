@@ -29,7 +29,7 @@ Two apps share this repo: `apps/statenour` (Railway → bdnick.info) and `apps/n
 
 ## Verify gates
 
-- The push gate = repo-root `.husky/pre-push` → `turbo build` for affected apps. Other printed checks (lint-baseline, prompt:size-check) can be RED but are NON-blocking — a green local test run is on you.
+- The push gate = repo-root `lefthook.yml` (`pre-push` hook) → `turbo build --affected`. (Husky is no longer used; there is no `.husky/` directory.) Other printed checks (lint-baseline, prompt:size-check) can be RED but are NON-blocking — a green local test run is on you.
 - statenour (from `apps/statenour/`): `pnpm typecheck` · `pnpm lint` · `pnpm test` · full gate `pnpm verify:hard`. Piping vitest to `tail` masks the exit code — read the summary line.
 - nickstire (from `apps/nickstire/`): `pnpm run verify` (master gate). Full suite MUST be serial on Windows: `pnpm exec vitest run --pool=forks --poolOptions.forks.singleFork=true`. Serial mode shares ONE process across test files — follow the Test-hygiene rules in `apps/nickstire/AGENTS.md` §3 (unmock/unstub/env-restore) or leaks resurface as intermittent failures in unrelated files.
 - Supply-chain security: `powershell scripts/security-scan.ps1` wraps `pnpm audit --json` with structured reporting. Advisory-only by default; use `-FailOnCritical` for CI gating. Report lands at `reports/security-audit.json`.

@@ -36,6 +36,16 @@ const CRON_SECRET = (process.env.CRON_SECRET ?? "").trim();
 // is just a belt-and-suspenders.
 const FORWARD_TIMEOUT_MS = 60_000;
 
+// Scheduler liveness + drain state.
+// - scheduledTasks: node-cron handles so shutdown can stop new ticks.
+// - inFlightForwards: per-job guard so a slow forward can't stack overlapping
+//   HTTP calls against the same route when the next tick fires.
+// - lastTickAt: newest tick time, exposed to /health so a wedged loop reads
+//   unhealthy instead of the old hard-coded scheduler:"running".
+const scheduledTasks: cron.ScheduledTask[] = [];
+const inFlightForwards = new Set<string>();
+let lastTickAt = 0;
+
 interface JobDef {
   name: string;
   schedule: string; // cron expression (UTC)
@@ -265,29 +275,80 @@ export function startScheduler(): void {
       console.error(`[scheduler] invalid cron "${job.schedule}" for ${job.name} · skipping`);
       continue;
     }
-    cron.schedule(
+    const task = cron.schedule(
       job.schedule,
       () => {
-        // Fire-and-forget · don't block the cron tick on the forward
-        // (next tick may fire before this one resolves on a slow run)
-        void forwardCronToWeb(job.name);
+        // Overlap guard: if the previous forward for THIS job is still in
+        // flight (slow child, tripped 60s timeout), skip this tick instead of
+        // stacking a second HTTP call against the same route.
+        if (inFlightForwards.has(job.name)) {
+          console.warn(`[scheduler] skip ${job.name} · previous forward still in flight`);
+          return;
+        }
+        inFlightForwards.add(job.name);
+        lastTickAt = Date.now();
+        // Fire-and-forget · don't block the cron tick on the forward.
+        void forwardCronToWeb(job.name).finally(() => inFlightForwards.delete(job.name));
       },
       { timezone: "UTC" },
     );
+    scheduledTasks.push(task);
     registered++;
   }
 
   // Register local video rendering job - runs every 2 minutes
-  cron.schedule(
+  const renderTask = cron.schedule(
     "*/2 * * * *",
     () => {
+      lastTickAt = Date.now();
       void processVideoRenders();
     },
     { timezone: "UTC" }
   );
+  scheduledTasks.push(renderTask);
   registered++;
 
   console.log(
     `[scheduler] registered ${registered} jobs · target=${STATENOUR_WEB_URL || "UNSET"} · timezone UTC`,
   );
+}
+
+/** Stop all cron tasks so no NEW ticks fire (used during graceful shutdown). */
+export function stopScheduler(): void {
+  for (const task of scheduledTasks) {
+    try {
+      task.stop();
+    } catch {
+      /* best-effort */
+    }
+  }
+}
+
+/**
+ * Liveness snapshot for /health. `msSinceLastTick` is null before the first
+ * tick (fresh-boot grace — a high-freq job fires within ~2 min).
+ */
+export function getSchedulerHealth(): {
+  lastTickAt: number;
+  msSinceLastTick: number | null;
+  isRendering: boolean;
+  inFlightForwards: string[];
+} {
+  return {
+    lastTickAt,
+    msSinceLastTick: lastTickAt === 0 ? null : Date.now() - lastTickAt,
+    isRendering,
+    inFlightForwards: [...inFlightForwards],
+  };
+}
+
+/**
+ * Wait (bounded) for in-flight work to finish before exit — an active reel
+ * render or an outstanding forward. Polls until idle or the deadline.
+ */
+export async function drainInFlight(timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while ((isRendering || inFlightForwards.size > 0) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 250));
+  }
 }
