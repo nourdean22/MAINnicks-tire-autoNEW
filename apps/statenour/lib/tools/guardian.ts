@@ -111,6 +111,7 @@ export type FailureCategory =
   | "error_as_200"
   | "schema_mismatch"
   | "network_failure"
+  | "circuit_open"
   | "unknown";
 
 export interface GuardianOptions {
@@ -139,6 +140,12 @@ export interface GuardianOptions {
    * this) or it would bypass the policy gate + NICK_MUTATION_LOCK.
    */
   reliabilityOnly?: boolean;
+  /** Enable the per-tool circuit breaker · default true. */
+  circuitBreaker?: boolean;
+  /** Consecutive backend failures before the breaker opens · default 5. */
+  breakerThreshold?: number;
+  /** How long the breaker stays open before a half-open probe · default 30s. */
+  breakerCooldownMs?: number;
 }
 
 export class GuardianError extends Error {
@@ -233,6 +240,79 @@ function backoffDelay(attempt: number): number {
   return base + jitter;
 }
 
+// ── Circuit breaker ──────────────────────────────────────────────────
+// Per-tool state so a repeatedly-failing backend fast-fails for a cooldown
+// instead of every call re-paying maxRetries×timeout — which, under fan-out
+// concurrency, becomes N simultaneous retry storms against an already-down
+// backend. Only "backend is misbehaving" categories trip it; auth/schema/
+// unknown do not (those are config/caller bugs, not a down backend).
+interface BreakerState {
+  consecutiveFailures: number;
+  openUntil: number; // epoch ms; 0 = closed
+}
+const breakers = new Map<string, BreakerState>();
+const BREAKER_TRIPPING: ReadonlySet<FailureCategory> = new Set([
+  "api_timeout",
+  "rate_limit",
+  "network_failure",
+  "truncated_json",
+  "error_as_200",
+]);
+
+/**
+ * Gate a call against the breaker AND atomically claim the half-open probe.
+ * - "closed" → breaker is fine, proceed normally (no state change).
+ * - "open"   → still in cooldown, fast-fail.
+ * - "probe"  → cooldown just elapsed; THIS call is the sole half-open probe.
+ *
+ * The claim is critical: check-and-rearm is synchronous (no await between the
+ * elapsed check and pushing openUntil forward), so under concurrent fan-out
+ * exactly ONE caller gets "probe" and the rest see "open". Without this, every
+ * concurrent caller would probe a still-down backend the instant the cooldown
+ * elapsed — the retry-storm the breaker exists to prevent.
+ */
+function claimBreakerSlot(toolName: string, cooldownMs: number): "closed" | "open" | "probe" {
+  const b = breakers.get(toolName);
+  if (!b || b.openUntil === 0) return "closed";
+  const now = Date.now();
+  if (b.openUntil > now) return "open";
+  // Cooldown elapsed — re-arm so concurrent callers see "open" while this one
+  // probes. A probe success resets openUntil to 0; a probe failure re-extends it.
+  b.openUntil = now + cooldownMs;
+  return "probe";
+}
+
+function recordBreakerSuccess(toolName: string): void {
+  const b = breakers.get(toolName);
+  if (b) {
+    b.consecutiveFailures = 0;
+    b.openUntil = 0;
+  }
+}
+
+function recordBreakerFailure(
+  toolName: string,
+  category: FailureCategory,
+  threshold: number,
+  cooldownMs: number,
+): void {
+  if (!BREAKER_TRIPPING.has(category)) return;
+  let b = breakers.get(toolName);
+  if (!b) {
+    b = { consecutiveFailures: 0, openUntil: 0 };
+    breakers.set(toolName, b);
+  }
+  b.consecutiveFailures++;
+  if (b.consecutiveFailures >= threshold) {
+    b.openUntil = Date.now() + cooldownMs;
+  }
+}
+
+/** Test-only · clears all breaker state between cases. */
+export function __resetGuardianBreakers(): void {
+  breakers.clear();
+}
+
 /**
  * Wrap an async tool with guardian protection.
  */
@@ -250,6 +330,9 @@ export function withGuardian<T, A extends unknown[]>(
   const validateSchema = opts.validateSchema;
   // Captured at wrap time · never derived from the runtime payload.
   const reliabilityOnly = opts.reliabilityOnly ?? false;
+  const circuitBreaker = opts.circuitBreaker ?? true;
+  const breakerThreshold = opts.breakerThreshold ?? 5;
+  const breakerCooldownMs = opts.breakerCooldownMs ?? 30_000;
 
   return async function guarded(...args: A): Promise<T> {
     const bypassPolicy = guardianBypassStorage.getStore() === true;
@@ -397,6 +480,21 @@ export function withGuardian<T, A extends unknown[]>(
       }
     }
 
+    // Circuit breaker · fast-fail while this tool's backend is in an open
+    // cooldown, instead of re-paying the whole retry+timeout budget. When the
+    // cooldown elapses exactly ONE concurrent caller becomes the half-open
+    // probe (claimBreakerSlot re-arms atomically); success resets the breaker,
+    // failure re-opens it.
+    if (circuitBreaker && claimBreakerSlot(toolName, breakerCooldownMs) === "open") {
+      log.warn("guardian_circuit_open", { toolName });
+      throw new GuardianError(
+        toolName,
+        "circuit_open",
+        0,
+        `circuit open · ${toolName} is failing repeatedly · fast-failing until cooldown elapses`,
+      );
+    }
+
     let lastError: unknown;
     let lastCategory: FailureCategory = "unknown";
 
@@ -443,6 +541,7 @@ export function withGuardian<T, A extends unknown[]>(
             ms,
           });
         }
+        if (circuitBreaker) recordBreakerSuccess(toolName);
         return result;
       } catch (err) {
         lastError = err;
@@ -468,6 +567,12 @@ export function withGuardian<T, A extends unknown[]>(
 
         await new Promise((r) => setTimeout(r, backoffDelay(attempt)));
       }
+    }
+
+    // Terminal failure · feed the breaker so a persistently-down backend
+    // trips it and subsequent calls fast-fail during the cooldown.
+    if (circuitBreaker) {
+      recordBreakerFailure(toolName, lastCategory, breakerThreshold, breakerCooldownMs);
     }
 
     throw new GuardianError(
