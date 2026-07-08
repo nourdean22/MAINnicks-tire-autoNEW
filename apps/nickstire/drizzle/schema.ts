@@ -311,7 +311,7 @@ export type InsertCoupon = typeof coupons.$inferInsert;
  */
 export const customerVehicles = mysqlTable("customer_vehicles", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   year: varchar("year", { length: 10 }).notNull(),
   make: varchar("make", { length: 50 }).notNull(),
   model: varchar("model", { length: 50 }).notNull(),
@@ -334,9 +334,9 @@ export type InsertCustomerVehicle = typeof customerVehicles.$inferInsert;
  */
 export const serviceHistory = mysqlTable("service_history", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId"),
-  vehicleId: int("vehicleId"),
-  bookingId: int("bookingId"),
+  userId: int("userId").references(() => users.id, { onDelete: "set null" }),
+  vehicleId: int("vehicleId").references(() => customerVehicles.id, { onDelete: "set null" }),
+  bookingId: int("bookingId").references(() => bookings.id, { onDelete: "set null" }),
   serviceType: varchar("serviceType", { length: 100 }).notNull(),
   description: text("description"),
   mileageAtService: int("mileageAtService"),
@@ -663,7 +663,7 @@ export type InsertCallbackRequest = typeof callbackRequests.$inferInsert;
 export const reviewRequests = mysqlTable("review_requests", {
   id: int("id").autoincrement().primaryKey(),
   /** Link to the completed booking */
-  bookingId: int("bookingId").notNull(),
+  bookingId: int("bookingId").notNull().references(() => bookings.id, { onDelete: "cascade" }),
   /** Customer name from booking */
   customerName: varchar("customerName", { length: 255 }).notNull(),
   /** Customer phone (normalized) */
@@ -1063,7 +1063,7 @@ export type WinbackMessage = typeof winbackMessages.$inferSelect;
 export const winbackSends = mysqlTable("winback_sends", {
   id: int("id").autoincrement().primaryKey(),
   campaignId: int("campaignId").notNull(),
-  customerId: int("customerId").notNull(),
+  customerId: int("customerId").notNull().references(() => customers.id, { onDelete: "cascade" }),
   messageId: int("messageId").notNull(),
   step: int("step").notNull(),
   phone: varchar("phone", { length: 30 }).notNull(),
@@ -1724,7 +1724,7 @@ export const smsCampaignSends = mysqlTable("sms_campaign_sends", {
   /** Reference to the campaign */
   campaignId: int("campaignId").notNull(),
   /** Reference to customer */
-  customerId: int("customerId").notNull(),
+  customerId: int("customerId").notNull().references(() => customers.id, { onDelete: "cascade" }),
   /** Normalized phone number that was sent to */
   phone: varchar("phone", { length: 20 }).notNull(),
   /** Actual message body sent */
@@ -1897,7 +1897,7 @@ export const errorLog = mysqlTable("error_log", {
  */
 export const appointmentReminders = mysqlTable("appointment_reminders", {
   id: int("id").primaryKey().autoincrement(),
-  bookingId: int("booking_id").notNull(),
+  bookingId: int("booking_id").notNull().references(() => bookings.id, { onDelete: "cascade" }),
   type: varchar("type", { length: 30 }).notNull(), // 24h-before, 1h-before, thank-you, review-request, maintenance-reminder
   scheduledFor: timestamp("scheduled_for"), // When this reminder should actually fire
   sentAt: timestamp("sent_at"),
