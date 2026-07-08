@@ -784,6 +784,7 @@ async function persistOutboundShopSms(
   body: string,
   status: "sent" | "sending",
   gatewayMessageId?: string,
+  variantKey?: string | null,
 ): Promise<void> {
   try {
     const { getOrCreateConversation, addSmsMessage } = await import("./db");
@@ -794,6 +795,11 @@ async function persistOutboundShopSms(
       body,
       twilioSid: gatewayMessageId || undefined,
       status,
+      // 2026-07-07 · opts.variantKey was honored on the offline-queue path
+      // but dropped here on the online path, so every default-persist cron
+      // send landed untagged and invisible to per-campaign attribution
+      // (smsPerformance groups by variantKey).
+      variantKey: variantKey ?? null,
     });
   } catch (err) {
     log.warn("Failed to persist outbound shop SMS to smsMessages", {
@@ -1145,7 +1151,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       // skipPersist: a cron caller logs its own row (logOutboundSms, with
       // variantKey) -> don't double-write (the 2x-count fix).
       if (!opts?.skipPersist) {
-        persistOutboundShopSms(normalizedEarly, body, "sent", gw.gatewayMessageId)
+        persistOutboundShopSms(normalizedEarly, body, "sent", gw.gatewayMessageId, opts?.variantKey)
           .catch(() => undefined);
       }
       return { success: true, sid: gw.gatewayMessageId };
@@ -1162,7 +1168,8 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       await alertShopGatewayFallback("timeout — delivery uncertain, not retried", normalizedEarly);
       addToThread(normalizedEarly, "outbound", body);
       if (!opts?.skipPersist) {
-        persistOutboundShopSms(normalizedEarly, body, "sending").catch(() => undefined);
+        persistOutboundShopSms(normalizedEarly, body, "sending", undefined, opts?.variantKey)
+          .catch(() => undefined);
       }
       return { success: true };
     }
