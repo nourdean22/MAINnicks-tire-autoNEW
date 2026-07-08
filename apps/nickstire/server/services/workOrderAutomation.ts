@@ -344,7 +344,10 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
         : `Hi ${name}, thank you for choosing Nick's Tire & Auto! We truly appreciate your business.\n\nGot 30 sec? A Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\n— Nick's Team ${STORE_PHONE}`;
 
       if (campaignSmsEnabled) {
-        const result = await sendSms(c.phone, withOptOut(msg), { via: "shop" });
+        const result = await sendSms(c.phone, withOptOut(msg), {
+          via: "shop",
+          variantKey: "campaign_retry",
+        });
         if (result.success) {
           sent++;
           await db.update(customers)
