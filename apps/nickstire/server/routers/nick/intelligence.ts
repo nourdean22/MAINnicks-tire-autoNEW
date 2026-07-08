@@ -720,7 +720,31 @@ export async function handleRunMigrations() {
       `ALTER TABLE prediction_impressions ADD CONSTRAINT fk_pred_impressions_pred FOREIGN KEY (prediction_id) REFERENCES service_affinity_predictions(id) ON DELETE CASCADE`,
       `ALTER TABLE prediction_actions ADD CONSTRAINT fk_pred_actions_pred FOREIGN KEY (prediction_id) REFERENCES service_affinity_predictions(id) ON DELETE CASCADE`,
       `ALTER TABLE sms_orchestration_outcomes ADD CONSTRAINT fk_sms_orch_outcomes_orch FOREIGN KEY (orchestration_id) REFERENCES sms_orchestrations(id) ON DELETE CASCADE`,
-      `ALTER TABLE work_orders ADD CONSTRAINT fk_work_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL`
+      `ALTER TABLE work_orders ADD CONSTRAINT fk_work_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL`,
+      // 2026-07-07 · BE-DATA-1 wave 4/5 · 19 more FKs (money-adjacent SET NULL +
+      // RESTRICT ledgers/technicians + one CASCADE). All applied to prod first,
+      // per-pair pre-check 0 orphans (pure additive, no data writes), types
+      // verified vs parent PKs. Skipped invoices.workOrderId (int) -> work_orders.id
+      // (varchar(36)) — impossible FK, type mismatch. Loop-catch = idempotent.
+      `ALTER TABLE leads ADD CONSTRAINT fk_leads_callback FOREIGN KEY (callbackId) REFERENCES callback_requests(id) ON DELETE SET NULL`,
+      `ALTER TABLE leads ADD CONSTRAINT fk_leads_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE SET NULL`,
+      `ALTER TABLE leads ADD CONSTRAINT fk_leads_invoice FOREIGN KEY (invoiceId) REFERENCES invoices(id) ON DELETE SET NULL`,
+      `ALTER TABLE invoices ADD CONSTRAINT fk_invoices_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE SET NULL`,
+      `ALTER TABLE estimates_log ADD CONSTRAINT fk_estlog_invoice FOREIGN KEY (invoiceId) REFERENCES invoices(id) ON DELETE SET NULL`,
+      `ALTER TABLE estimates_log ADD CONSTRAINT fk_estlog_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE SET NULL`,
+      `ALTER TABLE alg_estimates ADD CONSTRAINT fk_algest_invoice FOREIGN KEY (matched_invoice_id) REFERENCES invoices(id) ON DELETE SET NULL`,
+      `ALTER TABLE alg_estimates ADD CONSTRAINT fk_algest_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL`,
+      `ALTER TABLE vapi_call_logs ADD CONSTRAINT fk_vapi_lead FOREIGN KEY (leadId) REFERENCES leads(id) ON DELETE SET NULL`,
+      `ALTER TABLE vapi_call_logs ADD CONSTRAINT fk_vapi_callback FOREIGN KEY (callbackId) REFERENCES callback_requests(id) ON DELETE SET NULL`,
+      `ALTER TABLE payments ADD CONSTRAINT fk_payments_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL`,
+      `ALTER TABLE tire_orders ADD CONSTRAINT fk_tireorders_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL`,
+      `ALTER TABLE tire_orders ADD CONSTRAINT fk_tireorders_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE SET NULL`,
+      `ALTER TABLE warranties ADD CONSTRAINT fk_warranties_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL`,
+      `ALTER TABLE payments ADD CONSTRAINT fk_payments_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE RESTRICT`,
+      `ALTER TABLE loyalty_transactions ADD CONSTRAINT fk_loyalty_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE RESTRICT`,
+      `ALTER TABLE job_assignments ADD CONSTRAINT fk_jobassign_tech FOREIGN KEY (technicianId) REFERENCES technicians(id) ON DELETE RESTRICT`,
+      `ALTER TABLE warranties ADD CONSTRAINT fk_warranties_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE RESTRICT`,
+      `ALTER TABLE job_assignments ADD CONSTRAINT fk_jobassign_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE CASCADE`
     ];
 
     let applied = 0;

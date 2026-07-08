@@ -140,9 +140,9 @@ export const leads = mysqlTable("leads", {
   // back to its callback_requests row (closes the "same person in two
   // sections" gap). bookingId / invoiceId set on conversion so
   // source-to-revenue analytics become a real query.
-  callbackId: int("callbackId"),
-  bookingId: int("bookingId"),
-  invoiceId: int("invoiceId"),
+  callbackId: int("callbackId").references(() => callbackRequests.id, { onDelete: "set null" }),
+  bookingId: int("bookingId").references(() => bookings.id, { onDelete: "set null" }),
+  invoiceId: int("invoiceId").references(() => invoices.id, { onDelete: "set null" }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -599,7 +599,7 @@ export type InsertMembership = typeof memberships.$inferInsert;
  */
 export const loyaltyTransactions = mysqlTable("loyalty_transactions", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "restrict" }),
   type: mysqlEnum("type", ["earn", "redeem", "bonus", "adjustment"]).notNull(),
   points: int("points").notNull(),
   /** Positive for earn, negative for redeem */
@@ -1138,8 +1138,8 @@ export type InsertCustomerImportLog = typeof customerImportLog.$inferInsert;
  */
 export const jobAssignments = mysqlTable("job_assignments", {
   id: int("id").autoincrement().primaryKey(),
-  bookingId: int("bookingId").notNull(),
-  technicianId: int("technicianId").notNull(),
+  bookingId: int("bookingId").notNull().references(() => bookings.id, { onDelete: "cascade" }),
+  technicianId: int("technicianId").notNull().references(() => technicians.id, { onDelete: "restrict" }),
   /** Estimated hours for the job */
   estimatedHours: varchar("estimatedHours", { length: 10 }),
   /** When the tech actually started working */
@@ -1210,8 +1210,9 @@ export const invoices = mysqlTable("invoices", {
    *  invoice; unlink it. Nullable: an unmatched import legitimately has none. */
   customerId: int("customerId").references(() => customers.id, { onDelete: "set null" }),
   /** Link to booking if matched */
-  bookingId: int("bookingId"),
-  /** Link to work order if matched */
+  bookingId: int("bookingId").references(() => bookings.id, { onDelete: "set null" }),
+  /** Link to work order if matched. NOTE: this is int; work_orders.id is
+   *  varchar(36) — no DB FK possible (type mismatch); kept as a soft link. */
   workOrderId: int("workOrderId"),
   /** Customer name (denormalized for display) */
   customerName: varchar("customerName", { length: 255 }).notNull(),
@@ -1295,9 +1296,9 @@ export const estimatesLog = mysqlTable("estimates_log", {
   /** Whether customer converted (booked / invoiced) */
   converted: int("converted").default(0).notNull(),
   /** Link to invoice if converted */
-  invoiceId: int("invoiceId"),
+  invoiceId: int("invoiceId").references(() => invoices.id, { onDelete: "set null" }),
   /** Link to booking if converted */
-  bookingId: int("bookingId"),
+  bookingId: int("bookingId").references(() => bookings.id, { onDelete: "set null" }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("idx_estimate_phone").on(table.phone),
@@ -1366,9 +1367,9 @@ export const algEstimates = mysqlTable("alg_estimates", {
   /** When ALG wrote the estimate */
   estimateDate: timestamp("estimate_date").notNull(),
   /** Link to invoice if converted (matched during sync) */
-  matchedInvoiceId: int("matched_invoice_id"),
+  matchedInvoiceId: int("matched_invoice_id").references(() => invoices.id, { onDelete: "set null" }),
   matchedAt: timestamp("matched_at"),
-  customerId: int("customer_id"),
+  customerId: int("customer_id").references(() => customers.id, { onDelete: "set null" }),
   vin: varchar("vin", { length: 17 }),
   laborRate: int("labor_rate").default(11500).notNull(),
   serviceCategory: varchar("service_category", { length: 64 }),
@@ -1524,9 +1525,9 @@ export const tireOrders = mysqlTable("tire_orders", {
   installationDate: timestamp("installationDate"),
 
   /** Link to imported customer if matched */
-  customerId: int("customerId"),
+  customerId: int("customerId").references(() => customers.id, { onDelete: "set null" }),
   /** Link to booking if one was created for installation */
-  bookingId: int("bookingId"),
+  bookingId: int("bookingId").references(() => bookings.id, { onDelete: "set null" }),
 
   /** Whether the shop email notification was sent */
   emailSent: int("emailSent").default(0).notNull(),
@@ -1608,8 +1609,8 @@ export const vapiCallLogs = mysqlTable("vapi_call_logs", {
   serviceMention: varchar("serviceMention", { length: 120 }),
   /** Whether this call produced a callback / booking / lead row */
   convertedToLead: int("convertedToLead").default(0).notNull(),
-  leadId: int("leadId"),
-  callbackId: int("callbackId"),
+  leadId: int("leadId").references(() => leads.id, { onDelete: "set null" }),
+  callbackId: int("callbackId").references(() => callbackRequests.id, { onDelete: "set null" }),
   transcriptUrl: varchar("transcriptUrl", { length: 500 }),
   recordingUrl: varchar("recordingUrl", { length: 500 }),
   /** wave-181.113 · Nick AI evaluation. Daily cron scores each call
@@ -1855,7 +1856,7 @@ export const formAbandonment = mysqlTable("form_abandonment", {
  */
 export const payments = mysqlTable("payments", {
   id: int("id").primaryKey().autoincrement(),
-  customerId: int("customer_id"),
+  customerId: int("customer_id").references(() => customers.id, { onDelete: "set null" }),
   customerPhone: varchar("customer_phone", { length: 20 }),
   customerName: varchar("customer_name", { length: 200 }),
   amount: int("amount").notNull(), // cents
@@ -1864,7 +1865,7 @@ export const payments = mysqlTable("payments", {
   stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
   status: varchar("status", { length: 20 }).default("pending").notNull(),
   paidAt: timestamp("paid_at"),
-  invoiceId: int("invoice_id"),
+  invoiceId: int("invoice_id").references(() => invoices.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -2103,8 +2104,8 @@ export const specials = mysqlTable("specials", {
  */
 export const warranties = mysqlTable("warranties", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
-  customerId: int("customer_id"),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull().references(() => workOrders.id, { onDelete: "restrict" }),
+  customerId: int("customer_id").references(() => customers.id, { onDelete: "set null" }),
   vehicleId: varchar("vehicle_id", { length: 36 }),
   serviceDescription: varchar("service_description", { length: 500 }),
   warrantyMonths: int("warranty_months").notNull(),
