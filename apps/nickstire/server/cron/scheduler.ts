@@ -1091,6 +1091,22 @@ export function startTieredScheduler(): void {
           return processClosedLoopMeasure();
         },
       },
+      // 2026-07-07 · the missing WRITER for the service-affinity closed
+      // loop: resolves matured predictions into prediction_outcomes
+      // (invoice within 14d via last-10 phone join). The table + its
+      // reader (closedLoop resolver service_affinity_acted_to_revenue_14d)
+      // shipped with migration 0061 but no job ever inserted rows, so the
+      // 50/50 ab_arm experiment ran with no readout. Runs BEFORE the
+      // resolver's daily measure in wall-clock terms is not required —
+      // both are daily; the resolver simply reflects whatever is resolved
+      // so far. Details string carries the treatment-vs-control arm split.
+      {
+        name: "prediction-outcomes-resolve",
+        handler: async () => {
+          const { processPredictionOutcomesResolve } = await import("./jobs/predictionOutcomesResolve");
+          return processPredictionOutcomesResolve();
+        },
+      },
       // wave-181.x · Tier A · SEO Forensic · daily SERP rank-shift
       // detection on top-30 GSC queries. Catches drops from rank 4 →
       // rank 18 the DAY AFTER they happen instead of weeks later
