@@ -34,11 +34,19 @@ export const actionsProcedures = {
         });
       }
 
-      // Check owner privilege for critical risk class
-      if (request.riskClass === "critical" && ctx.session.role !== "owner") {
+      // Owner gate · two triggers: critical risk class, OR the policy
+      // engine explicitly decided require_owner (stored as actionType —
+      // fires for non-critical cases too, e.g. external mutations with an
+      // owner_required capability policy). Pre-fix, only the critical
+      // branch was enforced and a require_owner decision executed on any
+      // operator approval.
+      if (
+        (request.riskClass === "critical" || request.actionType === "require_owner") &&
+        ctx.session.role !== "owner"
+      ) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Owner privilege is required to approve critical risk actions",
+          message: "Owner privilege is required to approve this action",
         });
       }
 

@@ -32,6 +32,30 @@ const log = rootLogger.withSurface("tools/guardian");
 export const pendingExecutions = new Map<string, { fn: Function; args: any[] }>();
 export const guardianBypassStorage = new AsyncLocalStorage<boolean>();
 
+/**
+ * Durable re-dispatch registry · 2026-07-07.
+ *
+ * `pendingExecutions` dies with the pod — an approval that arrived after a
+ * restart used to fall through to the 5-entry TOOL_MAP and usually throw
+ * "No execution function found" while the operator's approval sat failed
+ * with nothing sent. Every policy-gated withGuardian wrap now registers its
+ * guarded fn here AT MODULE INIT, so the registry rebuilds itself on every
+ * boot and an approved request can always re-dispatch from the DB row's
+ * (toolId, payload) — no closure persistence needed. reliabilityOnly wraps
+ * are internal sub-ops that never create ApprovalRequests and are
+ * deliberately not registered.
+ */
+export const durableToolExecutors = new Map<
+  string,
+  (payload: unknown) => Promise<unknown>
+>();
+
+/**
+ * Legacy hand-maintained toolId -> nourTools-key map. Kept only as the
+ * LAST-resort fallback behind durableToolExecutors for any request created
+ * before this deploy; the durable registry supersedes it for every wrapped
+ * tool going forward.
+ */
 export const TOOL_MAP: Record<string, string> = {
   "gmail.compose_draft_card": "composeEmail",
   "code.run_js_vm": "runCode",
@@ -67,15 +91,30 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
     const pending = pendingExecutions.get(requestId);
 
     if (pending) {
+      // Same-process fast path · exact original closure + args (already
+      // patched by approveApprovalRequest when the payload was edited).
       result = await guardianBypassStorage.run(true, () => pending.fn(...pending.args));
     } else {
+      // Pod restarted (or entry evicted) since the request was created.
+      // Importing the tools module re-runs every withGuardian wrap, which
+      // repopulates durableToolExecutors — so the import MUST precede the
+      // registry read.
       const { nourTools } = await import("@/lib/ai/tools");
-      const toolName = TOOL_MAP[request.toolId];
-      const toolObj = toolName ? (nourTools as any)[toolName] : null;
-      if (toolObj && typeof toolObj.execute === "function") {
-        result = await guardianBypassStorage.run(true, () => toolObj.execute(request.payload));
+      const durable = durableToolExecutors.get(request.toolId);
+      if (durable) {
+        // Re-dispatch from the DB row's payload (reflects operator edits).
+        // Runs under bypass, so the guarded fn skips the approval gate and
+        // executes with the normal retry/timeout envelope.
+        result = await guardianBypassStorage.run(true, () => durable(request.payload));
       } else {
-        throw new Error(`No execution function found for tool ${request.toolId}`);
+        // Legacy last resort for pre-registry requests.
+        const toolName = TOOL_MAP[request.toolId];
+        const toolObj = toolName ? (nourTools as any)[toolName] : null;
+        if (toolObj && typeof toolObj.execute === "function") {
+          result = await guardianBypassStorage.run(true, () => toolObj.execute(request.payload));
+        } else {
+          throw new Error(`No execution function found for tool ${request.toolId}`);
+        }
       }
     }
 
@@ -334,7 +373,7 @@ export function withGuardian<T, A extends unknown[]>(
   const breakerThreshold = opts.breakerThreshold ?? 5;
   const breakerCooldownMs = opts.breakerCooldownMs ?? 30_000;
 
-  return async function guarded(...args: A): Promise<T> {
+  const guarded = async function guarded(...args: A): Promise<T> {
     const bypassPolicy = guardianBypassStorage.getStore() === true;
 
     // reliabilityOnly sub-ops skip the AI-tool policy/approval block entirely
@@ -583,4 +622,19 @@ export function withGuardian<T, A extends unknown[]>(
       lastError,
     );
   };
+
+  // Wrap-time registration for durable approval re-dispatch: module init
+  // runs on every boot, so the registry survives pod restarts by
+  // reconstruction. reliabilityOnly sub-ops never create ApprovalRequests
+  // and stay out (their ids aren't in TOOL_REGISTRY anyway).
+  if (!reliabilityOnly) {
+    // Type-erased on purpose: the registry re-dispatches with the DB row's
+    // payload as the sole argument, matching how every gated tool is called.
+    durableToolExecutors.set(
+      toolName,
+      guarded as unknown as (payload: unknown) => Promise<unknown>,
+    );
+  }
+
+  return guarded;
 }
