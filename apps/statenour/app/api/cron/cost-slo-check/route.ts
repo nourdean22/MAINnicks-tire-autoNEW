@@ -23,6 +23,21 @@ import { recordCoachEvent } from "@/lib/services/coach-events";
 
 export const maxDuration = 60;
 
+/**
+ * 2026-07-07 · auto-throttle. Alert-only was the gap: the operator got
+ * paged but nothing shed load. On breach the cron now flips
+ * NICK_DEEP_REASONING off via the flag-override table (user_preferences
+ * category=feature_flags — resolved BEFORE env by getFlag, 30s cache),
+ * which drops hard turns to the single-pass streamer — the flag's own
+ * designed fallback, so degradation is graceful. Ownership is
+ * marker-gated: the cron only writes/lifts an override it created
+ * (THROTTLE_MARKER row), never an operator-set one. Recovery is checked
+ * on the first run of the next under-budget day (daily cadence, same as
+ * the alert itself).
+ */
+const THROTTLE_FLAG = "NICK_DEEP_REASONING";
+const THROTTLE_MARKER = "cost_throttle.NICK_DEEP_REASONING";
+
 export const GET = cronHandler(async () => {
   const today = etDateKey();
   const state = await isOverBudget();
@@ -53,6 +68,25 @@ export const GET = cronHandler(async () => {
   // Not over budget · still write the marker so we don't re-query
   // throughout the day, but skip Telegram.
   if (!state.over) {
+    // Recovery · lift a cron-owned throttle (marker-gated: an override
+    // WITHOUT our marker is operator-set and stays untouched).
+    const ownMarker = await prisma.userPreference
+      .findUnique({ where: { key: THROTTLE_MARKER }, select: { id: true } })
+      .catch(() => null);
+    if (ownMarker) {
+      await prisma.userPreference.delete({ where: { key: THROTTLE_FLAG } }).catch(() => undefined);
+      await prisma.userPreference.delete({ where: { key: THROTTLE_MARKER } }).catch(() => undefined);
+      try {
+        await sendTelegram(
+          `✅ Cost SLO recovered · deep-reasoning throttle lifted (env value governs again)`,
+          undefined,
+          "HTML",
+        );
+      } catch {
+        // best-effort
+      }
+    }
+
     await prisma.brainMemory
       .create({
         data: {
@@ -81,7 +115,37 @@ export const GET = cronHandler(async () => {
     };
   }
 
-  // Over budget · push Telegram. Format mirrors morning-brief: tight,
+  // Over budget · throttle first, then page. The override only lands
+  // when none exists OR we own the existing one (marker present) — a
+  // manual operator override always wins.
+  let throttleNote = "";
+  try {
+    const existingOverride = await prisma.userPreference
+      .findUnique({ where: { key: THROTTLE_FLAG }, select: { id: true } })
+      .catch(() => null);
+    const ownMarker = await prisma.userPreference
+      .findUnique({ where: { key: THROTTLE_MARKER }, select: { id: true } })
+      .catch(() => null);
+    if (!existingOverride || ownMarker) {
+      await prisma.userPreference.upsert({
+        where: { key: THROTTLE_FLAG },
+        update: { value: "false", category: "feature_flags" },
+        create: { key: THROTTLE_FLAG, value: "false", type: "boolean", category: "feature_flags" },
+      });
+      await prisma.userPreference.upsert({
+        where: { key: THROTTLE_MARKER },
+        update: { value: today },
+        create: { key: THROTTLE_MARKER, value: today, type: "string", category: "system" },
+      });
+      throttleNote = `Auto-throttle: deep reasoning OFF (override) until burn recovers`;
+    } else {
+      throttleNote = `Auto-throttle skipped: operator-set ${THROTTLE_FLAG} override present`;
+    }
+  } catch (throttleErr) {
+    throttleNote = `Auto-throttle FAILED: ${throttleErr instanceof Error ? throttleErr.message.slice(0, 120) : "unknown"}`;
+  }
+
+  // Push Telegram. Format mirrors morning-brief: tight,
   // dollar-amount-first, no markdown clutter.
   const burn$ = (state.burnCents / 100).toFixed(2);
   const forecast$ = (state.forecastCents / 100).toFixed(2);
@@ -93,6 +157,7 @@ export const GET = cronHandler(async () => {
     `Burn so far: <b>$${burn$}</b> in ${state.hoursElapsed.toFixed(1)}h`,
     `24h forecast: <b>$${forecast$}</b> (${pct}% of budget)`,
     `Daily budget: $${budget$} · threshold $${(state.thresholdCents / 100).toFixed(2)}`,
+    `⚙️ ${throttleNote}`,
   ].join("\n");
 
   let telegramOk = false;
