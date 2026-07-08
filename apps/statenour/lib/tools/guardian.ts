@@ -75,10 +75,22 @@ export class GuardianApprovalPendingError extends Error {
 
 export async function executeApprovedToolAsync(requestId: string): Promise<void> {
   try {
-    await prisma.approvalRequest.update({
-      where: { id: requestId },
+    const staleTime = new Date(Date.now() - 5 * 60 * 1000); // 5 min TTL
+    const claim = await prisma.approvalRequest.updateMany({
+      where: { 
+        id: requestId, 
+        OR: [
+          { status: "approved" },
+          { status: "executing", updatedAt: { lt: staleTime } }
+        ]
+      },
       data: { status: "executing" },
     });
+    
+    if (claim.count !== 1) {
+      log.info("approval_claim_miss", { requestId });
+      return;
+    }
 
     const request = await prisma.approvalRequest.findUnique({
       where: { id: requestId },
@@ -113,7 +125,15 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
         if (toolObj && typeof toolObj.execute === "function") {
           result = await guardianBypassStorage.run(true, () => toolObj.execute(request.payload));
         } else {
-          throw new Error(`No execution function found for tool ${request.toolId}`);
+          // Third tier: executeActionWithoutTracing for unmapped cross-system tools (like shop.sendSms)
+          const { executeActionWithoutTracing } = await import("@/lib/ai/nick-agent");
+          const actionResult = await guardianBypassStorage.run(true, () => 
+            executeActionWithoutTracing({ type: request.toolId as any, params: request.payload as Record<string, unknown> })
+          );
+          if (!actionResult.success) {
+            throw new Error(actionResult.error || `Action ${request.toolId} failed`);
+          }
+          result = actionResult.result;
         }
       }
     }
@@ -498,7 +518,7 @@ export function withGuardian<T, A extends unknown[]>(
         }
 
         const expiresAt = new Date();
-        expiresAt.setHours(expiresAt.getHours() + 24);
+        expiresAt.setHours(expiresAt.getHours() + (decision.riskClass === 'high' || decision.riskClass === 'critical' ? 2 : 24));
 
         const newRequest = await prisma.approvalRequest.create({
           data: {

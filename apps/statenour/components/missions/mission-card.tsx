@@ -61,6 +61,7 @@ export interface MissionCardProps {
   onDragOver?: (e: React.DragEvent) => void;
   onDragLeave?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
+  onTaskDropOnMission?: (taskId: string, missionId: string) => void;
 }
 
 import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
@@ -80,6 +81,7 @@ export function MissionCard({
   onDragOver,
   onDragLeave,
   onDrop,
+  onTaskDropOnMission,
 }: MissionCardProps) {
   const actions = useMissionDispatch();
   const canMoveUp = typeof missionIdx === "number" && missionIdx > 0;
@@ -189,9 +191,23 @@ export function MissionCard({
         setIsMissionDraggable(false);
         onDragEnd?.();
       }}
-      onDragOver={onDragOver}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("application/vnd.nour.task-id")) {
+          e.preventDefault(); // Allow task drop
+        }
+        onDragOver?.(e);
+      }}
       onDragLeave={onDragLeave}
-      onDrop={onDrop}
+      onDrop={(e) => {
+        const droppedTaskId = e.dataTransfer.getData("application/vnd.nour.task-id");
+        if (droppedTaskId && onTaskDropOnMission) {
+          e.preventDefault();
+          e.stopPropagation();
+          onTaskDropOnMission(droppedTaskId, mission.id);
+          return;
+        }
+        onDrop?.(e);
+      }}
       // Wave AR · 2026-05-28 · row anchor · TopMissionToday CTA points
       // at #mission-<id> · MissionsHealthStrip chips link here too ·
       // smooth-scroll lands the operator on the right card.

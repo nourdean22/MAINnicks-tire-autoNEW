@@ -140,6 +140,19 @@ export function MissionFeed({
     }
   };
 
+  const handleTaskDropOnMission = async (taskId: string, targetMissionId: string) => {
+    try {
+      // Find the task to see if it's already in this mission
+      const task = tasks.find(t => t.id === taskId);
+      if (!task || task.missionId === targetMissionId) return;
+      
+      // Update task missionId. Note: `useMissionActions` handles invalidation on success.
+      await actions.handleUpdateTaskFields(taskId, { missionId: targetMissionId });
+    } catch (err) {
+      console.error("Failed to move task to mission", err);
+    }
+  };
+
   // wave-AA-audit · React 19's react-hooks/purity rule flags Date.now()
   // calls inside useMemo as impure. Hoist the timestamps into render-
   // state seeded once per render via lazy state (a tick-by-tick refresh
@@ -271,6 +284,7 @@ export function MissionFeed({
               onDragOver={(e) => handleMissionDragOver(e, missionIdx)}
               onDragLeave={handleMissionDragLeave}
               onDrop={(e) => handleMissionDrop(e, missionIdx)}
+              onTaskDropOnMission={handleTaskDropOnMission}
             />
           ))}
         </div>
