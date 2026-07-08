@@ -34,11 +34,14 @@ export const actionsProcedures = {
         });
       }
 
-      // Check owner privilege for critical risk class
-      if (request.riskClass === "critical" && ctx.session.role !== "owner") {
+      // Check owner privilege for high/critical risk class or require_owner action
+      if (
+        (request.riskClass === "critical" || request.riskClass === "high" || request.actionType === "require_owner") &&
+        ctx.session.role !== "owner"
+      ) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Owner privilege is required to approve critical risk actions",
+          message: "Owner privilege is required to approve this action",
         });
       }
 
