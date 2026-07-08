@@ -761,7 +761,13 @@ export async function handleRunMigrations() {
       `ALTER TABLE review_requests ADD CONSTRAINT fk_reviewreq_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE CASCADE`,
       `ALTER TABLE winback_sends ADD CONSTRAINT fk_winback_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE`,
       `ALTER TABLE sms_campaign_sends ADD CONSTRAINT fk_smscampsend_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE`,
-      `ALTER TABLE appointment_reminders ADD CONSTRAINT fk_apptremind_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE`
+      `ALTER TABLE appointment_reminders ADD CONSTRAINT fk_apptremind_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE`,
+      // 2026-07-07 · schema-drift audit · conversation_memory.conversionHits was
+      // declared in drizzle + written by chat.ts (memory merge + conversion
+      // reinforcement UPDATEs) but MISSING from the DB — those UPDATEs threw
+      // "Unknown column", silently breaking chat conversion tracking. Add it.
+      // Additive + safe (NOT NULL DEFAULT 0). IF NOT EXISTS = idempotent.
+      `ALTER TABLE conversation_memory ADD COLUMN IF NOT EXISTS conversionHits INT NOT NULL DEFAULT 0`
     ];
 
     let applied = 0;
