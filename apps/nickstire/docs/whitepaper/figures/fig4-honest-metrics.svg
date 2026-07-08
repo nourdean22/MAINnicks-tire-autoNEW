@@ -1,0 +1,41 @@
+<svg viewBox="0 0 720 310" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <style>
+    .tile  { fill: #f9fafb; stroke: #d1d5db; stroke-width: 1; }
+    .num   { font-size: 26px; font-weight: bold; fill: #1f2937; }
+    .cap   { font-size: 10.5px; fill: #6b7280; }
+    .lbl   { font-size: 11px; fill: #1f2937; }
+    .body  { font-size: 11px; fill: #6b7280; }
+  </style>
+
+  <!-- Stat tiles -->
+  <rect class="tile" x="24"  y="24" width="212" height="84" rx="6"/>
+  <text class="num" x="40" y="62">464</text>
+  <text class="cap" x="40" y="82">signature-verified inbound calls,</text>
+  <text class="cap" x="40" y="95">trailing 14 days · 2026-07-07</text>
+
+  <rect class="tile" x="254" y="24" width="212" height="84" rx="6"/>
+  <text class="num" x="270" y="62">~244 ms</text>
+  <text class="cap" x="270" y="82">median first-token latency during</text>
+  <text class="cap" x="270" y="95">the abandon diagnostic · 2026-07-06</text>
+
+  <rect class="tile" x="484" y="24" width="212" height="84" rx="6"/>
+  <text class="num" x="500" y="62">16.6% → *</text>
+  <text class="cap" x="500" y="82">the headline "abandon rate" before</text>
+  <text class="cap" x="500" y="95">decomposition (see below)</text>
+
+  <!-- Decomposition bar: former "abandons", 81/19, 2px surface gap -->
+  <text class="lbl" x="24" y="152" font-weight="bold">What the "abandoned calls" actually were (diagnostic, 2026-07-06):</text>
+  <rect x="24"  y="166" width="543" height="26" rx="3" fill="#2563eb"/>
+  <rect x="569" y="166" width="126" height="26" rx="3" fill="#b45309"/>
+  <text x="40" y="183" font-size="11.5px" font-weight="bold" fill="#ffffff">~81% · sub-1-second hang-ups (robocalls / misdials)</text>
+
+  <!-- Legend (2 series) -->
+  <rect x="24" y="212" width="10" height="10" rx="2" fill="#2563eb"/>
+  <text class="lbl" x="40" y="221">Sub-1s hang-up, empty transcript — reclassified spam_or_wrong_number</text>
+  <rect x="24" y="232" width="10" height="10" rx="2" fill="#b45309"/>
+  <text class="lbl" x="40" y="241">~19% · genuine abandonment — the number that actually matters</text>
+
+  <rect x="24" y="258" width="672" height="1" fill="#e5e7eb"/>
+  <text class="body" x="24" y="278">Average time-to-hang-up in the reclassified group: ~0.7 s — callers who were never customers. Latency was healthy; the metric was the artifact.</text>
+  <text class="body" x="24" y="298" font-style="italic">Figure 4 · Honest metrics: decomposing a vanity alarm. Percentages are a dated one-off diagnostic, not a standing guarantee.</text>
+</svg>
