@@ -27,7 +27,12 @@
 import { cn } from "@/lib/utils";
 import { AlertTriangle, RefreshCw, Square } from "lucide-react";
 
-export type StreamingState = "complete" | "partial" | "errored" | "aborted";
+// 2026-07-06 · "truncated" added. persist-assistant-turn maps
+// finishReason==="length" → streamingState:"truncated", but this union +
+// STATE_TONES omitted it, so STATE_TONES["truncated"] was undefined (a latent
+// crash if the badge rendered a length-capped turn). The reply is cut off
+// mid-sentence but persisted as a normal message; surface it + offer a retry.
+export type StreamingState = "complete" | "partial" | "errored" | "aborted" | "truncated";
 
 export interface MessageStatusBadgeProps {
   state: StreamingState | null | undefined;
@@ -39,9 +44,10 @@ export interface MessageStatusBadgeProps {
 }
 
 const STATE_TONES: Record<Exclude<StreamingState, "complete">, { dot: string; bg: string; border: string; text: string }> = {
-  partial:  { dot: "bg-amber-400",   bg: "bg-amber-500/[0.06]",  border: "border-amber-500/30",   text: "text-amber-300" },
-  errored:  { dot: "bg-red-400",     bg: "bg-red-500/[0.07]",    border: "border-red-500/35",     text: "text-red-300"  },
-  aborted:  { dot: "bg-zinc-400/60", bg: "bg-zinc-500/[0.04]",   border: "border-zinc-500/25",    text: "text-zinc-400" },
+  partial:   { dot: "bg-amber-400",   bg: "bg-amber-500/[0.06]",  border: "border-amber-500/30",   text: "text-amber-300" },
+  errored:   { dot: "bg-red-400",     bg: "bg-red-500/[0.07]",    border: "border-red-500/35",     text: "text-red-300"  },
+  aborted:   { dot: "bg-zinc-400/60", bg: "bg-zinc-500/[0.04]",   border: "border-zinc-500/25",    text: "text-zinc-400" },
+  truncated: { dot: "bg-amber-400",   bg: "bg-amber-500/[0.06]",  border: "border-amber-500/30",   text: "text-amber-300" },
 };
 
 export function MessageStatusBadge({ state, messageId, errorDetails, verbose, className }: MessageStatusBadgeProps) {
@@ -53,7 +59,7 @@ export function MessageStatusBadge({ state, messageId, errorDetails, verbose, cl
     if (typeof window === "undefined") return;
     if (state === "partial") {
       window.dispatchEvent(new CustomEvent("nick-resume-stream", { detail: { messageId } }));
-    } else if (state === "errored") {
+    } else if (state === "errored" || state === "truncated") {
       window.dispatchEvent(new CustomEvent("nick-retry-message", { detail: { messageId } }));
     }
     // aborted = no action; user explicitly stopped, intentional
@@ -64,6 +70,7 @@ export function MessageStatusBadge({ state, messageId, errorDetails, verbose, cl
     partial: "stream interrupted",
     errored: errorDetails?.message ? `error: ${errorDetails.message.slice(0, 60)}` : "error",
     aborted: "you stopped this",
+    truncated: "response cut off",
   };
   const label = labelMap[state];
 
@@ -71,6 +78,7 @@ export function MessageStatusBadge({ state, messageId, errorDetails, verbose, cl
     partial: "resume",
     errored: errorDetails?.retryable === false ? null : "retry",
     aborted: null,
+    truncated: "retry",
   };
   const action = actionMap[state];
 

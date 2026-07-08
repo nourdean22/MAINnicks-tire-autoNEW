@@ -24,15 +24,18 @@
  *    `approval="pending"`, and only executes once the operator
  *    approves at /system/approvals (→ executeApprovedAction).
  *
- *    ⚠ THIS GATE IS DATA-DRIVEN. A rule with NO seeded policy row
- *    AUTO-FIRES. The accompanying seed (scripts/seed-policies.ts)
- *    MUST carry an `approvalClass="pending"` policy for EVERY rule
- *    that emits an outward side effect, or that rule auto-sends.
- *    Run `pnpm tsx scripts/seed-policies.ts` against prod and verify
- *    via /system/policies (surface=autonomous-action) before flipping
- *    NICK_AUTONOMY on. The pre-flight assertion below logs a loud
- *    warning if any rule policy is missing or non-pending so an
- *    un-gated flip is visible in the cron log.
+ *    ⚠ FAIL-CLOSED since v10.0.157: a rule with NO seeded policy row
+ *    DEFERS to approval (missing policy → pending — see the resolution
+ *    in lib/brain/autonomous-engine.ts, "No policy (null) → pending";
+ *    pre-fix, a missing policy meant immediate auto-fire, and prod
+ *    behavior confirms the fix: 14d of unseeded rules produced only
+ *    approval="pending" rows, zero auto-executions). The seed
+ *    (scripts/seed-policies.ts) is still worth running against prod —
+ *    it gives every rule its policy metadata (objective/rollback/
+ *    successMetric) and an explicit approvalClass so /system/policies
+ *    shows intent instead of implicit defaults. The pre-flight
+ *    assertion below logs a loud warning when rule policies are
+ *    missing or non-pending so drift stays visible in the cron log.
  *
  * Mirrors the anticipate/consolidate route pattern: cronHandler
  * (CRON_SECRET auth + kill-switch + CronJobLog), structured return,

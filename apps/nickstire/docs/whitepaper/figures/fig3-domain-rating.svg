@@ -1,0 +1,51 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <style>
+    .lbl   { font-size: 11.5px; fill: #1f2937; }
+    .val   { font-size: 11.5px; font-weight: bold; fill: #1f2937; }
+    .axis  { font-size: 10px; fill: #9ca3af; }
+    .grid  { stroke: #e5e7eb; stroke-width: 1; }
+    .body  { font-size: 11px; fill: #6b7280; }
+  </style>
+
+  <!-- plot area: x 140..660 maps DR 0..100 -->
+  <g>
+    <line class="grid" x1="140" y1="24" x2="140" y2="236"/>
+    <line class="grid" x1="270" y1="24" x2="270" y2="236"/>
+    <line class="grid" x1="400" y1="24" x2="400" y2="236"/>
+    <line class="grid" x1="530" y1="24" x2="530" y2="236"/>
+    <line class="grid" x1="660" y1="24" x2="660" y2="236"/>
+    <text class="axis" x="140" y="252" text-anchor="middle">0</text>
+    <text class="axis" x="270" y="252" text-anchor="middle">25</text>
+    <text class="axis" x="400" y="252" text-anchor="middle">50</text>
+    <text class="axis" x="530" y="252" text-anchor="middle">75</text>
+    <text class="axis" x="660" y="252" text-anchor="middle">100</text>
+  </g>
+
+  <!-- bars: height 18, gap 14 -->
+  <text class="lbl" x="130" y="45" text-anchor="end">Yelp</text>
+  <rect x="140" y="32" width="488.8" height="18" rx="3" fill="#94a3b8"/>
+  <text class="val" x="636" y="45">94</text>
+
+  <text class="lbl" x="130" y="77" text-anchor="end">Firestone</text>
+  <rect x="140" y="64" width="384.8" height="18" rx="3" fill="#94a3b8"/>
+  <text class="val" x="532" y="77">74</text>
+
+  <text class="lbl" x="130" y="109" text-anchor="end">Valvoline</text>
+  <rect x="140" y="96" width="374.4" height="18" rx="3" fill="#94a3b8"/>
+  <text class="val" x="522" y="109">72</text>
+
+  <text class="lbl" x="130" y="141" text-anchor="end">Midas</text>
+  <rect x="140" y="128" width="348.4" height="18" rx="3" fill="#94a3b8"/>
+  <text class="val" x="496" y="141">67</text>
+
+  <text class="lbl" x="130" y="173" text-anchor="end">Meineke</text>
+  <rect x="140" y="160" width="343.2" height="18" rx="3" fill="#94a3b8"/>
+  <text class="val" x="491" y="173">66</text>
+
+  <!-- the shop: DR 0 — zero-length bar shown as an anchored marker -->
+  <text class="lbl" x="130" y="205" text-anchor="end" font-weight="bold">nickstire.org</text>
+  <circle cx="140" cy="211" r="5" fill="#b45309"/>
+  <text class="val" x="154" y="215" fill="#b45309">0</text>
+
+  <text class="body" x="24" y="282" font-style="italic">Figure 3 · Ahrefs Domain Rating, page-1 occupants for Cleveland commercial repair queries vs. the case-study shop. Snapshot 2026-07-06; values in Table 1.</text>
+</svg>

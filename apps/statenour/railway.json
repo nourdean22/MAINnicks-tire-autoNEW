@@ -1,0 +1,8 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "deploy": {
+    "healthcheckPath": "/api/system/heartbeat",
+    "restartPolicyType": "ALWAYS",
+    "numReplicas": 1
+  }
+}

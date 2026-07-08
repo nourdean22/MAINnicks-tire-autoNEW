@@ -34,7 +34,12 @@ export const actionsProcedures = {
         });
       }
 
-      // Check owner privilege for high/critical risk class or require_owner action
+      // Owner gate · triggers: high/critical risk class, OR the policy
+      // engine explicitly decided require_owner (stored as actionType —
+      // fires for non-critical cases too, e.g. external mutations with an
+      // owner_required capability policy). Pre-fix, only the critical
+      // branch was enforced and a require_owner decision executed on any
+      // operator approval.
       if (
         (request.riskClass === "critical" || request.riskClass === "high" || request.actionType === "require_owner") &&
         ctx.session.role !== "owner"

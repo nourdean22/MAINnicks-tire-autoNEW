@@ -29,6 +29,9 @@ export function BottomTabBar() {
   const pathname = usePathname() ?? "/";
   return (
     <div
+      /* Height contract: --bottom-chrome-h (styles/tokens.css) must clear
+         this bar + ticker stack. Change the bar's height => update the token,
+         never the per-page padding. */
       className="fixed bottom-0 left-0 right-0 z-[55]"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
@@ -50,11 +53,11 @@ export function BottomTabBar() {
                 "relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 transition-colors",
                 active
                   ? "text-[var(--gold)]"
-                  : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+                  : "text-fg-tertiary hover:text-[var(--text-secondary)]",
               )}
             >
               {active && (
-                <span className="absolute top-0 h-0.5 w-8 rounded-full bg-[var(--gold)]" />
+                <span className="absolute top-0 h-0.5 w-8 rounded-full bg-gold" />
               )}
               <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
               <span className="text-[9px] font-medium uppercase tracking-[0.12em]">
@@ -66,7 +69,7 @@ export function BottomTabBar() {
         <button
           onClick={() => window.dispatchEvent(new Event(MORE_SHEET_OPEN_EVENT))}
           aria-label="More — all surfaces and search"
-          className="relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[var(--text-tertiary)] transition-colors hover:text-[var(--gold)]"
+          className="relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-fg-tertiary transition-colors hover:text-gold"
         >
           <LayoutGrid size={20} strokeWidth={1.75} />
           <span className="text-[9px] font-medium uppercase tracking-[0.12em]">More</span>

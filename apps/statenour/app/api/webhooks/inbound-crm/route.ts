@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
+import { safeEqual } from "@/lib/auth-guard";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { ServiceError } from "@/lib/utils/service-error";
@@ -16,22 +17,31 @@ export const dynamic = "force-dynamic";
  */
 export const POST = apiHandler(
   async (req) => {
-    // 1. Verify authorization secret
-    const { searchParams } = new URL(req.url);
-    const secret = searchParams.get("secret");
+    // 1. Verify authorization secret.
+    // Prefer the `x-sync-key` header (secrets in headers aren't captured by
+    // proxy/CDN/access logs the way query strings are). The legacy `?secret=`
+    // path is still accepted transitionally so the live caller doesn't break;
+    // it emits a deprecation warning and should be removed once the caller
+    // sends the header. Compared constant-time regardless of source.
+    const headerSecret = req.headers.get("x-sync-key");
+    const querySecret = new URL(req.url).searchParams.get("secret");
+    const presentedSecret = headerSecret ?? querySecret;
     const expectedSecret = process.env.STATENOUR_SYNC_KEY || process.env.BRIDGE_API_KEY;
 
     // Fail CLOSED: never process an inbound webhook when no secret is configured.
-    // The old `expectedSecret && ...` guard skipped the check entirely when the env
-    // was unset, leaving this endpoint open to unauthenticated contact/task creation
-    // + AI spend. A missing secret is a misconfiguration, not an open door.
+    // A missing secret is a misconfiguration, not an open door.
     if (!expectedSecret) {
       log.error("inbound_crm_secret_unconfigured");
       throw new ServiceError("Webhook authentication is not configured.", 503);
     }
-    if (secret !== expectedSecret) {
+    if (!presentedSecret || !safeEqual(presentedSecret, expectedSecret)) {
       log.warn("inbound_crm_unauthorized");
       throw new ServiceError("Unauthorized", 401);
+    }
+    if (!headerSecret && querySecret) {
+      log.warn("inbound_crm_secret_in_query_deprecated", {
+        detail: "Caller sent the secret via ?secret= — migrate to the x-sync-key header; query secrets leak into access logs.",
+      });
     }
 
     let bodyPayload;

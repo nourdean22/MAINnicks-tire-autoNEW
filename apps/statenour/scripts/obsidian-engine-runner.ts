@@ -12,6 +12,13 @@
  *   pnpm tsx scripts/obsidian-engine-runner.ts watch
  */
 
+// Load apps/statenour/.env FIRST (side-effect import, before anything reads
+// process.env) so the brain ingest/export never silently no-op when DATABASE_URL
+// isn't already exported — e.g. when run from a git worktree whose shell hasn't
+// sourced the env. dotenv/config resolves .env relative to process.cwd(), which
+// pnpm sets to apps/statenour. If it still isn't found, the fail-loud guard below
+// refuses rather than connecting to a bogus localhost default and syncing nothing.
+import "dotenv/config";
 import { spawnSync } from "child_process";
 import path from "path";
 import fs from "fs";
@@ -24,6 +31,22 @@ const command = args[0] || "sync";
 const extraArgs = args.slice(1);
 
 const engineConfig = getObsidianEngineConfig();
+
+// Fail LOUD (never a silent brain no-op) when a brain-touching command runs
+// without a DB connection. dotenv/config above loads apps/statenour/.env; if
+// DATABASE_URL is still unset the ingest/export would connect to a bogus
+// localhost default and quietly sync zero memories (the bug this guards against).
+const BRAIN_COMMANDS = new Set(["sync", "ingest", "export", "watch"]);
+if (BRAIN_COMMANDS.has(command) && !process.env.DATABASE_URL) {
+  console.error(
+    `\n❌ obsidian:${command} needs DATABASE_URL, but none was found.\n` +
+      `   dotenv/config looked for a .env in ${process.cwd()} and found no\n` +
+      `   connection string — the brain ingest/export would silently do nothing.\n` +
+      `   Fix: run from a checkout that has apps/statenour/.env, copy the root\n` +
+      `   .env into this worktree, or export DATABASE_URL before running.\n`,
+  );
+  process.exit(1);
+}
 
 function runScript(scriptName: string, runArgs: string[] = []): boolean {
   const scriptPath = path.join(process.cwd(), "scripts", scriptName);

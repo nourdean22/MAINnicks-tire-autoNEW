@@ -1,9 +1,9 @@
-﻿# AGENTS.md Â· statenour-os
+# AGENTS.md Â· statenour-os
 
 > **âš¡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) â€” app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) â€” when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-06-29 Â· post the **Chat Transcripts, System Prompt, and Bulk Tool Upgrades wave â€” PR #437 and PR #438 merged**: â‘  registered calibration schema change in ledger; â‘¡ implemented graceful fallback in `runAutoDecompose` to a single response stream on any sub-agent executor error; â‘¢ updated `identity.ts` system prompt rules to prevent agent passivity and inbox ID begging by mandating a `getMissions` tool pre-fetch; â‘£ enriched bulk task/routine creation tools with loop/routine configuration inputs (`loopKind`, `recurringDays`, etc.); â‘¤ resolved accessibility, ARIA, and relative import warnings. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-07-07 · post the **full-repo bug-audit statenour wave — PR #593, awaiting operator merge**: timing-safe bridge auth (+contract tests) · arsenalNotebookLM read-only allowlist · moneyprinter single-flight + atomic config write · /api/short rate limit · prompt drift-guard realigned to the #587/#588 persona wording (main suite was RED). Companion: repo security wave PR #591 + audit register PR #594. Full detail: RECONCILIATION top entry.
 
 ## 1 Â· Where we are right now
 
@@ -21,7 +21,7 @@
 
 - **NEVER push `main`.** Named branches (`statenour/<task>` Â· `docs/<task>` Â· `chore/<task>`) + PR; the operator merges. Prefer a fresh `.worktrees/<name>` worktree off origin/main (concurrent sessions share this repo).
 - Stage only your files by explicit path Â· never `git add -A` Â· never `--no-verify` Â· scope to the assigned task only.
-- `apps/statenour/scripts/pre-push-check.sh` is a stale Vercel-era artifact â€” NOT the active hook; ignore it. The real hook is the repo-root `.husky/pre-push` (`turbo build` for affected apps).
+- `apps/statenour/scripts/pre-push-check.sh` is a stale Vercel-era artifact â€” NOT the active hook; ignore it. The real hook is the repo-root `lefthook.yml` (`pre-push` -> `turbo build --affected`; Husky is not used).
 
 ### House rules
 
@@ -33,6 +33,14 @@
 6. **Inbox missions â‰  user projects** â€” `lib/services/mission-helpers.ts isInboxMission()` is the single predicate (Plan view, Track tile, mission cap all depend on it).
 
 When the operator invokes `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`, `/using-superpowers`, `/antigravity-workflows`, or `/prompt-library` â€” treat them as MANDATORY framing for the work.
+
+### Frontend conventions (2026-07-07 consistency wave)
+
+- **Card primitive** — `GlassCard` (`components/ui/glass-card.tsx`) is canonical. `components/ui/card.tsx` is @deprecated legacy (kept only for the structured CardHeader/Content API in `components/stats/*`); never import it in new code.
+- **Token write-path** — new styling uses the Tailwind theme-bridge utilities (`bg-elevated`, `bg-raised`, `text-fg-secondary`, `border-glass`, `text-gold`, …) declared in `app/styles/tokens.css` `@theme inline`. Raw `bg-[var(--…)]` arbitrary values are legacy read-path only.
+- **Stylesheet layers** — `app/globals.css` is an import manifest only; real CSS lives in `app/styles/{tokens,base,effects}.css`. Import order = cascade order; append within the right layer, never reorder.
+- **Bottom chrome** — page content clears the fixed tab-bar/ticker with `pb-[var(--bottom-chrome-h)]` (owned by `bottom-tab-bar.tsx` + `tokens.css`). Never hand-tune per-page bottom padding.
+- **Folder convention** — domain UI in `components/<domain>/`, shared primitives in `components/ui/`, server/shared logic in `lib/` (inngest moved `src/inngest` → `lib/inngest`, 2026-07-07; `src/` is retired). `features/` is frozen to the existing `chat-v2` + `missions` slices — don't add new top-level conventions.
 
 ### Commit format
 
@@ -114,7 +122,7 @@ These are the targets to hold. If any go red, stop and diagnose before pushing m
 | TypeScript errors | 0 | `pnpm typecheck` |
 | ESLint blocking | 0 | `pnpm lint` |
 | Test pass rate | 100% (read summary, not `$?`) | `pnpm test` |
-| Pre-push build | âœ… turbo cache hit | `.husky/pre-push` |
+| Pre-push build | âœ… turbo cache hit | `lefthook.yml` (pre-push) |
 | Task DB â†’ UI visible | < 15s | `/missions` refetchInterval (PR #455) |
 | Prisma migration state | Matches prod | `pnpm prisma migrate status` |
 

@@ -258,7 +258,7 @@ export async function publishSocialPost(
   const isTest = process.env.NODE_ENV === "test";
 
   if (!isTest) {
-    const { getInngest } = await import("@/src/inngest/client");
+    const { getInngest } = await import("@/lib/inngest/client");
     const inngest = getInngest();
 
     // Create database entry first in rendering/pending state

@@ -32,6 +32,30 @@ const log = rootLogger.withSurface("tools/guardian");
 export const pendingExecutions = new Map<string, { fn: Function; args: any[] }>();
 export const guardianBypassStorage = new AsyncLocalStorage<boolean>();
 
+/**
+ * Durable re-dispatch registry · 2026-07-07.
+ *
+ * `pendingExecutions` dies with the pod — an approval that arrived after a
+ * restart used to fall through to the 5-entry TOOL_MAP and usually throw
+ * "No execution function found" while the operator's approval sat failed
+ * with nothing sent. Every policy-gated withGuardian wrap now registers its
+ * guarded fn here AT MODULE INIT, so the registry rebuilds itself on every
+ * boot and an approved request can always re-dispatch from the DB row's
+ * (toolId, payload) — no closure persistence needed. reliabilityOnly wraps
+ * are internal sub-ops that never create ApprovalRequests and are
+ * deliberately not registered.
+ */
+export const durableToolExecutors = new Map<
+  string,
+  (payload: unknown) => Promise<unknown>
+>();
+
+/**
+ * Legacy hand-maintained toolId -> nourTools-key map. Kept only as the
+ * LAST-resort fallback behind durableToolExecutors for any request created
+ * before this deploy; the durable registry supersedes it for every wrapped
+ * tool going forward.
+ */
 export const TOOL_MAP: Record<string, string> = {
   "gmail.compose_draft_card": "composeEmail",
   "code.run_js_vm": "runCode",
@@ -79,23 +103,38 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
     const pending = pendingExecutions.get(requestId);
 
     if (pending) {
+      // Same-process fast path · exact original closure + args (already
+      // patched by approveApprovalRequest when the payload was edited).
       result = await guardianBypassStorage.run(true, () => pending.fn(...pending.args));
     } else {
+      // Pod restarted (or entry evicted) since the request was created.
+      // Importing the tools module re-runs every withGuardian wrap, which
+      // repopulates durableToolExecutors — so the import MUST precede the
+      // registry read.
       const { nourTools } = await import("@/lib/ai/tools");
-      const toolName = TOOL_MAP[request.toolId];
-      const toolObj = toolName ? (nourTools as any)[toolName] : null;
-      if (toolObj && typeof toolObj.execute === "function") {
-        result = await guardianBypassStorage.run(true, () => toolObj.execute(request.payload));
+      const durable = durableToolExecutors.get(request.toolId);
+      if (durable) {
+        // Re-dispatch from the DB row's payload (reflects operator edits).
+        // Runs under bypass, so the guarded fn skips the approval gate and
+        // executes with the normal retry/timeout envelope.
+        result = await guardianBypassStorage.run(true, () => durable(request.payload));
       } else {
-        // Third tier: executeActionWithoutTracing for unmapped cross-system tools (like shop.sendSms)
-        const { executeActionWithoutTracing } = await import("@/lib/ai/nick-agent");
-        const actionResult = await guardianBypassStorage.run(true, () => 
-          executeActionWithoutTracing({ type: request.toolId as any, params: request.payload as Record<string, unknown> })
-        );
-        if (!actionResult.success) {
-          throw new Error(actionResult.error || `Action ${request.toolId} failed`);
+        // Legacy last resort for pre-registry requests.
+        const toolName = TOOL_MAP[request.toolId];
+        const toolObj = toolName ? (nourTools as any)[toolName] : null;
+        if (toolObj && typeof toolObj.execute === "function") {
+          result = await guardianBypassStorage.run(true, () => toolObj.execute(request.payload));
+        } else {
+          // Third tier: executeActionWithoutTracing for unmapped cross-system tools (like shop.sendSms)
+          const { executeActionWithoutTracing } = await import("@/lib/ai/nick-agent");
+          const actionResult = await guardianBypassStorage.run(true, () => 
+            executeActionWithoutTracing({ type: request.toolId as any, params: request.payload as Record<string, unknown> })
+          );
+          if (!actionResult.success) {
+            throw new Error(actionResult.error || `Action ${request.toolId} failed`);
+          }
+          result = actionResult.result;
         }
-        result = actionResult.result;
       }
     }
 
@@ -131,6 +170,7 @@ export type FailureCategory =
   | "error_as_200"
   | "schema_mismatch"
   | "network_failure"
+  | "circuit_open"
   | "unknown";
 
 export interface GuardianOptions {
@@ -159,6 +199,12 @@ export interface GuardianOptions {
    * this) or it would bypass the policy gate + NICK_MUTATION_LOCK.
    */
   reliabilityOnly?: boolean;
+  /** Enable the per-tool circuit breaker · default true. */
+  circuitBreaker?: boolean;
+  /** Consecutive backend failures before the breaker opens · default 5. */
+  breakerThreshold?: number;
+  /** How long the breaker stays open before a half-open probe · default 30s. */
+  breakerCooldownMs?: number;
 }
 
 export class GuardianError extends Error {
@@ -253,6 +299,79 @@ function backoffDelay(attempt: number): number {
   return base + jitter;
 }
 
+// ── Circuit breaker ──────────────────────────────────────────────────
+// Per-tool state so a repeatedly-failing backend fast-fails for a cooldown
+// instead of every call re-paying maxRetries×timeout — which, under fan-out
+// concurrency, becomes N simultaneous retry storms against an already-down
+// backend. Only "backend is misbehaving" categories trip it; auth/schema/
+// unknown do not (those are config/caller bugs, not a down backend).
+interface BreakerState {
+  consecutiveFailures: number;
+  openUntil: number; // epoch ms; 0 = closed
+}
+const breakers = new Map<string, BreakerState>();
+const BREAKER_TRIPPING: ReadonlySet<FailureCategory> = new Set([
+  "api_timeout",
+  "rate_limit",
+  "network_failure",
+  "truncated_json",
+  "error_as_200",
+]);
+
+/**
+ * Gate a call against the breaker AND atomically claim the half-open probe.
+ * - "closed" → breaker is fine, proceed normally (no state change).
+ * - "open"   → still in cooldown, fast-fail.
+ * - "probe"  → cooldown just elapsed; THIS call is the sole half-open probe.
+ *
+ * The claim is critical: check-and-rearm is synchronous (no await between the
+ * elapsed check and pushing openUntil forward), so under concurrent fan-out
+ * exactly ONE caller gets "probe" and the rest see "open". Without this, every
+ * concurrent caller would probe a still-down backend the instant the cooldown
+ * elapsed — the retry-storm the breaker exists to prevent.
+ */
+function claimBreakerSlot(toolName: string, cooldownMs: number): "closed" | "open" | "probe" {
+  const b = breakers.get(toolName);
+  if (!b || b.openUntil === 0) return "closed";
+  const now = Date.now();
+  if (b.openUntil > now) return "open";
+  // Cooldown elapsed — re-arm so concurrent callers see "open" while this one
+  // probes. A probe success resets openUntil to 0; a probe failure re-extends it.
+  b.openUntil = now + cooldownMs;
+  return "probe";
+}
+
+function recordBreakerSuccess(toolName: string): void {
+  const b = breakers.get(toolName);
+  if (b) {
+    b.consecutiveFailures = 0;
+    b.openUntil = 0;
+  }
+}
+
+function recordBreakerFailure(
+  toolName: string,
+  category: FailureCategory,
+  threshold: number,
+  cooldownMs: number,
+): void {
+  if (!BREAKER_TRIPPING.has(category)) return;
+  let b = breakers.get(toolName);
+  if (!b) {
+    b = { consecutiveFailures: 0, openUntil: 0 };
+    breakers.set(toolName, b);
+  }
+  b.consecutiveFailures++;
+  if (b.consecutiveFailures >= threshold) {
+    b.openUntil = Date.now() + cooldownMs;
+  }
+}
+
+/** Test-only · clears all breaker state between cases. */
+export function __resetGuardianBreakers(): void {
+  breakers.clear();
+}
+
 /**
  * Wrap an async tool with guardian protection.
  */
@@ -270,8 +389,11 @@ export function withGuardian<T, A extends unknown[]>(
   const validateSchema = opts.validateSchema;
   // Captured at wrap time · never derived from the runtime payload.
   const reliabilityOnly = opts.reliabilityOnly ?? false;
+  const circuitBreaker = opts.circuitBreaker ?? true;
+  const breakerThreshold = opts.breakerThreshold ?? 5;
+  const breakerCooldownMs = opts.breakerCooldownMs ?? 30_000;
 
-  return async function guarded(...args: A): Promise<T> {
+  const guarded = async function guarded(...args: A): Promise<T> {
     const bypassPolicy = guardianBypassStorage.getStore() === true;
 
     // reliabilityOnly sub-ops skip the AI-tool policy/approval block entirely
@@ -417,6 +539,21 @@ export function withGuardian<T, A extends unknown[]>(
       }
     }
 
+    // Circuit breaker · fast-fail while this tool's backend is in an open
+    // cooldown, instead of re-paying the whole retry+timeout budget. When the
+    // cooldown elapses exactly ONE concurrent caller becomes the half-open
+    // probe (claimBreakerSlot re-arms atomically); success resets the breaker,
+    // failure re-opens it.
+    if (circuitBreaker && claimBreakerSlot(toolName, breakerCooldownMs) === "open") {
+      log.warn("guardian_circuit_open", { toolName });
+      throw new GuardianError(
+        toolName,
+        "circuit_open",
+        0,
+        `circuit open · ${toolName} is failing repeatedly · fast-failing until cooldown elapses`,
+      );
+    }
+
     let lastError: unknown;
     let lastCategory: FailureCategory = "unknown";
 
@@ -463,6 +600,7 @@ export function withGuardian<T, A extends unknown[]>(
             ms,
           });
         }
+        if (circuitBreaker) recordBreakerSuccess(toolName);
         return result;
       } catch (err) {
         lastError = err;
@@ -490,6 +628,12 @@ export function withGuardian<T, A extends unknown[]>(
       }
     }
 
+    // Terminal failure · feed the breaker so a persistently-down backend
+    // trips it and subsequent calls fast-fail during the cooldown.
+    if (circuitBreaker) {
+      recordBreakerFailure(toolName, lastCategory, breakerThreshold, breakerCooldownMs);
+    }
+
     throw new GuardianError(
       toolName,
       lastCategory,
@@ -498,4 +642,19 @@ export function withGuardian<T, A extends unknown[]>(
       lastError,
     );
   };
+
+  // Wrap-time registration for durable approval re-dispatch: module init
+  // runs on every boot, so the registry survives pod restarts by
+  // reconstruction. reliabilityOnly sub-ops never create ApprovalRequests
+  // and stay out (their ids aren't in TOOL_REGISTRY anyway).
+  if (!reliabilityOnly) {
+    // Type-erased on purpose: the registry re-dispatches with the DB row's
+    // payload as the sole argument, matching how every gated tool is called.
+    durableToolExecutors.set(
+      toolName,
+      guarded as unknown as (payload: unknown) => Promise<unknown>,
+    );
+  }
+
+  return guarded;
 }

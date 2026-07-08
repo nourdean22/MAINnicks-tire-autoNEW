@@ -47,7 +47,12 @@ export const UserMessageBubble = React.memo(function UserMessageBubble({
   return (
     <span
       {...lp}
-      className="cursor-pointer select-none"
+      // 2026-07-06 bug fix · was `select-none`, which blocked desktop
+      // drag-select + Ctrl+C on the user's own messages (assistant text is
+      // already selectable — this makes them consistent). useLongPress cancels
+      // on >8px pointer movement, so a drag-to-select doesn't trip the
+      // long-press action sheet.
+      className="cursor-pointer select-text"
       title="Tap to edit · long-press for actions"
       style={{ touchAction: "manipulation" }}
     >

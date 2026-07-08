@@ -1,0 +1,68 @@
+<svg viewBox="0 0 720 400" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <style>
+    .layer { fill: #ffffff; stroke: #d1d5db; stroke-width: 1; rx: 6; }
+    .title { font-size: 13px; font-weight: bold; fill: #1f2937; }
+    .body  { font-size: 11px; fill: #6b7280; }
+    .rail  { font-size: 10.5px; fill: #6b7280; }
+    .arrow { stroke: #9ca3af; stroke-width: 1.5; marker-end: url(#ah); }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#9ca3af"/>
+    </marker>
+  </defs>
+
+  <!-- Layer stack -->
+  <g>
+    <rect class="layer" x="24" y="20" width="440" height="52" rx="6"/>
+    <text class="title" x="40" y="41">1 · CAPTURE — 24/7</text>
+    <text class="body"  x="40" y="58">AI voice receptionist (VAPI + Twilio) · compliant SMS · web PWA</text>
+
+    <line class="arrow" x1="244" y1="72" x2="244" y2="90"/>
+
+    <rect class="layer" x="24" y="92" width="440" height="52" rx="6"/>
+    <text class="title" x="40" y="113">2 · VERIFY</text>
+    <text class="body"  x="40" y="130">Webhook signature check — unverified call events are rejected before logging</text>
+
+    <line class="arrow" x1="244" y1="144" x2="244" y2="162"/>
+
+    <rect class="layer" x="24" y="164" width="440" height="52" rx="6"/>
+    <text class="title" x="40" y="185">3 · OPERATE</text>
+    <text class="body"  x="40" y="202">Worklists, not dashboards: unpaid invoices · tire orders · review queue · Stripe writeback</text>
+
+    <line class="arrow" x1="244" y1="216" x2="244" y2="234"/>
+
+    <rect class="layer" x="24" y="236" width="440" height="52" rx="6"/>
+    <text class="title" x="40" y="257">4 · LEARN</text>
+    <text class="body"  x="40" y="274">Daily call evaluation · search-data pipeline — drafts only, zero live writes</text>
+
+    <line class="arrow" x1="244" y1="288" x2="244" y2="306"/>
+
+    <rect x="24" y="308" width="440" height="52" rx="6" fill="#fef3ec" stroke="#b45309" stroke-width="1.5"/>
+    <text class="title" x="40" y="329" fill="#b45309">5 · HUMAN GATE</text>
+    <text class="body"  x="40" y="346">Operator pushes prompt config · applies metadata edits · nothing customer-visible actuates alone</text>
+  </g>
+
+  <!-- Guardrail rail -->
+  <g>
+    <rect x="492" y="20" width="204" height="340" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+    <text class="title" x="508" y="44">Guardrails (always on)</text>
+    <text class="rail" x="508" y="72">— STOP / opt-out defaults</text>
+    <text class="rail" x="508" y="94">— Durable per-phone daily caps</text>
+    <text class="rail" x="508" y="116">— Claim-safety QA on all</text>
+    <text class="rail" x="522" y="130">outbound copy (server-side)</text>
+    <text class="rail" x="508" y="152">— No dollar amounts in</text>
+    <text class="rail" x="522" y="166">payment reminders</text>
+    <text class="rail" x="508" y="188">— Business facts templated</text>
+    <text class="rail" x="522" y="202">from constants — phone,</text>
+    <text class="rail" x="522" y="216">address, rating cannot be</text>
+    <text class="rail" x="522" y="230">hallucinated</text>
+    <text class="rail" x="508" y="252">— No synthetic people in ads</text>
+    <text class="rail" x="508" y="274">— At-most-once send claims</text>
+    <text class="rail" x="508" y="296">— AI reads freely; writing to</text>
+    <text class="rail" x="522" y="310">a customer or a live page</text>
+    <text class="rail" x="522" y="324">passes a human</text>
+  </g>
+
+  <text class="body" x="24" y="386" font-style="italic">Figure 1 · The autonomous front office: five layers, one human gate, guardrails spanning every layer.</text>
+</svg>

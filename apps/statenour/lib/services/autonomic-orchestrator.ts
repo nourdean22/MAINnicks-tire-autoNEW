@@ -84,6 +84,33 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
           const msg = err instanceof Error ? err.message : String(err);
           result.cronErrors.push(`${row.name}: ${msg}`);
           log.error("healing_failed", { jobName: row.name, error: msg });
+          // 2026-07-07 · alert-on-silence. A FAILED heal was console-only
+          // while successes got coach events — so a dead cron whose rescue
+          // kept failing was invisible until someone noticed the missing
+          // CronJobLog rows. Best-effort: alerting must never break the
+          // remaining heal loop.
+          try {
+            await recordCoachEvent({
+              kind: "system-alert",
+              subjectId: `cron-heal-failed:${row.name}`,
+              priority: "P0",
+              title: `Cron Healer FAILED: ${row.name}`,
+              body: `Cron "${row.name}" was ${reason} and the automatic heal attempt threw: ${msg.slice(0, 200)}. Manual investigation needed — this job is currently not running.`,
+              surfaces: ["scoreboard", "home"],
+              extra: { jobName: row.name, reason, error: msg.slice(0, 200) },
+            });
+            const { sendTelegram } = await import("@/lib/services/telegram");
+            await sendTelegram(
+              `🔴 <b>Cron healer FAILED</b> to rescue <b>${row.name}</b> (${reason})\n${msg.slice(0, 200)}\nThe job is currently NOT running — needs a look.`,
+              undefined,
+              "HTML",
+            );
+          } catch (alertErr) {
+            log.error("heal_failure_alert_failed", {
+              jobName: row.name,
+              error: alertErr instanceof Error ? alertErr.message : String(alertErr),
+            });
+          }
         }
       }
     }

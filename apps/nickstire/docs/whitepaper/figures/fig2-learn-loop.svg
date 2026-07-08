@@ -1,0 +1,56 @@
+<svg viewBox="0 0 720 330" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <style>
+    .node  { fill: #ffffff; stroke: #d1d5db; stroke-width: 1; }
+    .title { font-size: 13px; font-weight: bold; fill: #1f2937; }
+    .body  { font-size: 10.5px; fill: #6b7280; }
+    .flow  { stroke: #9ca3af; stroke-width: 1.5; fill: none; marker-end: url(#ah2); }
+  </style>
+  <defs>
+    <marker id="ah2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#9ca3af"/>
+    </marker>
+  </defs>
+
+  <!-- LEARN -->
+  <rect class="node" x="24" y="30" width="200" height="120" rx="6"/>
+  <text class="title" x="40" y="54">LEARN</text>
+  <text class="body" x="40" y="76">Daily evaluation scores every call,</text>
+  <text class="body" x="40" y="91">clusters missed intents.</text>
+  <text class="body" x="40" y="113">A lesson is written ONLY if the same</text>
+  <text class="body" x="40" y="128">intent misses ≥2× in a run</text>
+  <text class="body" x="40" y="143">(initial confidence 0.60)</text>
+
+  <path class="flow" d="M224,90 L272,90"/>
+
+  <!-- THRESHOLD -->
+  <rect class="node" x="274" y="30" width="180" height="120" rx="6"/>
+  <text class="title" x="290" y="54">CONFIDENCE BAR</text>
+  <text class="body" x="290" y="76">+0.05 each time the same</text>
+  <text class="body" x="290" y="91">lesson recurs (by content hash)</text>
+  <text class="body" x="290" y="106">−0.05 per 30 days of silence</text>
+  <text class="body" x="290" y="128">Prompt eligibility: ≥ 0.65 —</text>
+  <text class="body" x="290" y="143">reachable only across days</text>
+
+  <path class="flow" d="M454,90 L502,90"/>
+
+  <!-- ACT -->
+  <rect x="504" y="30" width="192" height="120" rx="6" fill="#fef3ec" stroke="#b45309" stroke-width="1.5"/>
+  <text class="title" x="520" y="54" fill="#b45309">ACT — HUMAN GATE</text>
+  <text class="body" x="520" y="76">Top-3 qualifying lessons enter the</text>
+  <text class="body" x="520" y="91">live phone prompt only when the</text>
+  <text class="body" x="520" y="106">operator presses</text>
+  <text class="body" x="520" y="121" font-weight="bold">"Push Latest Config"</text>
+  <text class="body" x="520" y="143">No automated path exists.</text>
+
+  <!-- VERIFY return path -->
+  <path class="flow" d="M600,150 L600,210 L124,210 L124,154"/>
+  <rect class="node" x="250" y="188" width="220" height="44" rx="6"/>
+  <text class="title" x="266" y="206">VERIFY</text>
+  <text class="body" x="266" y="222">Next cycle re-scores calls under the new prompt</text>
+
+  <!-- Callout -->
+  <rect x="24" y="256" width="672" height="36" rx="6" fill="#f9fafb" stroke="#d1d5db"/>
+  <text class="body" x="40" y="278" font-weight="bold" fill="#1f2937">Consequence of the thresholds: a single bad call can never reach the live prompt — a miss must recur across days AND pass a human.</text>
+
+  <text class="body" x="24" y="318" font-style="italic">Figure 2 · The LEARN → ACT → VERIFY loop with its confidence thresholds and human gate.</text>
+</svg>

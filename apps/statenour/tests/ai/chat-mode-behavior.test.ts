@@ -40,5 +40,23 @@ describe("chat mode behavior and modifications · tools capabilities", () => {
       expect(pruned).toHaveProperty("getMissions");
       expect(pruned).not.toHaveProperty("someOtherTool");
     });
+
+    it("always attaches ACTION_CORE writes (createTask, completeTask) even keyword-less (2026-07-06 bug fix)", async () => {
+      // Regression: a keyword-less action turn ("ok do it") with no embedding
+      // fires neither the Tasks keyword family nor the semantic layer, so
+      // pre-fix only read-only CORE_TOOLS survived and the operator couldn't
+      // create/complete a task at all. ACTION_CORE now guarantees the two
+      // most-used write tools are always reachable; unrelated writes stay pruned.
+      const tools = {
+        createTask: { description: "Create task" },
+        completeTask: { description: "Complete task" },
+        getBlindSpots: { description: "read-only" },
+        someWriteTool: { description: "unrelated write" },
+      };
+      const pruned = await pruneTools("standard", tools, "ok do it");
+      expect(pruned).toHaveProperty("createTask");
+      expect(pruned).toHaveProperty("completeTask");
+      expect(pruned).not.toHaveProperty("someWriteTool");
+    });
   });
 });

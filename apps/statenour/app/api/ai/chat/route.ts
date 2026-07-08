@@ -1,5 +1,5 @@
 import { streamText, stepCountIs } from "ai";
-import { getModel, getActiveProviderInfo, isRuntimeProvider, type ProviderName, type TaskType } from "@/lib/ai/provider";
+import { getModel, getActiveProviderInfo, isRuntimeProvider, GEMINI_SAFETY_OFF, type ProviderName, type TaskType } from "@/lib/ai/provider";
 import { buildSystemPrompt, detectTopicTier } from "@/lib/ai/system-prompt";
 import { detectQueryShape } from "@/lib/ai/query-shape";
 import { classifyTurn } from "@/lib/ai/turn-intelligence";
@@ -613,19 +613,64 @@ async function chatPostInner(req: Request) {
 
 
 
-  // Await the parallel work — max of the six pipelines.
-  // (DB write + user embedding + memory recall are folded in so
-  // their latency is hidden inside the max.)
+  // 2026-07-05 improvement · fold buildContextHints + buildBrainContext INTO
+  // the parallel batch instead of running them serially AFTER it. Both only
+  // APPEND to systemPrompt (neither reads it or the other's output — verified),
+  // and both are guaranteed non-throwing (buildContextHints returns "" on
+  // failure; buildBrainContext's top-level try/catch always falls through to a
+  // valid object), so neither can reject the batch. buildContextHints depends
+  // only on request-scoped ids → starts immediately; buildBrainContext needs
+  // userEmbedding + convId → chained on those two so its ~recall latency
+  // OVERLAPS the system-prompt build rather than being paid serially after it
+  // (the dominant TTFT cost on warm turns — was ~6s of pure blocking). Append
+  // order is preserved exactly below (context hints, then brain addendum).
+  const contextHintsPromise = import("./context-hints").then((m) =>
+    m.buildContextHints({
+      messageCount: messages.length,
+      contextRoute,
+      lastTaskId,
+      lastGoalId,
+      lastSuggestionKind,
+      lastSuggestionId,
+      lastJournalEntryId,
+      lastDecisionId,
+      lastPinId,
+      lastReflectionId,
+      lastMissionId,
+    }),
+  );
+  const brainCtxPromise = Promise.all([userEmbeddingPromise, dbWritePromise]).then(
+    ([ue, cid]) =>
+      import("@/lib/services/chat/brain-context").then((m) =>
+        m.buildBrainContext({
+          userContent,
+          mode,
+          userEmbedding: ue,
+          forceRecall,
+          messages: messages as Array<{ role: string; content: string }>,
+          convId: cid,
+          log,
+        }),
+      ),
+  );
+
+  // Await the parallel work — max of the pipelines. (DB write + user
+  // embedding + context-hints + brain recall are folded in so their latency
+  // is hidden inside the max.)
   const [
     { systemPrompt: rawSystemPrompt, fromCache },
     compression,
     resolvedConvId,
     userEmbedding,
+    contextHintsBlock,
+    brainCtx,
   ] = await Promise.all([
     promptPromise,
     compressPromise,
     dbWritePromise,
     userEmbeddingPromise,
+    contextHintsPromise,
+    brainCtxPromise,
   ]);
   convId = resolvedConvId;
 
@@ -639,40 +684,8 @@ async function chatPostInner(req: Request) {
     semantic: isToolEmbeddingCacheWarm() && userEmbedding.length > 0,
   });
 
-  let systemPrompt = rawSystemPrompt;
-
-  // chat-route extract (2026-05-31) · the cross-device anchor read/write
-  // (Wave 42) + Wave 38 top-task fallback + the `# OPERATOR CONTEXT
-  // (live)` hint assembly (Waves 30/34/36/37) moved verbatim to
-  // app/api/ai/chat/context-hints.ts. The route just appends the
-  // returned block. Best-effort DB I/O only — no behavior change.
-  const { buildContextHints } = await import("./context-hints");
-  systemPrompt += await buildContextHints({
-    messageCount: messages.length,
-    contextRoute,
-    lastTaskId,
-    lastGoalId,
-    lastSuggestionKind,
-    lastSuggestionId,
-    lastJournalEntryId,
-    lastDecisionId,
-    lastPinId,
-    lastReflectionId,
-    lastMissionId,
-  });
-
-  const { buildBrainContext } = await import("@/lib/services/chat/brain-context");
-  const brainCtx = await buildBrainContext({
-    userContent,
-    mode,
-    userEmbedding,
-    forceRecall,
-    messages: messages as Array<{ role: string; content: string }>,
-    convId,
-    log,
-  });
-  
-  systemPrompt += brainCtx.systemPromptAddendum;
+  // Append order preserved: raw prompt → context hints → brain addendum.
+  let systemPrompt = rawSystemPrompt + contextHintsBlock + brainCtx.systemPromptAddendum;
   const contextBlocksFired = brainCtx.contextBlocksFired;
   const deeperContextCount = brainCtx.deeperContextCount;
   const deeperContextTypes = brainCtx.deeperContextTypes;
@@ -866,6 +879,26 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     }
     prunedTools = forced as unknown as typeof nourTools;
   }
+  // 2026-07-06 bug fix · force the ACTION-INTENT's expected tool into the
+  // pruned set. pruneTools attaches read-only CORE_TOOLS + keyword/semantic
+  // families, but a keyword-less action turn ("add it", "do it") with a cold
+  // embedding cache drops the write tool (e.g. createTask). The
+  // toolChoice:"required" force below (action_intent_detected) then makes the
+  // model act with ONLY read-only tools — so it fabricates "done" or admits
+  // the tool is unavailable. Guarantee the expected tool is present so the
+  // force is coherent. Respects the disabledTools blocklist above (never
+  // re-add a tool the operator deliberately disabled). expectedTool may be a
+  // "toolA|toolB" alternation (action-claim-detector), so split on "|".
+  if (__actionIntent?.expectedTool) {
+    const all = nourTools as unknown as Record<string, unknown>;
+    const disabled = new Set(aiConfig?.disabledTools ?? []);
+    const forced = { ...prunedTools } as Record<string, unknown>;
+    for (const raw of __actionIntent.expectedTool.split("|")) {
+      const name = raw.trim();
+      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
+    }
+    prunedTools = forced as unknown as typeof nourTools;
+  }
 
   const toolCountAll = Object.keys(nourTools).length;
   const toolCountPruned = Object.keys(prunedTools).length;
@@ -957,7 +990,16 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           turnSignal.intent === "decision" ||
           turnSignal.intent === "analytical");
 
-      if (deepOn || regenOn || selfConsistencyOn || multiAgentOn) {
+      // v10.0.534 · action requests must NEVER route to a reasoning path —
+      // the deepOn branch CANNOT call tools (it pre-fetches a snapshot and
+      // reasons over it), so an action like "sync my calendar" got NARRATED
+      // ("Calendar sync complete") instead of actually calling syncCalendar.
+      // A live agent_traces test (2026-07-06) proved it: the sync turn ran
+      // deep → tool_calls=0, toolsCalled=[]. When detectActionIntent fires
+      // (incl. python-execute), suppress ALL reasoning gates so the turn
+      // falls through to the normal tool-FORCING streamText path below, where
+      // toolChoice:"required" makes the model call the real tool.
+      if (!__actionIntent && (deepOn || regenOn || selfConsistencyOn || multiAgentOn)) {
         let winner = "";
         // Shared generateText config for the regen + self-consistency
         // branches (identical shape) — hoisted so a new field is added
@@ -1025,6 +1067,30 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
             topicTier,
           });
 
+          // 2026-07-05 audit HIGH · cost-safety cap. The chat deep path passed
+          // the reasoning engine NO explicit tier, so its internal classifier
+          // could land on 'mega' (~$0.20, fire-all-5) on natural phrasing — with
+          // none of the confirmExpensive + reserveBudget gates that /reason
+          // (reason/stream/route.ts) and the nick tRPC router enforce for mega.
+          // The chat surface is interactive iOS-PWA (no window.confirm), so we
+          // cap the auto-classified tier to 'deep' when the base classifier
+          // returns 'mega' instead of forcing a confirm round-trip. The engine's
+          // tuner only DEMOTES (never promotes), so a non-mega base can never
+          // escalate to mega — leaving request.tier undefined for those turns
+          // preserves the normal internal classify + tune behavior exactly.
+          let deepTier: "deep" | undefined;
+          try {
+            const { classifyReasoning } = await import(
+              "@/lib/ai/reasoning/classifier"
+            );
+            if (classifyReasoning(userContent).tier === "mega") {
+              deepTier = "deep";
+              log.info("deep_reasoning_mega_capped", { intent: turnSignal.intent });
+            }
+          } catch {
+            /* classifier best-effort — fall through to engine auto-classify */
+          }
+
           const { simulateReasoningStream } = await import(
             "@/lib/ai/chat/simulate-stream-from-text"
           );
@@ -1036,6 +1102,7 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
             request: {
               question: userContent,
               brainContext: (liveSnapshot + finalSystemPrompt).slice(0, 24000),
+              tier: deepTier,
             },
             chunkSize: 24,
             chunkDelayMs: 8,
@@ -1227,6 +1294,13 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
 
       return ({
         model: __fbModel,
+        // 2026-07-06 · disable Gemini's default safety filters (per-call, via
+        // providerOptions.google — the @ai-sdk/google v3 API). Ignored by
+        // non-Google providers. Gemini's defaults can truncate a reply
+        // mid-generation on flagged content (the likely "messages don't
+        // finish" cause) and are an unwanted restriction on this owner-operated
+        // OS. See GEMINI_SAFETY_OFF in lib/ai/provider.ts.
+        providerOptions: { google: GEMINI_SAFETY_OFF },
         // v10.0.446 · prompt-quality audit fix #1 · cacheControl wiring.
         // When Anthropic is the active fallback provider, fold the
         // system prompt into messages with `cacheControl: ephemeral`

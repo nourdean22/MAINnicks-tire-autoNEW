@@ -87,12 +87,7 @@ export default function MasteryLayout({
           a second one here just created phantom bottom whitespace on
           short pages (e.g. HQ/Ultron when content is < 100vh). */}
       <AmbientAura>
-        {/* May 02 · pb fix · BottomPulseTicker is fixed bottom-0 (h-5 +
-            border = 21px). Pre-fix, md:pb-0 left desktop content sliding
-            under the ticker. md:pb-8 (32px) clears the ticker with a
-            touch of breathing room; mobile keeps pb-20 (80px) to clear
-            the orb stack too. */}
-        <main id="main-content" className="pb-24">
+        <main id="main-content" className="pb-[var(--bottom-chrome-h)]">
           <div className="feed py-4 md:py-6 page-enter">
             {/* v11.1 · ErrorBoundary wraps the page content (not the
                 chrome). A broken panel still lets the orb, nav, and

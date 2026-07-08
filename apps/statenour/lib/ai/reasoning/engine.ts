@@ -668,6 +668,7 @@ async function runToolGather(
     const { generateText, stepCountIs } = await import("ai");
     const { getModel } = await import("@/lib/ai/provider");
     const { getReasoningTools } = await import("./reasoning-tools");
+    const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
 
     const tools = getReasoningTools();
     if (Object.keys(tools).length === 0) return empty;
@@ -686,6 +687,14 @@ PLAN: ${plan || "(no plan)"}`,
       ],
       tools: tools as Parameters<typeof generateText>["0"]["tools"],
       stopWhen: stepCountIs(3),
+      // 2026-07-05 audit MED (perf) · tool-gather is a fast grounding step,
+      // not deep research. Bound it: without this the generateText call had
+      // no timeout/abort, and on the STREAMING deep path (reasonStreaming →
+      // no withGuardian 180s wrapper) a whitelisted tool that legitimately
+      // runs long (e.g. last30days spawns a 5-min python subprocess) would
+      // stall the entire deep-reasoning stream. On abort the catch below
+      // degrades to empty toolContext ("reason without live data").
+      abortSignal: AbortSignal.timeout(8000),
     });
 
     // Extract tool results from the steps
@@ -707,8 +716,15 @@ PLAN: ${plan || "(no plan)"}`,
         const resultStr = typeof entry.output === "string"
           ? entry.output
           : JSON.stringify(entry.output, null, 2);
+        // 2026-07-05 audit MED (security) · FENCE every gathered tool result
+        // before it becomes runDraft context labeled "# LIVE DATA". Most
+        // whitelisted tools self-fence, but arsenalNotebookLM does NOT — its
+        // raw vault text (operator-uploaded docs, a prompt-injection surface)
+        // flowed in unfenced, so an embedded "ignore prior instructions" could
+        // be read as a directive by the draft model. Fencing at this single
+        // choke point defends ANY whitelisted tool that forgets to self-fence.
         toolOutputs.push(
-          `## ${entry.toolName} result\n${(resultStr ?? "").slice(0, 2000)}`,
+          `## ${entry.toolName} result\n${fenceContent(entry.toolName, "external_doc", (resultStr ?? "").slice(0, 2000))}`,
         );
       }
     }

@@ -84,7 +84,7 @@ export async function emitDriftFired(payload: DriftFiredPayload): Promise<string
   // gates on the flag + writes a PENDING proposal, never sends). Best-effort:
   // a send failure must not block the durable bus write below.
   try {
-    const { getInngest } = await import("@/src/inngest/client");
+    const { getInngest } = await import("@/lib/inngest/client");
     await getInngest().send({
       name: "nick/urgent.signal",
       data: {

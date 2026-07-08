@@ -77,7 +77,11 @@ export function resolveProviderModel(provider: RuntimeProviderName, taskType?: T
   }
   if (provider === "openrouter") {
     if (taskType === "reason" || taskType === "deep" || taskType === "code") {
-      return cleanEnv(process.env.OPENROUTER_REASONING_MODEL) || "google/gemini-2.5-pro";
+      // 2026-07-06 · uncensored reasoning model (was google/gemini-2.5-pro,
+      // whose safety filters can't be disabled via OpenRouter). x-ai/grok is
+      // a strong reasoning + tool-calling model with minimal content filtering.
+      // Override via OPENROUTER_REASONING_MODEL.
+      return cleanEnv(process.env.OPENROUTER_REASONING_MODEL) || "x-ai/grok-4.3";
     }
     return cleanEnv(process.env[cfg.modelEnv]) || cfg.defaultModel;
   }
@@ -119,6 +123,43 @@ export function isRuntimeProvider(v: unknown): v is RuntimeProviderName {
   return typeof v === "string" && (RUNTIME_PROVIDERS as readonly string[]).includes(v);
 }
 
+/**
+ * Canonical model-id → provider classifier · ONE source of truth.
+ *
+ * Consolidates the three copies that previously drifted: inferProviderName
+ * (failure-marking, stream-with-fallback.ts), the inline branch in
+ * stream-error-handler.ts, and modelToProvider (telemetry, provider-health.ts).
+ * That last one lacked the slash-first branch and misattributed OpenRouter ids
+ * ("google/gemini-2.5-flash") to the native gemini lane — this is the fix.
+ *
+ * Precedence is the union of all three so no caller loses coverage:
+ *  1. slash-first — OpenRouter ids are vendor-prefixed ("google/gemini-*",
+ *     "openai/gpt-*"). Native OpenAI/Anthropic ids are never slash-prefixed.
+ *     "models/" (Google native) + "gemini/"/"ollama/" (telemetry shapes) are NOT OpenRouter.
+ *  2. colon-tag — ollama's native id form ("gpt-oss:120b", "qwen3:14b").
+ *  3. registry-substring scan — catches bare ollama model families
+ *     ("glm-5", "qwen3", "deepseek-v4", "kimi", "gpt-oss") the keyword pass misses.
+ *  4. keyword fallback — gemini/google, ollama, gpt-/openai, claude/anthropic aliases.
+ */
+export function classifyModelId(modelId: string | null | undefined): ProviderName | null {
+  const id = (modelId ?? "").trim();
+  if (!id) return null;
+  const lower = id.toLowerCase();
+  const slashIdx = id.indexOf("/");
+  if (slashIdx > 0 && !["models", "gemini", "ollama"].includes(lower.slice(0, slashIdx))) return "openrouter";
+  if (/^[\w.-]+:[\w.-]+$/.test(id)) return "ollama";
+  for (const provider of RUNTIME_PROVIDERS) {
+    const cfg = PROVIDERS_REGISTRY[provider];
+    if (lower === cfg.defaultModel.toLowerCase() || (cfg.defaultVisionModel && lower === cfg.defaultVisionModel.toLowerCase())) return provider;
+    for (const sub of cfg.modelSubstrings) if (lower.includes(sub.toLowerCase())) return provider;
+  }
+  if (lower.includes("gemini") || lower.includes("google")) return "gemini";
+  if (lower.includes("ollama")) return "ollama";
+  if (id.startsWith("gpt-") || lower.includes("openai")) return "openai";
+  if (lower.includes("claude") || lower.includes("anthropic")) return "anthropic";
+  return null;
+}
+
 // Retired (Venice removed from runtime) · kept empty for getProviderStatus back-compat.
 export const VENICE_PARAMS = {};
 
@@ -142,6 +183,35 @@ function createGoogleModel(taskType?: TaskType): LanguageModel {
   const google = createGoogleGenerativeAI({ apiKey: apiKey! });
   return google(modelId);
 }
+
+/**
+ * 2026-07-06 · Gemini safety-filter override. Passed via
+ * `providerOptions.google` at the streamText / generateText call sites (the
+ * @ai-sdk/google v3 API — safetySettings is a per-call GoogleLanguageModelOptions
+ * field, NOT a model-creation option). Ignored by non-Google providers.
+ *
+ * Why: safetySettings were UNSET everywhere, so Gemini applied its DEFAULT
+ * filters, which can TRUNCATE a reply mid-generation on flagged content — the
+ * leading suspect behind the operator's "messages don't finish" report (a
+ * ~44-token mid-sentence cut that NO maxOutputTokens cap explains: query-shape
+ * budgets 300-1600, mode default 1200, aiChat 1500-8000). The truncated turn
+ * was the model AFFIRMING it is "unrestricted / will do anything" — squarely
+ * in the dangerous-content / harassment filters. Disabling them removes that
+ * truncation vector AND matches OWNER AUTHORITY: a single-operator personal OS,
+ * not a public product, so provider-side content filtering is an unwanted
+ * restriction on the owner.
+ */
+export const GEMINI_SAFETY_OFF: {
+  safetySettings: Array<{ category: string; threshold: string }>;
+} = {
+  safetySettings: [
+    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
+  ],
+};
 
 function createOpenRouterModel(taskType?: TaskType): LanguageModel {
   const apiKey = getApiKey("openrouter");
@@ -865,6 +935,10 @@ export async function aiChat(
       const useAnthropicCache = entry.name === "anthropic" && systemPrompt && systemPrompt.length > 200;
       const result = await generateText({
         model,
+        // 2026-07-06 · no Gemini content filtering on the internal LLM path
+        // either (reasoning · judge · critic · kn-extract all route through
+        // aiChat). Ignored by non-Google providers.
+        providerOptions: { google: GEMINI_SAFETY_OFF },
         ...(useAnthropicCache
           ? {
               // Pass system as message-shaped to attach providerOptions.
@@ -1038,7 +1112,40 @@ export async function aiChat(
  * stored vectors may need a one-time backfill if you switched
  * providers since the records were written.
  */
+// 2026-07-05 improvement · request-scoped embed memo. The SAME userContent is
+// embedded 2x+ per recall turn (route.ts prefetch + semanticSearch) and at 6+
+// more same-turn sites (anticipated-questions, contradiction-injector,
+// contextual-recall, calibration). A short-TTL text-keyed memo collapses ALL
+// of them → ~one Cohere round-trip saved per turn. Module-level so it survives
+// a warm lambda and resets on cold start (same lifecycle + pattern as
+// context-reranker.ts's EMBED_CACHE). getEmbedding has a fixed text-only
+// signature with a hardcoded input_type, so a text key is safe. Successes only
+// — never cache the [] fail-soft path, so a transient embedder error retries.
+const EMBED_MEMO = new Map<string, { vec: number[]; expiresAt: number }>();
+const EMBED_MEMO_TTL_MS = 45_000;
+
+// djb2 — tiny, fast, no deps. Cache-key only over the embed window, so a
+// collision would at worst reuse a fresh-enough vector for ~45s (never a
+// correctness issue). Mirrors hashContent in context-reranker.ts.
+function embedMemoKey(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return `${s.length}:${h >>> 0}`;
+}
+
 export async function getEmbedding(text: string): Promise<number[]> {
+  const memoKey = embedMemoKey(text.slice(0, 30_000));
+  const now = Date.now();
+  const hit = EMBED_MEMO.get(memoKey);
+  if (hit && hit.expiresAt > now) return hit.vec;
+
+  const vec = await getEmbeddingUncached(text);
+  // Cache successes only; the [] fail-soft path must stay retryable.
+  if (vec.length > 0) EMBED_MEMO.set(memoKey, { vec, expiresAt: now + EMBED_MEMO_TTL_MS });
+  return vec;
+}
+
+async function getEmbeddingUncached(text: string): Promise<number[]> {
   const input = text.slice(0, 30_000);
 
   const COHERE_API_KEY = cleanEnv(process.env.COHERE_API_KEY);
@@ -1204,6 +1311,7 @@ export function aiStream(messages: AiMessage[], taskType: TaskType = "reason"): 
 
         const result = streamText({
           model,
+          providerOptions: { google: GEMINI_SAFETY_OFF }, // 2026-07-06 · no Gemini content filtering
           system: systemMessages.map((m) => m.content).join("\n\n") || undefined,
           messages: nonSystemMessages.map((m) => ({
             role: m.role as "user" | "assistant",

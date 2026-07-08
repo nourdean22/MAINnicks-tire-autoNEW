@@ -194,6 +194,17 @@ export const vapiRouter = router({
       return updateAssistant(assistantId, serverUrl);
     }),
 
+  // self-improving loop (phase 2) · the learned lessons that WILL be appended to
+  // the receptionist prompt on the next "Push Latest Config". Read-only preview
+  // so the operator sees the delta before pushing. Only lessons reinforced to
+  // >=0.65 qualify (a fresh daily lesson starts at 0.6, so nothing shows until a
+  // pattern has recurred).
+  promptLessons: adminProcedure.query(async () => {
+    const { topPromptLessons } = await import("../services/nickMemory");
+    const lessons = await topPromptLessons();
+    return lessons.map((l) => ({ content: l.content, confidence: l.confidence, uses: l.uses }));
+  }),
+
   // wave-141 · re-push the OUTBOUND follow-up assistant (separate VAPI
   // assistant · env VAPI_FOLLOWUP_ASSISTANT_ID). Previously only resyncable
   // via scripts/vapi-create-followup-assistant.ts, so prompt/tool changes to
@@ -215,6 +226,18 @@ export const vapiRouter = router({
     .query(async ({ input }) => {
       const { getRecentCalls } = await import("../services/vapi");
       return getRecentCalls(input?.limit ?? 20);
+    }),
+
+  /** Honest Voice Receptionist ROI — MEASURED conversions × the average PAID
+   *  ticket, shown as a capture-band estimate. No fabricated bookings. */
+  receptionistRoi: adminProcedure
+    .input(z.object({
+      sinceISO: z.string().datetime().optional(),
+      untilISO: z.string().datetime().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { getReceptionistRoi } = await import("../services/receptionistRoi");
+      return getReceptionistRoi(input ?? {});
     }),
 
   // ─── wave-86 additions ──────────────────────────────────

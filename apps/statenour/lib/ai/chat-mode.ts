@@ -105,6 +105,19 @@ export async function pruneTools(
     if (allTools[name]) kept[name] = allTools[name];
   }
 
+  // 2026-07-06 · the most-used WRITE tools are always attached too. They were
+  // excluded from the read-only CORE_TOOLS, so a keyword-less action turn
+  // ("add it", "try again") with a cold embedding cache left the operator
+  // unable to create/complete a task at all — the model fabricated "done" or
+  // reported the tool unavailable. DO_NOT_AUTO_TASKIFY in the system prompt
+  // still gates eager firing; availability != invocation. (Detected-action
+  // turns are ALSO force-injected in route.ts via __actionIntent.expectedTool;
+  // this covers the turns where intent detection misses.)
+  const ACTION_CORE = ["createTask", "completeTask"];
+  for (const name of ACTION_CORE) {
+    if (allTools[name]) kept[name] = allTools[name];
+  }
+
   // ── Exact tool name mention ──
   // If the user explicitly mentions a tool name (case-insensitive check), always include it
   for (const name of Object.keys(allTools)) {
@@ -337,6 +350,104 @@ export async function pruneTools(
     for (const name of helpTools) {
       if (allTools[name]) kept[name] = allTools[name];
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // v10.0.531 · TOOL-ATTACHMENT AUDIT · 13 confirmed coverage gaps
+  // Same root-cause class as v10.0.510: the tool exists in the catalog
+  // but no keyword family surfaced it on natural phrasings, so on a cold
+  // embedding cache (semantic layer OFF) the model saw no tool and either
+  // hallucinated or reported "no tool". A 13-category audit (2026-07-06)
+  // confirmed each gap against the live regexes. MIRRORED in
+  // tests/ai/chat-mode-keyword-families.test.ts.
+  // ─────────────────────────────────────────────────────────────
+
+  // #1 · Inline chart / data-viz. "chart of", "pie chart", "visualize" hit
+  // the Python family (runPython/solveMath) — WRONG tool. Attach the
+  // renderer too so the model can pick it for viz-shaped asks.
+  if (/\b(chart of|pie chart|bar chart|line chart|render (a |the )?chart|visuali[sz]e|visuali[sz]ation|graph (of|this|the)|plot (of|this|the) (data|tasks|metrics))\b/.test(text)) {
+    addMatching(/renderInlineChart/i);
+  }
+
+  // #2 · Business escape-hatch. queryNickstire runs free-form shop queries
+  // (revenue_today, leads_pipeline, callbacks_pending, work_orders_active).
+  // The business family trigger fires but its name-pattern never matched it.
+  if (/\b(query (the )?(shop|business|nickstire)|shop data|business data|bookings?|pending callbacks?|work orders?|status of (our|the) (bookings?|jobs?|orders?))\b/.test(text)) {
+    addMatching(/queryNickstire/i);
+  }
+
+  // #3 · Personal health · mental-health + burnout + composure. "am I okay",
+  // "burning out", "overworking" matched NO family (the brain family needs
+  // the bounded "emotional state"/"brain health"). Read-only analyzers.
+  if (/\b(mental health|how (am|'?m) i doing (emotional|mental)|am i okay|am i ok\b|burn(ing)? ?out|burnout|overwork(ing|ed)?|work.?life balance|workload sustainable|work health|composure|am i composed|emotional regulation|how('?s| is) my (mood|stress|mental)|how stressed)\b/.test(text)) {
+    addMatching(/analyzeMentalHealth|analyzeWorkHealth|analyzeComposure|getEmotionalState/i);
+  }
+
+  // #4 · Trend detection across personal metrics (analyzeTrends is
+  // advertised in the system prompt but had no family). "what's changing",
+  // "trending", "top movers".
+  if (/\b(trend(ing|s| analysis)?|what'?s changing|what changed|top movers?|moving (up|down)|biggest changes?|shifts? in my)\b/.test(text)) {
+    addMatching(/analyzeTrends/i);
+  }
+
+  // #5 · Web scraping / page extraction (scrapeWebPage / Firecrawl). The
+  // browser family pattern is /browser_/ only; research never fired on
+  // "scrape".
+  if (/\b(scrape|scraping|extract (the )?(content|text) from|read (the |this |that )?(page|webpage|web page|url|link)|convert (the )?(page|url) to markdown|fetch (the )?(page|url))\b/.test(text)) {
+    addMatching(/scrapeWebPage/i);
+  }
+
+  // #6 · Decision pre-flight. Planning shape "should I", "risks before I
+  // decide". Deliberately separate from the brain family (which scopes
+  // "decision" to history/replay/journal).
+  if (/\b(should i|help me (think through|decide)|thinking through|before i decide|risks? before|pros and cons|weigh (this|the) (option|choice|decision)|i'?m considering|what if i)\b/.test(text)) {
+    addMatching(/decisionPreFlight/i);
+  }
+
+  // #7 · Power dynamics / leverage / Greene tactics. analyzePowerDynamics,
+  // getPowerBalanceSummary, getDarkPsychologyTactics, getContextualGreeneLaws
+  // had no family. "power dynamics", "leverage over", "manipulation tactics".
+  if (/\b(power (dynamics?|balance|position)|leverage (over|across|with)|who (has|holds) power|relationship (leverage|strategy)|cognitive bias|manipulation (tactics?|techniques?)|psychology tactics?|dark psychology)\b/.test(text)) {
+    addMatching(/analyzePowerDynamics|getPowerBalanceSummary|getDarkPsychologyTactics|getContextualGreeneLaws/i);
+  }
+
+  // #8 · Recent-sentiment research + short-video generation. last30days
+  // (Reddit/HN/GitHub/YouTube) and moneyprinter (video gen) had no trigger.
+  if (/\b(trending (in the )?last (month|30 ?days|week)|recent sentiment|what (are )?people (discussing|saying) (lately|recently)|last 30 days|reddit sentiment)\b/.test(text)) {
+    addMatching(/last30days/i);
+  }
+  if (/\b(tiktok|reel|short video|make (a |the )?video|generate (a |the )?video|create (a |the )?(short )?video|youtube short|video from (this|that|the) script)\b/.test(text)) {
+    addMatching(/moneyprinter/i);
+  }
+
+  // #9 · Business dashboard + attention alerts. Names don't match the
+  // business pattern, and "dashboard"/"alerts"/"urgent" weren't triggers.
+  // (Note the PLURAL "alerts" — a bare /\balert\b/ misses it.)
+  if (/\b(dashboard|business summary|what needs (my )?attention|what'?s urgent|show me (my )?alerts?|attention (alerts?|items?)|needs? action)\b/.test(text)) {
+    addMatching(/getDashboardSummary|getAttentionAlerts/i);
+  }
+
+  // #10 · Cron / scheduled-job status. "cron" appears in no family trigger.
+  if (/\b(cron|crons|cron jobs?|scheduled (tasks?|jobs?)|are my (crons?|jobs?) running|job status|which (crons?|jobs?) failed)\b/.test(text)) {
+    addMatching(/getCronStatus/i);
+  }
+
+  // #11 · Competitive intelligence. "competitive analysis", "where are we
+  // weak", "market position". No family covered competitive intent.
+  if (/\b(competitive (analysis|intel|intelligence)|competitors?|where are we weak|our (weakness|vulnerabilit)|market position|how do we (compare|stack up))\b/.test(text)) {
+    addMatching(/analyzeCompetitiveIntel/i);
+  }
+
+  // #12 · Customer SMS staging (approval-gated). stageCustomerAlert is NOT
+  // in the email family. "text this customer", "stage SMS for review".
+  if (/\b(sms|text (the |this |a )?customer|send (an? )?(sms|text) to|stage (a |an )?(customer )?(alert|sms|text)|(customer )?outreach via (sms|text))\b/.test(text)) {
+    addMatching(/stageCustomerAlert/i);
+  }
+
+  // #13 · Situation logging. "log this situation", "record this moment". The
+  // daily family catches "log" but its pattern doesn't match logSituation.
+  if (/\b(log (this |the )?situation|record (this|a) (strategic )?(moment|situation)|i just (encountered|hit|ran into)|note this situation)\b/.test(text)) {
+    addMatching(/logSituation/i);
   }
 
   // If nothing matched, add a small default bundle so the model

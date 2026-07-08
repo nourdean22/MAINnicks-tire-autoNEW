@@ -28,7 +28,10 @@ vi.mock("@/lib/prisma", () => ({
 // The handler dynamically imports the provider module for failure
 // marking — mock it so the import never touches real provider state.
 const markProviderFailedMock = vi.fn();
-vi.mock("@/lib/ai/provider", () => ({
+vi.mock("@/lib/ai/provider", async (importOriginal) => ({
+  // real classifyModelId (the error handler classifies the failing model id);
+  // only the side-effecting marks are stubbed.
+  ...(await importOriginal<typeof import("@/lib/ai/provider")>()),
   markProviderFailed: (...args: unknown[]) => markProviderFailedMock(...args),
   markGeminiQuotaExhausted: vi.fn(),
 }));

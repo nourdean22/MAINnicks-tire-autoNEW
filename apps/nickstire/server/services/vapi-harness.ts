@@ -12,13 +12,27 @@
  *
  * Strategy · run THREE checks against the live system:
  *   1. Config drift · fetch both assistant configs from VAPI · assert
- *      `serverUrl` (legacy) + `server.url` (current) + `server.secret`
- *      all match expected + each tool URL points to nickstire.org.
- *   2. Webhook reachability · POST a synthetic signed status-update
- *      payload to our own /api/webhooks/vapi · assert 200.
- *   3. Tool dispatcher smoke · POST synthetic signed tool-call payloads
+ *      `serverUrl` (legacy) + `server.url` (current) match expected +
+ *      each tool URL points to nickstire.org. (`server.secret` is NOT
+ *      asserted: VAPI's GET /assistant never returns secret material —
+ *      the current API Server schema has no secret field at all — so a
+ *      GET-side assertion is structurally unpassable. Secret correctness
+ *      is proven behaviorally by check 2 instead.)
+ *   2. Webhook reachability · POST a synthetic status-update payload to
+ *      our own /api/webhooks/vapi carrying the plain env secret in
+ *      `x-vapi-secret` — exactly what VAPI sends — assert 200. This is
+ *      the behavioral proof that env secret + verifier + route agree.
+ *   3. Tool dispatcher smoke · POST synthetic tool-call payloads
  *      for 3 read-only tools (shopInfo · capacityCheck · lookupCustomer
  *      with a sentinel phone) · assert each returns the expected shape.
+ *
+ * 2026-07-07 protocol fix · the harness originally signed payloads with
+ * HMAC-SHA256 into `x-vapi-signature`, but commit 452dc386f (2026-05-20)
+ * switched the webhook verifier to a constant-time VERBATIM compare of
+ * the header against plain VAPI_WEBHOOK_SECRET (VAPI sends the
+ * assistant's server.secret verbatim in `x-vapi-secret`). A hex digest
+ * can never equal the plain secret, so checks 2+3 401'd on every run
+ * since — the harness never passed once. It now sends what VAPI sends.
  *
  * Sentinel data · lookupCustomer uses `5550100000` (reserved test
  * range per RFC 5733) so we don't pollute the customers table.
@@ -34,7 +48,6 @@
  * verdict, no divergence.
  */
 
-import { createHmac } from "node:crypto";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("services:vapi-harness");
@@ -58,10 +71,6 @@ export interface HarnessResult {
 }
 
 // ─── Helpers ──────────────────────────────────────────────
-
-function hmacSign(body: string, secret: string): string {
-  return createHmac("sha256", secret).update(body).digest("hex");
-}
 
 async function fetchAssistantConfig(
   assistantId: string,
@@ -119,23 +128,20 @@ async function checkAssistantConfig(
   });
 
   // 1b · nested server.url field present + correct (the wave-181.50 fix)
-  const server = config.server as
-    | { url?: string; secret?: string; timeoutSeconds?: number }
-    | undefined;
+  const server = config.server as { url?: string; timeoutSeconds?: number } | undefined;
   checks.push({
     name: `${assistant.label}: server.url matches (wave-181.50 root cause)`,
     pass: server?.url === EXPECTED_WEBHOOK_URL,
     details: server?.url ?? "(missing)",
   });
 
-  // 1c · nested server.secret is set (the injectWebhookSecret guard)
-  checks.push({
-    name: `${assistant.label}: server.secret set`,
-    pass: !!server?.secret,
-    details: server?.secret ? "(set · contents redacted)" : "(missing)",
-  });
+  // (no server.secret assertion here · VAPI GET /assistant never returns
+  // secret material — the current API Server schema has no secret field —
+  // so the old "server.secret set" check failed on every run regardless
+  // of the real config. The signature roundtrip check proves the secret
+  // chain end-to-end instead.)
 
-  // 1d · every tool URL (if set) points to nickstire.org
+  // 1c · every tool URL (if set) points to nickstire.org
   const model = config.model as
     | { tools?: Array<{ function?: { name?: string }; server?: { url?: string } }> }
     | undefined;
@@ -172,14 +178,16 @@ async function checkWebhookReachability(
     },
   };
   const body = JSON.stringify(payload);
-  const signature = hmacSign(body, secret);
 
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-vapi-signature": signature,
+        // VAPI sends the assistant's server.secret VERBATIM in this
+        // header · the verifier constant-time-compares it against env
+        // VAPI_WEBHOOK_SECRET (routes/webhooks/vapi.ts · since 452dc386f).
+        "x-vapi-secret": secret,
       },
       body,
       signal: AbortSignal.timeout(10_000),
@@ -231,7 +239,6 @@ async function checkToolDispatch(
     },
   };
   const body = JSON.stringify(payload);
-  const signature = hmacSign(body, secret);
 
   let dispatchCheck: HarnessCheck;
   try {
@@ -239,7 +246,8 @@ async function checkToolDispatch(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-vapi-signature": signature,
+        // Plain secret · same protocol as real VAPI traffic (see check 2).
+        "x-vapi-secret": secret,
       },
       body,
       signal: AbortSignal.timeout(15_000),

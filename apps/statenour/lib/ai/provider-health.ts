@@ -31,10 +31,9 @@ import {
   getGeminiCooldownRemainingMs,
   getOpenAiCooldownRemainingMs,
   getAnthropicCooldownRemainingMs,
-  RUNTIME_PROVIDERS,
+  classifyModelId,
   type ProviderName,
 } from "./provider";
-import { PROVIDERS_REGISTRY } from "@/config/ai-providers";
 
 // Models known to NOT support function calling. Mirror of the set in
 // provider.ts so the dashboard can show a yellow flag without importing
@@ -82,20 +81,12 @@ export interface ProviderHealthSnapshot {
 // using a heuristic (model name prefix). Avoids a separate provider field
 // on AiGeneration (which would require a migration).
 export function modelToProvider(model: string): ProviderName | null {
-  if (!model) return null;
-  const m = model.toLowerCase();
-  for (const provider of RUNTIME_PROVIDERS) {
-    const cfg = PROVIDERS_REGISTRY[provider];
-    if (m === cfg.defaultModel.toLowerCase() || (cfg.defaultVisionModel && m === cfg.defaultVisionModel.toLowerCase())) {
-      return provider;
-    }
-    for (const sub of cfg.modelSubstrings) {
-      if (m.includes(sub.toLowerCase())) {
-        return provider;
-      }
-    }
-  }
-  return null;
+  // Delegates to the ONE canonical classifier (classifyModelId in provider.ts).
+  // Previously this did a bare registry-substring scan with NO slash-first
+  // branch, so OpenRouter ids ("google/gemini-2.5-flash") matched gemini's
+  // "gemini" substring and were misattributed to the native gemini lane — the
+  // operator cost HUD / provider-health pill went blind to all OpenRouter traffic.
+  return classifyModelId(model);
 }
 
 async function getRecentTelemetry(): Promise<Record<ProviderName, { calls: number; errors: number; avgMs: number }>> {

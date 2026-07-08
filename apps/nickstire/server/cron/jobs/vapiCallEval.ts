@@ -89,6 +89,8 @@ interface ScoredCall {
   outcome: string;
   reasoning: string;
   phoneTail4: string;
+  /** Intents the classifier extracted (e.g. new_tire, brakes) — used to cluster misses into lessons. */
+  intents: string[];
 }
 
 export async function processVapiCallEval(): Promise<ProcessResult> {
@@ -305,6 +307,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           outcome: bucketed,
           reasoning,
           phoneTail4: (row.phoneNumber ?? "").replace(/\D/g, "").slice(-4),
+          intents: result.intents,
         });
       }
 
@@ -425,17 +428,54 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
     }
   }
 
-  // 4. Persist insight to nick memory for compound learning
+  // 4. Persist compound-learning LESSONS to nick memory.
+  //
+  // (Removed the daily "insight" rollup that used to live here: its content
+  // changed every run so it never reinforced — it just accumulated one dead
+  // ~0.85 row/day in the shared 500-cap memory pool, crowding out the lessons
+  // below. The same digest still goes to Telegram above; the memory copy added
+  // no value. Surfaced by the PR #566 self-improving-loop review.)
   try {
     const { remember } = await import("../../services/nickMemory");
-    await remember({
-      type: "insight",
-      content: `Daily VAPI eval: ${totalCalls} calls · avg ${avgScore}/100 · converted ${convertedCount} (${conversionRate}%) · wasted ${wastedCount}.`,
-      source: "vapi_eval_cron",
-      confidence: 0.85,
-    });
+
+    // Structured lessons — cluster this run's coachable misses (a lost_opportunity
+    // outcome, or a soft info-only score of 50-69) by the intents the classifier
+    // extracted. The lesson text is STABLE per intent, so remember() reinforces a
+    // recurring pattern day over day (confidence compounds) instead of writing a
+    // throwaway string. This turns getMemoryContext() from a rollup feed into a
+    // ranked "what to fix" list a later phase can splice into the assistant prompt.
+    const misses = scored.filter(
+      (c) => c.outcome === "lost_opportunity" || scoreBand(c.score) === "info",
+    );
+    const missesByIntent = new Map<string, number>();
+    for (const c of misses) {
+      for (const intent of c.intents) {
+        missesByIntent.set(intent, (missesByIntent.get(intent) ?? 0) + 1);
+      }
+    }
+    // 2026-07-07 threshold rework · the old `count < 2` in-RUN gate never
+    // fired once in production (17 runs / 252 scored calls / 14d → zero
+    // vapi_eval_cron lessons ever written): at this shop's volume and
+    // conversion rate, two same-intent misses rarely land in a single
+    // daily batch. The gate was also DOUBLE protection — the pattern
+    // detector this loop actually relies on is cross-day reinforcement:
+    // a fresh lesson starts at 0.6, the receptionist prompt bar is >=0.65
+    // (nickMemory.ts rankPromptLessons), and confidence only climbs +0.05
+    // when the SAME intent misses again on a later run. So a one-off
+    // still never reaches the live phone prompt; it just decays. Writing
+    // on the first miss lets recurrence accumulate ACROSS runs instead of
+    // requiring it within one. Pool impact is bounded: one stable-text
+    // row per intent (content-hash reinforce, never duplicates).
+    for (const [intent] of missesByIntent) {
+      await remember({
+        type: "lesson",
+        content: `Callers about "${intent}" keep ending without a booking (lost or info-only). Qualify the ${intent} ask faster and offer a manager transfer earlier so the call converts.`,
+        source: "vapi_eval_cron",
+        confidence: 0.6,
+      });
+    }
   } catch (e) {
-    log.warn("[vapi-eval] nickMemory.remember failed", { error: e instanceof Error ? e.message : String(e) });
+    log.warn("[vapi-eval] nickMemory persist failed", { error: e instanceof Error ? e.message : String(e) });
   }
 
   const durMs = Date.now() - start;

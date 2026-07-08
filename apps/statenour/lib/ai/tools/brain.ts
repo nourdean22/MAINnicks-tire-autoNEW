@@ -102,6 +102,9 @@ export const brainTools = {
     }),
     execute: async ({ query, limit }) => {
       const { recallSkills } = await import("@/lib/skills/skill-recall");
+      const { hasBundledProtocol } = await import(
+        "@/lib/ai/skills/bundled-protocols"
+      );
       const matches = await recallSkills(query, limit ?? 3);
       return {
         ok: true,
@@ -111,8 +114,41 @@ export const brainTools = {
           description: s.description,
           category: s.category,
           similarity: Number(s.similarity.toFixed(3)),
+          // When true, call getSkillProtocol(name) to load the full
+          // instructions before executing the skill.
+          hasProtocol: hasBundledProtocol(s.name),
         })),
       };
+    },
+  }),
+
+  // Loads the full instruction body for a bundled skill. suggestSkills
+  // returns description-only; this returns the verbatim protocol (table
+  // templates, hard rules) so the model executes with full fidelity.
+  getSkillProtocol: tool({
+    description:
+      "Load the full step-by-step protocol for a bundled skill by exact name (e.g. 'maxforge-alpha'). suggestSkills returns only a short description — when a match has hasProtocol:true, call this to fetch its actual instructions, output templates, and hard rules BEFORE executing the skill. Returns { ok, name, protocol } or { ok:false } when the skill has no bundled protocol.",
+    inputSchema: z.object({
+      name: z
+        .string()
+        .min(2)
+        .max(100)
+        .describe("Exact skill name from suggestSkills, e.g. 'maxforge-alpha'."),
+    }),
+    execute: async ({ name }) => {
+      const { getBundledProtocol } = await import(
+        "@/lib/ai/skills/bundled-protocols"
+      );
+      const protocol = getBundledProtocol(name);
+      if (!protocol) {
+        return {
+          ok: false as const,
+          name,
+          error:
+            "No bundled protocol for this skill. Use suggestSkills for description-level guidance.",
+        };
+      }
+      return { ok: true as const, name, protocol };
     },
   }),
 

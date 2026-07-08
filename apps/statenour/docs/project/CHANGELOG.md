@@ -15,6 +15,26 @@ separate: different stack (Next.js vs Express), different deploy target
 
 ---
 
+## 2026-07-05 — Chat pipeline: audit-fix wave + owner-authority + 5 perf/quality improvements
+
+Six PRs on `main` (#550–#555). Full narrative: [`../sessions/2026-07-05.md`](../sessions/2026-07-05.md).
+
+### Audit fixes
+- **#550** — one canonical `classifyModelId`; fixed the live bug where `provider-health` misattributed OpenRouter ids (`google/gemini-*`) to the native gemini lane (cost HUD blind to OpenRouter). 3 drifted classifiers → 1 + anti-drift test.
+- **#551** — 5 reachable chat findings: errored stub rows show a red "interrupted · retry" card in chat-v2 (was a blank bubble); chat deep-reasoning caps base-`mega`→`deep` (no silent ~$0.20 run); tool-gather output `fenceContent()`-wrapped at the engine choke point; `runToolGather` bounded with `AbortSignal.timeout(8000)`; compressed-path empty-string turns now hit the hollow scrub (+2 tests).
+
+### Owner authority
+- **#552** — `OWNER AUTHORITY` directive added to the LIVE `identityBlock()` (`static.ts`): never refuse/moralize/disclaim to Nour; name a risk in one line, then do it. Placed at prompt idx-0 (trim-proof). **Persona unrestricted, security machinery untouched** — the directive itself preserves fencing/injection/SSRF/mutation-lock/two-tap; zero guardrail files changed.
+
+### Improvements
+- **#553** — `arsenalWebSearch` returns citations on all paths; 45s text-keyed `getEmbedding` memo (collapses duplicate Cohere calls/turn); deleted dead `thinking-guard.ts` (−179 LOC).
+- **#554** — parallelized `buildContextHints` + `buildBrainContext` into the route's main `Promise.all` (recall overlaps the prompt build vs a ~6s serial tail). Output byte-identical; only timing changes.
+- **#555** — Perplexica added as a free 5th source in the `searchWebVerified` quorum; joins the DEFAULT set only when `hasPerplexica()` so it never dilutes confidence (`successes/requested.length`) on deploys that don't run it.
+
+Verify (fresh, merged `origin/main` @ `4b6c8d12`): `tsc` exit 0; 68/68 across the six backing suites. Behavioral wins (TTFT, live search, UI) are static-verified only — the live chat is auth + prod-Neon gated.
+
+---
+
 ## 2026-06-21 — Deep-disconnect audit · 13 dead Prisma models + 22 legacy REST routes deleted
 
 Three-commit cleanup wave on `main` (PR #267).

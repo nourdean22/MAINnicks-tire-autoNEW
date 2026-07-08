@@ -11,6 +11,13 @@ build/
 .turbo/
 **/.turbo/
 
+# Graphify — local code knowledge-graph output (graph.json/html, report, cache)
+graphify-out/*
+!graphify-out/GRAPH_REPORT.md
+# nested per-scope graphs from ad-hoc runs — never commit
+apps/**/graphify-out/
+packages/**/graphify-out/
+
 # Environment variables
 .env
 .env.*

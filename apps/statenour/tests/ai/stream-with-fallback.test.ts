@@ -24,7 +24,10 @@ vi.mock("ai", () => ({
 // Mock provider — control which model getModel returns.
 const getModelMock = vi.fn();
 const markProviderFailedMock = vi.fn();
-vi.mock("@/lib/ai/provider", () => ({
+// Spread the REAL module so the real classifyModelId (used by inferProviderName)
+// is available; only getModel + markProviderFailed are stubbed to drive the loop.
+vi.mock("@/lib/ai/provider", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/provider")>()),
   getModel: (...args: unknown[]) => getModelMock(...args),
   markProviderFailed: (...args: unknown[]) => markProviderFailedMock(...args),
 }));

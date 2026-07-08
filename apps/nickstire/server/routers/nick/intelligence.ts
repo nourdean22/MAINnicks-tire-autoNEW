@@ -687,7 +687,87 @@ export async function handleRunMigrations() {
       `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_shares INT DEFAULT 0`,
       `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_saves INT DEFAULT 0`,
       `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_comments INT DEFAULT 0`,
-      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_bookings_attributed INT DEFAULT 0`
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS metrics_bookings_attributed INT DEFAULT 0`,
+      // 2026-07-07 · BE-DATA-1 · first DB-level FK on nickstire (120 tables had
+      // zero). sms_messages.conversationId -> sms_conversations.id. Applied to
+      // prod TiDB v8.5.3 first (pre-check: 0 orphans of 8,776 rows; verified
+      // constraint present). ON DELETE CASCADE is inert in practice — nothing
+      // in server/ ever deletes a conversation. Not natively idempotent (TiDB
+      // has no ADD CONSTRAINT IF NOT EXISTS), but the loop's catch tolerates the
+      // "Duplicate foreign key constraint name" re-run error. Drizzle def:
+      // drizzle/schema.ts smsMessages.conversationId.references(...).
+      `ALTER TABLE sms_messages ADD CONSTRAINT fk_sms_msg_conv FOREIGN KEY (conversationId) REFERENCES sms_conversations(id) ON DELETE CASCADE`,
+      // 2026-07-07 · BE-DATA-1 wave 2 · invoices.customerId -> customers.id.
+      // ON DELETE SET NULL — an invoice is a financial record; never cascade-
+      // delete it, just unlink. Nullable (395 of 2,792 rows are legitimately
+      // unmatched imports). Applied to prod first (pre-check: 0 orphans).
+      // Loop-catch tolerates the "Duplicate ... constraint" re-run error.
+      // (work_orders.customer_id -> customers.id was DEFERRED — its lone row is
+      //  an orphan pointing at a missing customer; operator cleans that 1 row.)
+      `ALTER TABLE invoices ADD CONSTRAINT fk_invoices_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL`,
+      // 2026-07-07 · BE-DATA-1 wave 3 · 9 ownership CASCADE FKs (parents never
+      // deleted in server/ -> cascade dormant) + work_orders->customers SET NULL.
+      // All applied to prod TiDB first (per-pair pre-check: 0 orphans; the one
+      // work_orders orphan pointer was NULLed, row preserved). Types verified
+      // (varchar(36) UUID + bigint keys match parents). Loop-catch tolerates the
+      // Duplicate-constraint re-run error. Drizzle defs: drizzle/schema.ts .references().
+      `ALTER TABLE inspection_items ADD CONSTRAINT fk_inspection_items_inspection FOREIGN KEY (inspectionId) REFERENCES vehicle_inspections(id) ON DELETE CASCADE`,
+      `ALTER TABLE customer_metrics ADD CONSTRAINT fk_customer_metrics_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE`,
+      `ALTER TABLE vehicles ADD CONSTRAINT fk_vehicles_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE`,
+      `ALTER TABLE work_order_items ADD CONSTRAINT fk_wo_items_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,
+      `ALTER TABLE work_order_transitions ADD CONSTRAINT fk_wo_transitions_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,
+      `ALTER TABLE qc_checklists ADD CONSTRAINT fk_qc_checklists_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,
+      `ALTER TABLE prediction_impressions ADD CONSTRAINT fk_pred_impressions_pred FOREIGN KEY (prediction_id) REFERENCES service_affinity_predictions(id) ON DELETE CASCADE`,
+      `ALTER TABLE prediction_actions ADD CONSTRAINT fk_pred_actions_pred FOREIGN KEY (prediction_id) REFERENCES service_affinity_predictions(id) ON DELETE CASCADE`,
+      `ALTER TABLE sms_orchestration_outcomes ADD CONSTRAINT fk_sms_orch_outcomes_orch FOREIGN KEY (orchestration_id) REFERENCES sms_orchestrations(id) ON DELETE CASCADE`,
+      `ALTER TABLE work_orders ADD CONSTRAINT fk_work_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL`,
+      // 2026-07-07 · BE-DATA-1 wave 4/5 · 19 more FKs (money-adjacent SET NULL +
+      // RESTRICT ledgers/technicians + one CASCADE). All applied to prod first,
+      // per-pair pre-check 0 orphans (pure additive, no data writes), types
+      // verified vs parent PKs. Skipped invoices.workOrderId (int) -> work_orders.id
+      // (varchar(36)) — impossible FK, type mismatch. Loop-catch = idempotent.
+      `ALTER TABLE leads ADD CONSTRAINT fk_leads_callback FOREIGN KEY (callbackId) REFERENCES callback_requests(id) ON DELETE SET NULL`,
+      `ALTER TABLE leads ADD CONSTRAINT fk_leads_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE SET NULL`,
+      `ALTER TABLE leads ADD CONSTRAINT fk_leads_invoice FOREIGN KEY (invoiceId) REFERENCES invoices(id) ON DELETE SET NULL`,
+      `ALTER TABLE invoices ADD CONSTRAINT fk_invoices_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE SET NULL`,
+      `ALTER TABLE estimates_log ADD CONSTRAINT fk_estlog_invoice FOREIGN KEY (invoiceId) REFERENCES invoices(id) ON DELETE SET NULL`,
+      `ALTER TABLE estimates_log ADD CONSTRAINT fk_estlog_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE SET NULL`,
+      `ALTER TABLE alg_estimates ADD CONSTRAINT fk_algest_invoice FOREIGN KEY (matched_invoice_id) REFERENCES invoices(id) ON DELETE SET NULL`,
+      `ALTER TABLE alg_estimates ADD CONSTRAINT fk_algest_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL`,
+      `ALTER TABLE vapi_call_logs ADD CONSTRAINT fk_vapi_lead FOREIGN KEY (leadId) REFERENCES leads(id) ON DELETE SET NULL`,
+      `ALTER TABLE vapi_call_logs ADD CONSTRAINT fk_vapi_callback FOREIGN KEY (callbackId) REFERENCES callback_requests(id) ON DELETE SET NULL`,
+      `ALTER TABLE payments ADD CONSTRAINT fk_payments_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL`,
+      `ALTER TABLE tire_orders ADD CONSTRAINT fk_tireorders_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL`,
+      `ALTER TABLE tire_orders ADD CONSTRAINT fk_tireorders_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE SET NULL`,
+      `ALTER TABLE warranties ADD CONSTRAINT fk_warranties_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL`,
+      `ALTER TABLE payments ADD CONSTRAINT fk_payments_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE RESTRICT`,
+      `ALTER TABLE loyalty_transactions ADD CONSTRAINT fk_loyalty_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE RESTRICT`,
+      `ALTER TABLE job_assignments ADD CONSTRAINT fk_jobassign_tech FOREIGN KEY (technicianId) REFERENCES technicians(id) ON DELETE RESTRICT`,
+      `ALTER TABLE warranties ADD CONSTRAINT fk_warranties_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE RESTRICT`,
+      `ALTER TABLE job_assignments ADD CONSTRAINT fk_jobassign_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE CASCADE`,
+      // 2026-07-07 · BE-DATA-1 wave 5 · 8 more FKs (nickstire 31 -> 39). Owned-
+      // record CASCADE (incl. 2 LIVE cascades where bookings ARE deleted:
+      // review_requests + appointment_reminders) + service_history SET NULL.
+      // Applied to prod first: 8 pairs 0 orphans; review_requests had 4 orphaned
+      // test/sentinel rows (bookingId 0/99999, terminal status) DELETED per
+      // operator confirmation, then FK added. Types verified.
+      // SKIPPED service_affinity_predictions.customer_id -> customers.id: DB
+      // column is BIGINT while customers.id is INT (ER_FK_INCOMPATIBLE_COLUMNS) —
+      // impossible FK + a latent schema drift (drizzle declares int). Documented.
+      `ALTER TABLE customer_vehicles ADD CONSTRAINT fk_custveh_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE`,
+      `ALTER TABLE service_history ADD CONSTRAINT fk_svchist_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL`,
+      `ALTER TABLE service_history ADD CONSTRAINT fk_svchist_vehicle FOREIGN KEY (vehicleId) REFERENCES customer_vehicles(id) ON DELETE SET NULL`,
+      `ALTER TABLE service_history ADD CONSTRAINT fk_svchist_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE SET NULL`,
+      `ALTER TABLE review_requests ADD CONSTRAINT fk_reviewreq_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE CASCADE`,
+      `ALTER TABLE winback_sends ADD CONSTRAINT fk_winback_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE`,
+      `ALTER TABLE sms_campaign_sends ADD CONSTRAINT fk_smscampsend_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE`,
+      `ALTER TABLE appointment_reminders ADD CONSTRAINT fk_apptremind_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE`,
+      // 2026-07-07 · schema-drift audit · conversation_memory.conversionHits was
+      // declared in drizzle + written by chat.ts (memory merge + conversion
+      // reinforcement UPDATEs) but MISSING from the DB — those UPDATEs threw
+      // "Unknown column", silently breaking chat conversion tracking. Add it.
+      // Additive + safe (NOT NULL DEFAULT 0). IF NOT EXISTS = idempotent.
+      `ALTER TABLE conversation_memory ADD COLUMN IF NOT EXISTS conversionHits INT NOT NULL DEFAULT 0`
     ];
 
     let applied = 0;

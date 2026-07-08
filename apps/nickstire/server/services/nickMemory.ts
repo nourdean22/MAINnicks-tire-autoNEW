@@ -67,10 +67,15 @@ export async function remember(params: {
       const [countResult] = await d.select({ count: sql<number>`count(*)` }).from(shopSettings)
         .where(sql`${shopSettings.key} LIKE 'nick_memory_%'`);
       if ((countResult?.count ?? 0) >= 500) {
-        // Delete the lowest-confidence memory to make room
+        // Evict the lowest-confidence memory to make room — but NEVER a
+        // 'preference' (the operator's durable settings; only decayMemories may
+        // remove those, after real staleness). Tiebreak on least-recently-
+        // reinforced so a stale row is chosen ahead of a fresh equal-confidence
+        // one. Type/age-blind eviction was flagged by the PR #566 review as able
+        // to silently drop a load-bearing operator preference.
         const lowest = await d.select().from(shopSettings)
-          .where(sql`${shopSettings.key} LIKE 'nick_memory_%'`)
-          .orderBy(sql`JSON_EXTRACT(value, '$.confidence') ASC`)
+          .where(sql`${shopSettings.key} LIKE 'nick_memory_%' AND JSON_UNQUOTE(JSON_EXTRACT(value, '$.type')) <> 'preference'`)
+          .orderBy(sql`JSON_EXTRACT(value, '$.confidence') ASC, COALESCE(JSON_UNQUOTE(JSON_EXTRACT(value, '$.lastReinforced')), JSON_UNQUOTE(JSON_EXTRACT(value, '$.createdAt'))) ASC`)
           .limit(1);
         if (lowest.length > 0) {
           await d.delete(shopSettings).where(sql`${shopSettings.id} = ${lowest[0].id}`);
@@ -156,6 +161,47 @@ export async function getMemoryContext(): Promise<string> {
     context += `\n${type.toUpperCase()}:\n${items.join("\n")}`;
   }
   return context;
+}
+
+/** The ONLY source that writes receptionist-coaching lessons (vapiCallEval · phase 1). */
+export const RECEPTIONIST_LESSON_SOURCE = "vapi_eval_cron";
+
+/**
+ * Rank + filter lessons for injection into the VAPI receptionist prompt. Pure, so
+ * it is unit-testable (see nickMemory.promptLessons.test.ts).
+ *
+ * CRITICAL: restricted to source 'vapi_eval_cron'. Other subsystems (statenour
+ * alerts, data-accuracy checks, the event bus) also write type:'lesson' rows; a
+ * /verify against the LIVE memory pool found those would otherwise win by
+ * uses×confidence and get spliced into the live prompt (e.g. "Data accuracy: N
+ * invoices missing phone") — junk for a voice agent. Only lessons reinforced to
+ * >= minConfidence (default 0.65) qualify (a fresh lesson starts at 0.6), ranked
+ * by confidence * uses.
+ */
+export function rankPromptLessons(lessons: NickMemory[], opts?: { max?: number; minConfidence?: number }): NickMemory[] {
+  const max = opts?.max ?? 3;
+  const minConfidence = opts?.minConfidence ?? 0.65;
+  return lessons
+    .filter((m) => m.source === RECEPTIONIST_LESSON_SOURCE && m.confidence >= minConfidence)
+    .sort((a, b) => (b.confidence * b.uses) - (a.confidence * a.uses))
+    .slice(0, max);
+}
+
+export async function topPromptLessons(opts?: { max?: number; minConfidence?: number }): Promise<NickMemory[]> {
+  const lessons = await recall({ type: "lesson", limit: 50 });
+  return rankPromptLessons(lessons, opts);
+}
+
+/**
+ * The top lessons as a compact block for the receptionist system prompt, or ""
+ * if none qualify. Appended ONLY by updateAssistant() on the operator's manual
+ * "Push Latest Config" re-push — never an automated path.
+ */
+export async function getPromptLessons(opts?: { max?: number; minConfidence?: number }): Promise<string> {
+  const top = await topPromptLessons(opts);
+  if (top.length === 0) return "";
+  const lines = top.map((m) => `- ${m.content}`).join("\n");
+  return `\n\n## WHAT WE'VE LEARNED (from recent calls · apply when relevant)\n${lines}`;
 }
 
 /**
@@ -548,6 +594,35 @@ export function getTopQuestions(limit = 5): Array<{ topic: string; count: number
     .slice(0, limit);
 }
 
+const DECAY_STEP_MS = 30 * 24 * 60 * 60 * 1000; // 30 days per 0.05 decay step
+
+/**
+ * Confidence a memory should hold given its ORIGINAL confidence and age.
+ * Decays 0.05 per 30-day step, floored at 0.10. Pure + idempotent (target is
+ * always computed from the original), so re-running never over-decays.
+ *
+ * FIX: the previous inline guard only decayed while `confidence > 0.3`, and every
+ * 0.05-step confidence (0.85, 0.70, 0.65, 0.60, 0.50…) lands EXACTLY on 0.30 — so
+ * memories froze at 0.30, never reached the <0.15 prune floor, and decayMemories
+ * effectively never pruned anything (the 500-cap eviction was the only GC). The
+ * round() kills float drift (0.85 - 0.55 = 0.30000000000000004).
+ */
+export function decayedConfidence(originalConfidence: number, ageMs: number): number {
+  if (ageMs <= DECAY_STEP_MS) return originalConfidence;
+  const factor = Math.floor(ageMs / DECAY_STEP_MS) * 0.05;
+  return Math.max(0.1, Math.round((originalConfidence - factor) * 100) / 100);
+}
+
+/**
+ * Whether a decayed memory should be pruned. Operator `preference` rows are NEVER
+ * auto-pruned (durable settings — same protection as the 500-cap eviction);
+ * everything else is removed once decayed below 0.15 and untouched for 90+ days.
+ */
+export function isPrunableMemory(type: string, confidence: number, ageMs: number): boolean {
+  if (type === "preference") return false;
+  return confidence < 0.15 && ageMs > DECAY_STEP_MS * 3;
+}
+
 /**
  * Memory decay — reduce confidence of old, unused memories.
  * Called from the feedback cycle. Prevents stale knowledge from dominating.
@@ -564,7 +639,6 @@ export async function decayMemories(): Promise<number> {
 
     let decayed = 0;
     const now = Date.now();
-    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 
     for (const row of rows) {
       try {
@@ -572,22 +646,19 @@ export async function decayMemories(): Promise<number> {
         const lastUsed = new Date(data.lastReinforced || data.createdAt).getTime();
         const age = now - lastUsed;
 
-        // Idempotent decay: compute target confidence from ORIGINAL, not current
-        // This prevents re-applying decay every 2h cycle
+        // Idempotent decay: target is always computed from the ORIGINAL confidence
+        // (stored on first decay), so re-running the cycle never over-decays.
         const originalConfidence = data.originalConfidence || data.confidence;
-        if (!data.originalConfidence) data.originalConfidence = data.confidence; // Store original on first decay
-        if (age > thirtyDaysMs && data.confidence > 0.3) {
-          const decayFactor = Math.floor(age / thirtyDaysMs) * 0.05;
-          const targetConfidence = Math.max(0.1, originalConfidence - decayFactor);
-          if (data.confidence !== targetConfidence) {
-            data.confidence = targetConfidence;
-            await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(sql`${shopSettings.id} = ${row.id}`);
-            decayed++;
-          }
+        if (!data.originalConfidence) data.originalConfidence = data.confidence;
+        const target = decayedConfidence(originalConfidence, age);
+        if (data.confidence !== target) {
+          data.confidence = target;
+          await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(sql`${shopSettings.id} = ${row.id}`);
+          decayed++;
         }
 
-        // Prune dead memories (confidence < 0.15 and unused for 90d)
-        if (data.confidence < 0.15 && age > thirtyDaysMs * 3) {
+        // Prune dead memories (decayed below 0.15, untouched 90d+) — never a preference.
+        if (isPrunableMemory(data.type, data.confidence, age)) {
           await d.delete(shopSettings).where(sql`${shopSettings.id} = ${row.id}`);
           decayed++;
         }

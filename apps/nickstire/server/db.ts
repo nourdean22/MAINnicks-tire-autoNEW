@@ -114,10 +114,15 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.role = user.role;
       updateSet.role = user.role;
     } else if (
-      // Auto-grant admin if openId matches OWNER_OPEN_ID
+      // Primary, always-on path: openId matches OWNER_OPEN_ID.
       (ENV.ownerOpenId && user.openId === ENV.ownerOpenId) ||
-      // OR if OWNER_OPEN_ID is not set and email matches CEO_EMAIL (first-login bootstrap)
-      (!ENV.ownerOpenId && ENV.ceoEmail && user.email && user.email.toLowerCase() === ENV.ceoEmail.toLowerCase())
+      // Fallback bootstrap: OWNER_OPEN_ID unset AND the Google-verified email
+      // matches CEO_EMAIL. Gated to non-production so that clearing OWNER_OPEN_ID
+      // in prod cannot silently re-open admin bootstrap to anyone controlling a
+      // Google account whose email matches CEO_EMAIL. In prod, keep OWNER_OPEN_ID set.
+      (process.env.NODE_ENV !== 'production' &&
+        !ENV.ownerOpenId && ENV.ceoEmail && user.email &&
+        user.email.toLowerCase() === ENV.ceoEmail.toLowerCase())
     ) {
       values.role = 'admin';
       updateSet.role = 'admin';

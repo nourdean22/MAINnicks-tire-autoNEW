@@ -1,16 +1,43 @@
 ﻿{
     "vulnerabilities":  {
-                            "low":  0,
+                            "low":  2,
                             "critical":  0,
-                            "moderate":  0,
-                            "total":  0,
+                            "moderate":  1,
+                            "total":  3,
                             "high":  0
                         },
     "advisories":  [
-
+                       {
+                           "id":  1102341,
+                           "range":  "\u003c=0.24.2",
+                           "patched":  "\u003e=0.25.0",
+                           "module":  "esbuild",
+                           "severity":  "moderate",
+                           "title":  "esbuild enables any website to send any requests to the development server and read the response",
+                           "url":  "https://github.com/advisories/GHSA-67mh-4wv8-2f99"
+                       },
+                       {
+                           "id":  1120680,
+                           "range":  "\u003e=0.27.3 \u003c0.28.1",
+                           "patched":  "\u003e=0.28.1",
+                           "module":  "esbuild",
+                           "severity":  "low",
+                           "title":  "esbuild allows arbitrary file read when running the development server on Windows",
+                           "url":  "https://github.com/advisories/GHSA-g7r4-m6w7-qqqr"
+                       },
+                       {
+                           "id":  1120793,
+                           "range":  "\u003c=7.29.0",
+                           "patched":  "\u003e=7.29.6",
+                           "module":  "@babel/core",
+                           "severity":  "low",
+                           "title":  "@babel/core: Arbitrary File Read via sourceMappingURL Comment",
+                           "url":  "https://github.com/advisories/GHSA-4x5r-pxfx-6jf8"
+                       }
                    ],
     "severity":  "moderate",
-    "timestamp":  "2026-06-22T09:00:33.4395459-04:00",
+    "dependencies":  2324,
     "exitCode":  1,
-    "repoRoot":  "C:\\Users\\nourd\\NOURCITY"
+    "repoRoot":  "C:\\Users\\nourd\\NOURCITY\\.claude\\worktrees\\jovial-driscoll-5d20cc",
+    "timestamp":  "2026-07-07T09:25:58.2568552-04:00"
 }

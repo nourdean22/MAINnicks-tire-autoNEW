@@ -1,0 +1,1862 @@
+/* Split from app/globals.css (2026-07-07) - import order in globals.css IS the cascade order; do not reorder. */
+/* ═══════════════════════════════════════════════════════
+   STATUS DOTS — pulsing live indicators
+   ═══════════════════════════════════════════════════════ */
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.status-dot-green { background: var(--status-green); box-shadow: 0 0 6px var(--status-green); animation: pulse 2s ease-in-out infinite; }
+.status-dot-yellow { background: var(--status-yellow); box-shadow: 0 0 6px var(--status-yellow); animation: pulse 2s ease-in-out infinite; }
+.status-dot-red { background: var(--status-red); box-shadow: 0 0 6px var(--status-red); animation: pulse 2s ease-in-out infinite; }
+.status-dot-blue { background: var(--status-blue); box-shadow: 0 0 6px var(--status-blue); }
+.status-dot-gray { background: var(--text-tertiary); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   GOLD FLASH — daily score checkbox animation
+   ═══════════════════════════════════════════════════════ */
+/* v10.0.469 · goldFlash · single-shot fade-in / fade-out · split */
+@keyframes goldFlash {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.gold-flash {
+  position: relative;
+  isolation: isolate;
+}
+.gold-flash::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 20px 4px var(--gold-glow);
+  z-index: -1;
+  animation: goldFlash 0.6s ease-out;
+}
+
+/* Content feed — edge-to-edge on all viewports.
+   Used by every page under app/(mastery)/ (HQ, War Room, Admin, etc.).
+   No max-width cap so pages extend to the viewport edges; padding scales
+   with screen size for breathing room. Individual pages can wrap their
+   own content in a narrower container if they need a reading column. */
+.feed {
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+@media (min-width: 768px) {
+  .feed { padding: 0 24px; }
+}
+
+@media (min-width: 1280px) {
+  .feed { padding: 0 32px; }
+}
+
+/* Safe area for mobile bottom tabs.
+ * Clears the full BottomTabBar stack: BottomPulseTicker (32px mobile) +
+ * nav row (52px) = 84px, plus device safe-area-inset-bottom. */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+}
+
+/* ═══════════════════════════════════════════════════════
+   SCROLLBAR — thin, gold accent
+   ═══════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(253, 185, 19, 0.25); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(253, 185, 19, 0.5); }
+
+/* Text selection — gold tint */
+::selection { background: rgba(253, 185, 19, 0.2); color: #F0F0F0; }
+
+/* Focus rings — gold glow
+ *
+ * v10.0.526 · a11y A9 fix (CRITICAL · WCAG 2.4.7) · the v525 audit
+ * found this rule was being silently defeated by Tailwind's
+ * `outline-none` utility across 20 source files (which sets
+ * `outline: 2px solid transparent` with utility-level specificity).
+ *
+ * Fix: !important on outline + box-shadow so `outline-none` can't
+ * suppress the focus indicator. Operator is a keyboard user
+ * (Cmd+Shift+J / Cmd+F / Cmd+K) — tabbing was returning zero
+ * visible state pre-fix. Now every focusable element shows the
+ * gold-glow ring on keyboard nav regardless of any utility-level
+ * `outline-none`. The `outline-offset: 2px` stays non-important
+ * so per-component overrides can adjust spacing if needed. */
+:focus-visible {
+  outline: 1.5px solid var(--gold) !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--gold-glow) !important;
+}
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.529.110 · Wave AH.b · 2026-05-28 · NATIVE SELECT FIX
+   Operator caught: dropdown options across statenour render
+   white-text-on-white-background (invisible until highlighted)
+   because native <select> popups inherit OS defaults and don't
+   respect the dark theme. 27 native <select> usages affected.
+   Fix lives at the global :root scope so EVERY <select> gets it
+   for free · no per-component fix needed.
+
+   Important · hex colors (not CSS vars). Most browsers render
+   <option> elements through OS-native widgets that don't read
+   CSS custom properties. Using explicit hex guarantees the
+   contrast on Chrome/Safari/Firefox · macOS/iOS/Win/Android.
+   ═══════════════════════════════════════════════════════ */
+select {
+  /* dropdown background when opened · matches --bg-elevated */
+  background-color: #1A1A1A;
+  color: #F0F0F0;
+}
+select option {
+  background-color: #1A1A1A; /* matches --bg-elevated */
+  color: #F0F0F0;             /* matches --text-primary */
+  padding: 8px 12px;          /* breathing room on touch */
+}
+select option:checked,
+select option:hover {
+  background-color: #FDB913;  /* gold accent on hover/active */
+  color: #0A0A0A;             /* inverse for contrast */
+}
+/* Firefox honors this; some Chromes ignore but the base rule above
+   is the actual fix. Keeping this as the polish. */
+select optgroup {
+  background-color: #111111;
+  color: #909090;
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.529.110 · Wave AH.b · iOS NO-ZOOM ON FORM FOCUS
+   Operator caught: "another pass on mobile". Audit found 27
+   native <select> + dozens of <input>/<textarea> with
+   text-[10px] / text-[11px] / text-[12px] font sizes. iOS
+   Safari zooms in when a focused form control's computed
+   font-size is < 16px · the page never zooms back out
+   automatically · operator's chat composer + every drawer
+   form is jumbled after tapping a field.
+
+   Fix · at the mobile breakpoint (≤640px), FORCE 16px on every
+   focusable form control. Desktop keeps the operator-grade
+   typographic density · mobile gets the iOS-safe behavior.
+
+   wave-AB.d-mobile (person-edit-drawer · 2026-05-28) already
+   applied this locally · this lifts it to a global guarantee
+   so EVERY form control across the OS is iOS-safe without
+   per-component edits. Affects approximately 60+ form fields
+   spanning 27 components.
+   ═══════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   MICRO-INTERACTIONS — POWER FEEL
+   ═══════════════════════════════════════════════════════ */
+button, a, input, [role="button"] {
+  transition: background-color 100ms ease, color 100ms ease, border-color 100ms ease, opacity 100ms ease;
+}
+button, [role="button"] {
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+button:active, [role="button"]:active {
+  transform: scale(0.97);
+}
+
+/* Card hover — border brightens to gold */
+[data-card], .nour-card {
+  border: 1px solid var(--border-default);
+  transition: border-color 100ms ease, box-shadow 150ms ease;
+}
+[data-card]:hover, .nour-card:hover {
+  border-color: rgba(253, 185, 19, 0.3);
+  box-shadow: 0 0 12px rgba(253, 185, 19, 0.05);
+}
+
+/* Gold glow for important elements */
+.glow-gold {
+  box-shadow: 0 0 12px var(--gold-glow);
+}
+
+/* Breathing pulse for alerts */
+@keyframes breathe {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+.alert-breathe { animation: breathe 3s ease-in-out infinite; }
+
+/* Pulse dot for live indicators */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+.pulse-live { animation: pulse-dot 2s ease-in-out infinite; }
+
+/* Fade in up */
+.scroll-animate-in {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.scroll-animate-in.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Number count-up shimmer */
+@keyframes count-flash {
+  0% { color: var(--gold); }
+  100% { color: inherit; }
+}
+.count-flash { animation: count-flash 0.6s ease-out; }
+
+/* ═══════════════════════════════════════════════════════
+   SKELETON LOADING
+   v10.0.295 · upgraded from a flat opacity-pulse to a brand-tinted
+   shimmer sweep · gradient travels left→right · matches premium
+   operator-grade dashboards (Stripe / Linear / Vercel) without the
+   AI-default-purple trap. Skeletons now feel alive instead of
+   like dead gray rectangles.
+   ═══════════════════════════════════════════════════════ */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  position: relative;
+  background: linear-gradient(
+    90deg,
+    rgba(253, 185, 19, 0.04) 0%,
+    rgba(253, 185, 19, 0.08) 35%,
+    rgba(253, 185, 19, 0.14) 50%,
+    rgba(253, 185, 19, 0.08) 65%,
+    rgba(253, 185, 19, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: skeleton-shimmer 2.4s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TYPING INDICATOR (for AI chat)
+   ═══════════════════════════════════════════════════════ */
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.2; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.typing-indicator span {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  margin: 0 2px;
+  animation: typing-dot 1.4s ease-in-out infinite;
+}
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+/* ═══════════════════════════════════════════════════════
+   UNLOAD FEATURE POLISH
+   ═══════════════════════════════════════════════════════ */
+/* v10.0.469 · unload-pulse · ripple effect · the original 0px → 20px
+ * spread on the box-shadow simulated an outward expanding ring;
+ * conversion uses opacity fade on a fixed-spread pseudo · the
+ * "expanding" feel is approximated, not exact. */
+@keyframes unload-pulse {
+  0%  { opacity: 1; }
+  70% { opacity: 0; }
+  100%{ opacity: 0; }
+}
+.unload-start-btn {
+  position: relative;
+  isolation: isolate;
+}
+.unload-start-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 8px var(--gold-glow);
+  z-index: -1;
+  animation: unload-pulse 2s ease-in-out infinite;
+}
+.unload-start-btn:hover::before {
+  animation: none;
+  box-shadow: 0 0 20px var(--gold-glow);
+  opacity: 1;
+}
+
+/* Captured item slide-in */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.captured-pill {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+/* v11.1 E1 · alive-layer — fade-in-scale keyframe + utility.
+ * Tuned to 220ms with cubic ease-out (was "0.5s ease-out" too slow
+ * for an interactive UI). Used by: ErrorCard, brain-dump modal,
+ * history search, prompt inspector, next-action whisperer,
+ * chat page smart-replies, stall banner, and any .animate-fade-in-
+ * scale anywhere else.
+ *
+ * ease-out curve (0.22, 1, 0.36, 1) = "ease-out-quint" — the last
+ * 10% of the animation lands softly so elements don't pop into
+ * their final position. Feels expensive. */
+@keyframes fade-in-scale {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.head-clear,
+.animate-fade-in-scale {
+  animation: fade-in-scale 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* v11.1 E2 · breathing — subtle 2.8s pulse for "live" surfaces.
+ * Only applies on pointer: fine / prefers-motion. Prevents motion
+ * sickness on touchscreens + respects accessibility. */
+@keyframes breath {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; }
+}
+.animate-breath {
+  animation: breath 2.8s ease-in-out infinite;
+}
+/* v10.0.453 · prefers-reduced-motion · WCAG 2.3.3 compliance.
+   Was scoped to 2 keyframes (animate-breath + animate-fade-in-scale)
+   while 57 other keyframes ran unimpeded under reduced-motion preference.
+   Replaced with the canonical universal pattern: collapses every
+   animation + transition to near-instant for users with vestibular
+   disorders or motion sensitivity. Each animation jumps to its final
+   keyframe state in 0.01ms — visually equivalent to "no motion at all"
+   without breaking layout assumptions. Audit provenance: motion+a11y
+   audit Finding M3 (MEDIUM · a11y). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Explicit final-state pins for the 2 keyframes that previously had
+     bespoke overrides — kept because their `to` keyframe doesn't quite
+     land at the resting visual we want under reduced motion. */
+  .animate-breath { animation: none; opacity: 1; }
+  .animate-fade-in-scale { animation: none; opacity: 1; transform: none; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE TOUCH FEEDBACK
+   ═══════════════════════════════════════════════════════ */
+@media (pointer: coarse) {
+  button, a, [role="button"] {
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* WCAG 2.5.5 target size — width companion to the min-height above.
+     Scoped to button / [role=button] (where icon-only 32px controls
+     live); intentionally NOT applied to bare <a>, so inline text links
+     inside prose aren't stretched to a 44px box (and per 2.5.5 inline
+     links in a sentence are exempt anyway). */
+  button, [role="button"] {
+    min-width: 44px;
+  }
+  .touch-feedback:active {
+    transform: scale(0.96);
+    transition: transform 0.05s ease;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   NOUR OS ANIMATIONS
+   ═══════════════════════════════════════════════════════ */
+@keyframes count-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-count {
+  animation: count-fade-in 0.5s ease forwards;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chart data point glow */
+.recharts-dot, .recharts-active-dot {
+  filter: drop-shadow(0 0 6px rgba(253, 185, 19, 0.4));
+}
+.recharts-line .recharts-curve {
+  filter: drop-shadow(0 0 3px rgba(253, 185, 19, 0.2));
+}
+
+/* Habit toggle bounce */
+@keyframes habit-check {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.habit-checked {
+  animation: habit-check 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* v10.0.467 · Drift alert breathing pulse · box-shadow → opacity-on-pseudo
+   conversion (per the v10.0.466 pattern). */
+@keyframes drift-glow {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+.drift-critical,
+.drift-warning {
+  position: relative;
+  isolation: isolate;
+}
+.drift-critical::before,
+.drift-warning::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.5);
+  z-index: -1;
+}
+.drift-critical::before { animation: drift-glow 2.5s ease-in-out infinite; }
+.drift-warning::before  { animation: drift-glow 3.5s ease-in-out infinite; }
+
+/* Score submission — gold flash */
+@keyframes success-flash {
+  0% { background-color: transparent; }
+  30% { background-color: var(--gold-glow); }
+  100% { background-color: transparent; }
+}
+.success-flash {
+  animation: success-flash 0.6s ease;
+}
+
+/* Streak fire glow for 7+ days */
+@keyframes fire-glow {
+  0%, 100% { text-shadow: 0 0 4px rgba(253, 185, 19, 0.3); }
+  50% { text-shadow: 0 0 12px rgba(253, 185, 19, 0.6); }
+}
+.streak-fire {
+  animation: fire-glow 2s ease-in-out infinite;
+}
+
+/* Page transition — opacity only (no transform).
+   WARNING: Do not add transform here. A transform (even translateY(0))
+   creates a new containing block that traps `position: fixed` descendants,
+   which breaks full-viewport pages like /chat. Opacity alone is safe. */
+@keyframes page-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.page-enter {
+  animation: page-in 0.2s ease forwards;
+}
+
+/* Peek tab pulse — draws attention to the edge indicator when the
+   floating home orb has been swiped away.
+   v10.0.496 · ADR-0010 cleanup · was animating box-shadow which
+   triggers layout/paint passes. Static glow remains on the button
+   via Tailwind `shadow-[0_0_16px_rgba(253,185,19,0.6)]`. Keyframe
+   now drives the breathing via opacity only (compositor-only). */
+@keyframes peek-pulse {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   MOTION POLISH — critical glow · stagger-in · hover lift
+   ═══════════════════════════════════════════════════════ */
+
+/* Critical glow — pulsing red outer shadow for urgent cards
+   (Drift Shield, Enemies critical rows, overdue tasks).
+   Intentionally subtler than the loud pulse-live — continuous,
+   slow breath so the brain registers 'this is alive and bad'
+   without being annoying. */
+/* v10.0.468 · critical-glow · box-shadow → opacity-on-pseudo. */
+@keyframes critical-glow {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+.critical-glow {
+  position: relative;
+  isolation: isolate;
+}
+.critical-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.45), 0 0 28px rgba(239, 68, 68, 0.22);
+  z-index: -1;
+  animation: critical-glow 3s ease-in-out infinite;
+}
+
+/* Stagger-in — section children fade up with a small delay cascade.
+   Attach to each child with an inline style delay: 0ms, 60ms,
+   120ms, etc.
+
+   v10.0.455 · motion+a11y audit Finding H3 · removed `translateY`.
+   The transform created a containing block DURING the 0.35s
+   animation (non-initial transform = new stacking context) which
+   could clip `position: fixed` descendants. Opacity alone is
+   sufficient for the entrance effect — same visual feel,
+   compositor-safe, no stacking-context hazard, no consumer-side
+   placement constraint. The OLD WARNING comment is now obsolete.
+   Used on ~12 list surfaces across the OS — every one benefits. */
+@keyframes stagger-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.stagger-in {
+  opacity: 0;
+  animation: stagger-in 0.35s ease-out forwards;
+}
+
+/* Card hover lift — subtle 1px rise + shadow on interactive cards.
+   No color change; lets the existing border accents do the talking. */
+.card-hover-lift {
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+.card-hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE BOTTOM BAR
+   ═══════════════════════════════════════════════════════ */
+.mobile-bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(10, 10, 10, 0.9);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--glass-border);
+  padding: 0.5rem 1rem;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: space-around;
+  z-index: 50;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TESLA-STYLE INTERACTIONS
+   ═══════════════════════════════════════════════════════ */
+.glow-on-hover {
+  transition: box-shadow 0.3s;
+}
+.glow-on-hover:hover {
+  box-shadow: 0 0 20px rgba(253, 185, 19, 0.08);
+}
+
+.stagger-in > * {
+  opacity: 0;
+  animation: staggerItem 0.22s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes staggerItem {
+  to { opacity: 1; }
+}
+/* v11.1 fluidity — tightened stagger from 50ms/6-step to 24ms/6-step.
+   Old cascade finished in 300ms; now 144ms. Messages feel reactive,
+   not choreographed. Cubic ease-out smooths the final 10% so items
+   don't visibly snap into place. */
+.stagger-in > *:nth-child(1) { animation-delay: 0.024s; }
+.stagger-in > *:nth-child(2) { animation-delay: 0.048s; }
+.stagger-in > *:nth-child(3) { animation-delay: 0.072s; }
+.stagger-in > *:nth-child(4) { animation-delay: 0.096s; }
+.stagger-in > *:nth-child(5) { animation-delay: 0.120s; }
+.stagger-in > *:nth-child(6) { animation-delay: 0.144s; }
+
+/* ─────────────────────────────────────────────────────────────
+ * v11.1 chat fluidity — Nick prose + streaming cursor shimmer
+ * ─────────────────────────────────────────────────────────────
+ * Two micro-polishes for how Nick's reply FEELS during streaming:
+ *
+ * 1. .nick-prose — antialiased text with optimized rendering.
+ *    `text-rendering: optimizeSpeed` skips the kerning + ligature
+ *    pass that WebKit does on every text-layout recalc. On a long
+ *    streaming message that recalc fires on every token; bypassing
+ *    it cuts jitter during fast streams. Font-smoothing antialiased
+ *    + grayscale looks crisper on dark background (Tesla-grade).
+ *
+ * 2. .nick-prose--streaming — stricter rendering WHILE streaming
+ *    (optimize legibility kicks in again once the message settles).
+ *    Also overscroll-contain-x prevents code blocks from triggering
+ *    horizontal page rubber-band on iOS mid-stream.
+ *
+ * 3. .nick-cursor-shimmer — replaces the animate-pulse on the
+ *    streaming cursor. Pulse is a 2-keyframe opacity flip; shimmer
+ *    is a 4-keyframe blend with subtle glow. Same CPU cost, richer
+ *    feel. */
+.nick-prose {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+.nick-prose--streaming {
+  text-rendering: optimizeSpeed;
+  contain: layout style;
+}
+.nick-prose--streaming pre,
+.nick-prose--streaming code {
+  overscroll-behavior-x: contain;
+}
+/* v10.0.502 · ADR-0010 closure · nick-cursor-shimmer converted to
+   opacity-only + glow on ::after pseudo. Was the last animated-
+   box-shadow keyframe outstanding. The element gets a constant
+   gold glow halo from the pseudo · keyframe drives opacity
+   breathing on the parent · pseudo's opacity syncs via shared
+   keyframe rhythm. Compositor-only · zero paint thrash. Safe
+   for the streaming typing-cursor pattern where the element is
+   a thin inline-block bar. */
+@keyframes nick-cursor-shimmer {
+  0%   { opacity: 0.35; }
+  40%  { opacity: 1; }
+  70%  { opacity: 0.7; }
+  100% { opacity: 0.35; }
+}
+@keyframes nick-cursor-shimmer-glow {
+  0%   { opacity: 0; }
+  40%  { opacity: 0.9; }
+  70%  { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+.nick-cursor-shimmer {
+  position: relative;
+  display: inline-block;
+  animation: nick-cursor-shimmer 1.1s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: opacity;
+}
+.nick-cursor-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  /* Static box-shadow · the breathing comes from the pseudo's
+     opacity animation below, not from animating the shadow itself. */
+  box-shadow: 0 0 6px 1px rgba(var(--gold-rgb, 212, 175, 55), 0.55);
+  opacity: 0;
+  pointer-events: none;
+  animation: nick-cursor-shimmer-glow 1.1s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: opacity;
+}
+
+/* Scan-line overlay — subtle CRT effect */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 1px,
+    rgba(0, 0, 0, 0.015) 1px,
+    rgba(0, 0, 0, 0.015) 2px
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   NEURAL GLASSMORPHISM — God-Mode Visual System
+   Multi-layered glass with reactive neon accents
+   ═══════════════════════════════════════════════════════ */
+
+/* Neural glass card — upgraded glass with neon edge glow */
+.neural-glass {
+  background: linear-gradient(135deg, rgba(17, 17, 17, 0.8), rgba(10, 10, 10, 0.6));
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid rgba(253, 185, 19, 0.08);
+  border-radius: 16px;
+  padding: 1.25rem;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Wave BF · 2026-05-29 · modal-safe glass variant.
+   The base .neural-glass sets position:relative + overflow:hidden +
+   border-radius + padding — fine for a card, FATAL for a Dialog. A modal
+   needs position:fixed (escape flow) + overflow-y:auto (scroll tall
+   content), and the Dialog primitive owns its own radius/padding via
+   Tailwind. .neural-glass clobbered all of that at equal specificity
+   (hand-CSS later in cascade beats Tailwind utilities), which forced the
+   LogLedgerModal !important paint across waves AY→BD. This variant keeps
+   the brand signature (gradient + backdrop blur + gold top-edge) and
+   drops ONLY the four layout-hostile properties. Slightly more opaque bg
+   than the card because a modal floats over arbitrary content and must
+   obscure it for readability. dialog.tsx swaps neural-glass →
+   neural-glass-modal and the !important band-aid is deleted. */
+.neural-glass-modal {
+  background: linear-gradient(135deg, rgba(17, 17, 17, 0.93), rgba(10, 10, 10, 0.88));
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+}
+.neural-glass-modal::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(253, 185, 19, 0.45), transparent);
+  opacity: 0.6;
+  pointer-events: none;
+}
+/* v10.0.294 · gold-edge anchor · always-visible signature top-edge on
+   every neural-glass card. Was opacity 0 (only on hover) which left
+   cards looking flat at rest. Now resting at 0.45 opacity — clear
+   brand signature without overwhelming data. Hover boosts to full. */
+.neural-glass::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(253, 185, 19, 0.45), transparent);
+  opacity: 0.6;
+  transition: opacity 0.3s;
+}
+.neural-glass {
+  box-shadow: var(--shadow-gold-soft);
+}
+.neural-glass:hover {
+  border-color: rgba(253, 185, 19, 0.15);
+  box-shadow: var(--shadow-gold-strong);
+}
+.neural-glass:hover::before { opacity: 1; }
+
+/* v10.0.296 · focus-within brightens the whole card when the operator
+   has clicked into an input or button inside it. Tactile premium
+   feel · the card visibly responds to attention. */
+.neural-glass:focus-within {
+  border-color: rgba(253, 185, 19, 0.18);
+}
+.neural-glass:focus-within::before { opacity: 1; }
+
+/* Neural glass with active neon border */
+.neural-glass-active {
+  border-color: rgba(253, 185, 19, 0.25);
+  box-shadow: 0 0 40px rgba(253, 185, 19, 0.08), inset 0 0 30px rgba(253, 185, 19, 0.02);
+}
+.neural-glass-active::before { opacity: 1; }
+
+/* Critical neural alert — red neon edge */
+.neural-glass-critical {
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.08), inset 0 0 20px rgba(239, 68, 68, 0.02);
+}
+.neural-glass-critical::before {
+  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.4), transparent);
+  opacity: 1;
+}
+
+/* Neural pulse — breathing neon glow */
+/* v10.0.467 · Neural pulse · box-shadow → opacity-on-pseudo */
+@keyframes neural-pulse-glow {
+  0%, 100% { opacity: 0.42; }
+  50%      { opacity: 1; }
+}
+.neural-pulse {
+  position: relative;
+  isolation: isolate;
+}
+.neural-pulse::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 40px rgba(253, 185, 19, 0.12);
+  z-index: -1;
+  animation: neural-pulse-glow 4s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.294 · PANEL primitive · components/panel.tsx
+   The Panel surface had zero CSS rule, just Tailwind padding +
+   rounded-[24px]. Now gets the same brand-anchor gold-edge as
+   neural-glass so /system/* dashboards + lens-stats + tire-stock
+   pages all lift visually with a single rule.
+   ═══════════════════════════════════════════════════════ */
+.panel {
+  position: relative;
+  background: linear-gradient(135deg, rgba(17, 17, 17, 0.85), rgba(10, 10, 10, 0.65));
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow-gold-soft);
+  overflow: hidden;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(253, 185, 19, 0.4), transparent);
+  opacity: 0.55;
+  transition: opacity 0.3s;
+}
+.panel:hover {
+  border-color: rgba(253, 185, 19, 0.12);
+  box-shadow: var(--shadow-gold-strong);
+}
+.panel:hover::before { opacity: 1; }
+.panel:focus-within {
+  border-color: rgba(253, 185, 19, 0.25);
+}
+.panel:focus-within::before { opacity: 1; }
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.294 · TYPOGRAPHY UTILITIES
+   3-size system per frontend-design DFII rule. Standardizes
+   the eyebrow / body / display rhythm so every surface uses the
+   same vocabulary instead of ad-hoc text-[8px] / text-[9px] etc.
+   ═══════════════════════════════════════════════════════ */
+.text-eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.625rem; /* 10px */
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.text-display-sm {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+.text-display-md {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.294 · GOLD RULE divider · brand-anchor horizontal rule
+   Replaces plain hr / border-t with a thin gradient gold rule.
+   Drop-in: <div class="gold-rule" />
+   ═══════════════════════════════════════════════════════ */
+.gold-rule {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(253, 185, 19, 0.35) 50%,
+    transparent 100%
+  );
+  border: 0;
+}
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.294 · PAGE FADE-IN · cinematic layout-mount intro
+   Apply to top-level page containers via className="page-fade-in".
+   200ms · subtle · OS-feel without performance cost.
+   ═══════════════════════════════════════════════════════ */
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-fade-in {
+  animation: page-fade-in 280ms ease-out;
+}
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.460 · BRAND-ANCHOR CASCADE · explicit opt-in via data-anchor
+   ═══════════════════════════════════════════════════════
+   v10.0.297 · ORIGINAL · the cascade matched any rounded-lg div with
+   one of 4 substring-attribute patterns ([class*="border-..."]).
+   Audit Finding H2 (motion+a11y · v10.0.449) flagged the substring
+   match as a CSS-selector-perf concern: every element on every page
+   ran 4 substring checks per cascade block × 4 blocks = 16 substring
+   evals during style recalc.
+
+   v10.0.460 · RESTRUCTURED · replaced substring matching with a
+   single attribute selector (`[data-anchor]`). Browser engine
+   optimizes attribute selectors as O(1) presence checks vs O(N)
+   substring scans. The opt-out attribute (`[data-no-anchor]`) is
+   replaced by the absence of `[data-anchor]` (default = no anchor).
+
+   Consumer migration:
+     · `<Panel>` and `<GlassCard>` primitives auto-add `data-anchor`
+       so canonical consumers keep the gold-edge effect for free.
+     · Ad-hoc inline-Tailwind cards (Ultron homepage etc) lose the
+       cascade by default; add `data-anchor` explicitly to opt-in.
+     · The 11 prior `data-no-anchor` opt-outs become no-ops (since
+       the cascade is opt-in now). They're left as-is for clarity
+       and removed in a follow-up cleanup pass.
+
+   Status-colored borders (amber/rose/emerald/...) and buttons/links
+   continue to be excluded · they already carry their own signal
+   and shouldn't be decorated as cards. */
+:is(section, div).rounded-lg[data-anchor]:not(button):not(a) {
+  position: relative;
+  box-shadow: var(--shadow-gold-soft);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+:is(section, div).rounded-lg[data-anchor]:not(button):not(a)::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(253, 185, 19, 0.4), transparent);
+  opacity: 0.55;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+:is(section, div).rounded-lg[data-anchor]:not(button):not(a):hover {
+  box-shadow: var(--shadow-gold-strong);
+}
+:is(section, div).rounded-lg[data-anchor]:not(button):not(a):hover::before {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.295 · BRAND BUTTON UTILITIES · 3-tier hierarchy
+   Drop-in classes for primary / secondary / tertiary CTAs that
+   match the gold-on-dark stance. Matches Vercel / Linear button
+   density · taller than data chips, shorter than hero CTAs.
+   ═══════════════════════════════════════════════════════ */
+.btn-gold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.1rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0A0A0A;
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  box-shadow: 0 0 20px rgba(253, 185, 19, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.btn-gold:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 0 28px rgba(253, 185, 19, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+.btn-gold:active { transform: translateY(0) scale(0.98); }
+
+.btn-gold-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.1rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gold);
+  background: rgba(253, 185, 19, 0.04);
+  border: 1px solid rgba(253, 185, 19, 0.35);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+.btn-gold-ghost:hover {
+  background: rgba(253, 185, 19, 0.08);
+  border-color: rgba(253, 185, 19, 0.55);
+  transform: translateY(-1px);
+}
+.btn-gold-ghost:active { transform: translateY(0) scale(0.98); }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.1rem;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+/* Neural grid background — subtle hex pattern */
+.neural-grid {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(253, 185, 19, 0.03) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+/* Neon text glow */
+.neon-gold {
+  color: var(--gold);
+  text-shadow: 0 0 8px rgba(253, 185, 19, 0.4), 0 0 20px rgba(253, 185, 19, 0.15);
+}
+.neon-green {
+  color: var(--status-green);
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.4), 0 0 20px rgba(34, 197, 94, 0.15);
+}
+.neon-red {
+  color: var(--status-red);
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.4), 0 0 20px rgba(239, 68, 68, 0.15);
+}
+.neon-blue {
+  color: var(--status-blue);
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.4), 0 0 20px rgba(59, 130, 246, 0.15);
+}
+.neon-purple {
+  color: var(--status-purple);
+  text-shadow: 0 0 8px rgba(168, 85, 247, 0.4), 0 0 20px rgba(168, 85, 247, 0.15);
+}
+
+/* HUD readout text — mono with subtle glow */
+.hud-text {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.hud-value {
+  font-family: var(--font-geist-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+/* Neural data stream — scrolling data effect */
+@keyframes data-stream {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+.data-stream {
+  animation: data-stream 20s linear infinite;
+}
+
+/* Glitch effect — for critical alerts */
+@keyframes glitch {
+  0%, 90%, 100% { transform: translate(0); }
+  92% { transform: translate(-2px, 1px); }
+  94% { transform: translate(2px, -1px); }
+  96% { transform: translate(-1px, -1px); }
+  98% { transform: translate(1px, 1px); }
+}
+.glitch-text {
+  animation: glitch 3s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════
+   v5.0 — DYNAMIC POWER ANIMATIONS
+   ═══════════════════════════════════════════════════════ */
+
+/* Sparkline draw animation */
+@keyframes sparkline-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Shimmer loading effect */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Fade slide up — for elements entering view */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeSlideUp { animation: fadeSlideUp 0.3s ease-out; }
+
+/* Slow spin for stale data indicator */
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow { animation: spin-slow 3s linear infinite; }
+
+/* v10.0.455 · `@keyframes power-fill` + `.power-bar` removed.
+   Animated `width` (LAYOUT-class · forces reflow every frame · the
+   textbook layout-thrashing anti-pattern). Audit confirmed zero
+   consumers across the codebase — applying Elon's "delete before
+   optimize" rather than refactoring to scaleX. The mastery page's
+   live progress bar already uses the scaleX pattern (v10.0.449). */
+
+/* Particle burst on habit completion */
+@keyframes particle-burst {
+  0% { opacity: 1; transform: scale(0.5); }
+  50% { opacity: 0.8; transform: scale(1.5); }
+  100% { opacity: 0; transform: scale(2.5); }
+}
+.particle-burst::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  animation: particle-burst 0.5s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Revenue pulse — green flash when revenue is good */
+/* v10.0.469 · revenue-pulse · 0-alpha → MAX-alpha tween · split */
+@keyframes revenue-pulse {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; }
+}
+.revenue-good {
+  position: relative;
+  isolation: isolate;
+}
+.revenue-good::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 12px 2px rgba(34, 197, 94, 0.15);
+  z-index: -1;
+  animation: revenue-pulse 3s ease-in-out infinite;
+}
+
+/* Scroll fade — elements entering viewport */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.scroll-reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Processing bar for streaming */
+.processing-bar {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  animation: processing-sweep 1.5s ease-in-out infinite;
+}
+@keyframes processing-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Neural connection line — for graph visualizations */
+.neural-line {
+  stroke: rgba(253, 185, 19, 0.15);
+  stroke-width: 1;
+  transition: stroke 0.3s, stroke-width 0.3s;
+}
+.neural-line:hover, .neural-line-active {
+  stroke: rgba(253, 185, 19, 0.5);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 4px rgba(253, 185, 19, 0.3));
+}
+
+/* Neural node — for graph nodes */
+.neural-node {
+  fill: rgba(253, 185, 19, 0.2);
+  stroke: rgba(253, 185, 19, 0.4);
+  stroke-width: 1;
+  transition: fill 0.3s, r 0.3s;
+}
+.neural-node:hover {
+  fill: rgba(253, 185, 19, 0.5);
+  r: 6;
+  filter: drop-shadow(0 0 8px rgba(253, 185, 19, 0.5));
+}
+
+/* Progress ring — for circular metrics */
+.progress-ring circle {
+  transition: stroke-dashoffset 0.5s ease;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* Ambient particle float — for background decoration */
+@keyframes float {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  25% { transform: translateY(-10px) translateX(5px); }
+  50% { transform: translateY(-5px) translateX(-5px); }
+  75% { transform: translateY(-15px) translateX(3px); }
+}
+.float-particle {
+  animation: float 6s ease-in-out infinite;
+  opacity: 0.15;
+}
+
+/* Command input — terminal style */
+.command-input {
+  font-family: var(--font-geist-mono), monospace;
+  background: rgba(10, 10, 10, 0.8);
+  border: 1px solid rgba(253, 185, 19, 0.1);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  color: var(--gold);
+  caret-color: var(--gold);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.command-input:focus {
+  border-color: rgba(253, 185, 19, 0.3);
+  box-shadow: 0 0 20px rgba(253, 185, 19, 0.05), inset 0 0 10px rgba(253, 185, 19, 0.02);
+}
+.command-input::placeholder {
+  color: rgba(253, 185, 19, 0.2);
+}
+
+/* Processing animation — for AI thinking state */
+@keyframes processing {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.processing-bar {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  background-size: 200% 100%;
+  animation: processing 1.5s ease-in-out infinite;
+}
+
+/* Operator badge — for chat message distinction */
+.operator-badge {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  padding: 2px 8px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.operator-badge-human {
+  background: rgba(253, 185, 19, 0.1);
+  color: var(--gold);
+  border: 1px solid rgba(253, 185, 19, 0.2);
+}
+.operator-badge-ai {
+  background: rgba(168, 85, 247, 0.1);
+  color: var(--status-purple);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+/* System log entry — for telemetry display */
+.log-entry {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-tertiary);
+  border-left: 2px solid transparent;
+  padding-left: 8px;
+  transition: border-color 0.2s;
+}
+.log-entry:hover {
+  border-left-color: var(--gold);
+  color: var(--text-secondary);
+}
+.log-entry-warn { border-left-color: var(--status-yellow); color: var(--status-yellow); }
+.log-entry-error { border-left-color: var(--status-red); color: var(--status-red); }
+.log-entry-success { border-left-color: var(--status-green); }
+
+/* ═══════════════════════════════════════════════════════
+   THEME VARIANTS — v6.0
+   ═══════════════════════════════════════════════════════ */
+
+/* Themes removed — Command Center (gold + void black) is the only theme. */
+
+/* ═══════════════════════════════════════════════════════
+   STATE AURA — v9.0
+   Page-level visual mood reflecting currentState.
+   Applied to the NERVE CENTER feed wrapper.
+   ═══════════════════════════════════════════════════════ */
+
+/* v10.0.474 · state-fire-aura RESTORED to original box-shadow tween.
+ * v10.0.469's pseudo-element conversion required adding
+ * `position: relative` to .state-aura-drift / .state-aura-on_fire /
+ * .state-aura-low_energy on the wrapper. That broke /chat which
+ * nests a `position: fixed` shell inside the wrapper — fixed
+ * children use the nearest positioned ancestor as containing
+ * block, so the chat shell stretched to fit the wrapper's full
+ * scroll height (~2625px) instead of the viewport. Reverting to
+ * the original box-shadow-on-parent pattern · accepting the
+ * paint cost (state-auras only fire in rare states · 5% of time). */
+@keyframes state-fire-aura {
+  0%, 100% {
+    box-shadow: inset 0 0 40px rgba(16, 185, 129, 0.08),
+                0 0 48px rgba(16, 185, 129, 0.06);
+  }
+  50% {
+    box-shadow: inset 0 0 80px rgba(16, 185, 129, 0.18),
+                0 0 96px rgba(16, 185, 129, 0.14);
+  }
+}
+
+/* v10.0.474 · state-drift-aura RESTORED to original. See state-fire-aura
+ * note above for the position:fixed-containing-block bug that this fixes. */
+@keyframes state-drift-aura {
+  0%, 100% {
+    box-shadow: inset 0 0 40px rgba(239, 68, 68, 0.10),
+                0 0 48px rgba(239, 68, 68, 0.08);
+  }
+  50% {
+    box-shadow: inset 0 0 96px rgba(239, 68, 68, 0.22),
+                0 0 120px rgba(239, 68, 68, 0.16);
+  }
+}
+
+/* v10.0.474 · state-low-energy-aura RESTORED to original. See
+ * state-fire-aura note above for the position:fixed bug that this fixes. */
+@keyframes state-low-energy-aura {
+  0%, 100% {
+    box-shadow: inset 0 0 60px rgba(59, 130, 246, 0.08);
+  }
+  50% {
+    box-shadow: inset 0 0 100px rgba(59, 130, 246, 0.14);
+  }
+}
+
+@keyframes state-scattered-wobble {
+  0%   { transform: translateX(0); }
+  15%  { transform: translateX(-1px); }
+  30%  { transform: translateX(1px); }
+  45%  { transform: translateX(-1px); }
+  60%  { transform: translateX(0.5px); }
+  75%  { transform: translateX(-0.5px); }
+  100% { transform: translateX(0); }
+}
+
+.state-aura {
+  /* position is intentionally not set — allows consumers to use fixed,
+     absolute, or default static without the aura overriding it. */
+  transition: filter 800ms ease, box-shadow 800ms ease;
+  border-radius: 16px;
+  padding: 4px;
+  margin: -4px;
+}
+
+/* v10.0.474 · state-aura classes RESTORED · NO position:relative on
+ * these wrappers · /chat nests a position:fixed shell that needs the
+ * viewport (not the wrapper) as containing block. The pseudo-element
+ * pattern from v10.0.469 broke that. Reverting to direct-on-parent
+ * box-shadow keyframes — accepting the paint cost in the rare states
+ * where these auras fire. */
+.state-aura-on_fire {
+  animation: state-fire-aura 4.5s ease-in-out infinite;
+}
+
+.state-aura-drift {
+  animation: state-drift-aura 3.2s ease-in-out infinite;
+  filter: saturate(0.72);
+}
+
+.state-aura-scattered {
+  animation: state-scattered-wobble 420ms ease-in-out 1;
+}
+
+.state-aura-low_energy {
+  animation: state-low-energy-aura 6s ease-in-out infinite;
+  filter: saturate(0.7) brightness(0.96) hue-rotate(-6deg);
+}
+
+.state-aura-normal {
+  /* intentional no-op — neutral default */
+  animation: none;
+}
+
+/* v10.0.467 · COCKPIT glow · box-shadow → opacity-on-pseudo conversion */
+@keyframes cockpit-halo-glow {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+.cockpit-halo {
+  position: relative;
+  isolation: isolate;
+}
+.cockpit-halo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(253, 185, 19, 0.16), 0 12px 60px rgba(253, 185, 19, 0.10);
+  z-index: -1;
+  animation: cockpit-halo-glow 8s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════
+   NICK CHAT — v9.2 animations + polish
+   ═══════════════════════════════════════════════════════ */
+
+/* Nick status orb — breathing gradient halo when idle, faster when streaming */
+/* v10.0.466 · motion-perf · box-shadow → opacity-on-pseudo conversion.
+   Original keyframe animated box-shadow on the element (forces paint
+   each frame) + transform: scale (compositor-safe). Now split:
+   transform stays on the element, box-shadow moves to a ::before
+   pseudo whose opacity is animated (compositor-only). Net: paint
+   pass eliminated; transform pass preserved. Pattern reusable for
+   the remaining ~20 box-shadow keyframes. */
+@keyframes nick-orb-scale {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}
+@keyframes nick-orb-glow {
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 1; }
+}
+.nick-orb-idle,
+.nick-orb-streaming {
+  position: relative;
+  isolation: isolate; /* keeps the pseudo's stacking context local */
+}
+.nick-orb-idle::before,
+.nick-orb-streaming::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  /* The MAX-state shadow lives on the pseudo · opacity tweens it */
+  box-shadow: 0 0 0 4px rgba(253, 185, 19, 0),
+              0 0 24px rgba(253, 185, 19, 0.16),
+              0 0 14px rgba(253, 185, 19, 0.28);
+  z-index: -1;
+}
+.nick-orb-idle {
+  animation: nick-orb-scale 3.2s ease-in-out infinite;
+}
+.nick-orb-idle::before {
+  animation: nick-orb-glow 3.2s ease-in-out infinite;
+}
+.nick-orb-streaming {
+  animation: nick-orb-scale 1.1s ease-in-out infinite;
+}
+.nick-orb-streaming::before {
+  animation: nick-orb-glow 1.1s ease-in-out infinite;
+}
+
+/* v7 · BATCH 2E · Apr 28 — Ambient pulse for any "AI is thinking" surface.
+   Lower-amplitude + slower than nick-orb so it's calm, not anxious. Used
+   on Ultron HQ ticker dot, intel auto-refresh hint, plan-page generate
+   button. Pure transform + opacity → cheap on mobile. */
+@keyframes ambient-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.94); }
+}
+.ambient-pulse { animation: ambient-pulse 2.8s ease-in-out infinite; }
+
+/* v7 · 2E · Soft-glow halo — applies a breathing yellow shadow to any
+   element marked `.ai-glow`. Use sparingly — only for "Nick is alive"
+   moments (HQ wake, idle suggestion ready, fresh intel landed). */
+/* v10.0.467 · AI glow halo · box-shadow → opacity-on-pseudo. Note:
+   the original 0% had a transparent shadow (alpha 0); the new
+   pattern animates opacity 0 → 1 on a fixed-shadow pseudo, which
+   is structurally equivalent. */
+@keyframes ai-glow-pulse {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; }
+}
+.ai-glow {
+  position: relative;
+  isolation: isolate;
+}
+.ai-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 12px 2px rgba(253, 185, 19, 0.18);
+  z-index: -1;
+  animation: ai-glow-pulse 4s ease-in-out infinite;
+}
+
+/* v7 · 2E · Ticker shimmer — used on the live HUD bar when a metric
+   updates. Adds a brief ←→ shimmer across the new value so Nour's eye
+   catches the change without a hard flash. */
+@keyframes hud-shimmer {
+  0% { background-position: -120% 0; }
+  100% { background-position: 220% 0; }
+}
+.hud-shimmer {
+  background-image: linear-gradient(90deg, transparent 0%, rgba(253, 185, 19, 0.12) 50%, transparent 100%);
+  background-size: 60% 100%;
+  background-repeat: no-repeat;
+  animation: hud-shimmer 1.6s ease-out;
+}
+
+/* Apr 27 · NickStreaming v2 — concentric ring breathe.
+   Two speeds: fast for tool/thinking mode, slow for deep mode. The
+   ring scales 1 → 1.4 while fading from 100% → 0% opacity, creating
+   a sonar pulse around the central dot. CPU-cheap (transform +
+   opacity only). */
+@keyframes nick-ring-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  60%      { transform: scale(1.4); opacity: 0; }
+  61%      { transform: scale(1); opacity: 1; }
+}
+.nick-ring-fast { animation: nick-ring-breathe 1.4s ease-out infinite; }
+.nick-ring-slow { animation: nick-ring-breathe 2.2s ease-out infinite; }
+
+/* Apr 27 · Action sheet entrance — translate from below, no overshoot.
+   Lighter than a bouncy spring so it feels snappy not playful. */
+@keyframes slideUpSheet {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Apr 27 · History sheet entrance — same direction as action sheet
+   but slightly slower so the larger surface lands deliberately. */
+@keyframes slideUpHistory {
+  from { transform: translateY(100%); opacity: 0.6; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+/* v10.0.466 · violet variant of nick-orb-breathe · same conversion
+   pattern (transform on element · box-shadow on ::before · opacity
+   animated). Voice-mode orb. Caller must apply the violet pseudo
+   class · see consumer below. */
+@keyframes nick-orb-glow-violet {
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 1; }
+}
+.nick-orb-violet {
+  position: relative;
+  isolation: isolate;
+  animation: nick-orb-scale 3.2s ease-in-out infinite;
+}
+.nick-orb-violet::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0),
+              0 0 24px rgba(139, 92, 246, 0.16),
+              0 0 14px rgba(139, 92, 246, 0.28);
+  z-index: -1;
+  animation: nick-orb-glow-violet 3.2s ease-in-out infinite;
+}
+/* v10.0.466 · .nick-orb-flow* migrated to the split pattern. Same
+   visual feel · transform: scale on the element + opacity-animated
+   ::before pseudo carrying the violet box-shadow. */
+.nick-orb-flow,
+.nick-orb-flow-streaming {
+  position: relative;
+  isolation: isolate;
+}
+.nick-orb-flow::before,
+.nick-orb-flow-streaming::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0),
+              0 0 24px rgba(139, 92, 246, 0.16),
+              0 0 14px rgba(139, 92, 246, 0.28);
+  z-index: -1;
+}
+.nick-orb-flow {
+  animation: nick-orb-scale 3.2s ease-in-out infinite;
+}
+.nick-orb-flow::before {
+  animation: nick-orb-glow-violet 3.2s ease-in-out infinite;
+}
+.nick-orb-flow-streaming {
+  animation: nick-orb-scale 1.1s ease-in-out infinite;
+}
+.nick-orb-flow-streaming::before {
+  animation: nick-orb-glow-violet 1.1s ease-in-out infinite;
+}
+
+/* Latest Nick message halo — subtle gold glow while Nick is streaming */
+@keyframes nick-latest-glow {
+  0%, 100% {
+    background: linear-gradient(90deg, transparent 0%, rgba(253, 185, 19, 0.03) 50%, transparent 100%);
+  }
+  50% {
+    background: linear-gradient(90deg, transparent 0%, rgba(253, 185, 19, 0.08) 50%, transparent 100%);
+  }
+}
+.nick-bubble-latest {
+  animation: nick-latest-glow 2.8s ease-in-out infinite;
+  border-radius: 14px;
+  padding: 2px 8px;
+  margin: -2px -8px;
+}
+
+/* Thinking shimmer — sweep across the bubble while Nick computes */
+@keyframes nick-thinking-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.nick-thinking-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(253, 185, 19, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: nick-thinking-shimmer 1.8s ease-in-out infinite;
+}
+
+/* Tool card shimmer — a gradient bar sweeps across while the tool is
+   still running. Beats a plain pulse because Nour can tell at a
+   glance that something is actively happening, not just loading. */
+@keyframes chat-tool-shimmer-sweep {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.chat-tool-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(253, 185, 19, 0.08) 45%,
+    rgba(253, 185, 19, 0.15) 50%,
+    rgba(253, 185, 19, 0.08) 55%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: chat-tool-shimmer-sweep 1.6s linear infinite;
+  border-radius: inherit;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Alive-UI animations (Tier 10) — small, always-tasteful motion
+ * ═══════════════════════════════════════════════════════════════
+ */
+
+/* v10.0.468 · Pin ring respiration · slow heartbeat for stale pins.
+ * Both stale + very-stale converted to opacity-on-pseudo. */
+@keyframes pin-stale-breathe {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+.pin-stale-breathe {
+  position: relative;
+  isolation: isolate;
+}
+.pin-stale-breathe::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.55), 0 0 12px rgba(245, 158, 11, 0.15);
+  z-index: -1;
+  animation: pin-stale-breathe 4s ease-in-out infinite;
+}
+@keyframes pin-very-stale-breathe {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.pin-very-stale-breathe {
+  position: relative;
+  isolation: isolate;
+}
+.pin-very-stale-breathe::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.65), 0 0 16px rgba(239, 68, 68, 0.2);
+  z-index: -1;
+  animation: pin-very-stale-breathe 3s ease-in-out infinite;
+}
+
+/* 10.3 — Smart replies stagger-fade in. Small translateY so they
+ * sweep in from bottom instead of popping. */
+@keyframes smart-reply-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.smart-reply-chip {
+  animation: smart-reply-fade-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.smart-reply-chip:nth-child(1) { animation-delay: 0ms; }
+.smart-reply-chip:nth-child(2) { animation-delay: 60ms; }
+.smart-reply-chip:nth-child(3) { animation-delay: 120ms; }
+.smart-reply-chip:nth-child(4) { animation-delay: 180ms; }
+
+/* v10.0.468 · Pin reinforce single-shot green pulse · structurally
+ * identical to a fade-in / fade-out · pseudo holds the shadow,
+ * opacity tweens 0 → 1 → 0. */
+@keyframes pin-reinforce-pulse {
+  0%   { opacity: 0; }
+  30%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.pin-reinforce-pulse {
+  position: relative;
+  isolation: isolate;
+}
+.pin-reinforce-pulse::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.55), 0 0 16px rgba(16, 185, 129, 0.25);
+  z-index: -1;
+  animation: pin-reinforce-pulse 900ms ease-out;
+}
+
+/* 10.13 — Typewriter cursor for empty-state greeting. Pair with
+ * JS-driven letter reveal — CSS just handles the caret blink. */
+@keyframes type-caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.type-caret {
+  display: inline-block;
+  width: 0.45em;
+  height: 1em;
+  margin-left: 0.06em;
+  background: var(--gold);
+  vertical-align: text-bottom;
+  animation: type-caret-blink 1.05s steps(1) infinite;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   chat-page mount animations · v10.0.529.xx
+   Hoisted from app/(mastery)/chat/page.tsx inline <style> block.
+   `.no-scrollbar` was already in use across 6 surfaces · made global.
+   `slideUpSoft` + `fadeIn` are entrance animations for chat overlays
+   (history search, action sheets, paste-to-confirm prompts).
+   ────────────────────────────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+@keyframes slideUpSoft {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up-soft { animation: slideUpSoft 0.18s ease-out; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in { animation: fadeIn 0.15s ease-out; }
+
+/* v10.0.600 · Breath animation for DOING tasks */
+@keyframes task-doing-breath {
+  0%, 100% {
+    border-color: rgba(253, 185, 19, 0.25);
+    box-shadow: 0 0 10px rgba(253, 185, 19, 0.02);
+  }
+  50% {
+    border-color: rgba(253, 185, 19, 0.5);
+    box-shadow: 0 0 18px rgba(253, 185, 19, 0.08), inset 0 0 4px rgba(253, 185, 19, 0.02);
+  }
+}
+.animate-breath {
+  animation: task-doing-breath 3.0s ease-in-out infinite;
+}
+
+/* Premium active/tap scales */
+.tap-scale {
+  transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.tap-scale:active {
+  transform: scale(0.97);
+}
+
+/* Custom styles for select elements in mobile/PWA to ensure readability & no zoom */
+select.pwa-select {
+  font-size: 16px; /* Prevents auto-zoom on iOS */
+  background-color: var(--bg-void);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+select.pwa-select:focus {
+  border-color: var(--gold);
+  outline: none;
+}
+
+/* Premium User Bubble Gradient Glow & Border (Wave visual kinetics) */
+.user-bubble-premium {
+  position: relative;
+  background: var(--bg-void);
+  border: 1px solid rgba(253, 185, 19, 0.1);
+  background-clip: padding-box;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.user-bubble-premium::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--gold) 0%, var(--status-ai) 100%);
+  opacity: 0.08;
+  transition: opacity 0.25s ease;
+}
+
+.user-bubble-premium:hover {
+  border-color: rgba(253, 185, 19, 0.25);
+  box-shadow: 0 4px 20px rgba(253, 185, 19, 0.05), 0 0 10px rgba(168, 85, 247, 0.03);
+}
+
+.user-bubble-premium:hover::before {
+  opacity: 0.16;
+}
+
+/* ═══════════════════════════════════════════════════════
+   CONTRADICTION TENSION GRADIENT
+   Left-edge 2px rule that visualizes temporal polarity gap.
+   Gold top (current truth) fading to amber bottom (stale
+   position). Used in contradictions-card.tsx.
+   ═══════════════════════════════════════════════════════ */
+.contradiction-tension-gradient {
+  background: linear-gradient(
+    180deg,
+    var(--gold) 0%,
+    var(--gold) 38%,
+    rgb(251 191 36 / 0.65) 62%,
+    rgb(251 191 36 / 0.25) 100%
+  );
+}

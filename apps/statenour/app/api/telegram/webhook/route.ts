@@ -1212,6 +1212,17 @@ async function handleUrl(
   chatId: string
 ): Promise<void> {
   try {
+    // SSRF defense — even though this path is owner-gated (only the operator's
+    // Telegram reaches it), a pasted link could point at a private/metadata
+    // host. Block it before the server-side fetch, matching the scrapeWebPage
+    // and ingestDocumentFromUrl hardening.
+    const { assertPublicUrl } = await import("@/lib/utils/url-safety");
+    const safety = await assertPublicUrl(url);
+    if (!safety.safe) {
+      await sendTelegram(`Refused to fetch that URL: ${safety.reason}`, chatId);
+      return;
+    }
+
     await sendTelegram(`🔗 Analyzing: ${url.slice(0, 60)}...`, chatId);
 
     // Fetch the page content
@@ -1331,7 +1342,7 @@ async function emitApprovalResponse(
     return;
   }
   try {
-    const { getInngest } = await import("@/src/inngest/client");
+    const { getInngest } = await import("@/lib/inngest/client");
     const inngest = getInngest();
     await inngest.send({
       name: "bulk-sms/approval-response",
@@ -1373,31 +1384,52 @@ async function cmdReject(args: string, chatId: string): Promise<void> {
 // proposal Telegram message (which is payload.queueIndex). Anything
 // not in the list stays pending — the operator can defer or run /qa
 // again later.
+//
+// 2026-07-07 · yesterday fallback. The batch key is a UTC date, and
+// 00:00 UTC = 8pm ET — so an evening "/qa" used to land on the NEXT
+// UTC day's empty batch ("No pending moves") and the morning batch
+// became permanently unapprovable via /qa (a prod audit found 87
+// pending / 0 approved in 14 days). When today-UTC has no pending
+// rows we now fall back to yesterday-UTC's batch, which the 9am
+// executor still honors (its pickup window is createdAt >= now-2d).
+// Today's batch keeps priority so queueIndex numbering never mixes
+// two days in one reply.
 
 async function cmdQa(args: string, chatId: string): Promise<void> {
-  const today = new Date().toISOString().slice(0, 10);
   const { prisma } = await import("@/lib/prisma");
 
-  // Pull today's pending nick_action rows.
-  const rows = await prisma.autonomousAction.findMany({
-    where: {
-      ruleName: { startsWith: "nick_action_" },
-      approval: "pending",
-      idempotencyKey: { startsWith: `nick_action::${today}::` },
-    },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      idempotencyKey: true,
-      payload: true,
-      ruleName: true,
-      trigger: true,
-    },
-  });
+  const pendingBatchFor = (day: string) =>
+    prisma.autonomousAction.findMany({
+      where: {
+        ruleName: { startsWith: "nick_action_" },
+        approval: "pending",
+        idempotencyKey: { startsWith: `nick_action::${day}::` },
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        idempotencyKey: true,
+        payload: true,
+        ruleName: true,
+        trigger: true,
+      },
+    });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  let batchDay = today;
+  let rows = await pendingBatchFor(today);
+  if (rows.length === 0) {
+    rows = await pendingBatchFor(yesterday);
+    batchDay = yesterday;
+  }
 
   if (rows.length === 0) {
     await sendTelegram(
-      `📭 No pending Nick moves for ${today}. Today's batch may already be approved/executed — check /system/approvals.`,
+      `📭 No pending Nick moves for ${today} (or ${yesterday}). The latest batch may already be approved/executed — check /system/approvals.`,
       chatId,
     );
     return;

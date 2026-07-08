@@ -98,7 +98,10 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
         continue; // already claimed by an overlapping run — never re-send
       }
 
-      const result = await sendSms(String(send.phone), String(send.personalizedBody), { via: "shop" });
+      const result = await sendSms(String(send.phone), String(send.personalizedBody), {
+        via: "shop",
+        variantKey: "winback",
+      });
 
       if (result.success) {
         await db.execute(sql`

@@ -15,6 +15,17 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
 
+// moneyprinter rewrites the shared MoneyPrinterTurbo config.toml before each
+// run while a prior 7-minute subprocess may still be reading it — one run at
+// a time, or an overlapping write corrupts the in-flight job's credentials.
+let moneyprinterInFlight = false;
+
+// arsenalNotebookLM is whitelisted for the deep-reasoning engine, whose
+// contract is OBSERVE-only. The MCP sidecar may expose mutating tools, so the
+// LLM-supplied action must pass this code-level read-only allowlist — the
+// tool description alone is not an enforcement mechanism.
+const READ_ONLY_NOTEBOOKLM_ACTIONS = new Set(["ask_question", "list_notebooks", "get_health"]);
+
 export const systemTools = {
   runDeviceCommand: tool({
     description:
@@ -327,7 +338,7 @@ export const systemTools = {
   // "describing" with "doing" for any quantitative question.
   searchWebVerified: tool({
     description:
-      "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding). Returns consensus when sources agree, or flags the disagreement when they diverge. Use for factual claims where being wrong matters: news, statistics, recent events, technical specs. Confidence ≥0.66 means 2+ sources agree. Prefer this over single-source web search when the operator's question is verifiable.",
+      "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding + Perplexica). Returns consensus when sources agree, or flags the disagreement when they diverge. Use for factual claims where being wrong matters: news, statistics, recent events, technical specs. Confidence ≥0.66 means 2+ sources agree. Prefer this over single-source web search when the operator's question is verifiable.",
     inputSchema: z.object({
       query: z
         .string()
@@ -335,7 +346,7 @@ export const systemTools = {
         .max(500)
         .describe("The natural-language question or claim to verify."),
       sources: z
-        .array(z.enum(["perplexity", "tavily", "exa", "google"]))
+        .array(z.enum(["perplexity", "tavily", "exa", "google", "perplexica"]))
         .optional()
         .describe(
           "Restrict to these sources. Default: all configured sources.",
@@ -649,20 +660,65 @@ export const systemTools = {
   }),
 
   arsenalWebSearch: tool({
-    description: "Use Perplexity (or Google Search Grounding if Perplexity is unconfigured) for web search with AI-powered summarization. Powered by the Arsenal integration chain.",
+    description: "Web search with AI summarization. Prefers Perplexica (self-hosted, free, unlimited); falls back to Perplexity/Google, then to the multi-source quorum if the primary is unavailable. Powered by the Arsenal integration chain.",
     inputSchema: z.object({
       query: z.string().describe("Web search query"),
     }),
     execute: async ({ query }) => {
       const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
-      if (process.env.PERPLEXITY_API_KEY) {
-        const { researchTopic } = await import("@/lib/integrations/perplexity");
-        const result = await researchTopic(query);
-        return { content: fenceContent("arsenalWebSearch", "external_web", result?.content?.slice(0, 2000) ?? ""), model: "perplexity", source: "arsenal" };
+      const fence = (s: string | undefined) =>
+        fenceContent("arsenalWebSearch", "external_web", (s ?? "").slice(0, 2000));
+
+      // Primary · one source, cheapest-free-first: Perplexica (self-hosted,
+      // unlimited) → Perplexity (if keyed) → Google grounding. Wrapped so a
+      // single dead source — revoked key, timeout, retired model, sidecar down
+      // — degrades to the multi-source quorum instead of throwing (which the
+      // model would otherwise surface as a confident failure claim).
+      try {
+        if (process.env.PERPLEXICA_API_URL) {
+          const { askPerplexica } = await import("@/lib/integrations/perplexica");
+          const r = await askPerplexica(query);
+          if (r?.content?.trim()) {
+            // 2026-07-05 improvement · attribute web claims. arsenalWebSearch was
+            // the lone web tool discarding citations (searchWebVerified /
+            // arsenalDeepResearch already ship them). Each source returns
+            // { url, title? }[]; forward them unfenced (URLs are metadata, not
+            // model-followable instructions) so the message can render pills.
+            return { content: fence(r.content), citations: r.citations ?? [], model: "perplexica", source: "arsenal/perplexica" };
+          }
+        } else if (process.env.PERPLEXITY_API_KEY) {
+          const { researchTopic } = await import("@/lib/integrations/perplexity");
+          const r = await researchTopic(query);
+          if (r?.content?.trim()) {
+            return { content: fence(r.content), citations: r.citations ?? [], model: "perplexity", source: "arsenal" };
+          }
+        } else {
+          const { askGoogleSearch } = await import("@/lib/integrations/google-search");
+          const r = await askGoogleSearch(query);
+          if (r?.content?.trim()) {
+            return { content: fence(r.content), citations: r.citations ?? [], model: r.model, source: "google" };
+          }
+        }
+      } catch (err) {
+        const { logger } = await import("@/lib/logger");
+        logger
+          .withSurface("ai/tools/arsenalWebSearch")
+          .warn("primary_source_failed_falling_back_to_quorum", {
+            error: String((err as { message?: string })?.message ?? err).slice(0, 200),
+          });
       }
-      const { askGoogleSearch } = await import("@/lib/integrations/google-search");
-      const result = await askGoogleSearch(query);
-      return { content: fenceContent("arsenalWebSearch", "external_web", result?.content?.slice(0, 2000) ?? ""), model: result.model, source: "google" };
+
+      // Fallback · multi-source quorum (Promise.allSettled · never throws on
+      // partial failure). Keeps "search on X" alive when the primary is down;
+      // surfaces an honest all-sources-failed note rather than an empty result.
+      const { multiSourceSearch } = await import("@/lib/ai/multi-search");
+      const q = await multiSourceSearch(query);
+      const body =
+        q.consensus?.trim() ||
+        q.sources.map((s) => `${s.name}: ${s.content}`).join("\n\n").trim() ||
+        q.disagreement ||
+        "Web search returned no results from any source.";
+      return { content: fence(body), citations: q.citations ?? [], model: "multi-source", source: "arsenal/fallback" };
     },
   }),
 
@@ -782,6 +838,12 @@ export const systemTools = {
       params: z.record(z.string(), z.unknown()).optional().describe("Arguments for the MCP tool"),
     }),
     execute: async ({ action, notebookAlias, params }) => {
+      if (!READ_ONLY_NOTEBOOKLM_ACTIONS.has(action)) {
+        return {
+          action,
+          error: `Action "${action}" is not in the read-only allowlist (${[...READ_ONLY_NOTEBOOKLM_ACTIONS].join(", ")}). NotebookLM may only be observed, never mutated, from this tool.`,
+        };
+      }
       const { notebookLMProvider } = await import("@/lib/intelligence/search/notebooklm-mcp");
       const result = await notebookLMProvider.call(action, params, notebookAlias);
       // We slice string outputs to avoid blowing up the context window if the tool returns a massive JSON
@@ -1312,6 +1374,14 @@ export const systemTools = {
         .describe("Optional paragraph count for script segments. Default: 3."),
     }),
     execute: async ({ subject, script, aspect, language, paragraphCount }) => {
+      if (moneyprinterInFlight) {
+        return {
+          ok: false,
+          error:
+            "A video generation is already running (renders take up to 7 minutes). Wait for it to finish, then retry.",
+        };
+      }
+      moneyprinterInFlight = true;
       try {
         const { execFile } = await import("child_process");
         const { promisify } = await import("util");
@@ -1364,7 +1434,11 @@ export const systemTools = {
           if (process.env.PIXABAY_API_KEY) {
             updatedContent = updatedContent.replace(/pixabay_api_keys\s*=\s*\[\]/, `pixabay_api_keys = ["${process.env.PIXABAY_API_KEY}"]`);
           }
-          fs.writeFileSync(configPath, updatedContent, "utf-8");
+          // Atomic replace: the python subprocess reads config.toml at startup —
+          // a plain writeFileSync can be observed half-written by a reader.
+          const tmpConfigPath = `${configPath}.tmp`;
+          fs.writeFileSync(tmpConfigPath, updatedContent, "utf-8");
+          fs.renameSync(tmpConfigPath, configPath);
         }
 
         const args = [scriptPath, "--video-subject", subject];
@@ -1406,6 +1480,8 @@ export const systemTools = {
           ok: false,
           error: sanitizeError(err),
         };
+      } finally {
+        moneyprinterInFlight = false;
       }
     },
   }),

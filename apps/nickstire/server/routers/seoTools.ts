@@ -213,6 +213,18 @@ export const seoToolsRouter = router({
       }
     }),
 
+  /** SEO fix drafts (phase 4 · GSC Act — "draft + surface"). The AI drafts an
+   *  improved title + meta for the top buried service pages; a human applies the
+   *  shared/services.ts edit. Read-only to the live site — nothing is written. */
+  seoFixDrafts: adminProcedure.query(async () => {
+    const { getSeoFixDrafts } = await import("../services/seoFixDrafts");
+    return getSeoFixDrafts();
+  }),
+  generateSeoFixDrafts: adminProcedure.mutation(async () => {
+    const { generateSeoFixDrafts } = await import("../services/seoFixDrafts");
+    return generateSeoFixDrafts();
+  }),
+
   /** Pull current GSC status for each sitemap — last submitted, last
    *  downloaded, error count, indexed-vs-submitted counts. */
   sitemapStatus: adminProcedure.query(async () => {

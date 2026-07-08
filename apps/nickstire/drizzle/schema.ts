@@ -140,9 +140,9 @@ export const leads = mysqlTable("leads", {
   // back to its callback_requests row (closes the "same person in two
   // sections" gap). bookingId / invoiceId set on conversion so
   // source-to-revenue analytics become a real query.
-  callbackId: int("callbackId"),
-  bookingId: int("bookingId"),
-  invoiceId: int("invoiceId"),
+  callbackId: int("callbackId").references(() => callbackRequests.id, { onDelete: "set null" }),
+  bookingId: int("bookingId").references(() => bookings.id, { onDelete: "set null" }),
+  invoiceId: int("invoiceId").references(() => invoices.id, { onDelete: "set null" }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -311,7 +311,7 @@ export type InsertCoupon = typeof coupons.$inferInsert;
  */
 export const customerVehicles = mysqlTable("customer_vehicles", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   year: varchar("year", { length: 10 }).notNull(),
   make: varchar("make", { length: 50 }).notNull(),
   model: varchar("model", { length: 50 }).notNull(),
@@ -334,9 +334,9 @@ export type InsertCustomerVehicle = typeof customerVehicles.$inferInsert;
  */
 export const serviceHistory = mysqlTable("service_history", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId"),
-  vehicleId: int("vehicleId"),
-  bookingId: int("bookingId"),
+  userId: int("userId").references(() => users.id, { onDelete: "set null" }),
+  vehicleId: int("vehicleId").references(() => customerVehicles.id, { onDelete: "set null" }),
+  bookingId: int("bookingId").references(() => bookings.id, { onDelete: "set null" }),
   serviceType: varchar("serviceType", { length: 100 }).notNull(),
   description: text("description"),
   mileageAtService: int("mileageAtService"),
@@ -505,7 +505,7 @@ export type InsertVehicleInspection = typeof vehicleInspections.$inferInsert;
  */
 export const inspectionItems = mysqlTable("inspection_items", {
   id: int("id").autoincrement().primaryKey(),
-  inspectionId: int("inspectionId").notNull(),
+  inspectionId: int("inspectionId").notNull().references(() => vehicleInspections.id, { onDelete: "cascade" }),
   /** Component being inspected */
   component: varchar("component", { length: 255 }).notNull(),
   /** Category grouping */
@@ -599,7 +599,7 @@ export type InsertMembership = typeof memberships.$inferInsert;
  */
 export const loyaltyTransactions = mysqlTable("loyalty_transactions", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "restrict" }),
   type: mysqlEnum("type", ["earn", "redeem", "bonus", "adjustment"]).notNull(),
   points: int("points").notNull(),
   /** Positive for earn, negative for redeem */
@@ -663,7 +663,7 @@ export type InsertCallbackRequest = typeof callbackRequests.$inferInsert;
 export const reviewRequests = mysqlTable("review_requests", {
   id: int("id").autoincrement().primaryKey(),
   /** Link to the completed booking */
-  bookingId: int("bookingId").notNull(),
+  bookingId: int("bookingId").notNull().references(() => bookings.id, { onDelete: "cascade" }),
   /** Customer name from booking */
   customerName: varchar("customerName", { length: 255 }).notNull(),
   /** Customer phone (normalized) */
@@ -823,8 +823,10 @@ export type InsertSmsConversation = typeof smsConversations.$inferInsert;
  */
 export const smsMessages = mysqlTable("sms_messages", {
   id: int("id").autoincrement().primaryKey(),
-  /** Link to conversation */
-  conversationId: int("conversationId").notNull(),
+  /** Link to conversation. DB-level FK fk_sms_msg_conv (BE-DATA-1, 2026-07-07). */
+  conversationId: int("conversationId")
+    .notNull()
+    .references(() => smsConversations.id, { onDelete: "cascade" }),
   /** Message direction */
   direction: mysqlEnum("direction", ["inbound", "outbound"]).notNull(),
   /** Message body */
@@ -1061,7 +1063,7 @@ export type WinbackMessage = typeof winbackMessages.$inferSelect;
 export const winbackSends = mysqlTable("winback_sends", {
   id: int("id").autoincrement().primaryKey(),
   campaignId: int("campaignId").notNull(),
-  customerId: int("customerId").notNull(),
+  customerId: int("customerId").notNull().references(() => customers.id, { onDelete: "cascade" }),
   messageId: int("messageId").notNull(),
   step: int("step").notNull(),
   phone: varchar("phone", { length: 30 }).notNull(),
@@ -1136,8 +1138,8 @@ export type InsertCustomerImportLog = typeof customerImportLog.$inferInsert;
  */
 export const jobAssignments = mysqlTable("job_assignments", {
   id: int("id").autoincrement().primaryKey(),
-  bookingId: int("bookingId").notNull(),
-  technicianId: int("technicianId").notNull(),
+  bookingId: int("bookingId").notNull().references(() => bookings.id, { onDelete: "cascade" }),
+  technicianId: int("technicianId").notNull().references(() => technicians.id, { onDelete: "restrict" }),
   /** Estimated hours for the job */
   estimatedHours: varchar("estimatedHours", { length: 10 }),
   /** When the tech actually started working */
@@ -1160,7 +1162,7 @@ export type InsertJobAssignment = typeof jobAssignments.$inferInsert;
  */
 export const customerMetrics = mysqlTable("customer_metrics", {
   id: int("id").autoincrement().primaryKey(),
-  customerId: int("customerId").notNull(),
+  customerId: int("customerId").notNull().references(() => customers.id, { onDelete: "cascade" }),
   /** Total revenue from this customer */
   totalRevenue: int("totalRevenue").default(0).notNull(),
   /** Number of completed jobs */
@@ -1203,11 +1205,14 @@ export type InsertCustomerMetric = typeof customerMetrics.$inferInsert;
  */
 export const invoices = mysqlTable("invoices", {
   id: int("id").autoincrement().primaryKey(),
-  /** Link to imported customer if matched */
-  customerId: int("customerId"),
+  /** Link to imported customer if matched. DB-level FK fk_invoices_customer
+   *  (BE-DATA-1, 2026-07-07) · ON DELETE SET NULL — never cascade-delete an
+   *  invoice; unlink it. Nullable: an unmatched import legitimately has none. */
+  customerId: int("customerId").references(() => customers.id, { onDelete: "set null" }),
   /** Link to booking if matched */
-  bookingId: int("bookingId"),
-  /** Link to work order if matched */
+  bookingId: int("bookingId").references(() => bookings.id, { onDelete: "set null" }),
+  /** Link to work order if matched. NOTE: this is int; work_orders.id is
+   *  varchar(36) — no DB FK possible (type mismatch); kept as a soft link. */
   workOrderId: int("workOrderId"),
   /** Customer name (denormalized for display) */
   customerName: varchar("customerName", { length: 255 }).notNull(),
@@ -1291,9 +1296,9 @@ export const estimatesLog = mysqlTable("estimates_log", {
   /** Whether customer converted (booked / invoiced) */
   converted: int("converted").default(0).notNull(),
   /** Link to invoice if converted */
-  invoiceId: int("invoiceId"),
+  invoiceId: int("invoiceId").references(() => invoices.id, { onDelete: "set null" }),
   /** Link to booking if converted */
-  bookingId: int("bookingId"),
+  bookingId: int("bookingId").references(() => bookings.id, { onDelete: "set null" }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("idx_estimate_phone").on(table.phone),
@@ -1362,9 +1367,9 @@ export const algEstimates = mysqlTable("alg_estimates", {
   /** When ALG wrote the estimate */
   estimateDate: timestamp("estimate_date").notNull(),
   /** Link to invoice if converted (matched during sync) */
-  matchedInvoiceId: int("matched_invoice_id"),
+  matchedInvoiceId: int("matched_invoice_id").references(() => invoices.id, { onDelete: "set null" }),
   matchedAt: timestamp("matched_at"),
-  customerId: int("customer_id"),
+  customerId: int("customer_id").references(() => customers.id, { onDelete: "set null" }),
   vin: varchar("vin", { length: 17 }),
   laborRate: int("labor_rate").default(11500).notNull(),
   serviceCategory: varchar("service_category", { length: 64 }),
@@ -1520,9 +1525,9 @@ export const tireOrders = mysqlTable("tire_orders", {
   installationDate: timestamp("installationDate"),
 
   /** Link to imported customer if matched */
-  customerId: int("customerId"),
+  customerId: int("customerId").references(() => customers.id, { onDelete: "set null" }),
   /** Link to booking if one was created for installation */
-  bookingId: int("bookingId"),
+  bookingId: int("bookingId").references(() => bookings.id, { onDelete: "set null" }),
 
   /** Whether the shop email notification was sent */
   emailSent: int("emailSent").default(0).notNull(),
@@ -1604,8 +1609,8 @@ export const vapiCallLogs = mysqlTable("vapi_call_logs", {
   serviceMention: varchar("serviceMention", { length: 120 }),
   /** Whether this call produced a callback / booking / lead row */
   convertedToLead: int("convertedToLead").default(0).notNull(),
-  leadId: int("leadId"),
-  callbackId: int("callbackId"),
+  leadId: int("leadId").references(() => leads.id, { onDelete: "set null" }),
+  callbackId: int("callbackId").references(() => callbackRequests.id, { onDelete: "set null" }),
   transcriptUrl: varchar("transcriptUrl", { length: 500 }),
   recordingUrl: varchar("recordingUrl", { length: 500 }),
   /** wave-181.113 · Nick AI evaluation. Daily cron scores each call
@@ -1719,7 +1724,7 @@ export const smsCampaignSends = mysqlTable("sms_campaign_sends", {
   /** Reference to the campaign */
   campaignId: int("campaignId").notNull(),
   /** Reference to customer */
-  customerId: int("customerId").notNull(),
+  customerId: int("customerId").notNull().references(() => customers.id, { onDelete: "cascade" }),
   /** Normalized phone number that was sent to */
   phone: varchar("phone", { length: 20 }).notNull(),
   /** Actual message body sent */
@@ -1851,7 +1856,7 @@ export const formAbandonment = mysqlTable("form_abandonment", {
  */
 export const payments = mysqlTable("payments", {
   id: int("id").primaryKey().autoincrement(),
-  customerId: int("customer_id"),
+  customerId: int("customer_id").references(() => customers.id, { onDelete: "set null" }),
   customerPhone: varchar("customer_phone", { length: 20 }),
   customerName: varchar("customer_name", { length: 200 }),
   amount: int("amount").notNull(), // cents
@@ -1860,7 +1865,7 @@ export const payments = mysqlTable("payments", {
   stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
   status: varchar("status", { length: 20 }).default("pending").notNull(),
   paidAt: timestamp("paid_at"),
-  invoiceId: int("invoice_id"),
+  invoiceId: int("invoice_id").references(() => invoices.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -1892,7 +1897,7 @@ export const errorLog = mysqlTable("error_log", {
  */
 export const appointmentReminders = mysqlTable("appointment_reminders", {
   id: int("id").primaryKey().autoincrement(),
-  bookingId: int("booking_id").notNull(),
+  bookingId: int("booking_id").notNull().references(() => bookings.id, { onDelete: "cascade" }),
   type: varchar("type", { length: 30 }).notNull(), // 24h-before, 1h-before, thank-you, review-request, maintenance-reminder
   scheduledFor: timestamp("scheduled_for"), // When this reminder should actually fire
   sentAt: timestamp("sent_at"),
@@ -1918,7 +1923,7 @@ export const appointmentReminders = mysqlTable("appointment_reminders", {
  */
 export const vehicles = mysqlTable("vehicles", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  customerId: int("customer_id").notNull(),
+  customerId: int("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
   year: int("year"),
   make: varchar("make", { length: 50 }),
   model: varchar("model", { length: 50 }),
@@ -1945,7 +1950,8 @@ export const vehicles = mysqlTable("vehicles", {
 export const workOrders = mysqlTable("work_orders", {
   id: varchar("id", { length: 36 }).primaryKey(),
   orderNumber: varchar("order_number", { length: 20 }).notNull(),
-  customerId: int("customer_id"),
+  /** DB-level FK fk_work_orders_customer · ON DELETE SET NULL (nullable link). */
+  customerId: int("customer_id").references(() => customers.id, { onDelete: "set null" }),
   vehicleId: varchar("vehicle_id", { length: 36 }),
   /** Full lifecycle status */
   status: varchar("status", { length: 30 }).default("draft").notNull(),
@@ -2013,7 +2019,7 @@ export const workOrders = mysqlTable("work_orders", {
  */
 export const workOrderItems = mysqlTable("work_order_items", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull().references(() => workOrders.id, { onDelete: "cascade" }),
   type: varchar("type", { length: 20 }).notNull(), // 'labor' | 'part' | 'tire' | 'fee' | 'sublet'
   description: varchar("description", { length: 500 }).notNull(),
   partNumber: varchar("part_number", { length: 50 }),
@@ -2058,7 +2064,7 @@ export const workOrderItems = mysqlTable("work_order_items", {
  */
 export const workOrderTransitions = mysqlTable("work_order_transitions", {
   id: int("id").autoincrement().primaryKey(),
-  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull().references(() => workOrders.id, { onDelete: "cascade" }),
   fromStatus: varchar("from_status", { length: 30 }),
   toStatus: varchar("to_status", { length: 30 }).notNull(),
   changedBy: varchar("changed_by", { length: 100 }),
@@ -2098,8 +2104,8 @@ export const specials = mysqlTable("specials", {
  */
 export const warranties = mysqlTable("warranties", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
-  customerId: int("customer_id"),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull().references(() => workOrders.id, { onDelete: "restrict" }),
+  customerId: int("customer_id").references(() => customers.id, { onDelete: "set null" }),
   vehicleId: varchar("vehicle_id", { length: 36 }),
   serviceDescription: varchar("service_description", { length: 500 }),
   warrantyMonths: int("warranty_months").notNull(),
@@ -2484,7 +2490,9 @@ export const auditLog = mysqlTable("audit_log", {
  */
 export const serviceAffinityPredictions = mysqlTable("service_affinity_predictions", {
   id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
-  customerId: int("customer_id").notNull(),
+  // DB column is BIGINT (not int) — schema-drift fix 2026-07-07. This mismatch
+  // is also why no FK to customers.id (int) is possible without a type change.
+  customerId: bigint("customer_id", { mode: "number" }).notNull(),
   predictedService: varchar("predicted_service", { length: 64 }).notNull(),
   confidence: decimal("confidence", { precision: 5, scale: 4 }).notNull(),
   featuresJson: json("features_json").notNull(),
@@ -2499,7 +2507,7 @@ export const serviceAffinityPredictions = mysqlTable("service_affinity_predictio
 
 export const predictionImpressions = mysqlTable("prediction_impressions", {
   id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
-  predictionId: bigint("prediction_id", { mode: "number" }).notNull(),
+  predictionId: bigint("prediction_id", { mode: "number" }).notNull().references(() => serviceAffinityPredictions.id, { onDelete: "cascade" }),
   shownAt: timestamp("shown_at").defaultNow().notNull(),
   // Enforced at app layer: 'admin_roster' | 'customer_drawer' | 'sms_queue' | 'statenour_brain'
   surface: varchar("surface", { length: 64 }).notNull(),
@@ -2510,7 +2518,7 @@ export const predictionImpressions = mysqlTable("prediction_impressions", {
 
 export const predictionActions = mysqlTable("prediction_actions", {
   id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
-  predictionId: bigint("prediction_id", { mode: "number" }).notNull(),
+  predictionId: bigint("prediction_id", { mode: "number" }).notNull().references(() => serviceAffinityPredictions.id, { onDelete: "cascade" }),
   // Enforced at app layer: 'sms_sent' | 'dismissed' | 'snoozed' | 'called' | 'modified'
   action: varchar("action", { length: 32 }).notNull(),
   actedAt: timestamp("acted_at").defaultNow().notNull(),
@@ -2661,7 +2669,7 @@ export type InsertBay = typeof bays.$inferInsert;
  */
 export const qcChecklists = mysqlTable("qc_checklists", {
   id: int("id").autoincrement().primaryKey(),
-  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull().references(() => workOrders.id, { onDelete: "cascade" }),
   completedBy: varchar("completed_by", { length: 100 }),
   reviewedBy: varchar("reviewed_by", { length: 100 }),
   status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | in_progress | passed | failed | waived
@@ -2853,8 +2861,11 @@ export const pipelineRuns = mysqlTable("pipeline_runs", {
   durationMs: int("durationMs"),
   /** JSON blob of pipeline results */
   resultJson: text("resultJson"),
-  /** Error message if failed */
-  errorMessage: text("errorMessage"),
+  /** Error message if failed. DB column is `error` (not `errorMessage`) — the
+   *  field name stays errorMessage but maps to the real column, so
+   *  orchestrator.ts's `.set({ errorMessage })` on failure no longer throws
+   *  "Unknown column 'errorMessage'" (schema-drift fix, 2026-07-07). */
+  errorMessage: text("error"),
   startedAt: timestamp("startedAt").defaultNow().notNull(),
   completedAt: timestamp("completedAt"),
 }, (table) => [
@@ -3477,7 +3488,7 @@ export type InsertSmsOrchestration = typeof smsOrchestrations.$inferInsert;
 
 export const smsOrchestrationOutcomes = mysqlTable("sms_orchestration_outcomes", {
   id: int("id").autoincrement().primaryKey(),
-  orchestrationId: int("orchestration_id").notNull(),
+  orchestrationId: int("orchestration_id").notNull().references(() => smsOrchestrations.id, { onDelete: "cascade" }),
   outcomeType: varchar("outcome_type", { length: 100 }).notNull(),
   outcomeValue: text("outcome_value"),
   sourceTable: varchar("source_table", { length: 100 }),

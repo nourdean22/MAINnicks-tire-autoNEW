@@ -276,7 +276,10 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
             if (!optedOut) {
               // wave-182: drip sequences are enrollment-based promotional sends →
               // TCPA opt-out on every step (idempotent if the body already has one).
-              await sendSms(enrollment.customerPhone, withOptOut(msg), { via: "shop" });
+              await sendSms(enrollment.customerPhone, withOptOut(msg), {
+                via: "shop",
+                variantKey: "drip",
+              });
             }
           }
         } else if (step.channel === "email") {
