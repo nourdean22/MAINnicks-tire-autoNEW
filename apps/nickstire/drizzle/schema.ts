@@ -2490,7 +2490,9 @@ export const auditLog = mysqlTable("audit_log", {
  */
 export const serviceAffinityPredictions = mysqlTable("service_affinity_predictions", {
   id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
-  customerId: int("customer_id").notNull(),
+  // DB column is BIGINT (not int) — schema-drift fix 2026-07-07. This mismatch
+  // is also why no FK to customers.id (int) is possible without a type change.
+  customerId: bigint("customer_id", { mode: "number" }).notNull(),
   predictedService: varchar("predicted_service", { length: 64 }).notNull(),
   confidence: decimal("confidence", { precision: 5, scale: 4 }).notNull(),
   featuresJson: json("features_json").notNull(),
@@ -2859,8 +2861,11 @@ export const pipelineRuns = mysqlTable("pipeline_runs", {
   durationMs: int("durationMs"),
   /** JSON blob of pipeline results */
   resultJson: text("resultJson"),
-  /** Error message if failed */
-  errorMessage: text("errorMessage"),
+  /** Error message if failed. DB column is `error` (not `errorMessage`) — the
+   *  field name stays errorMessage but maps to the real column, so
+   *  orchestrator.ts's `.set({ errorMessage })` on failure no longer throws
+   *  "Unknown column 'errorMessage'" (schema-drift fix, 2026-07-07). */
+  errorMessage: text("error"),
   startedAt: timestamp("startedAt").defaultNow().notNull(),
   completedAt: timestamp("completedAt"),
 }, (table) => [
