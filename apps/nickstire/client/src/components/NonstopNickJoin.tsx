@@ -15,13 +15,14 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { CheckCircle2, ChevronRight, Loader2 } from "lucide-react";
+import { trackEvent } from "@/components/SEO";
 
 /**
  * `source` = which surface sold the membership (carried as Stripe metadata
  * `signup_source` so the operator can attribute signups per page):
- * "membership_page" (/nonstop-nick, default) · "booking_page" · "tires_page".
+ * "membership_page" (/nonstop-nick, default) · "booking-page" · "tires_page".
  */
-export default function NonstopNickJoin({ source = "membership_page" }: { source?: string }) {
+export default function NonstopNickJoin({ source = "membership_page" }: { source?: string } = {}) {
   const [phone, setPhone] = useState("");
   const [plan, setPlan] = useState<"nonstop-nick" | "nonstop-nick-plus">("nonstop-nick");
   const [msg, setMsg] = useState<string | null>(null);
@@ -53,6 +54,7 @@ export default function NonstopNickJoin({ source = "membership_page" }: { source
       setMsg("Please enter a valid 10-digit phone number.");
       return;
     }
+    trackEvent("nonstop_join_start", { source, plan });
     start.mutate({ phone: digits, plan, source });
   };
 
