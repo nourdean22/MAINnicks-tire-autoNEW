@@ -179,6 +179,7 @@ export function MissionTaskRow({
       id={`task-${task.id}`}
       draggable={!isDone && isDraggable}
       onDragStart={(e) => {
+        e.dataTransfer.setData("application/vnd.nour.task-id", task.id);
         onDragStart?.(e);
       }}
       onDragEnd={() => {

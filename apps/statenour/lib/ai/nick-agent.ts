@@ -211,7 +211,7 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
 /**
  * Raw action dispatcher mapping action types to domain handlers.
  */
-async function executeActionWithoutTracing(action: AgentAction): Promise<ActionResult> {
+export async function executeActionWithoutTracing(action: AgentAction): Promise<ActionResult> {
   const { type, params } = action;
 
   try {
