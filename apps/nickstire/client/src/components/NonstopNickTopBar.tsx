@@ -21,6 +21,7 @@
  * page it links to).
  */
 import { Link, useLocation } from "wouter";
+import { trackEvent } from "@/components/SEO";
 
 const SUPPRESS_ON_ROUTES = ["/tires", "/tire-finder", "/nonstop-nick"];
 
@@ -44,6 +45,7 @@ export default function NonstopNickTopBar({
         className="flex items-center justify-center gap-2 bg-[#facc15] px-3 py-2 min-h-[44px] text-center active:scale-[0.99] transition-transform"
         data-testid="nonstop-nick-top-bar"
         tabIndex={collapsed ? -1 : 0}
+        onClick={() => trackEvent("nonstop_topbar_click", { from: location })}
       >
         <span className="text-black text-[11px] sm:text-[12px] font-black uppercase tracking-wide leading-tight">
           Stuck in the Euclid Ave line? Nonstop Nick members pull up anytime —

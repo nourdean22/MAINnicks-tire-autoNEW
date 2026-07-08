@@ -8,7 +8,8 @@ import PageLayout from "@/components/PageLayout";
 import ResponsivePhoto from "@/components/ResponsivePhoto";
 import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
-import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
+import { SEOHead, Breadcrumbs, trackPhoneClick, trackEvent } from "@/components/SEO";
+import { getOpenStatus } from "@/lib/shopHours";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import {
@@ -358,6 +359,29 @@ function getSeverityStyle(urgency: string) {
 
 // ─── MAIN PAGE ─────────────────────────────────────────
 
+/** Live open/closed line for the "don't wait" hero card. Mounted-gated so
+ *  prerendered HTML carries no stale status and hydration can't mismatch. */
+function DiagnoseOpenStatusLine() {
+  const [status, setStatus] = useState<{ isOpen: boolean; label: string } | null>(null);
+  useEffect(() => {
+    setStatus(getOpenStatus());
+    const id = setInterval(() => setStatus(getOpenStatus()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  if (!status) return null;
+  return (
+    <p className="mt-3 text-[12px] font-semibold">
+      {status.isOpen ? (
+        <span className="text-emerald-400">Bays are open right now.</span>
+      ) : (
+        <span className="text-foreground/50">
+          Closed right now &mdash; {status.label.toLowerCase()}. Pull up early, be first in line.
+        </span>
+      )}
+    </p>
+  );
+}
+
 export default function DiagnosePage() {
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
@@ -537,6 +561,7 @@ export default function DiagnosePage() {
                     you&apos;ve got. We love this work &mdash; it&apos;s why the
                     bays are open 7 days a week.
                   </p>
+                  <DiagnoseOpenStatusLine />
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
                     <a
                       href={BUSINESS.phone.href}
@@ -547,6 +572,7 @@ export default function DiagnosePage() {
                     </a>
                     <Link
                       href="/booking"
+                      onClick={() => trackEvent("diagnose_dropoff_link_click", { source: "dont-wait-card" })}
                       className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-full border border-white/15 text-foreground text-[13px] font-bold uppercase tracking-wide active:scale-95 transition-transform hover:border-white/30"
                     >
                       How drop-off works

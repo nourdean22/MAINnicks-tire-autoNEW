@@ -26,7 +26,8 @@ import ResponsivePhoto from "./ResponsivePhoto";
 import RelatedServices from "./RelatedServices";
 import ServiceReviewsBlock from "./ServiceReviewsBlock";
 import PageLayout from "./PageLayout";
-import { SEOHead, Breadcrumbs } from "./SEO";
+import { SEOHead, Breadcrumbs, trackEvent } from "./SEO";
+import { getOpenStatus } from "@/lib/shopHours";
 import LocalBusinessSchema from "./LocalBusinessSchema";
 import PhotoRibbon from "./PhotoRibbon";
 import RiseInView from "./RiseInView";
@@ -49,7 +50,7 @@ import BookingForm from "./BookingForm";
 import FadeIn from "./FadeIn";
 import { BUSINESS } from "@shared/business";
 import { Phone, CheckCircle, Clock, ShieldCheck, DollarSign, ChevronDown, Star, MapPin } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 // Conversion-architecture overlays (Batch 1 components, plumbed in Batch 3
 // of the v1.1 spec). All fields are OPTIONAL so existing services keep
@@ -313,12 +314,22 @@ function Hero({ config }: { config: ServicePageConfig }) {
                 {...(config.heroTertiaryCta.external
                   ? { target: "_blank", rel: "noopener noreferrer" }
                   : {})}
+                onClick={() =>
+                  trackEvent("hero_tertiary_cta_click", {
+                    label: config.heroTertiaryCta!.label,
+                    page: config.canonicalPath,
+                  })
+                }
                 className="inline-flex items-center justify-center gap-2 border-2 border-primary/50 text-primary px-7 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-primary/10 hover:border-primary transition-colors"
               >
                 <MapPin className="w-5 h-5" /> {config.heroTertiaryCta.label}
               </a>
             )}
           </div>
+          {/* Time-aware hint under the CTA row — only when a "come here
+              now" tertiary CTA exists. Uses shared shopHours so the page
+              never tells someone to drive to a closed shop. */}
+          {config.heroTertiaryCta && <HeroOpenStatusHint />}
         </FadeIn>
         <FadeIn delay={0.4}>
           <div className="mt-8 flex flex-wrap gap-3 text-sm">
@@ -379,6 +390,30 @@ function AeoAnswer({ config }: { config: ServicePageConfig }) {
     config.aeoAnswer ||
     `${config.serviceType} at Nick's Tire & Auto, 17625 Euclid Ave in Cleveland/Euclid, OH: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
   return <AeoAnswerBlock answer={answer} />;
+}
+
+/** Live open/closed line under the hero CTAs (only rendered when a
+ *  heroTertiaryCta "come here now" action exists). Mounted-gated so the
+ *  prerendered HTML carries no stale status and hydration can't mismatch. */
+function HeroOpenStatusHint() {
+  const [status, setStatus] = useState<{ isOpen: boolean; label: string } | null>(null);
+  useEffect(() => {
+    setStatus(getOpenStatus());
+    const id = setInterval(() => setStatus(getOpenStatus()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  if (!status) return null;
+  return (
+    <p className="mt-3 text-[13px] font-semibold">
+      {status.isOpen ? (
+        <span className="text-emerald-400">Open now &mdash; pull up, no appointment.</span>
+      ) : (
+        <span className="text-foreground/60">
+          Closed right now &mdash; {status.label.toLowerCase()}. Pull up early and you&apos;re first in line.
+        </span>
+      )}
+    </p>
+  );
 }
 
 function PricingSection({ config }: { config: ServicePageConfig }) {
