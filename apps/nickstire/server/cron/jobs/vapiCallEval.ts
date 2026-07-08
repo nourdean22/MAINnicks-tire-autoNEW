@@ -453,8 +453,20 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         missesByIntent.set(intent, (missesByIntent.get(intent) ?? 0) + 1);
       }
     }
-    for (const [intent, count] of missesByIntent) {
-      if (count < 2) continue; // a single miss isn't a pattern worth a lesson
+    // 2026-07-07 threshold rework · the old `count < 2` in-RUN gate never
+    // fired once in production (17 runs / 252 scored calls / 14d → zero
+    // vapi_eval_cron lessons ever written): at this shop's volume and
+    // conversion rate, two same-intent misses rarely land in a single
+    // daily batch. The gate was also DOUBLE protection — the pattern
+    // detector this loop actually relies on is cross-day reinforcement:
+    // a fresh lesson starts at 0.6, the receptionist prompt bar is >=0.65
+    // (nickMemory.ts rankPromptLessons), and confidence only climbs +0.05
+    // when the SAME intent misses again on a later run. So a one-off
+    // still never reaches the live phone prompt; it just decays. Writing
+    // on the first miss lets recurrence accumulate ACROSS runs instead of
+    // requiring it within one. Pool impact is bounded: one stable-text
+    // row per intent (content-hash reinforce, never duplicates).
+    for (const [intent] of missesByIntent) {
       await remember({
         type: "lesson",
         content: `Callers about "${intent}" keep ending without a booking (lost or info-only). Qualify the ${intent} ask faster and offer a manager transfer earlier so the call converts.`,
