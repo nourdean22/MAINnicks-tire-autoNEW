@@ -25,7 +25,15 @@ the phased plan to add them safely, one verified pair at a time.
 (a message without its conversation). `SET NULL` for optional/nullable links. **`RESTRICT` or `SET NULL`
 — never `CASCADE` — for financial/audit/history records** (invoices, payments, loyalty ledger).
 
-## Shipped (31 FKs · nickstire went 0 → 31)
+## Shipped (39 FKs · nickstire went 0 → 39)
+
+**Wave 5 (2026-07-07) added 8** — owned-record CASCADE + `service_history` SET NULL, applied to prod (7 at 0 orphans; `review_requests→bookings` had 4 test/sentinel rows with `bookingId` 0/99999 DELETED per operator confirmation, then FK added). Includes 2 **live** cascades where `bookings` is deleted (`review_requests`, `appointment_reminders`). Pairs: `customer_vehicles.userId→users` (CASCADE), `service_history.{userId→users, vehicleId→customer_vehicles, bookingId→bookings}` (SET NULL), `review_requests.bookingId→bookings` (CASCADE), `winback_sends.customerId→customers` (CASCADE), `sms_campaign_sends.customerId→customers` (CASCADE), `appointment_reminders.booking_id→bookings` (CASCADE).
+
+**Impossible FKs (type mismatch — cannot add, documented in schema.ts):**
+- `invoices.workOrderId` (`int`) → `work_orders.id` (`varchar(36)`)
+- `service_affinity_predictions.customer_id` (**`bigint` in DB**) → `customers.id` (`int`) — also a latent schema drift (Drizzle declares `int`).
+
+### Waves 1–4/5 (31 FKs)
 
 **Wave 4/5 (2026-07-07) added 19** — all pre-checked 0 orphans (pure additive, no data writes), types verified, applied to prod:
 - **14 SET NULL** (optional/money-adjacent links): `leads.{callbackId→callback_requests, bookingId→bookings, invoiceId→invoices}`, `invoices.bookingId→bookings`, `estimates_log.{invoiceId→invoices, bookingId→bookings}`, `alg_estimates.{matched_invoice_id→invoices, customer_id→customers}`, `vapi_call_logs.{leadId→leads, callbackId→callback_requests}`, `payments.customer_id→customers`, `tire_orders.{customerId→customers, bookingId→bookings}`, `warranties.customer_id→customers`

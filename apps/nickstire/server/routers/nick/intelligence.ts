@@ -744,7 +744,24 @@ export async function handleRunMigrations() {
       `ALTER TABLE loyalty_transactions ADD CONSTRAINT fk_loyalty_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE RESTRICT`,
       `ALTER TABLE job_assignments ADD CONSTRAINT fk_jobassign_tech FOREIGN KEY (technicianId) REFERENCES technicians(id) ON DELETE RESTRICT`,
       `ALTER TABLE warranties ADD CONSTRAINT fk_warranties_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE RESTRICT`,
-      `ALTER TABLE job_assignments ADD CONSTRAINT fk_jobassign_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE CASCADE`
+      `ALTER TABLE job_assignments ADD CONSTRAINT fk_jobassign_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE CASCADE`,
+      // 2026-07-07 · BE-DATA-1 wave 5 · 8 more FKs (nickstire 31 -> 39). Owned-
+      // record CASCADE (incl. 2 LIVE cascades where bookings ARE deleted:
+      // review_requests + appointment_reminders) + service_history SET NULL.
+      // Applied to prod first: 8 pairs 0 orphans; review_requests had 4 orphaned
+      // test/sentinel rows (bookingId 0/99999, terminal status) DELETED per
+      // operator confirmation, then FK added. Types verified.
+      // SKIPPED service_affinity_predictions.customer_id -> customers.id: DB
+      // column is BIGINT while customers.id is INT (ER_FK_INCOMPATIBLE_COLUMNS) —
+      // impossible FK + a latent schema drift (drizzle declares int). Documented.
+      `ALTER TABLE customer_vehicles ADD CONSTRAINT fk_custveh_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE`,
+      `ALTER TABLE service_history ADD CONSTRAINT fk_svchist_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL`,
+      `ALTER TABLE service_history ADD CONSTRAINT fk_svchist_vehicle FOREIGN KEY (vehicleId) REFERENCES customer_vehicles(id) ON DELETE SET NULL`,
+      `ALTER TABLE service_history ADD CONSTRAINT fk_svchist_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE SET NULL`,
+      `ALTER TABLE review_requests ADD CONSTRAINT fk_reviewreq_booking FOREIGN KEY (bookingId) REFERENCES bookings(id) ON DELETE CASCADE`,
+      `ALTER TABLE winback_sends ADD CONSTRAINT fk_winback_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE`,
+      `ALTER TABLE sms_campaign_sends ADD CONSTRAINT fk_smscampsend_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE`,
+      `ALTER TABLE appointment_reminders ADD CONSTRAINT fk_apptremind_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE`
     ];
 
     let applied = 0;
