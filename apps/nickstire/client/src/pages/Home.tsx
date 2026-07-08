@@ -1261,6 +1261,7 @@ export default function Home() {
           </p>
           <Link
             href="/nonstop-nick"
+            onClick={() => trackEvent("nonstop_sunday_cta_click", { source: "home" })}
             className="inline-flex items-center justify-center mt-5 min-h-[44px] px-6 rounded-full bg-nick-yellow text-black text-[13px] font-black uppercase tracking-wide active:scale-95 transition-transform hover:brightness-110"
           >
             See what&apos;s covered &rarr;
