@@ -1943,6 +1943,27 @@ async function cmdQa(args: string, chatId: string): Promise<void> {
     return;
   }
 
+  // AG-41 · fire the execute-on-approval event so approved moves run
+  // in seconds, not at tomorrow's 9am cron (the automation-gap
+  // register measured a 14-day median approve→execute latency).
+  // Best-effort: on send failure the cron backstop still ships them.
+  let eventQueued = false;
+  if (decision === "approved" && updated > 0) {
+    try {
+      const { getInngest } = await import("@/lib/inngest/client");
+      await getInngest().send({
+        name: "nick-action/approved",
+        data: {
+          actionIds: targets.map((t) => t.id),
+          approvedBy: "nour-telegram",
+        },
+      });
+      eventQueued = true;
+    } catch {
+      eventQueued = false;
+    }
+  }
+
   const verb = decision === "approved" ? "approved" : "rejected";
   const idxList = targets
     .map((t) => t.idx)
@@ -1951,7 +1972,9 @@ async function cmdQa(args: string, chatId: string): Promise<void> {
   await sendTelegram(
     `✅ <b>${verb}</b> · ${updated} of ${targets.length} (#${idxList})\n\n` +
       (decision === "approved"
-        ? "Execute cron at 09:00 UTC ships them."
+        ? eventQueued
+          ? "Executing now — digest lands here in ~1 min."
+          : "Event queue unavailable · execute cron at 09:00 UTC ships them."
         : "Rejected rows stay in the audit trail."),
     chatId,
   );

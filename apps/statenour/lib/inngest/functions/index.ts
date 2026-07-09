@@ -48,3 +48,7 @@ export { approvalSweeper } from "./approval-sweeper";
 // the Telegram /research command)
 export { researchOnDemand } from "./deep-research";
 
+
+// AG-41 · execute Nick actions the moment /qa approves them (event:
+// nick-action/approved) · the daily 9am cron stays as backstop
+export { nickActionApproved } from "./nick-action-approved";
