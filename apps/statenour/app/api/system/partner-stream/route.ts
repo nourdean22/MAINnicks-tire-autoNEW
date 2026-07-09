@@ -1,18 +1,15 @@
 import { streamText, convertToModelMessages } from 'ai';
 import { getModel } from '@/lib/ai/provider';
 import { NextResponse } from 'next/server';
-import { checkAiRateLimit } from '@/lib/rate-limit';
+import { apiHandler } from '@/lib/utils/http';
 import { assertWithinBudget } from '@/lib/ai/budget';
 import { trackGeneration } from '@/lib/ai/track';
 import { parseActions, executeActions } from '@/lib/ai/nick-agent';
 import { detectFailedActionClaims } from '@/lib/ai/chat/action-result-verifier';
 import { prisma } from '@/lib/prisma';
 
-export async function POST(req: Request) {
+export const POST = apiHandler(async (req: Request) => {
   try {
-    const limited = checkAiRateLimit(req);
-    if (limited) return limited;
-
     const budget = await assertWithinBudget().catch(() => null);
     if (budget && !budget.ok) {
       return NextResponse.json(
@@ -105,7 +102,8 @@ DO NOT output markdown headers unless necessary. DO NOT be robotic. Be human, br
 
     return result.toUIMessageStreamResponse();
   } catch (error) {
-    console.error('Partner Stream Error:', error);
+    const { logger } = await import('@/lib/logger');
+    logger.error('partner_stream_failed', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: 'Failed to stream partner response' }, { status: 500 });
   }
-}
+}, { auth: 'owner', rateLimit: 'ai' });

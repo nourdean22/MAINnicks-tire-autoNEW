@@ -1,0 +1,290 @@
+{
+  "generatedAt": "2026-07-04T12:04:52.864Z",
+  "serviceAccount": "nickstire-server@teezy-491218.iam.gserviceaccount.com",
+  "sites": [
+    {
+      "siteUrl": "https://nickstire.org/",
+      "permissionLevel": "siteOwner"
+    }
+  ],
+  "sitemaps": {
+    "https://nickstire.org/": [
+      {
+        "path": "https://nickstire.org/sitemap-images.xml",
+        "lastSubmitted": "2026-06-12T04:59:54.728Z",
+        "lastDownloaded": "2026-07-03T09:34:27.154Z",
+        "isPending": false,
+        "errors": "0",
+        "warnings": "0",
+        "contents": [
+          {
+            "type": "web",
+            "submitted": "11",
+            "indexed": "0"
+          },
+          {
+            "type": "image",
+            "submitted": "45",
+            "indexed": "0"
+          }
+        ]
+      },
+      {
+        "path": "https://nickstire.org/sitemap-locations.xml",
+        "lastSubmitted": "2026-06-12T04:59:54.532Z",
+        "lastDownloaded": "2026-06-29T03:31:30.279Z",
+        "isPending": false,
+        "errors": "0",
+        "warnings": "0",
+        "contents": [
+          {
+            "type": "web",
+            "submitted": "21",
+            "indexed": "0"
+          }
+        ]
+      },
+      {
+        "path": "https://nickstire.org/sitemap-services.xml",
+        "lastSubmitted": "2026-06-12T04:59:54.313Z",
+        "lastDownloaded": "2026-06-12T04:59:55.118Z",
+        "isPending": false,
+        "errors": "0",
+        "warnings": "0",
+        "contents": [
+          {
+            "type": "web",
+            "submitted": "51",
+            "indexed": "0"
+          }
+        ]
+      },
+      {
+        "path": "https://nickstire.org/sitemap.xml",
+        "lastSubmitted": "2026-06-12T04:59:53.855Z",
+        "lastDownloaded": "2026-06-12T04:59:55.225Z",
+        "isPending": false,
+        "errors": "0",
+        "warnings": "0",
+        "contents": [
+          {
+            "type": "web",
+            "submitted": "278",
+            "indexed": "0"
+          }
+        ]
+      }
+    ]
+  },
+  "inspections": [
+    {
+      "url": "https://nickstire.org/",
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "indexingState": "INDEXING_ALLOWED",
+      "robotsTxtState": "ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "lastCrawlTime": "2026-07-02T23:12:19Z",
+      "googleCanonical": "https://nickstire.org/",
+      "userCanonical": "https://nickstire.org/",
+      "crawledAs": "MOBILE",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": "PASS",
+      "richTypes": [
+        "Review snippets"
+      ]
+    },
+    {
+      "url": "https://nickstire.org/tires",
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "indexingState": "INDEXING_ALLOWED",
+      "robotsTxtState": "ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "lastCrawlTime": "2026-06-20T23:51:44Z",
+      "googleCanonical": "https://nickstire.org/tires",
+      "userCanonical": "https://nickstire.org/tires",
+      "crawledAs": "MOBILE",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": "PASS",
+      "richTypes": [
+        "Product snippets",
+        "Breadcrumbs",
+        "Review snippets"
+      ]
+    },
+    {
+      "url": "https://nickstire.org/oil-change",
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "indexingState": "INDEXING_ALLOWED",
+      "robotsTxtState": "ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "lastCrawlTime": "2026-06-28T14:46:56Z",
+      "googleCanonical": "https://nickstire.org/oil-change",
+      "userCanonical": "https://nickstire.org/oil-change",
+      "crawledAs": "MOBILE",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": "PASS",
+      "richTypes": [
+        "Breadcrumbs",
+        "Review snippets"
+      ]
+    },
+    {
+      "url": "https://nickstire.org/emissions",
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "indexingState": "INDEXING_ALLOWED",
+      "robotsTxtState": "ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "lastCrawlTime": "2026-06-21T23:38:36Z",
+      "googleCanonical": "https://nickstire.org/emissions",
+      "userCanonical": "https://nickstire.org/emissions",
+      "crawledAs": "MOBILE",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": "PASS",
+      "richTypes": [
+        "Breadcrumbs",
+        "Review snippets"
+      ]
+    },
+    {
+      "url": "https://nickstire.org/diagnose",
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "indexingState": "INDEXING_ALLOWED",
+      "robotsTxtState": "ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "lastCrawlTime": "2026-06-25T21:53:07Z",
+      "googleCanonical": "https://nickstire.org/diagnose",
+      "userCanonical": "https://nickstire.org/diagnose",
+      "crawledAs": "MOBILE",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": "PASS",
+      "richTypes": [
+        "Breadcrumbs",
+        "Review snippets"
+      ]
+    },
+    {
+      "url": "https://nickstire.org/brakes",
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "indexingState": "INDEXING_ALLOWED",
+      "robotsTxtState": "ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "lastCrawlTime": "2026-06-27T21:33:02Z",
+      "googleCanonical": "https://nickstire.org/brakes",
+      "userCanonical": "https://nickstire.org/brakes",
+      "crawledAs": "MOBILE",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": "PASS",
+      "richTypes": [
+        "Breadcrumbs",
+        "Review snippets"
+      ]
+    },
+    {
+      "url": "https://nickstire.org/services",
+      "verdict": "NEUTRAL",
+      "coverageState": "URL is unknown to Google",
+      "indexingState": "INDEXING_STATE_UNSPECIFIED",
+      "robotsTxtState": "ROBOTS_TXT_STATE_UNSPECIFIED",
+      "pageFetchState": "PAGE_FETCH_STATE_UNSPECIFIED",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": null,
+      "richTypes": []
+    },
+    {
+      "url": "https://nickstire.org/diagnostics",
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "indexingState": "INDEXING_ALLOWED",
+      "robotsTxtState": "ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "lastCrawlTime": "2026-06-23T07:51:26Z",
+      "googleCanonical": "https://nickstire.org/diagnostics",
+      "userCanonical": "https://nickstire.org/diagnostics",
+      "crawledAs": "MOBILE",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": "PASS",
+      "richTypes": [
+        "Breadcrumbs",
+        "Review snippets"
+      ]
+    },
+    {
+      "url": "https://nickstire.org/financing",
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "indexingState": "INDEXING_ALLOWED",
+      "robotsTxtState": "ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "lastCrawlTime": "2026-06-29T16:37:39Z",
+      "googleCanonical": "https://nickstire.org/financing",
+      "userCanonical": "https://nickstire.org/financing",
+      "crawledAs": "MOBILE",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": "PASS",
+      "richTypes": [
+        "Breadcrumbs",
+        "Review snippets"
+      ]
+    },
+    {
+      "url": "https://nickstire.org/parma-auto-repair",
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "indexingState": "INDEXING_ALLOWED",
+      "robotsTxtState": "ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "lastCrawlTime": "2026-07-02T03:03:23Z",
+      "googleCanonical": "https://nickstire.org/parma-auto-repair",
+      "userCanonical": "https://nickstire.org/parma-auto-repair",
+      "crawledAs": "MOBILE",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": "PASS",
+      "richTypes": [
+        "Breadcrumbs",
+        "Review snippets"
+      ]
+    },
+    {
+      "url": "https://nickstire.org/used-tires-cleveland",
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "indexingState": "INDEXING_ALLOWED",
+      "robotsTxtState": "ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "lastCrawlTime": "2026-06-26T11:09:29Z",
+      "googleCanonical": "https://nickstire.org/used-tires-cleveland",
+      "userCanonical": "https://nickstire.org/used-tires-cleveland",
+      "crawledAs": "MOBILE",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": "PASS",
+      "richTypes": [
+        "Breadcrumbs",
+        "Review snippets"
+      ]
+    },
+    {
+      "url": "https://nickstire.org/booking",
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "indexingState": "INDEXING_ALLOWED",
+      "robotsTxtState": "ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "lastCrawlTime": "2026-06-23T06:39:28Z",
+      "googleCanonical": "https://nickstire.org/booking",
+      "userCanonical": "https://nickstire.org/booking",
+      "crawledAs": "MOBILE",
+      "mobileVerdict": "VERDICT_UNSPECIFIED",
+      "richResults": null,
+      "richTypes": []
+    }
+  ],
+  "wwwVariant": {
+    "error": "User does not have sufficient permission for site 'https://www.nickstire.org/'. See also: https://support.google.com/webmasters/answer/2451999."
+  }
+}

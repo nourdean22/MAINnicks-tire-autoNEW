@@ -1,0 +1,184 @@
+{
+  "property": "https://nickstire.org/",
+  "range": {
+    "from": "2026-06-06",
+    "to": "2026-07-04"
+  },
+  "rows": [
+    {
+      "page": "https://nickstire.org/",
+      "clicks": 69,
+      "impressions": 7607,
+      "ctr": 0.91,
+      "position": 8.6
+    },
+    {
+      "page": "https://nickstire.org/tires",
+      "clicks": 28,
+      "impressions": 621,
+      "ctr": 4.51,
+      "position": 13.3
+    },
+    {
+      "page": "https://nickstire.org/oil-change",
+      "clicks": 10,
+      "impressions": 5606,
+      "ctr": 0.18,
+      "position": 35.5
+    },
+    {
+      "page": "https://nickstire.org/diagnose",
+      "clicks": 7,
+      "impressions": 218,
+      "ctr": 3.21,
+      "position": 17.8
+    },
+    {
+      "page": "https://nickstire.org/emissions",
+      "clicks": 7,
+      "impressions": 664,
+      "ctr": 1.05,
+      "position": 14.3
+    },
+    {
+      "page": "https://nickstire.org/brakes",
+      "clicks": 4,
+      "impressions": 9063,
+      "ctr": 0.04,
+      "position": 39.1
+    },
+    {
+      "page": "https://nickstire.org/services",
+      "clicks": 4,
+      "impressions": 799,
+      "ctr": 0.5,
+      "position": 4
+    },
+    {
+      "page": "https://nickstire.org/diagnostics",
+      "clicks": 3,
+      "impressions": 3768,
+      "ctr": 0.08,
+      "position": 17.3
+    },
+    {
+      "page": "https://nickstire.org/financing",
+      "clicks": 3,
+      "impressions": 426,
+      "ctr": 0.7,
+      "position": 8
+    },
+    {
+      "page": "https://nickstire.org/best-tire-shops-cleveland",
+      "clicks": 2,
+      "impressions": 368,
+      "ctr": 0.54,
+      "position": 12.2
+    },
+    {
+      "page": "https://nickstire.org/euclid-auto-repair",
+      "clicks": 2,
+      "impressions": 223,
+      "ctr": 0.9,
+      "position": 9.6
+    },
+    {
+      "page": "https://nickstire.org/parma-auto-repair",
+      "clicks": 2,
+      "impressions": 698,
+      "ctr": 0.29,
+      "position": 21.2
+    },
+    {
+      "page": "https://nickstire.org/about",
+      "clicks": 1,
+      "impressions": 312,
+      "ctr": 0.32,
+      "position": 8.3
+    },
+    {
+      "page": "https://nickstire.org/alignment",
+      "clicks": 1,
+      "impressions": 142,
+      "ctr": 0.7,
+      "position": 15
+    },
+    {
+      "page": "https://nickstire.org/cleveland-auto-repair",
+      "clicks": 1,
+      "impressions": 713,
+      "ctr": 0.14,
+      "position": 18.2
+    },
+    {
+      "page": "https://nickstire.org/contact",
+      "clicks": 1,
+      "impressions": 543,
+      "ctr": 0.18,
+      "position": 8.2
+    },
+    {
+      "page": "https://nickstire.org/electrical",
+      "clicks": 1,
+      "impressions": 117,
+      "ctr": 0.85,
+      "position": 13.6
+    },
+    {
+      "page": "https://nickstire.org/areas-served",
+      "clicks": 0,
+      "impressions": 478,
+      "ctr": 0,
+      "position": 9.6
+    },
+    {
+      "page": "https://nickstire.org/blog",
+      "clicks": 0,
+      "impressions": 172,
+      "ctr": 0,
+      "position": 5.8
+    },
+    {
+      "page": "https://nickstire.org/blog/auto-repair-payment-programs-bad-credit-cleveland",
+      "clicks": 0,
+      "impressions": 12,
+      "ctr": 0,
+      "position": 17.3
+    },
+    {
+      "page": "https://nickstire.org/blog/best-tire-brands-budget-cleveland",
+      "clicks": 0,
+      "impressions": 232,
+      "ctr": 0,
+      "position": 23.1
+    },
+    {
+      "page": "https://nickstire.org/blog/car-broke-down-on-i90-cleveland",
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 5.8
+    },
+    {
+      "page": "https://nickstire.org/blog/car-inspection-before-buying-used",
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 5.3
+    },
+    {
+      "page": "https://nickstire.org/blog/catalytic-converter-theft-prevention",
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+    },
+    {
+      "page": "https://nickstire.org/blog/cleveland-auto-repair-owners-manual",
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+    }
+  ]
+}
