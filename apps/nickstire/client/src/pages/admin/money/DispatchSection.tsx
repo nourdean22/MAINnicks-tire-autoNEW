@@ -72,6 +72,7 @@ export default function DispatchSection() {
       {tab === "techs" && (
         <>
           <TechManager load={load} />
+          <WeeklyHoursPanel />
           <TeamPerformancePanel />
         </>
       )}
@@ -577,6 +578,50 @@ function TeamPerformancePanel() {
           Team: {data.teamTotals.totalJobs ?? 0} jobs · ${Math.round(data.teamTotals.totalRevenue ?? 0).toLocaleString()} · avg QC {Math.round((data.teamTotals.avgQcPassRate ?? 0) * 100)}%
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Weekly Hours (AG-43) ────────────────────────────
+// Rolls up the time_clock_entries ledger (migration 0077). Renders
+// nothing until the migration is applied AND at least one shift is
+// recorded — the server returns [] in both cases by design.
+function WeeklyHoursPanel() {
+  const { data, isLoading } = trpc.dispatch.weeklyHours.useQuery(
+    undefined,
+    { staleTime: 60_000 },
+  );
+
+  if (isLoading) return null; // TechManager above already shows a spinner
+  const rows = data || [];
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="space-y-2 mt-6">
+      <h3 className="text-sm font-medium text-muted-foreground mb-2">Hours · last 7 days</h3>
+      <div className="border border-border/40 bg-card overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-muted-foreground border-b border-border/40">
+              <th className="text-left px-3 py-2 font-medium">Tech</th>
+              <th className="text-right px-3 py-2 font-medium">Hours</th>
+              <th className="text-right px-3 py-2 font-medium">Shifts</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.technicianId} className="border-b border-border/20 last:border-0">
+                <td className="px-3 py-2 text-foreground">{r.name}</td>
+                <td className="px-3 py-2 text-right text-foreground">
+                  {r.hours.toFixed(1)}
+                  {r.hasOpenShift && <span className="text-muted-foreground" title="Includes an open shift (counted to now, capped at 12h)"> +</span>}
+                </td>
+                <td className="px-3 py-2 text-right text-muted-foreground">{r.shifts}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

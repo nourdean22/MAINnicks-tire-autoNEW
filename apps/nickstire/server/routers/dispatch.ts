@@ -96,6 +96,15 @@ export const dispatchRouter = router({
       return { success: true };
     }),
 
+  // AG-43 · weekly hours from the time_clock_entries ledger (0077).
+  // Empty array until the operator applies the migration.
+  weeklyHours: adminProcedure
+    .input(z.object({ days: z.number().int().min(1).max(31).optional() }).optional())
+    .query(async ({ input }) => {
+      const { getWeeklyHours } = await import("../services/staffHours");
+      return getWeeklyHours(input?.days ?? 7);
+    }),
+
   // ─── QC ──────────────────────────────────────────
   getQcChecklist: adminProcedure
     .input(z.object({ workOrderId: z.string() }))
