@@ -35,6 +35,7 @@ import {
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import { buildCitationPrompt } from "@/lib/ai/memory-citations";
 import { buildNourVoicePrompt } from "@/lib/ai/nour-voice-profile";
+import { getBehaviorDirective } from "@/lib/ai/knowledge/behavior-directive";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { ContextBlocksFired } from "@/lib/services/chat/brain-context";
 
@@ -49,6 +50,9 @@ export interface FinalizeSystemPromptInput {
   provider: string;
   /** Persona key from the gate ("master" | "builder" | "friend" | ...). */
   personality: string;
+  /** Raw user message this turn — drives the behavior directive's
+   *  strict-mode escape (/strict, "just answer", etc.). */
+  userContent: string;
   /** Turn classifier output — drives CoT/shape/citation/voice gating. */
   turnSignal: TurnSignal;
   /** Brain-block fire flags — gate the citation protocol. */
@@ -72,7 +76,7 @@ export interface FinalizeSystemPromptOutput {
 export async function finalizeSystemPrompt(
   input: FinalizeSystemPromptInput,
 ): Promise<FinalizeSystemPromptOutput> {
-  const { provider, personality, turnSignal, contextBlocksFired, mode, queryShape, log } =
+  const { provider, personality, userContent, turnSignal, contextBlocksFired, mode, queryShape, log } =
     input;
   let systemPrompt = input.systemPrompt;
 
@@ -138,6 +142,19 @@ You are in Friend mode — just Nour's friend Nick.
 
   const personalityBlock = personalityPrompts[personality] || personalityPrompts.master;
   systemPrompt += `\n\n${personalityBlock}`;
+
+  // ── Behavior directive (ANTICIPATE→ANSWER→ELEVATE · Sparring at HIGH) ──
+  // AG-10 wiring · the directive was authored + unit-tested in
+  // lib/ai/knowledge/behavior-directive.ts but never injected into any live
+  // prompt, and the /strict · /chill interceptors set an intensity override
+  // nothing read. getBehaviorDirective self-gates: strict-mode messages
+  // ("/strict", "just answer", …) return "", and casual turns skip below.
+  // Intensity: NICK_CHAT_INTENSITY env (MINIMAL/STANDARD/HIGH) with the
+  // /strict · /chill override taking priority (per-instance state).
+  const behaviorDirective = getBehaviorDirective(userContent);
+  if (behaviorDirective && turnSignal.intent !== "casual") {
+    systemPrompt += `\n\n${behaviorDirective}`;
+  }
 
   // ═══ Apr 19 · Turn-aware prompt scaffolds ═══
   // Chain-of-thought fires on complex/analytical/decision/reflective turns.
