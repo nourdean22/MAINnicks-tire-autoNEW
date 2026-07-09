@@ -44,12 +44,23 @@ without literal-loading the entire library.
    quality + audit · execution helpers + specialized).
 
 2. **Semantic recall layer** (`lib/skills/skill-recall.ts` +
-   `data/skills-registry.json`). All 1,423 skills are indexed with
-   English-translated summaries + 1536-dim embeddings. On each
-   task, the user query embeds and runs cosine against the
+   `data/skills-registry.json`). All registry skills are indexed with
+   English-translated summaries + 1024-dim embeddings (Cohere
+   embed-v4.0; an earlier revision of this ADR said 1536 — wrong). On
+   each task, the user query embeds and runs cosine against the
    registry; top-K relevant skills (typically K=3) auto-inject as
    short summaries into the system prompt prefix. Average overhead:
    ~200ms per turn (parallel with the brain recall fan-out).
+
+   > **STATUS UPDATE (2026-07-09): Layer 2 auto-injection is DEAD in
+   > code.** Its only call site was removed in the Prompt V2 cutover
+   > (PR #432, commit 54635bcec, 2026-06-29) — `getRelevantSkillsBlock`
+   > in `lib/skills/skill-context.ts` has zero importers and the
+   > `skill.recall.injected` metric can never fire, so the quarterly
+   > re-curation loop below has no data. Skill discovery currently
+   > depends entirely on Layer 3 tool calls (which chat-mode keyword
+   > pruning may remove from a turn's tool set). Re-wiring is planned
+   > as ANTIGRAVITY_MASTER_PLAN AG-17.
 
 3. **`searchSkills` tool** in chat. Operator can explicitly invoke
    a skill lookup ("what skills help with Stripe webhook

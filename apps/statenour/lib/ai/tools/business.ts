@@ -535,7 +535,7 @@ export const businessTools = {
           ok: true,
           hasAdvisory: false,
           message:
-            "No pricing advisory has been generated yet. The weekly cron runs Sunday inside mega-evening.",
+            "No pricing advisory has been generated yet. No cron currently produces advisories — composeAdvisory() has no scheduled caller (wiring planned: ANTIGRAVITY_MASTER_PLAN AG-19).",
         };
       }
 

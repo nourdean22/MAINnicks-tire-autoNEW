@@ -1,13 +1,16 @@
 /**
  * lib/ai/style-adapter.ts · v10.0.529.34 · Arc B Feature 7
  *
- * Operator-style mimicry across non-chat AI surfaces. The chat
- * pipeline (lib/ai/system-prompt.ts) already appends the 8-axis
- * preference addendum to every chat turn's system prompt · this
- * module brings that same dial to OTHER prose-output AI surfaces
- * (reflect pushback · coach-goal · teach · track-story · narrator
- * voices · etc) so the operator's preferred style propagates beyond
- * /chat into the broader OS.
+ * Operator-style mimicry across non-chat AI surfaces (reflect
+ * pushback · coach-goal · teach · track-story · narrator voices ·
+ * etc) so the operator's preferred style propagates across the OS.
+ *
+ * NOTE (2026-07-09): the chat pipeline does NOT apply this addendum.
+ * An earlier version of this header claimed lib/ai/system-prompt.ts
+ * appended it every chat turn — that wiring did not survive the
+ * Prompt V2 cutover (2026-06-29); no chat-path import of
+ * preference-inference exists today. The ~8 non-chat call-sites of
+ * applyOperatorStyle are the only live consumers.
  *
  * Design (kaizen · YAGNI):
  *   · ONE function · applyOperatorStyle(systemPrompt) → systemPrompt+
