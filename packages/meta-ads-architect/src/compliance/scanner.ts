@@ -55,6 +55,27 @@ export function runComplianceScan(textPayloads: string[]): ComplianceRiskScan {
     riskScore += 1;
   }
 
+  // Banned superlatives and fake guarantees
+  const BANNED = /\b(quality|premium|luxury|tier|trusted|best|perfect|guaranteed|#1|cheapest|lowest price)\b/i;
+  const bannedMatch = fullText.match(BANNED);
+  if (bannedMatch) {
+    flags.push(`Contains banned superlative or fake guarantee: "${bannedMatch[0]}".`);
+    riskScore += 2;
+  }
+
+  // "free" misuse
+  const BAD_FREE = /\bfree\b(?!\s+(tire|brake|safety|quick|alignment|battery)?\s*check)/i;
+  if (BAD_FREE.test(fullText)) {
+    flags.push(`"free" used outside a "free check" offer.`);
+    riskScore += 2;
+  }
+
+  // HTML entity leaks
+  if (/&amp;|&lt;|&gt;/.test(fullText)) {
+    flags.push(`HTML entity leaked (use plain &, <, >).`);
+    riskScore += 1;
+  }
+
   // Scan for unsafe phrases and suggest swaps
   Object.keys(UNSAFE_PHRASES).forEach(unsafe => {
     if (fullText.includes(unsafe)) {
