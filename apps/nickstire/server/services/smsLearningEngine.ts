@@ -12,7 +12,8 @@ import {
   callbackRequests,
   leads,
   invoices,
-  smsLearningRecommendations
+  smsLearningRecommendations,
+  nickgptDefectLedger
 } from "../../drizzle/schema";
 import { eq, and, desc, gte, lte, sql, like } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
@@ -168,6 +169,7 @@ export interface DailyReport {
   topSources: Array<{ source: string; count: number }>;
   worstErrors: string[];
   trainingExamplesCollected: number;
+  nexusDefectsCaught: number;
 }
 
 /**
@@ -215,6 +217,10 @@ export async function generateDailySmsReport(date: Date): Promise<DailyReport> {
     .from(nickgptTrainingExamples)
     .where(and(gte(nickgptTrainingExamples.createdAt, start), lte(nickgptTrainingExamples.createdAt, end)));
 
+  const dailyDefects = await db.select()
+    .from(nickgptDefectLedger)
+    .where(and(gte(nickgptDefectLedger.createdAt, start), lte(nickgptDefectLedger.createdAt, end)));
+
   // Aggregations
   const totalSent = filteredOrchs.filter(o => o.status === "sent" || o.status === "delivered").length;
   const totalInbound = filteredOrchs.filter(o => o.eventType === "inbound_sms").length;
@@ -243,21 +249,16 @@ export async function generateDailySmsReport(date: Date): Promise<DailyReport> {
     .map(([intent, count]) => ({ intent, count }))
     .sort((a, b) => b.count - a.count);
 
-  // Sources
-  const sourceMap: Record<string, number> = {};
+  const sourceCounts = new Map<string, number>();
   for (const o of filteredOrchs) {
-    sourceMap[o.eventType] = (sourceMap[o.eventType] || 0) + 1;
+    sourceCounts.set(o.eventType, (sourceCounts.get(o.eventType) || 0) + 1);
   }
-  const topSources = Object.entries(sourceMap)
-    .map(([source, count]) => ({ source, count }))
-    .sort((a, b) => b.count - a.count);
 
-  // Errors
-  const worstErrors = Array.from(new Set(
-    filteredOrchs
-      .filter(o => o.status === "failed" && o.failureReason)
-      .map(o => o.failureReason!)
-  )).slice(0, 5);
+  const worstErrors = new Map<string, number>();
+  filteredOrchs.filter(o => o.status === "failed" && o.failureReason).forEach(o => {
+    const reason = o.failureReason!;
+    worstErrors.set(reason, (worstErrors.get(reason) || 0) + 1);
+  });
 
   return {
     date,
@@ -278,9 +279,20 @@ export async function generateDailySmsReport(date: Date): Promise<DailyReport> {
     cooldownBlocked,
     gatewayOffline,
     topQuestions,
-    topSources,
-    worstErrors,
-    trainingExamplesCollected: dailyExamples.length
+    topSources: Array.from(sourceCounts.entries())
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5),
+    worstErrors: Array.from(worstErrors.entries())
+      .map(([err, count]) => `${err} (${count}x)`)
+      .sort((a, b) => {
+        const countA = parseInt(a.match(/\((\d+)x\)/)?.[1] || "0");
+        const countB = parseInt(b.match(/\((\d+)x\)/)?.[1] || "0");
+        return countB - countA;
+      })
+      .slice(0, 5),
+    trainingExamplesCollected: filteredDrafts.filter(d => d.status === "approved" || d.status === "edited").length,
+    nexusDefectsCaught: dailyDefects.length,
   };
 }
 
@@ -619,6 +631,7 @@ NickGPT drafts: ${report.totalNickGptDrafts}
 Bookings from SMS: ${report.bookingsCreated}
 Callbacks created: ${report.callbacksCreated}
 Failed/queued: ${report.failedMessages}/${report.queuedMessages}
+Nexus defects caught: ${report.nexusDefectsCaught}
 Top question: ${report.topQuestions[0]?.intent || "none"}
 Training examples: ${report.trainingExamplesCollected}`;
 

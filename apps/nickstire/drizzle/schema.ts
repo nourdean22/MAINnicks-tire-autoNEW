@@ -3654,4 +3654,74 @@ export const intelligenceDecisionLedger = mysqlTable("intelligence_decision_ledg
 export type IntelligenceDecisionLedger = typeof intelligenceDecisionLedger.$inferSelect;
 export type InsertIntelligenceDecisionLedger = typeof intelligenceDecisionLedger.$inferInsert;
 
+// ─── SIGNAL FORGE NEXUS ────────────────────────────────
+
+export const nexusAuditJobs = mysqlTable("nexus_audit_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  jobType: varchar("jobType", { length: 100 }).notNull(),
+  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  priority: int("priority").default(0).notNull(),
+  sourceTable: varchar("sourceTable", { length: 100 }).notNull(),
+  sourceId: varchar("sourceId", { length: 100 }).notNull(),
+  orchestrationId: varchar("orchestrationId", { length: 100 }),
+  nickgptDraftId: int("nickgptDraftId"),
+  correlationId: varchar("correlationId", { length: 100 }),
+  idempotencyKey: varchar("idempotencyKey", { length: 100 }),
+  reasonCode: varchar("reasonCode", { length: 100 }),
+  riskTier: varchar("riskTier", { length: 50 }),
+  sampleReason: varchar("sampleReason", { length: 255 }),
+  attempts: int("attempts").default(0).notNull(),
+  maxAttempts: int("maxAttempts").default(3).notNull(),
+  nextRunAt: timestamp("nextRunAt").defaultNow().notNull(),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  lastError: text("lastError"),
+  payloadJson: text("payloadJson"),
+  resultJson: text("resultJson"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_nexus_job_status").on(table.status, table.nextRunAt),
+  index("idx_nexus_job_orchestration").on(table.orchestrationId),
+  index("idx_nexus_job_draft").on(table.nickgptDraftId),
+  index("idx_nexus_job_correlation").on(table.correlationId),
+  index("idx_nexus_job_sample").on(table.sampleReason),
+  index("idx_nexus_job_created").on(table.createdAt),
+]);
+
+export type NexusAuditJob = typeof nexusAuditJobs.$inferSelect;
+export type InsertNexusAuditJob = typeof nexusAuditJobs.$inferInsert;
+
+export const nickgptDefectLedger = mysqlTable("nickgpt_defect_ledger", {
+  id: int("id").autoincrement().primaryKey(),
+  auditJobId: int("auditJobId").references(() => nexusAuditJobs.id, { onDelete: "set null" }),
+  orchestrationId: varchar("orchestrationId", { length: 100 }),
+  nickgptDraftId: int("nickgptDraftId"),
+  phoneHashOrLast4: varchar("phoneHashOrLast4", { length: 64 }).notNull(),
+  eventType: varchar("eventType", { length: 100 }),
+  variantKey: varchar("variantKey", { length: 100 }),
+  templateKey: varchar("templateKey", { length: 100 }),
+  intent: varchar("intent", { length: 100 }),
+  confidence: float("confidence"),
+  provider: varchar("provider", { length: 100 }),
+  autoSent: int("autoSent").default(0).notNull(),
+  releaseDecision: varchar("releaseDecision", { length: 100 }).notNull(),
+  severity: varchar("severity", { length: 50 }).notNull(),
+  defectCodesJson: text("defectCodesJson"),
+  findingsJson: text("findingsJson"),
+  evidenceLedgerJson: text("evidenceLedgerJson"),
+  diagnosticBreakdownJson: text("diagnosticBreakdownJson"),
+  recommendedFixJson: text("recommendedFixJson"),
+  sanitizedTraceJson: text("sanitizedTraceJson"),
+  operatorReviewed: int("operatorReviewed").default(0).notNull(),
+  operatorDisposition: varchar("operatorDisposition", { length: 100 }),
+  exportedToTraining: int("exportedToTraining").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  reviewedAt: timestamp("reviewedAt"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type NickgptDefectLedger = typeof nickgptDefectLedger.$inferSelect;
+export type InsertNickgptDefectLedger = typeof nickgptDefectLedger.$inferInsert;
+
 
