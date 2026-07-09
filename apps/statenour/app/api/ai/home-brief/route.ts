@@ -16,7 +16,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
-import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("api/ai/home-brief");
@@ -47,21 +46,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const today = new Date().toISOString().slice(0, 10);
 
-  // Cache check.
-  try {
-    const cached = await prisma.brainMemory.findFirst({
-      where: {
-        category: BRAIN_CATEGORIES.HOME_BRIEF,
-        key: today,
-      },
-      select: { content: true },
-    });
-    if (cached?.content) return NextResponse.json({ brief: cached.content });
-  } catch (err) {
-    log.warn("cache_read_failed", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-  }
+  // Cache read/write is owned by composeBrief below (AG-40).
 
   // Gather cross-surface signal.
   let signalBlock = "";
@@ -109,62 +94,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ brief: "" });
   }
 
-  // Compose via tracedAiChat.
-  let brief = "";
-  try {
-    const result = await tracedAiChat(
-      { label: "home-brief", source: "tool" },
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: signalBlock },
-      ],
-      "reason",
-    );
-    brief = (result.content ?? "").trim();
-    if (brief.length > 320) brief = brief.slice(0, 320);
-  } catch (err) {
-    log.warn("brief_generation_failed", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return NextResponse.json({ brief: "" });
-  }
-
-  if (!brief) return NextResponse.json({ brief: "" });
-
-  try {
-    const existing = await prisma.brainMemory.findFirst({
-      where: {
-        category: BRAIN_CATEGORIES.HOME_BRIEF,
-        key: today,
-      },
-      select: { id: true },
-    });
-    const payload = {
-      content: brief,
-      confidence: 0.9,
-      source: "tool:home-brief",
-      createdBy: "ai" as const,
-      metadata: { generatedAt: new Date().toISOString() } as never,
-    };
-    if (existing) {
-      await prisma.brainMemory.update({
-        where: { id: existing.id },
-        data: { ...payload, lastSeen: new Date() },
-      });
-    } else {
-      await prisma.brainMemory.create({
-        data: {
-          category: BRAIN_CATEGORIES.HOME_BRIEF,
-          key: today,
-          ...payload,
-        },
-      });
-    }
-  } catch (err) {
-    log.warn("cache_write_failed", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-  }
+  // AG-40 · compose + cache via the shared brief-composer.
+  const { composeBrief } = await import("@/lib/ai/brief-composer");
+  const brief = await composeBrief({
+    label: "home-brief",
+    cacheCategory: BRAIN_CATEGORIES.HOME_BRIEF,
+    cacheKey: today,
+    systemPrompt: SYSTEM_PROMPT,
+    signalBlock,
+    taskType: "reason",
+    maxChars: 320,
+  });
 
   return NextResponse.json({ brief });
 }
