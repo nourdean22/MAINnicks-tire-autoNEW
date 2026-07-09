@@ -285,8 +285,41 @@ describe("v10.0.524 · multiSourceSearch orchestrator", () => {
     expect(mockExa).toHaveBeenCalledTimes(0);
     expect(result.sources).toHaveLength(1);
     expect(result.sources[0].name).toBe("perplexity");
-    // Single-source · 1/4 quorum.
-    expect(result.confidence).toBeCloseTo(1 / 4, 2);
+    // AG-16 · single source on a 1-source deployment = 1/max(2, available)
+    // = 0.5 — capped so one unverified source can never claim quorum.
+    // (Was 1/requested = 1/4: unkeyed sources diluted the denominator.)
+    expect(result.confidence).toBeCloseTo(0.5, 2);
+  });
+
+  it("AG-16 · 2-of-2 configured sources agreeing reaches quorum confidence ≥ 0.66", async () => {
+    // The exact prod shape the old math broke: only Tavily + Google keyed
+    // (requested still lists 4), both agree strongly. quorumFrac used to be
+    // 2/4 → confidence hard-capped at 0.5 while the searchWebVerified tool
+    // description promised ≥0.66 for 2-source agreement.
+    delete process.env.PERPLEXITY_API_KEY;
+    delete process.env.EXA_API_KEY;
+    process.env.GEMINI_API_KEY = "test-gem";
+    const agreed =
+      "The Federal Reserve raised interest rates by 25 basis points at the March 2026 meeting citing persistent inflation.";
+    mockTavily.mockResolvedValue({
+      content: agreed,
+      citations: [{ url: "https://tavily.example/fed" }],
+      model: "tavily-basic",
+    });
+    mockGoogle.mockResolvedValue({
+      content: agreed,
+      citations: [{ url: "https://google.example/fed" }],
+      model: "gemini-grounding",
+    });
+
+    const result = await multiSourceSearch("did the fed raise rates in march 2026");
+
+    expect(mockPerplexity).toHaveBeenCalledTimes(0);
+    expect(mockExa).toHaveBeenCalledTimes(0);
+    expect(result.consensus).not.toBeNull();
+    expect(result.confidence).toBeGreaterThanOrEqual(0.66);
+
+    delete process.env.GEMINI_API_KEY;
   });
 
   it("uses Google search grounding when Perplexity/Tavily/Exa keys are missing but Gemini key is present", async () => {
@@ -428,7 +461,10 @@ describe("v10.0.524 · multiSourceSearch orchestrator", () => {
     expect(mockTavily).not.toHaveBeenCalled();
     expect(mockExa).not.toHaveBeenCalled();
     expect(result.sources).toHaveLength(1);
-    // 1/1 dispatched · single-source path · confidence = 1/N where N = requested
-    expect(result.confidence).toBeCloseTo(1, 2);
+    // AG-16 · even an EXPLICITLY restricted single source caps at 0.5
+    // (1/max(2, available)): confidence is a consumer-facing verification
+    // signal ("≥0.66 = 2+ sources agree") — one source can never be
+    // quorum-grade no matter how it was selected.
+    expect(result.confidence).toBeCloseTo(0.5, 2);
   });
 });

@@ -172,22 +172,48 @@ export async function runDeepResearch(args: {
     subQueries.push(args.question);
   }
 
-  // 2. Run each sub-query in parallel via Perplexity
+  // 2. Run each sub-query in parallel. Perplexity is preferred when keyed;
+  // AG-16: this step was hardcoded to Perplexity, so without
+  // PERPLEXITY_API_KEY every sub-query threw, rounds came back empty, and
+  // the operator got an empty synthesis — from chat, the reasoning engine,
+  // and nick-agent alike (prod zombie). Unkeyed or failing queries now fall
+  // back to the multi-source quorum (Tavily / Google grounding / ...).
+  const hasPerplexityKey = Boolean(process.env.PERPLEXITY_API_KEY);
   const { smartWebSearch } = await import("@/lib/integrations/perplexity");
-  const roundResults = await Promise.all(
-    subQueries.map((q) =>
-      smartWebSearch({ query: q, recency: "month", tier: "sonar" })
-        .then((r) => ({
+  const { multiSourceSearch } = await import("@/lib/ai/multi-search");
+
+  const runSubQuery = async (
+    q: string,
+  ): Promise<{ query: string; content: string; citations: string[] }> => {
+    if (hasPerplexityKey) {
+      try {
+        const r = await smartWebSearch({ query: q, recency: "month", tier: "sonar" });
+        return {
           query: q,
           content: r?.content ?? "",
           citations: (r?.citations ?? []).map((c) => c.url).filter(Boolean).slice(0, 5),
-        }))
-        .catch((e) => {
-          log.debug("subquery_failed", { query: q, err: (e as Error).message });
-          return { query: q, content: "", citations: [] as string[] };
-        }),
-    ),
-  );
+        };
+      } catch (e) {
+        log.debug("subquery_perplexity_failed_falling_back", {
+          query: q,
+          err: (e as Error).message,
+        });
+      }
+    }
+    try {
+      const m = await multiSourceSearch(q, { recency: "month" });
+      return {
+        query: q,
+        content: m.consensus ?? m.sources[0]?.content ?? "",
+        citations: m.citations.map((c) => c.url).filter(Boolean).slice(0, 5),
+      };
+    } catch (e) {
+      log.debug("subquery_failed", { query: q, err: (e as Error).message });
+      return { query: q, content: "", citations: [] as string[] };
+    }
+  };
+
+  const roundResults = await Promise.all(subQueries.map(runSubQuery));
 
   const successful = roundResults.filter((r) => r.content);
 

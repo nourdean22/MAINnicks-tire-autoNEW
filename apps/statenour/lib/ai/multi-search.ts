@@ -210,11 +210,12 @@ export async function multiSourceSearch(
   opts: MultiSourceOptions = {},
 ): Promise<MultiSourceResult> {
   // 2026-07-05 · Perplexica joins the DEFAULT quorum only when actually
-  // configured. Confidence = successes / requested.length, so listing an
-  // unconfigured source in the default set would DILUTE every score on
-  // deployments that don't run Perplexica (weakening the anti-fabrication
-  // signal) — it never succeeds but still grows the denominator. Explicit
-  // `opts.sources` is always honored verbatim.
+  // configured. AG-16 extends that rationale to EVERY source: confidence
+  // denominators now use available.length (sources that passed hasApiKey),
+  // so unkeyed sources never dilute scores — previously, with only 2 of 4
+  // sources keyed, a perfect 2-source agreement could never exceed 0.5
+  // while the searchWebVerified tool description promised ">=0.66 means
+  // 2+ sources agree". Explicit `opts.sources` is always honored verbatim.
   const requested = opts.sources?.length
     ? opts.sources
     : ALL_SOURCES.filter((s) => s !== "perplexica" || hasPerplexica());
@@ -377,7 +378,10 @@ export async function multiSourceSearch(
       disagreement: failures.length
         ? `Only ${only.name} returned. Failures: ${failures.map((f) => f.name).join(", ")}.`
         : null,
-      confidence: 1 / requested.length,
+      // AG-16 · denominator = configured sources, floored at 2: a single
+      // unverified source must never claim quorum-grade confidence, even
+      // on a deployment where it's the only source configured.
+      confidence: 1 / Math.max(2, available.length),
       citations,
     };
   }
@@ -402,7 +406,8 @@ export async function multiSourceSearch(
     }
   }
   const meanAgreement = pairCount === 0 ? 0 : pairSum / pairCount;
-  const quorumFrac = successes.length / requested.length;
+  // AG-16 · quorum breadth over CONFIGURED sources (see rationale above).
+  const quorumFrac = successes.length / available.length;
 
   // Quorum detected when a pair agrees strongly · the dissenting
   // source becomes a citation but doesn't kill consensus.
