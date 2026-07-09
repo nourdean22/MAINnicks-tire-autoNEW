@@ -36,7 +36,7 @@ const CREATIVE_SECTIONS_SCHEMA = {
         additionalProperties: false,
         required: ["microAvatars", "messagingMap", "whatToSay", "whatToAvoid"],
         properties: {
-          microAvatars: { type: "array", items: { type: "object", additionalProperties: false, required: ["name", "description"], properties: { name: { type: "string" }, description: { type: "string" } } } },
+          microAvatars: { type: "array", minItems: 3, maxItems: 3, items: { type: "object", additionalProperties: false, required: ["name", "description"], properties: { name: { type: "string" }, description: { type: "string" } } } },
           messagingMap: { type: "object", additionalProperties: false, required: ["cold", "warm", "hot"], properties: { cold: { type: "string" }, warm: { type: "string" }, hot: { type: "string" } } },
           whatToSay: { type: "array", items: { type: "string" } },
           whatToAvoid: { type: "array", items: { type: "string" } }
@@ -44,16 +44,18 @@ const CREATIVE_SECTIONS_SCHEMA = {
       },
       adCopyFactory: {
         type: "array",
+        minItems: 5,
+        maxItems: 5,
         items: {
           type: "object",
           additionalProperties: false,
           required: ["bundleName", "shortPrimaryTexts", "longPrimaryText", "headlines", "descriptions", "ctaButtonRecommendations"],
           properties: {
             bundleName: { type: "string" },
-            shortPrimaryTexts: { type: "array", items: { type: "string" } },
+            shortPrimaryTexts: { type: "array", minItems: 2, maxItems: 2, items: { type: "string" } },
             longPrimaryText: { type: "string" },
-            headlines: { type: "array", items: { type: "string" } },
-            descriptions: { type: "array", items: { type: "string" } },
+            headlines: { type: "array", minItems: 7, maxItems: 7, items: { type: "string" } },
+            descriptions: { type: "array", minItems: 4, maxItems: 4, items: { type: "string" } },
             ctaButtonRecommendations: { type: "array", items: { type: "string" } }
           }
         }
@@ -65,7 +67,7 @@ const CREATIVE_SECTIONS_SCHEMA = {
         properties: {
           creativeThesis: { type: "string" },
           creativeAngles: {
-            type: "array", items: { type: "object", additionalProperties: false, required: ["angleName", "hooks", "proofType", "visualDirection", "ctaFraming", "textSafeAreaGuidance"], properties: { angleName: { type: "string" }, hooks: { type: "array", items: { type: "string" } }, proofType: { type: "string" }, visualDirection: { type: "string" }, ctaFraming: { type: "string" }, textSafeAreaGuidance: { type: "string" } } }
+            type: "array", minItems: 12, maxItems: 12, items: { type: "object", additionalProperties: false, required: ["angleName", "hooks", "proofType", "visualDirection", "ctaFraming", "textSafeAreaGuidance"], properties: { angleName: { type: "string" }, hooks: { type: "array", minItems: 3, maxItems: 3, items: { type: "string" } }, proofType: { type: "string" }, visualDirection: { type: "string" }, ctaFraming: { type: "string" }, textSafeAreaGuidance: { type: "string" } } }
           },
           creativeProductionChecklist: { type: "array", items: { type: "string" } },
           shotList: { type: "array", items: { type: "string" } }
@@ -76,9 +78,9 @@ const CREATIVE_SECTIONS_SCHEMA = {
         additionalProperties: false,
         required: ["imagePrompts", "reelPrompts", "ugcScriptOutlines"],
         properties: {
-          imagePrompts: { type: "array", items: { type: "object", additionalProperties: false, required: ["format", "subject", "scene", "lighting", "composition", "negativeInstructions", "textSafeSpaceInstruction"], properties: { format: { type: "string", enum: ["1:1", "4:5", "9:16"] }, subject: { type: "string" }, scene: { type: "string" }, lighting: { type: "string" }, composition: { type: "string" }, negativeInstructions: { type: "string" }, textSafeSpaceInstruction: { type: "string" } } } },
-          reelPrompts: { type: "array", items: { type: "object", additionalProperties: false, required: ["hookFirst2Seconds", "sceneBeats", "onScreenTextPlan", "endFrameCta"], properties: { hookFirst2Seconds: { type: "string" }, sceneBeats: { type: "array", items: { type: "string" } }, onScreenTextPlan: { type: "string" }, endFrameCta: { type: "string" } } } },
-          ugcScriptOutlines: { type: "array", items: { type: "object", additionalProperties: false, required: ["openingLine", "storyArc", "proofMoment", "cta", "filmingNotes"], properties: { openingLine: { type: "string" }, storyArc: { type: "string" }, proofMoment: { type: "string" }, cta: { type: "string" }, filmingNotes: { type: "string" } } } }
+          imagePrompts: { type: "array", minItems: 12, maxItems: 12, items: { type: "object", additionalProperties: false, required: ["format", "subject", "scene", "lighting", "composition", "negativeInstructions", "textSafeSpaceInstruction"], properties: { format: { type: "string", enum: ["1:1", "4:5", "9:16"] }, subject: { type: "string" }, scene: { type: "string" }, lighting: { type: "string" }, composition: { type: "string" }, negativeInstructions: { type: "string" }, textSafeSpaceInstruction: { type: "string" } } } },
+          reelPrompts: { type: "array", minItems: 6, maxItems: 6, items: { type: "object", additionalProperties: false, required: ["hookFirst2Seconds", "sceneBeats", "onScreenTextPlan", "endFrameCta"], properties: { hookFirst2Seconds: { type: "string" }, sceneBeats: { type: "array", items: { type: "string" } }, onScreenTextPlan: { type: "string" }, endFrameCta: { type: "string" } } } },
+          ugcScriptOutlines: { type: "array", minItems: 4, maxItems: 4, items: { type: "object", additionalProperties: false, required: ["openingLine", "storyArc", "proofMoment", "cta", "filmingNotes"], properties: { openingLine: { type: "string" }, storyArc: { type: "string" }, proofMoment: { type: "string" }, cta: { type: "string" }, filmingNotes: { type: "string" } } } }
         }
       },
       landingPageSystem: {
@@ -89,7 +91,7 @@ const CREATIVE_SECTIONS_SCHEMA = {
           directResponseVariant: { type: "string" },
           leadMagnetOrQuizVariant: { type: "string" },
           hybridVariant: { type: "string" },
-          faqs: { type: "array", items: { type: "object", additionalProperties: false, required: ["question", "answer"], properties: { question: { type: "string" }, answer: { type: "string" } } } },
+          faqs: { type: "array", minItems: 12, items: { type: "object", additionalProperties: false, required: ["question", "answer"], properties: { question: { type: "string" }, answer: { type: "string" } } } },
           riskReversalWording: { type: "string" }
         }
       }
@@ -374,33 +376,47 @@ export async function generateCampaignPlan(input: CampaignInput, llmProvider?: L
   };
 
   // Run Compliance Scan
-  const payloadsToScan = rawPlan.adCopyFactory?.flatMap((b: any) => [...b.shortPrimaryTexts, b.longPrimaryText, ...b.headlines]) || [];
-  const complianceRiskScan = runComplianceScan(payloadsToScan);
+  const extractPayloads = (plan: any) => {
+    return [
+      ...(plan.adCopyFactory?.flatMap((b: any) => [...(b.shortPrimaryTexts || []), b.longPrimaryText, ...(b.headlines || []), ...(b.descriptions || [])]) || []),
+      ...(plan.creativeTestingLab?.creativeAngles?.flatMap((a: any) => [...(a.hooks || []), a.ctaFraming]) || []),
+      ...(plan.creativePrompts?.reelPrompts?.flatMap((r: any) => [r.hookFirst2Seconds, r.onScreenTextPlan]) || []),
+      ...(plan.creativePrompts?.ugcScriptOutlines?.flatMap((u: any) => [u.openingLine, u.cta]) || []),
+      plan.landingPageSystem?.directResponseVariant,
+      plan.landingPageSystem?.leadMagnetOrQuizVariant,
+      plan.landingPageSystem?.hybridVariant,
+      plan.landingPageSystem?.riskReversalWording
+    ].filter(Boolean) as string[];
+  };
 
-  rawPlan.complianceRiskScan = complianceRiskScan;
+  rawPlan.complianceRiskScan = runComplianceScan(extractPayloads(rawPlan));
 
   // Validate final full plan against CampaignOutputSchema
   const parsedFinal = CampaignOutputSchema.safeParse(rawPlan);
   if (!parsedFinal.success) {
     console.error("CampaignOutputSchema validation failed on final output:", parsedFinal.error);
-    // Even if it fails validation (e.g. LLM hallucinates an invalid string instead of array), we return it
-    // as any, but cast it so TypeScript doesn't complain. The frontend can still render it.
-    // To be perfectly safe, we'll try to fallback completely.
-    if (metadataPreset === "llm-creative") {
-      console.error("Falling back completely to deterministic due to schema failure.");
-      const fallbackPlan: any = {
-        ...deterministicBase,
-        ...generateDeterministicCreative(),
-        exportMetadata: {
-          generatedAt: new Date().toISOString(),
-          version: "1.0.0",
-          presetUsed: "deterministic-fallback"
-        }
-      };
-      fallbackPlan.complianceRiskScan = runComplianceScan(fallbackPlan.adCopyFactory.flatMap((b: any) => [...b.shortPrimaryTexts, b.longPrimaryText, ...b.headlines]));
-      return CampaignOutputSchema.parse(fallbackPlan);
+    
+    // Fall back to deterministic entirely since the LLM polluted the structure
+    console.error("Falling back completely to deterministic due to schema failure.");
+    const fallbackPlan: any = {
+      ...deterministicBase,
+      ...generateDeterministicCreative(),
+      exportMetadata: {
+        generatedAt: new Date().toISOString(),
+        version: "1.0.0",
+        presetUsed: "deterministic-fallback"
+      }
+    };
+    
+    fallbackPlan.complianceRiskScan = runComplianceScan(extractPayloads(fallbackPlan));
+    
+    const parsedFallback = CampaignOutputSchema.safeParse(fallbackPlan);
+    if (!parsedFallback.success) {
+      throw new Error(`Deterministic fallback failed schema validation: ${parsedFallback.error.message}`);
     }
+
+    return parsedFallback.data;
   }
 
-  return rawPlan as CampaignOutput;
+  return parsedFinal.data;
 }
