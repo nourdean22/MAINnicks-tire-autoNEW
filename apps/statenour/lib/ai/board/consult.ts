@@ -419,6 +419,13 @@ export function gateMembersByMood(
 export async function consultBoard(
   boardId: BoardId,
   question: string,
+  // AG-19 · optional live-business context (scoreboard numbers, revenue,
+  // latest pricing advisory) — advisors were context-blind: "should I
+  // raise alignment prices" got answered without the shop's actual win
+  // rate. Composition layers (board-consult-record) BUILD the block;
+  // this module stays Prisma-free per its purity contract and merely
+  // threads it alongside the operator-state block.
+  contextBlock?: string,
 ): Promise<BoardConsultation> {
   const board = getBoard(boardId);
   if (!board) throw new Error(`Unknown board: ${boardId}`);
@@ -460,16 +467,23 @@ export async function consultBoard(
     // mood-blind fall-back · use base members + no state block
   }
 
+  // AG-19 · merge the live-business context into the same prompt slot as
+  // the operator-state block — one combined block, zero signature changes
+  // in consultOne/synthesize.
+  const promptBlock = [stateBlock, contextBlock?.trim()]
+    .filter((b): b is string => Boolean(b && b.length > 0))
+    .join("\n\n");
+
   const t0 = Date.now();
   // Fan-out · all advisors consulted in PARALLEL. This is THE feature
   // — serial reasoning + lens fusion is what the existing strategic-
   // frameworks lens-injection already does in Nick. The board exists
   // precisely BECAUSE it parallelizes the perspectives.
   const takes = await Promise.all(
-    effectiveMembers.map((member) => consultOne(member, question, stateBlock)),
+    effectiveMembers.map((member) => consultOne(member, question, promptBlock)),
   );
   // Sequential after fan-out · synthesizer reads ALL takes.
-  const synthesis = await synthesize(question, takes, stateBlock, droppedAdvisorIds);
+  const synthesis = await synthesize(question, takes, promptBlock, droppedAdvisorIds);
   const durationMs = Date.now() - t0;
 
   return {

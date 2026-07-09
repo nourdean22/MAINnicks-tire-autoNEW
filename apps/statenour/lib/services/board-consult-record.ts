@@ -30,6 +30,45 @@ import type {
 } from "@/lib/ai/board/types";
 
 /**
+ * AG-19 · live-business context for the advisors. consultBoard used to
+ * receive ONLY the question text — "should I raise alignment prices"
+ * got answered without the shop's actual numbers. This composition
+ * layer (allowed to touch services/Prisma; consult.ts is not) builds a
+ * capped block from the meta-scoreboard, plus revenue + the latest
+ * pricing advisory when the question smells like pricing/revenue.
+ * Best-effort: any failure returns "" → the old context-blind consult.
+ */
+async function buildBusinessContextBlock(question: string): Promise<string> {
+  try {
+    const parts: string[] = [];
+    const { buildMetaScoreboard } = await import("@/lib/services/meta-scoreboard");
+    const board = await buildMetaScoreboard();
+    parts.push(JSON.stringify(board).slice(0, 900));
+
+    if (/\b(pric(e|ing)|revenue|margin|cost|charge|discount|rate)\b/i.test(question)) {
+      const { getRevenueStats } = await import("@/lib/services/business-intel");
+      const rev = await getRevenueStats("month").catch(() => null);
+      if (rev) parts.push(`Revenue (month): ${JSON.stringify(rev).slice(0, 300)}`);
+      const advisory = await prisma.brainMemory
+        .findFirst({
+          where: { category: "pricing_advisory" },
+          orderBy: { createdAt: "desc" },
+          select: { content: true },
+        })
+        .catch(() => null);
+      if (advisory?.content) parts.push(`Latest pricing advisory: ${advisory.content.slice(0, 240)}`);
+    }
+
+    const body = parts.join("\n").slice(0, 1500);
+    return body
+      ? `CURRENT BUSINESS STATE (live numbers · cite when relevant):\n${body}`
+      : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Run a consultation AND persist it. Returns the full consultation
  * + the BrainMemory.id of the persisted record (so the caller can
  * link to it · `/brain/board/<id>` deep-links land later).
@@ -38,7 +77,8 @@ export async function consultBoardAndPersist(
   boardId: BoardId,
   question: string,
 ): Promise<{ consultation: BoardConsultation; recordId: string }> {
-  const consultation = await runConsultBoard(boardId, question);
+  const contextBlock = await buildBusinessContextBlock(question);
+  const consultation = await runConsultBoard(boardId, question, contextBlock);
 
   // Persist as a BrainMemory row · key encodes the (board, time)
   // tuple so re-running the same board on the same instant collides
