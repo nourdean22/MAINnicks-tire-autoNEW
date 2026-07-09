@@ -185,8 +185,20 @@ export const criticizeRecommendation = withGuardian("adversarial-critic", _criti
  * Fire-and-forget · runs the adversarial pass async + persists the
  * objection to a brain memory keyed by message ID for review/UI surfacing.
  */
-export async function criticizeAsync(args: CriticArgs & { messageId: string }) {
-  if (!isRecommendationShape(args.recommendation)) return; // skip non-recs
+export async function criticizeAsync(
+  args: CriticArgs & {
+    messageId: string;
+    /** AG-30 · conversation the reply belongs to — lets the objection-
+     *  injector re-surface unaddressed counter-views on later turns in
+     *  the SAME conversation (objections were write-only before). */
+    conversationId?: string | null;
+    /** AG-30 · spar-mode turns critique EVERY reply, not just
+     *  recommendation-shaped ones — a brainstorm without a counter-view
+     *  defeats the mode's purpose. */
+    force?: boolean;
+  },
+) {
+  if (!args.force && !isRecommendationShape(args.recommendation)) return; // skip non-recs
   try {
     const report = await criticizeRecommendation(args);
     if (!report?.hasObjection) return;
@@ -199,6 +211,7 @@ export async function criticizeAsync(args: CriticArgs & { messageId: string }) {
       "adversarial-critic",
       {
         messageId: args.messageId,
+        conversationId: args.conversationId ?? null,
         severity: report.severity,
         foundFlaw: report.foundFlaw,
       },

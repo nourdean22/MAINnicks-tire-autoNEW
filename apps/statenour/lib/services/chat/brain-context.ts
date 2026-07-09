@@ -140,6 +140,7 @@ export async function buildBrainContext(
       greeneMatcherMod,
       darkPsychMatcherMod,
       skillRegistryRecallMod,
+      objectionInjectorMod,
     ] = await Promise.all([
       import("@/lib/brain/chat-recall").catch(() => null),
       import("@/lib/brain/skill-extractor").catch(() => null),
@@ -179,6 +180,9 @@ export async function buildBrainContext(
       // cutover (PR #432) — this restores it and its
       // skill.recall.injected telemetry (ADR-0007 open item).
       import("@/lib/skills/skill-context").catch(() => null),
+      // AG-30 · unaddressed adversarial objections re-enter context
+      // (mirrors the contradiction injector directly above).
+      import("@/lib/brain/objection-injector").catch(() => null),
     ]);
 
     const [
@@ -194,6 +198,7 @@ export async function buildBrainContext(
       greeneBlock,
       darkPsychBlock,
       skillRegistryBlock,
+      objectionHit,
     ] = await Promise.all([
       userContent.length > 10 && recallMod
         ? withTimeout(recallMod.buildChatRecallBlock(userContent, mode === "deep" ? 6 : 4), 3000, "")
@@ -286,6 +291,10 @@ export async function buildBrainContext(
       userContent.length > 10 && skillRegistryRecallMod
         ? withTimeout(skillRegistryRecallMod.getRelevantSkillsBlock(userContent), 3000, "")
         : Promise.resolve(""),
+      // AG-30 · once-per-conversation, 24h lookback, severity≥2+flaw only.
+      objectionInjectorMod && convId
+        ? withTimeout(objectionInjectorMod.findRelevantObjections({ conversationId: convId }), 3000, null)
+        : Promise.resolve(null),
     ]);
 
     // 2026-07-04 (audit) · anticipateMemories is an LLM call awaited
@@ -344,6 +353,7 @@ export async function buildBrainContext(
       { name: "Greene Strategy Frame", content: greeneBlock || "" },
       { name: "Dark Psychology Frame", content: darkPsychBlock || "" },
       { name: "Skill Registry Recall", content: skillRegistryBlock || "" },
+      { name: "Open Counter-View", content: objectionHit && objectionInjectorMod ? objectionInjectorMod.buildObjectionBlock(objectionHit) : "" },
       { name: "Predictive Prefetch", content: prefetchResults?.length ? formatPrefetchContext(prefetchResults as PrefetchResult[]) || "" : "", critical: true }
     ].filter((b) => b.content && b.content.trim().length > 0);
 

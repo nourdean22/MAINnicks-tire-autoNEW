@@ -38,6 +38,8 @@ import { buildNourVoicePrompt } from "@/lib/ai/nour-voice-profile";
 import { getBehaviorDirective } from "@/lib/ai/knowledge/behavior-directive";
 import { buildContractDirective } from "@/lib/ai/response-contract";
 import type { ResponseContract } from "@/lib/ai/response-contract";
+import { SPAR_MODE } from "@/lib/ai/prompt/policy/spar-mode";
+import { EARLY_SPAR } from "@/lib/ai/chat/handlers/patterns";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { ContextBlocksFired } from "@/lib/services/chat/brain-context";
 
@@ -188,6 +190,15 @@ You are in Friend mode — just Nour's friend Nick.
   const contractDirective = input.contract ? buildContractDirective(input.contract) : "";
   if (contractDirective) {
     systemPrompt += `\n\n${contractDirective}`;
+  }
+
+  // AG-30 · SPAR MODE (diverge → attack → converge). Fires on brainstorm
+  // contract turns or the explicit /spar prefix — the thought-partner
+  // scaffold that brainstorm turns never had (they got only temperature).
+  const sparTurn =
+    input.contract?.answerMode === "brainstorm" || EARLY_SPAR.test(userContent);
+  if (sparTurn) {
+    systemPrompt += `\n\n${SPAR_MODE}`;
   }
 
   // Apr 19 · Citation protocol — added on turns where any brain block

@@ -113,6 +113,30 @@ describe("finalizeSystemPrompt · behavior directive (AG-10)", () => {
   });
 });
 
+describe("finalizeSystemPrompt · spar mode (AG-30)", () => {
+  it("injects SPAR MODE on brainstorm-contract turns", async () => {
+    const prompt = await finalize(
+      "brainstorm some angles for the winter tire campaign",
+      { withContract: true },
+    );
+    expect(prompt).toContain("# SPAR MODE");
+    expect(prompt).toContain("professional skeptic");
+  });
+
+  it("injects SPAR MODE on explicit /spar prefix even without a contract", async () => {
+    const prompt = await finalize("/spar should I open the second location");
+    expect(prompt).toContain("# SPAR MODE");
+  });
+
+  it("does NOT inject SPAR MODE on plain analytical turns", async () => {
+    const prompt = await finalize(
+      "analyze whether raising the alignment price would hurt our win rate",
+      { withContract: true },
+    );
+    expect(prompt).not.toContain("# SPAR MODE");
+  });
+});
+
 describe("finalizeSystemPrompt · response contract (AG-11)", () => {
   it("enforces exact rank counts and no-clarifying-questions", async () => {
     const prompt = await finalize(
