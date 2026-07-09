@@ -20,7 +20,10 @@ import { trackEvent } from "@/components/SEO";
 /**
  * `source` = which surface sold the membership (carried as Stripe metadata
  * `signup_source` so the operator can attribute signups per page):
- * "membership_page" (/nonstop-nick, default) · "booking-page" · "tires_page".
+ * "membership_page" (/nonstop-nick, default) · "booking_page" · "tires_page".
+ * Values are snake_case — PR #615 briefly renamed booking_page to
+ * "booking-page", silently forking the Stripe signup_source taxonomy
+ * (server docs + membership-launch.test.ts use snake_case); reverted.
  */
 export default function NonstopNickJoin({ source = "membership_page" }: { source?: string } = {}) {
   const [phone, setPhone] = useState("");
