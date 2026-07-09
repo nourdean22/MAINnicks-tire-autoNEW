@@ -1,4 +1,4 @@
-import { int, bigint, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, primaryKey, decimal, date, datetime, float } from "drizzle-orm/mysql-core";
+import { int, tinyint, bigint, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, primaryKey, decimal, date, datetime, float } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 /**
@@ -1012,7 +1012,7 @@ export const customers = mysqlTable("customers", {
   /** Admin notes for internal tracking */
   notes: text("notes"),
   /** Whether customer has opted out of marketing SMS (transactional SMS still allowed) */
-  smsOptOut: int("smsOptOut").default(0).notNull(),
+  smsOptOut: tinyint("smsOptOut").default(0).notNull(),
   /** Last retention SMS tier sent (45, 90, 180, 365) — prevents double-sending same tier */
   lastRetentionTier: int("lastRetentionTier"),
   /** When the last retention SMS was sent */
@@ -1632,7 +1632,7 @@ export const vapiCallLogs = mysqlTable("vapi_call_logs", {
    *  so re-runs / catch-ups can detect what's been processed.
    *  Sub-50 = wasted · 50-69 = info_only · 70-84 = converted · 85+ = exemplary.
    *  Migration 0057. */
-  evalScore: int("eval_score"),
+  evalScore: tinyint("eval_score"),
   evalOutcome: varchar("eval_outcome", { length: 32 }),
   evalReasoning: text("eval_reasoning"),
   evalAt: timestamp("eval_at"),
@@ -2365,7 +2365,7 @@ export const cronAlertsFired = mysqlTable("cron_alerts_fired", {
   /** Logical alert identifier · e.g. "vapi_latency_breach" */
   alertKey: varchar("alert_key", { length: 100 }).notNull(),
   /** Date the alert was claimed for · part of the composite PK */
-  firedFor: timestamp("fired_for").notNull(),
+  firedFor: date("fired_for", { mode: "string" }).notNull(),
   /** Wall-clock time of the actual claim */
   firedAt: timestamp("fired_at").defaultNow().notNull(),
   /** Optional metadata · for debugging the alert content later */
@@ -2418,7 +2418,7 @@ export const competitorSnapshots = mysqlTable("competitor_snapshots", {
   reviewCount: int("review_count").notNull().default(0),
   source: varchar("source", { length: 32 }).notNull().default("google_places"),
   capturedAt: timestamp("captured_at").defaultNow().notNull(),
-  rawPayload: text("raw_payload"),
+  rawPayload: json("raw_payload"),
 }, (t) => ({
   idxCompetitorCaptured: index("idx_competitor_captured").on(t.placeId, t.capturedAt),
   idxCapturedAt: index("idx_captured_at").on(t.capturedAt),
@@ -2797,16 +2797,19 @@ export const reviewPipeline = mysqlTable("review_pipeline", {
   sentiment: varchar("sentiment", { length: 20 }),
   /** AI-detected key topics (JSON string array) */
   topicsJson: text("topicsJson"),
+  /** AI-detected keywords (JSON string array) */
+  keywordsJson: text("keywordsJson"),
+  /** AI-detected urgency: low, normal, high, critical */
+  urgency: varchar("urgency", { length: 20 }),
   /** AI-suggested response text */
   suggestedResponse: text("suggestedResponse"),
+  /** Triage status (default 'pending') */
+  status: varchar("status", { length: 20 }).default("pending"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
   /** Whether admin has reviewed this entry */
   reviewed: int("reviewed").default(0).notNull(),
   /** Whether the suggested response was sent */
   responseSent: int("responseSent").default(0).notNull(),
-  /** Admin notes */
-  adminNotes: text("adminNotes"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   index("idx_review_pipeline_rating").on(table.rating),
   index("idx_review_pipeline_sentiment").on(table.sentiment),
@@ -2836,7 +2839,7 @@ export const searchPerformance = mysqlTable("search_performance", {
   /** Average position (stored * 100, e.g. 3.2 = 320) */
   position: int("position").default(0).notNull(),
   /** Date of the data point (YYYY-MM-DD) */
-  date: varchar("date", { length: 10 }).notNull(),
+  date: date("date", { mode: "string" }).notNull(),
   /** Device type (e.g. desktop, mobile, tablet) */
   device: varchar("device", { length: 20 }).default("desktop").notNull(),
   /** Country code (e.g. usa) */
