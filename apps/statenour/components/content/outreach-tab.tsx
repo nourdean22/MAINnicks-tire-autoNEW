@@ -6,9 +6,17 @@
  * Moved verbatim from the former app/(mastery)/outreach/page.tsx — the only
  * change is the outer <StandardPage> wrapper became a fragment (the page-level
  * chrome now lives on /content) and the former StandardPage `description`
- * moved into an inline header at the top. The segment selector, composition
- * form, and propose → Telegram-approval → Inngest-dispatch flow (POST to
- * /api/outreach/propose) are unchanged.
+ * moved into an inline header at the top.
+ *
+ * 2026-07-09 (post-#621) · the propose route now REQUIRES two
+ * machine-actionable fields the nickstire bridge consumes:
+ *   - `segment` · recent | lapsed | all — the audience nickstire actually
+ *     targets (getSegmentCustomers). The LTV/payment filters below only
+ *     compose the human-readable `targetSegment` label for the Telegram
+ *     preview; they do NOT narrow the send audience today.
+ *   - `messageTemplate` · the FULL SMS body ({firstName} interpolated
+ *     per-recipient on the nickstire side). `bodyPreview` is derived from
+ *     its first 240 chars for the Telegram approval message.
  *
  * Compose a bulk-SMS campaign · the operator-approval gate (Telegram
  * /approve · /reject) gates the actual send. Pure compose UI · no mutation
@@ -19,9 +27,14 @@ import { useCallback, useMemo, useState } from "react";
 
 type PaymentBehavior = "any" | "prompt" | "typical" | "slow";
 type LtvTier = "any" | "low" | "mid" | "high";
+type Audience = "recent" | "lapsed" | "all";
 
 export function OutreachTab() {
   const [campaignId, setCampaignId] = useState<string>(suggestCampaignId());
+  // Machine-actionable audience — the segment nickstire's bridge actually
+  // sends to. Defaults to "lapsed" (91-365d since last visit), the natural
+  // winback pool and the smallest realistic blast surface of the three.
+  const [audience, setAudience] = useState<Audience>("lapsed");
   // v-truth · neutral defaults. Pre-fix the form opened pre-set to a SPECIFIC
   // segment (high-LTV slow-payer declined>=$500) that read like a recommended
   // target but was just a hardcoded default. Default to "any"/"any"/$0 so the
@@ -31,7 +44,7 @@ export function OutreachTab() {
   const [ltvTier, setLtvTier] = useState<LtvTier>("any");
   const [minDeclinedDollars, setMinDeclinedDollars] = useState<number>(0);
   const [recipientCount, setRecipientCount] = useState<number>(1);
-  const [bodyPreview, setBodyPreview] = useState<string>(
+  const [message, setMessage] = useState<string>(
     "Hey {firstName} — Nour here from Nick's Tire & Auto. Following up on that work we quoted you. We can fit you in this week if you reply with a good time.",
   );
   const [reason, setReason] = useState<string>("");
@@ -52,7 +65,7 @@ export function OutreachTab() {
 
   const canPropose =
     campaignId.trim().length > 0 &&
-    bodyPreview.trim().length > 0 &&
+    message.trim().length > 0 &&
     recipientCount > 0 &&
     state !== "sending";
 
@@ -68,8 +81,10 @@ export function OutreachTab() {
         body: JSON.stringify({
           campaignId: campaignId.trim(),
           targetSegment: segmentLabel,
+          segment: audience,
           recipientCount,
-          bodyPreview: bodyPreview.trim(),
+          bodyPreview: message.trim().slice(0, 240),
+          messageTemplate: message.trim(),
           reason: reason.trim() || undefined,
         }),
       });
@@ -93,8 +108,9 @@ export function OutreachTab() {
   }, [
     campaignId,
     segmentLabel,
+    audience,
     recipientCount,
-    bodyPreview,
+    message,
     reason,
     canPropose,
   ]);
@@ -102,11 +118,12 @@ export function OutreachTab() {
   return (
     <>
       <p className="text-sm text-white/70" style={{ maxWidth: "60ch" }}>
-        Propose → Telegram approval → Inngest dispatch.
+        Propose → Telegram approval → Inngest dispatch → nickstire bridge.
         <br />
         <span className="text-white/30">
-          The dispatch step is a TEMPLATE until the nickstire-side bulk-SMS
-          endpoint is wired · proposing is safe today.
+          Approved campaigns dispatch as a DRY RUN (count + preview to
+          Telegram, no SMS) unless FEATURE_BULK_SMS_LIVE=1 is set on
+          statenour.
         </span>
       </p>
 
@@ -115,6 +132,19 @@ export function OutreachTab() {
         <h2 className="text-[10px] uppercase tracking-[0.22em] text-white/40">
           Segment
         </h2>
+        <Field label="Audience (sent to)">
+          <Select
+            value={audience}
+            onChange={(v) => setAudience(v as Audience)}
+            options={["recent", "lapsed", "all"]}
+          />
+        </Field>
+        <p className="text-xs text-white/40">
+          Audience is what nickstire actually targets · recent = visited
+          ≤90d · lapsed = 91-365d · all = every reachable customer. The
+          filters below only annotate the Telegram preview label — they do
+          not narrow the send.
+        </p>
         <Field label="LTV tier">
           <Select
             value={ltvTier}
@@ -168,13 +198,13 @@ export function OutreachTab() {
             className="bg-white/[0.04] border border-white/10 rounded px-3 py-2 text-sm w-32 text-right tabular-nums"
           />
         </Field>
-        <Field label="Message preview">
+        <Field label="Message (full SMS)">
           <textarea
-            value={bodyPreview}
-            onChange={(e) => setBodyPreview(e.target.value)}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
             rows={4}
             className="bg-white/[0.04] border border-white/10 rounded px-3 py-2 text-sm w-full"
-            placeholder="What goes in the SMS · {firstName} placeholder OK"
+            placeholder="The exact SMS sent to each recipient · {firstName} placeholder OK · STOP footer appended automatically"
           />
         </Field>
         <Field label="Reason (optional · audit)">
@@ -219,7 +249,7 @@ export function OutreachTab() {
       </div>
 
       <p className="mt-12 text-[10px] uppercase tracking-[0.22em] text-white/30">
-        dispatch · TEMPLATE · no real SMS yet
+        dispatch · wired to nickstire · dry-run unless FEATURE_BULK_SMS_LIVE=1
       </p>
     </>
   );
