@@ -6,7 +6,7 @@ clarity-status: CLEAR
 hitl-status: REVIEWED
 hitl-pending-count: 0
 points-passed: 1-9
-document-sha256: 0000000000000000000000000000000000000000000000000000000000000000
+document-sha256: 59199c33b6aa82a6760749fdb7ae69548b2cc57c94b5781836089fead2ed9d7b
 hitl-claims:
   - id: claim-4336fba2
     text: "Nick's Tire & Auto sells 50+ used tires per day at roughly $60 per tire"
@@ -118,7 +118,7 @@ Now overlay the adoption data from §2: the smallest firms — the >80% of servi
 
 **Layer 2 — Operate: worklists, not dashboards.** The operations console is a PWA organized around action queues — unpaid invoices ranked by balance, a tire-order cockpit with Stripe refund writeback, a review-reply queue whose server-side claim-safety QA *refuses* to approve non-compliant drafts. A dashboard tells you things; a worklist makes you do things.
 
-**Layer 3 — Learn, human-gated.** Figure 2 shows the LEARN→ACT→VERIFY loop. A daily evaluation job scores every call and clusters missed intents; a "lesson" is written only when the same intent misses at least twice in a run (initial confidence 0.60). Confidence grows +0.05 per recurrence and decays −0.05 per 30 days; only the top-3 lessons at ≥0.65 are eligible for the live phone prompt — and they enter it only when the operator manually pushes configuration. The arithmetic is the safety property: **a single bad call cannot reach the live prompt.** The SEO analog drafts improved page metadata but has zero write access to live pages.
+**Layer 3 — Learn, human-gated.** Figure 2 shows the LEARN→ACT→VERIFY loop. A daily evaluation job scores every call and clusters missed intents; each missed intent writes one stable lesson (initial confidence 0.60), deduplicated by content hash so an intent never accumulates duplicates. Confidence grows +0.05 only when the same intent misses again on a *later* run, and decays −0.05 per 30 days of silence; only the top-3 lessons at ≥0.65 are eligible for the live phone prompt — and they enter it only when the operator manually pushes configuration. The arithmetic is the safety property: **a single bad call cannot reach the live prompt** — a fresh lesson starts below the bar and can only cross it through cross-day recurrence plus a human. The SEO analog drafts improved page metadata but has zero write access to live pages.
 
 ![Figure 2 — LEARN→ACT→VERIFY loop](figures/fig2-learn-loop.svg)
 
@@ -132,7 +132,7 @@ Now overlay the adoption data from §2: the smallest firms — the >80% of servi
 
 ![Figure 4 — honest metrics decomposition](figures/fig4-honest-metrics.svg)
 
-**Case 2 — The learning loop that correctly stayed silent.** Since going live, the evaluation loop has run 17 cycles over 252 scored calls and written **zero** lessons `[SNAPSHOT 2026-07-07]` — the ≥2-recurring-miss bar has never been met, because calls convert well. A vendor selling "self-improving AI" would call this failure; it is the opposite. **Principle: in a customer-facing system, a learning loop that fires rarely under strict thresholds is safer than one that fires constantly.** The open trade-off — accumulating misses across runs so slow-burn patterns eventually surface — is disclosed as future work, not hidden.
+**Case 2 — The learning loop that correctly stayed silent.** Since going live, the evaluation loop has run 17 cycles over 252 scored calls and written **zero** lessons `[SNAPSHOT 2026-07-07]` — the ≥2-recurring-miss bar then in force was never met, because calls convert well. A vendor selling "self-improving AI" would call this failure; it is the opposite. **Principle: in a customer-facing system, a learning loop that fires rarely under strict thresholds is safer than one that fires constantly.** The trade-off that diagnosis exposed was then closed the honest way: on 2026-07-08 the in-run recurrence bar — double protection on top of the confidence gate — was removed, so recurrence now accumulates *across* runs; the ≥0.65 prompt bar and the human gate, the layers that actually carry the single-bad-call guarantee, are unchanged.
 
 **Case 3 — Measure before invest.** Was weak organic ranking an on-page problem worth funding? A zero-cost authority measurement answered it: DR 0 versus page-1 incumbents at 66–94 *(claim-4b2d843e)* meant head-term SEO was structurally unwinnable regardless of on-page quality. The operator **stopped SEO investment entirely** — no link-building, no content spend — rather than escalating. **Principle: cheap verification loops enable capital discipline most SMBs, and many enterprises, never achieve.**
 
