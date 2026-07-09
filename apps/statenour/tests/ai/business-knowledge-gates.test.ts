@@ -66,3 +66,26 @@ describe("getBusinessKnowledge load gates", () => {
     expect(out).not.toContain("BRAND VOICE");
   });
 });
+
+// ── AG-35 · V2 knowledge layer ────────────────────────────────────
+// The pack was orphaned from the live prompt by the Prompt V2 cutover;
+// appendBusinessKnowledgeLayer re-injects it, tier/slot-gated.
+import { appendBusinessKnowledgeLayer } from "@/lib/ai/system-prompt";
+
+describe("AG-35 · appendBusinessKnowledgeLayer", () => {
+  it("business tier appends the ops card marker", async () => {
+    const out = await appendBusinessKnowledgeLayer("BASE", "business", "default", "how should we price alignments");
+    expect(out).toContain("OPS CARD");
+    expect(out.startsWith("BASE")).toBe(true);
+  });
+
+  it("core tier + default slot leaves the prompt untouched", async () => {
+    const out = await appendBusinessKnowledgeLayer("BASE", "core", "default", "hey");
+    expect(out).toBe("BASE");
+  });
+
+  it("content slot forces the layer even on a core tier", async () => {
+    const out = await appendBusinessKnowledgeLayer("BASE", "core", "content", "write a post");
+    expect(out).toContain("OPS CARD");
+  });
+});
