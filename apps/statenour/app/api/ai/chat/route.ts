@@ -707,6 +707,7 @@ async function chatPostInner(req: Request) {
     systemPrompt,
     provider,
     personality,
+    userContent,
     turnSignal,
     contextBlocksFired,
     mode,
