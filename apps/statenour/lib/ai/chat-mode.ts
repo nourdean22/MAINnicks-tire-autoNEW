@@ -408,8 +408,9 @@ export async function pruneTools(
   // #7 · Power dynamics / leverage / Greene tactics. analyzePowerDynamics,
   // getPowerBalanceSummary, getDarkPsychologyTactics, getContextualGreeneLaws
   // had no family. "power dynamics", "leverage over", "manipulation tactics".
-  if (/\b(power (dynamics?|balance|position)|leverage (over|across|with)|who (has|holds) power|relationship (leverage|strategy)|cognitive bias|manipulation (tactics?|techniques?)|psychology tactics?|dark psychology)\b/.test(text)) {
-    addMatching(/analyzePowerDynamics|getPowerBalanceSummary|getDarkPsychologyTactics|getContextualGreeneLaws/i);
+  // AG-31 · recommendNextMove joins the family + move-asking phrasings.
+  if (/\b(power (dynamics?|balance|position)|leverage (over|across|with)|who (has|holds) power|relationship (leverage|strategy)|cognitive bias|manipulation (tactics?|techniques?)|psychology tactics?|dark psychology|next move|my move|how (do|should) i (respond|handle|counter|play))\b/.test(text)) {
+    addMatching(/analyzePowerDynamics|getPowerBalanceSummary|getDarkPsychologyTactics|getContextualGreeneLaws|recommendNextMove/i);
   }
 
   // #8 · Recent-sentiment research + short-video generation. last30days

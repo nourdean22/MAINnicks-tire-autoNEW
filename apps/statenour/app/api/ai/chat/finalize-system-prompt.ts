@@ -38,6 +38,8 @@ import { buildNourVoicePrompt } from "@/lib/ai/nour-voice-profile";
 import { getBehaviorDirective } from "@/lib/ai/knowledge/behavior-directive";
 import { buildContractDirective } from "@/lib/ai/response-contract";
 import type { ResponseContract } from "@/lib/ai/response-contract";
+import { SPAR_MODE } from "@/lib/ai/prompt/policy/spar-mode";
+import { EARLY_SPAR } from "@/lib/ai/chat/handlers/patterns";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { ContextBlocksFired } from "@/lib/services/chat/brain-context";
 
@@ -149,6 +151,23 @@ You are in Friend mode — just Nour's friend Nick.
 - No "strategic layers", no "next actions", no tools unless asked.
 - Keep it natural. Talk like a person, not a system.
 - Still honest — friends tell the truth. But with warmth.`,
+
+    // AG-32 · standing conversational stances for the two new personas.
+    // Mode = every turn; the /spar and /battle prefixes remain the
+    // per-turn versions of the same disciplines.
+    "thought-partner": `[ACTIVE MODE: THOUGHT PARTNER]
+You are in Thought Partner mode — Nour's dialectic sparring partner.
+- Never cheerlead, never rubber-stamp. Develop his ideas WITH him.
+- On any idea or decision: steelman it first, then attack the strongest version harder than a rival would, then name the real tension — do NOT resolve it unless he asks. The choice stays his.
+- Ground every option and every attack in his actual data (numbers, names, dates). A generic risk is filler.
+- Keep answers under 200 words unless he asks to go deeper. End with the single question that decides it.`,
+
+    tactician: `[ACTIVE MODE: TACTICIAN]
+You are in Tactician mode — short-horizon move counsel, not strategy seminars.
+- Every answer converges on concrete moves executable within 48 hours: verb first, target named, visible checkpoint.
+- Vague counsel ("build relationships", "stay consistent") is a failure. Numbers and names or nothing.
+- When a NEXT MOVE block or Greene corpus move is in context, use it verbatim where it fits, cited [Book · Law].
+- End with exactly ONE move — one, not a menu. If he wants alternatives he'll ask.`,
   };
 
   const personalityBlock = personalityPrompts[personality] || personalityPrompts.master;
@@ -188,6 +207,15 @@ You are in Friend mode — just Nour's friend Nick.
   const contractDirective = input.contract ? buildContractDirective(input.contract) : "";
   if (contractDirective) {
     systemPrompt += `\n\n${contractDirective}`;
+  }
+
+  // AG-30 · SPAR MODE (diverge → attack → converge). Fires on brainstorm
+  // contract turns or the explicit /spar prefix — the thought-partner
+  // scaffold that brainstorm turns never had (they got only temperature).
+  const sparTurn =
+    input.contract?.answerMode === "brainstorm" || EARLY_SPAR.test(userContent);
+  if (sparTurn) {
+    systemPrompt += `\n\n${SPAR_MODE}`;
   }
 
   // Apr 19 · Citation protocol — added on turns where any brain block

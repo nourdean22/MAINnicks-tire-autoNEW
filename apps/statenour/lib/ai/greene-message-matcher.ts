@@ -52,6 +52,10 @@ export interface GreeneMatch {
    *  directive counsel, not just contemplative context. Optional:
    *  the picker always populates it, external constructors may not. */
   actions?: string[];
+  /** AG-31 · how the pick was found. 'trigger' = deterministic keyword
+   *  hit (default); 'vector' = cosine fallback for paraphrases that no
+   *  literal trigger matched. */
+  source?: "trigger" | "vector";
 }
 
 interface CorpusEntry {
@@ -134,7 +138,7 @@ export function _resetGreeneCorpusCache(): void {
  */
 export async function pickContextualLawsForMessage(
   userMessage: string,
-  opts: { maxLaws?: number; minScore?: number } = {},
+  opts: { maxLaws?: number; minScore?: number; userEmbedding?: number[] } = {},
 ): Promise<GreeneMatch[]> {
   const maxLaws = Math.max(1, Math.min(opts.maxLaws ?? 3, 5));
   const minScore = Math.max(1, opts.minScore ?? 2);
@@ -157,7 +161,25 @@ export async function pickContextualLawsForMessage(
       score: hits.length,
       hits: hits.slice(0, 5),
       actions: entry.actions.slice(0, 2),
+      source: "trigger",
     });
+  }
+
+  const triggerMiss = scored.length === 0 || scored.toSorted((a, b) => b.score - a.score)[0].score < minScore;
+
+  // AG-31 · vector fallback. Trigger matching misses paraphrase ("he
+  // keeps one-upping me" won't hit "outshine") and minScore 2 means most
+  // strategy turns retrieve nothing from the actions-bearing corpus. When
+  // the caller passes a precomputed userEmbedding (brain-context has one
+  // for free) and triggers miss, cosine the greene_law embeddings
+  // (populated by the embed-backfill cron) — deterministic path stays
+  // primary; vector fires only on the miss path.
+  if (triggerMiss && (opts.userEmbedding?.length ?? 0) > 0) {
+    const vectorPicks = await vectorFallback(opts.userEmbedding as number[], corpus, maxLaws);
+    if (vectorPicks.length > 0) {
+      void recordGreeneFire(vectorPicks).catch(() => undefined);
+      return vectorPicks;
+    }
   }
 
   if (scored.length === 0) return [];
@@ -175,6 +197,57 @@ export async function pickContextualLawsForMessage(
   // turns. Fire-and-forget · matcher failure path stays silent.
   void recordGreeneFire(picks).catch(() => undefined);
   return picks;
+}
+
+const VECTOR_SIMILARITY_FLOOR = 0.3;
+
+/** AG-31 · cosine the user's embedding against the greene_law vector
+ *  namespace and map hits back to corpus entries. Empty on any failure
+ *  or when no embeddings exist yet (the backfill cron populates them). */
+async function vectorFallback(
+  userVec: number[],
+  corpus: CorpusEntry[],
+  maxLaws: number,
+): Promise<GreeneMatch[]> {
+  try {
+    const rows = await prisma.vectorEmbedding.findMany({
+      where: { sourceType: "greene_law" },
+      select: { sourceId: true, embedding: true },
+    });
+    if (rows.length === 0) return [];
+    const { cosineSimilarity } = await import("@/lib/brain/embedding-utils");
+    const byKey = new Map(corpus.map((c) => [c.key, c]));
+    const scored: Array<{ entry: CorpusEntry; sim: number }> = [];
+    for (const r of rows) {
+      const entry = byKey.get(r.sourceId);
+      if (!entry) continue;
+      try {
+        const vec = JSON.parse(r.embedding) as number[];
+        if (vec.length !== userVec.length) continue;
+        const sim = cosineSimilarity(userVec, vec);
+        if (sim < VECTOR_SIMILARITY_FLOOR) continue;
+        scored.push({ entry, sim });
+      } catch {
+        // malformed row — skip
+      }
+    }
+    scored.sort((a, b) => b.sim - a.sim);
+    return scored.slice(0, maxLaws).map(({ entry, sim }) => ({
+      key: entry.key,
+      title: entry.title,
+      summary: entry.summary.slice(0, 220),
+      book: entry.book,
+      score: Math.round(sim * 100) / 100,
+      hits: [],
+      actions: entry.actions.slice(0, 2),
+      source: "vector" as const,
+    }));
+  } catch (err) {
+    log.warn("vector_fallback_failed", {
+      err: err instanceof Error ? err.message.slice(0, 160) : String(err),
+    });
+    return [];
+  }
 }
 
 /**

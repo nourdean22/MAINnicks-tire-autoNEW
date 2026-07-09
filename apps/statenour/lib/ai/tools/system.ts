@@ -794,6 +794,31 @@ export const systemTools = {
     },
   }),
 
+  // AG-34 · async research: queue and go. The in-session
+  // arsenalDeepResearch below holds the stream open for 10-15s+ of
+  // searches; this one returns instantly and the cited synthesis
+  // arrives as a push (~2 min). Prefer it when the operator doesn't
+  // need the answer inside THIS reply.
+  queueDeepResearch: tool({
+    description:
+      "Queue deep research to run in the background — returns immediately; the cited report arrives as a push notification in ~2 minutes. Use when the operator says 'go research X' / 'look into X and get back to me' and doesn't need the answer in this reply.",
+    inputSchema: z.object({
+      question: z.string().min(8).describe("The research question to investigate"),
+    }),
+    execute: async ({ question }) => {
+      const { getInngest } = await import("@/lib/inngest/client");
+      await getInngest().send({
+        name: "research/on-demand",
+        data: { question, deliverTo: "push" },
+      });
+      return {
+        queued: true,
+        note: "Research queued — a push notification with the cited report arrives in ~2 minutes.",
+        source: "arsenal/queue-research",
+      };
+    },
+  }),
+
   // v10.0.373 · multi-round autonomous research with citations
   arsenalDeepResearch: tool({
     // v10.0.529.93 · Wave 37 · description trimmed · see arsenalMultiAgent note.
