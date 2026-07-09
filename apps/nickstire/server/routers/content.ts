@@ -255,7 +255,7 @@ export const contentAdminRouter = router({
           await dispatch("social_draft:sync", {
             id: input.id,
             content: input.brief?.selectedCaption || input.brief?.voiceoverScript || input.topic,
-            status: input.brief?.status || "pending",
+            status: input.brief?.status === "approved" || input.brief?.status === "scheduled" ? "pending" : (input.brief?.status || "pending"),
             imageUrl: input.brief?.videoUrl || null,
             platforms: ["instagram"],
             kind: "reel",
@@ -315,7 +315,7 @@ export const contentAdminRouter = router({
           await dispatch("social_draft:sync", {
             id: input.id,
             content: input.brief?.caption || input.brief?.selectedCaption || input.topic,
-            status: input.brief?.status || "pending",
+            status: input.brief?.status === "approved" || input.brief?.status === "scheduled" ? "pending" : (input.brief?.status || "pending"),
             imageUrl: (input.brief?.assetPaths && input.brief.assetPaths[0]) || null,
             platforms: ["instagram"],
             kind: "post",

@@ -214,7 +214,7 @@ export async function sendCustomerMessage(
     try {
       const { sendSms } = await import("../sms");
       const smsResult = await sendSms(order.customerPhone, preview.sms, {
-        transactional: true,
+        messageClass: "customer_confirmation",
         variantKey: smsVariantKey,
       });
       smsSent = smsResult.success;

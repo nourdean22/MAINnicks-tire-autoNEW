@@ -165,14 +165,14 @@ describe("SMS Module", () => {
 
       // Re-import to get fresh module
       const { sendSms } = await import("./sms");
-      // wave-181.64 · `transactional: true` bypasses rate-limit + sending-
+      // wave-181.64 · `messageClass: "customer_confirmation"` bypasses rate-limit + sending-
       // hours guards (both legitimately skip for system-of-record sends
       // like booking confirmations). The test is specifically exercising
       // the Twilio-unconfigured failure path; without the flag, off-hours
       // test runs would queue-for-later and return success.
       // shop-gateway default-route also short-circuits to the Twilio path
       // because SHOP_SMS_GATEWAY_* env vars are unset in tests.
-      const result = await sendSms("+12168620005", "Test message", { transactional: true });
+      const result = await sendSms("+12168620005", "Test message", { messageClass: "customer_confirmation" });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("not configured");

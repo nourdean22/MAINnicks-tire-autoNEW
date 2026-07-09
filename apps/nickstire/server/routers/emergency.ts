@@ -215,7 +215,7 @@ export const emergencyRouter = router({
             sendSms(
               STORE_OWNER_PHONE,
               `🚨 AFTER-HOURS REQUEST: ${name} (${phone}) — ${vehicle || "Vehicle info not provided"} — ${problem}`,
-              { transactional: true }
+              { messageClass: "internal" }
             ),
           { maxRetries: 2, baseDelayMs: 500, label: "emergency-owner-sms" }
         ).catch((err) => {
@@ -236,7 +236,7 @@ export const emergencyRouter = router({
             sendSms(
               phone,
               `Thanks ${name}! We received your emergency request. Our next available time is ${nextOpenTime}. Call us then at ${BUSINESS.phone.display}. - Nick's Tire & Auto`,
-              { via: "shop", transactional: true }
+              { via: "shop", messageClass: "internal" }
             ),
           { maxRetries: 2, baseDelayMs: 500, label: "emergency-customer-sms" }
         ).catch((err) => {

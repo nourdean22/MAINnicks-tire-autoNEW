@@ -614,7 +614,6 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
         ? { success: true, queued: false, sid: "SM_replay_dry_run" }
         : await sendSms(normalizedPhone, body, {
             via: "shop",
-            transactional: isTransactional,
             variantKey: "legacy",
             skipPersist: false,
           });
@@ -1220,7 +1219,14 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
       const isVapi = event.type === "vapi_confirmation" || event.type === "vapi_forwarded_call_followup";
       const isReminder = event.type === "booking_reminder" || event.type === "review_request";
       // review_request is marketing, not transactional. It must respect TCPA limits.
-      const isTransactional = isVapi || (event.type === "booking_reminder" && event.reminderType !== "maintenance-reminder");
+      // vapi_forwarded_call_followup must NOT skip quiet-hours, caps, or the STOP footer.
+      let msgClass: "customer_marketing" | "customer_followup" | "customer_confirmation" | "internal" = "customer_marketing";
+      
+      if (event.type === "vapi_confirmation" || (event.type === "booking_reminder" && event.reminderType !== "maintenance-reminder")) {
+        msgClass = "customer_confirmation";
+      } else if (event.type === "vapi_forwarded_call_followup" || event.type === "inbound_sms") {
+        msgClass = "customer_followup";
+      }
 
       status = "sending";
       statusReason = "sending_to_gateway";
@@ -1229,7 +1235,7 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
         ? { success: true, queued: false, sid: "SM_replay_dry_run" }
         : await sendSms(normalizedPhone, finalBodyToSend, {
             via: "shop",
-            transactional: isTransactional,
+            messageClass: msgClass,
             // forensic-audit MEDIUM · inbound auto-replies bypass the 5-min
             // cooldown (not the daily cap) so a customer's rapid follow-up
             // question still gets answered.

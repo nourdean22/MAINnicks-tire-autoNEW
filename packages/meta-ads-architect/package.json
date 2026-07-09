@@ -1,0 +1,32 @@
+{
+  "name": "@nour/meta-ads-architect",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Meta Ads Campaign Architect - generates compliant structured Meta ads campaigns.",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

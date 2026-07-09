@@ -112,6 +112,44 @@ async function resetSkipCount(tierName: string): Promise<void> {
   }
 }
 
+async function shouldRunWallClockJob(jobName: string, targetHourEt: number): Promise<boolean> {
+  const etHour = parseInt(
+    new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }),
+    10
+  );
+  if (etHour !== targetHourEt) return false;
+
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return false;
+
+    const kvKey = `wallclock:${jobName}`;
+    const [result] = await d.execute(sql`
+      SELECT last_run_at FROM cron_tier_skip_state WHERE tier_name = ${kvKey}
+    `);
+    const raw = Array.isArray(result) && result[0] ? result[0] : null;
+    const lastRun = raw && raw.last_run_at ? new Date(raw.last_run_at) : new Date(0);
+
+    // If it ran in the last 12 hours, don't run it again today.
+    if (Date.now() - lastRun.getTime() < 12 * 60 * 60 * 1000) {
+      return false;
+    }
+
+    await d.execute(sql`
+      INSERT INTO cron_tier_skip_state (tier_name, consecutive_skips, last_run_at, updated_at)
+      VALUES (${kvKey}, 0, NOW(), NOW())
+      ON DUPLICATE KEY UPDATE
+        last_run_at = NOW(),
+        updated_at = NOW()
+    `);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
 async function runTier(tier: Tier): Promise<void> {
   if (tier.running) {
     const skips = await bumpSkipCount(tier.name);
@@ -355,6 +393,30 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { runCronFailureObserver } = await import("./observer");
           return runCronFailureObserver();
+        },
+      },
+      // 2026-05-05 — REPLACED shopdriver-daily-ticket-pull and
+      // shopdriver-full-mirror with a SINGLE overnight probe at 3 AM ET.
+      // Moved from daily tier to pulse tier to ensure it can hit its exact wall-clock window.
+      {
+        name: "alg-overnight-probe",
+        handler: async () => {
+          try {
+            // Run exactly once during the 3 AM ET window.
+            const shouldRun = await shouldRunWallClockJob("alg-overnight-probe", 3);
+            if (!shouldRun) {
+              return { recordsProcessed: 0, details: "skipped (waiting for 3 AM ET window, or already ran)" };
+            }
+
+            const { requestAlgProbe } = await import("../services/algProbeBudget");
+            const result = await requestAlgProbe("overnight");
+            return {
+              recordsProcessed: result.recordsProcessed,
+              details: `overnight probe → ${result.outcome} (${result.recordsProcessed} records, ${result.durationMs}ms)`,
+            };
+          } catch (e: unknown) {
+            return { details: `overnight probe failed: ${(e as Error).message}` };
+          }
         },
       },
       {
@@ -999,44 +1061,7 @@ export function startTieredScheduler(): void {
           return runHealthCheck();
         },
       },
-      // 2026-05-05 — REPLACED shopdriver-daily-ticket-pull and
-      // shopdriver-full-mirror with a SINGLE overnight probe at 3 AM ET.
-      // Shop closes at 6 PM (Mon-Sat) / 4 PM (Sun). At 3 AM ET nobody is
-      // logged into ShopDriver at the counter, so probing carries zero
-      // session-kick risk. This is now the canonical "make sure data is
-      // fresh by morning" sync. Manual refresh + chat queries cover the
-      // rest of the day.
-      {
-        name: "alg-overnight-probe",
-        // Cron jobs in this file run on a fixed tier interval. We gate
-        // by current hour internally so the probe only fires during the
-        // 3 AM ET window (idempotent: dedup window in algProbeBudget
-        // catches double-fires within the hour).
-        handler: async () => {
-          try {
-            const etHour = parseInt(
-              new Date().toLocaleString("en-US", {
-                timeZone: "America/New_York",
-                hour: "numeric",
-                hour12: false,
-              }),
-              10,
-            );
-            // Run between 3:00 AM and 4:00 AM ET only.
-            if (etHour !== 3) {
-              return { recordsProcessed: 0, details: `skipped (ET hour ${etHour}, want 3)` };
-            }
-            const { requestAlgProbe } = await import("../services/algProbeBudget");
-            const result = await requestAlgProbe("overnight");
-            return {
-              recordsProcessed: result.recordsProcessed,
-              details: `overnight probe → ${result.outcome} (${result.recordsProcessed} records, ${result.durationMs}ms)`,
-            };
-          } catch (e: unknown) {
-            return { details: `overnight probe failed: ${(e as Error).message}` };
-          }
-        },
-      },
+
       // NOTE: Also runs in hourly tier for more frequent updates
       {
         name: "cleanup",

@@ -94,31 +94,21 @@ export const POST = apiHandler(
       // a TOCTOU race condition where two concurrent webhooks pass the check
       // and one throws an unhandled P2002.
 
-      // 1. Find or create Contact
-      let contact = await prisma.contact.findUnique({
+      // 1. Find or create Contact (upsert prevents P2002 TOCTOU races)
+      const contact = await prisma.contact.upsert({
         where: { email },
+        create: {
+          name,
+          email,
+          role: "coaching_client",
+          status: "active",
+        },
+        update: {
+          role: "coaching_client",
+          status: "active",
+        },
       });
-
-      if (!contact) {
-        contact = await prisma.contact.create({
-          data: {
-            name,
-            email,
-            role: "coaching_client",
-            status: "active",
-          },
-        });
-        log.info("contact_created_via_stripe", { id: contact.id, email });
-      } else {
-        contact = await prisma.contact.update({
-          where: { id: contact.id },
-          data: {
-            role: "coaching_client",
-            status: "active",
-          },
-        });
-        log.info("contact_updated_via_stripe", { id: contact.id, email });
-      }
+      log.info("contact_upserted_via_stripe", { id: contact.id, email });
 
       // 2. Find or create Product
       let product = await prisma.product.findUnique({
@@ -132,16 +122,33 @@ export const POST = apiHandler(
         });
 
         if (!product) {
-          product = await prisma.product.create({
-            data: {
-              id: productId,
-              slug: productSlug,
-              name: productName,
-              priceCents: amountCents || 0,
-              active: true,
-            },
-          });
-          log.info("product_created_via_stripe", { id: product.id, slug: productSlug });
+          try {
+            product = await prisma.product.create({
+              data: {
+                id: productId,
+                slug: productSlug,
+                name: productName,
+                priceCents: amountCents || 0,
+                active: true,
+              },
+            });
+            log.info("product_created_via_stripe", { id: product.id, slug: productSlug });
+          } catch (e: any) {
+            if (e.code === "P2002") {
+              // Another concurrent webhook created the product.
+              product = await prisma.product.findUnique({
+                where: { id: productId },
+              });
+              if (!product) {
+                product = await prisma.product.findUnique({
+                  where: { slug: productSlug },
+                });
+              }
+              if (!product) throw e;
+            } else {
+              throw e;
+            }
+          }
         }
       }
 
