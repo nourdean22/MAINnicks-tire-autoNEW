@@ -17,23 +17,14 @@ export interface GBPMetrics {
   recentReviewText: string;
 }
 
-export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp: GBPMetrics }> {
+export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp: GBPMetrics | null }> {
   const isConfigured = await isGoogleOauthConfigured("primary").catch(() => false);
 
   if (!isConfigured) {
-    log.warn("Google OAuth is not configured, returning realistic mock GSC & GBP metrics.");
+    log.warn("Google OAuth is not configured, returning empty metrics.");
     return {
-      gsc: [
-        { query: "nick's tire & auto", clicks: 1240, impressions: 5320, ctr: 0.233, position: 1.1 },
-        { query: "brakes repair cleveland", clicks: 310, impressions: 2450, ctr: 0.126, position: 3.4 },
-        { query: "mobile tire change near me", clicks: 185, impressions: 980, ctr: 0.188, position: 2.3 },
-        { query: "cheap tires cleveland", clicks: 90, impressions: 1430, ctr: 0.062, position: 5.8 }
-      ],
-      gbp: {
-        rating: 4.8,
-        totalReviews: 312,
-        recentReviewText: "Excellent service! They fixed my flat tire in under 20 minutes and the staff was extremely friendly."
-      }
+      gsc: [],
+      gbp: null
     };
   }
 
@@ -75,36 +66,21 @@ export async function fetchGSCAndGBPMetrics(): Promise<{ gsc: GSCMetrics[]; gbp:
         position: row.position
       }));
     } else {
-      log.warn(`GSC API request failed with status ${gscRes.status}, using mock fallback for GSC.`);
-      gscData = [
-        { query: "nick's tire & auto", clicks: 1240, impressions: 5320, ctr: 0.233, position: 1.1 },
-        { query: "brakes repair cleveland", clicks: 310, impressions: 2450, ctr: 0.126, position: 3.4 }
-      ];
+      log.warn(`GSC API request failed with status ${gscRes.status}, returning empty GSC metrics.`);
     }
 
     // Call GBP API or fall back cleanly
     return {
       gsc: gscData,
-      gbp: {
-        rating: 4.8,
-        totalReviews: 312,
-        recentReviewText: "Excellent service! They fixed my flat tire in under 20 minutes and the staff was extremely friendly."
-      }
+      gbp: null
     };
   } catch (err) {
-    log.error("Failed to query Google API, falling back to mock data.", {
+    log.error("Failed to query Google API, returning empty metrics.", {
       error: err instanceof Error ? err.message : String(err)
     });
     return {
-      gsc: [
-        { query: "nick's tire & auto", clicks: 1240, impressions: 5320, ctr: 0.233, position: 1.1 },
-        { query: "brakes repair cleveland", clicks: 310, impressions: 2450, ctr: 0.126, position: 3.4 }
-      ],
-      gbp: {
-        rating: 4.8,
-        totalReviews: 312,
-        recentReviewText: "Excellent service! They fixed my flat tire in under 20 minutes and the staff was extremely friendly."
-      }
+      gsc: [],
+      gbp: null
     };
   }
 }
