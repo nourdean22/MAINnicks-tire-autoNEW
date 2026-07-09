@@ -12,6 +12,7 @@
 import { invokeLLM, type OutputSchema } from "../_core/llm";
 import { createLogger } from "../lib/logger";
 import { buildFacelessReelSystemPrompt } from "../../client/src/lib/facelessReelStudioPrompt";
+import { applyCreativeSkills } from "./skillRouter";
 import {
   CAMPAIGN_KEYWORDS,
   FACT_BUCKETS,
@@ -136,7 +137,7 @@ export async function generateReelBriefAI(
     log.warn("evidence unavailable — generating without it", { e: e instanceof Error ? e.message : String(e) });
   }
 
-  const systemPrompt = buildFacelessReelSystemPrompt({
+  let systemPrompt = buildFacelessReelSystemPrompt({
     mode: "asset_prep",
     topicOverride: input.topic,
     campaignKeywordOverride: input.campaignKeyword as CampaignKeyword | undefined,
@@ -159,6 +160,11 @@ export async function generateReelBriefAI(
   }
   const shareCta =
     "\n\nSHARE CTA: the selectedCaption MUST include a natural prompt inviting the viewer to SEND the reel to someone who needs it (DM shares are a top reach lever) — e.g. \"send this to someone whose tires are bald.\" Keep it claim-safe: no prices, no guarantees, sell the visit not a quote.";
+
+  const skillPayload = await applyCreativeSkills({ type: "reel_brief" });
+  if ("fragment" in skillPayload && skillPayload.fragment) {
+    systemPrompt += `\n\n${skillPayload.fragment}`;
+  }
 
   const res = await invokeLLM({
     messages: [

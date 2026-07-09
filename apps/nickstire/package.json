@@ -35,7 +35,8 @@
     "env:validate": "node scripts/env-validate.mjs",
     "typecheck:raw": "tsc -p tsconfig.typecheck.json --noEmit",
     "verify": "pnpm run env:validate && pnpm run typecheck:raw && pnpm run lint && pnpm run lint:source && pnpm run lint:hooks && pnpm run lint:brand-voice && pnpm run lint:pii && pnpm run validate:routes && pnpm run prerender:check && pnpm run test && pnpm run build",
-    "ingest:reels": "tsx scripts/run.ts ingest-reels-markdown.ts"
+    "ingest:reels": "tsx scripts/run.ts ingest-reels-markdown.ts",
+    "backfill:skills": "tsx scripts/run.ts backfill-creative-skills.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
