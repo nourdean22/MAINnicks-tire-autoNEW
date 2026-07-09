@@ -74,6 +74,30 @@ export async function buildGhostVoicePrompt(channel: GhostChannel): Promise<stri
     // feedback recall unavailable
   }
 
+  // AG-44 · RECENT WINNERS — reality signal, not taste signal. The
+  // weekly content-performance fn writes the top posts by REAL Meta
+  // engagement; the ghostwriter should lean toward angles the audience
+  // demonstrably responded to. Absent until the loop has run once.
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const { BRAIN_CATEGORIES } = await import("@/lib/brain/categories");
+    const winners = await prisma.brainMemory.findFirst({
+      where: {
+        category: BRAIN_CATEGORIES.CONTENT_WINNERS,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      orderBy: { createdAt: "desc" },
+      select: { content: true, key: true },
+    });
+    if (winners?.content) {
+      parts.push(
+        `RECENT WINNERS (real engagement numbers · week of ${winners.key}):\n${winners.content}\nLean toward the angles and specificity that performed — do NOT copy them verbatim.`,
+      );
+    }
+  } catch {
+    // winners recall unavailable — voice profile carries on
+  }
+
   return parts.join("\n\n");
 }
 

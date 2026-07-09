@@ -270,12 +270,91 @@ export async function runDeepResearch(args: {
 
   const successful = roundResults.filter((r) => r.content);
 
+  // 2b. AG-44 · PAGE-READING. Search snippets are ~2-3 sentences per
+  // source — the report synthesized from them is a summary of
+  // summaries. Read the top cited pages in FULL (max 3, one per
+  // distinct host so three cites of one domain don't eat the budget),
+  // fenced as untrusted external content. Firecrawl unkeyed or a
+  // scrape failing → skip silently; the search rounds still stand.
+  const pageRounds: typeof roundResults = [];
+  try {
+    const { isFirecrawlConfigured, scrapeUrl } = await import("@/lib/integrations/firecrawl");
+    if (isFirecrawlConfigured() && successful.length > 0) {
+      const seenHosts = new Set<string>();
+      const targets: string[] = [];
+      for (const url of successful.flatMap((r) => r.citations)) {
+        try {
+          const host = new URL(url).hostname.replace(/^www\./, "");
+          if (seenHosts.has(host)) continue;
+          seenHosts.add(host);
+          targets.push(url);
+        } catch { /* malformed citation URL · skip */ }
+        if (targets.length >= 3) break;
+      }
+      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
+      const reads = await Promise.all(targets.map(async (url) => {
+        try {
+          const page = await scrapeUrl(url, { maxLength: 6000 });
+          if (!page.markdown?.trim()) return null;
+          return {
+            query: `full page · ${page.title ?? url}`,
+            content: fenceContent("deep-research-page-read", "external_web", page.markdown.slice(0, 6000)),
+            citations: [url],
+          };
+        } catch (e) {
+          log.debug("page_read_failed", { url, err: (e as Error).message });
+          return null;
+        }
+      }));
+      pageRounds.push(...reads.filter((r): r is NonNullable<typeof r> => r !== null));
+    }
+  } catch (err) {
+    log.debug("page_reading_skipped", { err: err instanceof Error ? err.message : String(err) });
+  }
+
+  // 2c. AG-44 · GAP-CHECK. One cheap classify call: given what the
+  // rounds already cover, name up to 2 missing angles → run them as
+  // extra sub-queries. Bounded: plan≤5 + scrape≤3 + gap≤2 is the
+  // whole budget; a failed gap-check costs nothing.
+  let gapRounds: typeof roundResults = [];
+  if (successful.length > 0) {
+    try {
+      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+      const aiChat = makeTracedAiChat("deep-research", "brain");
+      const covered = successful.map((r) => `- ${r.query}: ${r.content.slice(0, 150)}`).join("\n");
+      const reply = await aiChat(
+        [
+          {
+            role: "system",
+            content: `You are a research completeness checker. Given a question and what searches already covered, output STRICT JSON {"gaps": ["query", ...]} — at most 2 NEW search queries for material angles the coverage missed. If coverage is adequate, output {"gaps": []}. JSON only.`,
+          },
+          { role: "user", content: `QUESTION: ${args.question.slice(0, 800)}\n\nCOVERED:\n${covered.slice(0, 3000)}` },
+        ],
+        "classify",
+      );
+      const m = (reply?.content ?? "").match(/\{[\s\S]*\}/);
+      const gaps: string[] = m
+        ? ((JSON.parse(m[0])?.gaps ?? []) as unknown[])
+            .filter((g): g is string => typeof g === "string" && g.trim().length > 0)
+            .slice(0, 2)
+        : [];
+      if (gaps.length > 0) {
+        log.info("gap_check_queries", { gaps });
+        gapRounds = (await Promise.all(gaps.map(runSubQuery))).filter((r) => r.content);
+      }
+    } catch (err) {
+      log.debug("gap_check_skipped", { err: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  const allRounds = [...successful, ...pageRounds, ...gapRounds];
+
   // 3. Synthesize
   const synthStart = Date.now();
   let synthesis = "";
   let synthFailed = false;
-  if (successful.length > 0) {
-    synthesis = await synthesize({ question: args.question, rounds: successful }).catch(
+  if (allRounds.length > 0) {
+    synthesis = await synthesize({ question: args.question, rounds: allRounds }).catch(
       (err) => {
         void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.deep-research", err, { fn: "runDeepResearch.synthesize" })).catch((e) => console.error(e));
         synthFailed = true;
@@ -287,9 +366,9 @@ export async function runDeepResearch(args: {
   }
   const synthMs = Date.now() - synthStart;
 
-  // Flatten unique citations
+  // Flatten unique citations (page-read + gap rounds included)
   const allCitations = Array.from(
-    new Set(roundResults.flatMap((r) => r.citations)),
+    new Set([...roundResults, ...pageRounds, ...gapRounds].flatMap((r) => r.citations)),
   );
 
   // Phase T · N.6 telemetry · record persona usage for the planner +
@@ -341,7 +420,9 @@ export async function runDeepResearch(args: {
   return {
     question: args.question,
     plan: subQueries,
-    rounds: roundResults,
+    // AG-44 · page-read + gap rounds ride along so the persisted
+    // report and the /research Telegram render show the full chain.
+    rounds: [...roundResults, ...pageRounds, ...gapRounds],
     synthesis,
     allCitations,
     durationMs: Date.now() - startedAt,

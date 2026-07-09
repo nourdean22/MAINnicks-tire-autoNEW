@@ -480,12 +480,19 @@ export function withGuardian<T, A extends unknown[]>(
         decision.decision === "require_owner" ||
         decision.decision === "require_screenshot_approval"
       ) {
+        // AG-42 · 24h dedupe window. Pre-fix this matched identical
+        // payloads with NO time bound: a rejected row from weeks ago
+        // permanently blocked the same action, and an old executed row
+        // replayed its stale resultPayload as if fresh. Same-payload
+        // requests a day apart are legitimately new intents.
+        const DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000;
         const existing = await prisma.approvalRequest.findFirst({
           where: {
             toolId: toolName,
             status: {
               in: ["pending_approval", "approved", "rejected", "executed", "failed"]
-            }
+            },
+            createdAt: { gte: new Date(Date.now() - DEDUPE_WINDOW_MS) }
           },
           orderBy: { createdAt: "desc" }
         });

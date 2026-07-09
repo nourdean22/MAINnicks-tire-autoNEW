@@ -334,11 +334,26 @@ async function runMultiAgent(
   void (async () => {
     try {
       const { recordPersonaUsage } = await import("@/lib/ai/personas/scorer");
+      // AG-42 · derived confidence replaces the 0.7/0.2 placeholder.
+      // With every success recorded at a flat 0.7, the scorer's "good"
+      // verdict (avg ≥ 0.75) was UNREACHABLE and demotion signals were
+      // constants — the scorer→selection loop was inert. Now:
+      //   failed/empty → 0.2 (scorer's fallback bucket, conf ≤ 0.3)
+      //   thin output (<40 chars · the "can't do it" one-liner the
+      //   sub-agent prompt mandates) → 0.45
+      //   substantive → 0.6 + up to 0.3 scaled by length (caps at 600
+      //   chars → 0.9). Honest heuristic derived from the run itself.
+      const runConfidence = (r: (typeof report.results)[number]): number => {
+        if (r.failed || !r.output?.trim()) return 0.2;
+        const len = r.output.trim().length;
+        if (len < 40) return 0.45;
+        return Math.min(0.9, 0.6 + (len / 600) * 0.3);
+      };
       for (const r of report.results) {
         await recordPersonaUsage({
           personaKey: r.name,
           parentTier: "multi-agent",
-          parentConfidence: r.failed ? 0.2 : 0.7, // placeholder · refined when buildResult lands
+          parentConfidence: runConfidence(r),
           durationMs: r.durationMs ?? 0,
         });
       }

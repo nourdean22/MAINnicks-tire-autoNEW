@@ -4,7 +4,7 @@
  * Speed-to-lead is the #1 conversion factor for service businesses.
  */
 import { createLogger } from "../../lib/logger";
-import { and, eq, gte, lte, isNull } from "drizzle-orm";
+import { and, eq, gte, lte, ne, isNull } from "drizzle-orm";
 
 import { BUSINESS } from "@shared/business";
 const log = createLogger("cron:stale-leads");
@@ -35,10 +35,15 @@ export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: nu
     const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
+    // AG-43 · exclude job applicants. The careers form writes a lead
+    // with source='careers'; without this filter an applicant who sat
+    // 'new' for 2h got a customer-style "following up on your service"
+    // SMS. Applicants are HR pipeline, never sales outreach.
     const staleLeads = await db.select().from(leads)
       .where(
         and(
           eq(leads.status, "new"),
+          ne(leads.source, "careers"),
           gte(leads.createdAt, twentyFourHoursAgo),
           lte(leads.createdAt, twoHoursAgo),
         )

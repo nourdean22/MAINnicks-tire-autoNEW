@@ -238,6 +238,18 @@ export const socialPublishQueue = inngest.createFunction(
         const publishUrls = publishResults.map((r) => r.permalink || r.postId || "").filter(Boolean);
         const errors = publishResults.map((r) => r.error).filter(Boolean);
 
+        // AG-44 · stash raw postIds in sourceMetadata — the weekly
+        // content-performance fn needs Graph ids, and permalinks in
+        // publishUrls shadow them. Merge, never clobber existing meta.
+        const currentRow = await prisma.socialPublishQueue.findUnique({
+          where: { id: draftId },
+          select: { sourceMetadata: true },
+        });
+        const currentMeta =
+          currentRow?.sourceMetadata && typeof currentRow.sourceMetadata === "object"
+            ? (currentRow.sourceMetadata as Record<string, unknown>)
+            : {};
+
         return prisma.socialPublishQueue.update({
           where: { id: draftId },
           data: {
@@ -245,6 +257,14 @@ export const socialPublishQueue = inngest.createFunction(
             publishedAt: allSucceeded ? new Date() : null,
             publishUrls,
             rejectionReason: allSucceeded ? null : errors.join(" | "),
+            sourceMetadata: {
+              ...currentMeta,
+              publishResults: publishResults.map((r) => ({
+                platform: r.platform,
+                postId: r.postId ?? null,
+                ok: r.ok,
+              })),
+            },
           },
         });
       });

@@ -956,6 +956,28 @@ export const technicians = mysqlTable("technicians", {
 export type Technician = typeof technicians.$inferSelect;
 export type InsertTechnician = typeof technicians.$inferInsert;
 
+// ─── TIME CLOCK ENTRIES (AG-43 · 2026-07-09 · migration 0077) ────────
+/**
+ * Durable time-clock ledger · one row per shift. The technicians
+ * clocked_in/clocked_in_at pair stays as the live "on the floor now"
+ * cache; every clock-out used to ERASE the shift, so weekly hours /
+ * payroll history was unrecoverable. ON DELETE RESTRICT — a tech with
+ * recorded shifts is payroll history; deactivate, never delete.
+ */
+export const timeClockEntries = mysqlTable("time_clock_entries", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  technicianId: int("technician_id").notNull().references(() => technicians.id, { onDelete: "restrict" }),
+  clockInAt: timestamp("clock_in_at").notNull(),
+  clockOutAt: timestamp("clock_out_at"),
+  /** Where the punch came from: admin_ui | dispatch | api */
+  source: varchar("source", { length: 32 }).default("admin_ui").notNull(),
+}, (t) => [
+  index("idx_tce_tech_clockin").on(t.technicianId, t.clockInAt),
+]);
+
+export type TimeClockEntry = typeof timeClockEntries.$inferSelect;
+export type InsertTimeClockEntry = typeof timeClockEntries.$inferInsert;
+
 // ─── IMPORTED CUSTOMERS (from ALS shop management system) ───────────
 /**
  * Customer records imported from the shop's management software.

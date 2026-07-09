@@ -394,3 +394,30 @@ describe("BOARDS · all member ids resolve in REGISTRY", () => {
     },
   );
 });
+
+// ── AG-42 · persona fallback · the "team" board seats lib/ai/personas ──
+
+describe("resolveMembers · persona fallback (team board)", () => {
+  it("adapts a persona into the framework shape when the id misses REGISTRY", () => {
+    const resolved = __testInternals.resolveMembers(["tactician"]);
+    expect(resolved).toHaveLength(1);
+    const m = resolved[0];
+    expect(m.id).toBe("tactician");
+    expect(m.name).toBe("Tactician");
+    // The lens must carry the persona's character so the advisor
+    // prompt's "YOUR LENS · use ONLY this" slot has real content.
+    expect(m.lens).toMatch(/48 hours/);
+    expect(m.lens).toMatch(/GOAL:/);
+  });
+
+  it("REGISTRY frameworks still take precedence over personas", () => {
+    // elon-musk exists in REGISTRY · must resolve there, not persona-shaped.
+    const resolved = __testInternals.resolveMembers(["elon-musk"]);
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0].triggers.length).toBeGreaterThan(0); // real frameworks carry triggers
+  });
+
+  it("unknown ids still drop silently", () => {
+    expect(__testInternals.resolveMembers(["no-such-member"])).toHaveLength(0);
+  });
+});

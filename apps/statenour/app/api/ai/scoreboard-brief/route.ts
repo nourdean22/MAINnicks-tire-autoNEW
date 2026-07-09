@@ -21,7 +21,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
-import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { buildMetaScoreboard } from "@/lib/services/meta-scoreboard";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -60,21 +59,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const today = new Date().toISOString().slice(0, 10);
 
-  // Cache check.
-  try {
-    const cached = await prisma.brainMemory.findFirst({
-      where: {
-        category: BRAIN_CATEGORIES.SCOREBOARD_BRIEF,
-        key: today,
-      },
-      select: { content: true },
-    });
-    if (cached?.content) return NextResponse.json({ brief: cached.content });
-  } catch (err) {
-    log.warn("cache_read_failed", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-  }
+  // Cache read/write is owned by composeBrief below (AG-40).
 
   // Pull the same data the /scoreboard page uses · drift-free.
   let signalBlock = "";
@@ -112,63 +97,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ brief: "" });
   }
 
-  // Compose via tracedAiChat.
-  let brief = "";
-  try {
-    const result = await tracedAiChat(
-      { label: "scoreboard-brief", source: "tool" },
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: signalBlock },
-      ],
-      "reason",
-    );
-    brief = (result.content ?? "").trim();
-    if (brief.length > 360) brief = brief.slice(0, 360);
-  } catch (err) {
-    log.warn("brief_generation_failed", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return NextResponse.json({ brief: "" });
-  }
-
-  if (!brief) return NextResponse.json({ brief: "" });
-
-  // Cache write · upsert per-day.
-  try {
-    const existing = await prisma.brainMemory.findFirst({
-      where: {
-        category: BRAIN_CATEGORIES.SCOREBOARD_BRIEF,
-        key: today,
-      },
-      select: { id: true },
-    });
-    const payload = {
-      content: brief,
-      confidence: 0.9,
-      source: "tool:scoreboard-brief",
-      createdBy: "ai" as const,
-      metadata: { generatedAt: new Date().toISOString() } as never,
-    };
-    if (existing) {
-      await prisma.brainMemory.update({
-        where: { id: existing.id },
-        data: { ...payload, lastSeen: new Date() },
-      });
-    } else {
-      await prisma.brainMemory.create({
-        data: {
-          category: BRAIN_CATEGORIES.SCOREBOARD_BRIEF,
-          key: today,
-          ...payload,
-        },
-      });
-    }
-  } catch (err) {
-    log.warn("cache_write_failed", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-  }
+  // AG-40 · compose + cache via the shared brief-composer.
+  const { composeBrief } = await import("@/lib/ai/brief-composer");
+  const brief = await composeBrief({
+    label: "scoreboard-brief",
+    cacheCategory: BRAIN_CATEGORIES.SCOREBOARD_BRIEF,
+    cacheKey: today,
+    systemPrompt: SYSTEM_PROMPT,
+    signalBlock,
+    taskType: "reason",
+    maxChars: 360,
+  });
 
   return NextResponse.json({ brief });
 }

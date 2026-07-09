@@ -297,20 +297,49 @@ export async function techComplete(params: {
 }
 
 // ─── Clock In/Out ───────────────────────────────────
+// AG-43 · the clocked_in/clocked_in_at pair on technicians stays the
+// live "on the floor now" cache; time_clock_entries (migration 0077)
+// is the durable per-shift ledger behind weekly hours — every
+// clock-out used to ERASE the shift. Ledger writes are try/catch
+// guarded: until the operator applies 0077 (and on any ledger
+// failure), clock in/out keeps working exactly as before.
 export async function clockIn(techId: number): Promise<void> {
-  const { db, technicians } = await getDbAndSchema();
+  const { db, technicians, timeClockEntries } = await getDbAndSchema();
+  const now = new Date();
   await db.update(technicians).set({
     clockedIn: true,
-    clockedInAt: new Date(),
+    clockedInAt: now,
   }).where(eq(technicians.id, techId));
+  try {
+    // Close any dangling open entry first (crash / missed clock-out) so
+    // one tech never accumulates overlapping open shifts.
+    await db.update(timeClockEntries)
+      .set({ clockOutAt: now })
+      .where(and(eq(timeClockEntries.technicianId, techId), isNull(timeClockEntries.clockOutAt)));
+    await db.insert(timeClockEntries).values({
+      technicianId: techId,
+      clockInAt: now,
+      source: "admin_ui",
+    });
+  } catch (err) {
+    log.error("[Dispatch] time-clock ledger write failed (clockIn) — live cache unaffected:", err instanceof Error ? err.message : err);
+  }
 }
 
 export async function clockOut(techId: number): Promise<void> {
-  const { db, technicians } = await getDbAndSchema();
+  const { db, technicians, timeClockEntries } = await getDbAndSchema();
+  const now = new Date();
   await db.update(technicians).set({
     clockedIn: false,
     clockedInAt: null,
   }).where(eq(technicians.id, techId));
+  try {
+    await db.update(timeClockEntries)
+      .set({ clockOutAt: now })
+      .where(and(eq(timeClockEntries.technicianId, techId), isNull(timeClockEntries.clockOutAt)));
+  } catch (err) {
+    log.error("[Dispatch] time-clock ledger write failed (clockOut) — live cache unaffected:", err instanceof Error ? err.message : err);
+  }
 }
 
 // ─── Load per Tech + per Bay ────────────────────────

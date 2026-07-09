@@ -18,7 +18,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
-import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("api/ai/journal-brief");
@@ -58,21 +57,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const cacheKey = `${today}:v2`;
 
-  // Cache check.
-  try {
-    const cached = await prisma.brainMemory.findFirst({
-      where: {
-        category: BRAIN_CATEGORIES.JOURNAL_BRIEF,
-        key: cacheKey,
-      },
-      select: { content: true },
-    });
-    if (cached?.content) return NextResponse.json({ brief: cached.content });
-  } catch (err) {
-    log.warn("cache_read_failed", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-  }
+  // Cache read/write is owned by composeBrief below (AG-40).
 
   // Gather journal signal.
   let signalBlock = "";
@@ -178,64 +163,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ brief: "" });
   }
 
-  // Compose via tracedAiChat.
-  let brief = "";
-  try {
-    const result = await tracedAiChat(
-      { label: "journal-brief", source: "tool" },
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: signalBlock },
-      ],
-      "reason",
-    );
-    brief = (result.content ?? "").trim();
-    // 4 labeled lines run longer than the old 1-paragraph brief.
-    if (brief.length > 560) brief = brief.slice(0, 560);
-  } catch (err) {
-    log.warn("brief_generation_failed", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return NextResponse.json({ brief: "" });
-  }
-
-  if (!brief) return NextResponse.json({ brief: "" });
-
-  // Cache write · upsert per-day.
-  try {
-    const existing = await prisma.brainMemory.findFirst({
-      where: {
-        category: BRAIN_CATEGORIES.JOURNAL_BRIEF,
-        key: cacheKey,
-      },
-      select: { id: true },
-    });
-    const payload = {
-      content: brief,
-      confidence: 0.9,
-      source: "tool:journal-brief",
-      createdBy: "ai" as const,
-      metadata: { generatedAt: new Date().toISOString() } as never,
-    };
-    if (existing) {
-      await prisma.brainMemory.update({
-        where: { id: existing.id },
-        data: { ...payload, lastSeen: new Date() },
-      });
-    } else {
-      await prisma.brainMemory.create({
-        data: {
-          category: BRAIN_CATEGORIES.JOURNAL_BRIEF,
-          key: cacheKey,
-          ...payload,
-        },
-      });
-    }
-  } catch (err) {
-    log.warn("cache_write_failed", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-  }
+  // AG-40 · compose + cache via the shared brief-composer (owns the
+  // tracedAiChat call, <think>-scrub, trim, grounding footer, and the
+  // idempotent BrainMemory upsert this route used to hand-roll).
+  const { composeBrief } = await import("@/lib/ai/brief-composer");
+  const brief = await composeBrief({
+    label: "journal-brief",
+    cacheCategory: BRAIN_CATEGORIES.JOURNAL_BRIEF,
+    cacheKey,
+    systemPrompt: SYSTEM_PROMPT,
+    signalBlock,
+    taskType: "reason",
+    maxChars: 560,
+  });
 
   return NextResponse.json({ brief });
 }

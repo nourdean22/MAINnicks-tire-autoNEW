@@ -507,6 +507,10 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
       // in Telegram in ~2 minutes via the research-on-demand inngest fn.
       case "/research":
         return await cmdResearch(args.join(" "), chatId);
+      // AG-41 · reminders on existing rails: a WAITING task with
+      // snoozedUntil; the hourly proactive-push cron fires the ping.
+      case "/remind":
+        return await cmdRemind(args.join(" "), chatId);
       // v8.23 — phone-first remote read extensions
       case "/goals":
         return await cmdGoals(chatId);
@@ -551,10 +555,11 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `/commit [text] — Create commitment\n` +
             `/ask [question] — Ask Nick anything\n\n` +
             `\n<b>COUNCIL (AG-13)</b>\n` +
-            `/board [strategic|invest|product|operator|full] [q] — Convene an advisor board\n` +
+            `/board [strategic|invest|product|operator|full|team] [q] — Convene an advisor board\n` +
             `/team [q] — Ask the team (thought partner · strategist · tactician · consultant)\n` +
             `/draft [sms|social|email|longform] [brief] — Ghostwrite in your voice → approval queue\n` +
             `/research [question] — Queue deep research; cited report lands here in ~2 min\n` +
+            `/remind [in 2h | at 3pm | tomorrow 9am] [text] — Telegram ping when due (hourly check)\n` +
             `\n<b>OUTREACH (Wave-200)</b>\n` +
             `/approve [campaignId] — Approve pending bulk-SMS\n` +
             `/reject [campaignId] — Reject pending bulk-SMS\n` +
@@ -729,7 +734,7 @@ async function cmdCommit(args: string, chatId: string): Promise<void> {
 // synthesis + per-advisor one-liners. Consultation persists to BrainMemory
 // via consultBoardAndPersist, so it also shows in the /brain Board tab.
 async function cmdBoard(args: string[], chatId: string): Promise<void> {
-  const VALID_BOARDS = ["strategic", "invest", "product", "operator", "full"] as const;
+  const VALID_BOARDS = ["strategic", "invest", "product", "operator", "full", "team"] as const;
   const boardId = (args[0] ?? "").toLowerCase() as (typeof VALID_BOARDS)[number];
   const question = args.slice(1).join(" ").trim();
   if (!VALID_BOARDS.includes(boardId) || question.length < 8) {
@@ -793,6 +798,54 @@ async function cmdTeam(question: string, chatId: string): Promise<void> {
     );
   } catch (err) {
     await sendTelegram(`⚠️ Team run failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+// AG-41 · /remind — reminders on existing rails, no new platform. The
+// reminder is a WAITING task (⏰-prefixed) with snoozedUntil set by the
+// deterministic ET parser; the hourly proactive-push cron flips it
+// READY and sends the ping (task-resurface's daily sweep is backstop).
+// Hourly granularity is the documented v1 contract.
+async function cmdRemind(argsText: string, chatId: string): Promise<void> {
+  const { parseRemindTime } = await import("@/lib/utils/remind-time-parser");
+  const parsed = parseRemindTime(argsText);
+  if (!parsed) {
+    await sendTelegram(
+      `Usage: /remind [in 2h | at 3pm | tomorrow 9am] [text]\n\nExamples:\n/remind in 90 min call Mike back\n/remind at 3pm send the fleet quote\n/remind tomorrow 9am bloodwork\n\n<i>Pings fire on the hourly check.</i>`,
+      chatId
+    );
+    return;
+  }
+  try {
+    const { createTask } = await import("@/lib/services/tasks");
+    const { resolveInboxMissionId } = await import("@/lib/services/missions");
+    const title = `⏰ ${parsed.text.slice(0, 190)}`;
+    const inboxMissionId = await resolveInboxMissionId();
+    const task = await createTask({
+      title,
+      missionId: inboxMissionId,
+      status: "WAITING",
+      snoozedUntil: parsed.at,
+      nextPhysicalAction: parsed.text.slice(0, 200),
+      effort: "M15",
+      roiScore: 50,
+      frictionScore: 50,
+      energyRequired: "MEDIUM",
+      context: "PHONE",
+      finishCondition: "Reminder acknowledged",
+      autoPriorityExplanation: "captured via Telegram /remind",
+    });
+    if (!task) {
+      await sendTelegram(`⚠️ Reminder save returned no view-model · check /system/errors`, chatId);
+      return;
+    }
+    const whenEt = parsed.at.toLocaleString("en-US", {
+      timeZone: "America/New_York",
+      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+    await sendTelegram(`⏰ <b>Reminder set</b> · ${whenEt} ET\n\n${parsed.text}`, chatId);
+  } catch (err) {
+    await sendTelegram(`⚠️ Reminder failed: ${(err as Error).message}`, chatId);
   }
 }
 
@@ -862,31 +915,117 @@ async function cmdDraft(args: string[], chatId: string): Promise<void> {
   }
 }
 
+// AG-41 · /ask went from one-shot text to a SMALL bounded tool loop.
+// Pre-fix, "what's on my calendar" from the phone got a hallucinated
+// answer — Nick had no tools here. Deliberately NOT nourTools (60+
+// tools · approval-gated writes · needs the full chat pipeline): just
+// 4 read/propose-grade tools, stepCountIs(4), 25s abort. Escalation
+// path for anything heavier stays the chat UI.
 async function cmdAsk(args: string, chatId: string): Promise<void> {
   if (!args.trim()) {
-    await sendTelegram(`Usage: /ask [question] — get a one-shot answer from Nick`, chatId);
+    await sendTelegram(`Usage: /ask [question] — get a one-shot answer from Nick (can check calendar, search memory, create tasks)`, chatId);
     return;
   }
+  const question = args.trim();
+  const { mintTraceId, recordTrace } = await import("@/lib/ai/agent-trace");
+  const traceId = mintTraceId();
+  const startedAt = Date.now();
   try {
-    const { tracedAiChat } = await import("@/lib/ai/traced-aichat");
-    const result = await tracedAiChat(
-      { label: "telegram-ask", source: "tool", metadata: { chatId } },
-      [
-        {
-          role: "system",
-          content:
-            "You are Nick — Nour's Chief of Staff. Telegram mobile context, keep the answer under 200 words, no fluff, data-first. End with ONE specific action.",
+    const { generateText, stepCountIs, tool } = await import("ai");
+    const { getModel } = await import("@/lib/ai/provider");
+    const { calendarTools } = await import("@/lib/ai/tools/calendar");
+
+    const tools = {
+      getTodaySchedule: calendarTools.getTodaySchedule,
+      proposeCalendarEvent: calendarTools.proposeCalendarEvent,
+      createTask: tool({
+        description:
+          "Create a task in the operator's inbox. Use ONLY when the operator explicitly asks to capture/add a task.",
+        inputSchema: z.object({
+          title: z.string().min(1).max(200).describe("Short imperative task title"),
+        }),
+        execute: async ({ title }) => {
+          try {
+            const { createTask } = await import("@/lib/services/tasks");
+            const { resolveInboxMissionId } = await import("@/lib/services/missions");
+            const missionId = await resolveInboxMissionId();
+            const task = await createTask({
+              title,
+              missionId,
+              status: "INBOX",
+              nextPhysicalAction: title,
+              effort: "M15",
+              roiScore: 50,
+              frictionScore: 50,
+              energyRequired: "MEDIUM",
+              context: "PHONE",
+              finishCondition: "Item resolved · outcome logged",
+              autoPriorityExplanation: "captured via Telegram /ask",
+            });
+            return task
+              ? { ok: true, id: task.id, title: task.title }
+              : { ok: false, error: "task service returned no view-model" };
+          } catch (err) {
+            return { ok: false, error: (err as Error).message.slice(0, 200) };
+          }
         },
-        { role: "user", content: args.trim() },
-      ],
-      "reason"
+      }),
+      memorySearch: tool({
+        description:
+          "Semantic search of the operator's brain memories (decisions, facts, context). Use for 'what do we know about X' / recall questions.",
+        inputSchema: z.object({
+          query: z.string().min(2).max(300).describe("What to search for"),
+        }),
+        execute: async ({ query }) => {
+          try {
+            const { semanticSearch } = await import("@/lib/brain/embedding-utils");
+            const hits = await semanticSearch(query, 6);
+            return {
+              ok: true,
+              count: hits.length,
+              memories: hits.map((h) => ({
+                content: h.content.slice(0, 300),
+                category: h.category ?? h.sourceType,
+              })),
+            };
+          } catch (err) {
+            return { ok: false, error: (err as Error).message.slice(0, 200) };
+          }
+        },
+      }),
+    };
+
+    const result = await generateText({
+      model: getModel("reason"),
+      system:
+        "You are Nick — Nour's Chief of Staff. Telegram mobile context, keep the answer under 200 words, no fluff, data-first. You have a few tools (calendar read/propose, memory search, task capture) — use them when the question needs live data, NEVER invent schedule or memory contents. If a tool fails, say so plainly. End with ONE specific action.",
+      messages: [{ role: "user", content: question }],
+      tools: tools as Parameters<typeof generateText>["0"]["tools"],
+      stopWhen: stepCountIs(4),
+      abortSignal: AbortSignal.timeout(25_000),
+    });
+
+    const toolCalls = result.steps?.reduce((n, s) => n + (s.toolCalls?.length ?? 0), 0) ?? 0;
+    void recordTrace(
+      { traceId, source: "tool", label: "telegram-ask", inputChars: question.length, metadata: { chatId, tools: true } },
+      { durationMs: Date.now() - startedAt, outputChars: result.text.length, toolCalls },
     );
-    if (result.provider === "none") {
-      await sendTelegram(`⚠️ No AI provider available right now.`, chatId);
+
+    const text = result.text.trim();
+    if (!text) {
+      await sendTelegram(`⚠️ Nick came back empty — try rephrasing.`, chatId);
       return;
     }
-    await sendTelegram(`🧠 <b>Nick</b>\n\n${result.content.slice(0, 3500)}`, chatId);
+    await sendTelegram(`🧠 <b>Nick</b>\n\n${text.slice(0, 3500)}`, chatId);
   } catch (err) {
+    void recordTrace(
+      { traceId, source: "tool", label: "telegram-ask", inputChars: question.length, metadata: { chatId, tools: true } },
+      {
+        durationMs: Date.now() - startedAt,
+        errorClass: "telegram_ask_failed",
+        errorMessage: (err as Error).message?.slice(0, 300),
+      },
+    );
     await sendTelegram(`⚠️ Ask failed: ${(err as Error).message}`, chatId);
   }
 }
@@ -1804,6 +1943,27 @@ async function cmdQa(args: string, chatId: string): Promise<void> {
     return;
   }
 
+  // AG-41 · fire the execute-on-approval event so approved moves run
+  // in seconds, not at tomorrow's 9am cron (the automation-gap
+  // register measured a 14-day median approve→execute latency).
+  // Best-effort: on send failure the cron backstop still ships them.
+  let eventQueued = false;
+  if (decision === "approved" && updated > 0) {
+    try {
+      const { getInngest } = await import("@/lib/inngest/client");
+      await getInngest().send({
+        name: "nick-action/approved",
+        data: {
+          actionIds: targets.map((t) => t.id),
+          approvedBy: "nour-telegram",
+        },
+      });
+      eventQueued = true;
+    } catch {
+      eventQueued = false;
+    }
+  }
+
   const verb = decision === "approved" ? "approved" : "rejected";
   const idxList = targets
     .map((t) => t.idx)
@@ -1812,7 +1972,9 @@ async function cmdQa(args: string, chatId: string): Promise<void> {
   await sendTelegram(
     `✅ <b>${verb}</b> · ${updated} of ${targets.length} (#${idxList})\n\n` +
       (decision === "approved"
-        ? "Execute cron at 09:00 UTC ships them."
+        ? eventQueued
+          ? "Executing now — digest lands here in ~1 min."
+          : "Event queue unavailable · execute cron at 09:00 UTC ships them."
         : "Rejected rows stay in the audit trail."),
     chatId,
   );

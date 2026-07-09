@@ -708,3 +708,87 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
     text: ok ? text : undefined,
   };
 }
+
+/**
+ * AG-41 · hourly due-check for /remind reminders. The daily
+ * task-resurface sweep (mega-morning) is the backstop for ALL snoozed
+ * tasks, but a "/remind in 2h" that fires next morning is a broken
+ * promise — so this narrower check runs on the hourly proactive-push
+ * cron and only touches ⏰-prefixed reminder tasks.
+ *
+ * Idempotency is two-layer: the snoozedUntil-null write is the primary
+ * lock (same as task-resurface — a second pass no longer matches the
+ * query), and a per-task BrainMemory marker (remind_<taskId>) guards
+ * the crash window between send and write.
+ */
+export async function fireDueReminders(): Promise<{ fired: number; reason: string }> {
+  const now = new Date();
+  const due = await prisma.task
+    .findMany({
+      where: {
+        status: "WAITING",
+        snoozedUntil: { not: null, lte: now },
+        title: { startsWith: "⏰" },
+        deletedAt: null,
+      },
+      select: { id: true, title: true },
+      take: 25,
+    })
+    .catch((err): Array<{ id: string; title: string }> => {
+      logError("brain.proactive-pushes", err, { fn: "fireDueReminders.query" });
+      return [];
+    });
+  if (due.length === 0) return { fired: 0, reason: "none_due" };
+
+  const dedupKeys = due.map((t) => `remind_${t.id}`);
+  const alreadySent = await prisma.brainMemory
+    .findMany({
+      where: { category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT, key: { in: dedupKeys } },
+      select: { key: true },
+    })
+    .catch((err): Array<{ key: string }> => {
+      logError("brain.proactive-pushes", err, { fn: "fireDueReminders.dedup" });
+      return [];
+    });
+  const sentKeys = new Set(alreadySent.map((r) => r.key));
+  const fresh = due.filter((t) => !sentKeys.has(`remind_${t.id}`));
+  if (fresh.length === 0) return { fired: 0, reason: "all_deduped" };
+
+  // One batched line, never per-task spam (AG-18 rule).
+  const lines = fresh.slice(0, 10).map((t) => `• ${t.title.replace(/^⏰\s*/, "").slice(0, 80)}`);
+  const extra = fresh.length > 10 ? `\n…and ${fresh.length - 10} more` : "";
+  const ok = await sendTelegram(`⏰ <b>Reminder</b>\n\n${lines.join("\n")}${extra}`).catch((err) => {
+    logError("brain.proactive-pushes", err, { fn: "fireDueReminders.sendTelegram" });
+    return false;
+  });
+  if (!ok) return { fired: 0, reason: "telegram_failed" }; // still WAITING → next hour retries
+
+  const ids = fresh.map((t) => t.id);
+  await prisma.task
+    .updateMany({
+      where: { id: { in: ids } },
+      data: { status: "READY", snoozedUntil: null, lastTouchedAt: now },
+    })
+    .catch((err) => {
+      logError("brain.proactive-pushes", err, { fn: "fireDueReminders.flip" });
+    });
+  for (const id of ids) {
+    await prisma.brainMemory
+      .upsert({
+        where: { category_key: { category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT, key: `remind_${id}` } },
+        create: {
+          category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
+          key: `remind_${id}`,
+          content: `reminder ping sent at ${now.toISOString()}`,
+          source: "proactive_push_cron",
+          confidence: 1.0,
+          expiresAt: new Date(Date.now() + 48 * 3600_000),
+        },
+        update: { lastSeen: new Date() },
+      })
+      .catch((err) => {
+        logError("brain.proactive-pushes", err, { fn: "fireDueReminders.mark" });
+      });
+  }
+  return { fired: fresh.length, reason: "sent" };
+}

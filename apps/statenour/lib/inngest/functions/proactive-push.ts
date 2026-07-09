@@ -1,6 +1,6 @@
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
-import { fireSlotForCurrentHour, checkAndNudgeApprovals } from "@/lib/brain/proactive-pushes";
+import { fireSlotForCurrentHour, checkAndNudgeApprovals, fireDueReminders } from "@/lib/brain/proactive-pushes";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("inngest/proactive-push");
@@ -23,11 +23,18 @@ export const proactivePushCron = inngest.createFunction(
       return await checkAndNudgeApprovals();
     });
 
-    log.info("proactive_push_cron_done", { push: pushResult, nudge: nudgeResult });
+    // AG-41 · /remind due-check. Hourly so "in 2h" fires within the
+    // hour; the daily task-resurface sweep stays as backstop.
+    const reminderResult = await step.run("fire-due-reminders", async () => {
+      return await fireDueReminders();
+    });
+
+    log.info("proactive_push_cron_done", { push: pushResult, nudge: nudgeResult, reminders: reminderResult });
 
     return {
       push: pushResult,
       nudge: nudgeResult,
+      reminders: reminderResult,
     };
   },
 );
