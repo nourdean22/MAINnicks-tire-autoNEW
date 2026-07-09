@@ -555,7 +555,7 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `/commit [text] — Create commitment\n` +
             `/ask [question] — Ask Nick anything\n\n` +
             `\n<b>COUNCIL (AG-13)</b>\n` +
-            `/board [strategic|invest|product|operator|full] [q] — Convene an advisor board\n` +
+            `/board [strategic|invest|product|operator|full|team] [q] — Convene an advisor board\n` +
             `/team [q] — Ask the team (thought partner · strategist · tactician · consultant)\n` +
             `/draft [sms|social|email|longform] [brief] — Ghostwrite in your voice → approval queue\n` +
             `/research [question] — Queue deep research; cited report lands here in ~2 min\n` +
@@ -734,7 +734,7 @@ async function cmdCommit(args: string, chatId: string): Promise<void> {
 // synthesis + per-advisor one-liners. Consultation persists to BrainMemory
 // via consultBoardAndPersist, so it also shows in the /brain Board tab.
 async function cmdBoard(args: string[], chatId: string): Promise<void> {
-  const VALID_BOARDS = ["strategic", "invest", "product", "operator", "full"] as const;
+  const VALID_BOARDS = ["strategic", "invest", "product", "operator", "full", "team"] as const;
   const boardId = (args[0] ?? "").toLowerCase() as (typeof VALID_BOARDS)[number];
   const question = args.slice(1).join(" ").trim();
   if (!VALID_BOARDS.includes(boardId) || question.length < 8) {

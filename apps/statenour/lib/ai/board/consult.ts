@@ -50,6 +50,7 @@ import { logger as rootLogger } from "@/lib/logger";
 const log = rootLogger.withSurface("ai/board/consult");
 
 import { getBoard } from "./boards";
+import { getPersona } from "@/lib/ai/personas";
 import type {
   AdvisorTake,
   BoardConsultation,
@@ -59,12 +60,33 @@ import type {
 
 const aiChat = makeTracedAiChat("board-consult", "brain");
 
-/** Look up framework definitions for a list of ids · drops unknowns. */
+/** Look up framework definitions for a list of ids · drops unknowns.
+ *
+ * AG-42 · ids that miss the frameworks REGISTRY fall back to the
+ * persona library (lib/ai/personas) — this is what lets the "team"
+ * board seat the AG-12 working personas (thought-partner, tactician,
+ * …) as advisors. The persona is adapted into the framework shape the
+ * advisor prompt expects: role/goal/backstory become the lens; the
+ * persona's own outputHint is deliberately DROPPED because the board's
+ * strict-JSON output spec governs advisor replies here. */
 function resolveMembers(memberIds: ReadonlyArray<string>): StrategicFramework[] {
   const members: StrategicFramework[] = [];
   for (const id of memberIds) {
     const framework = REGISTRY.find((f: any) => f.id === id);
-    if (framework) members.push(framework);
+    if (framework) {
+      members.push(framework);
+      continue;
+    }
+    const persona = getPersona(id);
+    if (persona) {
+      members.push({
+        id: persona.key,
+        name: persona.role,
+        oneLiner: persona.goal,
+        triggers: [],
+        lens: `You think as a ${persona.role}.\n\nGOAL: ${persona.goal}\n\n${persona.backstory}`,
+      });
+    }
   }
   return members;
 }

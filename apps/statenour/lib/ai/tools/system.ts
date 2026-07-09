@@ -769,9 +769,9 @@ export const systemTools = {
   // "let me convene the invest board." Read-only side effects: persists
   // one BrainMemory consultation record.
   arsenalBoardConsult: tool({
-    description: "Convene an advisor board (parallel multi-lens council) on a major decision. Boards: strategic, invest, product, operator, full.",
+    description: "Convene an advisor board (parallel multi-lens council) on a major decision. Boards: strategic, invest, product, operator, full, team (the in-house working team: thought partner, researcher, strategist, tactician, consultant).",
     inputSchema: z.object({
-      boardId: z.enum(["strategic", "invest", "product", "operator", "full"]).describe("Which preset board to convene"),
+      boardId: z.enum(["strategic", "invest", "product", "operator", "full", "team"]).describe("Which preset board to convene"),
       question: z.string().min(8).describe("The decision or question to put before the board"),
     }),
     execute: async ({ boardId, question }) => {
