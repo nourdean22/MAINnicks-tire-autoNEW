@@ -1,0 +1,83 @@
+<!doctype html>
+<!-- Investor diligence one-pager · print source for PDF (render with puppeteer, Letter)
+     Derived from docs/whitepaper/self-improving-shop.cgd.md (CLEAR | REVIEWED,
+     sha 59199c33…) — no claims beyond the verified set. Deliberately NOT a
+     fundraising pitch (no ask exists in source material) — this is the
+     diligence tool itself, worked against Nick's Tire & Auto as the example. -->
+<html><head><meta charset="utf-8"><title>Diligence Brief — AI-Enabled SMB Claims</title><style>
+  @page { size: Letter; margin: 0; }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: #1f2937; width: 8.5in; height: 11in; padding: 0.52in 0.6in; display: flex; flex-direction: column; }
+  .kicker { font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; letter-spacing: 2px; text-transform: uppercase; color: #b45309; font-weight: bold; }
+  h1 { font-size: 21pt; line-height: 1.15; margin: 4pt 0 2pt; color: #111827; }
+  .sub { font-size: 10.5pt; font-style: italic; color: #4b5563; margin-bottom: 9pt; }
+  .thesis { font-size: 9.8pt; line-height: 1.45; padding: 7pt 11pt; background: #fef3ec; border-left: 3pt solid #b45309; margin-bottom: 10pt; }
+  h2 { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; letter-spacing: 1px; text-transform: uppercase; color: #111827; border-bottom: 1.5pt solid #b45309; padding-bottom: 2pt; margin: 3pt 0 6pt; }
+  .qcard { border: 1px solid #d1d5db; border-radius: 5pt; padding: 7pt 10pt; margin-bottom: 7pt; }
+  .qhead { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; font-weight: bold; color: #111827; margin-bottom: 3pt; }
+  .qnum { color: #b45309; }
+  .qask { font-size: 8.6pt; color: #6b7280; font-style: italic; margin-bottom: 4pt; }
+  .qshow { font-size: 9.2pt; line-height: 1.4; }
+  .qshow b { color: #111827; }
+  .tiles { display: flex; gap: 8pt; margin: 4pt 0 10pt; font-family: Helvetica, Arial, sans-serif; }
+  .tile { flex: 1; border: 1px solid #d1d5db; border-radius: 5pt; padding: 6pt 8pt; background: #f9fafb; text-align: center; }
+  .tile b { display: block; font-size: 14pt; color: #111827; }
+  .tile span { font-size: 7pt; color: #6b7280; line-height: 1.3; display: block; margin-top: 1pt; }
+  .flags { font-size: 9pt; line-height: 1.5; margin-bottom: 10pt; }
+  .flags ul { margin: 3pt 0 0 14pt; padding: 0; }
+  .flags li { margin-bottom: 2pt; }
+  .cta { font-size: 9.3pt; line-height: 1.4; padding: 7pt 10pt; background: #f9fafb; border: 1px solid #d1d5db; border-radius: 5pt; margin-bottom: 8pt; }
+  .foot { margin-top: auto; border-top: 0.5pt solid #d1d5db; padding-top: 6pt; font-family: Helvetica, Arial, sans-serif; font-size: 7.3pt; color: #9ca3af; display: flex; justify-content: space-between; }
+</style></head><body>
+
+  <div class="kicker">Investor Diligence Brief · July 2026</div>
+  <h1>How to Diligence an "AI-Enabled SMB" Claim</h1>
+  <div class="sub">Three questions, answered against a live production system — Nick's Tire &amp; Auto (Cleveland, OH)</div>
+
+  <div class="thesis">Most "AI-enabled SMB" pitches show a demo. A demo proves a model works once, in front of an audience. It proves nothing about production discipline, guardrail architecture, or whether the metrics on the slide are real. This is the tool: three questions that separate a working system from a good demo — each answered here against a real single-location shop running this in production, not a lab.</div>
+
+  <h2>The three questions</h2>
+
+  <div class="qcard">
+    <div class="qhead"><span class="qnum">1 ·</span> Where's the verification loop?</div>
+    <div class="qask">Ask: how does the team know the system is working — not just that it runs?</div>
+    <div class="qshow"><b>What Nick's shows:</b> a dashboard reported a 16.6% call-abandon rate — an alarming number that invited spending. A diagnostic first: ~81% of those "abandons" were sub-1-second robocall hang-ups, not lost customers, while AI first-token latency was a healthy ~244ms. The metric was an artifact. No spend happened until it was measured. <b>A team with no verification loop cannot tell you this — they'll just show you the demo again.</b></div>
+  </div>
+
+  <div class="qcard">
+    <div class="qhead"><span class="qnum">2 ·</span> What can't happen by construction?</div>
+    <div class="qask">Ask: which failures are prevented by architecture, not by policy or good intentions?</div>
+    <div class="qshow"><b>What Nick's shows:</b> every AI-handled call event is cryptographically signature-verified before it's trusted or logged. The self-learning loop can only reach the live customer-facing prompt after a lesson recurs across multiple days (confidence ≥0.65) <i>and</i> a human manually pushes the config — zero in 17 evaluation cycles reached the prompt. Business facts (phone, address, rating) are templated from code, not generated, so they cannot be hallucinated. <b>"We have guardrails" is a policy claim. "The system cannot do X" is an architecture claim — ask for the second one.</b></div>
+  </div>
+
+  <div class="qcard">
+    <div class="qhead"><span class="qnum">3 ·</span> What number did the team lower on purpose?</div>
+    <div class="qask">Ask for one metric the team deliberately made worse, or stopped chasing, once they measured honestly.</div>
+    <div class="qshow"><b>What Nick's shows:</b> a free domain-authority check (0 vs. page-1 incumbents at 66–94) proved organic search was structurally unwinnable — so SEO investment stopped entirely rather than escalating. AI-driven ROI is reported as a 40–70% capture <i>band</i>, not a point-estimate dollar figure, specifically so it can't be quietly inflated. <b>A team that only ever reports numbers going up hasn't been tested yet.</b></div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><b>464</b><span>verified calls / 14d, snapshot</span></div>
+    <div class="tile"><b>0 / 17</b><span>learning-loop prompt changes</span></div>
+    <div class="tile"><b>DR 0</b><span>vs. incumbent 66–94, measured free</span></div>
+    <div class="tile"><b>&lt;20%</b><span>AI use at ≤4-employee firms (Census)</span></div>
+  </div>
+
+  <h2>Red flags this framework catches</h2>
+  <div class="flags">Patterns worth a direct follow-up question, regardless of company:
+    <ul>
+      <li>ROI reported as a single dollar figure, with no stated method for how it's derived or bounded.</li>
+      <li>No described failure mode for the AI system — every team has one; a team that says "none" hasn't looked.</li>
+      <li>Guardrails described as configuration a customer or operator could accidentally turn off, rather than something the code enforces.</li>
+      <li>A metric that only ever improves, quarter over quarter, with no visible measurement methodology behind it.</li>
+    </ul>
+  </div>
+
+  <div class="cta">The full operating blueprint — architecture, three worked case studies, and citation-backed market context (APA 7) — is documented in <b>"The Self-Improving Shop"</b> (5 pages). This brief is a diligence tool, not a fundraising pitch; Nick's Tire &amp; Auto is presented here as the worked reference example, not as a raise.</div>
+
+  <div class="foot">
+    <span>Full paper: <b>The Self-Improving Shop</b> · nickstire.org</span>
+    <span>All claims human-verified · internal figures are dated production snapshots · Clarity Gate: CLEAR | REVIEWED</span>
+  </div>
+
+</body></html>
