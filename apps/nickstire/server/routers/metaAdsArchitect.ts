@@ -15,7 +15,7 @@ export const metaAdsArchitectRouter = router({
     .input(CampaignInputSchema)
     .mutation(async ({ input }) => {
       // Create an adapter to convert the (prompt, systemPrompt) signature to invokeLLM
-      const llmProvider = async (prompt: string, systemPrompt?: string) => {
+      const llmProvider = async (prompt: string, systemPrompt?: string, options?: any) => {
         const messages: any[] = [];
         if (systemPrompt) {
           messages.push({ role: "system", content: systemPrompt });
@@ -24,7 +24,9 @@ export const metaAdsArchitectRouter = router({
 
         const result = await invokeLLM({
           messages,
-          maxTokens: 4000,
+          maxTokens: options?.maxTokens ?? 4000,
+          timeoutMs: options?.timeoutMs ?? 60000,
+          outputSchema: options?.outputSchema,
         });
 
         // Ensure we get a text response
@@ -39,7 +41,7 @@ export const metaAdsArchitectRouter = router({
           return "";
         }
         
-        return message.content;
+        return message.content || "";
       };
 
       try {

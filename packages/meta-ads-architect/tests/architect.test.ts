@@ -12,8 +12,28 @@ describe("Meta Ads Architect Compliance Engine", () => {
     expect(scan.safePhrasingSwaps.some(s => s.unsafe === "guaranteed")).toBe(true);
   });
 
+  it("should flag bad free usage", () => {
+    const scan = runComplianceScan(["Get free tires and a free engine."]);
+    expect(scan.riskFlags.some(f => f.includes('"free" used outside'))).toBe(true);
+  });
+
+  it("should not flag valid free check usage", () => {
+    const scan = runComplianceScan(["Come in for a free tire check."]);
+    expect(scan.riskFlags.some(f => f.includes('"free" used outside'))).toBe(false);
+  });
+
+  it("should flag HTML entity leaks", () => {
+    const scan = runComplianceScan(["Tires &amp; Brakes"]);
+    expect(scan.riskFlags.some(f => f.includes('HTML entity leaked'))).toBe(true);
+  });
+
+  it("should flag banned superlatives", () => {
+    const scan = runComplianceScan(["We have the cheapest and best premium quality tires."]);
+    expect(scan.riskFlags.some(f => f.includes('banned superlative'))).toBe(true);
+  });
+
   it("should pass safe copy with low risk", () => {
-    const scan = runComplianceScan(["Get your free initial inspection today at Nick's Tire."]);
+    const scan = runComplianceScan(["Get your free quick check today at Nick's Tire."]);
     expect(scan.riskLevel).toBe("low");
   });
 });

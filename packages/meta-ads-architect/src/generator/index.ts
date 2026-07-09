@@ -1,8 +1,101 @@
 import { CampaignInput } from "../schemas/input.js";
-import { CampaignOutput } from "../schemas/output.js";
+import { CampaignOutput, CampaignOutputSchema } from "../schemas/output.js";
 import { runComplianceScan } from "../compliance/scanner.js";
+import { buildCreativeSystemPrompt, extractJsonObject } from "./prompts.js";
 
-export type LlmProvider = (prompt: string, systemPrompt?: string) => Promise<string>;
+export type LlmProvider = (
+  prompt: string,
+  systemPrompt?: string,
+  options?: {
+    outputSchema?: {
+      name: string;
+      strict?: boolean;
+      schema: Record<string, unknown>;
+    };
+    maxTokens?: number;
+    timeoutMs?: number;
+  }
+) => Promise<string>;
+
+const CREATIVE_SECTIONS_SCHEMA = {
+  name: "meta_ads_creative_sections",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "customerPsychologyMap",
+      "adCopyFactory",
+      "creativeTestingLab",
+      "creativePrompts",
+      "landingPageSystem"
+    ],
+    properties: {
+      customerPsychologyMap: {
+        type: "object",
+        additionalProperties: false,
+        required: ["microAvatars", "messagingMap", "whatToSay", "whatToAvoid"],
+        properties: {
+          microAvatars: { type: "array", items: { type: "object", additionalProperties: false, required: ["name", "description"], properties: { name: { type: "string" }, description: { type: "string" } } } },
+          messagingMap: { type: "object", additionalProperties: false, required: ["cold", "warm", "hot"], properties: { cold: { type: "string" }, warm: { type: "string" }, hot: { type: "string" } } },
+          whatToSay: { type: "array", items: { type: "string" } },
+          whatToAvoid: { type: "array", items: { type: "string" } }
+        }
+      },
+      adCopyFactory: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["bundleName", "shortPrimaryTexts", "longPrimaryText", "headlines", "descriptions", "ctaButtonRecommendations"],
+          properties: {
+            bundleName: { type: "string" },
+            shortPrimaryTexts: { type: "array", items: { type: "string" } },
+            longPrimaryText: { type: "string" },
+            headlines: { type: "array", items: { type: "string" } },
+            descriptions: { type: "array", items: { type: "string" } },
+            ctaButtonRecommendations: { type: "array", items: { type: "string" } }
+          }
+        }
+      },
+      creativeTestingLab: {
+        type: "object",
+        additionalProperties: false,
+        required: ["creativeThesis", "creativeAngles", "creativeProductionChecklist", "shotList"],
+        properties: {
+          creativeThesis: { type: "string" },
+          creativeAngles: {
+            type: "array", items: { type: "object", additionalProperties: false, required: ["angleName", "hooks", "proofType", "visualDirection", "ctaFraming", "textSafeAreaGuidance"], properties: { angleName: { type: "string" }, hooks: { type: "array", items: { type: "string" } }, proofType: { type: "string" }, visualDirection: { type: "string" }, ctaFraming: { type: "string" }, textSafeAreaGuidance: { type: "string" } } }
+          },
+          creativeProductionChecklist: { type: "array", items: { type: "string" } },
+          shotList: { type: "array", items: { type: "string" } }
+        }
+      },
+      creativePrompts: {
+        type: "object",
+        additionalProperties: false,
+        required: ["imagePrompts", "reelPrompts", "ugcScriptOutlines"],
+        properties: {
+          imagePrompts: { type: "array", items: { type: "object", additionalProperties: false, required: ["format", "subject", "scene", "lighting", "composition", "negativeInstructions", "textSafeSpaceInstruction"], properties: { format: { type: "string", enum: ["1:1", "4:5", "9:16"] }, subject: { type: "string" }, scene: { type: "string" }, lighting: { type: "string" }, composition: { type: "string" }, negativeInstructions: { type: "string" }, textSafeSpaceInstruction: { type: "string" } } } },
+          reelPrompts: { type: "array", items: { type: "object", additionalProperties: false, required: ["hookFirst2Seconds", "sceneBeats", "onScreenTextPlan", "endFrameCta"], properties: { hookFirst2Seconds: { type: "string" }, sceneBeats: { type: "array", items: { type: "string" } }, onScreenTextPlan: { type: "string" }, endFrameCta: { type: "string" } } } },
+          ugcScriptOutlines: { type: "array", items: { type: "object", additionalProperties: false, required: ["openingLine", "storyArc", "proofMoment", "cta", "filmingNotes"], properties: { openingLine: { type: "string" }, storyArc: { type: "string" }, proofMoment: { type: "string" }, cta: { type: "string" }, filmingNotes: { type: "string" } } } }
+        }
+      },
+      landingPageSystem: {
+        type: "object",
+        additionalProperties: false,
+        required: ["directResponseVariant", "leadMagnetOrQuizVariant", "hybridVariant", "faqs", "riskReversalWording"],
+        properties: {
+          directResponseVariant: { type: "string" },
+          leadMagnetOrQuizVariant: { type: "string" },
+          hybridVariant: { type: "string" },
+          faqs: { type: "array", items: { type: "object", additionalProperties: false, required: ["question", "answer"], properties: { question: { type: "string" }, answer: { type: "string" } } } },
+          riskReversalWording: { type: "string" }
+        }
+      }
+    }
+  }
+};
 
 function generateDeterministicSections(input: CampaignInput): Partial<CampaignOutput> {
   const { offer, audience, priceStack, constraints } = input;
@@ -234,29 +327,49 @@ function generateDeterministicCreative(): Partial<CampaignOutput> {
   };
 }
 
-export async function generateCampaignPlan(input: CampaignInput, llmProvider?: LlmProvider): Promise<any> {
+export async function generateCampaignPlan(input: CampaignInput, llmProvider?: LlmProvider): Promise<CampaignOutput> {
   const deterministicBase = generateDeterministicSections(input);
   
   let creativeSections = generateDeterministicCreative();
+  let metadataPreset = "deterministic-no-llm-provider";
 
   if (llmProvider) {
-    // If LLM is provided, we can dynamically generate the creative sections
-    // For now, to keep the implementation safe and fast, we simulate the LLM call 
-    // or actually call it if implemented. 
-    // A real implementation would stringify the Zod schema and ask the LLM to fill it.
-    // In Phase 1, we use the deterministic fallback, but the interface is ready for the LLM.
-    console.log("LLM Provider injected! Real LLM generation would happen here.");
-    // creativeSections = await llmProvider(prompt, systemPrompt);
+    try {
+      const systemPrompt = buildCreativeSystemPrompt(input);
+      const prompt = "Generate the creative sections now. Output ONLY valid JSON matching the schema.";
+      
+      const response = await llmProvider(prompt, systemPrompt, {
+        outputSchema: CREATIVE_SECTIONS_SCHEMA,
+        maxTokens: 4000,
+        timeoutMs: 90000,
+      });
+
+      const parsed = extractJsonObject(response) as Partial<CampaignOutput>;
+      
+      // Merge successfully parsed sections
+      creativeSections = {
+        customerPsychologyMap: parsed.customerPsychologyMap || creativeSections.customerPsychologyMap,
+        adCopyFactory: parsed.adCopyFactory || creativeSections.adCopyFactory,
+        creativeTestingLab: parsed.creativeTestingLab || creativeSections.creativeTestingLab,
+        creativePrompts: parsed.creativePrompts || creativeSections.creativePrompts,
+        landingPageSystem: parsed.landingPageSystem || creativeSections.landingPageSystem,
+      };
+      
+      metadataPreset = "llm-creative";
+    } catch (err) {
+      console.error("LLM Generation failed, falling back to deterministic creative:", err);
+      metadataPreset = "deterministic-fallback";
+    }
   }
 
   // Combine
-  const rawPlan = {
+  const rawPlan: any = {
     ...deterministicBase,
     ...creativeSections,
     exportMetadata: {
       generatedAt: new Date().toISOString(),
       version: "1.0.0",
-      presetUsed: "none"
+      presetUsed: metadataPreset
     }
   };
 
@@ -266,5 +379,28 @@ export async function generateCampaignPlan(input: CampaignInput, llmProvider?: L
 
   rawPlan.complianceRiskScan = complianceRiskScan;
 
-  return rawPlan;
+  // Validate final full plan against CampaignOutputSchema
+  const parsedFinal = CampaignOutputSchema.safeParse(rawPlan);
+  if (!parsedFinal.success) {
+    console.error("CampaignOutputSchema validation failed on final output:", parsedFinal.error);
+    // Even if it fails validation (e.g. LLM hallucinates an invalid string instead of array), we return it
+    // as any, but cast it so TypeScript doesn't complain. The frontend can still render it.
+    // To be perfectly safe, we'll try to fallback completely.
+    if (metadataPreset === "llm-creative") {
+      console.error("Falling back completely to deterministic due to schema failure.");
+      const fallbackPlan: any = {
+        ...deterministicBase,
+        ...generateDeterministicCreative(),
+        exportMetadata: {
+          generatedAt: new Date().toISOString(),
+          version: "1.0.0",
+          presetUsed: "deterministic-fallback"
+        }
+      };
+      fallbackPlan.complianceRiskScan = runComplianceScan(fallbackPlan.adCopyFactory.flatMap((b: any) => [...b.shortPrimaryTexts, b.longPrimaryText, ...b.headlines]));
+      return CampaignOutputSchema.parse(fallbackPlan);
+    }
+  }
+
+  return rawPlan as CampaignOutput;
 }
