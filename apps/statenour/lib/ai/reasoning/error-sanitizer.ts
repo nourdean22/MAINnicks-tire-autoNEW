@@ -60,8 +60,9 @@ export function sanitizeError(
     rawMsg,
     stack,
     classified,
-  }).catch(() => {
+  }).catch((err) => {
     /* best-effort */
+    void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.error-sanitizer", err, { fn: "sanitizeError.persistToErrorLog" }, "warn"));
   });
 
   return {
@@ -95,8 +96,9 @@ async function persistToErrorLog(entry: {
         },
       },
     });
-  } catch {
+  } catch (err) {
     // best-effort
+    void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.error-sanitizer", err, { fn: "persistToErrorLog" }, "warn"));
   }
 }
 
@@ -122,3 +124,4 @@ function classifyForOperator(rawMsg: string): string {
   }
   return "Internal engine error. The team has been notified.";
 }
+

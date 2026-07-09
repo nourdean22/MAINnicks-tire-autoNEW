@@ -36,7 +36,7 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
             encoder.encode(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`)
           );
         } catch (err) {
-          console.warn(`[sse-stream] Failed to enqueue event ${type}:`, err);
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.runtime.sse-stream", err, { fn: "createCockpitSseStream.sendEvent", eventType: type }, "warn"));
         }
       };
 
@@ -88,7 +88,7 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
 
         controller.close();
       } catch (err) {
-        console.error("[sse-stream] Error in SSE stream reader:", err);
+        void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.runtime.sse-stream", err, { fn: "createCockpitSseStream.reader" }, "error"));
         controller.error(err);
       } finally {
         reader.releaseLock();

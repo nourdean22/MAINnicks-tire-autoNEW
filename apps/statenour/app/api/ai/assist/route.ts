@@ -52,7 +52,9 @@ export async function POST(req: NextRequest) {
         memoryContext = "\n\nNOUR'S BRAIN (reference specific memories when relevant):\n" +
           memories.map(m => `- [${m.category} · ${(m.confidence * 100).toFixed(0)}%] ${m.content.slice(0, 250)}`).join("\n");
       }
-    } catch {}
+    } catch (err) {
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("api.ai.assist", err, { fn: "memoryContext" }, "error"));
+    }
 
     // Recent state for context — Apr 19 · DailyScore retired. Use
     // live signals: open tasks + commitments + brain maturity score +
@@ -72,7 +74,10 @@ export async function POST(req: NextRequest) {
         prisma.brainMemory.findUnique({
           where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
           select: { content: true },
-        }).catch(() => null),
+        }).catch((err) => {
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("api.ai.assist", err, { fn: "identitySnapshot" }, "error"));
+          return null;
+        }),
       ]);
 
       let maturity = "?";
@@ -89,8 +94,8 @@ export async function POST(req: NextRequest) {
               weakestAxis = `${weak[0]} at ${weak[1].manual ?? weak[1].value}`;
             }
           }
-        } catch {
-          // skip
+        } catch (err) {
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("api.ai.assist", err, { fn: "parseIdentitySnapshot" }, "warn"));
         }
       }
 
@@ -99,7 +104,9 @@ export async function POST(req: NextRequest) {
       } · brain maturity ${maturity}${
         openContradictions > 0 ? ` · ${openContradictions} open contradiction${openContradictions > 1 ? "s" : ""}` : ""
       }${weakestAxis ? ` · weak axis: ${weakestAxis}` : ""}`;
-    } catch {}
+    } catch (err) {
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("api.ai.assist", err, { fn: "stateContext" }, "error"));
+    }
 
     const systemPrompts: Record<string, string> = {
       decision: `You are Nick, Nour's $500/hr strategic advisor. Help him DECIDE — not deliberate.
@@ -268,8 +275,8 @@ Respond with JSON:
       if (snap.confidence > 0) {
         operatorStateBlock = formatOperatorStateBlock(snap);
       }
-    } catch {
-      // best-effort
+    } catch (err) {
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("api.ai.assist", err, { fn: "operatorState" }, "warn"));
     }
 
     const messages: { role: "system" | "user"; content: string }[] = [
@@ -296,7 +303,10 @@ Respond with JSON:
 
     let parsed: Record<string, unknown>;
     try { parsed = JSON.parse(result.content.replace(/```json|```/g, "").trim()); }
-    catch { parsed = { response: result.content }; }
+    catch (err) {
+      parsed = { response: result.content };
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("api.ai.assist", err, { fn: "parseAssistResult" }, "warn"));
+    }
 
     // Store insight as memory
     try {
@@ -328,7 +338,9 @@ Respond with JSON:
             if (code !== "P2002") throw err;
           });
       }
-    } catch {}
+    } catch (err) {
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("api.ai.assist", err, { fn: "storeInsight" }, "error"));
+    }
 
     return NextResponse.json({ ...parsed, type, provider: result.provider, model: result.model, memoriesUsed: memoryContext.length > 0 });
   } catch (err) {

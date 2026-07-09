@@ -26,6 +26,7 @@ import { brainMemory } from "@/lib/brain/memory-manager";
 import { connect } from "@/lib/brain/relational-graph";
 import { logger as rootLogger } from "@/lib/logger";
 import { recordError } from "@/lib/errors/record-error";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/pipeline-controller");
 // v10.0.64 · AgentTrace coverage.
@@ -366,7 +367,10 @@ Return empty arrays if nothing found. Be specific, not generic.`,
         "conversation_analysis"
       );
     }
-  } catch { /* parsing failed — non-critical */ }
+  } catch (err) { 
+    // parsing failed — non-critical
+    logError("brain.pipeline-controller", err, { fn: "processConversation" });
+  }
 }
 
 // ─── OUTBOUND: Proactive alerts (Nick initiates) ──────────
@@ -387,7 +391,10 @@ async function readCeoSnapshot(): Promise<{
     where: { eventType: "ceo_business_context" },
     orderBy: { createdAt: "desc" },
     select: { payload: true, createdAt: true },
-  }).catch(() => null);
+  }).catch((err) => {
+    logError("brain.pipeline-controller", err, { fn: "readCeoSnapshot.findEvent" });
+    return null;
+  });
   if (!event?.payload) return null;
   // Reject stale snapshots (> 24h old · nickstire sync runs every 4h
   // so anything older than 24h means the bridge is down · don't fire
@@ -464,7 +471,10 @@ export async function proactiveAlerts(): Promise<{ alerts: string[] }> {
       status: "active",
       deadline: { lt: today() },
     },
-  }).catch(() => 0);
+  }).catch((err) => {
+    logError("brain.pipeline-controller", err, { fn: "proactiveAlerts.countOverdueCommitments" });
+    return 0;
+  });
 
   if (overdueCommitments > 0) {
     await brainMemory.remember(
@@ -635,19 +645,31 @@ export async function runBrainCycle(): Promise<{ alerts: string[]; patterns: str
       prisma.auditEvent.findMany({
         where: { eventType: "page_visit", createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
         select: { detail: true, payload: true },
-      }).catch((): never[] => []),
+      }).catch((err): never[] => {
+        logError("brain.pipeline-controller", err, { fn: "runBrainCycle.findPageVisits" });
+        return [];
+      }),
       prisma.auditEvent.count({
         where: { eventType: "conversation_summary", createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
-      }).catch(() => 0),
+      }).catch((err) => {
+        logError("brain.pipeline-controller", err, { fn: "runBrainCycle.countConversationSummaries" });
+        return 0;
+      }),
       (async () => {
         const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
-        return (await getUnresolvedAlerts().catch(() => [])).length;
+        return (await getUnresolvedAlerts().catch((err) => {
+          logError("brain.pipeline-controller", err, { fn: "runBrainCycle.getUnresolvedAlerts" });
+          return [];
+        })).length;
       })(),
       prisma.auditEvent.findFirst({
         where: { eventType: "business_metrics_sync" },
         orderBy: { createdAt: "desc" },
         select: { payload: true, createdAt: true },
-      }).catch((): null => null),
+      }).catch((err): null => {
+        logError("brain.pipeline-controller", err, { fn: "runBrainCycle.findBusinessMetrics" });
+        return null;
+      }),
       prisma.bodyTracking.findFirst({ orderBy: { date: "desc" }, select: { weight: true, date: true } }),
       prisma.brainMemory.findMany({
         where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, deletedAt: null }, // v10.0.66 · brain-cycle feeder

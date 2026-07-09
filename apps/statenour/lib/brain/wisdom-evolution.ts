@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { tagWisdomTopics, type WisdomTopic } from "@/lib/brain/wisdom-topic-tagger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -179,8 +180,8 @@ export async function findRedundantPairs(
       const vec = JSON.parse(er.embedding) as number[];
       if (!Array.isArray(vec) || vec.length === 0) continue;
       parsed.push({ row: w, vec, topics: tagWisdomTopics(w.content) });
-    } catch {
-      // skip
+    } catch (err) {
+      logError("brain.wisdom-evolution", err, { fn: "findRedundantPairs.parseVec", sourceId: er.sourceId });
     }
   }
 

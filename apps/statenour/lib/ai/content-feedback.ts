@@ -21,6 +21,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 
 // ─────────────────────────────────────────────────────────────────────
 // CAPTURE — detect feedback shape in user message
@@ -147,10 +148,7 @@ export async function persistContentFeedback(args: PersistArgs): Promise<void> {
       },
     });
   } catch (err) {
-    console.warn(
-      "[content-feedback] persist failed:",
-      err instanceof Error ? err.message : err,
-    );
+    logError("ai.content-feedback", err, { fn: "persistContentFeedback" });
   }
 }
 
@@ -189,7 +187,10 @@ export async function recallRecentContentFeedback(
       take: limit,
       select: { content: true, metadata: true, createdAt: true },
     })
-    .catch(() => [] as Array<{ content: string; metadata: unknown; createdAt: Date }>);
+    .catch((err) => {
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.content-feedback", err, { fn: "recallRecentContentFeedback" })).catch((e) => console.error(e));
+      return [] as Array<{ content: string; metadata: unknown; createdAt: Date }>;
+    });
 
   return rows.map((r) => {
     const meta = (r.metadata as {

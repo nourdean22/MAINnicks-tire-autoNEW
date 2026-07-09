@@ -27,6 +27,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 export interface JudgmentRow {
   messageId: string;
@@ -127,7 +128,8 @@ Propose one specific rule edit.`;
     const text = (result.content ?? "").trim();
     if (!text || text.length < 20) return STATIC_PROPOSED_RULES[axis];
     return text.slice(0, 400);
-  } catch {
+  } catch (err) {
+    logError("brain.improve-agent", err, { fn: "synthesizeProposedRuleChange" });
     return STATIC_PROPOSED_RULES[axis];
   }
 }
@@ -268,6 +270,7 @@ export async function persistHypotheses(
   const today = new Date().toISOString().slice(0, 10);
   const { brainMemory } = await import("@/lib/brain/memory-manager");
   let written = 0;
+  let persistFailCount = 0;
   for (const h of hypotheses) {
     const key = `improvement_${h.axis}_${today}`;
     const summary = `Axis ${h.axis} failing ${(h.failureRate * 100).toFixed(0)}% (${h.failingCount}/${h.totalCount}) · avg failing score ${h.avgScoreOnFailing}/10 · ${h.proposedRuleChange}`;
@@ -285,7 +288,11 @@ export async function persistHypotheses(
       written++;
     } catch {
       // skip · best-effort
+      persistFailCount++;
     }
+  }
+  if (persistFailCount > 0) {
+    logError("brain.improve-agent", new Error(`${persistFailCount} persist failures`), { fn: "persistHypotheses" });
   }
   return written;
 }

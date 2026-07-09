@@ -216,7 +216,8 @@ export async function judgeReplyAsync(args: JudgeArgs & { messageId: string }) {
         reasoning: report.reasoning,
       });
     }
-  } catch {
+  } catch (err) {
     // best-effort · no-op on failure
+    void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.judge-eval", err, { fn: "judgeReplyAsync", messageId: args.messageId })).catch((e) => console.error("judge-eval import error", e));
   }
 }

@@ -56,7 +56,10 @@ export const brainTools = {
             metadata: true,
           },
         })
-        .catch((): never[] => []);
+        .catch((err): never[] => {
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.brain", err, { fn: "surfaceAntiPatterns" }, "error"));
+          return [];
+        });
 
       let filtered = rows;
       if (topic) {
@@ -244,8 +247,9 @@ export const brainTools = {
             limit * 2,
           );
           ftsIds = rows.map((r) => r.id);
-        } catch {
+        } catch (err) {
           // FTS unavailable / empty tsquery -- fall back to the ILIKE match below.
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.brain", err, { fn: "searchMemories.ftsQuery" }, "warn"));
         }
       }
       const where: any = {
@@ -1342,3 +1346,4 @@ export const brainTools = {
   }),
 
 };
+

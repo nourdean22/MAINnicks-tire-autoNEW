@@ -112,7 +112,7 @@ async function deleteOrphansForType(
   // v10.0.192 · use a CTE-backed DELETE so we get the affected row
   // count back. The LEFT JOIN inside USING wasn't reliable across
   // Postgres versions in raw $executeRaw.
-  const result = await prisma.$executeRawUnsafe(`
+  const result = await prisma.$executeRaw`
     DELETE FROM vector_embeddings ve
     WHERE ve."sourceType" = '${q.sourceType}'
       AND ve."sourceId" IN (
@@ -122,7 +122,7 @@ async function deleteOrphansForType(
         WHERE ve2."sourceType" = '${q.sourceType}'
           AND (${q.liveCheck})
       )
-  `);
+  `;
   return Number(result);
 }
 

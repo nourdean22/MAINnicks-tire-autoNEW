@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 import { specificityDensity, detectAntiNour, ANTI_NOUR } from "@/lib/ai/nour-voice-profile";
 import type { OutputShape } from "@/lib/ai/turn-intelligence";
 
@@ -464,7 +465,9 @@ async function getActual(type: ClaimPattern["type"]): Promise<number | null> {
           const data = await queryNickBatch([{ query: "revenue_today" }]);
           const rev = (data.revenue_today as { data?: { totalDollars?: number } })?.data;
           if (typeof rev?.totalDollars === "number") return rev.totalDollars;
-        } catch {}
+        } catch (err) {
+          logError("ai.output-guardian", err, { fn: "getActual", type: "revenue_today" });
+        }
         return null;
       }
       case "lead_count": {
@@ -473,7 +476,9 @@ async function getActual(type: ClaimPattern["type"]): Promise<number | null> {
           const data = await queryNickBatch([{ query: "leads_urgent" }]);
           const leads = (data.leads_urgent as { data?: { count?: number } })?.data;
           if (typeof leads?.count === "number") return leads.count;
-        } catch {}
+        } catch (err) {
+          logError("ai.output-guardian", err, { fn: "getActual", type: "lead_count" });
+        }
         return null;
       }
       case "customer_count": {
@@ -502,7 +507,7 @@ async function getActual(type: ClaimPattern["type"]): Promise<number | null> {
         return null;
     }
   } catch (err) {
-    console.warn(`[hallucination-guard] verify ${type} failed:`, err);
+    logError("ai.output-guardian", err, { fn: "getActual.outer", type });
     return null;
   }
 }

@@ -25,6 +25,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 
 export type TraceSource =
   | "chat"
@@ -136,8 +137,9 @@ export async function recordTrace(
         } as never,
       },
     });
-  } catch {
+  } catch (err) {
     // Trace persistence must NEVER block the calling path.
+    logError("ai.agent-trace", err, { fn: "recordTrace" });
   }
 }
 
@@ -192,9 +194,10 @@ export async function wrapTrace<T>(
     if (opts.finishFromResult) {
       try {
         extras = opts.finishFromResult(result) ?? {};
-      } catch {
+      } catch (err) {
         // Attribution failure must never block the caller — fall
         // back to timing-only recording.
+        logError("ai.agent-trace", err, { fn: "finishFromResult" });
         extras = {};
       }
     }

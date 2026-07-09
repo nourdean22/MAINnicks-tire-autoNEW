@@ -50,7 +50,7 @@ export async function withEfSearch<T>(
   const ef = Math.max(10, Math.min(500, Math.floor(efSearch)));
   try {
     return await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`SET LOCAL hnsw.ef_search = ${ef}`);
+      await tx.$executeRaw`SET LOCAL hnsw.ef_search = ${ef}`;
       return fn(tx);
     });
   } catch (err) {

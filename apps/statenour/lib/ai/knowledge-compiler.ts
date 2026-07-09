@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 
 const NOUR_OS_ROOT = path.resolve(process.cwd(), "../..");
 const APP_ROOT = process.cwd(); // statenour-os app root
@@ -76,7 +77,9 @@ function readFile(relativePath: string, maxLen: number, root: string = NOUR_OS_R
       .replace(/^[-*]\s+\[.\]\s*/gm, "- ")  // Simplify checkboxes
       .substring(0, maxLen)
       .trim();
-  } catch {
+  } catch (err) {
+    /* intentionally ignored — expected in Vercel where files don't exist */
+    void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.knowledge-compiler", err, { fn: "readFile", path: relativePath }, "warn")).catch((e) => console.error(e));
     return "";
   }
 }
@@ -174,10 +177,12 @@ export async function getKnowledgeDigest(): Promise<string> {
       const meta = cached.payload as Record<string, string>;
       if (meta.digest) return meta.digest;
     }
-  } catch {
-    // DB might not have this yet
+  } catch (err) {
+    // DB might not have this yet, or connection error
+    logError("ai.knowledge-compiler", err, { fn: "getKnowledgeDigest" });
   }
 
   // Fall back to live compilation (only works locally where files exist)
   return compileKnowledgeDigest();
 }
+

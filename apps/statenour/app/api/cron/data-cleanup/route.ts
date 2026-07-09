@@ -124,14 +124,14 @@ export const GET = cronHandler(async () => {
   // CronJobLog: 30d, but keep last success + last failure per jobName
   // forever. Two-step: find the keepers, then delete everything else
   // older than 30d.
-  const keepers = await prisma.$queryRawUnsafe<{ id: string }[]>(`
+  const keepers = await prisma.$queryRaw<{ id: string }[]>`
     SELECT id FROM cron_job_logs WHERE id IN (
       SELECT DISTINCT ON (job_name, status) id
       FROM cron_job_logs
       WHERE status IN ('success', 'failed')
       ORDER BY job_name, status, created_at DESC
     )
-  `).catch(() => [] as { id: string }[]);
+  `.catch(() => [] as { id: string }[]);
   const keeperIds = keepers.map((k) => k.id);
   const cronLogs = await prisma.cronJobLog.deleteMany({
     where: {

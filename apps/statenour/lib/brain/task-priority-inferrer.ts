@@ -16,6 +16,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 export interface PriorityInput {
   title: string;
@@ -117,7 +118,10 @@ export async function inferTaskPriority(input: PriorityInput): Promise<PriorityO
         where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
         select: { content: true },
       })
-      .catch(() => null);
+      .catch((err) => {
+        logError("brain.task-priority-inferrer", err, { fn: "inferTaskPriority.findIdentity" });
+        return null;
+      });
     if (snap?.content) {
       const parsed = JSON.parse(snap.content) as {
         axes?: Record<string, { value: number; manual: number | null }>;
@@ -143,8 +147,9 @@ export async function inferTaskPriority(input: PriorityInput): Promise<PriorityO
         }
       }
     }
-  } catch {
+  } catch (err) {
     // silent
+    logError("brain.task-priority-inferrer", err, { fn: "inferTaskPriority.identityParse" });
   }
 
   // Overdue crowd penalty — if Nour has 5+ overdue commits, new
@@ -157,13 +162,17 @@ export async function inferTaskPriority(input: PriorityInput): Promise<PriorityO
           deadline: { lt: new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) },
         },
       })
-      .catch(() => 0);
+      .catch((err) => {
+        logError("brain.task-priority-inferrer", err, { fn: "inferTaskPriority.countOverdue" });
+        return 0;
+      });
     if (overdueCount >= 5 && score > 40) {
       score += 5;
       pushFactor(factors, `overdue-crowd:${overdueCount}`, 5);
     }
-  } catch {
+  } catch (err) {
     // silent
+    logError("brain.task-priority-inferrer", err, { fn: "inferTaskPriority.overduePenalty" });
   }
 
   // Clamp

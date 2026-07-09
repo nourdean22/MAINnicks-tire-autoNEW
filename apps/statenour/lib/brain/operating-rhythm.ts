@@ -30,6 +30,7 @@ import { today } from "@/lib/utils/datetime";
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/operating-rhythm");
 
@@ -77,7 +78,10 @@ async function rhythmAlreadyPushed(slot: RhythmSlot, dateKey: string): Promise<b
       },
       select: { id: true },
     })
-    .catch(() => null);
+    .catch((err) => {
+      logError("brain.operating-rhythm", err, { fn: "rhythmAlreadyPushed" });
+      return null;
+    });
   return row !== null;
 }
 
@@ -103,7 +107,10 @@ async function markRhythmPushed(slot: RhythmSlot, dateKey: string): Promise<void
         lastSeen: new Date(),
       },
     })
-    .catch(() => undefined);
+    .catch((err) => {
+      logError("brain.operating-rhythm", err, { fn: "markRhythmPushed" });
+      return undefined;
+    });
 }
 
 /**
@@ -122,14 +129,19 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
   const flag = await prisma.userPreference.findUnique({
     where: { key: "autopilot_flags" },
     select: { value: true },
-  }).catch((): null => null);
+  }).catch((err): null => {
+    logError("brain.operating-rhythm", err, { fn: "executeRhythm.findFlag" });
+    return null;
+  });
 
   let rhythmEnabled = true; // Default on
   if (flag?.value) {
     try {
       const flags = JSON.parse(flag.value);
       if (flags.adhd_operating_rhythm === false) rhythmEnabled = false;
-    } catch {}
+    } catch (err) {
+      logError("brain.operating-rhythm", err, { fn: "executeRhythm.parseFlag" });
+    }
   }
 
   if (!rhythmEnabled) return { slot: activeSlot, sent: false, message: "Rhythm disabled" };
@@ -158,12 +170,30 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
           return null;
         }
       })
-      .catch((): null => null),
-    prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] } } }).catch((): number => 0),
-    prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }).catch((): number => 0),
-    queryNick<{ totalDollars?: number; invoiceCount?: number }>("revenue_today").catch(() => ({ error: "fetch failed" })),
-    queryNick<{ count?: number; leads?: unknown[]; items?: unknown[] }>("leads_urgent").catch(() => ({ error: "fetch failed" })),
-    queryNick<{ count: number }>("callbacks_pending").catch(() => ({ error: "fetch failed" })),
+      .catch((err): null => {
+        logError("brain.operating-rhythm", err, { fn: "executeRhythm.getScore" });
+        return null;
+      }),
+    prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] } } }).catch((err): number => {
+      logError("brain.operating-rhythm", err, { fn: "executeRhythm.countTasks" });
+      return 0;
+    }),
+    prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }).catch((err): number => {
+      logError("brain.operating-rhythm", err, { fn: "executeRhythm.countCommitments" });
+      return 0;
+    }),
+    queryNick<{ totalDollars?: number; invoiceCount?: number }>("revenue_today").catch((err) => {
+      logError("brain.operating-rhythm", err, { fn: "executeRhythm.queryRevenue" });
+      return { error: "fetch failed" };
+    }),
+    queryNick<{ count?: number; leads?: unknown[]; items?: unknown[] }>("leads_urgent").catch((err) => {
+      logError("brain.operating-rhythm", err, { fn: "executeRhythm.queryLeads" });
+      return { error: "fetch failed" };
+    }),
+    queryNick<{ count: number }>("callbacks_pending").catch((err) => {
+      logError("brain.operating-rhythm", err, { fn: "executeRhythm.queryCallbacks" });
+      return { error: "fetch failed" };
+    }),
   ]);
 
   // Unwrap query results — shape is `{ data, query, timestamp }` on
@@ -220,7 +250,10 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
         where: { status: { in: ["INBOX", "READY"] }, deletedAt: null },
         orderBy: { autoPriority: "asc" },
         select: { title: true },
-      }).catch((): null => null);
+      }).catch((err): null => {
+        logError("brain.operating-rhythm", err, { fn: "executeRhythm.findMIT" });
+        return null;
+      });
 
       message =
         `⚡ <b>PEAK BLOCK — 8:00 AM</b>\n\n` +
@@ -284,7 +317,10 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
       const dailyTasksToday = await prisma.task.findMany({
         where: { loopKind: "DAILY", status: { not: "ARCHIVED" }, deletedAt: null },
         select: { lastCompletedAt: true },
-      }).catch((): Array<{ lastCompletedAt: Date | null }> => []);
+      }).catch((err): Array<{ lastCompletedAt: Date | null }> => {
+        logError("brain.operating-rhythm", err, { fn: "executeRhythm.findDailyTasks" });
+        return [];
+      });
       const startOfTodayET = new Date(
         new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) +
           "T00:00:00",
@@ -322,7 +358,10 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
       return { slot: activeSlot, sent: false, message: "already_sent_today" };
     }
 
-    const sent = await sendTelegram(message).catch(() => false);
+    const sent = await sendTelegram(message).catch((err) => {
+      logError("brain.operating-rhythm", err, { fn: "executeRhythm.sendTelegram" });
+      return false;
+    });
     if (sent) {
       await markRhythmPushed(activeSlot, todayStr);
     }
@@ -343,7 +382,9 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
       `rhythm_${activeSlot}_${todayStr}`,
       `RHYTHM [${activeSlot}] ${todayStr}: Revenue $${todayRevenue}, ${staleLeads} stale leads, ${openLoops} tasks, score ${todayScore ? "logged" : "NOT logged"}`,
       "operating-rhythm-engine",
-    ).catch(() => {});
+    ).catch((err) => {
+      logError("brain.operating-rhythm", err, { fn: "executeRhythm.rememberRhythm" });
+    });
 
     return { slot: activeSlot, sent, message: message.slice(0, 200) };
   }

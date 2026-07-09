@@ -34,6 +34,7 @@ const aiChat = makeTracedAiChat("learning-journal");
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 // v10.0.529.23 · typed groupBy result shapes · replaces the prior
 // `as any[]` casts at the consumer sites. BrainMemory.category is
@@ -304,7 +305,8 @@ Don't be generic — reference specific numbers.`,
       "fast"
     );
     selfAssessment = result.content.trim();
-  } catch {
+  } catch (err) {
+    logError("brain.learning-journal", err, { fn: "generateLearningJournal.aiChat" });
     selfAssessment = `Created ${memoriesCreated} memories (${learningTrend}). ${predictionsConfirmed + predictionsDisproven > 0 ? `Scored ${predictionsConfirmed + predictionsDisproven} predictions (${calibrationScore}% calibrated).` : ""} ${weakSpots.length > 0 ? `Weak: ${weakSpots.map(w => w.domain).join(", ")}.` : ""}`;
   }
 
@@ -346,9 +348,10 @@ Don't be generic — reference specific numbers.`,
       where: { id: stored.id },
       data: { metadata: entry as unknown as Prisma.InputJsonValue },
     });
-  } catch {
+  } catch (err) {
     // metadata persistence is non-critical · the cron's primary job is
     // to compute + log the entry · UI surfacing is downstream.
+    logError("brain.learning-journal", err, { fn: "generateLearningJournal.updateMetadata" });
   }
 
   return entry;
@@ -374,7 +377,8 @@ export async function getLatestLearningJournalEntry(): Promise<JournalEntry | nu
     // controlled. Legacy rows without metadata return null at the
     // `!row?.metadata` guard above.
     return row.metadata as unknown as JournalEntry;
-  } catch {
+  } catch (err) {
+    logError("brain.learning-journal", err, { fn: "getLatestLearningJournalEntry" });
     return null;
   }
 }
@@ -399,7 +403,8 @@ export async function getLearningJournalContext(): Promise<string> {
       ...entries.map(e => e.content.slice(0, 250)),
       `Nick's brain is ${entries[0]?.content.includes("accelerating") ? "learning faster" : entries[0]?.content.includes("decelerating") ? "slowing down — needs engagement" : "learning at a steady pace"}.`,
     ].join("\n");
-  } catch {
+  } catch (err) {
+    logError("brain.learning-journal", err, { fn: "getLearningJournalContext" });
     return "";
   }
 }

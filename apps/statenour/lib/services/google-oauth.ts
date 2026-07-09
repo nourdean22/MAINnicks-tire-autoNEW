@@ -290,7 +290,7 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
   // Use a transaction with pg_advisory_xact_lock to prevent concurrent refresh races across processes
   return await prisma.$transaction(async (tx) => {
     // Acquire a transaction-level advisory lock
-    await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `google_oauth_refresh_${accountKey}`);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext($1))`, `google_oauth_refresh_${accountKey}`;
 
     const integration = await tx.integration.findUnique({
       where: { name: integrationName },

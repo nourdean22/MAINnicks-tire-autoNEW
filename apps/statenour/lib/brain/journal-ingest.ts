@@ -34,6 +34,7 @@ import { logger as rootLogger } from "@/lib/logger";
 const log = rootLogger.withSurface("brain/journal-ingest");
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
 import { extractJsonObject } from "@/lib/ai/extract-structured";
+import { logError } from "@/lib/utils/error-log";
 
 // v9.1.24 · journal-ingest sanitization. Telegram messages are HTML-
 // parse-mode and can contain unescaped <, >, & + emoji + control
@@ -208,10 +209,11 @@ export async function ingestJournal(
         if (Array.isArray(parsed.insights)) dedupInsightCount = parsed.insights.length;
         if (Array.isArray(parsed.commitments)) dedupCommitmentCount = parsed.commitments.length;
       }
-    } catch {
+    } catch (err) {
       // Stored JSON may be corrupted on legacy rows · degrade silently
       // to defaults · operator still gets a sane "deduped, see prior"
       // outcome rather than a thrown error.
+      logError("brain.journal-ingest", err, { fn: "ingestJournal.parse" });
     }
     return {
       brainDumpId: duplicate.id,
@@ -613,6 +615,7 @@ ${rawText}`,
       summary = "Journal stored — AI structured extraction unparseable.";
     }
   } catch (err) {
+    logError("brain.journal-ingest", err, { fn: "ingestJournal.aiChat" });
     log.error("ai_extraction_failed", { error: err instanceof Error ? err.message : String(err) });
     summary = "Journal stored but AI extraction failed — raw thoughts saved.";
   }
@@ -715,7 +718,9 @@ ${rawText}`,
   // EVERY brain_dump (independent of the baseline-XP creditXp guard above).
   void enrichJournalEntry("brain_dump", brainDump.id, rawText, {
     notifyTelegram: source === "telegram",
-  }).catch(() => {});
+  }).catch((err) => {
+    logError("brain.journal-ingest", err, { fn: "ingestJournal.enrichJournalEntry" });
+  });
 
   return {
     brainDumpId: brainDump.id,
@@ -759,7 +764,8 @@ Types:
       "decision", "reflection", "planning", "venting",
     ];
     return (VALID.includes(raw as ThoughtType) ? raw : "raw") as ThoughtType;
-  } catch {
+  } catch (err) {
+    logError("brain.journal-ingest", err, { fn: "classifyThought" });
     return "raw";
   }
 }
