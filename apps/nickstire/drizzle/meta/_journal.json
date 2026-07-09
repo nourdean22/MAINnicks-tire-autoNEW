@@ -379,6 +379,13 @@
       "when": 1782325391575,
       "tag": "0056_flimsy_iceman",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "5",
+      "when": 1782330000000,
+      "tag": "0076_nexus_auditor",
+      "breakpoints": true
     }
   ]
 }
