@@ -488,6 +488,10 @@ export const bookingRouter = router({
   addUpsellInterest: publicProcedure
     .input(z.object({
       bookingId: z.number().int().positive(),
+      // code-review 2026-07-09 · proof-of-ownership. Was a bare bookingId, so
+      // anyone could write [UPSELL INTEREST] into ANY booking's adminNotes and
+      // fire a front-desk Telegram with attacker-controlled text.
+      referenceCode: z.string().min(3).max(40),
       upsellTitle: z.string().min(1).max(200),
       upsellPrice: z.string().max(50).optional(),
     }))
@@ -495,7 +499,12 @@ export const bookingRouter = router({
       const d = await db();
       if (!d) return { success: false, error: "DB unavailable" };
       const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.bookingId)).limit(1);
-      if (!booking) return { success: false, error: "Booking not found" };
+      // Verify the caller holds THIS booking's referenceCode before any write /
+      // Telegram. Uniform success response so a caller without it learns nothing
+      // (the old found/not-found split was a booking-existence oracle).
+      if (!booking || !booking.referenceCode || booking.referenceCode !== input.referenceCode) {
+        return { success: true };
+      }
 
       const noteLine = `[UPSELL INTEREST] ${input.upsellTitle}${input.upsellPrice ? ` (${input.upsellPrice})` : ""} — added by customer at confirmation`;
       const existing = booking.adminNotes ? booking.adminNotes + "\n" : "";
@@ -728,12 +737,18 @@ export const bookingRouter = router({
   statusByPhone: publicProcedure
     .input(z.object({ phone: z.string().min(7).max(20), ref: z.string().min(3).optional() }))
     .query(async ({ input }) => {
-      const booking = await getBookingByPhone(input.phone);
-      // If ref code provided, verify it matches — prevents phone-only enumeration
-      if (input.ref && booking && (booking as any).referenceCode !== input.ref) {
-        return null;
+      const rows = await getBookingByPhone(input.phone);
+      const list = Array.isArray(rows) ? rows : [];
+      // code-review 2026-07-09 · the old guard read `.referenceCode` off the
+      // ARRAY that getBookingByPhone returns (always undefined), so passing
+      // `ref` ALWAYS returned null and the optional narrowing never worked.
+      // Filter element-wise instead. (referenceCode is intentionally kept in
+      // the response — the StatusTracker UI renders it as a badge, and it only
+      // unlocks the same read-only status via statusByRef, not any mutation.)
+      if (input.ref) {
+        return list.filter((b) => b.referenceCode === input.ref);
       }
-      return booking;
+      return list;
     }),
 
   statusByRef: publicProcedure
