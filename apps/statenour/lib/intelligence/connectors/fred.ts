@@ -24,32 +24,11 @@ export async function fetchFREDIndicators(): Promise<FREDIndicator[]> {
   ];
 
   if (!apiKey) {
-    log.info("No FRED_API_KEY found, returning realistic mock macro indicators.");
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-    return [
-      {
-        seriesId: "CPIAUCSL",
-        name: "Consumer Price Index",
-        value: 314.12,
-        date: currentMonth,
-        unit: "Index",
-      },
-      {
-        seriesId: "UNRATE",
-        name: "Unemployment Rate",
-        value: 3.9,
-        date: currentMonth,
-        unit: "%",
-      },
-      {
-        seriesId: "FEDFUNDS",
-        name: "Effective Federal Funds Rate",
-        value: 5.33,
-        date: currentMonth,
-        unit: "%",
-      },
-    ];
+    // AG-02 · Fabrication purge. Previously returned invented CPI/UNRATE/
+    // FEDFUNDS values stamped with the CURRENT month — indistinguishable
+    // from real data downstream. Unavailable data is EMPTY, never mocked.
+    log.info("FRED_API_KEY not configured; emitting no indicators rather than mock macro data.");
+    return [];
   }
 
   const results: FREDIndicator[] = [];
@@ -79,10 +58,11 @@ export async function fetchFREDIndicators(): Promise<FREDIndicator[]> {
     }
   }
 
-  // If live calls failed entirely, provide fallback
+  // AG-02 · The old fallback here recursed into fetchFREDIndicators() with
+  // the key still set — infinite recursion when the API was down — and its
+  // stated goal was to serve mock data. Failures now return empty.
   if (results.length === 0) {
-    log.warn("All FRED API calls failed, using mock data.");
-    return fetchFREDIndicators(); // Will hit mock block since apiKey condition is bypassed or retried
+    log.warn("All FRED API calls failed; emitting no indicators rather than mock data.");
   }
 
   return results;

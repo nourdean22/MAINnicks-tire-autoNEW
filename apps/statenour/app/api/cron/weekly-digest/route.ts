@@ -20,6 +20,21 @@ function getWeekStart(): string {
   return toDateString(d);
 }
 
+// AG-03 · Monday-anchored week starts, matching the key format
+// (`weekly:<monday>`) that /api/cron/weekly-review writes. Returns
+// [thisMonday, lastMonday] so the digest can fall back a week when its own
+// earlier Sunday slot beats this week's review into existence.
+function getRecentMondays(): [string, string] {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() - diff);
+  const lastMonday = new Date(thisMonday);
+  lastMonday.setDate(thisMonday.getDate() - 7);
+  return [toDateString(thisMonday), toDateString(lastMonday)];
+}
+
 function formatDate(dateStr: string): string {
   // v10.0.34 — was `new Date(dateStr + "T00:00:00Z")`. UTC midnight
   // converts to ET 8pm the previous day, so every Score Trend point
@@ -112,7 +127,25 @@ export const GET = cronHandler(async () => {
       })
       .catch(() => [] as Array<{ ruleName: string; severity: string; message: string }>),
     fetchFromAPI("/api/health"),
-    fetchFromAPI("/api/ai/weekly-review"),
+    // AG-03 · Read the weekly review directly from BrainMemory. The old
+    // fetchFromAPI("/api/ai/weekly-review") targeted a route that does not
+    // exist — the producer is /api/cron/weekly-review, which upserts category
+    // "weekly_review" at key `weekly:<monday>` — so every digest rendered
+    // "Weekly review unavailable."
+    (async (): Promise<{ text: string } | null> => {
+      const [thisMonday, lastMonday] = getRecentMondays();
+      const row = await prisma.brainMemory
+        .findFirst({
+          where: {
+            category: "weekly_review",
+            key: { in: [`weekly:${thisMonday}`, `weekly:${lastMonday}`] },
+          },
+          orderBy: { key: "desc" },
+          select: { content: true },
+        })
+        .catch(() => null);
+      return row?.content ? { text: row.content } : null;
+    })(),
   ]);
 
   const weeklyReviewSummary = weeklyReviewRes?.text || "Weekly review unavailable.";
