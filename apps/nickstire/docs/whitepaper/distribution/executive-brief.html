@@ -1,0 +1,78 @@
+<!doctype html>
+<!-- Executive brief · one page · print source for PDF (render with puppeteer, Letter)
+     Derived from docs/whitepaper/self-improving-shop.cgd.md (CLEAR | REVIEWED,
+     sha 59199c33…) — no claims beyond the verified set. -->
+<html><head><meta charset="utf-8"><title>The Self-Improving Shop — Executive Brief</title><style>
+  @page { size: Letter; margin: 0; }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: #1f2937; width: 8.5in; height: 11in; padding: 0.55in 0.6in; display: flex; flex-direction: column; }
+  .kicker { font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; letter-spacing: 2px; text-transform: uppercase; color: #b45309; font-weight: bold; }
+  h1 { font-size: 24pt; line-height: 1.1; margin: 4pt 0 2pt; color: #111827; }
+  .sub { font-size: 11pt; font-style: italic; color: #4b5563; margin-bottom: 10pt; }
+  .thesis { font-size: 10.5pt; line-height: 1.5; padding: 8pt 12pt; background: #fef3ec; border-left: 3pt solid #b45309; margin-bottom: 12pt; }
+  .tiles { display: flex; gap: 10pt; margin-bottom: 12pt; font-family: Helvetica, Arial, sans-serif; }
+  .tile { flex: 1; border: 1px solid #d1d5db; border-radius: 5pt; padding: 8pt 10pt; background: #f9fafb; }
+  .tile b { display: block; font-size: 17pt; color: #111827; margin-bottom: 2pt; }
+  .tile span { font-size: 7.8pt; color: #6b7280; line-height: 1.35; display: block; }
+  h2 { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; letter-spacing: 1px; text-transform: uppercase; color: #111827; border-bottom: 1.5pt solid #b45309; padding-bottom: 2pt; margin: 4pt 0 7pt; }
+  .principles { margin-bottom: 12pt; }
+  .principles p { font-size: 9.8pt; line-height: 1.45; margin-bottom: 6pt; }
+  .principles p b { color: #111827; }
+  .arch { font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; color: #374151; display: flex; align-items: center; gap: 6pt; margin-bottom: 4pt; flex-wrap: wrap; }
+  .arch .step { border: 1px solid #d1d5db; border-radius: 4pt; padding: 3pt 8pt; background: #fff; }
+  .arch .gate { border: 1.5pt solid #b45309; background: #fef3ec; color: #b45309; font-weight: bold; }
+  .arch .arrow { color: #9ca3af; }
+  .guard { font-family: Helvetica, Arial, sans-serif; font-size: 8pt; color: #6b7280; margin: 6pt 0 12pt; }
+  .aud { display: flex; gap: 10pt; margin-bottom: 12pt; }
+  .aud div { flex: 1; font-size: 9pt; line-height: 1.4; }
+  .aud b { font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 1px; color: #b45309; display: block; margin-bottom: 3pt; }
+  .market { font-size: 9.3pt; line-height: 1.45; color: #374151; margin-bottom: 12pt; }
+  .foot { margin-top: auto; border-top: 0.5pt solid #d1d5db; padding-top: 6pt; font-family: Helvetica, Arial, sans-serif; font-size: 7.5pt; color: #9ca3af; display: flex; justify-content: space-between; }
+</style></head><body>
+
+  <div class="kicker">Executive Brief · July 2026</div>
+  <h1>The Self-Improving Shop</h1>
+  <div class="sub">An operating blueprint for the AI-run main-street business — the Nick's Tire &amp; Auto case (Cleveland, OH)</div>
+
+  <div class="thesis"><strong>Thesis:</strong> the AI story that matters is not another enterprise pilot. A single-location tire shop runs a 24/7 AI front office in production — answering every call, texting inside compliance guardrails, learning from its own calls under a human gate, and reporting metrics designed not to lie. AI adoption is lowest exactly where service capacity is highest; that inversion is the opportunity.</div>
+
+  <div class="tiles">
+    <div class="tile"><b>464</b><span>signature-verified AI-handled inbound calls in a trailing 14-day window (snapshot 2026-07-07)</span></div>
+    <div class="tile"><b>~81%</b><span>of the reported "abandon rate" turned out to be sub-1-second robocall/misdial hang-ups — an artifact, not lost customers</span></div>
+    <div class="tile"><b>0 in 17</b><span>prompt changes across 17 self-evaluation cycles (252 scored calls) — strict thresholds holding, not failure</span></div>
+    <div class="tile"><b>DR 0</b><span>the shop's domain authority vs page-1 incumbents at 66–94 — one free measurement ended all SEO spend</span></div>
+  </div>
+
+  <h2>Three operating principles, proven in production</h2>
+  <div class="principles">
+    <p><b>1 · Measure before treating.</b> A 16.6% call-abandon alarm invited spending; a diagnostic showed healthy ~244&nbsp;ms latency and reclassified 81% of "abandons" as robocalls. The most alarming SMB metric is usually an artifact.</p>
+    <p><b>2 · Learning loops should be quiet.</b> A lesson reaches the live phone prompt only through cross-day recurrence (confidence ≥0.65) plus a manual config push. A single bad call mathematically cannot rewrite how the AI speaks to customers.</p>
+    <p><b>3 · Cheap verification buys capital discipline.</b> A zero-cost domain-authority measurement proved head-term SEO structurally unwinnable — so investment stopped entirely instead of escalating.</p>
+  </div>
+
+  <h2>The architecture in one line</h2>
+  <div class="arch">
+    <span class="step">1 · Capture 24/7</span><span class="arrow">→</span>
+    <span class="step">2 · Verify signatures</span><span class="arrow">→</span>
+    <span class="step">3 · Operate via worklists</span><span class="arrow">→</span>
+    <span class="step">4 · Learn (drafts only)</span><span class="arrow">→</span>
+    <span class="step gate">5 · Human gate</span>
+  </div>
+  <div class="guard">Guardrails as defaults: STOP/opt-out · per-phone send caps · server-side claim-safety QA · business facts templated from code (unhallucinatable) · no synthetic people in ads · AI reads freely, writing to a customer passes a human.</div>
+
+  <h2>Why now</h2>
+  <div class="market">US automotive service: ~$199B (2025E), with &gt;80% of service capacity in independent shops — yet fewer than 20% of firms with ≤4 employees use AI (vs 37% at 250+). This is the first technology wave where a solo operator can field enterprise-grade capture, follow-up, and analytics without enterprise headcount. The chains' scale advantage inverts — for operators who build guardrails first.</div>
+
+  <h2>What each reader gets from the full paper</h2>
+  <div class="aud">
+    <div><b>CTOs</b>A reference architecture for human-gated AI actuation, built and running — not a slideware pattern.</div>
+    <div><b>Investors</b>A diligence checklist for "AI-enabled SMB" claims: ask for the verification loop, the guardrail layer, and one metric the team lowered on purpose.</div>
+    <div><b>Policy makers</b>Working, production-tested SMB guardrail examples to inform right-sized AI guidance.</div>
+  </div>
+
+  <div class="foot">
+    <span>Full 5-page paper: <b>The Self-Improving Shop</b> · nickstire.org</span>
+    <span>All claims human-verified · internal figures are dated production snapshots · Clarity Gate: CLEAR | REVIEWED</span>
+  </div>
+
+</body></html>
