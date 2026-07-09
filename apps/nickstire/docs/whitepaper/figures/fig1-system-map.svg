@@ -40,7 +40,7 @@
 
     <rect x="24" y="308" width="440" height="52" rx="6" fill="#fef3ec" stroke="#b45309" stroke-width="1.5"/>
     <text class="title" x="40" y="329" fill="#b45309">5 · HUMAN GATE</text>
-    <text class="body"  x="40" y="346">Operator pushes prompt config · applies metadata edits · nothing customer-visible actuates alone</text>
+    <text class="body"  x="40" y="346">Operator pushes config · applies edits — nothing actuates alone</text>
   </g>
 
   <!-- Guardrail rail -->

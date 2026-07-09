@@ -16,8 +16,8 @@
   <text class="title" x="40" y="54">LEARN</text>
   <text class="body" x="40" y="76">Daily evaluation scores every call,</text>
   <text class="body" x="40" y="91">clusters missed intents.</text>
-  <text class="body" x="40" y="113">A lesson is written ONLY if the same</text>
-  <text class="body" x="40" y="128">intent misses ≥2× in a run</text>
+  <text class="body" x="40" y="113">Each missed intent writes ONE</text>
+  <text class="body" x="40" y="128">stable lesson, deduped by hash</text>
   <text class="body" x="40" y="143">(initial confidence 0.60)</text>
 
   <path class="flow" d="M224,90 L272,90"/>
@@ -25,8 +25,8 @@
   <!-- THRESHOLD -->
   <rect class="node" x="274" y="30" width="180" height="120" rx="6"/>
   <text class="title" x="290" y="54">CONFIDENCE BAR</text>
-  <text class="body" x="290" y="76">+0.05 each time the same</text>
-  <text class="body" x="290" y="91">lesson recurs (by content hash)</text>
+  <text class="body" x="290" y="76">+0.05 only when the same intent</text>
+  <text class="body" x="290" y="91">misses again on a LATER run</text>
   <text class="body" x="290" y="106">−0.05 per 30 days of silence</text>
   <text class="body" x="290" y="128">Prompt eligibility: ≥ 0.65 —</text>
   <text class="body" x="290" y="143">reachable only across days</text>
@@ -50,7 +50,7 @@
 
   <!-- Callout -->
   <rect x="24" y="256" width="672" height="36" rx="6" fill="#f9fafb" stroke="#d1d5db"/>
-  <text class="body" x="40" y="278" font-weight="bold" fill="#1f2937">Consequence of the thresholds: a single bad call can never reach the live prompt — a miss must recur across days AND pass a human.</text>
+  <text class="body" x="40" y="278" font-weight="bold" fill="#1f2937">A single bad call can never reach the live prompt — a miss must recur across days AND pass a human.</text>
 
   <text class="body" x="24" y="318" font-style="italic">Figure 2 · The LEARN → ACT → VERIFY loop with its confidence thresholds and human gate.</text>
 </svg>
