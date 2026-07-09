@@ -95,6 +95,24 @@ export const BOARDS: Record<BoardId, Board> = {
       "five-whys",
     ],
   },
+
+  // ── team · AG-42 · the in-house working team as a board ──
+  // Member ids resolve from lib/ai/personas (NOT the frameworks
+  // REGISTRY) via the persona fallback in consult.resolveMembers —
+  // the AG-12 team personas were only reachable one-at-a-time through
+  // arsenalMultiAgent; this convenes them side-by-side on one question.
+  team: {
+    id: "team",
+    name: "Working Team",
+    oneLiner: "Your in-house team · thought partner, researcher, strategist, tactician, consultant · use for working decisions, not identity-grade ones",
+    memberIds: [
+      "thought-partner", // steelman → attack → tension
+      "research-analyst", // the 3-5 facts that decide it
+      "strategist", // 6-24mo positioning + what it forecloses
+      "tactician", // next-48h concrete moves
+      "business-consultant", // unit-economics verdict
+    ],
+  },
 };
 
 /** Lookup helper · returns the Board for an id or null if unknown. */
@@ -109,4 +127,5 @@ export const BOARD_IDS: ReadonlyArray<BoardId> = [
   "product",
   "operator",
   "full",
+  "team",
 ];

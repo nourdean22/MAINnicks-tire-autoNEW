@@ -13,7 +13,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
-import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("api/ai/missions-morning-brief");
@@ -26,7 +25,9 @@ interface RequestBody {
     deadline?: string | null;
     domain?: string | null;
   }>;
-  taskSummary: {
+  // AG-40 · optional: the missions header can't always compute pace.
+  // Absent = "(unavailable)" in the prompt — never fabricated zeros.
+  taskSummary?: {
     open: number;
     doing: number;
     doneToday: number;
@@ -112,27 +113,28 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     `ACTIVE MISSIONS (${body.missions.length}):`,
     missionsBlock,
     "",
-    `TODAY'S PACE: ${body.taskSummary.doneToday} done · ${body.taskSummary.doing} in flight · ${body.taskSummary.open} open · ${body.taskSummary.overdue} overdue`,
+    body.taskSummary
+      ? `TODAY'S PACE: ${body.taskSummary.doneToday} done · ${body.taskSummary.doing} in flight · ${body.taskSummary.open} open · ${body.taskSummary.overdue} overdue`
+      : `TODAY'S PACE: (unavailable)`,
   ].join("\n");
 
-  let brief = "";
-  try {
-    const result = await tracedAiChat(
-      { label: "missions-morning-brief", source: "tool" },
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userBlock },
-      ],
-      "reason",
-    );
-    brief = (result.content ?? "").trim();
-    if (brief.length > 320) brief = brief.slice(0, 320);
-  } catch (err) {
-    log.warn("brief_generation_failed", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return NextResponse.json({ brief: "" });
-  }
+  // AG-40 · compose via the shared brief-composer, but with
+  // bypassCache: this route's cache has REAL custom semantics the
+  // generic composer must not flatten — mission-count invalidation on
+  // read (a landed/completed mission stales the brief) and
+  // missionCount/taskSummary metadata on write. Cache stays inline;
+  // the compose core (scrub, trim, grounding footer) is shared.
+  const { composeBrief } = await import("@/lib/ai/brief-composer");
+  const brief = await composeBrief({
+    label: "missions-morning-brief",
+    cacheCategory: BRAIN_CATEGORIES.MISSION_MORNING_BRIEF,
+    cacheKey,
+    systemPrompt: SYSTEM_PROMPT,
+    signalBlock: userBlock,
+    taskType: "reason",
+    maxChars: 320,
+    bypassCache: true,
+  });
 
   if (!brief) {
     return NextResponse.json({ brief: "" });

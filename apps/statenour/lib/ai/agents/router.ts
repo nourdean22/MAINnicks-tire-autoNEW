@@ -25,6 +25,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import {
   isSpecialistRoutingEnabled,
+  isSpecialistShadowMode,
   type RoutingDecision,
   type SpecialistInput,
   type SpecialistRoute,
@@ -146,15 +147,17 @@ async function classifyViaLlm(userContent: string): Promise<RoutingDecision> {
  * Classify the latest user message in the input. Returns a routing
  * decision the dispatcher should respect.
  *
- * When ENABLE_SPECIALIST_ROUTING is not "true", returns general
- * UNCONDITIONALLY · the entire specialist layer is dead code until
- * the operator flips the flag.
+ * When ENABLE_SPECIALIST_ROUTING is neither "true" nor "shadow",
+ * returns general UNCONDITIONALLY · the entire specialist layer is
+ * dead code until the operator flips the flag. In "shadow" the
+ * classifier runs (so the dispatcher can measure route quality) but
+ * the dispatcher must never act on the decision — see AG-42.
  */
 export async function routeMessage(
   input: SpecialistInput,
 ): Promise<RoutingDecision> {
   // Hard short-circuit · feature flag off.
-  if (!isSpecialistRoutingEnabled()) {
+  if (!isSpecialistRoutingEnabled() && !isSpecialistShadowMode()) {
     return {
       route: "general",
       reason: "routing-disabled",

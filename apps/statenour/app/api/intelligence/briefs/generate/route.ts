@@ -4,10 +4,7 @@
 import { prisma } from "@/lib/prisma";
 import { runIngestion } from "@/lib/intelligence/ingest";
 import { processClaimsIntoOpportunities } from "@/lib/intelligence/scoring";
-import { getModel } from "@/lib/ai/provider";
 import { apiHandler } from "@/lib/utils/http";
-
-import { generateText } from "ai";
 
 export const dynamic = "force-dynamic";
 
@@ -32,64 +29,13 @@ export const POST = apiHandler(async (req) => {
   // 2. Synthesize claims into opportunities
   const opportunitiesCreated = await processClaimsIntoOpportunities();
 
-  // 3. Fetch data for compiling brief
-  const opportunities = await prisma.opportunityLog.findMany({
-    where: {
-      status: "pending",
-      score: { gte: 75 },
-    },
-    orderBy: { score: "desc" },
-    take: 5,
-  });
-
-  const claims = await prisma.intelligenceClaim.findMany({
-    where: {
-      confidence: { gte: 0.8 },
-      status: "source_supported",
-    },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-  });
-
-  const today = new Date().toLocaleDateString("en-CA", {
-    timeZone: "America/New_York",
-  });
-
-  // 4. Generate brief text
-  const model = getModel("reason");
-  const systemPrompt = `You are the executive chief of staff for Nour. Compose a Daily Executive Brief (max 500 words) summarizing key alerts, opportunities, and pending decisions.
-Your writing style is direct, clear, highly professional, and action-oriented. No generic fluff.
-
-Format using these exact sections:
-# Daily Executive Brief · [Date]
-
-## 🚨 Critical Alerts (Threat Score >= 80 or high-confidence contradictions)
-Describe any critical alerts/threats with a clear format:
-* **[Category/Domain]** Specific description and implications.
-  - *Action*: Clear action verb [Approve] / [Dismiss]
-
-## 💡 Top Opportunities (Score >= 75)
-* **[Category/Domain]** Specific description and return on investment (ROI).
-  - *Action*: Clear action verb [Approve] / [Defer]
-
-## ⚡ Decisions Pending (Action Ledger)
-* **[Category/Domain]** Decision description and immediate context.
-  - *Action*: Clear choice [Approve] / [Open Ledger]`;
-
-  const promptText = `Date: ${today}
-Opportunities:
-${opportunities.map((o) => `- [${o.domain.toUpperCase()}] ${o.title}: ${o.description} (Score: ${o.score})`).join("\n")}
-
-Claims:
-${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\n")}`;
-
-  const result = await generateText({
-    model,
-    system: systemPrompt,
-    prompt: `${promptText}\n\nCompose the brief now.`,
-  });
-
-  const briefText = result.text || "No briefing content compiled for today.";
+  // 3-4. AG-40 · compose via the SHARED grounded composer. This route
+  // had drifted to a pre-AG-02 prompt with different headings and NO
+  // grounding rule — a manually-generated brief could invent data the
+  // cron brief was forbidden to.
+  const { composeDailyExecutiveBrief } = await import("@/lib/intelligence/compose-daily-brief");
+  const composed = await composeDailyExecutiveBrief();
+  const briefText = composed.text;
 
   // 5. Store the briefing log
   const newLog = await prisma.briefingLog.create({

@@ -67,87 +67,12 @@ export const intelligenceDailyBrief = inngest.createFunction(
     });
 
     // 3. Compose Daily Executive Brief text
+    // AG-40 · shared composer kills the drift pair: this step was
+    // duplicated in /api/intelligence/briefs/generate, which had drifted
+    // to a pre-AG-02 prompt with NO grounding rule.
     const briefContent = await step.run("compose-brief-text", async () => {
-      const { prisma } = await import("@/lib/prisma");
-      
-      // Fetch high scoring pending opportunities (score >= 75)
-      const opportunities = await prisma.opportunityLog.findMany({
-        where: {
-          status: "pending",
-          score: { gte: 75 },
-        },
-        orderBy: { score: "desc" },
-        take: 5,
-      });
-
-      // Fetch recent pending content drafts
-      const drafts = await prisma.socialPublishQueue.findMany({
-        where: {
-          status: "pending",
-        },
-        orderBy: { createdAt: "desc" },
-        take: 3,
-      });
-
-      // Fetch high confidence claims (confidence >= 0.8) or recent alerts
-      const claims = await prisma.intelligenceClaim.findMany({
-        where: {
-          confidence: { gte: 0.8 },
-          status: "source_supported",
-        },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      });
-
-      const today = new Date().toLocaleDateString("en-CA", {
-        timeZone: "America/New_York",
-      });
-
-      const model = getModel("reason");
-      const systemPrompt = `You are Nour's Chief of Staff and chief intelligence officer. Compose the Daily Executive Brief V2.
-Your tone is ruthlessly direct, quantitative, hyper-strategic, and action-oriented. Eliminate all passive fluff or generic warnings.
-
-GROUNDING RULE (absolute): every number, price, name, and claim in the brief MUST appear verbatim in the input data below. If the input contains no signal for a section, write exactly "no signal today" under that heading and move on — NEVER invent competitor prices, search metrics, biomarkers, or any other data.
-
-You must format using these exact headings:
-# Daily Executive Brief V2 · [Date]
-
-## 💼 CEO Brief (Highest ROI opportunity & Threat level)
-From the input opportunities/claims only: the highest-ROI opportunity and most critical threat. Quantify impact only when the input carries numbers.
-- *Recommended Action*: Action verb with clear instructions.
-
-## ✍️ Content Brief (Auto-generated publish queue suggestions)
-Detail the fresh content drafts created today in the SocialPublishQueue (from the Drafts in Queue input).
-- *Action*: Approve or decline content templates for review.
-
-## 🗺️ Local Market Brief (verified market & search signals)
-Summarize competitor/market/search claims that are PRESENT in the input data.
-- *Action*: One concrete move, or "no signal today".
-
-## 🚀 Frontier Brief (AI & performance signals)
-Summarize AI/engineering/performance claims that are PRESENT in the input data.
-- *Action*: One concrete move, or "no signal today".`;
-
-      const promptText = `Date: ${today}
-Opportunities:
-${opportunities.map((o) => `- [${o.domain.toUpperCase()}] ${o.title}: ${o.description} (Score: ${o.score})`).join("\n")}
-
-Drafts in Queue:
-${drafts.map((d) => `- [DRAFT] Kind: ${d.kind} | Platforms: ${d.platforms.join(", ")} | Preview: "${d.content.slice(0, 100)}..."`).join("\n")}
-
-Claims:
-${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\n")}`;
-
-      const result = await generateText({
-        model,
-        system: systemPrompt,
-        prompt: `${promptText}\n\nCompose the brief now.`,
-      });
-
-      return {
-        date: today,
-        text: result.text || "No briefing content compiled for today.",
-      };
+      const { composeDailyExecutiveBrief } = await import("@/lib/intelligence/compose-daily-brief");
+      return composeDailyExecutiveBrief();
     });
 
     // 4. Save Brief to BriefingLog

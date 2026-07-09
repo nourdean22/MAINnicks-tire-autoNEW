@@ -74,6 +74,17 @@ export function isSpecialistRoutingEnabled(): boolean {
 }
 
 /**
+ * AG-42 · shadow mode. ENABLE_SPECIALIST_ROUTING="shadow" runs the
+ * classifier on live chat traffic and records what WOULD have routed
+ * (SystemMetric `specialist.route`) but NEVER dispatches a specialist.
+ * Lets the operator measure route quality on real messages before
+ * flipping to "true" — the flag was previously all-or-nothing.
+ */
+export function isSpecialistShadowMode(): boolean {
+  return process.env.ENABLE_SPECIALIST_ROUTING === "shadow";
+}
+
+/**
  * The hand-back sentinel · specialists are instructed in their
  * system prompt to append this on a line by itself when they
  * realize the message is out of their domain. The dispatcher

@@ -11,8 +11,22 @@
  * extracting the helper was so this single decision is fast-testable.
  */
 
-import { describe, expect, it } from "vitest";
-import { resolveSubAgentSystemPrompt } from "@/lib/ai/multi-agent-orchestrator";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  resolveSubAgentSystemPrompt,
+  resolveSubAgentSystemPromptScored,
+  __resetPersonaScoreCache,
+} from "@/lib/ai/multi-agent-orchestrator";
+
+// AG-42 · scorer is consulted by the scored resolver · mocked so tests
+// stay pure (no DB). Individual cases set the return per scenario.
+const mockScorePersonas = vi.fn();
+vi.mock("@/lib/ai/personas/scorer", () => ({
+  scorePersonas: (...a: unknown[]) => mockScorePersonas(...a),
+}));
+vi.mock("@/lib/prisma", () => ({
+  prisma: { systemMetric: { create: vi.fn().mockResolvedValue({}) } },
+}));
 import { classifyStepIntent } from "@/lib/ai/reasoning/engine";
 import { LENS_PERSONA_KEY } from "@/lib/ai/pretask-fanout";
 import {
@@ -307,5 +321,63 @@ describe("pretask-fanout lens personas · Phase U.1 wiring", () => {
       expect(prompt).toContain("Thought Partner");
       expect(prompt).toContain("dialectic partner");
     });
+  });
+});
+
+// ── AG-42 · scorer→selection · demote-only substitution ─────────────
+
+describe("resolveSubAgentSystemPromptScored · demote-only", () => {
+  const score = (over: Partial<Record<string, unknown>>) => ({
+    personaKey: "tactician",
+    role: "Tactician",
+    runs: 20,
+    avgConfidence: 0.4,
+    fallbackRate: 30,
+    verdict: "tune" as const,
+    lastSeenAt: null,
+    ...over,
+  });
+
+  beforeEach(() => {
+    __resetPersonaScoreCache();
+    mockScorePersonas.mockReset();
+  });
+
+  it("demotes a 'tune' persona with runs>=10 to the generic prompt", async () => {
+    mockScorePersonas.mockResolvedValueOnce([score({})]);
+    const prompt = await resolveSubAgentSystemPromptScored("tactician");
+    expect(prompt).toBe(resolveSubAgentSystemPrompt());
+  });
+
+  it("does NOT demote on a thin sample (runs<10) — verdict alone is not enough", async () => {
+    mockScorePersonas.mockResolvedValueOnce([score({ runs: 5 })]);
+    const prompt = await resolveSubAgentSystemPromptScored("tactician");
+    expect(prompt).toContain("Tactician");
+  });
+
+  it("does NOT demote a 'good' or 'ok' persona", async () => {
+    mockScorePersonas.mockResolvedValueOnce([score({ verdict: "ok", avgConfidence: 0.6 })]);
+    const prompt = await resolveSubAgentSystemPromptScored("tactician");
+    expect(prompt).toContain("Tactician");
+  });
+
+  it("unscored personas keep their prompt (no data → no action)", async () => {
+    mockScorePersonas.mockResolvedValueOnce([]);
+    const prompt = await resolveSubAgentSystemPromptScored("strategist");
+    expect(prompt).toContain("Strategist");
+  });
+
+  it("scorer failure never blocks the run — persona prompt survives", async () => {
+    mockScorePersonas.mockRejectedValueOnce(new Error("db down"));
+    const prompt = await resolveSubAgentSystemPromptScored("tactician");
+    expect(prompt).toContain("Tactician");
+  });
+
+  it("caches scores across calls within the 30s window (one scorer query per fan-out)", async () => {
+    mockScorePersonas.mockResolvedValue([]);
+    await resolveSubAgentSystemPromptScored("tactician");
+    await resolveSubAgentSystemPromptScored("strategist");
+    await resolveSubAgentSystemPromptScored("thought-partner");
+    expect(mockScorePersonas).toHaveBeenCalledTimes(1);
   });
 });

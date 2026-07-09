@@ -25,7 +25,8 @@ export type BoardId =
   | "invest"
   | "product"
   | "operator"
-  | "full";
+  | "full"
+  | "team";
 
 export interface Board {
   id: BoardId;

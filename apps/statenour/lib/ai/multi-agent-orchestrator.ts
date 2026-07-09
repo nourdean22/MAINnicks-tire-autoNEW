@@ -125,6 +125,74 @@ export function resolveSubAgentSystemPrompt(personaKey?: string): string {
   return personaToSystemPrompt(persona);
 }
 
+// ── AG-42 · scorer→selection · demote-only substitution ──
+// The persona scorer (AG-21) computed verdicts nobody consumed. Now a
+// persona with verdict "tune" over a real sample (runs ≥ 10) is DEMOTED
+// to the generic sub-agent prompt — never swapped for a different
+// persona (demote-only: a mis-scored persona can only cost us its
+// steering, never inject a wrong one). Each demotion is recorded as
+// SystemMetric `persona.swap` so /system/metrics shows the loop acting.
+// Scores are cached 30s so an 8-agent fan-out costs one scorer query.
+const SCORE_CACHE_TTL_MS = 30_000;
+const DEMOTE_MIN_RUNS = 10;
+let scoreCache: { at: number; scores: Awaited<ReturnType<typeof import("@/lib/ai/personas/scorer").scorePersonas>> } | null = null;
+
+async function getPersonaScoresCached() {
+  if (scoreCache && Date.now() - scoreCache.at < SCORE_CACHE_TTL_MS) {
+    return scoreCache.scores;
+  }
+  const { scorePersonas } = await import("@/lib/ai/personas/scorer");
+  const scores = await scorePersonas().catch(() => []);
+  scoreCache = { at: Date.now(), scores };
+  return scores;
+}
+
+/** Test hook · reset the 30s score cache between cases. */
+export function __resetPersonaScoreCache(): void {
+  scoreCache = null;
+}
+
+/**
+ * Score-aware prompt resolution. Falls back to the plain resolver's
+ * result unless the scorer says this persona is underperforming on a
+ * meaningful sample. Scoring failure never blocks a sub-agent run.
+ */
+export async function resolveSubAgentSystemPromptScored(
+  personaKey?: string,
+): Promise<string> {
+  const prompt = resolveSubAgentSystemPrompt(personaKey);
+  if (!personaKey || prompt === SUB_AGENT_SYSTEM) return prompt;
+  try {
+    const scores = await getPersonaScoresCached();
+    const s = scores.find((x) => x.personaKey === personaKey);
+    if (s && s.verdict === "tune" && s.runs >= DEMOTE_MIN_RUNS) {
+      log.warn("persona_demoted", {
+        personaKey,
+        runs: s.runs,
+        avgConfidence: s.avgConfidence,
+        fallbackRate: s.fallbackRate,
+      });
+      void import("@/lib/prisma")
+        .then(({ prisma }) =>
+          prisma.systemMetric.create({
+            data: {
+              metric: "persona.swap",
+              value: s.avgConfidence,
+              unit: "confidence",
+              source: "multi-agent",
+              tags: { personaKey, runs: s.runs, verdict: s.verdict, to: "generic" },
+            },
+          }),
+        )
+        .catch(() => undefined);
+      return SUB_AGENT_SYSTEM;
+    }
+  } catch {
+    /* scoring is advisory · never block the run */
+  }
+  return prompt;
+}
+
 // v10.0.529.106 · Wave 59 · routes through aiChat() provider chain
 // instead of raw fetch to OpenAI. Same Wave 59 fix applied across
 // pretask-fanout.ts and deep-research.ts.
@@ -138,7 +206,7 @@ async function callSubAgent(
     task.outputHint ? `\n\nOUTPUT FORMAT: ${task.outputHint}` : ""
   }`;
 
-  const systemPrompt = resolveSubAgentSystemPrompt(task.persona);
+  const systemPrompt = await resolveSubAgentSystemPromptScored(task.persona);
 
   // wave-AO follow-up · audit #438 Tier-2 · was bare aiChat.
   const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");

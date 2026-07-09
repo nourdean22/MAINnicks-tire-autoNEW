@@ -47,13 +47,25 @@ describe("router · feature flag", () => {
     expect(decision.reason).toBe("routing-disabled");
   });
 
-  it("short-circuits to general when flag is 'shadow' (not literal 'true')", async () => {
-    process.env.ENABLE_SPECIALIST_ROUTING = "shadow";
+  it("short-circuits to general on junk flag values (not 'true'/'shadow')", async () => {
+    process.env.ENABLE_SPECIALIST_ROUTING = "1";
     const decision = await routeMessage({
       messages: [{ role: "user", content: "what's my savings rate?" }],
     });
     expect(decision.route).toBe("general");
     expect(decision.reason).toBe("routing-disabled");
+  });
+
+  // AG-42 · 'shadow' runs the CLASSIFIER (so the dispatcher can record
+  // what would have routed) — the never-dispatch guarantee lives in the
+  // chat route, which checks isSpecialistShadowMode() before acting.
+  it("classifies (does not short-circuit) when flag is 'shadow'", async () => {
+    process.env.ENABLE_SPECIALIST_ROUTING = "shadow";
+    const decision = await routeMessage({
+      messages: [{ role: "user", content: "what's my savings rate looking like this month?" }],
+    });
+    expect(decision.route).toBe("financial-analyst");
+    expect(decision.reason).toMatch(/keyword.*financial/);
   });
 });
 
