@@ -574,6 +574,17 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        // wave-181.85 · AgentPhone Voice Recovery escalation · same timer-dead
+        // bug as confirmation-calls, same fix — MOVED to the hourly tier. Self-gates
+        // on FEATURE_VOICE_RECOVERY (OFF by default) + AGENTPHONE_RECOVERY_AGENT_ID /
+        // VAPI env + at-most-once claims. Left in registerAllJobs for HTTP-trigger path.
+        name: "voice-recovery",
+        handler: async () => {
+          const { runVoiceRecovery } = await import("./jobs/voiceRecovery");
+          return runVoiceRecovery();
+        },
+      },
+      {
         name: "feedback-cycle", // FIRST: decay memories, check anomalies, pacing — feeds into intelligence quality
         handler: async () => {
           const { runFeedbackCycle } = await import("../services/feedbackLoop");
@@ -1218,17 +1229,7 @@ export function startTieredScheduler(): void {
           return runUnpaidInvoiceRecovery({ maxSends: Number(process.env.INVOICE_RECOVERY_MAX_PER_RUN) || 30 });
         },
       },
-      {
-        // wave-181.85 · AgentPhone Voice Recovery escalation · same timer-dead
-        // bug, same fix — now in the daily tier. Self-gates on FEATURE_VOICE_
-        // RECOVERY (OFF by default) + AGENTPHONE_RECOVERY_AGENT_ID / VAPI env +
-        // at-most-once claims. Left in registerAllJobs for the HTTP-trigger path.
-        name: "voice-recovery",
-        handler: async () => {
-          const { runVoiceRecovery } = await import("./jobs/voiceRecovery");
-          return runVoiceRecovery();
-        },
-      },
+        // voice-recovery moved to hourly tier (see above)
       {
         name: "declined-work-recovery",
         handler: async () => {

@@ -2,8 +2,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request } from "express";
 
 const clientIp = (req: Request): string => {
-  const cfIp = req.headers["cf-connecting-ip"];
-  const raw = typeof cfIp === "string" ? cfIp : req.ip || "unknown";
+  const raw = req.ip || "unknown";
   // Normalize IPv6 to its subnet via express-rate-limit's helper so IPv6
   // clients can't bypass limits by hopping addresses within their /64
   // allocation (silences ERR_ERL_KEY_GEN_IPV6 from the v8 keyGenerator
