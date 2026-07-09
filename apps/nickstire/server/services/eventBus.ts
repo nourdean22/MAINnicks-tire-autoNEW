@@ -582,7 +582,7 @@ async function ensureInitialized(): Promise<void> {
       // 216-862-0005 number). If that fails, sendSms falls back to
       // Twilio + fires a Telegram alert — the caller doesn't have to
       // think about it.
-      await sendSms(managerPhone, body, { via: "shop", transactional: true });
+      await sendSms(managerPhone, body, { via: "shop", messageClass: "internal" });
     },
   });
 

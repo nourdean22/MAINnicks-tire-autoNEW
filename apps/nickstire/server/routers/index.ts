@@ -63,3 +63,4 @@ export { instagramAdminRouter } from "./instagramAdmin";
 export { gbpRouter } from "./gbp";
 export { smsOrchestratorRouter } from "./smsOrchestrator";
 export { socialPipelineRouter } from "./socialPipeline";
+export { metaAdsArchitectRouter } from "./metaAdsArchitect";

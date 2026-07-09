@@ -94,7 +94,7 @@ export const portalRouter = router({
         // Wave-108: portal verification codes via shop gateway so the
         // customer recognizes the sender (216-862-0005). Twilio fallback
         // is automatic if the gateway is offline.
-        const result = await sendSms(normalized, `Your Nick's Tire & Auto verification code is: ${code}. Valid for 10 minutes.`, { via: "shop", transactional: true });
+        const result = await sendSms(normalized, `Your Nick's Tire & Auto verification code is: ${code}. Valid for 10 minutes.`, { via: "shop", messageClass: "customer_confirmation" });
         if (!result.success) {
           log.warn(`[Portal] SMS failed for ${normalized}:`, result);
         }

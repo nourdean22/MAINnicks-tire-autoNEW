@@ -1209,6 +1209,7 @@ export const gatewayTireRouter = router({
         const { invoices } = await import("../../drizzle/schema");
         await d.update(invoices).set({
           status: input.paymentStatus === "paid" ? "paid" : "pending",
+          paymentStatus: input.paymentStatus === "paid" ? "paid" : "pending",
           updatedAt: new Date()
         }).where(eq(invoices.id, currentOrder.invoiceId));
       }

@@ -82,6 +82,7 @@ import {
   gbpRouter,
   smsOrchestratorRouter,
   socialPipelineRouter,
+  metaAdsArchitectRouter,
 } from "./routers/index";
 import { voiceAgentRouter } from "./routers/voiceAgent";
 import { vapiRouter } from "./routers/vapi";
@@ -253,6 +254,9 @@ export const appRouter = router({
   // Social pipeline unified status — single read-only endpoint showing
   // all env + DB kill-switches for the content/social automation stack.
   socialPipeline: socialPipelineRouter,
+
+  // Meta Ads Campaign Architect — Generates structured, compliant Meta Ads plans using Zod + LLM
+  metaAdsArchitect: metaAdsArchitectRouter,
 });
 
 export type AppRouter = typeof appRouter;

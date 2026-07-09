@@ -40,6 +40,7 @@
     "@aws-sdk/client-s3": "^3.693.0",
     "@aws-sdk/s3-request-presigner": "^3.693.0",
     "@nour/gbp-publisher": "workspace:*",
+    "@nour/meta-ads-architect": "workspace:*",
     "@nour/utils": "workspace:*",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
