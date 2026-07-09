@@ -368,8 +368,11 @@ export function rankToolsBySimilarity(
  */
 export async function embedUserMessage(text: string): Promise<number[]> {
   if (!text || text.length < 3) return [];
+  // Truncate to 10,000 chars (roughly 2.5k tokens) to prevent token exhaustion
+  // and OOM attacks. The semantic intent is captured well within this limit.
+  const safeText = text.slice(0, 10000);
   try {
-    return await getEmbedding(text);
+    return await getEmbedding(safeText);
   } catch {
     return [];
   }

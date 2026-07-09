@@ -1,8 +1,9 @@
 import { streamText, convertToModelMessages } from 'ai';
 import { getModel } from '@/lib/ai/provider';
 import { NextResponse } from 'next/server';
+import { apiHandler } from '@/lib/utils/http';
 
-export async function POST(req: Request) {
+export const POST = apiHandler(async (req: Request) => {
   try {
     const { messages } = await req.json();
 
@@ -48,7 +49,8 @@ DO NOT output markdown headers unless necessary. DO NOT be robotic. Be human, br
 
     return result.toUIMessageStreamResponse();
   } catch (error) {
-    console.error('Partner Stream Error:', error);
+    const { logger } = await import('@/lib/logger');
+    logger.error('partner_stream_failed', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: 'Failed to stream partner response' }, { status: 500 });
   }
-}
+}, { auth: 'owner', rateLimit: 'ai' });

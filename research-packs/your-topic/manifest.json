@@ -1,0 +1,132 @@
+{
+  "id": "pack_your-topic",
+  "slug": "your-topic",
+  "title": "Your Topic",
+  "domain": "business",
+  "purpose": "Analyze the strategic dynamics and actions required for: Your Topic",
+  "coreQuestion": "Analyze: Your Topic",
+  "sources": [
+    {
+      "id": "db_cmnzy32p3001ne0rl7eqkvpf8",
+      "title": "Brain Memory: nick_advice_cmnxxkinq000c04jsccc5fnw5 (nick_advice)",
+      "type": "database_record",
+      "capturedAt": "2026-07-02T11:12:11.575Z",
+      "contentHash": "f10e683f68298cce97108ff0df6ab85138f20e59a3536339d36171d6fe9d7ff2",
+      "scrapeStatus": "success",
+      "authorityScore": 90,
+      "recencyScore": 80,
+      "relevanceScore": 75,
+      "actionabilityScore": 85
+    },
+    {
+      "id": "db_cmnzy33ah001ve0rl2999ho5g",
+      "title": "Brain Memory: nick_advice_cmnxt6tyg001104jv409gp43r (nick_advice)",
+      "type": "database_record",
+      "capturedAt": "2026-07-02T11:12:11.578Z",
+      "contentHash": "31ea61d29c2780bec6ad83628c0eb8ae28db1ffd6651ef317fb0e7d836870791",
+      "scrapeStatus": "success",
+      "authorityScore": 90,
+      "recencyScore": 80,
+      "relevanceScore": 55,
+      "actionabilityScore": 85
+    },
+    {
+      "id": "db_cmnzy33v80024e0rl4awdz84b",
+      "title": "Brain Memory: nick_advice_cmnxse5fh000304jvit4tfs6p (nick_advice)",
+      "type": "database_record",
+      "capturedAt": "2026-07-02T11:12:11.578Z",
+      "contentHash": "674ddfcb8e5671423040c314779ed902560d400c302d0ae2cf2b08c3bd2e8a05",
+      "scrapeStatus": "success",
+      "authorityScore": 90,
+      "recencyScore": 80,
+      "relevanceScore": 60,
+      "actionabilityScore": 85
+    },
+    {
+      "id": "db_cmnzy33y40026e0rl0ivivs1a",
+      "title": "Brain Memory: nick_advice_cmnxs1zr8000d04kzvwwjupb5 (nick_advice)",
+      "type": "database_record",
+      "capturedAt": "2026-07-02T11:12:11.578Z",
+      "contentHash": "9d830c80b5646652b3e726bbc2ae7f6a165668165783076d605a0a5407505c71",
+      "scrapeStatus": "success",
+      "authorityScore": 90,
+      "recencyScore": 80,
+      "relevanceScore": 70,
+      "actionabilityScore": 85
+    },
+    {
+      "id": "db_cmnzy34hq002ce0rl55ftkyny",
+      "title": "Brain Memory: nick_advice_cmnxrfbhu000a04jrzkhchv3a (nick_advice)",
+      "type": "database_record",
+      "capturedAt": "2026-07-02T11:12:11.578Z",
+      "contentHash": "bf7f6f39d52ec4069cd83bc11645fb0f8420b57538937e8970dc97f776cbfad6",
+      "scrapeStatus": "success",
+      "authorityScore": 90,
+      "recencyScore": 80,
+      "relevanceScore": 70,
+      "actionabilityScore": 85
+    },
+    {
+      "id": "db_cmnzy34sj002ee0rld8e4nt33",
+      "title": "Brain Memory: nick_advice_cmnxqzov1000304l5fxowdq9q (nick_advice)",
+      "type": "database_record",
+      "capturedAt": "2026-07-02T11:12:11.578Z",
+      "contentHash": "0c01d9b8dc4def133d917c412f61b1d9405b29fab18d819ba03b8067722d0664",
+      "scrapeStatus": "success",
+      "authorityScore": 90,
+      "recencyScore": 80,
+      "relevanceScore": 100,
+      "actionabilityScore": 85
+    },
+    {
+      "id": "db_cmnzy35be002oe0rls5uu8cks",
+      "title": "Brain Memory: nick_advice_cmnxpv2me000404l787221mdx (nick_advice)",
+      "type": "database_record",
+      "capturedAt": "2026-07-02T11:12:11.578Z",
+      "contentHash": "387116222dfc1acfab043b612dd489db69304adc861056d48da85d93058a06b3",
+      "scrapeStatus": "success",
+      "authorityScore": 90,
+      "recencyScore": 80,
+      "relevanceScore": 55,
+      "actionabilityScore": 85
+    },
+    {
+      "id": "db_cmnzy35hi002ue0rlbxzlruo8",
+      "title": "Brain Memory: nick_advice_cmnxpkxv5000404l5q1otekcg (nick_advice)",
+      "type": "database_record",
+      "capturedAt": "2026-07-02T11:12:11.578Z",
+      "contentHash": "2542d6a959271f9e5b4535bdbfbe29ea965cd4483e8760555eba1a92c5db95a5",
+      "scrapeStatus": "success",
+      "authorityScore": 90,
+      "recencyScore": 80,
+      "relevanceScore": 55,
+      "actionabilityScore": 85
+    },
+    {
+      "id": "db_cmnzy35t60031e0rl4efjfmly",
+      "title": "Brain Memory: nick_advice_cmnxoq2br000904l5bjdgr3sb (nick_advice)",
+      "type": "database_record",
+      "capturedAt": "2026-07-02T11:12:11.578Z",
+      "contentHash": "31b74688a32c0246a00701ceb485a3a5b7101e601953df14a244a440c65ce244",
+      "scrapeStatus": "success",
+      "authorityScore": 90,
+      "recencyScore": 80,
+      "relevanceScore": 55,
+      "actionabilityScore": 85
+    },
+    {
+      "id": "db_cmnzy35yq0033e0rl4lyu7d4f",
+      "title": "Brain Memory: nick_advice_cmnxog6qw000304l53qqg9f5l (nick_advice)",
+      "type": "database_record",
+      "capturedAt": "2026-07-02T11:12:11.578Z",
+      "contentHash": "7b2b8a7343e8ac4d16ee0871d17f30c92949f7043998fcc1a4be91d11c628540",
+      "scrapeStatus": "success",
+      "authorityScore": 90,
+      "recencyScore": 80,
+      "relevanceScore": 60,
+      "actionabilityScore": 85
+    }
+  ],
+  "packHash": "ebc7372498ba8e24811efdbbcfaf53425cfc2e53eb925ec6882a6b4cf0f293e6",
+  "createdAt": "2026-07-02T11:12:11.626Z"
+}
