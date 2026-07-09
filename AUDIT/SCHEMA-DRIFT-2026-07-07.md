@@ -19,28 +19,32 @@ the audit itself.
 |--------|-------------|--------|
 | `service_affinity_predictions.customer_id` | `int` → **`bigint`** | Fixed decl to `bigint` (also the reason no FK to `customers.id` int is possible). `[V]` |
 
-## Type drifts — FLAGGED, not auto-fixed (changing them changes runtime behavior)
+## Type drifts — flagged 2026-07-07, RESOLVED 2026-07-09 after per-caller review
 
-Aligning these would change the JS type the ORM returns and could break callers — each needs its own review:
+Each got the individual caller review the flag demanded; all five aligned to prod with zero behavior change:
 
-| Column | Drizzle → DB | Why not auto-fixed |
-|--------|-------------|--------------------|
-| `competitor_snapshots.raw_payload` | `text` → `json` | `json()` auto-parses; a caller that `JSON.parse()`s the string would double-parse. |
-| `search_performance.date` | `varchar` → `date` | `date()` returns a `Date`, not a string — callers comparing/formatting the string change. |
-| `cron_alerts_fired.fired_for` | `timestamp` → `date` | `date()` drops time; a time-of-day comparison would change. |
+| Column | Drizzle → DB | Caller evidence → why alignment is safe |
+|--------|-------------|------------------------------------------|
+| `competitor_snapshots.raw_payload` | `text` → `json` `[V]` | No code reads or writes `rawPayload` (insert `competitorMonitor.ts:145` omits it; only select is projected to name/rating). |
+| `search_performance.date` | `varchar` → `date({mode:"string"})` `[V]` | `mode:"string"` keeps string-in/string-out. Insert passes the GSC string (`gsc-data.ts:466`); all reads are raw `` sql`` `` BETWEEN fragments (type-agnostic). |
+| `cron_alerts_fired.fired_for` | `timestamp` → `date({mode:"string"})` `[V]` | All writes/reads are raw-SQL `INSERT IGNORE` dedupe keyed on date strings — the decl's own comment admitted "fired_for is DATE in prod". |
+| `customers.smsOptOut` | `int` → `tinyint` `[V]` | Both map to JS `number`; consumer does `Boolean(r.smsOptOut)`. Golden suite 40/40 green. |
+| `vapi_call_logs.eval_score` | `int` → `tinyint` `[V]` | Both `number`; read via drizzle `avg()` + raw SQL. |
 
-## Cosmetic drifts (no bug — `int` reads a `tinyint` fine; documented for a future cleanup)
+## `review_pipeline` — reclassified from "harmless dead decls" to LIVE BUG №3, fixed 2026-07-09
 
-| Column | Drizzle → DB |
-|--------|-------------|
-| `customers.smsOptOut` | `int` → `tinyint(1)` (a boolean flag) |
-| `vapi_call_logs.eval_score` | `int` → `tinyint` (0–100 fits) |
+The 2026-07-07 note ("harmless — not written") missed the read side: `getPipelineReviews()`
+(`gbp-reviews.ts:715`, admin dashboard) does a **full `d.select()`**, which emits every *declared*
+column — including `adminNotes`/`updatedAt`, absent in prod → `Unknown column` on every call.
+Same failure class as bug 1 (`conversionHits`). The decl was drifted in **both directions**:
 
-## Declared-but-absent, and NOT written by code (harmless dead decls; align or remove)
+| Column | Drizzle 07-07 | Prod | Fix |
+|--------|--------------|------|-----|
+| `adminNotes`, `updatedAt` | declared | **absent** | removed from decl (no consumer reads them; insert never set them) `[V]` |
+| `keywordsJson`, `urgency`, `status` | **missing** | present | added to decl (nullable/defaulted — insert at `:679` unaffected) `[V]` |
+| `reviewed`, `responseSent` | declared | present | kept; also added to the `CREATE TABLE` bootstrap (`intelligence.ts:487`) which was missing both, so fresh DBs now converge to prod's 15 columns `[V]` |
 
-- `review_pipeline.adminNotes` (`text`) — the only `reviewPipeline` insert (`gbp-reviews.ts:679`) doesn't set it.
-- `review_pipeline.updatedAt` (`timestamp`) — same; not written.
-
-_Clarity Gate: REVIEWED (2026-07-07). Every row verified against prod `information_schema` (not the
-ORM declaration). Bugs 1–2 + the bigint drift are fixed in this PR; the behavior-changing drifts and
-dead decls are documented for individual follow-up, not blind-changed._
+_Clarity Gate: REVIEWED (2026-07-09). Every disposition verified against prod `information_schema`
+dump + grep of all callers, not assumptions. Post-fix drift check: **0 type drifts, 0 phantom
+columns, 39/39 FKs reproducible, phone10 synced — prod and code fully agree.** tsc 0 · vitest green
+(the only symbol-coupled suite, smsOrchestrator golden, 40/40)._
