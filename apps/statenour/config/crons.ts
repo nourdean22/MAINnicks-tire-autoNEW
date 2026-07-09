@@ -380,6 +380,18 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
+    name: "pricing-advisory",
+    schedule: "0 23 * * 0",
+    // 2026-07-09 · AG-19 · fires via the WEEKLY_JOBS Sunday-ET evening
+    // fan-out (same slot-shift precedent as relationship-weekly-synthesis);
+    // idempotent per run-date via BrainMemory upsert.
+    mode: "active",
+    category: "review",
+    description: "Weekly pricing advisory · ALG win-rate outliers vs fleet median → competitor prices → drafted experiments · coach-event banner + chat tool read it.",
+    memory: 512,
+    maxDuration: 120,
+  },
+  {
     name: "journal-checkin",
     schedule: "0 23 * * *",
     mode: "active",

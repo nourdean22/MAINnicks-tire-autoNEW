@@ -465,6 +465,9 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
         return await cmdStatus(chatId);
       case "/schedule":
         return await cmdSchedule(chatId);
+      // AG-18 · morning-brief pull (push-independent fallback)
+      case "/brief":
+        return await cmdBrief(chatId);
       case "/memory":
         return await cmdMemory(args.join(" "), chatId);
       case "/brain":
@@ -489,6 +492,13 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
       case "/ask":
       case "/nick":
         return await cmdAsk(args.join(" "), chatId);
+      // AG-13 · the advisory council on the operator's primary mobile
+      // surface. Both are read-only AI calls (board persists one
+      // BrainMemory consultation record) — no approval gate needed.
+      case "/board":
+        return await cmdBoard(args, chatId);
+      case "/team":
+        return await cmdTeam(args.join(" "), chatId);
       // v8.23 — phone-first remote read extensions
       case "/goals":
         return await cmdGoals(chatId);
@@ -516,7 +526,8 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
           `🤖 <b>Nick Commands — Personal OS</b>\n\n` +
             `<b>READ</b>\n` +
             `/status — System snapshot\n` +
-            `/schedule — Today's schedule\n` +
+            `/schedule — Today's schedule (incl. calendar)\n` +
+            `/brief — Morning brief (pull anytime)\n` +
             `/memory [q] — Search memories\n` +
             `/search [q] — Semantic search journal + chat\n` +
             `/brain — Brain health\n` +
@@ -531,6 +542,9 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `/mit [text] — Set today's MIT\n` +
             `/commit [text] — Create commitment\n` +
             `/ask [question] — Ask Nick anything\n\n` +
+            `\n<b>COUNCIL (AG-13)</b>\n` +
+            `/board [strategic|invest|product|operator|full] [q] — Convene an advisor board\n` +
+            `/team [q] — Ask the team (thought partner · strategist · tactician · consultant)\n` +
             `\n<b>OUTREACH (Wave-200)</b>\n` +
             `/approve [campaignId] — Approve pending bulk-SMS\n` +
             `/reject [campaignId] — Reject pending bulk-SMS\n` +
@@ -541,9 +555,33 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `<i>Shop ops (pace, staffing, customers) live in nickstire.org/admin.</i>`,
           chatId
         ).then(() => {});
-      default:
-        // Not a command — ignore (don't spam back)
-        return;
+      default: {
+        // AG-18 · plain (non-command) text was silently dropped — texting
+        // the bot "call Mike about the alignment" did NOTHING, while the
+        // tested pure intent router (lib/ultron/omni-capture-router, same
+        // one the web omni-capture UI uses) sat unused on this surface.
+        // Route it and reply with a one-line receipt naming the intent.
+        const { routeCapture } = await import("@/lib/ultron/omni-capture-router");
+        const intent = routeCapture(trimmed);
+        if (!intent.text.trim()) return;
+        await sendTelegram(`→ routed as <b>${intent.kind}</b>`, chatId);
+        switch (intent.kind) {
+          case "task":
+            return await cmdTask(intent.text, chatId);
+          case "dump":
+          case "park":
+          case "reflect":
+            return await cmdDump(intent.text, chatId);
+          case "search":
+            return await cmdSearch(intent.text, chatId);
+          case "decide":
+            return await cmdAsk(`Help me decide: ${intent.text}`, chatId);
+          case "plan":
+          case "ask":
+          default:
+            return await cmdAsk(intent.text, chatId);
+        }
+      }
     }
   } catch (err) {
     console.error("[telegram:cmd]", command, err);
@@ -676,6 +714,78 @@ async function cmdCommit(args: string, chatId: string): Promise<void> {
   }
 }
 
+// AG-13 · /board — convene one of the 5 preset advisor boards. Sends an
+// immediate ack (a consult is 6-9 parallel AI calls · 15-30s), then the
+// synthesis + per-advisor one-liners. Consultation persists to BrainMemory
+// via consultBoardAndPersist, so it also shows in the /brain Board tab.
+async function cmdBoard(args: string[], chatId: string): Promise<void> {
+  const VALID_BOARDS = ["strategic", "invest", "product", "operator", "full"] as const;
+  const boardId = (args[0] ?? "").toLowerCase() as (typeof VALID_BOARDS)[number];
+  const question = args.slice(1).join(" ").trim();
+  if (!VALID_BOARDS.includes(boardId) || question.length < 8) {
+    await sendTelegram(
+      `Usage: /board [${VALID_BOARDS.join("|")}] [question]\n\nExample: /board invest should I buy the second alignment machine?`,
+      chatId
+    );
+    return;
+  }
+  await sendTelegram(`🏛 Convening the <b>${boardId}</b> board — advisors deliberating…`, chatId);
+  try {
+    const { consultBoardAndPersist } = await import("@/lib/services/board-consult-record");
+    const { consultation } = await consultBoardAndPersist(boardId, question);
+    const s = consultation.synthesis;
+    const takes = consultation.takes
+      .map((t) => `• <b>${t.advisorName}</b>: ${t.recommendation.slice(0, 160)}`)
+      .join("\n");
+    const msg =
+      `🏛 <b>${consultation.boardName}</b>\n\n` +
+      `<b>Recommendation:</b> ${s.recommendation}\n\n` +
+      (s.tension ? `<b>Tension:</b> ${s.tension}\n\n` : "") +
+      (s.consensus.length ? `<b>Consensus:</b> ${s.consensus.slice(0, 3).join(" · ")}\n\n` : "") +
+      `<b>Advisors</b>\n${takes}`;
+    await sendTelegram(msg.slice(0, 3900), chatId);
+  } catch (err) {
+    await sendTelegram(`⚠️ Board consult failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+// AG-13 · /team — the operator's standing staff (AG-12 personas) in one
+// parallel run: thought partner, strategist, tactician, consultant.
+async function cmdTeam(question: string, chatId: string): Promise<void> {
+  const q = question.trim();
+  if (q.length < 8) {
+    await sendTelegram(
+      `Usage: /team [question]\n\nRuns thought-partner + strategist + tactician + business-consultant in parallel and synthesizes.`,
+      chatId
+    );
+    return;
+  }
+  await sendTelegram(`👥 Putting the team on it…`, chatId);
+  try {
+    const { runMultiAgent } = await import("@/lib/ai/multi-agent-orchestrator");
+    const topic = q.slice(0, 600);
+    const report = await runMultiAgent({
+      goal: q,
+      subAgents: [
+        { name: "thought-partner", persona: "thought-partner", task: `Steelman, then attack, then name the deciding tension: ${topic}` },
+        { name: "strategist", persona: "strategist", task: `6-24 month positioning + what this forecloses: ${topic}` },
+        { name: "tactician", persona: "tactician", task: `The concrete next-48h moves: ${topic}` },
+        { name: "business-consultant", persona: "business-consultant", task: `Unit-economics verdict: ${topic}` },
+      ],
+    });
+    const lines = report.results
+      .filter((r) => !r.failed)
+      .map((r) => `• <b>${r.name}</b>: ${r.output.slice(0, 220)}`)
+      .join("\n\n");
+    await sendTelegram(
+      `👥 <b>Team</b>\n\n${report.synthesis.slice(0, 1700)}\n\n${lines}`.slice(0, 3900),
+      chatId
+    );
+  } catch (err) {
+    await sendTelegram(`⚠️ Team run failed: ${(err as Error).message}`, chatId);
+  }
+}
+
 async function cmdAsk(args: string, chatId: string): Promise<void> {
   if (!args.trim()) {
     await sendTelegram(`Usage: /ask [question] — get a one-shot answer from Nick`, chatId);
@@ -744,15 +854,70 @@ async function cmdSchedule(chatId: string): Promise<void> {
   const { generateDailySchedule } = await import("@/lib/brain/daily-scheduler");
   const schedule = await generateDailySchedule();
 
+  // AG-18 · real Google Calendar events, prepended. The AI time-block
+  // plan below contains ZERO calendar reads — the operator's actual
+  // appointments never appeared in /schedule. Graceful-skip mirrors
+  // ingest-calendar's OAuth-expiry handling: on any calendar failure
+  // the reply degrades to the previous output with no error text.
+  let calendarSection = "";
+  try {
+    const { listEvents } = await import("@/lib/services/calendar-api");
+    const events = await listEvents({ daysAhead: 1, maxResults: 8 });
+    if (events.length > 0) {
+      const lines = events.map((e) => {
+        const when = e.start
+          ? new Date(e.start).toLocaleTimeString("en-US", {
+              timeZone: "America/New_York",
+              hour: "numeric",
+              minute: "2-digit",
+            })
+          : "all day";
+        return `• <b>${when}</b> ${(e.summary ?? "(untitled)").slice(0, 60)}`;
+      });
+      calendarSection = `📅 <b>Calendar</b>\n${lines.join("\n")}\n\n`;
+    }
+  } catch {
+    // OAuth expired / not configured — skip the section silently.
+  }
+
   const blockLines = schedule.blocks.map((b) => {
     const emoji = b.type === "deep_work" ? "🧠" : b.type === "body" ? "💪" : b.type === "communication" ? "📞" : b.type === "review" ? "📝" : "⚙️";
     return `${emoji} <b>${b.time}</b> ${b.task.slice(0, 50)}`;
   });
 
   await sendTelegram(
-    `📋 <b>Today's Schedule</b>\n\n${blockLines.join("\n")}\n\n${schedule.summary}`,
+    `${calendarSection}📋 <b>Today's Schedule</b>\n\n${blockLines.join("\n")}\n\n${schedule.summary}`,
     chatId
   );
+}
+
+// AG-18 · /brief — Telegram fallback for the morning brief. Delivery was
+// Web Push + audio only: a dead push subscription meant the brief existed
+// in BrainMemory but nothing ever reached the phone, and there was no
+// pull command.
+async function cmdBrief(chatId: string): Promise<void> {
+  try {
+    const todayEt = new Date().toLocaleDateString("en-CA", {
+      timeZone: "America/New_York",
+    });
+    const { prisma } = await import("@/lib/prisma");
+    const cached = await prisma.brainMemory
+      .findFirst({
+        where: { category: "morning_brief", key: todayEt },
+        select: { content: true },
+      })
+      .catch(() => null);
+    if (cached?.content) {
+      await sendTelegram(cached.content.slice(0, 3900), chatId);
+      return;
+    }
+    // Cron hasn't run yet (or cache miss) — compose fresh, same builder.
+    const { buildMorningBrief } = await import("@/lib/services/morning-brief");
+    const brief = await buildMorningBrief();
+    await sendTelegram(brief.text.slice(0, 3900), chatId);
+  } catch (err) {
+    await sendTelegram(`⚠️ Brief failed: ${(err as Error).message}`, chatId);
+  }
 }
 
 async function cmdMemory(query: string, chatId: string): Promise<void> {
@@ -1240,15 +1405,20 @@ async function handleVoice(
     if (transcript.trim().startsWith("/")) {
       await handleCommand(transcript.trim(), chatId);
     } else {
-      // Treat as a brain dump / note
-      const { brainMemory } = await import("@/lib/brain/memory-manager");
-      await brainMemory.remember(
-        "voice_note",
-        `voice_${Date.now()}`,
-        transcript,
-        "telegram-voice"
+      // AG-18 · spoken dumps now run the FULL journal-ingest pipeline
+      // (task/insight/commitment extraction) instead of landing as a raw
+      // voice_note memory that nothing acted on — same path as /dump.
+      const { ingestJournal } = await import("@/lib/brain/journal-ingest");
+      const result = (await ingestJournal(transcript)) as unknown as {
+        tasksCreated?: number;
+        insightsStored?: number;
+        commitmentsFound?: number;
+        entryType?: string;
+      };
+      await sendTelegram(
+        `🧠 <b>Ingested</b> · Type: <b>${result.entryType || "raw"}</b> · Tasks: ${result.tasksCreated ?? 0} · Insights: ${result.insightsStored ?? 0} · Commitments: ${result.commitmentsFound ?? 0}`,
+        chatId
       );
-      await sendTelegram("✅ Stored as brain memory.", chatId);
     }
   } catch (err) {
     await sendTelegram(`Voice processing failed: ${err instanceof Error ? err.message : "unknown error"}`, chatId);

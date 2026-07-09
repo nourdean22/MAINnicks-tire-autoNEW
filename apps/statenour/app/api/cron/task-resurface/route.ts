@@ -70,6 +70,20 @@ export const GET = apiHandler(
       });
     }
 
+    // AG-18 · notify instead of silently flipping status — a snoozed
+    // task waking up is a promise being kept; the operator never saw it.
+    // One batched message per run, never per-task spam; best-effort.
+    try {
+      const { sendTelegram } = await import("@/lib/services/telegram");
+      const titles = due.slice(0, 10).map((t) => `• ${t.title.slice(0, 60)}`);
+      const extra = due.length > 10 ? `\n…and ${due.length - 10} more` : "";
+      await sendTelegram(`⏰ <b>Back on deck</b>\n\n${titles.join("\n")}${extra}`);
+    } catch (err) {
+      logger.warn("task_resurface_notify_failed", {
+        error: err instanceof Error ? err.message.slice(0, 160) : String(err),
+      });
+    }
+
     return {
       ok: true,
       resurfaced: due.length,

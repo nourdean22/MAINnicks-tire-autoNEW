@@ -138,7 +138,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   // which covers both Reflection rows + BrainDump entries with date range).
   searchMemories: { family: "brain-search", description: "Semantic search over BrainMemory", mutates: false, cost: "medium" },
   searchColdMemory: { family: "brain-search", description: "Search cold (archived) memory", mutates: false, cost: "medium" },
-  searchSkills: { family: "brain-search", description: "Semantic search over 1,423 Claude skills installed locally", mutates: false, cost: "medium" },
+  searchSkills: { family: "brain-search", description: "Semantic search over the indexed Claude skill registry", mutates: false, cost: "medium" },
   searchConversations: { family: "brain-search", description: "Search past Nick conversations", mutates: false, cost: "cheap" },
   searchGreeneLaws: { family: "brain-search", description: "Search Robert Greene's strategic laws", mutates: false, cost: "cheap" },
   checkAntiPattern: { family: "brain-search", description: "Check intent against anti-pattern library", mutates: false, cost: "cheap" },
@@ -190,6 +190,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   arsenalPreTaskFanout: { family: "integration-arsenal", description: "Pre-task multi-lens fan-out for hard questions", mutates: false, cost: "expensive" },
   arsenalDeepResearch: { family: "integration-arsenal", description: "Multi-round autonomous research with citations", mutates: false, cost: "expensive" },
   arsenalMultiAgent: { family: "integration-arsenal", description: "Spawn N sub-agents in parallel + synthesize", mutates: false, cost: "expensive" },
+  arsenalBoardConsult: { family: "integration-arsenal", description: "Convene an advisor board (multi-lens council) on a major decision", mutates: false, cost: "expensive" },
   arsenalGmailInbox: { family: "integration-arsenal", description: "List recent inbox threads", mutates: false, cost: "cheap" },
   arsenalGmailReadThread: { family: "integration-arsenal", description: "Read a specific thread", mutates: false, cost: "cheap" },
 

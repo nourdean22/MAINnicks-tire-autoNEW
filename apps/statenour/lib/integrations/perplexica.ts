@@ -38,10 +38,24 @@ export interface PerplexicaOptions {
 const CHAT_MODEL_KEY = process.env.PERPLEXICA_CHAT_MODEL || "models/gemini-2.5-flash";
 const EMBED_MODEL_KEY = process.env.PERPLEXICA_EMBED_MODEL || "Xenova/all-MiniLM-L6-v2";
 
+// AG-16 · prod sets PERPLEXICA_MCP_URL (the MCP wrapper endpoint) but not
+// PERPLEXICA_API_URL, which silently excluded the free self-hosted source
+// from the quorum. Accept the MCP URL as an alias by stripping its /mcp or
+// /sse path. PERPLEXICA_API_URL always takes precedence — setting it on
+// Railway is the zero-risk override if the derived base is wrong (e.g. the
+// wrapper runs on a different port than the Perplexica API).
+function resolvePerplexicaUrl(): string | null {
+  const direct = process.env.PERPLEXICA_API_URL;
+  if (direct) return direct.replace(/\/+$/, "");
+  const mcp = process.env.PERPLEXICA_MCP_URL;
+  if (mcp) return mcp.replace(/\/+$/, "").replace(/\/(mcp|sse)$/, "");
+  return null;
+}
+
 function baseUrl(): string {
-  const u = process.env.PERPLEXICA_API_URL;
+  const u = resolvePerplexicaUrl();
   if (!u) throw new Error("PERPLEXICA_API_URL is not configured");
-  return u.replace(/\/+$/, "");
+  return u;
 }
 
 interface ProviderIds {
@@ -137,5 +151,5 @@ export const askPerplexica = withGuardian("perplexica-search", _askPerplexica, {
 
 /** True when Perplexica is configured (used to gate it as a search source). */
 export function hasPerplexica(): boolean {
-  return Boolean(process.env.PERPLEXICA_API_URL);
+  return Boolean(resolvePerplexicaUrl());
 }
