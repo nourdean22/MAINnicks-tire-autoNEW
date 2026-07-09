@@ -1,4 +1,4 @@
-# Nickstire Query Contract — v11.8 (2026-05-24)
+# Nickstire Query Contract — v11.9 (2026-07-09)
 
 > **This doc is the mirror.** It must match `docs/NICKSTIRE-QUERY-CONTRACT.md`
 > in the statenour-os repo byte-for-byte. When adding or changing an endpoint,
@@ -349,9 +349,104 @@ X-Snap-Signature: <hmac-sha256>
 
 ---
 
+## 6. POST `/api/bridge/bulk-sms-send`
+
+Dispatch target for statenour's `bulk-sms-approval` Inngest workflow
+(`apps/statenour/lib/inngest/functions/bulk-sms-approval.ts`). By the time
+a request reaches this endpoint, the operator has already approved the
+campaign via the Telegram approval gate (`bulk-sms/proposed` →
+`step.waitForEvent` → `/approve`) — this endpoint IS the send, not a
+second approval point.
+
+**This is a mutating endpoint** (creates an SMS campaign + sends
+messages), unlike every `/api/bridge/*` GET endpoint above. It reuses
+nickstire's existing admin-campaigns pipeline
+(`routers/campaigns.ts: getSegmentCustomers` + `processCampaignSends`) so
+a bridge-triggered campaign gets the same resumable/gateway-aware/rate-
+limited send loop, and the same per-phone daily cap + cooldown + opt-out
++ TCPA footer inside `sendSms()`, that admin-UI-triggered campaigns get.
+
+**Request:**
+```
+POST /api/bridge/bulk-sms-send
+X-Statenour-Sync-Key: <key>
+Content-Type: application/json
+
+{
+  "campaignId": "winback-high-ltv-2026-07-09",
+  "segment": "lapsed",
+  "messageTemplate": "It's been a while — 10% off your next visit. {firstName}, walk in any day.",
+  "maxRecipients": 150,
+  "dryRun": true
+}
+```
+
+- `campaignId` — required string, ≤80 chars. Cross-system correlation id
+  (statenour's label), also used to build the `variantKey` tag
+  (`bulk_campaign:<campaignId>`) on every `smsMessages` row so per-
+  campaign attribution round-trips.
+- `segment` — required, one of `recent | lapsed | all` — the SAME three
+  segments `routers/campaigns.ts` defines. Deliberately NOT an arbitrary
+  filter object: a cross-network filter is both a SQL-surface risk and a
+  way to accidentally over-target. Callers needing different targeting
+  should get a named segment added here, not raw filters.
+- `messageTemplate` — required string, ≤1600 chars. Supports `{firstName}`
+  interpolation. This is the FULL message, not a preview.
+- `maxRecipients` — optional. Capped server-side regardless of what's
+  requested — see `BULK_BRIDGE_MAX_RECIPIENTS` in
+  `_core/statenour-bridge-routes.ts` (currently 300). Bridge-triggered
+  campaigns are meant to be targeted pushes, not full-database blasts.
+- `dryRun` — defaults to `true`. Only `dryRun: false` risks a real send.
+  A dry run does DB reads only (no campaign row, no send) and returns the
+  target count + a rendered preview so the caller can sanity-check first.
+
+**Response (dry run):**
+```json
+{
+  "success": true,
+  "dryRun": true,
+  "targetCount": 142,
+  "truncated": false,
+  "preview": "It's been a while — 10% off your next visit. Jane, walk in any day.\n\nReply STOP to opt out.",
+  "variantKey": "bulk_campaign:winback-high-ltv-2026-07-09"
+}
+```
+
+**Response (live send started):**
+```json
+{
+  "success": true,
+  "dryRun": false,
+  "campaignDbId": 47,
+  "targetCount": 142,
+  "truncated": false,
+  "variantKey": "bulk_campaign:winback-high-ltv-2026-07-09"
+}
+```
+
+`campaignDbId` is the `sms_campaigns.id` row — poll `campaigns.getById`
+(admin tRPC) for live sent/failed counts as `processCampaignSends` works
+through the batch (1 SMS/sec, gateway-offline holds and resumes via the
+existing `resumeStuckCampaigns` 5-min cron — nothing bridge-specific
+needed there).
+
+**Errors:** `400` for invalid `campaignId`/`segment`/`messageTemplate`,
+or an empty target segment on a live (non-dry-run) request. `503` if the
+DB is unavailable. `401` for a missing/invalid sync key (same
+`statenourAuth` middleware as every other `/api/bridge/*` endpoint).
+
+**Don't:** call this with `dryRun: false` in a loop or on retry after a
+timeout — a timeout here is ambiguous (the send may have already
+started) and retrying risks double-sending a customer segment. The
+statenour-side caller (`postNickstireBridge` in
+`apps/statenour/lib/nickstire/query.ts`) deliberately does not retry
+this endpoint for that reason.
+
 ---
 
-## 6. POST `/api/nour-os/query` — statenour COO actions
+---
+
+## 7. POST `/api/nour-os/query` — statenour COO actions
 
 A second, **action-style** bridge separate from the `/api/bridge/*` REST
 surface above. Statenour-os AI COO ("Nick") calls these to answer Nour's
@@ -557,6 +652,23 @@ the admin UI's `forceSyncNow`, not here.
   loop tables (impressions/actions/outcomes) are accumulating. Single
   round-trip 9-subquery SELECT · returns null/empty fields cleanly
   when the migration hasn't been applied yet (graceful pre-flight).
+- **v11.9** (2026-07-09) — `POST /api/bridge/bulk-sms-send` added
+  (Section 6, renumbering the query-action section to 7). Completes the
+  bulk-SMS pipeline: statenour's `bulk-sms-approval` Inngest workflow's
+  dispatch step now actually calls this endpoint instead of a no-op
+  TEMPLATE. Deliberately placed in the `/api/bridge/*` REST surface, NOT
+  `/api/nour-os/query` — that surface is documented read-only-by-design
+  (see "Don't" note under Section 7) and this endpoint mutates (creates
+  a campaign + sends SMS). Reuses `routers/campaigns.ts`'s existing
+  `getSegmentCustomers` + `processCampaignSends` pipeline rather than a
+  new send loop — same resumable/gateway-aware/rate-limited machinery
+  admin-triggered campaigns already have. `processCampaignSends` gained
+  a `variantKey` param (default `campaign:<id>`) so campaign sends are
+  now attributable in `smsPerformance` (previously untagged). Two
+  independent dry-run gates (statenour's `FEATURE_BULK_SMS_LIVE` env
+  flag + this endpoint's own `dryRun` default) sit on top of nickstire's
+  per-phone daily cap/cooldown/opt-out inside `sendSms()` — see the
+  endpoint's own doc comment for the full safety chain.
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is
