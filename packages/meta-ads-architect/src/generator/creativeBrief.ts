@@ -2,7 +2,7 @@ import { CampaignOutput } from "../schemas/output.js";
 
 export interface CreativeBriefPayload {
   contentType: "post" | "reel" | "carousel" | "story" | "poll";
-  platform: "both" | "instagram" | "facebook" | "tiktok" | "youtube";
+  platform: "both" | "instagram" | "facebook";
   topic: string;
   seriesName: string;
   hookCategory: string;

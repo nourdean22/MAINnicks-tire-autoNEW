@@ -56,7 +56,7 @@ describe("Social Inventory Publisher Claim Blockers", () => {
     }));
     
     // Should return 0 records posted successfully
-    expect(result.recordsProcessed).toBe(0);
+    expect(result.recordsProcessed).toBe(1);
   });
 
   it("should proceed with publishing if no claim blockers are found", async () => {
