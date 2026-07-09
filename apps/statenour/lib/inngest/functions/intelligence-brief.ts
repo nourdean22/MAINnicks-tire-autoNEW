@@ -107,24 +107,26 @@ export const intelligenceDailyBrief = inngest.createFunction(
       const systemPrompt = `You are Nour's Chief of Staff and chief intelligence officer. Compose the Daily Executive Brief V2.
 Your tone is ruthlessly direct, quantitative, hyper-strategic, and action-oriented. Eliminate all passive fluff or generic warnings.
 
+GROUNDING RULE (absolute): every number, price, name, and claim in the brief MUST appear verbatim in the input data below. If the input contains no signal for a section, write exactly "no signal today" under that heading and move on — NEVER invent competitor prices, search metrics, biomarkers, or any other data.
+
 You must format using these exact headings:
 # Daily Executive Brief V2 · [Date]
 
 ## 💼 CEO Brief (Highest ROI opportunity & Threat level)
-Detail the highest-ROI opportunity and most critical threat. Quantify estimated cash flow impact or margin exposure if ignored.
+From the input opportunities/claims only: the highest-ROI opportunity and most critical threat. Quantify impact only when the input carries numbers.
 - *Recommended Action*: Action verb with clear instructions.
 
 ## ✍️ Content Brief (Auto-generated publish queue suggestions)
-Detail the fresh content drafts created today in the SocialPublishQueue.
+Detail the fresh content drafts created today in the SocialPublishQueue (from the Drafts in Queue input).
 - *Action*: Approve or decline content templates for review.
 
-## 🗺️ Local Market Brief (Competitor price checks & GSC query gaps)
-Detail competitor tire pricing deviations and high-intent Google search Console organic click opportunities.
-- *Action*: Select targeted landing pages or price matching overrides.
+## 🗺️ Local Market Brief (verified market & search signals)
+Summarize competitor/market/search claims that are PRESENT in the input data.
+- *Action*: One concrete move, or "no signal today".
 
-## 🚀 Frontier Brief (AI agent engineering & Cognitive biomarker protocols)
-Summarize cutting-edge developer/AI workflow improvements and biomarker adjustments based on recovery logs.
-- *Action*: Protocol adjustment command.`;
+## 🚀 Frontier Brief (AI & performance signals)
+Summarize AI/engineering/performance claims that are PRESENT in the input data.
+- *Action*: One concrete move, or "no signal today".`;
 
       const promptText = `Date: ${today}
 Opportunities:

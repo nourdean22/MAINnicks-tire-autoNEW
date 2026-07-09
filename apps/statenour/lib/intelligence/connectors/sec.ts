@@ -14,16 +14,24 @@ export interface SECFilment {
   ticker: string;
   form: string;
   filedAt: string;
-  revenueBillions: number;
-  netIncomeBillions: number;
 }
 
+/**
+ * AG-02 · Fabrication purge. This connector previously emitted hardcoded
+ * competitor tire prices ("Discount Tire $245 Michelin…") and invented
+ * revenue/netIncome figures on real SEC filings — all of which flowed
+ * through claims → OpportunityLog → the pushed Daily Executive Brief as
+ * if real. Now: the EDGAR filing list is fetched for real (form + date
+ * only, no fabricated financials), and competitor prices return empty
+ * until a real scraper exists (planned: Firecrawl competitor-watch,
+ * ANTIGRAVITY_MASTER_PLAN AG-44). Unavailable data is EMPTY, never mocked.
+ */
 export async function fetchCompetitorAndSECData(): Promise<{ prices: CompetitorPrice[]; filings: SECFilment[] }> {
   // Free SEC EDGAR API queries require a User-Agent header following their policy: "DeclaredCompany nourishing@bdnick.info"
   const userAgent = "ClevelandTireNourishing nourdean22@gmail.com";
-  
+
   try {
-    // 1. Fetch from SEC EDGAR (e.g., Ford Motor Company CIK: 0000037996)
+    // Fetch from SEC EDGAR (e.g., Ford Motor Company CIK: 0000037996)
     const secUrl = "https://data.sec.gov/submissions/CIK0000037996.json";
     const res = await fetch(secUrl, {
       headers: {
@@ -32,7 +40,7 @@ export async function fetchCompetitorAndSECData(): Promise<{ prices: CompetitorP
       signal: AbortSignal.timeout(8000)
     });
 
-    let filings: SECFilment[] = [];
+    const filings: SECFilment[] = [];
     if (res.ok) {
       const payload = await res.json() as { ticker?: string; filings?: { recent?: { form: string[]; filingDate: string[] } } };
       const ticker = payload.ticker || "F";
@@ -44,38 +52,17 @@ export async function fetchCompetitorAndSECData(): Promise<{ prices: CompetitorP
           ticker,
           form: forms[i],
           filedAt: dates[i] || new Date().toISOString().split("T")[0],
-          revenueBillions: 176.2, // mock or parsed if we did deep parse
-          netIncomeBillions: 4.3
         });
       }
     } else {
-      filings = [
-        { ticker: "F", form: "10-Q", filedAt: "2026-05-02", revenueBillions: 42.8, netIncomeBillions: 1.8 },
-        { ticker: "GM", form: "10-Q", filedAt: "2026-04-28", revenueBillions: 39.9, netIncomeBillions: 2.1 }
-      ];
+      log.warn(`SEC EDGAR returned ${res.status}; emitting no filings rather than mock data.`);
     }
 
-    // 2. Fetch or parse Competitor price sheets
-    const prices: CompetitorPrice[] = [
-      { competitor: "Discount Tire", tireBrand: "Michelin Defender LTX", size: "275/55R20", price: 245.0, promo: "Buy 3 get 1 free" },
-      { competitor: "Firestone Complete Auto Care", tireBrand: "Bridgestone Dueler H/L", size: "265/70R17", price: 198.0, promo: "10% off set of 4" },
-      { competitor: "Pep Boys", tireBrand: "Cooper Discoverer AT3", size: "265/70R17", price: 179.0, promo: null }
-    ];
-
-    return { filings, prices };
+    return { filings, prices: [] };
   } catch (err) {
-    log.error("Failed to query SEC or competitor data, falling back to mock metrics.", {
+    log.error("Failed to query SEC EDGAR; emitting no data rather than mock metrics.", {
       error: err instanceof Error ? err.message : String(err)
     });
-    return {
-      filings: [
-        { ticker: "F", form: "10-Q", filedAt: "2026-05-02", revenueBillions: 42.8, netIncomeBillions: 1.8 },
-        { ticker: "GM", form: "10-Q", filedAt: "2026-04-28", revenueBillions: 39.9, netIncomeBillions: 2.1 }
-      ],
-      prices: [
-        { competitor: "Discount Tire", tireBrand: "Michelin Defender LTX", size: "275/55R20", price: 245.0, promo: "Buy 3 get 1 free" },
-        { competitor: "Firestone Complete Auto Care", tireBrand: "Bridgestone Dueler H/L", size: "265/70R17", price: 198.0, promo: "10% off set of 4" }
-      ]
-    };
+    return { filings: [], prices: [] };
   }
 }

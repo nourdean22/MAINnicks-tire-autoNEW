@@ -5,19 +5,28 @@ sitting beside the live chat handler. The router classifies each
 incoming user message and (optionally) dispatches it to a narrow
 specialist instead of general Nick.
 
-This is a **soft-launch**: the layer ships as dormant code paths,
-not wired into the live chat handler. The operator flips a feature
-flag to enable it.
+The layer IS wired into the live chat handler
+(`app/api/ai/chat/route.ts`, the specialist-routing block near the
+top of the POST handler), gated by the `ENABLE_SPECIALIST_ROUTING`
+feature flag. With the flag off (the default), `routeMessage()`
+short-circuits to `general` and nothing fires.
 
 ## Current specialists
 
-| Route                | Domain                                                              |
-|----------------------|---------------------------------------------------------------------|
-| `general`            | Default · the existing Nick chat path · unchanged                   |
-| `financial-analyst`  | Net worth · savings rate · spending categories · cash flow · debt   |
-| `decision-coach`     | Trade-offs · weighing options · past-Nour patterns · recovery paths |
-| `schedule-keeper`    | Calendar shape · free blocks · day rhythm · reschedules (task #16)  |
-| `marketing-director` | Marketing campaigns · SEO/AEO optimization · copywriting · social channels |
+> **Reality check (2026-07-09):** only `marketing-director` has an
+> implementation (`lib/ai/agents/specialists/marketing-director.ts`)
+> and a dispatch branch in the chat route. `financial-analyst`,
+> `decision-coach`, and `schedule-keeper` are ROUTE NAMES ONLY — the
+> router can classify to them, but the turn silently falls through to
+> general Nick. No specialist file or test exists for them.
+
+| Route                | Domain                                                              | Implemented? |
+|----------------------|---------------------------------------------------------------------|--------------|
+| `general`            | Default · the existing Nick chat path · unchanged                   | — (default)  |
+| `financial-analyst`  | Net worth · savings rate · spending categories · cash flow · debt   | ❌ route only |
+| `decision-coach`     | Trade-offs · weighing options · past-Nour patterns · recovery paths | ❌ route only |
+| `schedule-keeper`    | Calendar shape · free blocks · day rhythm · reschedules (task #16)  | ❌ route only |
+| `marketing-director` | Marketing campaigns · SEO/AEO optimization · copywriting · social channels | ✅ live (flag-gated) |
 
 Distinguishing schedule-keeper from decision-coach is the
 trickiest call: schedule-keeper is "WHERE in time" (placement) ·
@@ -69,19 +78,24 @@ path.
 1. Add the new route name to `SpecialistRoute` in
    `lib/ai/agents/types.ts`.
 2. Create `lib/ai/agents/specialists/<name>.ts` with a `run<Name>()`
-   function shaped like the two existing specialists. Use
-   `makeTracedAiChat("specialist-<name>", "brain")` so the call shows
-   up in `/system/agent-traces`. Include the `[[HANDBACK: reason]]`
-   marker rule in the system prompt.
+   function shaped like `marketing-director.ts` (the only existing
+   specialist). Use `makeTracedAiChat("specialist-<name>", "brain")`
+   so the call shows up in `/system/agent-traces`. Include the
+   `[[HANDBACK: reason]]` marker rule in the system prompt.
 3. Extend `lib/ai/agents/router.ts`:
    - Add a regex signal family at the top.
    - Update the pre-filter branching to recognize it.
    - Update the LLM classifier prompt's enum + rubric.
-4. Add a test file under `tests/ai/agents/<name>.test.ts` matching
-   the shape of `financial-analyst.test.ts`.
-5. Extend `tests/lib/validators/nick-classify-schema.test.ts` route
+4. **Add a dispatch branch in `app/api/ai/chat/route.ts`** where
+   `decision.route` is checked (search for `runMarketingDirector`).
+   Without this step the router classifies to your specialist but the
+   turn silently falls through to general Nick — this is exactly the
+   state financial-analyst / decision-coach / schedule-keeper are in.
+5. Add a test file under `tests/ai/agents/<name>.test.ts` (see
+   `tests/ai/agents/router.test.ts` for the existing patterns).
+6. Extend `tests/lib/validators/nick-classify-schema.test.ts` route
    enum check.
-6. Add at least one eval scenario in
+7. Add at least one eval scenario in
    `tests/eval/scenarios/specialist-routing-<name>.json` exercising
    the new specialist.
 
@@ -92,9 +106,10 @@ Each specialist's system prompt instructs the model to append
 has drifted out of its domain. The dispatcher (and tests) strip the
 marker and surface `{ handBack: true, reason }` on the response.
 
-Today the dispatcher does NOT exist as a wired entry point — the
-chat handler is still the legacy path. Hand-back is a contract that
-the dispatcher (when wired in a later wave) will respect.
+The dispatcher IS wired for marketing-director: the chat route's
+specialist block strips the marker and falls through to the normal
+pipeline when `{ handBack: true }` comes back. Any new specialist's
+dispatch branch must respect the same contract.
 
 ## Diagnostics
 
