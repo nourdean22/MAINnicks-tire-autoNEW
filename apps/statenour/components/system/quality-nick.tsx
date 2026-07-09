@@ -74,7 +74,12 @@ function AnimatedScore({ value }: { value: number }) {
   useEffect(() => {
     const start = display;
     const diff = value - start;
-    if (Math.abs(diff) < 1) { setDisplay(value); return; }
+    if (Math.abs(diff) < 1) { 
+      if (start !== value) {
+        requestAnimationFrame(() => setDisplay(value));
+      }
+      return; 
+    }
     const t0 = performance.now();
     let raf = 0;
     const step = (t: number) => {

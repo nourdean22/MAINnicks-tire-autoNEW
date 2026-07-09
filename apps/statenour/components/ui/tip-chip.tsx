@@ -110,7 +110,7 @@ export function TipChip({
   // (0,0)". useLayoutEffect runs synchronously before the browser paints.
   useLayoutEffect(() => {
     if (!open) {
-      setPos(null);
+      requestAnimationFrame(() => setPos(null));
       return;
     }
     recompute();
