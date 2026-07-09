@@ -767,7 +767,15 @@ export async function handleRunMigrations() {
       // reinforcement UPDATEs) but MISSING from the DB — those UPDATEs threw
       // "Unknown column", silently breaking chat conversion tracking. Add it.
       // Additive + safe (NOT NULL DEFAULT 0). IF NOT EXISTS = idempotent.
-      `ALTER TABLE conversation_memory ADD COLUMN IF NOT EXISTS conversionHits INT NOT NULL DEFAULT 0`
+      `ALTER TABLE conversation_memory ADD COLUMN IF NOT EXISTS conversionHits INT NOT NULL DEFAULT 0`,
+      // 2026-07-07 · BE-DATA-2 · customer phone-uniqueness. VIRTUAL generated
+      // last-10 digits + a unique index reject a duplicate customer regardless
+      // of stored phone format. Applied to prod first (0 dups; all insert paths
+      // already catch ER_DUP_ENTRY). VIRTUAL — TiDB forbids ADD of a STORED
+      // generated column via ALTER. IF NOT EXISTS + loop-catch = idempotent.
+      // Drizzle def: drizzle/schema.ts customers.phone10 + uniq_customer_phone10.
+      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS phone10 VARCHAR(10) GENERATED ALWAYS AS (RIGHT(REGEXP_REPLACE(phone,'[^0-9]',''),10)) VIRTUAL`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS uniq_customer_phone10 ON customers(phone10)`
     ];
 
     let applied = 0;

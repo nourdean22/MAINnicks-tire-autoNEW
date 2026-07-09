@@ -1,4 +1,5 @@
 import { int, bigint, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, primaryKey, decimal, date, datetime, float } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
 
 /**
  * Core user table backing auth flow.
@@ -966,6 +967,15 @@ export const customers = mysqlTable("customers", {
   lastName: varchar("lastName", { length: 100 }),
   phone: varchar("phone", { length: 30 }).notNull(),
   phone2: varchar("phone2", { length: 30 }),
+  /** BE-DATA-2 (2026-07-07) · DB-level dedup. VIRTUAL generated last-10 digits
+   *  of `phone`; the `uniq_customer_phone10` index below rejects a duplicate
+   *  customer regardless of stored phone format (E.164 / 10-digit / dashes).
+   *  Applied to prod first (0 existing dups). VIRTUAL — TiDB can't ADD a STORED
+   *  generated column via ALTER. Insert paths already catch ER_DUP_ENTRY. */
+  phone10: varchar("phone10", { length: 10 }).generatedAlwaysAs(
+    sql`RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10)`,
+    { mode: "virtual" },
+  ),
   email: varchar("email", { length: 320 }),
   address: varchar("address", { length: 500 }),
   city: varchar("city", { length: 100 }),
@@ -1016,6 +1026,9 @@ export const customers = mysqlTable("customers", {
   // shopDriverMirror, customerLookup) treats Duplicate-entry errors
   // as "race lost; fall through to UPDATE".
   uniqueIndex("uniq_customer_phone").on(table.phone),
+  // BE-DATA-2 · stricter dedup than uniq_customer_phone (which is on the raw
+  // string): catches the same person stored in different formats. Live in prod.
+  uniqueIndex("uniq_customer_phone10").on(table.phone10),
   index("idx_customer_segment").on(table.segment),
   index("idx_customer_last_visit").on(table.lastVisitDate),
   index("idx_customer_als_id").on(table.alsCustomerId),
