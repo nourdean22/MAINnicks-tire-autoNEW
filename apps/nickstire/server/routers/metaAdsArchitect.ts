@@ -13,6 +13,8 @@ import { createLogger } from "../lib/logger";
 import { getDbTyped } from "../db";
 import { socialContentInventory } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
+import { applyCreativeSkills } from "../services/skillRouter";
+import { validateClaimSafety } from "../services/contentManufacturing";
 
 const log = createLogger("routers:metaAdsArchitect");
 
@@ -94,8 +96,49 @@ export const metaAdsArchitectRouter = router({
         const payloads = extractCreativeBriefs(plan);
         const campaignId = `meta-campaign-${Date.now()}`;
 
+        // Get ad creative skill fragment
+        const skillPayload = await applyCreativeSkills({ type: "ad_composition" });
+        const adSkillFragment = ("fragment" in skillPayload) ? skillPayload.fragment : "";
+
         // Insert iteratively to allow nanoid or default id generation to handle it
+        let stagedCount = 0;
         for (const payload of payloads) {
+          // Append-only to the persona and body text to enforce DR tactics
+          let finalBodyText = payload.bodyText;
+          let finalPersona = payload.persona;
+
+          if (adSkillFragment) {
+            finalBodyText = `${payload.bodyText}\n\n[Creative Ad Instructions]: ${adSkillFragment}`;
+            finalPersona = `${payload.persona} (Direct Response Focus)`;
+          }
+
+          // Re-validate the merged payload
+          const validation = validateClaimSafety({
+             hookText: payload.hookText,
+             bodyText: finalBodyText,
+             caption: "", // Extract caption if available, else empty string
+             visualStyle: payload.visualStyle,
+             persona: finalPersona,
+             interactiveDmKeyword: "",
+             hashtags: [],
+             scoreCuriosity: 0,
+             scoreEmotion: 0,
+             scoreShareability: 0,
+             scoreCommentPotential: 0,
+             scoreSavePotential: 0,
+             scoreLocalRelevance: 0,
+             scoreRevenueRelevance: 0,
+             scoreAuthority: 0,
+             scoreHookStrength: 0,
+             briefJson: payload.briefJson,
+             adCopy: { hookYellow: "", hookWhite: "", hookSub: "", valueWhite: "", valueYellow: "", valueTicks: ["","",""], offerYellow: "", offerWhite: "", offerSub: "" }
+          });
+
+          if (!validation.safe) {
+            log.warn(`Skipping staging for brief due to safety failure after skill injection: ${validation.errors.join(", ")}`);
+            continue;
+          }
+
           await db.insert(socialContentInventory).values({
             id: `cb-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
             campaignId,
@@ -105,15 +148,16 @@ export const metaAdsArchitectRouter = router({
             seriesName: payload.seriesName,
             hookCategory: payload.hookCategory,
             hookText: payload.hookText,
-            bodyText: payload.bodyText,
+            bodyText: finalBodyText,
             visualStyle: payload.visualStyle,
-            persona: payload.persona,
+            persona: finalPersona,
             briefJson: payload.briefJson,
             status: payload.status,
           });
+          stagedCount++;
         }
 
-        return { success: true, count: payloads.length, campaignId };
+        return { success: true, count: stagedCount, campaignId };
       } catch (error) {
         log.error("Failed to stage creative briefs:", error);
         throw new TRPCError({
