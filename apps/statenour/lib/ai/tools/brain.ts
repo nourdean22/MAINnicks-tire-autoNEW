@@ -396,6 +396,30 @@ export const brainTools = {
   // TIER 2: PROACTIVE PUSH + DECISION REPLAY
   // ═══════════════════════════════════════════════════════
 
+  // AG-31 · tactician next-move — on-demand version of the brain-context
+  // block so the model can invoke it explicitly mid-conversation.
+  recommendNextMove: tool({
+    description:
+      "Tactician: compose the single best concrete next move for a power/negotiation/rivalry situation — verbatim moves from the Greene corpus plus live person power-state when the other party is tracked. Use when the operator asks 'what's my move' / 'how do I play this' / 'how do I counter'.",
+    inputSchema: z.object({
+      situation: z
+        .string()
+        .min(12)
+        .describe("The situation in the operator's words — include the other party's name if tracked"),
+    }),
+    execute: async ({ situation }) => {
+      const { buildNextMoveBlock } = await import("@/lib/ai/tactician/next-move");
+      const block = await buildNextMoveBlock(situation, { relaxed: true });
+      return block
+        ? { block, source: "tactician" }
+        : {
+            block: null,
+            note: "No tactical signal — no corpus trigger or tracked person matched this situation.",
+            source: "tactician",
+          };
+    },
+  }),
+
   searchGreeneLaws: tool({
     description: "Search the 189 Greene strategic laws by keyword. Returns matching laws with essence and shop/personal application.",
     inputSchema: z.object({

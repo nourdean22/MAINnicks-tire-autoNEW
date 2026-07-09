@@ -148,7 +148,11 @@ export type EmbeddingSourceType =
   // v10.0.515 · #10 Document Q&A · sourceType for ingested documents.
   // Each chunk is one row · sourceId = `${documentId}:chunk:${i}`.
   // Recall via knnSearch then surface in chat as context.
-  | "document";
+  | "document"
+  // AG-31 · the Wave Z Greene corpus (BrainMemory category greene_law —
+  // the actions-bearing store). sourceId = the BrainMemory key. Enables
+  // the matcher's vector fallback for paraphrases keyword triggers miss.
+  | "greene_law";
 
 async function markMemoryEmbeddingPending(memoryId: string): Promise<void> {
   try {

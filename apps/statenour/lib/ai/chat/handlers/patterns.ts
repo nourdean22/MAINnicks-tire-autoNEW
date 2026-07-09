@@ -114,6 +114,11 @@ export const EARLY_CHILL  = /^\/chill\b|\b(chill mode|go easy|less intense|relax
 // persist-assistant-turn (unconditional adversarial critic) both import it.
 export const EARLY_SPAR = /^\/spar\b/i;
 
+// AG-31 · /battle prefix — forces the tactician's NEXT MOVE composer with
+// relaxed thresholds (minScore 1 · maxLaws 3). Gives the /battle mode that
+// existed only as MODE_PERSONAS prose (operator-rules.ts) mechanical teeth.
+export const EARLY_BATTLE = /^\/battle\b/i;
+
 /**
  * v10.0.143 · /save — explicit user-triggered ingest. Heuristic-only
  * categorization (no LLM call), writes to BrainMemory, returns a

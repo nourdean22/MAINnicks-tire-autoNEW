@@ -243,6 +243,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getContextualGreeneLaws",       category: "brain",          battle: true,  cost: "free" },
   { name: "getDarkPsychologyTactics",      category: "brain",          battle: true,  cost: "free" },
   { name: "getPowerBalanceSummary",        category: "brain",          battle: true,  cost: "free" },
+  { name: "recommendNextMove",             category: "brain",          battle: true,  cost: "free" }, // AG-31 · tactician composer
 
   // ── files (Drive + GitHub) ───────────────────────────────────────
   { name: "buildArchitectureMemory",      category: "files",          cost: "spendy", riskClass: "low" },

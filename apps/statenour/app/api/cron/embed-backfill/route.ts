@@ -169,6 +169,40 @@ export const GET = cronHandler(async () => {
     totalSuccess += success;
   }
 
+  // ── greene_law (AG-31 · Wave Z corpus · actions-bearing store) ──
+  // ~164 one-time embeds, then static — the matcher's vector fallback
+  // reads this namespace when keyword triggers miss a paraphrase.
+  {
+    const embedded = await prisma.vectorEmbedding
+      .findMany({ where: { sourceType: "greene_law" }, select: { sourceId: true }, orderBy: { createdAt: "desc" }, take: 5000 });
+    const embeddedSet = new Set(embedded.map((e) => e.sourceId));
+    const laws = await prisma.brainMemory.findMany({
+      where: { category: "greene_law", deletedAt: null },
+      select: { key: true, metadata: true },
+      take: 500,
+    });
+    const missing = laws.filter((l) => !embeddedSet.has(l.key));
+    const batch = missing.slice(0, BATCH_PER_TYPE);
+    let success = 0;
+    for (const l of batch) {
+      try {
+        const meta = (l.metadata ?? {}) as { title?: string; summary?: string; triggers?: string[] };
+        const triggers = Array.isArray(meta.triggers) ? meta.triggers.slice(0, 12).join(", ") : "";
+        await storeGenericEmbedding(
+          "greene_law",
+          l.key,
+          `${meta.title ?? l.key}. ${meta.summary ?? ""}\nTriggers: ${triggers}`.slice(0, 2000),
+        );
+        success++;
+      } catch (err) {
+        log.warn("embed_failed", { err: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    report.greene_law = { processed: batch.length, success, remaining: missing.length - batch.length };
+    totalProcessed += batch.length;
+    totalSuccess += success;
+  }
+
   // ── chat_message (assistant only, ≥60 chars, most-recent bias) ──
   {
     const embedded = await prisma.vectorEmbedding
