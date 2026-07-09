@@ -239,6 +239,12 @@ export const BRAIN_CATEGORIES = {
    *  kind, approvedAt?, scheduledFor? }. status lifecycle: pending →
    *  approved → scheduled OR pending → rejected (soft-deletes). */
   CONTENT_DRAFT: "content_draft",
+  /** AG-44 · weekly publish→performance rollup. Key = ISO date of the
+   *  weekly run · content = top posts of the trailing 14d with REAL
+   *  Meta Graph numbers (impressions/engagement). Consumed by
+   *  buildGhostVoicePrompt's RECENT WINNERS block so the ghostwriter
+   *  learns from what actually performed. 45d TTL. */
+  CONTENT_WINNERS: "content_winners",
   DATA: "data",
   FILES: "files",
   LOCAL: "local",

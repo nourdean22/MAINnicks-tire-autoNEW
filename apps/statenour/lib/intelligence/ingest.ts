@@ -98,6 +98,11 @@ ${gbp ? `- Rating: ${gbp.rating} / 5.0 (${gbp.totalReviews} total reviews)
 `;
     } else if (source.domain === "competitor") {
       const { filings, prices } = await fetchCompetitorAndSECData();
+      // AG-44 · live promo-page snapshots (Firecrawl · empty when
+      // unkeyed) so this section carries what competitors are running
+      // TODAY, not just SEC filings. Best-effort — never fails ingest.
+      const { fetchCompetitorPages } = await import("./connectors/competitor-watch");
+      const webWatch = await fetchCompetitorPages().catch(() => []);
       rawContent = `# SEC EDGAR Filings & Competitor Pricing Report
 Generated: ${new Date().toISOString()}
 Source: ${source.url}
@@ -109,6 +114,14 @@ ${prices.length > 0 ? prices
       `- **${p.competitor}**: brand **${p.tireBrand}** (size ${p.size}) priced at **$${p.price}** (Promo: ${p.promo || "None"})`
   )
   .join("\n") : "- No verified competitor pricing available."}
+
+Competitor Promo Pages (live scrape):
+${webWatch.length > 0 ? webWatch
+  .map(
+    (w) =>
+      `### ${w.competitor} — ${w.title ?? w.url} (fetched ${w.fetchedAt})\n${w.excerpt}`
+  )
+  .join("\n\n") : "- No competitor page snapshots available (Firecrawl unkeyed or scrapes failed)."}
 
 SEC Edgar Filings:
 ${filings.length > 0 ? filings
