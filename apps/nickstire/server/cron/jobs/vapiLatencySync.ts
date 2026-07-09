@@ -187,14 +187,16 @@ export async function processVapiLatencySync(): Promise<{ recordsProcessed: numb
       if (claimed) {
         try {
           const { sendTelegramMessage } = await import("../../services/telegram");
-          const e2e = stages.find((s) => s.stage === "end_to_end");
+          // 2026-07-09 · the streak now measures llm_first_token (see
+          // getCurrentBreachStreak) — report that stage, not call duration.
+          const ftok = stages.find((s) => s.stage === "llm_first_token");
           const lines = [
             "🔴 <b>Voice latency · breach streak</b>",
             "",
-            `Consecutive call-days over ${VOICE_LATENCY_TARGET_MS}ms · ${breach.streak}`,
-            e2e
-              ? `7d end_to_end · p50 ${e2e.p50}ms · p95 ${e2e.p95}ms · ${e2e.count} calls`
-              : "7d end_to_end · no data",
+            `Consecutive call-days with first-token p50 over ${VOICE_LATENCY_TARGET_MS}ms · ${breach.streak}`,
+            ftok
+              ? `7d llm_first_token · p50 ${ftok.p50}ms · p95 ${ftok.p95}ms · ${ftok.count} samples`
+              : "7d llm_first_token · no data",
             "",
             "Recent p50s · " +
               breach.recentP50s

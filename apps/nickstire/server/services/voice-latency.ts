@@ -260,12 +260,21 @@ export async function getCurrentBreachStreak(): Promise<BreachStreak> {
     const d = await db();
     if (!d) throw new Error("DB unavailable");
     // wave-181.17 silent-failure F6 · same LIMIT guard as
-    // getP50P95ByStage. 14-day end_to_end only, much narrower than the
-    // 90-day all-stage scan above but still cap for safety.
+    // getP50P95ByStage. 14-day window, capped for safety.
+    //
+    // 2026-07-09 metric fix · the streak used to bucket `end_to_end`
+    // rows — but those are startedAt→endedAt, i.e. WHOLE-CALL DURATION
+    // (live 14d p50 was ~33.6 SECONDS), compared against the 500ms
+    // responsiveness target. A phone call can never finish in 500ms,
+    // so every call-day breached and the daily 🔴 alert fired forever
+    // (a 13-day streak was live when this was caught — pure alarm
+    // fatigue). The stage the target actually describes is
+    // `llm_first_token` — time until the model starts answering —
+    // which was a genuinely healthy ~488ms avg over the same window.
     rows = await d
       .select({ createdAt: voiceLatencyEvents.createdAt, latencyMs: voiceLatencyEvents.latencyMs })
       .from(voiceLatencyEvents)
-      .where(and(eq(voiceLatencyEvents.stage, "end_to_end"), gte(voiceLatencyEvents.createdAt, since)))
+      .where(and(eq(voiceLatencyEvents.stage, "llm_first_token"), gte(voiceLatencyEvents.createdAt, since)))
       .orderBy(desc(voiceLatencyEvents.createdAt))
       .limit(VOICE_LATENCY_ROW_LIMIT);
   } catch (err) {
