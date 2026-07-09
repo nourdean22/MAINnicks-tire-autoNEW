@@ -108,57 +108,6 @@ async function chatPostInner(req: Request) {
     role?: string;
   };
 
-  // ── Specialist Sub-Agent Routing ──
-  const { isSpecialistRoutingEnabled } = await import("@/lib/ai/agents/types");
-  if (isSpecialistRoutingEnabled()) {
-    const mappedMessages = messages.map(m => {
-      const msg = m as any;
-      let content = "";
-      if (typeof msg.content === "string") {
-        content = msg.content;
-      } else if (msg.parts && Array.isArray(msg.parts)) {
-        content = msg.parts
-          .map((p: any) => (p && typeof p.text === "string" ? p.text : ""))
-          .filter(Boolean)
-          .join(" ");
-      }
-      const role = (msg.role === "user" || msg.role === "assistant" || msg.role === "system")
-        ? (msg.role as "user" | "assistant" | "system")
-        : ("user" as const);
-      return { role, content };
-    }).filter(m => m.content.length > 0);
-
-    const { routeMessage } = await import("@/lib/ai/agents/router");
-    const decision = await routeMessage({ messages: mappedMessages });
-    
-    if (decision.route === "marketing-director") {
-      log.info("specialist_routing_match", { route: decision.route, reason: decision.reason });
-      const { runMarketingDirector } = await import("@/lib/ai/agents/specialists/marketing-director");
-      const specResult = await runMarketingDirector({ messages: mappedMessages });
-      
-      if (specResult.handBack) {
-        log.info("specialist_handback", { route: decision.route, reason: specResult.reason });
-      } else {
-        const { persistUserTurn } = await import("@/lib/services/chat/persist-user-turn");
-        const resolvedConvId = await persistUserTurn({
-          convId,
-          lastUserMsg,
-          userContent,
-          log,
-          recordError,
-        });
-
-        const { buildFastStream } = await import("@/lib/ai/chat/handlers/shared");
-        return buildFastStream(
-          resolvedConvId,
-          specResult.content,
-          "specialist_marketing",
-          specResult.provider || "reason"
-        );
-      }
-    }
-  }
-
   // Apr 28 · Content-mode detection runs early so it can drive both
   // (a) provider selection — Ollama Cloud (1M context) gets promoted
   //     when content-mode fires, since the v5.0 engine inflates the
@@ -192,6 +141,89 @@ async function chatPostInner(req: Request) {
   if (interceptResult.kind === "handled") {
     convId = interceptResult.convId;
     return interceptResult.response;
+  }
+
+  // ── Specialist Sub-Agent Routing ──
+  // AG-42 · SAFETY reorder: this block used to sit ABOVE the
+  // interceptor fast-path AND above every budget check, so
+  //   (a) an image-gen / decision-log / brain-dump message that also
+  //       tripped a specialist keyword got hijacked away from its
+  //       deterministic handler, and
+  //   (b) the router LLM tiebreak + specialist dispatch spent money
+  //       even after the daily budget was blown.
+  // It now runs AFTER the interceptors (deterministic intents win by
+  // ordering) and behind a hoisted budget check. Shadow mode
+  // (ENABLE_SPECIALIST_ROUTING="shadow") classifies + records what
+  // WOULD have routed (SystemMetric `specialist.route`) but never
+  // dispatches — measure on live traffic before flipping to "true".
+  const { isSpecialistRoutingEnabled, isSpecialistShadowMode } = await import("@/lib/ai/agents/types");
+  if (isSpecialistRoutingEnabled() || isSpecialistShadowMode()) {
+    const { assertWithinBudget: assertSpecBudget } = await import("@/lib/ai/budget");
+    const specBudget = await assertSpecBudget().catch(() => null);
+    if (specBudget && !specBudget.ok) {
+      log.info("specialist_routing_skipped", { reason: "budget_exceeded" });
+    } else {
+      const mappedMessages = messages.map(m => {
+        const msg = m as any;
+        let content = "";
+        if (typeof msg.content === "string") {
+          content = msg.content;
+        } else if (msg.parts && Array.isArray(msg.parts)) {
+          content = msg.parts
+            .map((p: any) => (p && typeof p.text === "string" ? p.text : ""))
+            .filter(Boolean)
+            .join(" ");
+        }
+        const role = (msg.role === "user" || msg.role === "assistant" || msg.role === "system")
+          ? (msg.role as "user" | "assistant" | "system")
+          : ("user" as const);
+        return { role, content };
+      }).filter(m => m.content.length > 0);
+
+      const { routeMessage } = await import("@/lib/ai/agents/router");
+      const decision = await routeMessage({ messages: mappedMessages });
+
+      if (isSpecialistShadowMode()) {
+        // Shadow: record, never dispatch. Fire-and-forget — metrics
+        // must never delay or fail the chat turn.
+        void import("@/lib/prisma").then(({ prisma }) =>
+          prisma.systemMetric.create({
+            data: {
+              metric: "specialist.route",
+              value: decision.confidence,
+              unit: "confidence",
+              source: "chat",
+              tags: { route: decision.route, reason: decision.reason.slice(0, 120), shadow: true },
+            },
+          }),
+        ).catch(() => undefined);
+      } else if (decision.route === "marketing-director") {
+        log.info("specialist_routing_match", { route: decision.route, reason: decision.reason });
+        const { runMarketingDirector } = await import("@/lib/ai/agents/specialists/marketing-director");
+        const specResult = await runMarketingDirector({ messages: mappedMessages });
+
+        if (specResult.handBack) {
+          log.info("specialist_handback", { route: decision.route, reason: specResult.reason });
+        } else {
+          const { persistUserTurn } = await import("@/lib/services/chat/persist-user-turn");
+          const resolvedConvId = await persistUserTurn({
+            convId,
+            lastUserMsg,
+            userContent,
+            log,
+            recordError,
+          });
+
+          const { buildFastStream } = await import("@/lib/ai/chat/handlers/shared");
+          return buildFastStream(
+            resolvedConvId,
+            specResult.content,
+            "specialist_marketing",
+            specResult.provider || "reason"
+          );
+        }
+      }
+    }
   }
 
   // ═══ HALLUCINATION PREVENTION ═══
