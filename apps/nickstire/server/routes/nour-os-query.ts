@@ -447,6 +447,32 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     } catch { return { error: "Intelligence unavailable" }; }
   },
 
+  // ─── Team performance (AG-20 · 2026-07-09) ────
+  // First staff-visible bridge handler: none of the other 33 exposed
+  // team data, so the statenour command center (chat, Telegram,
+  // warroom) was completely blind to shop staff — "who's clocked in"
+  // was unanswerable. Returns per-tech 30d metrics + clock state.
+  "team_performance": async () => {
+    try {
+      const { getTeamPerformance } = await import("../services/staffPerformance");
+      const perf = await getTeamPerformance();
+      return {
+        techs: perf.techs.map((t) => ({
+          techId: t.techId,
+          name: t.name,
+          role: t.role,
+          clockedIn: t.clockedIn,
+          currentLoad: t.currentLoad,
+          jobsCompleted30d: t.metrics.jobsCompleted30d,
+          totalRevenue30d: t.metrics.totalRevenue30d,
+          qcPassRate: t.metrics.qcPassRate,
+          comebackRate: t.metrics.comebackRate,
+        })),
+        teamTotals: perf.teamTotals,
+      };
+    } catch { return { error: "Staff data unavailable" }; }
+  },
+
   // ─── Feature flags ────────────────────────────
   "feature_flags": async () => {
     const { getAllFlags } = await import("../services/featureFlags");

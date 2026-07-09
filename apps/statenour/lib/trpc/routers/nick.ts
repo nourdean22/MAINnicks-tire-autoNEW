@@ -320,6 +320,19 @@ export const nickRouter = router({
   suggestions: operatorProcedure.query(async () => buildNickSuggestions()),
 
   /**
+   * AG-21 (2026-07-09) · persona effectiveness scores. The write side
+   * (recordPersonaUsage) has fed BrainMemory(persona_usage) from all
+   * three reasoning sub-pipelines since M.2, but scorePersonas() had
+   * zero callers — the accumulated telemetry was invisible. Read-only;
+   * returns sorted PersonaScore[] with good/ok/tune verdicts. This is
+   * the prerequisite surface for any future scorer-driven selection.
+   */
+  personaScores: operatorProcedure.query(async () => {
+    const { scorePersonas } = await import("@/lib/ai/personas/scorer");
+    return scorePersonas();
+  }),
+
+  /**
    * Task #13 (2026-05-23) · classify a message → route decision.
    * Diagnostics-only · the live chat handler does NOT call this; it
    * lives here so the operator UI can surface "this turn would route

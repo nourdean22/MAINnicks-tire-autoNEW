@@ -1322,8 +1322,9 @@ export function startTieredScheduler(): void {
         name: "staff-performance",
         handler: async () => {
           const { getTeamPerformance } = await import("../services/staffPerformance");
-          const perf = await getTeamPerformance();
-          return { recordsProcessed: perf.techs?.length || 0, details: "Rollup complete" };
+          // AG-20 · persist tech metrics (see cron/index.ts twin).
+          const perf = await getTeamPerformance(true);
+          return { recordsProcessed: perf.techs?.length || 0, details: "Rollup complete (persisted)" };
         },
       },
       {

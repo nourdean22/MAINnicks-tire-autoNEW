@@ -36,6 +36,8 @@ import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import { buildCitationPrompt } from "@/lib/ai/memory-citations";
 import { buildNourVoicePrompt } from "@/lib/ai/nour-voice-profile";
 import { getBehaviorDirective } from "@/lib/ai/knowledge/behavior-directive";
+import { buildContractDirective } from "@/lib/ai/response-contract";
+import type { ResponseContract } from "@/lib/ai/response-contract";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { ContextBlocksFired } from "@/lib/services/chat/brain-context";
 
@@ -61,6 +63,11 @@ export interface FinalizeSystemPromptInput {
   mode: ChatMode;
   /** Query-shape result — drives the tool-first directive. */
   queryShape: Parameters<typeof toolFirstDirective>[0];
+  /** AG-11 · Per-turn response contract (answerMode, rank counts,
+   *  clarifying-question policy). Optional — buildContractDirective
+   *  returns "" for unconstrained turns, so this is zero-cost on
+   *  casual chat. */
+  contract?: ResponseContract;
   log: ChatLogger;
 }
 
@@ -102,8 +109,12 @@ export async function finalizeSystemPrompt(
     systemPrompt = systemPrompt.slice(0, MAX_SYSTEM_CHARS) + "\n\n[System prompt truncated for model context limits]";
   }
 
-  // Load Greene strategic law library for context — skip for smaller models
-  const strategicLaws = provider === "anthropic" ? await prisma.strategicLaw.findMany({
+  // Load Greene strategic law library for context — skip for smaller
+  // models. AG-14: was anthropic-ONLY while the live primary is ollama
+  // (Ollama Cloud, 1M context per the route's provider notes) — a
+  // documented feature silently off on almost every turn. The ~189
+  // one-liners (~15K chars) fit both providers' budgets.
+  const strategicLaws = (provider === "anthropic" || provider === "ollama") ? await prisma.strategicLaw.findMany({
     select: { book: true, number: true, shortTitle: true, essence: true, shopApplication: true, nourApplication: true },
     orderBy: [{ book: "asc" }, { number: "asc" }],
   }).catch((): never[] => []) : [];
@@ -171,6 +182,14 @@ You are in Friend mode — just Nour's friend Nick.
     systemPrompt += `\n\n${shapePrompt}`;
   }
 
+  // AG-11 · Response-contract directive — the turn's explicit output
+  // obligations (exact item counts, no-clarifying-questions, don't claim
+  // actions, ...). Empty string for unconstrained turns.
+  const contractDirective = input.contract ? buildContractDirective(input.contract) : "";
+  if (contractDirective) {
+    systemPrompt += `\n\n${contractDirective}`;
+  }
+
   // Apr 19 · Citation protocol — added on turns where any brain block
   // fired. Tells the model it MAY cite sources with [brain:TAG]. We
   // skip the directive on casual turns to save tokens.
@@ -202,6 +221,17 @@ You are in Friend mode — just Nour's friend Nick.
   ]);
   if (voiceGuardIntents.has(turnSignal.intent)) {
     systemPrompt += `\n\n${buildNourVoicePrompt()}`;
+    // AG-15 · corpus-derived identity anchor (8-axis identity + voice
+    // profile built from Nour's REAL writing by the persona-corpus
+    // importer). The import script's own success message claimed "next
+    // chat turn picks them up" — but no chat code ever called this.
+    // Self-caches 15min and returns "" when no identity snapshot exists,
+    // so it's a safe no-op until the corpus is imported.
+    const { getPersonaAnchorPrompt } = await import("@/lib/brain/persona-drift-detector");
+    const anchorPrompt = await getPersonaAnchorPrompt().catch(() => "");
+    if (anchorPrompt) {
+      systemPrompt += `\n\n${anchorPrompt}`;
+    }
   }
 
   // Brevity enforcement (except builder which needs length for code explanations)

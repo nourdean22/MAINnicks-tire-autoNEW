@@ -117,6 +117,46 @@ async function embedQuery(query: string): Promise<number[] | null> {
   }
 }
 
+// ── parsed-vector cache · AG-17 ─────────────────────────────────
+// recallSkills used to findMany ALL skill embedding rows and JSON.parse
+// every ~1024-float vector on EVERY call — tens of MB from Postgres per
+// recall. Embeddings only change when scripts/embed-skills.ts runs, so a
+// 1h TTL (mirroring REGISTRY_TTL_MS) is safe.
+const VECTOR_CACHE_TTL_MS = 60 * 60 * 1000;
+let vectorCache: {
+  rows: { sourceId: string; vec: number[] }[];
+  loadedAt: number;
+} | null = null;
+
+async function loadSkillVectors(): Promise<{ sourceId: string; vec: number[] }[]> {
+  const now = Date.now();
+  if (vectorCache && now - vectorCache.loadedAt < VECTOR_CACHE_TTL_MS) {
+    return vectorCache.rows;
+  }
+  const rows = await prisma.vectorEmbedding.findMany({
+    where: { sourceType: "skill" },
+    select: { sourceId: true, embedding: true },
+  });
+  const parsed: { sourceId: string; vec: number[] }[] = [];
+  for (const r of rows) {
+    try {
+      const vec = JSON.parse(r.embedding) as number[];
+      if (Array.isArray(vec) && vec.length > 0) {
+        parsed.push({ sourceId: r.sourceId, vec });
+      }
+    } catch {
+      // skip malformed embedding row
+    }
+  }
+  vectorCache = { rows: parsed, loadedAt: now };
+  return parsed;
+}
+
+/** Test hook · drops the parsed-vector cache. */
+export function _resetSkillVectorCache(): void {
+  vectorCache = null;
+}
+
 // ── recall ──────────────────────────────────────────────────────
 
 /**
@@ -136,11 +176,7 @@ export async function recallSkills(
   const queryVec = await embedQuery(query);
   if (!queryVec) return [];
 
-  // Pull the embedding rows for sourceType=skill.
-  const rows = await prisma.vectorEmbedding.findMany({
-    where: { sourceType: "skill" },
-    select: { sourceId: true, embedding: true },
-  });
+  const rows = await loadSkillVectors();
   if (rows.length === 0) return [];
 
   // Build registry lookup map · O(1) access during scoring.
@@ -148,16 +184,25 @@ export async function recallSkills(
   for (const s of reg.skills) byName.set(s.name, s);
 
   const scored: { name: string; sim: number }[] = [];
+  let dimSkipped = 0;
   for (const r of rows) {
-    try {
-      const vec = JSON.parse(r.embedding) as number[];
-      if (vec.length !== queryVec.length) continue;
-      const sim = cosineSimilarity(queryVec, vec);
-      if (sim < SIMILARITY_FLOOR) continue;
-      scored.push({ name: r.sourceId, sim });
-    } catch {
-      // skip malformed embedding row
+    if (r.vec.length !== queryVec.length) {
+      dimSkipped++;
+      continue;
     }
+    const sim = cosineSimilarity(queryVec, r.vec);
+    if (sim < SIMILARITY_FLOOR) continue;
+    scored.push({ name: r.sourceId, sim });
+  }
+  // AG-17 · loud dim-mismatch guard. If EVERY row was skipped for a
+  // dimension mismatch, the embedding provider failed over to a
+  // different-dim model and recall would silently return [] forever —
+  // the exact silent-zero failure mode the audit flagged.
+  if (rows.length > 0 && dimSkipped === rows.length) {
+    log.warn("skill_recall_dim_mismatch", {
+      expectedDims: queryVec.length,
+      rowsSkipped: dimSkipped,
+    });
   }
   scored.sort((a, b) => b.sim - a.sim);
 

@@ -137,6 +137,9 @@ export async function buildBrainContext(
       contradictionInjectorMod,
       strategicFrameworksMod,
       anticipatoryRecallMod,
+      greeneMatcherMod,
+      darkPsychMatcherMod,
+      skillRegistryRecallMod,
     ] = await Promise.all([
       import("@/lib/brain/chat-recall").catch(() => null),
       import("@/lib/brain/skill-extractor").catch(() => null),
@@ -164,6 +167,18 @@ export async function buildBrainContext(
       import("@/lib/brain/contradiction-injector").catch(() => null),
       import("@/lib/ai/strategic-frameworks").catch(() => null),
       import("@/lib/brain/anticipatory-recall").catch(() => null),
+      // AG-14 · Greene + dark-psych trigger matchers — deterministic
+      // sub-ms keyword matchers over the BrainMemory corpora, previously
+      // wired ONLY into the reasoning engine's draft step (normal chat
+      // reached Greene via just 2 capped vector hits).
+      import("@/lib/ai/greene-message-matcher").catch(() => null),
+      import("@/lib/ai/dark-psychology-matcher").catch(() => null),
+      // AG-17 · registry skill recall (lib/skills/ — the 1.4K-skill
+      // semantic index, NOT lib/brain/skill-extractor's learned
+      // behavioral skills above). Auto-injection died in the Prompt V2
+      // cutover (PR #432) — this restores it and its
+      // skill.recall.injected telemetry (ADR-0007 open item).
+      import("@/lib/skills/skill-context").catch(() => null),
     ]);
 
     const [
@@ -176,6 +191,9 @@ export async function buildBrainContext(
       groundingBlock,
       contradictionHit,
       strategicLensBlock,
+      greeneBlock,
+      darkPsychBlock,
+      skillRegistryBlock,
     ] = await Promise.all([
       userContent.length > 10 && recallMod
         ? withTimeout(recallMod.buildChatRecallBlock(userContent, mode === "deep" ? 6 : 4), 3000, "")
@@ -242,6 +260,32 @@ export async function buildBrainContext(
       strategicFrameworksMod
         ? Promise.resolve(strategicFrameworksMod.composeStrategicLensBlock(userContent))
         : Promise.resolve(null),
+      // AG-14 · both matchers self-gate (minScore 2 → "" on casual turns)
+      // and their blocks stay NON-critical so the reranker can drop them
+      // on low similarity — prompt-budget guard per the plan.
+      userContent.length > 10 && greeneMatcherMod
+        ? withTimeout(
+            greeneMatcherMod
+              .pickContextualLawsForMessage(userContent)
+              .then((picks) => greeneMatcherMod.renderGreeneBlock(picks)),
+            3000,
+            "",
+          )
+        : Promise.resolve(""),
+      userContent.length > 10 && darkPsychMatcherMod
+        ? withTimeout(
+            darkPsychMatcherMod
+              .pickDarkPsychologyForMessage(userContent)
+              .then((picks) => darkPsychMatcherMod.renderDarkPsychologyBlock(picks)),
+            3000,
+            "",
+          )
+        : Promise.resolve(""),
+      // AG-17 · fails closed ("" on any error) + 60s per-message cache
+      // inside skill-context; ~450 tokens/turn worst case (top-3 skills).
+      userContent.length > 10 && skillRegistryRecallMod
+        ? withTimeout(skillRegistryRecallMod.getRelevantSkillsBlock(userContent), 3000, "")
+        : Promise.resolve(""),
     ]);
 
     // 2026-07-04 (audit) · anticipateMemories is an LLM call awaited
@@ -297,6 +341,9 @@ export async function buildBrainContext(
       { name: "Truth Grounding", content: groundingBlock || "", critical: true },
       { name: "Contradiction Alert", content: contradictionAlertBlock || "", critical: true },
       { name: "Strategic Lens", content: strategicLensBlock || "", critical: true },
+      { name: "Greene Strategy Frame", content: greeneBlock || "" },
+      { name: "Dark Psychology Frame", content: darkPsychBlock || "" },
+      { name: "Skill Registry Recall", content: skillRegistryBlock || "" },
       { name: "Predictive Prefetch", content: prefetchResults?.length ? formatPrefetchContext(prefetchResults as PrefetchResult[]) || "" : "", critical: true }
     ].filter((b) => b.content && b.content.trim().length > 0);
 

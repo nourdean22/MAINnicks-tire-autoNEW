@@ -504,6 +504,7 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | `revenue_range` | `from?, to?` | Total + avg ticket for range |
 | `revenue_today` | none | Today's revenue (ET-anchored) |
 | `shop_pulse` | none | Live snapshot via nickIntelligence |
+| `team_performance` | none | AG-20 (2026-07-09) · per-tech 30d metrics + clock state · `{ techs: [{ techId, name, role, clockedIn, currentLoad, jobsCompleted30d, totalRevenue30d, qcPassRate, comebackRate }], teamTotals }`. First staff-visible handler — statenour command-center consumer. |
 | `work_orders_active` | none | Open work orders (≠ completed/cancelled) |
 
 ### master_report shape (added v11.5, 2026-05-24)

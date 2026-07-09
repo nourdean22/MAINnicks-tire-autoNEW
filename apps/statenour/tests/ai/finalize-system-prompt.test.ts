@@ -23,6 +23,7 @@ import { finalizeSystemPrompt } from "@/app/api/ai/chat/finalize-system-prompt";
 import { classifyTurn } from "@/lib/ai/turn-intelligence";
 import { detectQueryShape } from "@/lib/ai/query-shape";
 import { setIntensityOverride } from "@/lib/ai/knowledge/behavior-directive";
+import { buildResponseContract } from "@/lib/ai/response-contract";
 import type { ContextBlocksFired } from "@/lib/services/chat/brain-context";
 
 const NO_BLOCKS = {
@@ -38,16 +39,21 @@ const NO_BLOCKS = {
 
 const silentLog = { info: () => {} };
 
-async function finalize(userContent: string) {
+async function finalize(userContent: string, opts?: { withContract?: boolean }) {
+  const turnSignal = classifyTurn(userContent);
+  const queryShape = detectQueryShape(userContent);
   const result = await finalizeSystemPrompt({
     systemPrompt: "BASE PROMPT",
     provider: "ollama",
     personality: "master",
     userContent,
-    turnSignal: classifyTurn(userContent),
+    turnSignal,
     contextBlocksFired: NO_BLOCKS,
     mode: "standard" as never,
-    queryShape: detectQueryShape(userContent),
+    queryShape,
+    contract: opts?.withContract
+      ? buildResponseContract(userContent, turnSignal, queryShape.shape)
+      : undefined,
     log: silentLog,
   });
   return result.systemPrompt;
@@ -104,5 +110,33 @@ describe("finalizeSystemPrompt · behavior directive (AG-10)", () => {
       "analyze whether raising the alignment price would hurt our win rate",
     );
     expect(prompt).not.toContain("ANTICIPATE");
+  });
+});
+
+describe("finalizeSystemPrompt · response contract (AG-11)", () => {
+  it("enforces exact rank counts and no-clarifying-questions", async () => {
+    const prompt = await finalize(
+      "give me the top 5 hooks for the tire post, don't ask questions",
+      { withContract: true },
+    );
+    expect(prompt).toContain("Return exactly 5 ranked items.");
+    expect(prompt).toContain("Do NOT ask clarifying questions");
+  });
+
+  it("keeps casual turns tight (concise directive, nothing heavier)", async () => {
+    // "hey" is not unconstrained: the contract classifies it casual and
+    // emits a small conciseness directive. Pin that — and pin that none
+    // of the heavyweight obligations leak in.
+    const prompt = await finalize("hey", { withContract: true });
+    expect(prompt).toContain("Be concise");
+    expect(prompt).not.toContain("ranked items");
+    expect(prompt).not.toContain("Do NOT ask clarifying questions");
+  });
+
+  it("omitting the contract leaves the prompt byte-identical (default path unchanged)", async () => {
+    const a = await finalize("hey");
+    const b = await finalize("hey");
+    expect(a).toBe(b);
+    expect(a).not.toContain("## This turn");
   });
 });

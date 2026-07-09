@@ -194,6 +194,27 @@ describe("renderGreeneBlock", () => {
     expect(out).toContain("Crush Your Enemy Totally");
     expect(out).toContain("48 Laws of Power");
     expect(out).toContain("frame · do NOT lecture");
+    // No actions on the pick → no move lines (AG-14 defensive path)
+    expect(out).not.toContain("→ move:");
+  });
+
+  it("renders '→ move:' lines when the pick carries corpus actions (AG-14)", () => {
+    const out = renderGreeneBlock([
+      {
+        key: "law_16",
+        title: "Use Absence to Increase Respect",
+        summary: "Scarcity of presence raises its value.",
+        book: "48 Laws of Power",
+        score: 2,
+        hits: ["absence"],
+        actions: [
+          "Go quiet for 48 hours after the proposal lands",
+          "Let them make the next contact",
+        ],
+      },
+    ]);
+    expect(out).toContain("→ move: Go quiet for 48 hours after the proposal lands");
+    expect(out).toContain("→ move: Let them make the next contact");
   });
 
   it("handles multiple picks with mixed books", () => {

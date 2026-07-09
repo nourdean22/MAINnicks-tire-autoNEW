@@ -85,10 +85,10 @@ export const brainTools = {
   // v10.0.524 · #6 Skill suggestion tool. Pulls the top-K Claude
   // skills semantically similar to a query. Operator can ask
   // "which skill should I apply for X" and Nick surfaces the
-  // best-fit specialist lens from the 1,423-skill library.
+  // best-fit specialist lens from the indexed skill registry.
   suggestSkills: tool({
     description:
-      "Find the best Claude skills (from the 1,423 indexed) for the operator's current task or question. Returns skill name + description + similarity score for top 3 matches. Use when the operator says 'which skill applies here', 'is there a skill for X', or when Nick wants to recommend a specialist lens before answering.",
+      "Find the best Claude skills (from the indexed skill registry) for the operator's current task or question. Returns skill name + description + similarity score for top 3 matches. Use when the operator says 'which skill applies here', 'is there a skill for X', or when Nick wants to recommend a specialist lens before answering.",
     inputSchema: z.object({
       query: z
         .string()
@@ -277,7 +277,7 @@ export const brainTools = {
 
   searchSkills: tool({
     description:
-      "Semantic search across the 1,423 Claude skills installed locally. Returns top-K skills most relevant to a query · use when Nour asks 'what skill helps with X' or 'find me a skill for Y', when you need a specific framework/approach (e.g. 'kaizen', 'database design', 'mobile UX audit'), OR when a workflow could benefit from invoking a known skill protocol. Each match includes name, description, similarity score, category, and tags. Skills are pulled from ~/.claude/skills/ + plugin marketplaces · multi-language coverage (skills authored in Chinese/Portuguese still match English queries via their English summaries).",
+      "Semantic search across the indexed Claude skill registry. Returns top-K skills most relevant to a query · use when Nour asks 'what skill helps with X' or 'find me a skill for Y', when you need a specific framework/approach (e.g. 'kaizen', 'database design', 'mobile UX audit'), OR when a workflow could benefit from invoking a known skill protocol. Each match includes name, description, similarity score, category, and tags. Skills are pulled from ~/.claude/skills/ + plugin marketplaces · multi-language coverage (skills authored in Chinese/Portuguese still match English queries via their English summaries).",
     inputSchema: z.object({
       query: z
         .string()

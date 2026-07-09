@@ -3,6 +3,7 @@ import { getModel, getActiveProviderInfo, isRuntimeProvider, GEMINI_SAFETY_OFF, 
 import { buildSystemPrompt, detectTopicTier } from "@/lib/ai/system-prompt";
 import { detectQueryShape } from "@/lib/ai/query-shape";
 import { classifyTurn } from "@/lib/ai/turn-intelligence";
+import { buildResponseContract } from "@/lib/ai/response-contract";
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
 import { getCachedPrompt, setCachedPrompt } from "@/lib/ai/system-prompt-cache";
 import { detectChatMode, pruneTools, describeMode, type ChatMode } from "@/lib/ai/chat-mode";
@@ -323,6 +324,24 @@ async function chatPostInner(req: Request) {
     cot: turnSignal.useChainOfThought,
     critique: turnSignal.useTwoPassCritique,
   });
+
+  // AG-11 · Response contract. Pure (<1ms) derivation of the turn's
+  // output obligations (answerMode incl. 'brainstorm', exact rank counts,
+  // no-clarifying-question, must-not-claim-actions...). Existed fully
+  // tested but was never built on the live path — the module header's
+  // claim that it fed the system prompt was false until this wire.
+  // buildContractDirective() returns "" for plain turns, so casual chat
+  // pays zero tokens. Injection happens in finalizeSystemPrompt.
+  const responseContract = buildResponseContract(userContent, turnSignal, queryShape.shape);
+  if (responseContract.reasons.length > 0) {
+    log.info("response_contract", {
+      answerMode: responseContract.answerMode,
+      length: responseContract.length,
+      rankCount: responseContract.rankCount,
+      askOk: responseContract.shouldAskClarifying,
+      reasons: responseContract.reasons.slice(0, 6),
+    });
+  }
 
   // v6 · BATCH 3 · Apr 28 — Domain-routed model selection.
   // detectDomain() reads the message and picks the best taskType +
@@ -712,6 +731,7 @@ async function chatPostInner(req: Request) {
     contextBlocksFired,
     mode,
     queryShape,
+    contract: responseContract,
     log,
   });
   systemPrompt = __finalized.systemPrompt;
@@ -765,6 +785,27 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     : chatLayerPrompt;
   if (multiCtx) {
     log.info("multi_output_mode", { mode: multiCtx.mode, subject: multiCtx.subject.slice(0, 60) });
+  }
+
+  // AG-15 · content-feedback RECALL. detectContentFeedback has CAPTURED
+  // Nour's reactions to generated content since Apr 28 (persist-assistant-
+  // turn.ts), but the read half — recallRecentContentFeedback +
+  // buildFeedbackPromptBlock — had zero call-sites: the "compounding
+  // voice" loop was write-only. On content turns, his recent reactions
+  // now ride into the prompt.
+  if (contentMode) {
+    try {
+      const { recallRecentContentFeedback, buildFeedbackPromptBlock } = await import(
+        "@/lib/ai/content-feedback"
+      );
+      const feedbackBlock = buildFeedbackPromptBlock(await recallRecentContentFeedback());
+      if (feedbackBlock) {
+        finalSystemPrompt += `\n\n${feedbackBlock}`;
+        log.info("content_feedback_recalled", { chars: feedbackBlock.length });
+      }
+    } catch {
+      // Supplementary voice context — never blocks the stream.
+    }
   }
 
   // v10.0.499 · ADR-0011 Tier 2-lite · high-specificity gate.

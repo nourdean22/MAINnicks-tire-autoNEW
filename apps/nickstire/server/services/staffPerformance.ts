@@ -36,7 +36,16 @@ export interface TechPerformance {
   };
 }
 
-export async function getTeamPerformance(): Promise<{
+/**
+ * AG-20 · `persist` closes the dead performance loop. The technicians
+ * columns qc_pass_rate / comeback_rate / total_jobs_completed are READ
+ * by recommendTech scoring (services/dispatch.ts) and the operations
+ * engine, but were NEVER written — every tech scored the 1.00/0.00
+ * defaults forever while the daily cron computed real numbers and
+ * discarded them. The cron callers pass persist=true; router/NickGPT
+ * read paths keep the default (no writes on read).
+ */
+export async function getTeamPerformance(persist = false): Promise<{
   techs: TechPerformance[];
   teamTotals: {
     totalJobs: number;
@@ -109,6 +118,17 @@ export async function getTeamPerformance(): Promise<{
 
     teamJobs += jobsCompleted;
     teamRevenue += Number(revenue);
+
+    if (persist) {
+      // Decimal columns take string values in drizzle.
+      await db.update(technicians)
+        .set({
+          qcPassRate: qcPassRate.toFixed(2),
+          comebackRate: comebackRate.toFixed(2),
+          totalJobsCompleted: jobsCompleted,
+        })
+        .where(eq(technicians.id, tech.id));
+    }
 
     results.push({
       techId: tech.id,

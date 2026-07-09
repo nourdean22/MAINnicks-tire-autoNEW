@@ -123,6 +123,13 @@ export default function LeadsSection() {
     let list = [...leadsData];
     if (leadFilter !== "all") list = list.filter(l => l.status === leadFilter);
     if (sourceFilter !== "all") list = list.filter(l => l.source === sourceFilter);
+    // AG-20 · job applicants are not sales leads. The default ("all")
+    // view now excludes source==="careers" rows so applicants stop
+    // inflating pipeline counts and drip-selection views; picking the
+    // "careers" source in the filter IS the Applicants view (the option
+    // is always offered — see sourceSet above — and KanbanBoard already
+    // badges these rows JOB APPLICANT).
+    else list = list.filter(l => l.source !== "careers");
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       // wave-133 — was `l.phone.includes(q)`. LeadItem.phone is

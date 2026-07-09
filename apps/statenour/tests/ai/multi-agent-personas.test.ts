@@ -21,6 +21,11 @@ import {
   EXECUTION_PLANNER,
   RESEARCH_PLANNER,
   RESEARCH_SYNTHESIZER,
+  THOUGHT_PARTNER,
+  STRATEGIST,
+  TACTICIAN,
+  BUSINESS_CONSULTANT,
+  GHOSTWRITER,
   PERSONAS,
   getPersona,
   personaToSystemPrompt,
@@ -239,15 +244,68 @@ describe("pretask-fanout lens personas · Phase U.1 wiring", () => {
     expect(research).not.toBe(plan);
   });
 
-  it("PERSONAS registry includes all core wired personas (7 total)", () => {
+  it("PERSONAS registry includes all core wired personas (12 total)", () => {
     // Sanity · the wired core set:
     //   · research-analyst · contrarian-critic · execution-planner
     //   · synthesizer · fact-checker
     //   · research-planner · research-synthesizer (T specialists)
+    //   · thought-partner · strategist · tactician
+    //   · business-consultant · ghostwriter (AG-12 team personas)
     // (buffett/naval/munger removed 2026-07-09 — zero production callers;
     // the advisor board covers those figures via @statenour/lenses.)
     // Marketing personas spread in on top. Adding more is fine · this
     // asserts the floor.
-    expect(Object.keys(PERSONAS).length).toBeGreaterThanOrEqual(7);
+    expect(Object.keys(PERSONAS).length).toBeGreaterThanOrEqual(12);
+  });
+
+  describe("AG-12 · team personas", () => {
+    const TEAM = [
+      THOUGHT_PARTNER,
+      STRATEGIST,
+      TACTICIAN,
+      BUSINESS_CONSULTANT,
+      GHOSTWRITER,
+    ];
+
+    it("all 5 team personas resolve by key", () => {
+      for (const p of TEAM) {
+        expect(getPersona(p.key)).toBe(p);
+      }
+    });
+
+    it("team persona keys are stable (contract with tool descriptions)", () => {
+      // These exact strings appear in the arsenalMultiAgent tool
+      // description + persona field docs (lib/ai/tools/system.ts) —
+      // renaming a key without updating the tool surface strands the
+      // model with dead keys.
+      expect(TEAM.map((p) => p.key).sort()).toEqual([
+        "business-consultant",
+        "ghostwriter",
+        "strategist",
+        "tactician",
+        "thought-partner",
+      ]);
+    });
+
+    it("team personas produce distinct, well-formed system prompts", () => {
+      const prompts = TEAM.map((p) => personaToSystemPrompt(p));
+      expect(new Set(prompts).size).toBe(prompts.length);
+      for (const prompt of prompts) {
+        expect(prompt).toContain("GOAL:");
+        expect(prompt).toContain("BACKGROUND:");
+        expect(prompt).toContain("OUTPUT:");
+      }
+    });
+
+    it("tactician is short-horizon, strategist long-horizon (no role bleed)", () => {
+      expect(personaToSystemPrompt(TACTICIAN)).toContain("48 hours");
+      expect(personaToSystemPrompt(STRATEGIST)).toContain("6-24 month");
+    });
+
+    it("team personas flow through resolveSubAgentSystemPrompt", () => {
+      const prompt = resolveSubAgentSystemPrompt("thought-partner");
+      expect(prompt).toContain("Thought Partner");
+      expect(prompt).toContain("dialectic partner");
+    });
   });
 });

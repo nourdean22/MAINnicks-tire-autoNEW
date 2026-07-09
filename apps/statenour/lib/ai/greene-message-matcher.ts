@@ -47,6 +47,11 @@ export interface GreeneMatch {
   score: number;
   /** The specific trigger phrases that matched. Operator-grade debug. */
   hits: string[];
+  /** AG-14 · concrete moves from the corpus metadata.actions[] — the
+   *  render block turns these into "→ move:" lines so the frame is
+   *  directive counsel, not just contemplative context. Optional:
+   *  the picker always populates it, external constructors may not. */
+  actions?: string[];
 }
 
 interface CorpusEntry {
@@ -56,6 +61,8 @@ interface CorpusEntry {
   book: string;
   /** Lowercased trigger phrases for fast match. */
   triggers: string[];
+  /** Concrete next moves (verbatim corpus text · rendered, not matched). */
+  actions: string[];
 }
 
 const TEN_MIN_MS = 10 * 60 * 1000;
@@ -80,12 +87,18 @@ async function loadCorpus(): Promise<CorpusEntry[]> {
               .filter((t): t is string => typeof t === "string" && t.length > 0)
               .map((t) => t.toLowerCase())
           : [];
+        const actions = Array.isArray(meta.actions)
+          ? (meta.actions as unknown[]).filter(
+              (a): a is string => typeof a === "string" && a.length > 0,
+            )
+          : [];
         return {
           key: r.key,
           title: String(meta.title ?? r.key),
           summary: String(meta.summary ?? ""),
           book: String(meta.book ?? ""),
           triggers,
+          actions,
         };
       })
       .filter((e) => e.triggers.length > 0);
@@ -143,6 +156,7 @@ export async function pickContextualLawsForMessage(
       book: entry.book,
       score: hits.length,
       hits: hits.slice(0, 5),
+      actions: entry.actions.slice(0, 2),
     });
   }
 
@@ -232,10 +246,16 @@ export function renderGreeneBlock(picks: GreeneMatch[]): string {
   for (const p of picks) {
     const tagBook = p.book ? ` · ${p.book}` : "";
     lines.push(`- **${p.title}**${tagBook} — ${p.summary}`);
+    // AG-14 · the corpus carries machine-usable actions[] that the old
+    // render dropped — the frame was contemplative, never directive.
+    // Defensive ?? [] — older callers construct matches without actions.
+    for (const move of p.actions ?? []) {
+      lines.push(`  → move: ${move}`);
+    }
   }
   lines.push("");
   lines.push(
-    "If the operator asks for a Greene-shaped answer explicitly, cite the law by name. Otherwise, let it shape your strategic emphasis silently.",
+    "If the operator asks for a Greene-shaped answer explicitly, cite the law by name. Otherwise, let it shape your strategic emphasis silently. When a '→ move' fits the situation, offer it as the concrete next step.",
   );
   return lines.join("\n");
 }

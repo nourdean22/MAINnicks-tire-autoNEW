@@ -148,6 +148,11 @@ export const WEEKLY_JOBS: readonly string[] = [
   // synthesis (which self-gates on the flag); the category reflections it
   // also writes are an operator-facing built feature that was dormant.
   "/api/cron/reflect-categories",
+  // 2026-07-09 · AG-19 · weekly pricing advisory. composeAdvisory() (win-rate
+  // outliers → competitor prices → drafted experiments) had zero callers
+  // since it shipped; its chat tool / API / coach-banner read surfaces
+  // returned empty forever. Idempotent per run-date (BrainMemory upsert).
+  "/api/cron/pricing-advisory",
 ];
 
 /**
