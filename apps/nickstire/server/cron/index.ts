@@ -498,10 +498,13 @@ export function registerAllJobs(): void {
   }, false); // Disabled until GOOGLE_PLACES_API_KEY is set
 
   // Staff performance rollup (every 24 hours)
+  // AG-20 · persist=true writes qc_pass_rate/comeback_rate/total_jobs
+  // back to the technician rows — recommendTech scoring read these
+  // columns but this rollup computed the numbers and discarded them.
   registerJob("staff-performance", 24 * 60 * 60 * 1000, async () => {
     const { getTeamPerformance } = await import("../services/staffPerformance");
-    const perf = await getTeamPerformance();
-    return { recordsProcessed: perf.techs?.length || 0, details: "Performance rollup complete" };
+    const perf = await getTeamPerformance(true);
+    return { recordsProcessed: perf.techs?.length || 0, details: "Performance rollup complete (persisted)" };
   });
 
   // ═══ HERCULES EXPANSION ═══

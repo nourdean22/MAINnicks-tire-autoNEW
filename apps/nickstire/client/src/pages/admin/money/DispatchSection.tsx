@@ -69,7 +69,12 @@ export default function DispatchSection() {
       {tab === "bays" && <BayGrid load={load} />}
       {tab === "queue" && <ReadyQueue load={load} />}
       {tab === "qc" && <QcReview />}
-      {tab === "techs" && <TechManager load={load} />}
+      {tab === "techs" && (
+        <>
+          <TechManager load={load} />
+          <TeamPerformancePanel />
+        </>
+      )}
     </div>
   );
 }
@@ -526,6 +531,53 @@ function CreateQcButton({ workOrderId }: { workOrderId: string }) {
     >
       {createMut.isPending ? "Creating..." : "Create QC Checklist"}
     </button>
+  );
+}
+
+// ─── Team Performance (AG-20 · 2026-07-09) ──────────
+// dispatch.teamPerformance existed on the server with ZERO UI consumers
+// — the operator had no screen showing per-tech performance while
+// recommendTech silently scored techs on these very numbers.
+function TeamPerformancePanel() {
+  const { data, isLoading, isError, refetch } = trpc.dispatch.teamPerformance.useQuery(
+    undefined,
+    { staleTime: 60_000 },
+  );
+
+  if (isLoading) return <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+  if (isError) return <ErrorState message="Couldn't load team performance" onRetry={() => refetch()} />;
+
+  const techs = data?.techs || [];
+  if (techs.length === 0) return null;
+
+  // NB: `??` not `||` on every numeric — a real 0 (0 jobs, 0% QC) must
+  // render as 0, never fall through to a fake default (see the
+  // qcStats?.passRate regression guard in __tests__/admin.test.tsx).
+  return (
+    <div className="space-y-2 mt-6">
+      <h3 className="text-sm font-medium text-muted-foreground mb-2">30-Day Performance</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {techs.map((t) => (
+          <div key={t.techId} className="border border-border/40 p-4 bg-card">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-medium">{t.name}</span>
+              <span className="text-[10px] text-muted-foreground">{t.role || "—"}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+              <div>Jobs: <span className="text-foreground">{t.metrics.jobsCompleted30d ?? 0}</span></div>
+              <div>Revenue: <span className="text-foreground">${Math.round(t.metrics.totalRevenue30d ?? 0).toLocaleString()}</span></div>
+              <div>QC pass: <span className="text-foreground">{Math.round((t.metrics.qcPassRate ?? 0) * 100)}%</span></div>
+              <div>Comebacks: <span className="text-foreground">{Math.round((t.metrics.comebackRate ?? 0) * 100)}%</span></div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {data?.teamTotals && (
+        <div className="text-xs text-muted-foreground pt-1">
+          Team: {data.teamTotals.totalJobs ?? 0} jobs · ${Math.round(data.teamTotals.totalRevenue ?? 0).toLocaleString()} · avg QC {Math.round((data.teamTotals.avgQcPassRate ?? 0) * 100)}%
+        </div>
+      )}
+    </div>
   );
 }
 
