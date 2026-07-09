@@ -58,6 +58,7 @@ const mockPublishToSocial = vi.fn().mockResolvedValue({
 vi.mock("../services/socialPublish", () => ({
   publishToSocial: (...args: any[]) => mockPublishToSocial(...args),
   assertPermanentPublicMediaUrl: () => {},
+  captionClaimBlockers: () => [],
 }));
 
 // Mock self-learning loops
@@ -97,7 +98,7 @@ describe("runSocialInventoryPublisher", () => {
         platform: "both",
         hookText: "Don't drive on salt!",
         bodyText: "Road salt damages your brakes.",
-        assetPaths: ["/assets/video1.mp4"],
+        assetPaths: ["https://cdn.nickstire.com/video1.mp4"],
         scheduledAt: new Date(Date.now() - 1000),
       }
     ];
