@@ -101,14 +101,15 @@ export function useConfirmDialog(): {
     [],
   );
 
+  const { resolve } = state;
   const handleClose = React.useCallback(
     (value: boolean) => {
       // Capture resolve BEFORE clearing state · React state updates
       // are async so reading state.resolve after setState would race.
-      state.resolve?.(value);
+      resolve?.(value);
       setState(INITIAL_CONFIRM_STATE);
     },
-    [state.resolve],
+    [resolve],
   );
 
   const dialog = (
@@ -199,13 +200,14 @@ export function usePromptDialog(): {
     [],
   );
 
+  const { resolve } = state;
   const handleClose = React.useCallback(
     (value: string | null) => {
       // Same race-free capture pattern as the confirm hook.
-      state.resolve?.(value);
+      resolve?.(value);
       setState(INITIAL_PROMPT_STATE);
     },
-    [state.resolve],
+    [resolve],
   );
 
   // Autofocus the input when the dialog opens · base-ui dialog
