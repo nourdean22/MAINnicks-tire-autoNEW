@@ -173,7 +173,9 @@ export const CRONS: CronDef[] = [
   {
     name: "mega-evening",
     path: "/api/cron/mega?slot=evening",
-    schedule: "0 2 * * *", // 2am UTC = 10pm ET evening slot
+    // 2026-07-09 · sweep · the manifest claimed "0 2 * * *" but the actual
+    // Inngest trigger (lib/inngest/functions/mega-fanout.ts) fires 0 3 * * *.
+    schedule: "0 3 * * *", // 03:00 UTC = 10/11pm ET evening slot
     mode: "active",
     category: "compose",
     description: "Evening composite — reflect + consolidate + weekly-digest eligibility",
@@ -183,29 +185,41 @@ export const CRONS: CronDef[] = [
 
   // ── INGEST ──────────────────────────────────────────────────────────
   {
+    // AG-41 · 2026-07-09 · cadence honesty. This entry claimed
+    // "every 30min 8-22 UTC" but the route has fired 1×/day via the
+    // mega-morning fan-out since Wave AE — and on 2026-05-30 the
+    // operator explicitly decided "i only need one a day on google"
+    // (see lib/inngest/jobs.ts MORNING_JOBS comment). The manifest now
+    // tells the truth instead of advertising a cadence nobody wired.
     name: "ingest-gmail",
-    schedule: "0,30 8-22 * * *",
+    schedule: "0 9 * * *",
     mode: "active",
     category: "ingest",
-    description: "Multi-account Gmail pull + AI classify + Telegram nudge on high-urgency needs-reply — every 30min 8-22 UTC",
+    description: "Multi-account Gmail pull + AI classify + Telegram nudge on high-urgency needs-reply — 1×/day via mega-morning fan-out (operator decision 2026-05-30: one/day is enough)",
     memory: 1024,
     maxDuration: 300,
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE standalone "15 8 * * *" retired;
+    // fires 1×/day via the mega-morning fan-out (9:00 UTC).
     name: "ingest-calendar",
-    schedule: "15 8 * * *",
+    schedule: "0 9 * * *",
     mode: "active",
     category: "ingest",
-    description: "Calendar pull — 8:15am",
+    description: "Calendar pull — 1×/day via mega-morning fan-out",
     memory: 512,
     maxDuration: 120,
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "Sun + Wed 2:30am" retired; the
+    // route sits in MORNING_JOBS with no day gate, so it fires DAILY via
+    // the mega-morning fan-out. Harmless: memories key on Drive file ID,
+    // re-runs reinforce rather than duplicate.
     name: "ingest-drive",
-    schedule: "30 2 * * 0,3",
+    schedule: "0 9 * * *",
     mode: "active",
     category: "ingest",
-    description: "Drive pull — Sun + Wed 2:30am",
+    description: "Drive pull — daily via mega-morning fan-out (idempotent per file ID)",
     memory: 1024,
     maxDuration: 300,
   },
@@ -220,20 +234,26 @@ export const CRONS: CronDef[] = [
     description: "FOLDED into mega-evening · scans recent BrainMemory for cross-source patterns and writes synthesis rows.",
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "weekly Sun 3am" retired; the route
+    // is in BOTH MORNING_JOBS and EVENING_JOBS, so it fires 2×/day via the
+    // mega fan-outs. Scan is bounded (2026-06 cron-reliability fix), so the
+    // higher cadence stays cheap.
     name: "embed-backfill",
-    schedule: "0 3 * * 0",
+    schedule: "0 3,9 * * *",
     mode: "active",
     category: "brain",
-    description: "Weekly embedding backfill for any new BrainMemory rows · Sun 3am UTC",
+    description: "Embedding backfill for any new BrainMemory rows · 2×/day via mega-morning + mega-evening fan-outs",
     memory: 1024,
     maxDuration: 300,
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "*/15" retired; fires 1×/day via
+    // the mega-evening fan-out (03:00 UTC).
     name: "conversation-mission-link",
-    schedule: "*/15 * * * *",
+    schedule: "0 3 * * *",
     mode: "active",
     category: "brain",
-    description: "Every 15min · scans new chat messages for mission-relevance, writes ConversationMissionLink rows so Nick can answer 'what mission was this about?'",
+    description: "Nightly via mega-evening fan-out · scans new chat messages for mission-relevance, writes ConversationMissionLink rows so Nick can answer 'what mission was this about?'",
     memory: 512,
     maxDuration: 60,
   },
@@ -255,20 +275,22 @@ export const CRONS: CronDef[] = [
     addedAt: "2026-05-30",
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "0 12" retired; fires 1×/day via
+    // the mega-evening fan-out (03:00 UTC).
     name: "predict",
-    schedule: "0 12 * * *",
+    schedule: "0 3 * * *",
     mode: "active",
     category: "brain",
-    description: "Daily noon UTC predict · forecasts week ahead based on patterns; writes Prediction rows.",
+    description: "Nightly via mega-evening fan-out · forecasts week ahead based on patterns; writes Prediction rows.",
     memory: 1024,
     maxDuration: 120,
   },
   {
     name: "calibration-generator",
-    schedule: "0 3 * * *",
+    schedule: "0 3 * * *", // matches the mega-evening slot it actually rides
     mode: "active",
     category: "brain",
-    description: "Daily evening pass · scans completed tasks/predictions and proposes outcomes for manual calibration.",
+    description: "Daily evening pass via mega-evening fan-out · scans completed tasks/predictions and proposes outcomes for manual calibration.",
     memory: 512,
     maxDuration: 120,
     addedAt: "2026-06-11",
@@ -284,49 +306,65 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "every 6h" retired; fires 1×/day
+    // via the mega-evening fan-out (03:00 UTC).
     name: "intelligence",
-    schedule: "0 */6 * * *",
+    schedule: "0 3 * * *",
     mode: "active",
     category: "brain",
-    description: "Every 6h · cross-source intelligence synthesis · writes high-confidence signals into BrainMemory(intelligence).",
+    description: "Nightly via mega-evening fan-out · cross-source intelligence synthesis · writes high-confidence signals into BrainMemory(intelligence).",
     memory: 1024,
     maxDuration: 180,
   },
 
   // ── HYGIENE ─────────────────────────────────────────────────────────
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "0 6" retired; fires 1×/day via
+    // the mega-morning fan-out (9:00 UTC).
     name: "task-resurface",
-    schedule: "0 6 * * *",
+    schedule: "0 9 * * *",
     mode: "active",
     category: "hygiene",
-    description: "6am UTC · snoozed tasks past their resurface date flip back to READY.",
+    description: "Daily via mega-morning fan-out · snoozed tasks past their resurface date flip back to READY.",
     memory: 256,
     maxDuration: 30,
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "weekly Mon 4am" retired; the route
+    // sits in MORNING_JOBS with NO Monday self-gate (unlike dossier-autodraft
+    // / greene-law-tag-refresh), so it actually fires DAILY via the
+    // mega-morning fan-out. Flagging >30d-untouched tasks is a cheap
+    // re-runnable query, so the daily cadence is harmless.
     name: "stale-tasks",
-    schedule: "0 4 * * 1",
+    schedule: "0 9 * * *",
     mode: "active",
     category: "hygiene",
-    description: "Weekly Mon 4am · flags tasks >30d untouched as stale for the next weekly review.",
+    description: "Daily via mega-morning fan-out · flags tasks >30d untouched as stale for the next weekly review.",
     memory: 256,
     maxDuration: 60,
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "weekly Sun 1am" retired; the route
+    // sits in EVENING_JOBS with no day gate, so it actually fires NIGHTLY
+    // via the mega-evening fan-out. TTL-based trimming is idempotent.
     name: "data-cleanup",
-    schedule: "0 1 * * 0",
+    schedule: "0 3 * * *",
     mode: "active",
     category: "hygiene",
-    description: "Weekly Sun 1am · trims old logs, orphan rows, soft-deleted records past TTL.",
+    description: "Nightly via mega-evening fan-out · trims old logs, orphan rows, soft-deleted records past TTL.",
     memory: 512,
     maxDuration: 300,
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "daily 5am" retired; the route is in
+    // WEEKLY_JOBS, which the evening fan-out appends only on Sunday-ET —
+    // i.e. the Monday 03:00 UTC run (= Sunday 10/11pm ET). Weekly matches
+    // the route's own doc ("Schedule: weekly (Sundays)").
     name: "inbox-janitor",
-    schedule: "0 5 * * *",
+    schedule: "0 3 * * 1",
     mode: "active",
     category: "hygiene",
-    description: "Daily 5am · sweeps CaptureInboxItem rows · auto-categorizes the cleanest ones · proposes mission for the rest.",
+    description: "Weekly (Sunday-ET) via mega-evening weekly fan-out · sweeps CaptureInboxItem rows · auto-categorizes the cleanest ones · proposes mission for the rest.",
     memory: 512,
     maxDuration: 60,
   },
@@ -342,10 +380,10 @@ export const CRONS: CronDef[] = [
   },
   {
     name: "subtask-usage-audit",
-    schedule: "0 3 * * *",
+    schedule: "0 3 * * *", // matches the mega-evening slot it actually rides
     mode: "active",
     category: "hygiene",
-    description: "Daily audit of subtask feature usage per ADR-0017 A1 gate; self-fires on/after 2026-06-22 to clean up files if unused.",
+    description: "Daily audit via mega-evening fan-out of subtask feature usage per ADR-0017 A1 gate; self-fires on/after 2026-06-22 to clean up files if unused.",
     memory: 256,
     maxDuration: 60,
     addedAt: "2026-06-11",
@@ -362,50 +400,63 @@ export const CRONS: CronDef[] = [
 
   // ── REVIEW ──────────────────────────────────────────────────────────
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "Sun 2pm" retired; the route is in
+    // WEEKLY_JOBS → fires on the Sunday-ET evening fan-out run, which is
+    // Monday 03:00 UTC (= Sunday 10/11pm ET).
     name: "weekly-review",
-    schedule: "0 14 * * 0",
+    schedule: "0 3 * * 1",
     mode: "active",
     category: "review",
-    description: "Sunday 2pm UTC · writes the weekly review prompt + opens the wizard nudge.",
+    description: "Weekly (Sunday-ET) via mega-evening weekly fan-out · writes the weekly review prompt + opens the wizard nudge.",
     memory: 512,
     maxDuration: 60,
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "Sun 1pm" retired; the route is in
+    // WEEKLY_JOBS → fires on the Sunday-ET evening fan-out run, which is
+    // Monday 03:00 UTC (= Sunday 10/11pm ET).
     name: "weekly-digest",
-    schedule: "0 13 * * 0",
+    schedule: "0 3 * * 1",
     mode: "active",
     category: "review",
-    description: "Sunday 1pm UTC · composite digest across missions + relationships + journal + brain · Telegram push.",
+    description: "Weekly (Sunday-ET) via mega-evening weekly fan-out · composite digest across missions + relationships + journal + brain · Telegram push.",
     memory: 1024,
     maxDuration: 120,
   },
   {
     name: "pricing-advisory",
-    schedule: "0 23 * * 0",
+    schedule: "0 3 * * 1",
     // 2026-07-09 · AG-19 · fires via the WEEKLY_JOBS Sunday-ET evening
     // fan-out (same slot-shift precedent as relationship-weekly-synthesis);
-    // idempotent per run-date via BrainMemory upsert.
+    // idempotent per run-date via BrainMemory upsert. Sweep: schedule now
+    // states the actual slot (Mon 03:00 UTC = Sunday 10/11pm ET) instead
+    // of the intended-standalone "0 23 * * 0".
     mode: "active",
     category: "review",
-    description: "Weekly pricing advisory · ALG win-rate outliers vs fleet median → competitor prices → drafted experiments · coach-event banner + chat tool read it.",
+    description: "Weekly (Sunday-ET) pricing advisory via mega-evening weekly fan-out · ALG win-rate outliers vs fleet median → competitor prices → drafted experiments · coach-event banner + chat tool read it.",
     memory: 512,
     maxDuration: 120,
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "0 23" retired; fires 2×/day via
+    // BOTH fan-outs — ?slot=morning in MORNING_JOBS (9:00 UTC) and
+    // ?slot=evening in EVENING_JOBS (03:00 UTC).
     name: "journal-checkin",
-    schedule: "0 23 * * *",
+    schedule: "0 3,9 * * *",
     mode: "active",
     category: "review",
-    description: "Daily 11pm UTC · Telegram prompt with the day's journal question · operator can SMS reply.",
+    description: "2×/day via mega-morning (slot=morning) + mega-evening (slot=evening) fan-outs · Telegram prompt with the day's journal question · operator can SMS reply.",
     memory: 256,
     maxDuration: 30,
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "0 0" retired; fires 1×/day via
+    // the mega-evening fan-out (03:00 UTC).
     name: "os-snapshot",
-    schedule: "0 0 * * *",
+    schedule: "0 3 * * *",
     mode: "active",
     category: "review",
-    description: "Daily midnight UTC · captures the day's DailyEmpireSnapshot row for trend analysis.",
+    description: "Nightly via mega-evening fan-out · captures the day's DailyEmpireSnapshot row for trend analysis.",
     memory: 512,
     maxDuration: 60,
   },
@@ -433,73 +484,80 @@ export const CRONS: CronDef[] = [
   },
   {
     name: "relationship-birthday",
-    schedule: "0 12 * * *",
+    schedule: "0 9 * * *",
     // 2026-06-02 · operator-authorized · wired into MORNING_JOBS (mega
     // fan-out, 9:00 UTC daily). Daily cadence + idempotent per
     // personId+date+kind, so the slot shift from noon UTC to 9:00 UTC is
-    // harmless (same-day push).
+    // harmless (same-day push). 2026-07-09 sweep: schedule string now
+    // states the actual slot instead of the pre-wiring "0 12".
     mode: "active",
     category: "review",
-    description: "Daily 12pm UTC · birthday + anniversary push · idempotent per personId+date.",
+    description: "Daily via mega-morning fan-out · birthday + anniversary push · idempotent per personId+date.",
     memory: 256,
     maxDuration: 30,
     addedAt: "2026-05-27",
   },
   {
     name: "relationship-weekly-synthesis",
-    schedule: "0 23 * * 0",
+    schedule: "0 3 * * 1",
     // 2026-06-02 · operator-authorized · wired into WEEKLY_JOBS, which the
     // evening fan-out appends only on Sunday-ET — an EXACT match for this
     // cron's intended Sunday (0 23 * * 0) cadence. Idempotent per ISO
     // week, so the Sunday-23:00-UTC → Sunday-ET-evening-fan-out slot shift
-    // is harmless (same ISO week).
+    // is harmless (same ISO week). 2026-07-09 sweep: schedule string now
+    // states the actual slot (Mon 03:00 UTC = Sunday 10/11pm ET).
     mode: "active",
     category: "review",
-    description: "Wave AB · Sunday 11pm UTC · 3-paragraph synthesis of week's relationship movement · idempotent per ISO week.",
+    description: "Wave AB · weekly (Sunday-ET) via mega-evening weekly fan-out · 3-paragraph synthesis of week's relationship movement · idempotent per ISO week.",
     memory: 512,
     maxDuration: 60,
     addedAt: "2026-05-28",
   },
   {
     name: "kept-word-scan",
-    schedule: "0 2 * * *",
+    schedule: "0 9 * * *",
     // 2026-06-02 · operator-authorized · wired into MORNING_JOBS (mega
     // fan-out, 9:00 UTC daily). Daily cadence + per-(personId,
     // chatMessageId) upsert over the last 24h of chat, so firing in the
     // morning slot instead of 2:00 UTC is the correct daily cadence.
+    // 2026-07-09 sweep: schedule string now states the actual slot.
     mode: "active",
     category: "brain",
-    description: "Daily 2am UTC · scans last 24h chat for promises · upserts KEPT_WORD rows · drives ledger trust score.",
+    description: "Daily via mega-morning fan-out · scans last 24h chat for promises · upserts KEPT_WORD rows · drives ledger trust score.",
     memory: 512,
     maxDuration: 120,
     addedAt: "2026-05-27",
   },
   {
     name: "dossier-autodraft",
-    schedule: "0 4 * * 1",
+    schedule: "0 9 * * 1",
     // 2026-06-02 · WIRED + ACTIVE (operator-authorized). The mega fan-out
     // has no Monday day-gate, so the ROUTE self-gates on getUTCDay()===1
     // (Monday UTC) and no-ops the other 6 days -- weekly-Monday cadence
     // through the daily MORNING_JOBS fan-out without the 7x AI spend that
     // blind daily firing would cause. (Alt was an Inngest-native 0 4 * * 1
     // trigger; the route-local self-gate is the simpler, lower-risk fix.)
+    // 2026-07-09 sweep: schedule string now states the effective slot —
+    // Monday 9:00 UTC (mega-morning run that passes the self-gate).
     mode: "active",
     category: "brain",
-    description: "Monday 4am UTC · drafts dossier MD updates for PersonProfile rows with stale dossiers · operator confirms via action queue.",
+    description: "Monday via mega-morning fan-out (route self-gates to Monday UTC) · drafts dossier MD updates for PersonProfile rows with stale dossiers · operator confirms via action queue.",
     memory: 1024,
     maxDuration: 300,
     addedAt: "2026-05-27",
   },
   {
     name: "greene-law-tag-refresh",
-    schedule: "0 5 * * 1",
+    schedule: "0 9 * * 1",
     // 2026-06-02 · WIRED + ACTIVE (operator-authorized). Same self-gate
     // pattern as dossier-autodraft: the route checks getUTCDay()===1
     // (Monday UTC) and no-ops the other 6 days, so it gets its weekly
     // cadence through the daily MORNING_JOBS fan-out without 7x AI spend.
+    // 2026-07-09 sweep: schedule string now states the effective slot —
+    // Monday 9:00 UTC (mega-morning run that passes the self-gate).
     mode: "active",
     category: "brain",
-    description: "Wave Z · Monday 5am UTC · refreshes per-person applicableLaws array from corpus · feeds /relationships GreeneLawSidebar.",
+    description: "Wave Z · Monday via mega-morning fan-out (route self-gates to Monday UTC) · refreshes per-person applicableLaws array from corpus · feeds /relationships GreeneLawSidebar.",
     memory: 512,
     maxDuration: 120,
     addedAt: "2026-05-27",
@@ -507,11 +565,13 @@ export const CRONS: CronDef[] = [
 
   // ── SIGNALS / ALERTS ────────────────────────────────────────────────
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "0 18" retired; fires 1×/day via
+    // the mega-evening fan-out (03:00 UTC).
     name: "correlation-alarm",
-    schedule: "0 18 * * *",
+    schedule: "0 3 * * *",
     mode: "active",
     category: "signals",
-    description: "Daily 6pm UTC · cross-source correlation anomaly detector · writes to Coach Channel (P1).",
+    description: "Nightly via mega-evening fan-out · cross-source correlation anomaly detector · writes to Coach Channel (P1).",
     memory: 512,
     maxDuration: 60,
   },
@@ -526,20 +586,27 @@ export const CRONS: CronDef[] = [
     addedAt: "2026-04-29",
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "every 4h" retired; fires 1×/day
+    // via the mega-evening fan-out (03:00 UTC).
     name: "creation-spike-detect",
-    schedule: "0 */4 * * *",
+    schedule: "0 3 * * *",
     mode: "active",
     category: "signals",
-    description: "Every 4h · detects abnormal creation-rate spikes across BrainMemory + Task + Mission + Ledger · flag in /system/health.",
+    description: "Nightly via mega-evening fan-out · detects abnormal creation-rate spikes across BrainMemory + Task + Mission + Ledger · flag in /system/health.",
     memory: 256,
     maxDuration: 30,
   },
   {
+    // 2026-07-09 · sweep · pre-Wave-AE "hourly" retired; fires 1×/day via
+    // the mega-evening fan-out (03:00 UTC). NOTE: this means budget-cap
+    // breaches are detected nightly, not hourly — if hourly detection is
+    // wanted again, that's a jobs.ts / Inngest-trigger decision, not a
+    // manifest edit.
     name: "cost-slo-check",
-    schedule: "0 * * * *",
+    schedule: "0 3 * * *",
     mode: "active",
     category: "signals",
-    description: "Hourly · AI cost SLO check · Coach Channel push (P0) when daily spend > budget cap.",
+    description: "Nightly via mega-evening fan-out · AI cost SLO check · Coach Channel push (P0) when daily spend > budget cap.",
     memory: 256,
     maxDuration: 30,
   },
