@@ -82,7 +82,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- apps/nickstire/prerendered; then
+          # 2026-07-09 · `git diff --quiet` only sees TRACKED paths — after
+          # PR #615 accidentally deleted the whole prerendered/ tree, every
+          # regenerated file was untracked, the diff was quiet, and this
+          # step concluded "unchanged" while production served the SPA
+          # shell to crawlers. `git status --porcelain` sees untracked too.
+          if [ -z "$(git status --porcelain -- apps/nickstire/prerendered)" ]; then
             echo "prerendered/ unchanged — nothing to commit."
           else
             git add apps/nickstire/prerendered
