@@ -43,6 +43,7 @@ import { getEmbedding } from "@/lib/ai/provider";
 import { cosineSimilarity } from "./embedding-utils";
 import type { Contradiction, ContradictionStatus } from "./contradiction-surfacer";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 const SIMILARITY_THRESHOLD = 0.7;
 const LOOKBACK_DAYS = 60;
@@ -130,8 +131,9 @@ export async function findRelevantContradictions(
           continue;
         }
         candidates.push({ key: r.key, parsed, createdAt: r.createdAt });
-      } catch {
+      } catch (err) {
         // Corrupted row — ignore
+        logError("brain.contradiction-injector", err, { fn: "findRelevantContradictions.parse" });
       }
     }
     if (candidates.length === 0) return null;
@@ -200,8 +202,9 @@ export async function findRelevantContradictions(
             expiresAt: new Date(Date.now() + 7 * 86400_000),
           },
         })
-        .catch(() => {
+        .catch((err) => {
           /* race / dup — non-fatal */
+          logError("brain.contradiction-injector", err, { fn: "findRelevantContradictions.createLog" });
         });
     }
 
@@ -214,7 +217,8 @@ export async function findRelevantContradictions(
       similarity: best.sim,
       createdAt: best.createdAt.toISOString(),
     };
-  } catch {
+  } catch (err) {
+    logError("brain.contradiction-injector", err, { fn: "findRelevantContradictions" });
     return null;
   }
 }

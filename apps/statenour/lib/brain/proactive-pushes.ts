@@ -37,6 +37,7 @@ import { today } from "@/lib/utils/datetime";
 import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
 import { getNickCurrentConcerns } from "@/lib/brain/session-distiller";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/proactive-pushes");
 
@@ -124,7 +125,10 @@ async function alreadyPushed(slot: PushSlot, dateKey: string): Promise<boolean> 
   const row = await prisma.brainMemory.findUnique({
     where: { category_key: { category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT, key: `${slot}_${dateKey}` } },
     select: { id: true },
-  }).catch(() => null);
+  }).catch((err) => {
+    logError("brain.proactive-pushes", err, { fn: "alreadyPushed" });
+    return null;
+  });
   return row !== null;
 }
 
@@ -140,7 +144,10 @@ async function getTodayBody(options?: { now?: Date }): Promise<{ id: number; sle
   const row = await prisma.bodyTracking.findUnique({
     where: { date: dateStr },
     select: { id: true, sleepHours: true, energy: true },
-  }).catch(() => null);
+  }).catch((err) => {
+    logError("brain.proactive-pushes", err, { fn: "getTodayBody" });
+    return null;
+  });
   return row;
 }
 
@@ -156,12 +163,18 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
     : today();
 
   const isDup = await alreadyPushed("morning", dateKey);
-  const set = await getTodaysAnticipated().catch(() => null);
+  const set = await getTodaysAnticipated().catch((err) => {
+    logError("brain.proactive-pushes", err, { fn: "fireMorningPush.getAnticipated" });
+    return null;
+  });
   const top = set?.questions?.[0];
   
   const pendingApprovalsCount = await prisma.approvalRequest.count({
     where: { status: "pending_approval" },
-  }).catch(() => 0);
+  }).catch((err) => {
+    logError("brain.proactive-pushes", err, { fn: "fireMorningPush.countApprovals" });
+    return 0;
+  });
 
   const hasContent = !!top || pendingApprovalsCount > 0;
   
@@ -209,11 +222,17 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
       (await prisma.brainMemory.findUnique({
         where: { category_key: { category: "anticipated_question", key: `anticipated_${dateKey}` } },
         select: { id: true },
-      }).catch(() => null)) ??
+      }).catch((err) => {
+        logError("brain.proactive-pushes", err, { fn: "fireMorningPush.findMemoryToday" });
+        return null;
+      })) ??
       (await prisma.brainMemory.findUnique({
         where: { category_key: { category: "anticipated_question", key: `anticipated_${yesterdayDateKey}` } },
         select: { id: true },
-      }).catch(() => null));
+      }).catch((err) => {
+        logError("brain.proactive-pushes", err, { fn: "fireMorningPush.findMemoryYesterday" });
+        return null;
+      }));
 
     const sources: PushSource[] = [];
     if (top) {
@@ -270,7 +289,10 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
     return { kind: "live", slot: "morning", fired: false, reason: "no_anticipated_set" };
   }
 
-  const ok = await sendTelegram(text).catch(() => false);
+  const ok = await sendTelegram(text).catch((err) => {
+    logError("brain.proactive-pushes", err, { fn: "fireMorningPush.sendTelegram" });
+    return false;
+  });
   if (ok) await markPushSent("morning", dateKey);
   return {
     kind: "live",
@@ -294,7 +316,10 @@ export async function fireAfternoonPush(options?: { dryRun?: boolean; now?: Date
     : today();
 
   const isDup = await alreadyPushed("afternoon", dateKey);
-  const concerns = await getNickCurrentConcerns().catch(() => null);
+  const concerns = await getNickCurrentConcerns().catch((err) => {
+    logError("brain.proactive-pushes", err, { fn: "fireAfternoonPush.getConcerns" });
+    return null;
+  });
   const top = concerns?.threads?.[0];
   const hasContent = !!top;
   
@@ -328,7 +353,10 @@ export async function fireAfternoonPush(options?: { dryRun?: boolean; now?: Date
     const memoryRow = await prisma.brainMemory.findUnique({
       where: { category_key: { category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS, key: "current" } },
       select: { id: true },
-    }).catch(() => null);
+    }).catch((err) => {
+      logError("brain.proactive-pushes", err, { fn: "fireAfternoonPush.findMemory" });
+      return null;
+    });
 
     const sources: PushSource[] = [];
     if (top) {
@@ -381,7 +409,10 @@ export async function fireAfternoonPush(options?: { dryRun?: boolean; now?: Date
     return { kind: "live", slot: "afternoon", fired: false, reason: "no_open_threads" };
   }
 
-  const ok = await sendTelegram(text).catch(() => false);
+  const ok = await sendTelegram(text).catch((err) => {
+    logError("brain.proactive-pushes", err, { fn: "fireAfternoonPush.sendTelegram" });
+    return false;
+  });
   if (ok) await markPushSent("afternoon", dateKey);
   return {
     kind: "live",
@@ -487,7 +518,10 @@ export async function fireEveningPush(options?: { dryRun?: boolean; now?: Date }
     return { kind: "live", slot: "evening", fired: false, reason: "already_pushed_today" };
   }
 
-  const ok = await sendTelegram(text).catch(() => false);
+  const ok = await sendTelegram(text).catch((err) => {
+    logError("brain.proactive-pushes", err, { fn: "fireEveningPush.sendTelegram" });
+    return false;
+  });
   if (ok) await markPushSent("evening", dateKey);
   return {
     kind: "live",
@@ -579,7 +613,10 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
   });
   const pendingSystemCount = await prisma.approvalRequest.count({
     where: { status: "pending_approval" },
-  }).catch(() => 0);
+  }).catch((err) => {
+    logError("brain.proactive-pushes", err, { fn: "checkAndNudgeApprovals.countApprovals" });
+    return 0;
+  });
 
   if (pendingCount === 0 && pendingSystemCount === 0) {
     return { kind: "skip", skipped: true, reason: "no_pending_actions" };
@@ -658,7 +695,10 @@ export async function checkAndNudgeApprovals(options?: { dryRun?: boolean; now?:
     return { kind: "live", slot: "approvals_nudge", fired: false, reason: "already_nudged_today" };
   }
 
-  const ok = await sendTelegram(text).catch(() => false);
+  const ok = await sendTelegram(text).catch((err) => {
+    logError("brain.proactive-pushes", err, { fn: "checkAndNudgeApprovals.sendTelegram" });
+    return false;
+  });
   if (ok) await markPushSent("approvals_nudge", dateKey);
   return {
     kind: "live",

@@ -85,7 +85,7 @@ export async function handleGoogleProposeEvent(params: ActionParams, type: strin
           },
         };
       } catch (err) {
-        console.error("Calendar API create failed, falling back to template URL:", err);
+        void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.agent-actions", err, { fn: "handleGoogleProposeEvent.createEvent" }, "warn"));
       }
     }
 

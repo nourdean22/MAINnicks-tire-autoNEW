@@ -118,7 +118,7 @@ export const metaTools = {
       try {
         // Check database
         const dbStart = Date.now();
-        await prisma.$queryRawUnsafe("SELECT 1");
+        await prisma.$queryRaw`SELECT 1`;
         const dbLatency = Date.now() - dbStart;
 
         // v10.0.179 · check the ACTUAL env vars each integration

@@ -23,6 +23,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 import {
   isOllamaQuotaExhausted,
   isGeminiQuotaExhausted,
@@ -130,7 +131,7 @@ async function getRecentTelemetry(): Promise<Record<ProviderName, { calls: numbe
         : 0;
     }
   } catch (err) {
-    console.warn("[provider-health] telemetry query failed:", err instanceof Error ? err.message : err);
+    logError("ai.provider-health", err, { fn: "getRecentTelemetry" });
   }
   return out;
 }

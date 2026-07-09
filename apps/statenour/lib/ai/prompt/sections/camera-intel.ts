@@ -45,9 +45,10 @@ export function renderCameraIntel(input: CameraIntelInput): string[] {
       if (camIntelResult.alerts.unresolved > 0) {
         p.push(`⚠ ${camIntelResult.alerts.unresolved} unresolved alerts (${camIntelResult.alerts.critical} critical)`);
       }
-    } catch {
+    } catch (err) {
       // Field-shape drift in CameraIntelligence shouldn't break the
       // chat path. Silent on purpose — matches v1's prior behavior.
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.prompt.camera-intel", err, { fn: "renderCameraIntel" }, "warn"));
     }
   }
 
@@ -78,3 +79,4 @@ export function renderCameraIntel(input: CameraIntelInput): string[] {
 
   return p;
 }
+

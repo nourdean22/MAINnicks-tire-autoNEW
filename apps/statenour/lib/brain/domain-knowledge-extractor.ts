@@ -31,6 +31,7 @@ import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { withGuardian } from "@/lib/tools/guardian";
 import { logger as rootLogger } from "@/lib/logger";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/domain-knowledge");
 
@@ -145,7 +146,8 @@ async function _extractFromMessage(args: {
   let parsed: { facts?: Array<{ subject?: unknown; property?: unknown; value?: unknown; rawConfidence?: unknown }> };
   try {
     parsed = JSON.parse(text);
-  } catch {
+  } catch (err) {
+    logError("brain.domain-knowledge", err, { fn: "extractFromMessage.parse" });
     return [];
   }
   if (!Array.isArray(parsed.facts)) return [];
@@ -196,7 +198,8 @@ async function _verifyFact(fact: ExtractedFact): Promise<VerifiedFact> {
   let parsed: { stillBelieve?: unknown; confidenceAdjustment?: unknown; caveats?: unknown };
   try {
     parsed = JSON.parse(text ?? "{}");
-  } catch {
+  } catch (err) {
+    logError("brain.domain-knowledge", err, { fn: "verifyFact.parse" });
     return { ...fact, finalConfidence: fact.rawConfidence, caveats: [] };
   }
 
@@ -252,6 +255,9 @@ export async function runDomainKnowledgeExtraction(): Promise<{
   let factsExtracted = 0;
   let factsStored = 0;
   let factsRejected = 0;
+  
+  let verifyFailCount = 0;
+  let storeFailCount = 0;
 
   for (const msg of messages) {
     if (msg.content.length < MIN_MESSAGE_LEN) continue;
@@ -272,6 +278,7 @@ export async function runDomainKnowledgeExtraction(): Promise<{
       try {
         verified = await verifyFact(fact);
       } catch {
+        verifyFailCount++;
         verified = { ...fact, finalConfidence: Math.min(0.5, fact.rawConfidence), caveats: [] };
       }
 
@@ -305,8 +312,16 @@ export async function runDomainKnowledgeExtraction(): Promise<{
         factsStored++;
       } catch {
         // duplicate key · already stored · skip
+        storeFailCount++;
       }
     }
+  }
+  
+  if (verifyFailCount > 0) {
+    logError("brain.domain-knowledge", new Error(`${verifyFailCount} verification errors`), { fn: "runDomainKnowledgeExtraction" });
+  }
+  if (storeFailCount > 0) {
+    logError("brain.domain-knowledge", new Error(`${storeFailCount} store failures/duplicates`), { fn: "runDomainKnowledgeExtraction" });
   }
 
   return {

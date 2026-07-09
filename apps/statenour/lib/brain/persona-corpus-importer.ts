@@ -49,6 +49,7 @@ import { prisma } from "@/lib/prisma";
 import { getEmbedding } from "@/lib/ai/provider";
 import { vectorCentroid } from "@/lib/brain/embedding-utils";
 import { logger as rootLogger } from "@/lib/logger";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/persona-corpus-importer");
 
@@ -171,7 +172,8 @@ function parseJsonShape(text: string, source: string): Utterance[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
-  } catch {
+  } catch (err) {
+    logError("brain.persona-corpus-importer", err, { fn: "parseJsonShape", source });
     log.warn("json_parse_failed", { source });
     return [];
   }
@@ -308,7 +310,10 @@ export async function importPersonaCorpus(
       },
       select: { sourceId: true, embedding: true },
     })
-    .catch((): never[] => []);
+    .catch((err) => {
+      logError("brain.persona-corpus-importer", err, { fn: "importPersonaCorpus.findExisting" });
+      return [];
+    });
   const existingMap = new Map(existing.map((e) => [e.sourceId, e]));
   const toEmbed = utterances.filter((u) => !existingMap.has(u.id));
   summary.utterancesSkippedExisting = utterances.length - toEmbed.length;
@@ -358,13 +363,18 @@ export async function importPersonaCorpus(
     })
     .catch((): never[] => []);
   const vectors: number[][] = [];
+  let parseFailCount = 0;
   for (const r of allRows) {
     try {
       const v = JSON.parse(r.embedding) as number[];
       if (Array.isArray(v) && v.length > 0) vectors.push(v);
     } catch {
       // skip malformed
+      parseFailCount++;
     }
+  }
+  if (parseFailCount > 0) {
+    logError("brain.persona-corpus-importer", new Error(`${parseFailCount} vectors failed to parse`), { fn: "importPersonaCorpus.parseEmbeddings" });
   }
   // No-vectors path · skip centroid persist · BUT fall through so
   // the text-only analyzer below still runs. Pre-fix this returned
@@ -513,7 +523,10 @@ export async function loadBehavioralPersonaCentroid(): Promise<
       },
       select: { metadata: true },
     })
-    .catch(() => null);
+    .catch((err) => {
+      logError("brain.persona-corpus-importer", err, { fn: "loadBehavioralPersonaCentroid.findCentroid" });
+      return null;
+    });
   if (!row?.metadata) return null;
   const meta = row.metadata as Record<string, unknown> | null;
   if (!meta || typeof meta !== "object") return null;

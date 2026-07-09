@@ -446,8 +446,9 @@ export async function runInterceptors(
       if (priorUser) {
         priorUserContent = priorUser.content || null;
       }
-    } catch {
+    } catch (err) {
       // non-fatal — just means follow-ups won't fire and synth won't run
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.chat.interceptors", err, { fn: "runInterceptors.contextFetch" }, "warn"));
     }
   }
   const intent = classifyIntercept(args.userContent, previousAssistantWasImage);
@@ -558,3 +559,4 @@ export async function runInterceptors(
   // Unreachable — intent.any is true so one of the matched.
   return { kind: "pass" };
 }
+

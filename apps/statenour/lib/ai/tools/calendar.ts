@@ -144,7 +144,7 @@ export const calendarTools = {
               instructions: "Render the composeUrl (event link) in the reply as 'View Event in Google Calendar →'.",
             };
           } catch (err) {
-            console.error("Calendar API create failed, falling back to template URL:", err);
+            void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.calendar", err, { fn: "proposeCalendarEvent.createEvent" }, "warn"));
           }
         }
 

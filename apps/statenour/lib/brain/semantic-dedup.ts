@@ -37,6 +37,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { isPgvectorAvailable } from "@/lib/db/pgvector";
 import { logger as rootLogger } from "@/lib/logger";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/semantic-dedup");
 
@@ -89,15 +90,26 @@ async function loadEmbeddings(memoryIds: string[]): Promise<Map<string, number[]
       where: { sourceType: "brain_memory", sourceId: { in: memoryIds } },
       select: { sourceId: true, embedding: true },
     })
-    .catch(() => [] as Array<{ sourceId: string; embedding: string }>);
+    .catch((err) => {
+      logError("brain.semantic-dedup", err, { fn: "loadEmbeddings.findMany" });
+      return [] as Array<{ sourceId: string; embedding: string }>;
+    });
   const map = new Map<string, number[]>();
+  let malformedCount = 0;
+  const malformedErrors: unknown[] = [];
   for (const r of rows) {
     try {
       const vec = JSON.parse(r.embedding) as number[];
       if (Array.isArray(vec) && vec.length > 0) map.set(r.sourceId, vec);
-    } catch {
+    } catch (err) {
       // skip malformed
+      malformedCount++;
+      malformedErrors.push(err);
     }
+  }
+  
+  if (malformedCount > 0) {
+    logError("brain.semantic-dedup", new Error(`${malformedCount} malformed embeddings skipped`), { fn: "loadEmbeddings", errors: malformedErrors.map(String) });
   }
   return map;
 }
@@ -158,7 +170,10 @@ async function buildNearDupAdjacency(
           AND b.embedding_vec IS NOT NULL
           AND vector_dims(a.embedding_vec) = vector_dims(b.embedding_vec)
           AND (a.embedding_vec <=> b.embedding_vec) < ${COSINE_DISTANCE_THRESHOLD}
-      `.catch(() => null as Array<{ a: string; b: string; distance: number }> | null);
+      `.catch((err) => {
+        logError("brain.semantic-dedup", err, { fn: "buildNearDupAdjacency.pgvectorPairs" });
+        return null as Array<{ a: string; b: string; distance: number }> | null;
+      });
 
       if (pairs) {
         for (const p of pairs) addPair(p.a, p.b);
@@ -172,7 +187,10 @@ async function buildNearDupAdjacency(
           WHERE "sourceType" = 'brain_memory'
             AND "sourceId" IN (${Prisma.join(memoryIds)})
             AND embedding_vec IS NOT NULL
-        `.catch(() => [] as Array<{ sourceId: string }>);
+        `.catch((err) => {
+          logError("brain.semantic-dedup", err, { fn: "buildNearDupAdjacency.pgvectorCovered" });
+          return [] as Array<{ sourceId: string }>;
+        });
         for (const r of covered) pgvectorRowsCovered.add(r.sourceId);
       }
     } catch (err) {
@@ -367,8 +385,9 @@ export async function runSemanticDedup(opts: { dryRun?: boolean } = {}): Promise
         payload: { ...result, threshold: SIMILARITY_THRESHOLD, categories: CATEGORIES_TO_DEDUP } as unknown as Parameters<typeof prisma.auditEvent.create>[0]["data"]["payload"],
       },
     });
-  } catch {
+  } catch (err) {
     // non-critical
+    logError("brain.semantic-dedup", err, { fn: "runSemanticDedup.auditEvent" });
   }
 
   result.durationMs = Date.now() - t0;

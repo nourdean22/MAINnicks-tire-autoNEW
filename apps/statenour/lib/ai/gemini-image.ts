@@ -108,7 +108,7 @@ export async function generateGeminiImage(
   });
 
   if (!res.ok) {
-    const errBody = await res.text().catch(() => "");
+    const errBody = await res.text().catch((e) => { console.warn("Failed to read error body", e); return ""; });
     throw new Error(
       `Gemini image generation failed (${res.status}): ${errBody.slice(0, 300)}`,
     );
@@ -166,7 +166,9 @@ export async function generateGeminiImage(
         description: cappedPrompt,
       }),
     )
-    .catch(() => {});
+    .catch((err) => {
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.gemini-image", err, { fn: "generateGeminiImage.embedPhoto" })).catch((e) => console.error("gemini-image import error", e));
+    });
 
   return {
     base64: b64,
@@ -207,7 +209,7 @@ export async function generateImageOpenRouter(
   });
 
   if (!res.ok) {
-    const errBody = await res.text().catch(() => "");
+    const errBody = await res.text().catch((e) => { console.warn("Failed to read OpenRouter error body", e); return ""; });
     throw new Error(`OpenRouter image generation failed (${res.status}): ${errBody.slice(0, 300)}`);
   }
 
@@ -264,7 +266,9 @@ export async function generateImageOpenRouter(
         description: cappedPrompt,
       }),
     )
-    .catch(() => {});
+    .catch((err) => {
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.gemini-image", err, { fn: "generateImageOpenRouter.embedPhoto" })).catch((e) => console.error("gemini-image import error", e));
+    });
 
   return {
     base64: b64,

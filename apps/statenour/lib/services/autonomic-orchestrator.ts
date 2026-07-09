@@ -348,14 +348,14 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
     deletedCounts.audit_events_generic = genericGc.count;
 
     // CronJobLog keeper-aware prune
-    const keepers = await prisma.$queryRawUnsafe<{ id: string }[]>(`
+    const keepers = await prisma.$queryRaw<{ id: string }[]>`
       SELECT id FROM cron_job_logs WHERE id IN (
         SELECT DISTINCT ON (job_name, status) id
         FROM cron_job_logs
         WHERE status IN ('success', 'failed')
         ORDER BY job_name, status, created_at DESC
       )
-    `).catch(() => [] as { id: string }[]);
+    `.catch(() => [] as { id: string }[]);
     const keeperIds = keepers.map((k) => k.id);
     const cronLogs = await prisma.cronJobLog.deleteMany({
       where: {

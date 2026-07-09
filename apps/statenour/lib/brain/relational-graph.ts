@@ -20,6 +20,7 @@ import { recordError } from "@/lib/errors/record-error";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("relational-graph");
 import { extractJsonArray } from "@/lib/ai/extract-structured";
+import { logError } from "@/lib/utils/error-log";
 
 // ─── Edge Management ─────────────────────────────────────────
 
@@ -70,8 +71,9 @@ export async function connect(
         },
       });
     }
-  } catch {
+  } catch (err) {
     // Non-critical — don't break the caller
+    logError("brain.relational-graph", err, { fn: "connect" });
   }
 }
 
@@ -229,7 +231,8 @@ BAD connections:
     }
 
     return { discovered };
-  } catch {
+  } catch (err) {
+    logError("brain.relational-graph", err, { fn: "discoverConnections" });
     return { discovered: 0 };
   }
 }
@@ -351,7 +354,8 @@ export async function getGraphSummary(limit = 10): Promise<string> {
     });
 
     return `\n## Layer 6 — Memory Graph (${edges.length} connections)\n${lines.join("\n")}`;
-  } catch {
+  } catch (err) {
+    logError("brain.relational-graph", err, { fn: "getGraphSummary" });
     return "";
   }
 }
@@ -376,7 +380,8 @@ export async function getGraphStats() {
       avgStrength: Math.round((avgStrength._avg.strength ?? 0) * 100) / 100,
       byRelationship: byRelationship.map((r) => ({ relationship: r.relationship, count: r._count.id })),
     };
-  } catch {
+  } catch (err) {
+    logError("brain.relational-graph", err, { fn: "getGraphStats" });
     return { totalEdges: 0, avgStrength: 0, byRelationship: [] };
   }
 }

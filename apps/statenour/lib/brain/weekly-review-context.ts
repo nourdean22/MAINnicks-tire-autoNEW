@@ -25,6 +25,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 import { daysAgo } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
@@ -113,7 +114,10 @@ export async function getWeeklyReviewContext(): Promise<string> {
       take: MAX_ROWS,
       select: { key: true, content: true, metadata: true, source: true, updatedAt: true },
     })
-    .catch(() => null);
+    .catch((err) => {
+      logError("brain.weekly-review-context", err, { fn: "getWeeklyReviewContext.findMany" });
+      return null;
+    });
 
   if (!rows || rows.length === 0) return "";
 
@@ -121,8 +125,8 @@ export async function getWeeklyReviewContext(): Promise<string> {
   rows.forEach((row, i) => {
     try {
       body.push(...renderRow(row, i === 0));
-    } catch {
-      // One malformed row must never cost the whole block.
+    } catch (err) {
+      logError("brain.weekly-review-context", err, { fn: "getWeeklyReviewContext.renderRow", key: row.key });
     }
   });
   if (body.length === 0) return "";

@@ -12,6 +12,7 @@
  */
 
 import { recordError } from "@/lib/errors/record-error";
+import { logError } from "@/lib/utils/error-log";
 
 // ─── Cache ─────────────────────────────────────────────────
 
@@ -239,7 +240,7 @@ export function recordSuggestionMetric(
   // the hot path for the panel. DB reads happen in readHistorical-
   // SuggestionMetrics for the 24h view.
   void persistMetric(source, latencyMs, aiFailed).catch((err) =>
-    recordError("ai:suggestion-metric", err, { source, latencyMs }),
+    logError("ai.suggestion-cache", err, { fn: "recordSuggestionMetric", source, latencyMs }),
   );
 }
 
@@ -259,9 +260,9 @@ async function persistMetric(
         tags: { source, aiFailed } as any,
       },
     });
-  } catch {
-    // DB offline / race — the in-memory metric already captured the
-    // sample. Don't spam logs.
+  } catch (err) {
+    /* intentionally ignored — DB offline / race — the in-memory metric already captured the sample. Don't spam logs. */
+    logError("ai.suggestion-cache", err, { fn: "persistMetric", source }, "warn");
   }
 }
 
@@ -321,7 +322,8 @@ export async function readHistoricalSuggestionMetrics(
       avgLatencyMs: total > 0 ? Math.round(totalLatency / total) : 0,
       since: since.toISOString(),
     };
-  } catch {
+  } catch (err) {
+    logError("ai.suggestion-cache", err, { fn: "readHistoricalSuggestionMetrics" });
     return {
       requests: 0,
       cacheHits: 0,
@@ -352,3 +354,4 @@ export function readSuggestionMetrics(): MetricWindow & {
     p95Ms: p95,
   };
 }
+

@@ -119,8 +119,9 @@ export function simulateStreamFromText({
       if (onComplete) {
         try {
           await onComplete();
-        } catch {
+        } catch (err) {
           /* intentionally ignored — delivered stream must not break */
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.simulate-stream-from-text", err, { fn: "simulateStreamFromText.onComplete" })).catch((e) => console.error("simulateStreamFromText.onComplete import error:", e));
         }
       }
     },
@@ -176,8 +177,9 @@ export function simulateReasoningStream({
       if (onComplete) {
         try {
           await onComplete(winner);
-        } catch {
+        } catch (err) {
           /* intentionally ignored */
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.simulate-stream-from-text", err, { fn: "simulateReasoningStream.onComplete" })).catch((e) => console.error("simulateReasoningStream.onComplete import error:", e));
         }
       }
     },

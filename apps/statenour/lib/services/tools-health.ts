@@ -55,9 +55,9 @@ export async function buildToolsHealth(): Promise<ToolsHealthReport> {
     // /api/health) — that cold spike was flipping database to "degraded"
     // and dragging arsenal to PARTIAL on an otherwise-healthy DB.
     // (2026-06-02 audit.)
-    await prisma.$queryRawUnsafe("SELECT 1");
+    await prisma.$queryRaw`SELECT 1`;
     const start = Date.now();
-    await prisma.$queryRawUnsafe("SELECT 1");
+    await prisma.$queryRaw`SELECT 1`;
     const latency = Date.now() - start;
     checks.database = {
       status: latency < 500 ? "ok" : "degraded",

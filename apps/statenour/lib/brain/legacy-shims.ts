@@ -33,6 +33,7 @@ import { daysAgo, toDateString } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { queryNick } from "@/lib/nickstire/query";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/legacy-shims");
 
@@ -80,8 +81,12 @@ export async function recentScoreSnapshots(days = 14): Promise<LegacyScoreRow[]>
       orderBy: { updatedAt: "desc" },
       select: { content: true, updatedAt: true },
     })
-    .catch((): Array<{ content: string; updatedAt: Date }> => []);
+    .catch((err): Array<{ content: string; updatedAt: Date }> => {
+      logError("brain.legacy-shims", err, { fn: "recentScoreSnapshots.findMany" });
+      return [];
+    });
 
+  let parseFailures = 0;
   const out: LegacyScoreRow[] = [];
   for (const row of rows) {
     try {
@@ -107,7 +112,11 @@ export async function recentScoreSnapshots(days = 14): Promise<LegacyScoreRow[]>
       });
     } catch {
       // Snapshot row not in JSON shape — skip.
+      parseFailures++;
     }
+  }
+  if (parseFailures > 0) {
+    logError("brain.legacy-shims", new Error(`${parseFailures} snapshot parse failures`), { fn: "recentScoreSnapshots.parse" });
   }
   return out;
 }
@@ -138,7 +147,10 @@ export async function recentDailyHabits(days = 14): Promise<LegacyHabitRow[]> {
       },
       select: { title: true, streakCount: true, lastCompletedAt: true },
     })
-    .catch((): Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }> => []);
+    .catch((err): Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }> => {
+      logError("brain.legacy-shims", err, { fn: "recentDailyHabits.findMany" });
+      return [];
+    });
 
   const out: LegacyHabitRow[] = [];
   const today = new Date();

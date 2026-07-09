@@ -19,6 +19,7 @@ const aiChat = makeTracedAiChat("people-intelligence");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { daysAgo, today } from "@/lib/utils/datetime";
 import { PERSON_ROLE_PROMPT_LIST, isPersonRole } from "./person-roles";
+import { logError } from "@/lib/utils/error-log";
 
 /**
  * Operator opened/edited the dossier within `days` — a "reviewed" signal
@@ -106,7 +107,10 @@ export async function runPeopleIntelligence(): Promise<{
         take: 20,
         select: { payload: true },
       })
-      .catch(() => []);
+      .catch((err) => {
+        logError("brain.people-intelligence", err, { fn: "runPeopleIntelligence.findDigests" });
+        return [];
+      });
 
     const mentionContext: Record<string, string[]> = {};
     for (const d of digests) {
@@ -118,6 +122,7 @@ export async function runPeopleIntelligence(): Promise<{
       }
     }
 
+    let enrichFailCount = 0;
     for (const person of sparse.slice(0, 5)) {
       const contexts = mentionContext[person.name] || [];
       if (contexts.length === 0 && person.role === "unknown") continue;
@@ -187,8 +192,14 @@ Return ONLY JSON:
             });
             updated++;
           }
-        } catch {}
+        } catch {
+          enrichFailCount++;
+        }
       }
+    }
+    
+    if (enrichFailCount > 0) {
+      logError("brain.people-intelligence", new Error(`${enrichFailCount} people enrichment failures`), { fn: "runPeopleIntelligence.enrich" });
     }
   }
 
@@ -218,7 +229,10 @@ export async function getPeopleIntelligence(): Promise<string> {
         leverageNotes: true,
       },
     })
-    .catch(() => []);
+    .catch((err) => {
+      logError("brain.people-intelligence", err, { fn: "getPeopleIntelligence.findProfiles" });
+      return [];
+    });
 
   if (people.length === 0) return "";
 

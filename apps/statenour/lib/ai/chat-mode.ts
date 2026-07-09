@@ -144,8 +144,9 @@ export async function pruneTools(
           if (allTools[name]) kept[name] = allTools[name];
         }
       }
-    } catch {
+    } catch (err) {
       // Fall through to keyword path
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.chat-mode", err, { fn: "pruneTools" })).catch((e) => console.error("ai.chat-mode import error", e));
     }
   }
 

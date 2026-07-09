@@ -27,6 +27,7 @@ import { prisma } from "@/lib/prisma";
 import type { ReasoningTier } from "./types";
 import { TIER_CONFIG } from "./tier-config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 export const DEFAULT_DAILY_CAP_USD = 1.0;
 export const MEGA_PER_RUN_CAP_USD = 0.25;
@@ -106,11 +107,12 @@ async function getTodaySpendUsd(): Promise<number | typeof BUDGET_READ_FAILED> {
       if (Number.isFinite(usd)) total += usd;
     }
     return Math.round(total * 1000) / 1000;
-  } catch {
+  } catch (err) {
     // H.7.2 · fail CLOSED · pre-fix we returned 0 (open the gate) which
     // meant a Prisma outage = unlimited spend. Now we return a sentinel
     // and checkBudget rejects. Operator can override with explicit
     // /force=true if they know Prisma is the issue · NOT in this wave.
+    logError("ai.reasoning-budget", err, { fn: "getTodaySpendUsd" });
     return BUDGET_READ_FAILED;
   }
 }
@@ -139,8 +141,9 @@ async function getInFlightUsd(): Promise<number | typeof BUDGET_READ_FAILED> {
       if (Number.isFinite(usd)) total += usd;
     }
     return Math.round(total * 1000) / 1000;
-  } catch {
+  } catch (err) {
     // H.7.2 · fail CLOSED · same pattern as getTodaySpendUsd
+    logError("ai.reasoning-budget", err, { fn: "getInFlightUsd" });
     return BUDGET_READ_FAILED;
   }
 }
@@ -172,9 +175,10 @@ export async function reserveBudget(
       },
     });
     return { id, estimatedRunUsd };
-  } catch {
+  } catch (err) {
     // Best-effort · if reservation write fails, fall back to no-reservation
     // (caller still proceeds · TOCTOU window is the cost of resilience).
+    logError("ai.reasoning-budget", err, { fn: "reserveBudget", tier, estimatedRunUsd });
     return null;
   }
 }
@@ -187,8 +191,9 @@ export async function releaseReservation(reservation: Reservation | null): Promi
     await prisma.brainMemory.deleteMany({
       where: { category: BRAIN_CATEGORIES.REASONING_IN_FLIGHT, key: reservation.id },
     });
-  } catch {
+  } catch (err) {
     // Best-effort · stale reservation will TTL out after RESERVATION_TTL_MS
+    logError("ai.reasoning-budget", err, { fn: "releaseReservation", reservation: reservation.id });
   }
 }
 
@@ -204,8 +209,9 @@ async function pruneStaleReservations(): Promise<void> {
         createdAt: { lt: cutoff },
       },
     });
-  } catch {
+  } catch (err) {
     // best-effort
+    logError("ai.reasoning-budget", err, { fn: "pruneStaleReservations" });
   }
 }
 
