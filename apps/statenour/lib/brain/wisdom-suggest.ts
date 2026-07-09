@@ -39,6 +39,7 @@ import { prisma } from "@/lib/prisma";
 import { getEmbedding } from "@/lib/ai/provider";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { logger as rootLogger } from "@/lib/logger";
+import { logError } from "@/lib/utils/error-log";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/wisdom-suggest");
@@ -217,8 +218,8 @@ export async function findRelatedWisdom(
       const sim = cosineSimilarity(queryVec, vec);
       if (sim < SIM_FLOOR) continue;
       simBy.set(r.sourceId, sim);
-    } catch {
-      // skip malformed embedding row
+    } catch (err) {
+      logError("brain.wisdom-suggest", err, { fn: "findRelatedWisdom.parseVec", sourceId: r.sourceId });
     }
   }
   if (simBy.size === 0) return [];

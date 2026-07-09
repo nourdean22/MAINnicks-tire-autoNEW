@@ -30,7 +30,10 @@ export const goalsTools = {
           status: "active",
           ...(domain ? { domain } : {}),
         },
-      }).catch((): never[] => []);
+      }).catch((err): never[] => {
+        void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.goals", err, { fn: "getProjections.goals" }, "error"));
+        return [];
+      });
 
       // Best-effort revenue projection from bridge. Bridge failure
       // returns null → projections array empty, goals still surface.
@@ -54,8 +57,9 @@ export const goalsTools = {
             const monthly = res.data.totalDollars;
             revenueProjection = { current: monthly, projectedAnnual: Math.round(monthly * 12) };
           }
-        } catch {
+        } catch (err) {
           // Bridge unavailable — projections degrade to goals-only.
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.goals", err, { fn: "getProjections.revenue" }, "warn"));
         }
       }
 
@@ -142,7 +146,10 @@ export const goalsTools = {
             createdBy: "nick",
           },
         })
-        .catch(() => null);
+        .catch((err) => {
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.goals", err, { fn: "archiveGoal.undoToken" }, "error"));
+          return null;
+        });
       return {
         success: true,
         goalId: target.id,

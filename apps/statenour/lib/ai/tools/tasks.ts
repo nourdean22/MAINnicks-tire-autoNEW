@@ -54,7 +54,10 @@ const tasksCoreTools = {
     description: "Get unresolved drift alerts",
     inputSchema: z.object({}),
     execute: async () => {
-      return getUnresolvedAlerts().catch((): never[] => []);
+      return getUnresolvedAlerts().catch((err): never[] => {
+        void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.tasks", err, { fn: "getDriftAlerts" }, "error"));
+        return [];
+      });
     },
   }),
 
@@ -62,7 +65,10 @@ const tasksCoreTools = {
     description: "Get active commitments",
     inputSchema: z.object({}),
     execute: async () => {
-      return prisma.commitment.findMany({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } }).catch((): never[] => []);
+      return prisma.commitment.findMany({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } }).catch((err): never[] => {
+        void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.tasks", err, { fn: "getCommitments" }, "error"));
+        return [];
+      });
     },
   }),
 
@@ -92,7 +98,10 @@ const tasksCoreTools = {
           mission: { select: { title: true, domain: true } },
         },
         orderBy: { autoPriority: "desc" },
-      }).catch((): never[] => []);
+      }).catch((err): never[] => {
+        void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.tasks", err, { fn: "getTasks" }, "error"));
+        return [];
+      });
     },
   }),
 
@@ -448,7 +457,10 @@ const tasksCoreTools = {
             createdBy: "nick",
           },
         })
-        .catch(() => null);
+        .catch((err) => {
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.tasks", err, { fn: "snoozeTask.undoToken" }, "error"));
+          return null;
+        });
       return {
         success: true,
         taskId: target.id,
@@ -680,7 +692,9 @@ const tasksCoreTools = {
           confidence: 0.8,
           source: "decision_journal",
         },
-      }).catch(() => {});
+      }).catch((err) => {
+        void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.tasks", err, { fn: "journalDecision.brainMemory" }, "warn"));
+      });
 
       return { logged: true, id: decision.id };
     },

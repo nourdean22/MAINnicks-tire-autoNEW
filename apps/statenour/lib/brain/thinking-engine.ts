@@ -27,6 +27,7 @@ import { prisma } from "@/lib/prisma";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("thinking-engine");
 import { extractJsonArray, extractJsonObject } from "@/lib/ai/extract-structured";
+import { logError } from "@/lib/utils/error-log";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
@@ -90,7 +91,9 @@ Return [] if no contradictions found. Max 4.`,
   for (const c of contradictions.slice(0, 4)) {
     await prisma.contradiction.create({
       data: { date: today(), claim: c.claim, reality: c.reality, gap: c.gap, severity: c.severity || "moderate", category: c.category || "identity", claimSource: "ai_detected" },
-    }).catch(() => undefined);
+    }).catch((err) => {
+      logError("brain.thinking-engine", err, { fn: "detectContradictions.create" });
+    });
   }
   return { found: contradictions.length };
 }
@@ -176,7 +179,10 @@ Score values ONLY from data, not from claims. 0.0 = no evidence, 1.0 = overwhelm
       });
     }
     return { tracked: true };
-  } catch { return { tracked: false }; }
+  } catch (err) {
+    logError("brain.thinking-engine", err, { fn: "trackIdentityEvolution" });
+    return { tracked: false };
+  }
 }
 
 // ─── L9: Simulation Engine ───────────────────────────────
@@ -238,7 +244,10 @@ Think 3-5 steps deep. Each step's outcome feeds the next. Be specific with numbe
       "thinking-engine",
     );
     return stored ? { id: stored.id ?? key } : { id: key };
-  } catch { return null; }
+  } catch (err) {
+    logError("brain.thinking-engine", err, { fn: "runSimulation" });
+    return null;
+  }
 }
 
 // ─── L10: Causal Engine ──────────────────────────────────
@@ -272,7 +281,10 @@ export async function analyzeCausalChains(): Promise<{ chains: number }> {
           };
         });
       })
-      .catch((): Array<{ ruleName: string; message: string }> => []),
+      .catch((err): Array<{ ruleName: string; message: string }> => {
+        logError("brain.thinking-engine", err, { fn: "analyzeCausalChains.fetchAlerts" });
+        return [];
+      }),
   ]);
 
   const existing = await prisma.causalChain.findMany({ take: 10, select: { effect: true, rootCause: true } });
@@ -339,7 +351,10 @@ Max 3 chains. Skip if no clear causal pattern exists.`,
       }
     }
     return { chains: chains.length };
-  } catch { return { chains: 0 }; }
+  } catch (err) {
+    logError("brain.thinking-engine", err, { fn: "analyzeCausalChains" });
+    return { chains: 0 };
+  }
 }
 
 // ─── L11: People Intelligence ────────────────────────────
@@ -423,7 +438,10 @@ export async function getThinkingLayersContext(): Promise<string> {
   const contradictions = await prisma.contradiction.findMany({
     where: { resolved: false }, orderBy: { createdAt: "desc" }, take: 5,
     select: { claim: true, reality: true, severity: true, category: true },
-  }).catch((): never[] => []);
+  }).catch((err): never[] => {
+    logError("brain.thinking-engine", err, { fn: "getThinkingLayersContext.contradictions" });
+    return [];
+  });
 
   if (contradictions.length > 0) {
     sections.push(`\n## L7 — Contradictions Detected (${contradictions.length})`);
@@ -436,7 +454,10 @@ export async function getThinkingLayersContext(): Promise<string> {
   const identity = await prisma.identitySnapshot.findFirst({
     where: { deletedAt: null }, // v7.9
     orderBy: { date: "desc" }, select: { trajectory: true, masterySelf: true, deltaFromLast: true },
-  }).catch((): null => null);
+  }).catch((err): null => {
+    logError("brain.thinking-engine", err, { fn: "getThinkingLayersContext.identity" });
+    return null;
+  });
 
   if (identity) {
     sections.push(`\n## L8 — Identity Evolution`);
@@ -457,7 +478,10 @@ export async function getThinkingLayersContext(): Promise<string> {
       take: 3,
       select: { content: true },
     })
-    .catch((): Array<{ content: string }> => []);
+    .catch((err): Array<{ content: string }> => {
+      logError("brain.thinking-engine", err, { fn: "getThinkingLayersContext.simRows" });
+      return [];
+    });
   const sims: Array<{ scenario: string; recommendation: string; confidence: number }> = [];
   for (const row of simRows) {
     try {
@@ -471,8 +495,8 @@ export async function getThinkingLayersContext(): Promise<string> {
         recommendation: typeof parsed.recommendation === "string" ? parsed.recommendation : "",
         confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
       });
-    } catch {
-      // Skip malformed simulation row.
+    } catch (err) {
+      logError("brain.thinking-engine", err, { fn: "getThinkingLayersContext.parseSim" });
     }
   }
 
@@ -487,7 +511,10 @@ export async function getThinkingLayersContext(): Promise<string> {
   const chains = await prisma.causalChain.findMany({
     where: { broken: false }, orderBy: { frequency: "desc" }, take: 3,
     select: { effect: true, rootCause: true, intervention: true, frequency: true },
-  }).catch((): never[] => []);
+  }).catch((err): never[] => {
+    logError("brain.thinking-engine", err, { fn: "getThinkingLayersContext.chains" });
+    return [];
+  });
 
   if (chains.length > 0) {
     sections.push(`\n## L10 — Active Causal Chains (${chains.length})`);
@@ -500,7 +527,10 @@ export async function getThinkingLayersContext(): Promise<string> {
   const people = await prisma.personProfile.findMany({
     orderBy: { interactionCount: "desc" }, take: 5,
     select: { name: true, role: true, trustScore: true },
-  }).catch((): never[] => []);
+  }).catch((err): never[] => {
+    logError("brain.thinking-engine", err, { fn: "getThinkingLayersContext.people" });
+    return [];
+  });
 
   if (people.length > 0) {
     sections.push(`\n## L11 — Key People (${people.length})`);

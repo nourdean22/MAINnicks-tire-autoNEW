@@ -25,6 +25,20 @@ import {
   sendTelegram,
 } from "@/lib/services/telegram";
 import { confirmJournalLink, type JournalSilo } from "@/lib/brain/journal-brain";
+import { z } from "zod";
+
+const intellPayloadSchema = z.object({
+  phone: z.union([z.string(), z.number()]),
+  smsBody: z.string(),
+  customerName: z.string().optional(),
+  vehicle: z.string().optional()
+}).catchall(z.unknown());
+
+const smsPayloadSchema = z.object({
+  phone: z.union([z.string(), z.number()]),
+  message: z.string(),
+  customerName: z.string().optional()
+}).catchall(z.unknown());
 
 /**
  * v9.1.14 · Constant-time secret compare. The previous `provided !==
@@ -238,8 +252,9 @@ async function handleCallback(callback: {
         return;
       }
 
-      const payload = intellReceipt.verificationPayload as any;
-      if (!payload || typeof payload !== "object" || !payload.phone || !payload.smsBody) {
+      const parsedPayload = intellPayloadSchema.safeParse(intellReceipt.verificationPayload);
+      if (!parsedPayload.success) {
+        const payload = intellReceipt.verificationPayload;
         console.error("[telegram:webhook] Malformed recall payload on receipt:", receiptId, payload);
         await prisma.actionReceipt.update({
           where: { id: receiptId },
@@ -255,6 +270,7 @@ async function handleCallback(callback: {
         return;
       }
 
+      const payload = parsedPayload.data;
       if (decision === "approve") {
         // Send Capevace SMS Gateway mock
         console.log(`[Capevace Gateway Mock] SMS to ${payload.phone}: ${payload.smsBody}`);
@@ -312,8 +328,9 @@ async function handleCallback(callback: {
       }
 
       if (action === "approve") {
-        const payload = actReceipt.verificationPayload as any;
-        if (!payload || typeof payload !== "object" || !payload.phone || !payload.message) {
+        const parsedPayload = smsPayloadSchema.safeParse(actReceipt.verificationPayload);
+        if (!parsedPayload.success) {
+          const payload = actReceipt.verificationPayload;
           console.error("[telegram:webhook] Malformed SMS payload on receipt:", receiptId, payload);
           await prisma.actionReceipt.update({
             where: { id: receiptId },
@@ -329,6 +346,7 @@ async function handleCallback(callback: {
           return;
         }
 
+        const payload = parsedPayload.data;
         const { callNickstire } = await import("@/lib/ai/agent-actions/shop-actions");
         try {
           const res = await callNickstire("smsBot.send", { phone: String(payload.phone), message: String(payload.message) });
@@ -374,10 +392,11 @@ async function handleCallback(callback: {
           }
         });
         if (messageId) {
-          const payload = actReceipt.verificationPayload as any;
+          const parsedPayload = smsPayloadSchema.safeParse(actReceipt.verificationPayload);
+          const payload = parsedPayload.success ? parsedPayload.data : null;
           await editTelegramMessage(
             messageId,
-            `❌ Staged SMS Declined.\n\n<b>To:</b> ${payload?.customerName || "Unknown"} (${payload?.phone})\n<b>Message:</b> "${payload?.message}"`,
+            `❌ Staged SMS Declined.\n\n<b>To:</b> ${payload?.customerName || "Unknown"} (${payload?.phone || "Unknown"})\n<b>Message:</b> "${payload?.message || "Unknown"}"`,
             chatId
           );
         }

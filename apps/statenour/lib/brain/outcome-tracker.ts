@@ -24,6 +24,7 @@ import { brainMemory } from "@/lib/brain/memory-manager";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { recentScoreSnapshots, recentShopJobs } from "@/lib/brain/legacy-shims";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 // ---------------------------------------------------------------------------
 // Prediction outcome scoring
@@ -69,6 +70,7 @@ export async function scorePendingPredictions(): Promise<PredictionScore[]> {
 
   const scored: PredictionScore[] = [];
 
+  let scoreFailCount = 0;
   for (const pred of pending) {
     try {
       const result = await aiChat(
@@ -151,7 +153,12 @@ Was this prediction accurate?`,
       });
     } catch {
       // Skip predictions that fail to score
+      scoreFailCount++;
     }
+  }
+
+  if (scoreFailCount > 0) {
+    logError("brain.outcome-tracker", new Error(`${scoreFailCount} predictions failed to score`), { fn: "scorePendingPredictions" });
   }
 
   return scored;
@@ -287,7 +294,8 @@ export async function getAccuracyContext(): Promise<string> {
           : "Your confidence aligns with your accuracy. Maintain current calibration.",
       report.lessons.length > 0 ? `Recent lessons: ${report.lessons[0]}` : "",
     ].filter(Boolean).join("\n");
-  } catch {
+  } catch (err) {
+    logError("brain.outcome-tracker", err, { fn: "getAccuracyContext" });
     return "";
   }
 }

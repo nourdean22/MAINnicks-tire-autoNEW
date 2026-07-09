@@ -87,7 +87,7 @@ export function bustPgvectorCache(): void {
  */
 export async function enablePgvector(): Promise<boolean> {
   try {
-    await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS vector`);
+    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS vector`;
     bustPgvectorCache();
     return await isPgvectorAvailable();
   } catch (err) {

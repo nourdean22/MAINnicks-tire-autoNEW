@@ -74,8 +74,9 @@ export async function recordPersonaUsage(args: {
         },
       },
     });
-  } catch {
+  } catch (err) {
     // best-effort
+    void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.personas.scorer", err, { fn: "recordPersonaUsage" }, "warn"));
   }
 }
 
@@ -131,7 +132,9 @@ export async function scorePersonas(
       });
     }
     return scores.toSorted((a, b) => b.runs - a.runs);
-  } catch {
+  } catch (err) {
+    void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.personas.scorer", err, { fn: "scorePersonas" }, "error"));
     return [];
   }
 }
+

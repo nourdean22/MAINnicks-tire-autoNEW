@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 
 export interface ToolInvocation {
   toolName: string;
@@ -121,6 +122,7 @@ export async function recordToolInvocation(inv: ToolInvocation): Promise<void> {
   } catch (err) {
     // Telemetry failures must never break chat. Swallow silently; the
     // next invocation will attempt again.
+    logError("ai.tool-telemetry", err, { fn: "recordToolInvocation" });
     console.warn(
       "[tool-telemetry] record failed:",
       err instanceof Error ? err.message : err,
@@ -164,7 +166,10 @@ export async function getToolStats(limit = 50): Promise<ToolStat[]> {
         lastCallAt: true,
       },
     })
-    .catch((): never[] => []);
+    .catch((err): never[] => {
+      logError("ai.tool-telemetry", err, { fn: "getToolStats.findMany" });
+      return [];
+    });
 
   return rows.map((row) => {
     // totalDurationMs is BigInt — convert once to Number for the

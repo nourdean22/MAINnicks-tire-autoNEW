@@ -27,6 +27,7 @@ const aiChat = makeTracedAiChat("decision-patterns");
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { daysAgo, today } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 export interface DecisionPattern {
   pattern: string;
@@ -253,6 +254,7 @@ export async function analyzeDecisionPatterns(): Promise<{
   const mathResults = await mathAnalysis(decisions, scores, commitments);
 
   // Store math patterns as brain memories
+  let mathUpsertErrors = 0;
   for (const p of mathResults) {
     await prisma.brainMemory.upsert({
       where: { category_key: { category: BRAIN_CATEGORIES.DECISION_PATTERN, key: `dp_math_${p.name.replace(/\s+/g, "_").toLowerCase().slice(0, 40)}` } },
@@ -268,7 +270,10 @@ export async function analyzeDecisionPatterns(): Promise<{
         seenCount: { increment: 1 },
         confidence: p.confidence,
       },
-    }).catch(() => {});
+    }).catch(() => { mathUpsertErrors++; });
+  }
+  if (mathUpsertErrors > 0) {
+    logError("brain.decision-patterns", new Error(`${mathUpsertErrors} pattern upserts failed`), { fn: "analyzeDecisionPatterns.math" });
   }
 
   // Optional AI analysis for deeper patterns (may fail, that's OK)
@@ -295,7 +300,9 @@ export async function analyzeDecisionPatterns(): Promise<{
         const parsed = extracted.value;
         if (Array.isArray(parsed)) aiPatterns = parsed.slice(0, 3);
       }
-    } catch {}
+    } catch (err) {
+      logError("brain.decision-patterns", err, { fn: "analyzeDecisionPatterns.ai" });
+    }
   }
 
   return { patterns: aiPatterns, mathPatterns: mathResults };
@@ -311,7 +318,10 @@ export async function getDecisionPatternContext(): Promise<string> {
     orderBy: { confidence: "desc" },
     take: 5,
     select: { content: true, confidence: true },
-  }).catch(() => []);
+  }).catch((err) => {
+    logError("brain.decision-patterns", err, { fn: "getDecisionPatternContext.findMany" });
+    return [];
+  });
 
   if (patterns.length === 0) return "";
 

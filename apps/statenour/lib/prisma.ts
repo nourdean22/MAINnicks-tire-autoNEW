@@ -208,7 +208,7 @@ if (process.env.NODE_ENV !== "production") {
 export async function checkDbConnection(): Promise<{ connected: boolean; latency_ms: number }> {
   const start = Date.now();
   try {
-    await prisma.$queryRawUnsafe("SELECT 1");
+    await prisma.$queryRaw`SELECT 1`;
     return { connected: true, latency_ms: Date.now() - start };
   } catch {
     return { connected: false, latency_ms: Date.now() - start };

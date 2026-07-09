@@ -25,6 +25,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 
 // ─────────────────────────────────────────────────────────────────────
 // EXTRACT predictions from assistant replies
@@ -107,7 +108,7 @@ export async function persistPrediction(args: PersistArgs): Promise<void> {
       },
     });
   } catch (err) {
-    console.warn("[outcome-calibration] persist failed:", err instanceof Error ? err.message : err);
+    logError("ai.outcome-calibration", err, { fn: "persistPrediction" });
   }
 }
 
@@ -132,7 +133,10 @@ export async function resolvePrediction(args: ResolveArgs): Promise<{ resolved: 
       orderBy: { createdAt: "desc" },
       take: 100,
     })
-    .catch(() => [] as Array<{ id: string; metadata: unknown; content: string }>);
+    .catch((err) => {
+      logError("ai.outcome-calibration", err, { fn: "resolvePrediction.findMany" });
+      return [] as Array<{ id: string; metadata: unknown; content: string }>;
+    });
 
   const match = candidates.find((c) => {
     const m = c.metadata as { captionHash?: string; resolved?: boolean } | null;
@@ -192,7 +196,10 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
       where: { category: "prediction", createdAt: { gte: since } },
       select: { metadata: true },
     })
-    .catch(() => [] as Array<{ metadata: unknown }>);
+    .catch((err) => {
+      logError("ai.outcome-calibration", err, { fn: "getCalibrationStats.findMany" });
+      return [] as Array<{ metadata: unknown }>;
+    });
 
   let resolved = 0;
   let pending = 0;

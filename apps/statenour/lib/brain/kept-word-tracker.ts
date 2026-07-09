@@ -25,6 +25,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 interface ExtractedPromise {
   personName: string;
@@ -71,6 +72,8 @@ export async function scanKeptWords(): Promise<{
 
   let newPromises = 0;
   const resolved = 0;
+  let classifierFailures = 0;
+  const classifierErrors: unknown[] = [];
 
   for (const msg of messages) {
     if (msg.role !== "user") continue; // operator quotes someone
@@ -148,9 +151,15 @@ export async function scanKeptWords(): Promise<{
         });
         newPromises++;
       }
-    } catch {
+    } catch (err) {
       // skip · classifier failure on one message doesn't block others
+      classifierFailures++;
+      classifierErrors.push(err);
     }
+  }
+
+  if (classifierFailures > 0) {
+    logError("brain.kept-word-tracker", new Error(`${classifierFailures} classifier failures skipped`), { fn: "scanKeptWords", errors: classifierErrors.map(String) });
   }
 
   return { scanned: messages.length, newPromises, resolved };
@@ -176,14 +185,22 @@ export async function deriveTrustFromKeptWord(
   if (rows.length === 0) return null;
   let kept = 0;
   let broken = 0;
+  let malformedCount = 0;
+  const malformedErrors: unknown[] = [];
   for (const r of rows) {
     try {
       const parsed = JSON.parse(r.content) as { status: string };
       if (parsed.status === "kept") kept++;
       else if (parsed.status === "broken") broken++;
-    } catch {
+    } catch (err) {
       // ignore malformed rows
+      malformedCount++;
+      malformedErrors.push(err);
     }
+  }
+  
+  if (malformedCount > 0) {
+    logError("brain.kept-word-tracker", new Error(`${malformedCount} malformed rows skipped`), { fn: "deriveTrustFromKeptWord", personId, errors: malformedErrors.map(String) });
   }
   const total = kept + broken;
   if (total < 3) return null; // need ≥3 data points

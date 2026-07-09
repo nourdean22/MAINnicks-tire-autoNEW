@@ -8,10 +8,10 @@
  */
 
 import { prisma } from "@/lib/prisma";
-// v10.0.64 · AgentTrace coverage. getEmbedding kept direct.
 import { getEmbedding, type TaskType } from "./provider";
 import { makeTracedAiChat } from "./traced-aichat";
 import { extractJsonArray } from "./extract-structured";
+import { logError } from "@/lib/utils/error-log";
 const aiChat = makeTracedAiChat("ai-memory", "tool");
 
 interface InteractionRecord {
@@ -32,7 +32,7 @@ async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T | nu
       return await fn();
     } catch (err) {
       if (attempt === MAX_RETRIES) {
-        console.error(`[memory] ${label} failed after ${MAX_RETRIES + 1} attempts:`, err);
+        logError("ai.memory", err, { fn: "withRetry", label });
         return null;
       }
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
@@ -61,7 +61,7 @@ export async function recordInteraction(record: InteractionRecord): Promise<void
   );
   // Step 2: Async knowledge extraction — fire and forget but with retry
   extractKnowledge(record).catch((err) => {
-    console.error("[memory] Knowledge extraction failed:", record.feature, err?.message || err);
+    logError("ai.memory", err, { fn: "recordInteraction.extractKnowledge", feature: record.feature });
   });
 }
 
@@ -120,8 +120,9 @@ If nothing learnable, return []. Max 3 facts. Be specific, not generic.`,
         `save-fact-${f.category}`
       );
     }
-  } catch {
-    // JSON parse failed — not critical
+  } catch (err) {
+    // JSON parse failed — not critical, or Prisma insert failure
+    logError("ai.memory", err, { fn: "extractKnowledge.saveInsight" });
   }
 }
 
@@ -146,7 +147,8 @@ export async function getLearnedKnowledge(limit = 20): Promise<string> {
     });
 
     return `\n## What I've Learned About You (auto-extracted)\n${lines.join("\n")}`;
-  } catch {
+  } catch (err) {
+    logError("ai.memory", err, { fn: "getLearnedKnowledge" });
     return ""; // Never break the system prompt builder
   }
 }
@@ -183,7 +185,8 @@ export async function getAiStats(): Promise<{
       learnedFacts,
       topFeatures: features.map((f) => ({ feature: f.feature, count: f._count.feature })),
     };
-  } catch {
+  } catch (err) {
+    logError("ai.memory", err, { fn: "getAiStats" });
     return { totalInteractions: 0, todayInteractions: 0, learnedFacts: 0, topFeatures: [] };
   }
 }

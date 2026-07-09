@@ -31,6 +31,7 @@ import {
   RESEARCH_SYNTHESIZER,
   personaToSystemPrompt,
 } from "@/lib/ai/personas";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("ai/deep-research");
 
@@ -196,7 +197,8 @@ export async function runDeepResearch(args: {
   let synthFailed = false;
   if (successful.length > 0) {
     synthesis = await synthesize({ question: args.question, rounds: successful }).catch(
-      () => {
+      (err) => {
+        void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.deep-research", err, { fn: "runDeepResearch.synthesize" })).catch((e) => console.error(e));
         synthFailed = true;
         return "";
       },
@@ -232,8 +234,9 @@ export async function runDeepResearch(args: {
         parentConfidence: synthFailed ? 0.2 : 0.7,
         durationMs: synthMs,
       });
-    } catch {
+    } catch (err) {
       /* best-effort */
+      logError("ai.deep-research", err, { fn: "runDeepResearch.recordPersonaUsage" });
     }
   })();
 

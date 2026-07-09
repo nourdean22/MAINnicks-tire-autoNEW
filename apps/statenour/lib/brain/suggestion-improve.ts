@@ -26,6 +26,7 @@
 
 import { suggestionLoopStats } from "@/lib/brain/suggestion-loop";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 /** A kind needs at least this many action signals before it is judged. */
 const MIN_SIGNALS = 5;
@@ -100,6 +101,8 @@ export async function persistSuggestionHypotheses(
   const today = new Date().toISOString().slice(0, 10);
   const { brainMemory } = await import("@/lib/brain/memory-manager");
   let written = 0;
+  let failures = 0;
+  const writeErrors: unknown[] = [];
   for (const h of hypotheses) {
     const key = `suggestion_hyp_${h.kind}_${today}`;
     try {
@@ -120,9 +123,14 @@ export async function persistSuggestionHypotheses(
         },
       );
       written++;
-    } catch {
+    } catch (err) {
       // best-effort · skip
+      failures++;
+      writeErrors.push(err);
     }
+  }
+  if (failures > 0) {
+    logError("brain.suggestion-improve", new Error(`${failures} hypothesis writes failed`), { fn: "persistSuggestionHypotheses", errors: writeErrors.map(String) });
   }
   return written;
 }
@@ -142,7 +150,8 @@ export async function runSuggestionImproveAgent(daysBack = DEFAULT_DAYS): Promis
     const hypotheses = await analyzeSuggestionLoop(daysBack);
     const persisted = await persistSuggestionHypotheses(hypotheses);
     return { hypotheses, persisted };
-  } catch {
+  } catch (err) {
+    logError("brain.suggestion-improve", err, { fn: "runSuggestionImproveAgent" });
     return { hypotheses: [], persisted: 0 };
   }
 }

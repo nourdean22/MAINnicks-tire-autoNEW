@@ -47,7 +47,7 @@ export const GET = apiHandler(
       newest: Date | null;
       oldest: Date | null;
     };
-    const rows = await prisma.$queryRawUnsafe<Row[]>(`
+    const rows = await prisma.$queryRaw<Row[]>`
       SELECT
         bm.category::text AS category,
         COUNT(*)::int AS count,
@@ -68,7 +68,7 @@ export const GET = apiHandler(
       WHERE bm.deleted_at IS NULL
       GROUP BY bm.category
       ORDER BY COUNT(*) DESC
-    `);
+    `;
 
     const now = Date.now();
     const categories: CategoryHealth[] = rows.map((r) => {

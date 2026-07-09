@@ -13,6 +13,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 export const habitsTools = {
   getHabitStreaks: tool({
@@ -31,7 +32,10 @@ export const habitsTools = {
           where: { loopKind: "DAILY", deletedAt: null },
           select: { title: true, streakCount: true, lastCompletedAt: true },
         })
-        .catch((): Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }> => []);
+        .catch((err): Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }> => {
+          logError("ai.tools-habits", err, { fn: "getHabitStreaks" });
+          return [];
+        });
       const summary: Record<string, { completed: number; total: number }> = {};
       for (const t of dailyTasks) {
         const completed = Math.min(7, t.streakCount); // 7-day window
@@ -67,9 +71,18 @@ export const habitsTools = {
             orderBy: { updatedAt: "desc" },
             select: { content: true, updatedAt: true },
           })
-          .catch((): Array<{ content: string; updatedAt: Date }> => []),
-        prisma.task.count({ where: { status: "DONE", updatedAt: { gte: daysAgo(7) } } }).catch(() => 0),
-        prisma.task.count({ where: { createdAt: { gte: daysAgo(7) } } }).catch(() => 0),
+          .catch((err): Array<{ content: string; updatedAt: Date }> => {
+            logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "snapshots" });
+            return [];
+          }),
+        prisma.task.count({ where: { status: "DONE", updatedAt: { gte: daysAgo(7) } } }).catch((err) => {
+          logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "tasksCompleted" });
+          return 0;
+        }),
+        prisma.task.count({ where: { createdAt: { gte: daysAgo(7) } } }).catch((err) => {
+          logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "tasksCreated" });
+          return 0;
+        }),
         // v10.0.54 · habit history → DAILY-loop tasks completed in
         // last 7d. Streak count is the durable metric; we surface
         // per-task streaks as the "habits" rollup.
@@ -82,7 +95,10 @@ export const habitsTools = {
             },
             select: { title: true, streakCount: true },
           })
-          .catch((): Array<{ title: string; streakCount: number }> => []),
+          .catch((err): Array<{ title: string; streakCount: number }> => {
+            logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "dailyHabits" });
+            return [];
+          }),
         prisma.brainMemory
           .findMany({
             where: {
@@ -93,7 +109,10 @@ export const habitsTools = {
             },
             select: { metadata: true },
           })
-          .catch(() => []),
+          .catch((err) => {
+            logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "alerts" });
+            return [];
+          }),
       ]);
 
       // Parse score snapshots
@@ -105,8 +124,9 @@ export const habitsTools = {
             date: row.updatedAt.toISOString().slice(0, 10),
             overallScore: typeof parsed.score === "number" ? parsed.score : null,
           });
-        } catch {
+        } catch (err) {
           // Skip malformed snapshot rows
+          logError("ai.tools-habits", new Error(`Malformed snapshot row skipped in weeklyReview`), { date: row.updatedAt });
         }
       }
 
@@ -155,7 +175,10 @@ export const habitsTools = {
             orderBy: { updatedAt: "desc" },
             select: { content: true, updatedAt: true },
           })
-          .catch((): Array<{ content: string; updatedAt: Date }> => []),
+          .catch((err): Array<{ content: string; updatedAt: Date }> => {
+            logError("ai.tools-habits", err, { fn: "analyzeWeek", scope: "snapshotHistory" });
+            return [];
+          }),
         prisma.task.count({ where: { status: "DONE", lastTouchedAt: { gte: sevenDaysAgoDate } } }),
         prisma.brainMemory.count({
           where: {
@@ -164,6 +187,9 @@ export const habitsTools = {
             createdAt: { gte: sevenDaysAgoDate },
             deletedAt: null,
           },
+        }).catch((err) => {
+          logError("ai.tools-habits", err, { fn: "analyzeWeek", scope: "alerts" });
+          return 0;
         }),
         prisma.task
           .findMany({
@@ -174,7 +200,10 @@ export const habitsTools = {
             },
             select: { title: true, streakCount: true },
           })
-          .catch((): Array<{ title: string; streakCount: number }> => []),
+          .catch((err): Array<{ title: string; streakCount: number }> => {
+            logError("ai.tools-habits", err, { fn: "analyzeWeek", scope: "dailyTasks" });
+            return [];
+          }),
       ]);
 
       // Parse snapshot.score from each history row (content is JSON
@@ -192,8 +221,9 @@ export const habitsTools = {
             workoutDone: !!parsed.workoutDone,
             journalDone: !!parsed.journalDone,
           });
-        } catch {
+        } catch (err) {
           // Snapshot row not in JSON shape — skip.
+          logError("ai.tools-habits", new Error(`Malformed snapshot row skipped in analyzeWeek`), { date: row.updatedAt });
         }
       }
 

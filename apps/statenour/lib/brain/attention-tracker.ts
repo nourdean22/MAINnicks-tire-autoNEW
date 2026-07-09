@@ -17,6 +17,7 @@
 import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
 import { brainMemory } from "@/lib/brain/memory-manager";
+import { logError } from "@/lib/utils/error-log";
 
 interface AttentionProfile {
   topTopics: { topic: string; mentions: number }[];
@@ -231,7 +232,9 @@ export async function analyzeAttentionPatterns(): Promise<AttentionProfile> {
       toolUsage.push({ tool, count });
     }
     toolUsage.sort((a, b) => b.count - a.count);
-  } catch {}
+  } catch (err) {
+    logError("brain.attention-tracker", err, { fn: "analyzeAttentionPatterns.toolUsage" });
+  }
 
   // ── Attention Velocity ──
   // Is focus improving or degrading over the last 30 days?
@@ -292,7 +295,8 @@ export async function getAttentionContext(): Promise<string> {
       }
 
       return lines.join("\n");
-    } catch {
+    } catch (err) {
+      logError("brain.attention-tracker", err, { fn: "getAttentionContext" });
       return "";
     }
   });

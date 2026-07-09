@@ -34,9 +34,16 @@ import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
 import { buildCeoContextFromNickSyncPayload } from "@/lib/nickstire/ceo-context";
 
+import { z } from "zod";
+
+const businessSyncSchema = z.object({
+  source: z.string().optional(),
+}).catchall(z.unknown());
+
 export const POST = apiHandler(
   async (req) => {
-    const data = (await req.json()) as unknown;
+    const rawData = await req.json();
+    const data = businessSyncSchema.parse(rawData);
 
     // Primary write — always store the raw payload so future Nick
     // prompts can reconstruct whatever context they need from it.
@@ -51,11 +58,7 @@ export const POST = apiHandler(
 
     // Normalized CEO-context derivative — only when the payload
     // self-identifies as the nickstire v2 schema.
-    if (
-      data &&
-      typeof data === "object" &&
-      (data as { source?: string }).source === "nickstire"
-    ) {
+    if (data.source === "nickstire") {
       const ceoContext = buildCeoContextFromNickSyncPayload(
         data as Record<string, unknown>,
       );

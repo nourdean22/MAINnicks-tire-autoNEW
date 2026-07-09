@@ -364,7 +364,7 @@ const DEFAULT_DEPS: CommandDeps = {
     `;
   },
   dbVacuum: async () => {
-    await prisma.$executeRawUnsafe("VACUUM");
+    await prisma.$executeRaw`VACUUM`;
   },
   runCron: async (jobName: string) => {
     return await runManifestCron(jobName);

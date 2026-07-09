@@ -23,6 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("reflection-engine");
 import { extractJsonArray } from "@/lib/ai/extract-structured";
+import { logError } from "@/lib/utils/error-log";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import {
   recentScoreSnapshots,
@@ -134,7 +135,9 @@ async function gatherDailyContext(daysBack: number = 7) {
       { query: "attention_needed" },
       { query: "bookings_status" },
     ]);
-  } catch {}
+  } catch (err) {
+    logError("brain.reflection-engine", err, { fn: "gatherDailyContext.liveShopData" });
+  }
 
   // v10.0.55 · job/lead counts and quote stats currently empty (no
   // bridge query exposes ranged counts yet). The liveShopData block
@@ -374,7 +377,10 @@ Examples of BAD reflections (avoid):
           actionable: !!r.actionable,
           idempotencyKey: key,
         },
-      }).catch(() => undefined);
+      }).catch((err) => {
+        logError("brain.reflection-engine", err, { fn: "runDailyReflection.idempotentCreate" });
+        return undefined;
+      });
       saved.push(r);
     }
 
@@ -386,7 +392,8 @@ Examples of BAD reflections (avoid):
         actionable: r.actionable,
       })),
     };
-  } catch {
+  } catch (err) {
+    logError("brain.reflection-engine", err, { fn: "runDailyReflection" });
     return { saved: 0, reflections: [] };
   }
 }
@@ -455,12 +462,16 @@ Name specific Laws of Power when relevant.`,
           actionable: !!r.actionable,
           idempotencyKey: key,
         },
-      }).catch(() => undefined);
+      }).catch((err) => {
+        logError("brain.reflection-engine", err, { fn: "runWeeklyReflection.idempotentCreate" });
+        return undefined;
+      });
       saved.push(r);
     }
 
     return { saved: saved.length, reflections: saved.map((r) => ({ category: r.category, insight: r.insight, actionable: r.actionable })) };
-  } catch {
+  } catch (err) {
+    logError("brain.reflection-engine", err, { fn: "runWeeklyReflection" });
     return { saved: 0, reflections: [] };
   }
 }
@@ -485,7 +496,8 @@ export async function getRecentReflections(limit = 10): Promise<string> {
     });
 
     return `\n## Layer 4 — Self-Reflections (${reflections.length} active)\n${lines.join("\n")}`;
-  } catch {
+  } catch (err) {
+    logError("brain.reflection-engine", err, { fn: "getRecentReflections" });
     return "";
   }
 }
@@ -510,7 +522,8 @@ export async function getReflectionStats() {
       unacknowledged,
       byCategory: byCategory.map((c) => ({ category: c.category, count: c._count.id })),
     };
-  } catch {
+  } catch (err) {
+    logError("brain.reflection-engine", err, { fn: "getReflectionStats" });
     return { total: 0, unacknowledged: 0, byCategory: [] };
   }
 }

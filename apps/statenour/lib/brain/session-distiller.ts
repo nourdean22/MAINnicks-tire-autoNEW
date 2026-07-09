@@ -42,6 +42,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("session-distiller");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { logger as rootLogger } from "@/lib/logger";
+import { logError } from "@/lib/utils/error-log";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // v10.0.35 — structured logger; the v10.0.21 sweep missed this file.
@@ -183,7 +184,10 @@ If a field has nothing to record, use [] or null. Never invent content. Be terse
       { role: "user", content: transcript.slice(0, 24000) }, // hard cap for prompt budget
     ],
     "fast",
-  ).catch(() => null);
+  ).catch((err) => {
+    logError("brain.session-distiller", err, { fn: "distillConversation.aiChat" });
+    return null;
+  });
 
   if (!aiResult || !aiResult.content) return null;
 
@@ -236,7 +240,9 @@ If a field has nothing to record, use [] or null. Never invent content. Be terse
   // was unresolved by reverse-searching past distills. Now: one upsert
   // row at category="nick_current_concerns", key="current" that holds
   // the top-5 most-recent open threads sorted by recency.
-  void updateNickCurrentConcerns(distill).catch(() => undefined);
+  void updateNickCurrentConcerns(distill).catch((err) => {
+    logError("brain.session-distiller", err, { fn: "distillConversation.updateConcerns" });
+  });
 
   return distill;
 }
@@ -261,7 +267,10 @@ async function updateNickCurrentConcerns(distill: SessionDistill): Promise<void>
   const existing = await prisma.brainMemory.findUnique({
     where: { category_key: { category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS, key: "current" } },
     select: { content: true },
-  }).catch(() => null);
+  }).catch((err) => {
+    logError("brain.session-distiller", err, { fn: "updateNickCurrentConcerns.findExisting" });
+    return null;
+  });
 
   interface ConcernThread {
     text: string;
@@ -275,8 +284,9 @@ async function updateNickCurrentConcerns(distill: SessionDistill): Promise<void>
     try {
       const parsed = JSON.parse(existing.content) as { threads?: ConcernThread[] };
       if (Array.isArray(parsed.threads)) prior = parsed.threads;
-    } catch {
+    } catch (err) {
       // Corrupt JSON · start fresh.
+      logError("brain.session-distiller", err, { fn: "updateNickCurrentConcerns.parse" });
     }
   }
 
@@ -339,7 +349,10 @@ export async function getNickCurrentConcerns(): Promise<{
   const row = await prisma.brainMemory.findUnique({
     where: { category_key: { category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS, key: "current" } },
     select: { content: true },
-  }).catch(() => null);
+  }).catch((err) => {
+    logError("brain.session-distiller", err, { fn: "getNickCurrentConcerns.findExisting" });
+    return null;
+  });
   if (!row?.content) return null;
   try {
     const parsed = JSON.parse(row.content);
@@ -353,7 +366,8 @@ export async function getNickCurrentConcerns(): Promise<{
         sourceConversationId: t.sourceConversationId ? String(t.sourceConversationId) : undefined,
       })),
     };
-  } catch {
+  } catch (err) {
+    logError("brain.session-distiller", err, { fn: "getNickCurrentConcerns.parse" });
     return null;
   }
 }
@@ -403,10 +417,7 @@ export async function distillIdleSessions(batchSize = 10): Promise<{
       else skipped++;
     } catch (err) {
       failures++;
-      log.warn("distill_failed", {
-        conversationId: id,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      logError("brain.session-distiller", err, { fn: "distillIdleSessions", conversationId: id });
     }
     // Tiny pause to play nice with the AI provider
     await new Promise((r) => setTimeout(r, 200));

@@ -28,6 +28,7 @@
 import { prisma } from "@/lib/prisma";
 import { createHash } from "node:crypto";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 export type SkillTier = "tiny" | "tactical" | "strategic";
 export type SkillPolarity = "do" | "avoid";
@@ -400,7 +401,10 @@ async function persistCandidate(skill: Skill): Promise<"new" | "updated" | "skip
       where: { category_key: { category: BRAIN_CATEGORIES.SKILL, key } },
       select: { id: true },
     })
-    .catch(() => null);
+    .catch((err) => {
+      logError("brain.skill-extractor", err, { fn: "persistCandidate.findActive" });
+      return null;
+    });
   if (activeExists) return "skipped";
 
   const existing = await prisma.brainMemory
@@ -408,7 +412,10 @@ async function persistCandidate(skill: Skill): Promise<"new" | "updated" | "skip
       where: { category_key: { category: BRAIN_CATEGORIES.SKILL_PENDING, key } },
       select: { id: true, content: true },
     })
-    .catch(() => null);
+    .catch((err) => {
+      logError("brain.skill-extractor", err, { fn: "persistCandidate.findPending" });
+      return null;
+    });
 
   if (existing) {
     try {
@@ -434,7 +441,8 @@ async function persistCandidate(skill: Skill): Promise<"new" | "updated" | "skip
         },
       });
       return "updated";
-    } catch {
+    } catch (err) {
+      logError("brain.skill-extractor", err, { fn: "persistCandidate.updatePending" });
       return "skipped";
     }
   }
@@ -535,13 +543,20 @@ async function loadCategory(category: "skill" | "skill_pending"): Promise<Stored
     select: { id: true, key: true, content: true },
   });
   const out: StoredSkill[] = [];
+  let malformedCount = 0;
+  const malformedErrors: unknown[] = [];
   for (const r of rows) {
     try {
       const parsed = JSON.parse(r.content) as Skill;
       out.push({ ...parsed, dbId: r.id, key: r.key, pending: category === "skill_pending" });
-    } catch {
+    } catch (err) {
       // malformed row — skip
+      malformedCount++;
+      malformedErrors.push(err);
     }
+  }
+  if (malformedCount > 0) {
+    logError("brain.skill-extractor", new Error(`${malformedCount} malformed rows skipped`), { fn: "loadCategory", category, errors: malformedErrors.map(String) });
   }
   return out;
 }
@@ -567,7 +582,8 @@ export async function promoteSkill(key: string, note?: string): Promise<StoredSk
   let skill: Skill;
   try {
     skill = JSON.parse(pending.content);
-  } catch {
+  } catch (err) {
+    logError("brain.skill-extractor", err, { fn: "promoteSkill.parse" });
     return null;
   }
 
@@ -598,7 +614,9 @@ export async function promoteSkill(key: string, note?: string): Promise<StoredSk
   // Remove the pending row so it doesn't keep appearing as a candidate
   await prisma.brainMemory
     .delete({ where: { category_key: { category: BRAIN_CATEGORIES.SKILL_PENDING, key } } })
-    .catch(() => {});
+    .catch((err) => {
+      logError("brain.skill-extractor", err, { fn: "promoteSkill.deletePending" });
+    });
 
   return { ...promoted, dbId: created.id, key: created.key, pending: false };
 }
@@ -610,7 +628,10 @@ export async function dropSkill(
 ): Promise<boolean> {
   const deleted = await prisma.brainMemory
     .delete({ where: { category_key: { category: kind, key } } })
-    .catch(() => null);
+    .catch((err) => {
+      logError("brain.skill-extractor", err, { fn: "dropSkill" });
+      return null;
+    });
   return !!deleted;
 }
 
@@ -629,7 +650,8 @@ export async function setGraduated(key: string, graduated: boolean): Promise<Sto
       data: { content: JSON.stringify(next), lastSeen: new Date() },
     });
     return { ...next, dbId: row.id, key, pending: false };
-  } catch {
+  } catch (err) {
+    logError("brain.skill-extractor", err, { fn: "setGraduated" });
     return null;
   }
 }
@@ -682,7 +704,9 @@ export async function reinforceSkill(key: string, succeeded: boolean): Promise<S
             payload: { skillKey: key, times_fired, success_rate },
           },
         })
-        .catch(() => {});
+        .catch((err) => {
+          logError("brain.skill-extractor", err, { fn: "reinforceSkill.auditEvent" });
+        });
     }
 
     // Confidence tracks success_rate — but only once we have ≥3 fires
@@ -699,7 +723,8 @@ export async function reinforceSkill(key: string, succeeded: boolean): Promise<S
       },
     });
     return { ...next, dbId: row.id, key, pending: false };
-  } catch {
+  } catch (err) {
+    logError("brain.skill-extractor", err, { fn: "reinforceSkill.parse" });
     return null;
   }
 }
@@ -739,21 +764,34 @@ export async function autoPromoteStableSkillsToWisdom(): Promise<{
     where: { category: BRAIN_CATEGORIES.SKILL, deletedAt: null },
     select: { id: true, key: true, content: true, updatedAt: true },
     take: 500,
-  }).catch(() => []);
+  }).catch((err) => {
+    logError("brain.skill-extractor", err, { fn: "autoPromoteStableSkillsToWisdom.findMany" });
+    return [];
+  });
 
   let promoted = 0;
   let skipped = 0;
   const promotedKeys: string[] = [];
 
   for (const row of candidates) {
+    let skill: Skill & {
+      graduation_ready_at?: string | null;
+      promoted_to_wisdom_at?: string | null;
+      last_failed_at?: string | null;
+    };
     try {
-      const skill = JSON.parse(row.content) as Skill & {
+      skill = JSON.parse(row.content) as Skill & {
         graduation_ready_at?: string | null;
         promoted_to_wisdom_at?: string | null;
         last_failed_at?: string | null;
       };
+    } catch (err) {
+      skipped++;
+      logError("brain.skill-extractor", err, { fn: "autoPromoteStableSkillsToWisdom.parse" });
+      continue;
+    }
 
-      // Skip skills that haven't crossed the graduation threshold or
+    // Skip skills that haven't crossed the graduation threshold or
       // have already been promoted in a prior run.
       if (!skill.graduation_ready_at || skill.promoted_to_wisdom_at) {
         skipped++;
@@ -786,14 +824,19 @@ export async function autoPromoteStableSkillsToWisdom(): Promise<{
       const existing = await prisma.brainMemory.findUnique({
         where: { category_key: { category: BRAIN_CATEGORIES.WISDOM, key: wisdomKey } },
         select: { id: true },
-      }).catch(() => null);
+      }).catch((err) => {
+        logError("brain.skill-extractor", err, { fn: "autoPromoteStableSkillsToWisdom.findExisting" });
+        return null;
+      });
       if (existing) {
         // Mark the skill as already promoted so we skip next time.
         skill.promoted_to_wisdom_at = new Date().toISOString();
         await prisma.brainMemory.update({
           where: { id: row.id },
           data: { content: JSON.stringify(skill) },
-        }).catch(() => undefined);
+        }).catch((err) => {
+          logError("brain.skill-extractor", err, { fn: "autoPromoteStableSkillsToWisdom.markPromoted" });
+        });
         skipped++;
         continue;
       }
@@ -827,9 +870,6 @@ export async function autoPromoteStableSkillsToWisdom(): Promise<{
 
       promoted++;
       promotedKeys.push(row.key);
-    } catch {
-      skipped++;
-    }
   }
 
   return { promoted, skipped, promotedKeys };

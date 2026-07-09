@@ -25,6 +25,7 @@
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { recordError } from "@/lib/errors/record-error";
+import { logError } from "@/lib/utils/error-log";
 
 // ─── Types ───
 
@@ -128,7 +129,10 @@ async function applyExtraction(
     p === "critical" ? 5 : p === "high" ? 15 : p === "low" ? 60 : 30;
   const mInboxExists = await prisma.mission
     .findUnique({ where: { id: "m-inbox" }, select: { id: true } })
-    .catch(() => null);
+    .catch((err) => {
+      logError("brain.knowledge-sync", err, { fn: "applyExtraction.findMission" });
+      return null;
+    });
   if (mInboxExists) {
     for (const item of extraction.actionItems.slice(0, 8)) {
       if (typeof item.title === "string" && item.title.length > 3) {
@@ -379,6 +383,7 @@ async function ingestNickWisdom(): Promise<KnowledgeSyncResult["wisdom"]> {
 
   const worthy = msgs.filter((m) => isWisdomWorthy(m.content || ""));
   let stored = 0;
+  let dupCount = 0;
 
   for (const msg of worthy) {
     const txt = (msg.content || "").trim();
@@ -395,7 +400,12 @@ async function ingestNickWisdom(): Promise<KnowledgeSyncResult["wisdom"]> {
       stored++;
     } catch {
       // Stable key → duplicate, just skip
+      dupCount++;
     }
+  }
+  
+  if (dupCount > 0) {
+    logError("brain.knowledge-sync", new Error(`${dupCount} duplicate wisdom syncs skipped`), { fn: "ingestNickWisdom" });
   }
 
   return { messagesScanned: msgs.length, memoriesStored: stored };

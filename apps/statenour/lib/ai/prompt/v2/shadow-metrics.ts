@@ -23,6 +23,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 
 export interface ShadowDelta {
   charsV1: number;
@@ -88,7 +89,7 @@ export async function recordShadowDelta(d: ShadowDelta): Promise<void> {
   } catch (err) {
     // Best-effort. Don't surface to caller — shadow telemetry must
     // never affect the chat reply.
-    console.warn("[prompt-shadow] metric persistence failed:", err);
+    logError("ai.shadow-metrics", err, { fn: "recordShadowDelta" });
   }
 }
 
@@ -165,7 +166,7 @@ export async function enqueueShadowJudgePair(args: {
     });
   } catch (err) {
     // Best-effort. Queue write must never block chat.
-    console.warn("[prompt-shadow] judge-queue enqueue failed:", err);
+    logError("ai.shadow-metrics", err, { fn: "enqueueShadowJudgePair" });
   }
 }
 

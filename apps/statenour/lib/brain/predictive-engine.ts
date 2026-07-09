@@ -19,6 +19,7 @@ const aiChat = makeTracedAiChat("predictive-engine");
 import { extractJsonArray, extractJsonObject } from "@/lib/ai/extract-structured";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 import {
   recentScoreSnapshots,
   recentDailyHabits,
@@ -274,7 +275,8 @@ Today is ${dateStr}.`,
         confidence: p.confidence,
       })),
     };
-  } catch {
+  } catch (err) {
+    logError("brain.predictive-engine", err, { fn: "runPredictions" });
     return { saved: 0, predictions: [] };
   }
 }
@@ -340,7 +342,7 @@ export async function evaluatePredictions(): Promise<{ checked: number; confirme
       }
     } catch (err) {
       // Don't crash the entire loop, just log
-      console.error(`Failed to propose outcome for prediction ${pred.id}:`, err);
+      logError("brain.predictive-engine", err, { fn: "evaluatePredictions.propose", predId: pred.id });
     }
   }
 
@@ -414,7 +416,8 @@ export async function getActivePredictions(limit = 5): Promise<string> {
     );
 
     return `\n## Layer 5 — Active Predictions (${predictions.length})\n${lines.join("\n")}`;
-  } catch {
+  } catch (err) {
+    logError("brain.predictive-engine", err, { fn: "getActivePredictions" });
     return "";
   }
 }
