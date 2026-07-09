@@ -138,7 +138,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   // which covers both Reflection rows + BrainDump entries with date range).
   searchMemories: { family: "brain-search", description: "Semantic search over BrainMemory", mutates: false, cost: "medium" },
   searchColdMemory: { family: "brain-search", description: "Search cold (archived) memory", mutates: false, cost: "medium" },
-  searchSkills: { family: "brain-search", description: "Semantic search over 1,423 Claude skills installed locally", mutates: false, cost: "medium" },
+  searchSkills: { family: "brain-search", description: "Semantic search over the indexed Claude skill registry", mutates: false, cost: "medium" },
   searchConversations: { family: "brain-search", description: "Search past Nick conversations", mutates: false, cost: "cheap" },
   searchGreeneLaws: { family: "brain-search", description: "Search Robert Greene's strategic laws", mutates: false, cost: "cheap" },
   checkAntiPattern: { family: "brain-search", description: "Check intent against anti-pattern library", mutates: false, cost: "cheap" },
