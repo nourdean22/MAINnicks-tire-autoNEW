@@ -5,8 +5,9 @@ import { getDbTyped } from "../server/db";
 import { socialContentInventory, reelJobs } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { enqueueReelJob, type ReelJobBrief } from "../server/services/reelPipeline";
+import { applyCreativeSkills } from "../server/services/skillRouter";
 
-export function parseMarkdown(content: string) {
+export async function parseMarkdown(content: string, useSkills: boolean = true) {
   // Split by ## Day or # Day
   const dayBlocks = content.split(/\n#{1,3}\s*Day\s+/i).slice(1);
   
@@ -73,6 +74,14 @@ export function parseMarkdown(content: string) {
       const beatsCount = Math.max(rawShots.length, 3);
       const storyboardBeats = [];
       const promptPack = [];
+      const higgsfieldPromptPack = [];
+
+      // Offline CLI gating: bypass DB read and force based on --skills flag
+      const skillPayload = await applyCreativeSkills(
+        { type: "reel_ingest_beats" },
+        { skill_reel_script_enabled: useSkills }
+      );
+      const visualSkillFragment = ("fragment" in skillPayload) ? skillPayload.fragment : "";
 
       for (let i = 0; i < beatsCount; i++) {
         const visual = rawShots[i] || rawShots[rawShots.length - 1] || videoPrompt;
@@ -85,6 +94,11 @@ export function parseMarkdown(content: string) {
         promptPack.push({
           beatNumber: i + 1,
           prompt: `Shot: ${visual} | Context: ${videoPrompt}`
+        });
+
+        higgsfieldPromptPack.push({
+          beatNumber: i + 1,
+          prompt: `Shot: ${visual} | Context: ${videoPrompt}\n\n${visualSkillFragment}`.trim()
         });
       }
 
@@ -110,7 +124,7 @@ export function parseMarkdown(content: string) {
         hashtags: hashtagsArray,
         storyboardBeats,
         promptPack,
-        higgsfieldPromptPack: promptPack, // fallback
+        higgsfieldPromptPack,
         hookCategory: "Reel Hook",
         hookText: videoScript!.substring(0, Math.min(60, videoScript!.length)), // First 60 chars as hook
         bodyText: videoScript!,
@@ -137,6 +151,7 @@ async function main() {
       "enqueue-jobs": { type: "boolean" },
       force: { type: "boolean" },
       day: { type: "string" },
+      skills: { type: "boolean", default: true },
     },
     args: process.argv.slice(2),
   });
@@ -156,7 +171,7 @@ async function main() {
 
   console.log(`\n🔍 Parsing ${fullPath}...`);
   const content = fs.readFileSync(fullPath, "utf-8");
-  const parsedResult = parseMarkdown(content);
+  const parsedResult = await parseMarkdown(content, values.skills ?? true);
 
   let targetResults = parsedResult.results;
   if (values.day) {

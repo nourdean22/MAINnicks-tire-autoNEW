@@ -25,8 +25,8 @@ const MOCK_MD = `
 `;
 
 describe("Reels Markdown Parser", () => {
-  it("should correctly parse multiple days", () => {
-    const result = parseMarkdown(MOCK_MD);
+  it("should correctly parse multiple days", async () => {
+    const result = await parseMarkdown(MOCK_MD);
     
     expect(result.errors).toHaveLength(0);
     expect(result.parsed).toBe(2);
@@ -51,13 +51,13 @@ describe("Reels Markdown Parser", () => {
     expect(day2.storyboardBeats.length).toBeGreaterThanOrEqual(3);
   });
 
-  it("should fail validation if required fields are missing", () => {
+  it("should fail validation if required fields are missing", async () => {
     const BAD_MD = `
 ## Day 3 - Incomplete Day
 - **Avatar:** Budget
 - **Video script:** Voiceover: "Something"
     `;
-    const result = parseMarkdown(BAD_MD);
+    const result = await parseMarkdown(BAD_MD);
     
     expect(result.parsed).toBe(1);
     expect(result.valid).toBe(0);
@@ -65,7 +65,7 @@ describe("Reels Markdown Parser", () => {
     expect(result.errors[0]).toContain("missing required fields");
   });
 
-  it("should enforce caption length limits", () => {
+  it("should enforce caption length limits", async () => {
     const longString = "A".repeat(2300);
     const LONG_MD = `
 ## Day 4 - Long Caption
@@ -76,7 +76,7 @@ describe("Reels Markdown Parser", () => {
 - **Hashtags:** #Tags
     `;
     
-    const result = parseMarkdown(LONG_MD);
+    const result = await parseMarkdown(LONG_MD);
     expect(result.valid).toBe(0);
     expect(result.errors[0]).toContain("caption exceeds 2200 characters");
   });
