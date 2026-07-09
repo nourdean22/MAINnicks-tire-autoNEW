@@ -644,3 +644,100 @@ Training examples: ${report.trainingExamplesCollected}`;
     return false;
   }
 }
+
+/**
+ * Stages a Nexus LLM defect into the training set for future model tuning.
+ * The defect acts as a negative example (rating=1), queued for operator correction.
+ */
+export async function stageNexusDefectForTraining(defectId: number) {
+  const db = await getDbTyped();
+  if (!db) return;
+
+  try {
+    const [defect] = await db.select()
+      .from(nickgptDefectLedger)
+      .where(eq(nickgptDefectLedger.id, defectId))
+      .limit(1);
+
+    if (!defect) return;
+
+    if (defect.exportedToTraining) {
+      log.info(`Defect ${defectId} already exported to training.`);
+      return;
+    }
+
+    let breakdown = "Unknown Nexus Defect";
+    try {
+      if (defect.diagnosticBreakdownJson) {
+        const parsed = JSON.parse(defect.diagnosticBreakdownJson);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          breakdown = parsed.map((p: any) => `[${p.code}] ${p.finding}`).join(" | ");
+        }
+      }
+    } catch(e) {}
+
+    let draftContent = "";
+    let inserted = false;
+
+    // We try to pull from nickgptDrafts if linked
+    if (defect.nickgptDraftId) {
+      const [draft] = await db.select()
+        .from(nickgptDrafts)
+        .where(eq(nickgptDrafts.id, defect.nickgptDraftId))
+        .limit(1);
+      
+      if (draft) {
+        draftContent = draft.draftReply;
+        await db.insert(nickgptTrainingExamples).values({
+          customerPhone: draft.customerPhone,
+          inboundMessage: draft.inboundMessage,
+          conversationContextJson: JSON.stringify({
+             nexusDefectReason: breakdown
+          }),
+          nickgptDraft: draftContent,
+          operatorFinalReply: "", // Needs human to provide the correction
+          intent: draft.intent || "general",
+          serviceMention: null,
+          rating: 1, // Bad response
+          outcome: "rejected_by_nexus",
+          approvedForTraining: false, // Must be approved by human operator after correction
+        });
+        inserted = true;
+      }
+    } 
+    
+    if (!inserted && defect.orchestrationId) {
+       // Fallback to orchestration table
+       // Using `any` type for ID to bypass TS string/number mismatch on Drizzle ID if any.
+       const [orch] = await db.select().from(smsOrchestrations).where(eq(smsOrchestrations.id, defect.orchestrationId as any)).limit(1);
+       if (orch) {
+          await db.insert(nickgptTrainingExamples).values({
+            customerPhone: orch.customerPhone,
+            inboundMessage: "Context unavailable (orchestrator level)",
+            conversationContextJson: JSON.stringify({
+               nexusDefectReason: breakdown
+            }),
+            nickgptDraft: orch.messageBody,
+            operatorFinalReply: "", 
+            intent: "general",
+            rating: 1,
+            outcome: "rejected_by_nexus",
+            approvedForTraining: false,
+          });
+          inserted = true;
+       }
+    }
+
+    if (inserted) {
+      await db.update(nickgptDefectLedger)
+        .set({ exportedToTraining: 1 })
+        .where(eq(nickgptDefectLedger.id, defectId));
+
+      log.info(`Staged Nexus defect ${defectId} into training examples.`);
+    } else {
+      log.warn(`Could not find draft or orchestration context for Nexus defect ${defectId}`);
+    }
+  } catch (err) {
+    log.error(`Failed to stage Nexus defect ${defectId} for training`, err);
+  }
+}
