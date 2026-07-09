@@ -85,16 +85,16 @@ Generated: ${new Date().toISOString()}
 Source: ${source.url}
 
 Google Search Console Keywords:
-${gsc
+${gsc.length > 0 ? gsc
   .map(
     (g) =>
       `- **Query:** "${g.query}" | Clicks: ${g.clicks} | Impressions: ${g.impressions} | CTR: ${(g.ctr * 100).toFixed(1)}% | Avg Position: ${g.position}`
   )
-  .join("\n")}
+  .join("\n") : "- No search data available."}
 
 Google Business Profile Status:
-- Rating: ${gbp.rating} / 5.0 (${gbp.totalReviews} total reviews)
-- Latest Review: "${gbp.recentReviewText}"
+${gbp ? `- Rating: ${gbp.rating} / 5.0 (${gbp.totalReviews} total reviews)
+- Latest Review: "${gbp.recentReviewText}"` : "- GBP data unavailable."}
 `;
     } else if (source.domain === "competitor") {
       const { filings, prices } = await fetchCompetitorAndSECData();
