@@ -73,8 +73,10 @@ Operator (Nour)
 | `gbpContentGenerator.ts` | Voice-grade GBP post generation | proof, anti, math, seasonal | Live reviews, specials, weather, seasonal context |
 | `gbpAutoPost.ts` | GBP scheduling + UTM-tagged publishing | (uses GBP archetypes) | gbp_post_log, Telegram |
 | `igAutopost.ts` | Instagram/Facebook autopost pipeline | proof, anti, math, seasonal, question, process | ig_autopost_log, Meta Graph API |
-| `contentManufacturing.ts` | Reel/video manufacturing | pov_you_are_the_part + custom | Reel briefs, Higgsfield Studio |
+| `contentManufacturing.ts` | Reel/video manufacturing | pov_you_are_the_part + custom | Reel briefs, Higgsfield Studio, `skill_trend_topics` |
 | `metaSocial.ts` | Meta API token management + comment moderation | — | Facebook/Instagram Graph API |
+| `skillRouter.ts` | Fallback-safe routing for creative skill packs | — | `skill_ad_creative`, `skill_reel_script`, `skill_trend_topics` |
+| `reelBriefGen.ts` | Client/server generation logic for Reels | — | Reel pipeline, `skill_reel_script` |
 
 ### nickstire Routers (`apps/nickstire/server/routers/`)
 
@@ -137,6 +139,22 @@ The `brand-context.ts` engine applies a 3-tier injection system:
 | **Specific** | Highly detailed prompt | Identity + color + avoid list only (respects existing composition) |
 
 Marketing intent detection uses whole-word boundary matching against tire/shop/mechanic/instagram/post keywords. Personal prompts skip branding entirely.
+
+---
+
+## Creative Skill Packs & Feature Flags
+
+Three autonomous skill pack generators run across the content pipelines to augment prompts dynamically. Each operates in a fail-open state behind feature flags in the database (`featureFlags.ts`).
+
+| Skill | Router Injection Point | Behavior |
+|-------|------------------------|----------|
+| `skill_ad_creative` | `metaAdsArchitect.ts` | Injects localized hook strategies and copy rules. |
+| `skill_reel_script` | `reelBriefGen.ts` | Augments prompt output with structured visual instructions. |
+| `skill_trend_topics`| `contentManufacturing.ts`| Generates localized GSC/Seasonal topics and seeds reels. |
+
+**Idempotent Backfill:** 
+Existing inventory and job payloads (`promptPackVersion: 1`) can be upgraded to the latest prompt specifications using the operator script:
+`pnpm run backfill:skills --write`
 
 ---
 
