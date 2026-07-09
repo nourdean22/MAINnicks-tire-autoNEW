@@ -1,0 +1,43 @@
+{
+  "name": "@nour/signal-forge",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./control": {
+      "import": "./dist/control-forge/index.js",
+      "types": "./dist/control-forge/index.d.ts"
+    },
+    "./nexus": {
+      "import": "./dist/nexus/index.js",
+      "types": "./dist/nexus/index.d.ts"
+    },
+    "./lock": {
+      "import": "./dist/shared/index.js",
+      "types": "./dist/shared/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "control": "tsx src/cli.ts control",
+    "nexus": "tsx src/cli.ts nexus",
+    "lock": "tsx src/cli.ts lock"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "tsx": "^4.7.0",
+    "@types/node": "^20.0.0"
+  }
+}

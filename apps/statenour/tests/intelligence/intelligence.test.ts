@@ -103,30 +103,31 @@ describe("Intelligence OS System Tests", () => {
 
   // 3. Connectors
   describe("FRED & NHTSA Connectors", () => {
-    it("should fetch mock FRED indicators when API key is missing", async () => {
-      // Clear process env key for clean mock testing
+    // AG-02 · Fabrication purge: connectors must emit EMPTY data when their
+    // upstream is unavailable — never invented indicators or recalls. These
+    // tests pin that contract (and no longer touch the live network).
+    it("should emit NO indicators when FRED API key is missing (no mock fallback)", async () => {
       const originalKey = process.env.FRED_API_KEY;
       delete process.env.FRED_API_KEY;
 
       const indicators = await fetchFREDIndicators();
-      expect(indicators).toHaveLength(3);
-      expect(indicators[0].seriesId).toBe("CPIAUCSL");
-      expect(indicators[1].seriesId).toBe("UNRATE");
-      expect(indicators[2].seriesId).toBe("FEDFUNDS");
+      expect(indicators).toHaveLength(0);
 
       // Restore key
       process.env.FRED_API_KEY = originalKey;
     });
 
-    it("should fetch NHTSA recalls and fall back cleanly to mocks", async () => {
-      const vehicles = [
-        { make: "Ford", model: "F-150", year: 2020 },
-      ];
-      const recalls = await fetchNHTSARecalls(vehicles);
-      expect(recalls.length).toBeGreaterThan(0);
-      expect(recalls[0].VehicleMake).toBe("FORD");
-      expect(recalls[0].VehicleModel).toBe("F-150");
-      expect(recalls[0].ModelYear).toBe("2020");
+    it("should emit NO recalls when the NHTSA API is unreachable (no mock fallback)", async () => {
+      const originalFetch = global.fetch;
+      global.fetch = (() => Promise.reject(new Error("network down"))) as typeof fetch;
+      try {
+        const recalls = await fetchNHTSARecalls([
+          { make: "Ford", model: "F-150", year: 2020 },
+        ]);
+        expect(recalls).toHaveLength(0);
+      } finally {
+        global.fetch = originalFetch;
+      }
     });
   });
 });

@@ -272,25 +272,55 @@ async function handleCallback(callback: {
 
       const payload = parsedPayload.data;
       if (decision === "approve") {
-        // Send Capevace SMS Gateway mock
-        console.log(`[Capevace Gateway Mock] SMS to ${payload.phone}: ${payload.smsBody}`);
-        
-        await prisma.actionReceipt.update({
-          where: { id: receiptId },
-          data: {
-            status: "SUCCESS",
-            executedAt: new Date()
+        const { callNickstire } = await import("@/lib/ai/agent-actions/shop-actions");
+        try {
+          const res = await callNickstire("smsBot.send", {
+            phone: String(payload.phone),
+            message: String(payload.smsBody),
+          });
+          // callNickstire resolves to a truthy { error } object on a missing
+          // bridge key, a non-2xx response, or a thrown error. Only a result
+          // WITHOUT an error field is a real send — guard against the
+          // false "SMS Dispatched" this branch used to report unconditionally.
+          const dispatchError = (res as { error?: unknown } | null)?.error;
+          if (!res || dispatchError) {
+            throw new Error(
+              dispatchError ? String(dispatchError) : "smsBot.send returned no result"
+            );
           }
-        });
-        
-        if (messageId) {
-          await editTelegramMessage(
-            messageId,
-            `✅ SMS Dispatched to ${payload.customerName} for ${payload.vehicle} recall.`,
-            chatId
-          );
+          await prisma.actionReceipt.update({
+            where: { id: receiptId },
+            data: {
+              status: "SUCCESS",
+              executedAt: new Date()
+            }
+          });
+          if (messageId) {
+            await editTelegramMessage(
+              messageId,
+              `✅ SMS Dispatched to ${payload.customerName} for ${payload.vehicle} recall.`,
+              chatId
+            );
+          }
+          await answerCallbackQuery(callback.id, "Approved!");
+        } catch (err) {
+          console.error("[telegram:webhook] recall SMS dispatch error:", err);
+          await prisma.actionReceipt.update({
+            where: { id: receiptId },
+            data: {
+              status: "FAILED",
+              context: err instanceof Error ? err.message : String(err)
+            }
+          });
+          if (messageId) {
+            await editTelegramMessage(
+              messageId,
+              `❌ Recall SMS dispatch failed.`,
+              chatId
+            );
+          }
+          await answerCallbackQuery(callback.id, "Dispatch failed.");
         }
-        await answerCallbackQuery(callback.id, "Approved!");
       } else {
         await prisma.actionReceipt.update({
           where: { id: receiptId },

@@ -14,6 +14,7 @@ import {
 import { invokeLLM } from "../_core/llm";
 import { createLogger } from "../lib/logger";
 import { checkWeatherTriggers } from "./weatherIntelligence";
+import { applyCreativeSkills } from "./skillRouter";
 import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
 
 const log = createLogger("services:contentManufacturing");
@@ -1361,6 +1362,9 @@ export async function replenishReserve(): Promise<{ success: boolean; draftsCrea
   log.info("Starting automated reserve replenishment run");
   const status = await getReserveStatus();
 
+  const skillPayload = await applyCreativeSkills({ type: "topic_selection", data: status.diversityReport });
+  const trendSeeds = ("topicSeeds" in skillPayload) ? skillPayload.topicSeeds : [];
+
   const db = await getDbTyped();
   if (!db) throw new Error("Database not available");
 
@@ -1432,7 +1436,15 @@ export async function replenishReserve(): Promise<{ success: boolean; draftsCrea
 
     if (campaign && campaign.isActive) {
       log.info(`Replenishing campaign topic "${campaign.topic}"`);
-      const result = await runManufacturingPipeline(campaign.id, campaign.topic, campaign.persona);
+      
+      let runTopic = campaign.topic;
+      if (trendSeeds.length > 0) {
+        // Inject the first relevant trend context into the pipeline's topic definition
+        const trend = trendSeeds[0];
+        runTopic = `${campaign.topic} (Context: ${trend.context})`;
+      }
+
+      const result = await runManufacturingPipeline(campaign.id, runTopic, campaign.persona);
       if (result.success) {
         totalDraftsCreated += result.draftsCreated;
         campaignRuns.push(campaign.topic);

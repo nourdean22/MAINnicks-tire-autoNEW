@@ -188,7 +188,7 @@ describe("SMS Opt-Out Compliance & Footer Bypass", () => {
     await sms.sendSms("2165550002", "Transactional message", { via: "twilio", messageClass: "customer_confirmation" });
     expect(mockTwilioCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        body: "Transactional message",
+        body: "Transactional message\n\nReply STOP to opt out.",
       })
     );
 

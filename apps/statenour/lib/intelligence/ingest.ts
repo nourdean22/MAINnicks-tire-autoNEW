@@ -49,12 +49,12 @@ Generated: ${new Date().toISOString()}
 Source: ${source.url}
 
 Key observations:
-${indicators
+${indicators.length > 0 ? indicators
   .map(
     (ind) =>
       `- **${ind.name}** (${ind.seriesId}): value of **${ind.value}${ind.unit}** (Observed: ${ind.date})`
   )
-  .join("\n")}
+  .join("\n") : "- No verified macro data available."}
 `;
     } else if (source.domain === "automotive") {
       const vehicles = [
@@ -67,7 +67,7 @@ Generated: ${new Date().toISOString()}
 Source: ${source.url}
 
 Recalls found:
-${recalls
+${recalls.length > 0 ? recalls
   .map(
     (r) =>
       `### Recall Campaign ${r.NHTSACampaignNumber} - ${r.VehicleMake} ${r.VehicleModel} (${r.ModelYear})
@@ -76,7 +76,7 @@ ${recalls
 - **Consequence:** ${r.Conequence}
 - **Remedy:** ${r.Remedy}`
   )
-  .join("\n\n")}
+  .join("\n\n") : "- No verified recall data available."}
 `;
     } else if (source.domain === "seo") {
       const { gsc, gbp } = await fetchGSCAndGBPMetrics();
@@ -103,20 +103,20 @@ Generated: ${new Date().toISOString()}
 Source: ${source.url}
 
 Competitor Pricing:
-${prices
+${prices.length > 0 ? prices
   .map(
     (p) =>
       `- **${p.competitor}**: brand **${p.tireBrand}** (size ${p.size}) priced at **$${p.price}** (Promo: ${p.promo || "None"})`
   )
-  .join("\n")}
+  .join("\n") : "- No verified competitor pricing available."}
 
 SEC Edgar Filings:
-${filings
+${filings.length > 0 ? filings
   .map(
     (f) =>
-      `- **Ticker:** ${f.ticker} | Form: ${f.form} | Filed: ${f.filedAt} | Revenue: $${f.revenueBillions}B | Net Income: $${f.netIncomeBillions}B`
+      `- **Ticker:** ${f.ticker} | Form: ${f.form} | Filed: ${f.filedAt}`
   )
-  .join("\n")}
+  .join("\n") : "- No filings available."}
 `;
     } else if (source.domain === "weather") {
       const data = await fetchWeatherMetrics();
@@ -139,7 +139,7 @@ Generated: ${new Date().toISOString()}
 Source: ${source.url}
 
 Commodity & Logistics Metrics:
-${data.metrics.map(m => `- **${m.name}** (${m.symbol}): **${m.price} ${m.unit}** (24h Change: ${m.changePercent24h > 0 ? "+" : ""}${m.changePercent24h}%)`).join("\n")}
+${data.metrics.length > 0 ? data.metrics.map(m => `- **${m.name}** (${m.symbol}): **${m.price} ${m.unit}** (24h Change: ${m.changePercent24h > 0 ? "+" : ""}${m.changePercent24h}%)`).join("\n") : "- No verified commodity data available."}
 
 Alerts & Recommendations:
 ${data.alerts.length === 0 ? "- None" : data.alerts.map(a => `### ${a.title} (${a.severity} Priority)
@@ -153,13 +153,13 @@ Generated: ${new Date().toISOString()}
 Source: ${source.url}
 
 Active M&A & Commercial Real Estate Deals:
-${deals.map(d => `### ${d.title}
+${deals.length > 0 ? deals.map(d => `### ${d.title}
 - **Location:** ${d.location}
 - **Price:** $${d.listingPrice.toLocaleString()}
 - **Type:** ${d.type}
 - **Link:** ${d.link}
 - **Description:** ${d.description}
-- **Strategic Notes:** ${d.notes}`).join("\n\n")}
+- **Strategic Notes:** ${d.notes}`).join("\n\n") : "- No verified deal listings available."}
 `;
     } else if (source.domain === "performance") {
       const data = await fetchBioPerformanceMetrics();
@@ -168,13 +168,13 @@ Generated: ${new Date().toISOString()}
 Source: ${source.url}
 
 Personal Biomarkers:
-${data.biometrics.map(b => `- **${b.metric}**: **${b.value}${b.unit}** | Status: **${b.status}**\n  Notes: ${b.notes}`).join("\n")}
+${data.biometrics.length > 0 ? data.biometrics.map(b => `- **${b.metric}**: **${b.value}${b.unit}** | Status: **${b.status}**\n  Notes: ${b.notes}`).join("\n") : "- No verified biometric data available."}
 
 Scientific Insights & Protocols:
-${data.insights.map(i => `### ${i.title} (${i.topic})
+${data.insights.length > 0 ? data.insights.map(i => `### ${i.title} (${i.topic})
 - **Source:** ${i.source}
 - **Summary:** ${i.summary}
-- **Actionable Protocol:** ${i.actionableProtocol}`).join("\n\n")}
+- **Actionable Protocol:** ${i.actionableProtocol}`).join("\n\n") : "- No verified insights available."}
 `;
     } else if (source.url.startsWith("http") && isFirecrawlConfigured()) {
       try {
@@ -187,14 +187,30 @@ ${scraped.markdown}
 `;
         docUrl = scraped.sourceUrl;
       } catch (err) {
-        log.warn(`Firecrawl scraping failed for ${source.url}, falling back to mock content.`, {
+        // AG-02 · No mock fallback. Fabricated content used to flow from here
+        // into SourceDocument → IntelligenceClaim → the pushed daily brief.
+        // A failed scrape now skips the source instead of inventing a report.
+        log.warn(`Firecrawl scraping failed for ${source.url}; skipping source (no mock fallback).`, {
           error: err instanceof Error ? err.message : String(err),
         });
-        rawContent = getMockContentForDomain(source.domain, source.name, source.url);
+        return {
+          success: false,
+          documentId: null,
+          claimsCount: 0,
+          message: `Scrape failed for ${source.name}; source skipped — no content fabricated.`,
+        };
       }
     } else {
-      // Fallback/Mock content for unregistered domains / web scraping without key
-      rawContent = getMockContentForDomain(source.domain, source.name, source.url);
+      // AG-02 · Unconfigured domains previously received getMockContentForDomain
+      // fiction (fake AI reports, fake GSC wins, fake weather) that entered the
+      // claims pipeline as real intelligence. Skip them loudly instead.
+      log.info(`Source ${source.name} (${source.domain}) has no connector or scrape path; skipping — no content fabricated.`);
+      return {
+        success: false,
+        documentId: null,
+        claimsCount: 0,
+        message: `Source unconfigured (${source.domain}); skipped — no content fabricated.`,
+      };
     }
 
     // 3. Save Source Document
@@ -255,95 +271,4 @@ ${scraped.markdown}
       message: error instanceof Error ? error.message : "Ingestion crashed",
     };
   }
-}
-
-function getMockContentForDomain(domain: string, name: string, url: string): string {
-  const nowStr = new Date().toISOString();
-  if (domain === "ai") {
-    return `# AI Industry Frontier Report
-Generated: ${nowStr}
-Source: ${url}
-
-- **Claude 3.5 Sonnet** (Anthropic) is currently the leading model for software engineering agent pipelines due to its structured tool call compliance and large system prompt context memory.
-- OpenAI has announced new API optimizations for structured outputs JSON Schema enforcement, reducing latency by 20%.
-- Custom reasoning models like DeepSeek-R1 and o1 are proving extremely capable for offline code auditing and math verification.
-`;
-  }
-  if (domain === "seo") {
-    return `# Google Search Console Organic Report
-Generated: ${nowStr}
-Source: ${url}
-
-- Average search position for "Nick's Tire and Auto" improved from 4.2 to 3.1 over the last 14 days.
-- Impressions for "mobile tire repair near me" spiked by 45% following the mobile landing page optimization.
-- Mobile usability indexing issue detected on the checkout funnel page due to small touch targets (< 48px).
-`;
-  }
-  if (domain === "weather") {
-    return `# NOAA Weather & Forecast Report
-Generated: ${nowStr}
-Location: Cleveland, OH
-Temperature: 28°F
-Condition: Light Snow
-Forecast: Light snow showers expected in the Cleveland metro area. Total snow accumulation of 1 to 3 inches possible. Low near 28.
-
-Alerts & Opportunities:
-### Winter Hazard Alert (HIGH Priority)
-- **Description:** Freezing temperatures or snow predicted in Cleveland. Current forecast: Light snow showers expected in the Cleveland metro area.
-- **Opportunity:** Promote immediate winter tire swap packages and battery diagnostics to VIP customers via SMS.
-`;
-  }
-  if (domain === "supplychain") {
-    return `# Supply Chain & Tire Commodities Report
-Generated: ${nowStr}
-Source: ${url}
-
-Commodity & Logistics Metrics:
-- **Natural Rubber (TSR20 Futures)** (SGX:JR): **1840.5 USD/Metric Ton** (24h Change: +3.42%)
-- **Global Container Freight Index** (FBX:GLO): **4250 USD/40ft Box** (24h Change: +12.8%)
-
-Alerts & Recommendations:
-### Rubber Price Spike (MEDIUM Priority)
-- **Impact:** Natural rubber is up 3.42% in the last 24h. Tire manufacturers are highly likely to raise wholesale dealer costs by 5-8% next quarter.
-- **Recommendation:** Pre-order high-volume standard SUV and light-truck tire sizes now to lock in lower wholesale margin basis before price adjustments hit.
-`;
-  }
-  if (domain === "dealscouting") {
-    return `# Lakewood/Cleveland Automotive Deal Scouting Report
-Generated: ${nowStr}
-Source: ${url}
-
-Active M&A & Commercial Real Estate Deals:
-### Lakewood 6-Bay Auto Repair Facility
-- **Location:** Lakewood, OH (Detroit Ave)
-- **Price:** $420,000
-- **Type:** automotive_business
-- **Link:** https://commercial.crexi.com/lakewood-auto-bay
-- **Description:** Fully equipped 6-bay repair shop with active client list, tire mounting machines, and alignment rack.
-- **Strategic Notes:** Highly strategic secondary location for Nick's Tire. Lakewood has dense commuter demographics but fewer large-scale independent tire centers.
-`;
-  }
-  if (domain === "performance") {
-    return `# Personal Bio-Performance & Health Research Report
-Generated: ${nowStr}
-Source: ${url}
-
-Personal Biomarkers:
-- **Sleep Efficiency**: **74.5%** | Status: **suboptimal**
-  Notes: Time in bed was 8.2 hours, but deep and REM sleep fell below target due to elevated resting heart rate.
-
-Scientific Insights & Protocols:
-### Impact of Late-Night Cortisol on Deep Sleep Cycles (Sleep Science)
-- **Source:** Stanford Neurobiology / Huberman Lab
-- **Summary:** Intense cognitive problem-solving or screen exposure in the 90 minutes before sleep triggers cortisol release, delaying the first deep-sleep cycle by up to 45 minutes.
-- **Actionable Protocol:** Establish a hard screen shutdown at 9:00 PM. Replace coding or active planning with passive reading or breathwork to trigger parasympathetic tone.
-`;
-  }
-  return `# General Intelligence Report: ${name}
-Generated: ${nowStr}
-Source: ${url}
-
-- Key signal: Operational throughput has stabilized.
-- Opportunity identified: Integrating VAPI/SMS outreach automations can recover dormant customer leads within 24 hours.
-`;
 }

@@ -16,9 +16,8 @@
  * making the contrarian-critic more aggressive) is one edit, applied
  * to every caller automatically.
  *
- * Aligned with the brain's existing wisdom-persona scheme (Buffett /
- * Naval / Munger / Greene / Jobs / Bezos / Musk / Gates / Satori) so
- * persona-as-citation flows from one taxonomy.
+ * Advisor-figure personas (Buffett / Naval / Munger etc.) live in the
+ * @statenour/lenses REGISTRY consumed by the advisory board — not here.
  */
 
 export interface Persona {
@@ -119,35 +118,9 @@ export const RESEARCH_SYNTHESIZER: Persona = {
     "200-400 words · inline [N] citation markers · plain text · no markdown headers · end with one-line 'what to do next' when actionable",
 };
 
-// ── Wisdom personas · align with the brain wisdom corpus keys ──
-
-export const BUFFETT: Persona = {
-  key: "buffett",
-  role: "Capital Allocation Sage",
-  goal: "Frame the decision through the lens of long-term capital allocation + circle-of-competence",
-  backstory:
-    "You speak as Warren Buffett would · folksy, terse, allergic to complexity. You quote your annual letters when relevant. You ask 'what's the moat' before 'what's the growth'.",
-  outputHint: "Plain prose, max 200 words. Include 1 attributable quote.",
-};
-
-export const NAVAL: Persona = {
-  key: "naval",
-  role: "Leverage Strategist",
-  goal: "Identify the highest-leverage move given the operator's situation · capital, labor, code, media",
-  backstory:
-    "You speak as Naval would · aphoristic, contrarian on conventional wisdom, focused on permissionless leverage. You quote your tweets when relevant.",
-  outputHint: "Plain prose, max 200 words. Include 1 attributable aphorism.",
-};
-
-export const MUNGER: Persona = {
-  key: "munger",
-  role: "Mental Model Inverter",
-  goal: "Invert the question · what would guarantee failure here · then avoid those moves",
-  backstory:
-    "You speak as Charlie Munger would · acerbic, focused on second-order thinking, named mental models (incentives, psychology of misjudgment, lollapalooza effects).",
-  outputHint:
-    "Plain prose, max 200 words. Include 1 named mental model applied to this question.",
-};
+// Wisdom personas (buffett/naval/munger) were removed 2026-07-09: no
+// production caller ever passed those keys (tests only), and the advisor
+// board covers the same figures via the @statenour/lenses REGISTRY.
 
 import { getMarketingPersonas } from "../agents/marketing/loader";
 
@@ -162,9 +135,6 @@ export const PERSONAS: Record<string, Persona> = {
   // Phase T · deep-research specialists
   [RESEARCH_PLANNER.key]: RESEARCH_PLANNER,
   [RESEARCH_SYNTHESIZER.key]: RESEARCH_SYNTHESIZER,
-  [BUFFETT.key]: BUFFETT,
-  [NAVAL.key]: NAVAL,
-  [MUNGER.key]: MUNGER,
   ...getMarketingPersonas(),
 };
 

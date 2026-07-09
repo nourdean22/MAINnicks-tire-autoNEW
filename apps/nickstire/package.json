@@ -34,13 +34,16 @@
     "validate:routes": "node scripts/validate-route-registry.mjs",
     "env:validate": "node scripts/env-validate.mjs",
     "typecheck:raw": "tsc -p tsconfig.typecheck.json --noEmit",
-    "verify": "pnpm run env:validate && pnpm run typecheck:raw && pnpm run lint && pnpm run lint:source && pnpm run lint:hooks && pnpm run lint:brand-voice && pnpm run lint:pii && pnpm run validate:routes && pnpm run prerender:check && pnpm run test && pnpm run build"
+    "verify": "pnpm run env:validate && pnpm run typecheck:raw && pnpm run lint && pnpm run lint:source && pnpm run lint:hooks && pnpm run lint:brand-voice && pnpm run lint:pii && pnpm run validate:routes && pnpm run prerender:check && pnpm run test && pnpm run build",
+    "ingest:reels": "tsx scripts/run.ts ingest-reels-markdown.ts",
+    "backfill:skills": "tsx scripts/run.ts backfill-creative-skills.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
     "@aws-sdk/s3-request-presigner": "^3.693.0",
     "@nour/gbp-publisher": "workspace:*",
     "@nour/meta-ads-architect": "workspace:*",
+    "@nour/signal-forge": "workspace:*",
     "@nour/utils": "workspace:*",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",

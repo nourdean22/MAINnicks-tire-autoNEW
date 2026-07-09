@@ -95,6 +95,11 @@ export const FLAG_DEFINITIONS = [
   { key: "photo_assess_enabled", description: "Photo-damage MMS pipeline · vision-analyzer + auto-reply. Requires REPLICATE_API_KEY (or HF_API_KEY for fallback). OFF default · enable after testing via /api/admin/photo-assess with skipSmsSend=true to verify model quality on sample photos" },
   { key: "legacy_autopost_live", description: "Allow live posting for legacy IG/FB autoposter instead of dry-run only" },
   { key: "nickgpt_low_risk_autosend_enabled", description: "Allow auto-sending low-risk AI SMS replies directly" },
+
+  // ─── CREATIVE SKILL PACKS ─────────────────────────
+  { key: "skill_ad_creative_enabled", description: "Augments staging of Meta Ads with localized hook strategies" },
+  { key: "skill_reel_script_enabled", description: "Augments brief generation with fast-paced visual storytelling instructions" },
+  { key: "skill_trend_topics_enabled", description: "Augments topic selection with GSC/Service Affinity data" },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
@@ -144,7 +149,10 @@ async function refreshCache(): Promise<void> {
  * All flags start DISABLED. Nour enables manually after QA review.
  * Use the admin Feature Flags panel (ShopDriver HQ) to toggle.
  */
-const AUTO_ENABLE_FLAGS: string[] = [];
+const AUTO_ENABLE_FLAGS: string[] = [
+  "skill_ad_creative_enabled",
+  "skill_reel_script_enabled"
+];
 
 /** Seed all flags — idempotent (skips existing). High-value flags auto-enable. */
 export async function seedFlags(): Promise<{ seeded: number; skipped: number }> {

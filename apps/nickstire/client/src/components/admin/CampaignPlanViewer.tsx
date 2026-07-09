@@ -1,6 +1,6 @@
-import { CheckCircle2, AlertTriangle, Copy, Brain, Target, Compass, Image as ImageIcon, Video, FileText, Globe } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Copy, Brain, Target, Compass, Image as ImageIcon, Video, FileText, Globe, Download } from "lucide-react";
 import { toast } from "sonner";
-import { CampaignOutput } from "@nour/meta-ads-architect";
+import { CampaignOutput, exportPlanToMarkdown, exportPlanToJson, generateSuggestedUtms } from "@nour/meta-ads-architect";
 
 interface ViewerProps {
   plan: CampaignOutput;
@@ -35,11 +35,31 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
   const isFallback = meta?.presetUsed === "deterministic-fallback";
   const risk = plan.complianceRiskScan?.riskLevel;
 
+  const downloadMarkdown = () => {
+    const md = exportPlanToMarkdown(plan);
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `campaign-plan-${new Date().toISOString().split('T')[0]}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("Markdown downloaded");
+  };
+
+  const utms = generateSuggestedUtms(
+    plan.campaignArchitecture.namingConventions.campaign.replace(/\s+/g, '-'),
+    [plan.campaignArchitecture.namingConventions.adSet.replace(/\s+/g, '-')],
+    [plan.campaignArchitecture.namingConventions.ad.replace(/\s+/g, '-')]
+  );
+
   return (
     <div className="space-y-6">
       {/* Top Banner: Metadata & Compliance */}
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             {isLlm ? (
               <span className="inline-flex items-center gap-1 bg-purple-500/10 text-purple-400 px-2.5 py-1 rounded-full text-xs font-semibold border border-purple-500/20">
@@ -56,7 +76,10 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
             )}
             <span className="text-xs text-muted-foreground">{new Date(meta?.generatedAt || "").toLocaleString()}</span>
           </div>
-          <CopyBtn text={JSON.stringify(plan, null, 2)} label="Copy Raw JSON" />
+          <div className="flex items-center gap-3">
+            <CopyBtn text={exportPlanToJson(plan)} label="Copy JSON" />
+            <button onClick={downloadMarkdown} className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground shrink-0"><Download className="w-3 h-3" /> Download MD</button>
+          </div>
         </div>
 
         {plan.complianceRiskScan && (
@@ -198,6 +221,21 @@ export function CampaignPlanViewer({ plan }: ViewerProps) {
           <SectionCard title="Landing Page System" icon={<Globe className="w-4 h-4" />}>
             <div><b>Direct Response Variant:</b><br/>{plan.landingPageSystem.directResponseVariant}</div>
             <div className="mt-2"><b>Risk Reversal:</b><br/>{plan.landingPageSystem.riskReversalWording}</div>
+          </SectionCard>
+
+          <SectionCard title="UTM Tracking Links" icon={<Target className="w-4 h-4" />}>
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-xs">Pre-built UTMs based on Meta Ads naming conventions. Use these as your Website URLs in the Ad setup.</p>
+              {utms.map((u, i) => (
+                <div key={i} className="bg-background border border-border rounded p-3 space-y-1 relative group">
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <CopyBtn text={u.url} label="" />
+                  </div>
+                  <div className="font-semibold text-xs text-primary">Ad: {u.ad}</div>
+                  <div className="text-xs break-all opacity-80">{u.url}</div>
+                </div>
+              ))}
+            </div>
           </SectionCard>
 
         </div>

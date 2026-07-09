@@ -27,6 +27,9 @@ import { createLogger } from "../lib/logger";
 import { normalizePhone } from "../lib/phone";
 import { eq, and, desc, gte, sql, like, or } from "drizzle-orm";
 import { getTemplateVariant, assignVariantWithExperiment, REPLY_CONFIGS } from "./smsMessageCatalog";
+import { runNickgptPreflightGuard, PreflightResult } from "./nickgptPreflightGuard";
+import { shouldAuditMessage } from "./nexusAuditSampler";
+import { nexusAuditJobs } from "../../drizzle/schema";
 
 const log = createLogger("sms-orchestrator");
 
@@ -474,11 +477,6 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
   let shadowWouldSend = false;
   let shadowMessageBody = "";
   
-  // Experiment split details
-  let isControl = true;
-  let trafficWeight = 100;
-  let variantAssignmentReason = "default_assignment";
-
   // Context relations
   let sourceTable: string | null = null;
   let sourceId: string | null = null;
@@ -489,6 +487,18 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
   let relatedVapiCallId: string | null = null;
   let relatedEstimateId: string | null = null;
   let metadataJson: Record<string, any> = {};
+
+  let isControl = false;
+  let trafficWeight = 100;
+  let variantAssignmentReason = "system_default";
+  let nickgptDraftId: number | null = null;
+  let preflightResult: any = null;
+  let nexusAuditEnqueued = false;
+  let nexusSampleReason = "not_sampled";
+  let detectedIntent = "general";
+  let confScore = 0;
+  let finalBodyToSend = "";
+  let finalVariantKey = "control";
 
   // For inbound, we first save a 'received' state
   let orchestrationId: number | null = null;
@@ -1005,7 +1015,7 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
 
             if (db) {
               try {
-                await db.insert(nickgptDrafts).values({
+                const [draftRow] = await db.insert(nickgptDrafts).values({
                   customerPhone: normalizedPhone,
                   inboundMessage: event.body,
                   draftReply: body,
@@ -1015,7 +1025,8 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
                   latencyMs: draftResult.latencyMs,
                   status: shouldAutoSend ? "approved" : "draft",
                   autoSent: shouldAutoSend,
-                });
+                }).$returningId();
+                nickgptDraftId = draftRow?.id ?? null;
               } catch (err) {
                 log.warn("Failed to log draft to nickgpt_drafts", err);
               }
@@ -1202,6 +1213,42 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
     let finalBodyToSend = body;
     let finalVariantKey = variantKey;
 
+    if (shouldAutoSend && finalBodyToSend && status !== "skipped" && status !== "blocked" && rolloutMode !== "draft_only") {
+      preflightResult = runNickgptPreflightGuard({
+        eventType: event.type,
+        candidateBody: finalBodyToSend,
+        inboundMessage: event.type === "inbound_sms" ? (event as any).body : undefined,
+        detectedIntent: detectedIntent,
+        confidence: confScore,
+        riskTier: riskTier as any,
+        customerContext: ctx,
+        selectedTemplateKey: selectedTemplateKey || undefined,
+        selectedVariantKey: finalVariantKey,
+        provider: providerUsed,
+        sourceType: finalVariantKey.includes("nickgpt") ? "nickgpt" : "deterministic_template",
+      });
+
+      if (!preflightResult.allowed) {
+        shouldAutoSend = false;
+        if (preflightResult.action === "force_human_review") {
+          status = "drafted";
+          requiresHumanApproval = true;
+        } else {
+          status = "blocked";
+        }
+        statusReason = preflightResult.reasonCode;
+        noSendReason = preflightResult.reasonCode;
+        metadataJson.preflight = preflightResult;
+        
+        const phoneLast4 = normalizedPhone.replace(/\D/g, "").slice(-4);
+        log.warn(`Nexus Preflight ${preflightResult.action}`, { phoneLast4, preflightResult });
+      } else {
+        metadataJson.preflightAction = preflightResult.action;
+      }
+
+      const isStop = /^(stop|unsubscribe|cancel)$/i.test(finalBodyToSend.trim());
+    }
+
     if (rolloutMode === "shadow") {
       finalBodyToSend = legacyBody;
       finalVariantKey = "legacy_shadow";
@@ -1260,6 +1307,35 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
         sendResultJson = sendResult;
       }
       providerUsed = "shop";
+
+      if (status === "sent" || status === "queued") {
+        // Moved sampler out of here to evaluate it unconditionally below.
+      }
+    }
+
+    const phoneLast4 = normalizedPhone.replace(/\D/g, "").slice(-4);
+    const sampleResult = shouldAuditMessage({
+      phoneLast4,
+      eventType: event.type,
+      body: finalBodyToSend,
+      variantKey: finalVariantKey,
+      sourceType: finalVariantKey.includes("nickgpt") ? "nickgpt" : "deterministic_template",
+      confidence: confScore,
+      requiresHumanApproval,
+      autoSent: status === "sent" || status === "queued",
+      preflight: preflightResult,
+      status,
+      isTestNumber: false,
+      isReplayDryRun: process.env.REPLAY_DRY_RUN === "true",
+      idempotencyKey,
+      correlationId,
+      orchestrationId: orchestrationId || undefined,
+      nickgptDraftId: nickgptDraftId || undefined
+    });
+    
+    if (sampleResult.shouldAudit) {
+      nexusAuditEnqueued = true;
+      nexusSampleReason = sampleResult.sampleReason;
     }
 
   } catch (orchestrateError) {
@@ -1342,6 +1418,32 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
       } else {
         const [row] = await db.insert(smsOrchestrations).values(payload).$returningId();
         finalResult.id = row?.id;
+      }
+
+      if (nexusAuditEnqueued && finalResult.id) {
+        try {
+          await db.insert(nexusAuditJobs).values({
+            jobType: "sms_audit",
+            sourceTable: sourceTable || "sms_orchestrations",
+            sourceId: String(sourceId || finalResult.id),
+            orchestrationId: String(finalResult.id),
+            nickgptDraftId: nickgptDraftId || undefined,
+            correlationId,
+            idempotencyKey,
+            sampleReason: nexusSampleReason,
+            payloadJson: JSON.stringify({ 
+               body: finalBodyToSend, 
+               phoneLast4: normalizedPhone.replace(/\D/g, "").slice(-4),
+               variantKey: finalVariantKey,
+               sourceType: finalVariantKey.includes("nickgpt") ? "nickgpt" : "deterministic_template",
+               preflightReason: preflightResult?.reasonCode
+            }),
+            priority: nexusSampleReason === "nickgpt_model_reply" ? 1 : 2,
+            status: "pending"
+          });
+        } catch (auditErr) {
+          log.warn("Failed to enqueue nexus audit job (non-fatal)", auditErr);
+        }
       }
     } catch (dbErr) {
       log.warn("Failed to write log row to sms_orchestrations table", dbErr);

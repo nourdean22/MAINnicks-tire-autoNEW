@@ -13,9 +13,6 @@
  *          something up explicitly
  *        · future agents that need skill discovery
  *
- *   2. `recallSkillsByCategory(category, limit)` · enumerates skills
- *      in a known category. Cheap · used when the operator names a
- *      domain ("show me content skills") rather than a query.
  *
  * Implementation notes:
  *   · Embeddings live in vector_embeddings with sourceType="skill" ·
@@ -178,31 +175,6 @@ export async function recallSkills(
     });
   }
   return out;
-}
-
-/**
- * Enumerate skills in a category. Useful when the operator names a
- * domain rather than a query (e.g. /chat: "show me all design
- * skills"). No embedding · just registry filter.
- */
-export async function recallSkillsByCategory(
-  category: string,
-  limit = 20,
-): Promise<SkillMatch[]> {
-  const reg = await loadRegistry();
-  if (!reg) return [];
-  const target = category.trim().toLowerCase();
-  return reg.skills
-    .filter((s) => (s.category ?? "").toLowerCase() === target)
-    .slice(0, Math.max(1, Math.min(50, limit)))
-    .map((s) => ({
-      name: s.name,
-      description: s.description,
-      similarity: 1, // not embedding-scored · use 1 to mark "exact category match"
-      category: s.category,
-      tags: s.tags,
-      path: s.path,
-    }));
 }
 
 /**

@@ -4,6 +4,9 @@ import { generateCampaignPlan } from "../src/generator/index.js";
 import { NicksTirePreset } from "../src/presets/nicks-tire.js";
 import { CampaignOutputSchema } from "../src/schemas/output.js";
 import { extractJsonObject } from "../src/generator/prompts.js";
+import { exportPlanToMarkdown, exportPlanToJson } from "../src/generator/export.js";
+import { buildMetaUtms, generateSuggestedUtms } from "../src/generator/utm.js";
+import { extractCreativeBriefs } from "../src/generator/creativeBrief.js";
 
 describe("Meta Ads Architect Compliance Engine", () => {
   it("should flag unsafe automotive claims", () => {
@@ -140,5 +143,43 @@ describe("LLM Fallback & Fenced JSON Extraction", () => {
     // But the compliance scanner MUST catch "guaranteed"
     expect(plan.complianceRiskScan.riskLevel).toBe("high");
     expect(plan.complianceRiskScan.riskFlags.some(f => f.includes('banned superlative'))).toBe(true);
+  });
+});
+
+describe("Export, UTMs, and Creative Briefs", () => {
+  it("should generate valid JSON export", async () => {
+    const plan = await generateCampaignPlan(NicksTirePreset);
+    const jsonStr = exportPlanToJson(plan);
+    expect(jsonStr).toContain('"campaignArchitecture"');
+    expect(() => JSON.parse(jsonStr)).not.toThrow();
+  });
+
+  it("should generate valid Markdown export", async () => {
+    const plan = await generateCampaignPlan(NicksTirePreset);
+    const mdStr = exportPlanToMarkdown(plan);
+    expect(mdStr).toContain("# Meta Ads Campaign Plan");
+    expect(mdStr).toContain("## 1. Input Audit");
+    expect(mdStr).toContain("## 13. Final Deliverables Checklist");
+  });
+
+  it("should build proper Meta UTM URLs", () => {
+    const url = buildMetaUtms("tire_campaign", "cold_lookalike", "vid_01", "https://nickstire.com");
+    expect(url).toBe("https://nickstire.com/?utm_source=meta&utm_medium=paid_social&utm_campaign=tire_campaign&utm_content=cold_lookalike&utm_term=vid_01");
+  });
+
+  it("should generate UTM suggestions array", () => {
+    const suggestions = generateSuggestedUtms("promo", ["adset1", "adset2"], ["ad1", "ad2"]);
+    expect(suggestions.length).toBe(4);
+    expect(suggestions[0].url).toContain("utm_campaign=promo");
+    expect(suggestions[0].adSet).toBe("adset1");
+  });
+
+  it("should extract creative briefs from the plan", async () => {
+    const plan = await generateCampaignPlan(NicksTirePreset);
+    const briefs = extractCreativeBriefs(plan);
+    expect(briefs.length).toBeGreaterThan(0);
+    expect(briefs[0].contentType).toBe("ad");
+    expect(briefs[0].status).toBe("pending");
+    expect(briefs[0].topic).toBe(plan.campaignArchitecture.namingConventions.campaign);
   });
 });
