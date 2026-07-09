@@ -985,27 +985,74 @@ export const operatorRouter = router({
       }
 
       const aiChat = makeTracedAiChat(`generator-${input.personaKey}`, "brain");
+      // AG-15 · this was the primary ghostwriter endpoint and applied NO
+      // voice profile and NO critic — raw persona prompt straight to draft.
+      const { buildNourVoicePrompt } = await import("@/lib/ai/nour-voice-profile");
       const systemPrompt = `${personaToSystemPrompt(persona)}
-      
+
 INSTRUCTIONS:
 - You are generating copy/content based on the operator's prompt.
 - Provide expert, high-impact copy or suggestions.
-- Do not add conversational fluff or meta-commentary at the beginning. Get straight to the generated content.`;
+- Do not add conversational fluff or meta-commentary at the beginning. Get straight to the generated content.
+
+${buildNourVoicePrompt()}`;
 
       const result = await aiChat([
         { role: "system", content: systemPrompt },
         { role: "user", content: input.prompt }
       ], "reason");
 
+      // AG-15 · critic gate + at most ONE revision pass. critiqueContent
+      // scores 7 axes (specificity/cliche/antiNour/brand/CTA/...); a
+      // sub-60 draft gets one rewrite with the offenders named, and the
+      // better-scoring version wins. Critic failure degrades to ungated.
+      const { critiqueContent } = await import("@/lib/ai/output-critic");
+      let content = result.content;
+      // critiqueContent is synchronous (pure scoring, no LLM call).
+      let critic: ReturnType<typeof critiqueContent> | null = null;
+      try {
+        critic = critiqueContent(content);
+      } catch {
+        critic = null;
+      }
+      if (critic?.shouldRegen) {
+        const offenders = [
+          ...(critic.offenders?.cliches ?? []),
+          ...(critic.offenders?.antiNour ?? []),
+        ];
+        const regen = await aiChat([
+          { role: "system", content: systemPrompt },
+          { role: "user", content: input.prompt },
+          { role: "assistant", content },
+          {
+            role: "user",
+            content: `Rewrite this. It failed the voice critic (${critic.contentOverall}/100). You used: ${offenders.join("; ") || "generic phrasing"} — replace with concrete specifics (real numbers, named services, real timeframes). Same substance, sharper copy. Output the rewritten draft only.`,
+          },
+        ], "reason");
+        let rescored: ReturnType<typeof critiqueContent> | null = null;
+        try {
+          rescored = critiqueContent(regen.content);
+        } catch {
+          rescored = null;
+        }
+        if (rescored && rescored.contentOverall > critic.contentOverall) {
+          content = regen.content;
+          critic = rescored;
+        }
+      }
+
       const { createDraft } = await import("@/lib/content/drafts");
       const draft = await createDraft({
-        content: result.content,
+        content,
         source: `assistant-${input.personaKey}`,
         kind: "post",
+        sourceMetadata: critic
+          ? { criticScore: critic.contentOverall, regenApplied: content !== result.content }
+          : null,
       });
 
       return {
-        content: result.content,
+        content,
         provider: result.provider,
         draftId: draft.id,
         draftKey: draft.key,

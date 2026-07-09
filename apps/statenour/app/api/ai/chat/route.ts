@@ -787,6 +787,27 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     log.info("multi_output_mode", { mode: multiCtx.mode, subject: multiCtx.subject.slice(0, 60) });
   }
 
+  // AG-15 · content-feedback RECALL. detectContentFeedback has CAPTURED
+  // Nour's reactions to generated content since Apr 28 (persist-assistant-
+  // turn.ts), but the read half — recallRecentContentFeedback +
+  // buildFeedbackPromptBlock — had zero call-sites: the "compounding
+  // voice" loop was write-only. On content turns, his recent reactions
+  // now ride into the prompt.
+  if (contentMode) {
+    try {
+      const { recallRecentContentFeedback, buildFeedbackPromptBlock } = await import(
+        "@/lib/ai/content-feedback"
+      );
+      const feedbackBlock = buildFeedbackPromptBlock(await recallRecentContentFeedback());
+      if (feedbackBlock) {
+        finalSystemPrompt += `\n\n${feedbackBlock}`;
+        log.info("content_feedback_recalled", { chars: feedbackBlock.length });
+      }
+    } catch {
+      // Supplementary voice context — never blocks the stream.
+    }
+  }
+
   // v10.0.499 · ADR-0011 Tier 2-lite · high-specificity gate.
   //
   // When NICK_HIGH_SPEC_GATE=on (env flag · default off · reversible),

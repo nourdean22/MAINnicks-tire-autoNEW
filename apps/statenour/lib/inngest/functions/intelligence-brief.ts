@@ -179,12 +179,31 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
       return result;
     });
 
+    // 6. AG-15 · persona-drift scan. The read surfaces (tRPC
+    // system.personaDrift, /api/system/persona-drift, the ultron
+    // situation card) were live but the PRODUCER — scanRecentReplies —
+    // had no scheduled caller, so they consumed an always-empty store.
+    // Best-effort: drift observability never fails the brief.
+    const driftReport = await step.run("scan-persona-drift", async () => {
+      try {
+        const { scanRecentReplies } = await import("@/lib/brain/persona-drift-detector");
+        const r = await scanRecentReplies({ windowHours: 24 });
+        return { scanned: r.scanned, drifted: r.drifted };
+      } catch (err) {
+        log.warn("persona_drift_scan_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return { scanned: 0, drifted: 0 };
+      }
+    });
+
     return {
       date: briefContent.date,
       ingested: ingestionReport,
       opportunities: opportunityReport,
       pushSent: pushReport.sent,
       pushFailed: pushReport.failed,
+      personaDrift: driftReport,
     };
   },
 );

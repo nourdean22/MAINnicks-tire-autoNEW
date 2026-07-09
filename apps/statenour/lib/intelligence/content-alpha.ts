@@ -65,6 +65,13 @@ For the provided opportunity, draft exactly two distinct social/outreach assets:
 1. An Instagram/Facebook post (kind: "post", suggestedPlatforms: ["instagram", "facebook"]) - engaging, punchy local tone, with local Cleveland/Parma references and a strong call-to-action. Include relevant hashtags.
 2. A Google Business Profile (GBP) update (kind: "post", suggestedPlatforms: ["gbp"]) - professional, clear local offer or service update.
 
+VOICE GUARD (AG-15 · these drafts were previously voice-blind):
+- Banned: corporate filler ("elevate", "leverage", "streamline", "unlock", "top-notch", "look no further"), pleasantries, and opener clichés ("Attention Cleveland drivers!").
+- Every draft must contain at least ONE concrete specific: a real price, a named service, a timeframe, or a neighborhood.
+- Short sentences. Action verbs. Write like a sharp shop owner, not a marketing agency.
+(Note: this is the Nick's Tire BRAND guard — deliberately NOT the operator's
+personal voice profile, which must never bleed into business posts.)
+
 Respond ONLY with a JSON array of two objects matching the schema. Do not include markdown fences, preambles, or postambles.
 JSON Schema:
 [
