@@ -3,6 +3,7 @@ import { getModel, getActiveProviderInfo, isRuntimeProvider, GEMINI_SAFETY_OFF, 
 import { buildSystemPrompt, detectTopicTier } from "@/lib/ai/system-prompt";
 import { detectQueryShape } from "@/lib/ai/query-shape";
 import { classifyTurn } from "@/lib/ai/turn-intelligence";
+import { buildResponseContract } from "@/lib/ai/response-contract";
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
 import { getCachedPrompt, setCachedPrompt } from "@/lib/ai/system-prompt-cache";
 import { detectChatMode, pruneTools, describeMode, type ChatMode } from "@/lib/ai/chat-mode";
@@ -323,6 +324,24 @@ async function chatPostInner(req: Request) {
     cot: turnSignal.useChainOfThought,
     critique: turnSignal.useTwoPassCritique,
   });
+
+  // AG-11 · Response contract. Pure (<1ms) derivation of the turn's
+  // output obligations (answerMode incl. 'brainstorm', exact rank counts,
+  // no-clarifying-question, must-not-claim-actions...). Existed fully
+  // tested but was never built on the live path — the module header's
+  // claim that it fed the system prompt was false until this wire.
+  // buildContractDirective() returns "" for plain turns, so casual chat
+  // pays zero tokens. Injection happens in finalizeSystemPrompt.
+  const responseContract = buildResponseContract(userContent, turnSignal, queryShape.shape);
+  if (responseContract.reasons.length > 0) {
+    log.info("response_contract", {
+      answerMode: responseContract.answerMode,
+      length: responseContract.length,
+      rankCount: responseContract.rankCount,
+      askOk: responseContract.shouldAskClarifying,
+      reasons: responseContract.reasons.slice(0, 6),
+    });
+  }
 
   // v6 · BATCH 3 · Apr 28 — Domain-routed model selection.
   // detectDomain() reads the message and picks the best taskType +
@@ -712,6 +731,7 @@ async function chatPostInner(req: Request) {
     contextBlocksFired,
     mode,
     queryShape,
+    contract: responseContract,
     log,
   });
   systemPrompt = __finalized.systemPrompt;

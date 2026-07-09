@@ -36,6 +36,8 @@ import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import { buildCitationPrompt } from "@/lib/ai/memory-citations";
 import { buildNourVoicePrompt } from "@/lib/ai/nour-voice-profile";
 import { getBehaviorDirective } from "@/lib/ai/knowledge/behavior-directive";
+import { buildContractDirective } from "@/lib/ai/response-contract";
+import type { ResponseContract } from "@/lib/ai/response-contract";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { ContextBlocksFired } from "@/lib/services/chat/brain-context";
 
@@ -61,6 +63,11 @@ export interface FinalizeSystemPromptInput {
   mode: ChatMode;
   /** Query-shape result — drives the tool-first directive. */
   queryShape: Parameters<typeof toolFirstDirective>[0];
+  /** AG-11 · Per-turn response contract (answerMode, rank counts,
+   *  clarifying-question policy). Optional — buildContractDirective
+   *  returns "" for unconstrained turns, so this is zero-cost on
+   *  casual chat. */
+  contract?: ResponseContract;
   log: ChatLogger;
 }
 
@@ -169,6 +176,14 @@ You are in Friend mode — just Nour's friend Nick.
   const shapePrompt = buildOutputShapePrompt(turnSignal.outputShape);
   if (shapePrompt) {
     systemPrompt += `\n\n${shapePrompt}`;
+  }
+
+  // AG-11 · Response-contract directive — the turn's explicit output
+  // obligations (exact item counts, no-clarifying-questions, don't claim
+  // actions, ...). Empty string for unconstrained turns.
+  const contractDirective = input.contract ? buildContractDirective(input.contract) : "";
+  if (contractDirective) {
+    systemPrompt += `\n\n${contractDirective}`;
   }
 
   // Apr 19 · Citation protocol — added on turns where any brain block
