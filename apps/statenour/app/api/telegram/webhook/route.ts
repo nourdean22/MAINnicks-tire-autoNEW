@@ -465,6 +465,9 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
         return await cmdStatus(chatId);
       case "/schedule":
         return await cmdSchedule(chatId);
+      // AG-18 · morning-brief pull (push-independent fallback)
+      case "/brief":
+        return await cmdBrief(chatId);
       case "/memory":
         return await cmdMemory(args.join(" "), chatId);
       case "/brain":
@@ -523,7 +526,8 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
           `🤖 <b>Nick Commands — Personal OS</b>\n\n` +
             `<b>READ</b>\n` +
             `/status — System snapshot\n` +
-            `/schedule — Today's schedule\n` +
+            `/schedule — Today's schedule (incl. calendar)\n` +
+            `/brief — Morning brief (pull anytime)\n` +
             `/memory [q] — Search memories\n` +
             `/search [q] — Semantic search journal + chat\n` +
             `/brain — Brain health\n` +
@@ -551,9 +555,33 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `<i>Shop ops (pace, staffing, customers) live in nickstire.org/admin.</i>`,
           chatId
         ).then(() => {});
-      default:
-        // Not a command — ignore (don't spam back)
-        return;
+      default: {
+        // AG-18 · plain (non-command) text was silently dropped — texting
+        // the bot "call Mike about the alignment" did NOTHING, while the
+        // tested pure intent router (lib/ultron/omni-capture-router, same
+        // one the web omni-capture UI uses) sat unused on this surface.
+        // Route it and reply with a one-line receipt naming the intent.
+        const { routeCapture } = await import("@/lib/ultron/omni-capture-router");
+        const intent = routeCapture(trimmed);
+        if (!intent.text.trim()) return;
+        await sendTelegram(`→ routed as <b>${intent.kind}</b>`, chatId);
+        switch (intent.kind) {
+          case "task":
+            return await cmdTask(intent.text, chatId);
+          case "dump":
+          case "park":
+          case "reflect":
+            return await cmdDump(intent.text, chatId);
+          case "search":
+            return await cmdSearch(intent.text, chatId);
+          case "decide":
+            return await cmdAsk(`Help me decide: ${intent.text}`, chatId);
+          case "plan":
+          case "ask":
+          default:
+            return await cmdAsk(intent.text, chatId);
+        }
+      }
     }
   } catch (err) {
     console.error("[telegram:cmd]", command, err);
@@ -826,15 +854,70 @@ async function cmdSchedule(chatId: string): Promise<void> {
   const { generateDailySchedule } = await import("@/lib/brain/daily-scheduler");
   const schedule = await generateDailySchedule();
 
+  // AG-18 · real Google Calendar events, prepended. The AI time-block
+  // plan below contains ZERO calendar reads — the operator's actual
+  // appointments never appeared in /schedule. Graceful-skip mirrors
+  // ingest-calendar's OAuth-expiry handling: on any calendar failure
+  // the reply degrades to the previous output with no error text.
+  let calendarSection = "";
+  try {
+    const { listEvents } = await import("@/lib/services/calendar-api");
+    const events = await listEvents({ daysAhead: 1, maxResults: 8 });
+    if (events.length > 0) {
+      const lines = events.map((e) => {
+        const when = e.start
+          ? new Date(e.start).toLocaleTimeString("en-US", {
+              timeZone: "America/New_York",
+              hour: "numeric",
+              minute: "2-digit",
+            })
+          : "all day";
+        return `• <b>${when}</b> ${(e.summary ?? "(untitled)").slice(0, 60)}`;
+      });
+      calendarSection = `📅 <b>Calendar</b>\n${lines.join("\n")}\n\n`;
+    }
+  } catch {
+    // OAuth expired / not configured — skip the section silently.
+  }
+
   const blockLines = schedule.blocks.map((b) => {
     const emoji = b.type === "deep_work" ? "🧠" : b.type === "body" ? "💪" : b.type === "communication" ? "📞" : b.type === "review" ? "📝" : "⚙️";
     return `${emoji} <b>${b.time}</b> ${b.task.slice(0, 50)}`;
   });
 
   await sendTelegram(
-    `📋 <b>Today's Schedule</b>\n\n${blockLines.join("\n")}\n\n${schedule.summary}`,
+    `${calendarSection}📋 <b>Today's Schedule</b>\n\n${blockLines.join("\n")}\n\n${schedule.summary}`,
     chatId
   );
+}
+
+// AG-18 · /brief — Telegram fallback for the morning brief. Delivery was
+// Web Push + audio only: a dead push subscription meant the brief existed
+// in BrainMemory but nothing ever reached the phone, and there was no
+// pull command.
+async function cmdBrief(chatId: string): Promise<void> {
+  try {
+    const todayEt = new Date().toLocaleDateString("en-CA", {
+      timeZone: "America/New_York",
+    });
+    const { prisma } = await import("@/lib/prisma");
+    const cached = await prisma.brainMemory
+      .findFirst({
+        where: { category: "morning_brief", key: todayEt },
+        select: { content: true },
+      })
+      .catch(() => null);
+    if (cached?.content) {
+      await sendTelegram(cached.content.slice(0, 3900), chatId);
+      return;
+    }
+    // Cron hasn't run yet (or cache miss) — compose fresh, same builder.
+    const { buildMorningBrief } = await import("@/lib/services/morning-brief");
+    const brief = await buildMorningBrief();
+    await sendTelegram(brief.text.slice(0, 3900), chatId);
+  } catch (err) {
+    await sendTelegram(`⚠️ Brief failed: ${(err as Error).message}`, chatId);
+  }
 }
 
 async function cmdMemory(query: string, chatId: string): Promise<void> {
@@ -1322,15 +1405,20 @@ async function handleVoice(
     if (transcript.trim().startsWith("/")) {
       await handleCommand(transcript.trim(), chatId);
     } else {
-      // Treat as a brain dump / note
-      const { brainMemory } = await import("@/lib/brain/memory-manager");
-      await brainMemory.remember(
-        "voice_note",
-        `voice_${Date.now()}`,
-        transcript,
-        "telegram-voice"
+      // AG-18 · spoken dumps now run the FULL journal-ingest pipeline
+      // (task/insight/commitment extraction) instead of landing as a raw
+      // voice_note memory that nothing acted on — same path as /dump.
+      const { ingestJournal } = await import("@/lib/brain/journal-ingest");
+      const result = (await ingestJournal(transcript)) as unknown as {
+        tasksCreated?: number;
+        insightsStored?: number;
+        commitmentsFound?: number;
+        entryType?: string;
+      };
+      await sendTelegram(
+        `🧠 <b>Ingested</b> · Type: <b>${result.entryType || "raw"}</b> · Tasks: ${result.tasksCreated ?? 0} · Insights: ${result.insightsStored ?? 0} · Commitments: ${result.commitmentsFound ?? 0}`,
+        chatId
       );
-      await sendTelegram("✅ Stored as brain memory.", chatId);
     }
   } catch (err) {
     await sendTelegram(`Voice processing failed: ${err instanceof Error ? err.message : "unknown error"}`, chatId);
