@@ -13,9 +13,16 @@
  */
 
 import { MAXFORGE_ALPHA_PROTOCOL } from "@/lib/ai/skills/maxforge-alpha";
+import { THOUGHT_PARTNER_PROTOCOL } from "@/lib/ai/skills/thought-partner";
+import { TACTICIAN_PROTOCOL } from "@/lib/ai/skills/tactician";
 
 export const BUNDLED_PROTOCOLS: Readonly<Record<string, string>> = {
   "maxforge-alpha": MAXFORGE_ALPHA_PROTOCOL,
+  // AG-32 · persona protocols — full-fidelity twins of the personality
+  // modes (finalize-system-prompt personalityPrompts) so chat can pull
+  // the deep discipline on demand via getSkillProtocol.
+  "thought-partner": THOUGHT_PARTNER_PROTOCOL,
+  tactician: TACTICIAN_PROTOCOL,
 };
 
 /** Full protocol body for a skill name, or null if none is bundled. */

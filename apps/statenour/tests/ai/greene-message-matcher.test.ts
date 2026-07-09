@@ -18,6 +18,14 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     brainMemory: {
       findMany: vi.fn(),
+      // recordGreeneFire's fire-and-forget aggregate write path.
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    // AG-31 · vector-fallback namespace.
+    vectorEmbedding: {
+      findMany: vi.fn().mockResolvedValue([]),
     },
   },
 }));
@@ -171,6 +179,57 @@ describe("pickContextualLawsForMessage", () => {
     );
     expect(r.length).toBe(1);
     expect(r[0].key).toBe("law_good");
+  });
+});
+
+describe("AG-31 · vector fallback", () => {
+  it("fires on trigger miss when a userEmbedding is provided, flags source:'vector', carries actions", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([
+      {
+        key: "law_absence",
+        metadata: {
+          title: "Use Absence to Increase Respect",
+          triggers: ["outshine"], // NOT present in the paraphrased message
+          summary: "Scarcity of presence raises its value.",
+          book: "48 Laws of Power",
+          actions: ["Go quiet for 48 hours after the proposal lands"],
+        },
+      },
+    ] as never);
+    vi.mocked(prisma.vectorEmbedding.findMany).mockResolvedValue([
+      { sourceId: "law_absence", embedding: "[1,0,0]" },
+    ] as never);
+
+    const picks = await pickContextualLawsForMessage(
+      "my business partner takes credit for everything I build",
+      { userEmbedding: [1, 0, 0] },
+    );
+    expect(picks).toHaveLength(1);
+    expect(picks[0].source).toBe("vector");
+    expect(picks[0].key).toBe("law_absence");
+    expect(picks[0].actions).toContain("Go quiet for 48 hours after the proposal lands");
+  });
+
+  it("stays deterministic-first: does NOT fire when triggers hit", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([
+      {
+        key: "law_power",
+        metadata: {
+          title: "Power Law",
+          triggers: ["leverage", "power"],
+          summary: "s",
+          book: "48 Laws of Power",
+          actions: [],
+        },
+      },
+    ] as never);
+    const picks = await pickContextualLawsForMessage(
+      "how do I get leverage and power in this deal",
+      { userEmbedding: [1, 0, 0] },
+    );
+    expect(picks).toHaveLength(1);
+    expect(picks[0].source).toBe("trigger");
+    expect(vi.mocked(prisma.vectorEmbedding.findMany)).not.toHaveBeenCalled();
   });
 });
 

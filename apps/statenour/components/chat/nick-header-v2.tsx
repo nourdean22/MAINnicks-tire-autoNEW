@@ -59,7 +59,10 @@ import { ProviderHealthPill } from "@/components/chat/provider-health-pill";
 // chat page can still pass them, but they're no longer rendered.
 // Nick infers both per-turn automatically. Programmatic override
 // still works via lib/ai/intent-classifier.ts setPersonaOverride().
-export type ChatPersonality = "master" | "builder" | "friend";
+// AG-32 · thought-partner + tactician join the stance axis. The server
+// map (finalize-system-prompt.ts personalityPrompts) falls back to
+// master on unknown keys, so additions here are always safe.
+export type ChatPersonality = "master" | "builder" | "friend" | "thought-partner" | "tactician";
 export type ChatMode = "auto" | "standard" | "deep";
 export type ProviderOverride = "auto" | "ollama" | "gemini" | "openai" | "anthropic";
 
@@ -210,7 +213,7 @@ export function NickHeaderV2({
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-1 bg-white/5 p-1 rounded-lg">
-                  {(["master", "builder", "friend"] as const).map((p) => {
+                  {(["master", "builder", "friend", "thought-partner", "tactician"] as const).map((p) => {
                     const isActive = personality === p;
                     return (
                       <button
@@ -225,7 +228,7 @@ export function NickHeaderV2({
                             : "text-neutral-400 hover:text-white hover:bg-white/5"
                         )}
                       >
-                        {p}
+                        {p === "thought-partner" ? "partner" : p}
                       </button>
                     );
                   })}
@@ -234,6 +237,8 @@ export function NickHeaderV2({
                   {personality === "master" && "Operator & strategist mode — terse and actionable."}
                   {personality === "builder" && "Technical coding mode — opens repository sandboxes."}
                   {personality === "friend" && "Casual, supportive conversational companion."}
+                  {personality === "thought-partner" && "Dialectic mode — steelman, attack, name the tension."}
+                  {personality === "tactician" && "Move counsel — one concrete 48h move per answer."}
                 </div>
               </div>
             )}

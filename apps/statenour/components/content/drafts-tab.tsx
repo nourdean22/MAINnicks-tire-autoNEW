@@ -42,6 +42,12 @@ interface ContentDraft {
     approvedAt?: string;
     kind?: string;
     source?: string;
+    // AG-33 · generator metadata (criticScore, regenApplied, channel…) —
+    // flows from SocialPublishQueue.sourceMetadata via mapQueueItemToDraft.
+    sourceMetadata?: Record<string, unknown> & {
+      criticScore?: number;
+      regenApplied?: boolean;
+    };
   };
   createdAt: string;
   updatedAt: string;
@@ -194,6 +200,22 @@ export function DraftsTab() {
                       {d.metadata.source && (
                         <span className="text-[10px] italic text-[var(--text-tertiary)]">
                           from {d.metadata.source}
+                        </span>
+                      )}
+                      {/* AG-33 · voice-critic score chip (red <60 · amber 60-75) */}
+                      {typeof d.metadata.sourceMetadata?.criticScore === "number" && (
+                        <span
+                          className={cn(
+                            "text-[10px] px-1.5 py-0.5 rounded border font-mono tabular-nums",
+                            d.metadata.sourceMetadata.criticScore < 60
+                              ? "text-red-400 border-red-500/40 bg-red-500/10"
+                              : d.metadata.sourceMetadata.criticScore <= 75
+                                ? "text-amber-400 border-amber-500/40 bg-amber-500/10"
+                                : "text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
+                          )}
+                          title={d.metadata.sourceMetadata.regenApplied ? "Voice score (auto-revised once)" : "Voice score"}
+                        >
+                          voice {d.metadata.sourceMetadata.criticScore}
                         </span>
                       )}
                     </div>

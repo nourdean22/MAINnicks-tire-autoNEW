@@ -140,6 +140,8 @@ export async function buildBrainContext(
       greeneMatcherMod,
       darkPsychMatcherMod,
       skillRegistryRecallMod,
+      objectionInjectorMod,
+      tacticianMod,
     ] = await Promise.all([
       import("@/lib/brain/chat-recall").catch(() => null),
       import("@/lib/brain/skill-extractor").catch(() => null),
@@ -179,6 +181,12 @@ export async function buildBrainContext(
       // cutover (PR #432) — this restores it and its
       // skill.recall.injected telemetry (ADR-0007 open item).
       import("@/lib/skills/skill-context").catch(() => null),
+      // AG-30 · unaddressed adversarial objections re-enter context
+      // (mirrors the contradiction injector directly above).
+      import("@/lib/brain/objection-injector").catch(() => null),
+      // AG-31 · tactician next-move composer (self-gating on tactical
+      // intent; /battle prefix relaxes thresholds).
+      import("@/lib/ai/tactician/next-move").catch(() => null),
     ]);
 
     const [
@@ -194,6 +202,8 @@ export async function buildBrainContext(
       greeneBlock,
       darkPsychBlock,
       skillRegistryBlock,
+      objectionHit,
+      nextMoveBlock,
     ] = await Promise.all([
       userContent.length > 10 && recallMod
         ? withTimeout(recallMod.buildChatRecallBlock(userContent, mode === "deep" ? 6 : 4), 3000, "")
@@ -263,10 +273,14 @@ export async function buildBrainContext(
       // AG-14 · both matchers self-gate (minScore 2 → "" on casual turns)
       // and their blocks stay NON-critical so the reranker can drop them
       // on low similarity — prompt-budget guard per the plan.
+      // AG-31 · the precomputed userEmbedding rides along so the matcher's
+      // vector fallback can catch paraphrases when triggers miss.
       userContent.length > 10 && greeneMatcherMod
         ? withTimeout(
             greeneMatcherMod
-              .pickContextualLawsForMessage(userContent)
+              .pickContextualLawsForMessage(userContent, {
+                userEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
+              })
               .then((picks) => greeneMatcherMod.renderGreeneBlock(picks)),
             3000,
             "",
@@ -285,6 +299,18 @@ export async function buildBrainContext(
       // inside skill-context; ~450 tokens/turn worst case (top-3 skills).
       userContent.length > 10 && skillRegistryRecallMod
         ? withTimeout(skillRegistryRecallMod.getRelevantSkillsBlock(userContent), 3000, "")
+        : Promise.resolve(""),
+      // AG-30 · once-per-conversation, 24h lookback, severity≥2+flaw only.
+      objectionInjectorMod && convId
+        ? withTimeout(objectionInjectorMod.findRelevantObjections({ conversationId: convId }), 3000, null)
+        : Promise.resolve(null),
+      // AG-31 · self-gates on TACTICIAN_INTENT; /battle relaxes thresholds.
+      userContent.length > 10 && tacticianMod
+        ? withTimeout(
+            tacticianMod.buildNextMoveBlock(userContent, { relaxed: /^\/battle\b/i.test(userContent) }),
+            3000,
+            "",
+          )
         : Promise.resolve(""),
     ]);
 
@@ -344,6 +370,8 @@ export async function buildBrainContext(
       { name: "Greene Strategy Frame", content: greeneBlock || "" },
       { name: "Dark Psychology Frame", content: darkPsychBlock || "" },
       { name: "Skill Registry Recall", content: skillRegistryBlock || "" },
+      { name: "Open Counter-View", content: objectionHit && objectionInjectorMod ? objectionInjectorMod.buildObjectionBlock(objectionHit) : "" },
+      { name: "Next Move", content: nextMoveBlock || "" },
       { name: "Predictive Prefetch", content: prefetchResults?.length ? formatPrefetchContext(prefetchResults as PrefetchResult[]) || "" : "", critical: true }
     ].filter((b) => b.content && b.content.trim().length > 0);
 

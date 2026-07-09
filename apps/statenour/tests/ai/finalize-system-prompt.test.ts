@@ -113,6 +113,65 @@ describe("finalizeSystemPrompt · behavior directive (AG-10)", () => {
   });
 });
 
+describe("finalizeSystemPrompt · persona modes (AG-32)", () => {
+  async function finalizeWithPersonality(personality: string) {
+    const userContent = "what should I do about the fleet account";
+    const result = await finalizeSystemPrompt({
+      systemPrompt: "BASE PROMPT",
+      provider: "ollama",
+      personality,
+      userContent,
+      turnSignal: classifyTurn(userContent),
+      contextBlocksFired: NO_BLOCKS,
+      mode: "standard" as never,
+      queryShape: detectQueryShape(userContent),
+      log: silentLog,
+    });
+    return result.systemPrompt;
+  }
+
+  it("thought-partner mode injects its block", async () => {
+    const prompt = await finalizeWithPersonality("thought-partner");
+    expect(prompt).toContain("[ACTIVE MODE: THOUGHT PARTNER]");
+    expect(prompt).toContain("steelman");
+  });
+
+  it("tactician mode injects its block", async () => {
+    const prompt = await finalizeWithPersonality("tactician");
+    expect(prompt).toContain("[ACTIVE MODE: TACTICIAN]");
+    expect(prompt).toContain("exactly ONE move");
+  });
+
+  it("unknown personality still falls back to master", async () => {
+    const prompt = await finalizeWithPersonality("nonexistent-mode");
+    expect(prompt).toContain("[ACTIVE MODE: MASTER]");
+  });
+});
+
+describe("finalizeSystemPrompt · spar mode (AG-30)", () => {
+  it("injects SPAR MODE on brainstorm-contract turns", async () => {
+    const prompt = await finalize(
+      "brainstorm some angles for the winter tire campaign",
+      { withContract: true },
+    );
+    expect(prompt).toContain("# SPAR MODE");
+    expect(prompt).toContain("professional skeptic");
+  });
+
+  it("injects SPAR MODE on explicit /spar prefix even without a contract", async () => {
+    const prompt = await finalize("/spar should I open the second location");
+    expect(prompt).toContain("# SPAR MODE");
+  });
+
+  it("does NOT inject SPAR MODE on plain analytical turns", async () => {
+    const prompt = await finalize(
+      "analyze whether raising the alignment price would hurt our win rate",
+      { withContract: true },
+    );
+    expect(prompt).not.toContain("# SPAR MODE");
+  });
+});
+
 describe("finalizeSystemPrompt · response contract (AG-11)", () => {
   it("enforces exact rank counts and no-clarifying-questions", async () => {
     const prompt = await finalize(

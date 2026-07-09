@@ -1391,14 +1391,27 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           // shape replies (the predicate inside criticizeAsync skips
           // non-recs). Surfaces the strongest objection · pairs with judge
           // to give Nick both a quality score AND a counter-view per turn.
+          // AG-30 · spar turns (brainstorm contract or /spar prefix)
+          // critique UNCONDITIONALLY — every brainstorm gets a stored
+          // counter-view — and carry conversationId so the objection-
+          // injector can re-surface unaddressed ones on later turns.
           import("@/lib/ai/adversarial-critic")
-            .then(({ criticizeAsync }) =>
-              criticizeAsync({
+            .then(async ({ criticizeAsync }) => {
+              const [{ buildResponseContract }, { EARLY_SPAR }] = await Promise.all([
+                import("@/lib/ai/response-contract"),
+                import("@/lib/ai/chat/handlers/patterns"),
+              ]);
+              const sparTurn =
+                buildResponseContract(userContent).answerMode === "brainstorm" ||
+                EARLY_SPAR.test(userContent);
+              return criticizeAsync({
                 messageId: createdAssistant.id,
+                conversationId: convId ?? null,
                 userQuery: userContent.slice(0, 1000),
                 recommendation: cleanedText,
-              }),
-            )
+                force: sparTurn,
+              });
+            })
             .catch((err) => {
               log.warn("adversarial_critic_dispatch_failed", {
                 messageId: createdAssistant.id,

@@ -69,7 +69,10 @@ export async function buildSystemPrompt(
           ? "sms"
           : "default";
 
-  // Use the date + 4h bucket in the cache key to partition by time-of-day
+  // Use the date + 4h bucket in the cache key to partition by time-of-day.
+  // AG-35 · key prefix bumped v2 → v3: the business-knowledge layer below
+  // changes what a cached prompt contains, and per the invalidation note
+  // in system-prompt-cache.ts a knowledge change must never serve stale.
   const _now = new Date();
   const _dayKey = _now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const _hour = parseInt(
@@ -77,7 +80,7 @@ export async function buildSystemPrompt(
     10,
   );
   const _bucket = _hour < 12 ? "am" : _hour < 17 ? "pm" : "eve";
-  const cacheKey = `system_prompt_v2_${effectiveTier}_${slot}_${_dayKey}_${_bucket}`;
+  const cacheKey = `system_prompt_v3_${effectiveTier}_${slot}_${_dayKey}_${_bucket}`;
 
   return cached(cacheKey, 300, async () => {
     const { buildSystemPromptV2 } = await import("./prompt/v2");
@@ -92,8 +95,72 @@ export async function buildSystemPrompt(
       prompt = `${prompt}\n\n## Capability: Stitch Prompt Engineering\n\n${enhanceInstructions}`;
     }
 
+    prompt = await appendBusinessKnowledgeLayer(prompt, effectiveTier, slot, userMessage);
+
     return prompt;
   });
+}
+
+/**
+ * AG-35 · the 1,632-line business knowledge pack (PRICING_POLICY,
+ * SHOP_OPS_CARD, BRAND_VOICE, seasonal playbooks) was silently orphaned
+ * from the live chat prompt by the 2026-06-29 Prompt V2 cutover — its
+ * only prod caller was a diagnostics view, so Nick advised on the
+ * business without its pricing policy in context. Appended AFTER the
+ * budget trim (same pattern as the stitch layer); size stays bounded by
+ * the detectors' own tier gating (light tiers get the ops card only —
+ * the full pack would blow Venice's 65K window).
+ */
+export async function appendBusinessKnowledgeLayer(
+  prompt: string,
+  tier: TopicTier,
+  slot: string,
+  userMessage?: string | null,
+): Promise<string> {
+  const wantsKnowledge =
+    tier === "business" || tier === "strategy" || tier === "full" ||
+    slot === "content" || slot === "deep" || slot === "sms";
+  if (!wantsKnowledge) return prompt;
+
+  try {
+    const { getBusinessKnowledge } = await import("./knowledge/detectors");
+    // TopicTier → KnowledgeTier: "personal" maps to the light "chat"
+    // tier (ops card only); the other values coincide.
+    const knowledgeTier = tier === "personal" ? "chat" : tier;
+    const block = getBusinessKnowledge(knowledgeTier, userMessage);
+    if (!block) return prompt;
+    void runBrandStalenessCanary();
+    return `${prompt}\n\n${block}`;
+  } catch {
+    // Knowledge layer is supplementary — never blocks prompt delivery.
+    return prompt;
+  }
+}
+
+// AG-35 · once-per-process staleness canary: the pack's hardcoded shop
+// facts date to Apr 2026 — re-injecting them re-injects any drift. One
+// best-effort bridge compare per lambda instance, logged not thrown.
+let brandCanaryDone = false;
+async function runBrandStalenessCanary(): Promise<void> {
+  if (brandCanaryDone) return;
+  brandCanaryDone = true;
+  try {
+    const { queryNick } = await import("@/lib/nickstire/query");
+    const pulse = (await queryNick("shop_pulse", {})) as
+      | { pulse?: { phone?: string; hours?: string } }
+      | null;
+    if (!pulse?.pulse) return;
+    const { SHOP_OPS_CARD } = await import("./knowledge/brand-constants");
+    const phone = pulse.pulse.phone;
+    if (phone && !SHOP_OPS_CARD.includes(phone.replace(/\D/g, "").slice(-10))) {
+      const { logger } = await import("@/lib/logger");
+      logger.withSurface("ai/system-prompt").warn("brand_constants_stale", {
+        note: "bridge shop phone not found in SHOP_OPS_CARD — pack facts may have drifted",
+      });
+    }
+  } catch {
+    // bridge unkeyed / offline — silent skip
+  }
 }
 
 export async function buildSystemPromptUncached(
@@ -103,6 +170,11 @@ export async function buildSystemPromptUncached(
   const { buildSystemPromptV2 } = await import("./prompt/v2");
   const out = await buildSystemPromptV2();
   let prompt = trimPromptToBudget(out.prompt, 58000);
+
+  // AG-35 · same knowledge layer as the cached path. The uncached path
+  // has no slot detection — tier alone gates (content/sms callers use
+  // buildSystemPrompt).
+  prompt = await appendBusinessKnowledgeLayer(prompt, tier, "default", userMessage);
 
   if (userMessage) {
     const { detectStitchPromptIntent, resolveDesignContext, buildEnhancePromptSystemInstructions } = await import("@nour/ai-capabilities");
