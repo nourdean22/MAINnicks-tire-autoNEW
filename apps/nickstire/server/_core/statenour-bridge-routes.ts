@@ -1,5 +1,5 @@
 /**
- * Statenour Bridge Routes — v11.3 cross-ring contract.
+ * Statenour Bridge Routes — v11.4 cross-ring contract.
  *
  * Owner-auth endpoints for the statenour-os HQ to ticker live shop data.
  * Contract is mirrored in this repo at docs/NICKSTIRE-QUERY-CONTRACT.md
@@ -13,15 +13,24 @@
  *     quotes synced from ShopDriver Elite). An alg_estimates row without
  *     a matchedInvoiceId = declined work = recovery target.
  *
+ * v11.4 adds POST /api/bridge/bulk-sms-send — see its doc comment below.
+ * This endpoint MUTATES (creates a campaign + sends SMS), unlike every
+ * other endpoint here which is a pure DB read. It lives in THIS file
+ * (not routes/nour-os-query.ts) because that file is explicitly
+ * documented as read-only-by-design ("Don't add actions that mutate").
+ * This file already hosts the one other mutating bridge surface (Snap
+ * Finance), so the pattern (statenourAuth + express.json()) matches.
+ *
  * Endpoints (all GET, all require X-Statenour-Sync-Key header):
  *   GET /api/bridge/cars-today
  *   GET /api/bridge/estimates-conversion?range=7d|30d|90d&scope=online|alg
  *   GET /api/bridge/estimates-aging?scope=online|alg
  *   GET /api/bridge/drop-off-ratio?range=7d|30d|90d
  *
- * Snap Finance endpoints (POST, auth varies):
- *   POST /api/snap/application   — owner-auth, proxies to Snap's API
- *   POST /api/snap/webhook       — public (signature-verified), status updates
+ * Mutating endpoints (POST, auth varies):
+ *   POST /api/snap/application    — owner-auth, proxies to Snap's API
+ *   POST /api/snap/webhook        — public (signature-verified), status updates
+ *   POST /api/bridge/bulk-sms-send — owner-auth, creates + sends an SMS campaign
  */
 
 import type { Express, Request, Response, NextFunction } from "express";
@@ -773,5 +782,176 @@ export function registerStatenourBridgeRoutes(app: Express): void {
     }
   });
 
-  log.info("Statenour bridge routes registered (5 endpoints, contract v11.3)");
+  // ─── 6. POST /api/bridge/bulk-sms-send ────────────────
+  //     Dispatch target for statenour's bulk-sms-approval Inngest
+  //     workflow (apps/statenour/lib/inngest/functions/bulk-sms-approval.ts).
+  //     By the time a request reaches here, the operator has already
+  //     approved the campaign via the Telegram approval gate — this
+  //     endpoint is the actual send, not a second approval point.
+  //
+  //     Reuses the EXACT pipeline the admin campaigns UI uses
+  //     (routers/campaigns.ts: getSegmentCustomers + processCampaignSends)
+  //     so a bridge-triggered campaign gets the same safety machinery as
+  //     an admin-triggered one for free: resumable at-most-once claim,
+  //     gateway-offline holding (never drops, holds until the F25e is
+  //     back), 1 SMS/sec rate limiting, and — inside sendSms — the
+  //     per-phone daily cap (8/day), 5-min cooldown, opt-out check, and
+  //     TCPA "Reply STOP" footer.
+  //
+  //     Two independent safety layers on top of that pipeline:
+  //       1. dryRun defaults to true. A dry run does DB reads only —
+  //          no campaign row, no send — and returns the target count +
+  //          a rendered message preview so the caller can sanity-check
+  //          before ever risking a real send.
+  //       2. A hard per-call recipient cap (BULK_BRIDGE_MAX_RECIPIENTS)
+  //          well under the segment's natural size. Bridge-triggered
+  //          campaigns are meant to be targeted (winback, a specific
+  //          recovery push), not full-database blasts — an operator who
+  //          needs a bigger blast should use the admin UI directly,
+  //          where each send is a deliberate, visible click.
+  //
+  //     Segment is restricted to the same 3-value enum the admin UI
+  //     uses (recent | lapsed | all) rather than an open filter object —
+  //     an arbitrary cross-network filter is both a SQL-surface risk and
+  //     a way to accidentally target more customers than intended. If a
+  //     future caller needs different targeting, add a named segment
+  //     here (mirroring getSegmentCustomers), don't accept raw SQL/filters.
+  //
+  //     variantKey is tagged `bulk_campaign:<statenour campaignId>` on
+  //     every send (via smsMessages.variantKey) so per-campaign
+  //     attribution round-trips back to the statenour-side campaign id.
+  const BULK_BRIDGE_MAX_RECIPIENTS = 300;
+  const BULK_BRIDGE_SEGMENTS = ["recent", "lapsed", "all"] as const;
+
+  app.post("/api/bridge/bulk-sms-send", statenourAuth, express.json(), async (req, res) => {
+    try {
+      const body = req.body as {
+        campaignId?: unknown;
+        segment?: unknown;
+        messageTemplate?: unknown;
+        maxRecipients?: unknown;
+        dryRun?: unknown;
+      };
+
+      if (typeof body?.campaignId !== "string" || !body.campaignId.trim()) {
+        return res.status(400).json({ error: "campaignId (non-empty string) is required" });
+      }
+      const campaignId = body.campaignId.trim().slice(0, 80);
+
+      if (typeof body.segment !== "string" || !(BULK_BRIDGE_SEGMENTS as readonly string[]).includes(body.segment)) {
+        return res.status(400).json({ error: `segment must be one of ${BULK_BRIDGE_SEGMENTS.join(", ")}` });
+      }
+      const segment = body.segment as (typeof BULK_BRIDGE_SEGMENTS)[number];
+
+      if (typeof body.messageTemplate !== "string" || !body.messageTemplate.trim()) {
+        return res.status(400).json({ error: "messageTemplate (non-empty string) is required" });
+      }
+      if (body.messageTemplate.length > 1600) {
+        return res.status(400).json({ error: "messageTemplate exceeds 1600 chars" });
+      }
+      const messageTemplate = body.messageTemplate;
+
+      const requestedCap = typeof body.maxRecipients === "number" && body.maxRecipients > 0
+        ? Math.floor(body.maxRecipients)
+        : BULK_BRIDGE_MAX_RECIPIENTS;
+      const cap = Math.min(requestedCap, BULK_BRIDGE_MAX_RECIPIENTS);
+
+      // dryRun defaults true — the caller must explicitly pass `dryRun: false`
+      // to risk a real send. Any other value (undefined, missing, truthy) stays safe.
+      const dryRun = body.dryRun !== false;
+
+      const { getSegmentCustomers, processCampaignSends } = await import("../routers/campaigns");
+      const { withOptOut } = await import("../sms");
+
+      const allTargets = await getSegmentCustomers(segment);
+      const truncated = allTargets.length > cap;
+      const targets = allTargets.slice(0, cap);
+      const variantKey = `bulk_campaign:${campaignId}`;
+
+      const preview = targets[0]
+        ? withOptOut(messageTemplate.replace(/\{firstName\}/g, targets[0].firstName))
+        : withOptOut(messageTemplate);
+
+      if (dryRun) {
+        log.info("bulk-sms-send dry run", { campaignId, segment, targetCount: targets.length, truncated });
+        try {
+          const { sendTelegram } = await import("../services/telegram");
+          await sendTelegram(
+            `🧪 <b>Bulk SMS DRY RUN</b> · campaign <code>${campaignId}</code>\n` +
+              `Segment: ${segment} · Targets: <b>${targets.length}</b>` +
+              (truncated ? ` (capped from ${allTargets.length})` : "") + `\n` +
+              `Preview: ${preview.slice(0, 200)}\n\n` +
+              `No SMS sent. Re-send with dryRun:false to go live.`,
+          );
+        } catch (e) {
+          log.warn("[bulk-sms-send] dry-run telegram notify failed:", e);
+        }
+        return res.json({ success: true, dryRun: true, targetCount: targets.length, truncated, preview, variantKey });
+      }
+
+      if (targets.length === 0) {
+        return res.status(400).json({ error: "No customers in target segment" });
+      }
+
+      const { getDb } = await import("../db");
+      const { eq } = await import("drizzle-orm");
+      const { smsCampaigns, smsCampaignSends } = await import("../../drizzle/schema");
+      const d = await getDb();
+      if (!d) return res.status(503).json({ error: "DB unavailable" });
+
+      const [campaignRow] = await d.insert(smsCampaigns).values({
+        name: `Bridge · ${campaignId}`.slice(0, 255),
+        // template is a required enum column but unused whenever customMessage
+        // is set (see routers/campaigns.ts `send`) — placeholder value only.
+        template: "special_offer",
+        segment,
+        customMessage: messageTemplate,
+        targetCount: targets.length,
+        status: "draft",
+      }).$returningId();
+      const campaignDbId = campaignRow.id;
+
+      const sendRecords = targets.map((c) => ({
+        campaignId: campaignDbId,
+        customerId: c.id,
+        phone: c.phone,
+        messageBody: withOptOut(messageTemplate.replace(/\{firstName\}/g, c.firstName)),
+        status: "pending" as const,
+      }));
+      for (let i = 0; i < sendRecords.length; i += 500) {
+        await d.insert(smsCampaignSends).values(sendRecords.slice(i, i + 500));
+      }
+
+      // draft -> active, same atomic-claim shape as the admin `send` mutation
+      // (single caller here, but keeps the two paths byte-consistent).
+      await d.update(smsCampaigns)
+        .set({ status: "active", startedAt: new Date() })
+        .where(eq(smsCampaigns.id, campaignDbId));
+
+      processCampaignSends(campaignDbId, 50, variantKey).catch((err) => {
+        log.error("bulk-sms-send campaign processing failed", {
+          campaignDbId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
+      try {
+        const { sendTelegram } = await import("../services/telegram");
+        await sendTelegram(
+          `📤 <b>Bulk SMS LIVE</b> · campaign <code>${campaignId}</code> (db#${campaignDbId})\n` +
+            `Segment: ${segment} · Sending to <b>${targets.length}</b>` +
+            (truncated ? ` (capped from ${allTargets.length})` : "") + ` customers.`,
+        );
+      } catch (e) {
+        log.warn("[bulk-sms-send] live-send telegram notify failed:", e);
+      }
+
+      res.json({ success: true, dryRun: false, campaignDbId, targetCount: targets.length, truncated, variantKey });
+    } catch (err) {
+      log.error("bulk-sms-send failed", { error: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
+  log.info("Statenour bridge routes registered (6 endpoints, contract v11.4)");
 }

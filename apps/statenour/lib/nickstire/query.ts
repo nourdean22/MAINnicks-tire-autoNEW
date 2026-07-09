@@ -117,7 +117,58 @@ export async function queryNick<T = unknown>(
   return { error: "Exhausted retry limits due to persistent transient failures." };
 }
 
-/** 
+/**
+ * POST to a mutating nickstire bridge endpoint (e.g. /api/bridge/bulk-sms-send).
+ *
+ * Deliberately NOT built on queryNick()'s retry-with-backoff loop. That
+ * loop is correct for read-only queries (a retried GET-shaped read is
+ * idempotent) but wrong here: a timeout on a mutating endpoint is
+ * ambiguous — the request may have already landed and sent real SMS —
+ * so retrying could double-send. Single attempt, fail loud, let the
+ * caller (and nickstire's own Telegram alert) surface the ambiguity to
+ * the operator instead of silently retrying into a duplicate campaign.
+ *
+ * Uses the `X-Statenour-Sync-Key` header (statenourAuth middleware),
+ * NOT the lowercase `x-sync-key` header queryNick() uses for
+ * /api/nour-os/query — those are two different auth-checking routes.
+ */
+export async function postNickstireBridge<T = unknown>(
+  path: string,
+  body: Record<string, unknown>,
+  timeoutMs = 15000,
+): Promise<{ data: T } | { error: string; statusCode?: number }> {
+  const { url, key } = getConfig();
+  if (!key) {
+    console.error("[Nickstire Bridge] CRITICAL: No sync key. Set STATENOUR_SYNC_KEY.");
+    return { error: "No sync key configured." };
+  }
+
+  try {
+    const res = await fetch(`${url}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Statenour-Sync-Key": key },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const errMsg = (json as { error?: string })?.error || `HTTP ${res.status}`;
+      console.error(`[Nickstire Bridge] POST ${path} failed HTTP ${res.status}: ${errMsg}`);
+      return { error: errMsg, statusCode: res.status };
+    }
+    return { data: json as T };
+  } catch (e) {
+    const isTimeout = e instanceof Error && e.name === "TimeoutError";
+    console.error(
+      `[Nickstire Bridge] POST ${path} ${isTimeout ? "timed out" : "crashed"} — NOT retrying (mutating endpoint, ambiguous delivery on retry):`,
+      e,
+    );
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
  * Batch multiple queries in parallel with strict structural guarantees.
  * Instead of failing silently, surfaces structured payload maps.
  */
