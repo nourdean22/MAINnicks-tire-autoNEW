@@ -5,43 +5,109 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
-# Tier-2-G (2026-05-19): switched from blind verify-everything to
-# Turbo's --affected detection. PRs that only touch apps/statenour/
-# skip nickstire's check/lint/test/build. PRs that touch packages/utils/
-# trigger all downstream consumers automatically via the workspace
-# dependency graph. Cached tasks replay logs in <1s.
-#
-# The Turbo command is the single source of truth · no more drift
-# between this file and what runs locally. Pre-push hook runs the
-# same `turbo run build --affected`; if it passes there it passes here.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
-  affected:
+  changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    permissions:
-      contents: read
-
+    timeout-minutes: 5
+    outputs:
+      statenour: ${{ steps.filter.outputs.statenour }}
+      nickstire: ${{ steps.filter.outputs.nickstire }}
+      worker: ${{ steps.filter.outputs.worker }}
+      voice: ${{ steps.filter.outputs.voice }}
+      packages: ${{ steps.filter.outputs.packages }}
+      node: ${{ steps.filter.outputs.node }}
+      workflow: ${{ steps.filter.outputs.workflow }}
+      infra: ${{ steps.filter.outputs.infra }}
+      docs_only: ${{ steps.filter.outputs.docs_only }}
     steps:
       - name: Checkout (full history for affected-detection)
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
-          # Turbo needs at least the merge-base commit to compute
-          # --affected. fetch-depth: 0 grabs everything; for huge repos
-          # this could be tightened with `fetch-depth: 100` + a
-          # `git fetch origin main` step.
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            nickstire:
+              - 'apps/nickstire/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/**'
+            statenour:
+              - 'apps/statenour/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/**'
+            worker:
+              - 'apps/worker/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/**'
+            voice:
+              - 'apps/voice/**'
+              - '.github/workflows/**'
+            packages:
+              - 'packages/**'
+            node:
+              - 'apps/nickstire/**'
+              - 'apps/statenour/**'
+              - 'apps/worker/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/**'
+            workflow:
+              - '.github/workflows/**'
+            infra:
+              - 'docs/RAILWAY_PROVISION.md'
+              - 'apps/*/DEPLOY.md'
+              - 'railway.json'
+              - 'railway.toml'
+              - 'nixpacks.toml'
+              - 'Procfile'
+            docs_only:
+              - '**/*.md'
+              - 'docs/**'
+
+  node:
+    needs: changes
+    if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.workflow == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout (full history for affected-detection)
+        uses: actions/checkout@v4
+        with:
           fetch-depth: 0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
 
-      # Pin to Node 20 to match Railway's Dockerfile runtime
-      # (FROM node:20-alpine in apps/statenour/Dockerfile + apps/worker/Dockerfile).
-      # Node 22 in CI vs Node 20 in prod was a latent false-green risk · caught by
-      # the Tier-2-G code-review pass.
       - name: Setup Node 20 (matches Railway runtime)
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
@@ -49,61 +115,67 @@ jobs:
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
-      - name: Detect changed paths
-        id: changes
-        uses: dorny/paths-filter@v4
-        with:
-          filters: |
-            statenour:
-              - 'apps/statenour/**'
-              - 'packages/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'turbo.json'
-            nickstire:
-              - 'apps/nickstire/**'
-              - 'packages/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'turbo.json'
-            worker:
-              - 'apps/worker/**'
-              - 'packages/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'turbo.json'
-            packages:
-              - 'packages/**'
-
       # ─── Affected pipeline (Turbo handles parallelism + cache) ────────
       - name: Verify affected (check + lint + test + build)
         run: pnpm exec turbo run check lint test build --affected --output-logs=errors-only
         env:
-          # Turbo writes cache hits to console with "cache hit, replaying
-          # logs" · keep CI logs readable.
           TURBO_LOG_VERBOSITY: 0
-          # Carry through env-var hashes so cache keys stay correct
           NODE_ENV: test
+          CI: true
+          BUILD_COMMIT: ${{ github.sha }}
+          BUILD_BRANCH: ${{ github.ref_name }}
 
-      # ─── Nickstire-only custom validators (no Turbo equivalent yet) ──
+      # ─── Nickstire-only custom validators ──
       - name: Nickstire · env validate
-        if: steps.changes.outputs.nickstire == 'true'
+        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto env:validate
 
       - name: Nickstire · source lint (console.* in server, etc)
-        if: steps.changes.outputs.nickstire == 'true'
+        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto lint:source
 
+      - name: Nickstire · hook lint
+        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm --filter nicks-tire-auto lint:hooks
+
+      - name: Nickstire · brand-voice lint
+        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm --filter nicks-tire-auto lint:brand-voice
+
+      - name: Nickstire · pii lint
+        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm --filter nicks-tire-auto lint:pii
+
       - name: Nickstire · route registry validation
-        if: steps.changes.outputs.nickstire == 'true'
+        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto validate:routes
 
-      # ─── Statenour-only custom validator (no Turbo equivalent yet) ───
+      - name: Nickstire · prerender check
+        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm --filter nicks-tire-auto prerender:check
+
+      # ─── Statenour-only custom validators ───
+      - name: Statenour · raw-sql check
+        if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm --filter @statenour/web check:raw-sql
+
+      - name: Statenour · crons check
+        if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm --filter @statenour/web check:crons
+
       - name: Statenour · stale-doc guard (strict)
-        if: steps.changes.outputs.statenour == 'true'
+        if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter @statenour/web check:stale-docs
         env:
           STALE_DOCS_STRICT: '1'
+
+      - name: Statenour · prompt size-check
+        if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm --filter @statenour/web prompt:size-check
+
+      - name: Statenour · prisma validate
+        if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm --filter @statenour/web exec prisma validate
 
       # ─── Security audit (high+ · advisory, non-blocking) ─────────────
       - name: Dependency audit (high+ severity · advisory)
@@ -111,18 +183,121 @@ jobs:
         run: pnpm audit --prod --audit-level=high
 
       # ─── Security gate (critical · BLOCKING) ─────────────────────────
-      # A newly-introduced CRITICAL-severity vulnerable dependency fails the
-      # build. High+ stays advisory above to avoid churn on transitive highs;
-      # critical is the hard line. (After PR #591 the tree is 0 critical.)
       - name: Dependency audit (critical severity · blocking)
         run: pnpm audit --prod --audit-level=critical
 
-      # ─── Summary ──────────────────────────────────────────────────────
-      - name: Summary
-        if: always()
+  voice:
+    needs: changes
+    if: ${{ needs.changes.outputs.voice == 'true' || needs.changes.outputs.workflow == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
         run: |
-          echo "Affected apps:"
-          echo "  statenour:  ${{ steps.changes.outputs.statenour }}"
-          echo "  nickstire:  ${{ steps.changes.outputs.nickstire }}"
-          echo "  worker:     ${{ steps.changes.outputs.worker }}"
-          echo "  (packages): ${{ steps.changes.outputs.packages }}"
+          python -m pip install --upgrade pip
+          pip install -r apps/voice/requirements.txt
+
+      - name: Syntax check
+        run: python -m py_compile apps/voice/agent.py
+
+  railway-smoke:
+    needs: [changes, node, voice]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.node.result == 'success' || needs.node.result == 'skipped') && (needs.voice.result == 'success' || needs.voice.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wait for deployments to settle
+        run: sleep 30
+
+      - name: Smoke Test (Advisory by default)
+        env:
+          NICKSTIRE_HEALTH_URL: ${{ vars.NICKSTIRE_HEALTH_URL }}
+          STATENOUR_HEALTH_URL: ${{ vars.STATENOUR_HEALTH_URL }}
+          WORKER_HEALTH_URL: ${{ vars.WORKER_HEALTH_URL }}
+          VOICE_HEALTH_URL: ${{ vars.VOICE_HEALTH_URL }}
+          RAILWAY_SMOKE_STRICT: ${{ vars.RAILWAY_SMOKE_STRICT }}
+        run: |
+          check_url() {
+            local name=$1
+            local url=$2
+            if [[ -n "$url" ]]; then
+              echo "Checking $name health at $url..."
+              if ! curl -sSf --retry 3 --retry-delay 5 "$url" > /dev/null; then
+                echo "::warning::Health check failed for $name at $url"
+                if [[ "$RAILWAY_SMOKE_STRICT" == "true" ]]; then
+                  echo "Strict mode enabled. Failing job."
+                  exit 1
+                fi
+              else
+                echo "Health check passed for $name"
+              fi
+            else
+              echo "Skipping $name: URL not configured in variables."
+            fi
+          }
+
+          check_url "Nick's Tire" "$NICKSTIRE_HEALTH_URL"
+          check_url "Statenour" "$STATENOUR_HEALTH_URL"
+          check_url "Worker" "$WORKER_HEALTH_URL"
+          check_url "Voice" "$VOICE_HEALTH_URL"
+
+  notify:
+    needs: [changes, node, voice, railway-smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Summary
+        run: |
+          cat <<EOF >> $GITHUB_STEP_SUMMARY
+          ## CI Pipeline Summary
+          
+          **Changes Detected:**
+          - Node/Turbo affected: \`${{ needs.changes.outputs.node }}\`
+          - Voice agent affected: \`${{ needs.changes.outputs.voice }}\`
+          - Docs only: \`${{ needs.changes.outputs.docs_only }}\`
+          
+          **Job Results:**
+          - Node Job: \`${{ needs.node.result }}\`
+          - Voice Job: \`${{ needs.voice.result }}\`
+          - Smoke Tests: \`${{ needs.railway-smoke.result }}\`
+          EOF
+
+      - name: Notify Slack (Optional)
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
+            status="SUCCESS"
+            if [[ "${{ needs.node.result }}" == "failure" || "${{ needs.voice.result }}" == "failure" ]]; then
+              status="FAILED"
+            fi
+            
+            message="GitHub Actions CI/CD completed for $GITHUB_REPOSITORY ($GITHUB_REF_NAME).\nStatus: $status"
+            curl -s -X POST -H 'Content-type: application/json' \
+              --data "{\"text\":\"$message\"}" \
+              "$SLACK_WEBHOOK_URL" || true
+          fi
+          
+      - name: Fail on critical upstream failure
+        run: |
+          if [[ "${{ needs.node.result }}" == "failure" || "${{ needs.node.result }}" == "cancelled" ]]; then
+            echo "::error::Node CI job failed or was cancelled."
+            exit 1
+          fi
+          if [[ "${{ needs.voice.result }}" == "failure" || "${{ needs.voice.result }}" == "cancelled" ]]; then
+            echo "::error::Voice CI job failed or was cancelled."
+            exit 1
+          fi
+          if [[ "${{ vars.RAILWAY_SMOKE_STRICT }}" == "true" && "${{ needs.railway-smoke.result }}" == "failure" ]]; then
+            echo "::error::Strict Smoke Tests failed."
+            exit 1
+          fi

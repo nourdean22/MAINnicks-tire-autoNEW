@@ -10,24 +10,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth-guard";
+import { apiHandler, readRequestJson } from "@/lib/utils/http";
 import { runResearch, type ResearchTaskType } from "@/lib/services/ai-research";
+import { ServiceError } from "@/lib/utils/service-error";
 
-export async function POST(req: NextRequest) {
-  await requireSession(req);
-  try {
-    const { query, taskType, systemPrompt } = await req.json();
-    if (!query)
-      return NextResponse.json({ error: "query required" }, { status: 400 });
+export const POST = apiHandler(async (req) => {
+  const { query, taskType, systemPrompt } = await readRequestJson<{ query?: string; taskType?: string; systemPrompt?: string }>(req);
+  if (!query) throw new ServiceError("query required", 400);
 
-    const result = await runResearch({
-      query,
-      taskType: (taskType as ResearchTaskType) || "research",
-      systemPrompt,
-    });
-    return NextResponse.json(result);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
-}
+  return runResearch({
+    query,
+    taskType: (taskType as ResearchTaskType) || "research",
+    systemPrompt,
+  });
+}, { auth: "owner" });
