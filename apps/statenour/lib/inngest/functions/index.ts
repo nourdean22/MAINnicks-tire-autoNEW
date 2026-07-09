@@ -43,3 +43,8 @@ export { socialPublishQueue } from "./social-publish";
 // Approval sweeper
 export { approvalSweeper } from "./approval-sweeper";
 
+// AG-34 · on-demand deep research with async delivery (event:
+// research/on-demand · fired by the queueDeepResearch chat tool and
+// the Telegram /research command)
+export { researchOnDemand } from "./deep-research";
+

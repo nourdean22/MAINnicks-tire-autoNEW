@@ -49,6 +49,51 @@ export interface DeepResearchReport {
   /** Flat list of all unique citation URLs across rounds. */
   allCitations: string[];
   durationMs: number;
+  /** AG-34 · true when served from a <7-day-old persisted report instead
+   *  of re-spending 3-5 searches — the spendy tool compounds now. */
+  cached?: boolean;
+}
+
+const REUSE_WINDOW_MS = 7 * 86400_000;
+const REUSE_SIMILARITY_FLOOR = 0.82;
+
+/** AG-34 · look for a recent persisted report semantically matching the
+ *  question. Best-effort — any failure returns null (fresh research). */
+async function findRecentReport(question: string): Promise<DeepResearchReport | null> {
+  try {
+    const { semanticSearch } = await import("@/lib/brain/embedding-utils");
+    const hits = await semanticSearch(question, 10, ["brain_memory"]);
+    const match = hits.find(
+      (h) => h.category === "deep_research" && h.similarity >= REUSE_SIMILARITY_FLOOR,
+    );
+    if (!match) return null;
+
+    const { prisma } = await import("@/lib/prisma");
+    // brain_memory embeddings carry the BrainMemory row id as sourceId.
+    const row = await prisma.brainMemory.findFirst({
+      where: {
+        id: match.sourceId,
+        category: "deep_research",
+        deletedAt: null,
+        createdAt: { gte: new Date(Date.now() - REUSE_WINDOW_MS) },
+      },
+      select: { content: true, metadata: true, createdAt: true },
+    });
+    if (!row) return null;
+    const meta = (row.metadata ?? {}) as { question?: string; citations?: string[] };
+    return {
+      question: meta.question ?? question,
+      plan: [],
+      rounds: [],
+      synthesis: row.content,
+      allCitations: Array.isArray(meta.citations) ? meta.citations : [],
+      durationMs: 0,
+      cached: true,
+    };
+  } catch (err) {
+    log.debug("reuse_check_failed", { err: (err as Error).message });
+    return null;
+  }
 }
 
 // Phase T (2026-05-18 PM) · system prompts now come from the typed
@@ -156,6 +201,14 @@ export async function runDeepResearch(args: {
   question: string;
 }): Promise<DeepResearchReport> {
   const startedAt = Date.now();
+
+  // AG-34 · reuse before re-spending: a strong semantic match on a
+  // <7-day-old persisted report returns instantly with cached: true.
+  const recent = await findRecentReport(args.question);
+  if (recent) {
+    log.info("deep_research_cache_hit", { question: args.question.slice(0, 80) });
+    return recent;
+  }
 
   // 1. Plan sub-queries
   const plannerStart = Date.now();
@@ -265,6 +318,25 @@ export async function runDeepResearch(args: {
       logError("ai.deep-research", err, { fn: "runDeepResearch.recordPersonaUsage" });
     }
   })();
+
+  // AG-34 · persist non-empty reports so the spendy pipeline compounds:
+  // a 5-search cited report used to vanish with the chat turn. The
+  // BrainMemory write also triggers the standard embedding pipeline,
+  // which is what findRecentReport's semantic reuse rides on.
+  if (synthesis) {
+    try {
+      const { brainMemory } = await import("@/lib/brain/memory-manager");
+      await brainMemory.remember(
+        "deep_research",
+        `research_${Date.now()}`,
+        synthesis.slice(0, 800),
+        "deep-research",
+        { question: args.question, citations: allCitations.slice(0, 10) },
+      );
+    } catch (err) {
+      log.warn("report_persist_failed", { err: (err as Error).message });
+    }
+  }
 
   return {
     question: args.question,

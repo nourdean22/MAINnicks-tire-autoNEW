@@ -275,6 +275,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "arsenalDeepResearch",          category: "research",       cost: "spendy" }, // v10.0.373 · multi-round autonomous research
   { name: "arsenalMultiAgent",            category: "research",       cost: "spendy" }, // v10.0.374 · parallel sub-agents
   { name: "arsenalBoardConsult",          category: "research",       cost: "spendy" }, // AG-13 · advisor-board council
+  { name: "queueDeepResearch",            category: "research",       cost: "free" },   // AG-34 · fire-and-forget queue (the research itself bills the inngest run)
   { name: "arsenalNotebookLM",            category: "research",       battle: true, cost: "free" },
   { name: "arsenalGmailInbox",            category: "comms",          cost: "free" }, // v10.0.379 · gmail inbox list
   { name: "arsenalGmailReadThread",       category: "comms",          cost: "free" }, // v10.0.379 · gmail thread fetch

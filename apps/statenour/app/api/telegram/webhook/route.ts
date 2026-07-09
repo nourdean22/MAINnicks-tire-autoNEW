@@ -503,6 +503,10 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
       // approval queue as PENDING, never auto-publish.
       case "/draft":
         return await cmdDraft(args, chatId);
+      // AG-34 · async research — queue now, cited synthesis lands back
+      // in Telegram in ~2 minutes via the research-on-demand inngest fn.
+      case "/research":
+        return await cmdResearch(args.join(" "), chatId);
       // v8.23 — phone-first remote read extensions
       case "/goals":
         return await cmdGoals(chatId);
@@ -550,6 +554,7 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `/board [strategic|invest|product|operator|full] [q] — Convene an advisor board\n` +
             `/team [q] — Ask the team (thought partner · strategist · tactician · consultant)\n` +
             `/draft [sms|social|email|longform] [brief] — Ghostwrite in your voice → approval queue\n` +
+            `/research [question] — Queue deep research; cited report lands here in ~2 min\n` +
             `\n<b>OUTREACH (Wave-200)</b>\n` +
             `/approve [campaignId] — Approve pending bulk-SMS\n` +
             `/reject [campaignId] — Reject pending bulk-SMS\n` +
@@ -788,6 +793,30 @@ async function cmdTeam(question: string, chatId: string): Promise<void> {
     );
   } catch (err) {
     await sendTelegram(`⚠️ Team run failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+// AG-34 · /research — queue deep research; the research-on-demand
+// inngest fn runs the 3-5 search pipeline off-session and sends the
+// cited synthesis back to this chat when done.
+async function cmdResearch(question: string, chatId: string): Promise<void> {
+  const q = question.trim();
+  if (q.length < 8) {
+    await sendTelegram(
+      `Usage: /research [question]\n\nExample: /research what are competitors charging for alignments in Cleveland right now`,
+      chatId
+    );
+    return;
+  }
+  try {
+    const { getInngest } = await import("@/lib/inngest/client");
+    await getInngest().send({
+      name: "research/on-demand",
+      data: { question: q, deliverTo: "telegram" },
+    });
+    await sendTelegram(`🔎 Research queued — cited report lands here in ~2 minutes.`, chatId);
+  } catch (err) {
+    await sendTelegram(`⚠️ Couldn't queue research: ${(err as Error).message}`, chatId);
   }
 }
 
