@@ -109,8 +109,12 @@ export async function finalizeSystemPrompt(
     systemPrompt = systemPrompt.slice(0, MAX_SYSTEM_CHARS) + "\n\n[System prompt truncated for model context limits]";
   }
 
-  // Load Greene strategic law library for context — skip for smaller models
-  const strategicLaws = provider === "anthropic" ? await prisma.strategicLaw.findMany({
+  // Load Greene strategic law library for context — skip for smaller
+  // models. AG-14: was anthropic-ONLY while the live primary is ollama
+  // (Ollama Cloud, 1M context per the route's provider notes) — a
+  // documented feature silently off on almost every turn. The ~189
+  // one-liners (~15K chars) fit both providers' budgets.
+  const strategicLaws = (provider === "anthropic" || provider === "ollama") ? await prisma.strategicLaw.findMany({
     select: { book: true, number: true, shortTitle: true, essence: true, shopApplication: true, nourApplication: true },
     orderBy: [{ book: "asc" }, { number: "asc" }],
   }).catch((): never[] => []) : [];

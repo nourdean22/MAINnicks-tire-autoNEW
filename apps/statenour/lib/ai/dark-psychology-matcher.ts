@@ -31,6 +31,11 @@ export interface DarkPsychologyMatch {
   sourceBook: string;
   score: number;
   hits: string[];
+  /** AG-14 · concrete moves from corpus metadata.actions[] — rendered
+   *  as "→ move:" lines (the getDarkPsychologyTactics tool already
+   *  returned actions; only this matcher block dropped them). Optional:
+   *  the picker always populates it, external constructors may not. */
+  actions?: string[];
 }
 
 interface CorpusEntry {
@@ -39,6 +44,7 @@ interface CorpusEntry {
   summary: string;
   sourceBook: string;
   triggers: string[];
+  actions: string[];
 }
 
 const TEN_MIN_MS = 10 * 60 * 1000;
@@ -66,12 +72,18 @@ async function loadCorpus(): Promise<CorpusEntry[]> {
               .filter((t): t is string => typeof t === "string" && t.length > 0)
               .map((t) => t.toLowerCase())
           : [];
+        const actions = Array.isArray(meta.actions)
+          ? (meta.actions as unknown[]).filter(
+              (a): a is string => typeof a === "string" && a.length > 0,
+            )
+          : [];
         return {
           key: r.key,
           title: String(meta.title ?? r.key),
           summary: String(meta.summary ?? ""),
           sourceBook: String(meta.sourceBook ?? ""),
           triggers,
+          actions,
         };
       })
       .filter((e) => e.triggers.length > 0);
@@ -120,6 +132,7 @@ export async function pickDarkPsychologyForMessage(
       sourceBook: entry.sourceBook,
       score: hits.length,
       hits: hits.slice(0, 5),
+      actions: entry.actions.slice(0, 2),
     });
   }
 
@@ -202,10 +215,13 @@ export function renderDarkPsychologyBlock(
   for (const p of picks) {
     const tagBook = p.sourceBook ? ` · ${p.sourceBook}` : "";
     lines.push(`- **${p.title}**${tagBook} — ${p.summary}`);
+    for (const move of p.actions ?? []) {
+      lines.push(`  → move: ${move}`);
+    }
   }
   lines.push("");
   lines.push(
-    "If the operator asks explicitly, cite the tactic by name. Otherwise, let it shape your tactical emphasis silently.",
+    "If the operator asks explicitly, cite the tactic by name. Otherwise, let it shape your tactical emphasis silently. When a '→ move' fits the situation, offer it as the concrete next step.",
   );
   return lines.join("\n");
 }
