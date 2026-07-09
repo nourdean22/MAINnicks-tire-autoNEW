@@ -90,17 +90,9 @@ export const POST = apiHandler(
         throw new ServiceError("Customer email missing from session payload", 400);
       }
 
-      // forensic-audit HIGH · idempotency. Stripe delivers at-least-once and
-      // retries on any slow/failed/duplicate delivery; without this guard each
-      // redelivery created a second 'paid' Order (revenue double-counted) and
-      // re-fired the Inngest fulfillment workflow. Ack duplicates without
-      // reprocessing. (A unique constraint on stripeSessionId is the
-      // migration-wave backstop.)
-      const existingOrder = await prisma.order.findFirst({ where: { stripeSessionId } });
-      if (existingOrder) {
-        log.info("stripe_duplicate_ignored", { stripeSessionId, orderId: existingOrder.id });
-        return { received: true };
-      }
+      // We use a try/catch on create rather than check-then-create to avoid
+      // a TOCTOU race condition where two concurrent webhooks pass the check
+      // and one throws an unhandled P2002.
 
       // 1. Find or create Contact
       let contact = await prisma.contact.findUnique({
@@ -154,20 +146,29 @@ export const POST = apiHandler(
       }
 
       // 3. Record Order
-      const order = await prisma.order.create({
-        data: {
-          contactId: contact.id,
-          productId: product.id,
-          stripeSessionId,
-          amountCents: amountCents || 0,
-          status: "paid",
-          metadata: {
-            currency: session.currency,
-            customerDetails: session.customer_details,
-            paymentStatus: session.payment_status,
+      let order;
+      try {
+        order = await prisma.order.create({
+          data: {
+            contactId: contact.id,
+            productId: product.id,
+            stripeSessionId,
+            amountCents: amountCents || 0,
+            status: "paid",
+            metadata: {
+              currency: session.currency,
+              customerDetails: session.customer_details,
+              paymentStatus: session.payment_status,
+            },
           },
-        },
-      });
+        });
+      } catch (err: any) {
+        if (err.code === "P2002") {
+          log.info("stripe_duplicate_ignored", { stripeSessionId });
+          return { received: true };
+        }
+        throw err;
+      }
 
       log.info("stripe_order_recorded", { orderId: order.id, contactId: contact.id, productId: product.id });
 

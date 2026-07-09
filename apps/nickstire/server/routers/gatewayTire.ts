@@ -390,7 +390,8 @@ export const gatewayTireRouter = router({
         const shopPrice = Math.ceil(item.baseCost * (1 + markup / 100) * 100) / 100;
         const pricePerTireCents = Math.round(shopPrice * 100);
         const partNumber = `CAT-${sizeClean}-${item.brand.slice(0, 3)}-${item.model.replace(/\s+/g, "")}`.toUpperCase();
-        const inStock = DkClient.getStockStatus(partNumber) === "in_stock";
+        // Do not fabricate in-stock status for curated catalog items that haven't been live-verified
+        const inStock = false;
         return {
           id: `cat-${idx}-${item.brand.toLowerCase()}`,
           name: `${item.brand} ${item.model}`,
@@ -1202,6 +1203,15 @@ export const gatewayTireRouter = router({
 
       // NOTE: Invoice is already created at order placement time (in placeOrder mutation).
       // Do NOT auto-create another invoice here — that would be a double invoice.
+      
+      // Update associated invoice payment status if tire order payment status changes (fixes dunning bug)
+      if (input.paymentStatus && currentOrder.invoiceId) {
+        const { invoices } = await import("../../drizzle/schema");
+        await d.update(invoices).set({
+          status: input.paymentStatus === "paid" ? "paid" : "pending",
+          updatedAt: new Date()
+        }).where(eq(invoices.id, currentOrder.invoiceId));
+      }
 
       // ─── Status change notifications ─────────────────
       if (input.status && input.status !== currentOrder.status) {
