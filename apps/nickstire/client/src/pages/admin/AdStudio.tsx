@@ -237,6 +237,60 @@ function CampaignArchitectView() {
                 />
               </div>
             </div>
+            
+            <details className="group border border-border rounded-lg p-3 bg-card/20 text-sm">
+              <summary className="font-semibold text-muted-foreground cursor-pointer outline-none">Advanced campaign inputs</summary>
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Monthly Budget</label>
+                  <input value={input.constraints?.monthlyBudgetRange || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, monthlyBudgetRange: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Local Radius</label>
+                  <input value={input.audience?.localRadius || ""} onChange={(e) => setInput({ ...input, audience: { ...input.audience!, localRadius: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Landing Page URL</label>
+                  <input value={input.constraints?.landingPageUrl || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, landingPageUrl: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Booking URL</label>
+                  <input value={input.constraints?.checkoutOrBookingUrl || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, checkoutOrBookingUrl: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Phone Number</label>
+                  <input value={input.constraints?.phoneNumber || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, phoneNumber: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Business Address</label>
+                  <input value={input.constraints?.businessAddress || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, businessAddress: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Forbidden Words (Comma separated)</label>
+                  <input value={input.constraints?.forbiddenWords?.join(", ") || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, forbiddenWords: e.target.value.split(",").map(s => s.trim()).filter(Boolean) } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Forbidden Topics (Comma separated)</label>
+                  <input value={input.constraints?.forbiddenTopics?.join(", ") || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, forbiddenTopics: e.target.value.split(",").map(s => s.trim()).filter(Boolean) } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Allowed Proof Claims</label>
+                  <input value={input.assetsAndProof?.allowedProofClaims || ""} onChange={(e) => setInput({ ...input, assetsAndProof: { ...input.assetsAndProof!, allowedProofClaims: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Forbidden Proof Claims</label>
+                  <input value={input.assetsAndProof?.forbiddenProofClaims || ""} onChange={(e) => setInput({ ...input, assetsAndProof: { ...input.assetsAndProof!, forbiddenProofClaims: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Tracking Stack (Comma separated)</label>
+                  <input value={input.constraints?.trackingStack?.join(", ") || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, trackingStack: e.target.value.split(",").map(s => s.trim()).filter(Boolean) } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Creative Production Capacity</label>
+                  <input value={input.constraints?.creativeProductionCapacity || ""} onChange={(e) => setInput({ ...input, constraints: { ...input.constraints!, creativeProductionCapacity: e.target.value } })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+            </details>
           </div>
           
           <button
