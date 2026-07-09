@@ -54,19 +54,29 @@ async function ensureOptOutCache(): Promise<Set<string>> {
   }
   try {
     const { getDb } = await import("./db");
-    const { customers } = await import("../drizzle/schema");
+    const { customers, smsPreferences } = await import("../drizzle/schema");
     const { eq } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return optOutCache ?? new Set();
+    const fresh = new Set<string>();
+    const addNorm = (phone: string | null) => {
+      const norm = (phone || "").replace(/\D/g, "").slice(-10);
+      if (norm.length === 10) fresh.add(norm);
+    };
     const rows = await db
       .select({ phone: customers.phone })
       .from(customers)
       .where(eq(customers.smsOptOut, 1));
-    const fresh = new Set<string>();
-    for (const r of rows) {
-      const norm = (r.phone || "").replace(/\D/g, "").slice(-10);
-      if (norm.length === 10) fresh.add(norm);
-    }
+    for (const r of rows) addNorm(r.phone);
+    // code-review 2026-07-09 · UNION the durable sms_preferences store so
+    // opt-outs from phones with NO customers row (leads, VAPI callers) survive
+    // this rebuild. Before, `fresh` came from customers.smsOptOut ONLY, so a
+    // non-customer STOP was silently dropped within 5 min (TCPA exposure).
+    const prefRows = await db
+      .select({ phone: smsPreferences.phone })
+      .from(smsPreferences)
+      .where(eq(smsPreferences.optedOut, true));
+    for (const r of prefRows) addNorm(r.phone);
     optOutCache = fresh;
     optOutCacheLoadedAt = now;
     return fresh;
@@ -79,25 +89,55 @@ async function ensureOptOutCache(): Promise<Set<string>> {
 }
 
 /**
+ * code-review 2026-07-09 · durably persist the opt-out/in state to the
+ * phone-keyed sms_preferences table so it survives the 5-min cache rebuild,
+ * process restarts, and other pods. The in-memory cache write in the callers
+ * already blocks the next send from THIS process; this makes it stick
+ * everywhere. Best-effort fire-and-forget: if the table is missing (schema
+ * drift) the catch degrades to the prior in-memory-only behavior.
+ */
+async function persistOptOutPreference(phone10: string, optedOut: boolean): Promise<void> {
+  try {
+    const { getDb } = await import("./db");
+    const { smsPreferences } = await import("../drizzle/schema");
+    const db = await getDb();
+    if (!db) return;
+    const stamp = optedOut ? { optedOutAt: new Date() } : { optedInAt: new Date() };
+    await db
+      .insert(smsPreferences)
+      .values({ phone: phone10, optedOut, ...stamp })
+      .onDuplicateKeyUpdate({ set: { optedOut, ...stamp } });
+  } catch (err) {
+    log.warn("sms_preferences persist failed — opt-out is in-memory only", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
  * Mark a phone as opted out — call this from any code path that sets
  * smsOptOut=1 in the customers table. Updates the cache immediately so
- * the very next sendSms() call respects the opt-out (TCPA requirement).
+ * the very next sendSms() call respects the opt-out (TCPA requirement) AND
+ * persists durably to sms_preferences (survives the cache rebuild / restart).
  */
 export function markPhoneOptedOut(phone: string): void {
   const norm = (phone || "").replace(/\D/g, "").slice(-10);
   if (norm.length !== 10) return;
   if (!optOutCache) optOutCache = new Set();
   optOutCache.add(norm);
+  void persistOptOutPreference(norm, true);
 }
 
 /**
  * Inverse — call when a customer texts START/UNSTOP and smsOptOut goes
- * back to 0. Removes from cache so future sends to this number resume.
+ * back to 0. Removes from cache so future sends to this number resume, and
+ * clears the durable sms_preferences flag.
  */
 export function markPhoneOptedIn(phone: string): void {
   const norm = (phone || "").replace(/\D/g, "").slice(-10);
   if (norm.length !== 10) return;
   optOutCache?.delete(norm);
+  void persistOptOutPreference(norm, false);
 }
 
 // ─── TWILIO CLIENT ─────────────────────────────────────
