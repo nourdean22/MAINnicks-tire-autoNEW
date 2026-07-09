@@ -1,9 +1,26 @@
 import { streamText, convertToModelMessages } from 'ai';
 import { getModel } from '@/lib/ai/provider';
 import { NextResponse } from 'next/server';
+import { checkAiRateLimit } from '@/lib/rate-limit';
+import { assertWithinBudget } from '@/lib/ai/budget';
+import { trackGeneration } from '@/lib/ai/track';
+import { parseActions, executeActions } from '@/lib/ai/nick-agent';
+import { detectFailedActionClaims } from '@/lib/ai/chat/action-result-verifier';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(req: Request) {
   try {
+    const limited = checkAiRateLimit(req);
+    if (limited) return limited;
+
+    const budget = await assertWithinBudget().catch(() => null);
+    if (budget && !budget.ok) {
+      return NextResponse.json(
+        { error: 'Daily AI budget reached.', budgetExceeded: true },
+        { status: 402 }
+      );
+    }
+
     const { messages } = await req.json();
 
     // Fetch the operator's current context
@@ -39,11 +56,51 @@ DO NOT output markdown headers unless necessary. DO NOT be robotic. Be human, br
       return { ...m, parts: [{ type: 'text', text: '' }] };
     });
 
+    const startedAt = Date.now();
     const result = await streamText({
       model: getModel('reason'),
       messages: await convertToModelMessages(normalizedMessages),
       system: systemPrompt,
       temperature: 0.8, // Slightly higher for creativity
+      onFinish: async ({ text, usage }) => {
+        // Cost instrumentation
+        await trackGeneration({
+          feature: "partner-stream",
+          model: "reason",
+          promptTokens: (usage as any)?.promptTokens || (usage as any)?.inputTokens,
+          outputTokens: (usage as any)?.completionTokens || (usage as any)?.outputTokens,
+          durationMs: Date.now() - startedAt,
+        });
+
+        // Fabrication-defense post-processing
+        const actions = parseActions(text);
+        if (actions.length > 0) {
+          const results = await executeActions(actions);
+          const failedClaims = detectFailedActionClaims(results, text);
+          if (failedClaims.length > 0) {
+            console.warn("[partner-stream] action_block_failed_claim", {
+              failed: failedClaims.map((c) => c.verb),
+            });
+            await prisma.brainMemory.create({
+              data: {
+                category: "chat_claim_warn",
+                key: `action-fail-partner-${Date.now()}`,
+                content: `Action did not complete · ${failedClaims.map((c) => c.verb).join(", ")}`,
+                confidence: 0.95,
+                source: "partner-action-verifier",
+                metadata: {
+                  claims: failedClaims.map((c) => ({
+                    verb: c.verb,
+                    snippet: c.snippet,
+                    expectedTool: c.expectedTool,
+                  })),
+                  textPreview: text.slice(0, 200),
+                } as any,
+              },
+            }).catch(() => undefined);
+          }
+        }
+      }
     });
 
     return result.toUIMessageStreamResponse();
