@@ -161,28 +161,7 @@ export async function refreshKnowledgeDigest(): Promise<{ charCount: number; fil
   };
 }
 
-/**
- * Get the latest compiled digest from DB.
- * Falls back to live compilation if no cached version exists.
- */
-export async function getKnowledgeDigest(): Promise<string> {
-  // Try cached version first (faster, works on Vercel where files don't exist)
-  try {
-    const cached = await prisma.auditEvent.findFirst({
-      where: { eventType: "knowledge_digest_compiled" },
-      orderBy: { createdAt: "desc" },
-    });
-
-    if (cached?.payload) {
-      const meta = cached.payload as Record<string, string>;
-      if (meta.digest) return meta.digest;
-    }
-  } catch (err) {
-    // DB might not have this yet, or connection error
-    logError("ai.knowledge-compiler", err, { fn: "getKnowledgeDigest" });
-  }
-
-  // Fall back to live compilation (only works locally where files exist)
-  return compileKnowledgeDigest();
-}
+// getKnowledgeDigest (read side) was removed 2026-07-09: zero importers —
+// no route, cron, or prompt builder ever consumed the digest. The write
+// side (refreshKnowledgeDigest) stays for scripts/refresh-digest.ts.
 
