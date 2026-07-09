@@ -1,4 +1,4 @@
-<svg viewBox="0 0 720 310" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+<svg viewBox="0 0 720 316" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
   <style>
     .tile  { fill: #f9fafb; stroke: #d1d5db; stroke-width: 1; }
     .num   { font-size: 26px; font-weight: bold; fill: #1f2937; }
@@ -36,6 +36,7 @@
   <text class="lbl" x="40" y="241">~19% · genuine abandonment — the number that actually matters</text>
 
   <rect x="24" y="258" width="672" height="1" fill="#e5e7eb"/>
-  <text class="body" x="24" y="278">Average time-to-hang-up in the reclassified group: ~0.7 s — callers who were never customers. Latency was healthy; the metric was the artifact.</text>
-  <text class="body" x="24" y="298" font-style="italic">Figure 4 · Honest metrics: decomposing a vanity alarm. Percentages are a dated one-off diagnostic, not a standing guarantee.</text>
+  <text class="body" x="24" y="276">Average time-to-hang-up in the reclassified group: ~0.7 s — callers who were never customers.</text>
+  <text class="body" x="24" y="291">Latency was healthy; the metric was the artifact.</text>
+  <text class="body" x="24" y="309" font-style="italic">Figure 4 · Honest metrics: decomposing a vanity alarm. Percentages are a dated one-off diagnostic, not a standing guarantee.</text>
 </svg>
