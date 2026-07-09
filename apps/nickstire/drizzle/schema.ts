@@ -3580,7 +3580,7 @@ export type InsertContentManufacturingCampaign = typeof contentManufacturingCamp
 export const socialContentInventory = mysqlTable("social_content_inventory", {
   id: varchar("id", { length: 64 }).primaryKey(),
   campaignId: varchar("campaign_id", { length: 64 }),
-  contentType: mysqlEnum("content_type", ["reel", "carousel", "post", "story", "poll"]).notNull(),
+  contentType: mysqlEnum("content_type", ["reel", "carousel", "post", "story", "poll", "ad"]).notNull(),
   platform: mysqlEnum("platform", ["instagram", "facebook", "both"]).default("both").notNull(),
   topic: varchar("topic", { length: 128 }).notNull(),
   seriesName: varchar("series_name", { length: 128 }).notNull(),
