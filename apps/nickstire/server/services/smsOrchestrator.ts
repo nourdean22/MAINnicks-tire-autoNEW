@@ -27,6 +27,9 @@ import { createLogger } from "../lib/logger";
 import { normalizePhone } from "../lib/phone";
 import { eq, and, desc, gte, sql, like, or } from "drizzle-orm";
 import { getTemplateVariant, assignVariantWithExperiment, REPLY_CONFIGS } from "./smsMessageCatalog";
+import { runNickgptPreflightGuard } from "./nickgptPreflightGuard";
+import { shouldAuditMessage } from "./nexusAuditSampler";
+import { nexusAuditJobs } from "../../drizzle/schema";
 
 const log = createLogger("sms-orchestrator");
 
@@ -473,6 +476,9 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
   let decisionTraceJson: string | null = null;
   let shadowWouldSend = false;
   let shadowMessageBody = "";
+  
+  let nexusAuditEnqueued = false;
+  let nexusSampleReason = "";
   
   // Experiment split details
   let isControl = true;
@@ -1202,6 +1208,31 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
     let finalBodyToSend = body;
     let finalVariantKey = variantKey;
 
+    if (shouldAutoSend && finalBodyToSend && status !== "skipped" && status !== "blocked" && rolloutMode !== "draft_only") {
+      const preflight = runNickgptPreflightGuard({
+        eventType: event.type,
+        body: finalBodyToSend,
+        inboundMessage: event.type === "inbound_sms" ? (event as any).body : undefined,
+        sourceType: variantKey.includes("nickgpt") ? "nickgpt" : "template",
+        provider: providerUsed,
+      });
+
+      if (!preflight.allowed) {
+        shouldAutoSend = false;
+        status = "blocked";
+        statusReason = preflight.reasonCode;
+        noSendReason = preflight.reasonCode;
+        metadataJson.preflight = preflight;
+        log.warn("Nexus Preflight Blocked Send", { phone: normalizedPhone, preflight });
+      } else {
+        metadataJson.preflightAction = "allow";
+      }
+
+      const isStop = /^(stop|unsubscribe|cancel)$/i.test(finalBodyToSend.trim());
+      // The original audit sampler evaluateNexusAuditSampling was removed.
+      // We will rely on shouldAuditMessage at the end of transmission.
+    }
+
     if (rolloutMode === "shadow") {
       finalBodyToSend = legacyBody;
       finalVariantKey = "legacy_shadow";
@@ -1260,6 +1291,14 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
         sendResultJson = sendResult;
       }
       providerUsed = "shop";
+
+      if (status === "sent" || status === "queued") {
+        const sampleResult = shouldAuditMessage(normalizedPhone, finalBodyToSend, finalVariantKey);
+        if (sampleResult.shouldAudit) {
+          nexusAuditEnqueued = true;
+          nexusSampleReason = sampleResult.reason;
+        }
+      }
     }
 
   } catch (orchestrateError) {
@@ -1342,6 +1381,21 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
       } else {
         const [row] = await db.insert(smsOrchestrations).values(payload).$returningId();
         finalResult.id = row?.id;
+      }
+
+      if (nexusAuditEnqueued && finalResult.id) {
+        await db.insert(nexusAuditJobs).values({
+          jobType: "sms_audit",
+          sourceTable: sourceTable || "sms_orchestrations",
+          sourceId: String(sourceId || finalResult.id),
+          orchestrationId: String(finalResult.id),
+          correlationId,
+          idempotencyKey,
+          sampleReason: nexusSampleReason,
+          payloadJson: JSON.stringify({ body, normalizedPhone }),
+          priority: nexusSampleReason === "nickgpt_model_reply" ? 1 : 2,
+          status: "pending"
+        });
       }
     } catch (dbErr) {
       log.warn("Failed to write log row to sms_orchestrations table", dbErr);
