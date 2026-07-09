@@ -59,3 +59,9 @@ System errors, database failures, and bridge authentication failures write to `E
 LLM provider health, latencies, and fallback transitions are monitored hourly:
 *   Route: `/api/system/provider-health`
 *   Provides real-time failover rotation when a provider drops (e.g. rotating from Ollama to Gemini or OpenAI).
+
+---
+
+## 📚 Related Current-Truth Docs
+
+*   **[Antigravity Capability Arc (2026-07)](./antigravity-capabilities-2026-07.md)** — operator runbook for the 26-packet wave: new Telegram commands (/remind, tool-capable /ask, instant /qa), specialist shadow routing, nickstire time-clock ledger, self-improving content/persona loops, skill-registry maintenance.
