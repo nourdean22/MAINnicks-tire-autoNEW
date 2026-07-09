@@ -49,6 +49,12 @@ const PUBLIC_PREFIXES = [
   "/api/devices",     // device RPC queue/ack/upsert (own x-sync-key auth)
   "/api/vapi",        // VAPI voice webhooks + tools (own X-Vapi-Secret auth)
   "/api/nour-os",     // nour-os bridge query (own x-sync-key auth)
+  // code-review 2026-07-09 · same class as devices/vapi/nour-os above:
+  // Apple Health / iOS-Shortcut sync authed by its OWN header secret
+  // (x-statenour-health-sync-secret, constant-time compared in the
+  // route) and carries no NextAuth cookie — the session gate 401'd it
+  // before its own auth could run, so no caller could ever succeed.
+  "/api/health/summary",
   "/auth",            // Sign-in/sign-out pages
   "/_next",           // Next.js internals
   "/favicon",
@@ -135,7 +141,11 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    // Match all paths except static files and _next
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)).*)",
+    // Match all paths except static files and _next.
+    // code-review 2026-07-09 · the extension exclusion is END-ANCHORED ($)
+    // so ONLY paths that actually END in an asset extension are skipped.
+    // Without the anchor, any path merely CONTAINING ".png"/".js"/etc.
+    // mid-path (e.g. /api/relationships/x.png/laws) skipped auth + CSP.
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)",
   ],
 };

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { evaluateReadiness } from "@/lib/health-governor/readiness";
+import { safeEqual } from "@/lib/auth-guard";
 
 const SyncBodySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -32,8 +33,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // code-review 2026-07-09 · constant-time compare (was `!==`, a timing
+    // side-channel now that this route is reachable pre-session). safeEqual
+    // handles falsy + length-mismatch in constant time.
     const cleanAuth = authHeader?.replace("Bearer ", "").trim();
-    if (cleanAuth !== secret.trim()) {
+    if (!safeEqual(cleanAuth ?? "", secret.trim())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
