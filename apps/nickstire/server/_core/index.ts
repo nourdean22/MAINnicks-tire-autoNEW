@@ -195,52 +195,45 @@ async function startServer() {
   // to ../middleware/rateLimiters — the app.use(...) wiring stays here.)
 
   app.use("/api/trpc", apiLimiter);
-  // Apply stricter limits to mutation-heavy endpoints
+  // Apply stricter limits to mutation-heavy endpoints. We use Regex paths
+  // to ensure tRPC batch requests (comma-separated boundaries) don't bypass
+  // the limiters, and to match full endpoint names exactly.
 
-  app.use("/api/trpc/booking.uploadPhoto", uploadLimiter);
-  app.use("/api/trpc/booking.create", formLimiter);
-  app.use("/api/trpc/lead.submit", formLimiter);
-  app.use("/api/trpc/callback.submit", formLimiter);
-  app.use("/api/trpc/waitlist.join", formLimiter);
-  app.use("/api/trpc/emergency.submit", formLimiter);
-  app.use("/api/trpc/financing.trackApplication", formLimiter);
-  app.use("/api/trpc/chat", aiLimiter);
-  app.use("/api/trpc/diagnose.analyze", aiLimiter);
-  app.use("/api/trpc/search.ai", aiLimiter);
-  app.use("/api/trpc/memberships.startCheckout", formLimiter);
-  app.use("/api/trpc/laborEstimate.generate", aiLimiter);
-  app.use("/api/trpc/costEstimator.estimate", aiLimiter);
-  app.use("/api/trpc/estimates.generate", aiLimiter);
-  app.use("/api/trpc/nourOsQuote.createQuote", formLimiter);
-  app.use("/api/trpc/fleet.submit", formLimiter);
+  const withBatchRegex = (endpoint: string) => new RegExp(`^/api/trpc/(.*,)?${endpoint.replace(/\./g, "\\.")}(,.*)?$`);
 
-  // wave-122 (CRITICAL S7/S8) — Vapi tool tRPC endpoints are
-  // documented as Vapi-HMAC protected, but the HMAC middleware only
-  // mounts on /api/webhooks/vapi — NOT on /api/trpc/voiceAgent.*.
-  // Without rate limit, anyone can POST to .sendConfirmationSms with
-  // arbitrary {phone, summary} and weaponize our Twilio account to
-  // spray SMS. formLimiter caps 10 req/min per IP — sufficient brake.
-  app.use("/api/trpc/voiceAgent.bookSlot", formLimiter);
-  app.use("/api/trpc/voiceAgent.escalate", formLimiter);
-  app.use("/api/trpc/voiceAgent.sendConfirmationSms", formLimiter);
+  app.use(withBatchRegex("booking.uploadPhoto"), uploadLimiter);
+  app.use(withBatchRegex("booking.create"), formLimiter);
+  app.use(withBatchRegex("lead.submit"), formLimiter);
+  app.use(withBatchRegex("callback.submit"), formLimiter);
+  app.use(withBatchRegex("waitlist.join"), formLimiter);
+  app.use(withBatchRegex("emergency.submit"), formLimiter);
+  app.use(withBatchRegex("financing.trackApplication"), formLimiter);
+  // Matches chat.message and chat.history
+  app.use(withBatchRegex("chat\\.message"), aiLimiter);
+  app.use(withBatchRegex("chat\\.history"), aiLimiter);
+  app.use(withBatchRegex("diagnose.analyze"), aiLimiter);
+  app.use(withBatchRegex("search.ai"), aiLimiter);
+  app.use(withBatchRegex("memberships.startCheckout"), formLimiter);
+  app.use(withBatchRegex("laborEstimate.generate"), aiLimiter);
+  app.use(withBatchRegex("costEstimator.estimate"), aiLimiter);
+  app.use(withBatchRegex("estimates.generate"), aiLimiter);
+  app.use(withBatchRegex("nourOsQuote.createQuote"), formLimiter);
+  app.use(withBatchRegex("fleet.submit"), formLimiter);
 
-  // wave-122 (HIGH S5/S8) — payments endpoints. lookupInvoice was
-  // brute-forceable (invoice-number prefix + customer phone) under
-  // the loose 100 req/15min apiLimiter. createPaymentIntent burns
-  // real Stripe API quota per call. confirmPayment is the
-  // amount-verified write path (gated additionally by Stripe
-  // amount check at routers/payments.ts:147). All three need the
-  // tighter per-form ceiling.
-  app.use("/api/trpc/payments.lookupInvoice", formLimiter);
-  app.use("/api/trpc/payments.createPaymentIntent", formLimiter);
-  app.use("/api/trpc/payments.confirmPayment", formLimiter);
+  // wave-122 (CRITICAL S7/S8) — Vapi tool tRPC endpoints
+  app.use(withBatchRegex("voiceAgent.bookSlot"), formLimiter);
+  app.use(withBatchRegex("voiceAgent.escalate"), formLimiter);
+  app.use(withBatchRegex("voiceAgent.sendConfirmationSms"), formLimiter);
 
-  // Tire-order endpoints — placeOrder writes DB rows + fires emails,
-  // createCheckout burns Stripe API quota per call, confirmCheckout
-  // retrieves a Stripe session per call. Same tight per-form ceiling.
-  app.use("/api/trpc/gatewayTire.placeOrder", formLimiter);
-  app.use("/api/trpc/gatewayTire.createCheckout", formLimiter);
-  app.use("/api/trpc/gatewayTire.confirmCheckout", formLimiter);
+  // wave-122 (HIGH S5/S8) — payments endpoints
+  app.use(withBatchRegex("payments.lookupInvoice"), formLimiter);
+  app.use(withBatchRegex("payments.createPaymentIntent"), formLimiter);
+  app.use(withBatchRegex("payments.confirmPayment"), formLimiter);
+
+  // Tire-order endpoints
+  app.use(withBatchRegex("gatewayTire.placeOrder"), formLimiter);
+  app.use(withBatchRegex("gatewayTire.createCheckout"), formLimiter);
+  app.use(withBatchRegex("gatewayTire.confirmCheckout"), formLimiter);
 
   // v1.7 audit follow-up · defense-in-depth on the 4 statenour-gated
   // AI endpoints. v1.7 added statenourAuth middleware (closing the

@@ -51,11 +51,12 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
         };
 
         const assets = Array.isArray(item.assetPaths) ? (item.assetPaths as string[]) : [];
+        const { assertPermanentPublicMediaUrl, captionClaimBlockers } = await import("../../services/socialPublish");
+        
         if (isReel) {
           if (!assets[0]) {
             throw new Error("no reel MP4 asset — generation incomplete");
           }
-          const { assertPermanentPublicMediaUrl } = await import("../../services/socialPublish");
           assertPermanentPublicMediaUrl(assets[0]);
           mediaInput.videoUrl = assets[0];
         } else if (isCarousel) {
@@ -68,6 +69,11 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
             throw new Error("no image asset — generation incomplete");
           }
           mediaInput.imageUrl = assets[0];
+        }
+
+        const blockers = captionClaimBlockers(mediaInput.caption);
+        if (blockers.length > 0) {
+          throw new Error(`Caption blocked due to unsafe claims: ${blockers.join(", ")}`);
         }
 
         const { results } = await publishToSocial(mediaInput);

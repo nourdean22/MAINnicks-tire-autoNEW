@@ -987,7 +987,7 @@ export async function runManufacturingPipeline(
         const draftId = `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         
         let assetPaths: string[] = [];
-        let finalStatus = "approved";
+        let finalStatus = "draft"; // Human review required for AI generated drafts
         let finalBriefJson = draft.briefJson;
 
         if (contentType === "reel") {

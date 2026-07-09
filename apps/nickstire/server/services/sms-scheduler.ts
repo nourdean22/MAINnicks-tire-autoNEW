@@ -280,9 +280,14 @@ export async function processScheduledSms() {
     }
 
     // At-most-once claim — mark the reminder 'sent' BEFORE the send.
-    await db.update(appointmentReminders)
+    // Use CAS (Check-And-Set) to prevent double-send races.
+    const claimResult = await db.update(appointmentReminders)
       .set({ status: "sent", sentAt: now })
-      .where(eq(appointmentReminders.id, reminder.id));
+      .where(and(eq(appointmentReminders.id, reminder.id), eq(appointmentReminders.status, "processing")));
+      
+    if (claimResult[0].affectedRows === 0) {
+      continue; // Another worker claimed it first
+    }
 
     const { orchestrateSms } = await import("./smsOrchestrator");
     let result: { status: any; id?: number; reason?: string };

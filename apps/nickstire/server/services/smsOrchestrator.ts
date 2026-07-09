@@ -1219,7 +1219,8 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
     if (shouldAutoSend && finalBodyToSend && status !== "skipped" && status !== "blocked" && rolloutMode !== "draft_only") {
       const isVapi = event.type === "vapi_confirmation" || event.type === "vapi_forwarded_call_followup";
       const isReminder = event.type === "booking_reminder" || event.type === "review_request";
-      const isTransactional = isVapi || (isReminder && event.type !== "booking_reminder" || (event.type === "booking_reminder" && event.reminderType !== "maintenance-reminder"));
+      // review_request is marketing, not transactional. It must respect TCPA limits.
+      const isTransactional = isVapi || (event.type === "booking_reminder" && event.reminderType !== "maintenance-reminder");
 
       status = "sending";
       statusReason = "sending_to_gateway";
