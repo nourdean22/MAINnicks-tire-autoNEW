@@ -49,8 +49,10 @@ function withOptOut(body: string): string {
 }
 
 // ─── GET CUSTOMERS BY SEGMENT ──────────────────────────
+// Exported so the statenour bridge endpoint (_core/statenour-bridge-routes.ts)
+// can target the same three segments without duplicating the eligibility SQL.
 
-async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"): Promise<Array<{ id: number; firstName: string; phone: string }>> {
+export async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"): Promise<Array<{ id: number; firstName: string; phone: string }>> {
   const d = await db();
   if (!d) return [];
 
@@ -319,8 +321,22 @@ export const campaignsRouter = router({
  * Process pending campaign sends with rate limiting.
  * Runs in the background after campaign activation.
  * Respects Twilio rate limits: max 1 SMS per second.
+ *
+ * Exported so the statenour bridge endpoint can kick off processing for a
+ * bridge-created campaign using the same resumable/gateway-aware pipeline
+ * admin-triggered campaigns use — no separate send loop to maintain.
+ *
+ * variantKey defaults to `campaign:<id>` so every campaign send is
+ * attributable in smsPerformance (previously these landed untagged — see
+ * the `variantKey` comment in persistOutboundShopSms). Callers that want a
+ * cross-system correlation id (e.g. the statenour bridge, which has its
+ * own campaignId) can override it.
  */
-async function processCampaignSends(campaignId: number, batchSize: number = 50): Promise<void> {
+export async function processCampaignSends(
+  campaignId: number,
+  batchSize: number = 50,
+  variantKey: string = `campaign:${campaignId}`,
+): Promise<void> {
   const d = await db();
   if (!d) return;
 
@@ -378,7 +394,7 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
         continue; // already claimed by an overlapping run
       }
       try {
-        const result = await sendSms(send.phone, send.messageBody, { via: "shop" });
+        const result = await sendSms(send.phone, send.messageBody, { via: "shop", variantKey });
 
         if (result.success) {
           await d.update(smsCampaignSends).set({

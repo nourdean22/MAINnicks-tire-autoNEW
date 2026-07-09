@@ -10,8 +10,12 @@
  *   {
  *     campaignId: string,        // unique label, e.g. "winback-high-ltv-2026-05-17"
  *     targetSegment: string,     // human-readable, e.g. "high-LTV slow payers"
+ *     segment: "recent"|"lapsed"|"all", // machine-actionable — the nickstire
+ *                                 // bridge only understands these 3 segments,
+ *                                 // it can't parse targetSegment's free text
  *     recipientCount: number,    // matched count at compose time
- *     bodyPreview: string,       // first ~120 chars of the message
+ *     bodyPreview: string,       // first ~120 chars, Telegram preview only
+ *     messageTemplate: string,   // the FULL message body actually sent
  *     reason?: string,           // operator-noted intent
  *   }
  *
@@ -35,11 +39,16 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 10;
 
+const BULK_SMS_SEGMENTS = ["recent", "lapsed", "all"] as const;
+type BulkSmsSegment = (typeof BULK_SMS_SEGMENTS)[number];
+
 interface ProposalBody {
   campaignId: string;
   targetSegment: string;
+  segment: BulkSmsSegment;
   recipientCount: number;
   bodyPreview: string;
+  messageTemplate: string;
   reason?: string;
 }
 
@@ -50,14 +59,20 @@ function validate(input: unknown): ProposalBody | null {
     return null;
   if (typeof r.targetSegment !== "string" || r.targetSegment.trim().length === 0)
     return null;
+  if (typeof r.segment !== "string" || !(BULK_SMS_SEGMENTS as readonly string[]).includes(r.segment))
+    return null;
   if (typeof r.recipientCount !== "number" || r.recipientCount < 1) return null;
   if (typeof r.bodyPreview !== "string" || r.bodyPreview.trim().length === 0)
+    return null;
+  if (typeof r.messageTemplate !== "string" || r.messageTemplate.trim().length === 0)
     return null;
   return {
     campaignId: r.campaignId.trim().slice(0, 80),
     targetSegment: r.targetSegment.trim().slice(0, 120),
+    segment: r.segment as BulkSmsSegment,
     recipientCount: Math.floor(r.recipientCount),
     bodyPreview: r.bodyPreview.trim().slice(0, 240),
+    messageTemplate: r.messageTemplate.trim().slice(0, 1600),
     reason: typeof r.reason === "string" ? r.reason.trim().slice(0, 240) : undefined,
   };
 }
@@ -71,7 +86,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error: "invalid_body",
-          hint: "expected { campaignId, targetSegment, recipientCount, bodyPreview, reason? }",
+          hint: "expected { campaignId, targetSegment, segment: recent|lapsed|all, recipientCount, bodyPreview, messageTemplate, reason? }",
         },
         { status: 400 },
       );
@@ -97,8 +112,10 @@ export async function POST(req: Request) {
       data: {
         campaignId: proposal.campaignId,
         targetSegment: proposal.targetSegment,
+        segment: proposal.segment,
         recipientCount: proposal.recipientCount,
         bodyPreview: proposal.bodyPreview,
+        messageTemplate: proposal.messageTemplate,
         audit: { proposedBy: "operator", reason: proposal.reason },
       },
     });
