@@ -1,7 +1,14 @@
 /**
  * NHTSA Safety Recall Connector
  * Fetches safety recalls from the official public NHTSA API.
- * Requires no API keys. Falls back to mock data if network fails.
+ * Requires no API keys.
+ *
+ * AG-02 · Fabrication purge. On network failure this connector previously
+ * INVENTED safety recalls (including a generic "99V999000" recall for any
+ * vehicle) "to keep the pipeline populated" — and recall data downstream
+ * drives operator-approved customer SMS. A fabricated safety recall texted
+ * to a real customer is the worst possible failure here. Failures now skip
+ * the vehicle; unavailable data is EMPTY, never mocked.
  */
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -45,50 +52,11 @@ export async function fetchNHTSARecalls(vehicles: { make: string; model: string;
         }
       }
     } catch (err) {
-      log.warn(`Failed to fetch live recalls for ${v.year} ${v.make} ${v.model}, using mock recall fallback.`, {
+      log.warn(`Failed to fetch live recalls for ${v.year} ${v.make} ${v.model}; skipping vehicle (no mock fallback).`, {
         error: err instanceof Error ? err.message : String(err),
       });
-      // Return a mock recall for this vehicle to keep the pipeline populated
-      allRecalls.push(getMockRecall(v.make, v.model, v.year));
     }
   }
 
   return allRecalls;
-}
-
-function getMockRecall(make: string, model: string, year: number): NHTSARecall {
-  const mockRecalls: Record<string, NHTSARecall> = {
-    "Ford F-150 2020": {
-      NHTSACampaignNumber: "20V734000",
-      VehicleMake: "FORD",
-      VehicleModel: "F-150",
-      ModelYear: "2020",
-      Component: "STEERING",
-      Summary: "The steering gear motor attachment bolts may corrode and break, causing the steering gear motor to detach from the gear housing. This could result in a loss of power steering assist.",
-      Conequence: "A loss of power steering assist can require increased steering effort, especially at lower speeds, increasing the risk of a crash.",
-      Remedy: "Dealers will replace the steering gear motor bolts and apply a wax protective coating free of charge.",
-    },
-    "Honda Accord 2018": {
-      NHTSACampaignNumber: "23V858000",
-      VehicleMake: "HONDA",
-      VehicleModel: "ACCORD",
-      ModelYear: "2018",
-      Component: "FUEL SYSTEM, GASOLINE",
-      Summary: "The fuel pump impeller may have been improperly molded, resulting in low density impellers that can deform and cause fuel pump failure, stalling the engine while driving.",
-      Conequence: "An engine stall while driving increases the risk of a crash.",
-      Remedy: "Dealers will replace the fuel pump module free of charge.",
-    }
-  };
-
-  const key = `${make} ${model} ${year}`;
-  return mockRecalls[key] || {
-    NHTSACampaignNumber: "99V999000",
-    VehicleMake: make.toUpperCase(),
-    VehicleModel: model.toUpperCase(),
-    ModelYear: String(year),
-    Component: "ENGINE",
-    Summary: `Generic safety warning recall issued for ${year} ${make} ${model} relating to potential component wear under high mileage.`,
-    Conequence: "Increased risk of component failure, resulting in engine shutdown.",
-    Remedy: "Inspection and replacement at authorized dealers.",
-  };
 }
