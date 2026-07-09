@@ -727,7 +727,7 @@ export const systemTools = {
     // v10.0.529.93 · Wave 37 · description trimmed · routing + cost
     // guidance lives in system-prompt.ts RESEARCH TOOL SELECTION block
     // (~lines 722-728) · was duplicated here verbatim every turn.
-    description: "Spawn N parallel sub-agents + synthesize. Max 8.",
+    description: "Spawn N parallel sub-agents + synthesize. Max 8. Staff sub-agents with persona keys: research-analyst, contrarian-critic, execution-planner, thought-partner, strategist, tactician, business-consultant, ghostwriter.",
     inputSchema: z.object({
       goal: z.string().describe("The overall operator goal · seen by every sub-agent as context"),
       subAgents: z.array(
@@ -735,6 +735,12 @@ export const systemTools = {
           name: z.string().describe("Stable name for this sub-agent · e.g. 'pricing_analysis' or 'review_themes'"),
           task: z.string().describe("Specific task for this sub-agent · 1-2 sentences · ≤800 chars"),
           outputHint: z.string().optional().describe("Optional output-shape hint · e.g. 'bulleted list' or 'JSON with {a,b,c}'"),
+          // AG-12 · unlocks the typed persona library for model-initiated
+          // runs — runMultiAgent already accepted SubAgentTask.persona
+          // (unknown keys warn + fall back to the generic prompt), but the
+          // schema never exposed it, so 30+ registered personas were
+          // unreachable from chat.
+          persona: z.string().optional().describe("Optional persona key from the typed library · e.g. 'research-analyst', 'contrarian-critic', 'thought-partner', 'tactician', 'business-consultant', 'ghostwriter'"),
         }),
       ).describe("Array of sub-agent task assignments · max 8"),
     }),
