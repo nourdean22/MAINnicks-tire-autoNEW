@@ -25,6 +25,11 @@ const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
     approvalRequest: {
       update: vi.fn(async () => ({})),
+      // 2026-07-09 · PR #617 added an atomic claim (updateMany approved-or-
+      // stale-executing) at the top of executeApprovedToolAsync. #617 merged
+      // WITHOUT updating this mock, which threw "updateMany is not a
+      // function" on every path and left 3/5 of these tests red on main.
+      updateMany: vi.fn(async () => ({ count: 1 })),
       findUnique: vi.fn(),
     },
   },
@@ -34,6 +39,18 @@ vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 // executeApprovedToolAsync dynamically imports the tools module to trigger
 // wrap-time registration; stub it so tests don't load the real tool tree.
 vi.mock("@/lib/ai/tools", () => ({ nourTools: {} }));
+
+// #617's third-tier fallback routes unmapped toolIds into the nick-agent
+// action dispatcher; stub it so the orphan test doesn't load the agent tree.
+const { executeActionMock } = vi.hoisted(() => ({
+  executeActionMock: vi.fn(async (action: { type: string }) => ({
+    success: false,
+    error: `Unknown action type: ${action.type}`,
+  })),
+}));
+vi.mock("@/lib/ai/nick-agent", () => ({
+  executeActionWithoutTracing: executeActionMock,
+}));
 
 import {
   withGuardian,
@@ -102,6 +119,9 @@ describe("executeApprovedToolAsync · restart survival", () => {
   });
 
   it("marks the request failed when no executor exists anywhere", async () => {
+    // Post-#617 semantics: an unregistered toolId no longer throws
+    // "No execution function found" — it falls into the third-tier
+    // nick-agent dispatch, whose vocabulary rejects unknown types.
     prismaMock.approvalRequest.findUnique.mockResolvedValue({
       id: "req-orphan",
       toolId: "tool.never_registered",
@@ -110,10 +130,24 @@ describe("executeApprovedToolAsync · restart survival", () => {
 
     await executeApprovedToolAsync("req-orphan");
 
+    expect(executeActionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "tool.never_registered" }),
+    );
     const finalUpdate = prismaMock.approvalRequest.update.mock.calls.at(-1)?.[0];
     expect(finalUpdate?.data?.status).toBe("failed");
     expect(String((finalUpdate?.data?.resultPayload as { error?: string })?.error)).toContain(
-      "No execution function found",
+      "Unknown action type",
     );
+  });
+
+  it("skips execution entirely when the atomic claim misses (already executing)", async () => {
+    prismaMock.approvalRequest.updateMany.mockResolvedValueOnce({ count: 0 });
+    const durableInner = vi.fn(async () => "should-not-run");
+    withGuardian("test.claimed_tool", durableInner);
+
+    await executeApprovedToolAsync("req-claimed-elsewhere");
+
+    expect(durableInner).not.toHaveBeenCalled();
+    expect(prismaMock.approvalRequest.findUnique).not.toHaveBeenCalled();
   });
 });
