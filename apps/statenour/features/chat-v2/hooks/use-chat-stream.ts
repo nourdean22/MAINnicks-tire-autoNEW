@@ -55,7 +55,10 @@ export function useChatStream(): ChatRuntimeController {
   // Stable ref so the effect dep is only chat.error — not regenerate itself.
   const retryCountRef = useRef(0);
   const regenerateRef = useRef(chat.regenerate);
-  regenerateRef.current = chat.regenerate;
+  
+  useEffect(() => {
+    regenerateRef.current = chat.regenerate;
+  }, [chat.regenerate]);
 
   useEffect(() => {
     if (!chat.error) {
