@@ -489,6 +489,13 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
       case "/ask":
       case "/nick":
         return await cmdAsk(args.join(" "), chatId);
+      // AG-13 · the advisory council on the operator's primary mobile
+      // surface. Both are read-only AI calls (board persists one
+      // BrainMemory consultation record) — no approval gate needed.
+      case "/board":
+        return await cmdBoard(args, chatId);
+      case "/team":
+        return await cmdTeam(args.join(" "), chatId);
       // v8.23 — phone-first remote read extensions
       case "/goals":
         return await cmdGoals(chatId);
@@ -531,6 +538,9 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `/mit [text] — Set today's MIT\n` +
             `/commit [text] — Create commitment\n` +
             `/ask [question] — Ask Nick anything\n\n` +
+            `\n<b>COUNCIL (AG-13)</b>\n` +
+            `/board [strategic|invest|product|operator|full] [q] — Convene an advisor board\n` +
+            `/team [q] — Ask the team (thought partner · strategist · tactician · consultant)\n` +
             `\n<b>OUTREACH (Wave-200)</b>\n` +
             `/approve [campaignId] — Approve pending bulk-SMS\n` +
             `/reject [campaignId] — Reject pending bulk-SMS\n` +
@@ -673,6 +683,78 @@ async function cmdCommit(args: string, chatId: string): Promise<void> {
     );
   } catch (err) {
     await sendTelegram(`⚠️ Commit failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+// AG-13 · /board — convene one of the 5 preset advisor boards. Sends an
+// immediate ack (a consult is 6-9 parallel AI calls · 15-30s), then the
+// synthesis + per-advisor one-liners. Consultation persists to BrainMemory
+// via consultBoardAndPersist, so it also shows in the /brain Board tab.
+async function cmdBoard(args: string[], chatId: string): Promise<void> {
+  const VALID_BOARDS = ["strategic", "invest", "product", "operator", "full"] as const;
+  const boardId = (args[0] ?? "").toLowerCase() as (typeof VALID_BOARDS)[number];
+  const question = args.slice(1).join(" ").trim();
+  if (!VALID_BOARDS.includes(boardId) || question.length < 8) {
+    await sendTelegram(
+      `Usage: /board [${VALID_BOARDS.join("|")}] [question]\n\nExample: /board invest should I buy the second alignment machine?`,
+      chatId
+    );
+    return;
+  }
+  await sendTelegram(`🏛 Convening the <b>${boardId}</b> board — advisors deliberating…`, chatId);
+  try {
+    const { consultBoardAndPersist } = await import("@/lib/services/board-consult-record");
+    const { consultation } = await consultBoardAndPersist(boardId, question);
+    const s = consultation.synthesis;
+    const takes = consultation.takes
+      .map((t) => `• <b>${t.advisorName}</b>: ${t.recommendation.slice(0, 160)}`)
+      .join("\n");
+    const msg =
+      `🏛 <b>${consultation.boardName}</b>\n\n` +
+      `<b>Recommendation:</b> ${s.recommendation}\n\n` +
+      (s.tension ? `<b>Tension:</b> ${s.tension}\n\n` : "") +
+      (s.consensus.length ? `<b>Consensus:</b> ${s.consensus.slice(0, 3).join(" · ")}\n\n` : "") +
+      `<b>Advisors</b>\n${takes}`;
+    await sendTelegram(msg.slice(0, 3900), chatId);
+  } catch (err) {
+    await sendTelegram(`⚠️ Board consult failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+// AG-13 · /team — the operator's standing staff (AG-12 personas) in one
+// parallel run: thought partner, strategist, tactician, consultant.
+async function cmdTeam(question: string, chatId: string): Promise<void> {
+  const q = question.trim();
+  if (q.length < 8) {
+    await sendTelegram(
+      `Usage: /team [question]\n\nRuns thought-partner + strategist + tactician + business-consultant in parallel and synthesizes.`,
+      chatId
+    );
+    return;
+  }
+  await sendTelegram(`👥 Putting the team on it…`, chatId);
+  try {
+    const { runMultiAgent } = await import("@/lib/ai/multi-agent-orchestrator");
+    const topic = q.slice(0, 600);
+    const report = await runMultiAgent({
+      goal: q,
+      subAgents: [
+        { name: "thought-partner", persona: "thought-partner", task: `Steelman, then attack, then name the deciding tension: ${topic}` },
+        { name: "strategist", persona: "strategist", task: `6-24 month positioning + what this forecloses: ${topic}` },
+        { name: "tactician", persona: "tactician", task: `The concrete next-48h moves: ${topic}` },
+        { name: "business-consultant", persona: "business-consultant", task: `Unit-economics verdict: ${topic}` },
+      ],
+    });
+    const lines = report.results
+      .filter((r) => !r.failed)
+      .map((r) => `• <b>${r.name}</b>: ${r.output.slice(0, 220)}`)
+      .join("\n\n");
+    await sendTelegram(
+      `👥 <b>Team</b>\n\n${report.synthesis.slice(0, 1700)}\n\n${lines}`.slice(0, 3900),
+      chatId
+    );
+  } catch (err) {
+    await sendTelegram(`⚠️ Team run failed: ${(err as Error).message}`, chatId);
   }
 }
 

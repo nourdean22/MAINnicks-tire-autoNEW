@@ -762,6 +762,38 @@ export const systemTools = {
     },
   }),
 
+  // AG-13 · Advisory-board council as a chat tool. The board engine
+  // (5 preset multi-lens boards · parallel advisors · divergence-
+  // preserving synthesis · persisted consultations) was previously
+  // reachable ONLY from the /brain Board tab UI — Nick could never say
+  // "let me convene the invest board." Read-only side effects: persists
+  // one BrainMemory consultation record.
+  arsenalBoardConsult: tool({
+    description: "Convene an advisor board (parallel multi-lens council) on a major decision. Boards: strategic, invest, product, operator, full.",
+    inputSchema: z.object({
+      boardId: z.enum(["strategic", "invest", "product", "operator", "full"]).describe("Which preset board to convene"),
+      question: z.string().min(8).describe("The decision or question to put before the board"),
+    }),
+    execute: async ({ boardId, question }) => {
+      const { consultBoardAndPersist } = await import("@/lib/services/board-consult-record");
+      const { consultation, recordId } = await consultBoardAndPersist(boardId, question);
+      return {
+        board: consultation.boardName,
+        consensus: consultation.synthesis.consensus,
+        tension: consultation.synthesis.tension ?? null,
+        recommendation: consultation.synthesis.recommendation,
+        confidence: consultation.synthesis.confidence,
+        takes: consultation.takes.map((t) => ({
+          advisor: t.advisorName,
+          take: t.recommendation.slice(0, 300),
+          confidence: t.confidence,
+        })),
+        recordId,
+        source: "arsenal/board-consult",
+      };
+    },
+  }),
+
   // v10.0.373 · multi-round autonomous research with citations
   arsenalDeepResearch: tool({
     // v10.0.529.93 · Wave 37 · description trimmed · see arsenalMultiAgent note.

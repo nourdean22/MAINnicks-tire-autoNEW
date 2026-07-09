@@ -190,6 +190,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   arsenalPreTaskFanout: { family: "integration-arsenal", description: "Pre-task multi-lens fan-out for hard questions", mutates: false, cost: "expensive" },
   arsenalDeepResearch: { family: "integration-arsenal", description: "Multi-round autonomous research with citations", mutates: false, cost: "expensive" },
   arsenalMultiAgent: { family: "integration-arsenal", description: "Spawn N sub-agents in parallel + synthesize", mutates: false, cost: "expensive" },
+  arsenalBoardConsult: { family: "integration-arsenal", description: "Convene an advisor board (multi-lens council) on a major decision", mutates: false, cost: "expensive" },
   arsenalGmailInbox: { family: "integration-arsenal", description: "List recent inbox threads", mutates: false, cost: "cheap" },
   arsenalGmailReadThread: { family: "integration-arsenal", description: "Read a specific thread", mutates: false, cost: "cheap" },
 
