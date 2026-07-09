@@ -50,6 +50,7 @@ import { createHash } from "node:crypto";
 import { getEmbedding } from "@/lib/ai/provider";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { logger as rootLogger } from "@/lib/logger";
+import { logError } from "@/lib/utils/error-log";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/persona-drift-detector");
@@ -222,6 +223,7 @@ export async function scanRecentReplies(opts?: {
     })
     .catch((): never[] => []);
   const embeddingByMsgId = new Map<string, number[]>();
+  let malformedEmbeddings = 0;
   for (const row of embeddings) {
     try {
       const vec = JSON.parse(row.embedding) as number[];
@@ -229,8 +231,18 @@ export async function scanRecentReplies(opts?: {
         embeddingByMsgId.set(row.sourceId, vec);
       }
     } catch {
-      // skip malformed embedding · embed-backfill will rewrite next pass
+      // skip malformed embedding · embed-backfill will rewrite next pass ·
+      // aggregated below (up to 60 rows per 4h cron pass)
+      malformedEmbeddings++;
     }
+  }
+  if (malformedEmbeddings > 0) {
+    logError(
+      "brain.persona-drift-detector",
+      new Error(`${malformedEmbeddings} malformed embedding rows skipped`),
+      { fn: "scanRecentReplies", malformedEmbeddings, scanned: embeddings.length },
+      "warn",
+    );
   }
 
   const events: DriftEvent[] = [];
@@ -321,13 +333,24 @@ export async function loadRecentDrifts(
     })
     .catch((): never[] => []);
   const out: StoredDrift[] = [];
+  let malformed = 0;
   for (const r of rows) {
     try {
       const parsed = JSON.parse(r.content) as DriftEvent;
       out.push({ ...parsed, key: r.key, createdAt: r.createdAt.toISOString() });
     } catch {
-      // skip malformed row
+      // skip malformed row · aggregated below — this loop is on the
+      // situation-card read path, and parse errors can embed excerpt content
+      malformed++;
     }
+  }
+  if (malformed > 0) {
+    logError(
+      "brain.persona-drift-detector",
+      new Error(`${malformed} malformed persona_drift rows skipped`),
+      { fn: "loadRecentDrifts", malformed, scanned: rows.length },
+      "warn",
+    );
   }
   return out;
 }
@@ -386,7 +409,14 @@ export async function resolveDriftEvent(
     try {
       parsed = JSON.parse(row.content) as Record<string, unknown>;
     } catch {
-      // proceed with empty parsed · the resolution metadata still lands
+      // proceed with empty parsed · the resolution metadata still lands ·
+      // static message — parse errors can embed excerpt content
+      logError(
+        "brain.persona-drift-detector",
+        new Error("malformed persona_drift row content"),
+        { fn: "resolveDriftEvent", key, resolution },
+        "warn",
+      );
     }
     const updated = {
       ...parsed,
@@ -436,6 +466,7 @@ export async function loadActiveDrifts(
     .catch((): never[] => []);
   const out: StoredDrift[] = [];
   const now = Date.now();
+  let malformed = 0;
   for (const r of rows) {
     try {
       const parsed = JSON.parse(r.content) as DriftEvent & {
@@ -449,8 +480,17 @@ export async function loadActiveDrifts(
       }
       out.push({ ...parsed, key: r.key, createdAt: r.createdAt.toISOString() });
     } catch {
-      // skip malformed row
+      // skip malformed row · aggregated below (read path, excerpt content)
+      malformed++;
     }
+  }
+  if (malformed > 0) {
+    logError(
+      "brain.persona-drift-detector",
+      new Error(`${malformed} malformed persona_drift rows skipped`),
+      { fn: "loadActiveDrifts", malformed, scanned: rows.length },
+      "warn",
+    );
   }
   return out;
 }
@@ -580,9 +620,10 @@ export async function getPersonaAnchorPrompt(): Promise<string> {
         `Behavioral corpus available · ${behavioral.utteranceCount} operator-authored utterances embedded as the ground-truth voice anchor. Lean toward the operator's actual recorded voice over a generic helpful tone.`,
       );
     }
-  } catch {
+  } catch (err) {
     // Behavioral enrichment is optional · failure degrades silently to
     // the identity-only anchor.
+    logError("brain.persona-drift-detector", err, { fn: "getPersonaAnchorPrompt" }, "warn");
   }
 
   const text = lines.join("\n");
