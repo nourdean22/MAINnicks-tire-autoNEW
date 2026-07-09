@@ -175,6 +175,20 @@ export async function GET(req: Request) {
       })
       .toSorted((a, b) => b.count - a.count);
 
+    // AG-21 · persona effectiveness. recordPersonaUsage has written
+    // telemetry rows from all three reasoning sub-pipelines since M.2,
+    // but scorePersonas() — the read side — had ZERO callers: weeks of
+    // accumulated data was invisible and could never feed selection.
+    // Best-effort: a scorer failure never breaks the telemetry view.
+    const personas = await (async () => {
+      try {
+        const { scorePersonas } = await import("@/lib/ai/personas/scorer");
+        return await scorePersonas();
+      } catch {
+        return [];
+      }
+    })();
+
     return NextResponse.json(
       {
         totals: {
@@ -188,6 +202,7 @@ export async function GET(req: Request) {
         tierStats,
         markerCounts,
         markerQuality: markerQualityRows,
+        personas,
         fetchedAt: new Date().toISOString(),
       },
       { headers: { "Cache-Control": "private, max-age=30" } },
