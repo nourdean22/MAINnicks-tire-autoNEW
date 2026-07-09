@@ -2,7 +2,18 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request } from "express";
 
 const clientIp = (req: Request): string => {
-  const raw = req.ip || "unknown";
+  // Extract real IP behind Cloudflare/Railway. Cloudflare guarantees cf-connecting-ip
+  // cannot be spoofed *if* the traffic passed through CF. 
+  let raw = (req.headers["cf-connecting-ip"] as string) || 
+            (req.headers["x-real-ip"] as string) || 
+            req.ip || 
+            "unknown";
+            
+  // Prevent spoofing via comma-separated header injection
+  if (raw && raw !== "unknown" && raw.includes(",")) {
+    raw = raw.split(",")[0].trim();
+  }
+  
   // Normalize IPv6 to its subnet via express-rate-limit's helper so IPv6
   // clients can't bypass limits by hopping addresses within their /64
   // allocation (silences ERR_ERL_KEY_GEN_IPV6 from the v8 keyGenerator

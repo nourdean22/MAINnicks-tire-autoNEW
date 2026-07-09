@@ -185,7 +185,7 @@ describe("SMS Opt-Out Compliance & Footer Bypass", () => {
     );
 
     // Transactional send should bypass
-    await sms.sendSms("2165550002", "Transactional message", { via: "twilio", transactional: true });
+    await sms.sendSms("2165550002", "Transactional message", { via: "twilio", messageClass: "customer_confirmation" });
     expect(mockTwilioCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         body: "Transactional message",

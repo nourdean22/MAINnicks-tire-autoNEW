@@ -208,11 +208,20 @@ async function startServer() {
   app.use(withBatchRegex("waitlist.join"), formLimiter);
   app.use(withBatchRegex("emergency.submit"), formLimiter);
   app.use(withBatchRegex("financing.trackApplication"), formLimiter);
+  // Blocks batch-bypassing where an attacker sends /api/trpc/chat.message,chat.message 100 times
+  // but express-rate-limit only counts it as 1 request.
+  const blockBatchedLimits = (req: any, res: any, next: any) => {
+    if (req.path.includes(",")) {
+      return res.status(429).json({ error: "Batched requests are not allowed for rate-limited endpoints." });
+    }
+    next();
+  };
+
   // Matches chat.message and chat.history
-  app.use(withBatchRegex("chat\\.message"), aiLimiter);
-  app.use(withBatchRegex("chat\\.history"), aiLimiter);
-  app.use(withBatchRegex("diagnose.analyze"), aiLimiter);
-  app.use(withBatchRegex("search.ai"), aiLimiter);
+  app.use(withBatchRegex("chat.message"), blockBatchedLimits, aiLimiter);
+  app.use(withBatchRegex("chat.history"), blockBatchedLimits, aiLimiter);
+  app.use(withBatchRegex("diagnose.analyze"), blockBatchedLimits, aiLimiter);
+  app.use(withBatchRegex("search.ai"), blockBatchedLimits, aiLimiter);
   app.use(withBatchRegex("memberships.startCheckout"), formLimiter);
   app.use(withBatchRegex("laborEstimate.generate"), aiLimiter);
   app.use(withBatchRegex("costEstimator.estimate"), aiLimiter);

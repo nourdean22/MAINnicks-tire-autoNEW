@@ -645,8 +645,8 @@ interface SendSmsOptions {
   skipPersist?: boolean;
   /** Skip timing check — used internally for delayed queue processing */
   _forceImmediate?: boolean;
-  /** Transactional SMS (booking confirmations, status updates) bypass timing restrictions */
-  transactional?: boolean;
+  /** Define the message type to apply correct TCPA rules */
+  messageClass?: "customer_marketing" | "customer_followup" | "customer_confirmation" | "internal";
   /** Internal staff alerts bypass customer opt-out footers */
   isInternal?: boolean;
   /** Explicitly bypass customer opt-out footer */
@@ -1088,29 +1088,32 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     return { success: false, error: `Invalid phone number: ${to}` };
   }
 
+  const messageClass = opts?.messageClass || "customer_marketing"; // Default is marketing
+
   // TCPA/CTIA Compliance: automatically apply the opt-out footer where appropriate.
-  // Bypass for staff numbers, transactional messages, internal messages, or explicit skip options.
   const ownerPhone = process.env.OWNER_PHONE_NUMBER;
   const adminPhone = process.env.ADMIN_PHONE;
   const isStaffNumber = !!((ownerPhone && normalizedEarly.endsWith(ownerPhone.replace(/\D/g, "").slice(-10))) ||
                         (adminPhone && normalizedEarly.endsWith(adminPhone.replace(/\D/g, "").slice(-10))));
-  const isTransactionalOrStaff = !!(opts?.transactional || opts?.isInternal || isStaffNumber || opts?.skipOptOutFooter);
+  const isInternal = messageClass === "internal" || opts?.isInternal || isStaffNumber;
+  
+  // Only internal or explicit overrides bypass the opt-out footer entirely.
+  // We include STOP on confirmations + followups for compliance/safety.
+  const bypassOptOutFooter = isInternal || opts?.skipOptOutFooter;
 
-  if (!isTransactionalOrStaff) {
+  if (!bypassOptOutFooter) {
     body = withOptOut(body);
   }
 
   // wave-181.60-followup (audit · 2026-05-18 PM) · TCPA opt-out check
-  // and daily rate-limit MUST run BEFORE the gateway-routing branch ·
-  // both Twilio and shop-gateway paths must respect them. Pre-fix the
-  // shop-first path skipped both checks → opted-out customers were
-  // receiving SMS until the opt-out cache caught up (TCPA risk) and a
-  // single phone could receive unlimited SMS in 24h.
-  if (!opts?.transactional && !opts?._forceImmediate && !opts?.skipOptOutCheck) {
+  // and daily rate-limit MUST run BEFORE the gateway-routing branch.
+  // Internal bypasses daily limits.
+  if (!isInternal && !opts?._forceImmediate && !opts?.skipOptOutCheck) {
     if (!(await checkDailyLimit(normalizedEarly, { skipShortCooldown: opts?.skipShortCooldown }))) {
       return { success: false, error: "Daily SMS limit reached for this number" };
     }
   }
+  
   if (!opts?.skipOptOutCheck) {
     try {
       const last10 = normalizedEarly.slice(-10);
@@ -1127,14 +1130,12 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   }
 
   // wave-181.64 (bug-hunter audit) · TCPA-good-practice 8AM-8PM ET
-  // sending window MUST also run BEFORE gateway routing, for the same
-  // reason as the opt-out + rate-limit checks above. Pre-fix the shop-
-  // gateway path bypassed the window → customers could receive marketing
-  // SMS at midnight via F25e because the check sat below the shop block.
-  // Transactional sends + _forceImmediate (drained from delayed queue)
-  // still bypass. queueForLater persists to DB so messages survive
-  // restarts and rehydrate in the next window.
-  if (!opts?.transactional && !opts?._forceImmediate && !isWithinSendingHours()) {
+  // sending window MUST also run BEFORE gateway routing.
+  // Internal messages and customer_confirmations bypass quiet hours.
+  // Marketing and followups are queued if outside hours.
+  const bypassQuietHours = isInternal || messageClass === "customer_confirmation" || opts?._forceImmediate;
+  
+  if (!bypassQuietHours && !isWithinSendingHours()) {
     queueForLater(normalizedEarly, body, opts);
     return {
       success: true,
