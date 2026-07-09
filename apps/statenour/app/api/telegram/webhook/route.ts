@@ -507,6 +507,10 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
       // in Telegram in ~2 minutes via the research-on-demand inngest fn.
       case "/research":
         return await cmdResearch(args.join(" "), chatId);
+      // AG-41 · reminders on existing rails: a WAITING task with
+      // snoozedUntil; the hourly proactive-push cron fires the ping.
+      case "/remind":
+        return await cmdRemind(args.join(" "), chatId);
       // v8.23 — phone-first remote read extensions
       case "/goals":
         return await cmdGoals(chatId);
@@ -555,6 +559,7 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `/team [q] — Ask the team (thought partner · strategist · tactician · consultant)\n` +
             `/draft [sms|social|email|longform] [brief] — Ghostwrite in your voice → approval queue\n` +
             `/research [question] — Queue deep research; cited report lands here in ~2 min\n` +
+            `/remind [in 2h | at 3pm | tomorrow 9am] [text] — Telegram ping when due (hourly check)\n` +
             `\n<b>OUTREACH (Wave-200)</b>\n` +
             `/approve [campaignId] — Approve pending bulk-SMS\n` +
             `/reject [campaignId] — Reject pending bulk-SMS\n` +
@@ -793,6 +798,54 @@ async function cmdTeam(question: string, chatId: string): Promise<void> {
     );
   } catch (err) {
     await sendTelegram(`⚠️ Team run failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+// AG-41 · /remind — reminders on existing rails, no new platform. The
+// reminder is a WAITING task (⏰-prefixed) with snoozedUntil set by the
+// deterministic ET parser; the hourly proactive-push cron flips it
+// READY and sends the ping (task-resurface's daily sweep is backstop).
+// Hourly granularity is the documented v1 contract.
+async function cmdRemind(argsText: string, chatId: string): Promise<void> {
+  const { parseRemindTime } = await import("@/lib/utils/remind-time-parser");
+  const parsed = parseRemindTime(argsText);
+  if (!parsed) {
+    await sendTelegram(
+      `Usage: /remind [in 2h | at 3pm | tomorrow 9am] [text]\n\nExamples:\n/remind in 90 min call Mike back\n/remind at 3pm send the fleet quote\n/remind tomorrow 9am bloodwork\n\n<i>Pings fire on the hourly check.</i>`,
+      chatId
+    );
+    return;
+  }
+  try {
+    const { createTask } = await import("@/lib/services/tasks");
+    const { resolveInboxMissionId } = await import("@/lib/services/missions");
+    const title = `⏰ ${parsed.text.slice(0, 190)}`;
+    const inboxMissionId = await resolveInboxMissionId();
+    const task = await createTask({
+      title,
+      missionId: inboxMissionId,
+      status: "WAITING",
+      snoozedUntil: parsed.at,
+      nextPhysicalAction: parsed.text.slice(0, 200),
+      effort: "M15",
+      roiScore: 50,
+      frictionScore: 50,
+      energyRequired: "MEDIUM",
+      context: "PHONE",
+      finishCondition: "Reminder acknowledged",
+      autoPriorityExplanation: "captured via Telegram /remind",
+    });
+    if (!task) {
+      await sendTelegram(`⚠️ Reminder save returned no view-model · check /system/errors`, chatId);
+      return;
+    }
+    const whenEt = parsed.at.toLocaleString("en-US", {
+      timeZone: "America/New_York",
+      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+    await sendTelegram(`⏰ <b>Reminder set</b> · ${whenEt} ET\n\n${parsed.text}`, chatId);
+  } catch (err) {
+    await sendTelegram(`⚠️ Reminder failed: ${(err as Error).message}`, chatId);
   }
 }
 
