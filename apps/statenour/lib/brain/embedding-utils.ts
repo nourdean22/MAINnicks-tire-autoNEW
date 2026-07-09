@@ -20,6 +20,7 @@ import {
   VECTOR_DIM_1536,
 } from "@/lib/db/pgvector";
 import { logger as rootLogger } from "@/lib/logger";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/embedding");
 
@@ -480,6 +481,7 @@ export async function semanticSearch(
   const maxAgeDays = 90;
 
   const scored: SemanticMatch[] = [];
+  let corrupted = 0;
   for (const row of rows) {
     try {
       const vec = JSON.parse(row.embedding) as number[];
@@ -518,8 +520,18 @@ export async function semanticSearch(
         category: meta?.category,
       });
     } catch {
-      // Corrupted embedding row — skip
+      // Corrupted embedding row — skip · aggregated below (this loop is a
+      // full scan over all vector rows on every cold search)
+      corrupted++;
     }
+  }
+  if (corrupted > 0) {
+    logError(
+      "brain.embedding-utils",
+      new Error(`${corrupted} corrupted embedding rows skipped`),
+      { fn: "semanticSearch", corrupted, scanned: rows.length },
+      "warn",
+    );
   }
 
   scored.sort((a, b) => b.hybridScore - a.hybridScore);
@@ -564,11 +576,22 @@ export async function findSemanticDuplicates(
 
   // Parse all vectors
   const parsed: { sourceId: string; content: string; vec: number[] }[] = [];
+  let corrupted = 0;
   for (const row of rows) {
     try {
       const vec = JSON.parse(row.embedding) as number[];
       if (vec.length > 0) parsed.push({ sourceId: row.sourceId, content: row.content, vec });
-    } catch {}
+    } catch {
+      corrupted++; // aggregated below — up to 1000 rows per pass
+    }
+  }
+  if (corrupted > 0) {
+    logError(
+      "brain.embedding-utils",
+      new Error(`${corrupted} corrupted embedding rows skipped`),
+      { fn: "findSemanticDuplicates", corrupted, scanned: rows.length },
+      "warn",
+    );
   }
 
   // Compare all pairs (O(n²) but capped at ~1000 memories = ~500K comparisons = ~50ms)
@@ -621,11 +644,22 @@ export async function clusterMemories(
 
   // Parse vectors
   const parsed: { sourceId: string; content: string; vec: number[] }[] = [];
+  let corrupted = 0;
   for (const row of rows) {
     try {
       const vec = JSON.parse(row.embedding) as number[];
       if (vec.length > 0) parsed.push({ sourceId: row.sourceId, content: row.content, vec });
-    } catch {}
+    } catch {
+      corrupted++; // aggregated below — unbounded brain_memory scan
+    }
+  }
+  if (corrupted > 0) {
+    logError(
+      "brain.embedding-utils",
+      new Error(`${corrupted} corrupted embedding rows skipped`),
+      { fn: "clusterMemories", corrupted, scanned: rows.length },
+      "warn",
+    );
   }
 
   // Greedy clustering
@@ -716,6 +750,7 @@ export async function getEmbeddingHealth(): Promise<EmbeddingHealth> {
   const dimDist: Record<number, number> = {};
   let totalMag = 0;
   let magCount = 0;
+  let malformed = 0;
 
   for (const row of sampleRows) {
     try {
@@ -724,7 +759,17 @@ export async function getEmbeddingHealth(): Promise<EmbeddingHealth> {
       const mag = Math.sqrt(vec.reduce((s, v) => s + v * v, 0));
       totalMag += mag;
       magCount++;
-    } catch {}
+    } catch {
+      malformed++; // aggregated below — sample loop, up to 100 rows
+    }
+  }
+  if (malformed > 0) {
+    logError(
+      "brain.embedding-utils",
+      new Error(`${malformed} corrupted embedding rows in health sample`),
+      { fn: "getEmbeddingHealth", malformed, sampled: sampleRows.length },
+      "warn",
+    );
   }
 
   const avgMagnitude = magCount > 0 ? Math.round(totalMag / magCount * 100) / 100 : 0;

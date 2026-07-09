@@ -12,6 +12,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 // v10.0.64 · AgentTrace coverage. getEmbedding kept direct (its own
 // cost-tracking via VectorEmbedding writes).
 import { getEmbedding } from "@/lib/ai/provider";
@@ -876,7 +877,10 @@ async function appendCrossSourceContext(
             byType.set("chat_message", filteredChatHits);
           }
         }
-      } catch { /* non-blocking */ }
+      } catch (err) {
+        /* non-blocking */
+        logError("brain.contextual-recall", err, { fn: "appendCrossSourceContext", stage: "chat-dates", hits: chatHitIds.length }, "warn");
+      }
     }
     if (brainDumpHitIds.length > 0) {
       try {
@@ -885,7 +889,10 @@ async function appendCrossSourceContext(
           select: { id: true, createdAt: true },
         });
         for (const r of rows) brainDumpDateMap.set(r.id, r.createdAt);
-      } catch { /* non-blocking */ }
+      } catch (err) {
+        /* non-blocking */
+        logError("brain.contextual-recall", err, { fn: "appendCrossSourceContext", stage: "brain-dump-dates", hits: brainDumpHitIds.length }, "warn");
+      }
     }
     if (reflectionHitIds.length > 0) {
       try {
@@ -894,7 +901,10 @@ async function appendCrossSourceContext(
           select: { id: true, createdAt: true, scope: true },
         });
         for (const r of rows) reflectionDateMap.set(r.id, { date: r.createdAt, scope: r.scope });
-      } catch { /* non-blocking */ }
+      } catch (err) {
+        /* non-blocking */
+        logError("brain.contextual-recall", err, { fn: "appendCrossSourceContext", stage: "reflection-dates", hits: reflectionHitIds.length }, "warn");
+      }
     }
     const fmtDaysAgo = (d: Date | undefined): string => {
       if (!d) return "earlier";
@@ -934,8 +944,9 @@ async function appendCrossSourceContext(
         }
       }
     }
-  } catch {
+  } catch (err) {
     // Non-blocking — if cross-source fails, the memory section still renders
+    logError("brain.contextual-recall", err, { fn: "appendCrossSourceContext" }, "warn");
   }
 }
 
@@ -967,14 +978,25 @@ async function getSemanticScores(
 
   const scores = new Map<string, number>();
 
+  let corrupted = 0;
   for (const row of embeddingRows) {
     try {
       const vec = JSON.parse(row.embedding) as number[];
       if (vec.length !== queryVec.length) continue;
       scores.set(row.sourceId, cosineSimilarity(queryVec, vec));
     } catch {
-      // Skip corrupted rows
+      // Skip corrupted rows · aggregated below — recall runs every chat
+      // turn over up to 300 rows, so per-row logging would flood ErrorLog
+      corrupted++;
     }
+  }
+  if (corrupted > 0) {
+    logError(
+      "brain.contextual-recall",
+      new Error(`${corrupted} corrupted embedding rows skipped`),
+      { fn: "getSemanticScores", corrupted, scanned: embeddingRows.length },
+      "warn",
+    );
   }
 
   return scores;
@@ -1035,8 +1057,9 @@ async function appendGraphContext(
       lines.push(`### Connected (linked in your brain graph)`);
       lines.push(...out);
     }
-  } catch {
+  } catch (err) {
     // best-effort — never break recall on a graph miss
+    logError("brain.contextual-recall", err, { fn: "appendGraphContext", anchors: anchorMemoryIds.length }, "warn");
   }
 }
 

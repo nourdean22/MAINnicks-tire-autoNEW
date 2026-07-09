@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 import { loadActiveSkills } from "./skill-extractor";
 
 export interface GhostPrediction {
@@ -146,8 +147,9 @@ export async function getGhostPredictions(force = false): Promise<GhostPredictio
         const parsed = JSON.parse(existing.content) as GhostPredictionBundle;
         const ageH = (Date.now() - new Date(parsed.predicted_at).getTime()) / 3600_000;
         if (ageH < 3) return parsed;
-      } catch {
+      } catch (err) {
         // fall through
+        logError("brain.ghost-nick", err, { fn: "getGhostPredictions" }, "warn");
       }
     }
   }
@@ -406,8 +408,9 @@ async function loadActiveDismissals(): Promise<Set<string>> {
     try {
       const parsed = JSON.parse(r.content) as { taskIdOrTitle: string };
       out.add(parsed.taskIdOrTitle.toLowerCase());
-    } catch {
+    } catch (err) {
       // skip
+      logError("brain.ghost-nick", err, { fn: "loadActiveDismissals" }, "warn");
     }
   }
   return out;
@@ -482,8 +485,9 @@ export async function dismissPrediction(taskIdOrTitle: string): Promise<GhostPre
         },
         update: { content: JSON.stringify(baseAcc), lastSeen: now },
       });
-    } catch {
+    } catch (err) {
       // Telemetry must not block UI dismissal.
+      logError("brain.ghost-nick", err, { fn: "dismissPrediction" }, "warn");
     }
   })();
 

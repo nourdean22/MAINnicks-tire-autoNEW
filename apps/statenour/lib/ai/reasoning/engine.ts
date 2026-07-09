@@ -51,6 +51,7 @@ import { TIER_CONFIG } from "./tier-config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("ai/reasoning/engine");
 
@@ -68,6 +69,7 @@ function makeRecorder(
 ) {
   const steps: ReasoningStep[] = [];
   let lastStart = startedAt;
+  let onStepFailureLogged = false;
   return {
     push(
       kind: ReasoningStepKind,
@@ -88,8 +90,14 @@ function makeRecorder(
       if (onStep) {
         try {
           onStep(step);
-        } catch {
-          // Streaming callbacks must never block the engine.
+        } catch (err) {
+          // Streaming callbacks must never block the engine. Log once per
+          // recorder — a persistently-broken onStep would otherwise write
+          // one ErrorLog row per reasoning step.
+          if (!onStepFailureLogged) {
+            onStepFailureLogged = true;
+            logError("ai.reasoning-engine", err, { fn: "makeRecorder", kind }, "warn");
+          }
         }
       }
     },
@@ -334,8 +342,9 @@ async function runMultiAgent(
           durationMs: r.durationMs ?? 0,
         });
       }
-    } catch {
+    } catch (err) {
       /* best-effort */
+      logError("ai.reasoning-engine", err, { fn: "runMultiAgent.recordPersonaUsage", resultCount: report.results.length }, "warn");
     }
   })();
   return {
@@ -496,8 +505,9 @@ async function runDraft(
     if (blocks.length > 0) {
       tacticalContext = blocks.join("\n\n") + "\n\n---\n\n";
     }
-  } catch {
+  } catch (err) {
     // Best-effort · tactical context failures must never block the draft.
+    logError("ai.reasoning-engine", err, { fn: "runDraft.tacticalContext" }, "warn");
   }
 
   const reply = await aiChat(
@@ -802,8 +812,9 @@ async function runReasoningEngine(
         };
         adjusted = true;
       }
-    } catch {
+    } catch (err) {
       // Tuner failed · proceed with base verdict (no degradation)
+      logError("ai.reasoning-engine", err, { fn: "runReasoningEngine.classifierTuner", baseTier: baseVerdict.tier }, "warn");
     }
   }
   rec.push(
@@ -1391,8 +1402,9 @@ async function persistTrace(
     if (persistWriteCounter % ROTATION_EVERY_N === 0) {
       void rotateReasoningTraces();
     }
-  } catch {
+  } catch (err) {
     // Best-effort · never let bookkeeping block the engine.
+    logError("ai.reasoning-engine", err, { fn: "persistTrace", tier: result.tier }, "warn");
   }
 }
 
@@ -1438,8 +1450,9 @@ async function recordOrphan(source: string, wastedMs: number): Promise<void> {
         },
       },
     });
-  } catch {
+  } catch (err) {
     // best-effort
+    logError("ai.reasoning-engine", err, { fn: "recordOrphan", source, wastedMs }, "warn");
   }
 }
 

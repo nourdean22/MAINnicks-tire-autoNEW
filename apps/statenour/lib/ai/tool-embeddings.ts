@@ -32,6 +32,7 @@
 import { getEmbedding } from "@/lib/ai/provider";
 import { nourTools } from "@/lib/ai/tools";
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 import { createHash } from "node:crypto";
 
 // Module-level cache. Persists for the lifetime of the lambda instance.
@@ -133,10 +134,7 @@ async function hydrateFromBrainMemory(
     }
     if (hydrated.size > 0) return hydrated;
   } catch (err) {
-    console.warn(
-      "[tool-embeddings] VectorEmbedding hydrate failed:",
-      err instanceof Error ? err.message : err,
-    );
+    logError("ai.tool-embeddings", err, { fn: "hydrateFromBrainMemory", table: "VectorEmbedding" }, "warn");
   }
   // Legacy fallback path · v10.0.203 keeps this until the next
   // warmup confirms VectorEmbedding has all rows. Phase 2 drops
@@ -158,10 +156,7 @@ async function hydrateFromBrainMemory(
       hydrated.add(name);
     }
   } catch (err) {
-    console.warn(
-      "[tool-embeddings] BrainMemory hydrate (legacy) failed:",
-      err instanceof Error ? err.message : err,
-    );
+    logError("ai.tool-embeddings", err, { fn: "hydrateFromBrainMemory", table: "BrainMemory" }, "warn");
   }
   return hydrated;
 }
@@ -169,7 +164,7 @@ async function hydrateFromBrainMemory(
 /**
  * Persist a freshly-computed embedding to BrainMemory so future cold
  * lambdas can hydrate from disk instead of paying the embedding API.
- * Fire-and-forget — failures are silent.
+ * Fire-and-forget — failures are logged at warn, never thrown.
  */
 async function persistEmbedding(
   name: string,
@@ -236,8 +231,9 @@ async function persistEmbedding(
         >[0]["create"]["metadata"],
       },
     });
-  } catch {
+  } catch (err) {
     // Persistence is opportunistic — next warmup will retry.
+    logError("ai.tool-embeddings", err, { fn: "persistEmbedding", tool: name }, "warn");
   }
 }
 
@@ -304,8 +300,9 @@ export function warmToolEmbeddings(): Promise<void> {
             // writes.
             const fp = fingerprintByName.get(name)!;
             void persistEmbedding(name, fp, emb);
-          } catch {
+          } catch (err) {
             // Skip this tool — keyword fallback will cover it.
+            logError("ai.tool-embeddings", err, { fn: "warmToolEmbeddings", tool: name }, "warn");
           }
         }),
       );

@@ -31,6 +31,7 @@ import { prisma } from "@/lib/prisma";
 import { createHash } from "node:crypto";
 import { semanticSearch } from "./embedding-utils";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 const NEGATION_TOKENS = [
   "not", "no longer", "never", "don't", "doesn't", "won't",
@@ -250,6 +251,7 @@ export async function loadRecentContradictions(
     select: { key: true, content: true, createdAt: true },
   });
   const out: StoredContradiction[] = [];
+  let malformed = 0;
   for (const r of rows) {
     try {
       const parsed = JSON.parse(r.content) as Contradiction;
@@ -257,8 +259,19 @@ export async function loadRecentContradictions(
       if (!includeResolved && status !== "unresolved") continue;
       out.push({ ...parsed, status, key: r.key, createdAt: r.createdAt.toISOString() });
     } catch {
-      // skip
+      // skip · aggregated below — this sits on hot read paths (ticker,
+      // badges); contradiction rows are always JSON on write, so any
+      // malformed row is a true anomaly worth one loud log per call
+      malformed++;
     }
+  }
+  if (malformed > 0) {
+    logError(
+      "brain.contradiction-surfacer",
+      new Error(`${malformed} malformed contradiction rows skipped`),
+      { fn: "loadRecentContradictions", malformed, scanned: rows.length },
+      "warn",
+    );
   }
   return out;
 }
