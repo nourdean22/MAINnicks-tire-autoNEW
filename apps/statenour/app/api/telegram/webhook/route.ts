@@ -499,6 +499,10 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
         return await cmdBoard(args, chatId);
       case "/team":
         return await cmdTeam(args.join(" "), chatId);
+      // AG-33 · ghostwriter on the phone — drafts land in the /content
+      // approval queue as PENDING, never auto-publish.
+      case "/draft":
+        return await cmdDraft(args, chatId);
       // v8.23 — phone-first remote read extensions
       case "/goals":
         return await cmdGoals(chatId);
@@ -545,6 +549,7 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `\n<b>COUNCIL (AG-13)</b>\n` +
             `/board [strategic|invest|product|operator|full] [q] — Convene an advisor board\n` +
             `/team [q] — Ask the team (thought partner · strategist · tactician · consultant)\n` +
+            `/draft [sms|social|email|longform] [brief] — Ghostwrite in your voice → approval queue\n` +
             `\n<b>OUTREACH (Wave-200)</b>\n` +
             `/approve [campaignId] — Approve pending bulk-SMS\n` +
             `/reject [campaignId] — Reject pending bulk-SMS\n` +
@@ -783,6 +788,48 @@ async function cmdTeam(question: string, chatId: string): Promise<void> {
     );
   } catch (err) {
     await sendTelegram(`⚠️ Team run failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+// AG-33 · /draft — ghostwriter on the phone. Ack-first (generation +
+// critic + possible revision takes 10-25s); the result lands in the
+// SocialPublishQueue as PENDING, so nothing publishes without the
+// operator's tap on /content.
+async function cmdDraft(args: string[], chatId: string): Promise<void> {
+  const CHANNELS = ["sms", "social", "email", "longform"] as const;
+  const channel = (args[0] ?? "").toLowerCase() as (typeof CHANNELS)[number];
+  const brief = args.slice(1).join(" ").trim();
+  if (!CHANNELS.includes(channel) || brief.length < 8) {
+    await sendTelegram(
+      `Usage: /draft [${CHANNELS.join("|")}] [brief]\n\nExample: /draft sms follow up with the fleet lead about the 8-tire quote`,
+      chatId
+    );
+    return;
+  }
+  await sendTelegram(`✍️ Drafting (${channel})…`, chatId);
+  try {
+    const { ghostwrite } = await import("@/lib/ai/ghostwriter");
+    const ghost = await ghostwrite({ brief, channel });
+    const { createDraft } = await import("@/lib/content/drafts");
+    const draft = await createDraft({
+      content: ghost.text,
+      source: "telegram-draft",
+      kind: "post",
+      sourceMetadata:
+        ghost.score !== null
+          ? { criticScore: ghost.score, regenApplied: ghost.regenApplied, channel }
+          : { channel },
+    });
+    const scoreLine =
+      ghost.score !== null
+        ? ` · voice ${ghost.score}/100${ghost.regenApplied ? " (revised)" : ""}`
+        : "";
+    await sendTelegram(
+      `✍️ <b>Draft</b>${scoreLine}\n\n${ghost.text.slice(0, 3400)}\n\n<i>Queued as ${draft.key} — approve on /content.</i>`,
+      chatId
+    );
+  } catch (err) {
+    await sendTelegram(`⚠️ Draft failed: ${(err as Error).message}`, chatId);
   }
 }
 

@@ -166,6 +166,36 @@ export async function approveDraft(key: string): Promise<ContentDraft | null> {
 }
 
 /**
+ * AG-33 · Replace a draft's content (the revise loop). Merges the new
+ * critic metadata into sourceMetadata rather than clobbering whatever
+ * the generator stored.
+ */
+export async function updateDraftContent(
+  key: string,
+  content: string,
+  sourceMetadataPatch?: Record<string, unknown>,
+): Promise<ContentDraft | null> {
+  const id = parseIdFromKey(key);
+  const existing = await prisma.socialPublishQueue.findFirst({
+    where: { id, deletedAt: null },
+  });
+  if (!existing) return null;
+
+  const mergedMeta = {
+    ...((existing.sourceMetadata ?? {}) as Record<string, unknown>),
+    ...(sourceMetadataPatch ?? {}),
+  };
+  const row = await prisma.socialPublishQueue.update({
+    where: { id },
+    data: {
+      content,
+      sourceMetadata: mergedMeta as never,
+    },
+  });
+  return mapQueueItemToDraft(row);
+}
+
+/**
  * Reject a draft · soft-deletes the row.
  */
 export async function rejectDraft(key: string, reason?: string): Promise<void> {
