@@ -35,6 +35,7 @@ import {
   type LanguageModel,
 } from "ai";
 import { logger as rootLogger } from "@/lib/logger";
+import { logError } from "@/lib/utils/error-log";
 import {
   PROVIDERS_REGISTRY,
   TASK_ROUTING_PREFERENCES,
@@ -267,7 +268,10 @@ function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
           }
 
           options.body = JSON.stringify(parsed);
-        } catch {}
+        } catch (err) {
+          // Body rewrite is best-effort — the request proceeds unclamped.
+          logError("ai.provider", err, { fn: "createOllamaModel", modelId }, "warn");
+        }
       }
       return fetch(url, options);
     },
@@ -1017,8 +1021,9 @@ export async function aiChat(
           cacheCreationInputTokens: usageObj.providerMetadata?.anthropic?.cacheCreationInputTokens,
           cacheReadInputTokens: usageObj.providerMetadata?.anthropic?.cacheReadInputTokens,
         });
-      } catch {
+      } catch (err) {
         // never let telemetry break the provider
+        logError("ai.provider", err, { fn: "aiChat.cacheTelemetry", provider: entry.name }, "warn");
       }
 
       log.info("provider.success", { provider: entry.name, model: resolvedModelId, chars: cleaned.length });
@@ -1211,9 +1216,7 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
         );
       }
     } catch (err) {
-      console.warn(
-        `[ai:embedding] Cohere fetch threw: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      logError("ai.provider", err, { fn: "getEmbedding", provider: "cohere" }, "warn");
     }
   }
 
@@ -1249,9 +1252,7 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
         );
       }
     } catch (err) {
-      console.warn(
-        `[ai:embedding] OpenAI fetch threw: ${err instanceof Error ? err.message : String(err)}`
-      );
+      logError("ai.provider", err, { fn: "getEmbedding", provider: "openai" }, "warn");
     }
   }
 
@@ -1281,9 +1282,7 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
         );
       }
     } catch (err) {
-      console.warn(
-        `[ai:embedding] OpenRouter fetch threw: ${err instanceof Error ? err.message : String(err)}`
-      );
+      logError("ai.provider", err, { fn: "getEmbedding", provider: "openrouter" }, "warn");
     }
   }
 

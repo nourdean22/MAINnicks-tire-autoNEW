@@ -3,6 +3,8 @@
 // risk as budget.ts — pinned at compile time.
 import "server-only";
 
+import { logError } from "@/lib/utils/error-log";
+
 /**
  * Robust structured-JSON extraction from AI text output · v10.0.226.
  *
@@ -159,7 +161,10 @@ export function extractStructured<T>(
       try {
         const value = JSON.parse(repaired) as T;
         return { ok: true, value, via: "repaired" };
-      } catch { /* unreachable since repair() validates */ }
+      } catch (err) {
+        // Unreachable since repair() validates · if this fires the repair/parse invariant broke.
+        logError("ai.extract-structured", err, { fn: "extractStructured", kind, pass: "repaired-block" }, "warn");
+      }
     }
   }
 
@@ -169,7 +174,10 @@ export function extractStructured<T>(
     try {
       const value = JSON.parse(repairedAll) as T;
       return { ok: true, value, via: "repaired" };
-    } catch { /* fall through to error */ }
+    } catch (err) {
+      // Fall through to error · unreachable since repair() validates.
+      logError("ai.extract-structured", err, { fn: "extractStructured", kind, pass: "repaired-all" }, "warn");
+    }
   }
 
   return {

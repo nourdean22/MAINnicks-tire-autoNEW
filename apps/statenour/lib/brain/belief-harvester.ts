@@ -28,6 +28,7 @@
 import { prisma } from "@/lib/prisma";
 import { createHash } from "node:crypto";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 export interface Belief {
   statement: string;               // human-readable belief
@@ -124,6 +125,7 @@ export async function harvestBeliefs(): Promise<{
     createdAt: Date;
   }
   const parsed: Parsed[] = [];
+  let malformed = 0;
   for (const r of rows) {
     try {
       const p = JSON.parse(r.content) as { excerpt?: string; primary?: string };
@@ -141,8 +143,18 @@ export async function harvestBeliefs(): Promise<{
         createdAt: r.createdAt,
       });
     } catch {
-      // skip
+      // skip · aggregated below — malformed rows persist across the 30d
+      // window, so per-row logging would re-log them every harvest run
+      malformed++;
     }
+  }
+  if (malformed > 0) {
+    logError(
+      "brain.belief-harvester",
+      new Error(`${malformed} malformed importance rows skipped`),
+      { fn: "harvestBeliefs", malformed, scanned: rows.length },
+      "warn",
+    );
   }
 
   if (parsed.length < 3) return { clustersFound: 0, candidatesWritten: 0, newCandidates: 0 };
@@ -253,8 +265,9 @@ export async function harvestBeliefs(): Promise<{
           },
         });
         written++;
-      } catch {
+      } catch (err) {
         // skip
+        logError("brain.belief-harvester", err, { fn: "harvestBeliefs", key, candidateId: existing.id }, "warn");
       }
     } else {
       await prisma.brainMemory.create({
@@ -286,13 +299,22 @@ async function loadCategory(cat: "belief" | "belief_candidate"): Promise<StoredB
     select: { id: true, key: true, content: true },
   });
   const out: StoredBelief[] = [];
+  let malformed = 0;
   for (const r of rows) {
     try {
       const parsed = JSON.parse(r.content) as Belief;
       out.push({ ...parsed, dbId: r.id, key: r.key });
     } catch {
-      // skip
+      malformed++; // aggregated below — up to 100 rows per load
     }
+  }
+  if (malformed > 0) {
+    logError(
+      "brain.belief-harvester",
+      new Error(`${malformed} malformed ${cat} rows skipped`),
+      { fn: "loadCategory", cat, malformed, scanned: rows.length },
+      "warn",
+    );
   }
   return out;
 }

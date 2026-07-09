@@ -34,6 +34,7 @@
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { today, toDateString } from "@/lib/utils/datetime";
+import { logError } from "@/lib/utils/error-log";
 
 export type AxisDirection = "rising" | "falling" | "stable";
 
@@ -271,14 +272,25 @@ async function computeSocialBattery(): Promise<Omit<IdentityAxis, "direction" | 
     return { value: 50, evidence: ["no chat_importance rows yet"] };
   }
   const persons = new Set<string>();
+  let malformed = 0;
   for (const r of rows) {
     try {
       const parsed = JSON.parse(r.content) as { extracted?: { person?: string | null } };
       const p = parsed.extracted?.person;
       if (p) persons.add(p.toLowerCase());
     } catch {
-      // skip
+      // skip · aggregated below — up to 400 rows/pass, and raw parse
+      // errors can embed chat-derived content in their message
+      malformed++;
     }
+  }
+  if (malformed > 0) {
+    logError(
+      "brain.identity-snapshot",
+      new Error(`${malformed} malformed chat_importance rows skipped`),
+      { fn: "computeSocialBattery", malformed, scanned: rows.length },
+      "warn",
+    );
   }
   // 0 → 20, 3 → 60, 8 → 90
   const n = persons.size;
@@ -560,8 +572,9 @@ export async function loadIdentitySnapshot(): Promise<IdentitySnapshot> {
   if (row) {
     try {
       return JSON.parse(row.content) as IdentitySnapshot;
-    } catch {
+    } catch (err) {
       // fall through
+      logError("brain.identity-snapshot", err, { fn: "loadIdentitySnapshot", key: "current" }, "warn");
     }
   }
   return computeIdentitySnapshot();
@@ -585,6 +598,7 @@ export async function loadIdentityHistory(days = 30): Promise<Array<{
     select: { key: true, content: true },
   });
   const out: Array<{ date: string; axes: Partial<Record<AxisKey, number>> }> = [];
+  let malformed = 0;
   for (const r of rows) {
     const date = r.key.replace("history:", "");
     try {
@@ -595,8 +609,18 @@ export async function loadIdentityHistory(days = 30): Promise<Array<{
       }
       out.push({ date, axes });
     } catch {
-      // skip
+      // skip · aggregated below — this loop sits on the identity-projection
+      // request path, so per-row logging would write on every panel refresh
+      malformed++;
     }
+  }
+  if (malformed > 0) {
+    logError(
+      "brain.identity-snapshot",
+      new Error(`${malformed} malformed identity history rows skipped`),
+      { fn: "loadIdentityHistory", malformed, scanned: rows.length },
+      "warn",
+    );
   }
   return out;
 }

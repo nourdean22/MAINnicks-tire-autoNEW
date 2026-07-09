@@ -26,6 +26,15 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+// Lazy error sink · error-log statically imports lib/prisma, and this module
+// deliberately keeps its import graph DB-free (all prisma access is via
+// dynamic import inside try blocks). Never throws.
+function logIdempotencyError(err: unknown, extra: Record<string, unknown>): void {
+  void import("@/lib/utils/error-log")
+    .then(({ logError }) => logError("ai.reasoning-idempotency", err, extra, "warn"))
+    .catch(() => {});
+}
+
 export interface IdempotencyLookup {
   /** True if this key is currently in flight (started · not yet completed) */
   inFlight: boolean;
@@ -91,8 +100,9 @@ export async function reserveIdempotency(key: string, requestHash: string): Prom
         },
       },
     });
-  } catch {
+  } catch (err) {
     // Best-effort · TTL prune handles abandoned reservations
+    logIdempotencyError(err, { fn: "reserveIdempotency", key });
   }
 }
 
@@ -120,8 +130,9 @@ export async function storeIdempotencyResult(
         metadata: metadataJson,
       },
     });
-  } catch {
+  } catch (err) {
     // Best-effort
+    logIdempotencyError(err, { fn: "storeIdempotencyResult", key });
   }
 }
 
@@ -133,8 +144,9 @@ export async function releaseIdempotency(key: string): Promise<void> {
     await prisma.brainMemory.deleteMany({
       where: { category: BRAIN_CATEGORIES.REASONING_IDEMPOTENCY, key: `idem:${key}` },
     });
-  } catch {
+  } catch (err) {
     // Best-effort
+    logIdempotencyError(err, { fn: "releaseIdempotency", key });
   }
 }
 
@@ -169,7 +181,8 @@ export async function pruneStaleIdempotency(): Promise<void> {
     await prisma.brainMemory.deleteMany({
       where: { category: BRAIN_CATEGORIES.REASONING_IDEMPOTENCY, createdAt: { lt: cutoff } },
     });
-  } catch {
+  } catch (err) {
     // Best-effort
+    logIdempotencyError(err, { fn: "pruneStaleIdempotency" });
   }
 }
