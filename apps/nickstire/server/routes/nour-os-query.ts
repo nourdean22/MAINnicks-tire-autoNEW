@@ -304,51 +304,68 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const customerId = String(filters.customerId || "");
     if (!customerId) return { error: "customerId required" };
 
-    // Run the five queries in parallel · single customer = small set
-    // each · OK to fan out without concurrency limit.
-    const [
-      customerRows,
-      invoiceRows,
-      estimateRows,
-      algRows,
-      callbackRows,
-    ] = await Promise.all([
+    // 2026-07-10 · rewritten against the REAL prod schema. The prior
+    // version queried an `estimates` table that does not exist, selected
+    // `notes` from invoices (real col: serviceDescription), used
+    // camelCase columns on the snake_case alg_estimates table, and
+    // filtered alg_estimates/callback_requests by a customerId column
+    // neither table has — so EVERY customer-detail load threw four
+    // "Failed query" errors in prod (the statenour Customer-360 view was
+    // dead + log-spamming). alg_estimates.customer_id is NULL for all
+    // rows (ShopDriver sync keys by phone), so alg_estimates,
+    // callback_requests, and estimates_log are all matched by PHONE —
+    // which means we must resolve the customer (and its phone) first,
+    // then fan out the phone-keyed reads.
+    const customerRows = await d.execute(sql`
+      SELECT id, firstName, lastName, phone, email,
+             vehicleYear, vehicleMake, vehicleModel,
+             segment, totalVisits, totalSpent, lastVisitDate, createdAt
+      FROM customers WHERE id = ${customerId} LIMIT 1
+    `);
+    const customer = (customerRows[0] as Array<Record<string, unknown>>)?.[0] ?? null;
+    if (!customer) return { error: "Customer not found", customerId };
+    const phone = String(customer.phone ?? "");
+
+    const [invoiceRows, estimateRows, algRows, callbackRows] = await Promise.all([
       d.execute(sql`
-        SELECT id, firstName, lastName, phone, email,
-               vehicleYear, vehicleMake, vehicleModel,
-               segment, totalVisits, totalSpent, lastVisitDate, createdAt
-        FROM customers WHERE id = ${customerId} LIMIT 1
-      `),
-      d.execute(sql`
-        SELECT id, invoiceNumber, totalAmount, paymentStatus, invoiceDate, notes
+        SELECT id, invoiceNumber, totalAmount, paymentStatus, invoiceDate, serviceDescription
         FROM invoices
         WHERE customerId = ${customerId}
         ORDER BY invoiceDate DESC LIMIT 10
       `),
+      // Formal estimates live in estimates_log (phone-keyed).
       d.execute(sql`
-        SELECT id, estimateNumber, totalAmount, status, createdAt, declineReason
-        FROM estimates
-        WHERE customerId = ${customerId}
+        SELECT id, service, estimatedAmountCents, converted, invoiceId, createdAt
+        FROM estimates_log
+        WHERE phone = ${phone}
         ORDER BY createdAt DESC LIMIT 5
       `),
+      // Walk-in quotes synced from ShopDriver (snake_case, phone-keyed).
+      // Aliased to the camelCase timeline contract the statenour
+      // consumer (lib/brain/customer-preferences.ts) reads. `status` is
+      // derived from the documented match heuristic — an unmatched quote
+      // is a walked/declined-work recovery target (NICKSTIRE-QUERY-
+      // CONTRACT.md §2) — so declinedValueCents/openRecoveryCount, which
+      // were silently 0 while this query errored, now populate.
       d.execute(sql`
-        SELECT id, totalAmount, services, status, createdAt, scoreCard
+        SELECT id,
+               estimated_amount AS totalAmount,
+               service_description AS services,
+               CASE WHEN matched_invoice_id IS NULL THEN 'walked' ELSE 'converted' END AS status,
+               source,
+               matched_invoice_id,
+               created_at AS createdAt
         FROM alg_estimates
-        WHERE customerId = ${customerId}
-        ORDER BY createdAt DESC LIMIT 5
+        WHERE customer_phone = ${phone}
+        ORDER BY created_at DESC LIMIT 5
       `),
       d.execute(sql`
-        SELECT id, name, context, status, createdAt, completedAt
+        SELECT id, name, context, status, createdAt, calledAt
         FROM callback_requests
-        WHERE customerId = ${customerId} OR phone IN (
-          SELECT phone FROM customers WHERE id = ${customerId} LIMIT 1
-        )
+        WHERE phone = ${phone}
         ORDER BY createdAt DESC LIMIT 5
       `),
     ]);
-
-    const customer = (customerRows[0] as unknown[])?.[0] ?? null;
-    if (!customer) return { error: "Customer not found", customerId };
 
     const invoices = (invoiceRows[0] as unknown[]) ?? [];
     const estimates = (estimateRows[0] as unknown[]) ?? [];
