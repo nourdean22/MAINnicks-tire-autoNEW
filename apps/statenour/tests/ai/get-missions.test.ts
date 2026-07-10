@@ -4,12 +4,17 @@ const mocks = vi.hoisted(() => ({
   mission: {
     findMany: vi.fn(),
   },
+  logError: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     mission: mocks.mission,
   },
+}));
+
+vi.mock("@/lib/utils/error-log", () => ({
+  logError: mocks.logError,
 }));
 
 import { missionsTools } from "@/lib/ai/tools/missions";
@@ -48,11 +53,14 @@ describe("getMissions tool execution", () => {
     });
   });
 
-  it("throws a clear unavailable error on database failure", async () => {
-    mocks.mission.findMany.mockRejectedValueOnce(new Error("Connection timeout"));
+  it("throws a clear unavailable error on database failure and logs it", async () => {
+    const dbError = new Error("Connection timeout");
+    mocks.mission.findMany.mockRejectedValueOnce(dbError);
 
     await expect(
       (missionsTools.getMissions.execute as any)({})
-    ).rejects.toThrow("Missions database is unavailable: Connection timeout");
+    ).rejects.toThrow("Missions database is unavailable");
+
+    expect(mocks.logError).toHaveBeenCalledWith("ai.tools.missions", dbError, { fn: "getMissions" });
   });
 });

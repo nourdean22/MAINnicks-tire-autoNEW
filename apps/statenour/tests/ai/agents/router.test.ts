@@ -26,6 +26,7 @@ vi.mock("@/lib/ai/provider", () => ({
 import { aiChat } from "@/lib/ai/provider";
 import { routeMessage, classifyByKeyword } from "@/lib/ai/agents/router";
 import { loadFeatureFlagOverrides } from "@/lib/feature-flags";
+import { isSpecialistShadowMode, isSpecialistRoutingEnabled } from "@/lib/ai/agents/types";
 
 beforeEach(async () => {
   vi.clearAllMocks();

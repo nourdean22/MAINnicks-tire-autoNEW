@@ -85,4 +85,65 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     const pruned = await pruneTools("standard", tools, query);
     expect(Object.keys(pruned)).toContain(expectedKey);
   });
+
+  it("survives pruning in deep mode under pressure of 60 filler tools for all 7 followup tools", async () => {
+    const allTools: Record<string, unknown> = {};
+    for (let i = 1; i <= 60; i++) {
+      allTools[`extraTool-${i}`] = { name: `extraTool-${i}` };
+    }
+    // Add Core and Action tools
+    allTools["classifyThought"] = { name: "classifyThought" };
+    allTools["createTask"] = { name: "createTask" };
+
+    // Add the 7 followup tools
+    const followups = [
+      "getCameraIntelligence",
+      "getReviewStats",
+      "getTopServices",
+      "pricingAdvisorySummary",
+      "analyzeWeightTrend",
+      "generateSQL",
+      "runSimulation",
+    ];
+    for (const f of followups) {
+      allTools[f] = { name: f };
+    }
+
+    // Trigger keyword matching by including the trigger words in the query
+    const query = "show me the camera feed, google reviews stats, top services, pricing advisory, weight trend, generate sql and run simulation";
+    const pruned = await pruneTools("deep", allTools, query, [0.1, 0.2]);
+    const keys = Object.keys(pruned);
+
+    expect(keys.length).toBe(50);
+    expect(keys).toContain("classifyThought");
+    expect(keys).toContain("createTask");
+    for (const f of followups) {
+      expect(keys).toContain(f);
+    }
+  });
+
+  it("caps at 50 tools and prioritizes core, action, and direct-intent tools deterministically when priority candidates exceed 50", async () => {
+    const allTools: Record<string, unknown> = {};
+    // Construct 60 priority candidates (which match InstagramAutopost keyword regex)
+    for (let i = 1; i <= 60; i++) {
+      allTools[`InstagramAutopost-${i}`] = { name: `InstagramAutopost-${i}` };
+    }
+
+    // Add Core and Action tools
+    allTools["classifyThought"] = { name: "classifyThought" };
+    allTools["createTask"] = { name: "createTask" };
+
+    // We will query with "instagram" to trigger keyword-based match
+    const pruned = await pruneTools("deep", allTools, "please check my instagram posts", [0.1, 0.2]);
+    const keys = Object.keys(pruned);
+
+    // Assert cappings and deterministic ordering
+    expect(keys.length).toBe(50);
+    expect(keys[0]).toBe("classifyThought");
+    expect(keys[1]).toBe("createTask");
+
+    // The remaining slots (48) must be filled from the 60 tools deterministically.
+    const extraKeys = keys.slice(2);
+    expect(extraKeys).toEqual(Array.from(extraKeys).sort());
+  });
 });

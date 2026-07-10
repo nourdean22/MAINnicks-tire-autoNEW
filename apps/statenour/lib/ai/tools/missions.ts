@@ -13,6 +13,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createTaskAndEnrich } from "@/lib/services/tasks";
 import { isUserProject } from "@/lib/services/mission-helpers";
+import { logError } from "@/lib/utils/error-log";
 
 export const missionsTools = {
   getMissions: tool({
@@ -31,9 +32,8 @@ export const missionsTools = {
         });
         return missions.filter((m) => m.systemKind !== "SYSTEM" && isUserProject(m));
       } catch (err) {
-        throw new Error(
-          `Missions database is unavailable: ${err instanceof Error ? err.message : String(err)}`
-        );
+        logError("ai.tools.missions", err as Error, { fn: "getMissions" });
+        throw new Error("Missions database is unavailable");
       }
     },
   }),
