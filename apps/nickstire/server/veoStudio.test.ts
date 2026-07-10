@@ -26,4 +26,22 @@ describe("buildVeoRequestBody", () => {
     expect(p.durationSeconds).toBe(8); // numeric, not the string "8" that veo-3.0 rejects
     expect(p.personGeneration).toBe("allow_adult");
   });
+
+  it("sets generateAudio to false only when env opts in to disable audio", () => {
+    const env1 = {
+      REEL_VEO_AUDIO_DISABLED: "true",
+    } as unknown as NodeJS.ProcessEnv;
+    const p1 = buildVeoRequestBody("x", env1).parameters as Record<string, unknown>;
+    expect(p1.generateAudio).toBe(false);
+
+    const env2 = {
+      REEL_VEO_GENERATE_AUDIO: "false",
+    } as unknown as NodeJS.ProcessEnv;
+    const p2 = buildVeoRequestBody("x", env2).parameters as Record<string, unknown>;
+    expect(p2.generateAudio).toBe(false);
+
+    const envDefault = {} as NodeJS.ProcessEnv;
+    const pDefault = buildVeoRequestBody("x", envDefault).parameters as Record<string, unknown>;
+    expect(pDefault.generateAudio).toBeUndefined();
+  });
 });
