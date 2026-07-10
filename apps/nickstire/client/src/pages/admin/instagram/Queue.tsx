@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Kanban, Search, RefreshCw, Send, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { Loader2, Kanban, Search, RefreshCw, Send, CheckCircle2, XCircle, AlertTriangle, Check } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,16 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
     onSuccess: () => {
       toast.success("Draft Rejected");
       refetch();
+    }
+  });
+
+  const approveDraft = trpc.instagramAdmin.approveDraft.useMutation({
+    onSuccess: () => {
+      toast.success("Reel approved successfully! Draft status is now ready.");
+      refetch();
+    },
+    onError: (err) => {
+      toast.error("Approval Failed", { description: err.message });
     }
   });
 
@@ -96,15 +106,19 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
           {filteredDrafts.map((draft: any) => (
             <Card key={draft.id} className="flex flex-col h-full overflow-hidden">
               <div className="h-40 bg-muted/50 border-b relative flex items-center justify-center">
-                {draft.assetPack?.imageUrl ? (
-                  draft.format === "reel" || draft.assetPack.imageUrl.endsWith(".mp4") ? (
-                    <video src={draft.assetPack.imageUrl} className="object-cover h-full w-full" controls muted playsInline />
+                {draft.format === "reel" ? (
+                  draft.assetPack?.videoUrl ? (
+                    <video src={draft.assetPack.videoUrl} className="object-cover h-full w-full" controls muted playsInline />
                   ) : (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={draft.assetPack.imageUrl} alt="Asset" className="object-cover h-full w-full" />
+                    <span className="text-sm text-muted-foreground">No Video Attached</span>
                   )
                 ) : (
-                  <span className="text-sm text-muted-foreground">No Media Attached</span>
+                  draft.assetPack?.imageUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={draft.assetPack.imageUrl} alt="Asset" className="object-cover h-full w-full" />
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No Image Attached</span>
+                  )
                 )}
                 <Badge className="absolute top-2 right-2 bg-black/70 hover:bg-black/80 capitalize">
                   {draft.format}
@@ -136,21 +150,32 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
                 </CardDescription>
               </CardHeader>
               <CardContent className="bg-muted/10 pt-4 border-t mt-auto">
-                <div className="flex gap-2">
-                  <Button 
-                    className="flex-1" 
-                    variant="default"
-                    disabled={draft.status === "published" || publishDraft.isPending}
-                    onClick={() => publishDraft.mutate({ 
-                      inventoryId: draft.id,
-                      platforms: ["instagram"],
-                      caption: draft.caption || "", 
-                      imageUrl: draft.format !== "reel" ? (draft.assetPack?.imageUrl || undefined) : undefined,
-                      videoUrl: draft.format === "reel" ? (draft.assetPack?.imageUrl || undefined) : undefined
-                    })}
-                  >
-                    <Send className="h-4 w-4 mr-2" /> Publish
-                  </Button>
+                <div className="flex gap-2 w-full">
+                  {draft.status === "needs_review" && draft.format === "reel" ? (
+                    <Button 
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold" 
+                      disabled={approveDraft.isPending}
+                      onClick={() => approveDraft.mutate({ id: draft.id })}
+                    >
+                      {approveDraft.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+                      Approve Reel
+                    </Button>
+                  ) : (
+                    <Button 
+                      className="flex-1" 
+                      variant="default"
+                      disabled={draft.status !== "ready" || publishDraft.isPending}
+                      onClick={() => publishDraft.mutate({ 
+                        inventoryId: draft.id,
+                        platforms: ["instagram"],
+                        caption: draft.caption || "", 
+                        imageUrl: draft.format !== "reel" ? (draft.assetPack?.imageUrl || undefined) : undefined,
+                        videoUrl: draft.format === "reel" ? (draft.assetPack?.videoUrl || undefined) : undefined
+                      })}
+                    >
+                      <Send className="h-4 w-4 mr-2" /> Publish
+                    </Button>
+                  )}
                   <Button 
                     variant="outline" 
                     className="flex-none text-destructive hover:bg-destructive/10"

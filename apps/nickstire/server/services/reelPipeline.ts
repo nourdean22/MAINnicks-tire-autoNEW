@@ -59,7 +59,12 @@ export interface ReelJobBrief {
   id?: string;
   selectedCaption?: string;
   hashtags?: string[];
-  storyboardBeats?: Array<{ beatNumber: number; visual: string; onScreenText?: string }>;
+  storyboardBeats?: Array<{ 
+    beatNumber: number; 
+    visual: string; 
+    onScreenText?: string;
+    veoOperationName?: string;
+  }>;
   promptPack?: Array<{ beatNumber: number; prompt: string }>;
   higgsfieldPromptPack?: Array<{ beatNumber: number; prompt: string }>;
   voiceoverScript?: string;
@@ -77,6 +82,16 @@ export async function enqueueReelJob(
   const d = await getDb();
   if (!d) throw new Error("DB not available");
   const { reelJobs } = await import("../../drizzle/schema");
+
+  try {
+    const { buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
+    const promptPack = buildHiggsfieldReelPromptPack(brief as any);
+    brief.promptPack = promptPack;
+    brief.higgsfieldPromptPack = promptPack;
+  } catch (e) {
+    log.warn("failed to rebuild prompt packs server-side in enqueueReelJob", e);
+  }
+
   const caption = brief.selectedCaption
     ? `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim().slice(0, 2200)
     : null;
@@ -168,22 +183,47 @@ export async function processNextReelJob(): Promise<{
         brief.promptPack?.find((p) => p.beatNumber === beat.beatNumber)?.prompt ??
         brief.higgsfieldPromptPack?.find((p) => p.beatNumber === beat.beatNumber)?.prompt ?? beat.visual;
       if (!prompt || !prompt.trim()) throw new Error(`beat ${beat.beatNumber} has no prompt`);
-      
-      // Timeout-guarded: a hung Veo poll otherwise blocks here forever
-      const hgUrl = await withTimeout(
-        generateReelClipVideo(prompt),
-        GEN_CLIP_TIMEOUT_MS,
-        `gen beat ${beat.beatNumber}`,
-      );
-      
-      // Re-host the generated clip to our own public storage
-      const resp = await withTimeout(fetch(hgUrl), CLIP_FETCH_TIMEOUT_MS, `fetch beat ${beat.beatNumber}`);
-      if (!resp.ok) throw new Error(`failed to fetch clip for beat ${beat.beatNumber}: HTTP ${resp.status}`);
-      const buf = Buffer.from(await resp.arrayBuffer());
-      const put = await storagePut(`reels/clip-${job.id}-${beat.beatNumber}.mp4`, buf, "video/mp4");
+
+      const { submitVeoRequest, pollVeoOperation, downloadAndRehostVeoVideo } = await import("./veoStudio");
+
+      let finalClipUrl = "";
+      let opName = beat.veoOperationName;
+
+      if (opName) {
+        log.info("resuming generation: polling existing Veo operation name", { jobId: job.id, beat: beat.beatNumber, opName });
+        try {
+          const videoUri = await withTimeout(
+            pollVeoOperation(opName),
+            GEN_CLIP_TIMEOUT_MS,
+            `poll beat ${beat.beatNumber} (existing)`
+          );
+          finalClipUrl = await downloadAndRehostVeoVideo(videoUri);
+        } catch (pollErr) {
+          log.warn("existing operation name failed or timed out, creating fresh request", { jobId: job.id, beat: beat.beatNumber, err: pollErr });
+          opName = undefined;
+        }
+      }
+
+      if (!opName) {
+        opName = await submitVeoRequest(prompt);
+        beat.veoOperationName = opName;
+        await d.update(reelJobs)
+          .set({ 
+            payload: JSON.stringify(brief),
+            updatedAt: new Date() 
+          })
+          .where(eq(reelJobs.id, job.id));
+
+        const videoUri = await withTimeout(
+          pollVeoOperation(opName),
+          GEN_CLIP_TIMEOUT_MS,
+          `poll beat ${beat.beatNumber} (new)`
+        );
+        finalClipUrl = await downloadAndRehostVeoVideo(videoUri);
+      }
       
       // Save clip URL at the specific beat index
-      clipUrls[i] = put.url;
+      clipUrls[i] = finalClipUrl;
 
       // Heartbeat: bump updatedAt and progressive clipUrlsJson in the DB immediately after each success
       await d.update(reelJobs)
@@ -273,7 +313,7 @@ export async function processNextAssemblyJob(): Promise<{
       await d
         .update(socialContentInventory)
         .set({
-          status: "assets_ready",
+          status: "review_ready",
           assetPaths: [mp4Url],
           errorMessage: null,
           updatedAt: new Date(),

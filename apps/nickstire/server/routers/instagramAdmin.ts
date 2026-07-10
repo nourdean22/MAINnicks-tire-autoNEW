@@ -375,7 +375,7 @@ Keep it under 200 characters.`;
         if (!qRes.passing) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: `Reel brief quality score (${qRes.score}/75) is below passing threshold.`,
+            message: `Reel brief quality score (${qRes.overall}/75) is below passing threshold.`,
           });
         }
         const blocks = qRes.parts.filter(p => !p.ok);
@@ -385,7 +385,7 @@ Keep it under 200 characters.`;
             message: "Reel blocked by safety or claim gate checks.",
           });
         }
-        overallScore = qRes.score;
+        overallScore = qRes.overall;
       }
 
       const database = await db();
@@ -415,12 +415,95 @@ Keep it under 200 characters.`;
         bodyText: "",
         visualStyle: "manual",
         persona: "manual",
-        status: "assets_ready",
+        status: "ready", // For manual drafts, default to ready directly
         assetPaths,
         briefJson: JSON.stringify(input.conceptBrief || {}),
         scoreOverall: overallScore,
       });
       
+      return { success: true };
+    }),
+
+  approveDraft: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const { socialContentInventory } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      const rows = await database
+        .select()
+        .from(socialContentInventory)
+        .where(eq(socialContentInventory.id, input.id))
+        .limit(1);
+      
+      const draft = rows[0];
+      if (!draft) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
+      
+      if (draft.status !== "review_ready") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only drafts in 'review_ready' status can be approved.",
+        });
+      }
+
+      const brief = JSON.parse(draft.briefJson || "{}");
+      
+      // Extract media URL from assetPaths
+      let videoUrl = "";
+      if (Array.isArray(draft.assetPaths)) {
+        videoUrl = draft.assetPaths[0] as string;
+      } else if (typeof draft.assetPaths === "string") {
+        try {
+          const parsed = JSON.parse(draft.assetPaths);
+          if (Array.isArray(parsed)) videoUrl = parsed[0];
+        } catch (e) {}
+      }
+
+      if (!videoUrl) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No video asset found on this draft.",
+        });
+      }
+
+      const beats = brief.storyboardBeats || [];
+      const beatsDuration = beats.reduce((acc: number, beat: any) => acc + ((beat.endSecond || 3) - (beat.startSecond || 0)), 0);
+      const expectedDuration = beatsDuration + 3.0; // beats + CTA card duration
+
+      const validation = await validateFinalMedia(videoUrl, expectedDuration);
+      if (!validation.valid) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Final media validation failed: ${validation.error}`,
+        });
+      }
+
+      const { createHash } = await import("crypto");
+      const briefHash = createHash("sha256").update(draft.briefJson || "").digest("hex");
+      const mediaHash = createHash("sha256").update(videoUrl).digest("hex");
+
+      const approvalMetadata = {
+        reviewerId: ctx.user?.id || 1,
+        timestamp: new Date().toISOString(),
+        briefHash,
+        mediaHash,
+      };
+
+      brief.approval = approvalMetadata;
+
+      await database
+        .update(socialContentInventory)
+        .set({
+          status: "ready",
+          briefJson: JSON.stringify(brief),
+          errorMessage: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(socialContentInventory.id, input.id));
+
       return { success: true };
     }),
 
@@ -524,6 +607,24 @@ Keep it under 200 characters.`;
       videoUrl: z.string().url().optional(),
     }))
     .mutation(async ({ input }) => {
+      const database = await db();
+      if (input.inventoryId && database) {
+        const { socialContentInventory } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const rows = await database
+          .select()
+          .from(socialContentInventory)
+          .where(eq(socialContentInventory.id, input.inventoryId))
+          .limit(1);
+        const draft = rows[0];
+        if (draft && draft.contentType === "reel" && draft.status !== "ready" && draft.status !== "published") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "This Reel draft must be reviewed and approved before publishing.",
+          });
+        }
+      }
+
       const { captionClaimBlockers, assertPermanentPublicMediaUrl, publishToSocial } = await import("../services/socialPublish");
       if (input.videoUrl) assertPermanentPublicMediaUrl(input.videoUrl);
       
@@ -542,15 +643,12 @@ Keep it under 200 characters.`;
         });
       }
 
-      if (input.inventoryId) {
-        const database = await db();
-        if (database) {
-          const { socialContentInventory } = await import("../../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
-          await database.update(socialContentInventory)
-            .set({ status: "published", publishedAt: new Date() })
-            .where(eq(socialContentInventory.id, input.inventoryId));
-        }
+      if (input.inventoryId && database) {
+        const { socialContentInventory } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await database.update(socialContentInventory)
+          .set({ status: "published", publishedAt: new Date() })
+          .where(eq(socialContentInventory.id, input.inventoryId));
       }
 
       return { success: true, results, postId: igPostId };
@@ -569,6 +667,24 @@ Keep it under 200 characters.`;
       scheduledAt: z.string().datetime(),
     }))
     .mutation(async ({ input }) => {
+      const database = await db();
+      if (input.inventoryId && database) {
+        const { socialContentInventory } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const rows = await database
+          .select()
+          .from(socialContentInventory)
+          .where(eq(socialContentInventory.id, input.inventoryId))
+          .limit(1);
+        const draft = rows[0];
+        if (draft && draft.contentType === "reel" && draft.status !== "ready" && draft.status !== "published") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "This Reel draft must be reviewed and approved before scheduling.",
+          });
+        }
+      }
+
       const { captionClaimBlockers, assertPermanentPublicMediaUrl } = await import("../services/socialPublish");
       if (input.videoUrl) assertPermanentPublicMediaUrl(input.videoUrl);
       
@@ -583,7 +699,6 @@ Keep it under 200 characters.`;
       if (when.getTime() <= Date.now()) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Scheduled time must be in the future." });
       }
-      const database = await db();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       const { scheduledPosts, socialContentInventory } = await import("../../drizzle/schema");
       await database.insert(scheduledPosts).values({
@@ -774,7 +889,7 @@ Keep it under 200 characters.`;
           try {
             const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
             const qRes = calculateReelQualityScore(parsedBrief);
-            scoreObj = { gate: qRes.passing ? "pass" : "block", overall: qRes.score };
+            scoreObj = { gate: qRes.passing ? "pass" : "block", overall: qRes.overall };
           } catch (e) {
             log.warn("failed to calculate reel score in getAllDrafts", e);
             scoreObj = { gate: "block", overall: 0 };
@@ -838,3 +953,48 @@ Keep it under 200 characters.`;
       return { success: true };
     }),
 });
+
+export async function validateFinalMedia(mp4Url: string, expectedDuration: number): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const { exec } = await import("child_process");
+    const { promisify } = await import("util");
+    const execAsync = promisify(exec);
+
+    const headResp = await fetch(mp4Url, { method: "HEAD" });
+    if (!headResp.ok) {
+      return { valid: false, error: `Failed to fetch video headers: HTTP ${headResp.status}` };
+    }
+    const contentType = headResp.headers.get("content-type");
+    if (contentType !== "video/mp4" && contentType !== "application/octet-stream") {
+      log.info(`allowing MIME type fallback: ${contentType}`);
+    }
+    const contentLength = Number(headResp.headers.get("content-length"));
+    if (isNaN(contentLength) || contentLength <= 0) {
+      return { valid: false, error: "Video file size is zero or invalid." };
+    }
+
+    const ffprobeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=width,height,duration -of csv=p=0 "${mp4Url}"`;
+    const { stdout } = await execAsync(ffprobeCmd);
+    const parts = stdout.trim().split(",");
+    if (parts.length < 3) {
+      return { valid: false, error: `ffprobe output incomplete: ${stdout.trim()}` };
+    }
+    const [widthStr, heightStr, durationStr] = parts;
+    
+    const width = parseInt(widthStr, 10);
+    const height = parseInt(heightStr, 10);
+    const duration = parseFloat(durationStr);
+
+    if (isNaN(width) || isNaN(height) || width !== 1080 || height !== 1920) {
+      return { valid: false, error: `Invalid resolution: expected vertical 1080x1920, got ${widthStr}x${heightStr}` };
+    }
+
+    if (isNaN(duration) || Math.abs(duration - expectedDuration) > 1.5) {
+      return { valid: false, error: `Invalid duration: expected ~${expectedDuration}s, got ${durationStr}s` };
+    }
+
+    return { valid: true };
+  } catch (err) {
+    return { valid: false, error: `Media validation failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}

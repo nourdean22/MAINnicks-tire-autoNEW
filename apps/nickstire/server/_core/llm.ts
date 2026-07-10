@@ -211,7 +211,11 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () => {
+const resolveApiUrl = (model?: string) => {
+  const isGeminiModel = !!model && (model.startsWith("gemini-") || model.startsWith("google/"));
+  if (isGeminiModel && process.env.GEMINI_API_KEY) {
+    return "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions";
+  }
   if (process.env.OPENAI_BASE_URL) {
     return `${process.env.OPENAI_BASE_URL.replace(/\/$/, "")}/v1/chat/completions`;
   }
@@ -225,7 +229,11 @@ const resolveApiUrl = () => {
 };
 
 /** Returns the correct API key — OPENAI_API_KEY or GEMINI_API_KEY */
-const resolveApiKey = (): string => {
+const resolveApiKey = (model?: string): string => {
+  const isGeminiModel = !!model && (model.startsWith("gemini-") || model.startsWith("google/"));
+  if (isGeminiModel && process.env.GEMINI_API_KEY) {
+    return process.env.GEMINI_API_KEY;
+  }
   if (process.env.OPENAI_API_KEY) {
     return process.env.OPENAI_API_KEY;
   }
@@ -235,10 +243,10 @@ const resolveApiKey = (): string => {
   return "";
 };
 
-const assertApiKey = () => {
-  const key = resolveApiKey();
+const assertApiKey = (model?: string) => {
+  const key = resolveApiKey(model);
   if (!key) {
-    throw new Error("No API key configured (checked GEMINI_API_KEY and OPENAI_API_KEY)");
+    throw new Error(`No API key configured for model "${model || "default"}" (checked GEMINI_API_KEY and OPENAI_API_KEY)`);
   }
 };
 
@@ -288,7 +296,11 @@ const normalizeResponseFormat = ({
 };
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
+  const model = params.model || (process.env.OPENAI_API_KEY
+    ? (process.env.LLM_MODEL || "gpt-4o")
+    : (process.env.GEMINI_MODEL || "gemini-1.5-pro"));
+
+  assertApiKey(model);
 
   const {
     messages,
@@ -302,9 +314,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: params.model || (process.env.OPENAI_API_KEY
-      ? (process.env.LLM_MODEL || "gpt-4o")
-      : (process.env.GEMINI_MODEL || "gemini-1.5-pro")),
+    model,
     messages: messages.map(normalizeMessage),
   };
 
@@ -333,11 +343,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
+  const response = await fetch(resolveApiUrl(model), {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${resolveApiKey()}`,
+      authorization: `Bearer ${resolveApiKey(model)}`,
     },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(params.timeoutMs ?? 30000), // default 30s; heavy generations override

@@ -36,6 +36,9 @@ export interface GenerateReelBriefInput {
   factBucket?: string;
   archetype?: string;
   avoidTopics?: string[];
+  sourceType?: string;
+  sourceId?: string;
+  sourceDetail?: string;
 }
 
 /** Strict JSON schema for the WINNING reel only — the model ideates + scores
@@ -186,10 +189,124 @@ function coerceKeyword(v: string): CampaignKeyword {
     : (CAMPAIGN_KEYWORDS[0] as CampaignKeyword);
 }
 
+export interface ResolvedSource {
+  evidence: string;
+  isVerified: boolean;
+  provenanceId?: string;
+  sourceType: string;
+}
+
+export async function resolveSourceProvenance(
+  sourceType: string,
+  sourceId?: string,
+  sourceDetail?: string
+): Promise<ResolvedSource> {
+  const { getDb } = await import("../db");
+  const db = await getDb();
+  if (!db) {
+    return { evidence: sourceDetail || "", isVerified: false, sourceType };
+  }
+
+  if (sourceType === "review" && sourceId) {
+    const numericId = parseInt(sourceId, 10);
+    if (!isNaN(numericId)) {
+      const { reviewReplies, reviewPipeline } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      try {
+        const replies = await db
+          .select()
+          .from(reviewReplies)
+          .where(eq(reviewReplies.id, numericId))
+          .limit(1);
+        if (replies[0]?.reviewText) {
+          return {
+            evidence: `Grounded 5-Star Review by ${replies[0].reviewerName || "Anonymous"}: "${replies[0].reviewText}"`,
+            isVerified: true,
+            provenanceId: sourceId,
+            sourceType
+          };
+        }
+      } catch (e) {}
+
+      try {
+        const pipeline = await db
+          .select()
+          .from(reviewPipeline)
+          .where(eq(reviewPipeline.id, numericId))
+          .limit(1);
+        if (pipeline[0]?.reviewText) {
+          return {
+            evidence: `Grounded 5-Star Review by ${pipeline[0].authorName || "Anonymous"}: "${pipeline[0].reviewText}"`,
+            isVerified: true,
+            provenanceId: sourceId,
+            sourceType
+          };
+        }
+      } catch (e) {}
+    }
+  }
+
+  if (sourceType === "declined_work" && sourceId) {
+    const { workOrders, workOrderItems } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    
+    try {
+      const items = await db
+        .select()
+        .from(workOrderItems)
+        .where(eq(workOrderItems.id, sourceId))
+        .limit(1);
+      if (items[0]?.description) {
+        return {
+          evidence: `Grounded Declined Work Item: "${items[0].description}" (Notes: ${items[0].notes || "None"})`,
+          isVerified: true,
+          provenanceId: sourceId,
+          sourceType
+        };
+      }
+    } catch (e) {}
+
+    try {
+      const orders = await db
+        .select()
+        .from(workOrders)
+        .where(eq(workOrders.id, sourceId))
+        .limit(1);
+      if (orders[0]?.orderNumber) {
+        return {
+          evidence: `Grounded Work Order #${orders[0].orderNumber} (Vehicle ID: ${orders[0].vehicleId || "Unknown"})`,
+          isVerified: true,
+          provenanceId: sourceId,
+          sourceType
+        };
+      }
+    } catch (e) {}
+  }
+
+  return {
+    evidence: sourceDetail || "",
+    isVerified: false,
+    sourceType
+  };
+}
+
 /** Generate a ready-to-review ReelBrief from the Studio's master prompt. */
 export async function generateReelBriefAI(
   input: GenerateReelBriefInput,
 ): Promise<{ brief: ReelBrief; rawModel: string }> {
+  // Resolve source provenance from DB
+  const resolved = await resolveSourceProvenance(
+    input.sourceType || "manual",
+    input.sourceId,
+    input.sourceDetail || input.topic
+  );
+
+  // Enforce NEEDS_RESEARCH blocking
+  if ((input.sourceType === "review" || input.sourceType === "declined_work") && !resolved.isVerified) {
+    throw new Error("NEEDS_RESEARCH: Grounded database evidence record not found or unverified. Operator context notes cannot be treated as verified facts.");
+  }
+
   let proprietaryEvidence: NonNullable<Parameters<typeof buildFacelessReelSystemPrompt>[0]>["proprietaryEvidence"];
   try {
     const { getProprietaryEvidence } = await import("./evidenceEngine");
@@ -206,6 +323,7 @@ export async function generateReelBriefAI(
     archetype: input.archetype as ReelArchetype | undefined,
     avoidRecentTopics: input.avoidTopics,
     proprietaryEvidence,
+    resolvedEvidence: resolved.evidence,
   });
 
   // Phase 5.4 + 3.3: feed what's performed back into generation + push a DM-share CTA.
@@ -344,6 +462,15 @@ If any aspect is not perfect, rewrite the fields directly. OUTPUT ONLY the corre
       supports: str(s.supports)
     };
   });
+
+  if (resolved.isVerified) {
+    sourceNotes.unshift({
+      label: `Database Resolved Provenance: ID ${resolved.provenanceId}`,
+      url: `provenance://${resolved.sourceType}/${resolved.provenanceId}`,
+      kind: "proof" as const,
+      supports: resolved.evidence
+    });
+  }
 
   const now = new Date().toISOString();
   const brief: ReelBrief = {
