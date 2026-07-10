@@ -186,17 +186,8 @@ async function chatPostInner(req: Request) {
       if (isSpecialistShadowMode()) {
         // Shadow: record, never dispatch. Fire-and-forget — metrics
         // must never delay or fail the chat turn.
-        void import("@/lib/prisma").then(({ prisma }) =>
-          prisma.systemMetric.create({
-            data: {
-              metric: "specialist.route",
-              value: decision.confidence,
-              unit: "confidence",
-              source: "chat",
-              tags: { route: decision.route, reason: decision.reason.slice(0, 120), shadow: true },
-            },
-          }),
-        ).catch(() => undefined);
+        const { recordSpecialistRouteMetric } = await import("@/lib/ai/agents/router-metrics");
+        void recordSpecialistRouteMetric(decision.route, decision.confidence, decision.reason);
       } else if (decision.route === "marketing-director") {
         log.info("specialist_routing_match", { route: decision.route, reason: decision.reason });
         const { runMarketingDirector } = await import("@/lib/ai/agents/specialists/marketing-director");
