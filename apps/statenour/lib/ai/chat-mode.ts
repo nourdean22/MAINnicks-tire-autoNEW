@@ -78,8 +78,6 @@ export async function pruneTools(
 
   // Standard mode: core + semantic + keyword
   const text = userContent.toLowerCase();
-  const kept: Record<string, unknown> = {};
-
   // Core tools — always included in standard mode. These are cheap
   // reads Nick should always be able to reach for basic situational
   // awareness.
@@ -101,22 +99,9 @@ export async function pruneTools(
     // "lock the front door" / "turn off shop lights" etc.
     "runDeviceCommand",
   ];
-  for (const name of CORE_TOOLS) {
-    if (allTools[name]) kept[name] = allTools[name];
-  }
 
-  // 2026-07-06 · the most-used WRITE tools are always attached too. They were
-  // excluded from the read-only CORE_TOOLS, so a keyword-less action turn
-  // ("add it", "try again") with a cold embedding cache left the operator
-  // unable to create/complete a task at all — the model fabricated "done" or
-  // reported the tool unavailable. DO_NOT_AUTO_TASKIFY in the system prompt
-  // still gates eager firing; availability != invocation. (Detected-action
-  // turns are ALSO force-injected in route.ts via __actionIntent.expectedTool;
-  // this covers the turns where intent detection misses.)
+  // 2026-07-06 · the most-used WRITE tools are always attached too.
   const ACTION_CORE = ["createTask", "completeTask"];
-  for (const name of ACTION_CORE) {
-    if (allTools[name]) kept[name] = allTools[name];
-  }
 
   // ── Exact tool name mention ──
   // If the user explicitly mentions a tool name (case-insensitive check), always include it
@@ -124,38 +109,15 @@ export async function pruneTools(
   for (const name of Object.keys(allTools)) {
     const lowerName = name.toLowerCase();
     if (text.includes(lowerName)) {
-      kept[name] = allTools[name];
       exactMentioned.add(name);
     }
   }
 
-  // ── SEMANTIC LAYER (when available) ──
-  // If the tool embedding cache is warm AND we have a user message
-  // embedding, rank tools by cosine similarity. Deep mode gets a
-  // wider net (top 40) so agentic workflows have room to plan;
-  // standard mode keeps the tight top-15.
-  if (userEmbedding && userEmbedding.length > 0) {
-    try {
-      // Dynamic import (ESM/Edge-safe) — avoids module cycles + the
-      // bare-require() throw in non-CommonJS runtimes.
-      const { rankToolsBySimilarity, isToolEmbeddingCacheWarm } = await import("./tool-embeddings");
-      if (isToolEmbeddingCacheWarm()) {
-        const topN = isDeep ? 40 : 15;
-        const ranked = rankToolsBySimilarity(userEmbedding, topN, 0.25);
-        for (const [name] of ranked) {
-          if (allTools[name]) kept[name] = allTools[name];
-        }
-      }
-    } catch (err) {
-      // Fall through to keyword path
-      void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.chat-mode", err, { fn: "pruneTools" })).catch((e) => console.error("ai.chat-mode import error", e));
-    }
-  }
-
+  const keywordMatches = new Set<string>();
   // Keyword-based tool families
   const addMatching = (pattern: RegExp) => {
-    for (const [name, tool] of Object.entries(allTools)) {
-      if (pattern.test(name)) kept[name] = tool;
+    for (const name of Object.keys(allTools)) {
+      if (pattern.test(name)) keywordMatches.add(name);
     }
   };
 
@@ -351,7 +313,7 @@ export async function pruneTools(
       "getBodyData", "getHabitStreaks", "getMasteryScores"
     ];
     for (const name of helpTools) {
-      if (allTools[name]) kept[name] = allTools[name];
+      if (allTools[name]) exactMentioned.add(name);
     }
   }
 
@@ -484,33 +446,71 @@ export async function pruneTools(
     addMatching(/runSimulation/i);
   }
 
-  // If nothing matched, add a small default bundle so the model
-  // still has SOME tools available for unknown queries.
-  if (Object.keys(kept).length === CORE_TOOLS.length) {
-    // Only core tools were added — add a minimal read bundle
-    for (const name of [
-      "getCommitments",
-      "getTasks",
-      "dailyPulse",
-      "findCustomer",
-    ]) {
-      if (allTools[name]) kept[name] = allTools[name];
+  // Introduce a shared directIntentMatches set that aggregates:
+  // * Exact tool-name matches
+  // * All deterministic keyword-family matches
+  const directIntentMatches = new Set<string>([...exactMentioned, ...keywordMatches]);
+
+  const selectedNames = new Set<string>();
+
+  const addIfSpace = (name: string) => {
+    if (selectedNames.size >= 50) return;
+    if (allTools[name]) {
+      selectedNames.add(name);
+    }
+  };
+
+  // Tier 1: CORE_TOOLS
+  for (const name of CORE_TOOLS) {
+    addIfSpace(name);
+  }
+
+  // Tier 2: ACTION_CORE
+  for (const name of ACTION_CORE) {
+    addIfSpace(name);
+  }
+
+  // Tier 3: Exact tool-name mentions (explicit user intent)
+  const sortedExact = Array.from(exactMentioned).sort();
+  for (const name of sortedExact) {
+    addIfSpace(name);
+  }
+
+  // Tier 4: Deterministic natural-language keyword-family matches
+  const sortedKeyword = Array.from(keywordMatches).sort();
+  for (const name of sortedKeyword) {
+    addIfSpace(name);
+  }
+
+  // Tier 5: Semantic-ranked tools
+  if (userEmbedding && userEmbedding.length > 0 && selectedNames.size < 50) {
+    try {
+      const { rankToolsBySimilarity, isToolEmbeddingCacheWarm } = await import("./tool-embeddings");
+      if (isToolEmbeddingCacheWarm()) {
+        const topN = isDeep ? 40 : 15;
+        const ranked = rankToolsBySimilarity(userEmbedding, topN, 0.25);
+        for (const [name] of ranked) {
+          addIfSpace(name);
+        }
+      }
+    } catch (err) {
+      void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.chat-mode", err, { fn: "pruneTools" })).catch((e) => console.error("ai.chat-mode import error", e));
     }
   }
 
-  // Hard cap for deep mode — stay inside Venice's effective budget.
-  // With ~200 chars per tool schema, 50 tools = ~10K in the prompt,
-  // which is tolerable on top of a 57K system prompt + 4K output.
-  if (isDeep && Object.keys(kept).length > 50) {
-    const entries = Object.entries(kept);
-    // Keep the CORE_TOOLS, ACTION_CORE, and exactMentioned slots first, then fill with the rest
-    // in insertion order (which came from semantic-ranked high → low).
-    const priorityNames = [...CORE_TOOLS, ...ACTION_CORE, ...exactMentioned];
-    const keptCore = entries.filter(([n]) => priorityNames.includes(n));
-    const keptExtra = entries.filter(([n]) => !priorityNames.includes(n)).slice(0, 50 - keptCore.length);
-    return Object.fromEntries([...keptCore, ...keptExtra]);
+  // Tier 6: Default extras (if only core tools were matched)
+  const coreToolsInRegistry = CORE_TOOLS.filter(n => allTools[n]);
+  if (selectedNames.size === coreToolsInRegistry.length) {
+    const defaults = ["getCommitments", "getTasks", "dailyPulse", "findCustomer"];
+    for (const name of defaults) {
+      addIfSpace(name);
+    }
   }
 
+  const kept: Record<string, unknown> = {};
+  for (const name of selectedNames) {
+    kept[name] = allTools[name];
+  }
   return kept;
 }
 
