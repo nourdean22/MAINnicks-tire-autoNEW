@@ -8,9 +8,14 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const mocks = vi.hoisted(() => ({
+  userPreferenceFindMany: vi.fn(),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     agentTrace: { create: vi.fn() },
+    userPreference: { findMany: (...args: any[]) => mocks.userPreferenceFindMany(...args) },
   },
 }));
 
@@ -20,10 +25,13 @@ vi.mock("@/lib/ai/provider", () => ({
 
 import { aiChat } from "@/lib/ai/provider";
 import { routeMessage, classifyByKeyword } from "@/lib/ai/agents/router";
+import { loadFeatureFlagOverrides } from "@/lib/feature-flags";
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
   delete process.env.ENABLE_SPECIALIST_ROUTING;
+  mocks.userPreferenceFindMany.mockResolvedValue([]);
+  await loadFeatureFlagOverrides(true);
 });
 
 describe("router · feature flag", () => {
@@ -295,5 +303,76 @@ describe("classifyByKeyword (pure helper)", () => {
 
   it("returns general when nothing matches", () => {
     expect(classifyByKeyword("good morning").route).toBe("general");
+  });
+});
+
+describe("router · database overrides and environment options", () => {
+  it("routes when env is true and DB overrides are empty", async () => {
+    process.env.ENABLE_SPECIALIST_ROUTING = "true";
+    const decision = await routeMessage({
+      messages: [{ role: "user", content: "what's my savings rate?" }],
+    });
+    expect(decision.route).toBe("financial-analyst");
+    expect(decision.reason).toMatch(/keyword.*financial/);
+  });
+
+  it("does not route when env is false and DB overrides are empty", async () => {
+    process.env.ENABLE_SPECIALIST_ROUTING = "false";
+    const decision = await routeMessage({
+      messages: [{ role: "user", content: "what's my savings rate?" }],
+    });
+    expect(decision.route).toBe("general");
+    expect(decision.reason).toBe("routing-disabled");
+  });
+
+  it("runs classifier but does not route when env is shadow and DB overrides are empty", async () => {
+    process.env.ENABLE_SPECIALIST_ROUTING = "shadow";
+    const decision = await routeMessage({
+      messages: [{ role: "user", content: "what's my savings rate?" }],
+    });
+    expect(decision.route).toBe("financial-analyst");
+    expect(decision.reason).toMatch(/keyword.*financial/);
+  });
+
+  it("routes when DB override is true, overriding env false", async () => {
+    process.env.ENABLE_SPECIALIST_ROUTING = "false";
+    mocks.userPreferenceFindMany.mockResolvedValueOnce([
+      { key: "ENABLE_SPECIALIST_ROUTING", value: "true" },
+    ]);
+    await loadFeatureFlagOverrides(true);
+
+    const decision = await routeMessage({
+      messages: [{ role: "user", content: "what's my savings rate?" }],
+    });
+    expect(decision.route).toBe("financial-analyst");
+    expect(decision.reason).toMatch(/keyword.*financial/);
+  });
+
+  it("runs classifier but does not route when DB override is shadow, overriding env true", async () => {
+    process.env.ENABLE_SPECIALIST_ROUTING = "true";
+    mocks.userPreferenceFindMany.mockResolvedValueOnce([
+      { key: "ENABLE_SPECIALIST_ROUTING", value: "shadow" },
+    ]);
+    await loadFeatureFlagOverrides(true);
+
+    const decision = await routeMessage({
+      messages: [{ role: "user", content: "what's my savings rate?" }],
+    });
+    expect(decision.route).toBe("financial-analyst");
+    expect(decision.reason).toMatch(/keyword.*financial/);
+  });
+
+  it("falls back to env true after DB override is removed", async () => {
+    process.env.ENABLE_SPECIALIST_ROUTING = "true";
+    
+    // DB has no override
+    mocks.userPreferenceFindMany.mockResolvedValueOnce([]);
+    await loadFeatureFlagOverrides(true);
+
+    const decision = await routeMessage({
+      messages: [{ role: "user", content: "what's my savings rate?" }],
+    });
+    expect(decision.route).toBe("financial-analyst");
+    expect(decision.reason).toMatch(/keyword.*financial/);
   });
 });
