@@ -146,4 +146,30 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     const extraKeys = keys.slice(2);
     expect(extraKeys).toEqual(Array.from(extraKeys).sort());
   });
+
+  it("proves that default extras are returned when only core tools match for an unmatched normal-language request", async () => {
+    const allTools: Record<string, unknown> = {
+      classifyThought: { name: "classifyThought" },
+      createTask: { name: "createTask" },
+      getCommitments: { name: "getCommitments" },
+      getTasks: { name: "getTasks" },
+      dailyPulse: { name: "dailyPulse" },
+      findCustomer: { name: "findCustomer" },
+      unrelatedTool: { name: "unrelatedTool" },
+    };
+
+    // A simple query with no keyword/exact/semantic match
+    const pruned = await pruneTools("standard", allTools, "hello how are you");
+    const keys = Object.keys(pruned);
+
+    expect(keys).toContain("classifyThought");
+    expect(keys).toContain("createTask");
+    // Verify default extras are included
+    expect(keys).toContain("getCommitments");
+    expect(keys).toContain("getTasks");
+    expect(keys).toContain("dailyPulse");
+    expect(keys).toContain("findCustomer");
+    // Verify unrelated tool is NOT included
+    expect(keys).not.toContain("unrelatedTool");
+  });
 });
