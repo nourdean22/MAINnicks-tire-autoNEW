@@ -1,17 +1,21 @@
 import { prisma } from "@/lib/prisma";
 
-// In-memory cache for hot settings (reset on cold start)
-const cache = new Map<string, { value: string; type: string }>();
+// In-memory cache for hot settings with 30s TTL
+const cache = new Map<string, { value: string; type: string; cachedAt: number }>();
+const CACHE_TTL_MS = 30_000;
 
 /** Get a setting value, with caching and type coercion */
 export async function getSetting<T = string>(key: string, defaultValue: T): Promise<T> {
+  const now = Date.now();
   const cached = cache.get(key);
-  if (cached) return coerce(cached.value, cached.type) as T;
+  if (cached && now - cached.cachedAt < CACHE_TTL_MS) {
+    return coerce(cached.value, cached.type) as T;
+  }
 
   const pref = await prisma.userPreference.findUnique({ where: { key } });
   if (!pref) return defaultValue;
 
-  cache.set(key, { value: pref.value, type: pref.type });
+  cache.set(key, { value: pref.value, type: pref.type, cachedAt: now });
   return coerce(pref.value, pref.type) as T;
 }
 
@@ -28,7 +32,7 @@ export async function setSetting(key: string, value: unknown, category = "system
     update: { value: strValue, type },
   });
 
-  cache.set(key, { value: strValue, type });
+  cache.set(key, { value: strValue, type, cachedAt: Date.now() });
 }
 
 /** Get all settings grouped by category */
@@ -36,10 +40,11 @@ export async function getAllSettings(): Promise<Record<string, Record<string, un
   const prefs = await prisma.userPreference.findMany();
   const grouped: Record<string, Record<string, unknown>> = {};
 
+  const now = Date.now();
   for (const p of prefs) {
     if (!grouped[p.category]) grouped[p.category] = {};
     grouped[p.category][p.key] = coerce(p.value, p.type);
-    cache.set(p.key, { value: p.value, type: p.type });
+    cache.set(p.key, { value: p.value, type: p.type, cachedAt: now });
   }
 
   return grouped;
