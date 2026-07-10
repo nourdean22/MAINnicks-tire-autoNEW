@@ -12,25 +12,29 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createTaskAndEnrich } from "@/lib/services/tasks";
+import { isUserProject } from "@/lib/services/mission-helpers";
 
 export const missionsTools = {
   getMissions: tool({
     description: "Get active missions",
     inputSchema: z.object({}),
     execute: async () => {
-      // v10.0.529.94 · Wave 38 · field projection.
-      return prisma.mission.findMany({
-        where: {
-          status: "ACTIVE",
-          deletedAt: null,
-          OR: [
-            { systemKind: null },
-            { systemKind: { not: "SYSTEM" } }
-          ]
-        },
-        select: { id: true, title: true, domain: true, priority: true, status: true, systemKind: true },
-        orderBy: { priority: "desc" },
-      }).catch((): never[] => []);
+      // v10.0.532 · use canonical isUserProject predicate and propagate errors on DB failure
+      try {
+        const missions = await prisma.mission.findMany({
+          where: {
+            status: "ACTIVE",
+            deletedAt: null,
+          },
+          select: { id: true, title: true, domain: true, priority: true, status: true, systemKind: true },
+          orderBy: { priority: "desc" },
+        });
+        return missions.filter((m) => m.systemKind !== "SYSTEM" && isUserProject(m));
+      } catch (err) {
+        throw new Error(
+          `Missions database is unavailable: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
     },
   }),
 

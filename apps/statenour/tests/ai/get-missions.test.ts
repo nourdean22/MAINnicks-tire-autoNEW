@@ -19,25 +19,40 @@ describe("getMissions tool execution", () => {
     vi.clearAllMocks();
   });
 
-  it("filters out SYSTEM missions and projects systemKind", async () => {
+  it("filters out SYSTEM, GENERAL, Inbox, and Inbox - <domain> missions in-memory", async () => {
     mocks.mission.findMany.mockResolvedValueOnce([
-      { id: "m1", title: "Mission 1", domain: "HEALTH", priority: 10, status: "ACTIVE", systemKind: null },
-      { id: "m2", title: "Mission 2", domain: "BUSINESS", priority: 20, status: "ACTIVE", systemKind: "GENERAL" },
+      // Excluded: SYSTEM
+      { id: "m1", title: "System Watcher", domain: "HEALTH", priority: 10, status: "ACTIVE", systemKind: "SYSTEM" },
+      // Excluded: GENERAL (by isGeneralAnchor)
+      { id: "m2", title: "General Business Anchor", domain: "BUSINESS", priority: 20, status: "ACTIVE", systemKind: "GENERAL" },
+      // Excluded: Inbox (by title)
+      { id: "m3", title: "Inbox", domain: "PERSONAL", priority: 30, status: "ACTIVE", systemKind: null },
+      // Excluded: Inbox - business (by title)
+      { id: "m4", title: "Inbox - business", domain: "BUSINESS", priority: 40, status: "ACTIVE", systemKind: null },
+      // Included: normal user mission
+      { id: "m5", title: "Tire Shop Expansion", domain: "BUSINESS", priority: 50, status: "ACTIVE", systemKind: null },
     ]);
 
     const result = await (missionsTools.getMissions.execute as any)({});
-    expect(result).toHaveLength(2);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("m5");
+    expect(result[0].title).toBe("Tire Shop Expansion");
+
     expect(mocks.mission.findMany).toHaveBeenCalledWith({
       where: {
         status: "ACTIVE",
         deletedAt: null,
-        OR: [
-          { systemKind: null },
-          { systemKind: { not: "SYSTEM" } }
-        ]
       },
       select: { id: true, title: true, domain: true, priority: true, status: true, systemKind: true },
       orderBy: { priority: "desc" },
     });
+  });
+
+  it("throws a clear unavailable error on database failure", async () => {
+    mocks.mission.findMany.mockRejectedValueOnce(new Error("Connection timeout"));
+
+    await expect(
+      (missionsTools.getMissions.execute as any)({})
+    ).rejects.toThrow("Missions database is unavailable: Connection timeout");
   });
 });

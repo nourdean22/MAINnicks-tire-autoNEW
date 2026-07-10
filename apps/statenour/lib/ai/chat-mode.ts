@@ -120,10 +120,12 @@ export async function pruneTools(
 
   // ── Exact tool name mention ──
   // If the user explicitly mentions a tool name (case-insensitive check), always include it
+  const exactMentioned = new Set<string>();
   for (const name of Object.keys(allTools)) {
     const lowerName = name.toLowerCase();
     if (text.includes(lowerName)) {
       kept[name] = allTools[name];
+      exactMentioned.add(name);
     }
   }
 
@@ -452,6 +454,36 @@ export async function pruneTools(
     addMatching(/logSituation/i);
   }
 
+  // ── v10.0.532 · TOOL-ATTACHMENT FOLLOWUPS ──
+  // Camera Intelligence
+  if (/\b(camera (intel|feed|security|shop|image|picture)|footage|what'?s on (the )?camera)\b/.test(text)) {
+    addMatching(/getCameraIntelligence/i);
+  }
+  // Review Stats
+  if (/\b(review stats|feedback ratings?|review count|shop reviews?|google reviews?)\b/.test(text)) {
+    addMatching(/getReviewStats/i);
+  }
+  // Top Services
+  if (/\b(top services|popular services|common jobs|most frequent jobs|highest volume services)\b/.test(text)) {
+    addMatching(/getTopServices/i);
+  }
+  // Pricing Advisory
+  if (/\b(pricing advisory|price advice|pricing advice|pricing review|competitive pricing|pricing guide|what should we charge)\b/.test(text)) {
+    addMatching(/pricingAdvisorySummary/i);
+  }
+  // Weight Trend
+  if (/\b(weight trend|weight gain|weight loss|scale weight|my weight|body weight progress|weight stats)\b/.test(text)) {
+    addMatching(/analyzeWeightTrend/i);
+  }
+  // SQL Generation
+  if (/\b(generate sql|write sql|sql query for|write database query|raw sql for)\b/.test(text)) {
+    addMatching(/generateSQL/i);
+  }
+  // Simulation
+  if (/\b(run simulation|simulate project|project simulation|simulate scenario|simulation for)\b/.test(text)) {
+    addMatching(/runSimulation/i);
+  }
+
   // If nothing matched, add a small default bundle so the model
   // still has SOME tools available for unknown queries.
   if (Object.keys(kept).length === CORE_TOOLS.length) {
@@ -471,9 +503,9 @@ export async function pruneTools(
   // which is tolerable on top of a 57K system prompt + 4K output.
   if (isDeep && Object.keys(kept).length > 50) {
     const entries = Object.entries(kept);
-    // Keep the CORE_TOOLS and ACTION_CORE slots first (always), then fill with the rest
+    // Keep the CORE_TOOLS, ACTION_CORE, and exactMentioned slots first, then fill with the rest
     // in insertion order (which came from semantic-ranked high → low).
-    const priorityNames = [...CORE_TOOLS, ...ACTION_CORE];
+    const priorityNames = [...CORE_TOOLS, ...ACTION_CORE, ...exactMentioned];
     const keptCore = entries.filter(([n]) => priorityNames.includes(n));
     const keptExtra = entries.filter(([n]) => !priorityNames.includes(n)).slice(0, 50 - keptCore.length);
     return Object.fromEntries([...keptCore, ...keptExtra]);
