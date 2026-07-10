@@ -23,7 +23,7 @@ import { createLogger } from "../lib/logger";
 const log = createLogger("services:veo-studio");
 
 const VEO_BASE = "https://generativelanguage.googleapis.com/v1beta";
-const VEO_MODEL = process.env.REEL_VEO_MODEL || "veo-3.0-generate-001";
+const VEO_MODEL = process.env.REEL_VEO_MODEL || "veo-3.1-fast-generate-001";
 const POLL_INTERVAL_MS = Number(process.env.REEL_VEO_POLL_INTERVAL_MS) || 10_000;
 const POLL_MAX_MS = Number(process.env.REEL_VEO_POLL_MAX_MS) || 6 * 60_000;
 // Doctrine: AI gen is for real product objects only — never fake people. Belt
@@ -73,6 +73,9 @@ export function buildVeoRequestBody(prompt: string, env: NodeJS.ProcessEnv = pro
   };
   if (env.REEL_VEO_DURATION) parameters.durationSeconds = Number(env.REEL_VEO_DURATION);
   if (env.REEL_VEO_PERSON_GENERATION) parameters.personGeneration = env.REEL_VEO_PERSON_GENERATION;
+  if (env.REEL_VEO_AUDIO_DISABLED === "true" || env.REEL_VEO_GENERATE_AUDIO === "false") {
+    parameters.generateAudio = false;
+  }
   return { instances: [{ prompt }], parameters };
 }
 
