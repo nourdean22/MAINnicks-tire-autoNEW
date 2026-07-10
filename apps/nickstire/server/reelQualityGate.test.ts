@@ -14,7 +14,7 @@ describe("reel quality gate (server-side enforcement)", () => {
     expect(SAMPLE_REEL_BRIEFS.length).toBeGreaterThan(0);
     for (const brief of SAMPLE_REEL_BRIEFS) {
       const r = calculateReelQualityScore(brief);
-      expect(r.passing, `${brief.id}: scored ${r.score}/${r.max}`).toBe(true);
+      expect(r.passing, `${brief.id}: scored ${r.overall}/75`).toBe(true);
     }
   });
 
@@ -26,7 +26,7 @@ describe("reel quality gate (server-side enforcement)", () => {
     const r = calculateReelQualityScore(bad);
     const claimPart = r.parts.find((p) => p.label.startsWith("Claim safety"));
     expect(claimPart?.ok).toBe(false);
-    expect(r.score).toBeLessThan(baseline.score);
+    expect(r.overall).toBeLessThan(baseline.overall);
   });
 
   it("fails a brief stripped of its storyboard beats", () => {

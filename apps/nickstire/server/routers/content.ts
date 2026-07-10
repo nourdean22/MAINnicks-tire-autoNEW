@@ -964,8 +964,35 @@ export const contentAdminRouter = router({
   enqueueReelJob: adminProcedure
     .input(z.object({ brief: z.any() }))
     .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) throw new Error("DB not available");
+      
+      const { socialContentInventory } = await import("../../drizzle/schema");
+      const { randomUUID } = await import("crypto");
+      
+      const inventoryId = `draft_${randomUUID()}`;
+      
+      await d.insert(socialContentInventory).values({
+        id: inventoryId,
+        platform: "both",
+        contentType: "reel",
+        topic: `${input.brief.campaignKeyword || "Reel"}: ${input.brief.topic || "Grounded Auto Reel"}`.substring(0, 128),
+        seriesName: "reels",
+        hookCategory: "reel",
+        hookText: input.brief.selectedCaption || "",
+        bodyText: "",
+        visualStyle: "reel",
+        persona: "reel",
+        status: "generating",
+        briefJson: JSON.stringify(input.brief || {}),
+        scoreOverall: input.brief.qualityScore || 0,
+      });
+
+      const briefWithId = { ...input.brief, id: inventoryId };
+
       const { enqueueReelJob } = await import("../services/reelPipeline");
-      return enqueueReelJob(input.brief, "admin");
+      return enqueueReelJob(briefWithId, "admin");
     }),
   getReelJob: adminProcedure
     .input(z.object({ jobId: z.number() }))
@@ -976,7 +1003,43 @@ export const contentAdminRouter = router({
       const { reelJobs } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       const rows = await d.select().from(reelJobs).where(eq(reelJobs.id, input.jobId)).limit(1);
-      return rows[0] ?? null;
+      const row = rows[0];
+      if (!row) return null;
+
+      let totalScenes = 0;
+      try {
+        const brief = JSON.parse(row.payload);
+        totalScenes = brief.storyboardBeats?.length || 0;
+      } catch (e) {}
+
+      let completedScenes = 0;
+      try {
+        if (row.clipUrlsJson) {
+          const clips = JSON.parse(row.clipUrlsJson);
+          if (Array.isArray(clips)) {
+            completedScenes = clips.filter(c => typeof c === "string" && c.startsWith("http")).length;
+          }
+        }
+      } catch (e) {}
+
+      let mappedStatus: "queued" | "generating" | "assembling" | "completed" | "failed" = "queued";
+      if (row.status === "failed") {
+        mappedStatus = "failed";
+      } else if (row.status === "assembled" || row.mp4Url) {
+        mappedStatus = "completed";
+      } else if (row.status === "assets_ready" || row.status === "assembling") {
+        mappedStatus = "assembling";
+      } else if (row.status === "generating") {
+        mappedStatus = "generating";
+      }
+
+      return {
+        status: mappedStatus,
+        videoUrl: row.mp4Url || undefined,
+        error: row.error || undefined,
+        completedScenes,
+        totalScenes,
+      };
     }),
   generateCarouselImages: adminProcedure
     .input(z.object({
@@ -1123,14 +1186,15 @@ export const contentAdminRouter = router({
       factBucket: z.string().max(40).optional(),
       archetype: z.string().max(40).optional(),
       avoidTopics: z.array(z.string().max(200)).max(50).optional(),
+      sourceType: z.string().max(50).optional(),
+      sourceId: z.string().max(50).optional(),
+      sourceDetail: z.string().max(1000).optional(),
     }))
     .mutation(async ({ input }) => {
       try {
         const { generateReelBriefAI } = await import("../services/reelBriefGen");
         const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
         const { brief } = await generateReelBriefAI(input);
-        // Server-authoritative quality verdict — the same 75-pt gate the Studio
-        // UI shows, computed server-side so automation can't ship past it blind.
         const qualityScore = calculateReelQualityScore(brief);
         return { success: true as const, brief, qualityScore };
       } catch (err) {
@@ -1148,10 +1212,12 @@ export const contentAdminRouter = router({
   validateReelBrief: adminProcedure
     .input(z.object({ brief: reelBriefScoreInput }))
     .mutation(async ({ input }) => {
-      const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
-      // The pure scorer reads only the validated fields above; the cast bridges
-      // the focused input schema to the full ReelBrief type.
-      const qualityScore = calculateReelQualityScore(input.brief as unknown as ReelBrief);
+      const { calculateReelQualityScore, buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
+      const brief = input.brief as unknown as ReelBrief;
+      const promptPack = buildHiggsfieldReelPromptPack(brief);
+      brief.promptPack = promptPack;
+      brief.higgsfieldPromptPack = promptPack;
+      const qualityScore = calculateReelQualityScore(brief);
       return { qualityScore, passing: qualityScore.passing };
     }),
   probeVeoConnection: adminProcedure

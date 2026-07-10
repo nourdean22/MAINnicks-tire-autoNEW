@@ -159,7 +159,7 @@ describe("scoring", () => {
   it("every SAMPLE brief passes the 75-point quality gate", () => {
     for (const brief of SAMPLE_REEL_BRIEFS) {
       const q = calculateReelQualityScore(brief);
-      expect(q.max).toBe(75);
+      expect(q.gate).toBe("pass");
       expect(q.passing, `${brief.id}: ${JSON.stringify(q.parts.filter((p) => !p.ok))}`).toBe(true);
     }
   });
