@@ -211,13 +211,13 @@ export async function resolveSourceProvenance(
     const numericId = parseInt(sourceId, 10);
     if (!isNaN(numericId)) {
       const { reviewReplies, reviewPipeline } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
+      const { eq, and } = await import("drizzle-orm");
       
       try {
         const replies = await db
           .select()
           .from(reviewReplies)
-          .where(eq(reviewReplies.id, numericId))
+          .where(and(eq(reviewReplies.id, numericId), eq(reviewReplies.rating, 5)))
           .limit(1);
         if (replies[0]?.reviewText) {
           return {
@@ -233,7 +233,7 @@ export async function resolveSourceProvenance(
         const pipeline = await db
           .select()
           .from(reviewPipeline)
-          .where(eq(reviewPipeline.id, numericId))
+          .where(and(eq(reviewPipeline.id, numericId), eq(reviewPipeline.rating, 5)))
           .limit(1);
         if (pipeline[0]?.reviewText) {
           return {
@@ -249,13 +249,13 @@ export async function resolveSourceProvenance(
 
   if (sourceType === "declined_work" && sourceId) {
     const { workOrders, workOrderItems } = await import("../../drizzle/schema");
-    const { eq } = await import("drizzle-orm");
+    const { eq, and } = await import("drizzle-orm");
     
     try {
       const items = await db
         .select()
         .from(workOrderItems)
-        .where(eq(workOrderItems.id, sourceId))
+        .where(and(eq(workOrderItems.id, sourceId), eq(workOrderItems.declined, true)))
         .limit(1);
       if (items[0]?.description) {
         return {
@@ -271,7 +271,7 @@ export async function resolveSourceProvenance(
       const orders = await db
         .select()
         .from(workOrders)
-        .where(eq(workOrders.id, sourceId))
+        .where(and(eq(workOrders.id, sourceId), eq(workOrders.status, "declined")))
         .limit(1);
       if (orders[0]?.orderNumber) {
         return {

@@ -962,37 +962,125 @@ export const contentAdminRouter = router({
   // immediately and the pulse cron (REEL_GENERATION_ENABLED-gated) processes it.
   // Does NOT publish — publishing is a later, separately-gated stage.
   enqueueReelJob: adminProcedure
-    .input(z.object({ brief: z.any() }))
+    .input(z.object({
+      brief: z.object({
+        campaignKeyword: z.string().min(1),
+        topic: z.string().min(1),
+        storyboardBeats: z.array(z.object({
+          beatNumber: z.number(),
+          visual: z.string(),
+          startSecond: z.number(),
+          endSecond: z.number(),
+          motion: z.string(),
+          onScreenText: z.string(),
+        })).min(1),
+        hashtags: z.array(z.string()),
+        selectedCaption: z.string().min(1),
+        sourceType: z.enum(["review", "declined_work", "manual"]),
+        sourceId: z.string().optional(),
+        sourceNotes: z.any().optional(),
+        mechanicTruth: z.any().optional(),
+        winningConceptId: z.any().optional(),
+        concepts: z.any().optional(),
+        voiceoverScript: z.any().optional(),
+        captionHooks: z.any().optional(),
+        motionLens: z.string(),
+        objectCharacter: z.string(),
+        archetype: z.string(),
+      })
+    }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("../db");
       const d = await getDb();
-      if (!d) throw new Error("DB not available");
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+      
+      const { resolveSourceProvenance } = await import("../services/reelBriefGen");
+      const resolved = await resolveSourceProvenance(
+        input.brief.sourceType,
+        input.brief.sourceId,
+        input.brief.topic
+      );
+
+      if ((input.brief.sourceType === "review" || input.brief.sourceType === "declined_work") && !resolved.isVerified) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "NEEDS_RESEARCH: Grounded database evidence record not found or unverified. Operator context notes cannot be treated as verified facts.",
+        });
+      }
+
+      const brief = { ...input.brief };
+      // Reconstruct prompt pack server-side to enforce server-side prompts and safety checks
+      try {
+        const { buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
+        const promptPack = buildHiggsfieldReelPromptPack(brief as any);
+        (brief as any).promptPack = promptPack;
+        (brief as any).higgsfieldPromptPack = promptPack;
+      } catch (e: any) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Failed to reconstruct prompt packs server-side: ${e.message}`,
+        });
+      }
+
+      const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
+      const score = calculateReelQualityScore(brief as any);
+      if (!score.passing) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Reel brief quality score (${score.overall}/75) is below passing threshold.`,
+        });
+      }
+
+      // Discard client-provided prompt packs to enforce server-side reconstruction
+      const briefClean: any = {
+        campaignKeyword: brief.campaignKeyword,
+        topic: brief.topic,
+        storyboardBeats: brief.storyboardBeats,
+        hashtags: brief.hashtags,
+        selectedCaption: brief.selectedCaption,
+        sourceType: brief.sourceType,
+        sourceId: brief.sourceId,
+        sourceNotes: brief.sourceNotes,
+        mechanicTruth: brief.mechanicTruth,
+        winningConceptId: brief.winningConceptId,
+        concepts: brief.concepts,
+        voiceoverScript: brief.voiceoverScript,
+        captionHooks: brief.captionHooks,
+        motionLens: brief.motionLens,
+        objectCharacter: brief.objectCharacter,
+        archetype: brief.archetype,
+        promptPack: (brief as any).promptPack,
+        higgsfieldPromptPack: (brief as any).higgsfieldPromptPack,
+      };
+
+      const { createHash, randomUUID } = await import("crypto");
+      const briefJson = JSON.stringify(briefClean);
       
       const { socialContentInventory } = await import("../../drizzle/schema");
-      const { randomUUID } = await import("crypto");
-      
       const inventoryId = `draft_${randomUUID()}`;
       
       await d.insert(socialContentInventory).values({
         id: inventoryId,
         platform: "both",
         contentType: "reel",
-        topic: `${input.brief.campaignKeyword || "Reel"}: ${input.brief.topic || "Grounded Auto Reel"}`.substring(0, 128),
+        topic: `${briefClean.campaignKeyword}: ${briefClean.topic}`.substring(0, 128),
         seriesName: "reels",
         hookCategory: "reel",
-        hookText: input.brief.selectedCaption || "",
+        hookText: briefClean.selectedCaption,
         bodyText: "",
         visualStyle: "reel",
         persona: "reel",
         status: "generating",
-        briefJson: JSON.stringify(input.brief || {}),
-        scoreOverall: input.brief.qualityScore || 0,
+        briefJson,
+        scoreOverall: score.overall,
+        version: 1,
       });
 
-      const briefWithId = { ...input.brief, id: inventoryId };
+      const briefWithId = { ...briefClean, id: inventoryId };
 
       const { enqueueReelJob } = await import("../services/reelPipeline");
-      return enqueueReelJob(briefWithId, "admin");
+      const { jobId } = await enqueueReelJob(briefWithId, "admin");
+      return { inventoryId, jobId };
     }),
   getReelJob: adminProcedure
     .input(z.object({ jobId: z.number() }))
