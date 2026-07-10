@@ -213,7 +213,10 @@ const normalizeToolChoice = (
 
 const resolveApiUrl = (model?: string) => {
   const isGeminiModel = !!model && (model.startsWith("gemini-") || model.startsWith("google/"));
-  if (isGeminiModel && process.env.GEMINI_API_KEY) {
+  if (isGeminiModel) {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error(`GEMINI_API_KEY is missing for Gemini model "${model}"`);
+    }
     return "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions";
   }
   if (process.env.OPENAI_BASE_URL) {
@@ -222,25 +225,22 @@ const resolveApiUrl = (model?: string) => {
   if (process.env.OPENAI_API_KEY) {
     return "https://api.openai.com/v1/chat/completions";
   }
-  if (process.env.GEMINI_API_KEY) {
-    return "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions";
-  }
-  return "https://api.openai.com/v1/chat/completions";
+  throw new Error(`OPENAI_API_KEY is missing for OpenAI model "${model || "default"}"`);
 };
 
 /** Returns the correct API key — OPENAI_API_KEY or GEMINI_API_KEY */
 const resolveApiKey = (model?: string): string => {
   const isGeminiModel = !!model && (model.startsWith("gemini-") || model.startsWith("google/"));
-  if (isGeminiModel && process.env.GEMINI_API_KEY) {
+  if (isGeminiModel) {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error(`GEMINI_API_KEY is missing for Gemini model "${model}"`);
+    }
     return process.env.GEMINI_API_KEY;
   }
   if (process.env.OPENAI_API_KEY) {
     return process.env.OPENAI_API_KEY;
   }
-  if (process.env.GEMINI_API_KEY) {
-    return process.env.GEMINI_API_KEY;
-  }
-  return "";
+  throw new Error(`OPENAI_API_KEY is missing for OpenAI model "${model || "default"}"`);
 };
 
 const assertApiKey = (model?: string) => {

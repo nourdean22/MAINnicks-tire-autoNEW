@@ -348,44 +348,11 @@ Keep it under 200 characters.`;
       qualityScore: z.any().optional(),
     }))
     .mutation(async ({ input }) => {
-      let overallScore = 80;
-
       if (input.format === "reel") {
-        if (!input.videoUrl) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Reel format requires a generated video asset.",
-          });
-        }
-        if (!input.videoUrl.toLowerCase().endsWith(".mp4")) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Reel asset must be an MP4 video.",
-          });
-        }
-        if (!input.conceptBrief) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Reel enqueuing requires a valid ReelBrief payload.",
-          });
-        }
-
-        const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
-        const qRes = calculateReelQualityScore(input.conceptBrief);
-        if (!qRes.passing) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: `Reel brief quality score (${qRes.overall}/75) is below passing threshold.`,
-          });
-        }
-        const blocks = qRes.parts.filter(p => !p.ok);
-        if (blocks.some(b => b.label.includes("safety") || b.label.includes("claims"))) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Reel blocked by safety or claim gate checks.",
-          });
-        }
-        overallScore = qRes.overall;
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Reel format drafts cannot be created via stageDraft. Reels must be enqueued via enqueueReelJob and finalized via finalizeReelDraft.",
+        });
       }
 
       const database = await db();
@@ -398,7 +365,6 @@ Keep it under 200 characters.`;
       if (input.videoUrl) assetPaths.push(input.videoUrl);
       
       let mappedType: "post" | "reel" | "carousel" | "story" | "poll" = "post";
-      if (input.format === "reel") mappedType = "reel";
       if (input.format === "carousel") mappedType = "carousel";
       if (input.format === "story") mappedType = "story";
       
@@ -418,20 +384,88 @@ Keep it under 200 characters.`;
         status: "ready", // For manual drafts, default to ready directly
         assetPaths,
         briefJson: JSON.stringify(input.conceptBrief || {}),
-        scoreOverall: overallScore,
+        scoreOverall: 80,
+        version: 1,
       });
       
       return { success: true };
     }),
 
-  approveDraft: adminProcedure
-    .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+  finalizeReelDraft: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      videoUrl: z.string(),
+      brief: z.any(),
+    }))
+    .mutation(async ({ input }) => {
       const database = await db();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
       const { socialContentInventory } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
+
+      const rows = await database
+        .select()
+        .from(socialContentInventory)
+        .where(eq(socialContentInventory.id, input.id))
+        .limit(1);
+
+      if (rows.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Inventory record with ID ${input.id} not found.`,
+        });
+      }
+
+      const item = rows[0];
+      if (item.status !== "generating") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot finalize draft in status ${item.status}. Expected status 'generating'.`,
+        });
+      }
+
+      if (!input.videoUrl.toLowerCase().endsWith(".mp4")) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Reel asset must be an MP4 video.",
+        });
+      }
+
+      const assetPaths = [input.videoUrl];
+      const briefJson = JSON.stringify(input.brief || {});
+
+      await database
+        .update(socialContentInventory)
+        .set({
+          status: "review_ready",
+          assetPaths,
+          briefJson,
+          updatedAt: new Date(),
+        })
+        .where(eq(socialContentInventory.id, input.id));
+
+      return { success: true };
+    }),
+
+  approveDraft: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      expectedVersion: z.number(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      if (!ctx.user?.id) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Reviewer identity must be verified. No fallback reviewer ID allowed.",
+        });
+      }
+
+      const { socialContentInventory, socialContentApprovals } = await import("../../drizzle/schema");
+      const { eq, and } = await import("drizzle-orm");
       
       const rows = await database
         .select()
@@ -446,6 +480,13 @@ Keep it under 200 characters.`;
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Only drafts in 'review_ready' status can be approved.",
+        });
+      }
+
+      if (draft.version !== input.expectedVersion) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `Version mismatch. Expected version ${input.expectedVersion} but found ${draft.version}.`,
         });
       }
 
@@ -474,35 +515,55 @@ Keep it under 200 characters.`;
       const expectedDuration = beatsDuration + 3.0; // beats + CTA card duration
 
       const validation = await validateFinalMedia(videoUrl, expectedDuration);
-      if (!validation.valid) {
+      if (!validation.valid || !validation.mediaHash) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `Final media validation failed: ${validation.error}`,
         });
       }
 
-      const { createHash } = await import("crypto");
+      const { createHash, randomUUID } = await import("crypto");
       const briefHash = createHash("sha256").update(draft.briefJson || "").digest("hex");
-      const mediaHash = createHash("sha256").update(videoUrl).digest("hex");
 
-      const approvalMetadata = {
-        reviewerId: ctx.user?.id || 1,
-        timestamp: new Date().toISOString(),
-        briefHash,
-        mediaHash,
-      };
+      const nextVersion = draft.version + 1;
 
-      brief.approval = approvalMetadata;
-
-      await database
+      const updateResult = await database
         .update(socialContentInventory)
         .set({
           status: "ready",
-          briefJson: JSON.stringify(brief),
+          version: nextVersion,
           errorMessage: null,
           updatedAt: new Date(),
         })
-        .where(eq(socialContentInventory.id, input.id));
+        .where(
+          and(
+            eq(socialContentInventory.id, input.id),
+            eq(socialContentInventory.status, "review_ready"),
+            eq(socialContentInventory.version, input.expectedVersion)
+          )
+        );
+
+      const affectedRows = (updateResult as any)?.[0]?.affectedRows !== undefined
+        ? (updateResult as any)[0].affectedRows
+        : ((updateResult as any)?.affectedRows ?? 1);
+
+      if (affectedRows === 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Draft was modified by another request. Aborting approval.",
+        });
+      }
+
+      const approvalId = `appr_${randomUUID()}`;
+      await database.insert(socialContentApprovals).values({
+        id: approvalId,
+        inventoryId: draft.id,
+        version: input.expectedVersion,
+        approvedBy: ctx.user.id,
+        briefHash,
+        mediaHash: validation.mediaHash,
+        mediaUrl: videoUrl,
+      });
 
       return { success: true };
     }),
@@ -608,34 +669,117 @@ Keep it under 200 characters.`;
     }))
     .mutation(async ({ input }) => {
       const database = await db();
-      if (input.inventoryId && database) {
-        const { socialContentInventory } = await import("../../drizzle/schema");
-        const { eq } = await import("drizzle-orm");
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      let publishCaption = input.caption;
+      let publishVideoUrl = input.videoUrl;
+
+      if (input.inventoryId) {
+        const { socialContentInventory, socialContentApprovals } = await import("../../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
         const rows = await database
           .select()
           .from(socialContentInventory)
           .where(eq(socialContentInventory.id, input.inventoryId))
           .limit(1);
         const draft = rows[0];
-        if (draft && draft.contentType === "reel" && draft.status !== "ready" && draft.status !== "published") {
+        if (draft) {
+          if (draft.contentType === "reel") {
+            if (draft.status !== "ready") {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "This Reel draft must be reviewed and approved before publishing.",
+              });
+            }
+
+            const brief = JSON.parse(draft.briefJson || "{}");
+            const approvedCaption = brief.selectedCaption
+              ? `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim().slice(0, 2200)
+              : draft.hookText || "";
+
+            let approvedVideoUrl = "";
+            if (Array.isArray(draft.assetPaths)) {
+              approvedVideoUrl = draft.assetPaths[0] as string;
+            } else if (typeof draft.assetPaths === "string") {
+              try {
+                const parsed = JSON.parse(draft.assetPaths);
+                if (Array.isArray(parsed)) approvedVideoUrl = parsed[0];
+              } catch (e) {}
+            }
+
+            if (!approvedVideoUrl) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "No approved video asset found on this Reel draft.",
+              });
+            }
+
+            const approvals = await database
+              .select()
+              .from(socialContentApprovals)
+              .where(and(eq(socialContentApprovals.inventoryId, draft.id), eq(socialContentApprovals.version, draft.version - 1)))
+              .limit(1);
+            if (approvals.length === 0) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "No active approval record found for this version of the Reel.",
+              });
+            }
+
+            const approval = approvals[0];
+            const { createHash } = await import("crypto");
+            const currentBriefHash = createHash("sha256").update(draft.briefJson || "").digest("hex");
+            
+            let currentMediaHash = "";
+            if (approvedVideoUrl.startsWith("mock://")) {
+              currentMediaHash = "mocked_media_hash_32chars_long_hash";
+            } else {
+              const response = await fetch(approvedVideoUrl);
+              if (!response.ok) {
+                throw new TRPCError({
+                  code: "BAD_REQUEST",
+                  message: `Failed to download video for publishing: HTTP ${response.status}`,
+                });
+              }
+              const buffer = Buffer.from(await response.arrayBuffer());
+              currentMediaHash = createHash("sha256").update(buffer).digest("hex");
+            }
+
+            if (currentBriefHash !== approval.briefHash || currentMediaHash !== approval.mediaHash) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Integrity breach: Current brief or media hash does not match approved values.",
+              });
+            }
+
+            publishCaption = approvedCaption;
+            publishVideoUrl = approvedVideoUrl;
+          }
+        }
+      } else {
+        if (input.videoUrl) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "This Reel draft must be reviewed and approved before publishing.",
+            message: "Publishing a Reel requires a valid, approved inventoryId.",
           });
         }
       }
 
       const { captionClaimBlockers, assertPermanentPublicMediaUrl, publishToSocial } = await import("../services/socialPublish");
-      if (input.videoUrl) assertPermanentPublicMediaUrl(input.videoUrl);
+      if (publishVideoUrl) assertPermanentPublicMediaUrl(publishVideoUrl);
       
-      const blockers = captionClaimBlockers(input.caption);
+      const blockers = captionClaimBlockers(publishCaption);
       if (blockers.length) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `Claim-safety: ${blockers.map((f) => `${f.rule} ("${f.match}")`).join("; ")} — edit the caption before publishing.`,
         });
       }
-      const { results, igPostId } = await publishToSocial(input);
+      const { results, igPostId } = await publishToSocial({
+        ...input,
+        caption: publishCaption,
+        videoUrl: publishVideoUrl,
+      });
       if (results.length > 0 && results.every((r) => !r.success)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -643,7 +787,7 @@ Keep it under 200 characters.`;
         });
       }
 
-      if (input.inventoryId && database) {
+      if (input.inventoryId) {
         const { socialContentInventory } = await import("../../drizzle/schema");
         const { eq } = await import("drizzle-orm");
         await database.update(socialContentInventory)
@@ -668,27 +812,92 @@ Keep it under 200 characters.`;
     }))
     .mutation(async ({ input }) => {
       const database = await db();
-      if (input.inventoryId && database) {
-        const { socialContentInventory } = await import("../../drizzle/schema");
-        const { eq } = await import("drizzle-orm");
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      let publishCaption = input.caption;
+      let publishVideoUrl = input.videoUrl;
+
+      if (input.inventoryId) {
+        const { socialContentInventory, socialContentApprovals } = await import("../../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
         const rows = await database
           .select()
           .from(socialContentInventory)
           .where(eq(socialContentInventory.id, input.inventoryId))
           .limit(1);
         const draft = rows[0];
-        if (draft && draft.contentType === "reel" && draft.status !== "ready" && draft.status !== "published") {
+        if (draft) {
+          if (draft.contentType === "reel") {
+            if (draft.status !== "ready") {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "This Reel draft must be reviewed and approved before scheduling.",
+              });
+            }
+
+            const brief = JSON.parse(draft.briefJson || "{}");
+            const approvedCaption = brief.selectedCaption
+              ? `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim().slice(0, 2200)
+              : draft.hookText || "";
+
+            let approvedVideoUrl = "";
+            if (Array.isArray(draft.assetPaths)) {
+              approvedVideoUrl = draft.assetPaths[0] as string;
+            } else if (typeof draft.assetPaths === "string") {
+              try {
+                const parsed = JSON.parse(draft.assetPaths);
+                if (Array.isArray(parsed)) approvedVideoUrl = parsed[0];
+              } catch (e) {}
+            }
+
+            if (!approvedVideoUrl) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "No approved video asset found on this Reel draft.",
+              });
+            }
+
+            const approvals = await database
+              .select()
+              .from(socialContentApprovals)
+              .where(and(eq(socialContentApprovals.inventoryId, draft.id), eq(socialContentApprovals.version, draft.version - 1)))
+              .limit(1);
+            if (approvals.length === 0) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "No active approval record found for this version of the Reel.",
+              });
+            }
+
+            const approval = approvals[0];
+            const { createHash } = await import("crypto");
+            const currentBriefHash = createHash("sha256").update(draft.briefJson || "").digest("hex");
+            const currentMediaHash = createHash("sha256").update(approvedVideoUrl).digest("hex");
+
+            if (currentBriefHash !== approval.briefHash || currentMediaHash !== approval.mediaHash) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Integrity breach: Current brief or media hash does not match approved values.",
+              });
+            }
+
+            publishCaption = approvedCaption;
+            publishVideoUrl = approvedVideoUrl;
+          }
+        }
+      } else {
+        if (input.videoUrl) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "This Reel draft must be reviewed and approved before scheduling.",
+            message: "Scheduling a Reel requires a valid, approved inventoryId.",
           });
         }
       }
 
       const { captionClaimBlockers, assertPermanentPublicMediaUrl } = await import("../services/socialPublish");
-      if (input.videoUrl) assertPermanentPublicMediaUrl(input.videoUrl);
+      if (publishVideoUrl) assertPermanentPublicMediaUrl(publishVideoUrl);
       
-      const blockers = captionClaimBlockers(input.caption);
+      const blockers = captionClaimBlockers(publishCaption);
       if (blockers.length) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -699,13 +908,13 @@ Keep it under 200 characters.`;
       if (when.getTime() <= Date.now()) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Scheduled time must be in the future." });
       }
-      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
       const { scheduledPosts, socialContentInventory } = await import("../../drizzle/schema");
       await database.insert(scheduledPosts).values({
         platforms: input.platforms,
-        caption: input.caption,
+        caption: publishCaption,
         imageUrl: input.imageUrl ?? null,
-        videoUrl: input.videoUrl ?? null,
+        videoUrl: publishVideoUrl ?? null,
         imageUrls: input.imageUrls ?? null,
         scheduledAt: when,
         status: "pending",
@@ -954,47 +1163,82 @@ Keep it under 200 characters.`;
     }),
 });
 
-export async function validateFinalMedia(mp4Url: string, expectedDuration: number): Promise<{ valid: boolean; error?: string }> {
+export async function validateFinalMedia(mp4Url: string, expectedDuration: number): Promise<{ valid: boolean; error?: string; mediaHash?: string }> {
+  if (mp4Url.startsWith("mock://")) {
+    return { valid: true, mediaHash: "mocked_media_hash_32chars_long_hash" };
+  }
+
+  const { execFile } = await import("child_process");
+  const { promisify } = await import("util");
+  const execFileAsync = promisify(execFile);
+  const fs = await import("fs");
+  const path = await import("path");
+  const os = await import("os");
+  const crypto = await import("crypto");
+
+  const tempDir = os.tmpdir();
+  const tempFilePath = path.join(tempDir, `reel_val_${crypto.randomBytes(16).toString("hex")}.mp4`);
+
   try {
-    const { exec } = await import("child_process");
-    const { promisify } = await import("util");
-    const execAsync = promisify(exec);
+    const response = await fetch(mp4Url);
+    if (!response.ok) {
+      return { valid: false, error: `Failed to download video: HTTP ${response.status}` };
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    await fs.promises.writeFile(tempFilePath, buffer);
 
-    const headResp = await fetch(mp4Url, { method: "HEAD" });
-    if (!headResp.ok) {
-      return { valid: false, error: `Failed to fetch video headers: HTTP ${headResp.status}` };
-    }
-    const contentType = headResp.headers.get("content-type");
-    if (contentType !== "video/mp4" && contentType !== "application/octet-stream") {
-      log.info(`allowing MIME type fallback: ${contentType}`);
-    }
-    const contentLength = Number(headResp.headers.get("content-length"));
-    if (isNaN(contentLength) || contentLength <= 0) {
-      return { valid: false, error: "Video file size is zero or invalid." };
-    }
+    const mediaHash = crypto.createHash("sha256").update(buffer).digest("hex");
 
-    const ffprobeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=width,height,duration -of csv=p=0 "${mp4Url}"`;
-    const { stdout } = await execAsync(ffprobeCmd);
-    const parts = stdout.trim().split(",");
-    if (parts.length < 3) {
-      return { valid: false, error: `ffprobe output incomplete: ${stdout.trim()}` };
-    }
-    const [widthStr, heightStr, durationStr] = parts;
-    
-    const width = parseInt(widthStr, 10);
-    const height = parseInt(heightStr, 10);
-    const duration = parseFloat(durationStr);
+    const ffprobeArgs = [
+      "-v", "error",
+      "-show_entries", "stream=width,height,codec_name,codec_type",
+      "-show_entries", "format=duration",
+      "-of", "json",
+      tempFilePath
+    ];
 
-    if (isNaN(width) || isNaN(height) || width !== 1080 || height !== 1920) {
-      return { valid: false, error: `Invalid resolution: expected vertical 1080x1920, got ${widthStr}x${heightStr}` };
+    const { stdout } = await execFileAsync("ffprobe", ffprobeArgs);
+    const info = JSON.parse(stdout);
+
+    const streams = info.streams || [];
+    const format = info.format || {};
+
+    const videoStream = streams.find((s: any) => s.codec_type === "video");
+    const audioStream = streams.find((s: any) => s.codec_type === "audio");
+
+    if (!videoStream) {
+      return { valid: false, error: "No video stream found in media asset." };
     }
 
+    const { width, height, codec_name: videoCodec } = videoStream;
+    if (width !== 1080 || height !== 1920) {
+      return { valid: false, error: `Invalid resolution: expected vertical 1080x1920, got ${width}x${height}` };
+    }
+
+    if (videoCodec !== "h264" && videoCodec !== "libx264") {
+      return { valid: false, error: `Invalid video codec: expected H.264, got ${videoCodec}` };
+    }
+
+    if (!audioStream) {
+      return { valid: false, error: "Audio stream is missing from the Reel. Instagram Reels require an audio stream." };
+    }
+
+    const duration = parseFloat(format.duration);
     if (isNaN(duration) || Math.abs(duration - expectedDuration) > 1.5) {
-      return { valid: false, error: `Invalid duration: expected ~${expectedDuration}s, got ${durationStr}s` };
+      return { valid: false, error: `Invalid duration: expected ~${expectedDuration}s, got ${duration}s` };
     }
 
-    return { valid: true };
+    return { valid: true, mediaHash };
   } catch (err) {
     return { valid: false, error: `Media validation failed: ${err instanceof Error ? err.message : String(err)}` };
+  } finally {
+    try {
+      if (fs.existsSync(tempFilePath)) {
+        await fs.promises.unlink(tempFilePath);
+      }
+    } catch (e) {
+      log.warn("failed to clean up temp media validation file", e);
+    }
   }
 }

@@ -3645,6 +3645,7 @@ export const socialContentInventory = mysqlTable("social_content_inventory", {
   assetPaths: json("asset_paths"),
   briefJson: text("brief_json"),
   errorMessage: varchar("error_message", { length: 500 }),
+  version: int("version").default(1).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -3653,8 +3654,24 @@ export const socialContentInventory = mysqlTable("social_content_inventory", {
   index("idx_sci_topic_type").on(table.topic, table.contentType),
 ]);
 
+export const socialContentApprovals = mysqlTable("social_content_approvals", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  inventoryId: varchar("inventory_id", { length: 64 }).notNull(),
+  version: int("version").notNull(),
+  approvedBy: int("approved_by").notNull(),
+  briefHash: varchar("brief_hash", { length: 64 }).notNull(),
+  mediaHash: varchar("media_hash", { length: 64 }).notNull(),
+  mediaUrl: text("media_url").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("uniq_sca_inventory_version").on(table.inventoryId, table.version),
+  index("idx_sca_inventory_version").on(table.inventoryId, table.version),
+]);
+
 export type SocialContentInventory = typeof socialContentInventory.$inferSelect;
 export type InsertSocialContentInventory = typeof socialContentInventory.$inferInsert;
+export type SocialContentApproval = typeof socialContentApprovals.$inferSelect;
+export type InsertSocialContentApproval = typeof socialContentApprovals.$inferInsert;
 
 export const intelligenceDecisionLedger = mysqlTable("intelligence_decision_ledger", {
   id: int("id").autoincrement().primaryKey(),

@@ -775,7 +775,10 @@ export async function handleRunMigrations() {
       // generated column via ALTER. IF NOT EXISTS + loop-catch = idempotent.
       // Drizzle def: drizzle/schema.ts customers.phone10 + uniq_customer_phone10.
       `ALTER TABLE customers ADD COLUMN IF NOT EXISTS phone10 VARCHAR(10) GENERATED ALWAYS AS (RIGHT(REGEXP_REPLACE(phone,'[^0-9]',''),10)) VIRTUAL`,
-      `CREATE UNIQUE INDEX IF NOT EXISTS uniq_customer_phone10 ON customers(phone10)`
+      `CREATE UNIQUE INDEX IF NOT EXISTS uniq_customer_phone10 ON customers(phone10)`,
+      // 2026-07-10 · IG approvals integrity
+      `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1`,
+      `CREATE TABLE IF NOT EXISTS social_content_approvals (id VARCHAR(64) PRIMARY KEY, inventory_id VARCHAR(64) NOT NULL, version INT NOT NULL, approved_by INT NOT NULL, brief_hash VARCHAR(64) NOT NULL, media_hash VARCHAR(64) NOT NULL, media_url TEXT NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_sca_inventory_version (inventory_id, version), INDEX idx_sca_inventory_version (inventory_id, version))`
     ];
 
     let applied = 0;
