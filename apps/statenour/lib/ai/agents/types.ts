@@ -68,9 +68,20 @@ export interface SpecialistResponse {
   provider?: string;
 }
 
+import { getFlag } from "@/lib/feature-flags";
+
+function specialistRoutingMode(): "" | "true" | "shadow" {
+  const raw = getFlag("ENABLE_SPECIALIST_ROUTING")
+    ?.rawValue
+    ?.trim()
+    ?.toLowerCase();
+
+  return raw === "true" || raw === "shadow" ? raw : "";
+}
+
 /** True when the specialist routing layer is enabled at the env level. */
 export function isSpecialistRoutingEnabled(): boolean {
-  return process.env.ENABLE_SPECIALIST_ROUTING === "true";
+  return specialistRoutingMode() === "true";
 }
 
 /**
@@ -81,7 +92,7 @@ export function isSpecialistRoutingEnabled(): boolean {
  * flipping to "true" — the flag was previously all-or-nothing.
  */
 export function isSpecialistShadowMode(): boolean {
-  return process.env.ENABLE_SPECIALIST_ROUTING === "shadow";
+  return specialistRoutingMode() === "shadow";
 }
 
 /**

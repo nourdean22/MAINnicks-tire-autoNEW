@@ -23,19 +23,21 @@ export function logError(
     err instanceof Error ? err.message : typeof err === "string" ? err : "Unknown error";
   const stack = err instanceof Error ? err.stack : undefined;
 
-  prisma.errorLog
-    .create({
-      data: {
-        level,
-        message: `[${source}] ${message}`.slice(0, 500),
-        stack: stack?.slice(0, 4000) ?? null,
-        context: extra ? ({ source, ...extra } as any) : ({ source } as any),
-      },
-    })
-    .catch(() => {
-      // Never let log writes break the caller — errors that can't be
-      // logged aren't worth surfacing anywhere else.
-    });
+  if (prisma?.errorLog?.create) {
+    prisma.errorLog
+      .create({
+        data: {
+          level,
+          message: `[${source}] ${message}`.slice(0, 500),
+          stack: stack?.slice(0, 4000) ?? null,
+          context: extra ? ({ source, ...extra } as any) : ({ source } as any),
+        },
+      })
+      .catch(() => {
+        // Never let log writes break the caller — errors that can't be
+        // logged aren't worth surfacing anywhere else.
+      });
+  }
 
   // Also send to console for local dev / Vercel function logs.
   if (level === "fatal" || level === "error") {

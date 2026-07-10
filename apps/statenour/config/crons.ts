@@ -157,6 +157,54 @@ export const CRONS: CronDef[] = [
     inngest: true,
     description: "Weekly Ingestion & Strategic Briefing — Inngest-native.",
   },
+  {
+    name: "customer-preferences-recompute",
+    schedule: "0 11 * * *",
+    mode: "active",
+    category: "brain",
+    inngest: true,
+    description: "Recomputes customer preferences profile based on recent activity — Inngest-native.",
+  },
+  {
+    name: "diagnose-cron-failure",
+    schedule: "0 */4 * * *",
+    mode: "active",
+    category: "hygiene",
+    inngest: true,
+    description: "Diagnoses cron jobs that fail or stall and alerts operator — Inngest-native.",
+  },
+  {
+    name: "crm-weekly-followups",
+    schedule: "0 9 * * 1",
+    mode: "active",
+    category: "signals",
+    inngest: true,
+    description: "CRM weekly follow-ups proposer — Inngest-native.",
+  },
+  {
+    name: "content-performance-weekly",
+    schedule: "0 12 * * 1",
+    mode: "active",
+    category: "review",
+    inngest: true,
+    description: "Analyzes weekly performance of social media content — Inngest-native.",
+  },
+  {
+    name: "approval-sweeper",
+    schedule: "*/5 * * * *",
+    mode: "active",
+    category: "hygiene",
+    inngest: true,
+    description: "Cleans up expired or stalled approval requests — Inngest-native.",
+  },
+  {
+    name: "audit-todays-leads",
+    schedule: "0 8 * * *",
+    mode: "active",
+    category: "signals",
+    inngest: true,
+    description: "Audits today's leads from Nick's Tire & Auto bridge — Inngest-native.",
+  },
 
   // ── COMPOSE ─────────────────────────────────────────────────────────
 
@@ -610,16 +658,7 @@ export const CRONS: CronDef[] = [
     memory: 256,
     maxDuration: 30,
   },
-  {
-    name: "proactive-push",
-    schedule: "0 * * * *",
-    mode: "active",
-    category: "alert",
-    inngest: true,
-    description: "Hourly · runs hourly to fire slot-based Telegram micro-pushes and nudge pending approvals if any exist.",
-    memory: 256,
-    maxDuration: 60,
-  },
+  // proactive-push removed (duplicate of proactive-push-cron)
 
 
   // ── ACTION (Wave AG · Nick Action Queue) ────────────────────────────
@@ -671,7 +710,7 @@ export const CRONS: CronDef[] = [
   {
     name: "neglect-penalty",
     schedule: "0 */4 * * *", // Runs every 4 hours
-    mode: "active",
+    mode: "dormant",
     category: "hygiene",
     inngest: true,
     description: "Systemic decay enforcer. Deducts XP from neglected missions that idle for >48h and fires a Telegram alert.",

@@ -58,7 +58,7 @@ describe("stale-docs gate · CI workflow", () => {
   it("has a dedicated statenour stale-doc guard step (strict)", () => {
     expect(workflow).toMatch(/@statenour\/web check:stale-docs/);
     expect(workflow).toMatch(/STALE_DOCS_STRICT/);
-    expect(workflow).toMatch(/steps\.changes\.outputs\.statenour/);
+    expect(workflow).toMatch(/(steps|needs)\.changes\.outputs\.statenour/);
   });
 });
 

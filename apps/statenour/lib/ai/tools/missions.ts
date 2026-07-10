@@ -20,8 +20,15 @@ export const missionsTools = {
     execute: async () => {
       // v10.0.529.94 · Wave 38 · field projection.
       return prisma.mission.findMany({
-        where: { status: "ACTIVE", deletedAt: null },
-        select: { id: true, title: true, domain: true, priority: true, status: true },
+        where: {
+          status: "ACTIVE",
+          deletedAt: null,
+          OR: [
+            { systemKind: null },
+            { systemKind: { not: "SYSTEM" } }
+          ]
+        },
+        select: { id: true, title: true, domain: true, priority: true, status: true, systemKind: true },
         orderBy: { priority: "desc" },
       }).catch((): never[] => []);
     },

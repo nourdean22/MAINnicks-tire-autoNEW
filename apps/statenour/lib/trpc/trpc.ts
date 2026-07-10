@@ -73,20 +73,24 @@ const enforceOperator = middleware(({ ctx, next }) => {
 });
 
 const mutationGateMiddleware = middleware(async ({ ctx, next, type }) => {
-  if (type === "mutation") {
-    try {
-      const { getFlag } = await import("@/lib/feature-flags");
-      const mutationLock = getFlag("NICK_MUTATION_LOCK")?.isOn ?? false;
-      if (mutationLock) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Mutations are currently locked by NICK_MUTATION_LOCK.",
-        });
-      }
-    } catch {
-      // safe fallback
-    }
+  if (type !== "mutation") return next();
+
+  let locked = false;
+
+  try {
+    const { getFlag } = await import("@/lib/feature-flags");
+    locked = getFlag("NICK_MUTATION_LOCK")?.isOn ?? false;
+  } catch {
+    // Flag resolution failure preserves current behavior.
   }
+
+  if (locked) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Mutations are currently locked by NICK_MUTATION_LOCK.",
+    });
+  }
+
   return next();
 });
 

@@ -201,3 +201,13 @@ describe("runSchemaDriftCheck — connectivity failure", () => {
     expect(r.findings[0].problem).toMatch(/DB connectivity/i);
   });
 });
+
+describe("schema-sentinel expectation list", () => {
+  it("rejects agent_runs, agent_memory_hits, agent_feedbacks but still includes prompt_versions", () => {
+    const tables = EXPECTATIONS.map((e) => e.table);
+    expect(tables).not.toContain("agent_runs");
+    expect(tables).not.toContain("agent_memory_hits");
+    expect(tables).not.toContain("agent_feedbacks");
+    expect(tables).toContain("prompt_versions");
+  });
+});

@@ -28,7 +28,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
-import { computeTodayBurn, dailyBudgetCents } from "@/lib/services/cost-slo";
+import { z } from "zod";
+import { computeTodayBurn, resolveDailyAiBudgetCents } from "@/lib/services/cost-slo";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +60,7 @@ export async function GET(req: Request) {
     voiceP50,
   ] = await Promise.all([
     computeTodayBurn().catch(() => 0),
-    Promise.resolve(dailyBudgetCents()),
+    resolveDailyAiBudgetCents().catch(() => 500),
     prisma.brainMemory.findMany({
       where: {
         category: BRAIN_CATEGORIES.EVAL_RUN,

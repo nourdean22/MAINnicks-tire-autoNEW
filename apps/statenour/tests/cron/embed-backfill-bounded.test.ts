@@ -55,13 +55,19 @@ const invoke = () =>
 describe("cron/embed-backfill · bounded scans", () => {
   it("bounds the brain_memory scan with a `take` cap (no unbounded findMany)", async () => {
     await invoke();
-    expect(mockPrisma.brainMemory.findMany).toHaveBeenCalledTimes(1);
-    const arg = mockPrisma.brainMemory.findMany.mock.calls[0][0];
-    expect(arg.take).toBeTypeOf("number");
-    expect(arg.take).toBeGreaterThan(0);
-    // Keep the cap sane — a few hundred, not thousands. This is the
-    // regression guard: a reintroduced unbounded query has no `take`.
-    expect(arg.take).toBeLessThanOrEqual(500);
+    expect(mockPrisma.brainMemory.findMany).toHaveBeenCalledTimes(2);
+    
+    // First call (brain_memory block)
+    const arg1 = mockPrisma.brainMemory.findMany.mock.calls[0][0];
+    expect(arg1.take).toBeTypeOf("number");
+    expect(arg1.take).toBeGreaterThan(0);
+    expect(arg1.take).toBeLessThanOrEqual(500);
+
+    // Second call (greene_law block)
+    const arg2 = mockPrisma.brainMemory.findMany.mock.calls[1][0];
+    expect(arg2.take).toBeTypeOf("number");
+    expect(arg2.take).toBeGreaterThan(0);
+    expect(arg2.take).toBeLessThanOrEqual(500);
   });
 
   it("keeps the highest-confidence-first ordering so the cap drains the right rows", async () => {

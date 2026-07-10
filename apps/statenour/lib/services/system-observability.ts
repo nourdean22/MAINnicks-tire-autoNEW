@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   computeBurnRateForecast,
   costByProvider,
-  dailyBudgetCents,
+  resolveDailyAiBudgetCents,
   etDateKey,
   isOverBudget,
   sparkline7d,
@@ -49,7 +49,7 @@ export async function buildCostSloSnapshot() {
   ]);
 
   const { burnCents, forecastCents, hoursElapsed } = await computeBurnRateForecast();
-  const budget = dailyBudgetCents();
+  const budget = await resolveDailyAiBudgetCents();
   const threshold = Math.round(budget * 1.2);
 
   return {

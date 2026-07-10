@@ -510,12 +510,18 @@ async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                   metadata: {
                     conversationId: convId,
                     traceId,
+                    claims: actionVerdict.offenders.map((o) => ({
+                      verb: o.label || o.toolName,
+                      snippet: o.errorSafeMessage || "",
+                      expectedTool: o.toolName,
+                    })),
                     offenders: actionVerdict.offenders.map((o) => ({
                       toolName: o.toolName,
                       status: o.status,
                       label: o.label,
                       errorSafeMessage: o.errorSafeMessage,
                     })),
+                    toolsActuallyFired: results.map((r) => r.action),
                     textPreview: cleanedText.slice(0, 200),
                   },
                 } as Parameters<typeof prisma.brainMemory.create>[0]["data"],
@@ -1220,12 +1226,18 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
               metadata: {
                 conversationId: convId,
                 traceId,
+                claims: verdict.offenders.map((o) => ({
+                  verb: o.label || o.toolName,
+                  snippet: o.errorSafeMessage || "",
+                  expectedTool: o.toolName,
+                })),
                 offenders: verdict.offenders.map((o) => ({
                   toolName: o.toolName,
                   status: o.status,
                   label: o.label,
                   errorSafeMessage: o.errorSafeMessage,
                 })),
+                toolsActuallyFired: receipts.map((r) => r.toolName),
                 textPreview: cleanedText.slice(0, 200),
               },
             } as Parameters<typeof prisma.brainMemory.create>[0]["data"],
