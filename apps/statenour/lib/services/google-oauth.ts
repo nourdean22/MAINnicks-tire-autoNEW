@@ -289,8 +289,15 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
 
   // Use a transaction with pg_advisory_xact_lock to prevent concurrent refresh races across processes
   return await prisma.$transaction(async (tx) => {
-    // Acquire a transaction-level advisory lock
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext($1))`, `google_oauth_refresh_${accountKey}`;
+    // Acquire a transaction-level advisory lock.
+    // 2026-07-10 fix · this was `$executeRaw\`...hashtext($1)\`, <arg>` —
+    // a tagged template with the "param" tacked on via the JS comma
+    // operator, so it was silently DISCARDED and `$1` reached Postgres
+    // unbound → error 42P02 on every cache-miss refresh (the advisory
+    // lock never actually locked, defeating the cross-process
+    // anti-race it exists for). Interpolate into the template so Prisma
+    // binds it as a real parameter.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`google_oauth_refresh_${accountKey}`}))`;
 
     const integration = await tx.integration.findUnique({
       where: { name: integrationName },
