@@ -29,6 +29,7 @@ export interface ReelAssemblyBrief {
   hashtags?: string[];
   voiceoverScript?: string;
   storyboardBeats: AssemblyBeat[];
+  campaignKeyword?: string;
 }
 
 export interface ReelSegment {
@@ -476,7 +477,8 @@ export async function assembleReel(
     for (let i = 0; i < segs.length; i++) {
       await fs.promises.writeFile(path.join(workDir, `caption_${i}.txt`), segs[i].caption, "utf-8");
     }
-    await fs.promises.writeFile(path.join(workDir, "caption_save.txt"), SAVE_CTA_TEXT, "utf-8");
+    const ctaText = brief.campaignKeyword ? `SAVE THIS | DM "${brief.campaignKeyword.toUpperCase()}"` : "SAVE THIS POST";
+    await fs.promises.writeFile(path.join(workDir, "caption_save.txt"), ctaText, "utf-8");
 
     const args = buildFfmpegArgs({ segs, clipPaths, voPath, assPath, musicPath: pickMusicBed(brief), fontPath: "font.ttf", outPath });
     log.info("assembling reel", { jobId, beats: segs.length, total, usedVo: !!voPath, usedAss: !!assPath });

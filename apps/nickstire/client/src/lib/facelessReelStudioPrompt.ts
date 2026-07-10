@@ -42,10 +42,11 @@ export interface ProprietaryEvidence {
     potholeDamageCount: number;
     commonVehicles: string[];
     averageMileage: number;
-  };
-  clevelandAngle: string;
+  } | null;
+  clevelandAngle: string | null;
   testimonials?: string[];
   pastSocialOutputs?: { topic: string; contentType: string; campaignKeyword?: string }[];
+  availability?: "available" | "unavailable";
 }
 
 export interface ReelPromptOptions {
@@ -81,15 +82,20 @@ You are the Faceless Reel Director for ${STUDIO_BRAND.name} (${STUDIO_BRAND.hand
 - NO prices in reels. NO offers. NO guarantees. NO stock or wait-time claims.`);
 
   let evidenceText = `# PROPRIETARY SHOP EVIDENCE`;
-  if (opts.proprietaryEvidence) {
+  if (opts.proprietaryEvidence && opts.proprietaryEvidence.availability !== "unavailable") {
     const pe = opts.proprietaryEvidence;
-    evidenceText += `
+    if (pe.localStats) {
+      evidenceText += `
 - Cleveland Repair Stats:
   - Brake rust/seizure ratio: ${pe.localStats.brakeRustRatioPercent}% of inspected brakes show salt/seizure issues.
   - Recent pothole/rim damage bookings: ${pe.localStats.potholeDamageCount} incidents recorded.
   - Common vehicles serviced: ${pe.localStats.commonVehicles.join(", ")}.
-  - Average Cleveland vehicle mileage: ${pe.localStats.averageMileage.toLocaleString()} miles.
+  - Average Cleveland vehicle mileage: ${pe.localStats.averageMileage.toLocaleString()} miles.`;
+    }
+    if (pe.clevelandAngle) {
+      evidenceText += `
   - Cleveland Road Angle: ${pe.clevelandAngle}`;
+    }
     if (pe.recentCaseStudy) {
       const cs = pe.recentCaseStudy;
       evidenceText += `
@@ -122,7 +128,9 @@ You are the Faceless Reel Director for ${STUDIO_BRAND.name} (${STUDIO_BRAND.hand
   - Weave the Real Case Study vehicle and inspection notes into the "storyboard beats" (specifically the visual, motion, or on-screen text).
   - Incorporate the local Cleveland stats (e.g., brake rust ratio or pothole damage counts) into the beat-outline or final caption copy to establish shop authority.`;
   } else {
-    evidenceText += `\n- [Pending] No proprietary database evidence loaded. Ground your concepts in typical Cleveland freeze-thaw cycles and salt wear.`;
+    evidenceText += `
+STATUS: UNAVAILABLE
+- No local database evidence is currently available. Do not invent any statistics, testimonials, or vehicle cases. Ground your concepts in general, verified industry standard guidelines. If you cannot ground the claim in verified industry standards, output status "needs_research" and stop.`;
   }
   sections.push(evidenceText);
 

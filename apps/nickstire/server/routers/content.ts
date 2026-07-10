@@ -1154,6 +1154,11 @@ export const contentAdminRouter = router({
       const qualityScore = calculateReelQualityScore(input.brief as unknown as ReelBrief);
       return { qualityScore, passing: qualityScore.passing };
     }),
+  probeVeoConnection: adminProcedure
+    .mutation(async () => {
+      const { probeVeoConnection } = await import("../services/veoStudio");
+      return await probeVeoConnection();
+    }),
   getProprietaryEvidence: adminProcedure
     .input(z.object({ topicKeyword: z.string().optional() }).optional())
     .query(async ({ input }) => {

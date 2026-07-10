@@ -63,6 +63,67 @@ const REEL_BRIEF_SCHEMA: OutputSchema = {
       selectedCaption: { type: "string" },
       captionHooks: { type: "array", items: { type: "string" } },
       hashtags: { type: "array", items: { type: "string" } },
+      sourceNotes: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            label: { type: "string" },
+            url: { type: "string" },
+            kind: { type: "string" },
+            supports: { type: "string" },
+          },
+          required: ["label", "kind", "supports"],
+        },
+      },
+      concepts: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            id: { type: "string" },
+            hook: { type: "string" },
+            coreFact: { type: "string" },
+            factBucket: { type: "string" },
+            driverEmotion: { type: "string" },
+            campaignKeyword: { type: "string" },
+            archetype: { type: "string" },
+            motionLens: { type: "string" },
+            objectCharacter: { type: "string" },
+            usefulAbsurdity: { type: "string" },
+            localAngle: { type: "string" },
+            beatOutline: { type: "array", items: { type: "string" } },
+            loopIdea: { type: "string" },
+            captionAngle: { type: "string" },
+            saveShareReason: { type: "string" },
+            nickFitReason: { type: "string" },
+            nonGenericReason: { type: "string" },
+            rejectionRisk: { type: "string" },
+            scores: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                hook: { type: "number" },
+                truth: { type: "number" },
+                save: { type: "number" },
+                local: { type: "number" },
+                absurdity: { type: "number" },
+                fit: { type: "number" },
+              },
+              required: ["hook", "truth", "save", "local", "absurdity", "fit"],
+            },
+          },
+          required: [
+            "id", "hook", "coreFact", "factBucket", "driverEmotion", "campaignKeyword",
+            "archetype", "motionLens", "objectCharacter", "usefulAbsurdity", "localAngle",
+            "beatOutline", "loopIdea", "captionAngle", "saveShareReason", "nickFitReason",
+            "nonGenericReason", "rejectionRisk", "scores",
+          ],
+        },
+      },
+      winningConceptId: { type: "string" },
       storyboardBeats: {
         type: "array",
         items: {
@@ -86,7 +147,7 @@ const REEL_BRIEF_SCHEMA: OutputSchema = {
       "topic", "mechanicTruth", "driverConfusion", "clevelandAngle", "factBucket",
       "campaignKeyword", "archetype", "motionLens", "objectCharacter", "usefulAbsurdity",
       "voiceoverScript", "ffmpegAssemblyNotes", "avoidedForRepetition", "selectedCaption",
-      "captionHooks", "hashtags", "storyboardBeats",
+      "captionHooks", "hashtags", "sourceNotes", "concepts", "winningConceptId", "storyboardBeats",
     ],
   },
 };
@@ -166,7 +227,11 @@ export async function generateReelBriefAI(
     systemPrompt += `\n\n${skillPayload.fragment}`;
   }
 
+  const modelOverride = process.env.REEL_GEN_MODEL || (process.env.GEMINI_API_KEY ? "gemini-1.5-pro" : undefined);
+
+  log.info("Generating initial Reel Brief via LLM", { model: modelOverride });
   const res = await invokeLLM({
+    model: modelOverride,
     messages: [
       { role: "system", content: systemPrompt },
       {
@@ -188,7 +253,38 @@ export async function generateReelBriefAI(
   if (typeof content !== "string" || !content.trim()) {
     throw new Error("LLM returned no reel brief content");
   }
-  const parsed = parseReelJson(content);
+  const initialParsed = parseReelJson(content);
+
+  log.info("Running targeted Critic/Rewriter step on generated Reel Brief");
+  const criticPrompt = `You are a Senior Editor, Brand Voice Coach, and Compliance Officer at Nick's Tire & Auto in Cleveland, Ohio.
+Review the following generated Reel Brief:
+${JSON.stringify(initialParsed, null, 2)}
+
+Your task is to review, refine, and optimize this Reel Brief to absolute perfection.
+Verify:
+1. Brand Voice: Authentic, expert, gritty but professional Cleveland automotive voice. Avoid generic, corporate, or overly salesy tone.
+2. Safety & Compliance: Ensure there are no price quotes, no pricing guarantees, no vehicle-specific claims that require a vin, no generic safety claims that cannot be verified. Sell the visit, not the price.
+3. Cleveland Angle: Ensure any Cleveland references (e.g. potholes, road names like Dead Man's Curve, local streets, weather patterns) are 100% accurate and feel genuinely local.
+4. Reel Flow: Check that the storyboard beats are contiguous, have excellent pacing, clear muted-first text overlay, and a compelling hook beat.
+
+If any aspect is not perfect, rewrite the fields directly. OUTPUT ONLY the corrected, fully populated Reel Brief JSON object matching the provided schema. Do not include markdown fences or any prose outside the JSON.`;
+
+  const criticRes = await invokeLLM({
+    model: modelOverride,
+    messages: [
+      { role: "system", content: criticPrompt },
+      { role: "user", content: "Analyze and rewrite the Reel Brief to perfection. Return the complete updated JSON matching the schema." }
+    ],
+    maxTokens: 8192,
+    timeoutMs: 120000,
+    outputSchema: REEL_BRIEF_SCHEMA,
+  });
+
+  const refinedContent = criticRes.choices?.[0]?.message?.content;
+  if (typeof refinedContent !== "string" || !refinedContent.trim()) {
+    throw new Error("Critic LLM returned no content");
+  }
+  const parsed = parseReelJson(refinedContent);
   const kw = coerceKeyword(str(parsed.campaignKeyword));
 
   const storyboardBeats: StoryboardBeat[] = (Array.isArray(parsed.storyboardBeats) ? parsed.storyboardBeats : [])
@@ -207,22 +303,47 @@ export async function generateReelBriefAI(
       };
     });
 
-  // Programmatically append the final loop/CTA frame (Phase 1.3 visual CTA card)
-  const lastBeat = storyboardBeats[storyboardBeats.length - 1];
-  if (lastBeat) {
-    const endSec = lastBeat.endSecond;
-    storyboardBeats.push({
-      beatNumber: storyboardBeats.length + 1,
-      startSecond: endSec,
-      endSecond: endSec + 2, // 2-second hold card
-      visual: "Graphic display of Nick's Tire & Auto logo on brand yellow (#FDB913) background with clear text overlay",
-      motion: "Static hold with subtle camera zoom-in",
-      onScreenText: `SAVE THIS POST | DM us "${kw}"`,
-      purpose: "Provide a strong, clear, brand-aligned visual call to action on loop",
-      audioCue: "Fading music loop",
-      safeZoneNotes: "Center-aligned text, fully inside IG UI safe zones"
-    });
-  }
+  const concepts = (Array.isArray(parsed.concepts) ? parsed.concepts : []).map((raw: any) => {
+    const c = raw ?? {};
+    return {
+      id: str(c.id),
+      hook: str(c.hook),
+      coreFact: str(c.coreFact),
+      factBucket: coerceEnum<FactBucket>(str(c.factBucket), FACT_BUCKETS),
+      driverEmotion: str(c.driverEmotion),
+      campaignKeyword: coerceKeyword(str(c.campaignKeyword)),
+      archetype: coerceEnum<ReelArchetype>(str(c.archetype), REEL_ARCHETYPES),
+      motionLens: coerceEnum<MotionLens>(str(c.motionLens), MOTION_LENSES),
+      objectCharacter: coerceEnum<ObjectCharacter>(str(c.objectCharacter), OBJECT_CHARACTERS),
+      usefulAbsurdity: str(c.usefulAbsurdity),
+      localAngle: str(c.localAngle),
+      beatOutline: strArr(c.beatOutline),
+      loopIdea: str(c.loopIdea),
+      captionAngle: str(c.captionAngle),
+      saveShareReason: str(c.saveShareReason),
+      nickFitReason: str(c.nickFitReason),
+      nonGenericReason: str(c.nonGenericReason),
+      rejectionRisk: str(c.rejectionRisk),
+      scores: {
+        hook: num(c.scores?.hook),
+        truth: num(c.scores?.truth),
+        save: num(c.scores?.save),
+        local: num(c.scores?.local),
+        absurdity: num(c.scores?.absurdity),
+        fit: num(c.scores?.fit),
+      }
+    };
+  });
+
+  const sourceNotes = (Array.isArray(parsed.sourceNotes) ? parsed.sourceNotes : []).map((raw: any) => {
+    const s = raw ?? {};
+    return {
+      label: str(s.label),
+      url: str(s.url) || undefined,
+      kind: str(s.kind) === "proof" ? "proof" as const : "pain_point" as const,
+      supports: str(s.supports)
+    };
+  });
 
   const now = new Date().toISOString();
   const brief: ReelBrief = {
@@ -235,15 +356,15 @@ export async function generateReelBriefAI(
     mechanicTruth: str(parsed.mechanicTruth),
     driverConfusion: str(parsed.driverConfusion),
     clevelandAngle: str(parsed.clevelandAngle),
-    sourceNotes: [],
+    sourceNotes,
     factBucket: coerceEnum<FactBucket>(str(parsed.factBucket), FACT_BUCKETS),
     campaignKeyword: coerceKeyword(str(parsed.campaignKeyword)),
     archetype: coerceEnum<ReelArchetype>(str(parsed.archetype), REEL_ARCHETYPES),
     motionLens: coerceEnum<MotionLens>(str(parsed.motionLens), MOTION_LENSES),
     objectCharacter: coerceEnum<ObjectCharacter>(str(parsed.objectCharacter), OBJECT_CHARACTERS),
     usefulAbsurdity: str(parsed.usefulAbsurdity),
-    concepts: [],
-    winningConceptId: null,
+    concepts,
+    winningConceptId: str(parsed.winningConceptId) || null,
     storyboardBeats,
     promptPack: [],
     higgsfieldPromptPack: [],
@@ -258,6 +379,11 @@ export async function generateReelBriefAI(
     instagramUrl: null,
     operatorNotes: "",
   };
+
+  const { buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
+  const pPack = buildHiggsfieldReelPromptPack(brief);
+  brief.promptPack = pPack;
+  brief.higgsfieldPromptPack = pPack;
 
   return { brief, rawModel: content };
 }

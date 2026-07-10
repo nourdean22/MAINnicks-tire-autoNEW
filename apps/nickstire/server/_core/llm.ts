@@ -67,6 +67,7 @@ export type InvokeParams = {
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
+  model?: string;
 };
 
 export type ToolCall = {
@@ -301,9 +302,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: process.env.OPENAI_API_KEY
+    model: params.model || (process.env.OPENAI_API_KEY
       ? (process.env.LLM_MODEL || "gpt-4o")
-      : (process.env.GEMINI_MODEL || "gemini-3.5-flash"),
+      : (process.env.GEMINI_MODEL || "gemini-1.5-pro")),
     messages: messages.map(normalizeMessage),
   };
 
