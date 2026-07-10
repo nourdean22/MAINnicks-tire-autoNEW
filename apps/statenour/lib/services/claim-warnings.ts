@@ -30,12 +30,30 @@ export interface ClaimWarning {
   textPreview: string;
 }
 
+interface LegacyClaimOffender {
+  toolName: string;
+  status?: string;
+  label?: string;
+  errorSafeMessage?: string;
+}
+
 interface ClaimWarningMetadata {
   conversationId?: string;
   traceId?: string;
   claims?: Array<{ verb: string; snippet: string; expectedTool: string }>;
+  offenders?: LegacyClaimOffender[];
   toolsActuallyFired?: string[];
   textPreview?: string;
+}
+
+function normalizeClaims(md: ClaimWarningMetadata): Array<{ verb: string; snippet: string; expectedTool: string }> {
+  if (md.claims?.length) return md.claims;
+
+  return (md.offenders ?? []).map((o) => ({
+    verb: o.label ?? o.toolName,
+    snippet: o.errorSafeMessage ?? "",
+    expectedTool: o.toolName,
+  }));
 }
 
 export async function readClaimWarnings(args: {
@@ -58,7 +76,7 @@ export async function readClaimWarnings(args: {
       id: r.id,
       traceId: md?.traceId ?? null,
       createdAt: r.createdAt.toISOString(),
-      claims: md?.claims ?? [],
+      claims: md ? normalizeClaims(md) : [],
       toolsActuallyFired: md?.toolsActuallyFired ?? [],
       textPreview: md?.textPreview ?? "",
     });

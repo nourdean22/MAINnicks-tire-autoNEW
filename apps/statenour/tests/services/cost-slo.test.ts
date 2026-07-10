@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     aggregate: vi.fn(),
     groupBy: vi.fn(),
   },
+  getSetting: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -21,11 +22,15 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/lib/services/settings", () => ({
+  getSetting: (...args: unknown[]) => mocks.getSetting(...args),
+}));
+
 import {
   computeBurnRateForecast,
   computeTodayBurn,
   costByProvider,
-  dailyBudgetCents,
+  resolveDailyAiBudgetCents,
   isOverBudget,
   providerOf,
   topConversationsByCost,
@@ -36,6 +41,8 @@ const ORIGINAL_ENV = { ...process.env };
 beforeEach(() => {
   mocks.aiGeneration.aggregate.mockReset();
   mocks.aiGeneration.groupBy.mockReset();
+  mocks.getSetting.mockReset();
+  mocks.getSetting.mockImplementation((key, fallback) => Promise.resolve(fallback));
   process.env = { ...ORIGINAL_ENV };
 });
 
@@ -43,23 +50,34 @@ afterEach(() => {
   process.env = { ...ORIGINAL_ENV };
 });
 
-describe("dailyBudgetCents · env handling", () => {
-  it("returns the env value when valid", () => {
+describe("resolveDailyAiBudgetCents · env and settings handling", () => {
+  it("returns the env value when valid and no setting exists", async () => {
     process.env.DAILY_AI_BUDGET_CENTS = "750";
-    expect(dailyBudgetCents()).toBe(750);
+    expect(await resolveDailyAiBudgetCents()).toBe(750);
   });
 
-  it("falls back to 500 when env is missing, blank, NaN, or non-positive", () => {
+  it("falls back to 500 when env is missing, blank, NaN, or non-positive", async () => {
     delete process.env.DAILY_AI_BUDGET_CENTS;
-    expect(dailyBudgetCents()).toBe(500);
+    expect(await resolveDailyAiBudgetCents()).toBe(500);
     process.env.DAILY_AI_BUDGET_CENTS = "";
-    expect(dailyBudgetCents()).toBe(500);
+    expect(await resolveDailyAiBudgetCents()).toBe(500);
     process.env.DAILY_AI_BUDGET_CENTS = "abc";
-    expect(dailyBudgetCents()).toBe(500);
+    expect(await resolveDailyAiBudgetCents()).toBe(500);
     process.env.DAILY_AI_BUDGET_CENTS = "-100";
-    expect(dailyBudgetCents()).toBe(500);
+    expect(await resolveDailyAiBudgetCents()).toBe(500);
     process.env.DAILY_AI_BUDGET_CENTS = "0";
-    expect(dailyBudgetCents()).toBe(500);
+    expect(await resolveDailyAiBudgetCents()).toBe(500);
+  });
+
+  it("uses the stored setting when valid", async () => {
+    mocks.getSetting.mockResolvedValueOnce(1000);
+    expect(await resolveDailyAiBudgetCents()).toBe(1000);
+  });
+
+  it("falls back to env fallback when stored setting is invalid", async () => {
+    mocks.getSetting.mockResolvedValueOnce(-50);
+    process.env.DAILY_AI_BUDGET_CENTS = "800";
+    expect(await resolveDailyAiBudgetCents()).toBe(800);
   });
 });
 
@@ -157,9 +175,9 @@ describe("currency conversion · cents discipline", () => {
     expect(Number.isInteger(result.forecastCents)).toBe(true);
   });
 
-  it("dailyBudgetCents floors fractional env values to integers", () => {
+  it("resolveDailyAiBudgetCents floors fractional env values to integers", async () => {
     process.env.DAILY_AI_BUDGET_CENTS = "612.99";
-    expect(dailyBudgetCents()).toBe(612);
+    expect(await resolveDailyAiBudgetCents()).toBe(612);
   });
 });
 

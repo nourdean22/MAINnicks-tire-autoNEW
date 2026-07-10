@@ -42,6 +42,55 @@ for (const c of CRONS) {
 }
 if (errors === 0) ok(`${CRONS.length} manifest entries all backed by a route.ts`);
 
+// ── 1.5 · Inngest-native crons validation ──────────────────────────
+console.log("");
+console.log("[1.5/6] Inngest-native crons manifest parity");
+const functionsDir = path.join(cwd, "lib/inngest/functions");
+const files = fs.existsSync(functionsDir)
+  ? fs.readdirSync(functionsDir).filter((f) => f.endsWith(".ts") && f !== "index.ts")
+  : [];
+const inngestCrons = new Map<string, string>();
+
+for (const file of files) {
+  const content = fs.readFileSync(path.join(functionsDir, file), "utf-8");
+  const blocks = content.split(".createFunction(");
+  for (let i = 1; i < blocks.length; i++) {
+    const block = blocks[i];
+    const cronMatch = block.match(/cron:\s*["'`]([^"'`]+)["'`]/);
+    if (cronMatch) {
+      const idMatch = block.match(/id:\s*["'`]([^"'`]+)["'`]/);
+      if (idMatch) {
+        const id = idMatch[1];
+        if (id === "mega-fanout-morning" || id === "mega-fanout-evening") continue;
+        inngestCrons.set(id, cronMatch[1]);
+      }
+    }
+  }
+}
+
+// A. Check that all crons found on disk are in the manifest
+for (const [id, schedule] of inngestCrons.entries()) {
+  const manifestEntry = CRONS.find((c) => c.name === id);
+  if (!manifestEntry) {
+    fail(`Inngest cron id "${id}" found in code but is NOT registered in config/crons.ts`);
+  } else if (!manifestEntry.inngest) {
+    fail(`Inngest cron id "${id}" is registered in config/crons.ts but is missing inngest: true`);
+  } else if (manifestEntry.schedule !== schedule) {
+    fail(`Inngest cron id "${id}" schedule mismatch: code="${schedule}", manifest="${manifestEntry.schedule}"`);
+  }
+}
+
+// B. Check that all active inngest crons in manifest actually exist in code
+for (const c of CRONS) {
+  if (c.inngest && c.mode === "active") {
+    const codeSchedule = inngestCrons.get(c.name);
+    if (!codeSchedule) {
+      fail(`Inngest cron "${c.name}" is marked active in manifest but no cron function with this id exists in lib/inngest/functions/`);
+    }
+  }
+}
+if (errors === 0) ok(`${inngestCrons.size} Inngest-native crons validated successfully`);
+
 // ── 2 · Every route.ts has a manifest entry ──────────────────────────
 console.log("");
 console.log("[2/6]filesystem → manifest (dark code detector)");

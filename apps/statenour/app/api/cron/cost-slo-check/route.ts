@@ -18,7 +18,7 @@
 import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
-import { dailyBudgetCents, etDateKey, isOverBudget } from "@/lib/services/cost-slo";
+import { etDateKey, isOverBudget } from "@/lib/services/cost-slo";
 import { recordCoachEvent } from "@/lib/services/coach-events";
 
 export const maxDuration = 60;
@@ -215,6 +215,6 @@ export const GET = cronHandler(async () => {
     over: true,
     burnCents: state.burnCents,
     forecastCents: state.forecastCents,
-    budgetCents: dailyBudgetCents(),
+    budgetCents: state.budgetCents,
   };
 });

@@ -471,10 +471,11 @@ export async function pruneTools(
   // which is tolerable on top of a 57K system prompt + 4K output.
   if (isDeep && Object.keys(kept).length > 50) {
     const entries = Object.entries(kept);
-    // Keep the CORE_TOOLS slots first (always), then fill with the rest
+    // Keep the CORE_TOOLS and ACTION_CORE slots first (always), then fill with the rest
     // in insertion order (which came from semantic-ranked high → low).
-    const keptCore = entries.filter(([n]) => CORE_TOOLS.includes(n));
-    const keptExtra = entries.filter(([n]) => !CORE_TOOLS.includes(n)).slice(0, 50 - keptCore.length);
+    const priorityNames = [...CORE_TOOLS, ...ACTION_CORE];
+    const keptCore = entries.filter(([n]) => priorityNames.includes(n));
+    const keptExtra = entries.filter(([n]) => !priorityNames.includes(n)).slice(0, 50 - keptCore.length);
     return Object.fromEntries([...keptCore, ...keptExtra]);
   }
 
