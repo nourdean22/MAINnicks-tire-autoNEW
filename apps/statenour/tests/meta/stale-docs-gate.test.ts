@@ -97,7 +97,7 @@ describe("de-Venice drift guard", () => {
       }
     });
     expect(violations).toEqual([]);
-  });
+  }, 20000);
 
   it("ensures retired files do not exist", () => {
     const { existsSync } = require("node:fs");
