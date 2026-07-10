@@ -40,10 +40,11 @@ export interface ProprietaryEvidence {
     potholeDamageCount: number;
     commonVehicles: string[];
     averageMileage: number;
-  };
-  clevelandAngle: string;
+  } | null;
+  clevelandAngle: string | null;
   testimonials?: string[];
   pastSocialOutputs?: { topic: string; contentType: string; campaignKeyword?: string }[];
+  availability?: "available" | "unavailable";
 }
 
 export interface MasterPromptOptions {
@@ -101,14 +102,18 @@ export function buildCarouselStudioSystemPrompt(opts: MasterPromptOptions): stri
   lines.push("");
 
   lines.push("## PROPRIETARY SHOP EVIDENCE");
-  if (opts.proprietaryEvidence) {
+  if (opts.proprietaryEvidence && opts.proprietaryEvidence.availability !== "unavailable") {
     const pe = opts.proprietaryEvidence;
-    lines.push("- Cleveland Repair Stats:");
-    lines.push(`  - Brake rust/seizure ratio: ${pe.localStats.brakeRustRatioPercent}% of inspected brakes show salt/seizure issues.`);
-    lines.push(`  - Recent pothole/rim damage bookings: ${pe.localStats.potholeDamageCount} incidents recorded.`);
-    lines.push(`  - Common vehicles serviced: ${pe.localStats.commonVehicles.join(", ")}.`);
-    lines.push(`  - Average Cleveland vehicle mileage: ${pe.localStats.averageMileage.toLocaleString()} miles.`);
-    lines.push(`  - Cleveland Road Angle: ${pe.clevelandAngle}`);
+    if (pe.localStats) {
+      lines.push("- Cleveland Repair Stats:");
+      lines.push(`  - Brake rust/seizure ratio: ${pe.localStats.brakeRustRatioPercent}% of inspected brakes show salt/seizure issues.`);
+      lines.push(`  - Recent pothole/rim damage bookings: ${pe.localStats.potholeDamageCount} incidents recorded.`);
+      lines.push(`  - Common vehicles serviced: ${pe.localStats.commonVehicles.join(", ")}.`);
+      lines.push(`  - Average Cleveland vehicle mileage: ${pe.localStats.averageMileage.toLocaleString()} miles.`);
+    }
+    if (pe.clevelandAngle) {
+      lines.push(`  - Cleveland Road Angle: ${pe.clevelandAngle}`);
+    }
     if (pe.recentCaseStudy) {
       const cs = pe.recentCaseStudy;
       lines.push("- Real Anonymized Shop Case Study (Grounding Evidence):");
@@ -135,7 +140,8 @@ export function buildCarouselStudioSystemPrompt(opts: MasterPromptOptions): stri
     lines.push("  - Weave the Real Case Study vehicle, symptom, and inspection findings directly into the \"3 · The Clue\" slide outline.");
     lines.push("  - Incorporate the local Cleveland stats (e.g., brake rust ratio, pothole counts, or Cleveland average mileage) into the \"2 · Plain-English Truth\" slide or final caption copy to establish local shop authority.");
   } else {
-    lines.push("- [Pending] No proprietary database evidence loaded. Ground your concepts in typical Cleveland freeze-thaw cycles and salt wear.");
+    lines.push("STATUS: UNAVAILABLE");
+    lines.push("- No local database evidence is currently available. Do not invent any statistics, testimonials, or vehicle cases. Ground your concepts in general, verified industry standard guidelines. If you cannot ground the claim in verified industry standards, output status \"needs_research\" and stop.");
   }
   lines.push("");
 

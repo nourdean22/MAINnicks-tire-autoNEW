@@ -29,10 +29,11 @@ export interface ProprietaryEvidence {
     potholeDamageCount: number; // count of recent pothole/rim damage bookings
     commonVehicles: string[]; // top 3 makes/models serviced
     averageMileage: number; // average vehicle mileage in Cleveland
-  };
-  clevelandAngle: string;
-  testimonials: string[];
-  pastSocialOutputs: { topic: string; contentType: string; campaignKeyword?: string }[];
+  } | null;
+  clevelandAngle: string | null;
+  testimonials: string[] | null;
+  pastSocialOutputs: { topic: string; contentType: string; campaignKeyword?: string }[] | null;
+  availability: "available" | "unavailable";
 }
 
 /**
@@ -40,38 +41,20 @@ export interface ProprietaryEvidence {
  * to populate prompts with exclusive, real-world Cleveland auto repair evidence.
  */
 export async function getProprietaryEvidence(topicKeyword?: string): Promise<ProprietaryEvidence> {
-  const defaultEvidence: ProprietaryEvidence = {
-    recentCaseStudy: {
-      vehicle: "2018 Ford Escape",
-      symptom: "Squeal when slowing down",
-      failedComponent: "Brake slide pins",
-      condition: "red",
-      techNotes: "Slide pins completely seized from winter road salt. Outer pad had 7mm left, but inner pad was worn to metal.",
-      recommendedAction: "Replace pads, rotors, and service slide pins with high-temp lubricant."
-    },
-    localStats: {
-      brakeRustRatioPercent: 42,
-      potholeDamageCount: 18,
-      commonVehicles: ["Ford Escape", "Chevrolet Cruze", "Honda Civic"],
-      averageMileage: 112000
-    },
-    clevelandAngle: "Cleveland road salt and freeze-thaw cycles accelerate undercarriage rust much faster than national averages.",
-    testimonials: [
-      "John D.: \"Excellent service, completed my brake repair on time!\" (5 stars)",
-      "Sarah M.: \"Highly recommend Nick's Tire. Very professional and friendly staff.\" (5 stars)",
-      "Mike T.: \"Fair prices and honest diagnostics. Will return!\" (5 stars)"
-    ],
-    pastSocialOutputs: [
-      { topic: "Why road salt ruins Cleveland brakes", contentType: "reel", campaignKeyword: "brakes" },
-      { topic: "Pothole survival guide: tire sidewall bubbles", contentType: "carousel", campaignKeyword: "tires" },
-    ]
+  const unavailableResult: ProprietaryEvidence = {
+    recentCaseStudy: null,
+    localStats: null,
+    clevelandAngle: "No local shop data available. Focus on standard verified industry guidelines.",
+    testimonials: [],
+    pastSocialOutputs: [],
+    availability: "unavailable"
   };
 
   try {
     const db = await dbHelper();
     if (!db) {
-      log.warn("Database not available, returning default evidence");
-      return defaultEvidence;
+      log.warn("Database not available, returning unavailable status");
+      return unavailableResult;
     }
 
     // 1. Fetch an anonymized case study
@@ -121,7 +104,7 @@ export async function getProprietaryEvidence(topicKeyword?: string): Promise<Pro
     }
 
     // 2. Calculate local brake rust ratio (prop proportion of inspected brakes showing rust issues)
-    let brakeRustRatioPercent = 42;
+    let brakeRustRatioPercent = 0;
     const brakeItems = await db
       .select({
         id: inspectionItems.id,
@@ -140,7 +123,7 @@ export async function getProprietaryEvidence(topicKeyword?: string): Promise<Pro
     }
 
     // 3. Count pothole damage indicators in recent bookings
-    let potholeDamageCount = 12;
+    let potholeDamageCount = 0;
     const recentBookings = await db
       .select({
         message: bookings.message,
@@ -159,7 +142,7 @@ export async function getProprietaryEvidence(topicKeyword?: string): Promise<Pro
     }
 
     // 4. Find top 3 most common vehicles serviced
-    let commonVehicles = ["Ford Escape", "Chevrolet Cruze", "Honda Civic"];
+    let commonVehicles: string[] = [];
     const vehicleCounts = await db
       .select({
         make: customerVehicles.make,
@@ -176,7 +159,7 @@ export async function getProprietaryEvidence(topicKeyword?: string): Promise<Pro
     }
 
     // 5. Calculate average mileage
-    let averageMileage = 112000;
+    let averageMileage = 0;
     const avgMilRow = await db
       .select({
         avg: sql<number>`avg(${customerVehicles.mileage})`
@@ -228,7 +211,6 @@ export async function getProprietaryEvidence(topicKeyword?: string): Promise<Pro
       log.warn("Failed to fetch testimonials from database", testErr);
     }
     const combinedTestimonials = testimonials.slice(0, 5);
-    const finalTestimonials = combinedTestimonials.length > 0 ? combinedTestimonials : defaultEvidence.testimonials;
 
     // 7. Fetch past social outputs
     const pastSocialOutputs: { topic: string; contentType: string; campaignKeyword?: string }[] = [];
@@ -257,22 +239,24 @@ export async function getProprietaryEvidence(topicKeyword?: string): Promise<Pro
     } catch (socialErr) {
       log.warn("Failed to fetch past social outputs from DB", socialErr);
     }
-    const finalPastSocial = pastSocialOutputs.length > 0 ? pastSocialOutputs : defaultEvidence.pastSocialOutputs;
 
     return {
-      recentCaseStudy: caseStudy || defaultEvidence.recentCaseStudy,
+      recentCaseStudy: caseStudy,
       localStats: {
-        brakeRustRatioPercent: Math.max(10, Math.min(95, brakeRustRatioPercent)),
+        brakeRustRatioPercent: Math.max(0, Math.min(100, brakeRustRatioPercent)),
         potholeDamageCount,
         commonVehicles,
         averageMileage
       },
-      clevelandAngle: `Cleveland's average vehicle age and harsh road salt mean undercarriage components fail ${Math.round(brakeRustRatioPercent * 0.8)}% faster than national averages.`,
-      testimonials: finalTestimonials,
-      pastSocialOutputs: finalPastSocial
+      clevelandAngle: brakeRustRatioPercent > 0
+        ? `Out of the brakes inspected at our shop, ${brakeRustRatioPercent}% show signs of salt-related rust or seizure.`
+        : `Cleveland road salt and freeze-thaw cycles accelerate undercarriage rust much faster than national averages.`,
+      testimonials: combinedTestimonials,
+      pastSocialOutputs,
+      availability: "available"
     };
   } catch (err) {
     log.error("Failed to fetch proprietary evidence from database:", err);
-    return defaultEvidence;
+    return unavailableResult;
   }
 }

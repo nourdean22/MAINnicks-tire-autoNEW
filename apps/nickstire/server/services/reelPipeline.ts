@@ -145,36 +145,55 @@ export async function processNextReelJob(): Promise<{
     const { generateReelClipVideo } = await import("./veoStudio");
     const { storagePut } = await import("../storage");
 
-    const clipUrls: string[] = [];
-    for (const beat of beats) {
+    let clipUrls: string[] = [];
+    try {
+      if (job.clipUrlsJson) {
+        const parsed = JSON.parse(job.clipUrlsJson);
+        if (Array.isArray(parsed)) clipUrls = parsed;
+      }
+    } catch (e) {
+      log.warn("failed to parse existing clipUrlsJson, starting fresh", { jobId: job.id, err: e });
+    }
+
+    for (let i = 0; i < beats.length; i++) {
+      const beat = beats[i];
+      
+      // If the clip for this beat index was already generated and hosted in a previous run, resume/skip it
+      if (clipUrls[i] && clipUrls[i].startsWith("http")) {
+        log.info("resuming: clip already exists for beat", { jobId: job.id, beat: beat.beatNumber, url: clipUrls[i] });
+        continue;
+      }
+
       const prompt =
         brief.promptPack?.find((p) => p.beatNumber === beat.beatNumber)?.prompt ??
         brief.higgsfieldPromptPack?.find((p) => p.beatNumber === beat.beatNumber)?.prompt ?? beat.visual;
       if (!prompt || !prompt.trim()) throw new Error(`beat ${beat.beatNumber} has no prompt`);
-      // Timeout-guarded: a hung Veo poll otherwise blocks here forever with
-      // the job parked in `generating` (no catch ever fires). On timeout it
-      // rejects into the catch below and retries on the next pulse.
+      
+      // Timeout-guarded: a hung Veo poll otherwise blocks here forever
       const hgUrl = await withTimeout(
         generateReelClipVideo(prompt),
         GEN_CLIP_TIMEOUT_MS,
         `gen beat ${beat.beatNumber}`,
       );
-      // Re-host the generated clip to our own public storage — source URLs can
-      // be temporary, and storagePut falls back to the public /generated route
-      // when S3 isn't configured, so the clip is always fetchable from us.
+      
+      // Re-host the generated clip to our own public storage
       const resp = await withTimeout(fetch(hgUrl), CLIP_FETCH_TIMEOUT_MS, `fetch beat ${beat.beatNumber}`);
       if (!resp.ok) throw new Error(`failed to fetch clip for beat ${beat.beatNumber}: HTTP ${resp.status}`);
       const buf = Buffer.from(await resp.arrayBuffer());
-      // Unique basename per (job, beat): the no-S3 fallback serves by basename
-      // only, so a job-scoped prefix isn't enough — fold jobId into the filename
-      // so job N's clip-0 can't overwrite job M's before assembly downloads it.
       const put = await storagePut(`reels/clip-${job.id}-${beat.beatNumber}.mp4`, buf, "video/mp4");
-      clipUrls.push(put.url);
-      // Heartbeat: bump updatedAt after each clip so the stuck-job sweeper can
-      // tell an actively-progressing sequential gen from a hung one (updatedAt is
-      // otherwise frozen at claim time for the entire multi-minute gen loop).
-      await d.update(reelJobs).set({ updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
-      log.info("reel clip generated", { jobId: job.id, beat: beat.beatNumber, of: beats.length });
+      
+      // Save clip URL at the specific beat index
+      clipUrls[i] = put.url;
+
+      // Heartbeat: bump updatedAt and progressive clipUrlsJson in the DB immediately after each success
+      await d.update(reelJobs)
+        .set({ 
+          clipUrlsJson: JSON.stringify(clipUrls),
+          updatedAt: new Date() 
+        })
+        .where(eq(reelJobs.id, job.id));
+
+      log.info("reel clip generated and saved progressively", { jobId: job.id, beat: beat.beatNumber, of: beats.length });
     }
 
     await d

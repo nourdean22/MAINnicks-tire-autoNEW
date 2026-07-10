@@ -57,6 +57,9 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
           if (!assets[0]) {
             throw new Error("no reel MP4 asset — generation incomplete");
           }
+          if (!assets[0].toLowerCase().endsWith(".mp4")) {
+            throw new Error(`reel asset is not an MP4 video (got: ${assets[0]})`);
+          }
           assertPermanentPublicMediaUrl(assets[0]);
           mediaInput.videoUrl = assets[0];
         } else if (isCarousel) {

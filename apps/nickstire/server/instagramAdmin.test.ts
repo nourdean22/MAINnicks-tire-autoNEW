@@ -193,4 +193,59 @@ describe("instagramAdmin router", () => {
       expect(Array.isArray(await caller.instagramAdmin.listScheduled({ limit: 10 }))).toBe(true);
     });
   });
+
+  describe("stageDraft validation for Reels", () => {
+    it("throws BAD_REQUEST if a Reel is staged without a videoUrl", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(caller.instagramAdmin.stageDraft({
+        format: "reel",
+        caption: "check this out",
+        sourceType: "manual",
+      })).rejects.toThrow(/requires a generated video asset/i);
+    });
+
+    it("throws BAD_REQUEST if Reel videoUrl does not end in .mp4", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(caller.instagramAdmin.stageDraft({
+        format: "reel",
+        caption: "check this out",
+        videoUrl: "https://nickstire.com/assets/img.jpg",
+        sourceType: "manual",
+      })).rejects.toThrow(/must be an MP4 video/i);
+    });
+
+    it("throws BAD_REQUEST if Reel conceptBrief is missing", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(caller.instagramAdmin.stageDraft({
+        format: "reel",
+        caption: "check this out",
+        videoUrl: "https://nickstire.com/assets/video.mp4",
+        sourceType: "manual",
+      })).rejects.toThrow(/requires a valid ReelBrief payload/i);
+    });
+
+    it("throws BAD_REQUEST if Reel conceptBrief fails quality score validation", async () => {
+      const caller = appRouter.createCaller(ctx("admin"));
+      // missing campaignKeyword, loop, proof source etc will fail calculateReelQualityScore
+      await expect(caller.instagramAdmin.stageDraft({
+        format: "reel",
+        caption: "check this out",
+        videoUrl: "https://nickstire.com/assets/video.mp4",
+        sourceType: "manual",
+        conceptBrief: {
+          id: "123",
+          storyboardBeats: [],
+          sourceNotes: [],
+          mechanicTruth: "",
+          higgsfieldPromptPack: [],
+          concepts: [],
+          winningConceptId: null,
+          voiceoverScript: "",
+          campaignKeyword: "brakes",
+          selectedCaption: "",
+          captionHooks: [],
+        }
+      })).rejects.toThrow(/below passing threshold/i);
+    });
+  });
 });

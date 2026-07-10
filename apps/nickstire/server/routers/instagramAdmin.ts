@@ -348,6 +348,46 @@ Keep it under 200 characters.`;
       qualityScore: z.any().optional(),
     }))
     .mutation(async ({ input }) => {
+      let overallScore = 80;
+
+      if (input.format === "reel") {
+        if (!input.videoUrl) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Reel format requires a generated video asset.",
+          });
+        }
+        if (!input.videoUrl.toLowerCase().endsWith(".mp4")) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Reel asset must be an MP4 video.",
+          });
+        }
+        if (!input.conceptBrief) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Reel enqueuing requires a valid ReelBrief payload.",
+          });
+        }
+
+        const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
+        const qRes = calculateReelQualityScore(input.conceptBrief);
+        if (!qRes.passing) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Reel brief quality score (${qRes.score}/75) is below passing threshold.`,
+          });
+        }
+        const blocks = qRes.parts.filter(p => !p.ok);
+        if (blocks.some(b => b.label.includes("safety") || b.label.includes("claims"))) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Reel blocked by safety or claim gate checks.",
+          });
+        }
+        overallScore = qRes.score;
+      }
+
       const database = await db();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       const { socialContentInventory } = await import("../../drizzle/schema");
@@ -378,6 +418,7 @@ Keep it under 200 characters.`;
         status: "assets_ready",
         assetPaths,
         briefJson: JSON.stringify(input.conceptBrief || {}),
+        scoreOverall: overallScore,
       });
       
       return { success: true };
@@ -709,7 +750,8 @@ Keep it under 200 characters.`;
       .orderBy(desc(socialContentInventory.createdAt))
       .limit(50);
       
-    return rows.map((r: any) => {
+    const results = [];
+    for (const r of rows) {
       let parsedBrief: any = {};
       try { parsedBrief = r.briefJson ? JSON.parse(r.briefJson) : {}; } catch {}
       let parsedAssetPaths: any[] = [];
@@ -721,16 +763,39 @@ Keep it under 200 characters.`;
       if (r.status === "approved") mappedStatus = "ready";
       if (r.status === "generating") mappedStatus = "needs_review";
       
-      return {
+      const isReel = r.contentType === "reel";
+      const mediaPath = parsedAssetPaths[0] || "";
+
+      let scoreObj = { gate: "pass", overall: r.scoreOverall || 80 };
+      if (isReel) {
+        if (!parsedBrief || Object.keys(parsedBrief).length === 0) {
+          scoreObj = { gate: "block", overall: 0 };
+        } else {
+          try {
+            const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
+            const qRes = calculateReelQualityScore(parsedBrief);
+            scoreObj = { gate: qRes.passing ? "pass" : "block", overall: qRes.score };
+          } catch (e) {
+            log.warn("failed to calculate reel score in getAllDrafts", e);
+            scoreObj = { gate: "block", overall: 0 };
+          }
+        }
+      }
+
+      results.push({
         id: r.id,
         status: mappedStatus,
         format: r.contentType,
         caption: r.hookText,
-        assetPack: { imageUrl: parsedAssetPaths[0] || "" },
-        qualityScore: { gate: "pass", overall: r.scoreOverall || 80 },
+        assetPack: { 
+          imageUrl: isReel ? "" : mediaPath,
+          videoUrl: isReel ? mediaPath : "",
+        },
+        qualityScore: scoreObj,
         conceptBrief: { sourceSummary: r.topic, ...parsedBrief }
-      };
-    });
+      });
+    }
+    return results;
   }),
 
   /** Get Performance Insights for the Learn Panel */
