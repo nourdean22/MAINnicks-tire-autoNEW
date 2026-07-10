@@ -446,10 +446,7 @@ export async function pruneTools(
     addMatching(/runSimulation/i);
   }
 
-  // Introduce a shared directIntentMatches set that aggregates:
-  // * Exact tool-name matches
-  // * All deterministic keyword-family matches
-  const directIntentMatches = new Set<string>([...exactMentioned, ...keywordMatches]);
+
 
   const selectedNames = new Set<string>();
 
@@ -499,8 +496,8 @@ export async function pruneTools(
   }
 
   // Tier 6: Default extras (if only core tools were matched)
-  const coreToolsInRegistry = CORE_TOOLS.filter(n => allTools[n]);
-  if (selectedNames.size === coreToolsInRegistry.length) {
+  const coreAndActionInRegistry = [...CORE_TOOLS, ...ACTION_CORE].filter(n => allTools[n]);
+  if (selectedNames.size === coreAndActionInRegistry.length) {
     const defaults = ["getCommitments", "getTasks", "dailyPulse", "findCustomer"];
     for (const name of defaults) {
       addIfSpace(name);
