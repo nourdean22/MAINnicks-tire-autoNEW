@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $queryRaw: (...a: unknown[]) => mocks.queryRaw(...a),
+    $executeRaw: (...a: unknown[]) => mocks.executeRaw(...a),
     $executeRawUnsafe: (...a: unknown[]) => mocks.unsafeExec(...a),
     $queryRawUnsafe: (...a: unknown[]) => mocks.unsafeQuery(...a),
   },
@@ -33,8 +34,6 @@ import {
 beforeEach(() => {
   vi.clearAllMocks();
   bustPgvectorCache();
-  vi.spyOn(console, "warn").mockImplementation(() => {});
-  vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 describe("vectorLiteral", () => {
@@ -78,16 +77,16 @@ describe("isPgvectorAvailable", () => {
 
 describe("enablePgvector", () => {
   it("runs CREATE EXTENSION + busts cache + reprobes", async () => {
-    mocks.unsafeExec.mockResolvedValueOnce(0);
+    mocks.executeRaw.mockResolvedValueOnce(0);
     mocks.queryRaw.mockResolvedValueOnce([{ extname: "vector" }]);
     const result = await enablePgvector();
     expect(result).toBe(true);
-    expect(mocks.unsafeExec).toHaveBeenCalledOnce();
-    expect(String(mocks.unsafeExec.mock.calls[0][0])).toContain("CREATE EXTENSION");
+    expect(mocks.executeRaw).toHaveBeenCalledOnce();
+    expect(String(mocks.executeRaw.mock.calls[0][0])).toContain("CREATE EXTENSION");
   });
 
   it("returns false on CREATE failure", async () => {
-    mocks.unsafeExec.mockRejectedValueOnce(new Error("permission denied"));
+    mocks.executeRaw.mockRejectedValueOnce(new Error("permission denied"));
     expect(await enablePgvector()).toBe(false);
   });
 });

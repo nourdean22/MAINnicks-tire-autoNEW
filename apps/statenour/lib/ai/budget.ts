@@ -34,7 +34,7 @@ import "server-only";
  * is 60s after crossing the cap — fine for a daily-cap signal.
  */
 import { prisma } from "@/lib/prisma";
-import { getSetting } from "@/lib/services/settings";
+import { resolveDailyAiBudgetCents } from "@/lib/services/cost-slo";
 import { startOfDay, toDateString } from "@/lib/utils/datetime";
 
 export interface BudgetStatus {
@@ -47,7 +47,7 @@ export interface BudgetStatus {
 
 /** Check today's AI spend against the configured daily budget */
 export async function checkBudget(): Promise<BudgetStatus> {
-  const limit = await getSetting<number>("ai.dailyBudgetCents", 500);
+  const limit = await resolveDailyAiBudgetCents();
   const todayStart = startOfDay();
 
   const result = await prisma.aiGeneration.aggregate({

@@ -37,12 +37,22 @@ export const socialPublishQueue = inngest.createFunction(
 
     // 1. Update draft status to "rendering" (publishing underway) in DB if draftId provided
     if (draftId) {
-      await step.run("set-rendering-status", async () => {
-        return prisma.socialPublishQueue.update({
-          where: { id: draftId },
-          data: { status: "rendering" },
+      const claim = await step.run("claim-social-draft", async () => {
+        return prisma.socialPublishQueue.updateMany({
+          where: {
+            id: draftId,
+            status: { in: ["pending", "approved", "scheduled"] },
+          },
+          data: {
+            status: "rendering",
+          },
         });
       });
+
+      if (claim.count !== 1) {
+        log.warn("social_publish_already_claimed", { draftId });
+        return { ok: true, skipped: "already_claimed_or_completed" };
+      }
     }
 
     const publishResults: Array<{ platform: string; ok: boolean; postId?: string; permalink?: string; error?: string }> = [];
@@ -68,142 +78,154 @@ export const socialPublishQueue = inngest.createFunction(
 
     // 3. Instagram Step (checkpointed for idempotency)
     if (platforms.includes("instagram")) {
-      const igResult = await step.run("publish-instagram", async () => {
-        if (videoUrl) {
-          // Instagram Video/Reel publishing with polling loop
-          const creds = {
-            pageAccessToken: process.env.META_PAGE_ACCESS_TOKEN?.trim() || "",
-            instagramAccountId: process.env.META_IG_USER_ID?.trim() || process.env.META_INSTAGRAM_ACCOUNT_ID?.trim() || "",
+      let igResult: { platform: string; ok: boolean; postId?: string; permalink?: string; error?: string };
+
+      if (videoUrl) {
+        // Instagram Video/Reel publishing with polling loop (flat steps)
+        const creds = {
+          pageAccessToken: process.env.META_PAGE_ACCESS_TOKEN?.trim() || "",
+          instagramAccountId: process.env.META_IG_USER_ID?.trim() || process.env.META_INSTAGRAM_ACCOUNT_ID?.trim() || "",
+        };
+
+        if (!creds.pageAccessToken || !creds.instagramAccountId) {
+          igResult = {
+            platform: "instagram",
+            ok: false,
+            error: "Missing Meta credentials for Instagram",
           };
-          if (!creds.pageAccessToken || !creds.instagramAccountId) {
-            return {
-              platform: "instagram",
-              ok: false,
-              error: "Missing Meta credentials for Instagram",
+        } else {
+          // Step A: Create container (retriable step)
+          const containerId = await step.run("create-instagram-container", async () => {
+            const GRAPH_BASE = "https://graph.facebook.com/v20.0";
+            const containerUrl = `${GRAPH_BASE}/${creds.instagramAccountId}/media`;
+            const containerPayload: Record<string, string> = {
+              media_type: "REELS",
+              video_url: videoUrl,
+              caption: caption || message || "",
+              access_token: creds.pageAccessToken,
             };
-          }
+            if (imageUrl) {
+              containerPayload.cover_url = imageUrl;
+            }
 
-          // Step A: Create container
-          const GRAPH_BASE = "https://graph.facebook.com/v20.0";
-          const containerUrl = `${GRAPH_BASE}/${creds.instagramAccountId}/media`;
-          const containerPayload: Record<string, string> = {
-            media_type: "REELS",
-            video_url: videoUrl,
-            caption: caption || message || "",
-            access_token: creds.pageAccessToken,
-          };
-          if (imageUrl) {
-            containerPayload.cover_url = imageUrl;
-          }
-
-          const containerRes = await fetch(containerUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(containerPayload),
+            const containerRes = await fetch(containerUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              signal: AbortSignal.timeout(30_000),
+              body: JSON.stringify(containerPayload),
+            });
+            if (!containerRes.ok) {
+              const errText = await containerRes.text();
+              throw new Error(`Reel container init failed (${containerRes.status}): ${errText.slice(0, 200)}`);
+            }
+            const containerData = await containerRes.json();
+            const cid = containerData.id;
+            if (!cid) {
+              throw new Error("No container ID returned from Meta API");
+            }
+            return cid as string;
           });
-          if (!containerRes.ok) {
-            const errText = await containerRes.text();
-            return {
-              platform: "instagram",
-              ok: false,
-              error: `Reel container init failed (${containerRes.status}): ${errText.slice(0, 200)}`,
-            };
-          }
-          const containerData = await containerRes.json();
-          const containerId = containerData.id;
-          if (!containerId) {
-            return {
-              platform: "instagram",
-              ok: false,
-              error: "No container ID returned from Meta API",
-            };
-          }
 
           // Step B: Durable Polling Loop inside Inngest workflow (without blocking Node thread!)
           let isReady = false;
           let attempts = 0;
           const maxAttempts = 30;
+          let pollError: string | null = null;
 
           while (!isReady && attempts < maxAttempts) {
             attempts++;
             // Native durable sleep checkpoint
             await step.sleep(`sleep-poll-${attempts}`, "5s");
 
-            const statusRes = await fetch(
-              `${GRAPH_BASE}/${containerId}?fields=status_code&access_token=${creds.pageAccessToken}`
-            );
-            const statusData = await statusRes.json().catch(() => null);
-            if (!statusRes.ok || !statusData) {
-              continue;
-            }
-            if (statusData.error) {
-              return {
-                platform: "instagram",
-                ok: false,
-                error: `Meta Reel status check error: ${statusData.error.message}`,
-              };
-            }
-            const statusCode = statusData.status_code;
-            if (statusCode === "FINISHED") {
+            const status = await step.run(`check-container-status-${attempts}`, async () => {
+              const GRAPH_BASE = "https://graph.facebook.com/v20.0";
+              const statusRes = await fetch(
+                `${GRAPH_BASE}/${containerId}?fields=status_code&access_token=${creds.pageAccessToken}`,
+                { signal: AbortSignal.timeout(10_000) }
+              );
+              const statusData = await statusRes.json().catch(() => null);
+              if (!statusRes.ok || !statusData) {
+                return { code: "RETRY" as const };
+              }
+              if (statusData.error) {
+                return { code: "ERROR" as const, message: statusData.error.message as string };
+              }
+              return { code: statusData.status_code as string, message: "" };
+            });
+
+            if (status.code === "FINISHED") {
               isReady = true;
-            } else if (statusCode === "ERROR") {
-              return {
-                platform: "instagram",
-                ok: false,
-                error: "Meta video processing failed (status_code: ERROR)",
-              };
+            } else if (status.code === "ERROR") {
+              pollError = `Meta video processing failed: ${status.message || "status_code: ERROR"}`;
+              break;
             }
           }
 
-          if (!isReady) {
-            return {
+          if (pollError) {
+            igResult = {
+              platform: "instagram",
+              ok: false,
+              error: pollError,
+            };
+          } else if (!isReady) {
+            igResult = {
               platform: "instagram",
               ok: false,
               error: "Meta video processing timed out (still IN_PROGRESS after 150s)",
             };
-          }
+          } else {
+            // Step C: Publish container (retriable step)
+            const postId = await step.run("publish-instagram-container", async () => {
+              const GRAPH_BASE = "https://graph.facebook.com/v20.0";
+              const publishRes = await fetch(
+                `${GRAPH_BASE}/${creds.instagramAccountId}/media_publish`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  signal: AbortSignal.timeout(30_000),
+                  body: JSON.stringify({
+                    creation_id: containerId,
+                    access_token: creds.pageAccessToken,
+                  }),
+                }
+              );
+              if (!publishRes.ok) {
+                const errText = await publishRes.text();
+                throw new Error(`Reel publish failed (${publishRes.status}): ${errText.slice(0, 200)}`);
+              }
+              const publishData = await publishRes.json();
+              const pid = publishData.id;
+              if (!pid) {
+                throw new Error("No publish ID returned from Meta API");
+              }
+              return pid as string;
+            });
 
-          // Step C: Publish container
-          const publishRes = await fetch(
-            `${GRAPH_BASE}/${creds.instagramAccountId}/media_publish`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                creation_id: containerId,
-                access_token: creds.pageAccessToken,
-              }),
-            }
-          );
-          if (!publishRes.ok) {
-            const errText = await publishRes.text();
-            return {
+            // Optional fetch permalink (retriable step)
+            const permalink = await step.run("fetch-instagram-permalink", async () => {
+              const GRAPH_BASE = "https://graph.facebook.com/v20.0";
+              const permalinkRes = await fetch(
+                `${GRAPH_BASE}/${postId}?fields=permalink&access_token=${creds.pageAccessToken}`,
+                { signal: AbortSignal.timeout(10_000) }
+              );
+              if (permalinkRes.ok) {
+                const permData = await permalinkRes.json();
+                return permData.permalink as string;
+              }
+              return undefined;
+            });
+
+            igResult = {
               platform: "instagram",
-              ok: false,
-              error: `Reel publish failed (${publishRes.status}): ${errText.slice(0, 200)}`,
+              ok: true,
+              postId,
+              permalink: permalink ?? undefined,
             };
           }
-          const publishData = await publishRes.json();
-          const postId = publishData.id;
-
-          // Optional fetch permalink
-          const permalinkRes = await fetch(
-            `${GRAPH_BASE}/${postId}?fields=permalink&access_token=${creds.pageAccessToken}`
-          );
-          let permalink: string | undefined;
-          if (permalinkRes.ok) {
-            const permData = await permalinkRes.json();
-            permalink = permData.permalink;
-          }
-
-          return {
-            platform: "instagram",
-            ok: true,
-            postId,
-            permalink,
-          };
-        } else {
-          // Standard Image upload to Instagram
+        }
+      } else {
+        // Standard Image upload to Instagram
+        igResult = await step.run("publish-instagram-image", async () => {
           const res = await publishToInstagram({
             imageUrl: imageUrl!,
             caption: caption || message || "",
@@ -215,8 +237,8 @@ export const socialPublishQueue = inngest.createFunction(
             permalink: res.permalink,
             error: res.error,
           };
-        }
-      });
+        });
+      }
       publishResults.push(igResult);
     }
 

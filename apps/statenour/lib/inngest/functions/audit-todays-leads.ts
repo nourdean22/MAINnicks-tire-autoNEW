@@ -11,59 +11,38 @@ export interface LeadsAuditResult {
   timeline: string[];
 }
 
-export const auditTodaysLeads = inngest.createFunction(
-  {
-    id: "audit-todays-leads",
-    name: "Audit Today's Leads Workflow",
-    retries: 1,
-    triggers: [{ cron: "0 8 * * *" }], // Run every day at 8 AM
-    onFailure: onInngestFailure,
-  },
-  async ({ step }) => {
+export async function auditTodaysLeadsHandler({ step }: { step: any }) {
     // Step 1: Fetch active leads from nickstire.org via cross-app client
     const leads = await step.run("get-active-leads", async () => {
       const { callNickstire } = await import("@/lib/ai/agent-actions/shop-actions");
       const res = (await callNickstire("lead.list", { limit: 20 })) as any;
       if (res && res.result && Array.isArray(res.result.json)) {
-        return res.result.json.map((l: any) => ({
-          id: String(l.id),
-          name: l.name || "Customer",
-          phone: l.phone || "",
-          status: l.status || "NEW",
-          createdAt: l.createdAt ? new Date(l.createdAt).getTime() : Date.now(),
-          lastContactedAt: l.lastContactedAt ? new Date(l.lastContactedAt).getTime() : null,
-          vehicle: l.vehicle || "Vehicle",
-        }));
+        return {
+          leads: res.result.json.map((l: any) => ({
+            id: String(l.id),
+            name: l.name || "Customer",
+            phone: l.phone || "",
+            status: l.status || "NEW",
+            createdAt: l.createdAt ? new Date(l.createdAt).getTime() : Date.now(),
+            lastContactedAt: l.lastContactedAt ? new Date(l.lastContactedAt).getTime() : null,
+            vehicle: l.vehicle || "Vehicle",
+          })),
+          source: "success" as const,
+        };
       }
-      // Return fallback dummy leads for testing if Bridge API is unconfigured
-      return [
-        {
-          id: "lead_123",
-          name: "John Smith",
-          phone: "555-0199",
-          status: "NEW",
-          createdAt: Date.now() - 3 * 3600 * 1000, // 3 hours ago
-          lastContactedAt: null,
-          vehicle: "2020 Ford F-150",
-        },
-        {
-          id: "lead_456",
-          name: "Sarah Miller",
-          phone: "555-0144",
-          status: "NEW",
-          createdAt: Date.now() - 10 * 3600 * 1000, // 10 hours ago
-          lastContactedAt: null,
-          vehicle: "2018 Honda Civic",
-        }
-      ];
+      return {
+        leads: [],
+        source: "bridge_unavailable" as const,
+      };
     });
 
     // Step 2 & 3: Run CRM Enrichment & Determine Outreach Priority
     const processedLeads = await step.run("enrich-and-score-leads", async () => {
+      if (leads.source === "bridge_unavailable") return [];
       const enriched = [];
       const now = Date.now();
 
-      for (const lead of leads) {
+      for (const lead of leads.leads) {
         // Only audit new/uncontacted leads
         if (lead.status === "NEW") {
           const ageMs = now - lead.createdAt;
@@ -155,4 +134,14 @@ export const auditTodaysLeads = inngest.createFunction(
       timeline: drafts.timeline,
     };
   }
+
+export const auditTodaysLeads = inngest.createFunction(
+  {
+    id: "audit-todays-leads",
+    name: "Audit Today's Leads Workflow",
+    retries: 1,
+    triggers: [{ cron: "0 8 * * *" }], // Run every day at 8 AM
+    onFailure: onInngestFailure,
+  },
+  auditTodaysLeadsHandler
 );

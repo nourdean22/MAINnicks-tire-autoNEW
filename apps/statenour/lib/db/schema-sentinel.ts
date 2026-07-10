@@ -197,30 +197,11 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     matchByDefinition: true,
     reason: "v8.5 HNSW index — without it, KNN queries scan",
   },
-  // ── Cockpit Observability Models (Phase 1) ──────────────────────
   {
     kind: "column_exists",
     table: "prompt_versions",
     column: "version",
     reason: "Cockpit Observability — prompt system prompt versioning",
-  },
-  {
-    kind: "column_exists",
-    table: "agent_runs",
-    column: "traceId",
-    reason: "Cockpit Observability — agent turn statistics and billing costs",
-  },
-  {
-    kind: "column_exists",
-    table: "agent_memory_hits",
-    column: "similarity",
-    reason: "Cockpit Observability — memory hit relevance ratios",
-  },
-  {
-    kind: "column_exists",
-    table: "agent_feedbacks",
-    column: "score",
-    reason: "Cockpit Observability — feedback evaluation score",
   },
 ];
 

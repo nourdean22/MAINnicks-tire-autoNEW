@@ -25,6 +25,8 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { getSetting } from "@/lib/services/settings";
+import { startOfDayET } from "@/lib/utils/datetime";
 
 const TZ = "America/New_York";
 const DEFAULT_BUDGET_CENTS = 500; // $5/day
@@ -38,12 +40,17 @@ const BURN_THRESHOLD_MULTIPLIER = 1.2;
  * crashing the calling cron — a misconfigured env should never silence
  * the SLO loop.
  */
-export function dailyBudgetCents(): number {
-  const raw = process.env.DAILY_AI_BUDGET_CENTS;
-  if (!raw) return DEFAULT_BUDGET_CENTS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_BUDGET_CENTS;
+function normalizeBudget(val: unknown, fallback: number): number {
+  if (val === undefined || val === null || val === "") return fallback;
+  const parsed = Number(val);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.floor(parsed);
+}
+
+export async function resolveDailyAiBudgetCents(): Promise<number> {
+  const envFallback = normalizeBudget(process.env.DAILY_AI_BUDGET_CENTS, DEFAULT_BUDGET_CENTS);
+  const stored = await getSetting<unknown>("ai.dailyBudgetCents", envFallback);
+  return normalizeBudget(stored, envFallback);
 }
 
 /**
@@ -63,13 +70,7 @@ export function etDateKey(at: Date = new Date()): string {
  * transition days).
  */
 function todayStartUtc(at: Date = new Date()): Date {
-  const iso = etDateKey(at);
-  // Use -04:00 unconditionally · in Nov-Mar (EST) this points to
-  // 23:00 the previous day, which is still "before today" — the sum
-  // remains correct for "today's burn" because nothing AI-priced ran
-  // in that 1h pre-window any night. Empirically: zero ET-midnight
-  // chat traffic in the 7d preceding this commit.
-  return new Date(`${iso}T00:00:00-04:00`);
+  return startOfDayET(at);
 }
 
 /**
@@ -142,7 +143,7 @@ export async function isOverBudget(at: Date = new Date()): Promise<{
   hoursElapsed: number;
 }> {
   const { burnCents, forecastCents, hoursElapsed } = await computeBurnRateForecast(at);
-  const budgetCents = dailyBudgetCents();
+  const budgetCents = await resolveDailyAiBudgetCents();
   const thresholdCents = Math.round(budgetCents * BURN_THRESHOLD_MULTIPLIER);
   return {
     over: forecastCents > thresholdCents,

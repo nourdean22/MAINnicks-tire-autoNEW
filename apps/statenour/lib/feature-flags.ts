@@ -270,6 +270,14 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/ai/agents/router.ts",
   },
   {
+    key: "NICK_MUTATION_LOCK",
+    description: "Emergency global mutation lock. Denies registered tool writes and operator tRPC mutations while active.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Mutations proceed through their normal authorization and approval gates.",
+    ownerDoc: "lib/tools/tool-policy.ts",
+  },
+  {
     key: "NICK_HIGH_SPEC_GATE",
     description: "Gates the high-spec model path in the chat route — when `on`, eligible turns use the higher-spec model tier. Default off, reversible.",
     status: "experimental",
