@@ -608,11 +608,11 @@ export interface QualityScorePart {
 }
 
 export interface QualityScoreResult {
-  score: number;
-  max: 75;
+  overall: number;
+  gate: "pass" | "block";
+  reasoning: string[];
   parts: QualityScorePart[];
   passing: boolean;
-  min: number;
 }
 
 function allBriefText(brief: ReelBrief): { text: string; where: string }[] {
@@ -673,7 +673,10 @@ export function calculateReelQualityScore(brief: ReelBrief, minScore: number = S
     { label: `Winning concept >= ${STUDIO_DEFAULTS.conceptMinScore}/60`, max: 5, ok: !!(winner && scoreReelConcept(winner).passing), points: winner && scoreReelConcept(winner).passing ? 5 : 0, detail: winner ? `${scoreReelConcept(winner).total}/60` : "No winning concept" },
   ];
   const score = parts.reduce((a, p) => a + p.points, 0);
-  return { score, max: 75, parts, passing: score >= minScore, min: minScore };
+  const passing = score >= minScore;
+  const reasoning = parts.filter(p => !p.ok).map(p => p.detail);
+  const gate = passing ? "pass" as const : "block" as const;
+  return { overall: score, gate, reasoning, parts, passing };
 }
 
 // ─── Repetition / content-memory checks (manual import in V1) ──────
@@ -747,7 +750,7 @@ export function buildInstagramPublishChecklist(brief: ReelBrief): ChecklistItem[
   const reps = brief.avoidedForRepetition;
   return [
     { label: "Verified fact with source", ok: validateSourceGrounding(brief).ok, detail: "Proof source attached" },
-    { label: "Quality gate passing", ok: calculateReelQualityScore(brief).passing, detail: `${calculateReelQualityScore(brief).score}/75` },
+    { label: "Quality gate passing", ok: calculateReelQualityScore(brief).passing, detail: `${calculateReelQualityScore(brief).overall}/75` },
     { label: "No blocked claims", ok: !safety.blocked, detail: safety.blocked ? `${safety.findings.filter((f) => f.severity === "block").length} block(s)` : "Clean" },
     { label: "Faceless verified on FINAL render", ok: null, detail: "Manual frame-scrub after Higgsfield render — heuristics are not eyes" },
     { label: "Caption keyword CTA present", ok: brief.selectedCaption.includes(brief.campaignKeyword), detail: `DM/comment "${brief.campaignKeyword}"` },

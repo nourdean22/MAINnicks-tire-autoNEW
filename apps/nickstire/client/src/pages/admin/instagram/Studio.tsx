@@ -21,6 +21,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
   const [source, setSource] = useState<SourceType | null>(null);
   const [format, setFormat] = useState<PostFormat | null>(null);
   const [sourceDetail, setSourceDetail] = useState("");
+  const [sourceId, setSourceId] = useState("");
   const [content, setContent] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaError, setMediaError] = useState<string | null>(null);
@@ -67,7 +68,13 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
       toast.success("Reel Brief generated successfully!");
     },
     onError: (err) => {
-      toast.error("Failed to generate Reel Brief", { description: err.message });
+      if (err.message.includes("NEEDS_RESEARCH")) {
+        toast.error("Research Needed", {
+          description: "Grounded database evidence record not found or unverified. Please provide a valid database ID for reviews or declined work.",
+        });
+      } else {
+        toast.error("Failed to generate Reel Brief", { description: err.message });
+      }
     }
   });
 
@@ -187,6 +194,9 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
       if (selectedFormat === "reel") {
         generateReelBrief.mutate({
           topic: sourceDetail || undefined,
+          sourceType: source,
+          sourceId: sourceId || undefined,
+          sourceDetail: sourceDetail || undefined,
         });
       } else {
         generateDraft.mutate({ 
@@ -279,16 +289,30 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
           {ContentSourceRegistry[source].requiresDetail && (
             <Card className="bg-muted/20 border-primary/20">
               <CardHeader className="py-4">
-                <CardTitle className="text-sm">Provide Source Details</CardTitle>
-                <CardDescription>Paste the review, question, or specific idea to ground the AI.</CardDescription>
+                <CardTitle className="text-sm">Provide Grounding & Details</CardTitle>
+                <CardDescription>Ground the Reel in database records. Providing a concrete ID is required for Reviews and Declined Work.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Textarea 
-                  placeholder={`E.g., "Customer asked why their brakes squeak in the morning..."`}
-                  value={sourceDetail}
-                  onChange={(e) => setSourceDetail(e.target.value)}
-                  className="bg-background"
-                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground block">Concrete Record ID (e.g., 5-Star Review or Work Order ID)</label>
+                    <Input 
+                      placeholder="E.g., 104"
+                      value={sourceId}
+                      onChange={(e) => setSourceId(e.target.value)}
+                      className="bg-background h-10"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground block">Operator Context / Notes (unverified)</label>
+                    <Textarea 
+                      placeholder={`E.g., "Customer complained about pedal pulsation..."`}
+                      value={sourceDetail}
+                      onChange={(e) => setSourceDetail(e.target.value)}
+                      className="bg-background min-h-[60px]"
+                    />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -396,14 +420,14 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                                 </div>
                                 <div className="grid gap-3 sm:grid-cols-2">
                                   <div className="space-y-1">
-                                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide block">Visual Prompt (Higgsfield/Veo)</span>
-                                    <Textarea
+                                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide block">Visual Prompt (Higgsfield/Veo)</span>                                    <Textarea
                                       className="text-xs bg-background min-h-[60px]"
                                       value={beat.visual}
                                       onChange={(e) => {
                                         const newBeats = [...reelBrief.storyboardBeats];
                                         newBeats[idx].visual = e.target.value;
                                         setReelBrief({ ...reelBrief, storyboardBeats: newBeats });
+                                        setScore(null);
                                       }}
                                     />
                                   </div>
@@ -417,6 +441,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                                           const newBeats = [...reelBrief.storyboardBeats];
                                           newBeats[idx].onScreenText = e.target.value;
                                           setReelBrief({ ...reelBrief, storyboardBeats: newBeats });
+                                          setScore(null);
                                         }}
                                       />
                                     </div>
@@ -429,6 +454,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                                           const newBeats = [...reelBrief.storyboardBeats];
                                           newBeats[idx].motion = e.target.value;
                                           setReelBrief({ ...reelBrief, storyboardBeats: newBeats });
+                                          setScore(null);
                                         }}
                                       />
                                     </div>
@@ -439,7 +465,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                           ))}
                         </div>
                       </div>
-
+ 
                       {/* Voiceover Script */}
                       <div className="space-y-2">
                         <label className="text-xs uppercase font-bold tracking-wide text-muted-foreground block">Voiceover Script (Trained ElevenLabs AI Voice)</label>
@@ -448,10 +474,11 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                           value={reelBrief.voiceoverScript || ""}
                           onChange={(e) => {
                             setReelBrief({ ...reelBrief, voiceoverScript: e.target.value });
+                            setScore(null);
                           }}
                         />
                       </div>
-
+ 
                       {/* Caption Editor */}
                       <div className="space-y-2">
                         <label className="text-xs uppercase font-bold tracking-wide text-muted-foreground block">Final Instagram Caption</label>
@@ -460,6 +487,8 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                           value={content}
                           onChange={(e) => {
                             setContent(e.target.value);
+                            setReelBrief((prev: any) => prev ? { ...prev, selectedCaption: e.target.value } : null);
+                            setScore(null);
                           }}
                         />
                       </div>
@@ -484,7 +513,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                                 setJobError(null);
                                 enqueueReelJob.mutate({ brief: reelBrief });
                               }}
-                              disabled={enqueueReelJob.isPending}
+                              disabled={enqueueReelJob.isPending || !score || score.gate !== "pass"}
                             >
                               {enqueueReelJob.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
                               Generate Reel Video
@@ -572,7 +601,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                   </Button>
                   <Button 
                     onClick={handleQueue} 
-                    disabled={score?.gate === "block" || publishDraft.isPending || (!mediaUrl && !publishDraft.isPending)}
+                    disabled={!score || score.gate !== "pass" || publishDraft.isPending || (!mediaUrl && !publishDraft.isPending) || content !== reelBrief?.selectedCaption}
                     className="bg-primary text-primary-foreground font-bold shadow-lg"
                   >
                     {publishDraft.isPending ? (
@@ -595,9 +624,16 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                 </CardHeader>
                 <CardContent>
                   {!score ? (
-                    <div className="text-sm text-muted-foreground p-4 bg-muted/30 rounded-lg text-center">
-                      Drafting required to score.
-                    </div>
+                    reelBrief ? (
+                      <div className="text-sm text-yellow-600 bg-yellow-500/10 p-4 rounded-lg border border-yellow-500/20 text-center">
+                        <AlertTriangle className="h-4 w-4 inline mr-2 text-yellow-500" />
+                        Edits detected. Please click <strong>Re-Score Brief</strong> to run safety and compliance gates.
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground p-4 bg-muted/30 rounded-lg text-center">
+                        Drafting required to score.
+                      </div>
+                    )
                   ) : (
                     <div className="space-y-6">
                       <div className="flex flex-col items-center justify-center py-4 bg-muted/20 rounded-xl">
