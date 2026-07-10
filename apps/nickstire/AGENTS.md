@@ -1,5 +1,5 @@
 # AGENTS.md · nickstire-dev
-**Last refreshed:** 2026-07-04 · singleFork test-hygiene rules (PRs #515/#517)
+**Last refreshed:** 2026-07-10 · Veo 3.1 Fast / Audio-Off wave: default veo model is veo-3.1-fast-generate-001 + native dynamic audio disable support.
 
 > **Read first:** [`CLAUDE.md`](./CLAUDE.md) — operator context, identity, core rules, mode detection. Then [`truth_os.md`](./truth_os.md) for what is live in prod. Then [`PROTECTED-CORE.md`](./PROTECTED-CORE.md) for the no-touch list.
 >

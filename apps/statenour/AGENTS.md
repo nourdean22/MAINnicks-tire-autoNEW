@@ -3,7 +3,7 @@
 > **âš¡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) â€” app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) â€” when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-07-07 · post the **full-repo bug-audit statenour wave — PR #593, awaiting operator merge**: timing-safe bridge auth (+contract tests) · arsenalNotebookLM read-only allowlist · moneyprinter single-flight + atomic config write · /api/short rate limit · prompt drift-guard realigned to the #587/#588 persona wording (main suite was RED). Companion: repo security wave PR #591 + audit register PR #594. Full detail: RECONCILIATION top entry.
+> **Last refreshed:** 2026-07-10 · Veo 3.1 Fast / Audio-Off wave: switched default video model to veo-3.1-fast-generate-001 + dynamic support to disable audio natively via env; verified via unit tests and full suite green.
 
 ## 1 Â· Where we are right now
 
