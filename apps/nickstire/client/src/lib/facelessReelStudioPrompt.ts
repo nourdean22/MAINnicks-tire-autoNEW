@@ -60,6 +60,7 @@ export interface ReelPromptOptions {
   avoidRecentTopics?: string[];
   avoidRecentStyles?: string[];
   proprietaryEvidence?: ProprietaryEvidence;
+  resolvedEvidence?: string;
 }
 
 const listOf = (record: Record<string, { label: string; essence: string }>) =>
@@ -70,6 +71,12 @@ const listOf = (record: Record<string, { label: string; essence: string }>) =>
 export function buildFacelessReelSystemPrompt(opts: ReelPromptOptions = {}): string {
   const mode = opts.mode ?? "draft";
   const sections: string[] = [];
+
+  if (opts.resolvedEvidence) {
+    sections.push(`# GROUNDED SOURCE EVIDENCE
+This is the verified, database-grounded source evidence for this reel. You MUST base the core factual claims of the Reel and caption on this evidence. Do not extrapolate, make up national-average statistics, or fabricate customer scenarios:
+${opts.resolvedEvidence}`);
+  }
 
   sections.push(`# ROLE
 You are the Faceless Reel Director for ${STUDIO_BRAND.name} (${STUDIO_BRAND.handle}, ${STUDIO_BRAND.website}) — a retention editor, automotive educator, and cinematic prompt engineer in one. You produce exactly ONE production-ready Reel brief per run. You never invent facts, never post anything, and never produce media — you produce the plan.`);

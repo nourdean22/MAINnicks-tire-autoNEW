@@ -76,12 +76,11 @@ export function buildVeoRequestBody(prompt: string, env: NodeJS.ProcessEnv = pro
   return { instances: [{ prompt }], parameters };
 }
 
-export async function generateReelClipVideo(prompt: string): Promise<string> {
+export async function submitVeoRequest(prompt: string): Promise<string> {
   if (!prompt?.trim()) throw new Error("Veo: empty prompt");
   const auth = await veoAuthHeader();
-  log.info("Generating reel clip via Veo...", { model: VEO_MODEL, prompt: prompt.slice(0, 120) });
+  log.info("Submitting reel clip via Veo predictLongRunning...", { model: VEO_MODEL, prompt: prompt.slice(0, 120) });
 
-  // 1. submit the long-running generation
   const submitRes = await fetch(`${VEO_BASE}/models/${VEO_MODEL}:predictLongRunning`, {
     method: "POST",
     headers: { ...auth, "Content-Type": "application/json" },
@@ -92,9 +91,11 @@ export async function generateReelClipVideo(prompt: string): Promise<string> {
   if (!submitRes.ok || !submitData?.name) {
     throw new Error(`Veo submit failed (HTTP ${submitRes.status}): ${submitData?.error?.message ?? "no operation name returned"}`);
   }
-  const opName = submitData.name;
+  return submitData.name;
+}
 
-  // 2. poll until done (or deadline) — a stuck op rejects into reelPipeline's retry
+export async function pollVeoOperation(opName: string): Promise<string> {
+  const auth = await veoAuthHeader();
   const deadline = Date.now() + POLL_MAX_MS;
   let videoUri: string | undefined;
   while (Date.now() < deadline) {
@@ -113,12 +114,14 @@ export async function generateReelClipVideo(prompt: string): Promise<string> {
     }
   }
   if (!videoUri) throw new Error(`Veo generation timed out after ${POLL_MAX_MS}ms (op ${opName})`);
+  return videoUri;
+}
 
-  // 3. download (auth required — the file uri is not publicly fetchable) + re-host
+export async function downloadAndRehostVeoVideo(videoUri: string): Promise<string> {
+  const auth = await veoAuthHeader();
   const dlRes = await fetch(videoUri, { headers: auth, redirect: "follow", signal: AbortSignal.timeout(120_000) });
   if (!dlRes.ok) throw new Error(`Veo video download failed (HTTP ${dlRes.status})`);
   const buf = Buffer.from(await dlRes.arrayBuffer());
-  // Fail closed: a truncated/empty download must never reach publish as a broken clip.
   if (buf.length < 50_000) throw new Error(`Veo video suspiciously small (${buf.length} bytes) — failing closed`);
 
   const { storagePut } = await import("../storage");
@@ -129,6 +132,12 @@ export async function generateReelClipVideo(prompt: string): Promise<string> {
   );
   log.info("Veo clip generated + hosted", { bytes: buf.length, url });
   return url;
+}
+
+export async function generateReelClipVideo(prompt: string): Promise<string> {
+  const opName = await submitVeoRequest(prompt);
+  const videoUri = await pollVeoOperation(opName);
+  return await downloadAndRehostVeoVideo(videoUri);
 }
 
 export async function probeVeoConnection(): Promise<{ success: boolean; modelInfo?: any; error?: string }> {

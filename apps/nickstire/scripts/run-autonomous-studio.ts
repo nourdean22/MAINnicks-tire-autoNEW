@@ -344,15 +344,15 @@ async function main() {
   // Calculate scores
   const reelSafety = runReelSafetyChecks(reelBrief);
   const reelQuality = calculateReelQualityScore(reelBrief);
-  reelBrief.qualityScore = reelQuality.score;
+  reelBrief.qualityScore = reelQuality.overall;
 
-  console.log(`Reel Quality Score: ${reelQuality.score}/75`);
+  console.log(`Reel Quality Score: ${reelQuality.overall}/75`);
   console.log(`Safety blocked: ${reelSafety.blocked}`);
   if (reelSafety.findings.length > 0) {
     console.log("Safety findings:", reelSafety.findings);
   }
 
-  if (reelQuality.score < 70 || reelSafety.blocked) {
+  if (reelQuality.overall < 70 || reelSafety.blocked) {
     console.error("Reel failed quality/safety gates. Aborting Reel posting.");
     process.exit(1);
   }
