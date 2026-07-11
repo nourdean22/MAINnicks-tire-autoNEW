@@ -36,6 +36,7 @@ import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { VALID_MOODS, simpleHash } from "@/lib/brain/journal-ingest";
 import { today } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { sanitizeDeadline } from "@/lib/services/commitments";
 
 // ─── INBOUND: Process events from nickstire.org ──────────
 
@@ -262,7 +263,7 @@ export async function processConversation(userMessage: string, nickResponse: str
   const result = await aiChat([
     {
       role: "system",
-      content: `Extract actionable intelligence from this conversation. Return ONLY JSON:
+      content: `Extract actionable intelligence from this conversation. Today's date is ${today()} — resolve relative deadline phrases ("tonight", "tomorrow", "Friday") against it; a deadline can never be before today. Return ONLY JSON:
 {
   "commitments": [{"description": "concrete promise", "deadline": "YYYY-MM-DD or null", "toWhom": "self|Dania|specific-name"}],
   "openQuestions": ["questions that were asked but not fully resolved"],
@@ -293,7 +294,13 @@ Return empty arrays if nothing found. Be specific, not generic.`,
     if (Array.isArray(intel.commitments)) {
       for (const c of intel.commitments.slice(0, 3)) {
         const desc = typeof c === "string" ? c : c?.description;
-        const deadline = typeof c === "object" && c?.deadline && c.deadline !== "null" ? c.deadline : null;
+        // sanitizeDeadline drops past/garbled dates BEFORE the deadline-or-
+        // recipient gate below — a self-promise whose only deadline was a
+        // hallucinated past year must not be stored (prod grew rows like
+        // deadline 2024-03-16 on a commitment made 2026-06-02).
+        const deadline = sanitizeDeadline(
+          typeof c === "object" && c?.deadline && c.deadline !== "null" ? c.deadline : null,
+        );
         const toWhom = typeof c === "object" && c?.toWhom ? c.toWhom : "self";
 
         if (typeof desc !== "string" || desc.length < 15) continue;

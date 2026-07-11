@@ -24,6 +24,22 @@ export interface CreateCommitmentArgs {
 }
 
 /**
+ * Normalize an extractor-supplied deadline. LLM extraction emits
+ * "YYYY-MM-DD" without knowing the current date, so "tonight" has
+ * landed as 2024-03-16 on a commitment made 2026-06-02 (prod rows
+ * #271/#295/#302…). A deadline before today at creation time is
+ * always an extraction error, never intent — drop it instead of
+ * storing a lie that instantly reads as "N-hundred days overdue".
+ * Non-YYYY-MM-DD shapes are dropped for the same reason.
+ */
+export function sanitizeDeadline(deadline: string | null | undefined): string | null {
+  if (!deadline) return null;
+  const trimmed = deadline.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  return trimmed < today() ? null : trimmed;
+}
+
+/**
  * Create a commitment. `toWhom` defaults to "self". Writes the
  * entity-audit create event, exactly as the REST route did. Returns
  * `{ ok, id }` mirroring the legacy envelope.
@@ -36,7 +52,7 @@ export async function createCommitment(
       dateMade: today(),
       toWhom: args.toWhom || "self",
       description: args.description,
-      deadline: args.deadline || null,
+      deadline: sanitizeDeadline(args.deadline),
       domain: args.domain || null,
     },
   });

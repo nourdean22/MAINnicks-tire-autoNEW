@@ -509,6 +509,20 @@ export const CRONS: CronDef[] = [
     maxDuration: 60,
   },
   {
+    // 2026-07-11 · resurrected. Deleted in the Wave-AE prune and never
+    // re-wired — computeIdentitySnapshot had ZERO scheduled callers, so the
+    // 8-axis self-model froze at the last manual refresh and every consumer
+    // (pulse ticker nudges, chat context, drift engines) served stale axes.
+    name: "refresh-identity",
+    schedule: null,
+    mode: "folded",
+    category: "brain",
+    foldedInto: "mega-evening",
+    description: "FOLDED into mega-evening · rolls the 8-axis identity snapshot (BrainMemory identity_snapshot/current + daily history row) so nudges + pulse read fresh axes.",
+    memory: 512,
+    maxDuration: 120,
+  },
+  {
     name: "anticipate",
     schedule: null,
     mode: "folded",
