@@ -53,12 +53,31 @@ function stageIcon(key: string): React.ReactNode {
   return map[key] ?? <Zap className="w-4 h-4" />;
 }
 
+const RANGE_DAYS: Record<Range, number> = { "7d": 7, "30d": 30, "90d": 90 };
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 export default function TrafficFunnelSection() {
   const [range, setRange] = useState<Range>("30d");
   const { data, isLoading, error, refetch, isFetching } = trpc.trafficFunnel.overview.useQuery(
     { range },
     { refetchInterval: 60_000 },
   );
+
+  // revenue-ops-v1 GSC scorecard (Wave 2 closure, PR #679-681) — sourced
+  // purely for real freshness/status in the footer. The funnel bars above
+  // keep using trafficFunnel.overview (stored detail); this call never
+  // replaces that data, only the fabricated "GSC syncs daily" claim.
+  const gscWindow = useMemo(() => {
+    const end = new Date();
+    const start = new Date(end.getTime() - RANGE_DAYS[range] * 86_400_000);
+    return { startDate: isoDate(start), endDate: isoDate(end) };
+  }, [range]);
+  const { data: gscScorecard } = trpc.revenueOps.gscScorecard.useQuery(gscWindow, {
+    staleTime: 5 * 60_000,
+  });
 
   // SEO fix drafts (phase 4 · GSC Act) — AI-drafted title/meta for buried service
   // pages. Read-only: a human applies the shared/services.ts edit; nothing writes live.
@@ -418,8 +437,17 @@ export default function TrafficFunnelSection() {
       {/* ─── FOOTER ─────────────────────────────────────── */}
       <div className="text-[10px] text-foreground/30 text-center pt-2">
         <p>
-          Data generated {new Date(data.generatedAt).toLocaleString()}.
-          GSC syncs daily, other sources are live.
+          Report generated {new Date(data.generatedAt).toLocaleString()}.{" "}
+          {gscScorecard ? (
+            gscScorecard.report.aggregateStatus === "available" ? (
+              <>GSC official aggregate as of {new Date(gscScorecard.dataAsOf).toLocaleString()} · stored detail {gscScorecard.report.detailStatus}.</>
+            ) : (
+              <>GSC official aggregate unavailable this window — showing stored detail only ({gscScorecard.report.detailStatus}).</>
+            )
+          ) : (
+            <>GSC sync status unavailable.</>
+          )}{" "}
+          Other sources are live.
         </p>
         <p className="mt-1">
           Call-click events require the <code className="text-foreground/50">/api/call-events</code> tracking endpoint

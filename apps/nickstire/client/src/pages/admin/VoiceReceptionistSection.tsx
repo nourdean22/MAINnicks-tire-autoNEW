@@ -109,6 +109,13 @@ export default function VoiceReceptionistSection() {
   const { data: roi } = trpc.vapi.receptionistRoi.useQuery(queryInput, {
     refetchInterval: rangePreset === "today" ? 60_000 : false,
   });
+  // revenue-ops-v1 scorecard (Wave 2 closure, PR #679-681) — the versioned,
+  // row-grounded replacement for todayMetrics' unlabeled Legacy/Revised
+  // pair. Additive: todayMetrics stays wired for outcome/intent charts and
+  // warm-transfer, which this scorecard doesn't cover.
+  const { data: scorecard } = trpc.revenueOps.voiceScorecard.useQuery(queryInput, {
+    refetchInterval: rangePreset === "today" ? 60_000 : false,
+  });
   const { data: calls, isLoading: callsLoading, refetch: refetchCalls, isFetching: callsFetching } = trpc.vapi.todayCalls.useQuery(queryInput, {
     refetchInterval: rangePreset === "today" ? 60_000 : false,
   });
@@ -336,11 +343,21 @@ export default function VoiceReceptionistSection() {
                 trendLabel={m.total > 0 ? `${Math.round(((m.validConversationsCount ?? 0) / m.total) * 100)}% of total calls` : undefined}
               />
               <StatCard
-                label="Hard Conversions"
-                value={m.hardConversionsCount ?? 0}
+                label={scorecard ? "Verified Demand Capture" : "Hard Conversions"}
+                value={
+                  scorecard
+                    ? scorecard.counts.leadsCreated + scorecard.counts.callbacksCreated + scorecard.counts.bookingsCreated
+                    : m.hardConversionsCount ?? 0
+                }
                 icon={<TrendingUp className="w-4 h-4" />}
                 color="text-emerald-400"
-                trendLabel={m.total > 0 ? `Legacy: ${m.legacyConversionRate}%, Revised: ${m.revisedHardConversionRate}%` : undefined}
+                trendLabel={
+                  scorecard
+                    ? `${scorecard.rates.qualifiedToLead.percent ?? 0}% of ${scorecard.rates.qualifiedToLead.denominator} qualified calls → lead · verified (leadId/callbackId/bookingId row exists)`
+                    : m.total > 0
+                      ? `Legacy: ${m.legacyConversionRate}%, Revised: ${m.revisedHardConversionRate}%`
+                      : undefined
+                }
               />
               <StatCard
                 label="Actionable Outcome Rate"
