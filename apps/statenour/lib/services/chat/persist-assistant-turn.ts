@@ -1164,11 +1164,12 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         //
         // Check before insert · if an assistant message with this
         // (conversationId, parentMessageId, branchId) already exists,
-        // skip the persist and log it. The first message wins; the
-        // duplicate gets blocked at the application layer until the DB
-        // unique constraint migration ships (per the taxonomy doc, Phase 1
-        // step 1 — held back to v10.0.338+ to avoid migrating data with
-        // existing duplicates that would fail the constraint add).
+        // skip the persist and log it. The first message wins.
+        // 2026-07-11 · the DB unique constraint SHIPPED (partial index
+        // chat_messages_assistant_reply_uniq — prod dupes cleaned first,
+        // 8 groups / 9 rows). This check is now the fast path; the index
+        // + the P2002 catch on the create below are the race-proof
+        // backstop. Sentinel guards the index (schema-sentinel.ts).
         if (parentMessageId) {
           const existingAssistant = await prisma.chatMessage
             .findFirst({
@@ -1359,6 +1360,21 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
                     : undefined,
                 },
               },
+            }).catch((err: unknown) => {
+              // 2026-07-11 · DB backstop live (partial unique index
+              // chat_messages_assistant_reply_uniq, hand-applied to prod).
+              // A concurrent onFinish that loses the race now gets P2002
+              // here instead of writing a duplicate row — same contract
+              // as the app-level guard above: first reply wins, the
+              // loser is dropped quietly.
+              if ((err as { code?: string })?.code === "P2002") {
+                log.warn("duplicate_assistant_persist_blocked_db", {
+                  parentMessageId,
+                  branchId,
+                });
+                return null;
+              }
+              throw err;
             }),
           { timeoutMs: 10_000, context: { conversationId: convId } }
         );
