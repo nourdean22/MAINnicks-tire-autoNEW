@@ -10,19 +10,36 @@ export interface NotebookLMResult {
   error?: string;
 }
 
-const NOTEBOOK_ALIASES: Record<string, string> = {
-  "statenour-intel": process.env.NOTEBOOKLM_ID_INTEL || "dummy-intel-id",
-  "competitor-research": process.env.NOTEBOOKLM_ID_COMPETITOR || "dummy-competitor-id",
-  "financial-models": process.env.NOTEBOOKLM_ID_FINANCE || "dummy-finance-id",
+export type NotebookAlias = "statenour-intel" | "competitor-research" | "financial-models";
+
+const NOTEBOOK_ALIASES: Record<NotebookAlias, string | undefined> = {
+  "statenour-intel": process.env.NOTEBOOKLM_ID_INTEL,
+  "competitor-research": process.env.NOTEBOOKLM_ID_COMPETITOR,
+  "financial-models": process.env.NOTEBOOKLM_ID_FINANCE,
 };
+
+function resolveNotebookId(alias: NotebookAlias): string {
+  const notebookId = NOTEBOOK_ALIASES[alias];
+  if (!notebookId) {
+    throw new Error(
+      `NotebookLM alias "${alias}" is not configured. Set ${
+        alias === "statenour-intel"
+          ? "NOTEBOOKLM_ID_INTEL"
+          : alias === "competitor-research"
+            ? "NOTEBOOKLM_ID_COMPETITOR"
+            : "NOTEBOOKLM_ID_FINANCE"
+      } on the Statenour service.`,
+    );
+  }
+  return notebookId;
+}
 
 export class NotebookLMProvider {
   private client: Client | null = null;
   private transport: SSEClientTransport | null = null;
-  private url: string;
+  private readonly url: string;
 
   constructor() {
-    // Expected to be an SSE endpoint, e.g., http://127.0.0.1:3003/sse
     this.url = process.env.NOTEBOOKLM_MCP_URL || "";
   }
 
@@ -41,73 +58,84 @@ export class NotebookLMProvider {
         },
         {
           capabilities: {},
-        }
+        },
       );
 
-      // We add a timeout for the initial connection
       const connectPromise = this.client.connect(this.transport);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Timeout connecting to NotebookLM MCP")), 5000)
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout connecting to NotebookLM MCP")), 5000),
       );
-      
+
       await Promise.race([connectPromise, timeoutPromise]);
       return this.client;
     } catch (error) {
-      // Clear client on connection error so we retry on next call
       this.client = null;
       this.transport = null;
       throw error;
     }
   }
 
-  async call(toolName: string, args?: Record<string, unknown>, notebookAlias?: string): Promise<NotebookLMResult> {
+  async call(
+    toolName: string,
+    args?: Record<string, unknown>,
+    notebookAlias?: NotebookAlias,
+  ): Promise<NotebookLMResult> {
     const startTime = Date.now();
     try {
       const client = await this.getClient();
-      
       const finalArgs = { ...(args || {}) };
-      if (notebookAlias && NOTEBOOK_ALIASES[notebookAlias]) {
-        finalArgs.notebook_id = NOTEBOOK_ALIASES[notebookAlias];
+
+      if (notebookAlias) {
+        finalArgs.notebook_id = resolveNotebookId(notebookAlias);
       }
-      
+
       const result = await client.callTool({
         name: toolName,
-        arguments: finalArgs
+        arguments: finalArgs,
       });
-      
-      log.info("notebooklm_tool_success", { toolName, ms: Date.now() - startTime });
+
+      log.info("notebooklm_tool_success", {
+        toolName,
+        notebookAlias,
+        ms: Date.now() - startTime,
+      });
       return {
         tool: toolName,
         results: result,
       };
     } catch (error) {
-      log.error("notebooklm_tool_error", { 
+      const message = error instanceof Error ? error.message : "Unknown error during NotebookLM tool call.";
+      log.error("notebooklm_tool_error", {
         toolName,
-        error: error instanceof Error ? error.message : String(error),
-        ms: Date.now() - startTime 
+        notebookAlias,
+        error: message,
+        ms: Date.now() - startTime,
       });
       return {
         tool: toolName,
-        error: error instanceof Error ? error.message : "Unknown error during NotebookLM tool call.",
+        error: message,
       };
     }
   }
 
   /**
-   * Dedicated health check method.
-   * Tests connection and ensures MCP is responsive.
+   * Confirms only that the configured MCP sidecar accepts a connection.
+   * It does not prove a specific notebook alias exists or that Google auth is fresh.
    */
-  async health(): Promise<{ status: "connected" | "disconnected" | "error"; message?: string }> {
+  async health(): Promise<{
+    status: "connected" | "disconnected" | "error";
+    message?: string;
+  }> {
     try {
-      if (!this.url) return { status: "disconnected", message: "NOTEBOOKLM_MCP_URL not set" };
+      if (!this.url) {
+        return { status: "disconnected", message: "NOTEBOOKLM_MCP_URL not set" };
+      }
       await this.getClient();
-      // Optional: if the server exposes a specific health check tool, we could call it here.
-      // E.g., await this.call("get_health");
-      return { status: "connected" };
+      return { status: "connected", message: "NotebookLM MCP sidecar connected" };
     } catch (error) {
-      return { 
-        status: "error", 
-        message: error instanceof Error ? error.message : "Connection failed" 
+      return {
+        status: "error",
+        message: error instanceof Error ? error.message : "Connection failed",
       };
     }
   }

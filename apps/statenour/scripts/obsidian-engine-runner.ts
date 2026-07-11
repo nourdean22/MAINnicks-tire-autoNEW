@@ -1,232 +1,205 @@
 /**
- * Headless Obsidian Engine CLI Runner & Watch Daemon — Statenour OS
- *
- * Orchestrates doctor, ingest, export, sync, status, and watch mode commands.
- *
- * Usage:
- *   pnpm tsx scripts/obsidian-engine-runner.ts doctor [--fix] [--strict] [--json]
- *   pnpm tsx scripts/obsidian-engine-runner.ts ingest
- *   pnpm tsx scripts/obsidian-engine-runner.ts export [--memory-mode=rollup|individual]
- *   pnpm tsx scripts/obsidian-engine-runner.ts sync
- *   pnpm tsx scripts/obsidian-engine-runner.ts status
- *   pnpm tsx scripts/obsidian-engine-runner.ts watch
+ * Headless Obsidian Engine CLI Runner & Watch Daemon — Statenour OS.
  */
-
-// Load apps/statenour/.env FIRST (side-effect import, before anything reads
-// process.env) so the brain ingest/export never silently no-op when DATABASE_URL
-// isn't already exported — e.g. when run from a git worktree whose shell hasn't
-// sourced the env. dotenv/config resolves .env relative to process.cwd(), which
-// pnpm sets to apps/statenour. If it still isn't found, the fail-loud guard below
-// refuses rather than connecting to a bogus localhost default and syncing nothing.
 import "dotenv/config";
 import { spawnSync } from "child_process";
-import path from "path";
 import fs from "fs";
-import { getObsidianEngineConfig, readEngineStatus, writeEngineStatus } from "../lib/obsidian/engine-config";
-import { ObsidianEngineStatus } from "../lib/obsidian/types";
+import path from "path";
+import {
+  getObsidianEngineConfig,
+  readEngineStatus,
+  writeEngineStatus,
+} from "../lib/obsidian/engine-config";
+import type {
+  ObsidianEngineStatus,
+  ObsidianEngineStepResults,
+} from "../lib/obsidian/types";
 
-// Parse CLI command
 const args = process.argv.slice(2);
 const command = args[0] || "sync";
 const extraArgs = args.slice(1);
-
 const engineConfig = getObsidianEngineConfig();
-
-// Fail LOUD (never a silent brain no-op) when a brain-touching command runs
-// without a DB connection. dotenv/config above loads apps/statenour/.env; if
-// DATABASE_URL is still unset the ingest/export would connect to a bogus
-// localhost default and quietly sync zero memories (the bug this guards against).
 const BRAIN_COMMANDS = new Set(["sync", "ingest", "export", "watch"]);
+
 if (BRAIN_COMMANDS.has(command) && !process.env.DATABASE_URL) {
   console.error(
-    `\n❌ obsidian:${command} needs DATABASE_URL, but none was found.\n` +
-      `   dotenv/config looked for a .env in ${process.cwd()} and found no\n` +
-      `   connection string — the brain ingest/export would silently do nothing.\n` +
-      `   Fix: run from a checkout that has apps/statenour/.env, copy the root\n` +
-      `   .env into this worktree, or export DATABASE_URL before running.\n`,
+    `\nobsidian:${command} needs DATABASE_URL. Run from a checkout with apps/statenour/.env ` +
+      "or export DATABASE_URL before starting the engine.\n",
   );
   process.exit(1);
 }
 
 function runScript(scriptName: string, runArgs: string[] = []): boolean {
   const scriptPath = path.join(process.cwd(), "scripts", scriptName);
-  console.log(`[Engine] Executing: tsx scripts/${scriptName} ${runArgs.join(" ")}`);
-  
-  const result = spawnSync("npx", ["tsx", scriptPath, ...runArgs], {
-    stdio: "inherit",
-    shell: true,
-    cwd: process.cwd()
-  });
-
-  return result.status === 0;
-}
-
-async function main() {
-  switch (command) {
-    case "doctor":
-      runScript("obsidian-doctor.ts", extraArgs);
-      break;
-
-    case "ingest":
-      runScript("ingest-obsidian-vault.ts", extraArgs);
-      break;
-
-    case "export":
-      runScript("export-brain-to-obsidian.ts", extraArgs);
-      break;
-
-    case "sync":
-      console.log("[Engine] Starting sequential synchronization...");
-      const docOk = runScript("obsidian-doctor.ts", ["--fix"]);
-      const ingOk = runScript("ingest-obsidian-vault.ts");
-      const expOk = runScript("export-brain-to-obsidian.ts", extraArgs);
-      // Run final doctor check to write the consolidated stats status file
-      runScript("obsidian-doctor.ts");
-      console.log("[Engine] Synchronization complete.");
-      break;
-
-    case "status":
-      const status = readEngineStatus();
-      if (!status) {
-        console.log("No engine status file found. Run 'sync' or 'doctor' first.");
-        process.exit(1);
-      }
-      if (extraArgs.includes("--json")) {
-        console.log(JSON.stringify(status, null, 2));
-      } else {
-        console.log("═══════════════════════════════════════════════════════════");
-        console.log("  STATENOUR HEADLESS OBSIDIAN ENGINE STATUS");
-        console.log("═══════════════════════════════════════════════════════════");
-        console.log(`  Health:       ${status.health.toUpperCase()}`);
-        console.log(`  Last Run:     ${status.lastRunAt ? new Date(status.lastRunAt).toLocaleString() : "Never"}`);
-        console.log(`  Last Ingest:  ${status.lastIngestRunAt ? new Date(status.lastIngestRunAt).toLocaleString() : "Never"}`);
-        console.log(`  Last Export:  ${status.lastExportRunAt ? new Date(status.lastExportRunAt).toLocaleString() : "Never"}`);
-        console.log("───────────────────────────────────────────────────────────");
-        console.log(`  Total Notes:  ${status.stats.totalNotes}`);
-        console.log(`  Synced:       ${status.stats.synced}`);
-        console.log(`  Quarantined:  ${status.stats.quarantined}`);
-        console.log(`  Warnings:     ${status.stats.warnings}`);
-        console.log(`  Failures:     ${status.stats.failures}`);
-        console.log("═══════════════════════════════════════════════════════════");
-        if (status.issues.length > 0) {
-          console.log("\n  Active Issues:");
-          for (const issue of status.issues) {
-            console.log(`  - [${issue.type}] ${issue.file ? `(${issue.file}) ` : ""}${issue.message}`);
-            if (issue.suggested_fix) {
-              console.log(`    └─ Fix: ${issue.suggested_fix}`);
-            }
-          }
-          console.log("");
-        }
-      }
-      break;
-
-    case "watch":
-      startWatcher();
-      break;
-
-    default:
-      console.error(`Unknown engine command: "${command}"`);
-      console.log("Supported commands: doctor, ingest, export, sync, status, watch");
-      process.exit(1);
+  console.log(`[Engine] tsx scripts/${scriptName} ${runArgs.join(" ")}`);
+  try {
+    const result = spawnSync("npx", ["tsx", scriptPath, ...runArgs], {
+      stdio: "inherit",
+      shell: true,
+      cwd: process.cwd(),
+    });
+    return result.status === 0;
+  } catch (error) {
+    console.error(`[Engine] ${scriptName} failed to start:`, error);
+    return false;
   }
 }
 
-function startWatcher() {
-  console.log("");
-  console.log("═══════════════════════════════════════════════════════════");
-  console.log("  STATENOUR HEADLESS OBSIDIAN ENGINE - WATCH DEBUNKER");
-  console.log("═══════════════════════════════════════════════════════════");
-  console.log(`  Watching Vault:      ${engineConfig.vaultPath}`);
-  console.log(`  Watching iCloud:     ${engineConfig.icloudShortcutsPath}`);
-  console.log("  Debounce delay:      5 seconds");
-  console.log("  Sync sequence:       doctor -> ingest -> export -> doctor");
-  console.log("═══════════════════════════════════════════════════════════");
-  console.log("  [Active] Press Ctrl+C to terminate the daemon.");
-  console.log("");
+function defaultStatus(): ObsidianEngineStatus {
+  return {
+    health: "degraded",
+    lastRunAt: null,
+    lastDoctorRunAt: null,
+    lastIngestRunAt: null,
+    lastExportRunAt: null,
+    daemonHeartbeatAt: null,
+    lastSuccessfulSyncAt: null,
+    runState: "idle",
+    lastRunSteps: null,
+    stats: {
+      totalNotes: 0,
+      processed: 0,
+      synced: 0,
+      skipped: 0,
+      failed: 0,
+      quarantined: 0,
+      warnings: 0,
+      failures: 0,
+    },
+    issues: [],
+    quarantinedFiles: [],
+    config: {
+      vaultPath: engineConfig.vaultPath,
+      icloudShortcutsPath: engineConfig.icloudShortcutsPath,
+      syncMode: engineConfig.syncMode,
+      restUrl: engineConfig.restUrl,
+    },
+  };
+}
 
-  let isSyncing = false;
-  let pendingSync = false;
-  let debounceTimer: NodeJS.Timeout | null = null;
+async function markRunning(): Promise<void> {
+  const status = readEngineStatus() ?? defaultStatus();
+  status.lastRunAt = new Date().toISOString();
+  status.runState = "running";
+  status.lastRunSteps = null;
+  await writeEngineStatus(status);
+}
 
-  function triggerSync() {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-    
-    debounceTimer = setTimeout(() => {
-      if (isSyncing) {
-        console.log("  [Watch] Sync run already in progress. Queueing next sync.");
-        pendingSync = true;
+async function finishSync(steps: ObsidianEngineStepResults): Promise<boolean> {
+  const status = readEngineStatus() ?? defaultStatus();
+  const success = Object.values(steps).every(Boolean);
+  const now = new Date().toISOString();
+  status.lastRunAt = now;
+  status.runState = success ? "idle" : "failed";
+  status.lastRunSteps = steps;
+
+  if (success) {
+    status.lastSuccessfulSyncAt = now;
+    if (status.health === "error" && status.stats.failures === 0) status.health = "healthy";
+  } else {
+    status.health = "error";
+    status.issues = [
+      ...status.issues.filter((issue) => !issue.message.startsWith("Sync pipeline failed:")),
+      {
+        type: "FAIL",
+        message: `Sync pipeline failed: ${Object.entries(steps).filter(([, ok]) => !ok).map(([name]) => name).join(", ")}`,
+        detected_at: now,
+        suggested_fix: "Run pnpm obsidian:sync locally and inspect the first failing step.",
+      },
+    ];
+  }
+
+  await writeEngineStatus(status);
+  return success;
+}
+
+async function runSyncPipeline(): Promise<boolean> {
+  await markRunning();
+  const steps: ObsidianEngineStepResults = {
+    doctor: runScript("obsidian-doctor.ts", ["--fix"]),
+    ingest: false,
+    export: false,
+    finalDoctor: false,
+  };
+  if (steps.doctor) steps.ingest = runScript("ingest-obsidian-vault.ts");
+  if (steps.ingest) steps.export = runScript("export-brain-to-obsidian.ts", extraArgs);
+  steps.finalDoctor = runScript("obsidian-doctor.ts");
+  const success = await finishSync(steps);
+  console.log(success ? "[Engine] Full synchronization succeeded." : "[Engine] Synchronization failed.");
+  return success;
+}
+
+function printStatus(status: ObsidianEngineStatus): void {
+  if (extraArgs.includes("--json")) {
+    console.log(JSON.stringify(status, null, 2));
+    return;
+  }
+  console.log("STATENOUR OBSIDIAN BRIDGE");
+  console.log(`Health: ${status.health}`);
+  console.log(`Run state: ${status.runState ?? "legacy"}`);
+  console.log(`Last command: ${status.lastRunAt ?? "never"}`);
+  console.log(`Last successful sync: ${status.lastSuccessfulSyncAt ?? "never"}`);
+  console.log(`Daemon heartbeat: ${status.daemonHeartbeatAt ?? "offline"}`);
+  console.log(`Notes: ${status.stats.totalNotes}; synced: ${status.stats.synced}; failures: ${status.stats.failures}`);
+  for (const issue of status.issues) console.log(`- [${issue.type}] ${issue.message}`);
+}
+
+function startWatcher(): void {
+  console.log(`[Engine] Watching ${engineConfig.vaultPath}`);
+  let syncing = false;
+  let pending = false;
+  let timer: NodeJS.Timeout | null = null;
+
+  const trigger = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(async () => {
+      if (syncing) {
+        pending = true;
         return;
       }
-
-      isSyncing = true;
-      console.log(`\n  🔔 [Watch] Change detected. Starting synchronization... [${new Date().toLocaleTimeString()}]`);
-      
+      syncing = true;
       try {
-        const docOk = runScript("obsidian-doctor.ts", ["--fix"]);
-        const ingOk = runScript("ingest-obsidian-vault.ts");
-        const expOk = runScript("export-brain-to-obsidian.ts");
-        runScript("obsidian-doctor.ts"); // final status check to update UI metrics
-      } catch (err) {
-        console.error("  ❌ [Watch] Sync sequence failed:", err);
+        await runSyncPipeline();
       } finally {
-        isSyncing = false;
-        console.log(`  ✅ [Watch] Sync sequence complete. [${new Date().toLocaleTimeString()}]`);
-        if (pendingSync) {
-          pendingSync = false;
-          triggerSync();
+        syncing = false;
+        if (pending) {
+          pending = false;
+          trigger();
         }
       }
     }, 5000);
-  }
+  };
 
-  // Run initial sync on startup
-  triggerSync();
-
-  // Set up directory watchers
-  const watchedPaths = [engineConfig.vaultPath, engineConfig.icloudShortcutsPath].filter(p => fs.existsSync(p));
-
+  trigger();
+  const watchedPaths = [engineConfig.vaultPath, engineConfig.icloudShortcutsPath].filter(fs.existsSync);
   for (const watchedPath of watchedPaths) {
-    try {
-      fs.watch(watchedPath, { recursive: true }, (eventType, filename) => {
-        // Ignore system files, temp files, and status updates to avoid infinite sync loops
-        if (
-          !filename ||
-          filename.includes(".obsidian") ||
-          filename.includes(".git") ||
-          filename.includes("node_modules") ||
-          filename.includes("Quarantine") ||
-          filename.includes("Archive") ||
-          filename.includes(".tmp") ||
-          filename.startsWith("~")
-        ) {
-          return;
-        }
-
-        console.log(`  [Watch] File changed: ${filename} (Event: ${eventType})`);
-        triggerSync();
-      });
-      console.log(`  👀 Successfully registered recursive watcher for: ${watchedPath}`);
-    } catch (watchErr) {
-      console.error(`  ❌ Failed to register watcher for ${watchedPath}:`, watchErr);
-    }
+    fs.watch(watchedPath, { recursive: true }, (_event, filename) => {
+      if (!filename || /(?:\.obsidian|\.git|node_modules|Quarantine|Archive|\.tmp)/.test(filename) || filename.startsWith("~")) return;
+      trigger();
+    });
   }
 
-  // Heartbeat interval (updates lastRunAt timestamp every 30s to signal daemon is active)
   setInterval(async () => {
-    try {
-      const existingStatus = readEngineStatus();
-      if (existingStatus) {
-        existingStatus.lastRunAt = new Date().toISOString();
-        await writeEngineStatus(existingStatus);
-      }
-    } catch {}
-  }, 30000);
+    const status = readEngineStatus() ?? defaultStatus();
+    status.daemonHeartbeatAt = new Date().toISOString();
+    await writeEngineStatus(status, { persistToDatabase: false });
+  }, 30_000);
 }
 
-main().catch((err) => {
-  console.error("Engine runner failed:", err);
+async function main(): Promise<void> {
+  if (command === "doctor") process.exitCode = runScript("obsidian-doctor.ts", extraArgs) ? 0 : 1;
+  else if (command === "ingest") process.exitCode = runScript("ingest-obsidian-vault.ts", extraArgs) ? 0 : 1;
+  else if (command === "export") process.exitCode = runScript("export-brain-to-obsidian.ts", extraArgs) ? 0 : 1;
+  else if (command === "sync") process.exitCode = (await runSyncPipeline()) ? 0 : 1;
+  else if (command === "status") {
+    const status = readEngineStatus();
+    if (!status) throw new Error("No engine status found. Run pnpm obsidian:sync first.");
+    printStatus(status);
+  } else if (command === "watch") startWatcher();
+  else throw new Error(`Unknown engine command: ${command}`);
+}
+
+main().catch((error) => {
+  console.error("Obsidian engine failed:", error);
   process.exit(1);
 });
