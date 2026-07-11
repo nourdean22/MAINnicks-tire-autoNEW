@@ -7,30 +7,13 @@
  * / `brain.recordMemory` / `brain.forgetMemoryByKey` tRPC procedures
  * call the SAME functions · drift between consumers structurally
  * impossible.
- *
- * The `BrainMemory` Prisma row carries a `metadata` Json column. Every
- * function here projects rows to the explicit, flat `BrainMemoryRow`
- * interface — `metadata` typed as `unknown`, Date fields stringified —
- * so the recursive Prisma `JsonValue` type never reaches the AppRouter.
- * That is the TS2589 firewall.
- *
- * `forgetMemoryByKey` is genuinely NEW behaviour. The KommandoLearn
- * spaced-review "Got it ✓" button issued `DELETE /api/brain/memories
- * ?key=…`, but the REST route never had a DELETE handler — the call
- * always 404'd and the error was silently swallowed (the review row
- * was never actually cleared; only the next interval's row carried it).
- * The typed migration replaces that dead call with a real lookup-by-key
- * soft-delete, which is what the UI promised all along.
  */
 
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { prisma } from "@/lib/prisma";
 
-/**
- * A flat, shallow projection of a BrainMemory row. The `metadata` Json
- * column is `unknown` and timestamps are ISO strings — the TS2589
- * firewall. Consumers cast to their own local row type regardless.
- */
+const KNOWLEDGE_CANDIDATE_RECORD_TYPE = "knowledge_candidate";
+
 export interface BrainMemoryRow {
   id: string;
   category: string;
@@ -39,7 +22,6 @@ export interface BrainMemoryRow {
   confidence: number;
   source: string;
   seenCount: number;
-  /** BrainMemory.metadata · `unknown` to keep the AppRouter shallow. */
   metadata: unknown;
   createdAt: string;
   updatedAt: string;
@@ -47,7 +29,6 @@ export interface BrainMemoryRow {
   expiresAt: string | null;
 }
 
-/** Filters for {@link listMemories} · mirror the legacy GET query params. */
 export interface ListMemoriesInput {
   category?: string;
   query?: string;
@@ -55,24 +36,38 @@ export interface ListMemoriesInput {
   limit?: number;
 }
 
+function isKnowledgeCandidateRecord(metadata: unknown): boolean {
+  return Boolean(
+    metadata &&
+    typeof metadata === "object" &&
+    !Array.isArray(metadata) &&
+    (metadata as Record<string, unknown>).recordType === KNOWLEDGE_CANDIDATE_RECORD_TYPE,
+  );
+}
+
 /**
- * Recall BrainMemory rows by category + optional search query, sorted
- * by confidence. The REST route and the `brain.memories` procedure both
- * call this. Returns `{ memories }` so the legacy `{ data: { memories }}`
- * unwrap path stays intact.
+ * Recall normal BrainMemory rows. Governance staging records are deliberately
+ * excluded even when a caller asks for confidence zero; they belong only on
+ * the owner review surface until promoted or rejected.
  */
 export async function listMemories(
   input: ListMemoriesInput = {},
 ): Promise<{ memories: BrainMemoryRow[] }> {
+  const requestedLimit = Math.max(1, Math.min(100, Math.trunc(input.limit ?? 50)));
   const rows = await brainMemory.recall(input.category, {
     query: input.query,
-    minConfidence: input.minConfidence ?? 0,
-    limit: input.limit ?? 50,
+    minConfidence: Math.max(input.minConfidence ?? 0, 0.001),
+    limit: Math.min(100, requestedLimit * 2),
   });
-  return { memories: rows.map(toRow) };
+
+  return {
+    memories: rows
+      .filter((row) => !isKnowledgeCandidateRecord(row.metadata))
+      .slice(0, requestedLimit)
+      .map(toRow),
+  };
 }
 
-/** Payload for {@link recordMemory} · mirrors the legacy POST body. */
 export interface RecordMemoryInput {
   category: string;
   key: string;
@@ -81,12 +76,6 @@ export interface RecordMemoryInput {
   metadata?: Record<string, unknown>;
 }
 
-/**
- * Persist (or reinforce) one BrainMemory row. The REST route and the
- * `brain.recordMemory` procedure both call this · `brainMemory.remember`
- * upserts by (category, key) so re-recording the same key reinforces
- * rather than duplicating.
- */
 export async function recordMemory(
   input: RecordMemoryInput,
 ): Promise<{ memory: BrainMemoryRow }> {
@@ -100,13 +89,6 @@ export async function recordMemory(
   return { memory: toRow(created) };
 }
 
-/**
- * Soft-delete the most-recent BrainMemory row matching a key. Used by
- * the KommandoLearn spaced-review "Got it ✓" affordance. Idempotent —
- * a missing key resolves to `{ ok: true, deleted: false }` (the legacy
- * DELETE call 404'd and was swallowed · this preserves the no-throw
- * contract while actually clearing the row when it exists).
- */
 export async function forgetMemoryByKey(
   key: string,
 ): Promise<{ ok: true; deleted: boolean }> {
@@ -120,7 +102,6 @@ export async function forgetMemoryByKey(
   return { ok: true, deleted: true };
 }
 
-/** Project a Prisma BrainMemory row to the flat {@link BrainMemoryRow}. */
 function toRow(r: {
   id: string;
   category: string;
@@ -143,7 +124,7 @@ function toRow(r: {
     confidence: r.confidence,
     source: r.source,
     seenCount: r.seenCount,
-    metadata: r.metadata as unknown,
+    metadata: r.metadata,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
     lastSeen: r.lastSeen.toISOString(),

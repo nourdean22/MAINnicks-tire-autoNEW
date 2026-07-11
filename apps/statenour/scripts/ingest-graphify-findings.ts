@@ -6,6 +6,7 @@ import {
   buildGraphifyCandidate,
 } from "../lib/knowledge/adapters/graphify";
 import { persistKnowledgeCandidate } from "../lib/knowledge/candidate-store";
+import { resolveInsideRoot } from "../lib/knowledge/path-safety";
 import { prisma } from "../lib/prisma";
 
 function argument(name: string): string | undefined {
@@ -15,7 +16,11 @@ function argument(name: string): string | undefined {
 
 async function main(): Promise<void> {
   const monorepoRoot = path.resolve(__dirname, "../../..");
-  const manifestPath = path.resolve(argument("--manifest") ?? path.join(monorepoRoot, "graphify-out", "manifest.json"));
+  const graphifyRoot = path.join(monorepoRoot, "graphify-out");
+  const manifestPath = resolveInsideRoot(
+    graphifyRoot,
+    argument("--manifest") ?? "manifest.json",
+  );
   const dryRun = process.argv.includes("--dry-run");
   if (!fs.existsSync(manifestPath)) {
     throw new Error(
