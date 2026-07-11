@@ -1,36 +1,13 @@
-/**
- * Voice Receptionist ROI — an HONEST estimate of the revenue the AI receptionist
- * drives, built from MEASURED conversions × a real average ticket value.
- *
- * Design (clarity-gate): no fabricated bookings (respects the no-lead-noise rule).
- * Conversions are counted from vapi_call_logs eval outcomes (facts). The value-per-
- * job is AVG(paid invoices) (a fact). The dollar figure is a clearly-bounded RANGE
- * using a conservative 40-70% capture band, because a committed call is not a
- * guaranteed paid job. Facts are exact; the $ is explicitly an estimate.
- */
-import { and, gte, lte, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 
-/** Fraction of committed calls assumed to become paid jobs (the honest unknown). */
 export const CAPTURE_LOW = 0.4;
 export const CAPTURE_HIGH = 0.7;
-
-/** Eval outcomes that represent committed customer intent the receptionist produced. */
-const CONVERTING_OUTCOMES = [
-  "hard_conversion",
-  "walk_in_directed",
-  "tire_availability_intent",
-  "quote_or_inspection_intent",
-] as const;
 
 export interface RevenueBand {
   lowCents: number;
   highCents: number;
 }
 
-/**
- * Pure — the recovered-revenue band from conversions × avg ticket × capture band.
- * Clamps negatives to 0. Unit-tested in receptionistRoi.test.ts.
- */
 export function estimateRecoveredRevenue(conversions: number, avgTicketCents: number): RevenueBand {
   const per = Math.max(0, conversions) * Math.max(0, avgTicketCents);
   return {
@@ -41,7 +18,9 @@ export function estimateRecoveredRevenue(conversions: number, avgTicketCents: nu
 
 export interface ReceptionistRoi {
   ok: boolean;
+  /** Compatibility name: now means versioned verified demand-capture calls. */
   hardConversions: number;
+  /** Versioned qualified calls, not all legacy classifier outcomes. */
   convertingCalls: number;
   avgTicketCents: number;
   invoiceSampleSize: number;
@@ -49,18 +28,37 @@ export interface ReceptionistRoi {
   captureHigh: number;
   estLowCents: number;
   estHighCents: number;
+  valueType: "modeled_pipeline_value";
+  evidenceLevel: "modeled";
+  metricDefinitionVersion: "revenue-ops-v1";
+  legacyRowsExcluded: number;
 }
 
 const ZERO: ReceptionistRoi = {
-  ok: false, hardConversions: 0, convertingCalls: 0, avgTicketCents: 0,
-  invoiceSampleSize: 0, captureLow: CAPTURE_LOW, captureHigh: CAPTURE_HIGH,
-  estLowCents: 0, estHighCents: 0,
+  ok: false,
+  hardConversions: 0,
+  convertingCalls: 0,
+  avgTicketCents: 0,
+  invoiceSampleSize: 0,
+  captureLow: CAPTURE_LOW,
+  captureHigh: CAPTURE_HIGH,
+  estLowCents: 0,
+  estHighCents: 0,
+  valueType: "modeled_pipeline_value",
+  evidenceLevel: "modeled",
+  metricDefinitionVersion: "revenue-ops-v1",
+  legacyRowsExcluded: 0,
 };
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
 /**
- * Compute the receptionist ROI over a call window (defaults to the last 90 days).
- * Value-per-job is the average PAID ticket over the last 180 days — a current,
- * stable figure independent of the call window.
+ * Planning model only. The count is verified lead/callback/booking persistence;
+ * the dollar result is still modeled because those records are not paid invoices.
  */
 export async function getReceptionistRoi(opts?: { sinceISO?: string; untilISO?: string }): Promise<ReceptionistRoi> {
   const { getDb } = await import("../db");
@@ -68,39 +66,64 @@ export async function getReceptionistRoi(opts?: { sinceISO?: string; untilISO?: 
   const db = await getDb();
   if (!db) return ZERO;
 
-  const since = opts?.sinceISO ? new Date(opts.sinceISO) : new Date(Date.now() - 90 * 86400000);
-  const callConds = [gte(vapiCallLogs.createdAt, since)];
-  if (opts?.untilISO) callConds.push(lte(vapiCallLogs.createdAt, new Date(opts.untilISO)));
+  const since = opts?.sinceISO ? new Date(opts.sinceISO) : new Date(Date.now() - 90 * 86_400_000);
+  const conditions = [gte(vapiCallLogs.createdAt, since)];
+  if (opts?.untilISO) conditions.push(lte(vapiCallLogs.createdAt, new Date(opts.untilISO)));
 
-  const [hard] = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(vapiCallLogs)
-    .where(and(...callConds, eq(vapiCallLogs.evalOutcome, "hard_conversion")));
+  const rows = await db.select({
+    evalOutcome: vapiCallLogs.evalOutcome,
+    metadata: vapiCallLogs.metadata,
+  }).from(vapiCallLogs).where(and(...conditions));
 
-  const [converting] = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(vapiCallLogs)
-    .where(and(...callConds, inArray(vapiCallLogs.evalOutcome, [...CONVERTING_OUTCOMES])));
+  let verifiedCaptureCalls = 0;
+  let qualifiedCalls = 0;
+  let legacyRowsExcluded = 0;
+  for (const row of rows) {
+    const metadata = asRecord(row.metadata);
+    const measurement = asRecord(metadata.revenueOpsV1);
+    const facts = asRecord(measurement.facts);
+    if (measurement.metricDefinitionVersion !== "revenue-ops-v1") {
+      legacyRowsExcluded++;
+      continue;
+    }
+    if (facts.leadCreated === true || facts.callbackCreated === true || facts.bookingCreated === true) {
+      verifiedCaptureCalls++;
+    }
+    if ([
+      "hard_conversion",
+      "walk_in_directed",
+      "callback_needed",
+      "tire_availability_intent",
+      "quote_or_inspection_intent",
+      "lost_opportunity",
+    ].includes(row.evalOutcome ?? "")) qualifiedCalls++;
+  }
 
-  const ticketSince = new Date(Date.now() - 180 * 86400000);
-  const [ticket] = await db
-    .select({ avg: sql<number | null>`AVG(${invoices.totalAmount})`, n: sql<number>`count(*)` })
-    .from(invoices)
-    .where(and(eq(invoices.paymentStatus, "paid"), gte(invoices.invoiceDate, ticketSince), sql`${invoices.totalAmount} > 0`));
+  const ticketSince = new Date(Date.now() - 180 * 86_400_000);
+  const [ticket] = await db.select({
+    avg: sql<number | null>`AVG(${invoices.totalAmount})`,
+    n: sql<number>`count(*)`,
+  }).from(invoices).where(and(
+    eq(invoices.paymentStatus, "paid"),
+    gte(invoices.invoiceDate, ticketSince),
+    sql`${invoices.totalAmount} > 0`,
+  ));
 
-  const hardConversions = Number(hard?.n ?? 0);
   const avgTicketCents = Math.round(Number(ticket?.avg ?? 0));
-  const band = estimateRecoveredRevenue(hardConversions, avgTicketCents);
-
+  const band = estimateRecoveredRevenue(verifiedCaptureCalls, avgTicketCents);
   return {
     ok: true,
-    hardConversions,
-    convertingCalls: Number(converting?.n ?? 0),
+    hardConversions: verifiedCaptureCalls,
+    convertingCalls: qualifiedCalls,
     avgTicketCents,
     invoiceSampleSize: Number(ticket?.n ?? 0),
     captureLow: CAPTURE_LOW,
     captureHigh: CAPTURE_HIGH,
     estLowCents: band.lowCents,
     estHighCents: band.highCents,
+    valueType: "modeled_pipeline_value",
+    evidenceLevel: "modeled",
+    metricDefinitionVersion: "revenue-ops-v1",
+    legacyRowsExcluded,
   };
 }

@@ -1,3 +1,5 @@
+import { scoreVapiQuality } from "./vapiMeasurement";
+
 export type VapiOutcomeCategory =
   | "hard_conversion"
   | "walk_in_directed"
@@ -13,29 +15,12 @@ export type VapiOutcomeCategory =
   | "unknown";
 
 export type VapiIntent =
-  | "used_tire"
-  | "new_tire"
-  | "flat_tire"
-  | "tire_leak"
-  | "tire_size_request"
-  | "brakes"
-  | "diagnostics"
-  | "check_engine"
-  | "battery"
-  | "alternator"
-  | "starter"
-  | "oil_change"
-  | "alignment"
-  | "suspension"
-  | "emissions_echeck"
-  | "ac_heat"
-  | "exhaust"
-  | "general_repair"
-  | "pricing_question"
-  | "hours_location"
-  | "financing";
+  | "used_tire" | "new_tire" | "flat_tire" | "tire_leak"
+  | "tire_size_request" | "brakes" | "diagnostics" | "check_engine"
+  | "battery" | "alternator" | "starter" | "oil_change" | "alignment"
+  | "suspension" | "emissions_echeck" | "ac_heat" | "exhaust"
+  | "general_repair" | "pricing_question" | "hours_location" | "financing";
 
-// Service Intent Classifier Patterns
 const INTENT_PATTERNS: Record<VapiIntent, RegExp> = {
   used_tire: /\b(used|second.?hand|pre.?owned)\b.*\b(tire|tires|rubber)\b|\b(tire|tires|rubber)\b.*\b(used|second.?hand|pre.?owned)\b/i,
   new_tire: /\b(new|brand.?new|fresh)\b.*\b(tire|tires|rubber)\b|\b(tire|tires|rubber)\b.*\b(new|brand.?new|fresh)\b/i,
@@ -65,6 +50,7 @@ export interface ClassificationInput {
   endedReason: string | null;
   aiSummary: string | null;
   transcript: string | null;
+  /** Legacy compatibility field. It is not proof that a lead exists. */
   convertedToLead?: number;
   leadId?: number | null;
   callbackId?: number | null;
@@ -81,153 +67,105 @@ export interface ClassificationResult {
   intents: VapiIntent[];
   score: number | null;
   reasoning: string;
+  qualityVersion: string;
+  qualityEvidence: string[];
 }
 
-/**
- * Detect all service intents in a call.
- */
 export function detectIntents(text: string): VapiIntent[] {
   const matched: VapiIntent[] = [];
   for (const [intent, regex] of Object.entries(INTENT_PATTERNS)) {
-    if (regex.test(text)) {
-      matched.push(intent as VapiIntent);
-    }
+    if (regex.test(text)) matched.push(intent as VapiIntent);
   }
   return matched;
 }
 
-/**
- * Core call classifier and quality scorer.
- */
 export function classifyCall(input: ClassificationInput): ClassificationResult {
   const text = `${input.transcript || ""} ${input.aiSummary || ""}`.trim();
   const intents = detectIntents(text);
+  const lower = text.toLowerCase();
 
-  // 1. Detect Abandoned
-  const isAbandoned =
-    input.durationSeconds <= 5 ||
-    (!text && input.endedReason !== "assistant-forwarded-call");
-
-  // 2. Detect Tech Failure
   const isTechFailure =
     /silence-timed-out|assistant-error|websocket|error-/i.test(input.endedReason || "") ||
-    /error|unable to hear|websocket closed/i.test(text.toLowerCase()) && input.durationSeconds < 20;
-
-  // 3. Detect Spam / Wrong Number / misdial
+    ((/error|unable to hear|websocket closed/i.test(lower)) && input.durationSeconds < 20);
   const isSpamOrWrongNumber =
-    /wrong number|spam|robocall|telemarket|solicitation|marketer/i.test(text.toLowerCase()) ||
+    /wrong number|spam|robocall|telemarket|solicitation|marketer/i.test(lower) ||
     ((input.transcript || "").toLowerCase().trim() === "hello" && input.durationSeconds < 15) ||
-    // A sub-2s call with no spoken words (and not a warm transfer) is a misdial /
-    // robocall / pocket-dial — NOT a real customer who abandoned. Verified against
-    // prod: 81% of "abandons" hang up in <=1s (avg 0.7s) with no transcript, while
-    // first-token latency is a healthy 244ms — so it is not dead-air. Routing these
-    // here keeps abandoned_before_connect meaning a GENUINE lost customer, not phone spam.
     ((input.transcript || "").trim().length < 3 && input.durationSeconds <= 2 && input.endedReason !== "assistant-forwarded-call");
+  const isAbandoned = input.durationSeconds <= 5 || (!text && input.endedReason !== "assistant-forwarded-call");
 
-  // Determine outcome taxonomy
+  // Only persisted operational records prove capture. `convertedToLead` and
+  // reachedTool remain accepted inputs for compatibility/diagnostics but do not
+  // turn a tool interaction into a verified conversion.
+  const verifiedCapture = input.leadId != null || input.callbackId != null || input.bookingId != null;
+  const inferredWalkIn = /\b(swing by|pull up|drop.?off|FCFS|first-come|first.?serve|euclid|head over|come today)\b/i.test(text);
+  const callbackIntent = /\b(call.?me.?back|call.?back|contact.?me|reach.?me)\b/i.test(text);
+
   let outcome: VapiOutcomeCategory = "unknown";
-  let reasoningParts: string[] = [];
-
-  // Check state writes
-  const isHardConversion =
-    input.convertedToLead === 1 ||
-    input.leadId != null ||
-    input.callbackId != null ||
-    input.bookingId != null ||
-    input.reachedTool === true ||
-    /booked|callback_scheduled/i.test(input.evalOutcome || "");
+  const reasons: string[] = [];
 
   if (isTechFailure) {
     outcome = "tech_failure";
-    reasoningParts.push("Technical Failure: call ended due to silence-timeout, assistant error, or audio websocket issues");
+    reasons.push("technical_failure_signal");
   } else if (isSpamOrWrongNumber) {
     outcome = "spam_or_wrong_number";
-    reasoningParts.push("Spam / wrong number / misdial: robocall or wrong-number keywords, or a sub-2s hangup with no spoken words");
+    reasons.push("spam_or_misdial_signal");
   } else if (isAbandoned) {
     outcome = "abandoned_before_connect";
-    reasoningParts.push("Abandoned: call ended before audio connect or <= 5s duration");
-  } else if (isHardConversion) {
+    reasons.push("ended_before_useful_connection");
+  } else if (verifiedCapture) {
     outcome = "hard_conversion";
-    reasoningParts.push("Hard Conversion: write tool call or DB link confirmed");
+    reasons.push("persisted_operational_record");
   } else if (/forward/i.test(input.endedReason || "")) {
     outcome = "human_handoff";
-    reasoningParts.push("Human Handoff: call forwarded to shop line");
-  } else if (/\b(swing by|pull up|drop.?off|FCFS|first-come|first.?serve|euclid|head over|come today)\b/i.test(text)) {
+    reasons.push("transfer_attempted");
+  } else if (inferredWalkIn) {
     outcome = "walk_in_directed";
-    reasoningParts.push("Walk-In Directed: customer instructed to visit or drop off on a first-come, first-served basis");
-  } else if (/\b(call.?me.?back|call.?back|contact.?me|reach.?me)\b/i.test(text)) {
+    reasons.push("walk_in_language_detected");
+  } else if (callbackIntent) {
     outcome = "callback_needed";
-    reasoningParts.push("Callback Needed: customer requested callback or left contact info");
+    reasons.push("callback_language_detected");
   } else if (intents.includes("used_tire") || intents.includes("new_tire") || intents.includes("tire_size_request")) {
     outcome = "tire_availability_intent";
-    reasoningParts.push("Tire Availability Intent: customer asked about tires or sizes without immediate booking/visit");
-  } else if (
-    intents.includes("brakes") ||
-    intents.includes("diagnostics") ||
-    intents.includes("oil_change") ||
-    intents.includes("alignment") ||
-    intents.includes("battery") ||
-    intents.includes("alternator") ||
-    intents.includes("starter") ||
-    intents.includes("pricing_question") ||
-    intents.includes("ac_heat") ||
-    intents.includes("exhaust") ||
-    intents.includes("suspension") ||
-    intents.includes("check_engine") ||
-    intents.includes("emissions_echeck")
-  ) {
+    reasons.push("tire_intent_detected");
+  } else if (intents.some((intent) => !["hours_location", "financing", "general_repair"].includes(intent))) {
     outcome = "quote_or_inspection_intent";
-    reasoningParts.push("Quote or Inspection Intent: customer asked about repairs, checks, or pricing without immediate booking/visit");
-  } else if (/\b(hours|address|directions|close|open|directions)\b/i.test(text)) {
+    reasons.push("service_or_quote_intent_detected");
+  } else if (intents.includes("hours_location") || /\b(hours|address|directions|close|open)\b/i.test(text)) {
     outcome = "resolved_info";
-    reasoningParts.push("Resolved Info: basic operational details provided and resolved");
+    reasons.push("operational_information_request");
   } else if (intents.length > 0 || /\b(fix|repair|car|auto)\b/i.test(text)) {
     outcome = "lost_opportunity";
-    reasoningParts.push("Lost Opportunity: customer had intent but call ended without conversions, walk-in steps, or callback");
+    reasons.push("customer_intent_without_next_step");
   } else {
-    outcome = "unknown";
-    reasoningParts.push("Unknown outcome: fell through all filters");
+    reasons.push("insufficient_outcome_evidence");
   }
 
-  // Scoring Logic
-  let score: number | null = null;
-  if (outcome !== "abandoned_before_connect" && outcome !== "spam_or_wrong_number" && outcome !== "tech_failure") {
-    // Valid Customer Conversation
-    let baseScore = 40;
-    if (outcome === "hard_conversion") baseScore = 95;
-    else if (outcome === "walk_in_directed") baseScore = 85;
-    else if (outcome === "human_handoff") baseScore = 80;
-    else if (outcome === "resolved_info") baseScore = 75;
-    else if (outcome === "callback_needed") baseScore = 70;
-    else if (outcome === "tire_availability_intent" || outcome === "quote_or_inspection_intent") baseScore = 60;
-
-    let modifiers = 0;
-    if (input.sentiment === "positive") {
-      modifiers += 5;
-      reasoningParts.push("+5 sentiment=positive");
-    } else if (input.sentiment === "negative") {
-      modifiers -= 10;
-      reasoningParts.push("-10 sentiment=negative");
-    }
-
-    if (input.durationSeconds >= 30 && input.durationSeconds <= 180) {
-      modifiers += 5;
-      reasoningParts.push("+5 productive duration");
-    } else if (input.durationSeconds > 300) {
-      modifiers -= 5;
-      reasoningParts.push("-5 long duration");
-    }
-
-    score = Math.max(0, Math.min(100, baseScore + modifiers));
-    reasoningParts.unshift(`Scored ${score}/100 based on outcome=${outcome}.`);
-  } else {
-    reasoningParts.unshift("Quality Score Excluded (Non-customer call, hangup, or technical failure).");
-  }
+  const customerConversation = !isSpamOrWrongNumber && !isAbandoned;
+  const usefulNextStep = verifiedCapture || input.reachedTool === true || inferredWalkIn || callbackIntent ||
+    outcome === "human_handoff" || outcome === "resolved_info";
+  const quality = scoreVapiQuality({
+    isCustomerConversation: customerConversation,
+    technicalFailure: isTechFailure,
+    greeted: input.durationSeconds > 0,
+    intentIdentified: intents.length > 0 || outcome === "resolved_info",
+    usefulNextStep,
+    escalationAppropriate: outcome === "human_handoff" || input.callbackId != null,
+    successEvaluation: input.successEvaluation,
+    sentiment: input.sentiment,
+    durationSeconds: input.durationSeconds,
+  });
 
   return {
     outcome,
     intents,
-    score,
-    reasoning: reasoningParts.join(" · "),
+    score: quality.score,
+    reasoning: [
+      `outcome=${outcome}`,
+      `evidence=${reasons.join(",")}`,
+      `quality=${quality.score ?? "unavailable"}`,
+      `quality_version=${quality.version}`,
+    ].join(" · "),
+    qualityVersion: quality.version,
+    qualityEvidence: quality.evidence,
   };
 }

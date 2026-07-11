@@ -1,156 +1,144 @@
-/**
- * VoiceBrief — wave-181.x Voice Phase 2.
- *
- * Mirror of CustomersBrief / OutreachBrief / LeadsBrief / MoneyBrief
- * · 3-line auto-narrative that lands above the MetricGrid so the
- * operator's first eye-grab is "what's happening with Nick today"
- * rather than 5 KPI tiles + a chart.
- *
- * COMPOSITION (3 signal lines, each <120 chars)
- *   1. VELOCITY · today's call volume + forwarded + avg duration
- *   2. LIVE     · in-flight calls right now · auto-refreshes
- *   3. ACTION   · "stuck" calls (Nick reached for a tool but never
- *                 confirmed) — the highest-value review target ·
- *                 clarity-gate · self-hides when no stuck calls
- *
- * STEAL (per skill-mining agent · DFII 8-9)
- *   · data-storytelling · headline = "specific number + business
- *                          impact + actionable context"
- *   · clarity-gate     · null Action line when nothing actionable
- *   · verification-before-completion · the "stuck" call concept ·
- *                          Nick CLAIMED it was working but never
- *                          confirmed success · highest-value
- *                          review target per karpathy verify rule
- *
- * NO NEW SERVER WORK · composes from queries the parent already
- * runs: vapi.todayMetrics + vapi.activeCallStates.
- *
- * CLARITY-GATE DECISIONS (resolved before coding)
- *   · Loading state    · short shimmer line · not full skeleton
- *   · "Stuck call"     · activeCallStates entry where state ===
- *                        "tool_called" but the parent hasn't seen
- *                        a "confirmed" event yet · best signal we
- *                        have client-side for "Nick fumbled this"
- *   · Action threshold · >= 1 stuck call shows the line · else
- *                        null (per clarity-gate empty > fake)
- *   · Avg-duration units · seconds → minutes for readability ·
- *                        sub-1min stays in seconds
- */
 import { trpc } from "@/lib/trpc";
-import { PhoneCall, Activity, AlertTriangle, ArrowRight, Phone } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Phone,
+  PhoneCall,
+  ShieldAlert,
+} from "lucide-react";
 
 interface VoiceBriefProps {
-  /** Click handler for the stuck-calls Action CTA · scrolls to LiveCallsCard. */
   onStuckCallsAction: () => void;
 }
 
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  const minutes = seconds / 60;
-  if (minutes < 10) return `${minutes.toFixed(1)} min`;
-  return `${Math.round(minutes)} min`;
+function startOfTodayIso(): string {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return now.toISOString();
 }
 
-function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 5) return "Late shift";
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Afternoon";
-  return "Good evening";
+function formatRate(rate: { numerator: number; denominator: number; percent: number | null }): string {
+  return rate.percent == null
+    ? `${rate.numerator}/${rate.denominator} · not enough denominator`
+    : `${rate.percent}% · ${rate.numerator}/${rate.denominator}`;
 }
 
 export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
-  // Today's window (no sinceISO/untilISO → server defaults to start-of-day)
-  const { data: metrics } = trpc.vapi.todayMetrics.useQuery(undefined, {
-    staleTime: 60_000,
-  });
-  // In-flight calls (LiveCallsCard polls this · we share the cache via
-  // tRPC · no double fetch). Same input shape · matches the parent.
+  const sinceISO = startOfTodayIso();
+  const { data: scorecard, isLoading: scorecardLoading } = trpc.revenueOps.voiceScorecard.useQuery(
+    { sinceISO },
+    { staleTime: 60_000, refetchInterval: 60_000 },
+  );
   const { data: live } = trpc.vapi.activeCallStates.useQuery(
     { maxAgeMinutes: 10 },
     { staleTime: 10_000 },
   );
 
-  // Clarity-gate · loading state · don't render fake numbers
-  if (!metrics || !live) {
+  if (scorecardLoading || !live) {
     return (
-      <div className="bg-card border border-border/40 p-4">
-        <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/30 animate-pulse">
-          Loading voice brief…
+      <div className="border border-border/40 bg-card p-4">
+        <div className="animate-pulse text-[11px] font-bold uppercase tracking-[0.18em] text-foreground/30">
+          Loading evidence-backed voice scorecard…
         </div>
       </div>
     );
   }
 
-  // Guard against the error-shape (metrics.ok === false during outage)
-  const totalCalls = metrics.ok ? metrics.total ?? 0 : 0;
-  const forwarded = metrics.ok ? metrics.forwarded ?? 0 : 0;
-  const avgSeconds = metrics.ok ? metrics.avgSeconds ?? 0 : 0;
-  const inbound = metrics.ok ? metrics.inbound ?? 0 : 0;
+  if (!scorecard) {
+    return (
+      <div className="border border-amber-400/30 bg-amber-500/5 p-4 text-sm text-amber-200">
+        Voice measurement is unavailable. Legacy conversion cards below may use older definitions.
+      </div>
+    );
+  }
 
-  // In-flight count + stuck calls. activeCallStates returns a record
-  // with `states` array and `byState` aggregates; we count entries in
-  // "tool_called" state that aren't yet "confirmed" — Nick reached
-  // for a booking/callback tool but the success event never landed.
+  const counts = scorecard.counts;
   const inFlightCount = live.count ?? 0;
   const stuckCount = live.byState?.tool_called ?? 0;
+  const noVersionedData = counts.versionedCalls === 0;
 
   return (
-    <div className="bg-card border border-border/40 p-4 space-y-2.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/45">
-          {greeting()} · voice brief
-        </span>
-        <span className="text-[10px] tracking-wider text-foreground/30">
-          today
-        </span>
-      </div>
-      <div className="space-y-1.5">
-        {/* Line 1 · velocity */}
-        <div className="flex items-center gap-2.5">
-          <PhoneCall className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-          <span className="text-[12.5px] text-foreground/85 leading-tight">
-            Today · {totalCalls.toLocaleString()} call{totalCalls === 1 ? "" : "s"}
-            {inbound > 0 ? ` · ${inbound.toLocaleString()} inbound` : ""}
-            {forwarded > 0 ? ` · ${forwarded.toLocaleString()} forwarded to you` : ""}
-            {avgSeconds > 0 ? ` · ${formatDuration(avgSeconds)} avg` : ""}
-          </span>
+    <section className="space-y-3 border border-border/40 bg-card p-4" aria-label="Revenue operations voice scorecard">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-foreground/45">
+            Voice revenue operations · today
+          </div>
+          <p className="mt-1 text-xs text-foreground/50">
+            Version {scorecard.metricDefinitionVersion} · source {scorecard.source} · refreshed {scorecard.dataAsOf ? new Date(scorecard.dataAsOf).toLocaleTimeString() : "not available"}
+          </p>
         </div>
-
-        {/* Line 2 · live · skip when no calls in flight (clarity-gate) */}
-        {inFlightCount > 0 ? (
-          <div className="flex items-center gap-2.5">
-            <Activity className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-pulse" />
-            <span className="text-[12.5px] text-emerald-300 leading-tight">
-              Live · {inFlightCount.toLocaleString()} call{inFlightCount === 1 ? "" : "s"} in flight right now
-            </span>
-          </div>
+        {noVersionedData ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+            <ShieldAlert className="h-3 w-3" /> Awaiting v1 evaluations
+          </span>
         ) : (
-          <div className="flex items-center gap-2.5">
-            <Phone className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
-            <span className="text-[12.5px] text-foreground/60 leading-tight">
-              Live · no calls in flight · Nick is on standby
-            </span>
-          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+            <CheckCircle2 className="h-3 w-3" /> Versioned data
+          </span>
         )}
+      </div>
 
-        {/* Line 3 · action · stuck calls only (clarity-gate hides else) */}
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="border border-border/30 bg-background/30 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Inbound records</p>
+          <p className="mt-1 text-xl font-bold tabular-nums">{counts.totalInboundRecords}</p>
+          <p className="text-[11px] text-foreground/45">{counts.versionedCalls} v1 · {counts.legacyUnversioned} legacy excluded</p>
+        </div>
+        <div className="border border-border/30 bg-background/30 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Qualified inquiries</p>
+          <p className="mt-1 text-xl font-bold tabular-nums">{counts.qualifiedServiceInquiries}</p>
+          <p className="text-[11px] text-foreground/45">classifier-v2 · inferred</p>
+        </div>
+        <div className="border border-border/30 bg-background/30 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Verified capture</p>
+          <p className="mt-1 text-xl font-bold tabular-nums">{counts.leadsCreated + counts.callbacksCreated + counts.bookingsCreated}</p>
+          <p className="text-[11px] text-foreground/45">{counts.leadsCreated} leads · {counts.callbacksCreated} callbacks · {counts.bookingsCreated} bookings</p>
+        </div>
+        <div className="border border-border/30 bg-background/30 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Conversation quality</p>
+          <p className="mt-1 text-xl font-bold tabular-nums">{scorecard.quality.average ?? "—"}</p>
+          <p className="text-[11px] text-foreground/45">{scorecard.quality.scoredCalls} scored · outcome-independent</p>
+        </div>
+      </div>
+
+      <div className="grid gap-2 text-xs text-foreground/70 md:grid-cols-3">
+        <div className="flex items-center gap-2">
+          <PhoneCall className="h-3.5 w-3.5 text-blue-400" />
+          Qualified → lead: {formatRate(scorecard.rates.qualifiedToLead)}
+        </div>
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+          Qualified → booking: {formatRate(scorecard.rates.qualifiedToBooking)}
+        </div>
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+          Technical failures: {formatRate(scorecard.rates.technicalFailure)}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/30 pt-3">
+        <div className="flex items-center gap-2 text-xs text-foreground/60">
+          {inFlightCount > 0 ? <Activity className="h-3.5 w-3.5 animate-pulse text-emerald-400" /> : <Phone className="h-3.5 w-3.5" />}
+          {inFlightCount > 0 ? `${inFlightCount} call${inFlightCount === 1 ? "" : "s"} live` : "No calls in flight"}
+          <span>·</span>
+          <span>{counts.walkInsDirected} walk-ins directed, not arrivals</span>
+          <span>·</span>
+          <span>{counts.paidInvoicesVerified} paid invoices verified</span>
+        </div>
         {stuckCount > 0 ? (
           <button
             type="button"
             onClick={onStuckCallsAction}
-            className="flex items-center gap-2.5 w-full text-left hover:bg-amber-500/[0.04] -mx-2 px-2 py-1 rounded transition-colors group"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-300 hover:text-amber-200"
           >
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-[12.5px] text-amber-300 leading-tight flex-1">
-              Action · <span className="font-semibold">{stuckCount}</span> stuck call{stuckCount === 1 ? "" : "s"} · Nick reached for a tool but never confirmed · review the transcript
-            </span>
-            <span className="text-[10px] text-amber-400/60 tracking-wider group-hover:text-amber-400 transition-colors whitespace-nowrap">
-              REVIEW <ArrowRight className="w-3 h-3 inline-block -mt-0.5" />
-            </span>
+            Review {stuckCount} stuck call{stuckCount === 1 ? "" : "s"}
+            <ArrowRight className="h-3.5 w-3.5" />
           </button>
         ) : null}
       </div>
-    </div>
+    </section>
   );
 }
