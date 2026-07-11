@@ -61,6 +61,24 @@ export const GET = cronHandler(async () => {
   });
   deletedByTable.brain_memories_gc = brainGc.count;
 
+  // ── Commitment auto-expiry (2026-07-11) ──
+  // Mirrors personal-pulse's own "abandoned-in-practice" floor: anything
+  // >90d past its deadline is never getting done. Pre-fix nothing ever
+  // expired these (the only expiry path was a manual bulk action last used
+  // 2026-04-22) — prod accumulated 69 active commitments with ~1 ever
+  // completed, poisoning the promise_integrity axis and pulse PROMISE items.
+  // Status "expired" (not deleted) — same terminal state the manual
+  // expire_stale action in /api/commitments uses.
+  const expiredCommitments = await prisma.commitment.updateMany({
+    where: {
+      status: { in: ["active", "in_progress"] },
+      deletedAt: null,
+      deadline: { lt: daysAgo(90).toISOString().slice(0, 10) },
+    },
+    data: { status: "expired", updatedBy: "cron:data-cleanup" },
+  });
+  deletedByTable.commitments_expired = expiredCommitments.count;
+
   // v11.0 · BrainMemory category retention · read from config/retention.ts
   // so /system/gaps + /system/power + this cron all share one source
   // of truth. Each sweep records its deletion count AND the why-line

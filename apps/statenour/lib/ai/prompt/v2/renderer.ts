@@ -520,6 +520,11 @@ function renderCommands(ctx: NickPrimeContext): string {
 
   // v9.1.7 · commitments to other people. These outrank queued tasks
   // for surfacing — Nour's word is on the line.
+  // 2026-07-11 · pulse-staleness follow-up: render the #id and instruct
+  // reconciliation. Pre-fix the list had no ids, so Nick could never call
+  // completeCommitment(commitmentId) from the prompt alone — prod reached
+  // 69 active commitments with ~1 ever completed, and Pulse nagged about
+  // promises Nour had already done.
   const commitments = ctx.activeCommitments ?? [];
   if (commitments.length > 0) {
     lines.push(``, `Active commitments (${commitments.length}):`);
@@ -527,9 +532,12 @@ function renderCommands(ctx: NickPrimeContext): string {
       const dl = c.deadline ? ` — by ${safe(c.deadline, 20)}` : "";
       const dom = c.domain ? ` · ${safe(c.domain, 30)}` : "";
       lines.push(
-        `  → ${safe(c.toWhom, 60)}: ${safe(c.description, 120)}${dl}${dom}`,
+        `  → [#${safe(c.id, 12)}] ${safe(c.toWhom, 60)}: ${safe(c.description, 120)}${dl}${dom}`,
       );
     }
+    lines.push(
+      `RECONCILE: when Nour says he did one of these (even in passing — "I worked out", "sent it", "done"), call completeCommitment with that #id in the SAME turn. Didn't/won't do it → markCommitmentBroken with the reason. Never leave a reported-done commitment active.`,
+    );
   }
 
   // v9.1.7 · scheduled future actions (cron-fired plans). Render only

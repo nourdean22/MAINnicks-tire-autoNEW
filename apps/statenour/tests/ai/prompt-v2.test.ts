@@ -309,7 +309,10 @@ describe("v9.0-beta · prompt-v2 renderer", () => {
     expect(sections.commands).toContain("Open queue (1):");
     expect(sections.commands).toContain("[critical] Quote follow-up");
     expect(sections.commands).toContain("Active commitments (1):");
-    expect(sections.commands).toContain("→ John D.: Send tire quote");
+    // 2026-07-11 · commitment lines carry the #id so Nick can call
+    // completeCommitment(commitmentId), plus the RECONCILE instruction.
+    expect(sections.commands).toContain("→ [#c-1] John D.: Send tire quote");
+    expect(sections.commands).toContain("RECONCILE:");
     expect(sections.commands).toContain("Scheduled within 24h (1):");
     expect(sections.commands).toContain("send_followup_sms in");
     // The 3-day-out scheduled action must NOT leak in.

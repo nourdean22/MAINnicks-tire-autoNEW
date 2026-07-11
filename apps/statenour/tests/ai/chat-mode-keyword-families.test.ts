@@ -310,3 +310,44 @@ describe("2026-07-11 families · compareCompetitors + analyzeFitness reachable",
     expect(P532B.competitiveTrigger.test("compare these two fonts for me")).toBe(false);
   });
 });
+
+// ── 2026-07-11 · commitment reconciliation family (pulse-staleness wave) ──
+// MIRRORS lib/ai/chat-mode.ts — the COMMAND-STATE prompt block tells Nick to
+// completeCommitment(#id) when Nour reports doing a promised thing, but
+// casual completion reports matched no family, so the commitment write tools
+// were pruned on exactly the turns the rule fires.
+const P_RECONCILE = {
+  trigger: /\b(i (just )?(did|finished|completed|sent|worked out|hit the gym|ran|closed|handled) (?!nothing\b|not\b)|already (did|done|sent|handled)|(it|that|this)'?s done|took care of (it|that|the)|knocked (it|that) out|checked (it|that) off|done with (it|that|the))\b/i,
+  tools: /commit|completeTask/i,
+};
+
+describe("2026-07-11 commitment-reconciliation family", () => {
+  it.each([
+    "i worked out this morning",
+    "i just finished the yardwork",
+    "already sent that to Dania",
+    "that's done, what's next",
+    "took care of the radiator",
+    "knocked it out before lunch",
+    "i ran the 10x10 today",
+  ])("fires on completion report: %s", (q) => {
+    expect(P_RECONCILE.trigger.test(q)).toBe(true);
+  });
+
+  it("tool pattern reaches the commitment write tools", () => {
+    expect(P_RECONCILE.tools.test("completeCommitment")).toBe(true);
+    expect(P_RECONCILE.tools.test("markCommitmentBroken")).toBe(true);
+    expect(P_RECONCILE.tools.test("updateCommitment")).toBe(true);
+    expect(P_RECONCILE.tools.test("getCommitments")).toBe(true);
+    expect(P_RECONCILE.tools.test("completeTask")).toBe(true);
+  });
+
+  it.each([
+    "what should i do today",
+    "the gym was packed today",
+    "can you send an email for me",
+    "i did nothing all day, feeling stuck",
+  ])("does NOT fire on non-completion talk: %s", (q) => {
+    expect(P_RECONCILE.trigger.test(q)).toBe(false);
+  });
+});
