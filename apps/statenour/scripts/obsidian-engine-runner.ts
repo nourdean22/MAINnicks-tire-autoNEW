@@ -20,6 +20,8 @@ const command = args[0] || "sync";
 const extraArgs = args.slice(1);
 const engineConfig = getObsidianEngineConfig();
 const BRAIN_COMMANDS = new Set(["sync", "ingest", "export", "watch"]);
+const LOCAL_HEARTBEAT_MS = 30_000;
+const DATABASE_HEARTBEAT_MS = 120_000;
 
 if (BRAIN_COMMANDS.has(command) && !process.env.DATABASE_URL) {
   console.error(
@@ -95,7 +97,8 @@ async function finishSync(steps: ObsidianEngineStepResults): Promise<boolean> {
 
   if (success) {
     status.lastSuccessfulSyncAt = now;
-    if (status.health === "error" && status.stats.failures === 0) status.health = "healthy";
+    status.health = status.stats.warnings > 0 || status.stats.quarantined > 0 ? "degraded" : "healthy";
+    status.issues = status.issues.filter((issue) => !issue.message.startsWith("Sync pipeline failed:"));
   } else {
     status.health = "error";
     status.issues = [
@@ -122,7 +125,7 @@ async function runSyncPipeline(): Promise<boolean> {
     finalDoctor: false,
   };
   if (steps.doctor) steps.ingest = runScript("ingest-obsidian-vault.ts");
-  if (steps.ingest) steps.export = runScript("export-brain-to-obsidian.ts", extraArgs);
+  if (steps.ingest) steps.export = runScript("export-brain-to-obsidian-verified.ts", extraArgs);
   steps.finalDoctor = runScript("obsidian-doctor.ts");
   const success = await finishSync(steps);
   console.log(success ? "[Engine] Full synchronization succeeded." : "[Engine] Synchronization failed.");
@@ -142,6 +145,12 @@ function printStatus(status: ObsidianEngineStatus): void {
   console.log(`Daemon heartbeat: ${status.daemonHeartbeatAt ?? "offline"}`);
   console.log(`Notes: ${status.stats.totalNotes}; synced: ${status.stats.synced}; failures: ${status.stats.failures}`);
   for (const issue of status.issues) console.log(`- [${issue.type}] ${issue.message}`);
+}
+
+async function heartbeat(persistToDatabase: boolean): Promise<void> {
+  const status = readEngineStatus() ?? defaultStatus();
+  status.daemonHeartbeatAt = new Date().toISOString();
+  await writeEngineStatus(status, { persistToDatabase });
 }
 
 function startWatcher(): void {
@@ -170,6 +179,7 @@ function startWatcher(): void {
     }, 5000);
   };
 
+  void heartbeat(true);
   trigger();
   const watchedPaths = [engineConfig.vaultPath, engineConfig.icloudShortcutsPath].filter(fs.existsSync);
   for (const watchedPath of watchedPaths) {
@@ -179,17 +189,18 @@ function startWatcher(): void {
     });
   }
 
-  setInterval(async () => {
-    const status = readEngineStatus() ?? defaultStatus();
-    status.daemonHeartbeatAt = new Date().toISOString();
-    await writeEngineStatus(status, { persistToDatabase: false });
-  }, 30_000);
+  setInterval(() => {
+    void heartbeat(false).catch((error) => console.error("[Engine] local heartbeat failed:", error));
+  }, LOCAL_HEARTBEAT_MS);
+  setInterval(() => {
+    void heartbeat(true).catch((error) => console.error("[Engine] database heartbeat failed:", error));
+  }, DATABASE_HEARTBEAT_MS);
 }
 
 async function main(): Promise<void> {
   if (command === "doctor") process.exitCode = runScript("obsidian-doctor.ts", extraArgs) ? 0 : 1;
   else if (command === "ingest") process.exitCode = runScript("ingest-obsidian-vault.ts", extraArgs) ? 0 : 1;
-  else if (command === "export") process.exitCode = runScript("export-brain-to-obsidian.ts", extraArgs) ? 0 : 1;
+  else if (command === "export") process.exitCode = runScript("export-brain-to-obsidian-verified.ts", extraArgs) ? 0 : 1;
   else if (command === "sync") process.exitCode = (await runSyncPipeline()) ? 0 : 1;
   else if (command === "status") {
     const status = readEngineStatus();

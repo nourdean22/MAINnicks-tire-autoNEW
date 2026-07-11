@@ -7,6 +7,7 @@ import {
 import {
   listPendingKnowledgeCandidates,
   persistKnowledgeCandidate,
+  recordKnowledgeCandidateOutcome,
   reviewKnowledgeCandidate,
 } from "@/lib/knowledge/candidate-store";
 
@@ -26,7 +27,7 @@ const buildAndSubmitSchema = z.object({
     sourceType: z.enum(["obsidian", "notebooklm", "graphify", "web", "task_outcome", "manual", "system"]),
     sourceId: z.string().min(1).max(512),
     sourceUri: z.string().min(1).max(2_000).optional(),
-    observedAt: z.union([z.string(), z.date()]).optional(),
+    observedAt: z.string().optional(),
     generatedBy: z.string().min(1).max(256),
     confidence: z.number().min(0).max(1),
     riskLevel: z.enum(["low", "medium", "high"]).optional(),
@@ -49,10 +50,18 @@ const reviewSchema = z.object({
   decision: z.enum(["accept", "reject"]),
 });
 
+const outcomeSchema = z.object({
+  action: z.literal("outcome"),
+  memoryId: z.string().min(1),
+  outcome: z.enum(["confirmed", "disproved", "neutral"]),
+  evidence: z.string().max(4_000).optional(),
+});
+
 const mutationSchema = z.discriminatedUnion("action", [
   submitSchema,
   buildAndSubmitSchema,
   reviewSchema,
+  outcomeSchema,
 ]);
 
 export const GET = apiHandler(
@@ -70,6 +79,9 @@ export const POST = apiHandler(
 
     if (payload.action === "review") {
       return reviewKnowledgeCandidate(payload.memoryId, payload.decision);
+    }
+    if (payload.action === "outcome") {
+      return recordKnowledgeCandidateOutcome(payload.memoryId, payload.outcome, payload.evidence);
     }
 
     const candidate = payload.action === "submit"

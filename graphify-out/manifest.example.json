@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-11T00:00:00.000Z",
+  "sourceCommit": "replace-with-current-commit",
+  "generator": "graphify",
+  "reportPath": "graphify-out/GRAPH_REPORT.md",
+  "nodeCount": 0,
+  "edgeCount": 0,
+  "findings": [
+    {
+      "id": "example-dependency-hub",
+      "summary": "Replace this example with a bounded, evidence-backed Graphify finding generated from the current commit.",
+      "kind": "dependency_hub",
+      "confidence": 0.8,
+      "files": ["apps/statenour/example.ts"],
+      "evidence": ["Graph report section or exact code-location evidence"],
+      "contradictionRefs": []
+    }
+  ]
+}
