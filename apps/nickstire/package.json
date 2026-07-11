@@ -15,6 +15,7 @@
     "regen": "node scripts/regen-prerender.mjs",
     "audit:prerender": "node scripts/audit-prerender.mjs",
     "prerender:check": "node scripts/check-prerender.mjs",
+    "prerender:semantic-check": "node scripts/check-prerender-semantic.mjs",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
@@ -35,7 +36,7 @@
     "validate:routes": "node scripts/validate-route-registry.mjs",
     "env:validate": "node scripts/env-validate.mjs",
     "typecheck:raw": "tsc -p tsconfig.typecheck.json --noEmit",
-    "verify": "pnpm run env:validate && pnpm run typecheck:raw && pnpm run lint && pnpm run lint:source && pnpm run lint:hooks && pnpm run lint:brand-voice && pnpm run lint:pii && pnpm run validate:routes && pnpm run prerender:check && pnpm run test && pnpm run build",
+    "verify": "pnpm run env:validate && pnpm run typecheck:raw && pnpm run lint && pnpm run lint:source && pnpm run lint:hooks && pnpm run lint:brand-voice && pnpm run lint:pii && pnpm run validate:routes && pnpm run prerender:check && pnpm run prerender:semantic-check && pnpm run test && pnpm run build",
     "ingest:reels": "tsx scripts/run.ts ingest-reels-markdown.ts",
     "backfill:skills": "tsx scripts/run.ts backfill-creative-skills.ts"
   },
