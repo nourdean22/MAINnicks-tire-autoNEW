@@ -4,6 +4,13 @@ import { readFileSync } from "fs";
 import { join, resolve } from "path";
 import mysql from "mysql2/promise";
 
+// Nick's Tire's DATABASE_URL (mysql://...tidbcloud.com) lives in this app's
+// OWN .env, not the monorepo root .env (which carries statenour's Postgres
+// URL). Loading the root file here previously handed mysql2 a postgresql://
+// string in a clean shell. Load the local file first — dotenv never
+// overrides an already-set var — then fall back to root only for anything
+// this script doesn't itself require.
+dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 
 const MIGRATION_TAG = "0074_revenue_attribution_closure";
@@ -18,6 +25,13 @@ const REQUIRED_TABLES = [
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL missing");
+  if (!url.startsWith("mysql://")) {
+    throw new Error(
+      `DATABASE_URL is not a mysql:// connection string (got "${url.split("://")[0]}://..."). ` +
+        "This migration targets Nick's Tire's TiDB/MySQL database, not statenour's Postgres. " +
+        "Refusing to run against the wrong database.",
+    );
+  }
 
   const source = readFileSync(MIGRATION_PATH, "utf8");
   const statements = source
