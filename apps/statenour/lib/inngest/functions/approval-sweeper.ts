@@ -2,14 +2,20 @@ import { getInngest } from "../client";
 import { prisma } from "@/lib/prisma";
 import { executeApprovedToolAsync } from "@/lib/tools/guardian";
 import { logger } from "@/lib/logger";
+import { onInngestFailure } from "../on-failure";
 
 const log = logger.withSurface("inngest/approval-sweeper");
 
 export const approvalSweeper = getInngest().createFunction(
-  { 
-    id: "approval-sweeper", 
+  {
+    id: "approval-sweeper",
     name: "Approval Sweeper",
-    triggers: [{ cron: "*/5 * * * *" }]
+    triggers: [{ cron: "*/5 * * * *" }],
+    // 2026-07-10 review fix · this was the ONLY Inngest function without
+    // onFailure — the durability backstop for approved tool execution
+    // (incl. real customer SMS) failed silently. Every sibling alerts
+    // Telegram via onInngestFailure; now this one does too.
+    onFailure: onInngestFailure,
   },
   async ({ step }) => {
     const staleTime = new Date(Date.now() - 5 * 60 * 1000); // 5 min
