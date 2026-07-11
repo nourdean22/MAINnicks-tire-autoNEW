@@ -217,7 +217,10 @@ export async function resolveSourceProvenance(
         const replies = await db
           .select()
           .from(reviewReplies)
-          .where(and(eq(reviewReplies.id, numericId), eq(reviewReplies.rating, 5)))
+          // 2026-07-11 · the column is reviewRating (review_rating) —
+          // `rating` never existed on this table (tsc TS2339 broke the
+          // pre-commit hook repo-wide). Same 5-star intent, real column.
+          .where(and(eq(reviewReplies.id, numericId), eq(reviewReplies.reviewRating, 5)))
           .limit(1);
         if (replies[0]?.reviewText) {
           return {
