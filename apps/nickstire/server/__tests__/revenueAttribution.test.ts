@@ -61,6 +61,20 @@ describe("revenue attribution contract", () => {
     expect(candidate.confidence).toBe(1);
   });
 
+  it("does not verify a direct invoice link claimed by multiple leads", () => {
+    const [candidate] = buildCallInvoiceCandidates({
+      calls: [{ callId: 4, phoneNumber: "2165551212", leadId: 9, serviceMention: "brakes", occurredAt: new Date("2026-07-01T10:00:00Z") }],
+      paidInvoices: [{ invoiceId: 99, customerPhone: "2165551212", customerId: 7, serviceDescription: "front brakes", paidAt: new Date("2026-07-02T10:00:00Z"), amountCents: 60000 }],
+      leadLinks: [
+        { leadId: 9, invoiceId: 99 },
+        { leadId: 10, invoiceId: 99 },
+      ],
+    });
+    expect(candidate.resolution).toBe("ambiguous");
+    expect(candidate.evidenceLevel).toBe("inferred");
+    expect(candidate.invoiceId).toBe(99);
+  });
+
   it("keeps phone, time and service matching in manual review", () => {
     const [candidate] = buildCallInvoiceCandidates({
       calls: [{ callId: 2, phoneNumber: "(216) 555-1212", leadId: null, serviceMention: "brake repair", occurredAt: new Date("2026-07-01T10:00:00Z") }],
