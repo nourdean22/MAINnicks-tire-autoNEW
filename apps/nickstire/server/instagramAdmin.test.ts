@@ -1,4 +1,42 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The claim-safety / scheduling gates under test throw BEFORE any query runs
+// (inputs carry no inventoryId), but the routers null-check db() first — so
+// these tests were order/connection-dependent: green only when a real TiDB
+// connection happened to succeed. Mock the whole helper (complete mock, per
+// singleFork hygiene) with a chainable stub that resolves to [] for any
+// awaited query, so list endpoints stay shape-stable and gates are reachable.
+vi.mock("./lib/db-helper", () => {
+  // Query chains are thenable (await → []); the root database object must NOT
+  // be thenable, or `await db()` would unwrap it to [] via promise adoption.
+  const makeChain = (): unknown =>
+    new Proxy(function () {}, {
+      get(_target, prop) {
+        if (prop === "then") {
+          return (resolve: (value: unknown[]) => void) => resolve([]);
+        }
+        return () => makeChain();
+      },
+      apply() {
+        return makeChain();
+      },
+    });
+  const database = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === "then") return undefined;
+        return () => makeChain();
+      },
+    },
+  );
+  return {
+    db: async () => database,
+    dbTyped: async () => database,
+    requireDb: async () => database,
+  };
+});
+
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
@@ -195,57 +233,22 @@ describe("instagramAdmin router", () => {
   });
 
   describe("stageDraft validation for Reels", () => {
-    it("throws BAD_REQUEST if a Reel is staged without a videoUrl", async () => {
+    // Reels no longer stage through stageDraft at all — the contract moved to
+    // enqueueReelJob/finalizeReelDraft (a556ec3a6 · c4e194694). stageDraft
+    // categorically rejects the format, regardless of payload completeness.
+    it("categorically rejects Reel drafts (BAD_REQUEST), even with a complete payload", async () => {
       const caller = appRouter.createCaller(ctx("admin"));
       await expect(caller.instagramAdmin.stageDraft({
         format: "reel",
         caption: "check this out",
         sourceType: "manual",
-      })).rejects.toThrow(/requires a generated video asset/i);
-    });
-
-    it("throws BAD_REQUEST if Reel videoUrl does not end in .mp4", async () => {
-      const caller = appRouter.createCaller(ctx("admin"));
-      await expect(caller.instagramAdmin.stageDraft({
-        format: "reel",
-        caption: "check this out",
-        videoUrl: "https://nickstire.com/assets/img.jpg",
-        sourceType: "manual",
-      })).rejects.toThrow(/must be an MP4 video/i);
-    });
-
-    it("throws BAD_REQUEST if Reel conceptBrief is missing", async () => {
-      const caller = appRouter.createCaller(ctx("admin"));
+      })).rejects.toMatchObject({ code: "BAD_REQUEST" });
       await expect(caller.instagramAdmin.stageDraft({
         format: "reel",
         caption: "check this out",
         videoUrl: "https://nickstire.com/assets/video.mp4",
         sourceType: "manual",
-      })).rejects.toThrow(/requires a valid ReelBrief payload/i);
-    });
-
-    it("throws BAD_REQUEST if Reel conceptBrief fails quality score validation", async () => {
-      const caller = appRouter.createCaller(ctx("admin"));
-      // missing campaignKeyword, loop, proof source etc will fail calculateReelQualityScore
-      await expect(caller.instagramAdmin.stageDraft({
-        format: "reel",
-        caption: "check this out",
-        videoUrl: "https://nickstire.com/assets/video.mp4",
-        sourceType: "manual",
-        conceptBrief: {
-          id: "123",
-          storyboardBeats: [],
-          sourceNotes: [],
-          mechanicTruth: "",
-          higgsfieldPromptPack: [],
-          concepts: [],
-          winningConceptId: null,
-          voiceoverScript: "",
-          campaignKeyword: "brakes",
-          selectedCaption: "",
-          captionHooks: [],
-        }
-      })).rejects.toThrow(/below passing threshold/i);
+      })).rejects.toThrow(/enqueueReelJob/i);
     });
   });
 });

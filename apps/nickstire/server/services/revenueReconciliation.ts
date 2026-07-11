@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { and, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 import { bookings, invoices, leads, vapiCallLogs } from "../../drizzle/schema";
-import { getDb } from "../db";
+import { getDbTyped } from "../db";
 import {
   ATTRIBUTION_DEFINITION_VERSION,
   buildCallInvoiceCandidates,
@@ -37,7 +37,7 @@ export interface ReconciliationInput {
 }
 
 export async function runRevenueReconciliation(input: ReconciliationInput) {
-  const db = await getDb();
+  const db = await getDbTyped();
   if (!db) throw new Error("DB unavailable");
 
   const runId = randomUUID();
@@ -186,7 +186,7 @@ export async function resolveAttributionDecision(input: {
   evidence?: Record<string, unknown>;
   decidedBy: string;
 }) {
-  const db = await getDb();
+  const db = await getDbTyped();
   if (!db) throw new Error("DB unavailable");
 
   const existingRaw = await db.execute(sql`
@@ -222,7 +222,7 @@ export async function resolveAttributionDecision(input: {
 }
 
 export async function getRevenueJourney(callId: number) {
-  const db = await getDb();
+  const db = await getDbTyped();
   if (!db) throw new Error("DB unavailable");
 
   const raw = await db.execute(sql`
@@ -276,7 +276,7 @@ export async function runLegacyVapiBackfill(input: {
   until: Date;
   mode: "dry_run" | "apply";
 }) {
-  const db = await getDb();
+  const db = await getDbTyped();
   if (!db) throw new Error("DB unavailable");
   const runId = randomUUID();
 
