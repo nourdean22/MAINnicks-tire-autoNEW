@@ -100,7 +100,7 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
     };
 
     try {
-      const sheetsSync = await import("../../sheets-sync") as { syncDashboardToSheet?: (value: typeof metrics) => Promise<void> };
+      const sheetsSync = await import("../../sheets-sync") as { syncDashboardToSheet?: (value: typeof metrics) => Promise<boolean> };
       if (typeof sheetsSync.syncDashboardToSheet === "function") {
         await sheetsSync.syncDashboardToSheet(metrics);
       }
