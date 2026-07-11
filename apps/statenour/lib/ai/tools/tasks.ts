@@ -562,8 +562,10 @@ const tasksCoreTools = {
       domain: z.string().optional(),
     }),
     execute: async ({ description, deadline, toWhom, domain }) => {
+      // Drop hallucinated past-year deadlines (see sanitizeDeadline).
+      const { sanitizeDeadline } = await import("@/lib/services/commitments");
       const c = await prisma.commitment.create({
-        data: { description, deadline, toWhom, domain, dateMade: today() },
+        data: { description, deadline: sanitizeDeadline(deadline), toWhom, domain, dateMade: today() },
       });
       return { created: true, commitmentId: c.id, description };
     },

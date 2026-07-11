@@ -29,12 +29,30 @@ export interface Timeline {
 
 interface Inputs {
   workoutDoneToday: boolean;
+  /** Whether workouts are tracked AT ALL (a DAILY workout habit exists, or a
+   *  workout-ish task was completed in the last 7d). When false the
+   *  skip-workout warn is suppressed — pre-fix, zero DAILY tasks existed in
+   *  prod so "skip workout → -2 discipline" fired every day before 9 PM
+   *  forever, regardless of actual workouts logged as ONCE tasks. */
+  tracksWorkouts: boolean;
   workoutStreak: number;           // days in a row before today
   habitsDone: number;
   habitsTotal: number;
   driftOpen: number;
   sleepHoursAvg7d: number | null;
   hourOfDay: number;
+}
+
+/** Workout-ish task-title fragments — same fuzzy-match family as
+ *  ultron-ticker's fetchSelfMetricsTop (workout/move/gym/exercise), extended
+ *  with the vocabulary Nour actually uses ("RUN OR 10X10", "run plus 10 x 10"). */
+const WORKOUT_TITLE_FRAGMENTS = [
+  "workout", "gym", "exercise", "lift", "cardio", "run", "10x10", "10 x 10", "planet fitness",
+] as const;
+
+function titleLooksLikeWorkout(title: string): boolean {
+  const t = title.toLowerCase();
+  return WORKOUT_TITLE_FRAGMENTS.some((frag) => t.includes(frag));
 }
 
 export async function computeInputs(): Promise<Inputs> {
@@ -46,7 +64,7 @@ export async function computeInputs(): Promise<Inputs> {
   // filters today's rows from the synthesized habit history; habitsWeek
   // slices the last 7 days. (Daily-score inputs removed 2026-05-31 — the
   // score-derived timeline items were retired in the score→reflection pivot.)
-  const [habitsToday, habitsWeek, drift, sleepRows] = await Promise.all([
+  const [habitsToday, habitsWeek, drift, sleepRows, doneWorkoutTasks] = await Promise.all([
     (async () => {
       const { recentDailyHabits } = await import("@/lib/brain/legacy-shims");
       const all = await recentDailyHabits(1);
@@ -95,6 +113,24 @@ export async function computeInputs(): Promise<Inputs> {
         console.warn("[ultron/timelines] bodyTracking.findMany failed:", err instanceof Error ? err.message : err);
         return [];
       }),
+    // Workout evidence from COMPLETED tasks (any loopKind). Nour logs
+    // workouts as ONCE tasks ("RUN OR 10X10"), not DAILY habits — the
+    // habit-only detection above never sees them. Fuzzy title filter
+    // happens in JS (titleLooksLikeWorkout) since the fragment list
+    // outgrows a Prisma OR-contains cleanly.
+    prisma.task
+      .findMany({
+        where: {
+          status: "DONE",
+          deletedAt: null,
+          updatedAt: { gte: weekAgo },
+        },
+        select: { title: true, updatedAt: true },
+      })
+      .catch((err): Array<{ title: string; updatedAt: Date }> => {
+        console.warn("[ultron/timelines] task.findMany for workout evidence failed:", err instanceof Error ? err.message : err);
+        return [];
+      }),
   ]);
 
   // Workout streak = consecutive days with completed=true ending yesterday
@@ -107,9 +143,32 @@ export async function computeInputs(): Promise<Inputs> {
     else break;
   }
 
-  const workoutToday = habitsToday.find((h) => h.habitKey === "workout");
+  // Habit-based signal (kept for anyone who DOES run a DAILY habit) — fuzzy
+  // title match instead of the old exact `=== "workout"`, which could never
+  // match real task titles like "Morning Workout" or "Gym".
+  const workoutToday = habitsToday.find((h) => titleLooksLikeWorkout(h.habitKey));
   const habitsDone = habitsToday.filter((h) => h.completed).length;
   const habitsTotal = habitsToday.length;
+
+  // Task-based signal — a workout-ish task completed TODAY counts as done,
+  // whatever its loopKind. `toDateString` keeps the comparison in ET.
+  const workoutTasks = doneWorkoutTasks.filter((t) => titleLooksLikeWorkout(t.title));
+  const workoutTaskDoneToday = workoutTasks.some(
+    (t) => toDateString(t.updatedAt) === todayStr,
+  );
+  const tracksWorkouts = workoutToday !== undefined || workoutTasks.length > 0;
+
+  // No DAILY habit streak → derive one from completed workout-ish tasks
+  // (consecutive ET days ending yesterday), so streak items work for the
+  // ONCE-task tracking style actually in use.
+  if (workoutStreak === 0 && workoutTasks.length > 0) {
+    const daysWithWorkout = new Set(workoutTasks.map((t) => toDateString(t.updatedAt)));
+    for (let i = 1; i <= 7; i++) {
+      const day = new Date(now.getTime() - i * 86400_000);
+      if (daysWithWorkout.has(toDateString(day))) workoutStreak++;
+      else break;
+    }
+  }
 
   // 2026-05-27 · wired-up. BodyTracking.sleepHours (Float?, one row per
   // date via @unique) feeds the avg. Returns null only when zero rows
@@ -127,7 +186,8 @@ export async function computeInputs(): Promise<Inputs> {
   }
 
   return {
-    workoutDoneToday: !!workoutToday?.completed,
+    workoutDoneToday: !!workoutToday?.completed || workoutTaskDoneToday,
+    tracksWorkouts,
     workoutStreak,
     habitsDone,
     habitsTotal,
@@ -144,8 +204,11 @@ export async function computeInputs(): Promise<Inputs> {
 export function generateTimelines(i: Inputs): Timeline[] {
   const items: Timeline[] = [];
 
-  // Workout skip — only relevant if Nour hasn't done it yet today
-  if (!i.workoutDoneToday && i.hourOfDay < 21) {
+  // Workout skip — only when workouts are tracked at all AND not done yet
+  // today. Without the tracksWorkouts gate this warned unconditionally
+  // every day (prod had zero DAILY tasks, so workoutDoneToday was always
+  // false) — a permanent false "skip workout → -2 discipline" in the pulse.
+  if (i.tracksWorkouts && !i.workoutDoneToday && i.hourOfDay < 21) {
     if (i.workoutStreak >= 3) {
       items.push({
         id: "skip-workout-streak",

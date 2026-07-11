@@ -136,6 +136,17 @@ export async function pruneTools(
     addMatching(/score|habit|body|daily|workout|sleep|drift|mood/i);
   }
 
+  // 2026-07-11 · commitment reconciliation. The COMMAND-STATE prompt block
+  // instructs Nick to completeCommitment(#id) when Nour reports having done
+  // a promised thing — but casual completion reports ("i worked out",
+  // "sent it", "that's done") matched no family, so the commitment write
+  // tools were pruned on exactly the turns the rule fires. Prod symptom:
+  // 69 active commitments, ~1 ever completed, Pulse nagging about done
+  // promises. MIRRORED in tests/ai/chat-mode-keyword-families.test.ts.
+  if (/\b(i (just )?(did|finished|completed|sent|worked out|hit the gym|ran|closed|handled) (?!nothing\b|not\b)|already (did|done|sent|handled)|(it|that|this)'?s done|took care of (it|that|the)|knocked (it|that) out|checked (it|that) off|done with (it|that|the))\b/i.test(text)) {
+    addMatching(/commit|completeTask/i);
+  }
+
   // Financial / projections / forecast
   if (/\b(money|\$|finance|budget|save|spend|invest|project|forecast|goal|target|net worth|savings|debt)\b/.test(text)) {
     addMatching(/financial|forecast|projection|goal|revenue|aging/i);

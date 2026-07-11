@@ -111,6 +111,12 @@ export const EVENING_JOBS: readonly string[] = [
   "/api/cron/cost-slo-check",
   "/api/cron/os-snapshot",
   "/api/cron/anticipate",
+  // 2026-07-11 · resurrected. Deleted in the Wave-AE prune (2026-05-28)
+  // and never re-wired — the 8-axis identity snapshot froze at the last
+  // manual refresh, and the pulse ticker/nudges served week-old axes
+  // ("social battery 20") as current. Nightly roll matches the axes'
+  // 14-30d data windows.
+  "/api/cron/refresh-identity",
   // 2026-05-30 · mastery leveling engine · attributes the day's
   // unstructured signals (chat/captures/decisions) → stat XP. Idempotent;
   // first run backfills history, then only new signals each night.
