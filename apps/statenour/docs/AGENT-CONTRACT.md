@@ -59,7 +59,7 @@ branch, and Vercel are all retired. Companion app
    ```
    If any fail, **fix before** you add new work. `verify:hard` runs
    typecheck · lint · test · raw-SQL audit · cron manifest ·
-   prompt-size · `prisma validate`. The repo-root `.husky/pre-push`
+   prompt-size · `prisma validate`. The repo-root `lefthook.yml` pre-push hook
    hook separately runs `turbo build` for affected apps to catch
    Next.js prerender errors before Railway.
 
@@ -69,13 +69,13 @@ branch, and Vercel are all retired. Companion app
 
 ```
 main   ← the one branch. Monorepo: statenour + nickstire share it.
-         push → .husky/pre-push runs `turbo build` for affected apps.
+         push → lefthook.yml pre-push runs `turbo build --affected`.
          Railway watches `main` with per-service watch paths and
          auto-deploys statenour-web on any push touching
          apps/statenour/**.
 ```
 
-The repo-root pre-push hook (`.husky/pre-push`) runs `turbo build`
+The repo-root pre-push hook (`lefthook.yml`) runs `turbo build --affected`
 for the affected apps before letting a push leave the laptop — it
 catches the Next.js prerender errors that only surface at build time.
 statenour's own full local gate is `pnpm verify:hard`.

@@ -38,18 +38,32 @@ import type { ActionClaim } from "@/lib/ai/chat/action-claim-detector";
 const VERIFIER_MARKER = "[VERIFIER · v10.0.162]";
 
 /**
+ * 2026-07-11 review · THE single banner builder. The banner text used to
+ * be hand-duplicated at three call sites (here + two inline copies in
+ * persist-assistant-turn.ts), so the marker/wording could silently drift
+ * and a turn tripping two enforcement layers got two stacked banners.
+ * Every layer now builds through this function and guards with
+ * isVerifierRewritten() first.
+ */
+export function buildVerifierBanner(diagnostic: string): string {
+  return [
+    `${VERIFIER_MARKER} ⚠ ${diagnostic} Treat the claim as **unverified**. If you want the action actually performed, ask me to retry — I'll fire the tool this time.`,
+    "",
+    "_Original response (unverified):_",
+    "",
+  ].join("\n");
+}
+
+/**
  * Build the hedged-banner prefix. We name the verbs that fired no
  * tools so the operator sees the diagnostic up front.
  */
 function buildBanner(claims: ActionClaim[]): string {
   const verbs = [...new Set(claims.map((c) => c.verb))].slice(0, 3);
   const verbList = verbs.join(", ");
-  return [
-    `${VERIFIER_MARKER} ⚠ The response below claimed ${claims.length === 1 ? "an action" : "actions"} (${verbList}) but no matching tool call fired. Treat the claim as **unverified**. If you want the action actually performed, ask me to retry — I'll fire the tool this time.`,
-    "",
-    "_Original response (unverified):_",
-    "",
-  ].join("\n");
+  return buildVerifierBanner(
+    `The response below claimed ${claims.length === 1 ? "an action" : "actions"} (${verbList}) but no matching tool call fired.`,
+  );
 }
 
 /**
@@ -66,6 +80,13 @@ export function rewriteForFabrication(
   fabricatedClaims: ActionClaim[],
 ): { rewrote: boolean; text: string; bannerLength: number } {
   if (fabricatedClaims.length === 0) {
+    return { rewrote: false, text, bannerLength: 0 };
+  }
+  // Idempotency (2026-07-11 review) · an earlier enforcement layer
+  // (receipt check / action-write verifier) may already have bannered
+  // this turn — and the detector then scans banner-polluted text.
+  // Stacking a second banner buries the reply; one warning is enough.
+  if (isVerifierRewritten(text)) {
     return { rewrote: false, text, bannerLength: 0 };
   }
   const banner = buildBanner(fabricatedClaims);

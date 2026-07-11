@@ -11,8 +11,11 @@
  *   · side-effecting-ness comes from the tool catalog (getToolMeta) for SDK
  *     tools, or MUTATION_ACTIONS for action blocks (task.create, etc.).
  *
- * Pure — no IO, no DB. v1 is additive (not yet wired into the live finalize
- * seam). See docs/runbooks/action-honesty-and-receipts.md.
+ * Pure — no IO, no DB. LIVE: canClaimDone/toReceipt are wired into the
+ * finalize seam at 4 call sites in lib/services/chat/persist-assistant-turn.ts
+ * (2026-07-11 review corrected this header — it previously claimed "not yet
+ * wired", which risked a future editor treating the path as dead).
+ * See docs/runbooks/action-honesty-and-receipts.md.
  */
 
 import { getToolMeta } from "@/lib/ai/tools/catalog";

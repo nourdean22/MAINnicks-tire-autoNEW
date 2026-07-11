@@ -114,3 +114,27 @@ describe("stripVerifierBanner", () => {
     expect(stripped).toBe(original);
   });
 });
+
+// ── 2026-07-11 review · idempotency + single-builder guarantees ──
+import { buildVerifierBanner } from "@/lib/ai/chat/fabrication-rewriter";
+
+describe("verifier banner unification (2026-07-11)", () => {
+  const claim = { verb: "sent", snippet: "I sent the email", expectedTool: "sendEmail" } as any;
+
+  it("rewriteForFabrication is idempotent — never stacks a second banner", () => {
+    const once = rewriteForFabrication("I sent the email.", [claim]);
+    expect(once.rewrote).toBe(true);
+    const twice = rewriteForFabrication(once.text, [claim]);
+    expect(twice.rewrote).toBe(false);
+    expect(twice.text).toBe(once.text);
+    // exactly ONE marker in the final text
+    expect(once.text.split("[VERIFIER · v10.0.162]").length - 1).toBe(1);
+  });
+
+  it("buildVerifierBanner carries the marker + unverified framing", () => {
+    const banner = buildVerifierBanner("The response below claimed action(s) (sent) but tool call(s) failed.");
+    expect(banner.startsWith("[VERIFIER · v10.0.162]")).toBe(true);
+    expect(banner).toContain("**unverified**");
+    expect(banner).toContain("_Original response (unverified):_");
+  });
+});

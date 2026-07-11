@@ -126,11 +126,12 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   pricingAdvisorySummary: { family: "business-read", description: "Read latest weekly pricing-strategy advisory (win rate, outliers, drafted experiments)", mutates: false, cost: "cheap", tags: ["nickstire", "advisory"] },
 
   // ── Business · write ──
-  sendSMS: { family: "business-write", description: "Send SMS to one customer", mutates: true, cost: "cheap" },
-  sendBulkSMS: { family: "business-write", description: "Send SMS to a segment", mutates: true, cost: "medium" },
+  // 2026-07-11 review · sendSMS / sendBulkSMS / createPaymentLink /
+  // triggerFollowUp removed — those tools were deleted in the v7 cleanup
+  // (Apr 28, documented in catalog.ts) and their registry entries made
+  // /system/tools list 4 tools that no longer exist. Phantom entries are
+  // now a FAILING test (tests/ai/tool-families-drift.test.ts), not a warn.
   createQuickQuote: { family: "business-write", description: "Create a quote for a lead", mutates: true, cost: "cheap" },
-  createPaymentLink: { family: "business-write", description: "Generate Stripe payment link", mutates: true, cost: "cheap" },
-  triggerFollowUp: { family: "business-write", description: "Fire a follow-up sequence", mutates: true, cost: "cheap" },
   triageStaleLead: { family: "business-write", description: "Move stale lead → next action", mutates: true, cost: "cheap" },
 
   // ── Brain · search ──

@@ -33,7 +33,6 @@
     "check:lint-baseline": "tsx scripts/lint-baseline.ts --verify",
     "lint-baseline:snapshot": "tsx scripts/lint-baseline.ts --snapshot",
     "check:audit-deps": "tsx scripts/audit-deps.ts",
-    "pre-push": "tsx scripts/pre-push-check.ts",
     "prompt:size-check": "tsx scripts/measure-prompt-size.ts --yes",
     "pins:smoke": "tsx scripts/smoke-pins.ts",
     "calibrate:dry": "tsx scripts/dry-run-auto-calibrate.ts --yes",
@@ -62,7 +61,6 @@
     "research:pack": "tsx scripts/generate-source-pack.ts",
     "research:ingest": "tsx scripts/ingest-research-pack.ts",
     "research:notebooklm": "tsx scripts/ingest-notebooklm-output.ts",
-    "install-hooks": "bash scripts/install-hooks.sh",
     "postinstall": "prisma generate"
   },
   "dependencies": {
