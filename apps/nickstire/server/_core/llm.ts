@@ -28,6 +28,11 @@ export type Message = {
   content: MessageContent | MessageContent[];
   name?: string;
   tool_call_id?: string;
+  /** Present on an ASSISTANT message that issued tool calls. It MUST be
+   *  carried back to the API on the next request or the following `tool`
+   *  result messages are orphaned (the API rejects/ignores them and the
+   *  model re-issues the same call) — see normalizeMessage. */
+  tool_calls?: ToolCall[];
 };
 
 export type Tool = {
@@ -138,8 +143,8 @@ const normalizeContentPart = (
   throw new Error("Unsupported message content part");
 };
 
-const normalizeMessage = (message: Message) => {
-  const { role, name, tool_call_id } = message;
+export const normalizeMessage = (message: Message) => {
+  const { role, name, tool_call_id, tool_calls } = message;
 
   if (role === "tool" || role === "function") {
     const content = ensureArray(message.content)
@@ -156,20 +161,23 @@ const normalizeMessage = (message: Message) => {
 
   const contentParts = ensureArray(message.content).map(normalizeContentPart);
 
-  // If there's only text content, collapse to a single string for compatibility
-  if (contentParts.length === 1 && contentParts[0].type === "text") {
-    return {
-      role,
-      name,
-      content: contentParts[0].text,
-    };
+  // If there's only text content, collapse to a single string for compatibility.
+  const content =
+    contentParts.length === 1 && contentParts[0].type === "text"
+      ? contentParts[0].text
+      : contentParts;
+
+  // An assistant message that issued tool calls MUST carry `tool_calls`
+  // back to the API. Dropping it (the prior behavior) orphaned the
+  // following `tool` result messages: the model never saw that it had
+  // already called the tool, re-issued the same call every loop
+  // iteration, and the caller's tool loop exhausted to an empty reply —
+  // the customer-facing "Sorry, I'm glitching out" fallback in gemini.ts.
+  if (tool_calls && tool_calls.length > 0) {
+    return { role, name, content, tool_calls };
   }
 
-  return {
-    role,
-    name,
-    content: contentParts,
-  };
+  return { role, name, content };
 };
 
 const normalizeToolChoice = (
