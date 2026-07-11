@@ -168,6 +168,13 @@ export const revenueAttributionRouter = router({
         c.evidence_json AS evidence,
         c.created_at AS createdAt
       FROM revenue_reconciliation_candidates c
+      INNER JOIN (
+        SELECT call_id, MAX(created_at) AS latest_created_at
+        FROM revenue_reconciliation_candidates
+        GROUP BY call_id
+      ) latest
+        ON latest.call_id = c.call_id
+       AND latest.latest_created_at = c.created_at
       LEFT JOIN revenue_attribution_decisions d
         ON d.call_id = c.call_id AND d.current_slot = 1
       WHERE d.id IS NULL
