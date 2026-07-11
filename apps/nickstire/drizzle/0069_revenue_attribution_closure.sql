@@ -1,0 +1,85 @@
+CREATE TABLE IF NOT EXISTS revenue_attribution_decisions (
+  id VARCHAR(36) NOT NULL,
+  call_id INT NOT NULL,
+  lead_id INT NULL,
+  booking_id INT NULL,
+  invoice_id INT NULL,
+  work_order_id VARCHAR(64) NULL,
+  decision ENUM('confirmed','rejected','ambiguous') NOT NULL,
+  evidence_level ENUM('observed','inferred','verified') NOT NULL,
+  match_method VARCHAR(64) NOT NULL,
+  confidence DECIMAL(5,4) NULL,
+  evidence_json JSON NULL,
+  decided_by VARCHAR(255) NOT NULL,
+  decided_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  supersedes_decision_id VARCHAR(36) NULL,
+  is_current TINYINT NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_revenue_attribution_current_call (call_id, is_current),
+  KEY idx_revenue_attribution_invoice (invoice_id),
+  KEY idx_revenue_attribution_lead (lead_id),
+  KEY idx_revenue_attribution_decided_at (decided_at)
+);
+
+CREATE TABLE IF NOT EXISTS revenue_reconciliation_runs (
+  id VARCHAR(36) NOT NULL,
+  definition_version VARCHAR(64) NOT NULL,
+  status ENUM('running','completed','failed') NOT NULL,
+  window_start TIMESTAMP NOT NULL,
+  window_end TIMESTAMP NOT NULL,
+  max_days INT NOT NULL,
+  calls_scanned INT NOT NULL DEFAULT 0,
+  verified_candidates INT NOT NULL DEFAULT 0,
+  inferred_candidates INT NOT NULL DEFAULT 0,
+  ambiguous_candidates INT NOT NULL DEFAULT 0,
+  unmatched_candidates INT NOT NULL DEFAULT 0,
+  decisions_preserved INT NOT NULL DEFAULT 0,
+  error_text TEXT NULL,
+  started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TIMESTAMP NULL,
+  PRIMARY KEY (id),
+  KEY idx_revenue_reconciliation_started (started_at),
+  KEY idx_revenue_reconciliation_status (status)
+);
+
+CREATE TABLE IF NOT EXISTS revenue_reconciliation_candidates (
+  id VARCHAR(36) NOT NULL,
+  run_id VARCHAR(36) NOT NULL,
+  call_id INT NOT NULL,
+  lead_id INT NULL,
+  booking_id INT NULL,
+  invoice_id INT NULL,
+  work_order_id VARCHAR(64) NULL,
+  resolution ENUM('attributed','manual_review','unmatched','ambiguous') NOT NULL,
+  evidence_level ENUM('observed','inferred','verified') NOT NULL,
+  match_method VARCHAR(64) NOT NULL,
+  confidence DECIMAL(5,4) NULL,
+  evidence_json JSON NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_reconciliation_run_call (run_id, call_id),
+  KEY idx_reconciliation_candidate_call (call_id),
+  KEY idx_reconciliation_candidate_invoice (invoice_id),
+  CONSTRAINT fk_reconciliation_candidate_run FOREIGN KEY (run_id)
+    REFERENCES revenue_reconciliation_runs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS vapi_legacy_backfill_runs (
+  id VARCHAR(36) NOT NULL,
+  definition_version VARCHAR(64) NOT NULL,
+  mode ENUM('dry_run','apply') NOT NULL,
+  status ENUM('running','completed','failed') NOT NULL,
+  window_start TIMESTAMP NOT NULL,
+  window_end TIMESTAMP NOT NULL,
+  rows_scanned INT NOT NULL DEFAULT 0,
+  rows_eligible INT NOT NULL DEFAULT 0,
+  rows_updated INT NOT NULL DEFAULT 0,
+  rows_skipped INT NOT NULL DEFAULT 0,
+  error_text TEXT NULL,
+  started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TIMESTAMP NULL,
+  PRIMARY KEY (id),
+  KEY idx_vapi_backfill_started (started_at),
+  KEY idx_vapi_backfill_status (status)
+);
