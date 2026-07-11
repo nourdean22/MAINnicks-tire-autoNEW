@@ -24,6 +24,12 @@ function textMatch(html, regex) {
   return regex.exec(html)?.[1]?.replace(/\s+/g, " ").trim() ?? "";
 }
 
+function attributeFromTag(html, tagPattern, attribute) {
+  const tag = tagPattern.exec(html)?.[0] ?? "";
+  return textMatch(tag, new RegExp(`${attribute}="([^"]*)"`, "i"))
+    || textMatch(tag, new RegExp(`${attribute}='([^']*)'`, "i"));
+}
+
 function normalizedDigits(value) {
   return value.replace(/\D/g, "");
 }
@@ -35,10 +41,16 @@ function inspect(route) {
 
   const html = fs.readFileSync(file, "utf8");
   const title = textMatch(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
-  const description = textMatch(html, /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)
-    || textMatch(html, /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i);
-  const canonical = textMatch(html, /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i)
-    || textMatch(html, /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["']/i);
+  const description = attributeFromTag(
+    html,
+    /<meta\b[^>]*\bname=["']description["'][^>]*>/i,
+    "content",
+  );
+  const canonical = attributeFromTag(
+    html,
+    /<link\b[^>]*\brel=["']canonical["'][^>]*>/i,
+    "href",
+  );
   const h1 = textMatch(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i).replace(/<[^>]+>/g, "").trim();
   const expectedCanonical = `${CANONICAL_ORIGIN}${route === "/" ? "" : route}`;
 
