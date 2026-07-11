@@ -270,6 +270,132 @@ function buildBridgeOpenApi(): Record<string, unknown> {
 
 const BRIDGE_OPENAPI_SCHEMA = buildBridgeOpenApi();
 
+// ─── VOICE (VAPI) WRITE CONTRACT · 2026-07-11 ────────────────────────
+// statenour's VAPI tool handlers (lib/services/nickstire-write.ts) have
+// been POSTing /api/bridge/dropoff + /callback and GETting
+// /customer-lookup since v10.0.270 — endpoints that never existed here.
+// Every voice-captured drop-off/callback silently degraded to
+// statenour-local brainMemory and NEVER reached the shop CRM (lost
+// jobs). The zod shapes below mirror nickstire-write.ts verbatim — that
+// file is the contract; change them together. The map* functions are
+// pure + exported for unit tests (house style: evaluateHeavySync).
+
+export const VapiDropoffInput = z.object({
+  source: z.string().max(100),
+  vapiCallId: z.string().max(200).nullish(),
+  capturedAt: z.string().max(50),
+  name: z.string().max(255).nullish(),
+  phone: z.string().max(30).nullish(),
+  vehicle: z.object({
+    year: z.union([z.string(), z.number()]).nullish(),
+    make: z.string().max(50).nullish(),
+    model: z.string().max(50).nullish(),
+  }).default({}),
+  concern: z.string().max(2000).nullish(),
+  preferredTime: z.string().max(200).nullish(),
+  driveable: z.union([z.boolean(), z.string()]).nullish(),
+  returningCustomer: z.union([z.boolean(), z.string()]).nullish(),
+});
+
+export const VapiCallbackInput = z.object({
+  source: z.string().max(100),
+  vapiCallId: z.string().max(200).nullish(),
+  capturedAt: z.string().max(50),
+  name: z.string().max(255).nullish(),
+  phone: z.string().max(30).nullish(),
+  reason: z.string().max(2000).nullish(),
+  urgency: z.string().max(50).default("normal"),
+  preferredTime: z.string().max(200).nullish(),
+  language: z.string().max(30).default("en"),
+});
+
+type MapError = { error: string };
+
+/** Voice drop-off → bookings row values (same sink the SMS bot uses, so
+ *  it shows in the admin booking flow + cars-today like any other job).
+ *  Rejects when no dialable phone: a drop-off we can't call back is not
+ *  actionable — statenour keeps it in its brainMemory fallback instead
+ *  of us creating an uncontactable ghost booking. */
+export function mapDropoffToBooking(p: z.infer<typeof VapiDropoffInput>):
+  | MapError
+  | { values: {
+      name: string; phone: string; service: string; vehicle: string;
+      vehicleYear?: string; vehicleMake?: string; vehicleModel?: string;
+      preferredTime: "morning" | "afternoon" | "no-preference";
+      message: string; status: "new"; stage: "received";
+    } } {
+  const digits = (p.phone ?? "").replace(/\D/g, "");
+  if (digits.length < 10) return { error: "phone with at least 10 digits required" };
+
+  const vehicleStr = [p.vehicle.year, p.vehicle.make, p.vehicle.model]
+    .filter((v) => v !== null && v !== undefined && String(v).trim() !== "")
+    .map(String).join(" ");
+  const rawTime = (p.preferredTime ?? "").toLowerCase();
+  const preferredTime = /morn|\bam\b|early/.test(rawTime) ? "morning" as const
+    : /after|\bpm\b|even|late/.test(rawTime) ? "afternoon" as const
+    : "no-preference" as const;
+  const message = [
+    `Voice drop-off via ${p.source}${p.vapiCallId ? ` (call ${p.vapiCallId})` : ""} at ${p.capturedAt}.`,
+    p.concern ? `Concern: ${p.concern}` : null,
+    p.preferredTime ? `Preferred time (verbatim): ${p.preferredTime}` : null,
+    p.driveable !== null && p.driveable !== undefined ? `Driveable: ${p.driveable}` : null,
+    p.returningCustomer !== null && p.returningCustomer !== undefined ? `Returning customer: ${p.returningCustomer}` : null,
+  ].filter(Boolean).join("\n");
+
+  return { values: {
+    name: (p.name ?? "").trim() || "Voice Drop-Off Customer",
+    phone: `+1${digits.slice(-10)}`,
+    service: "drop-off",
+    vehicle: vehicleStr,
+    vehicleYear: p.vehicle.year != null ? String(p.vehicle.year).slice(0, 10) : undefined,
+    vehicleMake: p.vehicle.make ?? undefined,
+    vehicleModel: p.vehicle.model ?? undefined,
+    preferredTime,
+    message,
+    status: "new",
+    stage: "received",
+  } };
+}
+
+/** Voice callback request → callback_requests row values. */
+export function mapCallbackToRow(p: z.infer<typeof VapiCallbackInput>):
+  | MapError
+  | { values: { name: string; phone: string; context: string; sourcePage: string; status: "new" } } {
+  const digits = (p.phone ?? "").replace(/\D/g, "");
+  if (digits.length < 10) return { error: "phone with at least 10 digits required" };
+  const context = [
+    p.reason ? `Reason: ${p.reason}` : null,
+    `Urgency: ${p.urgency}`,
+    p.preferredTime ? `Preferred time: ${p.preferredTime}` : null,
+    p.language !== "en" ? `Language: ${p.language}` : null,
+    `Captured ${p.capturedAt} via ${p.source}${p.vapiCallId ? ` (call ${p.vapiCallId})` : ""}`,
+  ].filter(Boolean).join(" · ");
+  return { values: {
+    name: (p.name ?? "").trim() || "Voice Caller",
+    phone: `+1${digits.slice(-10)}`,
+    context,
+    sourcePage: `vapi:${p.source}`.slice(0, 255),
+    status: "new",
+  } };
+}
+
+/** customers row (or undefined) → the CustomerLookupResult shape
+ *  statenour's lookupCustomerOnNickstire() expects. */
+export function mapCustomerToLookup(c?: {
+  firstName: string | null; lastName: string | null; phone: string | null;
+  totalVisits: number | null; lastVisitDate: Date | string | null;
+}): { found: boolean; name?: string | null; phone?: string | null; visitCount?: number; lastVisitAt?: string | null; notes?: null } {
+  if (!c) return { found: false };
+  return {
+    found: true,
+    name: [c.firstName, c.lastName].filter(Boolean).join(" ") || null,
+    phone: c.phone,
+    visitCount: c.totalVisits ?? 0,
+    lastVisitAt: c.lastVisitDate ? new Date(c.lastVisitDate).toISOString() : null,
+    notes: null,
+  };
+}
+
 export function registerBridgeRoutes(app: Express): void {
   // Per-op last-run timestamps for the heavy-sync cooldown (see
   // evaluateHeavySync). In-memory is sufficient: a single Railway instance
@@ -475,6 +601,109 @@ export function registerBridgeRoutes(app: Express): void {
       res.status(500).json({ error: "Internal error" });
     }
   });
+
+  // ─── VOICE (VAPI) WRITE CONTRACT · 2026-07-11 ──────────────────────
+  // statenour's VAPI tool handlers (lib/services/nickstire-write.ts)
+  // have been POSTing /api/bridge/dropoff + /callback and GETting
+  // /customer-lookup since v10.0.270 — endpoints that never existed
+  // here. Every voice-captured drop-off/callback silently degraded to
+  // statenour-local brainMemory and NEVER reached the shop CRM (lost
+  // jobs). Payload shapes below mirror nickstire-write.ts verbatim —
+  // that file is the contract; change them together.
+
+  app.post("/api/bridge/dropoff", bridgeAuth, async (req, res) => {
+    try {
+      const parsed = VapiDropoffInput.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid input", issues: parsed.error.issues });
+        return;
+      }
+      const mapped = mapDropoffToBooking(parsed.data);
+      if ("error" in mapped) {
+        res.status(400).json({ error: mapped.error });
+        return;
+      }
+      const { getDb } = await import("../db");
+      const { bookings } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+
+      const [inserted] = await db.insert(bookings).values(mapped.values).$returningId();
+
+      // Same visibility hook the SMS bot uses — fire-and-forget.
+      import("../services/eventBus").then(({ emit }) =>
+        emit.bookingCreated({
+          id: inserted?.id ?? 0,
+          name: mapped.values.name,
+          phone: mapped.values.phone,
+          service: mapped.values.service,
+          vehicle: mapped.values.vehicle ?? "",
+        })
+      ).catch((e) => { log.warn("[Bridge] dropoff eventBus emit failed:", e); });
+
+      res.json({ id: String(inserted?.id ?? "") });
+    } catch (err: unknown) {
+      log.error("[Bridge] dropoff error:", err);
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
+  // Voice callback request → callback_requests (the admin callback queue).
+  app.post("/api/bridge/callback", bridgeAuth, async (req, res) => {
+    try {
+      const parsed = VapiCallbackInput.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid input", issues: parsed.error.issues });
+        return;
+      }
+      const mapped = mapCallbackToRow(parsed.data);
+      if ("error" in mapped) {
+        res.status(400).json({ error: mapped.error });
+        return;
+      }
+      const { getDb } = await import("../db");
+      const { callbackRequests } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+
+      const [inserted] = await db.insert(callbackRequests).values(mapped.values).$returningId();
+      res.json({ id: String(inserted?.id ?? "") });
+    } catch (err: unknown) {
+      log.error("[Bridge] callback error:", err);
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
+  // Voice customer lookup by phone — returns the CustomerLookupResult
+  // shape statenour's lookupCustomerOnNickstire() expects.
+  app.get("/api/bridge/customer-lookup", bridgeAuth, async (req, res) => {
+    try {
+      const digits = String(req.query.phone ?? "").replace(/\D/g, "");
+      if (digits.length < 10) {
+        res.status(400).json({ error: "phone query param with at least 10 digits required" });
+        return;
+      }
+      const { getDb } = await import("../db");
+      const { customers } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+
+      const rows = await db.select({
+        firstName: customers.firstName,
+        lastName: customers.lastName,
+        phone: customers.phone,
+        totalVisits: customers.totalVisits,
+        lastVisitDate: customers.lastVisitDate,
+      }).from(customers).where(eq(customers.phone10, digits.slice(-10))).limit(1);
+
+      res.json(mapCustomerToLookup(rows[0]));
+    } catch (err: unknown) {
+      log.error("[Bridge] customer-lookup error:", err);
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
 
   // Add a quick note to a customer or work order
   app.post("/api/bridge/actions/quick-note", bridgeAuth, async (req, res) => {
