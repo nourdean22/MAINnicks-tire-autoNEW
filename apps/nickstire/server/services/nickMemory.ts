@@ -32,6 +32,30 @@ export interface NickMemory {
 }
 
 /**
+ * Pure reinforcement update. 2026-07-11 · THE STERILE-LOOP FIX: the
+ * +0.05 bump previously landed only on `confidence`, while decayMemories
+ * recomputes every row from the stamped `originalConfidence` — so the
+ * next decay cycle (~2h) RESET every reinforcement gain and lessons
+ * could never durably climb to the 0.65 injection bar. Reinforcement
+ * now raises the baseline too: decay then decays from the REINFORCED
+ * value (idempotent-decay design preserved — the baseline only moves
+ * on a genuine reinforcement event, never by decay itself).
+ */
+export function applyReinforcement(
+  data: Record<string, unknown> & { uses?: number; confidence?: number; originalConfidence?: number },
+  nowIso: string = new Date().toISOString(),
+): typeof data {
+  data.uses = (data.uses || 1) + 1;
+  // round() kills float drift (0.55 + 0.05 = 0.6000000000000001) — same
+  // guard decayedConfidence uses; without it the `confidence !== target`
+  // check in decayMemories churns a write on every cycle.
+  data.confidence = Math.min(1.0, Math.round(((data.confidence || 0.7) + 0.05) * 100) / 100);
+  data.originalConfidence = data.confidence;
+  data.lastReinforced = nowIso;
+  return data;
+}
+
+/**
  * Store a new memory or reinforce an existing one
  */
 export async function remember(params: {
@@ -56,10 +80,7 @@ export async function remember(params: {
 
     if (existing.length > 0) {
       // Reinforce — increment uses and update confidence
-      const data = JSON.parse(existing[0].value);
-      data.uses = (data.uses || 1) + 1;
-      data.confidence = Math.min(1.0, (data.confidence || 0.7) + 0.05);
-      data.lastReinforced = new Date().toISOString();
+      const data = applyReinforcement(JSON.parse(existing[0].value));
       await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(eq(shopSettings.key, key));
       log.info(`Memory reinforced: ${params.type} — ${params.content.slice(0, 50)}...`);
     } else {
@@ -116,8 +137,15 @@ export async function recall(params?: {
     const { shopSettings } = await import("../../drizzle/schema");
     const prefix = params?.type ? `nick_memory_${params.type}_` : "nick_memory_";
 
+    // 2026-07-11 · was LIMIT with NO ORDER BY — the injection window
+    // (getMemoryContext reads 30 of potentially 500 rows) was filled
+    // with whatever arbitrary/oldest rows the engine returned, not the
+    // best lessons. Deterministic: highest confidence first, then most
+    // recently reinforced (same JSON_EXTRACT pattern as the eviction
+    // query above, inverted).
     const rows = await d.select().from(shopSettings)
       .where(sql`${shopSettings.key} LIKE ${prefix + "%"}`)
+      .orderBy(sql`JSON_EXTRACT(value, '$.confidence') DESC, COALESCE(JSON_UNQUOTE(JSON_EXTRACT(value, '$.lastReinforced')), JSON_UNQUOTE(JSON_EXTRACT(value, '$.createdAt'))) DESC`)
       .limit(params?.limit || 50);
 
     return rows.map((r: any) => {

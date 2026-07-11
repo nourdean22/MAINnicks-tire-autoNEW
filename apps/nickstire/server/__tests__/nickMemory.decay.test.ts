@@ -5,7 +5,7 @@
  * the preference-protection.
  */
 import { describe, it, expect } from "vitest";
-import { decayedConfidence, isPrunableMemory } from "../services/nickMemory";
+import { decayedConfidence, isPrunableMemory, applyReinforcement } from "../services/nickMemory";
 
 const DAY = 24 * 60 * 60 * 1000;
 const MONTH = 30 * DAY;
@@ -54,6 +54,43 @@ describe("nickMemory decay math", () => {
     });
     it("NEVER prunes an operator preference, however stale", () => {
       expect(isPrunableMemory("preference", 0.1, 99 * MONTH)).toBe(false);
+    });
+  });
+
+  describe("applyReinforcement × decay (the sterile-loop regression)", () => {
+    it("reinforcement raises the decay BASELINE, not just confidence", () => {
+      const data = applyReinforcement(
+        { uses: 3, confidence: 0.5, originalConfidence: 0.5 },
+        "2026-07-11T00:00:00.000Z",
+      );
+      expect(data.confidence).toBe(0.55);
+      expect(data.originalConfidence).toBe(0.55); // baseline moved
+      expect(data.uses).toBe(4);
+      expect(data.lastReinforced).toBe("2026-07-11T00:00:00.000Z");
+    });
+
+    it("REGRESSION: a decay cycle right after reinforcement keeps the gain", () => {
+      // Pre-fix: originalConfidence stayed 0.5, so decayMemories computed
+      // target = decayedConfidence(0.5, <30d) = 0.5 and RESET the 0.55 —
+      // every reinforcement was erased within ~2h, lessons never durably
+      // climbed to the 0.65 injection bar.
+      const data = applyReinforcement({ uses: 1, confidence: 0.5, originalConfidence: 0.5 });
+      const target = decayedConfidence(data.originalConfidence!, DAY); // fresh age post-reinforce
+      expect(target).toBe(0.55); // decays FROM the reinforced value
+    });
+
+    it("repeated reinforcement compounds toward the 0.65 injection bar", () => {
+      let data: Record<string, unknown> & { confidence?: number; originalConfidence?: number } =
+        { uses: 1, confidence: 0.5, originalConfidence: 0.5 };
+      for (let i = 0; i < 3; i++) data = applyReinforcement(data);
+      expect(data.confidence).toBe(0.65);
+      expect(data.originalConfidence).toBe(0.65);
+    });
+
+    it("caps at 1.0", () => {
+      const data = applyReinforcement({ confidence: 0.98 });
+      expect(data.confidence).toBe(1.0);
+      expect(data.originalConfidence).toBe(1.0);
     });
   });
 });
