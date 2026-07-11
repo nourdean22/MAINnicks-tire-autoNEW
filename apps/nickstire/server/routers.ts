@@ -85,6 +85,7 @@ import {
 import { voiceAgentRouter } from "./routers/voiceAgent";
 import { vapiRouter } from "./routers/vapi";
 import { revenueOpsRouter } from "./routers/revenueOps";
+import { revenueAttributionRouter } from "./routers/revenueAttribution";
 import { closedLoopRouter } from "./routers/closedLoop";
 import { membershipsRouter } from "./routers/memberships";
 import { adStudioRouter } from "./routers/adStudio";
@@ -113,6 +114,7 @@ export const appRouter = router({
   voiceAgent: voiceAgentRouter,
   vapi: vapiRouter,
   revenueOps: revenueOpsRouter,
+  revenueAttribution: revenueAttributionRouter,
   costEstimator: costEstimatorRouter,
   content: contentRouter,
 
