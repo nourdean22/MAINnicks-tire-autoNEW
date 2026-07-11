@@ -4,6 +4,7 @@ import {
   KnowledgeCandidateSchema,
   buildKnowledgeCandidate,
 } from "@/lib/knowledge/candidate";
+import { listAcceptedKnowledgeActions } from "@/lib/knowledge/candidate-actions";
 import {
   listPendingKnowledgeCandidates,
   persistKnowledgeCandidate,
@@ -68,7 +69,10 @@ export const GET = apiHandler(
   async (request) => {
     const url = new URL(request.url);
     const limit = Number(url.searchParams.get("limit") ?? "20");
-    return listPendingKnowledgeCandidates(Number.isFinite(limit) ? limit : 20);
+    const safeLimit = Number.isFinite(limit) ? limit : 20;
+    return url.searchParams.get("view") === "actions"
+      ? listAcceptedKnowledgeActions(safeLimit)
+      : listPendingKnowledgeCandidates(safeLimit);
   },
   { auth: "owner", rateLimit: "general" },
 );

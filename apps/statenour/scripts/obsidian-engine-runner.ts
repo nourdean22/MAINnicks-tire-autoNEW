@@ -22,6 +22,9 @@ const engineConfig = getObsidianEngineConfig();
 const BRAIN_COMMANDS = new Set(["sync", "ingest", "export", "watch"]);
 const LOCAL_HEARTBEAT_MS = 30_000;
 const DATABASE_HEARTBEAT_MS = 120_000;
+const NPX_COMMAND = process.platform === "win32" ? "npx.cmd" : "npx";
+
+let statusWriteQueue: Promise<void> = Promise.resolve();
 
 if (BRAIN_COMMANDS.has(command) && !process.env.DATABASE_URL) {
   console.error(
@@ -31,14 +34,20 @@ if (BRAIN_COMMANDS.has(command) && !process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+function queueStatusWrite(work: () => Promise<void>): Promise<void> {
+  const next = statusWriteQueue.then(work, work);
+  statusWriteQueue = next.catch(() => undefined);
+  return next;
+}
+
 function runScript(scriptName: string, runArgs: string[] = []): boolean {
   const scriptPath = path.join(process.cwd(), "scripts", scriptName);
   console.log(`[Engine] tsx scripts/${scriptName} ${runArgs.join(" ")}`);
   try {
-    const result = spawnSync("npx", ["tsx", scriptPath, ...runArgs], {
+    const result = spawnSync(NPX_COMMAND, ["tsx", scriptPath, ...runArgs], {
       stdio: "inherit",
-      shell: true,
       cwd: process.cwd(),
+      shell: false,
     });
     return result.status === 0;
   } catch (error) {
@@ -80,39 +89,43 @@ function defaultStatus(): ObsidianEngineStatus {
 }
 
 async function markRunning(): Promise<void> {
-  const status = readEngineStatus() ?? defaultStatus();
-  status.lastRunAt = new Date().toISOString();
-  status.runState = "running";
-  status.lastRunSteps = null;
-  await writeEngineStatus(status);
+  await queueStatusWrite(async () => {
+    const status = readEngineStatus() ?? defaultStatus();
+    status.lastRunAt = new Date().toISOString();
+    status.runState = "running";
+    status.lastRunSteps = null;
+    await writeEngineStatus(status);
+  });
 }
 
 async function finishSync(steps: ObsidianEngineStepResults): Promise<boolean> {
-  const status = readEngineStatus() ?? defaultStatus();
   const success = Object.values(steps).every(Boolean);
-  const now = new Date().toISOString();
-  status.lastRunAt = now;
-  status.runState = success ? "idle" : "failed";
-  status.lastRunSteps = steps;
+  await queueStatusWrite(async () => {
+    const status = readEngineStatus() ?? defaultStatus();
+    const now = new Date().toISOString();
+    status.lastRunAt = now;
+    status.runState = success ? "idle" : "failed";
+    status.lastRunSteps = steps;
 
-  if (success) {
-    status.lastSuccessfulSyncAt = now;
-    status.health = status.stats.warnings > 0 || status.stats.quarantined > 0 ? "degraded" : "healthy";
-    status.issues = status.issues.filter((issue) => !issue.message.startsWith("Sync pipeline failed:"));
-  } else {
-    status.health = "error";
-    status.issues = [
-      ...status.issues.filter((issue) => !issue.message.startsWith("Sync pipeline failed:")),
-      {
-        type: "FAIL",
-        message: `Sync pipeline failed: ${Object.entries(steps).filter(([, ok]) => !ok).map(([name]) => name).join(", ")}`,
-        detected_at: now,
-        suggested_fix: "Run pnpm obsidian:sync locally and inspect the first failing step.",
-      },
-    ];
-  }
+    if (success) {
+      status.lastSuccessfulSyncAt = now;
+      status.health = status.stats.warnings > 0 || status.stats.quarantined > 0 ? "degraded" : "healthy";
+      status.issues = status.issues.filter((issue) => !issue.message.startsWith("Sync pipeline failed:"));
+    } else {
+      status.health = "error";
+      status.issues = [
+        ...status.issues.filter((issue) => !issue.message.startsWith("Sync pipeline failed:")),
+        {
+          type: "FAIL",
+          message: `Sync pipeline failed: ${Object.entries(steps).filter(([, ok]) => !ok).map(([name]) => name).join(", ")}`,
+          detected_at: now,
+          suggested_fix: "Run pnpm obsidian:sync locally and inspect the first failing step.",
+        },
+      ];
+    }
 
-  await writeEngineStatus(status);
+    await writeEngineStatus(status);
+  });
   return success;
 }
 
@@ -148,9 +161,11 @@ function printStatus(status: ObsidianEngineStatus): void {
 }
 
 async function heartbeat(persistToDatabase: boolean): Promise<void> {
-  const status = readEngineStatus() ?? defaultStatus();
-  status.daemonHeartbeatAt = new Date().toISOString();
-  await writeEngineStatus(status, { persistToDatabase });
+  await queueStatusWrite(async () => {
+    const status = readEngineStatus() ?? defaultStatus();
+    status.daemonHeartbeatAt = new Date().toISOString();
+    await writeEngineStatus(status, { persistToDatabase });
+  });
 }
 
 function startWatcher(): void {
