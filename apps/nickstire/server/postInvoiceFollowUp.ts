@@ -72,7 +72,11 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
     // Query customers:
     // - lastVisitDate between 6 and 8 days ago
     // - smsCampaignSent = 0 (not already texted)
-    // - has a valid E.164 phone number (starts with +1)
+    // - has a usable 10-digit phone (the canonical stored format —
+    //   sendSms normalizes it). 2026-07-11: this filter previously
+    //   required `LIKE '+1%'`, but customers.phone is stored bare
+    //   10-digit (1941/1945 rows), so it matched ZERO customers — one of
+    //   two bugs that made this whole cron a permanent silent no-op.
     const db = await getDatabase();
     if (!db) {
       log.error("[PostInvoiceFollowUp] Database not available");
@@ -90,9 +94,12 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           // opted-out customer with a 6-8d visit window received a
           // marketing SMS — TCPA violation with real legal exposure.
           eq(customers.smsOptOut, 0),
-          gte(customers.lastVisitDate, sixDaysAgo),
-          lte(customers.lastVisitDate, eightDaysAgo),
-          sql`${customers.phone} IS NOT NULL AND ${customers.phone} != '' AND ${customers.phone} LIKE '+1%'`
+          // 2026-07-11: bounds were inverted (gte sixDaysAgo + lte
+          // eightDaysAgo → empty set, since eightDaysAgo < sixDaysAgo),
+          // the second bug that guaranteed 0 matches every run.
+          gte(customers.lastVisitDate, eightDaysAgo),
+          lte(customers.lastVisitDate, sixDaysAgo),
+          sql`${customers.phone} IS NOT NULL AND ${customers.phone} != '' AND ${customers.phone} REGEXP '^[0-9]{10}$'`
         )
       )
       .limit(20); // Max 20 per run to stay within rate limits

@@ -7,6 +7,7 @@
 import type { Tool } from "../_core/llm";
 
 import { BUSINESS } from "@shared/business";
+import { OIL_PRICE, BRAKE_PRICE, SERVICE_PRICE } from "@shared/pricing";
 // ─── TOOL DEFINITIONS (sent to LLM) ────────────────────
 
 export const CHAT_TOOLS: Tool[] = [
@@ -226,12 +227,19 @@ async function executeCheckSchedule(date: string): Promise<string> {
 }
 
 async function executeGetPriceEstimate(service: string, vehicle?: string): Promise<string> {
-  // Service price ranges based on the shop's actual labor guide
+  // Service price ranges. 2026-07-11: entries with a CANONICAL price in
+  // @shared/pricing.ts now import it — this map previously hardcoded
+  // drifted numbers (oil $35 vs canonical $49 floor, brakes $350 vs $299
+  // max, e-check $200 vs $189 start), so the chatbot quoted prices the
+  // shop doesn't honor. Services without a canonical entry keep local
+  // ranges; when the operator confirms one, add it to shared/pricing.ts
+  // and import — never fork a second source of truth here.
+  const brakeNote = "Per axle. Includes inspection of rotors.";
   const PRICE_MAP: Record<string, { low: number; high: number; laborHours: number; note?: string }> = {
-    "oil change": { low: 35, high: 75, laborHours: 0.3, note: "Synthetic blend standard. Full synthetic available." },
-    "brake pads": { low: 150, high: 350, laborHours: 1.5, note: "Per axle. Includes inspection of rotors." },
-    "brake": { low: 150, high: 350, laborHours: 1.5, note: "Per axle. Includes inspection of rotors." },
-    "brakes": { low: 150, high: 350, laborHours: 1.5, note: "Per axle. Includes inspection of rotors." },
+    "oil change": { low: OIL_PRICE.conventional, high: OIL_PRICE.fullSynthetic, laborHours: 0.3, note: "Synthetic blend standard. Full synthetic available." },
+    "brake pads": { low: BRAKE_PRICE.padsStarting, high: BRAKE_PRICE.padsMax, laborHours: 1.5, note: brakeNote },
+    "brake": { low: BRAKE_PRICE.padsStarting, high: BRAKE_PRICE.padsMax, laborHours: 1.5, note: brakeNote },
+    "brakes": { low: BRAKE_PRICE.padsStarting, high: BRAKE_PRICE.padsMax, laborHours: 1.5, note: brakeNote },
     "tire rotation": { low: 25, high: 50, laborHours: 0.3 },
     "tire": { low: 80, high: 250, laborHours: 0.7, note: "Per tire installed + balanced. Price depends on size/brand." },
     "alignment": { low: 80, high: 120, laborHours: 1.0 },
@@ -246,8 +254,8 @@ async function executeGetPriceEstimate(service: string, vehicle?: string): Promi
     "exhaust": { low: 150, high: 500, laborHours: 1.5 },
     "transmission service": { low: 150, high: 300, laborHours: 1.0, note: "Fluid change/flush. Not a rebuild." },
     "coolant flush": { low: 100, high: 175, laborHours: 1.0 },
-    "emission": { low: 200, high: 600, laborHours: 2.0, note: "Ohio E-Check repair. Depends on the code." },
-    "e-check": { low: 200, high: 600, laborHours: 2.0, note: "Ohio E-Check repair. Depends on the code." },
+    "emission": { low: SERVICE_PRICE.eCheckFixStarting, high: 600, laborHours: 2.0, note: "Ohio E-Check repair. Depends on the code." },
+    "e-check": { low: SERVICE_PRICE.eCheckFixStarting, high: 600, laborHours: 2.0, note: "Ohio E-Check repair. Depends on the code." },
   };
 
   const lower = service.toLowerCase();
@@ -503,25 +511,32 @@ async function executeEstimateWaitTime(): Promise<string> {
 }
 
 async function executeCheckFinancing(estimatedTotal: number): Promise<string> {
+  // 2026-07-11 honesty fix. This tool previously returned
+  // `eligible: true` UNCONDITIONALLY — it pre-screened nothing, yet the
+  // model relayed "you're eligible" to every customer, and claimed
+  // "in-house financing" when the real providers are third parties
+  // (BUSINESS.financing.providers). The tool now tells the truth: the
+  // PROGRAM exists (no-credit-check, $10 down), payment figures are
+  // illustrative estimates, and eligibility is decided by the provider
+  // at application time — never by this chatbot.
   const monthlyPayments = [
     { months: 6, payment: Math.round(estimatedTotal / 6) },
     { months: 12, payment: Math.round(estimatedTotal / 12) },
-    { months: 18, payment: Math.round(estimatedTotal / 18) },
   ];
 
   return JSON.stringify({
-    eligible: true,
+    programAvailable: true,
+    approvalDecidedBy: `the financing provider at application time (${BUSINESS.financing.providers.join(", ")}) — this chat cannot pre-approve or guarantee approval`,
     estimatedTotal: `$${estimatedTotal.toFixed(0)}`,
-    plans: monthlyPayments.map(p => ({
+    illustrativePlans: monthlyPayments.map(p => ({
       term: `${p.months} months`,
-      monthlyPayment: `$${p.payment}/mo`,
+      roughMonthly: `~$${p.payment}/mo (example math only — actual terms set by the provider)`,
     })),
-    requirements: [
-      "No credit check required",
-      "Just $10 down to start",
+    program: [
+      BUSINESS.financing.display, // "No-credit-check financing available"
+      `${BUSINESS.financing.downPayment} to start`,
       "Bring valid ID and proof of income",
     ],
-    note: "Financing available for repairs over $200. Apply in person — takes about 5 minutes. Drop by anytime!",
-    provider: "In-house financing — no third-party hassle",
+    note: "Apply in person — takes about 5 minutes. Drop by anytime!",
   });
 }
