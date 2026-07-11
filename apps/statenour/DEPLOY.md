@@ -28,7 +28,7 @@ the same commit · use this when you suspect a cache poisoning bug, not for code
 
 ## Pre-deploy validation (local, automatic)
 
-The `.husky/pre-push` hook runs `turbo run build --affected` before every `git push`.
+The repo-root `lefthook.yml` pre-push hook runs `turbo build --affected` before every `git push` (Husky is not used).
 This catches Next.js 16 prerender errors (e.g. `useSearchParams()` outside Suspense)
 locally instead of finding them in Railway logs hours later.
 

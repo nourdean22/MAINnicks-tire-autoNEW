@@ -4,8 +4,9 @@
  * Google Gemini image-generation fallback for when Venice's
  * flux-2-pro is unavailable (402 no credit · 429 rate-limited).
  *
- * Uses `gemini-2.5-flash-image` (a.k.a. "nano-banana") via the
- * REST endpoint:
+ * Model comes from env GEMINI_IMAGE_MODEL (code default below) — never
+ * name a model in this comment; it drifts (this line previously named a
+ * model two generations stale). REST endpoint:
  *   https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent
  *
  * Auth · API key in the `x-goog-api-key` header (env GEMINI_API_KEY).

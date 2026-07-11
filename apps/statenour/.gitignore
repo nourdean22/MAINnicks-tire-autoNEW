@@ -70,3 +70,12 @@ errors-out.txt
 
 # Statenour local runtime
 .runtime/
+
+# 2026-07-11 review cleanup - local-only surfaces, never tracked again
+# vars.json = env snapshot (secrets rotated after public exposure)
+# scratch/ = one-off debug scripts | reports/ = tool run output
+# workspace/ = local-agent runtime state (see repo-root .gitignore note)
+vars.json
+scratch/
+reports/
+workspace/

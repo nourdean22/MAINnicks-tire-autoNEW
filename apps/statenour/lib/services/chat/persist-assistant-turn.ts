@@ -47,6 +47,7 @@ import {
 import { trackGeneration } from "@/lib/ai/track";
 import { recordInteraction } from "@/lib/ai/memory";
 import { messageContentToText } from "@/lib/ai/chat/message-text";
+import { buildVerifierBanner, isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
 import { detectFailedActionClaims } from "@/lib/ai/chat/action-result-verifier";
 import { canClaimDone, toReceipt } from "@/lib/ai/receipts/action-receipt";
@@ -486,16 +487,13 @@ async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
             const actionReceipts = results.map((r) => toReceipt({ toolName: r.action, ok: r.success, error: r.error }));
             const actionVerdict = canClaimDone(actionReceipts);
             if (!actionVerdict.ok) {
-              const marker = "[VERIFIER · v10.0.162]";
-              if (!cleanedText.startsWith(marker)) {
+              // 2026-07-11 review · banner via the single shared builder
+              // (fabrication-rewriter) — no more hand-duplicated wording.
+              if (!isVerifierRewritten(cleanedText)) {
                 const verbs = [...new Set(actionVerdict.offenders.map((o) => o.label || o.toolName))].slice(0, 3);
-                const verbList = verbs.join(", ");
-                const banner = [
-                  `${marker} ⚠ The response below claimed action(s) (${verbList}) but tool call(s) failed. Treat the claim as **unverified**. If you want the action actually performed, ask me to retry — I'll fire the tool this time.`,
-                  "",
-                  "_Original response (unverified):_",
-                  "",
-                ].join("\n");
+                const banner = buildVerifierBanner(
+                  `The response below claimed action(s) (${verbs.join(", ")}) but tool call(s) failed.`,
+                );
                 cleanedText = `${banner}${cleanedText}`;
               }
 
@@ -1205,15 +1203,18 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         const receipts = capturedToolCalls.map((t) => toReceipt({ toolName: t.name, ok: t.ok }));
         const verdict = canClaimDone(receipts);
         if (!verdict.ok) {
-          const verbs = [...new Set(verdict.offenders.map((o) => o.label || o.toolName))].slice(0, 3);
-          const verbList = verbs.join(", ");
-          const banner = [
-            `[VERIFIER · v10.0.162] ⚠ The response below claimed action(s) (${verbList}) but tool call(s) failed. Treat the claim as **unverified**. If you want the action actually performed, ask me to retry — I'll fire the tool this time.`,
-            "",
-            "_Original response (unverified):_",
-            "",
-          ].join("\n");
-          cleanedText = `${banner}${cleanedText}`;
+          // 2026-07-11 review · this site previously prepended
+          // UNCONDITIONALLY (no idempotency guard) with a third
+          // hand-duplicated copy of the banner — a turn tripping this
+          // AND another enforcement layer got two stacked banners.
+          // Shared builder + guard, matching the other two layers.
+          if (!isVerifierRewritten(cleanedText)) {
+            const verbs = [...new Set(verdict.offenders.map((o) => o.label || o.toolName))].slice(0, 3);
+            const banner = buildVerifierBanner(
+              `The response below claimed action(s) (${verbs.join(", ")}) but tool call(s) failed.`,
+            );
+            cleanedText = `${banner}${cleanedText}`;
+          }
 
           // Log warning to brainMemory with key sdk-fail-${traceId}
           await prisma.brainMemory.create({

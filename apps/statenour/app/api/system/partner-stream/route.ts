@@ -4,8 +4,7 @@ import { NextResponse } from 'next/server';
 import { apiHandler } from '@/lib/utils/http';
 import { assertWithinBudget } from '@/lib/ai/budget';
 import { trackGeneration } from '@/lib/ai/track';
-import { parseActions, executeActions } from '@/lib/ai/nick-agent';
-import { detectFailedActionClaims } from '@/lib/ai/chat/action-result-verifier';
+import { detectActionClaimsWithoutTools } from '@/lib/ai/chat/action-claim-detector';
 import { prisma } from '@/lib/prisma';
 
 export const POST = apiHandler(async (req: Request) => {
@@ -40,6 +39,7 @@ Rules for this interaction:
 4. If he seems low energy (too many thoughts), help him cut through the noise with a clear, singular focus.
 5. If he is high energy, match it and push him further.
 6. Use epistemic markers (e.g., "(est.)", "projected") if estimating things, per the clarity-gate rule.
+7. TRUTH RULE — you have NO tools on this surface. You cannot send, schedule, create, move, flag, or complete ANYTHING. Never say you did. Propose actions for Nour to take; never report an action as done.
 
 DO NOT output markdown headers unless necessary. DO NOT be robotic. Be human, brilliant, and deeply aligned with Nour's success.
     `;
@@ -69,33 +69,36 @@ DO NOT output markdown headers unless necessary. DO NOT be robotic. Be human, br
           durationMs: Date.now() - startedAt,
         });
 
-        // Fabrication-defense post-processing
-        const actions = parseActions(text);
-        if (actions.length > 0) {
-          const results = await executeActions(actions);
-          const failedClaims = detectFailedActionClaims(results, text);
-          if (failedClaims.length > 0) {
-            console.warn("[partner-stream] action_block_failed_claim", {
-              failed: failedClaims.map((c) => c.verb),
-            });
-            await prisma.brainMemory.create({
-              data: {
-                category: "chat_claim_warn",
-                key: `action-fail-partner-${Date.now()}`,
-                content: `Action did not complete · ${failedClaims.map((c) => c.verb).join(", ")}`,
-                confidence: 0.95,
-                source: "partner-action-verifier",
-                metadata: {
-                  claims: failedClaims.map((c) => ({
-                    verb: c.verb,
-                    snippet: c.snippet,
-                    expectedTool: c.expectedTool,
-                  })),
-                  textPreview: text.slice(0, 200),
-                } as any,
-              },
-            }).catch(() => undefined);
-          }
+        // Fabrication defense — 2026-07-11 review fix. The previous
+        // parseActions/executeActions guard was structurally UNREACHABLE:
+        // this route has no tools and never teaches the action-block
+        // syntax parseActions matches, so actions.length was always 0 and
+        // completion claims streamed out unverified. This surface has
+        // ZERO tools, so ANY past-tense action claim is a fabrication —
+        // run the same detector the main chat uses, with an empty
+        // tool-call list.
+        const fabricated = detectActionClaimsWithoutTools(text, []);
+        if (fabricated.length > 0) {
+          console.warn("[partner-stream] fabricated_action_claim", {
+            verbs: fabricated.map((c) => c.verb),
+          });
+          await prisma.brainMemory.create({
+            data: {
+              category: "chat_claim_warn",
+              key: `action-fail-partner-${Date.now()}`,
+              content: `Tool-less surface claimed action · ${fabricated.map((c) => c.verb).join(", ")}`,
+              confidence: 0.95,
+              source: "partner-action-verifier",
+              metadata: {
+                claims: fabricated.map((c) => ({
+                  verb: c.verb,
+                  snippet: c.snippet,
+                  expectedTool: c.expectedTool,
+                })),
+                textPreview: text.slice(0, 200),
+              } as any,
+            },
+          }).catch(() => undefined);
         }
       }
     });

@@ -280,3 +280,33 @@ describe("v10.0.531 families · no false positives", () => {
     expect(P531.chart.test("that was a chart-topping song")).toBe(false);
   });
 });
+
+// ── 2026-07-11 review · closing the last two cold-start-unreachable tools ──
+// MIRRORS lib/ai/chat-mode.ts — pattern changes there land here first.
+const P532B = {
+  competitiveTrigger: /\b(competitive (analysis|intel|intelligence)|competitors?|where are we weak|our (weakness|vulnerabilit)|market position|how do we (compare|stack up)|benchmark)\b/i,
+  competitiveTools: /analyzeCompetitiveIntel|compareCompetitors/i,
+  fitnessTrigger: /\b(fitness (analysis|progress|trend|report)|my fitness|analyze (my )?fitness|workout (progress|trend|analysis|history)|training progress|how('?s| is) my (fitness|training))\b/i,
+};
+
+describe("2026-07-11 families · compareCompetitors + analyzeFitness reachable", () => {
+  it("competitive trigger fires on benchmark phrasing", () => {
+    expect(P532B.competitiveTrigger.test("benchmark us against the other shops")).toBe(true);
+  });
+  it("competitive family now matches BOTH tools", () => {
+    expect(P532B.competitiveTools.test("compareCompetitors")).toBe(true);
+    expect(P532B.competitiveTools.test("analyzeCompetitiveIntel")).toBe(true);
+  });
+  it("fitness trigger fires on 'how's my fitness'", () => {
+    expect(P532B.fitnessTrigger.test("how's my fitness looking this month")).toBe(true);
+  });
+  it("fitness trigger fires on 'workout progress'", () => {
+    expect(P532B.fitnessTrigger.test("show me my workout progress")).toBe(true);
+  });
+  it("fitness trigger does NOT fire on casual gym talk", () => {
+    expect(P532B.fitnessTrigger.test("the gym was packed today")).toBe(false);
+  });
+  it("competitive trigger does NOT fire on casual comparison", () => {
+    expect(P532B.competitiveTrigger.test("compare these two fonts for me")).toBe(false);
+  });
+});

@@ -31,7 +31,7 @@ Nour's life, habits, business, and growth strategy.
 | `statenour-master` branch | `main` only |
 | `nourdean22/statenour-os` repo | This monorepo only |
 | `C:\Users\[LOCAL_USER]\NOUR-OS` (or other local variants) | `[REPO_ROOT]` |
-| `scripts/pre-push-check.sh` | `.husky/pre-push` |
+| `scripts/pre-push-check.sh` (deleted) | repo-root `lefthook.yml` pre-push |
 
 **`pnpm check:stale-docs` guards against retired-path references in active docs.**
 
@@ -84,7 +84,7 @@ pnpm check:crons        # verify cron manifest vs filesystem
 
 ### Pre-Push Hook
 
-`.husky/pre-push` → `turbo run build --filter=...[upstream]`
+repo-root `lefthook.yml` pre-push → `turbo build --affected`
 This runs for ALL affected apps — statenour build errors block even nickstire-only pushes.
 
 ---

@@ -2,7 +2,7 @@
 
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
-> code win. Last verified **2026-06-13**. When in doubt, **verify in code, git,
+> code win. Last verified **2026-07-11**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
 
 ## Where this runs
@@ -17,7 +17,7 @@
 - `codex/ollama-local` and `statenour-master` branches — **retired**. Never push there; never claim either is the production branch.
 - Standalone `nourdean22/statenour-os` repo — **retired** for production. Statenour now lives only in the monorepo above. (The repo may still exist on GitHub as an archived mirror; `config/repos.ts` marks it `archived`.)
 - Local path `C:\Users\nourd\NOUR-OS` — **retired**. Canonical checkout is `C:\Users\nourd\NOURCITY`.
-- `scripts/pre-push-check.sh` — **retired** Vercel-era artifact (references the retired branches). It is NOT the active hook; the active hook is `.husky/pre-push` (turbo build).
+- `scripts/pre-push-check.sh` — **retired** Vercel-era artifact (references the retired branches). It is NOT the active hook; the active hook is the repo-root `lefthook.yml` `pre-push` (turbo build --affected); Husky is not used.
 
 ## Source-of-truth hierarchy (highest first)
 
@@ -34,7 +34,7 @@
 ## Truth lives in code, not prose (don't hardcode these in docs)
 
 - **Provider / model:** read `lib/ai/provider.ts` (the `AI_PROVIDER` env selects `ollama`|`gemini`|`openai`|`anthropic`; model ids are env-driven) and `lib/ai/domain-routing.ts`. Do **not** assert a model name (e.g. a specific Venice/GLM/Ollama model) as "current" in prose — it drifts; point to the file.
-- **Crons:** `config/crons.ts` is the manifest; `pnpm check:crons` verifies it against the filesystem and the Inngest fan-out (`src/inngest/jobs.ts`).
+- **Crons:** `config/crons.ts` is the manifest; `pnpm check:crons` verifies it against the filesystem and the Inngest fan-out (`lib/inngest/jobs.ts`).
 - **Repos:** `config/repos.ts` + `docs/REPO-MAP.md`.
 - **Migrations:** column-first, hand-applied. See `docs/DB-MIGRATION-POLICY.md`, the schema sentinel (`lib/db/schema-sentinel.ts`), and the migration `scripts/`. A migration is "applied to prod" only when run via the guarded `apply-pending-migration` endpoint **and** verified (`prisma migrate status`) — never claim applied otherwise. Never `--accept-data-loss` (drops pgvector/tsvector).
 
