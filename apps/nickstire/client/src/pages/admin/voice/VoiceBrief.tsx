@@ -4,8 +4,10 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  CircleDollarSign,
   Phone,
   PhoneCall,
+  SearchCheck,
   ShieldAlert,
 } from "lucide-react";
 
@@ -25,10 +27,26 @@ function formatRate(rate: { numerator: number; denominator: number; percent: num
     : `${rate.percent}% · ${rate.numerator}/${rate.denominator}`;
 }
 
+function formatCurrency(cents: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
+}
+
 export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
   const sinceISO = startOfTodayIso();
   const { data: scorecard, isLoading: scorecardLoading } = trpc.revenueOps.voiceScorecard.useQuery(
     { sinceISO },
+    { staleTime: 60_000, refetchInterval: 60_000 },
+  );
+  const { data: attribution } = trpc.revenueAttribution.leadRevenueSummary.useQuery(
+    { sinceISO },
+    { staleTime: 60_000, refetchInterval: 60_000 },
+  );
+  const { data: callReview } = trpc.revenueAttribution.callInvoiceReview.useQuery(
+    { sinceISO, maxDays: 14 },
     { staleTime: 60_000, refetchInterval: 60_000 },
   );
   const { data: live } = trpc.vapi.activeCallStates.useQuery(
@@ -58,6 +76,7 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
   const inFlightCount = live.count ?? 0;
   const stuckCount = live.byState?.tool_called ?? 0;
   const noVersionedData = counts.versionedCalls === 0;
+  const manualReviewCount = (callReview?.counts.manual_review ?? 0) + (callReview?.counts.ambiguous ?? 0);
 
   return (
     <section className="space-y-3 border border-border/40 bg-card p-4" aria-label="Revenue operations voice scorecard">
@@ -104,6 +123,34 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
         </div>
       </div>
 
+      <div className="grid gap-2 sm:grid-cols-3">
+        <div className="border border-emerald-400/20 bg-emerald-500/5 p-3">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-emerald-300/80">
+            <CircleDollarSign className="h-3.5 w-3.5" /> Verified attributed revenue
+          </div>
+          <p className="mt-1 text-xl font-bold tabular-nums">
+            {attribution ? formatCurrency(attribution.totals.verifiedRevenueCents) : "—"}
+          </p>
+          <p className="text-[11px] text-foreground/45">
+            {attribution?.totals.uniquelyLinkedPaidInvoices ?? 0} uniquely linked paid invoice{attribution?.totals.uniquelyLinkedPaidInvoices === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div className="border border-amber-400/20 bg-amber-500/5 p-3">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-amber-300/80">
+            <SearchCheck className="h-3.5 w-3.5" /> Attribution review
+          </div>
+          <p className="mt-1 text-xl font-bold tabular-nums">{manualReviewCount}</p>
+          <p className="text-[11px] text-foreground/45">phone/time/service matches remain inferred</p>
+        </div>
+        <div className="border border-border/30 bg-background/30 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Excluded from revenue</p>
+          <p className="mt-1 text-xl font-bold tabular-nums">
+            {(attribution?.totals.ambiguousInvoiceCount ?? 0) + (attribution?.totals.unpaidOrMissingInvoiceLinks ?? 0)}
+          </p>
+          <p className="text-[11px] text-foreground/45">ambiguous, unpaid, refunded, partial, or missing links</p>
+        </div>
+      </div>
+
       <div className="grid gap-2 text-xs text-foreground/70 md:grid-cols-3">
         <div className="flex items-center gap-2">
           <PhoneCall className="h-3.5 w-3.5 text-blue-400" />
@@ -126,7 +173,7 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
           <span>·</span>
           <span>{counts.walkInsDirected} walk-ins directed, not arrivals</span>
           <span>·</span>
-          <span>{counts.paidInvoicesVerified} paid invoices verified</span>
+          <span>{counts.paidInvoicesVerified} call records directly verified to paid invoices</span>
         </div>
         {stuckCount > 0 ? (
           <button
