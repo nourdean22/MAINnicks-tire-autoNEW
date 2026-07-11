@@ -12,7 +12,7 @@ This wave closes five measurement and attribution gaps without silently upgradin
 
 ## Migration
 
-Apply migration 0069 before using the reconciliation or decision endpoints:
+Apply migration 0074 before using the reconciliation or decision endpoints:
 
 ```bash
 cd apps/nickstire
