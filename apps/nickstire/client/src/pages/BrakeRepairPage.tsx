@@ -7,6 +7,7 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { BUSINESS } from "@shared/business";
 import { BRAKES_PHOTOS } from "@/components/PhotoRibbon";
 import { Disc, Activity, Wrench } from "lucide-react";
 import { Link } from "wouter";
@@ -23,9 +24,12 @@ const CONFIG: ServicePageConfig = {
   h1: "CLEVELAND BRAKE REPAIR\nTHAT HANDS YOU THE FLASHLIGHT.",
   sub: (
     <>
-      Squealing? Grinding? Pedal soft like Cleveland weather in March? Nick's Tire & Auto is your Euclid Ave destination for reliable <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link> and Cleveland. Need to troubleshoot first? Try our <Link href="/diagnose" className="underline text-primary hover:text-primary-foreground">vehicle diagnostics symptom checker</Link>, or browse our complete <Link href="/services" className="underline text-primary hover:text-primary-foreground">services page</Link>. We lift the car, hand you the flashlight, and walk you under it so you see what's worn. Free check, written quote, and you don't pay until you say yes. Check out our <Link href="/financing" className="underline text-primary hover:text-primary-foreground">financing options for repairs</Link>, find <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire repair and replacement services</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> to drop off today.
+      Squealing? Grinding? Pedal soft like Cleveland weather in March? Nick's Tire & Auto is your Euclid Ave destination for reliable <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link> and Cleveland. Need to troubleshoot first? Try our <Link href="/diagnose" className="underline text-primary hover:text-primary-foreground">vehicle diagnostics symptom checker</Link>, or browse our complete <Link href="/services" className="underline text-primary hover:text-primary-foreground">services page</Link>. We lift the car, hand you the flashlight, and walk you under it so you see what's worn. Free check, written quote, and you don't pay until you say yes. Check out our <Link href="/financing" className="underline text-primary hover:text-primary-foreground">financing options for repairs</Link>, find <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire repair and replacement services</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> to drop off today. Rather wait with the car? Come in and grab a seat — most pad jobs are done in about an hour.
     </>
   ),
+  // "Come in and wait" is a real option (FCFS, ~60-min pad jobs per the FAQ),
+  // so the hero also gets the built-in directions CTA next to SCHEDULE DROP-OFF.
+  heroTertiaryCta: { label: "GET DIRECTIONS", href: BUSINESS.urls.googleMapsDirections, external: true },
   startingPrice: "Summer Special — up to 30% off brake service. Free check, written quote first.",
   pricingTitle: "SUMMER SPECIAL — BRAKE PRICING",
   pricingSub: "Summer Special pricing varies by vehicle. Drive in for a free check and a written quote — discounts up to 30% off standard rates. We show you the worn part on the lift before we touch the bill.",
