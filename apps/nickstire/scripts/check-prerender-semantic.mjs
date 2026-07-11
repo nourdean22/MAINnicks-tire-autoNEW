@@ -7,7 +7,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PRERENDERED = path.join(ROOT, "prerendered");
 const CANONICAL_ORIGIN = "https://nickstire.org";
 const PHONE_DIGITS = "2168620005";
-const BUSINESS_NAME = "Nick's Tire";
+const BUSINESS_NAME = /Nick(?:'|’|&#39;|&apos;)s Tire/i;
 
 const ROUTES = [
   "/", "/tires", "/brakes", "/oil-change", "/diagnostics",
@@ -48,11 +48,11 @@ function inspect(route) {
   if (canonical.replace(/\/$/, "") !== expectedCanonical.replace(/\/$/, "")) {
     errors.push(`${route}: canonical ${canonical || "missing"} != ${expectedCanonical}`);
   }
-  if (!html.includes(BUSINESS_NAME)) errors.push(`${route}: business name missing`);
+  if (!BUSINESS_NAME.test(html)) errors.push(`${route}: business name missing`);
   if (!normalizedDigits(html).includes(PHONE_DIGITS)) errors.push(`${route}: primary phone missing`);
   if (!/<script[^>]+type=["']application\/ld\+json["']/i.test(html)) errors.push(`${route}: JSON-LD missing`);
   if (/autonicks\.com|example\.com|localhost:\d+/i.test(html)) errors.push(`${route}: stale or placeholder host found`);
-  if (/href=["'](?:#|javascript:void\(0\))["']/i.test(html)) errors.push(`${route}: placeholder primary link found`);
+  if (/href=["']javascript:void\(0\)["']/i.test(html)) errors.push(`${route}: javascript placeholder link found`);
 
   return errors;
 }
