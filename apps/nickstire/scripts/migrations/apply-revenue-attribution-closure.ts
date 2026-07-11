@@ -6,7 +6,7 @@ import mysql from "mysql2/promise";
 
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 
-const MIGRATION_TAG = "0069_revenue_attribution_closure";
+const MIGRATION_TAG = "0074_revenue_attribution_closure";
 const MIGRATION_PATH = join(process.cwd(), "drizzle", `${MIGRATION_TAG}.sql`);
 const REQUIRED_TABLES = [
   "revenue_attribution_decisions",
