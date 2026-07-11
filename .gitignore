@@ -152,3 +152,9 @@ apps/statenour/logs/
 # Local context packs and agent memory
 docs/LOCAL-CONTEXT-PACK.md
 .remember/
+
+# 2026-07-11 · real customer PII — never commit (nickstire handleImportCustomerCSV;
+# operator sets CUSTOMER_IMPORT_CSV_PATH). Git HISTORY still holds it — scrub
+# separately with git-filter-repo + force-push (operator, out of band).
+apps/nickstire/data/shopdriver-customers.csv
+apps/nickstire/data/*customers*.csv
