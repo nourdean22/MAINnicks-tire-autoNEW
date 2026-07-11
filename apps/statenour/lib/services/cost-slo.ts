@@ -48,6 +48,22 @@ function normalizeBudget(val: unknown, fallback: number): number {
 }
 
 export async function resolveDailyAiBudgetCents(): Promise<number> {
+  // 2026-07-11 review · budget-gate unification (operator decision:
+  // "power panel works"). The Power Panel's dailyCostCapCents used to be
+  // an INDEPENDENT cap enforced only in gate.ts while everything else
+  // (chat 402 gate, tracedAiChat edge-wrap, cost-slo cron, dashboards)
+  // read ai.dailyBudgetCents — two dials, two answers, contradictory
+  // errors. Now: when the panel cap is SET (>0) it is THE daily budget
+  // everywhere; when disabled (0) the ai.dailyBudgetCents setting / env
+  // default remains the always-on safety net.
+  try {
+    const { getPowerSettings } = await import("@/lib/services/power-panel");
+    const panel = await getPowerSettings();
+    if (panel.dailyCostCapCents > 0) return Math.floor(panel.dailyCostCapCents);
+  } catch {
+    // panel read failure must never disable budget enforcement —
+    // fall through to the setting/env default below.
+  }
   const envFallback = normalizeBudget(process.env.DAILY_AI_BUDGET_CENTS, DEFAULT_BUDGET_CENTS);
   const stored = await getSetting<unknown>("ai.dailyBudgetCents", envFallback);
   return normalizeBudget(stored, envFallback);

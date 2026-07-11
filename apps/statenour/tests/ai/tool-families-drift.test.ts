@@ -25,10 +25,10 @@ describe("TOOL_FAMILIES <-> nourTools drift", () => {
   });
 
   it("undocumented-tool count never grows past the baseline (ratchet)", () => {
-    // Baseline recorded 2026-07-11. If you ADD a tool, add its
-    // TOOL_FAMILIES row too — do not bump this number. Lower it when
-    // backfilling old entries.
-    const BASELINE = 60;
+    // Baseline 0 since the 2026-07-11 backfill (54 entries generated from
+    // the live tool descriptions). Every NEW tool must ship with its
+    // TOOL_FAMILIES row — do not bump this number.
+    const BASELINE = 0;
     const regKeys = new Set(Object.keys(TOOL_FAMILIES));
     const undocumented = Object.keys(nourTools).filter((k) => !regKeys.has(k));
     expect(
