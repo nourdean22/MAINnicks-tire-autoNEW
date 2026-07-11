@@ -16,12 +16,13 @@ const fileIndex = args.indexOf("--file");
 if (fileIndex >= 0) {
   const slug = slugIndex >= 0 ? args[slugIndex + 1]?.trim() : "";
   const requestedFile = args[fileIndex + 1]?.trim();
-  if (!slug || !requestedFile) {
+  if (!slug || !/^[a-z0-9][a-z0-9_-]{0,127}$/i.test(slug) || !requestedFile) {
     throw new Error("--file requires a valid --slug and file path.");
   }
 
   const monorepoRoot = path.resolve(__dirname, "../../..");
-  const packDir = path.join(monorepoRoot, "research-packs", slug);
+  const researchPacksRoot = path.join(monorepoRoot, "research-packs");
+  const packDir = resolveInsideRoot(researchPacksRoot, slug);
   process.argv[fileIndex + 2] = resolveInsideRoot(packDir, requestedFile);
 }
 
