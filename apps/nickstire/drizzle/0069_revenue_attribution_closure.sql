@@ -13,10 +13,10 @@ CREATE TABLE IF NOT EXISTS revenue_attribution_decisions (
   decided_by VARCHAR(255) NOT NULL,
   decided_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   supersedes_decision_id VARCHAR(36) NULL,
-  is_current TINYINT NOT NULL DEFAULT 1,
+  current_slot TINYINT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_revenue_attribution_current_call (call_id, is_current),
+  UNIQUE KEY uq_revenue_attribution_current_call (call_id, current_slot),
   KEY idx_revenue_attribution_invoice (invoice_id),
   KEY idx_revenue_attribution_lead (lead_id),
   KEY idx_revenue_attribution_decided_at (decided_at)
