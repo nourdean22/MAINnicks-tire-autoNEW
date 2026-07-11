@@ -580,32 +580,46 @@ export async function handleRunMigrations() {
       // "Duplicate" in the error message so re-runs are idempotent.
       `DELETE FROM prediction_impressions WHERE id NOT IN (SELECT * FROM (SELECT MIN(id) FROM prediction_impressions GROUP BY prediction_id, surface) AS keepers)`,
       `ALTER TABLE prediction_impressions ADD UNIQUE KEY uk_prediction_surface (prediction_id, surface)`,
-      // 2026-05-27 · drizzle/0062_search_performance_dedupe.sql · audit #79
-      // GSC sync was duplicating rows on every cron run (~30-60× inflation
-      // confirmed against live GSC). Three idempotent steps · TiDB-syntax
-      // compatible (first attempt used MySQL `DELETE alias FROM table alias
-      // JOIN` which TiDB rejects · this uses the NOT-IN subquery pattern
-      // that already shipped successfully in the prediction_impressions
-      // dedup above):
+      // 2026-05-27 · drizzle/0062_search_performance_dedupe.sql · audit #79,
+      // corrected 2026-07-11 (Wave-1 reconciliation). GSC sync was
+      // duplicating rows on every cron run (~30-60× inflation confirmed
+      // against live GSC). The original fix here grouped the dedupe DELETE
+      // and the UNIQUE KEY by (date, query, page) ONLY — narrower than the
+      // device/country/searchType-aware key drizzle/schema.ts has always
+      // declared (uq_search_perf_date_query_page_device_country_type,
+      // schema.ts ~L2877). Every click of this "Run migrations" button
+      // therefore collapsed all device/country/searchType breakdowns for a
+      // given (date, query, page) down to one row — a silent, destructive,
+      // repeatable data-loss bug, not a one-time migration. Corrected to
+      // dedupe and key on the FULL 6-column tuple the schema actually
+      // defines: this only removes byte-identical duplicate rows (safe) and
+      // preserves every distinct device/country/searchType breakdown.
+      //
       //   1. Normalize NULL pages so the unique key covers every row
-      //   2. Dedupe · keep only MAX(id) per (date, query, page)
-      //   3. Add UNIQUE KEY (plain). TiDB/MySQL do NOT support IF NOT EXISTS
-      //      in the ADD {INDEX|KEY} clause — it's an ER_PARSE_ERROR, so the
-      //      index was never created while this carried IF NOT EXISTS.
+      //   2. Dedupe · keep only MAX(id) per the full wide tuple (safe — no
+      //      distinct device/country/searchType combination is collapsed)
+      //   3. Add the WIDE UNIQUE KEY, name matching schema.ts so drizzle-kit
+      //      introspection stays in sync. TiDB/MySQL do NOT support IF NOT
+      //      EXISTS in the ADD {INDEX|KEY} clause — it's an ER_PARSE_ERROR.
+      //
+      // Prefix lengths recomputed for the wider column set: query(191) +
+      // page(450) chars ×4 (utf8mb4) = 2564 bytes, + device(20)+country(10)+
+      // searchType(20) chars ×4 = 200 bytes, + date (~3 bytes) = 2767 bytes,
+      // safely under the 3072-byte InnoDB index-key cap (prior narrow key
+      // alone was already 3020 bytes with zero room for the extra columns).
       //
       // Idempotency comes from the catch block above: once the index exists
       // TiDB throws ER_DUP_KEYNAME ("Duplicate key name '...'"), whose message
       // the "Duplicate" substring match catches -> skipped. The dedupe in
       // step 2 protects the first creation from an ER_DUP_ENTRY violation.
+      // NOTE: if the narrow key `uq_search_perf_date_query_page` is present
+      // in prod from a prior run of this endpoint, it must be dropped
+      // separately (DROP KEY) before this ADD KEY can coexist cleanly —
+      // verify via `SHOW INDEX FROM search_performance` before relying on
+      // wide-granularity data for any date range this endpoint has touched.
       `UPDATE search_performance SET page = '' WHERE page IS NULL`,
-      `DELETE FROM search_performance WHERE id NOT IN (SELECT * FROM (SELECT MAX(id) FROM search_performance GROUP BY date, query, page) AS keepers)`,
-      // TiDB / MySQL hard cap on InnoDB index keys: 3072 bytes. The
-      // unconstrained columns (date 10 + query 500 + page 1000) ×4 bytes
-      // utf8mb4 = ~6040 bytes · over the cap. Prefix the wide columns
-      // down to a safe combined index footprint. 255 for query + 500 for
-      // page covers all real-world GSC values (queries are short ·
-      // pages are URLs typically <300 chars on this site).
-      `ALTER TABLE search_performance ADD UNIQUE KEY uq_search_perf_date_query_page (date, query(255), page(500))`,
+      `DELETE FROM search_performance WHERE id NOT IN (SELECT * FROM (SELECT MAX(id) FROM search_performance GROUP BY date, query, page, device, country, searchType) AS keepers)`,
+      `ALTER TABLE search_performance ADD UNIQUE KEY uq_search_perf_date_query_page_device_country_type (date, query(191), page(450), device, country, searchType)`,
       // 2026-05-30 · drizzle/0063_nonstop_nick_memberships.sql — Nonstop Nick
       // $7.99/mo tire membership. status mirrors the Stripe subscription (set by
       // the /api/webhooks/stripe subscription handler) so the counter verifies a
