@@ -1,6 +1,7 @@
 import React from "react";
 import { trpc } from "@/lib/trpc";
-import { Link } from "wouter";
+import { navigateToAdminUrl } from "../shared/navigation";
+import { resolveSection } from "../registry";
 import {
   Zap, Phone, MessageSquare, ChevronRight,
   Users, FileText, PhoneCall, Star
@@ -92,14 +93,22 @@ export function NextBestActions() {
                     <MessageSquare className="w-3.5 h-3.5" />
                   </MessageCustomerLink>
                 )}
-                <Link
+                {/* 2026-07-11 · was a wouter Link — no-op inside the
+                    mounted admin. Resolve the server-provided
+                    /admin?tab=… url to a section + fire the nav event. */}
+                <a
                   href={action.actionUrl}
+                  onClick={(e) => {
+                    const tab = new URLSearchParams(action.actionUrl.split("?")[1] ?? "").get("tab") ?? "";
+                    const section = resolveSection(tab) ?? "overview";
+                    if (navigateToAdminUrl(e, action.actionUrl, section)) e.preventDefault();
+                  }}
                   className="p-1.5 text-foreground/30 hover:text-primary hover:bg-primary/10 rounded transition-all"
                   title="View"
                   aria-label="View details"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
-                </Link>
+                </a>
               </div>
             </div>
           );

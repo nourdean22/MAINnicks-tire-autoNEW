@@ -94,7 +94,16 @@ function Bool({ value, trueLabel, falseLabel, trueIsBad = false }: {
 }
 
 export default function GrowthSection() {
-  const [tab, setTab] = useState<GrowthTab>("local");
+  // 2026-07-11 · honor ?growthTab= on mount (same convention as
+  // settingsTab/moneyTab) so deep-links — the /admin/ig-studio and
+  // /admin/reel-studio topbar redirects — land on the right inner tab
+  // instead of always defaulting to "local".
+  const [tab, setTab] = useState<GrowthTab>(() => {
+    if (typeof window === "undefined") return "local";
+    const raw = new URLSearchParams(window.location.search).get("growthTab");
+    const match = GROWTH_TABS.find((t) => t.id === raw);
+    return match ? match.id : "local";
+  });
 
   return (
     <Section
