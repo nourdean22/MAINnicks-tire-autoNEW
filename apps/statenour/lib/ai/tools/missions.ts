@@ -12,18 +12,31 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createTaskAndEnrich } from "@/lib/services/tasks";
+import { isUserProject } from "@/lib/services/mission-helpers";
 
 export const missionsTools = {
   getMissions: tool({
-    description: "Get active missions",
+    description: "Get active missions (user-chosen projects; system Inbox/anchor rows excluded)",
     inputSchema: z.object({}),
     execute: async () => {
       // v10.0.529.94 · Wave 38 · field projection.
-      return prisma.mission.findMany({
-        where: { status: "ACTIVE", deletedAt: null },
-        select: { id: true, title: true, domain: true, priority: true, status: true },
-        orderBy: { priority: "desc" },
-      }).catch((): never[] => []);
+      // 2026-07-10 review fix · filter through isUserProject so the chat
+      // tool stops leaking system-managed "Inbox"/"Inbox - <domain>" and
+      // GENERAL anchor rows as if they were real projects — the same bug
+      // class already fixed on /tasks Plan view, Track tile, and
+      // assertActiveMissionCap (see lib/services/mission-helpers.ts).
+      try {
+        const missions = await prisma.mission.findMany({
+          where: { status: "ACTIVE", deletedAt: null },
+          select: { id: true, title: true, domain: true, priority: true, status: true, systemKind: true },
+          orderBy: { priority: "desc" },
+        });
+        return missions
+          .filter(isUserProject)
+          .map(({ systemKind: _systemKind, ...m }) => m);
+      } catch {
+        return [];
+      }
     },
   }),
 

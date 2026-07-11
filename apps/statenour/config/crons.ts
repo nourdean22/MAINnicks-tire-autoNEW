@@ -3,7 +3,7 @@
  *
  * statenour deploys on Railway (not Vercel) — there is no `vercel.json`.
  * Scheduled jobs run through the mega fan-out + the Inngest evening
- * job list (`src/inngest/jobs.ts`). `pnpm check:crons` validates this
+ * job list (`lib/inngest/jobs.ts`). `pnpm check:crons` validates this
  * manifest against the filesystem (every entry has a route, no dark
  * routes) — it no longer generates a `vercel.json` crons block.
  *
@@ -26,7 +26,7 @@
  *   · `mode: "dormant"` — route + code exist and work, but it is
  *     intentionally NOT wired to fire (operator parked it). Distinct
  *     from "retired" (no deletion implied). Revive by adding it to
- *     src/inngest/jobs.ts; the `schedule` field documents the intended
+ *     lib/inngest/jobs.ts; the `schedule` field documents the intended
  *     cadence if revived. Added 2026-05-30 to stop the manifest claiming
  *     Wave-AE orphans were "active" when they never actually fired.
  *     `pnpm check:crons` [6/6] enforces: a cron can only be "active" if
@@ -63,20 +63,26 @@ export interface CronDef {
   addedAt?: string;
   /**
    * Inngest-native scheduled function: fires via its OWN Inngest cron
-   * trigger (src/inngest/functions/*), NOT a Railway /api/cron route and
+   * trigger (lib/inngest/functions/*), NOT a Railway /api/cron route and
    * NOT the mega fan-out. `pnpm check:crons` skips the route-file check
-   * for these and treats them as independently-reachable.
+   * for these, treats them as independently-reachable, AND (check 7)
+   * cross-verifies the entry name + schedule against the actual
+   * `createFunction` id + cron trigger in lib/inngest/functions/*.
+   * The manifest `name` MUST equal the Inngest function `id`.
    */
   inngest?: boolean;
 }
 
 export const CRONS: CronDef[] = [
   // ── INNGEST-NATIVE ──────────────────────────────────────────────────
-  // Fire via their own Inngest cron trigger (src/inngest/functions/*),
+  // Fire via their own Inngest cron trigger (lib/inngest/functions/*),
   // NOT a Railway /api/cron route and NOT the mega fan-out. Registered
   // 2026-05-30: they were firing live but invisible to this manifest,
   // /system/crons, and `pnpm check:crons`. `inngest: true` tells the
   // verifier to skip the route-file check + treat them as reachable.
+  // 2026-07-10: check 7 now enumerates lib/inngest/functions/* cron
+  // triggers directly — a live Inngest cron missing here FAILS the gate
+  // (6 had drifted in invisibly; the phantom neglect-penalty hid too).
   {
     name: "cron-heartbeat",
     schedule: "0 12 * * *",
@@ -116,6 +122,63 @@ export const CRONS: CronDef[] = [
     category: "brain",
     inngest: true,
     description: "Proactive goal-drift detector (momentum decay + deadline risk) — Inngest-native.",
+  },
+  // 2026-07-10 review · the 6 entries below were LIVE Inngest crons that
+  // had drifted in without manifest entries — invisible to /system/crons
+  // and the silence-detector. Names = Inngest function ids (check 7).
+  {
+    name: "approval-sweeper",
+    schedule: "*/5 * * * *",
+    mode: "active",
+    category: "action",
+    inngest: true,
+    addedAt: "2026-07-10",
+    description: "Every 5 min · durability backstop for approved tool execution — re-claims approved/stale-executing ApprovalRequest rows (expiry + 48h age-floor bounded) and re-dispatches via executeApprovedToolAsync.",
+  },
+  {
+    name: "audit-todays-leads",
+    schedule: "0 8 * * *",
+    mode: "active",
+    category: "action",
+    inngest: true,
+    addedAt: "2026-07-10",
+    description: "Daily 8am UTC · audits today's leads and stages follow-up approvals (writes shop.sendSms ApprovalRequests — third-tier dispatch sends only after approval).",
+  },
+  {
+    name: "content-performance-weekly",
+    schedule: "0 12 * * 1",
+    mode: "active",
+    category: "ingest",
+    inngest: true,
+    addedAt: "2026-07-10",
+    description: "Mondays 12:00 UTC · pulls real Meta insights onto published posts and promotes the top-3 into BrainMemory content_winners (ghostwriter RECENT WINNERS). Honest-skips without META_PAGE_ACCESS_TOKEN.",
+  },
+  {
+    name: "crm-weekly-followups",
+    schedule: "0 9 * * 1",
+    mode: "active",
+    category: "action",
+    inngest: true,
+    addedAt: "2026-07-10",
+    description: "Mondays 9am UTC · CRM follow-up sweep — proposes overdue relationship follow-ups.",
+  },
+  {
+    name: "customer-preferences-recompute",
+    schedule: "0 11 * * *",
+    mode: "active",
+    category: "brain",
+    inngest: true,
+    addedAt: "2026-07-10",
+    description: "Daily 11am UTC · recomputes customer preference profiles from recent interactions.",
+  },
+  {
+    name: "diagnose-cron-failure",
+    schedule: "0 */4 * * *",
+    mode: "active",
+    category: "hygiene",
+    inngest: true,
+    addedAt: "2026-07-10",
+    description: "Every 4h · self-diagnosis pass over recent cron failures — classifies root cause and surfaces a fix hint.",
   },
   {
     name: "journal-convergence-scan",
@@ -610,17 +673,10 @@ export const CRONS: CronDef[] = [
     memory: 256,
     maxDuration: 30,
   },
-  {
-    name: "proactive-push",
-    schedule: "0 * * * *",
-    mode: "active",
-    category: "alert",
-    inngest: true,
-    description: "Hourly · runs hourly to fire slot-based Telegram micro-pushes and nudge pending approvals if any exist.",
-    memory: 256,
-    maxDuration: 60,
-  },
-
+  // 2026-07-10 review · duplicate "proactive-push" entry removed — the
+  // single Inngest function (id "proactive-push-cron", hourly) is already
+  // registered in the INNGEST-NATIVE section above; two entries for one
+  // function double-counted it on /system/crons.
 
   // ── ACTION (Wave AG · Nick Action Queue) ────────────────────────────
   // Wave AK · 2026-05-28 · 7am UTC prewarm of the relationships-picks
@@ -669,12 +725,18 @@ export const CRONS: CronDef[] = [
     description: "FOLDED into mega-evening · NICK_AUTONOMY-gated proactive engine (~22 rules: revenue-pace, urgent-leads, drift escalation, commitment enforcement, morning brief, expired-quote follow-up). Hard-skips when the flag is off. FAIL-CLOSED: every rule defers to /system/approvals unless an explicit `auto` AutomationPolicy exists — nothing auto-sends.",
   },
   {
+    // 2026-07-10 review · was mode:"active" + inngest:true but the
+    // implementation (lib/system/neglect-penalty.ts neglectPenaltyCron)
+    // has ZERO callers and no inngest.createFunction registration — it
+    // never fired once. "dormant" is the honest state; revive by
+    // wrapping it in createFunction (id "neglect-penalty") + exporting
+    // from lib/inngest/functions/index.ts, then flip back to "active".
     name: "neglect-penalty",
-    schedule: "0 */4 * * *", // Runs every 4 hours
-    mode: "active",
+    schedule: "0 */4 * * *", // intended cadence if revived
+    mode: "dormant",
     category: "hygiene",
     inngest: true,
-    description: "Systemic decay enforcer. Deducts XP from neglected missions that idle for >48h and fires a Telegram alert.",
+    description: "PARKED · systemic decay enforcer (XP deduction for missions idle >48h + Telegram alert). Code exists at lib/system/neglect-penalty.ts but was never registered as an Inngest function — it has never fired.",
   },
 ];
 

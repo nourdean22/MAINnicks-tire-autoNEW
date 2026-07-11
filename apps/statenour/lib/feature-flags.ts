@@ -70,6 +70,21 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/auth-guard.ts",
   },
 
+  // ── Global safety kill-switch ──────────────────────────────────
+  // Emergency freeze on all mutating tool actions + tRPC mutations.
+  // MUST be registered here: both gates read it via getFlag(), and an
+  // unregistered key resolves to null -> isOn undefined -> switch dead.
+  // Accepts true|1|on so an operator can't fat-finger the freeze in an
+  // incident. Read sites: lib/tools/tool-policy.ts, lib/trpc/trpc.ts.
+  {
+    key: "NICK_MUTATION_LOCK",
+    description: "Emergency kill-switch. When ON, denies every mutating tool action (destructive / external-mutation / memory-write / write-access) at the policy gate AND blocks all tRPC mutations. Read-only queries still pass. Flip ON during an incident to freeze writes; unset to resume. Default OFF = mutations allowed under the normal approval gates.",
+    status: "stable",
+    onValue: "true|1|on",
+    defaultBehavior: "Mutations proceed through the normal guardian/approval gates; no global freeze.",
+    ownerDoc: "lib/tools/tool-policy.ts",
+  },
+
   // ── AI provider pinning ────────────────────────────────────────
   {
     key: "AI_PROVIDER",

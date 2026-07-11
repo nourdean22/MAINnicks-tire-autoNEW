@@ -6,6 +6,12 @@
  *      `app/api/cron/<name>/route.ts` (so the code is actually present).
  *   2. Every `app/api/cron/*` directory has a matching entry in CRONS
  *      (no dark code).
+ *   7. (2026-07-10) Every Inngest-native cron in lib/inngest/functions/*
+ *      is registered in the manifest with the SAME name (= function id)
+ *      and schedule — and every `inngest: true` active manifest entry
+ *      maps to a real function. Before this check, 6 live Inngest crons
+ *      were invisible to the manifest and one phantom entry
+ *      (neglect-penalty) claimed a schedule for code that never fired.
  *
  * The vercel.json drift check was removed when statenour left Vercel
  * for Railway — scheduled jobs now run via the Inngest mega fan-out,
@@ -32,7 +38,7 @@ console.log("cron manifest · verifying");
 console.log("");
 
 // ── 1 · Every named cron has a route.ts on disk ──────────────────────
-console.log("[1/6]manifest → filesystem");
+console.log("[1/7]manifest → filesystem");
 for (const c of CRONS) {
   if (c.name === "mega-evening" || c.inngest) continue; // shares mega route / Inngest-native (no route file)
   const routePath = path.join(cwd, "app/api/cron", c.name, "route.ts");
@@ -44,7 +50,7 @@ if (errors === 0) ok(`${CRONS.length} manifest entries all backed by a route.ts`
 
 // ── 2 · Every route.ts has a manifest entry ──────────────────────────
 console.log("");
-console.log("[2/6]filesystem → manifest (dark code detector)");
+console.log("[2/7]filesystem → manifest (dark code detector)");
 const cronRoot = path.join(cwd, "app/api/cron");
 const cronDirs = fs.existsSync(cronRoot)
   ? fs.readdirSync(cronRoot).filter((d) => fs.statSync(path.join(cronRoot, d)).isDirectory())
@@ -59,7 +65,7 @@ if (errors === 0) ok(`${cronDirs.length} cron routes all documented in the manif
 
 // ── 3 · Retirement warnings ──────────────────────────────────────────
 console.log("");
-console.log("[3/6]retirement window");
+console.log("[3/7]retirement window");
 const today = new Date();
 for (const c of CRONS) {
   if (c.mode === "retired" && c.retireAfter) {
@@ -102,7 +108,7 @@ function fireFrequency(schedule: string): number {
 }
 
 console.log("");
-console.log("[4/6]budget + fold suggestions");
+console.log("[4/7]budget + fold suggestions");
 const activeSchedules = CRONS.filter((c) => c.mode === "active" && c.schedule);
 
 if (activeSchedules.length > SOFT_CAP) {
@@ -151,7 +157,7 @@ if (candidates.length > 0 && activeSchedules.length > SOFT_CAP - 4) {
 // deleted ~51 routes but left their jobs.ts refs, silently killing ~70%
 // of crons for 2 days. No check looked here. Now it does.
 console.log("");
-console.log("[5/6]  jobs.ts fan-out refs -> filesystem");
+console.log("[5/7]  jobs.ts fan-out refs -> filesystem");
 const fanoutRefs = new Set(
   [...MORNING_JOBS, ...EVENING_JOBS, ...WEEKLY_JOBS].map((p) =>
     p.replace(/^\/api\/cron\//, "").replace(/\?.*$/, ""),
@@ -177,7 +183,7 @@ if (deadFanoutRefs === 0) ok(`${fanoutRefs.size} fan-out refs all backed by a ro
 // state for a parked cron; this gate stops "active" from drifting back
 // into a claim that isn't true.
 console.log("");
-console.log("[6/6]  manifest active -> actually fires");
+console.log("[6/7]  manifest active -> actually fires");
 // Crons that legitimately fire OUTSIDE the fan-out (verified live in
 // CronJobLog). Keep this list tiny + evidence-based.
 const INDEPENDENT = new Set([
@@ -196,6 +202,86 @@ for (const c of CRONS) {
   phantomActive++;
 }
 if (phantomActive === 0) ok(`all active crons are reachable (fan-out or independent)`);
+
+// ── 7 · Inngest-native cron functions ↔ manifest ─────────────────────
+// Checks 1-6 all trusted `inngest: true` entries blindly and never
+// looked at lib/inngest/functions/* — so 6 live Inngest crons drifted
+// in with no manifest entry (invisible to /system/crons + the
+// silence-detector) and one manifest entry pointed at code that was
+// never registered as an Inngest function. This check closes both
+// directions: code → manifest and manifest(active) → code.
+console.log("");
+console.log("[7/7]  lib/inngest/functions cron triggers <-> manifest");
+
+// mega fan-out dispatchers are manifested under their route names, not
+// their Inngest ids — the ONLY sanctioned aliases.
+const INNGEST_ID_ALIASES: Record<string, string> = {
+  "mega-fanout-morning": "mega",
+  "mega-fanout-evening": "mega-evening",
+};
+
+interface DiscoveredInngestCron {
+  id: string;
+  cron: string;
+  file: string;
+}
+
+function discoverInngestCrons(): DiscoveredInngestCron[] {
+  const fnDir = path.join(cwd, "lib/inngest/functions");
+  const found: DiscoveredInngestCron[] = [];
+  if (!fs.existsSync(fnDir)) return found;
+  for (const file of fs.readdirSync(fnDir).filter((f) => f.endsWith(".ts"))) {
+    const content = fs.readFileSync(path.join(fnDir, file), "utf8");
+    // One chunk per createFunction call; within a chunk the first
+    // `id:` is the function id and any `cron:` is its schedule trigger.
+    // \bid: cannot match `model_id:`/`lead_id:` (no word boundary after _).
+    for (const chunk of content.split(/createFunction\(/).slice(1)) {
+      const id = chunk.match(/\bid:\s*"([^"]+)"/)?.[1];
+      const cron = chunk.match(/\bcron:\s*"([^"]+)"/)?.[1];
+      if (id && cron) found.push({ id, cron, file });
+    }
+  }
+  return found;
+}
+
+const discovered = discoverInngestCrons();
+const byName = new Map(CRONS.map((c) => [c.name, c]));
+
+// direction 1 · every cron-triggered Inngest function is manifested
+for (const d of discovered) {
+  const manifestName = INNGEST_ID_ALIASES[d.id] ?? d.id;
+  const entry = byName.get(manifestName);
+  if (!entry) {
+    fail(
+      `lib/inngest/functions/${d.file} registers cron function "${d.id}" (${d.cron}) but config/crons.ts has NO entry named "${manifestName}" — invisible to /system/crons + the silence-detector`,
+    );
+    continue;
+  }
+  if (entry.schedule !== d.cron) {
+    fail(
+      `"${manifestName}" schedule drift — manifest says "${entry.schedule}" but ${d.file} fires on "${d.cron}" (the manifest is lying about cadence)`,
+    );
+  }
+}
+
+// direction 2 · every active inngest:true manifest entry maps to a real function
+const discoveredNames = new Set(
+  discovered.map((d) => INNGEST_ID_ALIASES[d.id] ?? d.id),
+);
+for (const c of CRONS) {
+  if (!c.inngest || c.mode !== "active") continue;
+  if (!discoveredNames.has(c.name)) {
+    fail(
+      `${c.name} is inngest:true + mode:"active" but NO cron-triggered createFunction with that id exists under lib/inngest/functions — phantom entry (mark it dormant or register the function)`,
+    );
+  }
+}
+
+if (errors === 0) {
+  ok(
+    `${discovered.length} Inngest cron functions all manifested with matching schedules`,
+  );
+}
 
 console.log("");
 if (errors > 0) {

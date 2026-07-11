@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import {
   publishToInstagram,
   publishToFacebook,
+  publishReelToInstagram,
 } from "@/lib/social/meta-publish";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -23,6 +24,15 @@ export const socialPublishQueue = inngest.createFunction(
     name: "Social Publication durable worker",
     triggers: [{ event: "social/publish" }],
     onFailure: onInngestFailure,
+    // 2026-07-10 review fix · was the ONLY function without an explicit
+    // retries value (SDK default = 4). External publishes must be
+    // at-most-once: a retry after Meta accepted the publish (but the
+    // response was lost — Railway restart, network blip) would create a
+    // NEW container and post the same content AGAIN. A missed post is
+    // recoverable (status "rejected" + Telegram onFailure alert);
+    // a double-post to the business Instagram is not. Same reasoning as
+    // nick-action-approved.ts retries:0.
+    retries: 0,
   },
   async ({ event, step }) => {
     const { draftId, platforms, imageUrl, videoUrl, caption, message, linkUrl } = event.data as {
@@ -70,137 +80,25 @@ export const socialPublishQueue = inngest.createFunction(
     if (platforms.includes("instagram")) {
       const igResult = await step.run("publish-instagram", async () => {
         if (videoUrl) {
-          // Instagram Video/Reel publishing with polling loop
-          const creds = {
-            pageAccessToken: process.env.META_PAGE_ACCESS_TOKEN?.trim() || "",
-            instagramAccountId: process.env.META_IG_USER_ID?.trim() || process.env.META_INSTAGRAM_ACCOUNT_ID?.trim() || "",
-          };
-          if (!creds.pageAccessToken || !creds.instagramAccountId) {
-            return {
-              platform: "instagram",
-              ok: false,
-              error: "Missing Meta credentials for Instagram",
-            };
-          }
-
-          // Step A: Create container
-          const GRAPH_BASE = "https://graph.facebook.com/v20.0";
-          const containerUrl = `${GRAPH_BASE}/${creds.instagramAccountId}/media`;
-          const containerPayload: Record<string, string> = {
-            media_type: "REELS",
-            video_url: videoUrl,
+          // 2026-07-10 review fix · the Reel flow was reimplemented inline
+          // here with NO try/catch and NO fetch timeouts (a thrown fetch
+          // propagated out of step.run -> step retry -> duplicate Reel),
+          // and it nested step.sleep inside step.run (Inngest anti-
+          // pattern). The hardened helper is the same 3-step flow with
+          // AbortSignal.timeout on every call and a full try/catch that
+          // always returns { ok: false } instead of throwing. Test path
+          // (lib/services/social-actions.ts) already used it.
+          const res = await publishReelToInstagram({
+            videoUrl,
             caption: caption || message || "",
-            access_token: creds.pageAccessToken,
-          };
-          if (imageUrl) {
-            containerPayload.cover_url = imageUrl;
-          }
-
-          const containerRes = await fetch(containerUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(containerPayload),
+            coverUrl: imageUrl || undefined,
           });
-          if (!containerRes.ok) {
-            const errText = await containerRes.text();
-            return {
-              platform: "instagram",
-              ok: false,
-              error: `Reel container init failed (${containerRes.status}): ${errText.slice(0, 200)}`,
-            };
-          }
-          const containerData = await containerRes.json();
-          const containerId = containerData.id;
-          if (!containerId) {
-            return {
-              platform: "instagram",
-              ok: false,
-              error: "No container ID returned from Meta API",
-            };
-          }
-
-          // Step B: Durable Polling Loop inside Inngest workflow (without blocking Node thread!)
-          let isReady = false;
-          let attempts = 0;
-          const maxAttempts = 30;
-
-          while (!isReady && attempts < maxAttempts) {
-            attempts++;
-            // Native durable sleep checkpoint
-            await step.sleep(`sleep-poll-${attempts}`, "5s");
-
-            const statusRes = await fetch(
-              `${GRAPH_BASE}/${containerId}?fields=status_code&access_token=${creds.pageAccessToken}`
-            );
-            const statusData = await statusRes.json().catch(() => null);
-            if (!statusRes.ok || !statusData) {
-              continue;
-            }
-            if (statusData.error) {
-              return {
-                platform: "instagram",
-                ok: false,
-                error: `Meta Reel status check error: ${statusData.error.message}`,
-              };
-            }
-            const statusCode = statusData.status_code;
-            if (statusCode === "FINISHED") {
-              isReady = true;
-            } else if (statusCode === "ERROR") {
-              return {
-                platform: "instagram",
-                ok: false,
-                error: "Meta video processing failed (status_code: ERROR)",
-              };
-            }
-          }
-
-          if (!isReady) {
-            return {
-              platform: "instagram",
-              ok: false,
-              error: "Meta video processing timed out (still IN_PROGRESS after 150s)",
-            };
-          }
-
-          // Step C: Publish container
-          const publishRes = await fetch(
-            `${GRAPH_BASE}/${creds.instagramAccountId}/media_publish`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                creation_id: containerId,
-                access_token: creds.pageAccessToken,
-              }),
-            }
-          );
-          if (!publishRes.ok) {
-            const errText = await publishRes.text();
-            return {
-              platform: "instagram",
-              ok: false,
-              error: `Reel publish failed (${publishRes.status}): ${errText.slice(0, 200)}`,
-            };
-          }
-          const publishData = await publishRes.json();
-          const postId = publishData.id;
-
-          // Optional fetch permalink
-          const permalinkRes = await fetch(
-            `${GRAPH_BASE}/${postId}?fields=permalink&access_token=${creds.pageAccessToken}`
-          );
-          let permalink: string | undefined;
-          if (permalinkRes.ok) {
-            const permData = await permalinkRes.json();
-            permalink = permData.permalink;
-          }
-
           return {
             platform: "instagram",
-            ok: true,
-            postId,
-            permalink,
+            ok: res.ok,
+            postId: res.postId,
+            permalink: res.permalink,
+            error: res.error,
           };
         } else {
           // Standard Image upload to Instagram
