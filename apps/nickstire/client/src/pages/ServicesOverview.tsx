@@ -18,6 +18,7 @@ import {
   Settings,
   Shield,
   Snowflake,
+  Star,
   Thermometer,
   ThermometerSun,
   Wind,
@@ -30,9 +31,13 @@ import FAQPageSchema, {
 } from "@/components/FAQPageSchema";
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { Breadcrumbs, SEOHead, trackPhoneClick } from "@/components/SEO";
+import {
+  Breadcrumbs,
+  SEOHead,
+  trackEvent,
+  trackPhoneClick,
+} from "@/components/SEO";
 import ServicesDifferentiators from "@/components/ServicesDifferentiators";
-import TrustBlock from "@/components/TrustBlock";
 import { BUSINESS } from "@shared/business";
 import { SERVICES, type ServiceData } from "@shared/services";
 
@@ -65,13 +70,15 @@ const QUICK_PATHS = [
   { href: "/alignment", title: "STEERING", detail: "Alignment" },
   {
     href: "/financing",
-    title: "FINANCING",
+    title: "PAYMENT OPTIONS",
     detail: BUSINESS.financing.downPayment,
   },
 ] as const;
 
 function toTitleCase(value: string): string {
-  return value.toLowerCase().replace(/\b\w/g, (character) => character.toUpperCase());
+  return value
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function toCard(service: ServiceData) {
@@ -105,18 +112,34 @@ const SERVICES_PAGE_FAQ = [
   ...SERVICES_OVERVIEW_FAQ,
   {
     q: "How does Nick's use AI in the shop?",
-    a: "AI-assisted systems help organize calls, follow-ups, service information, and daily shop data. They do not replace the person checking your car or make the repair decision for you. A technician checks the vehicle, we show you what we found, and you decide what happens next.",
+    a: "AI-assisted systems organize calls, service history, parts research, customer updates, follow-ups, and daily shop data so fewer details get lost. They do not replace the person checking your car or make the repair decision for you. A technician checks the vehicle, we show you what we found, and you decide what happens next.",
   },
 ];
 
 const AEO_ANSWER = `${BUSINESS.name} is a full-service auto repair shop at ${BUSINESS.address.full}. We handle tires, brakes, oil changes, check-engine problems, wheel alignment, electrical work, and Ohio E-Check failures for domestic, import, and European vehicles. ${BUSINESS.model.walkIns}. Get a written quote before work starts, and you don't pay until you say yes. Call ${BUSINESS.phone.display}.`;
+
+const SERVICES_META_DESCRIPTION = `Tires, brakes, diagnostics, oil & emissions in one Euclid shop. Free check, written quote, you don't pay until you say yes. ${BUSINESS.reviews.rating}★ from ${BUSINESS.reviews.countDisplay} drivers.`;
+
+function trackServicesAction(
+  surface: string,
+  action: string,
+  destination: string,
+  label?: string,
+) {
+  trackEvent("services_cta_click", {
+    surface,
+    action,
+    destination,
+    ...(label ? { label } : {}),
+  });
+}
 
 export default function ServicesOverview() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
         title="Cleveland Auto Repair & Tires · No Pay Til You Say Yes | Nick's"
-        description="Tires, brakes, diagnostics, oil & emissions in one Euclid shop. Free check, written quote, you don't pay until you say yes. 4.9★ from 1,700+ drivers."
+        description={SERVICES_META_DESCRIPTION}
         canonicalPath="/services"
       />
       <Breadcrumbs items={[{ label: "Services", href: "/services" }]} />
@@ -134,7 +157,7 @@ export default function ServicesOverview() {
         <div className="absolute inset-0 flex items-end pb-10">
           <div className="container">
             <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
-              {BUSINESS.address.street} · ONE SHOP · EVERY REPAIR
+              {BUSINESS.address.street} · TIRES TO ENGINE WORK · ONE CLEAR PLAN
             </span>
           </div>
         </div>
@@ -144,7 +167,9 @@ export default function ServicesOverview() {
         <div className="absolute inset-0 bg-gradient-to-b from-nick-yellow/5 to-transparent" />
         <div className="container relative">
           <div className="max-w-3xl">
-            <span className="font-mono text-sm tracking-wide text-primary">WHAT WE DO</span>
+            <span className="font-mono text-sm tracking-wide text-primary">
+              WHAT WE DO
+            </span>
             <h1 className="mt-3 font-heading text-4xl font-black leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
               COMPLETE AUTO REPAIR
               <br />
@@ -154,7 +179,10 @@ export default function ServicesOverview() {
               Oil change to head gasket — the process stays simple. We check the car, show you what we found, write the number down, and wait for your answer before the work starts.
             </p>
             <p className="body-pretty mt-4 max-w-2xl text-lg leading-relaxed text-foreground/80">
-              Free check. Written quote. <span className="font-semibold text-primary">You don't pay until you say yes.</span>
+              Free check. Written quote.{" "}
+              <span className="font-semibold text-primary">
+                You don't pay until you say yes.
+              </span>
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <a
@@ -167,17 +195,43 @@ export default function ServicesOverview() {
               </a>
               <Link
                 href="/contact"
+                onClick={() =>
+                  trackServicesAction("hero", "drop_off", "/contact")
+                }
                 className="inline-flex items-center gap-2 rounded-full border border-foreground/30 px-8 py-4 font-medium text-foreground transition-colors hover:bg-foreground/5"
               >
                 Drop off today
                 <ChevronRight className="h-5 w-5" />
               </Link>
             </div>
+
+            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-border/30 pt-6 text-sm text-foreground/60">
+              <a
+                href={BUSINESS.reviews.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() =>
+                  trackServicesAction(
+                    "hero_proof",
+                    "read_reviews",
+                    BUSINESS.reviews.url,
+                  )
+                }
+                className="inline-flex items-center gap-2 font-semibold text-foreground/80 transition-colors hover:text-primary"
+              >
+                <Star className="h-4 w-4 fill-primary text-primary" />
+                {BUSINESS.reviews.rating} · {BUSINESS.reviews.countDisplay} Google reviews
+              </a>
+              <span>{BUSINESS.hours.shortDisplay}</span>
+              <span>{BUSINESS.warranty.shortDisplay}</span>
+            </div>
           </div>
         </div>
       </section>
 
       <AeoAnswerBlock answer={AEO_ANSWER} />
+
+      <ServicesDifferentiators />
 
       <section className="border-b border-border/20 bg-background py-12">
         <div className="container">
@@ -191,6 +245,14 @@ export default function ServicesOverview() {
                   <Link
                     key={path.href}
                     href={path.href}
+                    onClick={() =>
+                      trackServicesAction(
+                        "quick_paths",
+                        "open_path",
+                        path.href,
+                        path.title,
+                      )
+                    }
                     className="group block rounded-xl border border-border/30 bg-card/40 p-4 text-center transition-all hover:border-primary/40 hover:bg-card/80"
                   >
                     <span className="block font-heading text-sm font-extrabold text-foreground transition-colors group-hover:text-primary">
@@ -226,30 +288,109 @@ export default function ServicesOverview() {
                   <Phone className="h-3.5 w-3.5" /> Call shop
                 </a>
                 <span className="text-foreground/20">|</span>
-                <Link
-                  href="/contact"
+                <a
+                  href={BUSINESS.urls.googleMapsDirectionsNamed}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() =>
+                    trackServicesAction(
+                      "sunday_card",
+                      "directions",
+                      BUSINESS.urls.googleMapsDirectionsNamed,
+                    )
+                  }
                   className="text-xs font-bold text-nick-blue-light hover:underline"
                 >
                   Directions & drop-off
-                </Link>
+                </a>
               </div>
             </aside>
           </div>
 
           <div className="mt-8 rounded-xl border border-border/20 bg-card/10 p-6 text-sm leading-relaxed text-foreground/75">
-            Need the direct route? Start with <Link href="/tires" className="font-semibold text-primary underline hover:text-primary-foreground">tires</Link>, <Link href="/brakes" className="font-semibold text-primary underline hover:text-primary-foreground">brakes</Link>, <Link href="/diagnostics" className="font-semibold text-primary underline hover:text-primary-foreground">a check-engine problem</Link>, or <Link href="/emissions" className="font-semibold text-primary underline hover:text-primary-foreground">an Ohio E-Check failure</Link>. Bigger job or not sure what category fits? <Link href="/diagnose" className="font-semibold text-primary underline hover:text-primary-foreground">Describe what the car is doing</Link>. Cost holding the job up? See the <Link href="/financing" className="font-semibold text-primary underline hover:text-primary-foreground">repair financing options</Link> before you wait for the problem to get worse.
-          </div>
-
-          <div className="mt-8">
-            <TrustBlock />
+            Need the direct route? Start with{" "}
+            <Link
+              href="/tires"
+              onClick={() =>
+                trackServicesAction("direct_routes", "open_path", "/tires")
+              }
+              className="font-semibold text-primary underline hover:text-primary-foreground"
+            >
+              tires
+            </Link>
+            ,{" "}
+            <Link
+              href="/brakes"
+              onClick={() =>
+                trackServicesAction("direct_routes", "open_path", "/brakes")
+              }
+              className="font-semibold text-primary underline hover:text-primary-foreground"
+            >
+              brakes
+            </Link>
+            ,{" "}
+            <Link
+              href="/diagnostics"
+              onClick={() =>
+                trackServicesAction(
+                  "direct_routes",
+                  "open_path",
+                  "/diagnostics",
+                )
+              }
+              className="font-semibold text-primary underline hover:text-primary-foreground"
+            >
+              a check-engine problem
+            </Link>
+            , or{" "}
+            <Link
+              href="/emissions"
+              onClick={() =>
+                trackServicesAction("direct_routes", "open_path", "/emissions")
+              }
+              className="font-semibold text-primary underline hover:text-primary-foreground"
+            >
+              an Ohio E-Check failure
+            </Link>
+            . Bigger job or not sure what category fits?{" "}
+            <Link
+              href="/diagnose"
+              onClick={() =>
+                trackServicesAction(
+                  "direct_routes",
+                  "describe_problem",
+                  "/diagnose",
+                )
+              }
+              className="font-semibold text-primary underline hover:text-primary-foreground"
+            >
+              Describe what the car is doing
+            </Link>
+            . Cost holding the job up? See the{" "}
+            <Link
+              href="/financing"
+              onClick={() =>
+                trackServicesAction(
+                  "direct_routes",
+                  "payment_options",
+                  "/financing",
+                )
+              }
+              className="font-semibold text-primary underline hover:text-primary-foreground"
+            >
+              payment programs
+            </Link>{" "}
+            before you wait for the problem to get worse.
           </div>
         </div>
       </section>
 
-      <section className="py-16 lg:py-20">
+      <section className="py-16 lg:py-20" id="services-board">
         <div className="container">
           <div className="mb-10 max-w-3xl">
-            <span className="font-mono text-sm tracking-wide text-primary">THE FULL BOARD</span>
+            <span className="font-mono text-sm tracking-wide text-primary">
+              THE FULL BOARD
+            </span>
             <h2 className="mt-3 font-heading text-3xl font-black uppercase tracking-tight text-foreground lg:text-4xl">
               Pick the problem. See what we do.
             </h2>
@@ -258,12 +399,20 @@ export default function ServicesOverview() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             {SERVICES_LIST.map((service) => (
               <Link
                 key={service.slug}
                 href={`/${service.slug}`}
-                className="group block rounded-lg border border-border/50 p-8 transition-all duration-300 hover:border-primary/50 hover:bg-card/50"
+                onClick={() =>
+                  trackServicesAction(
+                    "service_board",
+                    "open_service",
+                    `/${service.slug}`,
+                    service.title,
+                  )
+                }
+                className="group block rounded-xl border border-border/50 p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-card/50"
               >
                 <div className="mb-4 flex items-center gap-4">
                   <div className="text-primary">{service.icon}</div>
@@ -300,11 +449,11 @@ export default function ServicesOverview() {
         </div>
       </section>
 
-      <ServicesDifferentiators />
-
       <section className="border-t border-border/30 py-16 lg:py-20">
         <div className="container max-w-3xl">
-          <span className="font-mono text-sm tracking-wide text-primary">COMMON QUESTIONS</span>
+          <span className="font-mono text-sm tracking-wide text-primary">
+            COMMON QUESTIONS
+          </span>
           <h2 className="mb-8 mt-3 font-heading text-3xl font-black uppercase tracking-tight text-foreground lg:text-4xl">
             Cleveland auto repair — straight answers
           </h2>
@@ -349,6 +498,13 @@ export default function ServicesOverview() {
               href={BUSINESS.urls.googleMapsDirectionsNamed}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() =>
+                trackServicesAction(
+                  "final_cta",
+                  "directions",
+                  BUSINESS.urls.googleMapsDirectionsNamed,
+                )
+              }
               className="inline-flex items-center gap-2 rounded-full border border-foreground/30 px-8 py-4 font-medium text-foreground transition-colors hover:bg-foreground/5"
             >
               Get directions
