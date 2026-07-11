@@ -22,7 +22,7 @@ if (fileIndex >= 0) {
 
   const monorepoRoot = path.resolve(__dirname, "../../..");
   const packDir = path.join(monorepoRoot, "research-packs", slug);
-  process.argv[fileIndex + 3] = resolveInsideRoot(packDir, requestedFile);
+  process.argv[fileIndex + 2] = resolveInsideRoot(packDir, requestedFile);
 }
 
 await import("./ingest-notebooklm-candidates");
