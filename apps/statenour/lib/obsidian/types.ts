@@ -3,6 +3,7 @@
  */
 
 export type ObsidianEngineHealth = "healthy" | "degraded" | "error";
+export type ObsidianEngineRunState = "idle" | "running" | "failed";
 
 export interface EngineIssue {
   type: "FAIL" | "WARN";
@@ -20,13 +21,27 @@ export interface QuarantinedFileInfo {
   suggested_fix?: string;
 }
 
+export interface ObsidianEngineStepResults {
+  doctor: boolean;
+  ingest: boolean;
+  export: boolean;
+  finalDoctor: boolean;
+}
+
 export interface ObsidianEngineStatus {
   health: ObsidianEngineHealth;
+  /** Timestamp of the most recent real engine command, not the daemon heartbeat. */
   lastRunAt: string | null;
   lastDoctorRunAt: string | null;
   lastIngestRunAt: string | null;
   lastExportRunAt: string | null;
-  
+  /** Updated by watch mode only. Lets the cloud UI distinguish a live daemon from stale history. */
+  daemonHeartbeatAt?: string | null;
+  /** Advances only when doctor -> ingest -> export -> doctor all succeed. */
+  lastSuccessfulSyncAt?: string | null;
+  runState?: ObsidianEngineRunState;
+  lastRunSteps?: ObsidianEngineStepResults | null;
+
   // Note statistics
   stats: {
     totalNotes: number;
@@ -41,7 +56,7 @@ export interface ObsidianEngineStatus {
 
   issues: EngineIssue[];
   quarantinedFiles: QuarantinedFileInfo[];
-  
+
   // Environment configurations
   config: {
     vaultPath: string;
