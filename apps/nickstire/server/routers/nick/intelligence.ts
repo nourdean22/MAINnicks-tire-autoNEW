@@ -835,12 +835,24 @@ export async function handleImportCustomerCSV() {
 
     const fs = await import("fs");
     const path = await import("path");
+    // 2026-07-11 · the customer CSV holds real PII (names + phones) and is
+    // no longer committed to git (gitignored). Source it from an
+    // operator-configured path first; fall back to the historical local
+    // location ONLY if the operator has placed the file there. On prod
+    // the file is absent by design — importing is a deliberate local /
+    // secured-runner action, never something that ships in the deploy.
     const candidates = [
+      process.env.CUSTOMER_IMPORT_CSV_PATH,
       path.resolve(import.meta.dirname, "..", "..", "data", "shopdriver-customers.csv"),
       path.resolve(import.meta.dirname, "../../..", "data", "shopdriver-customers.csv"),
-    ];
+    ].filter((p): p is string => !!p);
     const csvPath = candidates.find(p => fs.existsSync(p));
-    if (!csvPath) return { success: false, error: "CSV not found" };
+    if (!csvPath) {
+      return {
+        success: false,
+        error: "Customer import CSV not found. Set CUSTOMER_IMPORT_CSV_PATH to a local file — the PII CSV is no longer committed to git.",
+      };
+    }
 
     const raw = fs.readFileSync(csvPath, "utf-8");
     const lines = raw.split("\n").filter(l => l.trim());
