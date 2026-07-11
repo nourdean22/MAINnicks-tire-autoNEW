@@ -1108,6 +1108,10 @@ Keep it under 200 characters.`;
 
       results.push({
         id: r.id,
+        // Optimistic-concurrency token — approveDraft REQUIRES
+        // expectedVersion (approval-integrity arc). The list previously
+        // omitted it, leaving the Queue call site with nothing to pass.
+        version: r.version,
         status: mappedStatus,
         format: r.contentType,
         caption: r.hookText,

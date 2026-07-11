@@ -155,7 +155,7 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
                     <Button 
                       className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold" 
                       disabled={approveDraft.isPending}
-                      onClick={() => approveDraft.mutate({ id: draft.id })}
+                      onClick={() => approveDraft.mutate({ id: draft.id, expectedVersion: draft.version })}
                     >
                       {approveDraft.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
                       Approve Reel
