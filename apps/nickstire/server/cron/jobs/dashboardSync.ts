@@ -35,7 +35,7 @@ async function runRevenueReconciliationIfDue(db: { execute: (query: unknown) => 
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/revenue_reconciliation_runs|doesn't exist|does not exist/i.test(message)) {
-      return "reconciliation migration 0069 not applied";
+      return "reconciliation migration 0074 not applied";
     }
     log.warn("Revenue reconciliation pulse failed", { error: message });
     return `reconciliation failed: ${message.slice(0, 160)}`;
