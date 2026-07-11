@@ -400,8 +400,11 @@ export async function pruneTools(
 
   // #11 · Competitive intelligence. "competitive analysis", "where are we
   // weak", "market position". No family covered competitive intent.
-  if (/\b(competitive (analysis|intel|intelligence)|competitors?|where are we weak|our (weakness|vulnerabilit)|market position|how do we (compare|stack up))\b/.test(text)) {
-    addMatching(/analyzeCompetitiveIntel/i);
+  if (/\b(competitive (analysis|intel|intelligence)|competitors?|where are we weak|our (weakness|vulnerabilit)|market position|how do we (compare|stack up)|benchmark)\b/.test(text)) {
+    // 2026-07-11 review · compareCompetitors (business.ts) is a DIFFERENT
+    // tool from analyzeCompetitiveIntel and had no family — unreachable on
+    // cold start. Same trigger, both tools.
+    addMatching(/analyzeCompetitiveIntel|compareCompetitors/i);
   }
 
   // #12 · Customer SMS staging (approval-gated). stageCustomerAlert is NOT
@@ -444,6 +447,13 @@ export async function pruneTools(
   // Simulation
   if (/\b(run simulation|simulate project|project simulation|simulate scenario|simulation for)\b/.test(text)) {
     addMatching(/runSimulation/i);
+  }
+  // Fitness analysis (2026-07-11 review · analyzeFitness had no keyword
+  // family — unreachable on a cold lambda when the embedding cache is
+  // empty; the health family's score|habit|body|workout doesn't include
+  // "fitness" and its addMatching pattern doesn't match analyzeFitness)
+  if (/\b(fitness (analysis|progress|trend|report)|my fitness|analyze (my )?fitness|workout (progress|trend|analysis|history)|training progress|how('?s| is) my (fitness|training))\b/.test(text)) {
+    addMatching(/analyzeFitness/i);
   }
 
 

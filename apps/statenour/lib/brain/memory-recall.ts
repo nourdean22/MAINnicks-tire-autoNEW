@@ -21,6 +21,7 @@ import { getEmbedding } from "@/lib/ai/provider";
 import { logger as rootLogger } from "@/lib/logger";
 import { recordError } from "@/lib/errors/record-error";
 import { withEfSearch, EF_SEARCH } from "@/lib/db/vector-tuning";
+import { assertSafeVectorLiteral } from "@/lib/db/pgvector";
 
 const log = rootLogger.withSurface("brain/memory-recall");
 
@@ -171,6 +172,11 @@ export async function recallMemoriesForQuery(
     }
   }
   const vecLit = `[${padded.join(",")}]`;
+  // 2026-07-11 review · run the SAME defense-in-depth shape validator the
+  // rest of the codebase uses (lib/db/pgvector.ts) so there's one guard
+  // convention, not two hand-rolled ones. Note vecLit is a BOUND $1
+  // parameter below (not string-interpolated), so this is belt+suspenders.
+  assertSafeVectorLiteral(vecLit);
 
   // 2. KNN cosine search across brain_memory embeddings, joined to
   //    BrainMemory for category + confidence + recency
