@@ -29,8 +29,8 @@
  *     Text
  *   </MessageCustomerLink>
  */
-import { Link } from "wouter";
 import { MessageSquare } from "lucide-react";
+import { navigateToAdminUrl } from "@/pages/admin/shared/navigation";
 
 interface MessageCustomerLinkProps {
   /** Raw phone string · any format · will be normalized to last-10 digits */
@@ -56,7 +56,10 @@ interface MessageCustomerLinkProps {
 export function buildMessageCustomerHref(phone: string, body?: string): string {
   const phone10 = (phone || "").replace(/\D/g, "").slice(-10);
   const params = new URLSearchParams({
-    tab: "outreach",
+    // 2026-07-11 · was tab=outreach — which is NOT a registry id OR
+    // alias, so even a fresh page load landed on Overview. The Outreach
+    // Hub's section id is `campaigns`.
+    tab: "campaigns",
     outreachTab: "sms",
   });
   if (phone10) params.set("smsPhone", phone10);
@@ -78,10 +81,19 @@ export default function MessageCustomerLink({
   const defaultClass =
     "inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] font-medium text-foreground/70 hover:text-primary hover:bg-primary/[0.06] transition-colors";
 
+  // 2026-07-11 · was a wouter <Link>. Admin.tsx is a single-page
+  // component — a Link to /admin?tab=… doesn't remount Admin or
+  // re-resolve section state (documented in shared/navigation.ts), so
+  // the flagship "Text" button was a NO-OP from inside the admin on all
+  // ~13 call sites. Real <a> + the event bridge: left-click navigates
+  // in-place; middle/ctrl-click still opens a working deep-link tab.
   return (
-    <Link
+    <a
       href={href}
-      onClick={onClick}
+      onClick={(e) => {
+        if (navigateToAdminUrl(e, href, "campaigns")) e.preventDefault();
+        onClick?.();
+      }}
       title={title ?? "Open in-admin SMS chat"}
       aria-label={label}
       className={className ?? defaultClass}
@@ -92,6 +104,6 @@ export default function MessageCustomerLink({
           Text
         </>
       )}
-    </Link>
+    </a>
   );
 }

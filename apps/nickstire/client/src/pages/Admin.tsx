@@ -363,11 +363,23 @@ export default function Admin() {
           <DensityToggle />
           <ThemeToggle />
           {TOPBAR_ACTIONS.map((act) => (
+            // 2026-07-11 · entries with a sectionTrigger point at
+            // /admin?tab=… — a wouter Link there is a no-op inside the
+            // mounted admin (see shared/navigation.ts). Drive section
+            // state directly for those; cross-route hrefs (the studio
+            // redirect routes) keep normal Link behavior.
             <Link
               key={act.href}
               href={act.href}
               title={act.title}
               aria-label={act.title}
+              onClick={(e) => {
+                if (act.sectionTrigger) {
+                  e.preventDefault();
+                  window.history.replaceState({}, "", act.href);
+                  setSection(act.sectionTrigger as AdminSection);
+                }
+              }}
               className={`${
                 act.mobileHidden ? "hidden lg:inline-flex" : "inline-flex"
               } items-center justify-center w-9 h-9 hover:text-primary hover:bg-foreground/5 rounded-md transition-colors shrink-0 ${

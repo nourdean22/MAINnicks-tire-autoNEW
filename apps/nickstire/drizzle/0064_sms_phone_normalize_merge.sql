@@ -51,9 +51,13 @@ SET phone = RIGHT(REGEXP_REPLACE(phone,'[^0-9]',''),10)
 WHERE phone LIKE '+%';
 
 -- Step 4 — clear stuck "sending" orphans (gateway never confirmed, >1h old).
+-- 2026-07-11 · re-run safety (journal reconciliation): pinned the moving
+-- NOW() window to the migration's own era so a re-run on prod cannot
+-- fail-mark messages that are legitimately in flight TODAY. Fresh envs
+-- get the identical historical cleanup.
 UPDATE sms_messages
 SET status = 'failed'
-WHERE status = 'sending' AND createdAt < NOW() - INTERVAL 1 HOUR;
+WHERE status = 'sending' AND createdAt < '2026-06-02 00:00:00';
 
 -- ── VERIFY before COMMIT (expect both 0): ──────────────────────────────────
 --   SELECT COUNT(*) plus_left  FROM sms_conversations WHERE phone LIKE '+%';

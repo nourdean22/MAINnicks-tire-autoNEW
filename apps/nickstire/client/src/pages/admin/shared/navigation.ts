@@ -64,6 +64,32 @@ export function navigateToAdminSection(
  * lapsed VIPs, NBA recommendations, etc.) so the operator drills in
  * without losing their place by navigating to the full Customers list.
  */
+/**
+ * 2026-07-11 · in-admin link navigation. For anchors whose href is an
+ * /admin?tab=… deep-link: write the FULL href to the URL (so inner-tab
+ * params like outreachTab/smsPhone are visible to the target section's
+ * deep-link parser, and refresh/share keeps working), then fire the
+ * section event. Use from an <a onClick> — keep the real href on the
+ * anchor so middle-click/new-tab still deep-links via fresh load.
+ * Returns false for modified clicks (caller should NOT preventDefault —
+ * let the browser open the tab).
+ */
+export function navigateToAdminUrl(
+  e: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean; button?: number },
+  href: string,
+  section: AdminSection,
+): boolean {
+  if (typeof window === "undefined") return false;
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e.button !== undefined && e.button !== 0)) {
+    return false; // modified/middle click — let the browser handle it
+  }
+  window.history.replaceState({}, "", href);
+  window.dispatchEvent(
+    new CustomEvent("admin:navigate-section", { detail: { section } satisfies AdminNavigateDetail })
+  );
+  return true;
+}
+
 export function openCustomerDrawer(customerId: number) {
   if (typeof window === "undefined") return;
   const detail: AdminOpenCustomerDrawerDetail = { customerId };
