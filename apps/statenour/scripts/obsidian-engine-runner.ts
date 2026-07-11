@@ -20,6 +20,8 @@ const command = args[0] || "sync";
 const extraArgs = args.slice(1);
 const engineConfig = getObsidianEngineConfig();
 const BRAIN_COMMANDS = new Set(["sync", "ingest", "export", "watch"]);
+const LOCAL_HEARTBEAT_MS = 30_000;
+const DATABASE_HEARTBEAT_MS = 120_000;
 
 if (BRAIN_COMMANDS.has(command) && !process.env.DATABASE_URL) {
   console.error(
@@ -95,7 +97,8 @@ async function finishSync(steps: ObsidianEngineStepResults): Promise<boolean> {
 
   if (success) {
     status.lastSuccessfulSyncAt = now;
-    if (status.health === "error" && status.stats.failures === 0) status.health = "healthy";
+    status.health = status.stats.warnings > 0 || status.stats.quarantined > 0 ? "degraded" : "healthy";
+    status.issues = status.issues.filter((issue) => !issue.message.startsWith("Sync pipeline failed:"));
   } else {
     status.health = "error";
     status.issues = [
@@ -144,6 +147,12 @@ function printStatus(status: ObsidianEngineStatus): void {
   for (const issue of status.issues) console.log(`- [${issue.type}] ${issue.message}`);
 }
 
+async function heartbeat(persistToDatabase: boolean): Promise<void> {
+  const status = readEngineStatus() ?? defaultStatus();
+  status.daemonHeartbeatAt = new Date().toISOString();
+  await writeEngineStatus(status, { persistToDatabase });
+}
+
 function startWatcher(): void {
   console.log(`[Engine] Watching ${engineConfig.vaultPath}`);
   let syncing = false;
@@ -170,6 +179,7 @@ function startWatcher(): void {
     }, 5000);
   };
 
+  void heartbeat(true);
   trigger();
   const watchedPaths = [engineConfig.vaultPath, engineConfig.icloudShortcutsPath].filter(fs.existsSync);
   for (const watchedPath of watchedPaths) {
@@ -179,11 +189,12 @@ function startWatcher(): void {
     });
   }
 
-  setInterval(async () => {
-    const status = readEngineStatus() ?? defaultStatus();
-    status.daemonHeartbeatAt = new Date().toISOString();
-    await writeEngineStatus(status, { persistToDatabase: false });
-  }, 30_000);
+  setInterval(() => {
+    void heartbeat(false).catch((error) => console.error("[Engine] local heartbeat failed:", error));
+  }, LOCAL_HEARTBEAT_MS);
+  setInterval(() => {
+    void heartbeat(true).catch((error) => console.error("[Engine] database heartbeat failed:", error));
+  }, DATABASE_HEARTBEAT_MS);
 }
 
 async function main(): Promise<void> {
