@@ -1,179 +1,196 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { HardDrive, AlertCircle, RefreshCw, Server, Search, UploadCloud } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertCircle, BookOpen, ExternalLink, RefreshCw, UploadCloud } from "lucide-react";
 
-/**
- * NotebookLM Cockpit
- * 
- * Embedded directly on the mastery homepage to give Nour instant
- * visual access to the Google Grounding Engine (NotebookLM).
- * 
- * Gracefully degrades with clear error states if the MCP sidecar is unreachable.
- */
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const DEFAULT_WORKSPACE_URL = "https://notebooklm.google.com/";
+
+type HealthState = "loading" | "connected" | "disconnected" | "error";
+
+interface ApiEnvelope<T> {
+  ok: boolean;
+  data?: T;
+  error?: string;
+}
+
+interface NotebookHealth {
+  status: "connected" | "disconnected" | "error";
+  message?: string;
+}
+
+interface NotebookToolResult {
+  tool: string;
+  results?: unknown;
+  error?: string;
+}
+
+function unwrap<T>(payload: ApiEnvelope<T> | T): T {
+  if (payload && typeof payload === "object" && "ok" in payload) {
+    const envelope = payload as ApiEnvelope<T>;
+    if (!envelope.ok || envelope.data === undefined) {
+      throw new Error(envelope.error || "NotebookLM request failed");
+    }
+    return envelope.data;
+  }
+  return payload as T;
+}
+
 export function NotebookLMCockpit() {
-  const [health, setHealth] = useState<"loading" | "connected" | "disconnected">("loading");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [health, setHealth] = useState<HealthState>("loading");
+  const [healthMessage, setHealthMessage] = useState<string>("Checking the local research bridge...");
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
-  
-  const checkHealth = () => {
+
+  const checkHealth = async () => {
     setHealth("loading");
-    fetch("/api/research/notebooklm")
-      .then(res => res.json())
-      .then(data => {
-        setHealth(data.status === "connected" ? "connected" : "disconnected");
-      })
-      .catch(() => setHealth("disconnected"));
+    setHealthMessage("Checking the local research bridge...");
+    try {
+      const response = await fetch("/api/research/notebooklm", { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "NotebookLM health request failed");
+      }
+      const result = unwrap<NotebookHealth>(payload);
+      setHealth(result.status === "connected" ? "connected" : result.status);
+      setHealthMessage(result.message || "No health detail returned");
+    } catch (error) {
+      setHealth("error");
+      setHealthMessage(error instanceof Error ? error.message : "NotebookLM health check failed");
+    }
   };
 
   useEffect(() => {
     checkHealth();
   }, []);
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
+  const uploadFile = async (file: File) => {
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setUploadStatus("File is larger than the 8 MB cockpit limit");
+      return;
+    }
 
     setIsUploading(true);
-    setUploadStatus("Reading file...");
+    setUploadStatus("Reading source...");
+
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        setUploadStatus("Ingesting to MCP...");
-        // forensic-audit MEDIUM · the fetch runs inside this async onload, so a
-        // rejected fetch (network drop — common on iOS PWA) never reached the
-        // outer try/catch → setIsUploading(false) was skipped → the drop-zone
-        // spinner spun forever. Guard here so it always clears.
-        try {
-          const base64 = reader.result as string;
-          const res = await fetch("/api/research/notebooklm", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "add_source",
-              params: {
-                filename: file.name,
-                filetype: file.type,
-                base64
-              }
-            })
-          });
-          if (res.ok) {
-            setUploadStatus("Ingested successfully");
-            setTimeout(() => setUploadStatus(null), 3000);
-          } else {
-            setUploadStatus("Ingestion failed");
-            setTimeout(() => setUploadStatus(null), 4000);
-          }
-        } catch {
-          setUploadStatus("Ingestion failed (network)");
-          setTimeout(() => setUploadStatus(null), 4000);
-        } finally {
-          setIsUploading(false);
-        }
-      };
-      reader.onerror = () => {
-        setUploadStatus("Error reading file");
-        setIsUploading(false);
-        setTimeout(() => setUploadStatus(null), 3000);
-      };
-    } catch (err) {
-      setUploadStatus("Error during ingestion");
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Could not read the selected file"));
+        reader.readAsDataURL(file);
+      });
+
+      setUploadStatus("Sending to the Statenour intelligence notebook...");
+      const response = await fetch("/api/research/notebooklm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add_source",
+          notebookAlias: "statenour-intel",
+          params: {
+            filename: file.name,
+            filetype: file.type || "application/octet-stream",
+            base64,
+          },
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "NotebookLM ingestion request failed");
+      }
+      const result = unwrap<NotebookToolResult>(payload);
+      if (result.error) throw new Error(result.error);
+
+      setUploadStatus("Source accepted by the NotebookLM bridge");
+    } catch (error) {
+      setUploadStatus(error instanceof Error ? error.message : "NotebookLM ingestion failed");
+    } finally {
       setIsUploading(false);
-      setTimeout(() => setUploadStatus(null), 3000);
+      setTimeout(() => setUploadStatus(null), 5000);
     }
   };
 
+  const statusClass = health === "connected"
+    ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
+    : health === "loading"
+      ? "text-amber-400 border-amber-500/20 bg-amber-500/5"
+      : "text-rose-400 border-rose-500/20 bg-rose-500/5";
+
   return (
-    <section className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-950 via-zinc-900 to-black border border-white/10 p-5 shadow-2xl transition-all hover:border-[var(--gold)]/30 flex flex-col">
-      <div className="absolute -top-24 -right-24 w-64 h-64 bg-[var(--gold)]/5 rounded-full blur-[60px] pointer-events-none" />
-      
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-4 mb-4 gap-3 relative z-10">
-        <div className="flex flex-row-reverse sm:flex-row items-center justify-end sm:justify-start gap-2">
-          <span className="text-[10px] text-white/45 font-mono uppercase tracking-wider flex items-center gap-1.5">
-            <HardDrive size={12} className="text-[var(--gold)]/50" />
-            NotebookLM Engine
+    <section className="group relative overflow-hidden rounded-2xl border border-glass bg-elevated p-5 shadow-2xl flex flex-col gap-4">
+      <div className="flex items-center justify-between border-b border-glass pb-4 gap-3">
+        <div className="space-y-1">
+          <span className="text-[10px] text-fg-secondary font-mono uppercase tracking-wider flex items-center gap-1.5">
+            <BookOpen size={12} className="text-gold" />
+            NotebookLM grounded-research bridge
           </span>
-          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[9px] font-mono uppercase tracking-wider ${
-            health === 'connected' ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5' : 
-            health === 'loading' ? 'text-amber-400 border-amber-500/20 bg-amber-500/5' : 
-            'text-rose-400 border-rose-500/20 bg-rose-500/5'
-          }`}>
-            <span className={`h-1.5 w-1.5 rounded-full shadow-sm ${
-              health === 'connected' ? 'bg-emerald-500 shadow-emerald-500/50' : 
-              health === 'loading' ? 'bg-amber-500 shadow-amber-500/50 animate-pulse' : 
-              'bg-rose-500 shadow-rose-500/50 animate-pulse'
-            }`} />
-            {health === 'connected' ? 'calm · online' : health === 'loading' ? 'connecting...' : 'mcp disconnected'}
-          </span>
+          <p className="text-[10px] text-fg-secondary">External research workspace · not canonical Statenour memory</p>
         </div>
+        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded border text-[9px] font-mono uppercase tracking-wider ${statusClass}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${health === "connected" ? "bg-emerald-500" : health === "loading" ? "bg-amber-500 animate-pulse" : "bg-rose-500"}`} />
+          {health === "connected" ? "sidecar connected" : health === "loading" ? "checking" : "bridge unavailable"}
+        </span>
       </div>
-      
-      <div className="relative z-10 flex-1 flex flex-col justify-center">
-        {health === "connected" ? (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-2">
-              <a 
-                href="https://notebooklm.google.com/notebook/f693fd67-77a6-47d9-8cdd-bfd187807f02" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 rounded bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/20 hover:text-[var(--gold)] px-3 py-2.5 border border-[var(--gold)]/30 transition-colors shadow-[0_0_15px_rgba(255,215,0,0.05)] text-[10px] font-mono font-bold uppercase tracking-wider"
-              >
-                <Search className="h-3 w-3" />
-                Open NotebookLM Workspace
-              </a>
-            </div>
-            
-            <div 
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={`border border-dashed rounded p-6 flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer bg-black/20 group/drop ${
-                isDragging ? "border-[var(--gold)]/50 text-[var(--gold)] bg-[var(--gold)]/5" : "border-white/10 text-white/40 hover:border-[var(--gold)]/30 hover:text-[var(--gold)]/80"
-              }`}
-            >
-               {isUploading ? (
-                 <RefreshCw className="h-5 w-5 animate-spin text-[var(--gold)]" />
-               ) : (
-                 <UploadCloud className="h-5 w-5 group-hover/drop:scale-110 transition-transform" />
-               )}
-               <span className="text-[10px] uppercase font-mono tracking-wider">
-                 {isUploading ? uploadStatus : (uploadStatus || "Drop source file to ingest")}
-               </span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-black/20 rounded border border-white/5">
-            <AlertCircle className="h-6 w-6 text-rose-500/80" />
-            <div className="space-y-1">
-              <p className="text-xs font-mono font-bold tracking-wider text-rose-400 uppercase">MCP Disconnected</p>
-              <p className="text-[10px] text-white/40 max-w-[220px] mx-auto font-mono">Verify your sidecar is running and <span className="text-rose-300/70">NOTEBOOKLM_MCP_URL</span> is set.</p>
-            </div>
-            <button 
-              onClick={checkHealth} 
-              className="mt-2 flex items-center gap-2 rounded px-4 py-2 text-[10px] font-mono uppercase tracking-wider text-[var(--bg-void)] bg-[var(--gold)] hover:bg-[var(--gold-dim)] transition-colors font-bold shadow-[0_0_15px_rgba(255,215,0,0.15)]"
-            >
-              <RefreshCw className={`h-3 w-3 ${health === 'loading' ? 'animate-spin' : ''}`} />
-              Check Health
-            </button>
-          </div>
-        )}
+
+      <div className="rounded border border-glass bg-raised p-3 text-[10px] font-mono">
+        <p className="text-fg">{healthMessage}</p>
+        <p className="text-fg-secondary mt-1">Connection proves the MCP sidecar is reachable; each notebook action still validates its configured alias and Google session.</p>
       </div>
+
+      {health === "connected" ? (
+        <>
+          <a
+            href={process.env.NEXT_PUBLIC_NOTEBOOKLM_WORKSPACE_URL || DEFAULT_WORKSPACE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded border border-gold/30 bg-gold/10 px-3 py-2.5 text-[10px] font-mono font-bold uppercase tracking-wider text-gold hover:bg-gold/20"
+          >
+            <ExternalLink className="h-3 w-3" />
+            Open NotebookLM
+          </a>
+
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }}
+            onDragLeave={(event) => { event.preventDefault(); setIsDragging(false); }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDragging(false);
+              const file = event.dataTransfer.files[0];
+              if (file) uploadFile(file);
+            }}
+            disabled={isUploading}
+            className={`border border-dashed rounded p-6 flex flex-col items-center justify-center gap-2 transition-colors bg-raised ${isDragging ? "border-gold/60 text-gold" : "border-glass text-fg-secondary hover:border-gold/30 hover:text-gold"}`}
+          >
+            {isUploading ? <RefreshCw className="h-5 w-5 animate-spin" /> : <UploadCloud className="h-5 w-5" />}
+            <span className="text-[10px] uppercase font-mono tracking-wider">{uploadStatus || "Choose or drop a source file"}</span>
+            <span className="text-[9px] font-mono opacity-70">Maximum 8 MB · routed to statenour-intel</span>
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) uploadFile(file);
+              event.currentTarget.value = "";
+            }}
+          />
+        </>
+      ) : (
+        <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 rounded border border-rose-500/10 bg-raised">
+          <AlertCircle className="h-6 w-6 text-rose-500/80" />
+          <p className="text-[10px] text-fg-secondary max-w-sm">Start the authenticated local NotebookLM sidecar, expose its SSE endpoint securely, and set NOTEBOOKLM_MCP_URL on Railway.</p>
+          <button type="button" onClick={checkHealth} className="flex items-center gap-2 rounded px-4 py-2 text-[10px] font-mono uppercase tracking-wider bg-gold text-black font-bold">
+            <RefreshCw className={`h-3 w-3 ${health === "loading" ? "animate-spin" : ""}`} />
+            Check again
+          </button>
+        </div>
+      )}
     </section>
   );
 }

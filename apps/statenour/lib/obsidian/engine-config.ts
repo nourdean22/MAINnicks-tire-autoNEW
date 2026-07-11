@@ -15,11 +15,16 @@ export interface ObsidianEngineConfig {
   restToken: string;
 }
 
+export interface WriteEngineStatusOptions {
+  /** Persist the status snapshot to Neon for bdnick.info. Heartbeats normally set this false. */
+  persistToDatabase?: boolean;
+}
+
 export function getObsidianEngineConfig(): ObsidianEngineConfig {
   const vaultPath = path.resolve(
     process.env.OBSIDIAN_VAULT_PATH || "C:\\Users\\nourd\\OneDrive\\Documents\\Obsidian Vault"
   );
-  
+
   const icloudShortcutsPath = path.resolve(
     process.env.ICLOUD_SHORTCUTS_PATH || "C:\\Users\\nourd\\iCloudDrive\\iCloud~is~workflow~my~workflows"
   );
@@ -46,8 +51,6 @@ export function getRuntimeDir(): string {
   // Locate apps/statenour/.runtime deterministically
   let baseDir = process.cwd();
   if (baseDir.includes(".worktrees")) {
-    // If running in a worktree, we are inside .worktrees/statenour-headless-obsidian-engine
-    // Let's check if apps/statenour exists
     if (fs.existsSync(path.join(baseDir, "apps", "statenour"))) {
       baseDir = path.join(baseDir, "apps", "statenour");
     }
@@ -79,9 +82,19 @@ export function readEngineStatus(): ObsidianEngineStatus | null {
   }
 }
 
-export async function writeEngineStatus(status: ObsidianEngineStatus): Promise<void> {
+export async function writeEngineStatus(
+  status: ObsidianEngineStatus,
+  options: WriteEngineStatusOptions = {},
+): Promise<void> {
   ensureRuntimeDir();
-  fs.writeFileSync(getStatusFilePath(), JSON.stringify(status, null, 2), "utf-8");
+  const filePath = getStatusFilePath();
+  const tempPath = `${filePath}.tmp`;
+
+  // Atomic replacement prevents the status API from reading half-written JSON.
+  fs.writeFileSync(tempPath, JSON.stringify(status, null, 2), "utf-8");
+  fs.renameSync(tempPath, filePath);
+
+  if (options.persistToDatabase === false) return;
 
   try {
     const existing = await prisma.localSyncLog.findFirst({
