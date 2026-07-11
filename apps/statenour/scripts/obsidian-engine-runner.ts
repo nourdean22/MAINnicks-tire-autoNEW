@@ -125,7 +125,7 @@ async function runSyncPipeline(): Promise<boolean> {
     finalDoctor: false,
   };
   if (steps.doctor) steps.ingest = runScript("ingest-obsidian-vault.ts");
-  if (steps.ingest) steps.export = runScript("export-brain-to-obsidian.ts", extraArgs);
+  if (steps.ingest) steps.export = runScript("export-brain-to-obsidian-verified.ts", extraArgs);
   steps.finalDoctor = runScript("obsidian-doctor.ts");
   const success = await finishSync(steps);
   console.log(success ? "[Engine] Full synchronization succeeded." : "[Engine] Synchronization failed.");
@@ -200,7 +200,7 @@ function startWatcher(): void {
 async function main(): Promise<void> {
   if (command === "doctor") process.exitCode = runScript("obsidian-doctor.ts", extraArgs) ? 0 : 1;
   else if (command === "ingest") process.exitCode = runScript("ingest-obsidian-vault.ts", extraArgs) ? 0 : 1;
-  else if (command === "export") process.exitCode = runScript("export-brain-to-obsidian.ts", extraArgs) ? 0 : 1;
+  else if (command === "export") process.exitCode = runScript("export-brain-to-obsidian-verified.ts", extraArgs) ? 0 : 1;
   else if (command === "sync") process.exitCode = (await runSyncPipeline()) ? 0 : 1;
   else if (command === "status") {
     const status = readEngineStatus();
