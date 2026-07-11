@@ -20,7 +20,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Link } from "wouter";
+import { navigateToAdminUrl } from "./shared/navigation";
 import {
   ActivityIcon, StatusDot, BOOKING_STATUS_CONFIG,
   navigateToAdminSection, openCustomerDrawer,
@@ -441,10 +441,14 @@ export default function OverviewSection() {
       {/* Operational alerts · zero-height when clear */}
       <AdminAlertBar alerts={adminAlerts} />
 
-      {/* ALG status pill · small inline · click → fix integrations if offline */}
+      {/* ALG status pill · small inline · click → fix integrations if offline.
+          2026-07-11 · was a wouter Link — no-op inside the mounted admin. */}
       <div className="flex items-center justify-end">
-        <Link
+        <a
           href="/admin?tab=settings&settingsTab=shopdriver"
+          onClick={(e) => {
+            if (navigateToAdminUrl(e, "/admin?tab=settings&settingsTab=shopdriver", "settings")) e.preventDefault();
+          }}
           className={`inline-flex items-center gap-2 text-[11px] font-mono tracking-wider uppercase px-3 py-1.5 rounded-full border transition-colors cursor-pointer ${
             algConnected === null
               ? "border-border/30 text-muted-foreground hover:text-foreground"
@@ -464,7 +468,7 @@ export default function OverviewSection() {
               ? `Connected · ${algStatus.totalLookups} lookups`
               : "Connected"
             : "Offline — fix integrations"}
-        </Link>
+        </a>
       </div>
 
       {/* wave-181.x Today Phase 2 · Morning Brief header
