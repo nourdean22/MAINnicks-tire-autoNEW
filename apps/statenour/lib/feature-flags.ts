@@ -230,7 +230,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     status: "experimental",
     onValue: "true",
     defaultBehavior: "Proactivity is cron-polled (every few hours); no real-time event reaction.",
-    ownerDoc: "src/inngest/functions/event-triggers.ts",
+    ownerDoc: "lib/inngest/functions/event-triggers.ts",
   },
   {
     key: "NICK_SELF_CONSISTENCY",
@@ -273,7 +273,10 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     key: "NICK_MUTATION_LOCK",
     description: "Emergency global mutation lock. Denies registered tool writes and operator tRPC mutations while active.",
     status: "experimental",
-    onValue: "true",
+    // Accepts true|1|on — an operator mid-incident fat-fingering
+    // NICK_MUTATION_LOCK=1 must still freeze mutations, not silently
+    // no-op. computeIsOn handles pipe-delimited onValue natively.
+    onValue: "true|1|on",
     defaultBehavior: "Mutations proceed through their normal authorization and approval gates.",
     ownerDoc: "lib/tools/tool-policy.ts",
   },
@@ -299,7 +302,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     status: "canary",
     onValue: "true",
     defaultBehavior: "Mega fan-out skips; daily children run via the Railway cron path.",
-    ownerDoc: "src/inngest/functions/mega-fanout.ts",
+    ownerDoc: "lib/inngest/functions/mega-fanout.ts",
   },
   {
     key: "NICK_ARRIVAL_INTELLIGENCE",

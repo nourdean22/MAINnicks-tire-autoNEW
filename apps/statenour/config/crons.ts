@@ -3,7 +3,7 @@
  *
  * statenour deploys on Railway (not Vercel) — there is no `vercel.json`.
  * Scheduled jobs run through the mega fan-out + the Inngest evening
- * job list (`src/inngest/jobs.ts`). `pnpm check:crons` validates this
+ * job list (`lib/inngest/jobs.ts`). `pnpm check:crons` validates this
  * manifest against the filesystem (every entry has a route, no dark
  * routes) — it no longer generates a `vercel.json` crons block.
  *
@@ -26,7 +26,7 @@
  *   · `mode: "dormant"` — route + code exist and work, but it is
  *     intentionally NOT wired to fire (operator parked it). Distinct
  *     from "retired" (no deletion implied). Revive by adding it to
- *     src/inngest/jobs.ts; the `schedule` field documents the intended
+ *     lib/inngest/jobs.ts; the `schedule` field documents the intended
  *     cadence if revived. Added 2026-05-30 to stop the manifest claiming
  *     Wave-AE orphans were "active" when they never actually fired.
  *     `pnpm check:crons` [6/6] enforces: a cron can only be "active" if
@@ -63,7 +63,7 @@ export interface CronDef {
   addedAt?: string;
   /**
    * Inngest-native scheduled function: fires via its OWN Inngest cron
-   * trigger (src/inngest/functions/*), NOT a Railway /api/cron route and
+   * trigger (lib/inngest/functions/*), NOT a Railway /api/cron route and
    * NOT the mega fan-out. `pnpm check:crons` skips the route-file check
    * for these and treats them as independently-reachable.
    */
@@ -72,7 +72,7 @@ export interface CronDef {
 
 export const CRONS: CronDef[] = [
   // ── INNGEST-NATIVE ──────────────────────────────────────────────────
-  // Fire via their own Inngest cron trigger (src/inngest/functions/*),
+  // Fire via their own Inngest cron trigger (lib/inngest/functions/*),
   // NOT a Railway /api/cron route and NOT the mega fan-out. Registered
   // 2026-05-30: they were firing live but invisible to this manifest,
   // /system/crons, and `pnpm check:crons`. `inngest: true` tells the

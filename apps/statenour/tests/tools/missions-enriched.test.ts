@@ -23,10 +23,50 @@ vi.mock("@/lib/services/tasks", () => ({
   createTaskAndEnrich: vi.fn(),
 }));
 
+// getMissions' failure path calls logError, whose real implementation
+// touches prisma.errorLog — mock it so the partial prisma mock above
+// doesn't explode (the PR #634 lesson).
+vi.mock("@/lib/utils/error-log", () => ({
+  logError: vi.fn(),
+}));
+
 import { createTaskAndEnrich } from "@/lib/services/tasks";
 import { missionsTools } from "@/lib/ai/tools/missions";
+import { prisma } from "@/lib/prisma";
+import { GENERAL_ANCHOR_KIND } from "@/lib/missions/domains";
 
 const MISSION_ID = "test-mission-id";
+
+describe("missionsTools - getMissions inbox/anchor boundary", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("excludes Inbox rows and GENERAL anchors, returns only user projects", async () => {
+    // 2026-07-10 regression guard · the chat tool previously returned
+    // system-managed rows as if they were user projects (4th surface of
+    // the bug class documented in lib/services/mission-helpers.ts).
+    vi.mocked(prisma.mission.findMany).mockResolvedValue([
+      { id: "m1", title: "Inbox", domain: "BUSINESS", priority: 90, status: "ACTIVE", systemKind: null },
+      { id: "m2", title: "Inbox - business", domain: "BUSINESS", priority: 80, status: "ACTIVE", systemKind: null },
+      { id: "m3", title: "General ops", domain: "BUSINESS", priority: 70, status: "ACTIVE", systemKind: GENERAL_ANCHOR_KIND },
+      { id: "m4", title: "System sweep", domain: "BUSINESS", priority: 65, status: "ACTIVE", systemKind: "SYSTEM" },
+      { id: "m5", title: "Launch tire campaign", domain: "BUSINESS", priority: 60, status: "ACTIVE", systemKind: null },
+    ] as any);
+
+    const result = await missionsTools.getMissions.execute({} as any, {} as any);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ id: "m5", title: "Launch tire campaign" });
+  });
+
+  it("fails loud when the DB query throws (no silent empty list)", async () => {
+    vi.mocked(prisma.mission.findMany).mockRejectedValue(new Error("db down"));
+    await expect(
+      missionsTools.getMissions.execute({} as any, {} as any),
+    ).rejects.toThrow("Missions database is unavailable");
+  });
+});
 
 describe("missionsTools - addTasksToProject enriched bulk creation", () => {
   beforeEach(() => {
