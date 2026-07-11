@@ -112,6 +112,19 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     predicate: "idempotency_key IS NOT NULL",
     reason: "v7.7 idempotency — without partial, legacy NULLs collide",
   },
+  {
+    // 2026-07-11 · hand-applied 20260711000000_assistant_reply_uniq
+    // (railway run + apply-pending-migration.ts, verified in pg_indexes
+    // + migrate status). Closes the cmou6xugm double-reply race — one
+    // assistant reply per (conversation, parent user msg, branch).
+    // Partial expression index — Prisma cannot model it, so a silent
+    // drop on db push would go unnoticed without this expectation
+    // (the exact gap the brain-FTS index had).
+    kind: "index_exists",
+    table: "chat_messages",
+    indexName: "chat_messages_assistant_reply_uniq",
+    reason: "duplicate-assistant race guard — DB-level backstop for the persist dedup check",
+  },
   // Note: Mission and Task have NO @@map in prisma/schema.prisma so
   // Prisma's default lowercases-the-model-name rule applies — the
   // actual Postgres table names are "Mission" and "Task" (PascalCase).
