@@ -17,21 +17,13 @@ const dateRangeSchema = z.object({
   untilISO: z.string().datetime().optional(),
 });
 
-function buildDateConditions<T extends { createdAt: unknown }>(
-  column: T["createdAt"],
-  sinceISO: string,
-  untilISO?: string,
-) {
-  const conditions = [gte(column as never, new Date(sinceISO))];
-  if (untilISO) conditions.push(lte(column as never, new Date(untilISO)));
-  return and(...conditions);
-}
-
 export const revenueAttributionRouter = router({
   leadRevenueSummary: adminProcedure.input(dateRangeSchema).query(async ({ input }) => {
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
 
+    const since = new Date(input.sinceISO);
+    const until = input.untilISO ? new Date(input.untilISO) : new Date();
     const rows = await db.select({
       leadId: leads.id,
       source: leads.source,
@@ -42,7 +34,10 @@ export const revenueAttributionRouter = router({
     })
       .from(leads)
       .leftJoin(invoices, eq(leads.invoiceId, invoices.id))
-      .where(buildDateConditions(leads.createdAt, input.sinceISO, input.untilISO));
+      .where(and(
+        gte(leads.createdAt, since),
+        lte(leads.createdAt, until),
+      ));
 
     const summary = aggregateVerifiedLeadRevenue(rows as LeadInvoiceRow[]);
     return {
