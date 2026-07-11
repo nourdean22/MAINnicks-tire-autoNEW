@@ -12,7 +12,9 @@ import { BUSINESS } from "@shared/business";
 import { countActionableLeads } from "@shared/leadSource";
 const log = createLogger("cron:dashboard-sync");
 
-async function runRevenueReconciliationIfDue(db: { execute: (query: unknown) => Promise<unknown> }): Promise<string> {
+type DatabaseClient = NonNullable<Awaited<ReturnType<(typeof import("../../db"))["getDb"]>>>;
+
+async function runRevenueReconciliationIfDue(db: DatabaseClient): Promise<string> {
   try {
     const raw = await db.execute(sql`
       SELECT started_at AS startedAt
