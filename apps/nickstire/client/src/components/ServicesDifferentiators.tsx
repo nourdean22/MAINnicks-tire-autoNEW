@@ -25,7 +25,7 @@ const proofCards = [
     detail: "If it belongs somewhere else, we say that first.",
   },
   {
-    eyebrow: "THE SYSTEM",
+    eyebrow: "THE OPERATING SYSTEM",
     title: "AI BEHIND THE COUNTER. PEOPLE IN THE BAY.",
     icon: BrainCircuit,
     body: "AI-assisted tools help us organize calls, service history, follow-ups, and daily shop data so fewer details fall through the cracks. Software keeps the information straight. The crew still checks the car and turns the wrench.",
@@ -33,9 +33,9 @@ const proofCards = [
   },
   {
     eyebrow: "THE PROOF",
-    title: `${BUSINESS.reviews.countDisplay} PUBLIC RECEIPTS`,
+    title: `${BUSINESS.reviews.countDisplay} REVIEWS. OUT IN THE OPEN.`,
     icon: Star,
-    body: `${BUSINESS.reviews.rating} stars across ${BUSINESS.reviews.countDisplay} Google reviews is not a slogan. It is a public record built one car, one quote, and one decision at a time.`,
+    body: `${BUSINESS.reviews.rating} stars across ${BUSINESS.reviews.countDisplay} ${BUSINESS.reviews.source} reviews is not a slogan. For one independent location, it is an unusually deep public record built one car, one quote, and one decision at a time.`,
     detail: `${BUSINESS.founded.display} on Euclid Ave`,
   },
 ] as const;
@@ -100,7 +100,7 @@ export default function ServicesDifferentiators() {
 
         <div className="mt-8 flex flex-col gap-4 border-t border-border/30 pt-8 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-2xl text-sm leading-relaxed text-foreground/60">
-            Free check. Written quote. You do not pay until you say yes. That simple line only works when the shop behind it is organized enough to keep it.
+            Free check. Written quote. You don't pay until you say yes. That simple line only works when the shop behind it is organized enough to keep it.
           </p>
 
           <div className="flex flex-wrap gap-3">
