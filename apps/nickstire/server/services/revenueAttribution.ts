@@ -160,10 +160,25 @@ export function buildCallInvoiceCandidates(args: {
   const maxMs = maxDays * 86_400_000;
   const invoiceById = new Map(args.paidInvoices.map((invoice) => [invoice.invoiceId, invoice]));
   const invoiceIdByLead = new Map(args.leadLinks.map((lead) => [lead.leadId, lead.invoiceId]));
+  const claimCountByInvoice = new Map<number, number>();
+  for (const lead of args.leadLinks) {
+    if (lead.invoiceId == null) continue;
+    claimCountByInvoice.set(lead.invoiceId, (claimCountByInvoice.get(lead.invoiceId) ?? 0) + 1);
+  }
 
   return args.calls.map((call) => {
     const directInvoiceId = call.leadId == null ? null : invoiceIdByLead.get(call.leadId) ?? null;
     if (directInvoiceId != null && invoiceById.has(directInvoiceId)) {
+      if ((claimCountByInvoice.get(directInvoiceId) ?? 0) !== 1) {
+        return {
+          callId: call.callId,
+          invoiceId: directInvoiceId,
+          resolution: "ambiguous",
+          evidenceLevel: "inferred",
+          confidence: null,
+          reasons: ["call linked to lead", "paid invoice is claimed by multiple leads"],
+        };
+      }
       return {
         callId: call.callId,
         invoiceId: directInvoiceId,
