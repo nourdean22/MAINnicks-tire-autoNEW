@@ -13,6 +13,38 @@ import { toast } from "sonner";
 // `fetch` for a transient best-effort call like this) — the
 // `use-authed-fetch` import is gone.
 /**
+ * 2026-07-12 · Pick a MediaRecorder container the browser actually supports.
+ * The mic looked "unavailable" on the iOS PWA because the code hardcoded
+ * `mimeType: "audio/webm"` — WebKit does NOT support webm recording, so the
+ * MediaRecorder constructor threw NotSupportedError, which the bare catch
+ * misreported as a permission error. Desktop Chrome keeps webm; iOS lands on
+ * audio/mp4. Returns "" when none is explicitly supported (let the browser
+ * pick its own default rather than throw).
+ */
+function pickAudioMime(): string {
+  if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) return "";
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4;codecs=mp4a.40.2",
+    "audio/mp4",
+    "audio/aac",
+  ];
+  for (const c of candidates) {
+    if (MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return "";
+}
+
+/** Upload filename extension must match the real container or Whisper 400s
+ *  on format sniff. */
+function extForMime(mime: string): string {
+  if (mime.includes("mp4") || mime.includes("aac")) return "mp4";
+  if (mime.includes("ogg")) return "ogg";
+  return "webm";
+}
+
+/**
  * useVoiceInput — single recording + continuous voice mode.
  * Single: tap to record, tap to stop, transcribes via Whisper.
  * Continuous: auto-sends on 2s silence, restarts recording.
@@ -40,8 +72,18 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
 
   // ── Single recording ──
   const startRecording = useCallback(async () => {
+    // 2026-07-12 · getUserMedia in its OWN try so ONLY a real permission /
+    // secure-context rejection shows "Microphone unavailable". A codec/
+    // MediaRecorder failure below is a different error and must not be
+    // misreported as a permission problem.
+    let stream: MediaStream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      toast.error("Microphone unavailable — check permissions");
+      return;
+    }
+    try {
       // Apr 27 · also wire the analyser for single recordings so the
       // waveform-bars UI bounces during tap-to-record (was only set
       // up for continuous mode before).
@@ -68,7 +110,12 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
       };
       levelRafRef.current = requestAnimationFrame(tick);
 
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      // Pick a supported container (iOS rejects webm → NotSupportedError).
+      const mime = pickAudioMime();
+      const recorder = mime
+        ? new MediaRecorder(stream, { mimeType: mime })
+        : new MediaRecorder(stream);
+      const recMime = recorder.mimeType || mime || "audio/webm";
       audioChunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
@@ -77,12 +124,12 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
         if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
         analyserRef.current = null;
         setAudioLevel(0);
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(audioChunksRef.current, { type: recMime });
         if (blob.size < 1000) return;
         setTranscribing(true);
         try {
           const form = new FormData();
-          form.append("audio", blob, "voice.webm");
+          form.append("audio", blob, `voice.${extForMime(recMime)}`);
           const res = await fetch("/api/ai/transcribe", { method: "POST", body: form, credentials: "include" });
           if (!res.ok) {
             // v10.0.420 · was silently swallowed · the 7-day audit caught
@@ -112,11 +159,17 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
       recorder.start();
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
-    } catch {
-      // forensic-audit MEDIUM · mic permission denied / unavailable — was a
-      // bare silent catch; tell the operator so the dead mic button isn't a
-      // mystery.
-      toast.error("Microphone unavailable — check permissions");
+    } catch (err) {
+      // getUserMedia already succeeded above, so this is a recorder/codec
+      // failure, NOT a permission problem — don't misreport it as one. Release
+      // the mic we acquired and surface an honest message.
+      stream.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+      if (levelRafRef.current) { cancelAnimationFrame(levelRafRef.current); levelRafRef.current = null; }
+      if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
+      analyserRef.current = null;
+      setAudioLevel(0);
+      console.warn("[voice-input] recorder init failed:", err);
+      toast.error("Couldn't start recording on this device — try again");
     }
   }, [onTranscript]);
 

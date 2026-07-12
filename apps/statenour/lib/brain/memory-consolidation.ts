@@ -21,15 +21,19 @@ import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { today, daysAgo } from "@/lib/utils/datetime";
 // v10.0.65 · structured logger for surfacing dedupe-delete failures.
 import { logger as rootLogger } from "@/lib/logger";
-import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { BRAIN_CATEGORIES, CONSOLIDATION_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 const log = rootLogger.withSurface("brain/memory-consolidation");
 
 // ─── 1. MERGE: Combine similar memories ──────────────────
 
 export async function mergeMemories(): Promise<{ merged: number }> {
-  // Get all memories grouped by category
+  // Get all memories grouped by category. 2026-07-12 · EXCLUDE structured
+  // categories — merging rewrites a category's rows into one PROSE blob,
+  // which corrupts JSON-payload categories (their readers JSON.parse
+  // content). See CONSOLIDATION_EXCLUDE_CATEGORIES.
   const categories = await prisma.brainMemory.groupBy({
     by: ["category"],
+    where: { category: { notIn: [...CONSOLIDATION_EXCLUDE_CATEGORIES] } },
     _count: { id: true },
     having: { id: { _count: { gt: 3 } } },
   });
@@ -87,6 +91,18 @@ Rules:
 
         const keeper = toMerge.sort((a, b) => b.confidence - a.confidence)[0];
         const others = toMerge.filter(m => m.id !== keeper.id);
+
+        // 2026-07-12 · belt-and-suspenders: even inside a merge-eligible
+        // category, if the keeper's content parses as JSON it is a
+        // structured payload some reader depends on — never overwrite it
+        // with prose. Skips the group; the CONSOLIDATION_EXCLUDE list is
+        // the primary guard, this catches any not-yet-listed JSON category.
+        try {
+          JSON.parse(keeper.content);
+          continue; // structured row — do not merge into prose
+        } catch {
+          // free-text belief row — safe to consolidate
+        }
 
         // v10.0.34 — wrap update + deletes in a transaction so the
         // group either fully merges or doesn't change. Pre-fix the
@@ -340,7 +356,13 @@ Max 3 insights.`,
           .slice(0, 48);
         await prisma.brainMemory.create({
           data: {
-            category: ins.category || "wisdom",
+            // 2026-07-12 · clamp the LLM-chosen category — distillation
+            // writes free-text `insight` prose, so it must never land in a
+            // structured-payload category (same corruption vector as MERGE).
+            category:
+              CONSOLIDATION_EXCLUDE_CATEGORIES.includes(ins.category)
+                ? "wisdom"
+                : (ins.category || "wisdom"),
             key: `distilled_${today()}_${insightFingerprint}_${stored}`,
             content: ins.insight,
             confidence: 0.9,

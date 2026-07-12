@@ -418,7 +418,23 @@ export async function buildBrainContext(
     };
     
     finalContextMemories = contextMemories;
-    if (hybridRecallReport) recalledHits = hybridRecallReport.hits;
+    // 2026-07-12 · normalize the recall hit shape to the Memory Inspector's
+    // client contract. Raw hits are { memoryId, knnDistance, content, category }
+    // but the sidebar reads { id, similarity, content, category } — so hits
+    // rendered as "NaN% Match" with a missing React key. Map once here.
+    if (hybridRecallReport) {
+      recalledHits = (hybridRecallReport.hits ?? []).map((h: any) => ({
+        id: h.id ?? h.memoryId,
+        content: h.content,
+        category: h.category,
+        similarity:
+          typeof h.similarity === "number"
+            ? h.similarity
+            : typeof h.knnDistance === "number"
+              ? Math.max(0, Math.min(1, 1 - h.knnDistance))
+              : 0,
+      }));
+    }
     if (contradictionHit) detectedContradictions = [contradictionHit];
 
     log.info("brain_blocks_assembled", {

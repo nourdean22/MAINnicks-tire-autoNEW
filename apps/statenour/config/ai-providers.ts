@@ -44,7 +44,12 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     baseUrlEnv: "OLLAMA_BASE_URL",
     defaultBaseUrl: "https://ollama.com",
     visionModelEnv: "OLLAMA_VISION_MODEL",
-    defaultVisionModel: "qwen3-vl:235b-instruct",
+    // 2026-07-12 · qwen3-vl:235b-instruct was RETIRED on Ollama Cloud
+    // (2026-06-16 → 410), so every image chat turn hit a dead model and
+    // silently did nothing. gemma4:31b is a current, fast (~0.6s),
+    // vision-capable model verified live on the key. Override via
+    // OLLAMA_VISION_MODEL (minimax-m3 / gemma3:12b also work).
+    defaultVisionModel: "gemma4:31b",
     cooldownMs: AI_PROVIDER_COOLDOWN_MS,
     modelSubstrings: ["glm-5", "glm-5.2", "qwen3", "qwen3.5", "deepseek-v3", "deepseek-v4", "kimi", "minimax", "mistral-large", "gpt-oss"],
   },

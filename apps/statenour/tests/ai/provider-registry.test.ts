@@ -121,7 +121,9 @@ describe("AI Provider Resolvers & Fallbacks", () => {
     expect(resolveProviderModel("ollama", "vision")).toBe("test-ollama-vision:latest");
 
     process.env.OLLAMA_VISION_MODEL = "";
-    expect(resolveProviderModel("ollama", "vision")).toBe("qwen3-vl:235b-instruct");
+    // 2026-07-12 · qwen3-vl:235b-instruct was retired on Ollama Cloud → the
+    // default vision model is now the live gemma4:31b.
+    expect(resolveProviderModel("ollama", "vision")).toBe("gemma4:31b");
 
     expect(resolveProviderModel("ollama", "reason")).toBe("deepseek-v3.1:671b");
     process.env.OLLAMA_MODEL = originalOllamaModel;

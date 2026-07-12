@@ -678,6 +678,30 @@ export const RECALL_EXCLUDE_CATEGORIES: readonly string[] = [
 ];
 
 /**
+ * 2026-07-12 · Categories the nightly Memory Consolidation Engine
+ * (lib/brain/memory-consolidation.ts) must NEVER touch. The MERGE +
+ * DISTILL stages ask an LLM to rewrite a category's rows into a single
+ * PROSE "consolidated memory". That is correct for free-text belief
+ * rows — but these categories store STRUCTURED payloads (JSON configs,
+ * identity snapshots, skill queues, base64 audio) that downstream code
+ * JSON.parses. Consolidating them clobbered the keeper row's `content`
+ * with prose → readers threw "Unexpected token … is not valid JSON"
+ * every run (skill-extractor, identity-snapshot, legacy-shims). One
+ * such prose row silently disabled the admin AI-config panel for a
+ * week. Deleting the bad rows never held — the cron regenerated them.
+ * Excluding the categories at the writer is the durable fix.
+ */
+export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
+  BRAIN_CATEGORIES.AI_CONFIG,
+  BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
+  BRAIN_CATEGORIES.SKILL,
+  BRAIN_CATEGORIES.SKILL_PENDING,
+  BRAIN_CATEGORIES.CHAT_IMPORTANCE,
+  BRAIN_CATEGORIES.CONTENT_DRAFT,
+  BRAIN_CATEGORIES.MORNING_BRIEF_AUDIO,
+];
+
+/**
  * Return the canonical category for a value — passes through for
  * known non-deprecated values; rewrites deprecated values to their
  * replacement. Used by the runtime guard + codemod.

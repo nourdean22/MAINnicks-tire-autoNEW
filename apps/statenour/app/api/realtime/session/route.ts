@@ -106,20 +106,36 @@ const REALTIME_TOOLS = [
   },
 ];
 
-const REALTIME_DEFAULTS = {
-  model: "gpt-4o-realtime-preview-2024-12-17",
-  voice: "alloy", // alloy, echo, fable, onyx, nova, shimmer
-  modalities: ["text", "audio"] as const,
-  input_audio_format: "pcm16",
-  output_audio_format: "pcm16",
-  input_audio_transcription: { model: "whisper-1" },
-  turn_detection: {
-    type: "semantic_vad",
-    eagerness: "auto",
-  },
-  tools: REALTIME_TOOLS,
-  tool_choice: "auto" as const,
-};
+// 2026-07-12 · GA Realtime API shape. OpenAI removed the beta
+// POST /v1/realtime/sessions (returned 404 "Invalid URL"); the GA flow
+// mints ephemeral tokens at POST /v1/realtime/client_secrets with a
+// nested `{ session: {...} }` body. Config moved under session.audio.*,
+// `modalities` → `output_modalities`, and the model alias is
+// `gpt-realtime`. Verified live against the API before shipping.
+const REALTIME_MODEL = "gpt-realtime";
+const REALTIME_VOICE = "alloy"; // alloy, echo, fable, onyx, nova, shimmer
+
+function buildRealtimeSessionConfig(opts: {
+  model: string;
+  voice: string;
+  instructions: string;
+}) {
+  return {
+    type: "realtime" as const,
+    model: opts.model,
+    instructions: opts.instructions,
+    output_modalities: ["audio"] as const,
+    audio: {
+      input: {
+        transcription: { model: "whisper-1" },
+        turn_detection: { type: "semantic_vad", eagerness: "auto" as const },
+      },
+      output: { voice: opts.voice },
+    },
+    tools: REALTIME_TOOLS,
+    tool_choice: "auto" as const,
+  };
+}
 
 const NICK_INSTRUCTIONS_BASE = `You are Nick, Nour's personal operating system AI.
 
@@ -195,17 +211,19 @@ async function mintRealtimeSession(args: {
     : NICK_INSTRUCTIONS_BASE;
   instructions += contextBlock;
 
-  const res = await fetch("https://api.openai.com/v1/realtime/sessions", {
+  const model = args.model ?? REALTIME_MODEL;
+  const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      ...REALTIME_DEFAULTS,
-      model: args.model ?? REALTIME_DEFAULTS.model,
-      voice: args.voice ?? REALTIME_DEFAULTS.voice,
-      instructions,
+      session: buildRealtimeSessionConfig({
+        model,
+        voice: args.voice ?? REALTIME_VOICE,
+        instructions,
+      }),
     }),
   });
 
@@ -218,7 +236,19 @@ async function mintRealtimeSession(args: {
     throw err;
   }
 
-  return res.json();
+  // GA response is { value: "ek_...", expires_at, session }. Re-shape to the
+  // { client_secret: { value, expires_at }, model } contract the browser hook
+  // already consumes so the client change stays minimal.
+  const ga = (await res.json()) as {
+    value?: string;
+    expires_at?: number;
+    session?: { id?: string; model?: string };
+  };
+  return {
+    client_secret: { value: ga.value ?? "", expires_at: ga.expires_at ?? 0 },
+    id: ga.session?.id,
+    model: ga.session?.model ?? model,
+  };
 }
 
 const guardedMint = withGuardian("openai-realtime-session", mintRealtimeSession, {
