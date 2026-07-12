@@ -35,7 +35,7 @@ vi.mock("framer-motion", () => ({
 vi.mock("@/lib/trpc", () => {
   const queryResult = (key: string) => {
     if (key === "gatewayTire.getPackage") {
-      return { data: { packageValuePerSet: 289, services: [] }, isLoading: false };
+      return { data: { packageValuePerSet: 266, services: [] }, isLoading: false };
     }
     return { data: undefined, isLoading: false };
   };
@@ -83,7 +83,7 @@ describe("Tire Finder Module", () => {
       React.createElement(OrderModal, {
         tire: null,
         quantity: 4,
-        packageValue: 289,
+        packageValue: 266,
         onClose,
         prefilledVehicle: {
           year: "2021",
@@ -200,7 +200,7 @@ describe("Ezytire Environment Variables", () => {
           pricePerTireCents: 0,
         },
         quantity: 4,
-        packageValue: 289,
+        packageValue: 266,
         onClose,
       })
     );

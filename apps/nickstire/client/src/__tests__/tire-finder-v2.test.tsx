@@ -5,7 +5,7 @@
  * which resolved to TireFinderLegacy under `MODE === "test"` — so the live
  * V2 funnel had ZERO coverage. These tests exercise V2 directly and lock the
  * two bugs found in review: (1) the order modal must receive the REAL package
- * value (289), never 0; (2) no fabricated "Best value" badge.
+ * value (266), never 0; (2) no fabricated "Best value" badge.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
@@ -35,7 +35,7 @@ vi.mock("@/lib/trpc", () => {
   const proc = (key: string) => ({
     useQuery: () =>
       key === "gatewayTire.publicSearch" ? h.search
-        : key === "gatewayTire.getPackage" ? { data: { packageValuePerSet: 289, services: [] }, isLoading: false }
+        : key === "gatewayTire.getPackage" ? { data: { packageValuePerSet: 266, services: [] }, isLoading: false }
         : { data: undefined, isLoading: false },
     useMutation: () => ({ mutate: vi.fn(), isPending: false }),
   });
@@ -128,13 +128,13 @@ describe("TireFinderV2 (the shipped /tires funnel)", () => {
     expect(screen.getByText("$200.00 for 2")).toBeTruthy();
   });
 
-  it("requesting a tire opens the order modal with the REAL package value (289, not 0) and fires the event", async () => {
+  it("requesting a tire opens the order modal with the REAL package value (266, not 0) and fires the event", async () => {
     h.search = { data: { sizeFormatted: "215/60R16", source: "live", tires: [tire({ id: "a", shopPrice: 120 })] }, isLoading: false, isError: false };
     await renderV2();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Request these" })); });
     const modal = screen.getByTestId("order-modal");
     expect(modal).toBeTruthy();
-    expect(modal.getAttribute("data-package")).toBe("289"); // NOT "0" — the checkout bug fix
+    expect(modal.getAttribute("data-package")).toBe("266"); // NOT "0" — the checkout bug fix ($266 = itemized sum)
     expect(modal.getAttribute("data-qty")).toBe("4");
     expect(h.trackEvent).toHaveBeenCalledWith("tire_option_selected", expect.objectContaining({ id: "a", quantity: 4 }));
   });

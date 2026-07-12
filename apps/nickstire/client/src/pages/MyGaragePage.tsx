@@ -106,6 +106,18 @@ function AddVehicleForm({ onClose }: { onClose: () => void }) {
 // ─── VEHICLE CARD ──────────────────────────────────────
 function VehicleCard({ vehicle }: { vehicle: any }) {
   const utils = trpc.useUtils();
+  // feat/home-v2 fix — wave-157 pointed this at the ADMIN ConfirmDialog,
+  // but that dialog's listener singleton only mounts inside the admin
+  // shell. /my-garage is a customer route, so confirmDialog() dispatched
+  // to nobody and the promise HUNG forever (delete silently impossible).
+  // Customer routes use the iOS-PWA-safe in-DOM pattern instead: first
+  // tap arms the button ("Remove?"), second tap within 4s deletes.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    const t = setTimeout(() => setConfirmingDelete(false), 4000);
+    return () => clearTimeout(t);
+  }, [confirmingDelete]);
   const deleteVehicle = trpc.garage.deleteVehicle.useMutation({
     onSuccess: () => utils.garage.vehicles.invalidate(),
     onError: () => toast.error("Update failed. Please try again."),
@@ -128,23 +140,28 @@ function VehicleCard({ vehicle }: { vehicle: any }) {
           </div>
         </div>
         <button
-          onClick={async () => {
-            // wave-157 — native confirm() → ConfirmDialog. Was missed
-            // by prior sweeps because this is the only customer-facing
-            // confirm() left (everything else in admin).
-            const { confirmDialog } = await import("@/components/admin/ConfirmDialog");
-            if (await confirmDialog({
-              title: "Remove this vehicle?",
-              message: `Delete ${vehicle.year} ${vehicle.make} ${vehicle.model} from your garage. Service history stays in your account.`,
-              confirmLabel: "Remove",
-              tone: "danger",
-            })) {
-              deleteVehicle.mutate({ id: vehicle.id });
+          onClick={() => {
+            if (!confirmingDelete) {
+              setConfirmingDelete(true);
+              return;
             }
+            setConfirmingDelete(false);
+            deleteVehicle.mutate({ id: vehicle.id });
           }}
-          className="text-foreground/30 hover:text-red-400 transition-colors p-1"
+          disabled={deleteVehicle.isPending}
+          aria-label={
+            confirmingDelete
+              ? `Tap again to remove ${vehicle.year} ${vehicle.make} ${vehicle.model}`
+              : `Remove ${vehicle.year} ${vehicle.make} ${vehicle.model}`
+          }
+          className={
+            confirmingDelete
+              ? "flex items-center gap-1.5 rounded border border-red-400/60 bg-red-500/10 px-2 py-1 text-xs font-bold text-red-400 transition-colors"
+              : "text-foreground/30 hover:text-red-400 transition-colors p-1"
+          }
         >
           <Trash2 className="w-4 h-4" />
+          {confirmingDelete && <span>Remove?</span>}
         </button>
       </div>
 
