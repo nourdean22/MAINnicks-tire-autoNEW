@@ -677,7 +677,20 @@ export const systemTools = {
       try {
         if (process.env.PERPLEXICA_API_URL) {
           const { askPerplexica } = await import("@/lib/integrations/perplexica");
-          const r = await askPerplexica(query);
+          // 2026-07-12 · FAIL-FAST on a hung primary. Perplexica synthesizes
+          // in ~15s when healthy, but when its synth backend stalls (e.g. the
+          // Gemini key hits a spending cap → /api/search never returns) the
+          // guardian's 35s×2 = 70s burns the whole interactive budget before
+          // failover, so the chat stream aborts and the model refuses with
+          // stale training data instead of the working Tavily quorum. Cap the
+          // PRIMARY attempt: a healthy perplexica still wins, a dead one hands
+          // off to the quorum in ≤14s. `.catch` keeps the losing promise from
+          // surfacing as an unhandled rejection after the race resolves.
+          const PRIMARY_MS = 14_000;
+          const r = await Promise.race([
+            askPerplexica(query).catch(() => null),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), PRIMARY_MS)),
+          ]);
           if (r?.content?.trim()) {
             // 2026-07-05 improvement · attribute web claims. arsenalWebSearch was
             // the lone web tool discarding citations (searchWebVerified /
@@ -711,8 +724,18 @@ export const systemTools = {
       // Fallback · multi-source quorum (Promise.allSettled · never throws on
       // partial failure). Keeps "search on X" alive when the primary is down;
       // surfaces an honest all-sources-failed note rather than an empty result.
+      // 2026-07-12 · when Perplexica IS the configured primary it was just
+      // exhausted above, so exclude it here — otherwise the quorum re-waits its
+      // full per-source budget on the known-dead source before the metered
+      // sources (Tavily/Exa/Perplexity) can answer. Unkeyed sources are skipped
+      // internally by hasApiKey, so this list is a ceiling, not a requirement.
       const { multiSourceSearch } = await import("@/lib/ai/multi-search");
-      const q = await multiSourceSearch(query);
+      const q = await multiSourceSearch(
+        query,
+        process.env.PERPLEXICA_API_URL
+          ? { sources: ["perplexity", "tavily", "exa", "google"] }
+          : {},
+      );
       const body =
         q.consensus?.trim() ||
         q.sources.map((s) => `${s.name}: ${s.content}`).join("\n\n").trim() ||

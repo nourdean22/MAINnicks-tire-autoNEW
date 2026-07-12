@@ -645,7 +645,48 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
 export async function createTaskAndEnrich(
   data: Prisma.TaskUncheckedCreateInput,
 ) {
-  const task = await prisma.task.create({ data });
+  // 2026-07-12 · error-proof the mission FK. Every caller of this helper is
+  // model/agent-facing and supplies a missionId the LLM chose — frequently
+  // hallucinated or empty (the model has no reliable way to know a valid
+  // mission id mid-conversation). Task.missionId is a hard FK (onDelete:
+  // Restrict), so a bad id threw P2003, which the AI SDK surfaced in chat as
+  // a red "TOOL FAILED" card. Resolve to the Inbox anchor when the chosen
+  // mission is missing or doesn't exist — enrichTaskLinkage (fired below)
+  // then re-files the task into the right mission by title classification,
+  // so nothing is lost to a bad id and the create can never FK-throw.
+  const chosenMissionId = data.missionId;
+  const missionOk = chosenMissionId
+    ? await prisma.mission
+        .findUnique({ where: { id: chosenMissionId }, select: { id: true } })
+        .then((m) => Boolean(m))
+        .catch(() => false)
+    : false;
+
+  // goalId carries the same hazard: it's an optional FK (Task_goalId_fkey),
+  // but the constraint is enforced on INSERT regardless of its onDelete:
+  // SetNull. A hallucinated goalId threw P2003 too (proven in prod). Drop an
+  // invalid goalId to null — SetNull is exactly the intended semantics — and
+  // enrichTaskLinkage re-links it by classification below.
+  const chosenGoalId = data.goalId;
+  const goalOk = chosenGoalId
+    ? await prisma.lifeGoal
+        .findUnique({ where: { id: chosenGoalId }, select: { id: true } })
+        .then((g) => Boolean(g))
+        .catch(() => false)
+    : true; // no goalId supplied → nothing to validate
+
+  let safeData = data;
+  if (!missionOk) {
+    // Dynamic import · avoids the static tasks↔missions cycle (same pattern
+    // enrichTaskLinkage uses below).
+    const { resolveInboxMissionId } = await import("@/lib/services/missions");
+    safeData = { ...safeData, missionId: await resolveInboxMissionId() };
+  }
+  if (!goalOk) {
+    safeData = { ...safeData, goalId: null };
+  }
+
+  const task = await prisma.task.create({ data: safeData });
   void enrichTaskLinkage(task.id);
   return task;
 }
