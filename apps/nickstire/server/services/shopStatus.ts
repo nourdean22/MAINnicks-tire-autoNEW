@@ -31,6 +31,14 @@ interface ShopStatus {
   nextOpenTime?: string;
   bays: BayStatus[];
   statusMessage: string;
+  /**
+   * feat/home-v2 anti-fabrication gate: true only when currentJobs (and
+   * therefore openBays + the wait number) came from REAL data — the
+   * caller's activeOrderCount or the live bookings query. False means the
+   * time-of-day estimateCurrentJobs() fallback invented the numbers, and
+   * clients must NOT render the wait/bay figures as fact.
+   */
+  waitIsFresh: boolean;
 }
 
 /**
@@ -55,10 +63,13 @@ export async function getShopStatus(activeOrderCount?: number): Promise<ShopStat
     if (!isOpen) nextOpenTime = hour < 8 ? "8:00 AM today" : day === 6 ? "9:00 AM Sunday" : "8:00 AM tomorrow";
   }
 
-  // Estimate bay usage from active orders or time of day
+  // Bay usage from active orders (real) — or the time-of-day fallback,
+  // which is an INVENTED number and must be flagged stale (waitIsFresh).
   let jobs: number;
+  let waitIsFresh: boolean;
   if (activeOrderCount !== undefined) {
     jobs = activeOrderCount;
+    waitIsFresh = true;
   } else {
     const d = await db();
     if (d) {
@@ -74,12 +85,15 @@ export async function getShopStatus(activeOrderCount?: number): Promise<ShopStat
             )
           );
         jobs = activeBookings.length;
+        waitIsFresh = true;
       } catch (dbErr) {
         log.warn("Failed to query active bookings for shop status:", dbErr);
         jobs = estimateCurrentJobs(hour, day);
+        waitIsFresh = false;
       }
     } else {
       jobs = estimateCurrentJobs(hour, day);
+      waitIsFresh = false;
     }
   }
 
@@ -92,10 +106,14 @@ export async function getShopStatus(activeOrderCount?: number): Promise<ShopStat
   else if (openBays === 1) estimatedWaitMinutes = 20;
   else if (openBays === 2) estimatedWaitMinutes = 10;
 
-  // Status message
+  // Status message. When the numbers are the time-of-day fallback
+  // (waitIsFresh=false), never assert bay counts or a wait time as fact —
+  // hours-derived open/closed is the only thing we actually know.
   let statusMessage: string;
   if (!isOpen) {
     statusMessage = `We're closed right now. ${nextOpenTime ? `Opening at ${nextOpenTime}.` : ""}`;
+  } else if (!waitIsFresh) {
+    statusMessage = `Open now — first come, first served. Call to check the line: ${BUSINESS.phone.display}.`;
   } else if (openBays >= 3) {
     statusMessage = `${openBays} bays open — walk right in!`;
   } else if (openBays >= 1) {
@@ -119,6 +137,7 @@ export async function getShopStatus(activeOrderCount?: number): Promise<ShopStat
     nextOpenTime,
     bays,
     statusMessage,
+    waitIsFresh,
   };
 }
 
