@@ -11,7 +11,7 @@ import {
 } from "../../shared/instagramStudio";
 import { socialContentInventory, scheduledPosts } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
-import { db } from "../lib/db-helper";
+import { dbTyped } from "../lib/db-helper";
 import {
   evaluateInstagramDraft,
   generateInstagramStudioDraft,
@@ -116,7 +116,7 @@ function assertPublishable(draft: InstagramStudioDraft): void {
 }
 
 async function loadInventoryDraft(id: string) {
-  const database = await db();
+  const database = await dbTyped();
   if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
   const rows = await database.select().from(socialContentInventory).where(eq(socialContentInventory.id, id)).limit(1);
   const row = rows[0];
@@ -176,7 +176,7 @@ export const instagramStudioRouter = router({
       if (input.format === "reel") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Reels must use the verified ReelBrief pipeline." });
       }
-      const database = await db();
+      const database = await dbTyped();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const quality = evaluateInstagramDraft({
         source: input.source,
@@ -225,7 +225,7 @@ export const instagramStudioRouter = router({
   list: adminProcedure
     .input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional())
     .query(async ({ input }) => {
-      const database = await db();
+      const database = await dbTyped();
       if (!database) return [];
       const rows = await database.select().from(socialContentInventory)
         .where(eq(socialContentInventory.seriesName, "instagram_studio_v2"))
@@ -357,7 +357,7 @@ export const instagramStudioRouter = router({
     }),
 
   diagnostics: adminProcedure.query(async () => {
-    const database = await db();
+    const database = await dbTyped();
     if (!database) return { connected: false, counts: {}, blockers: ["Database unavailable"] };
     const rows = await database.select({ status: socialContentInventory.status })
       .from(socialContentInventory)
