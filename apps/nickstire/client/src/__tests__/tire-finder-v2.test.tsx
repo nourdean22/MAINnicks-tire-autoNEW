@@ -56,7 +56,7 @@ vi.mock("@/components/SEO", () => ({
 
 // Stub the shared OrderModal so this test stays focused on V2's surface and
 // can assert exactly what V2 passes into it (the packageValue bug fix).
-vi.mock("@/pages/TireFinderLegacy", () => ({
+vi.mock("@/components/order/TireOrderModal", () => ({
   OrderModal: (props: any) =>
     React.createElement("div", {
       "data-testid": "order-modal",
@@ -90,6 +90,13 @@ describe("TireFinderV2 (the shipped /tires funnel)", () => {
     expect(screen.getByLabelText("Search tire size")).toBeTruthy();
     expect(screen.getByText("215/60R16")).toBeTruthy(); // a popular shortcut
     expect(screen.getByText("1. Search your size")).toBeTruthy();
+  });
+
+  it("initializes the search input from ?size on mount (shared-link entry)", async () => {
+    window.history.pushState({}, "", "/tires?size=225/65R17");
+    await renderV2();
+    const input = screen.getByLabelText("Search tire size") as HTMLInputElement;
+    expect(input.value).toBe("225/65R17");
   });
 
   it("submitting a valid size fires tire_search_submitted", async () => {

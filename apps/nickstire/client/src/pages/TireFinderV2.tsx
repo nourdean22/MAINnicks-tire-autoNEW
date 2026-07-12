@@ -7,7 +7,7 @@ import FAQPageSchema, { TIRE_BUYING_FAQ } from "@/components/FAQPageSchema";
 import { trpc } from "@/lib/trpc";
 import type { RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
-import { OrderModal } from "./TireFinderLegacy";
+import { OrderModal } from "@/components/order/TireOrderModal";
 
 // Real inferred shape from the tRPC procedure — no `any` on the money path.
 type Tire = RouterOutputs["gatewayTire"]["publicSearch"]["tires"][number];

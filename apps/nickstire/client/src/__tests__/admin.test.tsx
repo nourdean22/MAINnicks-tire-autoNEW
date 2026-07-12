@@ -232,10 +232,13 @@ describe("Customer site — regression guards", () => {
    * Checks that searchInput is updated when the URL ?size parameter changes.
    */
   it("TireFinder: syncs searchInput with urlSize parameter changes", async () => {
+    // Legacy-page behavior: the mounted page re-syncs its input when the URL
+    // ?size changes across rerenders. The shipped V2 funnel reads ?size on
+    // mount (covered in tire-finder-v2.test.tsx); this guards the legacy page.
     // Stage URL with a size
     window.history.pushState({}, "", "/tires?size=225/65R17");
 
-    const { default: TireFinder } = await import("../pages/TireFinder");
+    const { default: TireFinder } = await import("../pages/TireFinderLegacy");
     const { rerender } = render(React.createElement(TireFinder));
 
     const input = screen.getByLabelText("Search tire size") as HTMLInputElement;

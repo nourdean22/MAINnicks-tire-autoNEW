@@ -6,7 +6,7 @@
 // rollback + the home of the shared OrderModal, and its own regressions
 // import TireFinderLegacy explicitly.
 import TireFinderV2 from "./TireFinderV2";
-import { OrderModal } from "./TireFinderLegacy";
+import { OrderModal } from "@/components/order/TireOrderModal";
 
 export { OrderModal };
 export default TireFinderV2;
