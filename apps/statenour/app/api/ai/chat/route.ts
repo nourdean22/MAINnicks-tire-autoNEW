@@ -183,11 +183,21 @@ async function chatPostInner(req: Request) {
       const { routeMessage } = await import("@/lib/ai/agents/router");
       const decision = await routeMessage({ messages: mappedMessages });
 
-      if (isSpecialistShadowMode()) {
-        // Shadow: record, never dispatch. Fire-and-forget — metrics
-        // must never delay or fail the chat turn.
+      const specShadow = isSpecialistShadowMode();
+      // 2026-07-12 · record the classification in BOTH modes so routing
+      // telemetry survives the shadow→live flip (was shadow-only, so the
+      // operator went blind the moment routing went live). Fire-and-forget.
+      {
         const { recordSpecialistRouteMetric } = await import("@/lib/ai/agents/router-metrics");
-        void recordSpecialistRouteMetric(decision.route, decision.confidence, decision.reason);
+        const willDispatch = !specShadow && decision.route === "marketing-director";
+        void recordSpecialistRouteMetric(decision.route, decision.confidence, decision.reason, {
+          shadow: specShadow,
+          dispatched: willDispatch,
+        });
+      }
+
+      if (specShadow) {
+        // Shadow: metric recorded above, never dispatch.
       } else if (decision.route === "marketing-director") {
         log.info("specialist_routing_match", { route: decision.route, reason: decision.reason });
         const { runMarketingDirector } = await import("@/lib/ai/agents/specialists/marketing-director");
@@ -196,6 +206,10 @@ async function chatPostInner(req: Request) {
         if (specResult.handBack) {
           log.info("specialist_handback", { route: decision.route, reason: specResult.reason });
         } else {
+          // Prod-first dispatch guard · alert the operator the first time a
+          // specialist actually handles a turn live (deduped, fire-and-forget).
+          const { alertFirstSpecialistDispatch } = await import("@/lib/ai/agents/router-metrics");
+          void alertFirstSpecialistDispatch(decision.route, decision.reason);
           const { persistUserTurn } = await import("@/lib/services/chat/persist-user-turn");
           const resolvedConvId = await persistUserTurn({
             convId,
