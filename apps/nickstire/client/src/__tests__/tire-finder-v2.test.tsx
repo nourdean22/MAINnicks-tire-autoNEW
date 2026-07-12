@@ -146,6 +146,24 @@ describe("TireFinderV2 (the shipped /tires funnel)", () => {
     expect(screen.getByText("$382.00 for 4")).toBeTruthy();      // 95.5 × 4 (default qty)
   });
 
+  it("cards show real feed specs (load+speed rating) and a live in-stock chip", async () => {
+    h.search = { data: { sizeFormatted: "215/60R16", source: "live", tires: [
+      tire({ id: "a", brand: "Landsail", model: "RD3", loadIndex: "94", speedRating: "H", inStock: true, estimatedDelivery: "Same day" }),
+    ] }, isLoading: false, isError: false };
+    await renderV2();
+    expect(screen.getByText("94H")).toBeTruthy();                 // disambiguates variants
+    expect(screen.getByText("In stock · Same day")).toBeTruthy();
+  });
+
+  it("out-of-stock tire shows 'Available to order' with its lead time", async () => {
+    h.search = { data: { sizeFormatted: "215/60R16", source: "live", tires: [
+      tire({ id: "b", inStock: false, estimatedDelivery: "1-2 business days" }),
+    ] }, isLoading: false, isError: false };
+    await renderV2();
+    expect(screen.getByText("Available to order · 1-2 business days")).toBeTruthy();
+    expect(screen.queryByText(/In stock/)).toBeNull();
+  });
+
   it("changing quantity re-computes the set price", async () => {
     h.search = { data: { sizeFormatted: "215/60R16", source: "live", tires: [tire({ shopPrice: 100 })] }, isLoading: false, isError: false };
     await renderV2();

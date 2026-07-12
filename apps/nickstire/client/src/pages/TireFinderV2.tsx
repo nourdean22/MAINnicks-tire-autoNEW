@@ -209,8 +209,24 @@ export default function TireFinderV2() {
                           <span className="text-xs font-semibold uppercase tracking-wide text-primary">{optionLabel(t, i)}</span>
                           <h3 className="mt-1 text-xl font-bold">{t.brand} {t.model}</h3>
                           <p className="text-sm text-muted-foreground">{t.size} · {t.warranty || "Warranty varies"}</p>
+                          {/* wave-g: real D&K feed specs. Two same-brand/model
+                              variants (speed rating / load index) render as
+                              separate cards — showing the rating tells the
+                              customer WHICH one they're picking, and the live
+                              stock chip sets the "Request these" expectation.
+                              Every field is from the feed; nothing invented. */}
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            {(t.loadIndex || t.speedRating) && (
+                              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground" title="Load index + speed rating">
+                                {t.loadIndex}{t.speedRating}
+                              </span>
+                            )}
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${t.inStock ? "bg-green-500/10 text-green-500" : "bg-amber-500/10 text-amber-500"}`}>
+                              {t.inStock ? "In stock" : "Available to order"}{t.estimatedDelivery ? ` · ${t.estimatedDelivery}` : ""}
+                            </span>
+                          </div>
                         </div>
-                        <ShieldCheck className="h-6 w-6 text-primary" />
+                        <ShieldCheck className="h-6 w-6 text-primary shrink-0" />
                       </div>
                       <div className="mt-5 flex items-end justify-between">
                         <div>
