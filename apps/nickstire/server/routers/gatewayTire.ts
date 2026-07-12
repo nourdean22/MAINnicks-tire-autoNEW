@@ -17,6 +17,7 @@ import { notifyTireOrder } from "../email-notify";
 import { getNextInvoiceNumber, createInvoice } from "../db";
 import { syncInvoiceToSheet, syncTireOrderToSheet } from "../sheets-sync";
 import {
+  deriveExpectedPriceCents,
   evaluateOrderPrice,
   getIdempotencyKey,
   generateOrderNumber,
@@ -532,34 +533,24 @@ export const gatewayTireRouter = router({
       let expectedPriceCents: number | null = null;
 
       // wave-d-2026-07-12 (order-path audit, CONFIRMED order-blocking) ·
-      // the feed carries the SAME brand+model in multiple variants
-      // (speed rating / load index) at different prices, each rendered as
-      // its own card — but the order payload carries only brand+model, so
-      // a first-match .find() here re-derived a possibly DIFFERENT
-      // variant's price. Customer picks the cheaper variant → guard sees
-      // the pricier first-match as "expected" → legit order rejected as
-      // "Price has changed". Fix: take the MINIMUM expected price across
-      // ALL matching variants. The security property is intact — a
-      // manipulated price must still clear 95% of the CHEAPEST real
-      // variant — and no real variant the customer saw can be below it.
+      // selection policy = MINIMUM across all brand+model variant matches
+      // — the why + the matching semantics live with the unit-tested
+      // helper (deriveExpectedPriceCents in ../lib/tire-order-guards).
+      // Note the deliberate asymmetry the router has always had: the
+      // cache path strips a leading "BRAND - " prefix off the model
+      // before matching; the live path matches the model as sent.
 
       // Try cache first (populated by daily cron, no live Gateway hit)
       try {
         const { getCachedPrices } = await import("../services/dataPipelines");
         const cached = getCachedPrices(sizeCleanForLookup);
         if (cached) {
-          const inputBrandUpper = input.tireBrand.toUpperCase();
-          const inputModelUpper = input.tireModel.toUpperCase().replace(/^[A-Z]+\s*-\s*/, "");
-          const costs = cached
-            .filter(t =>
-              t.brand.toUpperCase() === inputBrandUpper &&
-              t.model.toUpperCase().includes(inputModelUpper) &&
-              t.wholesaleCost > 0)
-            .map(t => t.wholesaleCost);
-          if (costs.length > 0) {
-            const shopPrice = Math.ceil(Math.min(...costs) * (1 + markup / 100) * 100) / 100;
-            expectedPriceCents = Math.round(shopPrice * 100);
-          }
+          expectedPriceCents = deriveExpectedPriceCents(
+            cached.map(t => ({ brand: t.brand, model: t.model, cost: t.wholesaleCost })),
+            input.tireBrand,
+            input.tireModel.toUpperCase().replace(/^[A-Z]+\s*-\s*/, ""),
+            markup,
+          );
         }
       } catch (e) {
         log.warn("[placeOrder:price-derive] cache lookup failed:", e instanceof Error ? e.message : e);
@@ -573,18 +564,16 @@ export const gatewayTireRouter = router({
             : input.tireSize;
           const rawTires = await gatewaySearchTires(sizeFormattedForLookup);
           if (rawTires) {
-            const inputBrandUpper = input.tireBrand.toUpperCase();
-            const inputModelUpper = input.tireModel.toUpperCase();
-            const costs = rawTires
-              .filter(item =>
-                String(item.make || "").toUpperCase() === inputBrandUpper &&
-                String(item.minor_name || "").toUpperCase().includes(inputModelUpper))
-              .map(item => pickWholesaleCost(item))
-              .filter(cost => cost > 0);
-            if (costs.length > 0) {
-              const shopPrice = Math.ceil(Math.min(...costs) * (1 + markup / 100) * 100) / 100;
-              expectedPriceCents = Math.round(shopPrice * 100);
-            }
+            expectedPriceCents = deriveExpectedPriceCents(
+              rawTires.map(item => ({
+                brand: String(item.make || ""),
+                model: String(item.minor_name || ""),
+                cost: pickWholesaleCost(item),
+              })),
+              input.tireBrand,
+              input.tireModel,
+              markup,
+            );
           }
         } catch (e) {
           log.warn("[placeOrder:price-derive] live Gateway lookup failed:", e instanceof Error ? e.message : e);

@@ -13,6 +13,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  deriveExpectedPriceCents,
   evaluateOrderPrice,
   getIdempotencyKey,
   generateOrderNumber,
@@ -27,6 +28,89 @@ import {
   isMissingSheetTabError,
 } from "./sheets-sync";
 import { classifyStripeHealth } from "./services/payments";
+
+// ─── Expected-price derivation (wave-d variant-minimum policy) ──
+//
+// Pins the selection policy extracted from placeOrder: the same
+// brand+model ships in multiple speed/load variants at different
+// prices, and the expected price MUST be the cheapest matching
+// variant's derived price — a first-match policy false-rejected legit
+// cheaper-variant orders as "Price has changed" (confirmed
+// order-blocking in the 2026-07-12 tires audit).
+describe("deriveExpectedPriceCents", () => {
+  // cost 100 @ 100% markup → shopPrice 200.00 → 20000 cents
+  const MARKUP = 100;
+
+  it("multi-variant same brand+model → expected = CHEAPEST variant's derived price", () => {
+    const candidates = [
+      { brand: "LANDSAIL", model: "LS588 (XL 94W)", cost: 120 }, // pricier variant listed FIRST (raw feed order)
+      { brand: "LANDSAIL", model: "LS588 (91V)", cost: 100 },
+      { brand: "LANDSAIL", model: "LS588 (XL 98Y)", cost: 140 },
+    ];
+    expect(deriveExpectedPriceCents(candidates, "Landsail", "LS588", MARKUP)).toBe(20000);
+  });
+
+  it("the cheapest-variant expected price ACCEPTS every variant the customer could have picked", () => {
+    const candidates = [
+      { brand: "KENDA", model: "KR217 (H)", cost: 120 },
+      { brand: "KENDA", model: "KR217 (V)", cost: 100 },
+    ];
+    const expected = deriveExpectedPriceCents(candidates, "KENDA", "KR217", MARKUP)!;
+    // Cheap variant sells at 20000¢, pricey at 24000¢ — both must pass.
+    expect(evaluateOrderPrice(20000, expected)).toEqual({ ok: true, basis: "expected" });
+    expect(evaluateOrderPrice(24000, expected)).toEqual({ ok: true, basis: "expected" });
+    // The pay-a-penny exploit still dies.
+    expect(evaluateOrderPrice(100, expected)).toEqual({ ok: false, reason: "below-expected" });
+  });
+
+  it("brand mismatch → null (never anchors on another brand's price)", () => {
+    const candidates = [{ brand: "MICHELIN", model: "DEFENDER", cost: 150 }];
+    expect(deriveExpectedPriceCents(candidates, "Kenda", "DEFENDER", MARKUP)).toBeNull();
+  });
+
+  it("zero/negative costs are ignored; all-invalid → null", () => {
+    expect(deriveExpectedPriceCents(
+      [
+        { brand: "KENDA", model: "KR217", cost: 0 },   // D&K pricing absent
+        { brand: "KENDA", model: "KR217", cost: -5 },
+        { brand: "KENDA", model: "KR217", cost: 100 }, // only valid row wins
+      ],
+      "KENDA", "KR217", MARKUP,
+    )).toBe(20000);
+    expect(deriveExpectedPriceCents(
+      [{ brand: "KENDA", model: "KR217", cost: 0 }],
+      "KENDA", "KR217", MARKUP,
+    )).toBeNull();
+  });
+
+  it("model matches as a case-insensitive SUBSTRING (prefix-stripped input form supported)", () => {
+    const candidates = [{ brand: "DUNLOP", model: "SP - Touring A/S", cost: 100 }];
+    // The cache path strips a leading "BRAND - " off the INPUT model;
+    // includes() still matches it against the full feed model string.
+    expect(deriveExpectedPriceCents(candidates, "dunlop", "TOURING A/S", MARKUP)).toBe(20000);
+    // Full model string matches too.
+    expect(deriveExpectedPriceCents(candidates, "DUNLOP", "sp - touring a/s", MARKUP)).toBe(20000);
+    // A different model does not.
+    expect(deriveExpectedPriceCents(candidates, "DUNLOP", "GRANDTREK", MARKUP)).toBeNull();
+  });
+
+  it("empty candidate list → null (caller falls back to the absolute floor)", () => {
+    expect(deriveExpectedPriceCents([], "KENDA", "KR217", MARKUP)).toBeNull();
+  });
+
+  it("price math mirrors publicSearch: ceil to cents before converting", () => {
+    // 96.505 × 2 = 193.01 → ceil(19301)/100 = 193.01 → 19301 cents
+    expect(deriveExpectedPriceCents(
+      [{ brand: "A", model: "B", cost: 96.505 }],
+      "A", "B", MARKUP,
+    )).toBe(19301);
+    // 33.334 @ 50% markup → 50.001 → ceil → 50.01 → 5001 cents
+    expect(deriveExpectedPriceCents(
+      [{ brand: "A", model: "B", cost: 33.334 }],
+      "A", "B", 50,
+    )).toBe(5001);
+  });
+});
 
 // ─── Price guard ─────────────────────────────────────────────
 describe("evaluateOrderPrice", () => {
