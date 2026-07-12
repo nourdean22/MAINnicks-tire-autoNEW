@@ -37,6 +37,13 @@ export interface PerplexicaOptions {
 // Model keys are stable across resets (unlike provider UUIDs); overridable.
 const CHAT_MODEL_KEY = process.env.PERPLEXICA_CHAT_MODEL || "models/gemini-2.5-flash";
 const EMBED_MODEL_KEY = process.env.PERPLEXICA_EMBED_MODEL || "Xenova/all-MiniLM-L6-v2";
+// 2026-07-12 · which provider TYPE carries the chat model. Prod switched
+// synthesis Gemini → Ollama Cloud (registered in Perplexica as an "openai"
+// provider at https://ollama.com/v1) after the Gemini key hit its monthly
+// spending cap and hung every search. Env-driven so flipping back when the
+// cap resets is a Railway var change, not a deploy:
+//   PERPLEXICA_CHAT_PROVIDER=openai + PERPLEXICA_CHAT_MODEL=gpt-oss:120b
+const CHAT_PROVIDER_TYPE = process.env.PERPLEXICA_CHAT_PROVIDER || "gemini";
 
 // AG-16 · prod sets PERPLEXICA_MCP_URL (the MCP wrapper endpoint) but not
 // PERPLEXICA_API_URL, which silently excluded the free self-hosted source
@@ -82,6 +89,7 @@ async function resolveProviderIds(): Promise<ProviderIds> {
   const providers = cfg.values?.modelProviders ?? [];
 
   const chat =
+    providers.find((p) => p.type === CHAT_PROVIDER_TYPE) ??
     providers.find((p) => p.type === "gemini") ??
     providers.find((p) => (p.chatModels?.length ?? 0) > 0);
   const embed =

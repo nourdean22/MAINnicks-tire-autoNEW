@@ -75,6 +75,54 @@ describe("askPerplexica", () => {
     ]);
   });
 
+  it("PERPLEXICA_CHAT_PROVIDER selects the provider type (Ollama-Cloud-as-openai switch)", async () => {
+    // 2026-07-12 · prod synthesis moved Gemini → Ollama Cloud (registered in
+    // Perplexica as an "openai" provider) after the Gemini spending-cap 429
+    // hung every search. The env pair below is exactly what Railway sets.
+    vi.stubEnv("PERPLEXICA_CHAT_PROVIDER", "openai");
+    vi.stubEnv("PERPLEXICA_CHAT_MODEL", "gpt-oss:120b");
+    const seen: any = {};
+    global.fetch = vi.fn(async (url: any, init?: any) => {
+      const u = String(url);
+      if (u.endsWith("/api/config"))
+        return new Response(
+          JSON.stringify({
+            values: {
+              modelProviders: [
+                { id: "gem-1", type: "gemini", chatModels: [{ key: "models/gemini-2.5-flash" }], embeddingModels: [] },
+                { id: "oll-1", type: "openai", chatModels: [{ key: "gpt-oss:120b" }], embeddingModels: [] },
+                { id: "tf-1", type: "transformers", chatModels: [], embeddingModels: [{ key: "Xenova/all-MiniLM-L6-v2" }] },
+              ],
+            },
+          }),
+          { status: 200 },
+        );
+      seen.body = JSON.parse(init.body);
+      return new Response(JSON.stringify({ message: "ok", sources: [] }), { status: 200 });
+    }) as any;
+
+    const { askPerplexica } = await import("@/lib/integrations/perplexica");
+    await askPerplexica("q");
+
+    expect(seen.body.chatModel.providerId).toBe("oll-1"); // NOT gem-1
+    expect(seen.body.chatModel.key).toBe("gpt-oss:120b");
+    expect(seen.body.embeddingModel.providerId).toBe("tf-1");
+  });
+
+  it("falls back to gemini when the env-named provider type is absent", async () => {
+    vi.stubEnv("PERPLEXICA_CHAT_PROVIDER", "openai"); // not in config below
+    const seen: any = {};
+    global.fetch = vi.fn(async (url: any, init?: any) => {
+      if (String(url).endsWith("/api/config")) return configResponse(); // gemini + transformers only
+      seen.body = JSON.parse(init.body);
+      return new Response(JSON.stringify({ message: "ok", sources: [] }), { status: 200 });
+    }) as any;
+
+    const { askPerplexica } = await import("@/lib/integrations/perplexica");
+    await askPerplexica("q");
+    expect(seen.body.chatModel.providerId).toBe("gem-1");
+  });
+
   it("throws (guardian-catchable) on an upstream non-2xx", async () => {
     global.fetch = vi.fn(async (url: any) => {
       if (String(url).endsWith("/api/config")) return configResponse();
