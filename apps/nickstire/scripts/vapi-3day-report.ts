@@ -7,6 +7,7 @@ import { gte, and, like, sql } from "drizzle-orm";
 
 // Load from apps/nickstire/.env and also monorepo root .env
 dotenv.config();
+dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 
 const VAPI_KEY = process.env.VAPI_API_KEY;

@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import { resolve } from "path";
 import mysql from "mysql2/promise";
 
+dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 
 const conn = await mysql.createConnection(process.env.DATABASE_URL!);

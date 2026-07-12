@@ -20,6 +20,7 @@ import { join, resolve } from "path";
 import mysql from "mysql2/promise";
 
 // Load root .env (two levels up from apps/nickstire)
+dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 
 const ROOT = process.cwd();
