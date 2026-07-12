@@ -76,6 +76,18 @@ When bringing the Railway service online or resetting a machine:
    STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
    NEXT_PUBLIC_APP_URL
    ```
+   AI provider + tool config (names only — VALUES are the source of truth in
+   `config/ai-providers.ts`, do not pin model ids in docs):
+   ```
+   COHERE_API_KEY            embeddings (recall) — Cohere embed-v4.0, 1024-dim
+   OPENAI_API_KEY            voice realtime (GA /v1/realtime/client_secrets) + embed fallback
+   OLLAMA_MODEL              Ollama Cloud chat/reason lane model id
+   OLLAMA_FAST_MODEL         Ollama Cloud fast lane (classify/extract/summary/sql)
+   OLLAMA_VISION_MODEL       Ollama Cloud vision model (image chat turns)
+   PERPLEXICA_CHAT_PROVIDER  perplexica synthesis provider type (openai|gemini)
+   PERPLEXICA_CHAT_MODEL     perplexica synthesis model id
+   GITHUB_TOKEN              Files (GitHub) tool — fine-grained, Contents: Read-only
+   ```
 3. **Platform-set** (Railway/Node supplies automatically — never hand-set):
    ```
    NODE_ENV, RAILWAY_ENVIRONMENT, RAILWAY_GIT_COMMIT_SHA
