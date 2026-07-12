@@ -1,0 +1,22 @@
+-- 2026-07-12 · corrects 0062_search_performance_dedupe.sql
+--
+-- The read-only probe (scripts/diagnostics/gsc-index-probe.ts) confirmed
+-- BOTH the narrow key (date, query, page) and the wide key
+-- (date, query, page, device, country, searchType) are live simultaneously
+-- on search_performance in production. Because MySQL/TiDB enforce every
+-- unique key on a table concurrently, the narrow key has been silently
+-- collapsing device/country/searchType breakdowns on EVERY write since it
+-- was created — not only on admin "Run migrations" clicks, but on every
+-- ordinary GSC sync upsert (syncSearchPerformance's onDuplicateKeyUpdate)
+-- as well. This is ongoing data loss, not a one-time historical event.
+--
+-- This migration removes only the narrow key. The wide key already exists
+-- and needs no action. Dropping a key does not delete any rows — existing
+-- collapsed history is NOT recoverable by this migration (that data was
+-- already lost at write time); this only stops further collapse going
+-- forward.
+--
+-- Idempotent: DROP KEY on a key that doesn't exist throws
+-- ER_CANT_DROP_FIELD_OR_KEY, safe to ignore on rerun.
+
+ALTER TABLE search_performance DROP KEY uq_search_perf_date_query_page;
