@@ -531,6 +531,18 @@ export const gatewayTireRouter = router({
       const sizeCleanForLookup = input.tireSize.replace(/[\/Rr\s-]/g, "");
       let expectedPriceCents: number | null = null;
 
+      // wave-d-2026-07-12 (order-path audit, CONFIRMED order-blocking) ·
+      // the feed carries the SAME brand+model in multiple variants
+      // (speed rating / load index) at different prices, each rendered as
+      // its own card — but the order payload carries only brand+model, so
+      // a first-match .find() here re-derived a possibly DIFFERENT
+      // variant's price. Customer picks the cheaper variant → guard sees
+      // the pricier first-match as "expected" → legit order rejected as
+      // "Price has changed". Fix: take the MINIMUM expected price across
+      // ALL matching variants. The security property is intact — a
+      // manipulated price must still clear 95% of the CHEAPEST real
+      // variant — and no real variant the customer saw can be below it.
+
       // Try cache first (populated by daily cron, no live Gateway hit)
       try {
         const { getCachedPrices } = await import("../services/dataPipelines");
@@ -538,12 +550,14 @@ export const gatewayTireRouter = router({
         if (cached) {
           const inputBrandUpper = input.tireBrand.toUpperCase();
           const inputModelUpper = input.tireModel.toUpperCase().replace(/^[A-Z]+\s*-\s*/, "");
-          const match = cached.find(t =>
-            t.brand.toUpperCase() === inputBrandUpper &&
-            t.model.toUpperCase().includes(inputModelUpper)
-          );
-          if (match && match.wholesaleCost > 0) {
-            const shopPrice = Math.ceil(match.wholesaleCost * (1 + markup / 100) * 100) / 100;
+          const costs = cached
+            .filter(t =>
+              t.brand.toUpperCase() === inputBrandUpper &&
+              t.model.toUpperCase().includes(inputModelUpper) &&
+              t.wholesaleCost > 0)
+            .map(t => t.wholesaleCost);
+          if (costs.length > 0) {
+            const shopPrice = Math.ceil(Math.min(...costs) * (1 + markup / 100) * 100) / 100;
             expectedPriceCents = Math.round(shopPrice * 100);
           }
         }
@@ -561,16 +575,15 @@ export const gatewayTireRouter = router({
           if (rawTires) {
             const inputBrandUpper = input.tireBrand.toUpperCase();
             const inputModelUpper = input.tireModel.toUpperCase();
-            const match = rawTires.find(item =>
-              String(item.make || "").toUpperCase() === inputBrandUpper &&
-              String(item.minor_name || "").toUpperCase().includes(inputModelUpper)
-            );
-            if (match) {
-              const cost = pickWholesaleCost(match);
-              if (cost > 0) {
-                const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;
-                expectedPriceCents = Math.round(shopPrice * 100);
-              }
+            const costs = rawTires
+              .filter(item =>
+                String(item.make || "").toUpperCase() === inputBrandUpper &&
+                String(item.minor_name || "").toUpperCase().includes(inputModelUpper))
+              .map(item => pickWholesaleCost(item))
+              .filter(cost => cost > 0);
+            if (costs.length > 0) {
+              const shopPrice = Math.ceil(Math.min(...costs) * (1 + markup / 100) * 100) / 100;
+              expectedPriceCents = Math.round(shopPrice * 100);
             }
           }
         } catch (e) {
