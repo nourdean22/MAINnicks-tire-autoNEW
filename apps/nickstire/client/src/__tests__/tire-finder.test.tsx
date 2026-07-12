@@ -160,7 +160,9 @@ describe("Ezytire Environment Variables", () => {
     vi.stubEnv("VITE_EZYTIRE_BASE_URL", "");
     vi.stubEnv("PROD", true as any);
 
-    const { default: TireFinder } = await import("@/pages/TireFinder");
+    // Legacy-only behavior (tabs / Ezytire widget) — assert against the
+    // rollback component directly; production ships V2 (see TireFinderV2.test).
+    const { default: TireFinder } = await import("@/pages/TireFinderLegacy");
     render(React.createElement(TireFinder));
 
     // The tab switcher shouldn't render, and the vehicle tab shouldn't exist
@@ -174,7 +176,7 @@ describe("Ezytire Environment Variables", () => {
     vi.stubEnv("VITE_EZYTIRE_BASE_URL", "test.ezytiredemo.com");
     vi.stubEnv("PROD", true as any);
 
-    const { default: TireFinder } = await import("@/pages/TireFinder");
+    const { default: TireFinder } = await import("@/pages/TireFinderLegacy");
     render(React.createElement(TireFinder));
 
     // The tab switcher should render all tabs
@@ -237,7 +239,8 @@ describe("TireFinder URL Sync & Duplication Guard", () => {
     // Stage URL with a duplicated size param
     window.history.pushState({}, "", "/tires?size=215/60R16215/60R16");
 
-    const { default: TireFinder } = await import("../pages/TireFinder");
+    // URL self-concat cleanup is a legacy-page behavior; assert on Legacy.
+    const { default: TireFinder } = await import("../pages/TireFinderLegacy");
     render(React.createElement(TireFinder));
 
     const input = screen.getByLabelText("Search tire size") as HTMLInputElement;
@@ -251,7 +254,7 @@ describe("TireFinder URL Sync & Duplication Guard", () => {
     // Stage URL with double query param pattern
     window.history.pushState({}, "", "/tires?size=215/60R16?size=215/60R16");
 
-    const { default: TireFinder } = await import("../pages/TireFinder");
+    const { default: TireFinder } = await import("../pages/TireFinderLegacy");
     render(React.createElement(TireFinder));
 
     const input = screen.getByLabelText("Search tire size") as HTMLInputElement;
