@@ -999,6 +999,21 @@ export const operatorRouter = router({
         personaKey: input.personaKey,
       });
 
+      // 2026-07-12 · guard: if the model asked the operator for missing
+      // input instead of producing a post ("Please share the URL…"), do
+      // NOT persist it as a publishable draft — that landed a clarifying
+      // question in the SocialPublishQueue as a pending post (one such row
+      // sat in prod 2026-07-05 → -12). Surface it back to the operator.
+      if (ghost.needsClarification) {
+        return {
+          content: ghost.text,
+          provider: ghost.provider,
+          needsClarification: true as const,
+          draftId: undefined,
+          draftKey: undefined,
+        };
+      }
+
       const { createDraft } = await import("@/lib/content/drafts");
       const draft = await createDraft({
         content: ghost.text,
@@ -1016,6 +1031,7 @@ export const operatorRouter = router({
       return {
         content: ghost.text,
         provider: ghost.provider,
+        needsClarification: false as const,
         draftId: draft.id,
         draftKey: draft.key,
       };
@@ -1045,12 +1061,30 @@ export const operatorRouter = router({
         : `Revise this draft — tighter, more specific, same substance.\n\nDRAFT:\n${draft.content}`;
       const ghost = await ghostwrite({ brief, channel: "social" });
 
+      // 2026-07-12 · if the revision came back as a request for input
+      // rather than revised copy, leave the existing draft untouched —
+      // overwriting it with a clarifying question would destroy the
+      // operator's draft. Surface the question instead.
+      if (ghost.needsClarification) {
+        return {
+          content: ghost.text,
+          score: ghost.score,
+          draftKey: input.draftKey,
+          needsClarification: true as const,
+        };
+      }
+
       const updated = await updateDraftContent(input.draftKey, ghost.text, {
         criticScore: ghost.score,
         regenApplied: true,
         revisedAt: new Date().toISOString(),
       });
-      return { content: ghost.text, score: ghost.score, draftKey: updated?.key ?? input.draftKey };
+      return {
+        content: ghost.text,
+        score: ghost.score,
+        draftKey: updated?.key ?? input.draftKey,
+        needsClarification: false as const,
+      };
     }),
 
   getMarketingPersonas: operatorProcedure

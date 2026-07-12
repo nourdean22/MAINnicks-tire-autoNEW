@@ -109,6 +109,49 @@ export interface GhostwriteResult {
   offenders: string[];
   regenApplied: boolean;
   provider: string;
+  /** 2026-07-12 · the model REFUSED to write copy and instead asked the
+   *  operator for missing input ("Please share the URL…"). Callers MUST
+   *  NOT persist such output as a publishable draft — surface it back to
+   *  the operator as a clarification instead. See
+   *  {@link looksLikeClarifyingQuestion}. */
+  needsClarification: boolean;
+}
+
+/**
+ * Detect when ghostwriter output is an operator-directed request for
+ * missing input rather than the requested copy — e.g. "Please share the
+ * website URL you'd like to transform…". Such output used to be persisted
+ * verbatim into the SocialPublishQueue as a pending "post"; one such row
+ * sat in prod for a week (2026-07-05 → -12), and after drafts started
+ * defaulting to `platforms:["instagram"]` a clarifying question could
+ * actually be approved and POSTED.
+ *
+ * Conservative by construction: it screens only shorter outputs and
+ * matches explicit "asking the operator to provide X to proceed" phrases,
+ * NOT rhetorical questions or CTAs that legitimately appear inside copy
+ * ("Ready for winter? Book today."). A false negative just restores the
+ * prior behaviour; a false positive only re-prompts the operator.
+ */
+export function looksLikeClarifyingQuestion(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  // Real posts/emails run long; an input-request is short and unresolved.
+  if (t.length > 600) return false;
+  const lower = t.toLowerCase();
+  const REQUEST_PATTERNS: RegExp[] = [
+    /\bplease (share|provide|send|give me|specify|confirm|clarify)\b/,
+    /\bcould you (please )?(share|provide|send|tell me|specify|clarify|let me know|confirm)\b/,
+    /\bcan you (share|provide|send|tell me|specify|clarify)\b/,
+    /\b(share|send|provide) (me )?the (url|link|website|details|topic|product|brief)\b/,
+    /\bwhich (url|link|website|product|service|topic|brief)\b/,
+    /\bwhat(?:'s| is| are)? the (url|link|website|topic|product|details)\b/,
+    /\bto get started[, ]/,
+    /\bbefore i (can|start|begin)\b/,
+    /\bi(?:'|’)?ll need (you|to know|the)\b/,
+    /\bi need (you to|to know|the url|the link|more)\b/,
+    /\blet me know (the|which|what|your)\b/,
+  ];
+  return REQUEST_PATTERNS.some((re) => re.test(lower));
 }
 
 const ghostChat = makeTracedAiChat("ghostwriter", "brain");
@@ -190,6 +233,7 @@ OUTPUT: the draft only — no preamble, no options unless the brief asks, no met
         ],
         regenApplied: true,
         provider: regen.provider,
+        needsClarification: looksLikeClarifyingQuestion(text),
       };
     }
   }
@@ -202,5 +246,6 @@ OUTPUT: the draft only — no preamble, no options unless the brief asks, no met
       : [],
     regenApplied: false,
     provider: result.provider,
+    needsClarification: looksLikeClarifyingQuestion(text),
   };
 }

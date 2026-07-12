@@ -34,7 +34,11 @@ vi.mock("@/lib/ai/content-feedback", () => ({
   buildFeedbackPromptBlock: vi.fn().mockReturnValue(""),
 }));
 
-import { ghostwrite, buildGhostVoicePrompt } from "@/lib/ai/ghostwriter";
+import {
+  ghostwrite,
+  buildGhostVoicePrompt,
+  looksLikeClarifyingQuestion,
+} from "@/lib/ai/ghostwriter";
 
 const GENERIC_DRAFT =
   "Certainly! We are excited to elevate your experience and leverage our world-class solutions. I hope this helps — feel free to reach out and we look forward to seeing you!";
@@ -115,6 +119,48 @@ describe("ghostwrite", () => {
     expect(out.score).toBeNull();
     expect(out.regenApplied).toBe(false);
     expect(out.text).toBe(SPECIFIC_DRAFT);
+  });
+});
+
+describe("looksLikeClarifyingQuestion", () => {
+  // The exact string that sat in prod SocialPublishQueue as a pending
+  // "post" from 2026-07-05 → -12 (source assistant-marketing-carousel-
+  // growth-engine). This is the regression this guard exists to catch.
+  const PROD_GARBAGE =
+    "Hello! Please share the website URL you’d like to transform into a TikTok/Instagram carousel, and I’ll start the autonomous research, generation, and publishing loop for you.";
+
+  it("flags the real prod clarifying-question row", () => {
+    expect(looksLikeClarifyingQuestion(PROD_GARBAGE)).toBe(true);
+  });
+
+  it.each([
+    "Could you tell me which website you'd like me to analyze?",
+    "To get started, send me the product URL and target audience.",
+    "I'll need the link before I can build the carousel.",
+    "What's the URL you want me to work from?",
+  ])("flags operator-directed input requests: %s", (s) => {
+    expect(looksLikeClarifyingQuestion(s)).toBe(true);
+  });
+
+  it.each([
+    "Ready for winter? Book your appointment today and lock in 20% off before Friday.",
+    "Fleet quote is ready: 8 Firestone Destinations at $178 each, out the door by 4pm. Call Mike before 2pm. — Nick's",
+    "Which tire fits your ride? We'll match it in 15 minutes flat. Swing by the shop.",
+    "Questions about your brakes? We check them free with any rotation. — Nick's Tire",
+  ])("does NOT flag real copy with rhetorical questions / CTAs: %s", (s) => {
+    expect(looksLikeClarifyingQuestion(s)).toBe(false);
+  });
+
+  it("does not flag empty or long-form output", () => {
+    expect(looksLikeClarifyingQuestion("")).toBe(false);
+    expect(looksLikeClarifyingQuestion("   ")).toBe(false);
+    // A long email that happens to contain "let me know if" is not a
+    // request-to-proceed (and exceeds the length screen anyway).
+    const longEmail =
+      "Hi there, thanks for stopping by the shop last week. " +
+      "x".repeat(650) +
+      " Let me know if you have any questions.";
+    expect(looksLikeClarifyingQuestion(longEmail)).toBe(false);
   });
 });
 

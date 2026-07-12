@@ -34,7 +34,13 @@ export function AssistantTab() {
       });
       setOutput(res.content);
       setProviderInfo(res.provider || "LLM Engine");
-      toast.success("Content generated successfully!");
+      if (res.needsClarification) {
+        // The agent asked for more input instead of producing a post — it
+        // was NOT queued as a draft. Tell the operator to refine the brief.
+        toast.info("The agent needs more detail — refine your prompt and generate again.");
+      } else {
+        toast.success("Content generated successfully!");
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to generate content");
     }

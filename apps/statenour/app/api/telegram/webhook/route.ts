@@ -892,6 +892,18 @@ async function cmdDraft(args: string[], chatId: string): Promise<void> {
   try {
     const { ghostwrite } = await import("@/lib/ai/ghostwriter");
     const ghost = await ghostwrite({ brief, channel });
+
+    // 2026-07-12 · if the model asked for more input instead of drafting
+    // ("Please share the URL…"), don't queue the question as a pending
+    // post — send it back to the operator to answer.
+    if (ghost.needsClarification) {
+      await sendTelegram(
+        `🤔 Need more to draft this:\n\n${ghost.text.slice(0, 3400)}\n\n<i>Reply with /draft ${channel} [fuller brief].</i>`,
+        chatId
+      );
+      return;
+    }
+
     const { createDraft } = await import("@/lib/content/drafts");
     const draft = await createDraft({
       content: ghost.text,
