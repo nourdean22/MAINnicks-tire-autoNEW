@@ -77,7 +77,13 @@ export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: nu
       // already out of the 'new' pool, so the next 2-hourly run won't
       // re-text it. The conditional WHERE makes overlapping runs safe.
       const claimRes = await db.update(leads)
-        .set({ status: "contacted" })
+        // Stamp the contacted flag + timestamps alongside the status flip so
+        // the row doesn't sit `status="contacted", contacted=0, contactedAt=null`
+        // (breaks time-to-contact analytics + the admin "No follow-up recorded"
+        // badge). This IS the contact event — an automated speed-to-lead
+        // follow-up text — so contactedAt = now. contactedBy stays null, the
+        // honest signal that no human has reached out yet.
+        .set({ status: "contacted", contacted: 1, contactedAt: new Date(), lastFollowUpAt: new Date() })
         .where(and(eq(leads.id, lead.id), eq(leads.status, "new")));
       if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
         continue; // already claimed by an overlapping run
