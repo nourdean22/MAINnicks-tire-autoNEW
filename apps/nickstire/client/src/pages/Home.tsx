@@ -29,6 +29,7 @@
  *     qualifier and drops "pay only when satisfied".
  */
 
+import { useMemo } from "react";
 import { Link } from "wouter";
 import BookingForm from "@/components/BookingForm";
 import PageLayout from "@/components/PageLayout";
@@ -50,6 +51,12 @@ import { useWeatherCTA } from "@/hooks/useWeatherCTA";
 import { useConversionTracking } from "@/hooks/useConversionTracking";
 import LeadPopup from "@/components/LeadPopup";
 import DropOffRequestCard from "@/components/DropOffRequestCard";
+import { getUtmData } from "@/lib/utm";
+import {
+  deriveHeroPersonalization,
+  DEFAULT_HERO_PERSONALIZATION,
+  type HeroPersonalization,
+} from "@/lib/heroPersonalization";
 
 // Photo pack — same assets/tuning as HomeLegacy (see its comments for the
 // full placement-guide history).
@@ -68,46 +75,87 @@ interface HomeReviewData {
 //
 // Four lanes, one visual winner. Every visitor lands with one of four
 // intents; each tile is the shortest path to COMPLETING that intent.
-// The tires lane is primary (highest-revenue intent + the funnel the
-// live data shows is entry-starved). Event names keep continuity with
-// the pre-V2 taxonomy (tire_quote_cta_click / booking_cta_click) so
-// the customer_events baseline stays comparable.
-function IntentRouter() {
+// The tires lane is primary by default (highest-revenue intent + the
+// funnel the live data shows is entry-starved). Wave C: brake-campaign
+// traffic gets a brakes primary instead — the tires lane then rides the
+// first secondary slot (it never disappears). Event names keep
+// continuity with the pre-V2 taxonomy (tire_quote_cta_click /
+// booking_cta_click) so the customer_events baseline stays comparable.
+const PRIMARY_LANE_CLASS =
+  "group sm:col-span-2 flex items-center justify-between bg-nick-yellow text-nick-dark rounded-xl px-6 py-4 shadow-[0_4px_24px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:shadow-[0_6px_32px_rgba(253,185,19,0.55)] active:scale-[0.98]";
+const SECONDARY_LANE_CLASS =
+  "group flex items-center gap-3 rounded-xl border border-white/15 bg-[#0C0F14]/75 backdrop-blur-md px-4 py-3.5 text-left transition-colors hover:border-nick-yellow/50";
+
+function PrimaryLane({ href, onClick, ariaLabel, heading, sub }: {
+  href: string; onClick: () => void; ariaLabel: string; heading: string; sub: string;
+}) {
+  return (
+    <Link href={href} onClick={onClick} className={PRIMARY_LANE_CLASS} aria-label={ariaLabel}>
+      <span>
+        <span className="block font-heading font-extrabold text-xl uppercase tracking-tight">{heading}</span>
+        <span className="block text-sm font-medium text-nick-dark/70">{sub}</span>
+      </span>
+      <span className="ml-4 inline-flex items-center justify-center w-10 h-10 rounded-lg bg-black/12 shrink-0 transition-all duration-500 group-hover:translate-x-1 group-hover:bg-black/16">
+        <ArrowRight className="w-5 h-5" />
+      </span>
+    </Link>
+  );
+}
+
+function IntentRouter({ personalization }: { personalization: HeroPersonalization }) {
+  const brakesLead = personalization.leadIntent === "brakes";
   return (
     <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl motion-safe:animate-[fadeInUp_0.6s_ease-out_0.6s_both]">
-      {/* PRIMARY — buy tires */}
-      <Link
-        href="/tires"
-        onClick={() => trackEvent("tire_quote_cta_click", { source: "hero-router" })}
-        className="group sm:col-span-2 flex items-center justify-between bg-nick-yellow text-nick-dark rounded-xl px-6 py-4 shadow-[0_4px_24px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:shadow-[0_6px_32px_rgba(253,185,19,0.55)] active:scale-[0.98]"
-        aria-label="Find and order tires by size"
-      >
-        <span>
-          <span className="block font-heading font-extrabold text-xl uppercase tracking-tight">Get tires now</span>
-          <span className="block text-sm font-medium text-nick-dark/70">Search your size · see installed prices · request online</span>
-        </span>
-        <span className="ml-4 inline-flex items-center justify-center w-10 h-10 rounded-lg bg-black/12 shrink-0 transition-all duration-500 group-hover:translate-x-1 group-hover:bg-black/16">
-          <ArrowRight className="w-5 h-5" />
-        </span>
-      </Link>
-      {/* Something's wrong */}
-      <Link
-        href="/diagnose"
-        onClick={() => trackEvent("diagnose_cta_click", { source: "hero-router" })}
-        className="group flex items-center gap-3 rounded-xl border border-white/15 bg-[#0C0F14]/75 backdrop-blur-md px-4 py-3.5 text-left transition-colors hover:border-nick-yellow/50"
-        aria-label="Describe a symptom and get an answer"
-      >
-        <Activity className="w-5 h-5 text-nick-yellow shrink-0" />
-        <span>
-          <span className="block font-bold text-sm text-[#F5F5F5]">Something's wrong</span>
-          <span className="block text-xs text-[#A0A0A0]">Describe it — free check, written quote first</span>
-        </span>
-      </Link>
+      {brakesLead ? (
+        <PrimaryLane
+          href="/brakes"
+          onClick={() => trackEvent("brake_cta_click", { source: "hero-router-personalized" })}
+          ariaLabel="Get a free brake check"
+          heading="Brake check today"
+          sub="Free check · see the worn part yourself · written quote first"
+        />
+      ) : (
+        <PrimaryLane
+          href="/tires"
+          onClick={() => trackEvent("tire_quote_cta_click", { source: "hero-router" })}
+          ariaLabel="Find and order tires by size"
+          heading="Get tires now"
+          sub="Search your size · see installed prices · request online"
+        />
+      )}
+      {/* Secondary slot 1 — tires (when brakes leads) or diagnose */}
+      {brakesLead ? (
+        <Link
+          href="/tires"
+          onClick={() => trackEvent("tire_quote_cta_click", { source: "hero-router-secondary" })}
+          className={SECONDARY_LANE_CLASS}
+          aria-label="Find and order tires by size"
+        >
+          <Wrench className="w-5 h-5 text-nick-yellow shrink-0" />
+          <span>
+            <span className="block font-bold text-sm text-[#F5F5F5]">Need tires too?</span>
+            <span className="block text-xs text-[#A0A0A0]">Search your size — installed prices online</span>
+          </span>
+        </Link>
+      ) : (
+        <Link
+          href="/diagnose"
+          onClick={() => trackEvent("diagnose_cta_click", { source: "hero-router" })}
+          className={SECONDARY_LANE_CLASS}
+          aria-label="Describe a symptom and get an answer"
+        >
+          <Activity className="w-5 h-5 text-nick-yellow shrink-0" />
+          <span>
+            <span className="block font-bold text-sm text-[#F5F5F5]">Something's wrong</span>
+            <span className="block text-xs text-[#A0A0A0]">Describe it — free check, written quote first</span>
+          </span>
+        </Link>
+      )}
       {/* Dropping off */}
       <a
         href="#dropoff"
         onClick={() => trackEvent("booking_cta_click", { source: "hero-router" })}
-        className="group flex items-center gap-3 rounded-xl border border-white/15 bg-[#0C0F14]/75 backdrop-blur-md px-4 py-3.5 text-left transition-colors hover:border-nick-yellow/50"
+        className={SECONDARY_LANE_CLASS}
         aria-label="Drop your car off — first come, first served"
       >
         <KeyRound className="w-5 h-5 text-nick-yellow shrink-0" />
@@ -120,7 +168,7 @@ function IntentRouter() {
       <a
         href={BUSINESS.phone.href}
         onClick={() => trackPhoneClick("hero-router")}
-        className="group sm:col-span-2 flex items-center gap-3 rounded-xl border border-white/15 bg-[#0C0F14]/75 backdrop-blur-md px-4 py-3.5 text-left transition-colors hover:border-nick-yellow/50"
+        className={`${SECONDARY_LANE_CLASS} sm:col-span-2`}
         aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.display}`}
       >
         <MessageCircle className="w-5 h-5 text-nick-yellow shrink-0" />
@@ -130,6 +178,11 @@ function IntentRouter() {
         </span>
         <Phone className="w-4 h-4 text-nick-yellow shrink-0" />
       </a>
+      {personalization.showProximityNote && (
+        <p className="sm:col-span-2 text-xs text-[#A0A0A0]" data-testid="proximity-note">
+          Coming from Maps? You're close — pull up anytime, 7 days a week. First come, first served.
+        </p>
+      )}
     </div>
   );
 }
@@ -137,6 +190,16 @@ function IntentRouter() {
 // ─── HERO — same cinematic photo stage as legacy, ONE decision ───
 function Hero({ reviewData }: { reviewData: HomeReviewData }) {
   const { rating, totalReviews } = reviewData;
+  // Wave C: personalize the router's leading lane from the ALREADY
+  // captured UTM/referrer (lib/utm.ts). Pure read, computed once per
+  // mount; any storage failure falls back to the default (tires lead).
+  const personalization = useMemo<HeroPersonalization>(() => {
+    try {
+      return deriveHeroPersonalization(getUtmData());
+    } catch {
+      return DEFAULT_HERO_PERSONALIZATION;
+    }
+  }, []);
 
   return (
     <section className="relative min-h-[100svh] flex items-center overflow-hidden hero-stage">
@@ -211,7 +274,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-nick-yellow font-semibold">$25</span> — most sizes $40-80 installed. Written estimate before any wrench moves.
           </p>
 
-          <IntentRouter />
+          <IntentRouter personalization={personalization} />
 
           {/* Trust chips — the hero's ONE inline trust moment (Reviews
               section below is the page's single full trust unit). */}
