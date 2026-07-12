@@ -968,6 +968,11 @@ export const operatorRouter = router({
       z.object({
         personaKey: z.string().min(1),
         prompt: z.string().min(1),
+        // 2026-07-12 · target platforms for the generated draft. Was
+        // omitted → createDraft defaulted platforms to [] → EVERY draft
+        // this endpoint produced was un-publishable (approve→publish
+        // requires ≥1 platform), so the content flywheel never turned.
+        platforms: z.array(z.enum(["instagram", "facebook"])).optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -997,6 +1002,9 @@ export const operatorRouter = router({
       const { createDraft } = await import("@/lib/content/drafts");
       const draft = await createDraft({
         content: ghost.text,
+        // Default to Instagram so the draft is publishable; the caller can
+        // override. A draft with no platforms can never be approved+published.
+        suggestedPlatforms: input.platforms ?? ["instagram"],
         source: `assistant-${input.personaKey}`,
         kind: "post",
         sourceMetadata:
