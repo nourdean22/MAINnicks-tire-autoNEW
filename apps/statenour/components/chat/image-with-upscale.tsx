@@ -105,7 +105,11 @@ export function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps
         </a>
       )}
       {imageId && (
-        <span className="absolute top-3 right-1 inline-flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        // 2026-07-11 review · on touch devices (no hover) these buttons were
+        // opacity-0 yet still tappable ON TOP of the image link — a blind tap
+        // near the top-right fired a paid Venice vary/upscale mutation the
+        // operator couldn't see. Make them visible when hover is unavailable.
+        <span className="absolute top-3 right-1 inline-flex gap-1 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
           <button
             type="button"
             onClick={handleVary}

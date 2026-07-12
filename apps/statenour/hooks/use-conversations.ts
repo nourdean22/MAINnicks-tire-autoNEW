@@ -246,24 +246,29 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
   );
 
   const deleteConvo = useCallback(
-    async (id: string, e?: React.MouseEvent) => {
+    async (id: string, e?: React.MouseEvent): Promise<boolean> => {
       e?.stopPropagation();
       // v9.1.24 · check the result before optimistic removal. Previously
       // the UI removed the conversation immediately even on a 500 or
       // 404, leaving the server row intact. On next reload the conv
       // would reappear — jarring UX, no error surfaced. Now we only
       // mutate state if the mutation resolved (it throws on failure).
+      // 2026-07-11 review · return success so callers (chat-island) can
+      // gate the transport-store activeConversationId reset on it — a
+      // failed delete must NOT null the id the send body reads, or the
+      // next send silently forks into a brand-new conversation.
       try {
         await deleteConversationMutation.mutateAsync({ id });
       } catch {
         onError?.("Couldn't delete conversation.");
-        return;
+        return false;
       }
       setConvos((prev) => prev.filter((c) => c.id !== id));
       if (activeId === id) {
         setActiveId(null);
         setMessages([]);
       }
+      return true;
     },
     [activeId, setMessages, onError, deleteConversationMutation]
   );
