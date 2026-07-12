@@ -108,6 +108,12 @@ Earn it or skip it · a forced "worth noting" on a factual answer, a number, or 
  * wants one string (v2 does).
  */
 export function getOperatorPolicyLines(): readonly string[] {
+  // 2026-07-11 review · BROADEN_AND_SUGGEST removed from the injected set.
+  // behavior-directive.ts's ANTICIPATE_AND_ELEVATE (appended on every
+  // non-casual turn by finalize-system-prompt.ts) explicitly "Replaces the
+  // BROADEN_AND_SUGGEST operator-rule" — shipping both put two ~overlapping
+  // elevation directives in the same prompt. The const stays exported for
+  // v1 archaeology / reference; it is simply no longer double-injected.
   return [
     DO_NOT_AUTO_TASKIFY,
     NO_SYCOPHANCY,
@@ -116,7 +122,6 @@ export function getOperatorPolicyLines(): readonly string[] {
     CONFIDENCE_CUES,
     TIME_OF_DAY_VOICE,
     MODE_PERSONAS,
-    BROADEN_AND_SUGGEST,
     "",
     TRUTH_RULE_NEVER_FABRICATE,
     "",

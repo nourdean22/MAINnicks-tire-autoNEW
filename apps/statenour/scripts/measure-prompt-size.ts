@@ -65,7 +65,15 @@ async function main() {
   // the per-section breakdown becomes unreadable, so cap stays
   // meaningful as a "is this prompt getting unwieldy?" guard rather
   // than a "will the model accept it?" guard.
-  const max = maxArg >= 0 ? Number(args[maxArg + 1]) : 60_000;
+  // 2026-07-11 review · the cap is the REAL runtime ceiling — the
+  // per-provider hard slice in finalize-system-prompt.ts (65,000 for every
+  // non-anthropic provider). The old 60K "readability" number never matched
+  // the runtime, and the script only ever measured the default slot, so the
+  // heaviest real prompts (content +45K, content-deep +77-81K) sailed past
+  // the guard. We now measure representative (tier, message) scenarios that
+  // exercise the content / deep / sms slots and fail if ANY exceeds the cap.
+  const RUNTIME_MAX = 65_000;
+  const max = maxArg >= 0 ? Number(args[maxArg + 1]) : RUNTIME_MAX;
   const skipConfirm = args.includes("--yes") || !!process.env.CI;
 
   if (!skipConfirm) {
@@ -77,15 +85,42 @@ async function main() {
   const cacheMod = await import("@/lib/ai/system-prompt-cache").catch(
     () => null
   );
-  cacheMod?.invalidatePromptCache?.();
 
-  const t0 = Date.now();
-  const prompt = await buildSystemPrompt();
-  const elapsedMs = Date.now() - t0;
+  const SCENARIOS: Array<{ label: string; tier?: string; message?: string }> = [
+    { label: "default (full/greeting)" },
+    { label: "business", tier: "business", message: "how's revenue tracking this week vs last?" },
+    { label: "content (carousel)", tier: "business", message: "write me an instagram carousel about winter tire safety" },
+    { label: "content-deep (plan)", tier: "business", message: "build my monthly content plan and posting strategy across reels and carousels" },
+    { label: "sms (winback)", tier: "business", message: "send an sms winback to customers who haven't come in this year" },
+  ];
 
+  let worst = { label: "", chars: 0, prompt: "" };
+  let failed = false;
+  console.log("─".repeat(60));
+  console.log(`PROMPT SIZE REPORT (multi-scenario) — ${new Date().toISOString()}`);
+  console.log(`runtime cap: ${max.toLocaleString()} chars (finalize hard slice)`);
+  console.log("─".repeat(60));
+  for (const sc of SCENARIOS) {
+    cacheMod?.invalidatePromptCache?.();
+    const t = Date.now();
+    const p = await buildSystemPrompt(sc.tier as never, sc.message ?? null);
+    const ms = Date.now() - t;
+    const over = p.length > max;
+    if (over) failed = true;
+    if (p.length > worst.chars) worst = { label: sc.label, chars: p.length, prompt: p };
+    console.log(
+      `${over ? "FAIL" : "ok  "}  ${String(p.length).padStart(6)} ch  ${String(Math.round(p.length / 4)).padStart(5)} tok  ${String(ms).padStart(4)}ms  ${sc.label}`,
+    );
+  }
+  console.log("─".repeat(60));
+
+  // Detailed section breakdown for the heaviest scenario.
+  const prompt = worst.prompt;
+  const elapsedMs = 0;
   const chars = prompt.length;
   const tokens = Math.round(chars / 4);
   const words = prompt.split(/\s+/).filter(Boolean).length;
+  console.log(`heaviest scenario: ${worst.label} (${chars.toLocaleString()} chars)`);
 
   // Section-by-section breakdown — split on the bold "## " headers
   // the buildSystemPromptUncached function inserts.
@@ -120,17 +155,14 @@ async function main() {
   }
   console.log("─".repeat(60));
 
-  if (chars > max) {
+  if (failed) {
     console.error(
-      `\nFAIL: prompt size ${chars.toLocaleString()} > cap ${max.toLocaleString()}`
-    );
-    console.error(
-      `Consider trimming the top section above, or raising the cap if Venice's ceiling allows.`
+      `\nFAIL: at least one scenario exceeds the ${max.toLocaleString()}-char runtime cap (heaviest: ${worst.label} @ ${chars.toLocaleString()}). It will be hard-sliced mid-content at runtime — trim the top section above or drop a knowledge block.`
     );
     process.exit(1);
   }
 
-  console.log(`PASS: prompt fits with ${Math.round(((max - chars) / max) * 100)}% headroom.`);
+  console.log(`PASS: every scenario fits under the ${max.toLocaleString()}-char runtime cap (heaviest ${chars.toLocaleString()}).`);
   process.exit(0);
 }
 

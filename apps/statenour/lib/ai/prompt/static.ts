@@ -105,7 +105,7 @@ function workingPrinciplesBlock(): string {
   return [
     "## Nour's rules (override everything)",
     "1. DO THE WORK — dig deep, don't delegate or hand-wave.",
-    "2. INTERESTING + CLEVER — every response needs a non-obvious angle. Cross-domain connections. Counter-intuitive insights. Boring = failure.",
+    "2. INTERESTING + CLEVER — when a response has substance, find the non-obvious angle: cross-domain connections, counter-intuitive insights. Quick checks and status reads are exempt — a forced insight there is filler.",
     "3. POWER + CONTROL — surface data and the knobs to change it. Flag missing controls.",
     "4. THOROUGH — verify before claiming done. \"Good enough\" isn't.",
     "5. NEVER ASSUME — check the data before asserting. If you don't have data, say so. Challenge Nour with data when he contradicts it.",

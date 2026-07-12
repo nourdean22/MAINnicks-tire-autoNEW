@@ -6,7 +6,6 @@
  */
 
 import { cached } from "@/lib/utils/cache";
-import { AsyncLocalStorage } from "node:async_hooks";
 
 export type TopicTier = "core" | "business" | "personal" | "strategy" | "full";
 
@@ -27,29 +26,14 @@ export function detectTopicTier(message: string): TopicTier {
   return "core";
 }
 
-interface PromptTelemetry {
-  tier: TopicTier;
-  engineRuns: number;
-  engineSkips: number;
-}
-
-const telemetryStore = new AsyncLocalStorage<PromptTelemetry>();
-
-export function withPromptTelemetry<T>(tier: TopicTier, fn: () => Promise<T>): Promise<{
-  result: T;
-  telemetry: PromptTelemetry;
-}> {
-  const tel: PromptTelemetry = { tier, engineRuns: 0, engineSkips: 0 };
-  return telemetryStore.run(tel, async () => {
-    const result = await fn();
-    return { result, telemetry: tel };
-  });
-}
+// 2026-07-11 review · removed dead withPromptTelemetry + PromptTelemetry
+// (engineRuns/engineSkips were never incremented and the wrapper had zero
+// production callers) and the unused conversationId parameter of
+// buildSystemPrompt (plumbed from route.ts but never read).
 
 export async function buildSystemPrompt(
   tier?: TopicTier,
   userMessage?: string | null,
-  conversationId?: string | null,
 ): Promise<string> {
   const effectiveTier = tier || "full";
   const { detectContentIntent, detectContentDeepIntent, detectSmsIntent } = await import("./business-knowledge");
@@ -117,16 +101,25 @@ export async function appendBusinessKnowledgeLayer(
   slot: string,
   userMessage?: string | null,
 ): Promise<string> {
+  const wantsSlotKnowledge = slot === "content" || slot === "deep" || slot === "sms";
   const wantsKnowledge =
     tier === "business" || tier === "strategy" || tier === "full" ||
-    slot === "content" || slot === "deep" || slot === "sms";
+    wantsSlotKnowledge;
   if (!wantsKnowledge) return prompt;
 
   try {
     const { getBusinessKnowledge } = await import("./knowledge/detectors");
     // TopicTier → KnowledgeTier: "personal" maps to the light "chat"
     // tier (ops card only); the other values coincide.
-    const knowledgeTier = tier === "personal" ? "chat" : tier;
+    // 2026-07-11 review · a content/deep/sms ask whose text had no business
+    // keyword resolved tier="core", so knowledgeTier stayed "core" and
+    // getBusinessKnowledge early-returned the ~676-char ops card BEFORE the
+    // content-engine branch — the Master Content Engine was unreachable for
+    // exactly the content asks that need it. Upgrade to "business" so the
+    // engine loads (SMS = customer outreach, deep = strategy — both fit).
+    const knowledgeTier = wantsSlotKnowledge
+      ? (tier === "core" || tier === "personal" ? "business" : tier)
+      : (tier === "personal" ? "chat" : tier);
     const block = getBusinessKnowledge(knowledgeTier, userMessage);
     if (!block) return prompt;
     void runBrandStalenessCanary();
@@ -196,6 +189,16 @@ export function trimPromptToBudget(prompt: string, maxLimit = 58000): string {
   
   const getSectionPriority = (title: string): number => {
     const t = title.toLowerCase();
+    // 2026-07-11 review · protect the real v2 section headers. The map
+    // below was written for v1-era titles, so the TRUTH RULE (the
+    // anti-fabrication guardrail), Nour's rules, Response style, Tools,
+    // and Processing intake all fell through to priority 30 and were
+    // dropped BEFORE low-stakes brain dumps under budget pressure. Only
+    // priorities < 10 are protected from the drop loop, so these get 1-9.
+    if (t.includes("truth rule")) return 1;                 // never drop the fabrication guardrail
+    if (t.includes("nour's rules") || t.includes("rules (override")) return 1;
+    if (t.includes("response style")) return 6;
+    if (t.includes("## tools") || t.includes("processing intake")) return 7;
     if (t.includes("behavior directive") || t.includes("how to respond") || t.includes("identity") || t.includes("voice")) return 1;
     if (t.includes("pinned by") || t.includes("hot rules") || t.includes("anchor")) return 2;
     if (t.includes("command state") || t.includes("active command") || t.includes("queue")) return 3;

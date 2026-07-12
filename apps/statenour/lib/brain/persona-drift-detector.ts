@@ -52,6 +52,7 @@ import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { logger as rootLogger } from "@/lib/logger";
 import { logError } from "@/lib/utils/error-log";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
 
 const log = rootLogger.withSurface("brain/persona-drift-detector");
 
@@ -610,7 +611,11 @@ export async function getPersonaAnchorPrompt(): Promise<string> {
     if (profile) {
       lines.push(``);
       lines.push(`## Operator voice profile (from corpus · ${profile.sampleSize} utterances)`);
-      lines.push(profile.summary);
+      // 2026-07-11 review · profile.summary interpolates raw top-phrases
+      // extracted from the operator's IMPORTED corpus (ChatGPT export,
+      // iCloud Notes, journals) which can contain pasted third-party text.
+      // Fence it before it enters the system prompt.
+      lines.push(sanitizeForPrompt(profile.summary, 1200));
       lines.push(
         `Use these tells as the alignment target when phrasing replies. The 8-axis above is the operator's STATED self-model; this profile is their ACTUAL recorded voice — when the two diverge, the recorded voice usually wins for tone, the stated self-model usually wins for values.`,
       );

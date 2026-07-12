@@ -255,10 +255,10 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   // /system/migrations board + getFlag() see them. 2026-06-04 · M1.
   {
     key: "NICK_PRIME_PROMPT",
-    description: "Switches Nick's system prompt to the v2 prompt assembler (lib/ai/prompt/v2). Dev opt-in (=1); production stays on the v1 prompt until v2 is proven. OFF = v1 prompt assembler.",
-    status: "experimental",
+    description: "DEPRECATED (2026-07-11 review) · v2 prompt cutover is complete and v2 is the SOLE builder. This flag is a no-op — isPromptV2Enabled() returns true unconditionally and buildSystemPrompt never consults it. There is no v1 builder to roll back to; do not treat this as a rollback lever.",
+    status: "deprecated",
     onValue: "1",
-    defaultBehavior: "v1 prompt assembler (production default).",
+    defaultBehavior: "No effect. v2 prompt assembler always active.",
     ownerDoc: "lib/ai/prompt/v2/index.ts",
   },
   {

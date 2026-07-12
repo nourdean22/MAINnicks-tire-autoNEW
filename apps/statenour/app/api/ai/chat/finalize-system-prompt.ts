@@ -111,12 +111,15 @@ export async function finalizeSystemPrompt(
     systemPrompt = systemPrompt.slice(0, MAX_SYSTEM_CHARS) + "\n\n[System prompt truncated for model context limits]";
   }
 
-  // Load Greene strategic law library for context — skip for smaller
-  // models. AG-14: was anthropic-ONLY while the live primary is ollama
-  // (Ollama Cloud, 1M context per the route's provider notes) — a
-  // documented feature silently off on almost every turn. The ~189
-  // one-liners (~15K chars) fit both providers' budgets.
-  const strategicLaws = (provider === "anthropic" || provider === "ollama") ? await prisma.strategicLaw.findMany({
+  // Load Greene strategic law library for context. 2026-07-11 review ·
+  // gated back to anthropic-ONLY to match CONSUMPTION: route.ts builds the
+  // chat-layer block (which is the only place greeneSummary is used) only
+  // for non-ollama/gemini providers, so AG-14's addition of ollama here ran
+  // a ~189-row strategicLaw query every ollama turn and then discarded the
+  // result. Giving ollama the Greene laws is a deliberate prompt change
+  // (wire the route.ts chat-layer for ollama) — not a silent side effect of
+  // this query. Until then, don't pay for a result nobody reads.
+  const strategicLaws = provider === "anthropic" ? await prisma.strategicLaw.findMany({
     select: { book: true, number: true, shortTitle: true, essence: true, shopApplication: true, nourApplication: true },
     orderBy: [{ book: "asc" }, { number: "asc" }],
   }).catch((): never[] => []) : [];
@@ -262,8 +265,15 @@ You are in Tactician mode — short-horizon move counsel, not strategy seminars.
     }
   }
 
-  // Brevity enforcement (except builder which needs length for code explanations)
-  if (mode !== "deep" && personality !== "builder") {
+  // Brevity nudge. 2026-07-11 review · gated to CASUAL turns only. This
+  // hard "under 60 words" line used to fire on every non-deep/non-builder
+  // turn, directly contradicting the static prefix ("never sacrifice
+  // substance to hit a word count"), BREVITY_DEFAULT (≤80, the single
+  // source of default length), and the master persona (40-60 / up to 150
+  // on analysis). On analytical/strategy turns those all fought each other;
+  // now the 60-word cap only reinforces brevity where it belongs — quick
+  // casual replies — and BREVITY_DEFAULT owns everything else.
+  if (mode !== "deep" && personality !== "builder" && turnSignal.intent === "casual") {
     systemPrompt += `\nRemember: under 60 words unless analyzing. Nour is on his phone.`;
   }
 

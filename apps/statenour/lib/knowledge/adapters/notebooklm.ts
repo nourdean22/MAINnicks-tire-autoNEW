@@ -25,7 +25,11 @@ export interface NotebookLmCandidateInput extends NotebookLmExtractedItem {
 export function parseNotebookLmMarkdown(
   content: string,
   sourceFile: string,
-  defaultCategory = BRAIN_CATEGORIES.RESEARCH_CLAIM,
+  // 2026-07-11 · widen to string (matches NotebookLmExtractedItem.category)
+  // so currentCategory can hold the sibling research categories below —
+  // the bare default inferred the narrow "research_claim" literal and
+  // broke `pnpm typecheck` on main (pre-existing, unrelated to wave-4b).
+  defaultCategory: string = BRAIN_CATEGORIES.RESEARCH_CLAIM,
 ): NotebookLmExtractedItem[] {
   const items: NotebookLmExtractedItem[] = [];
   let currentCategory = defaultCategory;
