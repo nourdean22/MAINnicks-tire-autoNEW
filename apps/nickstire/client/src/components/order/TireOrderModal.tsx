@@ -129,7 +129,11 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
         setOrderResult({ orderNumber: data.orderNumber!, invoiceNumber: data.invoiceNumber, totalAmount: data.totalAmount! });
         trackEvent("form_completed", { type: "tire_order", orderNumber: data.orderNumber! });
       } else {
-        toast.error("Something went wrong. Please call us at (216) 862-0005.");
+        // wave-d · surface the server's actual reason when it has one
+        // ("Price has changed. Please refresh and try again.") — the
+        // generic fallback told refresh-fixable customers to phone in.
+        const reason = "error" in data && data.error ? data.error : "Something went wrong.";
+        toast.error(`${reason} Or call us at (216) 862-0005.`);
       }
     },
     onError: () => toast.error("Something went wrong. Please call us at (216) 862-0005."),
