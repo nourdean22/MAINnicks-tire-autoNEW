@@ -315,7 +315,29 @@ function esc(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function renderCardHtml(input: {
+/**
+ * Deterministic shrink-to-fit. Picks the largest font size (clamped to
+ * [min, max]) at which `text` fits within `maxLines` lines of `width` px.
+ *
+ * Why: the card uses `overflow:hidden`, so a FIXED font size silently CLIPPED
+ * legitimately-long-but-valid copy (a full-length 42-char headline at 108px
+ * overflowed the card). The quality gate bounds copy LENGTH, not rendered
+ * SIZE — this closes that gap so the whole point of deterministic rendering
+ * ("no malformed / cut-off poster text") actually holds. Char width is
+ * approximated as `fontSize * charRatio` (Arial Black uppercase ≈ 0.60,
+ * regular bold ≈ 0.52), which is conservative and verified by a real
+ * puppeteer render of worst-case copy in the test suite.
+ */
+export function fitFontSize(
+  text: string,
+  opts: { width: number; maxLines: number; max: number; min: number; charRatio: number },
+): number {
+  const chars = Math.max(text.trim().length, 1);
+  const ideal = Math.floor((opts.width * opts.maxLines) / (chars * opts.charRatio));
+  return Math.max(opts.min, Math.min(opts.max, ideal));
+}
+
+export function renderCardHtml(input: {
   headline: string;
   body: string;
   cta: string;
@@ -326,13 +348,19 @@ function renderCardHtml(input: {
   total?: number;
 }): string {
   const portrait = input.height > input.width;
-  const headlineSize = portrait ? 120 : 108;
-  const bodySize = portrait ? 54 : 44;
+  const pad = portrait ? 96 : 76;
+  const contentW = input.width - pad * 2;
+  const headlineSize = fitFontSize(input.headline, {
+    width: Math.min(950, contentW), maxLines: 2, max: portrait ? 120 : 108, min: 48, charRatio: 0.6,
+  });
+  const bodySize = fitFontSize(input.body, {
+    width: Math.min(900, contentW), maxLines: 4, max: portrait ? 54 : 44, min: 28, charRatio: 0.52,
+  });
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box}html,body{margin:0;width:${input.width}px;height:${input.height}px;overflow:hidden;background:#090909}
-body{font-family:Arial Black,Arial,sans-serif;color:#fff}.stage{position:relative;width:100%;height:100%;padding:${portrait ? 96 : 76}px;display:flex;flex-direction:column;background:radial-gradient(circle at 75% 18%,#292929 0,#0b0b0b 46%,#050505 100%)}
+body{font-family:Arial Black,Arial,sans-serif;color:#fff}.stage{position:relative;width:100%;height:100%;padding:${pad}px;display:flex;flex-direction:column;background:radial-gradient(circle at 75% 18%,#292929 0,#0b0b0b 46%,#050505 100%)}
 .stage:before{content:"";position:absolute;right:-13%;top:-7%;width:58%;height:45%;border:34px solid #FDB913;border-radius:50%;transform:rotate(-18deg);opacity:.16}
-.stage:after{content:"";position:absolute;inset:28px;border:3px solid rgba(253,185,19,.38);pointer-events:none}.top{display:flex;justify-content:space-between;align-items:center;z-index:2}.eyebrow{font:700 27px Arial,sans-serif;letter-spacing:5px;text-transform:uppercase;color:#FDB913}.count{font:700 26px Arial,sans-serif;color:#8d8d8d}.main{margin:auto 0;z-index:2;max-width:92%}.headline{font-size:${headlineSize}px;line-height:.9;letter-spacing:-4px;text-transform:uppercase;max-width:950px}.body{margin-top:34px;font:700 ${bodySize}px/1.08 Arial,sans-serif;max-width:900px;color:#e7e7e7}.cta{z-index:2;align-self:flex-start;background:#FDB913;color:#080808;padding:22px 30px;font:900 31px Arial,sans-serif;text-transform:uppercase;transform:skewX(-7deg)}.cta span{display:block;transform:skewX(7deg)}.footer{z-index:2;margin-top:28px;display:flex;justify-content:space-between;font:700 24px Arial,sans-serif;letter-spacing:2px;color:#8f8f8f;text-transform:uppercase}
+.stage:after{content:"";position:absolute;inset:28px;border:3px solid rgba(253,185,19,.38);pointer-events:none}.top{display:flex;justify-content:space-between;align-items:center;z-index:2}.eyebrow{font:700 27px Arial,sans-serif;letter-spacing:5px;text-transform:uppercase;color:#FDB913}.count{font:700 26px Arial,sans-serif;color:#8d8d8d}.main{margin:auto 0;z-index:2;max-width:92%}.headline{font-size:${headlineSize}px;line-height:.9;letter-spacing:-4px;text-transform:uppercase;max-width:950px;overflow-wrap:break-word;word-break:break-word}.body{margin-top:34px;font:700 ${bodySize}px/1.08 Arial,sans-serif;max-width:900px;color:#e7e7e7;overflow-wrap:break-word;word-break:break-word}.cta{z-index:2;align-self:flex-start;background:#FDB913;color:#080808;padding:22px 30px;font:900 31px Arial,sans-serif;text-transform:uppercase;transform:skewX(-7deg)}.cta span{display:block;transform:skewX(7deg)}.footer{z-index:2;margin-top:28px;display:flex;justify-content:space-between;font:700 24px Arial,sans-serif;letter-spacing:2px;color:#8f8f8f;text-transform:uppercase}
 </style></head><body><div class="stage"><div class="top"><div class="eyebrow">${esc(input.eyebrow)}</div><div class="count">${input.index && input.total ? `${input.index}/${input.total}` : ""}</div></div><div class="main"><div class="headline">${esc(input.headline)}</div><div class="body">${esc(input.body)}</div></div><div class="cta"><span>${esc(input.cta)}</span></div><div class="footer"><span>@nicks_tire_euclid</span><span>nickstire.org</span></div></div></body></html>`;
 }
 
