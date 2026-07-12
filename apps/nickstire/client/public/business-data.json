@@ -85,7 +85,7 @@
         "itemOffered": {
           "@type": "Service",
           "name": "New Tire Sales & Installation",
-          "description": "New tires from all major brands with FREE premium installation package ($289+ value). Includes mounting, balancing, valve stems, TPMS reset, alignment check, 20-point inspection, rim cleaning, and disposal."
+          "description": "New tires from all major brands with FREE premium installation package ($266+ value). Includes mounting, balancing, valve stems, TPMS reset, alignment check, 20-point inspection, rim cleaning, and disposal."
         },
         "priceSpecification": {
           "@type": "PriceSpecification",

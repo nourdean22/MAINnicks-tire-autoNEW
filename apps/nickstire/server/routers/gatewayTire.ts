@@ -17,6 +17,7 @@ import { notifyTireOrder } from "../email-notify";
 import { getNextInvoiceNumber, createInvoice } from "../db";
 import { syncInvoiceToSheet, syncTireOrderToSheet } from "../sheets-sync";
 import {
+  deriveExpectedPriceCents,
   evaluateOrderPrice,
   getIdempotencyKey,
   generateOrderNumber,
@@ -67,7 +68,13 @@ async function getTireMarkup(): Promise<number> {
 const NICKS_PACKAGE = {
   name: "Nick's Premium Installation Package",
   tagline: "Included FREE with every tire",
-  totalRetailValue: 289, // What these services would cost elsewhere per set
+  // What these services would cost elsewhere per set — a comparative
+  // retail ESTIMATE (always render with the "+ value" qualifier).
+  // MUST equal the itemized `services` sum below (PACKAGE_VALUE_PER_SET):
+  // the live getPackage endpoint + order modal serve that sum, so any
+  // drift here ships two different numbers to customers. 2026-07-12
+  // reconcile: the old 289 had drifted from its own line items (=266).
+  totalRetailValue: 266,
   services: [
     { name: "Professional Mounting", value: 20, desc: "Expert tire mounting by certified technicians" },
     { name: "Computer Balancing", value: 18, desc: "Precision spin-balance for smooth, vibration-free driving" },
@@ -525,21 +532,25 @@ export const gatewayTireRouter = router({
       const sizeCleanForLookup = input.tireSize.replace(/[\/Rr\s-]/g, "");
       let expectedPriceCents: number | null = null;
 
+      // wave-d-2026-07-12 (order-path audit, CONFIRMED order-blocking) ·
+      // selection policy = MINIMUM across all brand+model variant matches
+      // — the why + the matching semantics live with the unit-tested
+      // helper (deriveExpectedPriceCents in ../lib/tire-order-guards).
+      // Note the deliberate asymmetry the router has always had: the
+      // cache path strips a leading "BRAND - " prefix off the model
+      // before matching; the live path matches the model as sent.
+
       // Try cache first (populated by daily cron, no live Gateway hit)
       try {
         const { getCachedPrices } = await import("../services/dataPipelines");
         const cached = getCachedPrices(sizeCleanForLookup);
         if (cached) {
-          const inputBrandUpper = input.tireBrand.toUpperCase();
-          const inputModelUpper = input.tireModel.toUpperCase().replace(/^[A-Z]+\s*-\s*/, "");
-          const match = cached.find(t =>
-            t.brand.toUpperCase() === inputBrandUpper &&
-            t.model.toUpperCase().includes(inputModelUpper)
+          expectedPriceCents = deriveExpectedPriceCents(
+            cached.map(t => ({ brand: t.brand, model: t.model, cost: t.wholesaleCost })),
+            input.tireBrand,
+            input.tireModel.toUpperCase().replace(/^[A-Z]+\s*-\s*/, ""),
+            markup,
           );
-          if (match && match.wholesaleCost > 0) {
-            const shopPrice = Math.ceil(match.wholesaleCost * (1 + markup / 100) * 100) / 100;
-            expectedPriceCents = Math.round(shopPrice * 100);
-          }
         }
       } catch (e) {
         log.warn("[placeOrder:price-derive] cache lookup failed:", e instanceof Error ? e.message : e);
@@ -553,19 +564,16 @@ export const gatewayTireRouter = router({
             : input.tireSize;
           const rawTires = await gatewaySearchTires(sizeFormattedForLookup);
           if (rawTires) {
-            const inputBrandUpper = input.tireBrand.toUpperCase();
-            const inputModelUpper = input.tireModel.toUpperCase();
-            const match = rawTires.find(item =>
-              String(item.make || "").toUpperCase() === inputBrandUpper &&
-              String(item.minor_name || "").toUpperCase().includes(inputModelUpper)
+            expectedPriceCents = deriveExpectedPriceCents(
+              rawTires.map(item => ({
+                brand: String(item.make || ""),
+                model: String(item.minor_name || ""),
+                cost: pickWholesaleCost(item),
+              })),
+              input.tireBrand,
+              input.tireModel,
+              markup,
             );
-            if (match) {
-              const cost = pickWholesaleCost(match);
-              if (cost > 0) {
-                const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;
-                expectedPriceCents = Math.round(shopPrice * 100);
-              }
-            }
           }
         } catch (e) {
           log.warn("[placeOrder:price-derive] live Gateway lookup failed:", e instanceof Error ? e.message : e);

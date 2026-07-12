@@ -120,7 +120,7 @@ Every article you write must apply at least 2 of these 5. Lead with the one that
 4. ANTI-PATTERN NAMING
    Specifically call out the chains' / dealers' bait. Don't lecture — name and move on.
    Bad: "Honest pricing"
-   Good: "The chain advertises a tire price. They don't advertise the $289 they tack on at the register for mount, balance, valve stems, TPMS reset, alignment check, and disposal."
+   Good: "The chain advertises a tire price. They don't advertise the $266 they tack on at the register for mount, balance, valve stems, TPMS reset, alignment check, and disposal."
 
 5. INSIDER VOCABULARY
    Use mechanic-shop slang that signals you're a peer not a marketer.

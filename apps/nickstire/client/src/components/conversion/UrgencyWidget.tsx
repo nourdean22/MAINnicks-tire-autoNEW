@@ -4,8 +4,12 @@
  * Behavior:
  *   - Hidden until user scrolls past 35% of the page (signals real intent).
  *   - Slides in from bottom-right with subtle attention.
- *   - Shows: slots remaining today, next available time.
- *   - Optional 1-tap "Hold my spot" → captures phone via existing CallbackModal.
+ *   - Shows: real line status (cars in shop, estimated wait) — NEVER
+ *     "slots"/"reserve" language. The shop is strictly first-come-first-
+ *     served with no appointment slots; implying a reservable slot is a
+ *     standing-rule violation (fixed feat/home-v2 after the 2026-07-12
+ *     audit caught "slots left / Next available / RESERVE" shipping live).
+ *   - Optional 1-tap callback request → captures phone via callback.submit.
  *   - Auto-collapses after 8s if not interacted; re-expandable on hover.
  *   - LocalStorage flag suppresses for 24h after dismiss.
  *
@@ -123,12 +127,10 @@ export default function UrgencyWidget() {
   //   - no capacity data yet (cold start)
   if (onSuppressedPath || !visible || !capacity || capacity.isOpen === false) return null;
 
+  // "slots" stays as the internal capacity heuristic (display gate below);
+  // it must never surface as customer-facing reservation language.
   const slots = capacity.slotsRemainingToday;
   const waitMin = capacity.estimatedWaitMinutes ?? 0;
-  const nextAt = capacity.nextAvailableAt ? new Date(capacity.nextAvailableAt) : null;
-  const nextLabel = nextAt
-    ? nextAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
-    : null;
 
   // If real numbers aren't persuasive, don't show.
   if (slots == null || slots > 25) return null;
@@ -153,7 +155,7 @@ export default function UrgencyWidget() {
               >
                 <Clock className="w-4 h-4" />
                 <span className="text-xs font-bold tracking-wide">
-                  {slots > 0 ? `${slots} slots left today` : "No slots — call now"}
+                  {slots > 0 ? "The line is moving now" : "Today is full — call us"}
                 </span>
               </button>
             ) : (
@@ -177,16 +179,13 @@ export default function UrgencyWidget() {
 
                 <div className="text-sm font-bold text-foreground mb-1">
                   {slots > 0 ? (
-                    <>Only <span className="text-primary">{slots}</span> slot{slots !== 1 ? "s" : ""} left today</>
+                    <>The line is <span className="text-primary">moving</span> — first come, first served</>
                   ) : (
                     <>Today is full — first-come tomorrow</>
                   )}
                 </div>
 
                 <div className="text-[11px] text-foreground/60 mb-3 space-y-0.5">
-                  {nextLabel && slots > 0 && (
-                    <div>Next available: <span className="font-mono font-semibold text-foreground/80">{nextLabel}</span></div>
-                  )}
                   {waitMin > 0 && (
                     <div>Current wait: ~{Math.round(waitMin / 60 * 10) / 10}h</div>
                   )}
@@ -233,7 +232,7 @@ export default function UrgencyWidget() {
                       className="rounded bg-primary text-primary-foreground px-3 py-1.5 text-xs font-bold tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center gap-1"
                     >
                       {submit.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                      RESERVE
+                      TEXT ME
                     </button>
                   </form>
                 )}

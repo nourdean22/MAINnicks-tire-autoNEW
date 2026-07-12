@@ -193,7 +193,7 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
 
       {/* Footer · model + sub-500ms label */}
       <footer className="px-4 py-3 border-t border-[var(--border-default)] flex items-center justify-between text-[10px] font-mono text-[var(--text-tertiary)] uppercase tracking-wider">
-        <span>OpenAI Realtime · gpt-4o · sub-500ms target</span>
+        <span>OpenAI Realtime · gpt-realtime · sub-500ms target</span>
         <span>{voice.isConnected ? "● live" : "○ idle"}</span>
       </footer>
     </div>

@@ -191,7 +191,11 @@ export const BUSINESS = {
     priceDisplay: "from $25 installed",
     fineprint: "12-inch rims, subject to availability",
     typicalBand: "most sizes $40-80 installed",
-    explanation: "Used tires start at $25 for 12-inch, but most standard passenger sizes are $60 installed",
+    // feat/home-v2 (2026-07-12): explanation harmonized with typicalBand —
+    // the two constants previously disagreed ($60 flat vs $40-80 band),
+    // which is exactly the drift the "band MUST travel with the $25" rule
+    // exists to prevent. $60 stays as the typical midpoint.
+    explanation: "Used tires start at $25 for 12-inch; most standard passenger sizes run $40-80 installed (typically around $60)",
     turnaround: "Under 20 minutes",
     dailyVolume: "50+ per day",
   },

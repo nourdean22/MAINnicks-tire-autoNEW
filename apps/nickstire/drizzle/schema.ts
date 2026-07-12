@@ -3281,6 +3281,34 @@ export const customerEvents = mysqlTable("customer_events", {
 export type CustomerEvent = typeof customerEvents.$inferSelect;
 export type InsertCustomerEvent = typeof customerEvents.$inferInsert;
 
+// ─── ABANDONED FORMS (durable partial-capture store) ────────────
+//
+// 2026-07-12 · Backs abandonedForms.ts's recovery-SMS pipeline. The
+// service previously kept partials ONLY in an in-memory Map, so a
+// Railway restart dropped every partial captured in the prior ~2h —
+// their recovery SMS never fired. This table makes them durable. The
+// Map stays as a synchronous write-through cache; this is the survive-
+// restart copy. One row per browser session (sessionId PK), upserted on
+// each blur beacon. recoveryAttempted gates the one-shot recovery send.
+export const abandonedForms = mysqlTable("abandoned_forms", {
+  sessionId: varchar("sessionId", { length: 64 }).primaryKey(),
+  formType: varchar("formType", { length: 32 }).notNull(),
+  name: varchar("name", { length: 200 }),
+  phone: varchar("phone", { length: 20 }),
+  email: varchar("email", { length: 320 }),
+  service: varchar("service", { length: 300 }),
+  pageUrl: varchar("pageUrl", { length: 300 }),
+  recoveryAttempted: boolean("recoveryAttempted").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  // The recovery scan filters by (not attempted, age window) — this index
+  // serves that predicate directly.
+  index("idx_abandoned_recovery").on(table.recoveryAttempted, table.createdAt),
+]);
+
+export type AbandonedForm = typeof abandonedForms.$inferSelect;
+export type InsertAbandonedForm = typeof abandonedForms.$inferInsert;
+
 // ─── ROLE-BASED ACCESS CONTROL ──────────────────────────────────
 //
 // 2026-05-07 wave-59 · scaffold-only RBAC table. Created BEFORE the

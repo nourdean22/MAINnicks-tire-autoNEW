@@ -55,7 +55,7 @@ export default function TireSizePage() {
   const FAQS = [
     {
       q: `How much do ${page.size} tires cost?`,
-      a: `Prices vary by brand and type. Used ${page.size} tires start around $25-60 each. New tires range from $89-200+ per tire depending on the brand. All prices include our free install package ($289 value).`,
+      a: `Prices vary by brand and type. Used ${page.size} tires start around $25-60 each. New tires range from $89-200+ per tire depending on the brand. All prices include our free install package ($266 value).`,
     },
     {
       q: `Do you have ${page.size} tires in stock?`,
@@ -207,7 +207,7 @@ export default function TireSizePage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground mb-1">Free Installation Package</h3>
-                  <p className="text-sm text-foreground/60">Mount, balance, alignment check, TPMS reset, lifetime rotations. $289+ value included free.</p>
+                  <p className="text-sm text-foreground/60">Mount, balance, alignment check, TPMS reset, lifetime rotations. $266+ value included free.</p>
                 </div>
               </div>
               <div className="flex items-start gap-4">

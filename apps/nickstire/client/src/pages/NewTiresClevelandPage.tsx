@@ -8,7 +8,7 @@
  * on what's overkill vs what fits their car/budget.
  *
  * Positioning: We sell new tires at fair prices and install them
- * with the package the chains charge $289 extra for — for free.
+ * with the package the chains charge $266 extra for — for free.
  * Mount, balance, valve stems, TPMS reset, alignment check, and
  * 20-point inspection on every install.
  */
@@ -26,17 +26,17 @@ const CONFIG: ServicePageConfig = {
   description: "Cleveland new tires where mount/balance/valve stems/TPMS reset/alignment check come included, not added at the register. Major brands stocked. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
   eyebrow: "NEW TIRES — CLEVELAND",
   h1: "NEW TIRES.\nFREE INSTALL · FREE COFFEE · FREE OPINIONS.",
-  sub: "The chain advertises a tire price. They don't advertise the $289 they tack on at the register for mount, balance, valve stems, TPMS reset, alignment check, and disposal. At Nick's that's the welcome mat — it's already in the price. Major brands stocked, specialty sizes here in 24 hours, most sets installed before your coffee gets cold. Call your tire size for a live quote — friendlier than your phone bill, faster than your barista.",
+  sub: "The chain advertises a tire price. They don't advertise the $266 they tack on at the register for mount, balance, valve stems, TPMS reset, alignment check, and disposal. At Nick's that's the welcome mat — it's already in the price. Major brands stocked, specialty sizes here in 24 hours, most sets installed before your coffee gets cold. Call your tire size for a live quote — friendlier than your phone bill, faster than your barista.",
   startingPrice: "From $89/tire installed · $0 install package · most sets under 90 min",
   pricingTitle: "NEW TIRE PACKAGES",
-  pricingSub: "Concrete starting prices below — your exact quote depends on size and brand, but you know the floor before driving over. The install package ($289 elsewhere) is included on every set — mount, balance, valve stems, TPMS reset, alignment check.",
+  pricingSub: "Concrete starting prices below — your exact quote depends on size and brand, but you know the floor before driving over. The install package ($266 elsewhere) is included on every set — mount, balance, valve stems, TPMS reset, alignment check.",
   tiers: [
     { name: "Budget All-Season", price: "From $89/tire", sub: "Cooper, General, Firestone Champion, Hankook Kinergy · install free", use: "Daily commuter — safe tires without the premium-brand markup" },
     { name: "Premium All-Season", price: "From $149/tire", sub: "Michelin Defender, Goodyear Assurance, Bridgestone Turanza · install free", use: "Longest tread life, quietest ride — the brand-name peace-of-mind tier", featured: true },
     { name: "Performance / Truck / SUV", price: "From $179/tire", sub: "Michelin LTX, Bridgestone Dueler, Goodyear Wrangler, Pirelli · install free", use: "Truck, SUV, performance car, or the third-row family-hauler that's seen things" },
   ],
   includedTitle: "WHAT'S IN THE FREE INSTALL PACKAGE",
-  includedSub: "What chains charge $289 extra for. Included on every new-tire purchase.",
+  includedSub: "What chains charge $266 extra for. Included on every new-tire purchase.",
   included: [
     "Tire mount (each tire on the wheel) — $25/tire elsewhere",
     "Wheel balance (computerized) — $20/tire elsewhere",
@@ -51,7 +51,7 @@ const CONFIG: ServicePageConfig = {
   ],
   faqs: [
     { q: "What brands of new tires do you stock?", a: "We stock or special-order all major brands: Michelin, Goodyear, Bridgestone, Continental, Pirelli, Firestone, Cooper, General, Hankook, Yokohama, Kumho, Falken, Nexen. Most sizes available same-day from local distribution. Specialty sizes ship in 24 hours from regional warehouse. Call your size + preferred brand to confirm." },
-    { q: "Is the 'free install package' really free?", a: "Yes — every line item listed above is included on every set of new tires you buy from us. There's no asterisk pricing where the tire is cheap and then the install adds $289 at the register. The price you see on the tire is what you pay (plus tax). We make our money on tire margin, not nickel-and-dime install fees." },
+    { q: "Is the 'free install package' really free?", a: "Yes — every line item listed above is included on every set of new tires you buy from us. There's no asterisk pricing where the tire is cheap and then the install adds $266 at the register. The price you see on the tire is what you pay (plus tax). We make our money on tire margin, not nickel-and-dime install fees." },
     { q: "Do I need a 4-wheel alignment with new tires?", a: "Not always — but you should always get the alignment CHECKED (which is included free). If your alignment is within spec, we say so and don't charge for the service. If it's out of spec — common after Cleveland pothole season — uneven tire wear will eat $200 off the lifespan of your new tires within 8,000 miles. Alignment is $79-99 if needed." },
     { q: "Should I get all-season or all-weather tires?", a: "All-season works for 90% of Cleveland drivers — daily commute, occasional snow, decent grip year-round. All-weather (snowflake-rated) is better if you drive heavily in snow or have to make it to work no matter what. Dedicated winter tires are better still in deep snow but require swapping twice a year. We'll match the tire to how you actually drive." },
     { q: "How long does new-tire install take?", a: "Most full-set installs are 60-90 minutes, including the alignment check and inspection. We'll tell you the realistic wait time when you call or arrive. Walk-in friendly, but appointments get faster turnaround on busy days." },
@@ -66,7 +66,7 @@ const CONFIG: ServicePageConfig = {
   anchorTable: {
     serviceName: "New tire set (4) all-in — Cleveland market",
     rows: [
-      { label: "Dealership tire shop (full retail + install)", price: "Tire MSRP + $289 install" },
+      { label: "Dealership tire shop (full retail + install)", price: "Tire MSRP + $266 install" },
       { label: "Big-box chain (mid-tier brand)", price: "Tire price + $80-180 install fees" },
       { label: "Nick's Tire & Auto — install package included", price: "Tire price + $0 install", ours: true },
     ],

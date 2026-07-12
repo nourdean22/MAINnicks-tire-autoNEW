@@ -282,9 +282,9 @@ export function buildTireSizeMetaDescription(page: TireSizePage): string {
     case "Truck":
       return `Heavy-duty ${page.size} for ${vehicles}. Used from $50, new LT from $120. Free mount + balance + alignment check. Call (216) 862-0005.`;
     case "Performance":
-      return `Performance ${page.size} for ${vehicles}. Premium brands stocked, same-day fitment. Free $289 install package. Call (216) 862-0005.`;
+      return `Performance ${page.size} for ${vehicles}. Premium brands stocked, same-day fitment. Free $266 install package. Call (216) 862-0005.`;
     case "Sedan":
-      return `Daily-driver ${page.size} fits ${vehicles}. Used from $40, new from $89. Free $289 install + lifetime rotations. Call (216) 862-0005.`;
+      return `Daily-driver ${page.size} fits ${vehicles}. Used from $40, new from $89. Free $266 install + lifetime rotations. Call (216) 862-0005.`;
     case "SUV/Crossover":
     default:
       return `${page.size} stocked for ${vehicles}. Used from $40, new from $89. Free mount, balance, alignment check + lifetime rotations. (216) 862-0005.`;

@@ -15,6 +15,67 @@ separate: different stack (Next.js vs Express), different deploy target
 
 ---
 
+## 2026-07-12 — Chat repair wave, Ollama-Cloud routing, king persona, recall backfill
+
+Large multi-PR session on `main`. Model names below are a **point-in-time**
+record of what was configured this day — the source of truth is env +
+`config/ai-providers.ts` + `lib/ai/provider.ts`, not this entry.
+
+### AI routing → Ollama Cloud (PRs #696, #697)
+- **Perplexica synthesis** moved off the spend-capped Gemini onto **Ollama
+  Cloud** (registered as an `openai`-type provider at `https://ollama.com/v1`).
+  Env-driven via `PERPLEXICA_CHAT_PROVIDER` / `PERPLEXICA_CHAT_MODEL`.
+- **`TASK_ROUTING_PREFERENCES`**: Ollama Cloud is now **first for every task**
+  (was OpenRouter/Gemini). Two-lane model split — a heavier reasoning model on
+  the user-facing chat lane, a fast model on the internal lanes — via
+  `OLLAMA_MODEL` + new `OLLAMA_FAST_MODEL`. OpenRouter is the 2nd hop; Gemini a
+  late fallback (its key is spend-capped).
+- **King persona** — `identityBlock()` reframed as "Hand of the King";
+  `OWNER AUTHORITY` strengthened (execute directives, no moralizing / policy
+  hedging). **Security machinery unchanged** (fencing, injection surfacing,
+  two-tap destructive confirm all preserved).
+
+### Chat surface repairs (PRs #699, #705)
+- **Voice mode** — migrated to the OpenAI **GA Realtime API**: session mint at
+  `POST /v1/realtime/client_secrets` (nested `session` config, model
+  `gpt-realtime`), WebRTC SDP at `/v1/realtime/calls`. The old beta
+  `/v1/realtime/sessions` was removed by OpenAI (404 "Invalid URL").
+- **Image chat** — `OLLAMA_VISION_MODEL` pointed at a live vision model; the
+  prior default (`qwen3-vl:235b-instruct`) had been retired on Ollama Cloud
+  (410), so every image turn silently no-op'd.
+- **Mic** — the "Microphone unavailable" toast was a misdiagnosis: a hardcoded
+  `audio/webm` MediaRecorder codec throws on iOS/WebKit. Added a codec picker
+  (webm→mp4) + split `getUserMedia` from recorder construction so only real
+  permission failures show that toast.
+- **Memory Inspector** — normalized the recall hit shape (`memoryId/knnDistance`
+  → `id/similarity`) so hits stop rendering as "NaN% Match".
+- **Consolidation corruption** — the nightly memory-consolidation cron was
+  category-blind and rewrote structured-JSON brain rows into prose (it had
+  silently disabled the admin AI-config panel and spammed JSON-parse errors).
+  Added `CONSOLIDATION_EXCLUDE_CATEGORIES` + a JSON-shape guard so structured
+  categories are never merged/distilled into prose.
+- **Tool calls** — `experimental_repairToolCall` remaps hallucinated dotted tool
+  names (e.g. `memory.remember`) onto the real tool when one exists in the set.
+- **createTask FK guard** (earlier in session, #693) — invalid model-supplied
+  `missionId`/`goalId` no longer FK-throws; resolves to Inbox / null.
+
+### Recall / embeddings (PR #705 + prod data)
+- **Backfill** — recall reads only `vector_embeddings.embedding_vec_1536`;
+  coverage was 47%. Padded the rows that had a 1024-dim vector, then
+  **re-embedded 4,111 rows** stranded in an old OpenAI-1536 space with the
+  current provider (Cohere) so the whole corpus shares one vector space.
+  Coverage **47% → 100%** (10,084/10,084), 0 failures.
+- **HNSW `ef_search` bug** — `withEfSearch` did `SET LOCAL hnsw.ef_search = $1`
+  via `$executeRaw`; Postgres `SET` rejects bind params → 42601 on **every
+  recall**, so the recall-quality tuning had never applied and an error logged
+  each turn. Fixed with `$executeRawUnsafe` + interpolated (clamped) integer.
+
+### Ops
+- `GITHUB_TOKEN` set on `statenour-web` + `-worker` → the Files (Drive + GitHub)
+  tool category flips degraded → ok.
+
+---
+
 ## 2026-07-05 — Chat pipeline: audit-fix wave + owner-authority + 5 perf/quality improvements
 
 Six PRs on `main` (#550–#555). Full narrative: [`../sessions/2026-07-05.md`](../sessions/2026-07-05.md).
