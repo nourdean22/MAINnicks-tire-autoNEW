@@ -17,6 +17,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { ACTION_CATALOG } from "@/lib/ai/nick-agent";
 import { nourTools } from "@/lib/ai/tools";
+import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { recordError } from "@/lib/errors/record-error";
 import { getAiConfig } from "@/lib/settings/ai-config";
@@ -1417,6 +1418,14 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
         // Tools enabled for ALL providers — Venice supports OpenAI-compatible function calling.
         // Pruned by chat-mode for speed — see lib/ai/chat-mode.ts.
         tools: prunedTools,
+        // 2026-07-12 · remap hallucinated tool names (e.g. dotted forms like
+        // `memory.remember` / `person.update`) onto the real tool when one
+        // exists in the active set — otherwise the model wastes a 7-8s step
+        // and shows a phantom tool card. Only remaps to tools present in
+        // prunedTools; returns null (SDK graceful path) when unmappable.
+        experimental_repairToolCall: buildRepairToolCall(
+          prunedTools as unknown as import("ai").ToolSet,
+        ),
         // Smooth the token stream for perceived-speed. See note above.
         experimental_transform: smoothStream({ delayInMs: 10, chunking: "word" }),
         // Standard allows 3 tool-call steps; deep allows 5 for agentic

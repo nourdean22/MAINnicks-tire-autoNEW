@@ -159,8 +159,11 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOpts = {}) {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
+      // 2026-07-12 · GA WebRTC SDP exchange endpoint is /v1/realtime/calls
+      // (the beta /v1/realtime?model= path was retired alongside
+      // /v1/realtime/sessions). Model alias is gpt-realtime.
       const realtimeRes = await fetch(
-        `https://api.openai.com/v1/realtime?model=${encodeURIComponent(session.model ?? "gpt-4o-realtime-preview-2024-12-17")}`,
+        `https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(session.model ?? "gpt-realtime")}`,
         {
           method: "POST",
           headers: {
