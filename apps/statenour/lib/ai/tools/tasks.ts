@@ -123,7 +123,15 @@ const tasksCoreTools = {
     // exposed.
     inputSchema: z.object({
       title: z.string(),
-      missionId: z.string(),
+      // 2026-07-12 · optional. Was required, which forced the model to supply
+      // a mission id it can't reliably know mid-conversation — it hallucinated
+      // one, and the FK insert threw (red "TOOL FAILED" card). Omit it (or
+      // pass a project id from getMissions) and createTaskAndEnrich files the
+      // task into the Inbox, then re-classifies it into the right mission.
+      missionId: z
+        .string()
+        .optional()
+        .describe("Optional project/mission id (from getMissions). Omit to auto-file into the Inbox."),
       nextPhysicalAction: z.string().describe("The literal first physical step"),
       effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
       context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
@@ -159,7 +167,9 @@ const tasksCoreTools = {
       // statHints (compare-and-set won't override what the model chose).
       const task = await createTaskAndEnrich({
         title,
-        missionId,
+        // Empty when the model omits it · createTaskAndEnrich resolves a
+        // missing/invalid mission to the Inbox anchor (never FK-throws).
+        missionId: missionId ?? "",
         nextPhysicalAction,
         effort,
         roiScore: loopKind === "PROMISE" ? 80 : 50,
