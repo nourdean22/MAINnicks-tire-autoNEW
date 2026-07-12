@@ -79,6 +79,7 @@ vi.mock("@/lib/ai/agents/router-metrics", () => ({
     recordedMetrics.push({ route, confidence, reason });
     return Promise.resolve();
   }),
+  alertFirstSpecialistDispatch: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/auth-guard", () => ({ requireSession: mocks.requireSession }));
@@ -336,7 +337,11 @@ describe("POST /api/ai/chat dispatcher shadow mode", () => {
     expect(mocks.routeMessage).toHaveBeenCalled();
     expect(mocks.runMarketingDirector).toHaveBeenCalled();
     expect(await response2.text()).toContain("specialist response");
-    expect(recordedMetrics.length).toBe(0); // No shadow metrics recorded when routing normally
+    // 2026-07-12 · the route metric is now recorded in LIVE mode too (not
+    // just shadow) so routing telemetry survives the shadow→live flip — the
+    // operator previously went blind the moment routing went live.
+    expect(recordedMetrics.length).toBe(1);
+    expect(recordedMetrics[0].route).toBe("marketing-director");
 
     // Prove no real provider function or network request executes
     expect(fetchSpy).not.toHaveBeenCalled();
