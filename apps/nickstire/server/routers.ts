@@ -87,6 +87,7 @@ import { vapiRouter } from "./routers/vapi";
 import { revenueOpsRouter } from "./routers/revenueOps";
 import { revenueAttributionRouter } from "./routers/revenueAttribution";
 import { statenourMetricsRouter } from "./routers/statenourMetrics";
+import { instagramStudioRouter } from "./routers/instagramStudio";
 import { closedLoopRouter } from "./routers/closedLoop";
 import { membershipsRouter } from "./routers/memberships";
 import { adStudioRouter } from "./routers/adStudio";
@@ -106,6 +107,7 @@ export const appRouter = router({
   reviews: reviewsRouter,
   instagram: instagramRouter,
   instagramAdmin: instagramAdminRouter,
+  instagramStudio: instagramStudioRouter,
   adStudio: adStudioRouter,
   search: searchRouter,
   diagnose: diagnoseRouter,

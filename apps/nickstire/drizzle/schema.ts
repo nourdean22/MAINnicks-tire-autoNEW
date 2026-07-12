@@ -1714,6 +1714,62 @@ export const integrationFailures = mysqlTable("integration_failures", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+/**
+ * Per-lead notification delivery ledger — appends one row per email / SMS /
+ * Telegram dispatch attempt+outcome so a lead's outreach chronology survives
+ * process restarts. Failures still ALSO land in integration_failures
+ * (unchanged); this is the superset that additionally records successful /
+ * queued sends, so "was the CEO email for this lead even attempted?" is
+ * answerable. No FK to leads on purpose: an append-only audit trail must
+ * survive lead deletion (deleting a lead should not erase the record that we
+ * tried to reach them), and an early failure can predate the lead row.
+ */
+export const leadDeliveryEvents = mysqlTable("lead_delivery_events", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId"),
+  channel: mysqlEnum("channel", ["email", "sms", "telegram", "capi", "push"]).notNull(),
+  status: mysqlEnum("status", ["attempted", "sent", "queued", "delivered", "failed", "skipped"]).notNull(),
+  /** Gateway used: resend / shop (Twilio) / telegram / meta */
+  provider: varchar("provider", { length: 40 }),
+  /** Provider-side message id, when the gateway returns one */
+  providerRef: varchar("providerRef", { length: 191 }),
+  /** Error message or short note (writer truncates to 1000 chars) */
+  detail: text("detail"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  idx_lde_lead: index("idx_lde_lead").on(table.leadId, table.createdAt),
+}));
+
+/**
+ * Financing provider-click ledger (attribution-join wave). Before this,
+ * financing `trackApplication` wrote clicks ONLY to Google Sheets (append-only,
+ * unjoinable) plus a synthetic leadCaptured({id:0}) — so a customer's "Apply
+ * Now" click could never be tied back to their lead/booking. This persists each
+ * click with the visitor sessionId (already sent by the client's getUtmData()
+ * spread, just zod-stripped server-side until now) so clicks LEFT JOIN
+ * leads.sessionId — real financing attribution, not a fabricated guess.
+ */
+export const financingClicks = mysqlTable("financing_clicks", {
+  id: int("id").autoincrement().primaryKey(),
+  provider: mysqlEnum("provider", ["acima", "snap", "koalafi", "american-first"]).notNull(),
+  sourcePage: varchar("sourcePage", { length: 500 }),
+  customerName: varchar("customerName", { length: 200 }),
+  customerPhone: varchar("customerPhone", { length: 20 }),
+  customerEmail: varchar("customerEmail", { length: 254 }),
+  estimatedAmount: varchar("estimatedAmount", { length: 20 }),
+  /** Visitor session id — the join key to leads.sessionId */
+  sessionId: varchar("sessionId", { length: 64 }),
+  utmSource: varchar("utmSource", { length: 100 }),
+  utmMedium: varchar("utmMedium", { length: 100 }),
+  utmCampaign: varchar("utmCampaign", { length: 255 }),
+  landingPage: varchar("landingPage", { length: 500 }),
+  referrer: varchar("referrer", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  idx_fc_session: index("idx_fc_session").on(table.sessionId),
+  idx_fc_created: index("idx_fc_created").on(table.createdAt),
+}));
+
 export type IntegrationFailure = typeof integrationFailures.$inferSelect;
 export type InsertIntegrationFailure = typeof integrationFailures.$inferInsert;
 

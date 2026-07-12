@@ -9,10 +9,10 @@
  * in-memory Map (synchronous, never-lost-pre-restart cache) AND the
  * `abandoned_forms` DB table (survives a Railway restart — fixes the bug
  * where a restart dropped the last ~2h of partials and their recovery SMS
- * never fired). This module is deploy-safe WITHOUT the 0079 migration: if
+ * never fired). This module is deploy-safe WITHOUT the 0081 migration: if
  * the DB is down or the table is missing, every DB op silently no-ops and
  * the Map alone carries the behavior — identical to the pre-persistence
- * version. See drizzle/0079_abandoned_forms.sql (OPERATOR-APPLIED).
+ * version. See drizzle/0081_abandoned_forms.sql (OPERATOR-APPLIED).
  */
 import { createLogger } from "../lib/logger";
 import { db } from "../lib/db-helper";
@@ -100,7 +100,7 @@ async function dbUpsertPartial(data: PartialFormData): Promise<void> {
       set: { formType: row.formType, name: row.name, phone: row.phone, email: row.email, service: row.service, pageUrl: row.pageUrl },
     });
   } catch (err) {
-    // Table missing (pre-0079) or DB down — the Map still has this entry.
+    // Table missing (pre-0081) or DB down — the Map still has this entry.
     log.warn("[abandonedForms] DB upsert skipped (Map covers it)", { error: err instanceof Error ? err.message : String(err) });
   }
 }
