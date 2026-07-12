@@ -28,7 +28,7 @@ export function parseNotebookLmMarkdown(
   // 2026-07-11 · widen to string (matches NotebookLmExtractedItem.category)
   // so currentCategory can hold the sibling research categories below —
   // the bare default inferred the narrow "research_claim" literal and
-  // broke `pnpm typecheck` on main (pre-existing, unrelated to wave-4b).
+  // broke `pnpm typecheck` (regression shipped in #675).
   defaultCategory: string = BRAIN_CATEGORIES.RESEARCH_CLAIM,
 ): NotebookLmExtractedItem[] {
   const items: NotebookLmExtractedItem[] = [];
@@ -105,7 +105,18 @@ export function buildNotebookLmCandidate(input: NotebookLmCandidateInput): Knowl
     sourceId: `${input.slug}:${input.sourceFile}:${input.text.slice(0, 80)}`,
     sourceUri: input.sourceFile,
     generatedBy: "notebooklm",
-    confidence: Math.max(0, Math.min(1, input.verificationScore)),
+    // 2026-07-11 · verificationScore measures semantic grounding, NOT
+    // whether the claim is garbage. A NotebookLM claim always comes from a
+    // real uploaded source doc (source_document evidence below), so an
+    // UNVERIFIED one (score 0) must land in REVIEW, not be hard-rejected.
+    // Mapping raw score→confidence put score 0 at confidence 0, below the
+    // gate's 0.25 reject floor, so unsupported claims were silently dropped
+    // instead of queued for the operator (regression shipped in #675; the
+    // "keeps unsupported NotebookLM claims in review" test encodes the
+    // intended contract). Lerp into [0.3, 1.0]: score 0 → 0.3 (review band,
+    // above the 0.25 floor, below the 0.8 accept bar); grounded score ≥ 0.8
+    // → confidence ≥ 0.86 (accept-eligible), consistent with metadata.grounded.
+    confidence: 0.3 + 0.7 * Math.max(0, Math.min(1, input.verificationScore)),
     riskLevel: notebookLmRisk(input.domain),
     evidence,
     metadata: {
