@@ -83,8 +83,14 @@ export default function ShopStatusWidget({
           <span className={`relative inline-flex rounded-full h-2 w-2 ${statusColor}`} />
         </span>
         <span className="text-[11px] font-mono font-bold tracking-widest uppercase">
+          {/* waitIsFresh === false → the bay/wait numbers are the
+              time-of-day fallback, not real data. Only open/closed
+              (hours-derived) may render. `!== false` keeps behavior
+              during deploy skew when the field is absent. */}
           {!data.isOpen
             ? "CLOSED"
+            : data.waitIsFresh === false
+            ? "OPEN · WALK-INS OK"
             : data.openBays >= 3
             ? `OPEN · ${data.openBays} BAYS FREE`
             : data.openBays >= 1
@@ -134,8 +140,10 @@ export default function ShopStatusWidget({
           </div>
         </div>
 
-        {/* Metrics strip */}
-        {data.isOpen && (
+        {/* Metrics strip — hidden entirely when the numbers are the
+            time-of-day fallback (anti-fabrication: statusMessage already
+            says "call to check the line"). */}
+        {data.isOpen && data.waitIsFresh !== false && (
           <div className="flex items-center gap-4 sm:gap-6 text-white/80">
             <div className="flex flex-col items-center">
               <span className="text-[#FDB913] font-mono font-black text-xl leading-none">

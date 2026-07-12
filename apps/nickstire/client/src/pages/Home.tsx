@@ -49,6 +49,7 @@ import ServiceTriageCard from "@/components/conversion/ServiceTriageCard";
 import { useWeatherCTA } from "@/hooks/useWeatherCTA";
 import { useConversionTracking } from "@/hooks/useConversionTracking";
 import LeadPopup from "@/components/LeadPopup";
+import DropOffRequestCard from "@/components/DropOffRequestCard";
 
 // Photo pack — same assets/tuning as HomeLegacy (see its comments for the
 // full placement-guide history).
@@ -768,6 +769,9 @@ export default function Home() {
             </p>
           </div>
           <UberDropoffWidget theme="gold" />
+          {/* Wave B: "I'm heading over" heads-up — rides the existing
+              callback pipeline (SMS confirm + Telegram staff alert). */}
+          <DropOffRequestCard />
         </div>
       </section>
       <Contact />
