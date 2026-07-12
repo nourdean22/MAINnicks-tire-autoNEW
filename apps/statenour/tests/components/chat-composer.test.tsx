@@ -3,6 +3,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import React from "react";
 import { ChatComposer } from "@/features/chat-v2/components/chat-composer";
 
+// 2026-07-11 · ChatComposer now calls useRouter() (slash-nav wiring), which
+// needs the app-router context that SSR-render lacks — mock it.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+}));
+
 vi.mock("@/lib/state/nour-state", () => ({
   useNourState: () => ({
     todayRevenue: 0,

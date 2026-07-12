@@ -33,6 +33,7 @@
  *     preserved byte-for-byte.
  */
 
+import { useState, useRef, useEffect } from "react";
 import { Plus, Pin, Trash2, Star, Archive, BellOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -99,6 +100,30 @@ export function ConversationDrawer({
     commitRename,
     cancelRename,
   } = useChatRename();
+
+  // 2026-07-11 review · two-tap delete (iOS-PWA destructive-action rule).
+  // First tap arms; the row's Trash button becomes "Tap again"; auto-reverts
+  // after 3s. Native window.confirm is silently suppressed in the standalone
+  // PWA, so the confirm must live in the DOM.
+  const [armedDeleteId, setArmedDeleteId] = useState<string | null>(null);
+  const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (armTimerRef.current) clearTimeout(armTimerRef.current); }, []);
+  const disarm = () => {
+    if (armTimerRef.current) clearTimeout(armTimerRef.current);
+    armTimerRef.current = null;
+    setArmedDeleteId(null);
+  };
+  const handleDeleteTap = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (armedDeleteId === id) {
+      disarm();
+      onDeleteConvo(id, e);
+      return;
+    }
+    if (armTimerRef.current) clearTimeout(armTimerRef.current);
+    setArmedDeleteId(id);
+    armTimerRef.current = setTimeout(() => setArmedDeleteId(null), 3000);
+  };
 
   const renderConvo = (c: Convo, isPinned: boolean) => {
     const date = new Date(c.createdAt);
@@ -210,16 +235,25 @@ export function ConversationDrawer({
           >
             <Archive size={13} />
           </button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10"
-            onClick={(e) => onDeleteConvo(c.id, e)}
-            title="Delete"
-            aria-label="Delete conversation"
-          >
-            <Trash2 size={13} />
-          </Button>
+          {armedDeleteId === c.id ? (
+            <button
+              onClick={(e) => handleDeleteTap(c.id, e)}
+              className="flex h-11 w-auto min-w-11 sm:h-8 items-center justify-center gap-1 rounded bg-rose-500/15 px-2 text-[11px] font-semibold text-rose-400 ring-1 ring-rose-500/40"
+              title="Tap again to delete"
+              aria-label="Tap again to confirm delete"
+            >
+              <Trash2 size={13} /> Delete?
+            </button>
+          ) : (
+            <button
+              onClick={(e) => handleDeleteTap(c.id, e)}
+              className="flex h-11 w-11 sm:h-8 sm:w-8 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10"
+              title="Delete"
+              aria-label="Delete conversation"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
       </div>
     );

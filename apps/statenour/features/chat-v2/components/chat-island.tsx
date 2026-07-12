@@ -160,7 +160,7 @@ export function ChatIsland() {
           </button>
           <button
             onClick={toggleVoiceDock}
-            aria-label={isVoiceDocked ? "Close voice dock" : "Dock voice"}
+            aria-label={isVoiceDocked ? "Close voice" : "Open voice"}
             aria-pressed={isVoiceDocked}
             className={`rounded-full px-2.5 sm:px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
               isVoiceDocked
@@ -173,7 +173,7 @@ export function ChatIsland() {
             ) : (
               <Mic className="w-3.5 h-3.5" />
             )}
-            <span className="hidden sm:inline">{isVoiceDocked ? "CLOSE VOICE" : "DOCK VOICE"}</span>
+            <span className="hidden sm:inline">{isVoiceDocked ? "CLOSE VOICE" : "VOICE"}</span>
           </button>
         </div>
       </header>
@@ -197,11 +197,12 @@ export function ChatIsland() {
           <div ref={endRef} />
         </div>
 
-        {/* Natively Docked Voice */}
+        {/* Voice overlay · 2026-07-11 review · RealtimeVoiceOverlay is
+            fixed inset-0 (full-screen) by design, so the old w-80 "dock"
+            wrapper was dead chrome that never constrained it. Render the
+            overlay directly and drop the false docked framing. */}
         {isVoiceDocked && (
-          <div className="w-80 border-l border-zinc-800/50 bg-black/40 backdrop-blur-lg">
-            <RealtimeVoiceOverlay open={isVoiceDocked} onClose={toggleVoiceDock} />
-          </div>
+          <RealtimeVoiceOverlay open={isVoiceDocked} onClose={toggleVoiceDock} />
         )}
       </div>
 
@@ -231,11 +232,20 @@ export function ChatIsland() {
             hasMoreConvos={convProps.hasMoreConvos}
             loadingMore={convProps.loadingMore}
             onLoadMore={convProps.loadMoreConvos}
-            onSelectConvo={(id) => { setActiveConversationId(id); void convProps.loadConvo(id); }}
-            onDeleteConvo={(id, e) => { if (convProps.activeId === id) setActiveConversationId(null); void convProps.deleteConvo(id, e); }}
+            onSelectConvo={(id) => { setActiveConversationId(id); void convProps.loadConvo(id); setHistoryDrawerOpen(false); }}
+            onDeleteConvo={(id, e) => {
+              // 2026-07-11 review · only null the transport-store active id
+              // AFTER the server delete succeeds. Nulling it eagerly meant a
+              // failed delete left the convo loaded while the send body
+              // carried conversationId:null → next send forked a new convo.
+              const wasActive = convProps.activeId === id;
+              void convProps.deleteConvo(id, e).then((ok) => {
+                if (ok && wasActive) setActiveConversationId(null);
+              });
+            }}
             onRename={convProps.renameConvo}
             onTogglePin={convProps.togglePin}
-            onNewChat={() => { setActiveConversationId(null); convProps.newChat(); }}
+            onNewChat={() => { setActiveConversationId(null); convProps.newChat(); setHistoryDrawerOpen(false); }}
             onToggleStar={(id) => {
               const convo = convProps.convos.find(c => c.id === id);
               if (convo) convProps.patchConvoFlag(id, "starred", !convo.starredAt);

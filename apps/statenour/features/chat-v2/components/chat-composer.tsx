@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Mic, Image as ImageIcon } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
@@ -22,6 +23,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   const enqueuePending = useChatUiStore((s) => s.enqueuePending);
   const resolvePending = useChatUiStore((s) => s.resolvePending);
 
+  const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mentionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -70,6 +72,14 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     clearConversationDraft();
 
     try {
+      // Dispatch the real message. AI SDK v6 sendMessage/append pushes the
+      // user message into chat.messages SYNCHRONOUSLY; the returned promise
+      // only settles at stream END. So we capture the send promise but do
+      // NOT await it before dropping the optimistic bubble — otherwise the
+      // pending copy duplicated the real message for the whole turn
+      // (2026-07-11 review). We only await genuine pre-dispatch work
+      // (the base64 read), which the pending bubble legitimately covers.
+      let sendPromise: Promise<void> | void;
       if (isImageAttached) {
         const result = await readImgAsBase64();
         if (result) {
@@ -89,8 +99,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             url: result.base64,
             filename: imgAttached!.file.name,
           });
-
-          await chat.append({
+          sendPromise = chat.append({
             id: tempId,
             role: "user",
             content: textToSend, // Still provide string content for logging/fallbacks
@@ -99,16 +108,23 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           clearImg();
         } else {
           toast.error("Couldn't read the image — sending text only.", { duration: 3000 });
-          await chat.sendText(textToSend);
+          sendPromise = chat.sendText(textToSend);
           clearImg();
         }
       } else {
-        await chat.sendText(textToSend);
+        sendPromise = chat.sendText(textToSend);
       }
+      // Real user message is now in chat.messages → remove the optimistic
+      // duplicate immediately (do not wait for the stream to finish).
       resolvePending(tempId);
+      // Surface a late send/stream rejection without blocking the UI.
+      Promise.resolve(sendPromise).catch((err) => {
+        console.error(err);
+        setDraft(textToSend);
+      });
     } catch (err) {
+      // Failure during the base64 read / synchronous dispatch.
       console.error(err);
-      // Restore on failure
       setDraft(textToSend);
       resolvePending(tempId);
     }
@@ -138,10 +154,12 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
         <SlashCommandDropdown
           filtered={slash.filtered}
           onNavigate={(path) => {
-            // Usually we do router.push(path) but we don't have router here. 
-            // In v2 we might just fire action.
-            setDraft("");
+            // 2026-07-11 review · ChatComposer is a client component, so
+            // useRouter() IS available here — navigate for real instead of
+            // silently wiping the draft and doing nothing.
             slash.close();
+            setDraft("");
+            router.push(path);
           }}
           onAction={(action) => {
             setDraft("");
@@ -206,17 +224,17 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           <button
             type="button"
             onClick={openImgGallery}
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 transition-all duration-300 hover:bg-zinc-800 hover:text-zinc-200 hover:scale-105 active:scale-95"
+            className="flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-xl text-zinc-400 transition-all duration-300 hover:bg-zinc-800 hover:text-zinc-200 hover:scale-105 active:scale-95"
             aria-label="Attach image"
           >
             <ImageIcon size={18} />
           </button>
-          
+
           <button
             type="button"
             onClick={voice.isRecording || voice.continuous ? voice.stopRecording : voice.startRecording}
             className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 hover:scale-105 active:scale-95",
+              "flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-xl transition-all duration-300 hover:scale-105 active:scale-95",
               voice.isRecording || voice.continuous
                 ? "bg-red-500/20 text-red-400 shadow-[0_0_15px_-3px_rgba(239,68,68,0.3)] border border-red-500/30"
                 : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
@@ -273,10 +291,12 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                // forensic-audit MEDIUM · mirror the send-button disabled guard
-                // so Enter can't fire a second send mid-stream (which
-                // interleaved two streaming turns / forked the conversation).
-                if (chat.status === "streaming" || (!draft.trim() && !imgAttached)) return;
+                // forensic-audit MEDIUM · block a second send mid-stream
+                // (interleaved turns / forked conversation). 2026-07-11
+                // review · use isStreaming so the "submitted" phase (request
+                // sent, first token not yet in) is also blocked — raw
+                // status === "streaming" missed that window.
+                if (chat.isStreaming || (!draft.trim() && !imgAttached)) return;
                 sendOrQueue(draft.trim());
               }
             }}
@@ -286,22 +306,34 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           />
         </div>
 
-        {/* Right Toolbar (Send Button) */}
-        <button
-          type="submit"
-          aria-label="Send message"
-          disabled={(!draft.trim() && !imgAttached) || chat.status === "streaming"}
-          className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-zinc-950 transition-all duration-300 disabled:opacity-50 active:scale-95",
-            (!draft.trim() && !imgAttached) || chat.status === "streaming"
-              ? "bg-zinc-100"
-              : "bg-gradient-to-br from-white to-zinc-300 shadow-[0_0_20px_-5px_rgba(255,255,255,0.4)] hover:shadow-[0_0_25px_-2px_rgba(255,255,255,0.5)] hover:scale-105"
-          )}
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-             <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
-          </svg>
-        </button>
+        {/* Right Toolbar · Send ⇄ Stop morph (2026-07-11 review) */}
+        {chat.isStreaming ? (
+          <button
+            type="button"
+            aria-label="Stop generating"
+            onClick={() => chat.stop()}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-500/90 text-white shadow-[0_0_20px_-5px_rgba(239,68,68,0.5)] transition-all duration-300 hover:bg-red-500 hover:scale-105 active:scale-95"
+          >
+            {/* solid square = stop */}
+            <span className="block h-3 w-3 rounded-[3px] bg-current" />
+          </button>
+        ) : (
+          <button
+            type="submit"
+            aria-label="Send message"
+            disabled={!draft.trim() && !imgAttached}
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-zinc-950 transition-all duration-300 disabled:opacity-50 active:scale-95",
+              !draft.trim() && !imgAttached
+                ? "bg-zinc-100"
+                : "bg-gradient-to-br from-white to-zinc-300 shadow-[0_0_20px_-5px_rgba(255,255,255,0.4)] hover:shadow-[0_0_25px_-2px_rgba(255,255,255,0.5)] hover:scale-105"
+            )}
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+               <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
+            </svg>
+          </button>
+        )}
       </div>
     </form>
   );

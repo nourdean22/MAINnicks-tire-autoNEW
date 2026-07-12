@@ -43,42 +43,29 @@ function readSource(relPath: string): string {
 // ─── 1 · A2 · composer touch targets ─────────────────────────────────
 
 describe("A2 · composer buttons + textarea hit 44px Apple HIG on mobile", () => {
-  // 2026-05-25 · Wave X.h · the textarea + composer chrome lifted out
-  // of page.tsx into chat-composer.tsx · prior Wave 83 had already
-  // extracted composer-toolbar.tsx + composer-send-button.tsx. All
-  // touch-target classname contracts now live in components/chat/
-  // sibling files · scan each for its specific contract.
-  const composerSrc = readSource("components/chat/chat-composer.tsx");
-  const toolbarSrc = readSource("components/chat/composer-toolbar.tsx");
-  const sendBtnSrc = readSource("components/chat/composer-send-button.tsx");
+  // 2026-07-11 · wave 4 · the v1 chat-composer/composer-toolbar/
+  // composer-send-button stack was deleted (dead code). The LIVE composer
+  // is features/chat-v2/components/chat-composer.tsx — this test now
+  // guards ITS touch-target contract so the regression the v1 test was
+  // watching for can't reappear on the surface that actually ships.
+  const composerSrc = readSource("features/chat-v2/components/chat-composer.tsx");
 
-  it("mic + paperclip + phone buttons render w-11 h-11 on mobile (44px)", () => {
-    // The three always-visible composer buttons on mobile.
-    // Pattern matches the literal Tailwind classname segments.
-    const mic = toolbarSrc.match(
-      /shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all/,
-    );
-    expect(mic).not.toBeNull();
-
-    // Paperclip + Phone share the same w-11 h-11 sm:w-8 sm:h-8 prefix.
-    // There must be at least 3 occurrences (mic + paperclip + phone).
-    const occurrences = toolbarSrc.match(/w-11 h-11 sm:w-8 sm:h-8/g) ?? [];
-    expect(occurrences.length).toBeGreaterThanOrEqual(3);
+  it("attach + mic buttons render h-11 w-11 on mobile (44px), dense on desktop", () => {
+    // Both left-toolbar buttons use `h-11 w-11 sm:h-9 sm:w-9` (44px phone,
+    // 36px desktop). There must be at least 2 occurrences (attach + mic).
+    const occurrences = composerSrc.match(/h-11 w-11 sm:h-9 sm:w-9/g) ?? [];
+    expect(occurrences.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("Send/Stop button stays at w-11 h-11 sm:w-9 sm:h-9 (44 mobile, 36 desktop)", () => {
-    // The Send/Stop button was already at 44px mobile · this asserts
-    // the contract didn't regress when the other buttons were bumped.
-    const send = sendBtnSrc.match(/shrink-0 relative w-11 h-11 sm:w-9 sm:h-9 rounded-xl/);
-    expect(send).not.toBeNull();
+  it("Send ⇄ Stop morph button is 44px on mobile (h-11 w-11)", () => {
+    // Both the streaming-Stop button and the idle-Send button are
+    // h-11 w-11 shrink-0 (44px). At least 2 occurrences (Stop + Send).
+    const occurrences = composerSrc.match(/h-11 w-11 shrink-0/g) ?? [];
+    expect(occurrences.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("textarea min-height is 44px on mobile, 36px on desktop", () => {
-    // Was min-h-[40px] sm:min-h-[32px] — both failed Apple HIG (40 < 44)
-    // and made the textarea visually shorter than the Send chip on
-    // desktop. New contract: min-h-[44px] sm:min-h-[36px].
-    expect(composerSrc).toContain("min-h-[44px] sm:min-h-[36px]");
-    expect(composerSrc).not.toContain("min-h-[40px] sm:min-h-[32px]");
+  it("textarea min-height is 44px on mobile", () => {
+    expect(composerSrc).toContain("min-h-[44px]");
   });
 });
 
@@ -142,29 +129,9 @@ describe("A3 · ticker container bumped to min-h 32px on mobile", () => {
 });
 
 // ─── 5 · A7 · reasoning-trace aria-controls ──────────────────────────
-
-describe("A7 · ReasoningTrace toggle has aria-controls pointing at disclosed contents", () => {
-  it("the toggle button's aria-controls matches the disclosed div's id (when open)", () => {
-    // Cross-domain residuals slice (2026-05-22) · ReasoningTrace
-    // migrated its lazy trace fetch off `authedFetch` onto
-    // `trpc.system.agentTraceByMessage` via `trpc.useUtils()`, which
-    // needs a tRPC Context provider — so the component can no longer be
-    // SSR-rendered in isolation via renderToStaticMarkup. Source-level
-    // check instead · the SAME pattern the A6 GlobalTopTicker test above
-    // already adopted for the identical cause (Phase B.6a). The
-    // useId() · aria-controls={contentsId} · id={contentsId} regex below
-    // fully locks the a11y wiring contract.
-    const src = readSource("components/chat/reasoning-trace.tsx");
-    expect(src).toContain("const contentsId = useId();");
-    // The toggle button declares aria-controls + aria-expanded + the
-    // accessible label · all three are the disclosure-pattern contract.
-    expect(src).toContain("aria-controls={contentsId}");
-    expect(src).toContain("aria-expanded={open}");
-    expect(src).toContain('aria-label="Toggle reasoning trace"');
-    // The disclosed contents div carries the matching stable id.
-    expect(src).toContain("id={contentsId}");
-  });
-});
+// REMOVED 2026-07-11 (wave 4): guarded components/chat/reasoning-trace.tsx,
+// which was deleted as dead code (zero importers; the live surface is
+// reasoning-trace-live.tsx, a streaming panel with no disclosure toggle).
 
 // ─── 6 · A6 · settings GroupHeading landmark (source-level check) ─────
 
