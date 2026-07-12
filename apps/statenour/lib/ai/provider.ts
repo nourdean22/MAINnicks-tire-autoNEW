@@ -76,6 +76,20 @@ export function resolveProviderModel(provider: RuntimeProviderName, taskType?: T
   if (provider === "ollama" && taskType === "vision") {
     return cleanEnv(process.env[cfg.visionModelEnv!]) || cfg.defaultVisionModel!;
   }
+  // 2026-07-12 · Ollama two-lane. Ollama Cloud is now primary for every task,
+  // but the strongest / least-restricted model (deepseek-v3.1:671b · OLLAMA_
+  // MODEL) runs ~7s — fine for the user-facing chat/reason lane, wasteful on
+  // the high-frequency internal lanes (classify/extract/summary/sql) that fire
+  // several times per turn. Route those to OLLAMA_FAST_MODEL (a ~1s light-filter
+  // model, e.g. glm-5.2). Falls back to OLLAMA_MODEL when the fast env is unset,
+  // so behavior is unchanged unless the operator sets it.
+  if (provider === "ollama" && (taskType === "fast" || taskType === "classify" || taskType === "extract" || taskType === "summary" || taskType === "sql")) {
+    return (
+      cleanEnv(process.env.OLLAMA_FAST_MODEL) ||
+      cleanEnv(process.env[cfg.modelEnv]) ||
+      cfg.defaultModel
+    );
+  }
   if (provider === "openrouter") {
     if (taskType === "reason" || taskType === "deep" || taskType === "code") {
       // 2026-07-06 · uncensored reasoning model (was google/gemini-2.5-pro,

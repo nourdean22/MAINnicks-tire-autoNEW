@@ -127,7 +127,8 @@ describe("v9.2 · Layer 1 (static.ts)", () => {
     // 2026-07-07 · phrases realigned to the advisor-not-warden rewording
     // (PRs #587/#588) — same contract, new canonical text.
     expect(prefix).toContain("OWNER AUTHORITY");
-    expect(prefix.toLowerCase()).toContain("advisor, never warden");
+    // 2026-07-12 · king-address rewording ("advisor and executor, never warden").
+    expect(prefix.toLowerCase()).toContain("advisor and executor, never warden");
     expect(prefix.toLowerCase()).toContain("flatly deny");
     expect(prefix).toMatch(/clearly and ONCE/);
     // It lives in the idx-0 identity section (before "## Nour Dean") so

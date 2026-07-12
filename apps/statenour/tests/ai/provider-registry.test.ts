@@ -123,7 +123,7 @@ describe("AI Provider Resolvers & Fallbacks", () => {
     process.env.OLLAMA_VISION_MODEL = "";
     expect(resolveProviderModel("ollama", "vision")).toBe("qwen3-vl:235b-instruct");
 
-    expect(resolveProviderModel("ollama", "reason")).toBe("gpt-oss:120b");
+    expect(resolveProviderModel("ollama", "reason")).toBe("deepseek-v3.1:671b");
     process.env.OLLAMA_MODEL = originalOllamaModel;
   });
 });

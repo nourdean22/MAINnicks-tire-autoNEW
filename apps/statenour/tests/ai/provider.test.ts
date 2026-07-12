@@ -122,7 +122,8 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     // We want to test getModel's logic directly. We can verify getModel returns the correct model.
     const model = getModel("reason", { preferLargeContext: true });
     // Since Ollama is first in the LargeContext sort chain, it should return Ollama's model ID
-    expect((model as any).modelId).toBe("gpt-oss:120b");
+    // (2026-07-12 · default OLLAMA_MODEL is now the uncensored deepseek-v3.1:671b).
+    expect((model as any).modelId).toBe("deepseek-v3.1:671b");
   });
 
   it("aiChat falls back in the correct order when budget is nearing limit", async () => {
@@ -150,26 +151,42 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     // Check the order of models called:
     // Prio: ollama (0 cost) -> gemini (1) -> openai (2). anthropic (3) is skipped because hasCheaper is true.
     expect(attemptedModels).toEqual([
-      "gpt-oss:120b",
+      "deepseek-v3.1:671b",
       "gemini-3.5-flash",
       "gpt-4o",
     ]);
   });
 
   describe("Task Routing Matrix", () => {
-    it("routes fast, summary, classify, extract, vision, embed to Gemini first", async () => {
+    it("routes EVERY task to Ollama Cloud first (2026-07-12 ollama-first directive)", async () => {
       vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
       vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
       vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
       vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
 
       const { getActiveProviderInfo } = await import("@/lib/ai/provider");
-      expect(getActiveProviderInfo("fast").provider).toBe("gemini");
-      expect(getActiveProviderInfo("summary").provider).toBe("gemini");
-      expect(getActiveProviderInfo("classify").provider).toBe("gemini");
-      expect(getActiveProviderInfo("extract").provider).toBe("gemini");
-      expect(getActiveProviderInfo("vision").provider).toBe("gemini");
-      expect(getActiveProviderInfo("embed").provider).toBe("gemini");
+      // These previously routed to Gemini first; the ollama-first switch moves
+      // them to Ollama Cloud (un-capped, least-restricted).
+      expect(getActiveProviderInfo("fast").provider).toBe("ollama");
+      expect(getActiveProviderInfo("summary").provider).toBe("ollama");
+      expect(getActiveProviderInfo("classify").provider).toBe("ollama");
+      expect(getActiveProviderInfo("extract").provider).toBe("ollama");
+      expect(getActiveProviderInfo("vision").provider).toBe("ollama");
+      expect(getActiveProviderInfo("embed").provider).toBe("ollama");
+    });
+
+    it("fast-lane tasks resolve OLLAMA_FAST_MODEL, chat lane resolves OLLAMA_MODEL", async () => {
+      vi.stubEnv("OLLAMA_MODEL", "deepseek-v3.1:671b");
+      vi.stubEnv("OLLAMA_FAST_MODEL", "glm-5.2");
+      const { resolveProviderModel } = await import("@/lib/ai/provider");
+      // High-frequency internal lanes → fast model
+      expect(resolveProviderModel("ollama", "classify")).toBe("glm-5.2");
+      expect(resolveProviderModel("ollama", "extract")).toBe("glm-5.2");
+      expect(resolveProviderModel("ollama", "summary")).toBe("glm-5.2");
+      expect(resolveProviderModel("ollama", "fast")).toBe("glm-5.2");
+      // User-facing lanes → full uncensored model
+      expect(resolveProviderModel("ollama", "reason")).toBe("deepseek-v3.1:671b");
+      expect(resolveProviderModel("ollama", "deep")).toBe("deepseek-v3.1:671b");
     });
 
     it("routes reason, creative, sql, math to Ollama first", async () => {
