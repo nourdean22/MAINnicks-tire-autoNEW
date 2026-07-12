@@ -3,8 +3,10 @@ import { resolve } from "path";
 import fs from "fs";
 import { getGscReport, getGscDbReport } from "../server/pipelines/gsc-data";
 
-// The populated .env lives at the monorepo root, not apps/nickstire/
-// (which has no .env) — same resolution the inspect-vapi-* scripts use.
+// nickstire's own .env has the correct mysql:// DATABASE_URL; the monorepo
+// root .env carries statenour's postgresql:// URL instead — load local
+// first so it wins (dotenv never overrides an already-set var).
+dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`;

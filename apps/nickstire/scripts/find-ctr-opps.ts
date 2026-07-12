@@ -3,6 +3,7 @@ import { resolve } from "path";
 import { findCtrOpportunities } from "../server/pipelines/gsc-data";
 
 // Load environment variables from monorepo root
+dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 
 async function main() {

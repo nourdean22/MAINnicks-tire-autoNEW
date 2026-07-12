@@ -11,6 +11,7 @@ import { resolve } from "path";
 import mysql from "mysql2/promise";
 
 dotenv.config({ path: resolve(process.cwd(), ".env") });
+dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 
 async function main(): Promise<void> {
