@@ -251,7 +251,7 @@ const finalPreferLargeContext = contentMode || domainRoute.preferLargeContext;
 | User signal           | taskType         | preferLargeContext |
 |-----------------------|------------------|--------------------|
 | Code question         | `code`           | false              |
-| Image attached        | `vision`         | true (qwen3-vl)    |
+| Image attached        | `vision`         | true (OLLAMA_VISION_MODEL) |
 | Strategic / planning  | `deep`           | true               |
 | Marketing / brand     | `creative`       | false              |
 | Fast classify         | `fast`           | false              |
