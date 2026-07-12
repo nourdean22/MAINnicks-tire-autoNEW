@@ -35,6 +35,10 @@ export const financingRouter = router({
         utmCampaign: z.string().max(255).nullish(),
         landingPage: z.string().max(500).nullish(),
         referrer: z.string().max(500).nullish(),
+        // journey-join — visitor session id. The client's getUtmData() spread
+        // already sends this; it was zod-stripped here until now. It is the join
+        // key that ties this click back to the originating lead.
+        sessionId: z.string().max(64).nullish(),
       })
     )
     .mutation(async ({ input }) => {
@@ -70,6 +74,34 @@ export const financingRouter = router({
           `[Financing] ${providerInfo.name} application tracked from ${input.sourcePage}`,
           synced ? "(synced to sheets)" : "(sheets sync failed)"
         );
+
+        // attribution-join wave — persist the click to the DB so it's joinable
+        // to the originating lead by sessionId (the Sheet is append-only +
+        // unjoinable). Best-effort: never block the click response.
+        try {
+          const { getDb } = await import("../db");
+          const { financingClicks } = await import("../../drizzle/schema");
+          const d = await getDb();
+          if (d) {
+            await d.insert(financingClicks).values({
+              provider: input.provider,
+              sourcePage: input.sourcePage,
+              customerName: safeName ?? null,
+              customerPhone: safePhone ?? null,
+              customerEmail: input.customerEmail ?? null,
+              estimatedAmount: input.estimatedAmount ?? null,
+              sessionId: input.sessionId ?? null,
+              utmSource: input.utmSource ?? null,
+              utmMedium: input.utmMedium ?? null,
+              utmCampaign: input.utmCampaign ?? null,
+              landingPage: input.landingPage ?? null,
+              referrer: input.referrer ?? null,
+              createdAt: new Date(),
+            });
+          }
+        } catch (persistErr) {
+          log.warn("[financing] click DB persist failed (non-blocking)", { error: persistErr instanceof Error ? persistErr.message : String(persistErr) });
+        }
 
         // Financing application = high-intent lead signal — notify the whole system
         import("../services/eventBus").then(({ emit }) =>
@@ -150,5 +182,35 @@ export const financingRouter = router({
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
       }
+    }),
+
+  /**
+   * Admin: recent financing clicks LEFT JOINed to the originating lead by
+   * sessionId. Answers "which financing clicks belong to a known lead?" — the
+   * attribution the append-only Sheet could never provide. A null leadId row is
+   * an unattributed click (no session match), surfaced honestly, not hidden.
+   */
+  recentClicks: adminProcedure
+    .input(z.object({ limit: z.number().min(1).max(200).default(50) }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { financingClicks, leads } = await import("../../drizzle/schema");
+      const { desc, eq } = await import("drizzle-orm");
+      const d = await getDb();
+      if (!d) return [];
+      return d.select({
+        id: financingClicks.id,
+        provider: financingClicks.provider,
+        sourcePage: financingClicks.sourcePage,
+        sessionId: financingClicks.sessionId,
+        createdAt: financingClicks.createdAt,
+        leadId: leads.id,
+        leadName: leads.name,
+        leadPhone: leads.phone,
+      })
+        .from(financingClicks)
+        .leftJoin(leads, eq(financingClicks.sessionId, leads.sessionId))
+        .orderBy(desc(financingClicks.createdAt))
+        .limit(input.limit);
     }),
 });
