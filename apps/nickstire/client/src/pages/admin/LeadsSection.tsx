@@ -37,6 +37,7 @@ import {
 } from "./leads/KanbanBoard";
 import { MarkContactedButton } from "./leads/MarkContactedButton";
 import { LostReasonButton } from "./leads/LostReasonButton";
+import { LeadDeliveryLog } from "./leads/LeadDeliveryLog";
 
 export default function LeadsSection() {
   // 2026-05-06 — URL-persistent filters via useUrlFilter.
@@ -607,6 +608,8 @@ export default function LeadsSection() {
                       <p className="text-[12px] text-foreground/30">
                         Received {new Date(lead.createdAt).toLocaleString()}
                       </p>
+
+                      <LeadDeliveryLog leadId={lead.id} />
                     </div>
 
                     {/* Actions */}
