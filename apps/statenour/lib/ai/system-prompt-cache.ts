@@ -48,18 +48,19 @@ let misses = 0;
 let sets = 0;
 let lastResetAt = Date.now();
 
-function cacheKey(provider: string, tier: string, contentMode = false): string {
+function cacheKey(provider: string, tier: string, variant = "default"): string {
   const now = new Date();
   // Key includes the 15-minute time bucket so that MIT/daily shifts
   // are picked up even within a warm lambda. Tier matters because
   // buildSystemPrompt(tier) returns wildly different content per tier.
-  // Apr 28 · contentMode added — content-creation requests get a
-  // ~40kc heavier prompt with the Master Content Engine v5.0 injected.
-  // Sharing a cache slot across content + non-content would either
-  // bloat casual queries or starve content queries, defeating either way.
+  // 2026-07-12 review · `variant` (slot + content format, from
+  // computePromptVariant) replaces the old content-mode BOOLEAN. The
+  // boolean collapsed deep-vs-content, sms, stitch, and every content
+  // FORMAT (reel/carousel/story) into two buckets, so this fast-path cache
+  // could serve the wrong-variant prompt for up to 45s. The variant matches
+  // the inner (300s) key exactly so both layers partition identically.
   const bucket = `${now.getUTCHours()}-${Math.floor(now.getUTCMinutes() / 15)}`;
-  const modeKey = contentMode ? "content" : "default";
-  return `${provider}|${tier}|${modeKey}|${bucket}`;
+  return `${provider}|${tier}|${variant}|${bucket}`;
 }
 
 /**
@@ -70,9 +71,9 @@ function cacheKey(provider: string, tier: string, contentMode = false): string {
 export function getCachedPrompt(
   provider: string,
   tier: string = "full",
-  contentMode = false,
+  variant = "default",
 ): string | null {
-  const key = cacheKey(provider, tier, contentMode);
+  const key = cacheKey(provider, tier, variant);
   const entry = cache.get(key);
   if (!entry) {
     misses++;
@@ -96,9 +97,9 @@ export function setCachedPrompt(
   provider: string,
   tier: string,
   prompt: string,
-  contentMode = false,
+  variant = "default",
 ): void {
-  const key = cacheKey(provider, tier, contentMode);
+  const key = cacheKey(provider, tier, variant);
   cache.set(key, { prompt, expiresAt: Date.now() + TTL_MS });
   sets++;
 

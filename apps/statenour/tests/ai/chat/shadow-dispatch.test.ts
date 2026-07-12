@@ -136,6 +136,7 @@ vi.mock("@/lib/ai/conversation-compress", () => ({
 vi.mock("@/lib/ai/system-prompt", () => ({
   buildSystemPrompt: vi.fn().mockResolvedValue("mock system prompt"),
   detectTopicTier: vi.fn().mockReturnValue("tier1"),
+  computePromptVariant: vi.fn().mockResolvedValue({ slot: "default", formatKey: "", variant: "default" }),
 }));
 vi.mock("@/lib/ai/query-shape", () => ({
   detectQueryShape: vi.fn().mockReturnValue({ shape: "casual", tokenBudget: 100, needsTool: false }),

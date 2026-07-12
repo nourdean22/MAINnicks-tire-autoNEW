@@ -1,6 +1,6 @@
 import { streamText, stepCountIs } from "ai";
 import { getModel, getActiveProviderInfo, isRuntimeProvider, GEMINI_SAFETY_OFF, type ProviderName, type TaskType } from "@/lib/ai/provider";
-import { buildSystemPrompt, detectTopicTier } from "@/lib/ai/system-prompt";
+import { buildSystemPrompt, detectTopicTier, computePromptVariant } from "@/lib/ai/system-prompt";
 import { detectQueryShape } from "@/lib/ai/query-shape";
 import { classifyTurn } from "@/lib/ai/turn-intelligence";
 import { buildResponseContract } from "@/lib/ai/response-contract";
@@ -551,11 +551,16 @@ async function chatPostInner(req: Request) {
   // only loads the engines relevant to this conversation. Cuts context
   // by ~60% on casual messages, improving response focus.
   const topicTier = detectTopicTier(userContent);
-  // contentMode was detected at the top of the request (drives provider
-  // selection too). Logged here for debugging the cache key.
+  // 2026-07-12 review · key the fast-path cache on the SAME variant
+  // (slot + content format) buildSystemPrompt uses for its inner key, so
+  // the two layers can't disagree. The old content-mode boolean collapsed
+  // deep/sms/stitch and every content format into two buckets → wrong
+  // prompt served for up to 45s.
+  const { variant: promptVariant } = await computePromptVariant(userContent);
   log.info("topic_tier_detected", {
     tier: topicTier,
     contentMode,
+    variant: promptVariant,
     msgPreview: userContent.slice(0, 40),
   });
 
@@ -563,7 +568,7 @@ async function chatPostInner(req: Request) {
   // key was broadened to include tier so we don't silently serve a
   // "full" prompt to a "core" tier turn (which would defeat the
   // engine-pruning that makes casual greetings fast).
-  const cachedPrompt = getCachedPrompt(provider, topicTier, contentMode);
+  const cachedPrompt = getCachedPrompt(provider, topicTier, promptVariant);
 
   // ═══ Single prompt path (Apr 17 — quick mode removed) ═══
   // Both standard and deep use the full tier-based system prompt from
@@ -581,7 +586,7 @@ async function chatPostInner(req: Request) {
     ? Promise.resolve({ systemPrompt: cachedPrompt, fromCache: true })
     : buildSystemPrompt(topicTier, userContent)
         .then((p) => {
-          setCachedPrompt(provider, topicTier, p, contentMode);
+          setCachedPrompt(provider, topicTier, p, promptVariant);
           return { systemPrompt: p, fromCache: false };
         })
         .catch((err): PromptFetchResult => {
