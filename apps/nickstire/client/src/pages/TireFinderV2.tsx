@@ -38,7 +38,7 @@ export default function TireFinderV2() {
   // Free-installation package value — mirrors the legacy funnel so the order
   // modal shows the real "$X+ value, yours free" figure instead of $0.
   const pkg = trpc.gatewayTire.getPackage.useQuery();
-  const packageValue = pkg.data?.packageValuePerSet ?? 289;
+  const packageValue = pkg.data?.packageValuePerSet ?? 266;
 
   const query = trpc.gatewayTire.publicSearch.useQuery(
     { size: normalize(size), category: "all", sortBy: "price-low" },

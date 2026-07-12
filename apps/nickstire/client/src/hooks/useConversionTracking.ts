@@ -112,15 +112,30 @@ export function useConversionTracking() {
     }
 
     // 3. Server-side log (canonical source). Best-effort fire-and-forget.
-    //    This hits a public endpoint that records to the analytics_events
-    //    table for downstream Sheets CRM sync + funnel dashboards.
+    //    feat/home-v2 (Phase 0): the sink now PERSISTS to the
+    //    customer_events table (previously only a 500-item in-memory ring
+    //    buffer that died on every restart — HomeV2 wins were unprovable).
+    //    sessionId + UTM ride along so persisted rows join the
+    //    lead→booking→invoice funnel on the same key every capture
+    //    surface already uses (@/lib/session + @/lib/utm).
     try {
-      fetch("/api/analytics/conversion", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fullEvent),
-        keepalive: true, // survives page unload
-      }).catch(() => { /* don't block UX on analytics */ });
+      import("@/lib/session").then(async ({ getSessionId }) => {
+        const { getUtmData } = await import("@/lib/utm");
+        const utm = getUtmData();
+        fetch("/api/analytics/conversion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...fullEvent,
+            sessionId: getSessionId(),
+            utmSource: utm.utmSource || null,
+            utmMedium: utm.utmMedium || null,
+            utmCampaign: utm.utmCampaign || null,
+            referrer: utm.referrer || null,
+          }),
+          keepalive: true, // survives page unload
+        }).catch(() => { /* don't block UX on analytics */ });
+      }).catch(() => { /* session/utm import blocked — skip, never block UX */ });
     } catch {
       // best-effort
     }

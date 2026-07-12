@@ -55,7 +55,7 @@ function extractBrandSlug(): string | null {
 
 function BrandHero({ brand }: { brand: TireBrand }) {
   const canonicalPath = `/${brand.slug}-tires-cleveland`;
-  const title = `${brand.name} Tires Cleveland | Free $289 Install Package | Nick's`;
+  const title = `${brand.name} Tires Cleveland | Free $266 Install Package | Nick's`;
   const description = `${brand.name} tires in Cleveland — full lineup stocked or special-ordered in 24 hours. FREE install package on every set: mount, balance, valve stems, TPMS, alignment check. ${BUSINESS.phone.display}`;
 
   return (
@@ -92,7 +92,7 @@ function BrandHero({ brand }: { brand: TireBrand }) {
             </FadeIn>
             <FadeIn delay={0.15}>
               <p className="mt-5 text-lg sm:text-xl text-foreground/75 max-w-2xl leading-relaxed">
-                {brand.tagline} Stocked or special-ordered in 24 hours. Every set installs with our free $289 package
+                {brand.tagline} Stocked or special-ordered in 24 hours. Every set installs with our free $266 package
                 — mount, balance, valve stems, TPMS reset, alignment check, and 20-point check.
               </p>
             </FadeIn>
@@ -190,7 +190,7 @@ function BrandHero({ brand }: { brand: TireBrand }) {
             <FadeIn>
               <p className="text-xs font-mono text-primary tracking-[0.2em] mb-2">FREE WITH EVERY SET</p>
               <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-3">
-                What chains charge $289 for, included free at Nick's.
+                What chains charge $266 for, included free at Nick's.
               </h2>
               <p className="text-foreground/65 mb-8 max-w-2xl">
                 Every set of {brand.name} tires installs with our standard package — no asterisk pricing,

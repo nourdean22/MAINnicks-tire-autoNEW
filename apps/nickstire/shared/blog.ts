@@ -19,7 +19,7 @@
  *
  *   4. ANTI-PATTERN NAMING
  *      "Honest pricing" → "The chain advertises a tire price. They don't
- *      advertise the $289 they tack on at the register."
+ *      advertise the $266 they tack on at the register."
  *
  *   5. INSIDER VOCABULARY
  *      "Diagnostic" → "code pull" · "Multi-point" → "walk-around" ·

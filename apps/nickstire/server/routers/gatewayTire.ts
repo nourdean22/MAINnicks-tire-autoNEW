@@ -67,7 +67,13 @@ async function getTireMarkup(): Promise<number> {
 const NICKS_PACKAGE = {
   name: "Nick's Premium Installation Package",
   tagline: "Included FREE with every tire",
-  totalRetailValue: 289, // What these services would cost elsewhere per set
+  // What these services would cost elsewhere per set — a comparative
+  // retail ESTIMATE (always render with the "+ value" qualifier).
+  // MUST equal the itemized `services` sum below (PACKAGE_VALUE_PER_SET):
+  // the live getPackage endpoint + order modal serve that sum, so any
+  // drift here ships two different numbers to customers. 2026-07-12
+  // reconcile: the old 289 had drifted from its own line items (=266).
+  totalRetailValue: 266,
   services: [
     { name: "Professional Mounting", value: 20, desc: "Expert tire mounting by certified technicians" },
     { name: "Computer Balancing", value: 18, desc: "Precision spin-balance for smooth, vibration-free driving" },

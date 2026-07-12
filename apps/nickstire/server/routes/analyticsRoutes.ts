@@ -16,14 +16,16 @@ export function registerAnalyticsRoutes(app: Express): void {
   // Receives navigator.sendBeacon from BookingWizard on page unload
   // ─── Conversion-event sink ─────────────────────────────
   // The `useConversionTracking` hook on the client fans every CTA / form
-  // / capture event here. We log to the standard logger (so logs/grep
-  // can audit) AND push into an in-memory ring buffer (`conversionEvents`)
-  // so the admin Conversion Preview tab can show a live feed without a
-  // DB migration.
-  //
-  // Batch 9 of the conversion overhaul will move this to a dedicated
-  // table for proper funnel analytics. For now, ring buffer + logger is
-  // enough to validate the wiring end-to-end.
+  // / capture event here. Two destinations:
+  //   1. In-memory ring buffer (`conversionEvents`) — the admin
+  //      Conversion Preview live feed.
+  //   2. feat/home-v2 (Phase 0): the customer_events table — the
+  //      PERSISTED funnel source of truth. Before this, events died in
+  //      the 500-item ring buffer on every restart, so conversion lift
+  //      was unmeasurable. Rows carry sessionId + UTM (sent by the hook)
+  //      and eventData.source="conversion_hook" to disambiguate from the
+  //      trackEvent() pipeline (customerEvents.log), which can emit
+  //      overlapping names like form_completed.
   app.post("/api/analytics/conversion", express.json({ limit: "8kb" }), async (req, res) => {
     try {
       const body = req.body as Record<string, unknown> | null;
@@ -40,6 +42,39 @@ export function registerAnalyticsRoutes(app: Express): void {
         ip: req.ip,
         ua: req.get("user-agent")?.slice(0, 300),
       });
+
+      // Persist. Best-effort: a dead DB must never turn an analytics
+      // beacon into a 500 (the ring buffer above still has the event).
+      try {
+        const { db } = await import("../lib/db-helper");
+        const d = await db();
+        if (d) {
+          const { customerEvents } = await import("../../drizzle/schema");
+          const str = (v: unknown, max: number) =>
+            typeof v === "string" && v.length > 0 ? v.slice(0, max) : null;
+          await d.insert(customerEvents).values({
+            eventName: String(body.type).slice(0, 64),
+            eventData: {
+              source: "conversion_hook",
+              ...(typeof body.element === "string" ? { element: body.element.slice(0, 200) } : {}),
+              ...(typeof body.value === "number" ? { value: body.value } : {}),
+              ...(typeof body.props === "object" && body.props !== null ? { props: body.props } : {}),
+            },
+            sourcePage: str(body.page, 500),
+            utmSource: str(body.utmSource, 100),
+            utmMedium: str(body.utmMedium, 100),
+            utmCampaign: str(body.utmCampaign, 255),
+            referrer: str(body.referrer, 500),
+            userAgent: req.get("user-agent")?.slice(0, 500) ?? null,
+            sessionId: str(body.sessionId, 64),
+          });
+        }
+      } catch (persistErr) {
+        serverLog.warn("[server:conversionEvent] persist failed (ring buffer still has it)", {
+          error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+        });
+      }
+
       res.sendStatus(204);
     } catch (e) {
       // Conversion analytics never blocks UX — swallow errors.
