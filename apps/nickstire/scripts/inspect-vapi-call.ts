@@ -5,6 +5,7 @@
 import dotenv from "dotenv";
 import { resolve } from "path";
 
+dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 
 const callId = process.argv[2] || "019e4176";

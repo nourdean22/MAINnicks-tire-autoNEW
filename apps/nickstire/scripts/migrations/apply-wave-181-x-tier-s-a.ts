@@ -30,6 +30,7 @@ import dotenv from "dotenv";
 import { resolve } from "path";
 
 // Try the monorepo root first, then apps/nickstire/.env
+dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 dotenv.config({ path: resolve(process.cwd(), ".env") });
 

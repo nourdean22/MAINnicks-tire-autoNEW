@@ -11,6 +11,7 @@ import mysql from "mysql2/promise";
 // overrides an already-set var — then fall back to root only for anything
 // this script doesn't itself require.
 dotenv.config({ path: resolve(process.cwd(), ".env") });
+dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 
 const MIGRATION_TAG = "0074_revenue_attribution_closure";

@@ -6,6 +6,7 @@
 import dotenv from "dotenv";
 import { resolve } from "path";
 
+dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", "..", ".env") });
 
 const apiKey = process.env.VAPI_API_KEY;
