@@ -87,3 +87,35 @@ describe("Instagram Studio V2 router registration", () => {
     expect(appRouter._def.procedures["instagramStudio.publish"]).toBeDefined();
   });
 });
+
+describe("Instagram Studio V2 render smoke (real JPEG per format)", () => {
+  async function chromeAvailable(): Promise<boolean> {
+    try {
+      const p = (await import("puppeteer")).default;
+      const b = await p.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"] });
+      await b.close();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  it("renders each format to a non-empty branded JPEG", async () => {
+    if (!(await chromeAvailable())) {
+      // Skip loudly rather than silently — a render smoke test that no-ops
+      // gives false confidence. Runs wherever Chrome is present (local + any
+      // CI runner with puppeteer's bundled Chromium).
+      console.warn("[render-smoke] puppeteer/Chrome unavailable — SKIPPED (install: npx puppeteer browsers install chrome)");
+      return;
+    }
+    const { renderHtmlToJpeg } = await import("../services/adStudio/adRender");
+    const headline = "MICHELIN DEFENDER T2 ALL-SEASON GRIP NOW"; // full-length, 40 chars
+    const body = "Road salt eats your tread by March. We check depth free and give you the honest read."; // ~85
+    for (const dims of [{ w: 1080, h: 1080 }, { w: 1080, h: 1920 }] as const) {
+      const html = renderCardHtml({ headline, body, cta: "WALK IN TODAY", eyebrow: "NICK'S TIRE", width: dims.w, height: dims.h });
+      const buf = await renderHtmlToJpeg(html, dims.w, dims.h);
+      // A real 1080px JPEG is tens of KB; a broken/blank render is near-empty.
+      expect(buf.length).toBeGreaterThan(3000);
+    }
+  }, 60_000);
+});

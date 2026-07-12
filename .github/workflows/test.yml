@@ -115,6 +115,16 @@ jobs:
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
+      # Turbo `--affected` diffs against the local `main` branch, which a
+      # detached-HEAD PR checkout does not have — it only has `origin/main`.
+      # Without this, turbo logged "Failed to resolve base ref 'main'" and
+      # silently fell back to running EVERYTHING (which then tripped on
+      # unrelated packages). Create the local ref so affected-detection is
+      # real. Skipped on main itself (already the current ref).
+      - name: Ensure base ref 'main' for Turbo --affected
+        if: github.ref_name != 'main'
+        run: git fetch --no-tags origin main:main
+
       # ─── Affected pipeline (Turbo handles parallelism + cache) ────────
       - name: Verify affected (check + lint + test + build)
         run: pnpm exec turbo run check lint test build --affected --output-logs=errors-only

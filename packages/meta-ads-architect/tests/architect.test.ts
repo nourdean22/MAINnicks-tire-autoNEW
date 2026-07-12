@@ -178,7 +178,13 @@ describe("Export, UTMs, and Creative Briefs", () => {
     const plan = await generateCampaignPlan(NicksTirePreset);
     const briefs = extractCreativeBriefs(plan);
     expect(briefs.length).toBeGreaterThan(0);
-    expect(briefs[0].contentType).toBe("ad");
+    // extractCreativeBriefs pushes reel prompts first, then image/ad-copy as
+    // "post" (creativeBrief.ts); it never emits "ad" — that isn't even a valid
+    // CreativeBriefPayload.contentType. The original `toBe("ad")` was therefore
+    // impossible and shipped born-failing in #644. The plan always has reel
+    // prompts, so the first brief is a reel.
+    expect(briefs[0].contentType).toBe("reel");
+    expect(briefs.every((b) => ["post", "reel", "carousel", "story", "poll"].includes(b.contentType))).toBe(true);
     expect(briefs[0].status).toBe("pending");
     expect(briefs[0].topic).toBe(plan.campaignArchitecture.namingConventions.campaign);
   });
