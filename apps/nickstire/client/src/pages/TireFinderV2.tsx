@@ -6,7 +6,7 @@ import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FAQPageSchema, { TIRE_BUYING_FAQ } from "@/components/FAQPageSchema";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
-import { OrderModal } from "./TireFinder";
+import { OrderModal } from "./TireFinderLegacy";
 
 const POPULAR = ["205/55R16","215/60R16","225/65R17","235/65R18","215/55R17","225/60R18"];
 const normalize = (v:string) => v.trim().toUpperCase().replace(/[^0-9R]/g,"");
