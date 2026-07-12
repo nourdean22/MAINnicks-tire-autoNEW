@@ -10,6 +10,7 @@ import { z } from "zod";
 import { eq, desc, and, gte } from "drizzle-orm";
 import { leads } from "../../drizzle/schema";
 import { buildLeadContactStatusSet } from "./leadUpdateSet";
+import { recordLeadDelivery } from "../lead-delivery";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
 import { logIntegrationFailure } from "../integration-failures";
@@ -214,16 +215,19 @@ export const leadRouter = router({
           vehicleTypes: input.vehicleTypes || undefined,
         }),
         { maxRetries: 3, baseDelayMs: 1000, label: "notifyNewLead" }
-      ).catch(err => {
-        log.error("[Lead] Email notification failed:", err);
-        logIntegrationFailure({
-          failureType: "email",
-          entityId: leadId,
-          entityType: "lead",
-          errorMessage: err instanceof Error ? err.message : String(err),
-          errorDetails: err,
+      )
+        .then(() => recordLeadDelivery({ leadId, channel: "email", status: "sent", provider: "resend" }))
+        .catch(err => {
+          log.error("[Lead] Email notification failed:", err);
+          logIntegrationFailure({
+            failureType: "email",
+            entityId: leadId,
+            entityType: "lead",
+            errorMessage: err instanceof Error ? err.message : String(err),
+            errorDetails: err,
+          });
+          void recordLeadDelivery({ leadId, channel: "email", status: "failed", provider: "resend", detail: err instanceof Error ? err.message : String(err) });
         });
-      });
 
       // Meta Conversions API: Send server-side Lead event
       if (input.pixelEventId) {
@@ -260,16 +264,19 @@ export const leadRouter = router({
           // Wave-108: financing preapproval via shop gateway (transactional)
           () => sendSms(input.phone, financingSms, { via: "shop" }),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (financing preapproval)" }
-        ).catch(err => {
-          log.error("[SMS] Financing preapproval SMS failed:", err);
-          logIntegrationFailure({
-            failureType: "sms",
-            entityId: leadId,
-            entityType: "lead",
-            errorMessage: err instanceof Error ? err.message : String(err),
-            errorDetails: err,
+        )
+          .then(() => recordLeadDelivery({ leadId, channel: "sms", status: "sent", provider: "shop" }))
+          .catch(err => {
+            log.error("[SMS] Financing preapproval SMS failed:", err);
+            logIntegrationFailure({
+              failureType: "sms",
+              entityId: leadId,
+              entityType: "lead",
+              errorMessage: err instanceof Error ? err.message : String(err),
+              errorDetails: err,
+            });
+            void recordLeadDelivery({ leadId, channel: "sms", status: "failed", provider: "shop", detail: err instanceof Error ? err.message : String(err) });
           });
-        });
       } else if (isAfterHours()) {
         handleAfterHoursCapture({ name, phone, type: "lead" }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
       } else {
@@ -277,16 +284,19 @@ export const leadRouter = router({
           // Wave-108: lead confirmation via shop gateway (transactional)
           () => sendSms(input.phone, leadConfirmationSms(input.name), { via: "shop" }),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (lead confirmation)" }
-        ).catch(err => {
-          log.error("[SMS] Lead confirmation failed:", err);
-          logIntegrationFailure({
-            failureType: "sms",
-            entityId: leadId,
-            entityType: "lead",
-            errorMessage: err instanceof Error ? err.message : String(err),
-            errorDetails: err,
+        )
+          .then(() => recordLeadDelivery({ leadId, channel: "sms", status: "sent", provider: "shop" }))
+          .catch(err => {
+            log.error("[SMS] Lead confirmation failed:", err);
+            logIntegrationFailure({
+              failureType: "sms",
+              entityId: leadId,
+              entityType: "lead",
+              errorMessage: err instanceof Error ? err.message : String(err),
+              errorDetails: err,
+            });
+            void recordLeadDelivery({ leadId, channel: "sms", status: "failed", provider: "shop", detail: err instanceof Error ? err.message : String(err) });
           });
-        });
       }
 
       // Telegram alert (always, regardless of hours)
@@ -307,7 +317,9 @@ export const leadRouter = router({
           sendTelegramMessage(lines.filter(Boolean).join("\n"), "critical");
         }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
       } else {
-        alertNewLead({ name, phone, service: scoring.recommendedService, source: input.source }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
+        alertNewLead({ name, phone, service: scoring.recommendedService, source: input.source })
+          .then(() => recordLeadDelivery({ leadId, channel: "telegram", status: "sent", provider: "telegram" }))
+          .catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); void recordLeadDelivery({ leadId, channel: "telegram", status: "failed", provider: "telegram", detail: e instanceof Error ? e.message : String(e) }); });
       }
 
       return {
@@ -326,6 +338,24 @@ export const leadRouter = router({
     if (!d) return [];
     return d.select().from(leads).orderBy(desc(leads.createdAt)).limit(1000);
   }),
+
+  /**
+   * Read the notification-delivery chronology for one lead (admin). Surfaces
+   * the durable lead_delivery_events ledger so an operator can see whether each
+   * email / SMS / Telegram was attempted, sent, or failed — the per-lead
+   * observability the append-only Google Sheet never had.
+   */
+  deliveryEvents: adminProcedure
+    .input(z.object({ leadId: z.number() }))
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return [];
+      const { leadDeliveryEvents } = await import("../../drizzle/schema");
+      return d.select().from(leadDeliveryEvents)
+        .where(eq(leadDeliveryEvents.leadId, input.leadId))
+        .orderBy(desc(leadDeliveryEvents.createdAt))
+        .limit(100);
+    }),
 
   update: adminProcedure
     .input(
