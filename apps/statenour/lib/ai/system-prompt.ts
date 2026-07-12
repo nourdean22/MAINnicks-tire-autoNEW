@@ -31,12 +31,28 @@ export function detectTopicTier(message: string): TopicTier {
 // production callers) and the unused conversationId parameter of
 // buildSystemPrompt (plumbed from route.ts but never read).
 
-export async function buildSystemPrompt(
-  tier?: TopicTier,
+/**
+ * The prompt "variant" = which system-prompt content a message produces:
+ * the slot (default / content / deep / sms / stitch_prompt) plus, for
+ * content asks, the requested format(s). Two messages with the SAME variant
+ * yield an identical prompt and can share a cache slot; different variants
+ * must not. 2026-07-12 review · single source of truth so the inner
+ * (system-prompt.ts, 300s) and outer (system-prompt-cache.ts, 45s) caches
+ * partition identically — previously the inner keyed on slot-only (format
+ * collapse) and the outer on a content-mode BOOLEAN (slot + format collapse),
+ * so a "write a reel" turn could be served a cached "write a carousel"
+ * prompt for up to 45s/300s.
+ *
+ * Reuses the EXACT runtime detectors (no regex drift) except the format
+ * signature, which mirrors the format-engine gate in
+ * lib/ai/knowledge/detectors.ts (getBusinessKnowledge, the `### … ENGINE`
+ * blocks). Keep the three regexes in sync with that file.
+ */
+export async function computePromptVariant(
   userMessage?: string | null,
-): Promise<string> {
-  const effectiveTier = tier || "full";
-  const { detectContentIntent, detectContentDeepIntent, detectSmsIntent } = await import("./business-knowledge");
+): Promise<{ slot: string; formatKey: string; variant: string }> {
+  const { detectContentIntent, detectContentDeepIntent, detectSmsIntent } =
+    await import("./business-knowledge");
   const contentMode = detectContentIntent(userMessage);
   const deepMode = contentMode && detectContentDeepIntent(userMessage);
 
@@ -53,10 +69,36 @@ export async function buildSystemPrompt(
           ? "sms"
           : "default";
 
+  // Format only differentiates the prompt in content mode (the REELS /
+  // CAROUSEL / STORY engines are injected only there). Order-independent,
+  // stable key. Mirrors detectors.ts's format-engine regexes exactly.
+  let formatKey = "";
+  if (contentMode) {
+    const m = (userMessage || "").toLowerCase();
+    if (/\breel|reels|video|tiktok|shorts?\b/.test(m)) formatKey += "r";
+    if (/\bcarousel|carousels|slides?|swipe\b/.test(m)) formatKey += "c";
+    if (/\bstory|stories|highlight\b/.test(m)) formatKey += "s";
+  }
+
+  const variant = formatKey ? `${slot}+${formatKey}` : slot;
+  return { slot, formatKey, variant };
+}
+
+export async function buildSystemPrompt(
+  tier?: TopicTier,
+  userMessage?: string | null,
+): Promise<string> {
+  const effectiveTier = tier || "full";
+  const { slot, variant } = await computePromptVariant(userMessage);
+
   // Use the date + 4h bucket in the cache key to partition by time-of-day.
   // AG-35 · key prefix bumped v2 → v3: the business-knowledge layer below
   // changes what a cached prompt contains, and per the invalidation note
   // in system-prompt-cache.ts a knowledge change must never serve stale.
+  // 2026-07-12 review · key uses `variant` (slot + content format) not just
+  // slot: two content asks that differ only by format (reel vs carousel)
+  // inject different format engines but previously shared this 300s cache
+  // slot, serving whichever built first.
   const _now = new Date();
   const _dayKey = _now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const _hour = parseInt(
@@ -64,7 +106,7 @@ export async function buildSystemPrompt(
     10,
   );
   const _bucket = _hour < 12 ? "am" : _hour < 17 ? "pm" : "eve";
-  const cacheKey = `system_prompt_v3_${effectiveTier}_${slot}_${_dayKey}_${_bucket}`;
+  const cacheKey = `system_prompt_v3_${effectiveTier}_${variant}_${_dayKey}_${_bucket}`;
 
   return cached(cacheKey, 300, async () => {
     const { buildSystemPromptV2 } = await import("./prompt/v2");

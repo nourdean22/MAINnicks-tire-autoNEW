@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { trimPromptToBudget } from "@/lib/ai/system-prompt";
 import { toolFirstDirective } from "@/lib/ai/query-shape";
 import {
   buildChainOfThoughtPrompt,
@@ -107,8 +108,18 @@ export async function finalizeSystemPrompt(
   // Anthropic Claude Sonnet 4.6: ~200K, system prompt can take 120K.
   const MAX_SYSTEM_CHARS = provider === "anthropic" ? 120000 : 65000;
   if (systemPrompt.length > MAX_SYSTEM_CHARS) {
-    log.info("system_prompt_truncated", { from: systemPrompt.length, to: MAX_SYSTEM_CHARS, provider });
-    systemPrompt = systemPrompt.slice(0, MAX_SYSTEM_CHARS) + "\n\n[System prompt truncated for model context limits]";
+    // 2026-07-12 review · was a blind `slice(0, MAX)` that amputated the
+    // business-knowledge layer MID-SENTENCE on content/deep asks (which run
+    // 77-135K before this cap). Use the section-aware trimmer instead: it
+    // drops whole `## ` sections by priority — and now protects the TRUTH
+    // RULE / operator rules / Tools (getSectionPriority, 2026-07-11) — so
+    // the cut lands on a section boundary, dropping the lowest-value blocks
+    // (cold memory, brain dumps, knowledge sub-blocks) rather than slicing a
+    // guardrail in half. Falls back to a marked slice only if the protected
+    // core alone still exceeds the cap.
+    const before = systemPrompt.length;
+    systemPrompt = trimPromptToBudget(systemPrompt, MAX_SYSTEM_CHARS);
+    log.info("system_prompt_truncated", { from: before, to: systemPrompt.length, cap: MAX_SYSTEM_CHARS, provider, sectionAware: true });
   }
 
   // Load Greene strategic law library for context. 2026-07-11 review ·
