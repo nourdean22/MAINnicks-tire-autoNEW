@@ -34,13 +34,19 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     id: "ollama",
     apiKeyEnv: ["OLLAMA_API_KEY"],
     modelEnv: "OLLAMA_MODEL",
-    defaultModel: "gpt-oss:120b",
+    // 2026-07-12 · least-restricted tool-reliable model on the Ollama Cloud
+    // key (verified: emits valid tool_calls via the OpenAI-compat endpoint).
+    // deepseek-v3.1:671b has the lightest content filtering of the tool-capable
+    // models offered; the ~7s latency is the user-facing reason/chat lane's
+    // cost. Fast internal lanes use OLLAMA_FAST_MODEL (glm-5.2, ~1s). Override
+    // both via Railway env.
+    defaultModel: "deepseek-v3.1:671b",
     baseUrlEnv: "OLLAMA_BASE_URL",
     defaultBaseUrl: "https://ollama.com",
     visionModelEnv: "OLLAMA_VISION_MODEL",
     defaultVisionModel: "qwen3-vl:235b-instruct",
     cooldownMs: AI_PROVIDER_COOLDOWN_MS,
-    modelSubstrings: ["glm-5", "glm-5.2", "qwen3", "deepseek-v4", "kimi", "gpt-oss"],
+    modelSubstrings: ["glm-5", "glm-5.2", "qwen3", "qwen3.5", "deepseek-v3", "deepseek-v4", "kimi", "minimax", "mistral-large", "gpt-oss"],
   },
   gemini: {
     id: "gemini",
@@ -88,17 +94,26 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
   },
 };
 
+// 2026-07-12 · OLLAMA CLOUD FIRST for every task (operator directive). Ollama
+// Cloud (ollama.com) serves large, lightly-filtered models on a flat un-metered
+// key — no per-token spend cap to hang like Gemini did, and the least-restricted
+// tool-reliable models available to this deployment (deepseek-v3.1:671b for the
+// user-facing reason/chat lane, glm-5.2 for the fast internal lane — see
+// resolveProviderModel + OLLAMA_MODEL / OLLAMA_FAST_MODEL). OpenRouter (grok)
+// stays as the 2nd hop so a cooldown never dead-ends a turn; gemini drops to a
+// late fallback since its key is spend-capped. Order is preference only — the
+// runtime still skips any provider whose key is missing or in cooldown.
 export const TASK_ROUTING_PREFERENCES: Record<TaskType, RuntimeProviderName[]> = {
-  fast: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
-  sql: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
-  summary: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
-  classify: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
-  extract: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
-  reason: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
-  vision: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
-  deep: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
-  code: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
-  math: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
-  creative: ["openrouter", "ollama", "gemini", "openai", "anthropic"],
-  embed: ["openrouter", "gemini", "ollama", "openai", "anthropic"],
+  fast: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
+  sql: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
+  summary: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
+  classify: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
+  extract: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
+  reason: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
+  vision: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
+  deep: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
+  code: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
+  math: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
+  creative: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
+  embed: ["ollama", "openrouter", "gemini", "openai", "anthropic"],
 };
