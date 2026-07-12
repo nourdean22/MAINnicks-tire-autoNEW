@@ -9,6 +9,7 @@ import { syncLeadToSheet, getSpreadsheetUrl, isSheetConfigured } from "../sheets
 import { z } from "zod";
 import { eq, desc, and, gte } from "drizzle-orm";
 import { leads } from "../../drizzle/schema";
+import { buildLeadContactStatusSet } from "./leadUpdateSet";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
 import { logIntegrationFailure } from "../integration-failures";
@@ -342,21 +343,10 @@ export const leadRouter = router({
       const d = await db();
       if (!d) throw new Error("Database not available");
       const { id, lostReason, ...updates } = input;
-      const setObj: Record<string, unknown> = {};
-      if (updates.status !== undefined) setObj.status = updates.status;
-      if (updates.contacted !== undefined) {
-        setObj.contacted = updates.contacted;
-        if (updates.contacted === 1) {
-          setObj.contactedAt = new Date();
-          setObj.lastFollowUpAt = new Date();
-        }
-      }
-      if (updates.contactedBy !== undefined) setObj.contactedBy = updates.contactedBy;
-      if (updates.contactNotes !== undefined) {
-        setObj.contactNotes = updates.contactNotes;
-        setObj.lastFollowUpAt = new Date(); // Any note = a follow-up
-      }
-      if (updates.estimatedValueCents !== undefined) setObj.estimatedValueCents = updates.estimatedValueCents;
+      // Base column mapping — incl. the status→"contacted" atomicity guard —
+      // lives in a pure, unit-tested helper (leadUpdateSet.ts). Async concerns
+      // (lost-reason note merge + booking/invoice attribution) stay below.
+      const setObj = buildLeadContactStatusSet(updates);
       // Store lost reason: prepend to contact notes so it's visible + searchable
       if (lostReason && updates.status === "lost") {
         const existing = updates.contactNotes || "";

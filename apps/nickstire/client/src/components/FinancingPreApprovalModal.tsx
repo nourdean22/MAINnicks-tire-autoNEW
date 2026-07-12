@@ -131,7 +131,7 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
                       You May Qualify!
                     </h3>
                     <p className="text-white/60 text-sm leading-relaxed mb-4">
-                      We sent you a text with next steps. Bring your ID when you drop off your vehicle and we'll get you set up with financing — approved on the spot, no hard credit pull.
+                      Watch your phone for a text with next steps. Bring your ID when you drop off your vehicle and we'll get you set up with financing — approved on the spot, no hard credit pull.
                     </p>
                     <p className="text-[#FDB913] font-bold text-sm">
                       (216) 862-0005
