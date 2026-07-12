@@ -30,10 +30,13 @@
  *      default, 250 ceiling) that crippled analysis / strategy /
  *      code-review answers. Now intent-based.
  *
- * For v9.2 this is still BEHIND a feature flag. Default OFF; enable
- * in dev with `NICK_PRIME_PROMPT=1`. Production stays on v1 until
- * shadow runs (lib/ai/shadow-mode.ts) show parity for 24-48h. Once
- * v2 is the primary, the v1 builder retires entirely.
+ * 2026-07-11 review · CUTOVER COMPLETE. v2 is the SOLE prompt builder —
+ * buildSystemPrompt() calls buildSystemPromptV2() unconditionally. The
+ * NICK_PRIME_PROMPT flag no longer gates anything (isPromptV2Enabled()
+ * returns true unconditionally and nothing consults it); it is marked
+ * deprecated in feature-flags.ts. There is NO v1 builder left, so
+ * "NICK_PRIME_PROMPT=off" is NOT a valid rollback lever — do not document
+ * it as one.
  */
 
 import { buildNickPrimeContext } from "@/lib/ai/context/nick-prime-context";

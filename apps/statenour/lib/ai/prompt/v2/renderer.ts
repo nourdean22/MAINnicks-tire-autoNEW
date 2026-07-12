@@ -430,7 +430,11 @@ function renderRecentThinking(ctx: NickPrimeContext): string {
     if (lines.length > 0) lines.push("");
     lines.push(`## Follow-Ups Needed`);
     for (const item of ctx.followUps) {
-      lines.push(`- ${item}`);
+      // 2026-07-11 review · followUps + anticipatedQuestions are
+      // LLM-generated from chat-derived content and were the ONLY leaves
+      // in this renderer bypassing safe() — an injection path back into
+      // the system prompt. Fence them like every other leaf.
+      lines.push(`- ${safe(item, 200)}`);
     }
   }
 
@@ -438,7 +442,7 @@ function renderRecentThinking(ctx: NickPrimeContext): string {
     if (lines.length > 0) lines.push("");
     lines.push(`## Anticipated Questions for Today`);
     for (const q of ctx.anticipatedQuestions) {
-      lines.push(`- ${q}`);
+      lines.push(`- ${safe(q, 200)}`);
     }
   }
 
