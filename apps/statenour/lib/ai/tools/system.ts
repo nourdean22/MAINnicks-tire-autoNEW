@@ -677,16 +677,18 @@ export const systemTools = {
       try {
         if (process.env.PERPLEXICA_API_URL) {
           const { askPerplexica } = await import("@/lib/integrations/perplexica");
-          // 2026-07-12 · FAIL-FAST on a hung primary. Perplexica synthesizes
-          // in ~15s when healthy, but when its synth backend stalls (e.g. the
-          // Gemini key hits a spending cap → /api/search never returns) the
-          // guardian's 35s×2 = 70s burns the whole interactive budget before
-          // failover, so the chat stream aborts and the model refuses with
-          // stale training data instead of the working Tavily quorum. Cap the
-          // PRIMARY attempt: a healthy perplexica still wins, a dead one hands
-          // off to the quorum in ≤14s. `.catch` keeps the losing promise from
-          // surfacing as an unhandled rejection after the race resolves.
-          const PRIMARY_MS = 14_000;
+          // 2026-07-12 · FAIL-FAST on a hung primary. When perplexica's synth
+          // backend stalls (e.g. the Gemini key hit its spending cap →
+          // /api/search never returned) the guardian's 35s×2 = 70s burned the
+          // whole interactive budget before failover, so the chat stream
+          // aborted and the model refused with stale training data instead of
+          // the working Tavily quorum. Cap the PRIMARY attempt; on null the
+          // quorum (Tavily ~2s) answers. 30s = measured healthy perplexica on
+          // Ollama Cloud synthesis (gpt-oss:120b): 24.7-28.4s typical over
+          // 30-60 sources; the ~38s tail loses to Tavily by design. `.catch`
+          // keeps the losing promise from surfacing as an unhandled rejection
+          // after the race resolves.
+          const PRIMARY_MS = 30_000;
           const r = await Promise.race([
             askPerplexica(query).catch(() => null),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), PRIMARY_MS)),
