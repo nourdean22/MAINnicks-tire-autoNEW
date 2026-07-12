@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Search, Phone, Check, Loader2, ShieldCheck, Star, AlertTriangle } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
 import { Breadcrumbs, SEOHead, trackEvent, trackPhoneClick } from "@/components/SEO";
@@ -31,9 +32,50 @@ export default function TireFinderV2() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const [input, setInput] = useState(params.get("size") || "");
   const [size, setSize] = useState(params.get("size") || "");
+  const [sizeError, setSizeError] = useState("");
   const [qty, setQty] = useState(4);
   const [selected, setSelected] = useState<Tire | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Stripe Checkout return (wave-d · CONFIRMED high-friction gap): the
+  // success/cancel URLs point at /tires?order=X&paid=1|0, but the handler
+  // lived only in the retired Legacy page — so a customer who PAID landed
+  // on the blank "search your size" screen with zero acknowledgment.
+  // Ported from Legacy: server-confirmed success toast (never trust the
+  // URL param alone), cancel notice, and a replaceState URL-strip so a
+  // refresh doesn't re-fire the mutation or duplicate toasts.
+  const confirmCheckout = trpc.gatewayTire.confirmCheckout.useMutation();
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const returnParams = new URLSearchParams(window.location.search);
+    const paid = returnParams.get("paid");
+    const order = returnParams.get("order");
+    if (!order || (paid !== "1" && paid !== "0")) return;
+    if (paid === "1") {
+      // Webhook is the primary confirmation path; this is the idempotent
+      // fallback so a paid order is never stuck unpaid if it's slow.
+      confirmCheckout.mutate({ orderNumber: order }, {
+        onSuccess: (r) => {
+          if (r?.ok) {
+            toast.success(`Payment received — order ${order} is confirmed. We'll be in touch about installation.`);
+          } else {
+            toast.error(`We couldn't verify payment for order ${order}. Call (216) 862-0005 — we'll sort it out.`);
+          }
+        },
+        onError: () => {
+          toast.error(`We couldn't verify payment for order ${order}. Call (216) 862-0005 — we'll sort it out.`);
+        },
+      });
+    } else {
+      toast(`Payment cancelled — order ${order} is still saved. You can pay anytime.`);
+    }
+    const cleanParams = new URLSearchParams(window.location.search);
+    cleanParams.delete("paid");
+    cleanParams.delete("order");
+    const searchStr = cleanParams.toString();
+    window.history.replaceState({}, "", window.location.pathname + (searchStr ? `?${searchStr}` : ""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only by design (mirrors Legacy)
+  }, []);
 
   // Free-installation package value — mirrors the legacy funnel so the order
   // modal shows the real "$X+ value, yours free" figure instead of $0.
@@ -48,7 +90,13 @@ export default function TireFinderV2() {
 
   const submit = (value = input) => {
     const clean = value.trim();
-    if (normalize(clean).length < 7) return;
+    if (normalize(clean).length < 7) {
+      // wave-d · was a silent bare return: the button looked live but the
+      // DOM was byte-identical after the click — "appears broken".
+      setSizeError("That size looks incomplete — use the full code from your sidewall, like 215/60R16.");
+      return;
+    }
+    setSizeError("");
     setInput(clean);
     setSize(clean);
     const p = new URLSearchParams(window.location.search);
@@ -84,13 +132,18 @@ export default function TireFinderV2() {
                 <input
                   aria-label="Search tire size"
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => { setInput(e.target.value); if (sizeError) setSizeError(""); }}
                   onKeyDown={(e) => e.key === "Enter" && submit()}
                   placeholder="Enter tire size — e.g. 215/60R16"
                   className="min-w-0 flex-1 bg-transparent px-2 py-3 text-lg outline-none"
                 />
                 <button onClick={() => submit()} className="rounded-xl bg-primary px-5 font-bold text-primary-foreground">Search tires</button>
               </div>
+              {sizeError && (
+                <p role="alert" className="mt-2 text-left text-sm font-medium text-amber-400">
+                  {sizeError}
+                </p>
+              )}
               <div className="mt-3 flex flex-wrap justify-center gap-2">
                 {POPULAR.map((s) => (
                   <button key={s} onClick={() => submit(s)} className="rounded-full border border-border/50 px-3 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary">{s}</button>
@@ -128,6 +181,11 @@ export default function TireFinderV2() {
                   <p className="text-sm font-semibold text-primary">{query.data.sizeFormatted}</p>
                   <h2 className="text-2xl font-bold">Choose the best fit for your budget</h2>
                   <p className="text-sm text-muted-foreground">Availability and fitment are confirmed before final payment.</p>
+                  {/* wave-d · the affordability objection fires HERE, at the
+                      price cards — and financing was invisible in the whole
+                      funnel (JSON-LD only). Standing rule: reassurance-line
+                      ONLY — no calculators, no rates, no pressure block. */}
+                  <p className="text-xs text-muted-foreground/80">Payment programs are available if you need them — just ask when we confirm your order.</p>
                 </div>
                 <div className="flex gap-2">
                   {[1, 2, 4].map((n) => (
@@ -151,8 +209,24 @@ export default function TireFinderV2() {
                           <span className="text-xs font-semibold uppercase tracking-wide text-primary">{optionLabel(t, i)}</span>
                           <h3 className="mt-1 text-xl font-bold">{t.brand} {t.model}</h3>
                           <p className="text-sm text-muted-foreground">{t.size} · {t.warranty || "Warranty varies"}</p>
+                          {/* wave-g: real D&K feed specs. Two same-brand/model
+                              variants (speed rating / load index) render as
+                              separate cards — showing the rating tells the
+                              customer WHICH one they're picking, and the live
+                              stock chip sets the "Request these" expectation.
+                              Every field is from the feed; nothing invented. */}
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            {(t.loadIndex || t.speedRating) && (
+                              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground" title="Load index + speed rating">
+                                {t.loadIndex}{t.speedRating}
+                              </span>
+                            )}
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${t.inStock ? "bg-green-500/10 text-green-500" : "bg-amber-500/10 text-amber-500"}`}>
+                              {t.inStock ? "In stock" : "Available to order"}{t.estimatedDelivery ? ` · ${t.estimatedDelivery}` : ""}
+                            </span>
+                          </div>
                         </div>
-                        <ShieldCheck className="h-6 w-6 text-primary" />
+                        <ShieldCheck className="h-6 w-6 text-primary shrink-0" />
                       </div>
                       <div className="mt-5 flex items-end justify-between">
                         <div>

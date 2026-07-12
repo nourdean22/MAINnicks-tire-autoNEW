@@ -14,7 +14,19 @@ import React from "react";
 const h = vi.hoisted(() => ({
   trackEvent: vi.fn(),
   search: { data: undefined as any, isLoading: false, isError: false },
+  confirmMutate: vi.fn(),
+  confirmResult: { ok: true } as { ok: boolean },
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+  toastPlain: vi.fn(),
 }));
+
+vi.mock("sonner", () => {
+  const plain = (...a: unknown[]) => h.toastPlain(...a);
+  (plain as any).success = (...a: unknown[]) => h.toastSuccess(...a);
+  (plain as any).error = (...a: unknown[]) => h.toastError(...a);
+  return { toast: plain };
+});
 
 vi.mock("wouter", () => ({
   Link: ({ children, ...props }: any) => React.createElement("a", props, children),
@@ -37,7 +49,16 @@ vi.mock("@/lib/trpc", () => {
       key === "gatewayTire.publicSearch" ? h.search
         : key === "gatewayTire.getPackage" ? { data: { packageValuePerSet: 266, services: [] }, isLoading: false }
         : { data: undefined, isLoading: false },
-    useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+    useMutation: () =>
+      key === "gatewayTire.confirmCheckout"
+        ? {
+            mutate: (vars: unknown, opts?: { onSuccess?: (r: unknown) => void }) => {
+              h.confirmMutate(vars);
+              opts?.onSuccess?.(h.confirmResult);
+            },
+            isPending: false,
+          }
+        : { mutate: vi.fn(), isPending: false },
   });
   const trpc = new Proxy({}, {
     get: (_t, ns) => ns === "useUtils" || ns === "useContext"
@@ -80,6 +101,11 @@ async function renderV2() {
 describe("TireFinderV2 (the shipped /tires funnel)", () => {
   beforeEach(() => {
     h.trackEvent.mockClear();
+    h.confirmMutate.mockClear();
+    h.toastSuccess.mockClear();
+    h.toastError.mockClear();
+    h.toastPlain.mockClear();
+    h.confirmResult = { ok: true };
     h.search = { data: undefined, isLoading: false, isError: false };
     window.history.pushState({}, "", "/tires");
   });
@@ -120,6 +146,24 @@ describe("TireFinderV2 (the shipped /tires funnel)", () => {
     expect(screen.getByText("$382.00 for 4")).toBeTruthy();      // 95.5 × 4 (default qty)
   });
 
+  it("cards show real feed specs (load+speed rating) and a live in-stock chip", async () => {
+    h.search = { data: { sizeFormatted: "215/60R16", source: "live", tires: [
+      tire({ id: "a", brand: "Landsail", model: "RD3", loadIndex: "94", speedRating: "H", inStock: true, estimatedDelivery: "Same day" }),
+    ] }, isLoading: false, isError: false };
+    await renderV2();
+    expect(screen.getByText("94H")).toBeTruthy();                 // disambiguates variants
+    expect(screen.getByText("In stock · Same day")).toBeTruthy();
+  });
+
+  it("out-of-stock tire shows 'Available to order' with its lead time", async () => {
+    h.search = { data: { sizeFormatted: "215/60R16", source: "live", tires: [
+      tire({ id: "b", inStock: false, estimatedDelivery: "1-2 business days" }),
+    ] }, isLoading: false, isError: false };
+    await renderV2();
+    expect(screen.getByText("Available to order · 1-2 business days")).toBeTruthy();
+    expect(screen.queryByText(/In stock/)).toBeNull();
+  });
+
   it("changing quantity re-computes the set price", async () => {
     h.search = { data: { sizeFormatted: "215/60R16", source: "live", tires: [tire({ shopPrice: 100 })] }, isLoading: false, isError: false };
     await renderV2();
@@ -137,6 +181,49 @@ describe("TireFinderV2 (the shipped /tires funnel)", () => {
     expect(modal.getAttribute("data-package")).toBe("266"); // NOT "0" — the checkout bug fix ($266 = itemized sum)
     expect(modal.getAttribute("data-qty")).toBe("4");
     expect(h.trackEvent).toHaveBeenCalledWith("tire_option_selected", expect.objectContaining({ id: "a", quantity: 4 }));
+  });
+
+  it("invalid (short) size submit shows an inline error instead of silently doing nothing", async () => {
+    await renderV2();
+    const input = screen.getByLabelText("Search tire size") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "215" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search tires" }));
+    expect(screen.getByRole("alert").textContent).toMatch(/size looks incomplete/i);
+    expect(h.trackEvent).not.toHaveBeenCalledWith("tire_search_submitted", expect.anything());
+    // Typing again clears the error.
+    fireEvent.change(input, { target: { value: "215/60R16" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("Stripe success return (?paid=1&order=X) confirms server-side, toasts, and strips the URL", async () => {
+    h.confirmResult = { ok: true };
+    window.history.pushState({}, "", "/tires?order=TO-20260712-123&paid=1");
+    await renderV2();
+    expect(h.confirmMutate).toHaveBeenCalledWith({ orderNumber: "TO-20260712-123" });
+    expect(h.toastSuccess).toHaveBeenCalledWith(expect.stringContaining("TO-20260712-123"));
+    expect(window.location.search).not.toMatch(/paid|order/);
+  });
+
+  it("Stripe success return with UNVERIFIED payment shows the call-us error, not a fake success", async () => {
+    h.confirmResult = { ok: false };
+    window.history.pushState({}, "", "/tires?order=TO-20260712-124&paid=1");
+    await renderV2();
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(h.toastError).toHaveBeenCalledWith(expect.stringContaining("couldn't verify payment"));
+  });
+
+  it("Stripe cancel return (?paid=0) tells the customer the order is saved", async () => {
+    window.history.pushState({}, "", "/tires?order=TO-20260712-125&paid=0");
+    await renderV2();
+    expect(h.confirmMutate).not.toHaveBeenCalled();
+    expect(h.toastPlain).toHaveBeenCalledWith(expect.stringContaining("still saved"));
+    expect(window.location.search).not.toMatch(/paid|order/);
+  });
+
+  it("results header carries the payment-programs reassurance line (line only — no pressure block)", async () => {
+    h.search = { data: { sizeFormatted: "215/60R16", source: "live", tires: [tire({})] }, isLoading: false, isError: false };
+    await renderV2();
+    expect(screen.getByText(/Payment programs are available if you need them/i)).toBeTruthy();
   });
 
   it("search error shows a call-the-shop fallback instead of a blank area", async () => {
