@@ -118,8 +118,8 @@ describe("de-Venice drift guard", () => {
     const hqStatus = readFileSync(path.resolve(STATENOUR_ROOT, "components/ultron/top-strip/hq-status-chips.tsx"), "utf-8");
     expect(hqStatus).not.toContain("Venice slow?");
 
-    const errorDiag = readFileSync(path.resolve(STATENOUR_ROOT, "components/chat/error-diagnostic-panel.tsx"), "utf-8");
-    expect(errorDiag).not.toContain("pinging Venice");
+    // error-diagnostic-panel.tsx deleted 2026-07-11 (wave 4 · dead-component
+    // sweep, zero live importers) — its de-Venice assertion is moot.
 
     const errorCard = readFileSync(path.resolve(STATENOUR_ROOT, "components/ui/error-card.tsx"), "utf-8");
     expect(errorCard).not.toContain('"chat:stream": "Venice');

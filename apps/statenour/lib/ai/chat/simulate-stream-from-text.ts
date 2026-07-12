@@ -150,7 +150,12 @@ export function simulateReasoningStream({
       const { reasonStreaming } = await import("@/lib/ai/reasoning/engine");
 
       const reasoning = await reasonStreaming(request, (step) => {
-        (writer as any).write({ type: "data", data: [{ type: "reasoning-step", step }] });
+        // 2026-07-11 review · emit each step as a v6 TYPED data part
+        // (`data-reasoningStep`) so it surfaces on message.parts. The
+        // previous `{ type: "data", data: [...] }` (v4/v5 shape) never
+        // reached the client — the live panel read a non-existent
+        // `message.annotations` and always rendered empty.
+        (writer as any).write({ type: "data-reasoningStep", data: step });
       });
 
       const winner = reasoning.trace.answer ?? "";

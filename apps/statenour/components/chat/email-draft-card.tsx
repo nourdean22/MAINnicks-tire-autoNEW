@@ -76,6 +76,26 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
   // we get `id` directly without an unsafe `as` cast on json.
   const sendEmailMutation = trpc.chat.sendEmail.useMutation();
 
+  // 2026-07-11 review · two-tap arm before firing a REAL external email
+  // (Resend). Single-tap send on a ~30px button mid-scroll could deliver
+  // irreversibly; window.confirm is suppressed in the standalone PWA.
+  const [armed, setArmed] = useState(false);
+  const armTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => { if (armTimerRef.current) clearTimeout(armTimerRef.current); }, []);
+
+  const onSendTap = () => {
+    if (state.kind === "sending" || state.kind === "sent") return;
+    if (!armed) {
+      setArmed(true);
+      if (armTimerRef.current) clearTimeout(armTimerRef.current);
+      armTimerRef.current = setTimeout(() => setArmed(false), 3000);
+      return;
+    }
+    if (armTimerRef.current) clearTimeout(armTimerRef.current);
+    setArmed(false);
+    void send();
+  };
+
   const send = async () => {
     if (state.kind === "sending" || state.kind === "sent") return;
     setState({ kind: "sending" });
@@ -139,15 +159,17 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
       <div className="px-3 py-2 border-t border-[var(--border-default)] flex items-center justify-between">
         <StateLabel state={state} apiResult={draft.apiResult} />
         <button
-          onClick={send}
+          onClick={onSendTap}
           disabled={state.kind === "sending" || state.kind === "sent"}
           className={cn(
-            "inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all",
+            "inline-flex min-h-[44px] items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all",
             state.kind === "sent"
               ? "bg-emerald-500/15 text-emerald-300 cursor-default"
               : state.kind === "sending"
                 ? "bg-[var(--gold)]/40 text-[var(--text-inverse)] cursor-wait"
-                : "bg-[var(--gold)] text-[var(--text-inverse)] hover:bg-[var(--gold-dim)]",
+                : armed
+                  ? "bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/50"
+                  : "bg-[var(--gold)] text-[var(--text-inverse)] hover:bg-[var(--gold-dim)]",
           )}
         >
           {state.kind === "sending" ? (
@@ -157,7 +179,13 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
           ) : (
             <Send size={12} />
           )}
-          {state.kind === "sent" ? "Sent" : state.kind === "sending" ? "Sending…" : "Send"}
+          {state.kind === "sent"
+            ? "Sent"
+            : state.kind === "sending"
+              ? "Sending…"
+              : armed
+                ? "Tap to confirm"
+                : "Send"}
         </button>
       </div>
     </div>

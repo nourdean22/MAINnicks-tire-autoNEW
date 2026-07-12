@@ -7,7 +7,24 @@ import { useChatTransport } from "@/hooks/chat/use-chat-transport";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStall } from "@/hooks/chat/use-chat-stall";
 import { useStreamingErrorGuard } from "@/hooks/chat/use-streaming-error-guard";
+import {
+  readPageContext,
+  onPageContextChanged,
+  type PageContextPayload,
+} from "@/components/chat/page-context-bridge";
 import type { ChatRuntimeController } from "../types/chat-runtime-controller";
+
+// Entity anchors the chat route reads off the request body
+// (app/api/ai/chat/context-hints.ts) to resolve "it"/"this decision".
+const PAGE_ANCHOR_KEYS = [
+  "lastTaskId",
+  "lastGoalId",
+  "lastJournalEntryId",
+  "lastDecisionId",
+  "lastPinId",
+  "lastReflectionId",
+  "lastMissionId",
+] as const;
 
 export function useChatStream(): ChatRuntimeController {
   const activeConversationId = useChatUiStore((s) => s.activeConversationId);
@@ -15,7 +32,7 @@ export function useChatStream(): ChatRuntimeController {
   const setConnection = useChatUiStore((s) => s.setConnection);
 
   // Body ref for transport (must be mutable so the transport reads the latest on every send without re-subscribing)
-  const bodyRef = useRef({
+  const bodyRef = useRef<Record<string, unknown>>({
     conversationId: activeConversationId,
     // Add other fields as needed (e.g. modes, overrides)
   });
@@ -24,6 +41,25 @@ export function useChatStream(): ChatRuntimeController {
   useEffect(() => {
     bodyRef.current.conversationId = activeConversationId;
   }, [activeConversationId]);
+
+  // 2026-07-11 review · restore the "grade this decision" pronoun-anchor
+  // feature. PageContextBridge (mounted in the mastery layout) writes the
+  // current entity (/decisions/<id> etc.) to localStorage + fires an event,
+  // but the v2 rewrite dropped the consumer, so the anchors never reached
+  // the send body — the server (context-hints.ts) reads exactly these keys.
+  // Spread them onto bodyRef and keep them fresh on same-tab navigation.
+  useEffect(() => {
+    const apply = (ctx: PageContextPayload | null) => {
+      for (const k of PAGE_ANCHOR_KEYS) delete bodyRef.current[k];
+      if (!ctx) return;
+      for (const k of PAGE_ANCHOR_KEYS) {
+        const v = ctx[k];
+        if (v) bodyRef.current[k] = v;
+      }
+    };
+    apply(readPageContext());
+    return onPageContextChanged(apply);
+  }, []);
 
   const liveContextBlocksRef = useRef<any>(null);
 

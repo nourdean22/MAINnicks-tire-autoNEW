@@ -188,9 +188,14 @@ export function ChatMessageList({
                 const quality = extractQuality(m);
                 const citations = extractCitations(m);
 
-                const reasoningSteps = ((m as any).annotations || [])
-                  .filter((a: any) => a?.type === "reasoning-step")
-                  .map((a: any) => a.step);
+                // 2026-07-11 review · read reasoning steps from the v6
+                // `data-reasoningStep` parts the server now emits
+                // (simulate-stream-from-text.ts). Was reading a
+                // non-existent `message.annotations` (v4 concept) → the
+                // live deep-reasoning panel never rendered.
+                const reasoningSteps = ((m.parts as any[]) || [])
+                  .filter((p: any) => p?.type === "data-reasoningStep")
+                  .map((p: any) => p.data);
 
                 return (
                   <div key={`${m.id}-part-${i}`}>
