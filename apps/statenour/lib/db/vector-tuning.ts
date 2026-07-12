@@ -50,7 +50,14 @@ export async function withEfSearch<T>(
   const ef = Math.max(10, Math.min(500, Math.floor(efSearch)));
   try {
     return await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SET LOCAL hnsw.ef_search = ${ef}`;
+      // 2026-07-12 · MUST use $executeRawUnsafe with the value INTERPOLATED.
+      // Postgres `SET` does not accept bind parameters, so the tagged-template
+      // `$executeRaw\`… = ${ef}\`` (which Prisma turns into `= $1`) threw
+      // 42601 "syntax error at or near $1" on EVERY recall — the tx aborted
+      // and recall silently ran at the DEFAULT ef_search, so the HIGH_RECALL
+      // tuning never actually applied. `ef` is a clamped integer (10-500),
+      // so interpolation here is injection-safe.
+      await tx.$executeRawUnsafe(`SET LOCAL hnsw.ef_search = ${ef}`);
       return fn(tx);
     });
   } catch (err) {

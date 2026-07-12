@@ -29,15 +29,18 @@ async function main() {
 
     while (true) {
       pass++;
+      // 2026-07-12 · do NOT gate on embedding_dim — that column is NULL for a
+      // large slice of rows (~1,224 in prod), so the old filter silently
+      // skipped them forever, leaving them invisible to live recall (which
+      // reads embedding_vec_1536 IS NOT NULL). Pad by the vector's ACTUAL
+      // length instead; the JS guard below skips anything already ≥ target.
       const rows = await prisma.$queryRawUnsafe<
-        Array<{ id: string; embedding_vec: string; embedding_dim: number }>
+        Array<{ id: string; embedding_vec: string }>
       >(
-        `SELECT id::text, embedding_vec::text, embedding_dim::int
+        `SELECT id::text, embedding_vec::text
          FROM vector_embeddings
          WHERE embedding_vec_1536 IS NULL
            AND embedding_vec IS NOT NULL
-           AND embedding_dim IS NOT NULL
-           AND embedding_dim <= ${TARGET_DIM}
          LIMIT ${BATCH}`,
       );
 
@@ -48,7 +51,7 @@ async function main() {
         try {
           // embedding_vec text comes back as "[0.1,0.2,...]"
           const arr = JSON.parse(r.embedding_vec) as number[];
-          if (!Array.isArray(arr)) continue;
+          if (!Array.isArray(arr) || arr.length === 0 || arr.length > TARGET_DIM) continue;
           const padded =
             arr.length === TARGET_DIM
               ? arr
