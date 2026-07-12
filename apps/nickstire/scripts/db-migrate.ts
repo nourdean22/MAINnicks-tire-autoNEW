@@ -37,6 +37,7 @@ import { createHash } from "crypto";
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import mysql from "mysql2/promise";
+import { isTolerableError } from "./migration-tolerance";
 
 interface JournalEntry {
   idx: number;
@@ -52,37 +53,8 @@ interface Journal {
   entries: JournalEntry[];
 }
 
-// MySQL/TiDB error codes treated as "already applied — keep going".
-// These cover both the "object already exists" case (idempotent re-run)
-// and the "object referenced by migration was later dropped" case
-// (migration is partially out of date but the schema is fine).
-const TOLERATED_CODES = new Set([
-  "ER_TABLE_EXISTS_ERROR",     // 1050: CREATE TABLE on existing
-  "ER_DUP_KEYNAME",            // 1061: CREATE INDEX on existing
-  "ER_DUP_FIELDNAME",          // 1060: ALTER ADD COLUMN on existing
-  "ER_DUP_ENTRY",              // 1062: INSERT on dup primary
-  "ER_BAD_FIELD_ERROR",        // 1054: column referenced doesn't exist
-  "ER_KEY_COLUMN_DOES_NOT_EXIST", // 1072
-  "ER_NO_SUCH_TABLE",          // 1146: table referenced doesn't exist
-  "ER_CANT_DROP_FIELD_OR_KEY", // 1091: DROP on missing
-  "ER_NO_REFERENCED_ROW_2",    // 1452: FK target missing (rare in migrations)
-  "ER_TOO_LONG_KEY",           // 1071: key length limit exceeded
-]);
-
-// Numeric errno fallback — some TiDB / MariaDB / forks return non-MySQL
-// code strings. Normalize on errno so we still tolerate the right cases.
-const TOLERATED_ERRNOS = new Set([1050, 1054, 1060, 1061, 1062, 1072, 1091, 1146, 1071]);
-
-// Message-substring fallback for engines that don't fill code/errno.
-const TOLERATED_MESSAGE_FRAGMENTS = [
-  "already exists",
-  "duplicate column",
-  "duplicate key",
-  "column does not exist",
-  "doesn't exist",
-  "unknown column",
-  "no such table",
-];
+// Tolerated-error policy (incl. TiDB errno 8200) lives in ./migration-tolerance,
+// where it is unit-tested (server/__tests__/migration-tolerance.test.ts).
 
 function loadJournal(): Journal {
   const journalPath = join(process.cwd(), "drizzle", "meta", "_journal.json");
@@ -161,17 +133,6 @@ async function recordApplied(
     `INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)`,
     [hash, whenMs],
   );
-}
-
-function isTolerableError(err: unknown): boolean {
-  const e = err as { code?: string; errno?: number; message?: string };
-  if (e.code && TOLERATED_CODES.has(e.code)) return true;
-  if (e.errno && TOLERATED_ERRNOS.has(e.errno)) return true;
-  if (e.message) {
-    const lower = e.message.toLowerCase();
-    if (TOLERATED_MESSAGE_FRAGMENTS.some((frag) => lower.includes(frag))) return true;
-  }
-  return false;
 }
 
 async function applyStatement(
