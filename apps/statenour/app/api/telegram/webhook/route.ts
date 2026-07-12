@@ -895,6 +895,10 @@ async function cmdDraft(args: string[], chatId: string): Promise<void> {
     const { createDraft } = await import("@/lib/content/drafts");
     const draft = await createDraft({
       content: ghost.text,
+      // 2026-07-12 · default to Instagram so the /draft output is
+      // publishable — createDraft defaults platforms to [], and a draft
+      // with no platforms can never be approved+published.
+      suggestedPlatforms: ["instagram"],
       source: "telegram-draft",
       kind: "post",
       sourceMetadata:
