@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { INSTAGRAM_STUDIO_VERSION } from "../../shared/instagramStudio";
-import { evaluateInstagramDraft } from "../services/instagramStudio";
+import { evaluateInstagramDraft, fitFontSize, renderCardHtml } from "../services/instagramStudio";
 import { appRouter } from "../routers";
 
 describe("Instagram Studio V2 quality contract", () => {
@@ -48,6 +48,34 @@ describe("Instagram Studio V2 quality contract", () => {
     });
     const visual = result.dimensions.find((item) => item.key === "visual_readiness");
     expect(visual?.status).toBe("block");
+  });
+});
+
+describe("Instagram Studio V2 poster auto-fit (no silent clipping)", () => {
+  const opts = { width: 900, maxLines: 2, max: 108, min: 48, charRatio: 0.6 };
+
+  it("shrinks the font as text gets longer, clamped to [min, max]", () => {
+    const short = fitFontSize("STOP", opts);
+    const mid = fitFontSize("MICHELIN DEFENDER T2 ALL-SEASON GRIP NOW", opts); // 40 chars
+    const huge = fitFontSize("W".repeat(400), opts);
+    expect(short).toBe(108); // short copy keeps the max size
+    expect(mid).toBeLessThan(short); // longer copy shrinks to fit
+    expect(mid).toBeGreaterThanOrEqual(48);
+    expect(huge).toBe(48); // never below the floor
+    // monotonic: never larger for longer text
+    expect(fitFontSize("A".repeat(30), opts)).toBeGreaterThanOrEqual(fitFontSize("A".repeat(40), opts));
+  });
+
+  it("renders a long headline smaller than a short one and wraps unbreakable words", () => {
+    const base = { body: "Short body copy.", cta: "BOOK NOW", eyebrow: "NICK'S", width: 1080, height: 1080 } as const;
+    const size = (html: string) => Number(/\.headline\{font-size:(\d+)px/.exec(html)?.[1] ?? "0");
+    const shortHtml = renderCardHtml({ ...base, headline: "STOP." });
+    const longHtml = renderCardHtml({ ...base, headline: "MICHELIN DEFENDER T2 ALL-SEASON GRIP NOW" });
+    expect(size(shortHtml)).toBe(108);
+    expect(size(longHtml)).toBeLessThan(108); // auto-fit engaged (was a fixed 108 that clipped)
+    // break-word guarantees a long unbreakable token can never overflow horizontally
+    expect(longHtml).toContain("word-break:break-word");
+    expect(longHtml).toContain("overflow-wrap:break-word");
   });
 });
 
