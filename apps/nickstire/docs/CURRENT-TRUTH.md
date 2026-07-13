@@ -82,6 +82,7 @@ Automation success is valid only when the final system of record confirms the ac
 
 - Applying SEO copy changes to source
 - Publishing generated content or GBP material
+- Approving and publishing Instagram Studio V2 drafts — server-owned quality gate (review/declined-work require a verified DB record), deterministic HTML→JPEG render, and an explicit approve → schedule/publish step; nothing posts without operator action (`server/services/instagramStudio.ts`, `server/routers/instagramStudio.ts`)
 - Pushing VAPI prompt/configuration changes
 - Resolving weak invoice or customer matches
 - Approving outbound campaigns
