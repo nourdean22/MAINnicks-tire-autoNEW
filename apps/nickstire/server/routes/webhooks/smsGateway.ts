@@ -319,7 +319,7 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         (async () => {
           try {
             const { getDb } = await import("../../db");
-            const { smsMessages, smsOrchestrations } = await import("../../../drizzle/schema");
+            const { smsMessages, smsOrchestrations, leadDeliveryEvents } = await import("../../../drizzle/schema");
             const { eq, like } = await import("drizzle-orm");
             const db = await getDb();
             if (!db) return;
@@ -331,6 +331,13 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
             await db.update(smsOrchestrations)
               .set({ status: newStatus })
               .where(like(smsOrchestrations.sendResultJson, `%"sid":"${messageId}"%`));
+
+            // Lead-delivery ledger: match the sms row by providerRef (= the
+            // gateway message id captured on send in lead.ts) so the per-lead
+            // delivery chronology advances sent -> delivered.
+            await db.update(leadDeliveryEvents)
+              .set({ status: newStatus })
+              .where(eq(leadDeliveryEvents.providerRef, messageId));
           } catch (err) {
             log.warn("Failed to update status on delivery", {
               error: err instanceof Error ? err.message : String(err),
@@ -355,7 +362,7 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         (async () => {
           try {
             const { getDb } = await import("../../db");
-            const { smsMessages, smsOrchestrations } = await import("../../../drizzle/schema");
+            const { smsMessages, smsOrchestrations, leadDeliveryEvents } = await import("../../../drizzle/schema");
             const { eq, like } = await import("drizzle-orm");
             const db = await getDb();
             if (!db) return;
@@ -366,6 +373,10 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
             await db.update(smsOrchestrations)
               .set({ status: "failed", failureReason: reason })
               .where(like(smsOrchestrations.sendResultJson, `%"sid":"${messageId}"%`));
+
+            await db.update(leadDeliveryEvents)
+              .set({ status: "failed", detail: reason })
+              .where(eq(leadDeliveryEvents.providerRef, messageId));
           } catch {
             // Don't break the webhook
           }
