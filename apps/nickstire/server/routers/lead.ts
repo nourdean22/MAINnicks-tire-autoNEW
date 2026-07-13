@@ -265,7 +265,7 @@ export const leadRouter = router({
           () => sendSms(input.phone, financingSms, { via: "shop" }),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (financing preapproval)" }
         )
-          .then(() => recordLeadDelivery({ leadId, channel: "sms", status: "sent", provider: "shop" }))
+          .then((r) => recordLeadDelivery({ leadId, channel: "sms", status: "sent", provider: "shop", providerRef: r?.sid ?? null }))
           .catch(err => {
             log.error("[SMS] Financing preapproval SMS failed:", err);
             logIntegrationFailure({
@@ -285,7 +285,7 @@ export const leadRouter = router({
           () => sendSms(input.phone, leadConfirmationSms(input.name), { via: "shop" }),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (lead confirmation)" }
         )
-          .then(() => recordLeadDelivery({ leadId, channel: "sms", status: "sent", provider: "shop" }))
+          .then((r) => recordLeadDelivery({ leadId, channel: "sms", status: "sent", provider: "shop", providerRef: r?.sid ?? null }))
           .catch(err => {
             log.error("[SMS] Lead confirmation failed:", err);
             logIntegrationFailure({

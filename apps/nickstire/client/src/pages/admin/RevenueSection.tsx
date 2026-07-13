@@ -14,6 +14,7 @@ const DispatchSection = lazy(() => import("./money/DispatchSection"));
 const DeclinedEstimatesSection = lazy(() => import("./money/DeclinedEstimatesSection"));
 const SnapDashboardSection = lazy(() => import("./money/SnapDashboardSection"));
 const UnpaidInvoicesSection = lazy(() => import("./money/UnpaidInvoicesSection"));
+import { FinancingAttribution } from "./money/FinancingAttribution";
 
 // 2026-05-19 · PageHeader removed from import + render (Move 4 of audit ·
 // reclaims ~80px of mobile viewport · topbar already shows "Money").
@@ -88,6 +89,7 @@ export default function RevenueSection() {
       {section === "financing" && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
           <SnapDashboardSection />
+          <FinancingAttribution />
         </Suspense>
       )}
       {section === "shopPulse" && (
