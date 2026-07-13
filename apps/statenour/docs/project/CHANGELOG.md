@@ -21,6 +21,36 @@ Large multi-PR session on `main`. Model names below are a **point-in-time**
 record of what was configured this day — the source of truth is env +
 `config/ai-providers.ts` + `lib/ai/provider.ts`, not this entry.
 
+### Chat ↔ missions integration (PRs #718, #719)
+Operator's "map my day into tasks" flow was duplicating, hanging, and
+misfiling. Four connected defects, all root-caused against prod:
+- **Duplicate task creates (×3-4) + a pile of unattached tasks.**
+  `createTaskAndEnrich` had no idempotency: a mid-stream error dropped the
+  tool-call parts (so the verifier flagged the turn "unverified") even though
+  the DB write landed, the operator retried, and every retry re-created the
+  batch — the retry copies (no valid mission) piling into the Inbox. Added a
+  retry-collapse guard (same normalized title + due day, live, <10 min →
+  return the existing task), then extended it to **semantic** dedup
+  (`normalizeTaskTitle` strips time-ranges/parentheticals so reworded variants
+  collapse). Fire-safe. +7 tests.
+- **"Runs the tool but never replies."** Action turns forced
+  `toolChoice:"required"`, which with `stepCountIs(3)` forced a tool on EVERY
+  step, so the turn ended with only tool cards. Switched to **`prepareStep`**:
+  force the tool on step 0 only, then `auto` so the model writes a closing
+  reply (also fixes the verifier false-positive — tool calls now land in
+  completed steps + real text). Same fix on the python-execute force.
+- **Replies too short.** Raised the standard budget 1200 → 2000 (deep
+  4000 → 4500) + query-shape budgets (plan 1600→2800, explain 700→1400);
+  yes/no + casual stay tight.
+- **Mission proliferation → scatter/misfile.** Prod had 7 overlapping missions
+  (3 health, 2 personal, 2 business); the domain-first classifier scattered
+  identical tasks across them. Consolidated to 3 canonical missions
+  (`HEALTH` / `PERSONAL & HOME` / `GENERAL BUSINESS & NICKS TIRE`), re-filed by
+  the operator's rules (work→business, wake-up/bedtime/wind-down→personal,
+  workout→health), and collapsed near-dups (title-normalize → token-Jaccard →
+  containment). Net: 25 unattached + 7-mission scatter + 3-4× dupes → 15
+  clean, correctly-filed tasks (reversible; snapshot in BrainMemory).
+
 ### AI routing → Ollama Cloud (PRs #696, #697)
 - **Perplexica synthesis** moved off the spend-capped Gemini onto **Ollama
   Cloud** (registered as an `openai`-type provider at `https://ollama.com/v1`).
