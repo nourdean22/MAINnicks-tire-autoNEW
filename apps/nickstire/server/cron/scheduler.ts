@@ -827,6 +827,14 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "missed-call-recovery", // Wave F · follow up unconverted VAPI callers (flag-gated, SHADOW until MISSED_CALL_RECOVERY_SEND=1)
+        businessHoursOnly: true,
+        handler: async () => {
+          const { processMissedCallRecovery } = await import("./jobs/missedCallRecovery");
+          return processMissedCallRecovery();
+        },
+      },
+      {
         name: "review-requests", // Moved from pulse (15min was too aggressive)
         businessHoursOnly: true,
         handler: async () => {
