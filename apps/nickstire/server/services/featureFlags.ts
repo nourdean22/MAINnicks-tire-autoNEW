@@ -95,6 +95,7 @@ export const FLAG_DEFINITIONS = [
   { key: "photo_assess_enabled", description: "Photo-damage MMS pipeline · vision-analyzer + auto-reply. Requires REPLICATE_API_KEY (or HF_API_KEY for fallback). OFF default · enable after testing via /api/admin/photo-assess with skipSmsSend=true to verify model quality on sample photos" },
   { key: "legacy_autopost_live", description: "Allow live posting for legacy IG/FB autoposter instead of dry-run only" },
   { key: "nickgpt_low_risk_autosend_enabled", description: "Allow auto-sending low-risk AI SMS replies directly" },
+  { key: "missed_call_recovery", description: "Proactively text unconverted VAPI missed callers (last 24h) a 'sorry we missed you' follow-up. MASTER enable. Even ON, the cron runs in SHADOW (logs+Telegrams the audience, sends nothing) unless env MISSED_CALL_RECOVERY_SEND=1. Reuses the vapi_forwarded_call_followup type → full opt-out/quiet-hours/STOP-footer/caps compliance. TCPA: relationship follow-up to people who just called the business." },
 
   // ─── CREATIVE SKILL PACKS ─────────────────────────
   { key: "skill_ad_creative_enabled", description: "Augments staging of Meta Ads with localized hook strategies" },
