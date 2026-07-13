@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/statenour/.env so DATABASE_URL is set before prisma imports
 import fs from "node:fs";
 import path from "node:path";
 import { BRAIN_CATEGORIES } from "../lib/brain/categories";
