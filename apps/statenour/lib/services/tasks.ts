@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient, type Task } from "@prisma/client";
 const { PrismaClientKnownRequestError } = Prisma;
 
 import { getDemoState, makeDemoId, type DemoMission, type DemoTask } from "@/lib/demo-store";
@@ -686,9 +686,59 @@ export async function createTaskAndEnrich(
     safeData = { ...safeData, goalId: null };
   }
 
+  // 2026-07-12 · IDEMPOTENCY GUARD. Model-facing batch creates ("add these 8
+  // tasks") duplicated 3-4× in prod: a mid-stream error dropped the tool-call
+  // parts (so the verifier flagged the turn "unverified") even though the DB
+  // write landed, the operator retried, and every retry re-created the whole
+  // batch. Collapse a rapid exact re-create: same normalized title + same due
+  // day, not deleted, not DONE, created in the last 10 minutes → return the
+  // existing task instead of a duplicate. Only collapses retries; an
+  // intentional re-add later (different day / after 10 min) still creates.
+  const dupe = await findRecentDuplicateTask(safeData).catch(() => null);
+  if (dupe) {
+    log.info("task_create_deduped", { existingId: dupe.id, title: dupe.title.slice(0, 60) });
+    return dupe;
+  }
+
   const task = await prisma.task.create({ data: safeData });
   void enrichTaskLinkage(task.id);
   return task;
+}
+
+/**
+ * Find an existing task that a fresh create would duplicate (retry collapse).
+ * Match = same case-insensitive trimmed title, same due calendar day (or both
+ * undated), still live (not deleted / not DONE), created within 10 minutes.
+ * Returns the FULL task row so createTaskAndEnrich's return type is unchanged.
+ */
+async function findRecentDuplicateTask(
+  data: Prisma.TaskUncheckedCreateInput,
+): Promise<Task | null> {
+  const title = typeof data.title === "string" ? data.title.trim() : "";
+  if (title.length < 2) return null;
+  const since = new Date(Date.now() - 10 * 60_000);
+
+  // Same-title live candidates created recently; compare the due day in JS
+  // (avoids DB-specific date-truncation SQL).
+  const candidates = await prisma.task.findMany({
+    where: {
+      title: { equals: title, mode: "insensitive" },
+      deletedAt: null,
+      status: { not: "DONE" },
+      createdAt: { gte: since },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+  });
+  if (candidates.length === 0) return null;
+
+  const newDueDay = data.dueDate ? dayKey(data.dueDate) : null;
+  return candidates.find((c) => (c.dueDate ? dayKey(c.dueDate) : null) === newDueDay) ?? null;
+}
+
+function dayKey(value: Date | string): string {
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
 }
 
 /**

@@ -16,7 +16,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  task: { create: vi.fn(), findUnique: vi.fn() },
+  task: { create: vi.fn(), findUnique: vi.fn(), findMany: vi.fn() },
   mission: { findUnique: vi.fn() },
   lifeGoal: { findUnique: vi.fn() },
   resolveInboxMissionId: vi.fn(),
@@ -60,6 +60,8 @@ describe("createTaskAndEnrich · mission FK error-proofing", () => {
     // row read comes back null — keeps this unit test off the classifier.
     mocks.task.findUnique.mockResolvedValue(null);
     mocks.task.create.mockImplementation(async (a: any) => ({ id: "t1", ...a.data }));
+    // Default: no recent duplicate → the create path runs.
+    mocks.task.findMany.mockResolvedValue([]);
     // Default: any supplied goalId is considered valid unless a test overrides.
     mocks.lifeGoal.findUnique.mockResolvedValue({ id: "g-real" });
   });
@@ -119,5 +121,55 @@ describe("createTaskAndEnrich · mission FK error-proofing", () => {
     mocks.mission.findUnique.mockResolvedValue({ id: "m-real" });
     await createTaskAndEnrich({ ...baseData, missionId: "m-real" });
     expect(mocks.lifeGoal.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe("createTaskAndEnrich · retry-duplicate collapse (idempotency)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.resolveInboxMissionId.mockResolvedValue(INBOX);
+    mocks.mission.findUnique.mockResolvedValue({ id: "m-real" });
+    mocks.lifeGoal.findUnique.mockResolvedValue({ id: "g-real" });
+    mocks.task.findUnique.mockResolvedValue(null);
+    mocks.task.create.mockImplementation(async (a: any) => ({ id: "t-new", ...a.data }));
+    mocks.task.findMany.mockResolvedValue([]);
+  });
+
+  const dueToday = new Date();
+
+  it("returns the existing task instead of creating a duplicate (same title + same due day, recent)", async () => {
+    const existing = { id: "t-existing", title: "Conduct weekly ROI meetings", dueDate: dueToday };
+    mocks.task.findMany.mockResolvedValue([existing]);
+    const result = await createTaskAndEnrich({
+      ...baseData, title: "Conduct weekly ROI meetings", missionId: "m-real", dueDate: dueToday,
+    } as any);
+    expect(result.id).toBe("t-existing");
+    expect(mocks.task.create).not.toHaveBeenCalled(); // no duplicate written
+  });
+
+  it("still creates when the same title exists but on a DIFFERENT due day", async () => {
+    const yesterday = new Date(Date.now() - 24 * 3600_000);
+    mocks.task.findMany.mockResolvedValue([
+      { id: "t-old", title: "Conduct weekly ROI meetings", dueDate: yesterday },
+    ]);
+    const result = await createTaskAndEnrich({
+      ...baseData, title: "Conduct weekly ROI meetings", missionId: "m-real", dueDate: dueToday,
+    } as any);
+    expect(result.id).toBe("t-new");
+    expect(mocks.task.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates normally when there is no recent same-title task", async () => {
+    mocks.task.findMany.mockResolvedValue([]);
+    const result = await createTaskAndEnrich({ ...baseData, missionId: "m-real", dueDate: dueToday } as any);
+    expect(result.id).toBe("t-new");
+    expect(mocks.task.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("never blocks a create when the duplicate lookup itself errors", async () => {
+    mocks.task.findMany.mockRejectedValue(new Error("db blip"));
+    const result = await createTaskAndEnrich({ ...baseData, missionId: "m-real" } as any);
+    expect(result.id).toBe("t-new");
+    expect(mocks.task.create).toHaveBeenCalledTimes(1);
   });
 });

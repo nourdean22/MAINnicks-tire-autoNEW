@@ -997,7 +997,10 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   // Standard mode uses 1200 default; query-shape drops it to 80-150 for
   // yes/no + casual, 700 for explain, 1600 for plan — making it feel
   // as fast as the old quick mode when the query calls for brevity.
-  const modeDefaultTokens = mode === "deep" ? 4000 : 1200;
+  // 2026-07-12 · raised standard default 1200 → 2000 (operator: replies read
+  // too short). Shape-specific budgets (query-shape.ts) still tighten yes/no +
+  // casual turns; this only lifts the ceiling for substantive "default" turns.
+  const modeDefaultTokens = mode === "deep" ? 4500 : 2000;
   const maxOutputTokens = queryShape.tokenBudget > 0
     ? queryShape.tokenBudget
     : modeDefaultTokens;
@@ -1464,13 +1467,22 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           // hoisted `__pythonExecuteIntent` (computed once for the provider
           // force) so the detection regex lives in exactly one place — the
           // two can never drift apart on a future edit.
+          // 2026-07-12 · Force the tool on the FIRST step ONLY, then hand
+          // control back (toolChoice:"auto") so the model emits a final text
+          // reply AFTER the tools run. Forcing "required" across ALL steps
+          // (pre-fix) meant an action turn ended with only tool cards and NO
+          // prose — "it runs the tool but never responds; I have to ask what
+          // happened." prepareStep scopes the force to step 0, keeping the
+          // anti-fabrication guarantee (can't narrate-without-acting) while
+          // restoring the closing summary. stepCountIs stops the loop as soon
+          // as a step emits text with no tool call.
           if (__pythonExecuteIntent) {
             log.info("python_execute_intent_detected", { surface: "chat" });
             return {
-              toolChoice: {
-                type: "tool" as const,
-                toolName: "runPython" as const,
-              },
+              prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+                stepNumber === 0
+                  ? { toolChoice: { type: "tool" as const, toolName: "runPython" as const } }
+                  : { toolChoice: "auto" as const },
             };
           }
 
@@ -1483,7 +1495,12 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
               intent: intent.intent,
               expectedTool: intent.expectedTool,
             });
-            return { toolChoice: "required" as const };
+            return {
+              prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+                stepNumber === 0
+                  ? { toolChoice: "required" as const }
+                  : { toolChoice: "auto" as const },
+            };
           }
           return {};
         })(),

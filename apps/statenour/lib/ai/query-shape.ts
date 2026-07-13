@@ -82,7 +82,7 @@ export function detectQueryShape(message: string): ShapeResult {
   if (familyHits.length > 0 && (isFactualCounter || len < 140)) {
     return {
       shape: "factual",
-      tokenBudget: 500,
+      tokenBudget: 800,
       needsTool: true,
       factualHints: familyHits,
     };
@@ -92,7 +92,7 @@ export function detectQueryShape(message: string): ShapeResult {
   if (YES_NO_PATTERN.test(text) || YES_NO_CHOICE.test(text)) {
     return {
       shape: "yes_no",
-      tokenBudget: 400,
+      tokenBudget: 500,
       needsTool: familyHits.length > 0,
       factualHints: familyHits,
     };
@@ -102,7 +102,7 @@ export function detectQueryShape(message: string): ShapeResult {
   if (PLAN_PATTERN.test(text)) {
     return {
       shape: "plan",
-      tokenBudget: 1600,
+      tokenBudget: 2800,
       needsTool: familyHits.length > 0,
       factualHints: familyHits,
     };
@@ -114,7 +114,7 @@ export function detectQueryShape(message: string): ShapeResult {
     const requested = countMatch ? Math.min(50, Number(countMatch[1]) || 5) : 10;
     return {
       shape: "list",
-      tokenBudget: Math.max(400, Math.min(2000, requested * 80)),
+      tokenBudget: Math.max(600, Math.min(3200, requested * 110)),
       needsTool: familyHits.length > 0,
       factualHints: familyHits,
     };
@@ -124,7 +124,7 @@ export function detectQueryShape(message: string): ShapeResult {
   if (EXPLAIN_PATTERN.test(text)) {
     return {
       shape: "explain",
-      tokenBudget: 700,
+      tokenBudget: 1400,
       needsTool: familyHits.length > 0,
       factualHints: familyHits,
     };
