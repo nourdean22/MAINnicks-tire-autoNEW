@@ -706,34 +706,56 @@ export async function createTaskAndEnrich(
 }
 
 /**
+ * Normalize a task title for SEMANTIC dedup. Retries reworded the same block
+ * ("Evening work session (6-10 PM)" · "Evening work session: 6-10 PM" ·
+ * "Evening work session (6:00-10:00 PM)") — exact-string matching missed them.
+ * Strip bracketed/parenthetical asides, time ranges + standalone clock times,
+ * punctuation, then collapse whitespace so those three collapse to
+ * "evening work session".
+ */
+export function normalizeTaskTitle(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ") // (6-10 PM)
+    .replace(/\[[^\]]*\]/g, " ") // [note]
+    .replace(/\b\d{1,2}(:\d{2})?\s*(am|pm)?\s*(?:[-–—]|to)\s*\d{1,2}(:\d{2})?\s*(am|pm)?\b/gi, " ") // 6-10 pm
+    .replace(/\b\d{1,2}(:\d{2})?\s*(am|pm)\b/gi, " ") // 11 pm
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * Find an existing task that a fresh create would duplicate (retry collapse).
- * Match = same case-insensitive trimmed title, same due calendar day (or both
- * undated), still live (not deleted / not DONE), created within 10 minutes.
- * Returns the FULL task row so createTaskAndEnrich's return type is unchanged.
+ * Match = same NORMALIZED title, same due calendar day (or both undated), still
+ * live (not deleted / not DONE), created within 10 minutes. Returns the FULL
+ * task row so createTaskAndEnrich's return type is unchanged.
  */
 async function findRecentDuplicateTask(
   data: Prisma.TaskUncheckedCreateInput,
 ): Promise<Task | null> {
-  const title = typeof data.title === "string" ? data.title.trim() : "";
-  if (title.length < 2) return null;
+  const norm = typeof data.title === "string" ? normalizeTaskTitle(data.title) : "";
+  if (norm.length < 2) return null;
   const since = new Date(Date.now() - 10 * 60_000);
 
-  // Same-title live candidates created recently; compare the due day in JS
-  // (avoids DB-specific date-truncation SQL).
+  // Fetch the (small) set of live tasks created in the last 10 min, then match
+  // on normalized title + due day in JS — normalization can't be expressed in
+  // a portable SQL equality.
   const candidates = await prisma.task.findMany({
-    where: {
-      title: { equals: title, mode: "insensitive" },
-      deletedAt: null,
-      status: { not: "DONE" },
-      createdAt: { gte: since },
-    },
+    where: { deletedAt: null, status: { not: "DONE" }, createdAt: { gte: since } },
     orderBy: { createdAt: "desc" },
-    take: 5,
+    take: 60,
   });
   if (candidates.length === 0) return null;
 
   const newDueDay = data.dueDate ? dayKey(data.dueDate) : null;
-  return candidates.find((c) => (c.dueDate ? dayKey(c.dueDate) : null) === newDueDay) ?? null;
+  return (
+    candidates.find(
+      (c) =>
+        normalizeTaskTitle(c.title) === norm &&
+        (c.dueDate ? dayKey(c.dueDate) : null) === newDueDay,
+    ) ?? null
+  );
 }
 
 function dayKey(value: Date | string): string {

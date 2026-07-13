@@ -34,7 +34,7 @@ vi.mock("@/lib/services/missions", () => ({
   resolveGeneralAnchorId: vi.fn().mockResolvedValue(null),
 }));
 
-import { createTaskAndEnrich } from "@/lib/services/tasks";
+import { createTaskAndEnrich, normalizeTaskTitle } from "@/lib/services/tasks";
 
 const INBOX = "m-inbox";
 const baseData = {
@@ -171,5 +171,39 @@ describe("createTaskAndEnrich · retry-duplicate collapse (idempotency)", () => 
     const result = await createTaskAndEnrich({ ...baseData, missionId: "m-real" } as any);
     expect(result.id).toBe("t-new");
     expect(mocks.task.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses SEMANTIC near-duplicates (reworded time range → same normalized title)", async () => {
+    // A retry reworded the same block; exact-string match would miss it.
+    mocks.task.findMany.mockResolvedValue([
+      { id: "t-existing", title: "Evening work session (6-10 PM)", dueDate: dueToday },
+    ]);
+    const result = await createTaskAndEnrich({
+      ...baseData, title: "Evening work session: 6:00-10:00 PM", missionId: "m-real", dueDate: dueToday,
+    } as any);
+    expect(result.id).toBe("t-existing");
+    expect(mocks.task.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("normalizeTaskTitle", () => {
+  it("collapses the reworded 'evening work session' variants", () => {
+    const variants = [
+      "Evening work session (6-10 PM)",
+      "Evening work session: 6-10 PM",
+      "Evening work session (6:00-10:00 PM)",
+      "evening work session   6 PM - 10 PM",
+    ];
+    const normed = new Set(variants.map(normalizeTaskTitle));
+    expect(normed.size).toBe(1);
+    expect([...normed][0]).toBe("evening work session");
+  });
+
+  it("keeps genuinely different titles distinct", () => {
+    expect(normalizeTaskTitle("Return to work 6 PM - 10 PM")).not.toBe(
+      normalizeTaskTitle("Evening work session (6-10 PM)"),
+    );
+    expect(normalizeTaskTitle("11 PM bedtime")).toBe("bedtime");
+    expect(normalizeTaskTitle("Workout session at gym")).toBe("workout session at gym");
   });
 });
