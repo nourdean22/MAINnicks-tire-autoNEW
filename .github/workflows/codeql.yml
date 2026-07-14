@@ -8,6 +8,7 @@ on:
     - cron: "0 0 * * 0"
 
 permissions:
+  actions: read # required in private repos for the analyze upload step
   contents: read
   security-events: write
 
