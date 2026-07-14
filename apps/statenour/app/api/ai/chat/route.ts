@@ -260,12 +260,26 @@ async function chatPostInner(req: Request) {
   // kicks the promise off and lets it run in parallel with prompt
   // assembly below — same shape as before.
   const { persistUserTurn } = await import("@/lib/services/chat/persist-user-turn");
-  const dbWritePromise: Promise<string> = persistUserTurn({
-    convId,
-    lastUserMsg,
-    userContent,
-    log,
-    recordError,
+  const { withTimeout } = await import("@/lib/utils/with-timeout");
+  // Bound the write · prisma has no query timeout, so a hung Neon pool
+  // connection would stall the Promise.all below (and brainCtxPromise,
+  // which chains on this) with zero bytes to the client. persistUserTurn
+  // never rejects on its own (internal catch → "temp"), so the only
+  // rejection here is the timeout — fall back to the same "temp"
+  // contract as its error path. The detached write may still land.
+  const dbWritePromise: Promise<string> = withTimeout(
+    persistUserTurn({
+      convId,
+      lastUserMsg,
+      userContent,
+      log,
+      recordError,
+    }),
+    5_000,
+    "persist-user-turn",
+  ).catch(() => {
+    log.warn("persist_user_turn_timeout", { convId: convId ?? null });
+    return convId || "temp";
   });
 
   const { provider, modelId } = getActiveProviderInfo();
@@ -313,7 +327,9 @@ async function chatPostInner(req: Request) {
   //   3. Automatic detection via detectChatMode
   const aiConfig = await getAiConfig().catch((): null => null);
   const { classifyIntent } = await import("@/lib/ai/runtime/intent-router");
+  const classifyTimer = stageTracker.start("classify");
   const classification = await classifyIntent(userContent, __traceId);
+  classifyTimer.end();
   const mode: ChatMode =
     modeOverride ||
     aiConfig?.defaultMode ||
@@ -719,6 +735,7 @@ async function chatPostInner(req: Request) {
   // Await the parallel work — max of the pipelines. (DB write + user
   // embedding + context-hints + brain recall are folded in so their latency
   // is hidden inside the max.)
+  const prefetchTimer = stageTracker.start("prefetch");
   const [
     { systemPrompt: rawSystemPrompt, fromCache },
     compression,
@@ -734,6 +751,13 @@ async function chatPostInner(req: Request) {
     contextHintsPromise,
     brainCtxPromise,
   ]);
+  prefetchTimer.end();
+  stageTracker.cacheHit("prefetch", fromCache);
+  // Everything from here to streamWithFallback (finalize-system-prompt,
+  // GSC prefetch, tool pruning, message sanitization) is the last
+  // pre-stream span · timed as "stream-config" so a hang there is
+  // visible in the chat-pipeline log line.
+  const streamConfigTimer = stageTracker.start("stream-config");
   convId = resolvedConvId;
 
   log.info("prompt_built", {
@@ -1368,6 +1392,7 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     resolveOnFinish = resolve;
   });
 
+  streamConfigTimer.end();
   const { streamWithFallback, inferProviderName } = await import("@/lib/ai/stream-with-fallback");
   const __sameTurnFallback = await streamWithFallback({
     taskType: finalTaskType,
@@ -1620,6 +1645,15 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   // May 02 · chat-route extract chunk 2 · the response/headers/heartbeat
   // assembly moved verbatim to lib/services/chat/response-shape.ts.
   // Pure function — no I/O, no closures — easy to unit-test.
+  // Emit the per-stage pre-stream breakdown · this is the line that
+  // answers "where did the 90s go" when a turn hangs before the first
+  // token. Stages: gate · interceptors · classify · prefetch ·
+  // stream-config. (Streaming itself happens after this return, so it
+  // is intentionally not part of this summary.)
+  log.info("chat_pipeline_stages", {
+    line: formatStageLog(reqId, mode, stageTracker.summary()),
+  });
+
   const { buildChatResponse } = await import("@/lib/services/chat/response-shape");
   return buildChatResponse({
     streamResponse: result.toUIMessageStreamResponse(),
