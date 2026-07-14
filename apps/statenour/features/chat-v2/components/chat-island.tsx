@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
@@ -122,6 +122,70 @@ export function ChatIsland() {
     window.addEventListener("cockpit-event", handleCockpitEvent);
     return () => window.removeEventListener("cockpit-event", handleCockpitEvent);
   }, [setMemoryData]);
+
+  // ── Memory Inspector · fetch real recall on open ─────────────────────
+  // The sidebar reads recalledHits from the store, which was ONLY ever
+  // fed by a legacy `cockpit-event`/`memory.recalled` window event that
+  // the chat-v2 transport never dispatches — so the panel always showed
+  // "No semantic memory hits". Populate it directly: when the inspector
+  // opens, recall against the last user message via /api/brain/recall
+  // (owner-auth, cookie). Decoupled from the hot send path.
+  //
+  // Derive the query from the last USER turn only — depending on the raw
+  // messages array would refetch on every assistant streaming delta.
+  const lastUserText = useMemo(() => {
+    const lastUser = [...chat.messages].reverse().find((m) => m.role === "user");
+    return (lastUser?.parts ?? [])
+      .filter((p): p is { type: "text"; text: string } =>
+        (p as { type?: string }).type === "text" &&
+        typeof (p as { text?: string }).text === "string")
+      .map((p) => p.text)
+      .join(" ")
+      .trim();
+  }, [chat.messages]);
+
+  useEffect(() => {
+    if (!memoryInspectorOpen) return;
+    const q = lastUserText;
+    if (!q) return;
+
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/brain/recall?q=${encodeURIComponent(q.slice(0, 1000))}&limit=8`,
+          { credentials: "include", signal: controller.signal },
+        );
+        if (!res.ok) return;
+        const report = (await res.json()) as {
+          hits?: Array<{
+            id?: string;
+            memoryId?: string;
+            content?: string;
+            category?: string;
+            similarity?: number;
+            knnDistance?: number;
+          }>;
+        };
+        const hits = (report.hits ?? []).map((h, i) => ({
+          id: h.id ?? h.memoryId ?? `hit-${i}`,
+          content: h.content ?? "",
+          category: h.category ?? "memory",
+          similarity:
+            typeof h.similarity === "number"
+              ? h.similarity
+              : typeof h.knnDistance === "number"
+                ? Math.max(0, Math.min(1, 1 - h.knnDistance))
+                : 0,
+        }));
+        setMemoryData(hits, contradictions);
+      } catch {
+        // AbortError on close or network blip · leave prior state intact.
+      }
+    })();
+
+    return () => controller.abort();
+  }, [memoryInspectorOpen, lastUserText, setMemoryData, contradictions]);
 
   return (
     <div

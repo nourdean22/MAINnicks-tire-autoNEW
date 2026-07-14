@@ -98,8 +98,14 @@ const nextConfig: NextConfig = {
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         {
+          // microphone=(self) · Voice mode (Talk to Nick) uses getUserMedia
+          // for the OpenAI Realtime session. An empty allowlist `()` blocks
+          // the mic for EVERY origin including self, so the browser rejected
+          // getUserMedia with "Permission denied" before it could prompt —
+          // that was the voice-overlay error. `(self)` allows same-origin
+          // only; camera/geolocation stay fully disabled.
           key: "Permissions-Policy",
-          value: "camera=(), microphone=(), geolocation=()",
+          value: "camera=(), microphone=(self), geolocation=()",
         },
         {
           key: "Strict-Transport-Security",
