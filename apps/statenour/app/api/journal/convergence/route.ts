@@ -19,6 +19,7 @@
 
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
+import { checkAiRateLimit } from "@/lib/rate-limit";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
@@ -55,6 +56,12 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     await requireSession(req);
+    // Convergence-safety (audit 2026-07-15) · this is the most
+    // expensive AI path in the journal feature (gather + embedding
+    // backfill + per-candidate name-gen, maxDuration 90s) and it had
+    // NO rate limit while the far cheaper capture route did.
+    const limited = checkAiRateLimit(req);
+    if (limited) return limited;
     // Dynamic import so the heavy convergence module + AI provider
     // chain only load when an operator actually triggers a scan ·
     // the GET path stays light-weight.

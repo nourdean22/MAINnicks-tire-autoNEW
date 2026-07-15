@@ -18,6 +18,20 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("services/journal-feed");
+
+/** Feed v2 (audit 2026-07-15) · titles were raw `.slice(0, N)` — every
+ *  card on /journal ended mid-word ("attending a d", "get in fron").
+ *  Cut at the last word boundary and add an ellipsis when truncated. */
+export function truncateAtWord(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > max * 0.5 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
 
 export type FeedSource = "dump" | "reflection" | "situation" | "decision" | "retro";
 
@@ -48,6 +62,9 @@ export interface FeedEntry {
 }
 
 export interface FeedCounts {
+  /** TRUE DB total for the current filters (count queries) — pre-wave
+   *  this was the size of the capped fetch, which lied as soon as any
+   *  source exceeded its take. byType stays window-derived (see note). */
   total: number;
   shown: number;
   hasMore: boolean;
@@ -58,6 +75,14 @@ export interface FeedCounts {
 export interface JournalFeedView {
   entries: FeedEntry[];
   counts: FeedCounts;
+  /** Cursor pagination (feed v2 · audit 2026-07-15): ISO createdAt of
+   *  the last returned entry when a full page was served; null = end.
+   *  Pass back as `cursor` to fetch the next page. */
+  nextCursor: string | null;
+  /** Sources whose query failed this request (previously swallowed
+   *  silently — the operator saw a plausible-but-incomplete feed with
+   *  zero signal). UI shows a degraded banner when non-empty. */
+  degraded: FeedSource[];
 }
 
 export async function buildJournalFeed(args: {
@@ -65,11 +90,35 @@ export async function buildJournalFeed(args: {
   days?: number;
   type?: string | null;
   source?: string;
+  /** Server-side substring search (insensitive) across each silo's
+   *  text columns — pre-wave search was client-only over the loaded
+   *  window, so archive matches were unreachable. */
+  search?: string;
+  /** ISO date-time — only rows strictly older are returned. */
+  cursor?: string;
 }): Promise<JournalFeedView> {
   const limit = Math.min(Math.max(args.limit ?? 50, 1), 200);
   const days = Math.min(Math.max(args.days ?? 30, 1), 365);
   const typeFilter = args.type;
   const sourceFilter = args.source || "all";
+  const search = args.search?.trim() || null;
+  const cursorDate = args.cursor ? new Date(args.cursor) : null;
+  const cursorWhere =
+    cursorDate && !Number.isNaN(cursorDate.getTime())
+      ? { createdAt: { lt: cursorDate } }
+      : {};
+  const degraded: FeedSource[] = [];
+  const swallow =
+    (source: FeedSource) =>
+    (err: unknown): never[] => {
+      degraded.push(source);
+      log.warn("feed_source_failed", {
+        source,
+        error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      });
+      return [];
+    };
+  const ci = "insensitive" as const;
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
@@ -85,50 +134,77 @@ export async function buildJournalFeed(args: {
               // mission_retro branch below always did; this one didn't,
               // so soft-deleted dumps kept rendering (audit 2026-07-15).
               deletedAt: null,
+              ...cursorWhere,
+              ...(search
+                ? { OR: [{ rawThoughts: { contains: search, mode: ci } }, { summary: { contains: search, mode: ci } }] }
+                : {}),
               // Journal Brain · push the type filter to SQL on the real
               // entry_type column. Keep null-column rows (not-yet-enriched /
               // legacy) so the in-memory JSON fallback still classifies them.
               ...(typeFilter && typeFilter !== "all"
-                ? { OR: [{ entryType: typeFilter }, { entryType: null }] }
+                ? { AND: [{ OR: [{ entryType: typeFilter }, { entryType: null }] }] }
                 : {}),
             },
             orderBy: { createdAt: "desc" },
             take: limit * 2,
           })
-          .catch((): never[] => [])
+          .catch(swallow("dump"))
       : Promise.resolve([]),
 
     sourceFilter === "all" || sourceFilter === "reflection"
       ? prisma.reflection
           .findMany({
-            where: { date: { gte: cutoffStr }, deletedAt: null },
+            where: {
+              date: { gte: cutoffStr },
+              deletedAt: null,
+              ...cursorWhere,
+              ...(search
+                ? { OR: [{ insight: { contains: search, mode: ci } }, { evidence: { contains: search, mode: ci } }] }
+                : {}),
+            },
             orderBy: { createdAt: "desc" },
             take: limit,
           })
-          .catch((): never[] => [])
+          .catch(swallow("reflection"))
       : Promise.resolve([]),
 
     sourceFilter === "all" || sourceFilter === "situation"
       ? prisma.situationLog
           .findMany({
-            where: { createdAt: { gte: cutoff } },
+            where: {
+              createdAt: { gte: cutoff, ...(cursorWhere.createdAt ?? {}) },
+              ...(search
+                ? { OR: [{ situation: { contains: search, mode: ci } }, { lessonLearned: { contains: search, mode: ci } }] }
+                : {}),
+            },
             orderBy: { createdAt: "desc" },
             take: limit,
             include: {
               law: { select: { book: true, number: true, shortTitle: true } },
             },
           })
-          .catch((): never[] => [])
+          .catch(swallow("situation"))
       : Promise.resolve([]),
 
     sourceFilter === "all" || sourceFilter === "decision"
       ? prisma.decisionReplay
           .findMany({
-            where: { createdAt: { gte: cutoff } },
+            where: {
+              createdAt: { gte: cutoff, ...(cursorWhere.createdAt ?? {}) },
+              ...(search
+                ? {
+                    OR: [
+                      { title: { contains: search, mode: ci } },
+                      { reasoning: { contains: search, mode: ci } },
+                      { lesson: { contains: search, mode: ci } },
+                    ],
+                  }
+                : {}),
+            },
             orderBy: { createdAt: "desc" },
             take: limit,
           })
-          .catch((): never[] => [])
+          .catch(swallow("decision"))
       : Promise.resolve([]),
 
     // 2026-05-29 · 5th source · mission_retro BrainMemory rows (written
@@ -141,12 +217,13 @@ export async function buildJournalFeed(args: {
             where: {
               category: "mission_retro",
               deletedAt: null,
-              createdAt: { gte: cutoff },
+              createdAt: { gte: cutoff, ...(cursorWhere.createdAt ?? {}) },
+              ...(search ? { content: { contains: search, mode: ci } } : {}),
             },
             orderBy: { createdAt: "desc" },
             take: limit,
           })
-          .catch((): never[] => [])
+          .catch(swallow("retro"))
       : Promise.resolve([]),
   ]);
 
@@ -171,7 +248,7 @@ export async function buildJournalFeed(args: {
       createdAt: d.createdAt,
       date: d.date,
       entryType,
-      title: d.summary?.slice(0, 120) || d.rawThoughts.slice(0, 80),
+      title: d.summary ? truncateAtWord(d.summary, 120) : truncateAtWord(d.rawThoughts, 80),
       body: d.rawThoughts,
       summary: d.summary,
       mood: d.moodBefore,
@@ -196,7 +273,7 @@ export async function buildJournalFeed(args: {
       createdAt: r.createdAt,
       date: r.date,
       entryType: "reflection",
-      title: r.insight.slice(0, 120),
+      title: truncateAtWord(r.insight, 120),
       body: r.insight,
       summary: r.evidence.slice(0, 200),
       mood: null,
@@ -222,7 +299,7 @@ export async function buildJournalFeed(args: {
       createdAt: s.createdAt,
       date: s.createdAt.toISOString().split("T")[0],
       entryType: "reflection",
-      title: s.situation.slice(0, 120),
+      title: truncateAtWord(s.situation, 120),
       body: s.situation,
       summary: s.aiAnalysis?.slice(0, 200) ?? null,
       mood: s.emotion,
@@ -247,7 +324,7 @@ export async function buildJournalFeed(args: {
       createdAt: d.createdAt,
       date: d.createdAt.toISOString().split("T")[0],
       entryType: "decision",
-      title: d.title.slice(0, 120),
+      title: truncateAtWord(d.title, 120),
       body: d.context ?? "",
       summary: d.lesson ?? d.reasoning?.slice(0, 200) ?? null,
       mood: null,
@@ -305,17 +382,107 @@ export async function buildJournalFeed(args: {
   feed.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const entries = feed.slice(0, limit);
 
+  // Feed v2 (audit 2026-07-15) · TRUE totals via count queries over the
+  // same filters (search/type/source · WITHOUT the cursor, so the total
+  // describes the whole filtered set, not the remaining tail). Pre-wave
+  // `total` was the capped-fetch size — misleading the moment any
+  // source exceeded its take. Failures fall back to the window size
+  // (never block the feed on a count).
+  const [dumpTotal, reflTotal, sitTotal, decTotal, retroTotal] = await Promise.all([
+    sourceFilter === "all" || sourceFilter === "dump"
+      ? prisma.brainDump
+          .count({
+            where: {
+              date: { gte: cutoffStr },
+              deletedAt: null,
+              ...(search
+                ? { OR: [{ rawThoughts: { contains: search, mode: ci } }, { summary: { contains: search, mode: ci } }] }
+                : {}),
+              ...(typeFilter && typeFilter !== "all"
+                ? { AND: [{ OR: [{ entryType: typeFilter }, { entryType: null }] }] }
+                : {}),
+            },
+          })
+          .catch(() => brainDumps.length)
+      : Promise.resolve(0),
+    sourceFilter === "all" || sourceFilter === "reflection"
+      ? prisma.reflection
+          .count({
+            where: {
+              date: { gte: cutoffStr },
+              deletedAt: null,
+              ...(search
+                ? { OR: [{ insight: { contains: search, mode: ci } }, { evidence: { contains: search, mode: ci } }] }
+                : {}),
+            },
+          })
+          .catch(() => reflections.length)
+      : Promise.resolve(0),
+    sourceFilter === "all" || sourceFilter === "situation"
+      ? prisma.situationLog
+          .count({
+            where: {
+              createdAt: { gte: cutoff },
+              ...(search
+                ? { OR: [{ situation: { contains: search, mode: ci } }, { lessonLearned: { contains: search, mode: ci } }] }
+                : {}),
+            },
+          })
+          .catch(() => situationLogs.length)
+      : Promise.resolve(0),
+    sourceFilter === "all" || sourceFilter === "decision"
+      ? prisma.decisionReplay
+          .count({
+            where: {
+              createdAt: { gte: cutoff },
+              ...(search
+                ? {
+                    OR: [
+                      { title: { contains: search, mode: ci } },
+                      { reasoning: { contains: search, mode: ci } },
+                      { lesson: { contains: search, mode: ci } },
+                    ],
+                  }
+                : {}),
+            },
+          })
+          .catch(() => decisions.length)
+      : Promise.resolve(0),
+    sourceFilter === "all" || sourceFilter === "retro"
+      ? prisma.brainMemory
+          .count({
+            where: {
+              category: "mission_retro",
+              deletedAt: null,
+              createdAt: { gte: cutoff },
+              ...(search ? { content: { contains: search, mode: ci } } : {}),
+            },
+          })
+          .catch(() => missionRetros.length)
+      : Promise.resolve(0),
+  ]);
+
+  // Cursor convention: a full page implies more may exist; the client
+  // passes nextCursor back to fetch strictly-older rows.
+  const nextCursor =
+    entries.length === limit
+      ? entries[entries.length - 1].createdAt.toISOString()
+      : null;
+
   const counts: FeedCounts = {
-    total: feed.length,
+    total: dumpTotal + reflTotal + sitTotal + decTotal + retroTotal,
     shown: entries.length,
-    hasMore: feed.length > entries.length,
+    hasMore: nextCursor !== null,
     bySource: {
-      dump: feed.filter((e) => e.source === "dump").length,
-      reflection: feed.filter((e) => e.source === "reflection").length,
-      situation: feed.filter((e) => e.source === "situation").length,
-      decision: feed.filter((e) => e.source === "decision").length,
-      retro: feed.filter((e) => e.source === "retro").length,
+      dump: dumpTotal,
+      reflection: reflTotal,
+      situation: sitTotal,
+      decision: decTotal,
+      retro: retroTotal,
     },
+    // byType stays window-derived (real column exists on brain_dumps
+    // only; JSON-fallback typing can't be counted in SQL) — these power
+    // the filter chips, not the archive total.
     byType: {
       raw: feed.filter((e) => e.entryType === "raw").length,
       thinking: feed.filter((e) => e.entryType === "thinking").length,
@@ -328,5 +495,5 @@ export async function buildJournalFeed(args: {
     },
   };
 
-  return { entries, counts };
+  return { entries, counts, nextCursor, degraded };
 }
