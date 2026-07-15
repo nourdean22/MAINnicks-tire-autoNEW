@@ -138,6 +138,71 @@ export const GET = cronHandler(async () => {
     totalSuccess += success;
   }
 
+  // ── situation_log (silo wave · audit 2026-07-15) ──
+  // Was invisible to all semantic recall: only convergence scans wrote
+  // raw vector rows. Mirrors the reflection block above.
+  {
+    const embedded = await prisma.vectorEmbedding
+      .findMany({ where: { sourceType: "situation_log" }, select: { sourceId: true }, orderBy: { createdAt: "desc" }, take: 5000 });
+    const embeddedSet = new Set(embedded.map((e) => e.sourceId));
+    const situations = await prisma.situationLog.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, situation: true, context: true, outcome: true, lessonLearned: true },
+      take: 200,
+    });
+    const missing = situations.filter((s) => !embeddedSet.has(s.id) && s.situation.length > 30);
+    const batch = missing.slice(0, BATCH_PER_TYPE);
+    let success = 0;
+    for (const s of batch) {
+      try {
+        const extra = [s.outcome, s.lessonLearned].filter(Boolean).join(" · ");
+        await storeGenericEmbedding(
+          "situation_log",
+          s.id,
+          `[situation ${s.context}] ${s.situation}${extra ? `\n${extra}` : ""}`.slice(0, 2000),
+        );
+        success++;
+      } catch (err) {
+        log.warn("embed_failed", { err: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    report.situation_log = { processed: batch.length, success, remaining: missing.length - batch.length };
+    totalProcessed += batch.length;
+    totalSuccess += success;
+  }
+
+  // ── decision_replay (silo wave · audit 2026-07-15) ──
+  {
+    const embedded = await prisma.vectorEmbedding
+      .findMany({ where: { sourceType: "decision_replay" }, select: { sourceId: true }, orderBy: { createdAt: "desc" }, take: 5000 });
+    const embeddedSet = new Set(embedded.map((e) => e.sourceId));
+    const replays = await prisma.decisionReplay.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, title: true, choiceMade: true, reasoning: true, outcome: true, lesson: true },
+      take: 200,
+    });
+    const missing = replays.filter((d) => !embeddedSet.has(d.id) && d.title.length > 3);
+    const batch = missing.slice(0, BATCH_PER_TYPE);
+    let success = 0;
+    for (const d of batch) {
+      try {
+        const parts = [
+          `[decision] ${d.title} — chose: ${d.choiceMade}`,
+          d.reasoning ? `why: ${d.reasoning}` : null,
+          d.outcome ? `outcome: ${d.outcome}` : null,
+          d.lesson ? `lesson: ${d.lesson}` : null,
+        ].filter(Boolean);
+        await storeGenericEmbedding("decision_replay", d.id, parts.join("\n").slice(0, 2000));
+        success++;
+      } catch (err) {
+        log.warn("embed_failed", { err: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    report.decision_replay = { processed: batch.length, success, remaining: missing.length - batch.length };
+    totalProcessed += batch.length;
+    totalSuccess += success;
+  }
+
   // ── strategic_law ──
   {
     const embedded = await prisma.vectorEmbedding

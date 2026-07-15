@@ -152,7 +152,13 @@ export type EmbeddingSourceType =
   // AG-31 · the Wave Z Greene corpus (BrainMemory category greene_law —
   // the actions-bearing store). sourceId = the BrainMemory key. Enables
   // the matcher's vector fallback for paraphrases keyword triggers miss.
-  | "greene_law";
+  | "greene_law"
+  // Silo wave (audit 2026-07-15) · the two journal silos that were
+  // invisible to ALL semantic recall — convergence scans wrote raw
+  // vector rows for them directly via prisma, but nothing typed
+  // could. sourceId = the silo row id.
+  | "situation_log"
+  | "decision_replay";
 
 async function markMemoryEmbeddingPending(memoryId: string): Promise<void> {
   try {

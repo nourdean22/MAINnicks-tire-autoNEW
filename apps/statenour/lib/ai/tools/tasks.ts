@@ -708,6 +708,45 @@ const tasksCoreTools = {
         void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.tasks", err, { fn: "journalDecision.brainMemory" }, "warn"));
       });
 
+      // Silo wave (audit 2026-07-15) · decision→journal bridge. A
+      // chat-logged decision previously lived only in mastery_decisions
+      // + a decision_log memory — the /journal feed reads
+      // decision_replays, so the decision stayed invisible until the
+      // replay coach minted a row at REVIEW time (or never). Mint the
+      // unreviewed replay stub now with the coach's own idempotencyKey
+      // (`decision_<id>_30d`) — markReplayed finds-and-UPDATES this
+      // exact row (decision-replay-coach.ts), so no duplicate is ever
+      // created, and the decision is feed-visible immediately.
+      void (async () => {
+        try {
+          const reviewAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+          const stub = await prisma.decisionReplay.create({
+            data: {
+              decisionId: decision.id,
+              title,
+              context: options,
+              choiceMade: chosen,
+              reasoning,
+              reviewAt,
+              reviewed: false,
+              idempotencyKey: `decision_${decision.id}_30d`,
+            },
+            select: { id: true },
+          });
+          const body = `${title} — chose: ${chosen}\nwhy: ${reasoning}`;
+          const { tryJoinActiveThreads } = await import("@/lib/services/journal-threads");
+          await tryJoinActiveThreads("decision_replay", stub.id, body).catch(() => {});
+          const { enrichJournalEntry } = await import("@/lib/brain/journal-brain");
+          await enrichJournalEntry("decision_replay", stub.id, body).catch(() => {});
+          const { storeGenericEmbedding } = await import("@/lib/brain/embedding-utils");
+          await storeGenericEmbedding("decision_replay", stub.id, `[decision] ${body}`.slice(0, 2000)).catch(() => {});
+        } catch (err) {
+          void import("@/lib/utils/error-log").then(({ logError }) =>
+            logError("ai.tools.tasks", err, { fn: "journalDecision.replayStub" }, "warn"),
+          );
+        }
+      })();
+
       return { logged: true, id: decision.id };
     },
   }),
@@ -740,9 +779,30 @@ const tasksCoreTools = {
         },
         take: 3,
       });
-      await prisma.situationLog.create({
+      const situationRow = await prisma.situationLog.create({
         data: { situation, context, lawId: matchingLaws[0]?.id || null },
       });
+      // Silo wave (audit 2026-07-15) · the chat tool path was the only
+      // situation writer with NO enrichment, NO embedding, and NO
+      // thread-join (the REST route had the join). All fire-and-forget.
+      void (async () => {
+        try {
+          const { tryJoinActiveThreads } = await import("@/lib/services/journal-threads");
+          await tryJoinActiveThreads("situation_log", situationRow.id, situation);
+        } catch { /* radar catches it on next scan */ }
+      })();
+      void (async () => {
+        try {
+          const { enrichJournalEntry } = await import("@/lib/brain/journal-brain");
+          await enrichJournalEntry("situation_log", situationRow.id, situation);
+        } catch { /* resweep retries */ }
+      })();
+      void (async () => {
+        try {
+          const { storeGenericEmbedding } = await import("@/lib/brain/embedding-utils");
+          await storeGenericEmbedding("situation_log", situationRow.id, `[situation ${context}] ${situation}`.slice(0, 2000));
+        } catch { /* embed-backfill retries */ }
+      })();
       return {
         logged: true,
         matchingLaws: matchingLaws.map(l => ({

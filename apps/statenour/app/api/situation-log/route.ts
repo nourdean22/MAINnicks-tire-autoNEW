@@ -86,6 +86,24 @@ export async function POST(req: NextRequest) {
       }
     })();
 
+    // Silo wave (audit 2026-07-15) · situations now get the same live
+    // treatment brain_dumps always had: grounding enrichment (goal/
+    // mission link + take) and a recall embedding. Both are
+    // fire-and-forget and never fail the POST; the enrichedAt-null
+    // resweep and embed-backfill cron are the durability nets.
+    void (async () => {
+      try {
+        const { enrichJournalEntry } = await import("@/lib/brain/journal-brain");
+        await enrichJournalEntry("situation_log", log.id, situation);
+      } catch { /* resweep retries */ }
+    })();
+    void (async () => {
+      try {
+        const { storeGenericEmbedding } = await import("@/lib/brain/embedding-utils");
+        await storeGenericEmbedding("situation_log", log.id, `[situation ${context}] ${situation}`.slice(0, 2000));
+      } catch { /* embed-backfill retries */ }
+    })();
+
     return NextResponse.json({ log });
   } catch (err) {
     console.error("[situation-log]", err);

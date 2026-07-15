@@ -809,11 +809,16 @@ async function appendCrossSourceContext(
   excludeChatConversationIds?: string[],
 ): Promise<void> {
   try {
+    // Silo wave (audit 2026-07-15) · situation_log + decision_replay
+    // joined the lane — they were embedded by convergence scans but no
+    // recall path could ever surface them.
     const matches = await semanticSearch(queryText, 8, [
       "brain_dump",
       "reflection",
       "strategic_law",
       "chat_message",
+      "situation_log",
+      "decision_replay",
     ]);
 
     if (matches.length === 0) return;
@@ -836,8 +841,17 @@ async function appendCrossSourceContext(
       reflection: "Reflections",
       strategic_law: "Strategic Laws",
       chat_message: "Past Replies",
+      situation_log: "Logged Situations",
+      decision_replay: "Past Decisions",
     };
-    const TYPE_ORDER = ["strategic_law", "reflection", "brain_dump", "chat_message"];
+    const TYPE_ORDER = [
+      "strategic_law",
+      "decision_replay",
+      "situation_log",
+      "reflection",
+      "brain_dump",
+      "chat_message",
+    ];
 
     // v10.0.398 · A4 PAST-CHAT ANCHOR · render chat_message hits with
     // "N days ago you said" framing.
@@ -922,6 +936,7 @@ async function appendCrossSourceContext(
       const group = byType.get(type);
       if (!group || group.length === 0) continue;
       // Cap per-type to keep the section balanced — 2 per source, 8 total ceiling
+      // (situation_log / decision_replay ride the default 1-per-type cap).
       const cap = type === "strategic_law" ? 2 : type === "reflection" ? 2 : 1;
       const chosen = group.slice(0, cap);
       for (const m of chosen) {
