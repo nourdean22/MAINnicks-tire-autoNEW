@@ -733,13 +733,10 @@ const tasksCoreTools = {
             },
             select: { id: true },
           });
-          const body = `${title} — chose: ${chosen}\nwhy: ${reasoning}`;
-          const { tryJoinActiveThreads } = await import("@/lib/services/journal-threads");
-          await tryJoinActiveThreads("decision_replay", stub.id, body).catch(() => {});
-          const { enrichJournalEntry } = await import("@/lib/brain/journal-brain");
-          await enrichJournalEntry("decision_replay", stub.id, body).catch(() => {});
-          const { storeGenericEmbedding } = await import("@/lib/brain/embedding-utils");
-          await storeGenericEmbedding("decision_replay", stub.id, `[decision] ${body}`.slice(0, 2000)).catch(() => {});
+          // Durable-fanout wave (audit 2026-07-15) · enrich + embed +
+          // thread-join as durable Inngest steps (inline fallback inside).
+          const { dispatchJournalFanout } = await import("@/lib/brain/journal-fanout");
+          await dispatchJournalFanout("decision_replay", stub.id);
         } catch (err) {
           void import("@/lib/utils/error-log").then(({ logError }) =>
             logError("ai.tools.tasks", err, { fn: "journalDecision.replayStub" }, "warn"),
@@ -782,27 +779,12 @@ const tasksCoreTools = {
       const situationRow = await prisma.situationLog.create({
         data: { situation, context, lawId: matchingLaws[0]?.id || null },
       });
-      // Silo wave (audit 2026-07-15) · the chat tool path was the only
-      // situation writer with NO enrichment, NO embedding, and NO
-      // thread-join (the REST route had the join). All fire-and-forget.
+      // Durable-fanout wave (audit 2026-07-15) · enrich + embed +
+      // thread-join as durable Inngest steps (inline fallback inside).
       void (async () => {
-        try {
-          const { tryJoinActiveThreads } = await import("@/lib/services/journal-threads");
-          await tryJoinActiveThreads("situation_log", situationRow.id, situation);
-        } catch { /* radar catches it on next scan */ }
-      })();
-      void (async () => {
-        try {
-          const { enrichJournalEntry } = await import("@/lib/brain/journal-brain");
-          await enrichJournalEntry("situation_log", situationRow.id, situation);
-        } catch { /* resweep retries */ }
-      })();
-      void (async () => {
-        try {
-          const { storeGenericEmbedding } = await import("@/lib/brain/embedding-utils");
-          await storeGenericEmbedding("situation_log", situationRow.id, `[situation ${context}] ${situation}`.slice(0, 2000));
-        } catch { /* embed-backfill retries */ }
-      })();
+        const { dispatchJournalFanout } = await import("@/lib/brain/journal-fanout");
+        await dispatchJournalFanout("situation_log", situationRow.id);
+      })().catch(() => { /* dispatch never throws · double net */ });
       return {
         logged: true,
         matchingLaws: matchingLaws.map(l => ({

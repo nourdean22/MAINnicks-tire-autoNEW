@@ -67,42 +67,14 @@ export async function POST(req: NextRequest) {
       include: { law: true },
     });
 
-    // Phase D · ADR-0013 · journal pattern-radar auto-join hook for
-    // situation logs · the 3rd of 4 journal sources to wire (after
-    // BrainDump in journal-ingest.ts and Reflection in
-    // brain-bus-handlers.ts). Fire-and-forget · captures the
-    // situation text so the new entry can either silently join an
-    // active thread (sim ≥ 0.80) or surface a suggestion (0.65-0.80).
-    // Errors logged via dynamic import only · never fails the POST.
+    // Durable-fanout wave (audit 2026-07-15) · enrich + embed +
+    // thread-join ride the journal/entry.captured Inngest event as
+    // durable, retried steps (dispatchJournalFanout degrades to the
+    // inline path when the send fails). Never fails the POST.
     void (async () => {
-      try {
-        const { tryJoinActiveThreads } = await import(
-          "@/lib/services/journal-threads"
-        );
-        await tryJoinActiveThreads("situation_log", log.id, situation);
-      } catch {
-        // Best-effort · silent on failure · the situation log already
-        // landed successfully · the radar will catch it on next scan.
-      }
-    })();
-
-    // Silo wave (audit 2026-07-15) · situations now get the same live
-    // treatment brain_dumps always had: grounding enrichment (goal/
-    // mission link + take) and a recall embedding. Both are
-    // fire-and-forget and never fail the POST; the enrichedAt-null
-    // resweep and embed-backfill cron are the durability nets.
-    void (async () => {
-      try {
-        const { enrichJournalEntry } = await import("@/lib/brain/journal-brain");
-        await enrichJournalEntry("situation_log", log.id, situation);
-      } catch { /* resweep retries */ }
-    })();
-    void (async () => {
-      try {
-        const { storeGenericEmbedding } = await import("@/lib/brain/embedding-utils");
-        await storeGenericEmbedding("situation_log", log.id, `[situation ${context}] ${situation}`.slice(0, 2000));
-      } catch { /* embed-backfill retries */ }
-    })();
+      const { dispatchJournalFanout } = await import("@/lib/brain/journal-fanout");
+      await dispatchJournalFanout("situation_log", log.id);
+    })().catch(() => { /* dispatch never throws · double net */ });
 
     return NextResponse.json({ log });
   } catch (err) {

@@ -32,7 +32,11 @@ const log = rootLogger.withSurface("brain/embedding");
  * Tracks pgvector availability via the shared cache in lib/db/pgvector
  * so the probe runs at most once per 5min across the whole process.
  */
-async function writePgvectorColumn(
+// Exported in the durable-fanout wave (audit 2026-07-15) so
+// journal-convergence's ensureEmbeddings can dual-write the native
+// vector column — it was the last writer producing JSON-only rows,
+// which kept the pgvector kNN path starved for journal entries.
+export async function writePgvectorColumn(
   rowId: string,
   vec: number[],
 ): Promise<void> {
