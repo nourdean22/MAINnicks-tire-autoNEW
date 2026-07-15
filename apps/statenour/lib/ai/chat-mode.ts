@@ -390,8 +390,17 @@ export async function pruneTools(
 
   // #8 · Recent-sentiment research + short-video generation. last30days
   // (Reddit/HN/GitHub/YouTube) and moneyprinter (video gen) had no trigger.
-  if (/\b(trending (in the )?last (month|30 ?days|week)|recent sentiment|what (are )?people (discussing|saying) (lately|recently)|last 30 days|reddit sentiment)\b/.test(text)) {
-    addMatching(/last30days/i);
+  // 2026-07-15 · social/web-trends phrasing gap (live incident): "current
+  // internet trends / recent content on twitter and reddit" matched NO web
+  // family — platform names (twitter/reddit), "social media", "forums", and
+  // qualified "trends" phrasings were never triggers, so Nick replied
+  // "search tools aren't available this session" while last30days /
+  // searchWebVerified / arsenalWebSearch sat pruned. Triggers broadened and
+  // the family now attaches the full web stack, not just last30days. Bare
+  // "trend(s|ing)" stays with the analyzeTrends family (#4). MIRRORED in
+  // tests/ai/chat-mode-keyword-families.test.ts.
+  if (/\b(twitter|reddit|x\.com|hacker news|social media|(dating |online |internet |web )?forums?|(internet|online|current|latest|recent) trends?|what'?s trending|trending (on|in|online|lately|right now|these days)|trending (in the )?last (month|30 ?days|week)|recent sentiment|recent (content|posts?)|what (are )?people (discussing|saying|posting) (lately|recently)|last 30 days|reddit sentiment)\b/.test(text)) {
+    addMatching(/last30days|searchWebVerified|arsenalWebSearch|scrapeWebPage/i);
   }
   if (/\b(tiktok|reel|short video|make (a |the )?video|generate (a |the )?video|create (a |the )?(short )?video|youtube short|video from (this|that|the) script)\b/.test(text)) {
     addMatching(/moneyprinter/i);
