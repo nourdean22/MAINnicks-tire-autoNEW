@@ -743,6 +743,19 @@ export const systemTools = {
         q.sources.map((s) => `${s.name}: ${s.content}`).join("\n\n").trim() ||
         q.disagreement ||
         "Web search returned no results from any source.";
+      // 2026-07-15 · total-failure observability: a no-content result
+      // used to count as tool SUCCESS, hiding backend outages from
+      // /system/chat-health while the model told the operator "web
+      // search unavailable". Best-effort, never blocks the return.
+      if (!q.consensus?.trim() && q.sources.length === 0) {
+        void import("@/lib/errors/record-error")
+          .then(({ recordError }) =>
+            recordError("ai:tool-exec", new Error("arsenalWebSearch: all sources returned nothing"), {
+              disagreement: q.disagreement?.slice(0, 200) ?? null,
+            }),
+          )
+          .catch(() => {});
+      }
       return { content: fence(body), citations: q.citations ?? [], model: "multi-source", source: "arsenal/fallback" };
     },
   }),

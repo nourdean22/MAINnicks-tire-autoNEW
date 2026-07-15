@@ -50,10 +50,9 @@ export type { ChatMode };
  * embedding and pre-computed tool embeddings — captures INTENT not
  * keywords. Keyword regex is the fallback path for cold cache.
  *
- * Note: the current Venice model (venice-uncensored) doesn't support
- * tool calling at all; veniceFetch strips tools+tool_choice before
- * hitting Venice. This prune still runs so that when we route to a
- * tool-capable provider or model, we pass the right slice.
+ * (2026-07-15 · stale Venice note removed — Venice is retired from
+ * RUNTIME_PROVIDERS and every live provider in the chain is
+ * tool-capable. The prune's job is purely context-budget control.)
  */
 export async function pruneTools(
   mode: ChatMode,

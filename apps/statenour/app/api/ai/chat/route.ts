@@ -551,11 +551,22 @@ async function chatPostInner(req: Request) {
     const isHighStakesMutation =
       __actionIntent && HIGH_STAKES_MUTATIONS.has(__actionIntent.expectedTool || "");
 
+    // 2026-07-15 · action-force repoint. The force pinned GEMINI for
+    // ordinary action intents — but the Gemini key has been hard-dead
+    // on its monthly spending cap (verbatim: "project has exceeded its
+    // monthly spending cap", provider smoke), so every action turn
+    // burned a doomed Gemini attempt and survived only via the stream
+    // fallback. Ollama Cloud is the live primary AND honors strict
+    // tool_choice (deepseek-v4-pro probed live: forced tool_calls fire
+    // reliably). High-stakes mutations keep the Anthropic pin as the
+    // declared preference — ANTHROPIC_API_KEY is currently UNSET so
+    // getModel degrades it to the normal chain today, and it becomes
+    // meaningful again the moment the key is configured.
     const toolMandatoryForce =
       __pythonExecuteIntent || __actionIntent
         ? isHighStakesMutation
           ? ("anthropic" as const)
-          : ("gemini" as const)
+          : ("ollama" as const)
         : undefined;
 
     effectiveForce = toolMandatoryForce ?? validatedProviderOverride;
