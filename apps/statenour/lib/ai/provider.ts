@@ -255,11 +255,18 @@ function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
       if (options?.body && typeof options.body === "string") {
         try {
           const parsed = JSON.parse(options.body);
-          // Always enforce a strict upper bound to prevent infinite <think> loop drains
-          const MAX_TOKENS = 4096;
+          // Always enforce a strict upper bound to prevent infinite <think> loop drains.
+          // 2026-07-15 · reason/deep lanes get 8192: Ollama Cloud IGNORES
+          // `reasoning: { exclude: true }` for deepseek-v4-pro (probed live —
+          // reasoning tokens still emitted), so on heavy prompts the model can
+          // burn most of a 4096 budget on hidden reasoning and return EMPTY
+          // content on the post-tool continuation (the silent-tool-turn bug).
+          // Double headroom on the long-form lanes keeps a hard bound while
+          // leaving room for visible text after the reasoning spend.
+          const MAX_TOKENS = taskType === "reason" || taskType === "deep" ? 8192 : 4096;
           const requested = typeof parsed.max_tokens === "number" ? parsed.max_tokens : MAX_TOKENS;
           const num_predict = Math.min(requested, MAX_TOKENS);
-          
+
           parsed.options = { ...parsed.options, num_predict };
 
           // Configure reasoning / thinking budget for reasoning models under Ollama/OpenRouter

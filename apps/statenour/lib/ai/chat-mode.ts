@@ -59,7 +59,15 @@ export async function pruneTools(
   mode: ChatMode,
   allTools: Record<string, unknown>,
   userContent: string,
-  userEmbedding?: number[]
+  userEmbedding?: number[],
+  // 2026-07-15 · conversation-aware matching. Keyword families keyed
+  // ONLY on the current message, so short follow-ups ("try again",
+  // "?") dropped the families the conversation needed — the model then
+  // called tools that were no longer attached ("Model tried to call
+  // unavailable tool 'arsenalWebSearch'" in tool telemetry) and told
+  // the operator the capability was unavailable. The route passes the
+  // recent user-message tail; triggers match against message + tail.
+  opts?: { conversationTail?: string }
 ): Promise<Record<string, unknown>> {
   const isDeep = mode === "deep";
 
@@ -76,8 +84,12 @@ export async function pruneTools(
   }
   allTools = allowedTools;
 
-  // Standard mode: core + semantic + keyword
-  const text = userContent.toLowerCase();
+  // Standard mode: core + semantic + keyword. Trigger text = current
+  // message + recent-user-message tail (see opts doc above).
+  const text = [userContent, opts?.conversationTail ?? ""]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
   // Core tools — always included in standard mode. These are cheap
   // reads Nick should always be able to reach for basic situational
   // awareness.

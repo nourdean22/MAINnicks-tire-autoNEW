@@ -496,6 +496,22 @@ async function chatPostInner(req: Request) {
         }
       })();
 
+  // 2026-07-15 · explicit web-search intent. Telemetry showed turns
+  // where the operator explicitly asked to "search the web" and the
+  // model either couldn't reach a web tool (pruner follow-up gap,
+  // fixed via conversationTail) or narrated "no web search available"
+  // WITHOUT attempting the attached tool (persona-framed reasoning
+  // model). Mirror the python-execute pattern: when the ask is
+  // explicit, force arsenalWebSearch on step 0 so unavailability can't
+  // be narrated — the only choice left is the query string. Detection
+  // stays tight (explicit phrasings only) so ordinary questions keep
+  // toolChoice auto.
+  const __webSearchIntent =
+    !__pythonExecuteIntent &&
+    /\b(search (the )?(web|internet|net|online)|google (it|for|me|this|that)|web ?search|look (it |this |that |them )?up online|(find|pull|get) (me )?(the )?(latest|current|live|breaking|newest|hottest) .{0,40}\b(online|on the web|from the web|news|trends?)\b)\b/i.test(
+      userContent,
+    );
+
   let model: ReturnType<typeof getModel>;
   let effectiveForce: ProviderName | undefined = undefined;
   try {
@@ -960,11 +976,33 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   // Quick mode → zero tools. Standard → ~15-30 relevant. Deep → all 159.
   // Cuts Venice first-token latency from 10-30s → 2-5s for conversational
   // messages without removing any capability from data-heavy queries.
+  // 2026-07-15 · conversation-aware pruning. The pruner keyed ONLY on
+  // the current message, so follow-up turns ("try again", "?", "u
+  // sure?") lost the tool families the CONVERSATION needed — telemetry
+  // showed the model calling arsenalWebSearch and getting "unavailable
+  // tool · Available tools: <core-only list>" on exactly such turns,
+  // then honestly telling the operator "web search still unavailable".
+  // Feed the last few user messages as a matching tail so families
+  // persist across the follow-ups that reference them.
+  const __conversationTail = messages
+    .filter((m) => m.role === "user")
+    .slice(-4, -1)
+    .map((m) =>
+      (m.parts ?? [])
+        .filter((p) => p?.type === "text" && typeof p.text === "string")
+        .map((p) => p.text)
+        .join(" "),
+    )
+    .filter(Boolean)
+    .join("\n")
+    .slice(-1500);
+
   let prunedTools = (await pruneTools(
     mode,
     nourTools as unknown as Record<string, unknown>,
     userContent,
-    userEmbedding
+    userEmbedding,
+    { conversationTail: __conversationTail }
   )) as typeof nourTools;
 
   // Apply the AI config's tool blocklist (#13). Tools in
@@ -1004,6 +1042,17 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     const forced = { ...prunedTools } as Record<string, unknown>;
     for (const raw of __actionIntent.expectedTool.split("|")) {
       const name = raw.trim();
+      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
+    }
+    prunedTools = forced as unknown as typeof nourTools;
+  }
+  // 2026-07-15 · same coherence guarantee for the web-search force: the
+  // step-0 toolChoice below can only fire if the tool is in the set.
+  if (__webSearchIntent) {
+    const all = nourTools as unknown as Record<string, unknown>;
+    const disabled = new Set(aiConfig?.disabledTools ?? []);
+    const forced = { ...prunedTools } as Record<string, unknown>;
+    for (const name of ["arsenalWebSearch", "searchWebVerified"]) {
       if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
     }
     prunedTools = forced as unknown as typeof nourTools;
@@ -1501,13 +1550,41 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           // anti-fabrication guarantee (can't narrate-without-acting) while
           // restoring the closing summary. stepCountIs stops the loop as soon
           // as a step emits text with no tool call.
+          //
+          // 2026-07-15 · silent-tool-turn fix (final-step text forcing).
+          // With stopWhen(stepCountIs(N)), a turn whose EVERY step emitted
+          // tool calls ends with finishReason "tool-calls" and zero prose —
+          // the tool cards render but Nick never "responds" (operator nudged
+          // with "?" to get an answer). Force toolChoice:"none" on the last
+          // allowed step so the loop always ends with a step that can only
+          // produce text. Applies to all three branches, including the
+          // previously-prepareStep-less default.
+          const lastStep = (mode === "deep" ? 5 : 3) - 1;
           if (__pythonExecuteIntent) {
             log.info("python_execute_intent_detected", { surface: "chat" });
             return {
               prepareStep: ({ stepNumber }: { stepNumber: number }) =>
                 stepNumber === 0
                   ? { toolChoice: { type: "tool" as const, toolName: "runPython" as const } }
-                  : { toolChoice: "auto" as const },
+                  : stepNumber >= lastStep
+                    ? { toolChoice: "none" as const }
+                    : { toolChoice: "auto" as const },
+            };
+          }
+
+          // 2026-07-15 · explicit web-search ask → force the web tool on
+          // step 0 (checked before the generic action intent — more
+          // specific wins). deepseek-v4-pro honors strict tool_choice
+          // via Ollama's OpenAI-compat endpoint (probed live).
+          if (__webSearchIntent) {
+            log.info("web_search_intent_detected", { surface: "chat" });
+            return {
+              prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+                stepNumber === 0
+                  ? { toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const } }
+                  : stepNumber >= lastStep
+                    ? { toolChoice: "none" as const }
+                    : { toolChoice: "auto" as const },
             };
           }
 
@@ -1524,10 +1601,15 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
               prepareStep: ({ stepNumber }: { stepNumber: number }) =>
                 stepNumber === 0
                   ? { toolChoice: "required" as const }
-                  : { toolChoice: "auto" as const },
+                  : stepNumber >= lastStep
+                    ? { toolChoice: "none" as const }
+                    : { toolChoice: "auto" as const },
             };
           }
-          return {};
+          return {
+            prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+              stepNumber >= lastStep ? { toolChoice: "none" as const } : {},
+          };
         })(),
         // v10.0.446 · `messages:` (and `system:` for non-Anthropic) are
         // now set by the conditional spread above. The Anthropic branch
