@@ -397,9 +397,11 @@ export async function pruneTools(
   // "search tools aren't available this session" while last30days /
   // searchWebVerified / arsenalWebSearch sat pruned. Triggers broadened and
   // the family now attaches the full web stack, not just last30days. Bare
-  // "trend(s|ing)" stays with the analyzeTrends family (#4). MIRRORED in
-  // tests/ai/chat-mode-keyword-families.test.ts.
-  if (/\b(twitter|reddit|x\.com|hacker news|social media|(dating |online |internet |web )?forums?|(internet|online|current|latest|recent) trends?|what'?s trending|trending (on|in|online|lately|right now|these days)|trending (in the )?last (month|30 ?days|week)|recent sentiment|recent (content|posts?)|what (are )?people (discussing|saying|posting) (lately|recently)|last 30 days|reddit sentiment)\b/.test(text)) {
+  // "trend(s|ing)" stays with the analyzeTrends family (#4). 2026-07-15b ·
+  // typo variants per AGENTS.md §11.1 (twiter/tweeter, redit, trendin,
+  // hackernews, socials) — matchers must survive fast phone typing. MIRRORED
+  // in tests/ai/chat-mode-keyword-families.test.ts.
+  if (/\b(twit?ter|tweeter|red?dit|x\.com|hacker ?news|social media|socials|(dating |online |internet |web )?forums?|(internet|online|current|latest|recent) trends?|what'?s trendin'?g?|trendin'?g? (on|in|online|lately|right now|these days)|trendin'?g? (in the )?last (month|30 ?days|week)|recent sentiment|recent (content|posts?)|what (are )?people (discussing|saying|posting) (lately|recently)|last 30 days|red?dit sentiment)\b/.test(text)) {
     addMatching(/last30days|searchWebVerified|arsenalWebSearch|scrapeWebPage/i);
   }
   if (/\b(tiktok|reel|short video|make (a |the )?video|generate (a |the )?video|create (a |the )?(short )?video|youtube short|video from (this|that|the) script)\b/.test(text)) {

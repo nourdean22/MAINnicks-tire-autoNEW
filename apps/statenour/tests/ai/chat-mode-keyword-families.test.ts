@@ -362,7 +362,7 @@ describe("2026-07-11 commitment-reconciliation family", () => {
 // v10.0.509/510/531. MIRRORS lib/ai/chat-mode.ts — keep in sync.
 const P_WEBTRENDS = {
   trigger:
-    /\b(twitter|reddit|x\.com|hacker news|social media|(dating |online |internet |web )?forums?|(internet|online|current|latest|recent) trends?|what'?s trending|trending (on|in|online|lately|right now|these days)|trending (in the )?last (month|30 ?days|week)|recent sentiment|recent (content|posts?)|what (are )?people (discussing|saying|posting) (lately|recently)|last 30 days|reddit sentiment)\b/i,
+    /\b(twit?ter|tweeter|red?dit|x\.com|hacker ?news|social media|socials|(dating |online |internet |web )?forums?|(internet|online|current|latest|recent) trends?|what'?s trendin'?g?|trendin'?g? (on|in|online|lately|right now|these days)|trendin'?g? (in the )?last (month|30 ?days|week)|recent sentiment|recent (content|posts?)|what (are )?people (discussing|saying|posting) (lately|recently)|last 30 days|red?dit sentiment)\b/i,
   tools: /last30days|searchWebVerified|arsenalWebSearch|scrapeWebPage/i,
 };
 
@@ -405,4 +405,21 @@ describe("2026-07-15 social/web-trends family", () => {
     "post this to instagram",
     "what should i eat for lunch",
   ])("does NOT fire on: %s", (q) => expect(P_WEBTRENDS.trigger.test(q)).toBe(false));
+
+  // 2026-07-15b · typo resilience per AGENTS.md §11.1 — the pruner must
+  // survive fast phone typing (same rule that gives the Instagram family
+  // "scheduale"/"publis").
+  it.each([
+    "whats trendin on twiter",
+    "check redit for the latest on this",
+    "anything good on the socials today",
+    "hackernews thread about the outage",
+    "look at tweeter and tell me whats new",
+  ])("fires on typo phrasing: %s", (q) => expect(P_WEBTRENDS.trigger.test(q)).toBe(true));
+
+  it("typo variants don't loosen adjacent words", () => {
+    expect(P_WEBTRENDS.trigger.test("check my credit score")).toBe(false);
+    expect(P_WEBTRENDS.trigger.test("edit the document for me")).toBe(false);
+    expect(P_WEBTRENDS.trigger.test("the twins are coming over")).toBe(false);
+  });
 });
