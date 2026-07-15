@@ -125,7 +125,7 @@ describe("AI Provider Resolvers & Fallbacks", () => {
     // default vision model is now the live gemma4:31b.
     expect(resolveProviderModel("ollama", "vision")).toBe("gemma4:31b");
 
-    expect(resolveProviderModel("ollama", "reason")).toBe("deepseek-v3.1:671b");
+    expect(resolveProviderModel("ollama", "reason")).toBe("deepseek-v4-pro");
     process.env.OLLAMA_MODEL = originalOllamaModel;
   });
 });

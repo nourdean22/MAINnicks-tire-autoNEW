@@ -806,7 +806,17 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // When detected, we log the rawText head (500 chars) so we can
       // see WHAT the model actually emitted before the strip — that
       // tells us if it was all <think> or genuinely nothing.
-      if ((!text || text.trim().length === 0) && !hasToolCalls) {
+      // 2026-07-15 · silent-tool-turn fix. The guard was gated with
+      // `&& !hasToolCalls`, which made emptyResponseFallback's dedicated
+      // finishReason === "tool-calls" branch UNREACHABLE — the exact case
+      // it was written for (see the fallback-comment below promising it
+      // "branches on finishReason so a tool-call turn steers away from a
+      // duplicate-causing retry"). Live effect: deepseek-v4-pro tool
+      // turns whose post-tool continuation came back empty persisted a
+      // "complete" row with empty content/parts → blank bubble, no error
+      // card, operator nudged with "?" to get a reply. Empty is empty —
+      // fall back regardless of tool presence.
+      if (!text || text.trim().length === 0) {
         recordError("chat:stream", new Error("Empty assistant response after every salvage path"), {
           rawTextLength: rawText.length,
           rawTextHead: rawText.slice(0, 500),
