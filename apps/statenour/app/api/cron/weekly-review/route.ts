@@ -34,7 +34,7 @@ export const GET = cronHandler(async () => {
 
   // Apr 19 · DailyScore + MasteryHabit retired. Brain-maturity
   // history + DAILY-task check-offs replace them.
-  const [identityHistory, alerts, dailyTasks, commitments, openContradictions] = await Promise.all([
+  const [identityHistory, alerts, dailyTasks, commitments, openContradictions, weekDumps, weekReflections, weekTakes] = await Promise.all([
     prisma.brainMemory
       .findMany({
         where: {
@@ -89,6 +89,38 @@ export const GET = cronHandler(async () => {
     prisma.brainMemory
       .count({ where: { category: BRAIN_CATEGORIES.CONTRADICTION, createdAt: { gte: new Date(weekAgo) } } })
       .catch(() => 0),
+    // Synthesis wave (audit 2026-07-15) · the review finally reads the
+    // JOURNAL. Pre-wave "journal days" was a regex over DAILY task
+    // titles (/journal|reflect/) — journaling via capture/Telegram
+    // scored 0 — and no journal CONTENT reached the prompt at all.
+    prisma.brainDump
+      .findMany({
+        where: { createdAt: { gte: new Date(weekAgo) }, deletedAt: null },
+        select: { date: true, summary: true, rawThoughts: true },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      })
+      .catch(() => [] as Array<{ date: string; summary: string | null; rawThoughts: string }>),
+    prisma.reflection
+      .findMany({
+        where: { createdAt: { gte: new Date(weekAgo) }, deletedAt: null },
+        select: { date: true, insight: true },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      })
+      .catch(() => [] as Array<{ date: string; insight: string }>),
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "journal_brain_take",
+          createdAt: { gte: new Date(weekAgo) },
+          deletedAt: null,
+        },
+        select: { content: true },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      })
+      .catch(() => [] as Array<{ content: string }>),
   ]);
 
   // Parse brain-maturity series
@@ -122,10 +154,30 @@ export const GET = cronHandler(async () => {
   const workoutDays = Array.from(habitsByTitle.entries())
     .filter(([k]) => /workout|gym|move|exercise/i.test(k))
     .reduce((n, [, v]) => n + v.days.size, 0);
-  const journalDays = Array.from(habitsByTitle.entries())
-    .filter(([k]) => /journal|reflect/i.test(k))
-    .reduce((n, [, v]) => n + v.days.size, 0);
+  // Synthesis wave (audit 2026-07-15) · journal days = distinct dates
+  // with REAL journal rows (dumps + reflections), not task-title regex.
+  const journalDates = new Set<string>();
+  for (const d of weekDumps) journalDates.add(d.date);
+  for (const r of weekReflections) journalDates.add(r.date);
+  const journalDays = journalDates.size;
   const habitSummary = habitsByTitle;
+
+  // Bounded journal content for the prompt: 5 newest entry summaries +
+  // the week's AI takes (idea/challenge/nextAction JSON, trimmed).
+  const journalLines = [
+    ...weekDumps.slice(0, 5).map((d) => `${d.date}: ${(d.summary ?? d.rawThoughts).slice(0, 160)}`),
+    ...weekReflections.slice(0, 3).map((r) => `${r.date} (reflection): ${r.insight.slice(0, 160)}`),
+  ];
+  const takeLines = weekTakes
+    .map((t) => {
+      try {
+        const p = JSON.parse(t.content) as { idea?: string | null; challenge?: string | null; nextAction?: { action?: string } | null };
+        return [p.idea, p.challenge, p.nextAction?.action].filter(Boolean).join(" · ").slice(0, 200);
+      } catch {
+        return "";
+      }
+    })
+    .filter(Boolean);
 
   const systemPrompt = await buildSystemPrompt();
 
@@ -147,6 +199,10 @@ ${[...habitSummary.entries()].map(([k, v]) => `${k}: ${v.days.size}/7 days (stre
 
 ## Commitments
 ${commitments.map((c) => `${c.description} — ${c.status}`).join("\n") || "None."}
+
+## Journal (${weekDumps.length} entries · ${weekReflections.length} reflections this week)
+${journalLines.join("\n") || "No journal entries this week."}
+${takeLines.length ? `AI takes: ${takeLines.join(" | ")}` : ""}
 
 Cover: WINS, MISSES, PATTERNS DETECTED, RECOMMENDED FOCUS FOR NEXT WEEK. Under 400 words. Be direct and evidence-based.`,
   });
