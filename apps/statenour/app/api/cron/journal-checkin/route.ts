@@ -76,7 +76,10 @@ export const GET = cronHandler(async (req) => {
       `<b>Nick here. Morning check-in.</b>\n\n` +
       `Your open tasks:\n${taskList}${alertLine}\n\n` +
       `What's the plan today? What's the ONE thing that moves the needle?\n\n` +
-      `<i>Reply with anything — brain dump, plan, or just how you're feeling. I'll process it all.</i>`;
+      `<i>Reply with anything — brain dump, plan, or just how you're feeling. I'll process it all.</i>\n` +
+      // Capture wave (audit 2026-07-15) · deep link straight into the
+      // prefocused composer (#reflect hash auto-scrolls + focuses).
+      `<a href="https://bdnick.info/journal#reflect">Open the composer →</a>`;
   } else {
     // Evening check-in — Apr 19 · DailyScore retired, using live
     // signals (today's DONE count + brain maturity snapshot).
@@ -108,7 +111,8 @@ export const GET = cronHandler(async (req) => {
       `<b>Nick. End of day.</b>\n\n` +
       `${doneLine} ${dumpLine}${maturityLine}${critLine}\n\n` +
       `How did today actually go? What got done, what didn't, and what's on your mind?\n\n` +
-      `<i>Reply with anything. Short or long — I'll capture it all.</i>`;
+      `<i>Reply with anything. Short or long — I'll capture it all.</i>\n` +
+      `<a href="https://bdnick.info/journal#reflect">Open the composer →</a>`;
   }
 
   const sent = await sendTelegram(prompt);

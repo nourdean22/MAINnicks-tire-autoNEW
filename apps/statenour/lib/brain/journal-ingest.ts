@@ -265,7 +265,7 @@ export async function ingestJournal(
 Return ONLY valid JSON with this structure:
 {
   "entryType": "raw|thinking|reasoning|insight|decision|reflection|planning|venting",
-  "summary": "2-3 sentence summary of what Nour is thinking/feeling",
+  "summary": "2-3 sentence summary IN FIRST PERSON, in Nour's own voice ('I ...') — never third person, never 'Nour is ...'. This renders as HIS journal entry title.",
   "mood": "one word: calm|stressed|motivated|frustrated|scattered|focused|tired|energized|anxious|reflective",
   "domains": ["business|health|personal|finance|relationship|mastery"],
   "actionItems": [{"title": "specific task", "priority": "critical|high|medium|low", "domain": "business|health|personal|system|finance"}],

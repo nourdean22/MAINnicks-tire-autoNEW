@@ -52,7 +52,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let signalBlock = "";
   try {
     const now = Date.now();
-    const [missionBriefCache, relBriefCache, recentLedger, openTasks] =
+    const [missionBriefCache, relBriefCache, recentLedger, openTasks, journalCount7d, latestTake] =
       await Promise.all([
         prisma.brainMemory.findFirst({
           where: {
@@ -74,7 +74,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         prisma.task.count({
           where: { status: { in: ["READY", "DOING", "INBOX"] } },
         }),
+        // Synthesis wave (audit 2026-07-15) · the docstring + system
+        // prompt promised "recent journal" signal — no journal query
+        // existed. Two cheap reads close the docstring-vs-code gap.
+        prisma.brainDump
+          .count({
+            where: { createdAt: { gte: new Date(now - 7 * DAY_MS) }, deletedAt: null },
+          })
+          .catch(() => 0),
+        prisma.brainMemory
+          .findFirst({
+            where: { category: "journal_brain_take", deletedAt: null },
+            orderBy: { updatedAt: "desc" },
+            select: { content: true },
+          })
+          .catch(() => null),
       ]);
+
+    let journalTakeLine = "JOURNAL_LATEST_TAKE: (none)";
+    if (latestTake?.content) {
+      try {
+        const p = JSON.parse(latestTake.content) as {
+          idea?: string | null;
+          nextAction?: { action?: string } | null;
+        };
+        const bits = [p.nextAction?.action, p.idea].filter(Boolean).join(" · ");
+        if (bits) journalTakeLine = `JOURNAL_LATEST_TAKE: ${bits.slice(0, 240)}`;
+      } catch {
+        /* malformed take · keep the (none) line */
+      }
+    }
 
     const lines = [
       missionBriefCache?.content
@@ -85,6 +114,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         : "RELATIONSHIPS_BRIEF: (no cached brief)",
       `OPEN_TASKS: ${openTasks}`,
       `LEDGER_TOUCHES_7D: ${recentLedger}`,
+      `JOURNAL_ENTRIES_7D: ${journalCount7d}`,
+      journalTakeLine,
     ];
     signalBlock = lines.join("\n");
   } catch (err) {
