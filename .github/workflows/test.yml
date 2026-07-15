@@ -97,6 +97,12 @@ jobs:
     if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.workflow == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      # 2026-07-15 · @statenour/web tsc --noEmit outgrew Node's ~2GB default
+      # old-space: deterministic OOM (exit 134) on runs 29408774484 and
+      # 29409229006, killing the pipeline before tests. Runners have 16GB;
+      # verified locally: the same check passes with this heap in ~44s.
+      NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - name: Checkout (full history for affected-detection)
         uses: actions/checkout@v4
@@ -165,6 +171,15 @@ jobs:
         run: pnpm --filter nicks-tire-auto prerender:check
 
       # ─── Statenour-only custom validators ───
+      # Workflow-only diffs flip these validators ON while `turbo --affected`
+      # builds nothing, so prompt:size-check crashed importing the unbuilt
+      # @nour/ai-capabilities dist (runs 29362837192 / 29364485363). Build the
+      # statenour workspace deps explicitly — turbo cache makes this ~free
+      # whenever --affected already built them.
+      - name: Statenour · build workspace deps (validators import dists)
+        if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm exec turbo run build --filter="@statenour/web^..." --output-logs=errors-only
+
       - name: Statenour · raw-sql check
         if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter @statenour/web check:raw-sql
