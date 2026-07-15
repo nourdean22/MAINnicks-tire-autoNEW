@@ -34,13 +34,17 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     id: "ollama",
     apiKeyEnv: ["OLLAMA_API_KEY"],
     modelEnv: "OLLAMA_MODEL",
-    // 2026-07-12 · least-restricted tool-reliable model on the Ollama Cloud
-    // key (verified: emits valid tool_calls via the OpenAI-compat endpoint).
-    // deepseek-v3.1:671b has the lightest content filtering of the tool-capable
-    // models offered; the ~7s latency is the user-facing reason/chat lane's
-    // cost. Fast internal lanes use OLLAMA_FAST_MODEL (glm-5.2, ~1s). Override
-    // both via Railway env.
-    defaultModel: "deepseek-v3.1:671b",
+    // 2026-07-15 · deepseek-v3.1:671b was RETIRED by Ollama Cloud at
+    // midnight PDT (HTTP 410) — the SECOND silent model retirement to
+    // kill a lane (vision: qwen3-vl 2026-06-16). It took down the whole
+    // reason/chat lane for ~9h because every paid fallback (gemini cap,
+    // openai quota, openrouter credits) was also dead. Successor
+    // deepseek-v4-pro verified live on the key: valid tool_calls via
+    // the OpenAI-compat endpoint, ~1.6-1.9s (4x faster than v3.1).
+    // Prod overrides via Railway env OLLAMA_MODEL (set same day); this
+    // default is the env-less fallback. Fast internal lanes use
+    // OLLAMA_FAST_MODEL (glm-5.2, ~1s).
+    defaultModel: "deepseek-v4-pro",
     baseUrlEnv: "OLLAMA_BASE_URL",
     defaultBaseUrl: "https://ollama.com",
     visionModelEnv: "OLLAMA_VISION_MODEL",
