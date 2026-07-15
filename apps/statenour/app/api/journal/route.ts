@@ -27,6 +27,9 @@ export async function GET(req: Request) {
       days: Number(url.searchParams.get("days")) || 30,
       type: url.searchParams.get("type"),
       source: url.searchParams.get("source") || "all",
+      // Feed v2 (audit 2026-07-15) · parity with trpc.journal.feed.
+      search: url.searchParams.get("search") || undefined,
+      cursor: url.searchParams.get("cursor") || undefined,
     });
     return NextResponse.json({ data: view });
   } catch (err) {

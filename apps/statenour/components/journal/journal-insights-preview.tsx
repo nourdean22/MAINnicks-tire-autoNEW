@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
-import { BookOpen, Zap, Lightbulb, Target, Check, Loader2, Sparkles } from "lucide-react";
+import { Zap, Lightbulb, Target, Check, Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,44 +22,49 @@ interface InsightPreviewItem {
   idea: string | null;
   challenge: string | null;
   nextAction: TakeNextAction | null;
+  ideaPromoted: boolean;
+  challengePromoted: boolean;
+  nextActionPromoted: boolean;
 }
+
+type TakeKind = "nextAction" | "idea" | "challenge";
 
 export function JournalInsightsPreview() {
   const { data: insights, isLoading, refetch } = trpc.journal.insightsPreview.useQuery(undefined, {
     refetchOnWindowFocus: false,
     staleTime: 2 * 60 * 1000,
   });
+  const utils = trpc.useUtils();
 
-  const createTaskMut = trpc.task.create.useMutation();
-  const [createdKeys, setCreatedKeys] = useState<Set<string>>(new Set());
-  const [creatingKey, setCreatingKey] = useState<string | null>(null);
+  // Loop-closure wave (audit 2026-07-15) · accepts go through the
+  // journal.promoteNextAction seam so the take row's per-layer promoted
+  // flag is stamped server-side — the home hub's latestNextAction stops
+  // resurfacing accepted actions, and re-accepting after a remount is
+  // rejected server-side instead of minting a duplicate task.
+  const promoteMut = trpc.journal.promoteNextAction.useMutation();
+  const [promotingKey, setPromotingKey] = useState<string | null>(null);
 
-  // Filter items that have at least one takeaway
   const activeInsights = (insights || []).filter(
     (item) => item.idea || item.challenge || item.nextAction
   ) as unknown as InsightPreviewItem[];
 
-  const handleCreateTask = async (item: InsightPreviewItem) => {
-    if (!item.nextAction) return;
-    const key = `${item.id}-task`;
-    setCreatingKey(key);
+  const handlePromote = async (item: InsightPreviewItem, kind: TakeKind) => {
+    const key = `${item.id}-${kind}`;
+    setPromotingKey(key);
     try {
-      await createTaskMut.mutateAsync({
-        title: item.nextAction.action,
-        goalId: item.goalId || undefined,
-        priority: "normal",
-        loopKind: "ONCE",
-      });
-      setCreatedKeys((prev) => {
-        const next = new Set(prev);
-        next.add(key);
-        return next;
-      });
+      await promoteMut.mutateAsync({ entryId: item.entryId, kind });
       toast.success("Task created in Inbox");
-    } catch {
-      toast.error("Failed to create task");
+      await Promise.all([
+        refetch(),
+        utils.journal.latestNextAction.invalidate(),
+      ]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create task";
+      toast.error(message);
+      // "already promoted" means our view was stale — refresh it.
+      void refetch();
     } finally {
-      setCreatingKey(null);
+      setPromotingKey(null);
     }
   };
 
@@ -77,6 +82,37 @@ export function JournalInsightsPreview() {
 
   if (activeInsights.length === 0) return null;
 
+  const acceptButton = (
+    item: InsightPreviewItem,
+    kind: TakeKind,
+    promoted: boolean,
+    accent: string,
+  ) => {
+    const key = `${item.id}-${kind}`;
+    const isPromoting = promotingKey === key;
+    return (
+      <Button
+        size="sm"
+        onClick={() => handlePromote(item, kind)}
+        disabled={promoted || isPromoting}
+        aria-label={promoted ? `${kind} already promoted` : `accept ${kind} as task`}
+        className={cn(
+          "h-6 min-h-[28px] px-2 text-[9px] font-bold uppercase transition-all shrink-0 self-center",
+          promoted
+            ? "bg-zinc-800 text-zinc-500 border border-zinc-700/50 hover:bg-zinc-800"
+            : accent
+        )}
+      >
+        {isPromoting ? (
+          <Loader2 size={9} className="animate-spin" />
+        ) : promoted ? (
+          <Check size={9} className="mr-0.5 inline" />
+        ) : null}
+        {promoted ? "created" : "accept"}
+      </Button>
+    );
+  };
+
   return (
     <section
       aria-label="journal takeaways preview"
@@ -93,97 +129,91 @@ export function JournalInsightsPreview() {
       </header>
 
       <div className="space-y-3">
-        {activeInsights.slice(0, 5).map((item) => {
-          const taskKey = `${item.id}-task`;
-          const isCreated = createdKeys.has(taskKey);
-          const isCreating = creatingKey === taskKey;
-
-          return (
-            <div
-              key={item.id}
-              className="rounded-lg border border-zinc-900 bg-zinc-950/20 p-3 space-y-2 transition-all hover:border-zinc-800"
-            >
-              {/* Source entry title */}
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-mono text-zinc-500 truncate max-w-[280px]">
-                  source: {item.entryTitle}
-                </span>
-                <span className="text-[8px] font-mono text-zinc-600 ml-auto">
-                  {new Date(item.updatedAt).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </span>
-              </div>
-
-              {/* Take details */}
-              <div className="space-y-1.5 pt-0.5">
-                {/* Next Move */}
-                {item.nextAction && (
-                  <div className="flex items-start gap-2 p-2 rounded-md bg-emerald-500/[0.03] border border-emerald-500/10">
-                    <Zap size={11} className="text-emerald-400 shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] uppercase font-mono tracking-wider text-emerald-400/80">
-                        next action {item.nextAction.domain && `#${item.nextAction.domain}`}
-                      </p>
-                      <p className="text-[11px] text-zinc-200 leading-snug mt-0.5">
-                        {item.nextAction.action}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => handleCreateTask(item)}
-                      disabled={isCreated || isCreating}
-                      className={cn(
-                        "h-6 px-2 text-[9px] font-bold uppercase transition-all shrink-0 self-center",
-                        isCreated
-                          ? "bg-zinc-800 text-zinc-500 border border-zinc-700/50 hover:bg-zinc-800"
-                          : "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black"
-                      )}
-                    >
-                      {isCreating ? (
-                        <Loader2 size={9} className="animate-spin" />
-                      ) : isCreated ? (
-                        <Check size={9} className="mr-0.5 inline" />
-                      ) : null}
-                      {isCreated ? "created" : "accept"}
-                    </Button>
-                  </div>
-                )}
-
-                {/* Bold Idea */}
-                {item.idea && (
-                  <div className="flex items-start gap-2 p-2 rounded-md bg-violet-500/[0.02] border border-violet-500/10">
-                    <Lightbulb size={11} className="text-violet-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-[10px] uppercase font-mono tracking-wider text-violet-400/80">
-                        bold idea
-                      </p>
-                      <p className="text-[11.5px] text-zinc-300 leading-relaxed mt-0.5">
-                        {item.idea}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Sharp Challenge */}
-                {item.challenge && (
-                  <div className="flex items-start gap-2 p-2 rounded-md bg-amber-500/[0.02] border border-amber-500/10">
-                    <Target size={11} className="text-amber-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-[10px] uppercase font-mono tracking-wider text-amber-400/80">
-                        challenge
-                      </p>
-                      <p className="text-[11.5px] text-zinc-300 leading-relaxed mt-0.5">
-                        {item.challenge}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+        {activeInsights.slice(0, 5).map((item) => (
+          <div
+            key={item.id}
+            className="rounded-lg border border-zinc-900 bg-zinc-950/20 p-3 space-y-2 transition-all hover:border-zinc-800"
+          >
+            {/* Source entry title */}
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-mono text-zinc-500 truncate max-w-[280px]">
+                source: {item.entryTitle}
+              </span>
+              <span className="text-[8px] font-mono text-zinc-600 ml-auto">
+                {new Date(item.updatedAt).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </span>
             </div>
-          );
-        })}
+
+            {/* Take details */}
+            <div className="space-y-1.5 pt-0.5">
+              {/* Next Move */}
+              {item.nextAction && (
+                <div className="flex items-start gap-2 p-2 rounded-md bg-emerald-500/[0.03] border border-emerald-500/10">
+                  <Zap size={11} className="text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] uppercase font-mono tracking-wider text-emerald-400/80">
+                      next action {item.nextAction.domain && `#${item.nextAction.domain}`}
+                    </p>
+                    <p className="text-[11px] text-zinc-200 leading-snug mt-0.5">
+                      {item.nextAction.action}
+                    </p>
+                  </div>
+                  {acceptButton(
+                    item,
+                    "nextAction",
+                    item.nextActionPromoted,
+                    "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black"
+                  )}
+                </div>
+              )}
+
+              {/* Bold Idea */}
+              {item.idea && (
+                <div className="flex items-start gap-2 p-2 rounded-md bg-violet-500/[0.02] border border-violet-500/10">
+                  <Lightbulb size={11} className="text-violet-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] uppercase font-mono tracking-wider text-violet-400/80">
+                      bold idea
+                    </p>
+                    <p className="text-[11.5px] text-zinc-300 leading-relaxed mt-0.5">
+                      {item.idea}
+                    </p>
+                  </div>
+                  {acceptButton(
+                    item,
+                    "idea",
+                    item.ideaPromoted,
+                    "bg-violet-500/15 text-violet-300 border border-violet-500/30 hover:bg-violet-500 hover:text-black"
+                  )}
+                </div>
+              )}
+
+              {/* Sharp Challenge */}
+              {item.challenge && (
+                <div className="flex items-start gap-2 p-2 rounded-md bg-amber-500/[0.02] border border-amber-500/10">
+                  <Target size={11} className="text-amber-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] uppercase font-mono tracking-wider text-amber-400/80">
+                      challenge
+                    </p>
+                    <p className="text-[11.5px] text-zinc-300 leading-relaxed mt-0.5">
+                      {item.challenge}
+                    </p>
+                  </div>
+                  {acceptButton(
+                    item,
+                    "challenge",
+                    item.challengePromoted,
+                    "bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500 hover:text-black"
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </section>
   );

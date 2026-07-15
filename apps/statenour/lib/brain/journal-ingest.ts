@@ -265,7 +265,7 @@ export async function ingestJournal(
 Return ONLY valid JSON with this structure:
 {
   "entryType": "raw|thinking|reasoning|insight|decision|reflection|planning|venting",
-  "summary": "2-3 sentence summary of what Nour is thinking/feeling",
+  "summary": "2-3 sentence summary IN FIRST PERSON, in Nour's own voice ('I ...') — never third person, never 'Nour is ...'. This renders as HIS journal entry title.",
   "mood": "one word: calm|stressed|motivated|frustrated|scattered|focused|tired|energized|anxious|reflective",
   "domains": ["business|health|personal|finance|relationship|mastery"],
   "actionItems": [{"title": "specific task", "priority": "critical|high|medium|low", "domain": "business|health|personal|system|finance"}],
@@ -706,7 +706,15 @@ ${rawText}`,
       "@/lib/services/journal-threads"
     );
     await tryJoinActiveThreads("brain_dump", brainDump.id, rawText);
-  })();
+  })().catch((err) => {
+    // Convergence-safety (audit 2026-07-15) · this IIFE was the ONLY
+    // fire-and-forget in the capture path with no .catch — a rejection
+    // (e.g. import failure) surfaced as an unhandled promise rejection.
+    log.warn("thread_join_failed", {
+      brainDumpId: brainDump.id,
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+  });
 
   // Journal Brain (2026-06-01) · baseline mastery XP for the capture path.
   // Pre-fix only structured Reflections fed XP (journal-reflect.ts) — the

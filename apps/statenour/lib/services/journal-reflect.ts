@@ -119,6 +119,17 @@ export async function createReflection(
     },
   });
 
+  // Silo wave (audit 2026-07-15) · reflections carried the grounding
+  // columns but were never enriched live (brain_dump was the only silo
+  // with a live enrich). Fire-and-forget; the enrichedAt-null resweep
+  // is the durability net.
+  void (async () => {
+    try {
+      const { enrichJournalEntry } = await import("@/lib/brain/journal-brain");
+      await enrichJournalEntry("reflection", reflection.id, insight);
+    } catch { /* resweep retries */ }
+  })();
+
   // brain-bus emit on reflection creation · fire-and-forget; never
   // blocks the primary write.
   void emitReflectionCreated({

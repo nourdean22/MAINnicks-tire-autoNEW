@@ -450,23 +450,28 @@ function LinkChip({ entry, silo }: { entry: FeedEntry; silo: JournalSilo }) {
     <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.06] px-2 py-0.5 text-[10px] font-mono text-[var(--gold)]/90 max-w-full">
       <Target size={9} aria-hidden className="shrink-0" />
       <span className="truncate">→ {label}?</span>
+      {/* UI wave (audit 2026-07-15) · these are the feed row's primary
+          inline actions and were ~15px tap targets (p-0.5 + 11px icon)
+          on the standalone iOS PWA — far below the 44px the rest of the
+          app enforces (thread-rail, todays-prompt). Negative margin
+          keeps the chip visually compact while the hit area grows. */}
       <button
         type="button"
         disabled={mutation.isPending}
         onClick={() => decide(true)}
         aria-label={`Confirm link to ${label}`}
-        className="shrink-0 rounded p-0.5 text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="shrink-0 rounded min-h-[44px] min-w-[44px] -my-3 flex items-center justify-center text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
-        <Check size={11} aria-hidden />
+        <Check size={13} aria-hidden />
       </button>
       <button
         type="button"
         disabled={mutation.isPending}
         onClick={() => decide(false)}
         aria-label={`Dismiss link to ${label}`}
-        className="shrink-0 rounded p-0.5 text-zinc-400 hover:bg-zinc-700/40 hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="shrink-0 rounded min-h-[44px] min-w-[44px] -my-3 flex items-center justify-center text-zinc-400 hover:bg-zinc-700/40 hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
-        <XIcon size={11} aria-hidden />
+        <XIcon size={13} aria-hidden />
       </button>
     </span>
   );
