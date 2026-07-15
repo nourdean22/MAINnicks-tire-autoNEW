@@ -811,7 +811,14 @@ export const journalRouter = router({
         const p = JSON.parse(r.content) as {
           nextAction?: { action?: string; domain?: string | null; nextActionPromoted?: boolean } | null;
         };
-        if (p.nextAction && typeof p.nextAction.action === "string" && p.nextAction.nextActionPromoted !== true) {
+        if (
+          p.nextAction &&
+          typeof p.nextAction.action === "string" &&
+          // Live-verify 2026-07-15 · scrub literal "null"-string actions
+          // (legacy model artifact) so the home hub never surfaces them.
+          !["null", "none", "n/a"].includes(p.nextAction.action.trim().toLowerCase()) &&
+          p.nextAction.nextActionPromoted !== true
+        ) {
           return {
             action: p.nextAction.action,
             domain: p.nextAction.domain ?? null,
@@ -862,13 +869,22 @@ export const journalRouter = router({
       try {
         parsed = JSON.parse(row.content);
       } catch {}
+      // Live-verify 2026-07-15 · legacy takes can carry the literal
+      // string "null" as the action (model artifact, now scrubbed at
+      // write in generateJournalTake) — treat those as no-action so
+      // the panel doesn't render "NEXT ACTION: null [ACCEPT]".
+      const actionStr = parsed.nextAction?.action?.trim().toLowerCase();
+      const nextAction =
+        parsed.nextAction && actionStr && !["null", "none", "n/a"].includes(actionStr)
+          ? parsed.nextAction
+          : null;
       return {
         id: row.id,
         entryId,
         updatedAt: row.updatedAt,
         idea: parsed.idea ?? null,
         challenge: parsed.challenge ?? null,
-        nextAction: parsed.nextAction ?? null,
+        nextAction,
         // Loop-closure wave · server-truth promoted flags so the panel
         // renders accepted state across remounts (was a client-side Set).
         ideaPromoted: parsed.ideaPromoted === true,

@@ -34,6 +34,7 @@ import { sanitizeError } from "@/lib/utils/sanitize-error";
 import {
   cosineSimilarity,
   vectorCentroid,
+  writePgvectorColumn,
 } from "@/lib/brain/embedding-utils";
 import { getEmbedding, type AiMessage } from "@/lib/ai/provider";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
@@ -274,7 +275,10 @@ export async function ensureEmbeddings(
           if (!Array.isArray(vec) || vec.length === 0) return;
           map.set(key, vec);
           // Best-effort persist · failure is non-fatal (we already have
-          // the in-memory vec for clustering).
+          // the in-memory vec for clustering). Durable-fanout wave
+          // (audit 2026-07-15): also dual-write the native pgvector
+          // column — this was the last writer producing JSON-only rows,
+          // starving the kNN path for journal entries.
           await prisma.vectorEmbedding
             .create({
               data: {
@@ -283,6 +287,9 @@ export async function ensureEmbeddings(
                 content: e.text.slice(0, 4000),
                 embedding: JSON.stringify(vec),
               },
+            })
+            .then((created) => {
+              void writePgvectorColumn(created.id, vec);
             })
             .catch((err) => {
               log.warn("vector_embedding_persist_failed", {

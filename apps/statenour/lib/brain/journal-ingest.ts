@@ -25,10 +25,9 @@ const aiChat = makeTracedAiChat("journal-ingest", "journal");
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { today } from "@/lib/utils/datetime";
 import { sendTelegram } from "@/lib/services/telegram";
-import { storeGenericEmbedding } from "@/lib/brain/embedding-utils";
 import { creditFromSignal } from "@/lib/mastery/credit-signal";
 import { getJournalSettings } from "@/lib/journal/settings";
-import { enrichJournalEntry } from "@/lib/brain/journal-brain";
+import { dispatchJournalFanout } from "@/lib/brain/journal-fanout";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("brain/journal-ingest");
@@ -667,18 +666,17 @@ ${rawText}`,
       recordError("brain:journal-ingest", err, { phase: "audit-write", brainDumpId: brainDump.id });
     });
 
-  // v8.22 · Auto-embed journal text into pgvector. Fire-and-forget so
-  // we don't gate the user-facing return on the embedding round-trip;
-  // storeGenericEmbedding handles dual-write (JSON + embedding_vec) and
-  // dedupes via existing-row lookup. This unlocks "when did I last
-  // feel this way?" / "show me past entries about <topic>" semantic
-  // queries without any new schema. Skip on tiny entries — too short
-  // to embed meaningfully.
-  if (rawText.trim().length >= 40) {
-    void storeGenericEmbedding("brain_dump", brainDump.id, rawText).catch(
-      (err) => log.warn("embed_failed", { brainDumpId: brainDump.id, error: err instanceof Error ? err.message : String(err) }),
-    );
-  }
+  // Durable-fanout wave (audit 2026-07-15) · embedding + thread-join +
+  // enrichment now dispatch as ONE Inngest event (journal/entry.captured)
+  // and run as durable, retried steps — the previous fire-and-forget
+  // promises were not guaranteed to run after the response on
+  // serverless. dispatchJournalFanout degrades to the old inline path
+  // when the event send fails, so capture behavior never regresses.
+  // (Baseline XP + brain-bus emits below stay in-process — they're
+  // cheap and have their own idempotency/backfill nets.)
+  void dispatchJournalFanout("brain_dump", brainDump.id, {
+    notifyTelegram: source === "telegram",
+  });
 
   // v10.0.78 · brain-bus emit on finalized brain dump. Subscribers
   // (knowledge-sync, emotional-arc, search-grounding) react instead
@@ -694,27 +692,7 @@ ${rawText}`,
     rawChars: rawText.length,
   });
 
-  // Phase D · ADR-0013 · journal pattern-radar auto-join hook.
-  // Score the new entry against active thread centroids · sim ≥ 0.80
-  // → silent auto-join · 0.65 ≤ sim < 0.80 → suggestion persisted for
-  // operator confirmation. Fire-and-forget · capture never fails
-  // because the radar is down. SituationLog / Reflection / DecisionReplay
-  // writers can call the same helper when they're ready · today only
-  // BrainDump is wired (the most-common capture path).
-  void (async () => {
-    const { tryJoinActiveThreads } = await import(
-      "@/lib/services/journal-threads"
-    );
-    await tryJoinActiveThreads("brain_dump", brainDump.id, rawText);
-  })().catch((err) => {
-    // Convergence-safety (audit 2026-07-15) · this IIFE was the ONLY
-    // fire-and-forget in the capture path with no .catch — a rejection
-    // (e.g. import failure) surfaced as an unhandled promise rejection.
-    log.warn("thread_join_failed", {
-      brainDumpId: brainDump.id,
-      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
-    });
-  });
+  // (Thread auto-join now rides the journal/entry.captured event above.)
 
   // Journal Brain (2026-06-01) · baseline mastery XP for the capture path.
   // Pre-fix only structured Reflections fed XP (journal-reflect.ts) — the
@@ -746,15 +724,9 @@ ${rawText}`,
     );
   }
 
-  // Journal Brain (2026-06-01 · Phase 1) · async grounding/classify/link/score.
-  // Fire-and-forget — capture returns now; enrichment runs a beat later and the
-  // enrichedAt-null cron resweep retries if the process dies mid-pass. Runs for
-  // EVERY brain_dump (independent of the baseline-XP creditXp guard above).
-  void enrichJournalEntry("brain_dump", brainDump.id, rawText, {
-    notifyTelegram: source === "telegram",
-  }).catch((err) => {
-    logError("brain.journal-ingest", err, { fn: "ingestJournal.enrichJournalEntry" });
-  });
+  // (Grounding enrichment now rides the journal/entry.captured event
+  // above — durable steps with retries; the enrichedAt-null cron sweep
+  // remains the last-resort net.)
 
   return {
     brainDumpId: brainDump.id,
