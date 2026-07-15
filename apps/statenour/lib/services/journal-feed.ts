@@ -81,6 +81,10 @@ export async function buildJournalFeed(args: {
           .findMany({
             where: {
               date: { gte: cutoffStr },
+              // schema.prisma: consumers MUST filter deletedAt — the
+              // mission_retro branch below always did; this one didn't,
+              // so soft-deleted dumps kept rendering (audit 2026-07-15).
+              deletedAt: null,
               // Journal Brain · push the type filter to SQL on the real
               // entry_type column. Keep null-column rows (not-yet-enriched /
               // legacy) so the in-memory JSON fallback still classifies them.
@@ -97,7 +101,7 @@ export async function buildJournalFeed(args: {
     sourceFilter === "all" || sourceFilter === "reflection"
       ? prisma.reflection
           .findMany({
-            where: { date: { gte: cutoffStr } },
+            where: { date: { gte: cutoffStr }, deletedAt: null },
             orderBy: { createdAt: "desc" },
             take: limit,
           })

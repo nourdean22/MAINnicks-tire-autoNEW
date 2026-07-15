@@ -211,7 +211,19 @@ async function execCommitJournal(
   }
   try {
     const { ingestJournal } = await import("@/lib/brain/journal-ingest");
-    const result = (await ingestJournal(dump.rawThoughts)) as {
+    // Audit 2026-07-15 · two fixes in one call:
+    //  · reuseDumpId — pre-fix this re-INGESTED the raw text, which
+    //    CREATED a fresh brain_dump row per run while the idempotency
+    //    guard above watched the ORIGINAL row's summary (which never
+    //    got written) — so every commit_journal action duplicated the
+    //    entry (the /journal triplicate rows). Now the pipeline
+    //    updates the existing row in place, which also makes the
+    //    summary guard actually idempotent.
+    //  · source "chat" — omitting it defaulted to "telegram" and
+    //    could fire Telegram goal-link pings for chat-approved actions.
+    const result = (await ingestJournal(dump.rawThoughts, "chat", {
+      reuseDumpId: dump.id,
+    })) as {
       tasksCreated?: number;
       insightsStored?: number;
       commitmentsFound?: number;
