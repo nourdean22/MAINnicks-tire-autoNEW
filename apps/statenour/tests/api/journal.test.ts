@@ -90,6 +90,10 @@ describe("tRPC journal.insightsPreview", () => {
       nextAction: { action: "Extract Card component", domain: "mastery" },
       entryTitle: "Journal Entry",
       goalId: null,
+      // Loop-closure wave · server-truth promoted flags (false when unset)
+      ideaPromoted: false,
+      challengePromoted: false,
+      nextActionPromoted: false,
     });
   });
 
@@ -124,6 +128,9 @@ describe("tRPC journal.insightsPreview", () => {
       nextAction: null,
       entryTitle: "Journal Entry",
       goalId: null,
+      ideaPromoted: false,
+      challengePromoted: false,
+      nextActionPromoted: false,
     });
   });
 

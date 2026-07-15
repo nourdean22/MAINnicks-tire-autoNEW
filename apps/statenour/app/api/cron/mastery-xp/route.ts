@@ -22,15 +22,20 @@
  */
 import { cronHandler } from "@/lib/utils/http";
 import { backfillStatXp } from "@/lib/mastery/backfill";
-import { resweepUnenriched } from "@/lib/brain/journal-brain";
+import { backfillJournalBrain } from "@/lib/brain/journal-brain";
 
 export const maxDuration = 120;
 
 export const GET = cronHandler(async () => {
   const res = await backfillStatXp(25);
-  // Journal Brain durability net · re-enrich any brain_dump the live void-pass
-  // missed (process death / AI hiccup / pre-Phase-1 rows). Idempotent per
-  // sourceKey, so re-running never double-credits.
-  const journalEnriched = await resweepUnenriched(25).catch(() => 0);
-  return { status: "ok", ...res, journalEnriched };
+  // Journal Brain durability net · re-enrich entries the live void-pass
+  // missed (process death / AI hiccup / pre-Phase-1 rows). Silo wave
+  // (audit 2026-07-15): was brain_dump-only (resweepUnenriched) while
+  // reflections/situations/decisions stayed unenriched forever unless
+  // the operator manually ran journal.backfillBrain — now sweeps all 4
+  // silos, bounded per silo. Idempotent per sourceKey, so re-running
+  // never double-credits.
+  const journalSweep = await backfillJournalBrain({ limit: 15 }).catch(() => []);
+  const journalEnriched = journalSweep.reduce((n, s) => n + s.enriched, 0);
+  return { status: "ok", ...res, journalEnriched, journalSweep };
 });
