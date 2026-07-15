@@ -431,8 +431,13 @@ No preamble. Specific over generic. Blank beats fabricated: null the action if n
   if (!parsed.ok) return;
   const idea = typeof parsed.value.idea === "string" ? parsed.value.idea.trim().slice(0, 600) : null;
   const challenge = typeof parsed.value.challenge === "string" ? parsed.value.challenge.trim().slice(0, 400) : null;
-  // Next-Action: the loop's "Act" step. Honest — null when the model returns no real move (don't fabricate).
-  const actionText = typeof parsed.value.nextAction === "string" ? parsed.value.nextAction.trim().slice(0, 300) : null;
+  // Next-Action: the loop's "Act" step. Honest — null when the model returns no
+  // real move (don't fabricate). Live-verify 2026-07-15: some models return the
+  // literal STRING "null" instead of JSON null — that rendered "NEXT ACTION:
+  // null [ACCEPT]" on /journal, so scrub null-ish strings here at the source.
+  const rawAction = typeof parsed.value.nextAction === "string" ? parsed.value.nextAction.trim() : "";
+  const actionText =
+    rawAction && !["null", "none", "n/a"].includes(rawAction.toLowerCase()) ? rawAction.slice(0, 300) : null;
   const actionDomain = typeof parsed.value.domain === "string" ? parsed.value.domain.trim().slice(0, 24) : null;
   const nextAction = actionText ? { action: actionText, domain: actionDomain } : null;
   if (!idea && !challenge && !nextAction) return;
