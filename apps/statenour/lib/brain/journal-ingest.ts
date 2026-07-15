@@ -706,7 +706,15 @@ ${rawText}`,
       "@/lib/services/journal-threads"
     );
     await tryJoinActiveThreads("brain_dump", brainDump.id, rawText);
-  })();
+  })().catch((err) => {
+    // Convergence-safety (audit 2026-07-15) · this IIFE was the ONLY
+    // fire-and-forget in the capture path with no .catch — a rejection
+    // (e.g. import failure) surfaced as an unhandled promise rejection.
+    log.warn("thread_join_failed", {
+      brainDumpId: brainDump.id,
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+  });
 
   // Journal Brain (2026-06-01) · baseline mastery XP for the capture path.
   // Pre-fix only structured Reflections fed XP (journal-reflect.ts) — the

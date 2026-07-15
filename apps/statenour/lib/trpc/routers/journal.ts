@@ -101,6 +101,12 @@ export const journalRouter = router({
           days: z.number().int().min(1).max(365).default(60),
           type: z.string().max(40).nullable().optional(),
           source: z.string().max(40).optional(),
+          // Feed v2 (audit 2026-07-15) · server-side search + cursor
+          // pagination. `cursor` is the field name tRPC's
+          // useInfiniteQuery expects — nextCursor from the previous
+          // page feeds back in here.
+          search: z.string().max(200).optional(),
+          cursor: z.string().datetime().nullish(),
         })
         .optional(),
     )
@@ -110,6 +116,8 @@ export const journalRouter = router({
         days: input?.days,
         type: input?.type,
         source: input?.source,
+        search: input?.search,
+        cursor: input?.cursor ?? undefined,
       }),
     ),
 

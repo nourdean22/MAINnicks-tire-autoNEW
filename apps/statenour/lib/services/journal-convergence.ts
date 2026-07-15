@@ -106,6 +106,12 @@ export async function gatherJournalEntries(
   cutoff.setDate(cutoff.getDate() - daysBack);
   const cutoffStr = cutoff.toISOString().split("T")[0];
 
+  // Convergence-safety (audit 2026-07-15) · bounded takes. These four
+  // queries had NO take — the whole window materialized in memory and
+  // fed the O(n²) clustering. 400/source keeps the docstring's "~200
+  // entries" regime honest even for a heavy fortnight while capping the
+  // worst case.
+  const GATHER_CAP = 400;
   const [dumps, reflections, situations, decisions] = await Promise.all([
     prisma.brainDump
       .findMany({
@@ -116,6 +122,8 @@ export async function gatherJournalEntries(
           summary: true,
           createdAt: true,
         },
+        orderBy: { createdAt: "desc" },
+        take: GATHER_CAP,
       })
       .catch((): never[] => []),
     prisma.reflection
@@ -127,6 +135,8 @@ export async function gatherJournalEntries(
           evidence: true,
           createdAt: true,
         },
+        orderBy: { createdAt: "desc" },
+        take: GATHER_CAP,
       })
       .catch((): never[] => []),
     prisma.situationLog
@@ -138,6 +148,8 @@ export async function gatherJournalEntries(
           aiAnalysis: true,
           createdAt: true,
         },
+        orderBy: { createdAt: "desc" },
+        take: GATHER_CAP,
       })
       .catch((): never[] => []),
     prisma.decisionReplay
@@ -150,6 +162,8 @@ export async function gatherJournalEntries(
           reasoning: true,
           createdAt: true,
         },
+        orderBy: { createdAt: "desc" },
+        take: GATHER_CAP,
       })
       .catch((): never[] => []),
   ]);
@@ -243,39 +257,49 @@ export async function ensureEmbeddings(
     }
   }
 
-  // Fill the gaps.
-  for (const e of entries) {
-    const key = `${e.entrySource}:${e.entryId}`;
-    if (map.has(key)) continue;
-    try {
-      const vec = await getEmbedding(e.text);
-      if (!Array.isArray(vec) || vec.length === 0) continue;
-      map.set(key, vec);
-      // Best-effort persist · failure is non-fatal (we already have
-      // the in-memory vec for clustering).
-      await prisma.vectorEmbedding
-        .create({
-          data: {
-            sourceType: e.entrySource,
-            sourceId: e.entryId,
-            content: e.text.slice(0, 4000),
-            embedding: JSON.stringify(vec),
-          },
-        })
-        .catch((err) => {
-          log.warn("vector_embedding_persist_failed", {
+  // Fill the gaps · convergence-safety (audit 2026-07-15): chunked
+  // parallel instead of strictly sequential. A cold scan (many
+  // un-embedded entries) used to serialize N provider round-trips
+  // inside the route's 90s budget; chunks of 5 keep provider pressure
+  // bounded while cutting wall-clock ~5x. Per-entry error handling is
+  // unchanged — one bad entry never fails the batch.
+  const missing = entries.filter((e) => !map.has(`${e.entrySource}:${e.entryId}`));
+  const CHUNK = 5;
+  for (let i = 0; i < missing.length; i += CHUNK) {
+    await Promise.all(
+      missing.slice(i, i + CHUNK).map(async (e) => {
+        const key = `${e.entrySource}:${e.entryId}`;
+        try {
+          const vec = await getEmbedding(e.text);
+          if (!Array.isArray(vec) || vec.length === 0) return;
+          map.set(key, vec);
+          // Best-effort persist · failure is non-fatal (we already have
+          // the in-memory vec for clustering).
+          await prisma.vectorEmbedding
+            .create({
+              data: {
+                sourceType: e.entrySource,
+                sourceId: e.entryId,
+                content: e.text.slice(0, 4000),
+                embedding: JSON.stringify(vec),
+              },
+            })
+            .catch((err) => {
+              log.warn("vector_embedding_persist_failed", {
+                entrySource: e.entrySource,
+                entryId: e.entryId,
+                error: sanitizeError(err),
+              });
+            });
+        } catch (err) {
+          log.warn("embedding_compute_failed", {
             entrySource: e.entrySource,
             entryId: e.entryId,
             error: sanitizeError(err),
           });
-        });
-    } catch (err) {
-      log.warn("embedding_compute_failed", {
-        entrySource: e.entrySource,
-        entryId: e.entryId,
-        error: sanitizeError(err),
-      });
-    }
+        }
+      }),
+    );
   }
 
   return map;
