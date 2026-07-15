@@ -351,3 +351,58 @@ describe("2026-07-11 commitment-reconciliation family", () => {
     expect(P_RECONCILE.trigger.test(q)).toBe(false);
   });
 });
+
+// ── 2026-07-15 · social/web-trends family (chat-tools live incident) ──
+// Nick replied "I don't have access to live web search tools right now"
+// to a "current internet trends on twitter/reddit" ask — platform names
+// (twitter/reddit), "social media", "forums", and qualified "trends"
+// phrasings matched NO family, so the whole web stack (last30days /
+// searchWebVerified / arsenalWebSearch / scrapeWebPage) was pruned and the
+// model honestly reported having no search tools. Same root-cause class as
+// v10.0.509/510/531. MIRRORS lib/ai/chat-mode.ts — keep in sync.
+const P_WEBTRENDS = {
+  trigger:
+    /\b(twitter|reddit|x\.com|hacker news|social media|(dating |online |internet |web )?forums?|(internet|online|current|latest|recent) trends?|what'?s trending|trending (on|in|online|lately|right now|these days)|trending (in the )?last (month|30 ?days|week)|recent sentiment|recent (content|posts?)|what (are )?people (discussing|saying|posting) (lately|recently)|last 30 days|reddit sentiment)\b/i,
+  tools: /last30days|searchWebVerified|arsenalWebSearch|scrapeWebPage/i,
+};
+
+describe("2026-07-15 social/web-trends family", () => {
+  it("matches the live incident phrasing", () => {
+    expect(
+      P_WEBTRENDS.trigger.test(
+        "check current internet trends and recent pickup content on twitter and reddit",
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    "what's trending on twitter right now",
+    "scan reddit and the dating forums for what's new",
+    "what are people posting lately about tires",
+    "any recent content on social media worth seeing",
+    "latest trends in the shop industry",
+    "what's trending these days",
+    "check hacker news for this",
+  ])("fires on: %s", (q) => expect(P_WEBTRENDS.trigger.test(q)).toBe(true));
+
+  it("original #8 phrasings still match", () => {
+    expect(P_WEBTRENDS.trigger.test("what's trending in the last 30 days")).toBe(true);
+    expect(P_WEBTRENDS.trigger.test("reddit sentiment on EVs")).toBe(true);
+    expect(P_WEBTRENDS.trigger.test("what are people saying lately about the shop")).toBe(true);
+  });
+
+  it("tool pattern reaches the full web stack", () => {
+    expect(P_WEBTRENDS.tools.test("last30days")).toBe(true);
+    expect(P_WEBTRENDS.tools.test("searchWebVerified")).toBe(true);
+    expect(P_WEBTRENDS.tools.test("arsenalWebSearch")).toBe(true);
+    expect(P_WEBTRENDS.tools.test("scrapeWebPage")).toBe(true);
+  });
+
+  it.each([
+    "the trend is your friend in trading",
+    "how are you doing today?",
+    "set a trend analysis for my metrics",
+    "post this to instagram",
+    "what should i eat for lunch",
+  ])("does NOT fire on: %s", (q) => expect(P_WEBTRENDS.trigger.test(q)).toBe(false));
+});
