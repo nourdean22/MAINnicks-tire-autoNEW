@@ -382,7 +382,11 @@ async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
           "chat:journal-ingest",
           async () => {
             const { ingestJournal } = await import("@/lib/brain/journal-ingest");
-            return ingestJournal(userContent);
+            // Audit 2026-07-15 · source was omitted and defaulted to
+            // "telegram", so chat-origin dumps could fire Telegram
+            // goal-link confirm pings (journal-brain notifyTelegram
+            // gate keys on source === "telegram").
+            return ingestJournal(userContent, "chat");
           },
           { timeoutMs: 20_000, silentTimeout: true }
         );

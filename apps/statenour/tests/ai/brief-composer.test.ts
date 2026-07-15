@@ -24,7 +24,12 @@ vi.mock("@/lib/ai/traced-aichat", () => ({
   tracedAiChat: (...a: unknown[]) => mockChat(...a),
 }));
 
-import { composeBrief, scrubThinkTags, GROUNDING_FOOTER } from "@/lib/ai/brief-composer";
+import {
+  composeBrief,
+  scrubThinkTags,
+  isProviderSentinel,
+  GROUNDING_FOOTER,
+} from "@/lib/ai/brief-composer";
 
 const BASE = {
   label: "test-brief",
@@ -86,5 +91,65 @@ describe("composeBrief", () => {
 describe("scrubThinkTags", () => {
   it("removes multiline think blocks", () => {
     expect(scrubThinkTags("a<think>\nx\ny\n</think>b")).toBe("ab");
+  });
+});
+
+/**
+ * Journal audit 2026-07-15 · provider-sentinel guards.
+ *
+ * aiChat NEVER throws on total provider-chain failure — it returns an
+ * "I'm having trouble connecting…" sentinel with provider "emergency"
+ * (lib/ai/provider.ts). Pre-fix, composeBrief treated that sentinel as
+ * a valid brief and CACHED it under the day key, poisoning every brief
+ * surface for the rest of the day AND leaking the first 50 chars of the
+ * signal block into the UI (seen live on /journal 2026-07-15).
+ */
+const SENTINEL =
+  'I\'m having trouble connecting to my AI providers right now. You asked about "ACTIVE_THREADS (0): (none)..." — try again in a moment, or switch to a different mode.';
+
+describe("composeBrief · provider-failure guards", () => {
+  it("returns empty and caches nothing when provider is 'emergency'", async () => {
+    mockChat.mockResolvedValueOnce({ content: SENTINEL, provider: "emergency", model: "none" });
+    expect(await composeBrief(BASE)).toBe("");
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("returns empty and caches nothing when provider is 'none'", async () => {
+    mockChat.mockResolvedValueOnce({ content: SENTINEL, provider: "none", model: "none" });
+    expect(await composeBrief(BASE)).toBe("");
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("refuses sentinel-shaped content even if the provider field looks healthy", async () => {
+    mockChat.mockResolvedValueOnce({ content: SENTINEL, provider: "openrouter", model: "gpt" });
+    expect(await composeBrief(BASE)).toBe("");
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("treats a cached sentinel as a miss and overwrites it on successful recompose", async () => {
+    // 1st findFirst = cache read (poisoned) · 2nd = cache-write existence check
+    mockFindFirst
+      .mockResolvedValueOnce({ content: SENTINEL })
+      .mockResolvedValueOnce({ id: "poisoned-row" });
+    mockChat.mockResolvedValueOnce({ content: "REAL BRIEF", provider: "openrouter", model: "gpt" });
+
+    expect(await composeBrief(BASE)).toBe("REAL BRIEF");
+    expect(mockChat).toHaveBeenCalledTimes(1);
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    const updateArg = mockUpdate.mock.calls[0][0] as { data: { content: string } };
+    expect(updateArg.data.content).toBe("REAL BRIEF");
+  });
+});
+
+describe("isProviderSentinel", () => {
+  it("matches the aiChat emergency fallback text (with leading whitespace)", () => {
+    expect(isProviderSentinel(SENTINEL)).toBe(true);
+    expect(isProviderSentinel("  " + SENTINEL)).toBe(true);
+  });
+
+  it("does not match real brief content", () => {
+    expect(isProviderSentinel("COMPOUNDING: water thread gaining pace.")).toBe(false);
   });
 });

@@ -364,8 +364,14 @@ describe("executeNickAction · dispatch", () => {
       payload: {},
     });
     expect(r.ok).toBe(true);
+    // Audit 2026-07-15 · commit_journal must re-process the EXISTING
+    // row (reuseDumpId) — the old single-arg call re-ingested the text
+    // as a brand-new brain_dump, duplicating the entry on every run —
+    // and must tag source "chat" so no Telegram confirm ping fires.
     expect(vi.mocked(ingestModule.ingestJournal)).toHaveBeenCalledWith(
       "today was rough",
+      "chat",
+      { reuseDumpId: "d-1" },
     );
     expect(r.meta?.tasksCreated).toBe(2);
   });

@@ -145,7 +145,14 @@ export async function ingestJournal(
   // hint wins over the blind fast classification. The async enrichment
   // pass may still refine it grounded-in-goals later (acceptable — mode-
   // shaped text re-classifies consistently in practice).
-  opts: { creditXp?: boolean; entryTypeHint?: ThoughtType } = {},
+  // reuseDumpId · audit 2026-07-15 · execute-actions' commit_journal
+  // re-processes an EXISTING brain_dump. Pre-fix it re-ingested the raw
+  // text, creating a duplicate row per run (the summary/extraction landed
+  // on the new row, so the caller's summary-based idempotency guard never
+  // tripped). When set, the pipeline updates the given row in place
+  // instead of creating one, and skips the 90s duplicate window (an
+  // explicit re-process is not a double-tap).
+  opts: { creditXp?: boolean; entryTypeHint?: ThoughtType; reuseDumpId?: string } = {},
 ): Promise<JournalResult> {
   const dateStr = today();
   let tasksCreated = 0;
@@ -168,8 +175,10 @@ export async function ingestJournal(
   // duplicates still leak through.
   const NINETY_SECONDS_AGO = new Date(Date.now() - 90_000);
   const currentTextHash = simpleHash(rawText);
-  const recentSameDay = await prisma.brainDump
-    .findMany({
+  const recentSameDay = opts.reuseDumpId
+    ? []
+    : await prisma.brainDump
+        .findMany({
       where: {
         date: dateStr,
         createdAt: { gte: NINETY_SECONDS_AGO },
@@ -225,15 +234,25 @@ export async function ingestJournal(
     };
   }
 
-  // 1. Store the raw brain dump immediately (never lose raw thoughts)
-  const brainDump = await prisma.brainDump.create({
-    data: {
-      date: dateStr,
-      rawThoughts: rawText,
-      moodBefore: null,
-      actionsTaken: 0,
-    },
-  });
+  // 1. Store the raw brain dump immediately (never lose raw thoughts).
+  // In reuse mode, touch the existing row instead — every downstream
+  // write keys off brainDump.id, so extraction/summary/tasks land on
+  // the ORIGINAL row (no duplicate). update() throws if the row is
+  // gone; callers already handle that as a failed commit.
+  const brainDump = opts.reuseDumpId
+    ? await prisma.brainDump.update({
+        where: { id: opts.reuseDumpId },
+        data: { rawThoughts: rawText },
+        select: { id: true },
+      })
+    : await prisma.brainDump.create({
+        data: {
+          date: dateStr,
+          rawThoughts: rawText,
+          moodBefore: null,
+          actionsTaken: 0,
+        },
+      });
 
   // 2. AI extraction — pull structure from the raw text
   try {
@@ -353,6 +372,13 @@ ${rawText}`,
           patterns: data.patterns || null,
           extractedItems: JSON.stringify({
             entryType,
+            // Capture origin · audit 2026-07-15 · brain_dumps has no
+            // source column and origin previously lived only in the
+            // AuditEvent payload. Persisting it here (no migration
+            // needed) lets the feed/cleanup tooling distinguish
+            // telegram/chat/manual after the fact. Column promotion is
+            // a flagged follow-up via the hand-applied migration flow.
+            source,
             domains: Array.isArray(data.domains) ? data.domains : [],
             linkedTopics: Array.isArray(data.linkedTopics) ? data.linkedTopics : [],
             actionItems: data.actionItems || [],
