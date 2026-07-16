@@ -642,7 +642,11 @@ Keep it under 200 characters.`;
     const openaiKey = !!process.env.OPENAI_API_KEY;
     const textProvider: "gemini" | "openai" | "none" = geminiKey ? "gemini" : openaiKey ? "openai" : "none";
 
-    let imageProvider = (process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai").toLowerCase();
+    // Default must match the ENGINE's default (igAutopost.generatePostImage
+    // falls back to "adrender") — this panel used to claim "openai" while the
+    // engine rendered the branded poster, so the health card described a
+    // provider that wasn't in use.
+    let imageProvider = (process.env.IG_AUTOPOST_IMAGE_PROVIDER || "adrender").toLowerCase();
     let higgsfieldCreds = !!process.env.HIGGSFIELD_CREDENTIALS_JSON;
     let recentRuns = 0;
     let recentFailures = 0;
@@ -684,9 +688,17 @@ Keep it under 200 characters.`;
       log.error("getProviderHealth failed:", err);
     }
 
-    // Is the ACTIVE image provider's credential actually present?
+    // Is the ACTIVE image provider's credential actually present? Two prior
+    // lies fixed here: the real default "adrender" (the deterministic branded
+    // poster) needs NO AI key at all but fell through to the openai branch and
+    // reported unconfigured; anything unrecognized now reports false instead
+    // of borrowing openai's status.
     const imageHealthy =
-      imageProvider === "higgsfield" ? higgsfieldCreds : imageProvider.includes("gemini") ? geminiKey : openaiKey;
+      imageProvider === "adrender" ? true
+      : imageProvider === "higgsfield" ? higgsfieldCreds
+      : imageProvider.includes("gemini") ? geminiKey
+      : imageProvider === "openai" || imageProvider === "openrouter" ? openaiKey
+      : false;
 
     return {
       text: {

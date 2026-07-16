@@ -87,6 +87,44 @@ function parseDraft(value: string | null): InstagramStudioDraft | null {
   }
 }
 
+/** Recent concept keys for the novelty dimension. Failure means "recency
+ *  unknown" (scored honestly as unchecked), never a blocked evaluation. */
+async function recentKeysSafe(): Promise<string[] | undefined> {
+  try {
+    const { fetchRecentConceptKeys } = await import("../services/igAutopost");
+    return await fetchRecentConceptKeys();
+  } catch {
+    return undefined;
+  }
+}
+
+/** The evaluator args every proc passes — including the carousel slides the
+ *  renderer actually draws (visual readiness scored copy that never rendered
+ *  before this). */
+function evalArgs(d: {
+  source: InstagramStudioDraft["source"];
+  format: InstagramStudioDraft["format"];
+  caption: string;
+  headline: string;
+  subheadline: string;
+  artDirection: string;
+  conceptKey: string;
+  cta: string;
+  carouselSlides: Array<{ headline: string; body: string }>;
+}) {
+  return {
+    source: d.source,
+    format: d.format,
+    caption: d.caption,
+    headline: d.headline,
+    subheadline: d.subheadline,
+    artDirection: d.artDirection,
+    conceptKey: d.conceptKey,
+    cta: d.cta,
+    carouselSlides: d.carouselSlides,
+  };
+}
+
 function mediaForDraft(draft: InstagramStudioDraft) {
   if (draft.format === "carousel") return { imageUrls: draft.imageUrls };
   if (draft.format === "reel") return { videoUrl: draft.videoUrl };
@@ -140,15 +178,7 @@ export const instagramStudioRouter = router({
     .input(draftSchema)
     .mutation(async ({ input }) => ({
       ...input,
-      quality: evaluateInstagramDraft({
-        source: input.source,
-        format: input.format,
-        caption: input.caption,
-        headline: input.headline,
-        subheadline: input.subheadline,
-        artDirection: input.artDirection,
-        conceptKey: input.conceptKey,
-      }),
+      quality: evaluateInstagramDraft({ ...evalArgs(input), recentConceptKeys: await recentKeysSafe() }),
     })),
 
   render: adminProcedure
@@ -156,15 +186,7 @@ export const instagramStudioRouter = router({
     .mutation(async ({ input }) => {
       const evaluated = {
         ...input,
-        quality: evaluateInstagramDraft({
-          source: input.source,
-          format: input.format,
-          caption: input.caption,
-          headline: input.headline,
-          subheadline: input.subheadline,
-          artDirection: input.artDirection,
-          conceptKey: input.conceptKey,
-        }),
+        quality: evaluateInstagramDraft({ ...evalArgs(input), recentConceptKeys: await recentKeysSafe() }),
       };
       const imageUrls = await renderInstagramStudioAssets(evaluated);
       return { ...evaluated, imageUrls };
@@ -178,15 +200,7 @@ export const instagramStudioRouter = router({
       }
       const database = await dbTyped();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const quality = evaluateInstagramDraft({
-        source: input.source,
-        format: input.format,
-        caption: input.caption,
-        headline: input.headline,
-        subheadline: input.subheadline,
-        artDirection: input.artDirection,
-        conceptKey: input.conceptKey,
-      });
+      const quality = evaluateInstagramDraft({ ...evalArgs(input), recentConceptKeys: await recentKeysSafe() });
       const draft = { ...input, quality };
       assertPublishable(draft);
       const id = input.id.startsWith("ig_") ? input.id : `ig_${randomUUID()}`;
@@ -252,15 +266,7 @@ export const instagramStudioRouter = router({
       if (row.version !== input.expectedVersion) {
         throw new TRPCError({ code: "CONFLICT", message: "Draft changed in another session. Refresh before saving." });
       }
-      const quality = evaluateInstagramDraft({
-        source: input.draft.source,
-        format: input.draft.format,
-        caption: input.draft.caption,
-        headline: input.draft.headline,
-        subheadline: input.draft.subheadline,
-        artDirection: input.draft.artDirection,
-        conceptKey: input.draft.conceptKey,
-      });
+      const quality = evaluateInstagramDraft({ ...evalArgs(input.draft), recentConceptKeys: await recentKeysSafe() });
       const nextVersion = row.version + 1;
       await database.update(socialContentInventory).set({
         hookText: input.draft.caption,
