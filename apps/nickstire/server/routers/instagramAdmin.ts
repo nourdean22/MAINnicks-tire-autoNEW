@@ -31,6 +31,37 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:instagramAdmin");
 
+/** Instagram's caption ceiling. Shared by the publish and schedule paths. */
+export const IG_CAPTION_MAX = 2200;
+
+/**
+ * Assemble the publishable caption for an approved Reel draft from its brief
+ * (selectedCaption + hashtags), falling back to the draft's hook text.
+ *
+ * Overlength is a hard error, not a trim: this string was hash-approved as part
+ * of the brief, and the previous `.slice(0, 2200)` silently cut whatever the
+ * limit landed on — hashtags, the CTA, or a mid-sentence break — publishing
+ * something nobody reviewed. The operator edits the caption (which re-enters
+ * the approval flow) rather than Meta receiving an unreviewed truncation.
+ */
+export function buildReelPublishCaption(briefJson: string | null, fallbackHook: string | null): string {
+  let brief: { selectedCaption?: string; hashtags?: string[] } = {};
+  try {
+    brief = JSON.parse(briefJson || "{}");
+  } catch {
+    brief = {};
+  }
+  if (!brief.selectedCaption) return fallbackHook || "";
+  const caption = `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim();
+  if (caption.length > IG_CAPTION_MAX) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Caption with hashtags is ${caption.length} characters — Instagram's limit is ${IG_CAPTION_MAX}. Shorten the caption or drop hashtags; nothing is trimmed automatically.`,
+    });
+  }
+  return caption;
+}
+
 export const instagramAdminRouter = router({
   /** Connection diagnostics: credential/token status + durable-store fingerprint. */
   getConnectionStatus: adminProcedure.query(async () => {
@@ -339,20 +370,37 @@ Keep it under 200 characters.`;
   stageDraft: adminProcedure
     .input(z.object({
       format: z.enum(["single", "carousel", "reel", "story", "ad"]),
-      caption: z.string().min(1),
+      // Same 2200 ceiling as publishPost — an overlength caption staged here would
+      // only surface at publish time, after the operator has moved on.
+      caption: z.string().min(1).max(2200),
       imageUrl: z.string().url().optional(),
       imageUrls: z.array(z.string().url()).optional(),
       videoUrl: z.string().url().optional(),
       sourceType: z.string(),
       sourceDetail: z.string().optional(),
       conceptBrief: z.any().optional(),
-      qualityScore: z.any().optional(),
+      // No qualityScore input: the legacy Studio sends a client-computed score and
+      // this procedure used to silently discard it while persisting a flat 80.
+      // Manual drafts are operator judgment, not machine evaluation — they stage
+      // unscored (scoreOverall 0) and the Queue shows no score badge.
     }))
     .mutation(async ({ input }) => {
       if (input.format === "reel") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Reel format drafts cannot be created via stageDraft. Reels must be enqueued via enqueueReelJob and finalized via finalizeReelDraft.",
+        });
+      }
+
+      // Same claim-safety gate as publishPost/schedulePost, applied at stage time —
+      // a banned claim should bounce while the operator is still writing, not when
+      // the cron tries to publish it hours later.
+      const { captionClaimBlockers } = await import("../services/socialPublish");
+      const blockers = captionClaimBlockers(input.caption);
+      if (blockers.length) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Claim-safety: ${blockers.map((f) => `${f.rule} ("${f.match}")`).join("; ")} — edit the caption before staging.`,
         });
       }
 
@@ -382,10 +430,14 @@ Keep it under 200 characters.`;
         bodyText: "",
         visualStyle: "manual",
         persona: "manual",
-        status: "ready", // For manual drafts, default to ready directly
+        // "ready" is deliberate for manual drafts: the operator IS the review. The
+        // publish path still applies claim-safety and the at-most-once claim.
+        status: "ready",
         assetPaths,
         briefJson: JSON.stringify(input.conceptBrief || {}),
-        scoreOverall: 80,
+        // 0 = unscored (schema default). This procedure used to write a flat 80,
+        // which the Queue then displayed as a passing machine evaluation.
+        scoreOverall: 0,
         version: 1,
       });
       
@@ -713,10 +765,7 @@ Keep it under 200 characters.`;
               });
             }
 
-            const brief = JSON.parse(draft.briefJson || "{}");
-            const approvedCaption = brief.selectedCaption
-              ? `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim().slice(0, 2200)
-              : draft.hookText || "";
+            const approvedCaption = buildReelPublishCaption(draft.briefJson, draft.hookText);
 
             let approvedVideoUrl = "";
             if (Array.isArray(draft.assetPaths)) {
@@ -911,10 +960,7 @@ Keep it under 200 characters.`;
               });
             }
 
-            const brief = JSON.parse(draft.briefJson || "{}");
-            const approvedCaption = brief.selectedCaption
-              ? `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim().slice(0, 2200)
-              : draft.hookText || "";
+            const approvedCaption = buildReelPublishCaption(draft.briefJson, draft.hookText);
 
             let approvedVideoUrl = "";
             if (Array.isArray(draft.assetPaths)) {
@@ -1166,7 +1212,11 @@ Keep it under 200 characters.`;
       const isReel = r.contentType === "reel";
       const mediaPath = parsedAssetPaths[0] || "";
 
-      let scoreObj = { gate: "pass", overall: r.scoreOverall || 80 };
+      // scoreOverall 0 = never machine-evaluated (manual drafts). Surface that as
+      // NO badge (client renders nothing for null) — the previous `|| 80` fallback
+      // dressed unscored drafts up as a passing evaluation that never ran.
+      let scoreObj: { gate: string; overall: number } | null =
+        r.scoreOverall > 0 ? { gate: "pass", overall: r.scoreOverall } : null;
       if (isReel) {
         if (!parsedBrief || Object.keys(parsedBrief).length === 0) {
           scoreObj = { gate: "block", overall: 0 };
@@ -1202,27 +1252,11 @@ Keep it under 200 characters.`;
     return results;
   }),
 
-  /** Get Performance Insights for the Learn Panel */
-  getPerformanceInsights: adminProcedure.query(async () => {
-    const { getTopPosts } = await import("../pipelines/instagram-data");
-    const topPosts = await getTopPosts({ limit: 5 });
-    
-    return {
-      topWinners: topPosts.map(p => ({
-        id: p.postId,
-        format: p.postType === "VIDEO" ? "reel" : (p.postType === "CAROUSEL_ALBUM" ? "carousel" : "post"),
-        qualityScore: 90, // mock score for now until we have real quality scores mapped
-        caption: p.caption?.substring(0, 50) + "...",
-        likes: p.likes,
-        comments: p.comments,
-        shares: 0,
-        imageUrl: ""
-      })),
-      activeThemes: [
-        { name: "Recent Top Performers", insight: "These posts drove the most engagement in the last 30 days." }
-      ]
-    };
-  }),
+  // getPerformanceInsights was removed here: it had no consumer anywhere in the
+  // app and its payload was fabricated (qualityScore hardcoded 90, shares
+  // hardcoded 0, a canned "insight" string) on top of getTopPosts, whose source
+  // table is starved (see instagram.ts loadCache). Rebuild it against real data
+  // if a Learn-panel consumer ever materializes.
 
   /** Reject a draft manually from the Queue */
   rejectDraft: adminProcedure
