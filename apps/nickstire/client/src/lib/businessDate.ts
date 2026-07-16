@@ -8,4 +8,16 @@ export function getBusinessDateKey(date: Date = new Date()): string {
     month: "2-digit",
     day: "2-digit",
   }).formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+export function isBusinessDate(
+  value: string | Date | null | undefined,
+  key = getBusinessDateKey(),
+): boolean {
+  if (!value) return false;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  return getBusinessDateKey(date) === key;
+}
