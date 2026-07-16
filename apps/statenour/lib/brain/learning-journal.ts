@@ -133,19 +133,19 @@ export async function generateLearningJournal(): Promise<JournalEntry> {
     prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.COUNTER_INTUITIVE, createdAt: { gte: todayStart } } }),
     prisma.reflection.findMany({ where: { date: todayStr, deletedAt: null }, select: { insight: true }, take: 3 }),
     // Historical
-    prisma.brainMemory.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-    prisma.brainMemory.count({ where: { createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } } }),
-    prisma.brainMemory.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+    prisma.brainMemory.count({ where: { deletedAt: null, createdAt: { gte: sevenDaysAgo } } }),
+    prisma.brainMemory.count({ where: { deletedAt: null, createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } } }),
+    prisma.brainMemory.count({ where: { deletedAt: null, createdAt: { gte: thirtyDaysAgo } } }),
     // Category breakdown this week · typed catch fallback so the
     // consumer below doesn't need `as any[]`.
     prisma.brainMemory.groupBy({
       by: ["category"],
-      where: { createdAt: { gte: sevenDaysAgo } },
+      where: { deletedAt: null, createdAt: { gte: sevenDaysAgo } },
       _count: true,
     }).catch((): CategoryCount[] => []),
     prisma.brainMemory.groupBy({
       by: ["category"],
-      where: { createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
+      where: { deletedAt: null, createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
       _count: true,
     }).catch((): CategoryCount[] => []),
     // Predictions with confidence for calibration
@@ -156,6 +156,7 @@ export async function generateLearningJournal(): Promise<JournalEntry> {
     // Knowledge depth
     prisma.brainMemory.groupBy({
       by: ["category"],
+      where: { deletedAt: null },
       _count: true,
       _avg: { confidence: true },
       orderBy: { _count: { category: "desc" } },
@@ -167,6 +168,7 @@ export async function generateLearningJournal(): Promise<JournalEntry> {
     prisma.brainMemory.groupBy({
       by: ["category"],
       where: {
+        deletedAt: null,
         OR: IMPORTANT_DOMAINS.map((d) => ({ category: { contains: d } })),
       },
       _count: true,

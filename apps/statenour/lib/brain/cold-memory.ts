@@ -196,7 +196,7 @@ export async function getColdMemoryStats(): Promise<{
     const [total, driveCount, embedded, lastSync, byCategory] = await Promise.all([
       prisma.brainMemory.count(),
       prisma.brainMemory.count({
-        where: { source: { in: ["drive_cron", "drive_manual_sync"] } },
+        where: { deletedAt: null, source: { in: ["drive_cron", "drive_manual_sync"] } },
       }),
       prisma.vectorEmbedding.count({ where: { sourceType: "brain_memory" } }),
       prisma.auditEvent.findFirst({
@@ -207,7 +207,7 @@ export async function getColdMemoryStats(): Promise<{
       prisma.brainMemory.groupBy({
         by: ["category"],
         _count: { _all: true },
-        where: { source: { in: ["drive_cron", "drive_manual_sync"] } },
+        where: { deletedAt: null, source: { in: ["drive_cron", "drive_manual_sync"] } },
       }),
     ]);
 

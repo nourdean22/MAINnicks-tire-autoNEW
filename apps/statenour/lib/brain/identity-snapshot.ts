@@ -195,7 +195,7 @@ async function computePromiseIntegrity(): Promise<Omit<IdentityAxis, "direction"
  */
 async function computeDopamineDiscipline(): Promise<Omit<IdentityAxis, "direction" | "manual" | "updated_at">> {
   const since = new Date(Date.now() - 14 * 86400_000);
-  const dumps = await prisma.brainDump.count({ where: { createdAt: { gte: since } } });
+  const dumps = await prisma.brainDump.count({ where: { deletedAt: null, createdAt: { gte: since } } });
   const perDay = dumps / 14;
   // Sweet spot 4-12/day → 90. <1/day or >25/day → 40.
   let value = 60;
@@ -491,7 +491,7 @@ export async function computeIdentitySnapshot(): Promise<IdentitySnapshot> {
   // We seed the previous 6 days with slightly-perturbed values so the
   // sparkline is immediately readable. Only seeds if no history exists.
   const existingHistory = await prisma.brainMemory.count({
-    where: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: { startsWith: "history:" } },
+    where: { deletedAt: null, category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: { startsWith: "history:" } },
   }).catch(() => 999);
   if (existingHistory <= 1) {
     await seedSyntheticHistory(snapshot, now);

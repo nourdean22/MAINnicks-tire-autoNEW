@@ -508,10 +508,11 @@ export async function getRecentReflections(limit = 10): Promise<string> {
 export async function getReflectionStats() {
   try {
     const [total, unacknowledged, byCategory] = await Promise.all([
-      prisma.reflection.count(),
-      prisma.reflection.count({ where: { actionable: true, acknowledged: false } }),
+      prisma.reflection.count({ where: { deletedAt: null } }),
+      prisma.reflection.count({ where: { deletedAt: null, actionable: true, acknowledged: false } }),
       prisma.reflection.groupBy({
         by: ["category"],
+        where: { deletedAt: null },
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
       }),

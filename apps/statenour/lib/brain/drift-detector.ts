@@ -45,9 +45,9 @@ export async function computeDriftScore(): Promise<CompositeDriftResult> {
 
   // ── Signal 1: Task Completion Rate ──────────────────────────────────
   const [totalTasks, doneTasks, doingTasks] = await Promise.all([
-    prisma.task.count({ where: { status: { not: "ARCHIVED" } } }),
-    prisma.task.count({ where: { status: "DONE", lastTouchedAt: { gte: new Date(sevenDaysAgo) } } }),
-    prisma.task.count({ where: { status: "DOING" } }),
+    prisma.task.count({ where: { status: { not: "ARCHIVED" }, deletedAt: null } }),
+    prisma.task.count({ where: { status: "DONE", lastTouchedAt: { gte: new Date(sevenDaysAgo) }, deletedAt: null } }),
+    prisma.task.count({ where: { status: "DOING", deletedAt: null } }),
   ]);
 
   const taskCompletionRate = totalTasks > 0 ? doneTasks / Math.max(doingTasks + doneTasks, 1) : 0;
@@ -86,7 +86,7 @@ export async function computeDriftScore(): Promise<CompositeDriftResult> {
 
   const recentTasksByMission = await prisma.task.groupBy({
     by: ["missionId"],
-    where: { lastTouchedAt: { gte: new Date(sevenDaysAgo) } },
+    where: { lastTouchedAt: { gte: new Date(sevenDaysAgo) }, deletedAt: null },
     _count: true,
   });
 
@@ -133,7 +133,7 @@ export async function computeDriftScore(): Promise<CompositeDriftResult> {
   // surface (INBOX/READY/DOING). Same threshold model (5+ active =
   // saturated) but pulls from the live queue.
   const openLoops = await prisma.task.count({
-    where: { status: { in: ["INBOX", "READY", "DOING"] } },
+    where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null },
   });
 
   const loopDrift = Math.max(0, Math.min(10, Math.round(Math.min(openLoops / 5, 1) * 10)));

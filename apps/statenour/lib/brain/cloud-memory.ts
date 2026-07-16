@@ -86,9 +86,9 @@ export async function createBrainSnapshot(): Promise<BrainSnapshot> {
       select: { detail: true },
       take: 500,
     }),
-    prisma.brainMemory.aggregate({ _avg: { confidence: true } }),
-    prisma.brainMemory.aggregate({ _min: { createdAt: true }, _max: { createdAt: true } }),
-    prisma.brainMemory.groupBy({ by: ["category"], _count: { id: true } }),
+    prisma.brainMemory.aggregate({ where: { deletedAt: null }, _avg: { confidence: true } }),
+    prisma.brainMemory.aggregate({ where: { deletedAt: null }, _min: { createdAt: true }, _max: { createdAt: true } }),
+    prisma.brainMemory.groupBy({ by: ["category"], where: { deletedAt: null }, _count: { id: true } }),
   ]);
 
   // Page visit patterns
@@ -187,12 +187,12 @@ export async function getBrainContinuitySummary(): Promise<string | null> {
   // Compare current state to snapshot state to detect drift
   try {
     const [currentLoops, currentAlerts, currentCommitments] = await Promise.all([
-      prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] } } }).catch(() => 0),
+      prisma.task.count({ where: { deletedAt: null, status: { in: ["INBOX", "READY", "DOING"] } } }).catch(() => 0),
       (async () => {
         const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
         return (await getUnresolvedAlerts().catch(() => [])).length;
       })(),
-      prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }).catch(() => 0),
+      prisma.commitment.count({ where: { deletedAt: null, status: { in: ["active", "in_progress"] } } }).catch(() => 0),
     ]);
 
     const loopDrift = currentLoops - s.openLoops;

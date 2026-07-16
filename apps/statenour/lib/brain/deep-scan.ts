@@ -152,8 +152,8 @@ export async function runDeepScan(): Promise<DeepScanResult> {
 
   // ── 3. Memory health ──
   const [memCount, avgConf] = await Promise.all([
-    prisma.brainMemory.count(),
-    prisma.brainMemory.aggregate({ _avg: { confidence: true } }),
+    prisma.brainMemory.count({ where: { deletedAt: null } }),
+    prisma.brainMemory.aggregate({ where: { deletedAt: null }, _avg: { confidence: true } }),
   ]);
   dataPoints += memCount;
 
@@ -169,8 +169,8 @@ export async function runDeepScan(): Promise<DeepScanResult> {
   // ── 4. Active tasks and commitments ──
   // Apr 18: OpenLoop retired → unified Task surface.
   const [loops, commitments] = await Promise.all([
-    prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] } } }),
-    prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }),
+    prisma.task.count({ where: { deletedAt: null, status: { in: ["INBOX", "READY", "DOING"] } } }),
+    prisma.commitment.count({ where: { deletedAt: null, status: { in: ["active", "in_progress"] } } }),
   ]);
   dataPoints += loops + commitments;
 

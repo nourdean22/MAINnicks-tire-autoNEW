@@ -55,13 +55,13 @@ export async function measureLearningVelocity(): Promise<LearningVelocity> {
     avgConfidence,
     oldAvgConfidence,
   ] = await Promise.all([
-    prisma.brainMemory.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    prisma.brainMemory.count({ where: { deletedAt: null, createdAt: { gte: sevenDaysAgo } } }),
     prisma.brainMemory.count({
-      where: { createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
+      where: { deletedAt: null, createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
     }),
-    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.WISDOM } }),
+    prisma.brainMemory.count({ where: { deletedAt: null, category: BRAIN_CATEGORIES.WISDOM } }),
     prisma.brainMemory.count({
-      where: { category: BRAIN_CATEGORIES.WISDOM, createdAt: { gte: thirtyDaysAgo } },
+      where: { deletedAt: null, category: BRAIN_CATEGORIES.WISDOM, createdAt: { gte: thirtyDaysAgo } },
     }),
     prisma.prediction.count({ where: { status: "confirmed" } }),
     prisma.prediction.count({ where: { status: "disproven" } }),
@@ -77,12 +77,15 @@ export async function measureLearningVelocity(): Promise<LearningVelocity> {
     prisma.contradiction.count({ where: { resolved: false } }),
     prisma.memoryEdge.count(),
     prisma.memoryEdge.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
-    prisma.brainMemory.count(),
-    prisma.brainMemory.aggregate({ _avg: { confidence: true } }),
-    // Estimate old avg confidence from memories created before 30d
+    prisma.brainMemory.count({ where: { deletedAt: null } }),
+    prisma.brainMemory.aggregate({ where: { deletedAt: null }, _avg: { confidence: true } }),
+    // Estimate old avg confidence from memories created before 30d.
+    // Filtered as a PAIR with the current avg above (both live-rows-only):
+    // the pruner soft-deletes low-confidence rows, so filtering only one
+    // side of confidenceDelta would manufacture a fake trend signal.
     prisma.brainMemory.aggregate({
       _avg: { confidence: true },
-      where: { createdAt: { lt: thirtyDaysAgo } },
+      where: { deletedAt: null, createdAt: { lt: thirtyDaysAgo } },
     }),
   ]);
 
