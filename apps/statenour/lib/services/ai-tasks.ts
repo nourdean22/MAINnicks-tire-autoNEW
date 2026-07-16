@@ -353,13 +353,17 @@ Return ONLY a JSON array, no commentary:
     "extract",
   );
 
+  // Fail LOUDLY on error-shaped zero results — resolving `{ok:false,
+  // subtasksCount:0}` let callers toast "Successfully created 0
+  // subtasks!" on provider-down/unparseable output. A legitimately
+  // empty plan (model returns `[]`) stays a success with 0.
   if (result.provider === "none" || result.provider === "emergency") {
-    return { ok: false, subtasksCount: 0 };
+    throw new Error("AI provider unavailable — no subtasks were created");
   }
 
   const parsedJson = extractJsonArray<unknown>(result.content);
   if (!parsedJson.ok) {
-    return { ok: false, subtasksCount: 0 };
+    throw new Error("AI returned unparseable output — no subtasks were created");
   }
 
   const subtasks: AiSubtaskOut[] = [];
@@ -369,7 +373,11 @@ Return ONLY a JSON array, no commentary:
   }
 
   if (subtasks.length === 0) {
-    return { ok: false, subtasksCount: 0 };
+    if (parsedJson.value.length > 0) {
+      throw new Error("AI returned no valid subtasks — nothing was created");
+    }
+    // Model legitimately planned zero subtasks — success, nothing to do.
+    return { ok: true, subtasksCount: 0 };
   }
 
   // Create subtasks in the database

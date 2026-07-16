@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc/client";
 import { MissionRetroModal } from "@/components/missions/mission-retro-modal";
 import { MissionEditDrawer } from "@/components/missions/mission-edit-drawer";
 import { TaskEditSheet } from "@/components/missions/task-edit-sheet";
@@ -9,6 +10,7 @@ import { XpParticle } from "@/components/missions/xp-particle";
 import { useMissionUIStore } from "../state/use-mission-ui-store";
 
 export function MissionModalsManager({ missions }: { missions: any[] }) {
+  const utils = trpc.useUtils();
   const retroState = useMissionUIStore((s) => s.retroState);
   const setRetroState = useMissionUIStore((s) => s.setRetroState);
 
@@ -34,6 +36,15 @@ export function MissionModalsManager({ missions }: { missions: any[] }) {
           missionTitle={retroState.title}
           onClose={() => setRetroState(null)}
           onSaved={async () => {
+            // Same invalidate set the other mutations use (see
+            // use-mission-actions refetchAll) — without it the mission
+            // stayed visibly ACTIVE with zombie tasks for up to 30s.
+            await Promise.all([
+              utils.task.list.invalidate(),
+              utils.task.missions.invalidate(),
+              utils.operator.characterSheet.invalidate(),
+              utils.operator.commandCenterState.invalidate(),
+            ]);
             setRetroState(null);
             toast.success("Mission retro saved.");
           }}

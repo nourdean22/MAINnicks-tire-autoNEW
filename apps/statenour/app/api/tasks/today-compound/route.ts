@@ -91,12 +91,15 @@ export const GET = apiHandler(
         })
         .then((rows) => rows.length)
         .catch(() => 0),
-      // Today's DONE tasks · for focusedMinutes + count
+      // Today's DONE tasks · for focusedMinutes + count. Filter on
+      // lastCompletedAt (set by every completion path) — updatedAt
+      // counted any DONE row merely touched today (retro sweeps,
+      // metadata edits) as "done today".
       prisma.task
         .findMany({
           where: {
             status: "DONE",
-            updatedAt: { gte: startOfDay, lte: endOfDay },
+            lastCompletedAt: { gte: startOfDay, lte: endOfDay },
             deletedAt: null,
           },
           select: { actualMinutes: true },

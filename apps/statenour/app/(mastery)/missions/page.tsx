@@ -152,6 +152,10 @@ function MissionsPageInner() {
         {executionModeActive ? (
           focusedTask ? (
             <ExecutionPanel
+              // Remount per task: the 15s poll can swap focusedTask while an
+              // abandon/block/snooze confirm is open — without a key the open
+              // confirm silently rebinds to the NEW task.
+              key={focusedTask.id}
               task={focusedTask}
               mission={focusedTaskMission}
               onComplete={actions.handleCompleteTask}

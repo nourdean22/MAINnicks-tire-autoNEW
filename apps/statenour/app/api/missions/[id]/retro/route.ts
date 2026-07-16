@@ -93,23 +93,36 @@ export async function POST(
   let retroWarning: string | undefined;
   if (retroText) {
     try {
-      const memory = await prisma.brainMemory.create({
-        data: {
+      // Upsert on the (category, key) unique — key=missionId means a
+      // second retro for the same mission hit P2002 forever with
+      // create(); the latest retro now overwrites content/metadata.
+      const retroData = {
+        content: `[Mission Retro · ${mission.title}] ${retroText}`,
+        confidence: 1.0,
+        metadata: {
+          missionId,
+          missionTitle: mission.title,
+          taskCount,
+          openAtClose: openCount,
+          finishedAt: new Date().toISOString(),
+          retroText,
+        } as never,
+      };
+      const memory = await prisma.brainMemory.upsert({
+        where: {
+          category_key: {
+            category: BRAIN_CATEGORIES.MISSION_RETRO,
+            key: missionId,
+          },
+        },
+        create: {
           category: BRAIN_CATEGORIES.MISSION_RETRO,
           key: missionId,
-          content: `[Mission Retro · ${mission.title}] ${retroText}`,
-          confidence: 1.0,
           source: "operator",
           createdBy: "user",
-          metadata: {
-            missionId,
-            missionTitle: mission.title,
-            taskCount,
-            openAtClose: openCount,
-            finishedAt: new Date().toISOString(),
-            retroText,
-          } as never,
+          ...retroData,
         },
+        update: retroData,
         select: { id: true },
       });
       retroId = memory.id;
@@ -130,14 +143,25 @@ export async function POST(
   // ── Close any still-open tasks on the mission ──
   if (archive) {
     try {
-      await prisma.task.updateMany({
-        where: { missionId, status: { not: "DONE" } },
-        data: { status: "DONE", lastTouchedAt: new Date() },
-      });
-      await prisma.mission.update({
-        where: { id: missionId },
-        data: { status: "COMPLETE" },
-      });
+      // Scope: live rows only (soft-deleted tombstones must not be
+      // resurrected as DONE) and only genuinely-open statuses —
+      // ARCHIVED is an intentionally broken promise and must NOT be
+      // DONE-washed. One transaction so the task-close and the
+      // mission-COMPLETE flip land atomically.
+      await prisma.$transaction([
+        prisma.task.updateMany({
+          where: {
+            missionId,
+            deletedAt: null,
+            status: { in: ["INBOX", "READY", "DOING", "WAITING"] },
+          },
+          data: { status: "DONE", lastTouchedAt: new Date() },
+        }),
+        prisma.mission.update({
+          where: { id: missionId },
+          data: { status: "COMPLETE" },
+        }),
+      ]);
     } catch (err) {
       log.error("archive_failed", {
         err: err instanceof Error ? err.message : String(err),
