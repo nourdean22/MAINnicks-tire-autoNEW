@@ -202,21 +202,85 @@ export type MotionLens =
   | "weather_radar_overlay"
   | "warning_light_world";
 
-export const MOTION_LENSES: Record<MotionLens, { label: string; essence: string }> = {
-  extreme_macro_push_in: { label: "Extreme Macro Push-In", essence: "Slow relentless push into texture until it becomes a landscape." },
-  tilt_shift_miniature: { label: "Tilt-Shift Miniature", essence: "The car world as a tiny diorama with miniature crews." },
-  xray_cutaway: { label: "X-Ray / Cutaway", essence: "See-through layers reveal what the driver can't see." },
-  anthropomorphized_object: { label: "Anthropomorphized Object", essence: "Parts with posture, intent, and reactions — no faces needed." },
-  surreal_scale: { label: "Surreal Scale", essence: "A penny the size of a building; a pothole as a canyon." },
-  optical_illusion_morph: { label: "Optical-Illusion Morph", essence: "One object impossibly becomes the next — seamless match cuts." },
-  hyperreal_cinematic: { label: "Hyperreal Cinematic", essence: "Anamorphic, wet asphalt, practical light — premium film look." },
-  claymation_stop_motion: { label: "Claymation / Stop-Motion", essence: "Handmade frame-by-frame charm; imperfection is the style." },
-  blueprint_technical: { label: "Blueprint / Technical", essence: "Drafting lines, callouts, and exploded views that teach." },
-  neon_retro_futurist: { label: "Neon Retro-Futurist", essence: "Synthwave grid, chrome, scan glow — the part as 80s hero." },
-  forensic_evidence_scan: { label: "Forensic Evidence Scan", essence: "UV light, evidence markers, magnified clue passes." },
-  product_ad_macro: { label: "Product-Ad Macro", essence: "Flagship-launch lighting for a humble part on a turntable." },
-  weather_radar_overlay: { label: "Weather Radar Overlay", essence: "Storm-tracker graphics tracking salt, ice, and pothole season." },
-  warning_light_world: { label: "Dashboard Warning-Light World", essence: "Inside the dashboard where warning lights live and work." },
+/**
+ * Each lens carries its OWN generation grammar. Before this, one universal
+ * "85mm / shallow depth of field / film grain" quality line was appended to
+ * every beat prompt, pulling blueprint, claymation, radar, and neon concepts
+ * toward the same glossy AI-commercial look. `grammar` is the language the
+ * generator MUST receive for this lens; `avoid` extends the negative prompt
+ * with what would break the style.
+ */
+export const MOTION_LENSES: Record<MotionLens, { label: string; essence: string; grammar: string; avoid: string }> = {
+  extreme_macro_push_in: {
+    label: "Extreme Macro Push-In", essence: "Slow relentless push into texture until it becomes a landscape.",
+    grammar: "Extreme macro lens, tactile texture detail, shallow depth of field, one continuous controlled push-in, studio-grade lighting, photorealistic, 8K detail.",
+    avoid: "busy background, wide shot, fast camera movement",
+  },
+  tilt_shift_miniature: {
+    label: "Tilt-Shift Miniature", essence: "The car world as a tiny diorama with miniature crews.",
+    grammar: "Tilt-shift miniature effect, strong focal blur band top and bottom, toy-diorama scale cues, bright even daylight, physical model texture.",
+    avoid: "full-scale realistic background, cinematic film grain, dark moody lighting",
+  },
+  xray_cutaway: {
+    label: "X-Ray / Cutaway", essence: "See-through layers reveal what the driver can't see.",
+    grammar: "Technical x-ray cutaway visualization, translucent layered materials, cool schematic glow, clean dark field, precise engineering aesthetic.",
+    avoid: "film grain, bokeh, photorealistic product-ad lighting",
+  },
+  anthropomorphized_object: {
+    label: "Anthropomorphized Object", essence: "Parts with posture, intent, and reactions - no faces needed.",
+    grammar: "A real physical part staged with posture and intent through position and motion only, practical scene lighting, photorealistic surfaces.",
+    avoid: "cartoon googly eyes, drawn face, mascot suit",
+  },
+  surreal_scale: {
+    label: "Surreal Scale", essence: "A penny the size of a building; a pothole as a canyon.",
+    grammar: "Impossible scale contrast rendered physically real, grounded shadows and perspective, epic wide composition, believable materials at the wrong size.",
+    avoid: "cartoon rendering, floating objects without shadows",
+  },
+  optical_illusion_morph: {
+    label: "Optical-Illusion Morph", essence: "One object impossibly becomes the next - seamless match cuts.",
+    grammar: "Seamless in-camera morph, matched silhouette and lighting between the two subjects, smooth continuous transformation, clean background.",
+    avoid: "hard cut, glitch transition, busy background",
+  },
+  hyperreal_cinematic: {
+    label: "Hyperreal Cinematic", essence: "Anamorphic, wet asphalt, practical light - premium film look.",
+    grammar: "Award-winning cinematography, 85mm lens, shallow depth of field, anamorphic feel, practical light sources, wet-surface reflections, dramatic high contrast, 35mm film grain texture, photorealistic.",
+    avoid: "cartoon texture, flat even lighting",
+  },
+  claymation_stop_motion: {
+    label: "Claymation / Stop-Motion", essence: "Handmade frame-by-frame charm; imperfection is the style.",
+    grammar: "Handmade claymation stop-motion, visible clay texture and fingerprints, 12fps stepped cadence, miniature practical set, soft studio shadows, intentionally imperfect motion.",
+    avoid: "photorealistic automotive surfaces, smooth 30fps motion, film grain",
+  },
+  blueprint_technical: {
+    label: "Blueprint / Technical", essence: "Drafting lines, callouts, and exploded views that teach.",
+    grammar: "Orthographic technical blueprint visualization, flat deep-navy drafting field, precise white linework, exploded component layers, measured callout arrows, flat lighting.",
+    avoid: "depth of field, film grain, photographic realism, dramatic shadows",
+  },
+  neon_retro_futurist: {
+    label: "Neon Retro-Futurist", essence: "Synthwave grid, chrome, scan glow - the part as 80s hero.",
+    grammar: "Synthwave retro-futurism, neon rim lighting, chrome reflections, glowing grid horizon, scanline glow, saturated magenta-cyan palette against black.",
+    avoid: "natural daylight, documentary realism, muted colors",
+  },
+  forensic_evidence_scan: {
+    label: "Forensic Evidence Scan", essence: "UV light, evidence markers, magnified clue passes.",
+    grammar: "Forensic evidence examination, fixed locked-off composition, UV sweep lighting passes, numbered evidence markers, dark graphite field, clinical magnification detail.",
+    avoid: "glossy product-ad camera moves, warm cozy lighting",
+  },
+  product_ad_macro: {
+    label: "Product-Ad Macro", essence: "Flagship-launch lighting for a humble part on a turntable.",
+    grammar: "Premium product commercial, 85mm macro lens, shallow depth of field, studio-grade key lighting on a dark seamless background, slow turntable rotation, ultra-detailed 8K, photorealistic.",
+    avoid: "cluttered scene, handheld camera shake",
+  },
+  weather_radar_overlay: {
+    label: "Weather Radar Overlay", essence: "Storm-tracker graphics tracking salt, ice, and pothole season.",
+    grammar: "Broadcast weather-radar graphics package, sweeping radar arcs, threat-zone color overlays on a stylized road map, crisp motion-graphics aesthetic.",
+    avoid: "cinematic depth of field, film grain, photorealistic street photography",
+  },
+  warning_light_world: {
+    label: "Dashboard Warning-Light World", essence: "Inside the dashboard where warning lights live and work.",
+    grammar: "Inside a dark dashboard interior world, glowing indicator lights as inhabitants, deep blacks with amber and red bokeh glow, macro perspective.",
+    avoid: "daylight exterior, flat even lighting",
+  },
 };
 
 // ─── Object characters (faceless cast) ─────────────────────────────
@@ -702,26 +766,58 @@ export function buildRepetitionChecks(
 
 // ─── Prompt pack / checklists (pure builders, copy-paste outputs) ──
 
+/**
+ * One shared VISUAL CONTINUITY block, inserted verbatim into EVERY beat prompt.
+ * Each beat is an independent generation call with no shared seed or reference
+ * frame, so the only continuity tool we have is the prompt itself: anchor every
+ * call to the same hero subject (beat 1's visual), the same palette, and the
+ * same invariants. Deterministic - derived from the brief, no LLM call.
+ */
+export function buildReelContinuityBlock(brief: Pick<ReelBrief, "storyboardBeats" | "objectCharacter" | "motionLens">): string {
+  const character = OBJECT_CHARACTERS[brief.objectCharacter];
+  const heroAnchor = brief.storyboardBeats[0]?.visual.trim() || character.essence;
+  return [
+    `VISUAL CONTINUITY (identical in every shot of this reel):`,
+    `Hero subject: ${character.label} - ${character.essence} First established as: ${heroAnchor}`,
+    `Palette: graphite black and deep shadow tones with gold #FDB913 accent highlights.`,
+    `Same hero object design, same environment, same lighting direction, and same weather in every shot.`,
+    `Never change the hero object's shape, tread/surface pattern, damage location, or color between shots.`,
+  ].join("\n");
+}
+
 export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatPrompt[] {
   const lens = MOTION_LENSES[brief.motionLens];
   const character = OBJECT_CHARACTERS[brief.objectCharacter];
-  return brief.storyboardBeats.map((b) => ({
-    beatNumber: b.beatNumber,
-    prompt: [
-      `Vertical 9:16 cinematic clip, ${b.endSecond - b.startSecond}s.`,
-      `Subject: ${b.visual}`,
-      `Character energy: ${character.label} — ${character.essence}`,
-      `Motion: ${b.motion}`,
-      `Style: ${lens.label} — ${lens.essence}`,
-      `Quality: award-winning, 85mm lens, shallow depth of field, ultra-detailed, 8K, studio-grade lighting, cinematic color grade, dramatic high contrast, photorealistic premium product photography, 35mm film grain texture, no AI artifacts, professional automotive photography.`,
-      `No humans, no faces, no hands, no readable shop signage.`,
-      `Leave the top 12% and bottom 20% of frame clear for IG UI; key action center-frame.`,
-    ].join("\n"),
-    negativePrompt:
-      "human face, person, hands, talking head, text artifacts, warped letters, watermark, logo, low-res, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
-    styleKit: `${lens.label} + ${REEL_ARCHETYPES[brief.archetype].label}`,
-    safeZoneGuidance: b.safeZoneNotes || "Keep critical visuals out of the top 12% / bottom 20% IG UI zones.",
-  }));
+  const continuity = buildReelContinuityBlock(brief);
+  const beats = brief.storyboardBeats;
+  return beats.map((b, i) => {
+    const prev = i > 0 ? beats[i - 1] : null;
+    const isLast = i === beats.length - 1;
+    return {
+      beatNumber: b.beatNumber,
+      prompt: [
+        `Vertical 9:16 cinematic clip, ${b.endSecond - b.startSecond}s.`,
+        `Subject: ${b.visual}`,
+        `Character energy: ${character.label} - ${character.essence}`,
+        `Motion: ${b.motion}`,
+        `Style: ${lens.label} - ${lens.essence}`,
+        `Style grammar: ${lens.grammar}`,
+        continuity,
+        // Transition intent: source clips are fixed-length; the story action must
+        // land inside the clip, and adjacent shots must hand off composition.
+        prev
+          ? `Opening frame: continue directly from the previous shot - the hero object in the same state and position it settled in (previous shot ended on: ${prev.visual})`
+          : `Opening frame: strongest possible first frame - the hero object clearly readable at a glance.`,
+        `Timing: complete the primary action by 3.3 seconds; hold the final 0.7 seconds visually stable${isLast ? ", settled on a frame that echoes the opening shot for a seamless loop" : ", ready for a match cut into the next shot"}.`,
+        `No humans, no faces, no hands, no readable shop signage.`,
+        `Leave the top 12% and bottom 20% of frame clear for IG UI; key action center-frame.`,
+      ].join("\n"),
+      negativePrompt:
+        `human face, person, hands, talking head, text artifacts, warped letters, watermark, logo, low-res, extra fingers, plastic glow, oversaturated AI look, warped engine parts, ${lens.avoid}`,
+      styleKit: `${lens.label} + ${REEL_ARCHETYPES[brief.archetype].label}`,
+      safeZoneGuidance: b.safeZoneNotes || "Keep critical visuals out of the top 12% / bottom 20% IG UI zones.",
+    };
+  });
 }
 
 export interface ChecklistItem {

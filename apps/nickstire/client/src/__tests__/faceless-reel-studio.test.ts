@@ -30,6 +30,7 @@ import {
   calculateReelQualityScore,
   runSafetyChecks,
   buildHiggsfieldReelPromptPack,
+  buildReelContinuityBlock,
   buildFfmpegChecklist,
   buildInstagramPublishChecklist,
   buildArchiveChecklist,
@@ -255,6 +256,45 @@ describe("builders", () => {
       expect(p.prompt).toContain("9:16");
       expect(p.safeZoneGuidance.length).toBeGreaterThan(0);
     }
+  });
+
+  it("prompt compiler: style grammar is LENS-SPECIFIC, not one universal 85mm suffix", () => {
+    const brief = sample();
+    const blueprint = buildHiggsfieldReelPromptPack({ ...brief, motionLens: "blueprint_technical" });
+    const clay = buildHiggsfieldReelPromptPack({ ...brief, motionLens: "claymation_stop_motion" });
+    const hyper = buildHiggsfieldReelPromptPack({ ...brief, motionLens: "hyperreal_cinematic" });
+    // Blueprint/claymation must NOT receive the premium-photography language that
+    // used to be appended to every lens (it fought the style).
+    for (const p of [...blueprint, ...clay]) {
+      expect(p.prompt).not.toContain("85mm");
+      expect(p.prompt).not.toContain("film grain");
+    }
+    expect(blueprint[0].prompt).toContain("Orthographic");
+    expect(clay[0].prompt).toContain("stop-motion");
+    // Hyperreal keeps the premium film language — that's where it belongs.
+    expect(hyper[0].prompt).toContain("85mm");
+    // Lens-specific breakers land in the negative prompt.
+    expect(blueprint[0].negativePrompt).toContain("film grain");
+    expect(clay[0].negativePrompt).toContain("photorealistic automotive surfaces");
+  });
+
+  it("prompt compiler: one identical continuity block in EVERY beat prompt", () => {
+    const pack = buildHiggsfieldReelPromptPack(sample());
+    const block = buildReelContinuityBlock(sample());
+    expect(block).toContain("VISUAL CONTINUITY");
+    expect(block).toContain("Never change the hero object's shape");
+    for (const p of pack) expect(p.prompt).toContain(block);
+  });
+
+  it("prompt compiler: adjacent beats hand off composition; timing fits the fixed clip length", () => {
+    const pack = buildHiggsfieldReelPromptPack(sample());
+    expect(pack[0].prompt).toContain("strongest possible first frame");
+    expect(pack[0].prompt).not.toContain("previous shot ended on");
+    for (let i = 1; i < pack.length; i++) {
+      expect(pack[i].prompt).toContain(`previous shot ended on: ${sample().storyboardBeats[i - 1].visual}`);
+    }
+    for (const p of pack) expect(p.prompt).toContain("complete the primary action by 3.3 seconds");
+    expect(pack[pack.length - 1].prompt).toContain("seamless loop");
   });
 
   it("ffmpeg checklist carries the output contract and never executes anything", () => {
