@@ -20,22 +20,47 @@ const BRIEF: ReelAssemblyBrief = {
 };
 
 describe("sanitizeCaption", () => {
-  it("strips ffmpeg-breaking single quotes, collapses whitespace, and uppercases", () => {
-    expect(sanitizeCaption("It's a\n  test")).toBe("ITS A TEST");
+  it("collapses whitespace and uppercases", () => {
+    expect(sanitizeCaption("It's a\n  test")).toBe("IT'S A TEST");
   });
   it("returns empty string for empty/whitespace input", () => {
     expect(sanitizeCaption("   ")).toBe("");
   });
-  it("keeps single-quoted text safe to embed in drawtext (no apostrophes survive)", () => {
-    expect(sanitizeCaption("don't guess")).not.toContain("'");
+  it("PRESERVES apostrophes (textfile mode is safe — deleting them changed meaning, e.g. TIRE'S→TIRES)", () => {
+    expect(sanitizeCaption("don't guess")).toBe("DON'T GUESS");
+    // The exact caption observed live 2026-07-16 that motivated this fix:
+    expect(sanitizeCaption("Your tires' secret job")).toBe("YOUR TIRES' SECRET JOB");
   });
-  it("strips backslash and percent — drawtext breakers that cannot be escaped in the filtergraph", () => {
+  it("still strips backslash and percent — drawtext breakers even in textfile mode", () => {
     const out = sanitizeCaption("20% off \\ deal");
     expect(out).toBe("20 OFF DEAL");
     expect(out).not.toMatch(/[\\%]/);
   });
   it("neutralizes a %{...} expansion sequence so drawtext cannot interpret it", () => {
     expect(sanitizeCaption("save %{pts} now")).not.toContain("%{");
+  });
+});
+
+describe("wrapCaption", () => {
+  it("leaves a short caption on one line", () => {
+    expect(wrapCaption("AIR IT UP")).toBe("AIR IT UP");
+  });
+  it("wraps a long caption to two balanced lines at a word boundary", () => {
+    const out = wrapCaption("SIDEWALL MAX DOOR STICKER YOUR PSI");
+    const lines = out.split("\n");
+    expect(lines).toHaveLength(2);
+    // Every line fits the mobile budget.
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(20);
+  });
+  it("wraps the exact overflowing caption observed live into two readable lines", () => {
+    const out = wrapCaption(sanitizeCaption("Your tires' secret job: CLEAR water fast"));
+    expect(out.split("\n").length).toBeLessThanOrEqual(2);
+    expect(out).toContain("\n"); // it WAS one overflowing line before
+    expect(out).toContain("'");  // apostrophe survives the wrap
+  });
+  it("never produces more than two lines", () => {
+    const out = wrapCaption("ONE TWO THREE FOUR FIVE SIX SEVEN EIGHT NINE TEN ELEVEN");
+    expect(out.split("\n").length).toBeLessThanOrEqual(2);
   });
 });
 

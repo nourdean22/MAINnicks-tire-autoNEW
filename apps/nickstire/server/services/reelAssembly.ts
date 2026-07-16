@@ -62,17 +62,56 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
  * muted-first caption look used in the shipped reels.
  */
 export function sanitizeCaption(raw: string): string {
+  // The caption is written to caption_N.txt and drawn via drawtext `textfile=`
+  // (see buildFfmpegArgs) — so ONLY the filename sits in the single-quoted
+  // filtergraph value, never the caption text. That means an apostrophe in the
+  // text is SAFE (the old code deleted it, turning "TIRE'S" into "TIRES" and
+  // changing the meaning — observed live 2026-07-16). Still strip `\` and `%`:
+  // drawtext expands `%{...}` and treats `\` as an escape even in textfile mode.
   return (raw ?? "")
-    .replace(/[\\'%]/g, "")
+    .replace(/[\\%]/g, "")
     .replace(/[\r\n]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .toUpperCase();
 }
 
-/** Bigger text for short punchy captions, smaller for long ones (proven 44-64 band). */
+/** Longest word-count target per line for a comfortable mobile caption. */
+const CAPTION_MAX_CHARS_PER_LINE = 20;
+
+/**
+ * Wrap a caption to AT MOST two lines at word boundaries, balancing length so
+ * neither line runs off a 9:16 phone frame. drawtext renders literal newlines
+ * in a textfile as centered line breaks, so the returned "\n" is safe. A single
+ * word longer than the budget keeps its own line rather than being hyphenated.
+ * Captions that already fit on one line are returned unchanged.
+ */
+export function wrapCaption(caption: string, maxPerLine = CAPTION_MAX_CHARS_PER_LINE): string {
+  const text = caption.trim();
+  if (text.length <= maxPerLine || !text.includes(" ")) return text;
+  const words = text.split(" ");
+  // Find the split point that best balances the two lines (minimizes the
+  // longer line), preferring splits where both lines fit the budget.
+  let best = { line1: text, line2: "", longest: text.length, bothFit: false };
+  for (let i = 1; i < words.length; i++) {
+    const line1 = words.slice(0, i).join(" ");
+    const line2 = words.slice(i).join(" ");
+    const longest = Math.max(line1.length, line2.length);
+    const bothFit = line1.length <= maxPerLine && line2.length <= maxPerLine;
+    // Prefer a split where both lines fit; among those (or if none fit) pick the
+    // most balanced (smallest longest line).
+    if ((bothFit && !best.bothFit) || (bothFit === best.bothFit && longest < best.longest)) {
+      best = { line1, line2, longest, bothFit };
+    }
+  }
+  return best.line2 ? `${best.line1}\n${best.line2}` : best.line1;
+}
+
+/** Bigger text for short punchy captions, smaller for long ones (proven 44-64
+ *  band). Sizes by the LONGEST line so a wrapped two-line caption isn't shrunk
+ *  by its total (newline-inclusive) length. */
 export function captionFontSize(caption: string): number {
-  const len = caption.length;
+  const len = Math.max(...caption.split("\n").map((l) => l.length), 0);
   if (len <= 14) return 64;
   if (len <= 20) return 56;
   if (len <= 28) return 50;
@@ -90,7 +129,7 @@ export function briefToSegments(brief: ReelAssemblyBrief): ReelSegment[] {
       MIN_BEAT_SECONDS,
       MAX_CLIP_SECONDS,
     );
-    const caption = sanitizeCaption(b.onScreenText ?? "");
+    const caption = wrapCaption(sanitizeCaption(b.onScreenText ?? ""));
     return { beatNumber: b.beatNumber, dur: Number(dur.toFixed(2)), caption, fontSize: captionFontSize(caption) };
   });
 }
