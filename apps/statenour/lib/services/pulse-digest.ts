@@ -177,13 +177,14 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
         },
       }),
       prisma.task.count({
-        where: { status: "DONE", updatedAt: { gte: today } },
+        where: { status: "DONE", deletedAt: null, updatedAt: { gte: today } },
       }),
       prisma.autonomousAction.count({
         where: { result: "success", executedAt: { gte: today } },
       }),
       prisma.reflection.count({
         where: {
+          deletedAt: null,
           date: new Date().toLocaleDateString("en-CA", {
             timeZone: "America/New_York",
           }),

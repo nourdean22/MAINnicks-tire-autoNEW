@@ -77,20 +77,21 @@ export const GET = apiHandler(
         .count({
           where: {
             category: BRAIN_CATEGORIES.CONTRADICTION,
+            deletedAt: null,
             createdAt: { gte: new Date(now - 14 * 86400_000) },
           },
         })
         .catch(() => 0),
       prisma.commitment
         .findMany({
-          where: { status: "active", deadline: { lt: todayLocal } },
+          where: { status: "active", deadline: { lt: todayLocal }, deletedAt: null },
           orderBy: { deadline: "asc" },
           take: 1,
           select: { description: true, toWhom: true },
         })
         .then(async (active) => {
           const count = await prisma.commitment
-            .count({ where: { status: "active", deadline: { lt: todayLocal } } })
+            .count({ where: { status: "active", deadline: { lt: todayLocal }, deletedAt: null } })
             .catch(() => 0);
           return { count, sample: active[0] ?? null };
         })
@@ -108,12 +109,13 @@ export const GET = apiHandler(
         })
         .catch(() => null),
       prisma.brainMemory
-        .count({ where: { category: BRAIN_CATEGORIES.SKILL_PENDING } })
+        .count({ where: { category: BRAIN_CATEGORIES.SKILL_PENDING, deletedAt: null } })
         .catch(() => 0),
       prisma.task
         .count({
           where: {
             status: "DONE",
+            deletedAt: null,
             updatedAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
           },
         })
@@ -143,6 +145,7 @@ export const GET = apiHandler(
         .count({
           where: {
             status: { in: ["INBOX", "READY", "DOING"] },
+            deletedAt: null,
             // priority enum varies; rely on roiScore >= 70 as "matters"
             roiScore: { gte: 70 },
           },

@@ -213,10 +213,11 @@ async function handleQuery(
 
     case "brain_health": {
       const [memCount, vecCount, confDist, recentDump] = await Promise.all([
-        prisma.brainMemory.count(),
+        prisma.brainMemory.count({ where: { deletedAt: null } }),
         prisma.vectorEmbedding.count(),
         prisma.brainMemory.groupBy({
           by: ["category"],
+          where: { deletedAt: null },
           _count: { id: true },
           orderBy: { _count: { id: "desc" } },
           take: 8,

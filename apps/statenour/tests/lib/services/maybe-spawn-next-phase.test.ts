@@ -53,6 +53,9 @@ describe("maybeSpawnNextPhase", () => {
       where: {
         missionId: "mission-1",
         phaseName: "Phase 1",
+        // phantom-counts wave: soft-deleted tasks must not block
+        // next-phase spawning — "open" means live rows only.
+        deletedAt: null,
         status: { in: ["INBOX", "READY", "DOING", "WAITING"] },
       },
     });

@@ -328,12 +328,13 @@ async function fetchPersonalOpsItems(): Promise<TickerItem[]> {
         .count({
           where: {
             status: { in: ["READY", "DOING", "WAITING"] },
+            deletedAt: null,
             dueDate: { not: null, lte: todayEnd },
           },
         })
         .catch(() => null as number | null),
       prisma.task
-        .count({ where: { status: { in: ["READY", "DOING", "WAITING"] } } })
+        .count({ where: { status: { in: ["READY", "DOING", "WAITING"] }, deletedAt: null } })
         .catch(() => null as number | null),
       prisma.aiGeneration
         .aggregate({

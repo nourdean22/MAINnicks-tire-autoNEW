@@ -595,6 +595,7 @@ async function computeEngineInputs(): Promise<EngineInputs> {
       .count({
         where: {
           loopKind: "PROMISE",
+          deletedAt: null,
           status: { notIn: ["DONE", "ARCHIVED"] },
           dueDate: { lt: now },
         },
@@ -634,12 +635,12 @@ async function computeEngineInputs(): Promise<EngineInputs> {
       })
       .catch((): Array<{ rawThoughts: string; summary: string | null }> => []),
     prisma.reflection
-      .count({ where: { date: todayStr } })
+      .count({ where: { date: todayStr, deletedAt: null } })
       .catch(() => 0),
     // Proxy for "self-tracking loop closed today" — Apr 17, DailyScore
     // retired. Any reflection logged today counts as awareness signal.
     prisma.reflection
-      .count({ where: { date: todayStr } })
+      .count({ where: { date: todayStr, deletedAt: null } })
       .catch(() => 0),
   ]);
 

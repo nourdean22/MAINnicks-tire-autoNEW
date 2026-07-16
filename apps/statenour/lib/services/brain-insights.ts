@@ -213,10 +213,10 @@ export async function buildBrainInsights(): Promise<BrainInsightsReport> {
   // ── 4. Decision velocity ───────────────────────────────────────
   // MasteryDecision rows in last 7d vs prior 7d.
   const decRecent = await prisma.masteryDecision.count({
-    where: { createdAt: { gte: recentSince } },
+    where: { deletedAt: null, createdAt: { gte: recentSince } },
   });
   const decPrior = await prisma.masteryDecision.count({
-    where: { createdAt: { gte: priorSince, lt: recentSince } },
+    where: { deletedAt: null, createdAt: { gte: priorSince, lt: recentSince } },
   });
   if (decRecent > 0 || decPrior > 0) {
     const delta =

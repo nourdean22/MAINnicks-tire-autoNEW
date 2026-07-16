@@ -159,6 +159,7 @@ export async function inferTaskPriority(input: PriorityInput): Promise<PriorityO
       .count({
         where: {
           status: "active",
+          deletedAt: null,
           deadline: { lt: new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) },
         },
       })

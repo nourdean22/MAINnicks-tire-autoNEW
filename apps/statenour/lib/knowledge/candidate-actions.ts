@@ -33,7 +33,7 @@ export async function listAcceptedKnowledgeActions(limit = 20): Promise<{
   };
 
   const [total, rows] = await Promise.all([
-    prisma.brainMemory.count({ where }),
+    prisma.brainMemory.count({ where }), // `where` above already scopes deletedAt: null
     prisma.brainMemory.findMany({
       where,
       orderBy: { updatedAt: "desc" },

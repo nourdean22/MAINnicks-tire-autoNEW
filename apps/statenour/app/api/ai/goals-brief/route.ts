@@ -80,7 +80,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         },
       }),
       prisma.reflection.count({
-        where: { createdAt: { gte: new Date(now - 7 * DAY_MS) } },
+        where: { deletedAt: null, createdAt: { gte: new Date(now - 7 * DAY_MS) } },
       }),
     ]);
 

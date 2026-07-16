@@ -188,9 +188,10 @@ export async function scanStaleData(): Promise<StaleReport> {
         const where = {
           category: BRAIN_CATEGORIES.SKILL_PENDING,
           createdAt: { lt: since30d },
+          deletedAt: null,
         };
         const [count, rows] = await Promise.all([
-          prisma.brainMemory.count({ where }),
+          prisma.brainMemory.count({ where }), // `where` above already scopes deletedAt: null
           prisma.brainMemory.findMany({
             where,
             orderBy: { createdAt: "asc" },
@@ -249,7 +250,7 @@ export async function scanStaleData(): Promise<StaleReport> {
           deletedAt: null,
         };
         const [count, rows] = await Promise.all([
-          prisma.task.count({ where }),
+          prisma.task.count({ where }), // `where` above already scopes deletedAt: null
           prisma.task.findMany({
             where,
             orderBy: { updatedAt: "asc" },
@@ -317,7 +318,7 @@ export async function scanStaleData(): Promise<StaleReport> {
           deletedAt: null,
         };
         const [count, rows] = await Promise.all([
-          prisma.masteryDecision.count({ where }),
+          prisma.masteryDecision.count({ where }), // `where` above already scopes deletedAt: null
           prisma.masteryDecision.findMany({
             where,
             orderBy: { reviewDate: "asc" },
