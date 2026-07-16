@@ -1073,14 +1073,21 @@ const tasksCoreTools = {
       }
 
       // Check active tasks + commitments (cognitive load)
+      // deletedAt:null on all three — these drive risk GATES (openLoops > 8
+      // ⇒ "SCATTERED", activeCommitments > 5, recentDecisions > 5 ⇒ "DECISION
+      // FATIGUE"). With 104 of 161 Task rows soft-deleted, the SCATTERED gate
+      // was firing on tombstones — a chronic false NO-GO.
       const [openLoops, activeCommitments] = await Promise.all([
-        prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] } } }),
-        prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }),
+        prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null } }),
+        prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } }),
       ]);
 
       // Check recent decisions for overcommit pattern
       const recentDecisions = await prisma.masteryDecision.count({
-        where: { date: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0] } },
+        where: {
+          date: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0] },
+          deletedAt: null,
+        },
       });
 
       // Build risk factors

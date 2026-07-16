@@ -10,7 +10,9 @@ import type { ActionParams, ActionResult } from "./types";
 export async function handleSystemHealth(_params: ActionParams, type: string): Promise<ActionResult> {
   const [dbOk, memCount, alertCount, syncAge] = await Promise.all([
     prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
-    prisma.brainMemory.count(),
+    // deletedAt:null — God-Mode reports this to the operator as the brain's
+    // size. The pruner soft-deletes decayed memories; they are not "held".
+    prisma.brainMemory.count({ where: { deletedAt: null } }),
     (async () => {
       const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
       return (await getUnresolvedAlerts().catch(() => [])).length;
@@ -29,10 +31,13 @@ export async function handleSystemHealth(_params: ActionParams, type: string): P
 }
 
 export async function handleSystemBrainStats(_params: ActionParams, type: string): Promise<ActionResult> {
+  // deletedAt:null on all three — brain stats describe what Nick currently
+  // knows. Tombstones from the confidence pruner are not knowledge, and they
+  // drag avgConfidence down (the pruner targets low-confidence rows).
   const [total, byCategory, avgConf, recentInsights] = await Promise.all([
-    prisma.brainMemory.count(),
-    prisma.brainMemory.groupBy({ by: ["category"], _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 10 }),
-    prisma.brainMemory.aggregate({ _avg: { confidence: true } }),
+    prisma.brainMemory.count({ where: { deletedAt: null } }),
+    prisma.brainMemory.groupBy({ by: ["category"], where: { deletedAt: null }, _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 10 }),
+    prisma.brainMemory.aggregate({ where: { deletedAt: null }, _avg: { confidence: true } }),
     prisma.auditEvent.findMany({ where: { eventType: "brain_insight" }, orderBy: { createdAt: "desc" }, take: 5, select: { detail: true, createdAt: true } }),
   ]);
   return { action: type, success: true, result: {

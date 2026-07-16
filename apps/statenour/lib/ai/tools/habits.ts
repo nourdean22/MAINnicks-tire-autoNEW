@@ -75,11 +75,14 @@ export const habitsTools = {
             logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "snapshots" });
             return [];
           }),
-        prisma.task.count({ where: { status: "DONE", updatedAt: { gte: daysAgo(7) } } }).catch((err) => {
+        // deletedAt:null on BOTH — these are the numerator and denominator of
+        // the weekly completion rate reported to Nick. Filtering only one side
+        // would skew the rate rather than fix it.
+        prisma.task.count({ where: { status: "DONE", updatedAt: { gte: daysAgo(7) }, deletedAt: null } }).catch((err) => {
           logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "tasksCompleted" });
           return 0;
         }),
-        prisma.task.count({ where: { createdAt: { gte: daysAgo(7) } } }).catch((err) => {
+        prisma.task.count({ where: { createdAt: { gte: daysAgo(7) }, deletedAt: null } }).catch((err) => {
           logError("ai.tools-habits", err, { fn: "weeklyReview", scope: "tasksCreated" });
           return 0;
         }),

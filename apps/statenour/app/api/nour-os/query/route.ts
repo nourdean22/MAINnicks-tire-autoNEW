@@ -121,7 +121,10 @@ async function handleQuery(
       // are the unified backlog now. Legacy "open_loops" query name
       // still accepted for backwards compat with any nickstire caller.
       const [count, top] = await Promise.all([
-        prisma.task.count({ where: { status: "INBOX" } }),
+        // deletedAt:null — the findMany below always filtered, so this
+        // endpoint returned `count: 52` alongside an EMPTY `top` list. The
+        // count and the rows it summarizes must query the same population.
+        prisma.task.count({ where: { status: "INBOX", deletedAt: null } }),
         prisma.task.findMany({
           where: { status: "INBOX", deletedAt: null },
           orderBy: [{ autoPriority: "asc" }, { lastTouchedAt: "desc" }],
@@ -256,7 +259,7 @@ async function handleQuery(
           }),
           // OpenLoop count retired Apr 18 — inbox-Task count is the
           // replacement backlog signal.
-          prisma.task.count({ where: { status: "INBOX" } }),
+          prisma.task.count({ where: { status: "INBOX", deletedAt: null } }),
           (async () => {
             const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
             return (await getUnresolvedAlerts().catch(() => [])).length;
