@@ -422,7 +422,11 @@ If any aspect is not perfect, rewrite the fields directly. OUTPUT ONLY the corre
       { role: "system", content: criticPrompt },
       { role: "user", content: "Analyze and rewrite the Reel Brief to perfection. Return the complete updated JSON matching the schema." }
     ],
-    maxTokens: 8192,
+    // The critic re-emits the ENTIRE brief JSON, and on gemini-2.5-flash the
+    // "thinking" tokens spend from this same budget — 8192 truncated every
+    // attempt on 2026-07-16 ("braces 18/17 ... Raise maxTokens for this call").
+    // Sized to match the initial-generation call above for the same reason.
+    maxTokens: 24576,
     timeoutMs: 120000,
     outputSchema: REEL_BRIEF_SCHEMA,
   });
