@@ -86,10 +86,19 @@ function analyzed(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** The textarea, whichever placeholder it's currently showing. */
+function symptomBox() {
+  return document.querySelector("textarea") as HTMLTextAreaElement;
+}
+
 function typeSymptom(text: string) {
-  const box = screen.getByPlaceholderText(/Example: My brakes are squealing/i);
+  const box = symptomBox();
   fireEvent.change(box, { target: { value: text } });
   return box;
+}
+
+function pickSymptom(label: RegExp) {
+  fireEvent.click(screen.getByRole("button", { name: label }));
 }
 
 function pressCheck() {
@@ -228,8 +237,7 @@ describe("/diagnose · no auto-run from the URL", () => {
     window.history.replaceState({}, "", "/diagnose?symptom=my+brakes+are+grinding");
     render(<DiagnosePage />);
 
-    const box = screen.getByPlaceholderText(/Example: My brakes are squealing/i) as HTMLTextAreaElement;
-    await waitFor(() => expect(box.value).toBe("my brakes are grinding"));
+    await waitFor(() => expect(symptomBox().value).toBe("my brakes are grinding"));
 
     // The regression: this used to have fired on mount for every crawler,
     // link-preview fetch and refresh of a shared link.
@@ -311,5 +319,150 @@ describe("/diagnose · vehicle data does not go stale", () => {
     render(<DiagnosePage />);
     const nextYear = String(new Date().getFullYear() + 1);
     expect(screen.getByRole("option", { name: nextYear })).toBeTruthy();
+  });
+
+  it("offers an escape hatch for pre-list vehicles, and its value fits the server cap", async () => {
+    // Shipped dead in the P0 wave: the constant existed but no <option> ever
+    // rendered it. And the label ("Older / not listed", 18 chars) would blow
+    // the server's vehicleYear cap — so the submitted VALUE must stay short.
+    mockMutateAsync.mockResolvedValue(analyzed());
+    render(<DiagnosePage />);
+
+    const option = screen.getByRole("option", { name: /Older \/ not listed/i }) as HTMLOptionElement;
+    expect(option).toBeTruthy();
+    expect(option.value.length).toBeLessThanOrEqual(24);
+
+    fireEvent.change(document.querySelector("select") as HTMLSelectElement, { target: { value: option.value } });
+    typeSymptom("makes a knocking sound");
+    pressCheck();
+
+    await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+    expect(mockMutateAsync.mock.calls[0][0].vehicleYear).toBe(option.value);
+  });
+});
+
+describe("/diagnose · symptom-first entry", () => {
+  it("leads with what the car is doing, not with car anatomy", () => {
+    render(<DiagnosePage />);
+
+    // Words customers use...
+    for (const label of [/Won't start/i, /Warning light/i, /Shaking or vibration/i, /Strange noise/i]) {
+      expect(screen.getByRole("button", { name: label })).toBeTruthy();
+    }
+    // ...instead of asking them to locate the fault first.
+    expect(document.body.textContent).not.toMatch(/TAP THE PROBLEM AREA/i);
+  });
+
+  it("exposes the chips as real pressable controls", () => {
+    render(<DiagnosePage />);
+    const chip = screen.getByRole("button", { name: /Won't start/i });
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(chip);
+    expect(screen.getByRole("button", { name: /Won't start/i }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("aims the follow-up question instead of pre-filling the customer's box", () => {
+    render(<DiagnosePage />);
+    pickSymptom(/Won't start/i);
+
+    // The old flow dumped ~180 chars of boilerplate into the textarea.
+    expect(symptomBox().value).toBe("");
+    expect(symptomBox().placeholder).toMatch(/crank, click, or do nothing/i);
+  });
+
+  it("sends the category as a frame in front of the customer's own words", async () => {
+    mockMutateAsync.mockResolvedValue(analyzed());
+    render(<DiagnosePage />);
+
+    pickSymptom(/Brakes/i);
+    typeSymptom("grinding when I slow down");
+    pressCheck();
+
+    await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+    expect(mockMutateAsync.mock.calls[0][0].symptoms[0]).toBe("Brakes: grinding when I slow down");
+  });
+
+  it("accepts a chip on its own — 'Won't start' is a real report", async () => {
+    mockMutateAsync.mockResolvedValue(analyzed());
+    render(<DiagnosePage />);
+
+    pickSymptom(/Won't start/i);
+    const btn = screen.getByRole("button", { name: /CHECK MY SYMPTOMS/i }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+
+    pressCheck();
+    await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+    expect(mockMutateAsync.mock.calls[0][0].symptoms[0]).toBe("The car won't start.");
+  });
+
+  it("lets a chip be un-picked", () => {
+    render(<DiagnosePage />);
+    pickSymptom(/Won't start/i);
+    expect(screen.getByRole("button", { name: /Won't start/i }).getAttribute("aria-pressed")).toBe("true");
+    pickSymptom(/Won't start/i);
+    expect(screen.getByRole("button", { name: /Won't start/i }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("does nothing when there is neither a chip nor a description", () => {
+    render(<DiagnosePage />);
+    const btn = screen.getByRole("button", { name: /CHECK MY SYMPTOMS/i }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+  });
+
+  it("keeps the car illustration out of the a11y tree — the chips are the control", () => {
+    const { container } = render(<DiagnosePage />);
+    const svg = container.querySelector('svg[viewBox="0 0 800 320"]');
+    expect(svg).toBeTruthy();
+    // It used to be the ONLY way in: <g> elements with mouse handlers, not
+    // focusable, no accessible name. Now it mirrors the buttons.
+    expect(svg?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("deep-links a category from a GBP/Instagram post without auto-running", async () => {
+    window.history.replaceState({}, "", "/diagnose?category=overheating");
+    render(<DiagnosePage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Running hot/i }).getAttribute("aria-pressed")).toBe("true"),
+    );
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("ignores an unknown ?category= instead of breaking", () => {
+    window.history.replaceState({}, "", "/diagnose?category=bogus-value");
+    render(<DiagnosePage />);
+    expect(screen.getByRole("button", { name: /Won't start/i }).getAttribute("aria-pressed")).toBe("false");
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe("/diagnose · the verdict", () => {
+  it("answers 'can I drive it' in plain words, per urgency", async () => {
+    const cases: [string, RegExp][] = [
+      ["critical", /Don't drive it/i],
+      ["high", /Don't sit on this one/i],
+      ["moderate", /next week or two/i],
+      ["low", /Safe to drive/i],
+    ];
+    for (const [urgency, expected] of cases) {
+      mockMutateAsync.mockResolvedValue(analyzed({ urgency, urgencyScore: 3 }));
+      render(<DiagnosePage />);
+      typeSymptom("something is off");
+      pressCheck();
+      await waitFor(() => expect(document.body.textContent).toMatch(expected));
+      cleanup();
+    }
+  });
+
+  it("no longer collapses 'book it this week' and 'do not drive this' into one banner", async () => {
+    mockMutateAsync.mockResolvedValue(analyzed({ urgency: "high", urgencyScore: 4 }));
+    render(<DiagnosePage />);
+    typeSymptom("grinding");
+    pressCheck();
+    await waitFor(() => expect(screen.getByText("GET IT CHECKED TODAY")).toBeTruthy());
+    // Exact, not /regex/i: the symptom guide below legitimately uses the words
+    // "stop driving it" in its prose. We're pinning the BADGE here.
+    expect(screen.queryByText("STOP DRIVING IT")).toBeNull();
   });
 });
