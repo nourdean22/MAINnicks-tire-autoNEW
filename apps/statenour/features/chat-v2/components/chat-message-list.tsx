@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { UIMessage } from "ai";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Paperclip } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { ToolResultCard, isKnownToolName } from "@/components/chat/tool-result-card";
 import { NickMessage } from "@/components/chat/nick-message";
@@ -228,6 +228,42 @@ export function ChatMessageList({
                         Response cut off — tap to regenerate
                       </button>
                     )}
+                  </div>
+                );
+              }
+              // Truthfulness wave (audit 2026-07-16) · render file parts.
+              // Pre-fix this switch handled ONLY "text" and "tool-*", so a
+              // file part fell through every branch and returned undefined:
+              // the operator attached an image, saw the composer preview,
+              // hit send — and the image silently vanished from their own
+              // bubble (and from history on reload). The attach feature was
+              // dead end-to-end despite the picker, preview and upload path
+              // all existing.
+              if (part.type === "file") {
+                const filePart = part as unknown as {
+                  url?: string;
+                  mediaType?: string;
+                  filename?: string;
+                };
+                const src = filePart.url;
+                if (src && filePart.mediaType?.startsWith("image/")) {
+                  return (
+                    // eslint-disable-next-line @next/next/no-img-element -- data-URL attachment, not a remote asset next/image can optimize
+                    <img
+                      key={`${m.id}-part-${i}`}
+                      src={src}
+                      alt={filePart.filename || "attached image"}
+                      className="mt-2 max-h-64 w-auto rounded-lg border border-white/10"
+                    />
+                  );
+                }
+                return (
+                  <div
+                    key={`${m.id}-part-${i}`}
+                    className="mt-2 flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[12px] text-zinc-400"
+                  >
+                    <Paperclip size={12} aria-hidden />
+                    <span className="truncate">{filePart.filename || "attachment"}</span>
                   </div>
                 );
               }

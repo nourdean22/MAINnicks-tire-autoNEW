@@ -61,11 +61,40 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     const tempId = crypto.randomUUID();
     const isImageAttached = !!imgAttached;
 
-    // Optimistic Enqueue
+    // Truthfulness wave (audit 2026-07-16) · expand @mentions BEFORE
+    // dispatch. Pre-fix the composer sent the raw draft straight to
+    // chat.sendText/append, so "@revenue" reached the model as seven
+    // literal characters: the whole mention subsystem (sync expander +
+    // async server resolver + the chat.resolveMention tRPC procedure)
+    // was built and had ZERO callers — while its own docstring claimed
+    // "Called right before send()". The dropdown offered live context
+    // the model never received.
+    //
+    // The expanded text is what we send AND what the bubble shows. The
+    // expansions are short bracketed summaries ("[revenue: today $0 ·
+    // week $1,240]"), so the operator sees exactly which context was
+    // injected — a receipt — instead of a display/resolved split that
+    // would need a schema + render change on both sides.
+    let resolvedText = textToSend;
+    if (textToSend.includes("@")) {
+      try {
+        resolvedText = await mentions.expandMentionsAsync(textToSend);
+      } catch {
+        // Server resolution unavailable · sync expander still resolves
+        // the local tokens (@revenue/@mit/@critical/…). Never block a send.
+        try {
+          resolvedText = mentions.expandMentions(textToSend);
+        } catch {
+          resolvedText = textToSend;
+        }
+      }
+    }
+
+    // Optimistic Enqueue · the pending bubble mirrors what is sent.
     enqueuePending({
       tempId,
       conversationId: null,
-      text: textToSend,
+      text: resolvedText,
       createdAt: Date.now(),
     });
 
@@ -92,27 +121,33 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
                 filename: string;
               };
           const parts: SendMessagePart[] = [];
-          if (textToSend) parts.push({ type: "text", text: textToSend });
+          if (resolvedText) parts.push({ type: "text", text: resolvedText });
           parts.push({
             type: "file",
             mediaType: result.mimeType,
-            url: result.base64,
+            // Truthfulness wave (audit 2026-07-16) · send a real data
+            // URL. readAsBase64 strips the "data:<mime>;base64," prefix,
+            // and this field was handing the bare payload to a prop the
+            // server documents as "a data-URL (data:image/png;base64,…)
+            // or http(s)" (build-model-messages.ts). Re-attach the
+            // prefix so the wire matches the contract on both sides.
+            url: `data:${result.mimeType};base64,${result.base64}`,
             filename: imgAttached!.file.name,
           });
           sendPromise = chat.append({
             id: tempId,
             role: "user",
-            content: textToSend, // Still provide string content for logging/fallbacks
+            content: resolvedText, // Still provide string content for logging/fallbacks
             parts: parts,
           });
           clearImg();
         } else {
           toast.error("Couldn't read the image — sending text only.", { duration: 3000 });
-          sendPromise = chat.sendText(textToSend);
+          sendPromise = chat.sendText(resolvedText);
           clearImg();
         }
       } else {
-        sendPromise = chat.sendText(textToSend);
+        sendPromise = chat.sendText(resolvedText);
       }
       // Real user message is now in chat.messages → remove the optimistic
       // duplicate immediately (do not wait for the stream to finish).
@@ -246,12 +281,22 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
         </div>
 
         {/* Hidden File Inputs */}
+        {/*
+          Truthfulness wave (audit 2026-07-16) · images only. The gallery
+          input accepted PDF/DOC/DOCX/TXT behind a button labelled "Attach
+          image", but NOTHING extracts document text: a picked PDF was
+          base64'd whole into the message body and shipped to a provider
+          that would reject or ignore it. The picker now matches what the
+          pipeline can actually do; use-image-attachment enforces the same
+          rule at intake (accept is only a hint the OS picker can bypass).
+          Document ingestion (upload + extract + storage) is a separate build.
+        */}
         <input
           type="file"
           ref={imgFileInputRef}
           onChange={handleImgFileChange}
           className="hidden"
-          accept="image/*,application/pdf,.doc,.docx,.txt"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/gif"
           title="Attach image from gallery"
         />
         <input

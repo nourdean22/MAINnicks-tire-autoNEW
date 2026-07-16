@@ -117,13 +117,26 @@ export async function setPowerSetting<K extends keyof PowerSettings>(
   });
 }
 
-/** Check if AI calls are currently permitted given the settings + today's burn. */
-export async function checkAiBudget(estimateCents: number = 0): Promise<
-  { allowed: true } | { allowed: false; reason: string }
-> {
+/** Check if AI calls are currently permitted given the settings + today's burn.
+ *  `bypassStrict` is for non-discretionary calls (health probes, repair
+ *  crons) that must run even while strict mode is pausing chat. */
+export async function checkAiBudget(
+  estimateCents: number = 0,
+  opts: { bypassStrict?: boolean } = {},
+): Promise<{ allowed: true } | { allowed: false; reason: string }> {
+  const bypassStrict = opts.bypassStrict === true;
   const s = await getPowerSettings();
-  if (s.strictMode && estimateCents > 10) {
-    return { allowed: false, reason: `strict mode on · refusing call ≥ ${estimateCents}¢` };
+  // 2026-07-16 audit · strict mode was DECORATIVE on the hot path. The
+  // guard read `estimateCents > 10`, but the only live caller — the chat
+  // gate — passes `checkAiBudget(2)`, and 2 > 10 is never true. The
+  // operator could flip "strict mode" in the power panel and every chat
+  // turn kept spending, silently. Strict mode now means what the switch
+  // says: no discretionary AI calls until it's turned off. Callers that
+  // must run regardless (health probes, cron repair) can pass
+  // `bypassStrict` explicitly rather than relying on a threshold that
+  // silently exempted everything.
+  if (s.strictMode && !bypassStrict) {
+    return { allowed: false, reason: "strict mode on · discretionary AI calls paused" };
   }
   if (s.dailyCostCapCents > 0) {
     const todayStart = new Date();
