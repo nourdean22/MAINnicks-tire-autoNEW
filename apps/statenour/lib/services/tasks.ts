@@ -171,17 +171,27 @@ export async function syncTaskPriorities(db: DbClient = prisma) {
   const missionMap = new Map(missionRanking.rankedMissions.map((mission) => [mission.id, mission]));
 
   await Promise.all(
-    (serializeForJson(tasks) as Array<{ id: string; title: string; missionId: string; status: string; roiScore: number; frictionScore: number; energyRequired: string; dueDate: string | Date | null; manualPriorityOverride: number | null; lastTouchedAt: string | null; updatedAt: string }>).map((task) => {
+    (serializeForJson(tasks) as Array<{ id: string; title: string; missionId: string; status: string; roiScore: number; frictionScore: number; energyRequired: string; dueDate: string | Date | null; manualPriorityOverride: number | null; lastTouchedAt: string | null; updatedAt: string; autoPriority: number | null; autoPriorityExplanation: string | null }>).flatMap((task) => {
       const automation = scoreTaskPriority(task, missionMap);
-      return db.task.update({
-        where: {
-          id: task.id
-        },
-        data: {
-          autoPriority: automation.score,
-          autoPriorityExplanation: automation.explanation
-        }
-      });
+      // Skip rows whose score+explanation are already current. The
+      // unconditional rewrite ran one UPDATE per open task inside the
+      // caller's interactive transaction (Prisma 5s timeout on Neon) and
+      // stamped @updatedAt on EVERY open task per mutation — which made
+      // updatedAt-based sorting/staleness/patience-XP meaningless.
+      if (task.autoPriority === automation.score && task.autoPriorityExplanation === automation.explanation) {
+        return [];
+      }
+      return [
+        db.task.update({
+          where: {
+            id: task.id
+          },
+          data: {
+            autoPriority: automation.score,
+            autoPriorityExplanation: automation.explanation
+          }
+        }),
+      ];
     })
   );
 }
@@ -843,7 +853,38 @@ export async function updateTask(id: string, input: unknown) {
     payload.lastCompletedAt = new Date();
   }
 
-  if (payload.status === "DONE" || (payload.status === "ARCHIVED" && existing.loopKind === "PROMISE")) {
+  // Only a real status TRANSITION routes through checkTask — a PATCH that
+  // re-sends DONE on an already-DONE task (the edit sheet always includes
+  // the current status) must take the generic field-update path below, or
+  // completion side effects re-fire and the edits are lost.
+  const isCompletionTransition =
+    (payload.status === "DONE" && existing.status !== "DONE") ||
+    (payload.status === "ARCHIVED" && existing.loopKind === "PROMISE" && existing.status !== "ARCHIVED");
+
+  if (isCompletionTransition) {
+    // checkTask only understands the completion trio (status/completionNote/
+    // outcomeScore). Any other field in the same PATCH (title, dueDate,
+    // effort, missionId…) must be persisted here first — the edit sheet
+    // sends combined "edit + complete" payloads in one mutation.
+    const rest = { ...payload };
+    delete rest.status;
+    delete rest.completionNote;
+    delete rest.outcomeScore;
+    // Explicit-undefined keys (superjson can carry them) mean "don't
+    // change" — Prisma would ignore them, but they must not trigger a
+    // spurious write either.
+    for (const key of Object.keys(rest) as Array<keyof typeof rest>) {
+      if (rest[key] === undefined) delete rest[key];
+    }
+    if (Object.keys(rest).length > 0) {
+      if (rest.missionId) {
+        await ensureMissionExists(prisma, rest.missionId);
+      }
+      await prisma.task.update({
+        where: { id },
+        data: rest,
+      });
+    }
     const { checkTask } = await import("@/lib/services/task-actions");
     const checkRes = await checkTask({
       id,

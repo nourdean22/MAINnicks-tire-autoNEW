@@ -79,4 +79,45 @@ const taskBaseSchema = z.object({
 });
 
 export const taskCreateSchema = taskBaseSchema;
-export const taskUpdateSchema = taskBaseSchema.partial();
+
+// Update schema — mirrors taskBaseSchema field-for-field but WITHOUT the
+// .default() wrappers. zod v4 applies defaults even under .partial(), so
+// the previous `taskBaseSchema.partial()` injected effort/roiScore/
+// streakCount/loopKind/… into EVERY parsed partial PATCH — and the
+// updateTask spread then reset those columns on any small update (a
+// 2-field snooze zeroed the streak). On update, an absent key means
+// "don't change". Keep this field-for-field in sync with taskBaseSchema.
+export const taskUpdateSchema = z
+  .object({
+    title: requiredString("Task title"),
+    missionId: requiredString("Mission"),
+    status: z.enum(taskStatusValues),
+    nextPhysicalAction: z.string().trim(),
+    effort: z.enum(effortBandValues),
+    roiScore: integerRange(1, 100),
+    frictionScore: integerRange(1, 100),
+    energyRequired: z.enum(energyLevelValues),
+    context: z.enum(taskContextValues),
+    delegatable: booleanFlag,
+    waitingOn: nullableString,
+    dueDate: nullableDate,
+    lastTouchedAt: nullableDate,
+    driftRisk: integerRange(0, 100),
+    manualPriorityOverride: nullableInteger(1, 999),
+    finishCondition: z.string().trim(),
+    autoPriorityExplanation: optionalString,
+    loopKind: z.enum(loopKindValues),
+    promiseTo: nullableString,
+    lastCompletedAt: nullableDate,
+    streakCount: integerRange(0, 9999),
+    snoozedUntil: nullableDate,
+    recurringDays: z.array(z.number().int().min(0).max(6)).max(7),
+    goalId: nullableString,
+    phaseName: nullableString,
+    actualMinutes: integerRange(0, 9999),
+    startedAt: nullableDate,
+    parentTaskId: nullableString,
+    completionNote: nullableString,
+    outcomeScore: nullableInteger(1, 100),
+  })
+  .partial();

@@ -178,7 +178,10 @@ function MissionsPageInner() {
           )
         ) : (
           <>
-            <OmniCaptureModal onCapture={(text) => void actions.handleQuickAdd(text)} />
+            {/* Pass the real promise — a `void` wrapper here made the modal
+                clear its text + close while the create was still in flight,
+                losing the capture on failure. */}
+            <OmniCaptureModal onCapture={(text) => actions.handleQuickAdd(text)} />
             <NickSidePane
               page="missions"
               coachSurface="tasks"
