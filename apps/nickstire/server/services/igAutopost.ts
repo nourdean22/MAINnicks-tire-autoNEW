@@ -989,10 +989,12 @@ export async function generatePostImage(
   provider = provider.toLowerCase();
 
   // Phase 6 (feed-wide): the branded "garage poster" is the DEFAULT visual.
-  // Only an explicit AI provider opts out; unset + the deprecated "higgsfield"
-  // stub both resolve to the poster. A poster failure (LLM/render) falls through
-  // to AI gen below so a post is never imageless.
-  const aiProviders = new Set(["openai", "gemini", "openrouter"]);
+  // Only an explicit AI provider opts out. "higgsfield" was a deprecated stub
+  // that silently resolved to the poster — an operator selecting it in Settings
+  // got a different image than the UI claimed. Re-wired 2026-07-16 (plan
+  // re-funded): it now routes to the real Higgsfield generator below. A poster
+  // failure falls through to AI gen so a post is never imageless.
+  const aiProviders = new Set(["openai", "gemini", "openrouter", "higgsfield"]);
   if (!aiProviders.has(provider)) {
     try {
       const h = await derivePosterCopy(ctx?.caption?.trim() || prompt);
@@ -1015,7 +1017,20 @@ export async function generatePostImage(
 
   let pngUrl: string;
   let alreadyJpeg = false;
-  if (provider === "gemini") {
+  if (provider === "higgsfield") {
+    try {
+      // Returns a Higgsfield-hosted URL (gpt_image_2, 1:1, 2k) — the shared
+      // convert/re-host tail below moves it onto our permanent storage, same
+      // as the carousel route does with storagePut.
+      const { generateCarouselSlideImage } = await import("./higgsfieldStudio");
+      pngUrl = await generateCarouselSlideImage(prompt);
+    } catch (err) {
+      log.warn("Higgsfield image generation failed — falling back", {
+        err: err instanceof Error ? err.message : String(err),
+      });
+      pngUrl = await generatePostImageFallback(prompt);
+    }
+  } else if (provider === "gemini") {
     try {
       if (process.env.GEMINI_API_KEY) {
         try {
