@@ -21,6 +21,7 @@
 import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { countLiveBrainMemoryEmbeddings } from "@/lib/brain/embedding-utils";
 
 interface DomainMaturity {
   domain: string;
@@ -106,7 +107,11 @@ export async function getBrainMaturity(): Promise<BrainMaturityReport> {
       where: { status: { in: ["confirmed", "disproven"] } },
       select: { category: true, status: true },
     }),
-    prisma.vectorEmbedding.count({ where: { sourceType: "brain_memory" } }),
+    // Live-sourced embeddings only — the memory counts above are all
+    // deletedAt-filtered (#773), so an unjoined embedding count here would
+    // push coverage past 100% as backfill proceeds (orphaned embeddings of
+    // pruned memories were 67% of the table on prod, 2026-07-16).
+    countLiveBrainMemoryEmbeddings(),
     prisma.brainMemory.findFirst({
       orderBy: { createdAt: "asc" },
       select: { createdAt: true },
