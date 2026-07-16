@@ -103,16 +103,11 @@ export const financingRouter = router({
           log.warn("[financing] click DB persist failed (non-blocking)", { error: persistErr instanceof Error ? persistErr.message : String(persistErr) });
         }
 
-        // Financing application = high-intent lead signal — notify the whole system
-        import("../services/eventBus").then(({ emit }) =>
-          emit.leadCaptured({
-            id: 0,
-            name: safeName || "Financing Applicant",
-            phone: safePhone || "",
-            source: `financing_${input.provider}`,
-            urgencyScore: 5, // Max score — high intent, they're applying for money
-          })
-        ).catch((e) => { log.warn("[routers/financing] fire-and-forget failed:", e); });
+        // No leadCaptured emit here: a bare provider-link click has no name or
+        // phone, and a synthetic "Financing Applicant" entry contaminates the
+        // lead pipeline (nickMemory, NOUR OS bridge). Click telemetry lives in
+        // the Sheets sync + financingClicks row above; a real lead only exists
+        // once the customer submits a form with contact info.
 
         return {
           success: true,

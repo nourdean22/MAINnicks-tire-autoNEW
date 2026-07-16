@@ -257,27 +257,11 @@ export const leadRouter = router({
         });
       }
 
-      // Send SMS: financing pre-approval gets a special message
-      if (input.source === "financing_preapproval") {
-        const financingSms = `$10 down and a soft check (no credit-score ding) at Nick's Tire \u0026 Auto — Acima, Snap, Koalafi, American First. Walk in any day, bring your ID. ${BUSINESS.phone.display}`;
-        withRetry(
-          // Wave-108: financing preapproval via shop gateway (transactional)
-          () => sendSms(input.phone, financingSms, { via: "shop" }),
-          { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (financing preapproval)" }
-        )
-          .then((r) => recordLeadDelivery({ leadId, channel: "sms", status: "sent", provider: "shop", providerRef: r?.sid ?? null }))
-          .catch(err => {
-            log.error("[SMS] Financing preapproval SMS failed:", err);
-            logIntegrationFailure({
-              failureType: "sms",
-              entityId: leadId,
-              entityType: "lead",
-              errorMessage: err instanceof Error ? err.message : String(err),
-              errorDetails: err,
-            });
-            void recordLeadDelivery({ leadId, channel: "sms", status: "failed", provider: "shop", detail: err instanceof Error ? err.message : String(err) });
-          });
-      } else if (isAfterHours()) {
+      // financing_preapproval no longer gets a special SMS: the old message
+      // promised "$10 down / soft check / no credit-score ding" -- provider
+      // terms Nick's cannot guarantee. The modal that produced this source was
+      // removed; any straggler (stale PWA cache) gets the generic confirmation.
+      if (isAfterHours()) {
         handleAfterHoursCapture({ name, phone, type: "lead" }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
       } else {
         withRetry(
@@ -300,27 +284,9 @@ export const leadRouter = router({
       }
 
       // Telegram alert (always, regardless of hours)
-      if (input.source === "financing_preapproval") {
-        // Special financing pre-approval Telegram alert
-        const amount = input.problem?.match(/\$(\S+)/)?.[1] || "unknown";
-        import("../services/telegram").then(({ sendTelegramMessage }) => {
-          const lines = [
-            "\uD83D\uDCB3 <b>FINANCING PRE-APPROVAL</b>",
-            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
-            `\uD83D\uDC64 <b>${name}</b>`,
-            `\uD83D\uDCF1 ${phone}`,
-            email ? `\u2709\uFE0F ${email}` : "",
-            `\uD83D\uDCB0 Estimated: ~$${amount}`,
-            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
-            `\u23F0 ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
-          ];
-          sendTelegramMessage(lines.filter(Boolean).join("\n"), "critical");
-        }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
-      } else {
-        alertNewLead({ name, phone, service: scoring.recommendedService, source: input.source })
-          .then(() => recordLeadDelivery({ leadId, channel: "telegram", status: "sent", provider: "telegram" }))
-          .catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); void recordLeadDelivery({ leadId, channel: "telegram", status: "failed", provider: "telegram", detail: e instanceof Error ? e.message : String(e) }); });
-      }
+      alertNewLead({ name, phone, service: scoring.recommendedService, source: input.source })
+        .then(() => recordLeadDelivery({ leadId, channel: "telegram", status: "sent", provider: "telegram" }))
+        .catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); void recordLeadDelivery({ leadId, channel: "telegram", status: "failed", provider: "telegram", detail: e instanceof Error ? e.message : String(e) }); });
 
       return {
         success: true,

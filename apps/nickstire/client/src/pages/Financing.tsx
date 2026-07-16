@@ -15,7 +15,7 @@ import {
   Store,
 } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
-import { Breadcrumbs, SEOHead } from "@/components/SEO";
+import { Breadcrumbs, SEOHead, trackEvent, trackPhoneClick } from "@/components/SEO";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
 import { trpc } from "@/lib/trpc";
@@ -130,6 +130,7 @@ export default function Financing() {
   const handleApplyClick = useCallback(
     (providerId: string) => {
       if (!FINANCING_PROVIDERS.some((provider) => provider.id === providerId)) return;
+      trackEvent("financing_apply_click", { provider: providerId, source: "provider-card" });
       trackMutation.mutate({
         provider: providerId as "acima" | "snap" | "koalafi" | "american-first",
         sourcePage: "/financing",
@@ -168,6 +169,7 @@ export default function Financing() {
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
                   href="#providers"
+                  onClick={() => trackEvent("financing_compare_click", { source: "hero" })}
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#FDB913] px-7 py-3.5 font-bold text-black transition-opacity hover:opacity-90"
                 >
                   COMPARE PAYMENT OPTIONS
@@ -175,6 +177,7 @@ export default function Financing() {
                 </a>
                 <a
                   href={BUSINESS.phone.href}
+                  onClick={() => trackPhoneClick("financing-hero")}
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-white/20 px-7 py-3.5 font-bold text-white transition-colors hover:border-[#FDB913]/50 hover:text-[#FDB913]"
                 >
                   <Phone className="h-5 w-5" aria-hidden="true" />
@@ -394,6 +397,7 @@ export default function Financing() {
                 href={BUSINESS.urls.googleMapsDirections}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackEvent("directions_click", { source: "financing-bottom" })}
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#FDB913] px-7 py-3.5 font-bold text-black transition-opacity hover:opacity-90"
               >
                 <MapPin className="h-5 w-5" aria-hidden="true" />
@@ -401,6 +405,7 @@ export default function Financing() {
               </a>
               <a
                 href={BUSINESS.phone.href}
+                onClick={() => trackPhoneClick("financing-bottom")}
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-white/20 px-7 py-3.5 font-bold text-white transition-colors hover:border-[#FDB913]/50 hover:text-[#FDB913]"
               >
                 <Phone className="h-5 w-5" aria-hidden="true" />

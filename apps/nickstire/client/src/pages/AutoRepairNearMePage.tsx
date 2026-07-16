@@ -76,25 +76,10 @@ const CONFIG: ServicePageConfig = {
     ],
     source: "Representative quote, alternator replacement on a typical Cleveland-fleet sedan. Independent-shop labor rate vs dealer; OE-spec parts. Your exact number comes from a free written quote after we look at the car.",
   },
-  fearStats: {
-    heading: "Why \"I'll get to it next month\" is the most expensive sentence in car ownership.",
-    stats: [
-      {
-        value: "$1,400",
-        consequence: "Average cascade cost when a $200 repair is postponed 60+ days. Sensors fail, parts seize, labor multiplies. The part doesn't get smaller, the bill does — in the wrong direction.",
-        source: "AAA repair-cost benchmarks; component-failure cascade studies.",
-      },
-      {
-        value: "37%",
-        consequence: "Of breakdowns can be traced to a known issue the owner knew about for 30+ days. Most weren't \"surprise\" failures — they were postponed ones.",
-        source: "AAA Roadside-assistance / breakdown data, US 2023-24.",
-      },
-      {
-        value: "5×",
-        consequence: "How much more a major repair costs vs. catching the same problem on a multi-point check. The free check at every oil change exists exactly to avoid this multiplier.",
-      },
-    ],
-  },
+  // fearStats removed 2026-07-16: the block cited "$1,400 average cascade
+  // cost", "37% of breakdowns", and "5x" to AAA studies that do not verifiably
+  // exist in that form. Same fabricated-fear pattern scrubbed from /financing
+  // (PR #747). Do not re-add stats here without a real, linkable source.
   lossStats: [
     {
       amount: 12,
