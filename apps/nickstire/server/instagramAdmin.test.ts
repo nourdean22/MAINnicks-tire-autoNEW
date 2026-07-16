@@ -37,8 +37,45 @@ vi.mock("./lib/db-helper", () => {
   };
 });
 
+// Admin waves #764-767 put MFA enforcement on every adminProcedure
+// (requireFreshMfaAndPermission). These router tests exercise claim-safety /
+// input-validation / shape logic, not the MFA ceremony — without this mock
+// every admin call died with "Admin two-factor authentication setup is
+// required" (10/20 tests red since the waves merged). Partial mock: only
+// getAdminSecurityState is stubbed; isMfaVerificationFresh and the
+// permission helpers stay REAL so the gate's own logic is still exercised.
+// `mockSecurityState` is mutable so a test can prove the gate fails closed.
+let mockSecurityState: {
+  adminRole: string;
+  mfaEnabled: boolean;
+  mfaVerifiedAt: Date | null;
+  encryptedSecret: string | null;
+} | null = null;
+
+vi.mock("./services/adminSecurity", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./services/adminSecurity")>();
+  return {
+    ...actual,
+    getAdminSecurityState: vi.fn(async () => mockSecurityState),
+  };
+});
+
+function mfaSatisfied() {
+  mockSecurityState = {
+    adminRole: "owner",
+    mfaEnabled: true,
+    mfaVerifiedAt: new Date(),
+    encryptedSecret: null,
+  };
+}
+
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+import { beforeEach } from "vitest";
+
+beforeEach(() => {
+  mfaSatisfied();
+});
 
 function ctx(role: "admin" | "user" | null): TrpcContext {
   return {
@@ -71,6 +108,22 @@ describe("instagramAdmin router", () => {
       const caller = appRouter.createCaller(ctx(null));
       await expect(caller.instagramAdmin.getConnectionStatus()).rejects.toMatchObject({
         code: "FORBIDDEN",
+      });
+    });
+
+    it("fails closed when the admin has no MFA set up (PRECONDITION_FAILED)", async () => {
+      // Locks the waves' security intent: an admin identity WITHOUT MFA
+      // must not reach any adminProcedure body. mockSecurityState resets
+      // to MFA-satisfied in beforeEach.
+      mockSecurityState = {
+        adminRole: "owner",
+        mfaEnabled: false,
+        mfaVerifiedAt: null,
+        encryptedSecret: null,
+      };
+      const caller = appRouter.createCaller(ctx("admin"));
+      await expect(caller.instagramAdmin.getConnectionStatus()).rejects.toMatchObject({
+        code: "PRECONDITION_FAILED",
       });
     });
 
