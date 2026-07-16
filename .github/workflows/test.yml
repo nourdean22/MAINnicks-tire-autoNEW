@@ -203,13 +203,25 @@ jobs:
         run: pnpm --filter @statenour/web exec prisma validate
 
       # ─── Security audit (high+ · advisory, non-blocking) ─────────────
+      # Both steps below used to run `pnpm audit`, which POSTs to npm's legacy
+      # audit endpoint. npm RETIRED it — every call now returns 410, so the
+      # blocking gate failed on 100% of PRs no matter the content, and a real
+      # CVE was indistinguishable from the endpoint being gone. scripts/
+      # audit-advisories.mjs keeps the same contract (prod-only, --audit-level,
+      # non-zero exit blocks) against the bulk endpoint, which is live.
+      # NOTE: dependency-review.yml does NOT backstop this — it is
+      # continue-on-error and no-ops until GitHub Dependency Graph is enabled
+      # on the repo (Settings -> Security & analysis).
       - name: Dependency audit (high+ severity · advisory)
         continue-on-error: true
-        run: pnpm audit --prod --audit-level=high
+        run: node scripts/audit-advisories.mjs --audit-level=high --advisory
 
       # ─── Security gate (critical · BLOCKING) ─────────────────────────
+      # Exits 2 (fails) if the scanner itself cannot run. That is deliberate:
+      # a scan that silently passes when it is broken is how this gate rotted
+      # into permanent red that everyone learned to ignore.
       - name: Dependency audit (critical severity · blocking)
-        run: pnpm audit --prod --audit-level=critical
+        run: node scripts/audit-advisories.mjs --audit-level=critical
 
   voice:
     needs: changes
