@@ -27,13 +27,12 @@ attempts, generates Veo clips (real money), and then calls `publishToSocial`.
 `scripts/run-live-test-reel.ts` invokes it with `dryRun: false`. Do not use
 either as a verification handle, however convenient they look.
 
-**3. Docker is not a way out on this machine (verified 2026-07-16).**
-`docker --version` works (the CLI is installed) but the daemon never starts:
-`wsl --list -v` reports **no installed distributions**, and Docker Desktop's
-Windows backend needs WSL2. Launching Docker Desktop and waiting does not fix
-it. If you need a container, a WSL distro has to be installed first — that is an
-admin-level operation, so ask the operator rather than burning 20 minutes
-rediscovering this.
+**3. Docker is not a way out on this machine (verified 2026-07-16) — and you
+don't need it.** `docker --version` works (the CLI is installed) but the daemon
+never starts: `wsl --list -v` reports **no installed distributions**, and Docker
+Desktop's Windows backend needs WSL2. The safe target is `scripts/dev-db.mjs`
+(mysql-memory-server, user-space, no admin) — see "Standing up a safe target"
+below, which is a verified recipe.
 
 ## The surface map
 
@@ -76,47 +75,56 @@ It returns `{processed: false}` and silently does nothing unless all hold:
 A silent `{processed:false}` is the most likely outcome of a botched setup —
 if nothing happens, walk this table before assuming the change is at fault.
 
-## Standing up a safe target
+## Standing up a safe target — VERIFIED RECIPE (ran end-to-end 2026-07-16)
 
-**This is the open step.** Everything else in this skill was verified by
-reading or running; a working local MySQL was never achieved here (hazard 3),
-so treat the recipe below as a plan, not a proven path, and correct this file
-once you get through.
+The whole path is scripted. Two entry points:
 
-You need MySQL 8 reachable on a port, then:
+**Just verify the VO gate** (the canonical example — boots DB, applies schema,
+serves a real clip, seeds jobs, drives the real cron stage, prints a verdict):
 
-1. Create the two tables the assembly stage touches — `reel_jobs`
-   (`drizzle/schema.ts:3138`) and `social_content_inventory` (`:3686`). Full
-   `drizzle-kit push` against a fresh DB is untested and the schema is ~3.7k
-   lines; hand-creating the two tables is the smaller bet.
-2. Serve a real mp4 over local HTTP as the clip URL. The repo ships usable
-   ones: `apps/nickstire/data/generated/clip-30008-1.mp4` (~1 MB) and
-   `clip-30007-1.mp4` (~11 MB). Assembly downloads clips *before* the VO call,
-   so a fake URL fails earlier than the code you probably care about.
-3. ffmpeg is already on PATH (Gyan build, via winget) — verified present.
-4. Seed a job and drive one cron pulse with an env that has your local
-   `DATABASE_URL`, `REEL_GENERATION_ENABLED=true`, and **no** TTS creds if you
-   are exercising the voice path.
-
-Seed payload shape (`ReelAssemblyBrief`, reelAssembly.ts:26):
-
-```jsonc
-// reel_jobs.payload
-{
-  "id": "verify-1",
-  "selectedCaption": "Cleveland potholes keep score.",
-  "voiceoverScript": "Your tires remember every pothole.",  // omit → silent reel path
-  "campaignKeyword": "POTHOLE",
-  "storyboardBeats": [
-    { "beatNumber": 1, "startSecond": 0, "endSecond": 3, "onScreenText": "POTHOLE SEASON" }
-  ]
-}
-// reel_jobs.clipUrlsJson
-["http://127.0.0.1:8099/clip-30008-1.mp4"]
+```bash
+pnpm exec tsx scripts/verify-reel-vo.mts     # from apps/nickstire
 ```
 
-Other columns: `briefId` (varchar, notNull), `status = 'assets_ready'`,
-`attempts = 0`, `source = 'admin'`.
+**Any other pipeline verification** — get a disposable DB and build on it:
+
+```bash
+node scripts/dev-db.mjs                      # prints a DATABASE_URL, Ctrl-C tears down
+# or programmatically:
+#   import { startDevDb } from "./scripts/lib/dev-db.mjs";
+#   const { url, stop } = await startDevDb();
+```
+
+`startDevDb()` uses `mysql-memory-server` (nickstire devDependency — no Docker,
+no admin; downloads a MySQL 8 binary on first run, ~150MB, cached after; boots
+in ~8s) and applies the FULL schema via `drizzle-kit push` (~5s, 127/127
+tables).
+
+**The `search_performance` trap** (cost this recipe its first two attempts):
+a naive `drizzle-kit push` on stock MySQL 8 dies with *"Specified key was too
+long; max key length is 3072 bytes"* — `idx_search_perf_page` indexes
+`page varchar(1000)` = 4000 bytes utf8mb4. Prod TiDB allows it; vanilla MySQL
+does not, and push is sequential, so it silently yields **87 of 127 tables**
+(everything alphabetically after the failure never lands, including
+`social_content_inventory`). `startDevDb()` pre-creates that one table with a
+`page(768)` prefix index so push skips it and completes. If the table count
+guard in `scripts/lib/dev-db.mjs` ever trips, reconcile its shim with
+`drizzle/schema.ts`.
+
+Remaining ingredients (all verified):
+
+- Serve a real mp4 over local HTTP as the clip URL — the repo ships
+  `data/generated/clip-30008-1.mp4` (~1 MB). Assembly downloads clips *before*
+  the VO call, so a fake URL fails earlier than the code you care about.
+  `verify-reel-vo.mts` shows the ~10-line http.createServer pattern.
+- ffmpeg is on PATH (Gyan build via winget) — a 1-beat job assembles in ~1.3s.
+- Seed shape: see `verify-reel-vo.mts` (`briefId` notNull, `status =
+  'assets_ready'`, payload = `ReelAssemblyBrief` from reelAssembly.ts:26,
+  `clipUrlsJson` = JSON array).
+- With no S3 creds, `storagePut` saves to `data/generated/` and returns a
+  `https://nickstire.org/generated/...` URL — that is legitimate, not a bug:
+  `/generated` is statically served (server/_core/index.ts:149). **Delete the
+  emitted `reel-N.mp4` after a run** — `data/generated/` is NOT gitignored.
 
 ## What to observe
 
