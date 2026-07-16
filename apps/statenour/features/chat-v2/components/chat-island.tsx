@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useMemo } from "react";
-
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { Brain, History, Mic, MicOff } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
 import { ChatComposer } from "./chat-composer";
 import { ChatMessageList } from "./chat-message-list";
+import { ChatCapabilityIndicator } from "./chat-capability-indicator";
+import { OperatorConversationDrawer } from "./operator-conversation-drawer";
 import { RealtimeVoiceOverlay } from "@/components/chat/realtime-voice-overlay";
 import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sidebar";
-import { Brain, History, Mic, MicOff } from "lucide-react";
-import { ConversationDrawer } from "@/components/chat/conversation-drawer";
 import { useConversations } from "@/hooks/use-conversations";
 
 function useScrollToBottom<T extends HTMLElement>() {
@@ -19,14 +19,6 @@ function useScrollToBottom<T extends HTMLElement>() {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-
-    // For simplicity in P0, we'll just scroll to the endRef whenever children change
-    // but only if we were already at bottom. To implement "only when at bottom", 
-    // we use a MutationObserver.
-    
-    // Throttle to one scroll check per animation frame — during fast
-    // streaming the observer fires for every character, which on iOS
-    // causes battery drain and choppy animation at 300+ callbacks/sec.
     let rafId: number | null = null;
     const observer = new MutationObserver(() => {
       if (rafId !== null) return;
@@ -37,9 +29,7 @@ function useScrollToBottom<T extends HTMLElement>() {
         }
       });
     });
-
     observer.observe(container, { childList: true, subtree: true, characterData: true });
-
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       observer.disconnect();
@@ -50,278 +40,178 @@ function useScrollToBottom<T extends HTMLElement>() {
 }
 
 export function ChatIsland() {
-  const isVoiceDocked = useChatUiStore((s) => s.isVoiceDocked);
-  const toggleVoiceDock = useChatUiStore((s) => s.toggleVoiceDock);
-  const memoryInspectorOpen = useChatUiStore((s) => s.memoryInspectorOpen);
-  const setMemoryInspectorOpen = useChatUiStore((s) => s.setMemoryInspectorOpen);
-  const recalledHits = useChatUiStore((s) => s.recalledHits);
-  const contradictions = useChatUiStore((s) => s.contradictions);
-  const setMemoryData = useChatUiStore((s) => s.setMemoryData);
-
-  const historyDrawerOpen = useChatUiStore((s) => s.historyDrawerOpen);
-  const setHistoryDrawerOpen = useChatUiStore((s) => s.setHistoryDrawerOpen);
-  // forensic-audit CRITICAL · the transport body reads conversationId from
-  // this store, but drawer select/new/delete only updated useConversations'
-  // local activeId — so follow-up messages were persisted to a stale/null
-  // conversation. Sync the store on explicit drawer actions (the stream's
-  // X-Conversation-Id write still owns the new-conversation-created case).
-  const setActiveConversationId = useChatUiStore((s) => s.setActiveConversationId);
+  const isVoiceDocked = useChatUiStore((state) => state.isVoiceDocked);
+  const toggleVoiceDock = useChatUiStore((state) => state.toggleVoiceDock);
+  const memoryInspectorOpen = useChatUiStore((state) => state.memoryInspectorOpen);
+  const setMemoryInspectorOpen = useChatUiStore((state) => state.setMemoryInspectorOpen);
+  const historyDrawerOpen = useChatUiStore((state) => state.historyDrawerOpen);
+  const setHistoryDrawerOpen = useChatUiStore((state) => state.setHistoryDrawerOpen);
+  const setActiveConversationId = useChatUiStore((state) => state.setActiveConversationId);
+  const recalledHits = useChatUiStore((state) => state.recalledHits);
+  const contradictions = useChatUiStore((state) => state.contradictions);
+  const setMemoryData = useChatUiStore((state) => state.setMemoryData);
 
   const chat = useChatStream();
-  const convProps = useConversations({
+  const conversations = useConversations({
     setMessages: chat.setMessages,
-    onError: (msg) => console.error("useConversations error:", msg),
+    onError: (message) => console.error("useConversations error:", message),
   });
   const { containerRef, endRef } = useScrollToBottom<HTMLDivElement>();
-
-  // ── Island ref for iOS keyboard height compensation ──────────────────
-  // On iOS PWA, window.innerHeight doesn't change when the software
-  // keyboard opens, but window.visualViewport.height does. By setting
-  // the island height to visualViewport.height the flex layout shrinks
-  // naturally, keeping the composer above the keyboard.
   const islandRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return;
-    const vv = window.visualViewport;
+    const viewport = window.visualViewport;
     const syncHeight = () => {
-      if (islandRef.current) {
-        islandRef.current.style.height = `${vv.height}px`;
-      }
+      if (islandRef.current) islandRef.current.style.height = `${viewport.height}px`;
     };
-    vv.addEventListener("resize", syncHeight);
-    vv.addEventListener("scroll", syncHeight);
+    viewport.addEventListener("resize", syncHeight);
+    viewport.addEventListener("scroll", syncHeight);
     syncHeight();
     return () => {
-      vv.removeEventListener("resize", syncHeight);
-      vv.removeEventListener("scroll", syncHeight);
+      viewport.removeEventListener("resize", syncHeight);
+      viewport.removeEventListener("scroll", syncHeight);
     };
   }, []);
 
-  // ── Escape key closes the conversation drawer ────────────────────────
   const closeDrawer = useCallback(() => setHistoryDrawerOpen(false), [setHistoryDrawerOpen]);
   useEffect(() => {
     if (!historyDrawerOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeDrawer();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeDrawer();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [historyDrawerOpen, closeDrawer]);
+  }, [closeDrawer, historyDrawerOpen]);
 
   useEffect(() => {
-    const handleCockpitEvent = (e: Event) => {
-      const customEvent = e as CustomEvent<{ type: string; payload: any }>;
-      const { type, payload } = customEvent.detail;
-      
-      if (type === "memory.recalled") {
-        setMemoryData(payload.hits || [], payload.contradictions || []);
+    const onCockpitEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ type: string; payload: any }>).detail;
+      if (detail?.type === "memory.recalled") {
+        setMemoryData(detail.payload?.hits || [], detail.payload?.contradictions || []);
       }
     };
-
-    window.addEventListener("cockpit-event", handleCockpitEvent);
-    return () => window.removeEventListener("cockpit-event", handleCockpitEvent);
+    window.addEventListener("cockpit-event", onCockpitEvent);
+    return () => window.removeEventListener("cockpit-event", onCockpitEvent);
   }, [setMemoryData]);
 
-  // ── Memory Inspector · fetch real recall on open ─────────────────────
-  // The sidebar reads recalledHits from the store, which was ONLY ever
-  // fed by a legacy `cockpit-event`/`memory.recalled` window event that
-  // the chat-v2 transport never dispatches — so the panel always showed
-  // "No semantic memory hits". Populate it directly: when the inspector
-  // opens, recall against the last user message via /api/brain/recall
-  // (owner-auth, cookie). Decoupled from the hot send path.
-  //
-  // Derive the query from the last USER turn only — depending on the raw
-  // messages array would refetch on every assistant streaming delta.
   const lastUserText = useMemo(() => {
-    const lastUser = [...chat.messages].reverse().find((m) => m.role === "user");
+    const lastUser = [...chat.messages].reverse().find((message) => message.role === "user");
     return (lastUser?.parts ?? [])
-      .filter((p): p is { type: "text"; text: string } =>
-        (p as { type?: string }).type === "text" &&
-        typeof (p as { text?: string }).text === "string")
-      .map((p) => p.text)
+      .filter((part): part is { type: "text"; text: string } => part.type === "text")
+      .map((part) => part.text)
       .join(" ")
       .trim();
   }, [chat.messages]);
 
   useEffect(() => {
-    if (!memoryInspectorOpen) return;
-    const q = lastUserText;
-    if (!q) return;
-
+    if (!memoryInspectorOpen || !lastUserText) return;
     const controller = new AbortController();
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/brain/recall?q=${encodeURIComponent(q.slice(0, 1000))}&limit=8`,
+        const response = await fetch(
+          `/api/brain/recall?q=${encodeURIComponent(lastUserText.slice(0, 1000))}&limit=8`,
           { credentials: "include", signal: controller.signal },
         );
-        if (!res.ok) return;
-        const report = (await res.json()) as {
-          hits?: Array<{
-            id?: string;
-            memoryId?: string;
-            content?: string;
-            category?: string;
-            similarity?: number;
-            knnDistance?: number;
-          }>;
+        if (!response.ok) return;
+        const report = (await response.json()) as {
+          hits?: Array<{ id?: string; memoryId?: string; content?: string; category?: string; similarity?: number; knnDistance?: number }>;
         };
-        const hits = (report.hits ?? []).map((h, i) => ({
-          id: h.id ?? h.memoryId ?? `hit-${i}`,
-          content: h.content ?? "",
-          category: h.category ?? "memory",
-          similarity:
-            typeof h.similarity === "number"
-              ? h.similarity
-              : typeof h.knnDistance === "number"
-                ? Math.max(0, Math.min(1, 1 - h.knnDistance))
-                : 0,
+        const hits = (report.hits ?? []).map((hit, index) => ({
+          id: hit.id ?? hit.memoryId ?? `hit-${index}`,
+          content: hit.content ?? "",
+          category: hit.category ?? "memory",
+          similarity: typeof hit.similarity === "number"
+            ? hit.similarity
+            : typeof hit.knnDistance === "number"
+              ? Math.max(0, Math.min(1, 1 - hit.knnDistance))
+              : 0,
         }));
         setMemoryData(hits, contradictions);
       } catch {
-        // AbortError on close or network blip · leave prior state intact.
+        // Abort and network failures preserve the last known memory view.
       }
     })();
-
     return () => controller.abort();
-  }, [memoryInspectorOpen, lastUserText, setMemoryData, contradictions]);
+  }, [contradictions, lastUserText, memoryInspectorOpen, setMemoryData]);
 
   return (
-    <div
-      ref={islandRef}
-      className="flex h-full w-full flex-col overflow-hidden bg-linear-to-br from-zinc-950 via-[#0a0a0a] to-black text-zinc-100"
-    >
-      {/* Header Area */}
-      <header className="z-10 flex items-center justify-between border-b border-white/5 bg-black/40 px-4 py-3 backdrop-blur-xl">
-        <h1 className="text-sm font-medium tracking-wide text-zinc-300 drop-shadow-sm">STATENOUR CHAT</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)}
-            aria-label="Memory inspector"
-            aria-pressed={memoryInspectorOpen}
-            className={`rounded-full px-2.5 sm:px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
-              memoryInspectorOpen
-                ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-[0_0_15px_-3px_rgba(245,158,11,0.3)]"
-                : "bg-zinc-900/50 backdrop-blur-md border border-white/5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 hover:border-white/10 hover:shadow-[0_0_10px_-2px_rgba(255,255,255,0.05)]"
-            }`}
-          >
-            <Brain className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">INSPECTOR</span>
+    <div ref={islandRef} className="relative flex h-full w-full flex-col overflow-hidden bg-void text-fg">
+      <header className="z-10 flex items-center justify-between gap-3 border-b border-edge bg-void/90 px-3 py-2.5 backdrop-blur-xl sm:px-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-semibold tracking-wide text-fg">NICK</h1>
+            <ChatCapabilityIndicator />
+          </div>
+          <p className="mt-0.5 hidden text-[10px] text-fg-tertiary sm:block">Chief of staff · live data · verified actions</p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${memoryInspectorOpen ? "border-gold/35 bg-gold/10 text-gold" : "border-edge text-fg-secondary hover:text-fg"}`}>
+            <Brain size={13} /><span className="hidden sm:inline">Context</span>
           </button>
-          <button
-            onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)}
-            aria-label="Conversation history"
-            aria-pressed={historyDrawerOpen}
-            className={`rounded-full px-2.5 sm:px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
-              historyDrawerOpen
-                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]"
-                : "bg-zinc-900/50 backdrop-blur-md border border-white/5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 hover:border-white/10 hover:shadow-[0_0_10px_-2px_rgba(255,255,255,0.05)]"
-            }`}
-          >
-            <History className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">HISTORY</span>
+          <button onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${historyDrawerOpen ? "border-gold/35 bg-gold/10 text-gold" : "border-edge text-fg-secondary hover:text-fg"}`}>
+            <History size={13} /><span className="hidden sm:inline">History</span>
           </button>
-          <button
-            onClick={toggleVoiceDock}
-            aria-label={isVoiceDocked ? "Close voice" : "Open voice"}
-            aria-pressed={isVoiceDocked}
-            className={`rounded-full px-2.5 sm:px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-300 active:scale-95 flex items-center gap-2 ${
-              isVoiceDocked
-                ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)]"
-                : "bg-zinc-900/50 backdrop-blur-md border border-white/5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 hover:border-white/10 hover:shadow-[0_0_10px_-2px_rgba(255,255,255,0.05)]"
-            }`}
-          >
-            {isVoiceDocked ? (
-              <MicOff className="w-3.5 h-3.5" />
-            ) : (
-              <Mic className="w-3.5 h-3.5" />
-            )}
-            <span className="hidden sm:inline">{isVoiceDocked ? "CLOSE VOICE" : "VOICE"}</span>
+          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${isVoiceDocked ? "border-red-500/35 bg-red-500/10 text-red-300" : "border-edge text-fg-secondary hover:text-fg"}`}>
+            {isVoiceDocked ? <MicOff size={13} /> : <Mic size={13} />}<span className="hidden sm:inline">Voice</span>
           </button>
         </div>
       </header>
 
-
-      {/* Main Flex Area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Messages */}
-        <div 
-          ref={containerRef}
-          className="flex-1 overflow-y-auto"
-        >
+        <div ref={containerRef} className="flex-1 overflow-y-auto">
           <ChatMessageList
             messages={chat.messages}
-            isLoading={chat.status === "streaming" || chat.status === "submitted"}
-            isLoadingConvo={convProps.isLoadingConvo}
+            isLoading={chat.isStreaming}
+            isLoadingConvo={conversations.isLoadingConvo}
             error={chat.error}
             liveContextBlocksRef={chat.liveContextBlocksRef}
-            onRetry={() => chat.regenerate()}
+            lastTraceIdRef={chat.lastTraceIdRef}
+            onRetry={() => void chat.regenerate()}
+            onCommand={(prompt) => chat.sendText(prompt)}
           />
           <div ref={endRef} />
         </div>
-
-        {/* Voice overlay · 2026-07-11 review · RealtimeVoiceOverlay is
-            fixed inset-0 (full-screen) by design, so the old w-80 "dock"
-            wrapper was dead chrome that never constrained it. Render the
-            overlay directly and drop the false docked framing. */}
-        {isVoiceDocked && (
-          <RealtimeVoiceOverlay open={isVoiceDocked} onClose={toggleVoiceDock} />
-        )}
+        {isVoiceDocked && <RealtimeVoiceOverlay open={isVoiceDocked} onClose={toggleVoiceDock} />}
       </div>
 
-      {/* Composer Area — pb-safe clears the fixed BottomTabBar (pulse ticker
-          32px + nav 52px + env(safe-area-inset-bottom)) on all iPhones. */}
-      <div className="border-t border-white/5 bg-black/40 backdrop-blur-xl px-4 pt-4 pb-safe z-10 relative">
+      <div className="relative z-10 border-t border-edge bg-void/90 px-3 pb-safe pt-3 backdrop-blur-xl sm:px-4">
         <ChatComposer chat={chat} />
       </div>
 
-      <MemoryInspectorSidebar
-        open={memoryInspectorOpen}
-        onClose={() => setMemoryInspectorOpen(false)}
-        hits={recalledHits}
-        contradictions={contradictions}
-      />
+      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} />
 
-      {/* Conversation Drawer Overlay — full-width on mobile, fixed 320px sidebar on desktop */}
       {historyDrawerOpen && (
-        <div
-          className="absolute inset-y-0 left-0 w-full sm:w-80 bg-black/40 backdrop-blur-xl border-r border-white/5 z-50 flex flex-col"
-          style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}
-        >
-          <ConversationDrawer
-            convos={convProps.convos}
-            activeId={convProps.activeId}
-            pinnedConvoIds={convProps.pinnedIds}
-            hasMoreConvos={convProps.hasMoreConvos}
-            loadingMore={convProps.loadingMore}
-            onLoadMore={convProps.loadMoreConvos}
-            onSelectConvo={(id) => { setActiveConversationId(id); void convProps.loadConvo(id); setHistoryDrawerOpen(false); }}
-            onDeleteConvo={(id, e) => {
-              // 2026-07-11 review · only null the transport-store active id
-              // AFTER the server delete succeeds. Nulling it eagerly meant a
-              // failed delete left the convo loaded while the send body
-              // carried conversationId:null → next send forked a new convo.
-              const wasActive = convProps.activeId === id;
-              void convProps.deleteConvo(id, e).then((ok) => {
+        <div className="absolute inset-y-0 left-0 z-50 w-full border-r border-edge bg-void sm:w-80" style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}>
+          <OperatorConversationDrawer
+            convos={conversations.convos}
+            activeId={conversations.activeId}
+            pinnedIds={conversations.pinnedIds}
+            hasMore={conversations.hasMoreConvos}
+            loadingMore={conversations.loadingMore}
+            onLoadMore={conversations.loadMoreConvos}
+            onSelect={(id) => {
+              setActiveConversationId(id);
+              void conversations.loadConvo(id);
+              setHistoryDrawerOpen(false);
+            }}
+            onDelete={(id, event) => {
+              const wasActive = conversations.activeId === id;
+              void conversations.deleteConvo(id, event).then((ok) => {
                 if (ok && wasActive) setActiveConversationId(null);
               });
             }}
-            onRename={convProps.renameConvo}
-            onTogglePin={convProps.togglePin}
-            onNewChat={() => { setActiveConversationId(null); convProps.newChat(); setHistoryDrawerOpen(false); }}
-            onToggleStar={(id) => {
-              const convo = convProps.convos.find(c => c.id === id);
-              if (convo) convProps.patchConvoFlag(id, "starred", !convo.starredAt);
+            onRename={conversations.renameConvo}
+            onTogglePin={conversations.togglePin}
+            onArchive={(id) => conversations.patchConvoFlag(id, "archived", true)}
+            onNew={() => {
+              setActiveConversationId(null);
+              conversations.newChat();
+              setHistoryDrawerOpen(false);
             }}
-            onToggleArchive={(id) => {
-              // Note: archivedAt is not in the Convo type because we don't return them, 
-              // but patchConvoFlag handles the archived toggle.
-              convProps.patchConvoFlag(id, "archived", true);
-            }}
-            onToggleMute={(id) => {
-              const convo = convProps.convos.find(c => c.id === id);
-              if (convo) convProps.patchConvoFlag(id, "muted", !convo.mutedAt);
+            onShowActions={() => {
+              setHistoryDrawerOpen(false);
+              chat.sendText("/receipts");
             }}
             onClose={() => setHistoryDrawerOpen(false)}
           />
