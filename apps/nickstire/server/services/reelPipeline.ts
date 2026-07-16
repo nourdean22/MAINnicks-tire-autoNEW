@@ -190,15 +190,20 @@ export async function processNextReelJob(): Promise<{
     const beats = brief.storyboardBeats ?? [];
     if (!beats.length) throw new Error("brief has no storyboardBeats");
 
-    // Fail BEFORE the first paid Veo clip if the output can't be durably kept —
-    // otherwise we pay for clips that a deploy/restart wipes off ephemeral disk
-    // (a failure prod already recorded). Marks the job failed with a clear,
-    // actionable message rather than silently spending credits.
     const { assertDurableStorageForGeneration, storagePut } = await import("../storage");
-    assertDurableStorageForGeneration(`reel job ${job.id} clip generation`);
 
     const videoProvider = await selectReelVideoProvider();
     log.info("reel clip generation provider selected", { jobId: job.id, provider: videoProvider });
+
+    // The durable-storage precondition only applies to providers that RE-HOST
+    // through our storage (Veo → storagePut → ephemeral local disk without S3,
+    // which a deploy wipes after we already paid). Higgsfield returns its OWN
+    // hosted CDN URL (parseResultUrl) — durable without any S3, the same way the
+    // carousel image path already trusts Higgsfield URLs — so it needs no
+    // precondition. This is why "Higgsfield loaded" generates with zero infra.
+    if (videoProvider === "veo") {
+      assertDurableStorageForGeneration(`reel job ${job.id} Veo clip generation`);
+    }
 
     let clipUrls: string[] = [];
     try {
