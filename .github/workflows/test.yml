@@ -194,9 +194,30 @@ jobs:
         env:
           STALE_DOCS_STRICT: '1'
 
-      - name: Statenour · prompt size-check
-        if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
-        run: pnpm --filter @statenour/web prompt:size-check
+      # ─── REMOVED: Statenour · prompt size-check ──────────────────────
+      # `pnpm --filter @statenour/web prompt:size-check` ran here and was the
+      # single reason this job was red on every statenour/workflow PR.
+      #
+      # measure-prompt-size.ts boots the real prompt graph, which needs a live
+      # database. CI has no DATABASE_URL, so Prisma failed instantly --
+      #   "No database host or connection string was set ... (host: localhost,
+      #    user: runner, db: runner)"
+      # -- the errors were swallowed, and the process then HUNG until the job's
+      # 25-minute timeout killed it. Measured on run 29500176167: the step
+      # burned 1431s of a 1500s budget and never printed one scenario line.
+      # Everything after it -- prisma validate AND both dependency-audit steps
+      # -- was skipped, so the security gate never actually executed.
+      #
+      # Handing CI a database would not fix it either: prompt size depends on
+      # real brain/task content, so against an empty CI database it measures a
+      # stub and passes trivially. It is a manual check by design -- its own
+      # header says so ("For now it's a manual check we run after any prompt
+      # change"). Run it locally, where the data is:
+      #
+      #   pnpm --filter @statenour/web prompt:size-check
+      #
+      # Do not re-add it here without giving it real data AND a step-level
+      # timeout-minutes; a hang here silently disables every step below.
 
       - name: Statenour · prisma validate
         if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
