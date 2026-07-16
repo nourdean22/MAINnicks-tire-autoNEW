@@ -174,11 +174,11 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
         logError("brain.operating-rhythm", err, { fn: "executeRhythm.getScore" });
         return null;
       }),
-    prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] } } }).catch((err): number => {
+    prisma.task.count({ where: { deletedAt: null, status: { in: ["INBOX", "READY", "DOING"] } } }).catch((err): number => {
       logError("brain.operating-rhythm", err, { fn: "executeRhythm.countTasks" });
       return 0;
     }),
-    prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }).catch((err): number => {
+    prisma.commitment.count({ where: { deletedAt: null, status: { in: ["active", "in_progress"] } } }).catch((err): number => {
       logError("brain.operating-rhythm", err, { fn: "executeRhythm.countCommitments" });
       return 0;
     }),

@@ -342,6 +342,7 @@ export async function findTeachingMoments(): Promise<TeachingMoment[]> {
       // Count active tasks (Apr 18: OpenLoop → Task) that existed on this date.
       const loopCountOnDate = await prisma.task.count({
         where: {
+          deletedAt: null,
           status: { in: ["INBOX", "READY", "DOING"] },
           createdAt: { lte: new Date(s.date + "T23:59:59") },
         },

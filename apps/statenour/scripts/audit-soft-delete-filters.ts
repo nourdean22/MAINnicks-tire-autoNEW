@@ -92,12 +92,10 @@ const ALLOWLIST: Array<{ file: string; contains: string; reason: string }> = [
     contains: "coveragePercent",
     reason: "Same numerator/denominator population mismatch as cold-memory.ts — see above. Paired fix required.",
   },
-  {
-    file: "lib/brain/learning-velocity.ts",
-    contains: "oldAvgConfidence",
-    reason:
-      "The 'before' half of confidenceDelta. The pruner soft-deletes LOW-confidence rows, so filtering the current avg but not the baseline manufactures a false 'confidence improving' signal. Fix as a pair or not at all.",
-  },
+  // (removed 2026-07-16) lib/brain/learning-velocity.ts oldAvgConfidence:
+  // the confidenceDelta pair (current avg + 30d-old avg) was fixed TOGETHER
+  // — both halves now filter deletedAt: null, so the one-sided-fix hazard
+  // this entry guarded against no longer applies.
   {
     file: "lib/services/brain-continuity.ts",
     contains: "allTime",

@@ -86,21 +86,22 @@ export async function getBrainMaturity(): Promise<BrainMaturityReport> {
   const [memories, memoriesRecent, memoriesPrevWeek, wisdom, predictions, embeddings, oldestMemory] = await Promise.all([
     prisma.brainMemory.groupBy({
       by: ["category"],
+      where: { deletedAt: null },
       _count: { id: true },
       _avg: { confidence: true },
       _min: { createdAt: true },
     }),
     prisma.brainMemory.groupBy({
       by: ["category"],
-      where: { createdAt: { gte: sevenDaysAgo } },
+      where: { deletedAt: null, createdAt: { gte: sevenDaysAgo } },
       _count: { id: true },
     }),
     prisma.brainMemory.groupBy({
       by: ["category"],
-      where: { createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
+      where: { deletedAt: null, createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
       _count: { id: true },
     }),
-    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.WISDOM } }),
+    prisma.brainMemory.count({ where: { deletedAt: null, category: BRAIN_CATEGORIES.WISDOM } }),
     prisma.prediction.findMany({
       where: { status: { in: ["confirmed", "disproven"] } },
       select: { category: true, status: true },

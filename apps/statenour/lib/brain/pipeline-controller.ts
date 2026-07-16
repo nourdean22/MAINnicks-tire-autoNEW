@@ -475,6 +475,7 @@ export async function proactiveAlerts(): Promise<{ alerts: string[] }> {
   // Check commitment health
   const overdueCommitments = await prisma.commitment.count({
     where: {
+      deletedAt: null,
       status: "active",
       deadline: { lt: today() },
     },
@@ -646,9 +647,9 @@ export async function runBrainCycle(): Promise<{ alerts: string[]; patterns: str
         select: { date: true, confidence: true, category: true },
       }),
       prisma.task.count({
-        where: { status: { in: ["INBOX", "READY", "DOING"] } },
+        where: { deletedAt: null, status: { in: ["INBOX", "READY", "DOING"] } }, // v10.0.68 · phantom counts
       }),
-      prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }),
+      prisma.commitment.count({ where: { deletedAt: null, status: { in: ["active", "in_progress"] } } }), // v10.0.68 · phantom counts
       prisma.auditEvent.findMany({
         where: { eventType: "page_visit", createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
         select: { detail: true, payload: true },

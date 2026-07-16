@@ -649,7 +649,7 @@ export async function evolveMemory(): Promise<{ evolved: string[] }> {
   // Check which categories are growing fastest and adjust weights
   const growth = await prisma.brainMemory.groupBy({
     by: ["category"],
-    where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+    where: { deletedAt: null, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
     _count: { id: true },
     orderBy: { _count: { id: "desc" } },
   });
@@ -691,6 +691,7 @@ export async function evolveMemory(): Promise<{ evolved: string[] }> {
   // Identify memory categories that are decaying (low avg confidence)
   const categoryHealth = await prisma.brainMemory.groupBy({
     by: ["category"],
+    where: { deletedAt: null },
     _avg: { confidence: true },
     _count: { id: true },
     having: { id: { _count: { gt: 5 } } },
