@@ -3,6 +3,7 @@ import { getDbTyped } from "../../db";
 import { socialContentInventory } from "../../../drizzle/schema";
 import { eq, and, lte, sql } from "drizzle-orm";
 import { publishToSocial } from "../../services/socialPublish";
+import { affectedRowCount } from "../../lib/db-affected";
 
 const log = createLogger("cron:social-inventory-publisher");
 
@@ -37,6 +38,22 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
 
     for (const item of due) {
       try {
+        // At-most-once claim before the irreversible send — same idiom as
+        // cron/jobs/crudAutomation.ts:507. The select above and the publish below are
+        // separate statements: without this CAS a retry, an overlapping tick, or an
+        // operator hitting Publish on the same row all reach Meta twice.
+        const claim = await db
+          .update(socialContentInventory)
+          .set({ status: "publishing", updatedAt: new Date() })
+          .where(and(
+            eq(socialContentInventory.id, item.id),
+            eq(socialContentInventory.status, item.status),
+          ));
+        if (affectedRowCount(claim) === 0) {
+          log.info(`Skipping ${item.id}: status moved from "${item.status}" since select — another worker owns it`);
+          continue;
+        }
+
         log.info(`Publishing inventory item: ${item.id} (topic: ${item.topic})`);
         
         const isReel = item.contentType === "reel";
@@ -80,14 +97,26 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
         }
 
         const { results } = await publishToSocial(mediaInput);
-        const allFailed = results.length > 0 && results.every((r) => !r.success);
+        const succeeded = results.filter((r) => r.success);
+        const failedResults = results.filter((r) => !r.success);
+        const errors = failedResults.map((r) => `${r.platform}: ${r.error}`).join("; ");
 
-        if (allFailed) {
+        if (succeeded.length === 0) {
           failed++;
-          const errors = results.map(r => `${r.platform}: ${r.error}`).join("; ");
           await db
             .update(socialContentInventory)
             .set({ status: "failed", errorMessage: errors.slice(0, 500) })
+            .where(eq(socialContentInventory.id, item.id));
+        } else if (failedResults.length > 0) {
+          // Partial: at least one platform is LIVE. The old branch recorded this as
+          // "published", hiding the failure entirely — the run reported a clean post
+          // while Instagram never received it. Not "failed" either: that invites a
+          // retry which would duplicate the platform that did succeed.
+          failed++;
+          log.warn(`Partial publish for ${item.id}: live on ${succeeded.map((r) => r.platform).join(", ")}; failed on ${errors}`);
+          await db
+            .update(socialContentInventory)
+            .set({ status: "published_partial", publishedAt: new Date(), errorMessage: errors.slice(0, 500) })
             .where(eq(socialContentInventory.id, item.id));
         } else {
           posted++;
