@@ -16,8 +16,9 @@
  */
 import { prisma } from "@/lib/prisma";
 import { readNickRevenue } from "@/lib/nickstire/revenue";
-import { daysAgo, toDateString } from "@/lib/utils/datetime";
+import { daysAgo, daysSince, daysUntil, toDateString } from "@/lib/utils/datetime";
 import { recentScoreSnapshots, recentDailyHabits } from "@/lib/brain/legacy-shims";
+import { isUserProject } from "@/lib/services/mission-helpers";
 
 export type PageContext =
   | "dashboard"
@@ -139,6 +140,104 @@ export async function buildPageData(page: string): Promise<string> {
             `"${c.description}"${c.deadline ? ` (due ${c.deadline})` : ""}`
         )
         .join(", ")}`;
+    }
+
+    // 2026-07-16 · audit HIGH · the /missions page (what bdnick.info/tasks
+    // redirects to) mounts NickSidePane with page="missions", which had no
+    // case here — so the side pane fell through to `default: ""` and the
+    // route substituted "(no structured data available)". Nick was advising
+    // on the operator's primary execution surface completely blind.
+    //
+    // Aliasing to the flat "tasks" case below would not fix it: the pane's
+    // own presets are mission-level ("Which mission should I push today?",
+    // "Which mission is stalling?"), and a bare list of task titles cannot
+    // answer them. This case mirrors what MissionFeed actually renders —
+    // active USER missions (Inbox/GENERAL anchors excluded via
+    // isUserProject, same predicate the UI filters with), each with open
+    // count, week's completions, stall age, deadline, and its top next
+    // action — plus the unattached queue.
+    case "missions": {
+      const sevenDaysAgo = daysAgo(7);
+      const [missions, tasks] = await Promise.all([
+        prisma.mission.findMany({
+          where: { status: "ACTIVE", deletedAt: null },
+          select: { id: true, title: true, domain: true, deadline: true, systemKind: true },
+        }),
+        prisma.task.findMany({
+          where: {
+            deletedAt: null,
+            OR: [
+              { status: { in: ["INBOX", "READY", "DOING", "WAITING"] } },
+              // "done this week" keys off lastCompletedAt, NOT updatedAt —
+              // updatedAt is bumped by unrelated writes, so it overcounts.
+              { status: "DONE", lastCompletedAt: { gte: sevenDaysAgo } },
+            ],
+          },
+          select: {
+            title: true,
+            status: true,
+            missionId: true,
+            autoPriority: true,
+            manualPriorityOverride: true,
+            dueDate: true,
+            lastTouchedAt: true,
+            loopKind: true,
+          },
+        }),
+      ]);
+
+      const userMissions = missions.filter(isUserProject);
+      const userMissionIds = new Set(userMissions.map((m) => m.id));
+      const isOpen = (t: { status: string }) => t.status !== "DONE";
+      // Higher effective priority = more urgent (scoreTaskPriority sums ROI +
+      // due-urgency + mission weight), so the "next action" is the max.
+      const prio = (t: { autoPriority: number | null; manualPriorityOverride: number | null }) =>
+        t.manualPriorityOverride ?? t.autoPriority ?? 0;
+
+      const lines = userMissions
+        .map((m) => {
+          const mine = tasks.filter((t) => t.missionId === m.id);
+          const open = mine.filter(isOpen);
+          const doneThisWeek = mine.length - open.length;
+          const next = open.slice().sort((a, b) => prio(b) - prio(a))[0];
+          const freshest = open
+            .map((t) => (t.lastTouchedAt ? new Date(t.lastTouchedAt).getTime() : 0))
+            .reduce((max, ms) => Math.max(max, ms), 0);
+          const stallDays = freshest > 0 ? daysSince(new Date(freshest)) : null;
+          const due = daysUntil(m.deadline);
+          return {
+            open: open.length,
+            text: [
+              `"${m.title.slice(0, 44)}" (${m.domain ?? "—"})`,
+              `${open.length} open · ${doneThisWeek} done this week`,
+              due != null ? (due < 0 ? `deadline OVERDUE ${Math.abs(due)}d` : `deadline in ${due}d`) : null,
+              stallDays != null && stallDays >= 3 ? `STALLED ${stallDays}d untouched` : null,
+              next ? `next: "${next.title.slice(0, 46)}" [${next.status} p${prio(next)}]` : "no open tasks",
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          };
+        })
+        .sort((a, b) => b.open - a.open)
+        .slice(0, 10);
+
+      const unattached = tasks.filter((t) => isOpen(t) && !userMissionIds.has(t.missionId));
+      const totalOpen = tasks.filter(isOpen).length;
+      const doneWeek = tasks.length - totalOpen;
+      const recurring = tasks.filter((t) => isOpen(t) && t.loopKind && t.loopKind !== "ONCE").length;
+
+      return [
+        `${userMissions.length} active missions · ${totalOpen} open tasks · ${doneWeek} completed in last 7d · ${recurring} recurring loops open.`,
+        lines.length > 0 ? `Missions:\n${lines.map((l) => `- ${l.text}`).join("\n")}` : "No active user missions.",
+        unattached.length > 0
+          ? `Unattached/inbox (${unattached.length}): ${unattached
+              .slice(0, 8)
+              .map((t) => `"${t.title.slice(0, 40)}"`)
+              .join(" · ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
     }
 
     case "tasks":
