@@ -517,7 +517,13 @@ export const diagnoseRouter = router({
         vehicleMake: z.string().max(50).optional(),
         vehicleModel: z.string().max(50).optional(),
         mileage: z.string().max(20).optional(),
-        symptoms: z.array(z.string().max(200)).min(1).max(20),
+        // 2026-07-16 · was max(200). The page prefills 151-186 chars of symptom
+        // text when a customer taps a zone, then tells them to "add more
+        // detail" — so ~1 added sentence blew the cap, zod rejected the call,
+        // and the client rendered a canned card that LOOKED like a diagnosis.
+        // The AI was never reached. 2000 matches lead.problem's cap and the
+        // textarea people actually type into.
+        symptoms: z.array(z.string().max(2000)).min(1).max(20),
         additionalInfo: z.string().max(2000).optional(),
       })
     )
