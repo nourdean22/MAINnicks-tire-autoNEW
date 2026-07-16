@@ -24,6 +24,29 @@ function normalizeKey(relKey: string): string {
   return relKey.replace(/^\/+/, "");
 }
 
+/** Is durable object storage (S3) configured? Local disk on Railway is
+ *  ephemeral — a deploy/restart wipes it, and prod already lost clips this
+ *  way. */
+export function durableStorageConfigured(): boolean {
+  return !!process.env.S3_BUCKET;
+}
+
+/**
+ * Precondition for anything that SPENDS money to produce media (Veo clips,
+ * paid image gen): refuse to start unless the result can be durably kept.
+ * Otherwise the pipeline pays for a clip, writes it to ephemeral disk, and a
+ * restart loses it — exactly the failure prod recorded. Operators who
+ * knowingly want ephemeral behavior (local testing) set
+ * REEL_ALLOW_EPHEMERAL_STORAGE=true.
+ */
+export function assertDurableStorageForGeneration(context: string): void {
+  if (durableStorageConfigured()) return;
+  if (process.env.REEL_ALLOW_EPHEMERAL_STORAGE === "true") return;
+  throw new Error(
+    `${context}: refusing to spend generation credits without durable storage — S3_BUCKET is not configured, so the output would land on ephemeral disk and be lost on the next deploy/restart. Configure S3_BUCKET (+ CLOUDFRONT_DOMAIN for permanent URLs), or set REEL_ALLOW_EPHEMERAL_STORAGE=true to accept ephemeral output.`,
+  );
+}
+
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
@@ -51,12 +74,21 @@ export async function storagePut(
       log.info("storagePut: saved locally", { filename, bytes: body.length });
       return { key, url };
     } catch (localErr) {
-      log.warn("Local file write failed, falling back to Catbox", {
-        err: localErr instanceof Error ? localErr.message : String(localErr),
-      });
+      const detail = localErr instanceof Error ? localErr.message : String(localErr);
+      // Fallback: Catbox.moe — an ANONYMOUS third-party free host. Shipping
+      // business media (customer footage, shop content) there is a provenance +
+      // availability liability, and the URL it returns passes
+      // assertPermanentPublicMediaUrl despite being untrusted. Off by default;
+      // opt in only with eyes open.
+      if (process.env.STORAGE_CATBOX_FALLBACK_ENABLED !== "true") {
+        log.error("Local storage write failed and Catbox fallback is disabled — failing closed", { filename, detail });
+        throw new Error(
+          `Storage write failed and no durable fallback is configured (${detail}). Configure S3_BUCKET, or set STORAGE_CATBOX_FALLBACK_ENABLED=true to allow the anonymous Catbox host.`,
+        );
+      }
+      log.warn("Local file write failed, falling back to Catbox", { err: detail });
     }
 
-    // Fallback: Catbox.moe (unreliable free host — last resort)
     const formData = new FormData();
     formData.append("reqtype", "fileupload");
     const blob = new Blob([body as any], { type: contentType });
