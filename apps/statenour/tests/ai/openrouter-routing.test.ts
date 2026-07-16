@@ -23,16 +23,26 @@ import { inferProviderName } from "@/lib/ai/stream-with-fallback";
 import { getModel } from "@/lib/ai/provider";
 
 const savedKey = process.env.OPENROUTER_API_KEY;
+const savedOllamaKey = process.env.OLLAMA_API_KEY;
 
 beforeAll(() => {
-  // Make the openrouter lane available/selected (it is first in every
-  // TASK_ROUTING_PREFERENCES entry).
+  // Make the openrouter lane the one getModel() selects. Since the
+  // 2026-07-12 repoint, ollama is FIRST in every TASK_ROUTING_PREFERENCES
+  // entry (openrouter second) — and lib/prisma.ts's loadEnvConfig() pulls
+  // .env into process.env for any test that transitively imports it, so on
+  // a dev machine with a real OLLAMA_API_KEY the ollama lane would win and
+  // this test would assert against the wrong provider. Remove ollama from
+  // contention explicitly: this test pins the OPENROUTER lane's regressions
+  // (Responses-API 400s + failure-marking misattribution), not routing order.
+  delete process.env.OLLAMA_API_KEY;
   process.env.OPENROUTER_API_KEY = "sk-or-test-not-a-real-key";
 });
 
 afterAll(() => {
   if (savedKey === undefined) delete process.env.OPENROUTER_API_KEY;
   else process.env.OPENROUTER_API_KEY = savedKey;
+  if (savedOllamaKey === undefined) delete process.env.OLLAMA_API_KEY;
+  else process.env.OLLAMA_API_KEY = savedOllamaKey;
 });
 
 describe("inferProviderName · openrouter recognition", () => {
