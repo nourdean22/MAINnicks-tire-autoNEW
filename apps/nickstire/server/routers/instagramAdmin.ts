@@ -96,10 +96,27 @@ export const instagramAdminRouter = router({
         configured: !!process.env.S3_BUCKET && !!process.env.CLOUDFRONT_DOMAIN,
         permanentUrls: !!process.env.CLOUDFRONT_DOMAIN,
       },
-      generator: {
-        configured: !!(await (await import("../services/higgsfieldStudio")).getHiggsfieldCredentialsJson()),
-        enabled: process.env.REEL_GENERATION_ENABLED === "true",
-      },
+      generator: await (async () => {
+        // The background reel pipeline generates video with VEO, not Higgsfield.
+        // Reporting Higgsfield-credential presence here was a lie: the card
+        // showed green while Veo (the active worker) had no key. Report the
+        // ACTIVE provider and ITS credentials. REEL_VIDEO_PROVIDER lets the
+        // operator name the provider explicitly; default reflects the code path
+        // (reelPipeline.submitVeoRequest → Veo).
+        const provider = (process.env.REEL_VIDEO_PROVIDER || "veo").toLowerCase();
+        const { veoCredentialsPresent } = await import("../services/veoStudio");
+        const higgsfieldConfigured = !!(await (await import("../services/higgsfieldStudio")).getHiggsfieldCredentialsJson());
+        const configured = provider === "higgsfield" ? higgsfieldConfigured : veoCredentialsPresent();
+        return {
+          provider,
+          configured,
+          enabled: process.env.REEL_GENERATION_ENABLED === "true",
+          // Kept so the Settings UI can still surface Higgsfield status separately
+          // (it's the carousel/image path), without conflating it with the reel
+          // video generator's health.
+          higgsfieldConfigured,
+        };
+      })(),
       meta: {
         connected: meta.configured && (meta.facebookReady || meta.instagramReady),
       },

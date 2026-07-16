@@ -41,6 +41,16 @@ interface VeoOperation {
 }
 
 /** Mint the Google auth header — Gemini API key if present, else the service-account JWT. */
+/** Are Veo credentials PRESENT? Veo (not Higgsfield) is the background reel
+ *  video generator, so this is what the pipeline-health card must check — a
+ *  Higgsfield-only credential check reports the reel generator green while the
+ *  active worker has no key. Presence only (mirrors veoAuthHeader's inputs);
+ *  not a live probe. */
+export function veoCredentialsPresent(): boolean {
+  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENAI_API_KEY) return true;
+  return !!(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+}
+
 async function veoAuthHeader(): Promise<Record<string, string>> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
   if (apiKey) return { "x-goog-api-key": apiKey };
