@@ -63,34 +63,36 @@ const requireAdminIdentity = t.middleware(async opts => {
 /** Admin identity without MFA enforcement. Restricted to setup/status/verification procedures. */
 export const adminIdentityProcedure = t.procedure.use(loggerMiddleware).use(requireAdminIdentity);
 
-const requireFreshMfaAndPermission = t.middleware(async opts => {
-  const { ctx, next, path, type } = opts;
-  const security = ctx.adminSecurity ?? await getAdminSecurityState(ctx.user.openId);
-  if (!security?.mfaEnabled) {
-    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Admin two-factor authentication setup is required." });
-  }
-  if (!isMfaVerificationFresh(security.mfaVerifiedAt)) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin two-factor verification is required." });
-  }
-  const requiredPermission = permissionForAdminProcedure(path, type);
-  if (!hasAdminPermission(security.adminRole, requiredPermission)) {
-    throw new TRPCError({ code: "FORBIDDEN", message: `Missing admin permission: ${requiredPermission}` });
-  }
-  return next({ ctx: { ...ctx, adminSecurity: security } });
-});
-
+// MFA + permission enforcement is written INLINE in the chain below rather than
+// as a standalone t.middleware(): standalone middlewares are typed against the
+// ROOT context, so they cannot see `adminSecurity` (added by requireAdminIdentity)
+// or its non-null `user` narrowing — #767 shipped that as 3 typecheck errors.
+// Inline .use() callbacks inherit the accumulated ctx type from the chain.
 export const adminProcedure = t.procedure
   .use(loggerMiddleware)
   .use(requireAdminIdentity)
-  .use(requireFreshMfaAndPermission);
+  .use(async ({ ctx, next, path, type }) => {
+    const security = ctx.adminSecurity ?? await getAdminSecurityState(ctx.user.openId);
+    if (!security?.mfaEnabled) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Admin two-factor authentication setup is required." });
+    }
+    if (!isMfaVerificationFresh(security.mfaVerifiedAt)) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin two-factor verification is required." });
+    }
+    const requiredPermission = permissionForAdminProcedure(path, type);
+    if (!hasAdminPermission(security.adminRole, requiredPermission)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: `Missing admin permission: ${requiredPermission}` });
+    }
+    return next({ ctx: { ...ctx, adminSecurity: security } });
+  });
 
 export function adminPermissionProcedure(permission: AdminPermission) {
-  return adminProcedure.use(t.middleware(async ({ ctx, next }) => {
+  return adminProcedure.use(async ({ ctx, next }) => {
     if (!hasAdminPermission(ctx.adminSecurity.adminRole, permission)) {
       throw new TRPCError({ code: "FORBIDDEN", message: `Missing admin permission: ${permission}` });
     }
     return next({ ctx });
-  }));
+  });
 }
 
 export const voiceAgentInternalProcedure = t.procedure.use(loggerMiddleware).use(

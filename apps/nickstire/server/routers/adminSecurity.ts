@@ -72,9 +72,14 @@ export const adminSecurityRouter = router({
   setRole: adminPermissionProcedure("security.manage")
     .input(z.object({ openId: z.string().min(1), role: z.enum(ADMIN_ROLES) }))
     .mutation(async ({ ctx, input }) => {
+      // Same widening as recordAction below: adminPermissionProcedure builds on
+      // adminProcedure, whose second middleware re-spreads ctx and loses the
+      // non-null narrowing requireAdminIdentity established.
+      const { user } = ctx;
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin identity missing" });
       await setAdminRole(input.openId, input.role);
       const reference = await recordAdminAction({
-        actor: ctx.user.email || ctx.user.openId,
+        actor: user.email || user.openId,
         action: "admin.role_changed",
         entityType: "admin_action",
         entityId: input.openId,
@@ -91,16 +96,23 @@ export const adminSecurityRouter = router({
       entityId: z.union([z.string(), z.number()]).optional(),
       changes: z.record(z.string(), z.unknown()).optional(),
     }))
-    .mutation(async ({ ctx, input }) => ({
-      reference: await recordAdminAction({
-        actor: ctx.user.email || ctx.user.openId,
-        action: input.action,
-        entityType: "admin_action",
-        entityId: input.entityId,
-        changes: { sourceEntityType: input.entityType ?? null, ...(input.changes ?? {}) },
-        ipAddress: requestIp(ctx.req),
-      }),
-    })),
+    .mutation(async ({ ctx, input }) => {
+      // requireAdminIdentity already threw if user is null, but the second
+      // middleware in adminProcedure re-spreads ctx and widens the type back —
+      // so assert at runtime rather than with a `!` that hides a future break.
+      const { user } = ctx;
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin identity missing" });
+      return {
+        reference: await recordAdminAction({
+          actor: user.email || user.openId,
+          action: input.action,
+          entityType: "admin_action",
+          entityId: input.entityId,
+          changes: { sourceEntityType: input.entityType ?? null, ...(input.changes ?? {}) },
+          ipAddress: requestIp(ctx.req),
+        }),
+      };
+    }),
 
   recentActions: adminPermissionProcedure("reports.view")
     .input(z.object({ limit: z.number().int().min(1).max(200).default(50) }).optional())
