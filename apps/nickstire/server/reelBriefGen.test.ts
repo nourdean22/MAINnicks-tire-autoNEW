@@ -60,3 +60,19 @@ describe("parseReelJson (resilient extraction)", () => {
     expect(parseReelJson('Winning reel:\n{"topic":"alignment"}\nDone.')).toMatchObject({ topic: "alignment" });
   });
 });
+
+describe("parseReelJson truncation detection (prod 2026-07-16)", () => {
+  it("names token-budget truncation instead of 'Unexpected end of JSON input'", () => {
+    const truncated = '{"caption":"Pothole season","storyboardBeats":[{"beatNumber":1,"onScreenText":"POTHOLE';
+    expect(() => parseReelJson(truncated)).toThrowError(/TRUNCATED.*output-token budget/s);
+  });
+
+  it("detects mid-ARRAY truncation too (prod signature: \"Expected ',' or ']' after array element\")", () => {
+    const midArray = '{"storyboardBeats":[{"beatNumber":1},{"beatNumber":2}';
+    expect(() => parseReelJson(midArray)).toThrowError(/TRUNCATED/);
+  });
+
+  it("still parses complete JSON wrapped in a fence", () => {
+    expect(parseReelJson('```json\n{"a":1}\n```')).toEqual({ a: 1 });
+  });
+});

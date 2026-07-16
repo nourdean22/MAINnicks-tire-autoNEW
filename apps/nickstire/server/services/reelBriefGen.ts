@@ -164,7 +164,26 @@ export function parseReelJson(raw: string): Record<string, unknown> {
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");
   if (first >= 0 && last > first) s = s.slice(first, last + 1);
-  return JSON.parse(s) as Record<string, unknown>;
+  try {
+    return JSON.parse(s) as Record<string, unknown>;
+  } catch (err) {
+    // Raw "Unexpected end of JSON input" told the operator nothing. An
+    // unbalanced brace count means the model ran out of output tokens
+    // mid-object — name that, so the fix (budget, not prompt) is obvious.
+    const opens = (s.match(/{/g) || []).length;
+    const closes = (s.match(/}/g) || []).length;
+    const arrOpens = (s.match(/\[/g) || []).length;
+    const arrCloses = (s.match(/]/g) || []).length;
+    // Both prod signatures of the same truncation: "Unexpected end of JSON
+    // input" (cut mid-object) and "Expected ',' or ']' after array element"
+    // (cut mid-array, seen at position ~7141 on the very next attempt).
+    if (opens > closes || arrOpens > arrCloses) {
+      throw new Error(
+        `Reel brief JSON is TRUNCATED (braces ${opens}/${closes}, brackets ${arrOpens}/${arrCloses}) — the model hit its output-token budget mid-structure. Raise maxTokens for this call.`,
+      );
+    }
+    throw err;
+  }
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
@@ -366,8 +385,12 @@ export async function generateReelBriefAI(
           shareCta,
       },
     ],
-    // Large brief + gemini-2.5-flash thinking overhead — generous headroom.
-    maxTokens: 8192,
+    // Largest JSON in the app + gemini-2.5-flash counts its internal THINKING
+    // against maxOutputTokens — 8192 truncated the brief mid-JSON in prod
+    // ("Unexpected end of JSON input", 42s call, observed live 2026-07-16).
+    // 2.5-flash supports 65k output; 24576 leaves the thinking share room
+    // without inviting runaway generations.
+    maxTokens: 24576,
     // Full-brief generation routinely exceeds the default 30s LLM timeout.
     timeoutMs: 120000,
     outputSchema: REEL_BRIEF_SCHEMA,
