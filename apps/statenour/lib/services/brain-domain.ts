@@ -192,7 +192,7 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
     loadAllContradictions(90).catch(() => []),
     loadGhostAccuracy().catch(() => null),
     prisma.brainMemory
-      .count({ where: { category: BRAIN_CATEGORIES.CHAT_IMPORTANCE } })
+      .count({ where: { category: BRAIN_CATEGORIES.CHAT_IMPORTANCE, deletedAt: null } })
       .catch((err) => {
         logger.warn("brain_memory_count_failed", {
           category: "CHAT_IMPORTANCE",
@@ -201,7 +201,7 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
         return 0;
       }),
     prisma.brainMemory
-      .count({ where: { category: BRAIN_CATEGORIES.CHAT_SUMMARY } })
+      .count({ where: { category: BRAIN_CATEGORIES.CHAT_SUMMARY, deletedAt: null } })
       .catch((err) => {
         logger.warn("brain_memory_count_failed", {
           category: "CHAT_SUMMARY",

@@ -1386,6 +1386,9 @@ async function cmdStats(chatId: string): Promise<void> {
     prisma.brainMemory
       .count({
         where: {
+          // deletedAt first so the soft-delete audit's scan window sees it
+          // (the long category list pushed it out of range before).
+          deletedAt: null,
           category: {
             in: [
               "correlation_alert",
@@ -1398,7 +1401,6 @@ async function cmdStats(chatId: string): Promise<void> {
             ],
           },
           createdAt: { gte: sevenDaysAgo },
-          deletedAt: null,
         },
       })
       .catch(() => 0),

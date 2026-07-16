@@ -98,15 +98,25 @@ export async function buildContinuityReport(): Promise<ContinuityReport> {
   const day7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   // ── Totals ──
+  // phantom-counts final wave (2026-07-16, operator call): every total on
+  // this card describes the LIVE population. `allTime` now means "all live
+  // rows ever" (all rows ever written minus tombstones), NOT "all rows ever
+  // written" — so allTime/active/expired stay mutually consistent.
   const [allCount, activeCount, expiredCount, byCategoryRaw] =
     await Promise.all([
-      prisma.brainMemory.count(),
+      prisma.brainMemory.count({ where: { deletedAt: null } }),
       prisma.brainMemory.count({
-        where: { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+        where: {
+          deletedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
       }),
-      prisma.brainMemory.count({ where: { expiresAt: { lt: now } } }),
+      prisma.brainMemory.count({
+        where: { deletedAt: null, expiresAt: { lt: now } },
+      }),
       prisma.brainMemory.groupBy({
         by: ["category"],
+        where: { deletedAt: null },
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
         take: 15,
@@ -200,12 +210,14 @@ export async function buildContinuityReport(): Promise<ContinuityReport> {
         prisma.brainMemory.count({
           where: {
             category,
+            deletedAt: null,
             OR: [{ createdAt: { gte: day1 } }, { updatedAt: { gte: day1 } }],
           },
         }),
         prisma.brainMemory.count({
           where: {
             category,
+            deletedAt: null,
             OR: [{ createdAt: { gte: day7 } }, { updatedAt: { gte: day7 } }],
           },
         }),

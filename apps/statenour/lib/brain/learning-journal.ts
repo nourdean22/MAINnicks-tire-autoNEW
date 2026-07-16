@@ -124,13 +124,13 @@ export async function generateLearningJournal(): Promise<JournalEntry> {
     // important-domain weak-spot detection · aggregated in memory.
     weakSpotStats,
   ] = await Promise.all([
-    prisma.brainMemory.count({ where: { createdAt: { gte: todayStart } } }),
-    prisma.brainMemory.count({ where: { updatedAt: { gte: todayStart }, confidence: { lt: 0.2 } } }),
+    prisma.brainMemory.count({ where: { deletedAt: null, createdAt: { gte: todayStart } } }),
+    prisma.brainMemory.count({ where: { deletedAt: null, updatedAt: { gte: todayStart }, confidence: { lt: 0.2 } } }),
     prisma.prediction.count({ where: { status: "confirmed", updatedAt: { gte: todayStart } } }),
     prisma.prediction.count({ where: { status: "disproven", updatedAt: { gte: todayStart } } }),
-    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.WISDOM, createdAt: { gte: todayStart } } }),
-    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.BLIND_SPOT, createdAt: { gte: todayStart } } }),
-    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.COUNTER_INTUITIVE, createdAt: { gte: todayStart } } }),
+    prisma.brainMemory.count({ where: { deletedAt: null, category: BRAIN_CATEGORIES.WISDOM, createdAt: { gte: todayStart } } }),
+    prisma.brainMemory.count({ where: { deletedAt: null, category: BRAIN_CATEGORIES.BLIND_SPOT, createdAt: { gte: todayStart } } }),
+    prisma.brainMemory.count({ where: { deletedAt: null, category: BRAIN_CATEGORIES.COUNTER_INTUITIVE, createdAt: { gte: todayStart } } }),
     prisma.reflection.findMany({ where: { date: todayStr, deletedAt: null }, select: { insight: true }, take: 3 }),
     // Historical
     prisma.brainMemory.count({ where: { deletedAt: null, createdAt: { gte: sevenDaysAgo } } }),

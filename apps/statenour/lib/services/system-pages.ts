@@ -108,6 +108,9 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
       checkDbConnection(),
       getKpiSummary(),
       Promise.all([
+        // modelCounts = PHYSICAL table census (tombstones included on
+        // purpose — see ALLOWLIST in scripts/audit-soft-delete-filters.ts;
+        // rows must stay comparable with models that have no deletedAt).
         prisma.mission.count(),
         prisma.task.count(),
         Promise.resolve(0),
@@ -118,7 +121,7 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
         prisma.chatMessage.count(),
         prisma.aiGeneration.count(),
         prisma.systemMetric.count(),
-        prisma.brainMemory.count(),
+        prisma.brainMemory.count(), // modelCounts census (see comment above)
         prisma.automationRule.count(),
       ]).then(
         ([

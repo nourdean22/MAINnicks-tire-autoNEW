@@ -131,7 +131,7 @@ export async function buildPageData(page: string): Promise<string> {
           where: { status: { in: ["active", "in_progress"] }, deletedAt: null },
         }),
         prisma.commitment.count({
-          where: { status: "broken", updatedAt: { gte: new Date(weekAgo) } },
+          where: { status: "broken", deletedAt: null, updatedAt: { gte: new Date(weekAgo) } },
         }),
       ]);
       return `${active.length} active commitments. ${broken} broken this week. Commitments: ${active
@@ -366,7 +366,7 @@ export async function buildPageData(page: string): Promise<string> {
         prisma.journalThreadEntry.count({
           where: { joinedAt: { gte: sevenDaysAgo } },
         }),
-        prisma.journalThread.count({ where: { status: "dormant" } }),
+        prisma.journalThread.count({ where: { status: "dormant", deletedAt: null } }),
       ]);
       return [
         `${recentEntries} entries this week · ${threads.length} active threads · ${dormantCount} dormant.`,

@@ -32,8 +32,10 @@ export async function verifyEnvironmentState(
       if (call.name === "createTask") {
         const args = call.args as { title?: string };
         if (args?.title) {
+          // deletedAt: null — a soft-deleted task must not satisfy "the
+          // side effect was durably committed".
           const task = await prisma.task.findFirst({
-            where: { title: args.title, createdAt: { gte: recentCutoff } },
+            where: { title: args.title, deletedAt: null, createdAt: { gte: recentCutoff } },
             orderBy: { createdAt: "desc" }
           });
           if (task) {
@@ -51,7 +53,7 @@ export async function verifyEnvironmentState(
           // title was looked up.
           const titles = args.tasks.map((t) => t.title).filter(Boolean);
           const found = await prisma.task.count({
-            where: { title: { in: titles }, createdAt: { gte: recentCutoff } },
+            where: { title: { in: titles }, deletedAt: null, createdAt: { gte: recentCutoff } },
           });
           if (found >= args.tasks.length) {
             results.push({ toolName: call.name, verified: true });

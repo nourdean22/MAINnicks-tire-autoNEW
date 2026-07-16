@@ -38,6 +38,7 @@ async function resolveYesterday(): Promise<string> {
       .count({
         where: {
           status: "DONE",
+          deletedAt: null,
           updatedAt: {
             gte: new Date(`${date}T00:00:00Z`),
             lt: new Date(`${date}T23:59:59Z`),
@@ -49,6 +50,7 @@ async function resolveYesterday(): Promise<string> {
       .count({
         where: {
           category: BRAIN_CATEGORIES.CONTRADICTION,
+          deletedAt: null,
           createdAt: {
             gte: new Date(`${date}T00:00:00Z`),
             lt: new Date(`${date}T23:59:59Z`),
@@ -101,11 +103,12 @@ async function resolveWeek(): Promise<string> {
         orderBy: { key: "asc" },
       })
       .catch(() => [] as Array<{ key: string; content: string }>),
-    prisma.task.count({ where: { status: "DONE", updatedAt: { gte: weekAgo } } }).catch(() => 0),
+    prisma.task.count({ where: { status: "DONE", deletedAt: null, updatedAt: { gte: weekAgo } } }).catch(() => 0),
     prisma.task
       .count({
         where: {
           loopKind: "DAILY",
+          deletedAt: null,
           lastCompletedAt: { gte: weekAgo },
           OR: [
             { title: { contains: "workout", mode: "insensitive" } },

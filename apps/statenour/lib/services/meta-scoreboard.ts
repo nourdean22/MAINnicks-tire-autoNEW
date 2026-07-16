@@ -143,7 +143,7 @@ async function pickOpenTasks(): Promise<ScoreboardNumber> {
 
 async function pickActiveCommitments(): Promise<ScoreboardNumber> {
   const n = await prisma.commitment
-    .count({ where: { status: { in: ["active", "in_progress"] } } })
+    .count({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } })
     .catch(() => 0);
   return {
     key: "active_commitments",

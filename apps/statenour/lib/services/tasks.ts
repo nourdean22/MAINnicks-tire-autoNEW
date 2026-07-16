@@ -1372,6 +1372,7 @@ export async function maybeSpawnNextPhase(missionId: string, phaseName: string):
     where: {
       missionId,
       phaseName,
+      deletedAt: null,
       status: { in: ["INBOX", "READY", "DOING", "WAITING"] },
     },
   });

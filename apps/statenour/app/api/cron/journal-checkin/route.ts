@@ -29,10 +29,11 @@ export const GET = cronHandler(async (req) => {
       take: 5,
       select: { title: true, autoPriority: true },
     }),
-    prisma.brainDump.count({ where: { date: today() } }),
+    prisma.brainDump.count({ where: { date: today(), deletedAt: null } }),
     prisma.task.count({
       where: {
         status: "DONE",
+        deletedAt: null,
         updatedAt: {
           // forensic-audit MEDIUM · was setHours(0,0,0,0) = server-local (UTC on
           // Railway) midnight, ~4-5h off Eastern, so the evening check-in

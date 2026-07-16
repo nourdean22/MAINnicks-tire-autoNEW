@@ -96,17 +96,12 @@ const ALLOWLIST: Array<{ file: string; contains: string; reason: string }> = [
   // the confidenceDelta pair (current avg + 30d-old avg) was fixed TOGETHER
   // — both halves now filter deletedAt: null, so the one-sided-fix hazard
   // this entry guarded against no longer applies.
-  {
-    file: "lib/services/brain-continuity.ts",
-    contains: "allTime",
-    reason:
-      "Field is literally an all-time cumulative counter; a later deletion arguably should not rewrite it. Operator call, not a mechanical filter.",
-  },
-  {
-    file: "app/api/brain/continuity/route.ts",
-    contains: "allTime",
-    reason: "Legacy REST twin of the brain-continuity service — same all-time semantics.",
-  },
+  // (removed 2026-07-16, final wave) brain-continuity `allTime` (service +
+  // legacy REST twin): operator ordered consistency — allTime now filters
+  // deletedAt too, so the card's allTime/active/expired all describe the
+  // live population ("all live rows ever", not "all rows ever written").
+  // The REST route now delegates to buildContinuityReport(), so the twin
+  // entry has no query block left to exempt.
   {
     file: "app/api/missions/[id]/retro/route.ts",
     contains: "taskCount",

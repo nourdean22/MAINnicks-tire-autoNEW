@@ -152,18 +152,19 @@ export async function POST(req: Request) {
       attentionTopics,
     ] = await Promise.all([
       prisma.task
-        .count({ where: { status: "DONE", updatedAt: { gte: daysAgo(1) } } })
+        .count({ where: { status: "DONE", deletedAt: null, updatedAt: { gte: daysAgo(1) } } })
         .catch(() => 0),
       prisma.task
-        .count({ where: { status: { notIn: ["DONE", "ARCHIVED"] } } })
+        .count({ where: { status: { notIn: ["DONE", "ARCHIVED"] }, deletedAt: null } })
         .catch(() => 0),
       prisma.commitment
-        .count({ where: { status: "active", deadline: { lt: todayLocal } } })
+        .count({ where: { status: "active", deadline: { lt: todayLocal }, deletedAt: null } })
         .catch(() => 0),
       prisma.brainMemory
         .count({
           where: {
             category: BRAIN_CATEGORIES.CONTRADICTION,
+            deletedAt: null,
             createdAt: { gte: daysAgo(14) },
           },
         })
@@ -175,7 +176,7 @@ export async function POST(req: Request) {
         })
         .catch(() => null),
       prisma.brainMemory
-        .count({ where: { category: BRAIN_CATEGORIES.SKILL } })
+        .count({ where: { category: BRAIN_CATEGORIES.SKILL, deletedAt: null } })
         .catch(() => 0),
       // Lightweight attention proxy from recent chat messages
       prisma.chatMessage

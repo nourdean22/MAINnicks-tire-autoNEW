@@ -111,6 +111,7 @@ export async function buildSituation(): Promise<SituationPayload> {
       prisma.brainMemory
         .count({
           where: {
+            deletedAt: null,
             category: {
               in: [
                 "pattern",
@@ -137,12 +138,13 @@ export async function buildSituation(): Promise<SituationPayload> {
         })
         .catch((): Array<{ id: string; updatedAt: Date }> => []),
       prisma.brainMemory
-        .count({ where: { category: BRAIN_CATEGORIES.PINNED_USER } })
+        .count({ where: { category: BRAIN_CATEGORIES.PINNED_USER, deletedAt: null } })
         .catch(() => 0),
       prisma.brainMemory
         .count({
           where: {
             category: BRAIN_CATEGORIES.PINNED_USER,
+            deletedAt: null,
             updatedAt: { lt: daysAgo(14) },
           },
         })
@@ -154,7 +156,7 @@ export async function buildSituation(): Promise<SituationPayload> {
         .catch(() => 0),
       prisma.reflection
         .count({
-          where: { createdAt: { gte: startOfToday } },
+          where: { deletedAt: null, createdAt: { gte: startOfToday } },
         })
         .catch(() => 0),
       prisma.brainMemory
@@ -218,6 +220,7 @@ export async function buildSituation(): Promise<SituationPayload> {
       prisma.brainMemory
         .count({
           where: {
+            deletedAt: null,
             createdAt: { gte: daysAgo(1) },
             category: {
               in: [
@@ -243,6 +246,7 @@ export async function buildSituation(): Promise<SituationPayload> {
         .groupBy({
           by: ["category"],
           where: {
+            deletedAt: null,
             createdAt: { gte: daysAgo(7) },
             category: {
               in: [

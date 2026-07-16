@@ -129,6 +129,7 @@ export async function GET() {
         prisma.task.count({
           where: {
             status: { in: ["INBOX", "READY"] },
+            deletedAt: null,
             OR: [{ title: { contains: "callback", mode: "insensitive" } }, { title: { contains: "call", mode: "insensitive" } }],
           },
         }).catch(() => 0),

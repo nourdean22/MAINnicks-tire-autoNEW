@@ -166,6 +166,7 @@ export async function prefetchIntents(
           const stats = await prisma.commitment
             .groupBy({
               by: ["status"],
+              where: { deletedAt: null },
               _count: { _all: true },
             })
             .catch((): Array<{ status: string; _count: { _all: number } }> => []);
