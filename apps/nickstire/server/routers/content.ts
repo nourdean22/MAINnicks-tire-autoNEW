@@ -941,10 +941,21 @@ export const contentAdminRouter = router({
           await sendTelegram(msg);
           return { success: true, postId: mockPostId, isSandbox: true };
         }
+        // LIVE branch: this legacy path publishes a CLIENT-supplied videoUrl +
+        // caption with no inventory row, no approval record, and no media
+        // permanence check — it bypasses the provenance every reviewed path
+        // enforces. Disabled by default; the reviewed Studio → approve →
+        // publish path is the supported route. The sandbox preview above still
+        // works for previewing without Meta credentials.
+        if (process.env.REEL_LEGACY_PUBLISH_ENABLED !== "true") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "The legacy direct reel publisher is disabled (it bypasses approval provenance). Publish reels through Studio → approve → publish. Set REEL_LEGACY_PUBLISH_ENABLED=true only if you understand the bypass.",
+          });
+        }
         // Route the LIVE post through the single gated choke point
         // (REEL_PUBLISH_ENABLED + reel claim-safety) — never call
-        // postInstagramReel directly. The sandbox preview branch above is
-        // unchanged.
+        // postInstagramReel directly.
         const { publishToSocial } = await import("../services/socialPublish");
         const { results } = await publishToSocial({
           platforms: ["instagram"],
@@ -1552,6 +1563,23 @@ export const contentAdminRouter = router({
       dryRun: z.boolean().optional(),
     }).optional())
     .mutation(async ({ input }) => {
+      // This endpoint force-armed publishing PROCESS-WIDE (see the removed
+      // env mutation below) — any concurrent cron pulse saw the kill switch
+      // defeated for its whole multi-minute run. It also publishes without an
+      // approval record. Gated OFF by default; opt in only in a real test
+      // environment, and even then non-dryRun requires a second explicit flag.
+      if (process.env.REEL_LIVE_TEST_ENABLED !== "true") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Live-test reel endpoint is disabled. Set REEL_LIVE_TEST_ENABLED=true in a test environment to use it; production reels go through Studio → approve → publish.",
+        });
+      }
+      if (!input?.dryRun && process.env.REEL_LIVE_TEST_ALLOW_PUBLISH !== "true") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Live-test publishing is disabled. Pass dryRun=true, or set REEL_LIVE_TEST_ALLOW_PUBLISH=true to publish from the canary (not recommended — it bypasses approval provenance).",
+        });
+      }
       const db = await getDbTyped();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
 
@@ -1621,13 +1649,13 @@ export const contentAdminRouter = router({
       const character = spine.characters[0] || "";
       const visualStyle = determineVisualStyle(serviceCat, "Cleveland Survival Guide");
 
-      // Temporarily override flags to ensure pipeline execution is armed
-      const origGen = process.env.REEL_GENERATION_ENABLED;
-      const origPub = process.env.REEL_PUBLISH_ENABLED;
-      process.env.REEL_GENERATION_ENABLED = "true";
-      process.env.REEL_PUBLISH_ENABLED = "true";
-
-      try {
+      // NOTE: this endpoint used to set REEL_GENERATION_ENABLED and
+      // REEL_PUBLISH_ENABLED = "true" here, PROCESS-WIDE, for the whole run —
+      // defeating the operator's kill switch for every concurrent cron. That
+      // mutation is removed. The gate above (REEL_LIVE_TEST_ENABLED) is what
+      // authorizes this canary; the pipeline reads the real flags, which must
+      // already be armed in the test environment for generation to proceed.
+      {
         const { jobId } = await enqueueReelJob(bestBrief, "admin");
         log.info(`Enqueued reel job ID: ${jobId}`);
 
@@ -1716,8 +1744,16 @@ export const contentAdminRouter = router({
           }
         }
 
+        // publishToSocial returns { results, igPostId } with NO top-level
+        // `success` — the old `pubResult.success` was always undefined, so a
+        // real live post reported success:false. Derive it from the actual IG
+        // result (or the dry-run short-circuit).
+        const igResult = Array.isArray(pubResult.results)
+          ? pubResult.results.find((r: { platform: string }) => r.platform === "instagram")
+          : undefined;
+        const publishedOk = input?.dryRun ? true : !!igResult?.success;
         return {
-          success: pubResult.success || (input?.dryRun ? true : false),
+          success: publishedOk,
           jobId,
           topic: bestBrief.topic,
           championHook: bestBrief.captionHooks?.[0] || bestBrief.mechanicTruth,
@@ -1733,9 +1769,6 @@ export const contentAdminRouter = router({
           metaPublishResponse: pubResult,
           criticScores: bestCriticScores,
         };
-      } finally {
-        process.env.REEL_GENERATION_ENABLED = origGen;
-        process.env.REEL_PUBLISH_ENABLED = origPub;
       }
     }),
   runFullPipeline: adminProcedure

@@ -44,7 +44,11 @@ vi.mock("../db", () => {
           return [{ affectedRows: 1 }];
         }
       })
-    })
+    }),
+    // approveDraft now wraps the CAS flip + approval insert in one transaction;
+    // model it as run-the-callback-with-the-same-db (a thrown callback
+    // propagates, mirroring rollback-on-error).
+    transaction: async (cb: (tx: any) => Promise<unknown>) => cb(dbMock),
   };
 
   return {

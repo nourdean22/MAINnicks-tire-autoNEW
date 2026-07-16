@@ -673,6 +673,20 @@
       "when": 1784201052258,
       "tag": "0082_lead_source_diagnose",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "5",
+      "when": 1784250000000,
+      "tag": "0083_admin_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "5",
+      "when": 1784251000000,
+      "tag": "0084_reel_approvals_and_inventory_version",
+      "breakpoints": true
     }
   ]
 }
