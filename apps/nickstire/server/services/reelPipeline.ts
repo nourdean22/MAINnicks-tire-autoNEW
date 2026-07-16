@@ -38,9 +38,20 @@ const STUCK_JOB_MS = Number(process.env.REEL_STUCK_JOB_MS) || 12 * 60_000;
  *  outcome so a resolved promise never leaks a dangling handle. NOTE: this
  *  unblocks the JOB, not the underlying op — a timed-out generator CLI
  *  subprocess keeps running until it exits on its own; we just stop awaiting it. */
+/** A LOCAL timeout — the underlying provider operation is NOT cancelled and may
+ *  still be running/charging. Callers must distinguish this from a provider
+ *  failure: a timed-out Veo op must be RESUMED (same operation name), never
+ *  re-submitted, or every timeout doubles the paid spend. */
+export class LocalTimeoutError extends Error {
+  readonly isLocalTimeout = true as const;
+}
+export function isLocalTimeout(e: unknown): e is LocalTimeoutError {
+  return e instanceof LocalTimeoutError || (typeof e === "object" && e !== null && (e as { isLocalTimeout?: boolean }).isLocalTimeout === true);
+}
+
 export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+    const timer = setTimeout(() => reject(new LocalTimeoutError(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
     p.then(
       (v) => {
         clearTimeout(timer);
@@ -199,7 +210,16 @@ export async function processNextReelJob(): Promise<{
           );
           finalClipUrl = await downloadAndRehostVeoVideo(videoUri);
         } catch (pollErr) {
-          log.warn("existing operation name failed or timed out, creating fresh request", { jobId: job.id, beat: beat.beatNumber, err: pollErr });
+          // A LOCAL timeout means the Veo op is still alive — re-throw so the
+          // job requeues and the NEXT pulse resumes polling this SAME opName
+          // (persisted on the beat). Discarding it here and re-submitting is
+          // what doubled the paid spend on every timeout. Only a genuine
+          // provider failure (op rejected/failed) is safe to replace.
+          if (isLocalTimeout(pollErr)) {
+            log.warn("poll timed out — resuming same Veo op next pulse (no re-submit)", { jobId: job.id, beat: beat.beatNumber, opName });
+            throw pollErr;
+          }
+          log.warn("existing Veo op failed (provider error) — submitting a fresh request", { jobId: job.id, beat: beat.beatNumber, err: pollErr });
           opName = undefined;
         }
       }
