@@ -340,6 +340,16 @@ function isVeniceAvailable(): boolean {
 }
 
 const anthropicBreaker = makeQuotaBreaker("anthropic", PROVIDERS_REGISTRY.anthropic.cooldownMs);
+// 2026-07-16 (chat audit) · mark/clear were NEVER exported for the
+// anthropic + openai breakers — the breakers existed but nothing could
+// trip them, so during the 07-15 provider outage every chat call
+// re-tried the dead lanes and burned the full per-attempt timeout
+// (~29s/call). Exported now and wired into the stream failure paths
+// (stream-with-fallback.ts + stream-error-handler.ts), exactly like
+// gemini/ollama.
+export const markAnthropicQuotaExhausted = anthropicBreaker.mark;
+export const clearAnthropicQuotaExhausted = anthropicBreaker.clear;
+export const isAnthropicQuotaExhausted = anthropicBreaker.isExhausted;
 export const getAnthropicCooldownRemainingMs = anthropicBreaker.remainingMs;
 
 function isAnthropicAvailable(): boolean {
@@ -348,6 +358,9 @@ function isAnthropicAvailable(): boolean {
 }
 
 const openaiBreaker = makeQuotaBreaker("openai", PROVIDERS_REGISTRY.openai.cooldownMs);
+export const markOpenAiQuotaExhausted = openaiBreaker.mark;
+export const clearOpenAiQuotaExhausted = openaiBreaker.clear;
+export const isOpenAiQuotaExhausted = openaiBreaker.isExhausted;
 export const getOpenAiCooldownRemainingMs = openaiBreaker.remainingMs;
 
 function isOpenAIAvailable(): boolean {
@@ -447,6 +460,87 @@ function isGeminiAvailable(): boolean {
   if (!getApiKey("gemini")) return false;
   if (isGeminiQuotaExhausted()) return false;
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// 2026-07-16 (chat audit) · unified quota-error marking.
+//
+// One dispatcher for "this provider failed with a quota/billing-class
+// error → trip its circuit breaker" so the stream failure paths don't
+// each hand-roll a provider switch (the old code special-cased gemini
+// and silently skipped openai/anthropic — their breakers were dead
+// weight and the 07-15 outage burned ~29s per call re-trying them).
+// ---------------------------------------------------------------------------
+
+const QUOTA_BREAKER_MARKS: Partial<Record<ProviderName, () => void>> = {
+  gemini: geminiBreaker.mark,
+  ollama: ollamaBreaker.mark,
+  openai: openaiBreaker.mark,
+  anthropic: anthropicBreaker.mark,
+};
+
+/**
+ * Quota / billing failure detector. Superset of the regex the
+ * stream-error-handler previously applied to gemini only, extended with
+ * the OpenAI ("insufficient_quota", "429 Too Many Requests") and
+ * Anthropic ("credit balance is too low", payment errors) shapes.
+ */
+export const QUOTA_ERROR_RE =
+  /quota|exhausted|budget|spending.*cap|billing|limit|insufficient|payment|credit.?balance|too many requests|\b429\b/i;
+
+/**
+ * Trip `provider`'s quota breaker iff `errorMessage` looks like a
+ * quota/billing failure. Returns true when a breaker was tripped.
+ * No-op (false) for providers without a breaker (openrouter/emergency)
+ * and for non-quota errors — those stay on the short markProviderFailed
+ * 60s rotation instead of the long cooldown.
+ */
+export function markProviderQuotaExhausted(
+  provider: ProviderName,
+  errorMessage: string,
+): boolean {
+  if (!QUOTA_ERROR_RE.test(errorMessage)) return false;
+  const mark = QUOTA_BREAKER_MARKS[provider];
+  if (!mark) return false;
+  mark();
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// 2026-07-16 (chat audit) · ground-truth provider tag.
+//
+// Failure-marking used to depend ENTIRELY on string inference over the
+// modelId (classifyModelId). When inference failed on an unknown id the
+// marking silently no-opped and the dead lane was re-picked on every
+// retry. getModel() KNOWS which provider entry built the model — tag it
+// on the model object so downstream marking never has to guess.
+// Symbol.for so the tag survives duplicated module instances.
+// ---------------------------------------------------------------------------
+
+const MODEL_PROVIDER_TAG = Symbol.for("nour.ai.providerName");
+
+function tagModelProvider(model: LanguageModel, provider: ProviderName): LanguageModel {
+  try {
+    Object.defineProperty(model as object, MODEL_PROVIDER_TAG, {
+      value: provider,
+      enumerable: false,
+      configurable: true,
+    });
+  } catch {
+    // Frozen/proxy model — inference fallback still applies downstream.
+  }
+  return model;
+}
+
+/** Ground-truth provider for a model built by getModel(); null for untagged models. */
+export function getTaggedModelProvider(model: unknown): ProviderName | null {
+  if (model && (typeof model === "object" || typeof model === "function")) {
+    const v = (model as Record<symbol, unknown>)[MODEL_PROVIDER_TAG];
+    if (typeof v === "string" && ((RUNTIME_PROVIDERS as readonly string[]).includes(v) || v === "emergency")) {
+      return v as ProviderName;
+    }
+  }
+  return null;
 }
 
 function isOpenRouterAvailable(): boolean {
@@ -610,7 +704,7 @@ export function getModel(
     if (entry.available()) {
       // Pinned provider override — respect even if recently failed.
       // This is an explicit operator choice; we don't second-guess.
-      return entry.create(taskType);
+      return tagModelProvider(entry.create(taskType), entry.name);
     }
     throw new Error(
       `AI_PROVIDER is set to "${AI_PROVIDER}" but it is not configured (missing API key).`
@@ -622,13 +716,13 @@ export function getModel(
   // so we fall through to the unfiltered loop below as last resort.
   for (const entry of ordered) {
     if (entry.available() && !isProviderRecentlyFailed(entry.name)) {
-      return entry.create(taskType);
+      return tagModelProvider(entry.create(taskType), entry.name);
     }
   }
   // All-flagged fallback — pick any available, even if failed.
   for (const entry of ordered) {
     if (entry.available()) {
-      return entry.create(taskType);
+      return tagModelProvider(entry.create(taskType), entry.name);
     }
   }
 

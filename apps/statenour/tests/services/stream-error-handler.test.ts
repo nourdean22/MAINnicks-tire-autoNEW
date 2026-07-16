@@ -28,11 +28,13 @@ vi.mock("@/lib/prisma", () => ({
 // The handler dynamically imports the provider module for failure
 // marking — mock it so the import never touches real provider state.
 const markProviderFailedMock = vi.fn();
+const markProviderQuotaExhaustedMock = vi.fn();
 vi.mock("@/lib/ai/provider", async (importOriginal) => ({
   // real classifyModelId (the error handler classifies the failing model id);
   // only the side-effecting marks are stubbed.
   ...(await importOriginal<typeof import("@/lib/ai/provider")>()),
   markProviderFailed: (...args: unknown[]) => markProviderFailedMock(...args),
+  markProviderQuotaExhausted: (...args: unknown[]) => markProviderQuotaExhaustedMock(...args),
   markGeminiQuotaExhausted: vi.fn(),
 }));
 
@@ -120,5 +122,77 @@ describe("audit P3c · honest errored stub rows", () => {
     await onError({ error: new Error("boom") });
 
     expect(chatMessageCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 2026-07-16 chat audit · quota-breaker wiring + unknown-modelId fallback.
+ *
+ * (1) The openai/anthropic quota breakers existed in provider.ts but were
+ *     UNWIRED — mark was never exported and the handler special-cased
+ *     gemini only, so a 429/insufficient_quota on the paid lanes never
+ *     tripped their breaker and the 07-15 outage burned ~29s/call
+ *     re-trying dead lanes. Every provider failure must now route
+ *     through markProviderQuotaExhausted(provider, errMsg).
+ * (2) When the modelId can't be classified, marking used to silently
+ *     no-op — the dead lane was re-picked every retry. The handler
+ *     KNOWS the selected lane (deps.provider) — it must fall back to it
+ *     and log loudly.
+ */
+describe("2026-07-16 audit · quota breakers wired + no silent no-op marking", () => {
+  it("routes an openai quota error through markProviderQuotaExhausted", async () => {
+    const deps = {
+      ...makeDeps("A meaningful partial reply that is long enough."),
+      model: { modelId: "gpt-4o" },
+      provider: "openai" as const,
+      modelId: "gpt-4o",
+    };
+    const onError = buildStreamErrorHandler(deps);
+
+    await onError({ error: new Error("429 insufficient_quota — you exceeded your current quota") });
+
+    expect(markProviderFailedMock).toHaveBeenCalledWith("openai");
+    expect(markProviderQuotaExhaustedMock).toHaveBeenCalledWith(
+      "openai",
+      expect.stringContaining("insufficient_quota"),
+    );
+  });
+
+  it("routes an anthropic billing error through markProviderQuotaExhausted", async () => {
+    const deps = {
+      ...makeDeps("A meaningful partial reply that is long enough."),
+      model: { modelId: "claude-3-5-sonnet-latest" },
+      provider: "anthropic" as const,
+      modelId: "claude-3-5-sonnet-latest",
+    };
+    const onError = buildStreamErrorHandler(deps);
+
+    await onError({ error: new Error("Your credit balance is too low to access the Anthropic API") });
+
+    expect(markProviderFailedMock).toHaveBeenCalledWith("anthropic");
+    expect(markProviderQuotaExhaustedMock).toHaveBeenCalledWith(
+      "anthropic",
+      expect.stringContaining("credit balance"),
+    );
+  });
+
+  it("falls back to the KNOWN deps.provider when the modelId is unclassifiable (no silent no-op)", async () => {
+    const deps = {
+      ...makeDeps("A meaningful partial reply that is long enough."),
+      model: { modelId: "mystery-model-9000" },
+      provider: "openai" as const,
+      modelId: "mystery-model-9000",
+    };
+    const onError = buildStreamErrorHandler(deps);
+
+    await onError({ error: new Error("upstream 503") });
+
+    // Pre-fix: classifyModelId → null → marking silently skipped.
+    expect(markProviderFailedMock).toHaveBeenCalledWith("openai");
+    // …and the inference failure is logged loudly, with the modelId.
+    expect(deps.log.warn).toHaveBeenCalledWith(
+      "provider_marking_inference_failed_using_known_provider",
+      expect.objectContaining({ modelId: "mystery-model-9000", fallbackProvider: "openai" }),
+    );
   });
 });

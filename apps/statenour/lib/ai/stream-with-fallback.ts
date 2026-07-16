@@ -23,12 +23,20 @@ import { streamText, stepCountIs, type LanguageModel } from "ai";
 import {
   getModel,
   markProviderFailed,
+  markProviderQuotaExhausted,
   classifyModelId,
+  getTaggedModelProvider,
   type TaskType,
   type ProviderName,
 } from "./provider";
+import { logError } from "@/lib/utils/error-log";
 
 export function inferProviderName(model: LanguageModel | unknown): ProviderName | null {
+  // 2026-07-16 (chat audit) · ground-truth first: getModel() tags every
+  // model it builds with the provider entry that created it, so marking
+  // never has to guess from the id string when the tag is present.
+  const tagged = getTaggedModelProvider(model);
+  if (tagged) return tagged;
   const modelId =
     typeof model === "object" && model && "modelId" in model
       ? String((model as { modelId?: unknown }).modelId)
@@ -39,6 +47,37 @@ export function inferProviderName(model: LanguageModel | unknown): ProviderName 
   // share one source of truth and can't drift (they did: provider-health's copy
   // misattributed OpenRouter ids to the native gemini lane).
   return classifyModelId(modelId);
+}
+
+/**
+ * 2026-07-16 (chat audit) · single failure-marking path for both the
+ * first-chunk-probe and sync-throw failure branches.
+ *  · known provider → 60s rotation mark + (for quota/billing-class
+ *    errors) trip the provider's LONG quota breaker. Pre-fix only
+ *    gemini's breaker was reachable — the openai/anthropic breakers
+ *    existed but were unwired, so the 07-15 outage re-tried dead paid
+ *    lanes at ~29s/call.
+ *  · unknown provider → LOUD logError instead of the old silent skip
+ *    (a failing lane that can't be marked gets re-picked every retry).
+ */
+function markAttemptFailure(
+  provider: ProviderName | null,
+  modelId: string,
+  errorMessage: string,
+): void {
+  if (provider) {
+    markProviderFailed(provider);
+    markProviderQuotaExhausted(provider, errorMessage);
+    return;
+  }
+  logError(
+    "ai.stream-with-fallback",
+    new Error(
+      `provider inference failed for modelId "${modelId}" — failure NOT marked; this lane can be re-picked on every retry`,
+    ),
+    { modelId, errorMessage: errorMessage.slice(0, 200) },
+    "warn",
+  );
 }
 
 export interface StreamAttempt {
@@ -271,9 +310,7 @@ export async function streamWithFallback(
           errorMessage: probeOutcome.message,
         });
         lastError = new Error(probeOutcome.message);
-        if (provider) {
-          markProviderFailed(provider);
-        }
+        markAttemptFailure(provider, modelId, probeOutcome.message);
         continue;
       }
       probeVerdict = "committed";
@@ -319,9 +356,7 @@ export async function streamWithFallback(
         errorMessage: errMsg,
       });
       lastError = err;
-      if (provider) {
-        markProviderFailed(provider);
-      }
+      markAttemptFailure(provider, modelId, errMsg);
     }
   }
 

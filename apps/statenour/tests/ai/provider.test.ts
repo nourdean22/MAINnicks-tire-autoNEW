@@ -108,6 +108,84 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     expect(geminiAfter?.available).toBe(true);
   });
 
+  // 2026-07-16 chat audit · the openai/anthropic breakers existed but
+  // mark/clear were never exported — nothing could trip them, so the
+  // 07-15 outage re-tried the dead paid lanes at ~29s/call. These tests
+  // mirror the gemini breaker test above.
+  it("trips the OpenAI quota breaker on marking exhausted and clears it on clear", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-api-key");
+    const {
+      isOpenAiQuotaExhausted,
+      markOpenAiQuotaExhausted,
+      clearOpenAiQuotaExhausted,
+      getProviderStatus,
+    } = await import("@/lib/ai/provider");
+
+    expect(isOpenAiQuotaExhausted()).toBe(false);
+
+    markOpenAiQuotaExhausted();
+    expect(isOpenAiQuotaExhausted()).toBe(true);
+    const statusBefore = getProviderStatus();
+    expect(statusBefore.providers.find((p) => p.name === "openai")?.available).toBe(false);
+
+    clearOpenAiQuotaExhausted();
+    expect(isOpenAiQuotaExhausted()).toBe(false);
+    const statusAfter = getProviderStatus();
+    expect(statusAfter.providers.find((p) => p.name === "openai")?.available).toBe(true);
+  });
+
+  it("trips the Anthropic quota breaker on marking exhausted and clears it on clear", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-api-key");
+    const {
+      isAnthropicQuotaExhausted,
+      markAnthropicQuotaExhausted,
+      clearAnthropicQuotaExhausted,
+      getProviderStatus,
+    } = await import("@/lib/ai/provider");
+
+    expect(isAnthropicQuotaExhausted()).toBe(false);
+
+    markAnthropicQuotaExhausted();
+    expect(isAnthropicQuotaExhausted()).toBe(true);
+    const statusBefore = getProviderStatus();
+    expect(statusBefore.providers.find((p) => p.name === "anthropic")?.available).toBe(false);
+
+    clearAnthropicQuotaExhausted();
+    expect(isAnthropicQuotaExhausted()).toBe(false);
+    const statusAfter = getProviderStatus();
+    expect(statusAfter.providers.find((p) => p.name === "anthropic")?.available).toBe(true);
+  });
+
+  it("markProviderQuotaExhausted trips the breaker only for quota-class errors", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-api-key");
+    const { markProviderQuotaExhausted, isOpenAiQuotaExhausted, clearOpenAiQuotaExhausted } =
+      await import("@/lib/ai/provider");
+
+    // Non-quota failure → short rotation only, breaker stays closed.
+    expect(markProviderQuotaExhausted("openai", "upstream 503 bad gateway")).toBe(false);
+    expect(isOpenAiQuotaExhausted()).toBe(false);
+
+    // Quota failure → breaker trips.
+    expect(
+      markProviderQuotaExhausted("openai", "429 insufficient_quota — you exceeded your current quota"),
+    ).toBe(true);
+    expect(isOpenAiQuotaExhausted()).toBe(true);
+    clearOpenAiQuotaExhausted();
+
+    // Providers without a breaker (openrouter) are a safe no-op.
+    expect(markProviderQuotaExhausted("openrouter", "429 too many requests")).toBe(false);
+  });
+
+  it("getModel tags the returned model with its ground-truth provider (getTaggedModelProvider)", async () => {
+    vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
+    const { getModel, getTaggedModelProvider } = await import("@/lib/ai/provider");
+
+    const model = getModel("reason");
+    expect(getTaggedModelProvider(model)).toBe("ollama");
+    // Untagged objects (foreign models) return null — inference fallback applies.
+    expect(getTaggedModelProvider({ modelId: "whatever" })).toBeNull();
+  });
+
   it("reorders provider chain when preferLargeContext is passed, placing ollama first, then gemini", async () => {
     vi.stubEnv("OLLAMA_API_KEY", "test-ollama-key-is-sufficiently-long-for-validation");
     vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
