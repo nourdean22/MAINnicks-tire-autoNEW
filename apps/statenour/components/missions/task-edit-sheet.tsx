@@ -97,10 +97,16 @@ function TaskEditSheetBody({
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const updateMutation = trpc.task.update.useMutation();
   const deleteMutation = trpc.task.delete.useMutation();
+  // Unattach routes through the dedicated procedure — `{missionId: null}`
+  // is structurally dead (non-nullable FK + requiredString in the shared
+  // taskUpdateSchema), so leaveMission re-points the task at Inbox.
+  const leaveMissionMutation = trpc.task.leaveMission.useMutation();
   const utils = trpc.useUtils();
 
   const submitting =
-    updateMutation.isPending || deleteMutation.isPending;
+    updateMutation.isPending ||
+    deleteMutation.isPending ||
+    leaveMissionMutation.isPending;
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -121,32 +127,72 @@ function TaskEditSheetBody({
       return;
     }
     try {
-      // wave-AB.c-audit · the taskUpdateSchema uses `undefined` for
-      // "don't change" but allows nullable persisted fields to be set to
-      // null via the API. To stay typesafe with the inferred zod schema
-      // we send undefined for empties and let the caller's persistence
-      // layer handle the existing-vs-null distinction.
-      await updateMutation.mutateAsync({
-        id: task.id,
-        fields: {
-          title: trimmed,
-          status: status as StatusValue,
-          dueDate: dueDate.trim() || undefined,
-          energyRequired: energy ? (energy as EnergyValue) : undefined,
-          effort: effort ? (effort as EffortValue) : undefined,
-          finishCondition: finishCondition.trim() || undefined,
-          waitingOn: waitingOn.trim() || undefined,
-          missionId: missionId || undefined,
-          loopKind: loopKind as "ONCE" | "DAILY" | "PROMISE" | "WEEKLY",
-          recurringDays: loopKind === "WEEKLY" ? recurringDays : [],
-        },
-      });
-      toast.success("Saved.");
-      await Promise.all([
-        utils.task.list.invalidate(),
-        utils.task.missions.invalidate(),
-      ]);
-      onSaved?.();
+      // Diff against the initial task snapshot. Under
+      // taskUpdateSchema.partial() an absent key means "don't change",
+      // so a cleared field mapped to `undefined` was a silent no-op —
+      // clearing dueDate/waitingOn must send an explicit `null`, and
+      // clearing finishCondition an explicit empty string. Unchanged
+      // fields stay out of the payload entirely.
+      type UpdateFields = Parameters<
+        typeof updateMutation.mutateAsync
+      >[0]["fields"];
+      const fields: UpdateFields = {};
+
+      if (trimmed !== (task.title ?? "")) fields.title = trimmed;
+      if (status !== (task.status ?? "READY"))
+        fields.status = status as StatusValue;
+
+      const initialDue = task.dueDate ? task.dueDate.slice(0, 10) : "";
+      if (dueDate.trim() !== initialDue)
+        fields.dueDate = dueDate.trim() || null;
+
+      // energy/effort are non-nullable enums in the schema — only a
+      // change TO a concrete value can persist (clearing stays a no-op
+      // by schema design).
+      if (energy && energy !== (task.energyRequired ?? ""))
+        fields.energyRequired = energy as EnergyValue;
+      if (effort && effort !== (task.effort ?? ""))
+        fields.effort = effort as EffortValue;
+
+      if (finishCondition.trim() !== (task.finishCondition ?? ""))
+        fields.finishCondition = finishCondition.trim();
+      if (waitingOn.trim() !== (task.waitingOn ?? ""))
+        fields.waitingOn = waitingOn.trim() || null;
+
+      const initialLoopKind =
+        (task as unknown as { loopKind?: string }).loopKind ?? "ONCE";
+      if (loopKind !== initialLoopKind)
+        fields.loopKind = loopKind as "ONCE" | "DAILY" | "PROMISE" | "WEEKLY";
+
+      const initialRecurring =
+        (task as unknown as { recurringDays?: number[] }).recurringDays ?? [];
+      const nextRecurring = loopKind === "WEEKLY" ? recurringDays : [];
+      if (JSON.stringify(nextRecurring) !== JSON.stringify(initialRecurring))
+        fields.recurringDays = nextRecurring;
+
+      const initialMissionId = task.missionId ?? "";
+      const missionChanged = missionId !== initialMissionId;
+      if (missionChanged && missionId) fields.missionId = missionId;
+      const unattach = missionChanged && !missionId;
+
+      let persisted = false;
+      if (Object.keys(fields).length > 0) {
+        await updateMutation.mutateAsync({ id: task.id, fields });
+        persisted = true;
+      }
+      if (unattach) {
+        await leaveMissionMutation.mutateAsync({ id: task.id });
+        persisted = true;
+      }
+
+      if (persisted) {
+        toast.success("Saved.");
+        await Promise.all([
+          utils.task.list.invalidate(),
+          utils.task.missions.invalidate(),
+        ]);
+        onSaved?.();
+      }
       onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed.");
@@ -164,6 +210,7 @@ function TaskEditSheetBody({
     recurringDays,
     missionId,
     updateMutation,
+    leaveMissionMutation,
     utils,
     onSaved,
     onClose,

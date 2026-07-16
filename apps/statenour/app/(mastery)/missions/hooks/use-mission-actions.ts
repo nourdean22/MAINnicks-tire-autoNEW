@@ -37,6 +37,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
 
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [decomposing, setDecomposing] = useState(false);
 
   const refetchAll = useCallback(async () => {
     await Promise.all([
@@ -224,9 +225,14 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
 
   const handleDecomposeTask = useCallback(
     async (id: string) => {
+      // Real busy-guard: the previous version returned before the
+      // mutation settled, so the "busy" window was illusory and a
+      // double-tap fired two decompositions.
+      if (decomposing) return;
+      setDecomposing(true);
       const task = tasks.find((t) => t.id === id);
       const promise = decomposeTask.mutateAsync({ taskId: id });
-      
+
       toast.promise(promise, {
         loading: `Decomposing “${task?.title || "task"}” into subtasks...`,
         success: (res) => {
@@ -235,8 +241,17 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
         },
         error: (err) => `Failed to decompose task: ${err instanceof Error ? err.message : String(err)}`,
       });
+
+      try {
+        await promise;
+      } catch (err) {
+        // toast.promise already surfaced the error toast — log only.
+        log.error("decomposeTask_failed", { err, taskId: id });
+      } finally {
+        setDecomposing(false);
+      }
     },
-    [decomposeTask, tasks, refetchAll],
+    [decomposeTask, tasks, refetchAll, decomposing],
   );
 
   const handleCompleteMission = useCallback(
@@ -253,12 +268,18 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
     async (missionId: string) => {
       try {
         telemetry.event("archiveMission", { missionId });
-        await fetch(`/api/missions/${missionId}`, {
+        const res = await fetch(`/api/missions/${missionId}`, {
           method: "PATCH",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "KILLED" }),
         });
+        if (!res.ok) {
+          // A 500 here used to toast "Mission archived" anyway.
+          log.error("archiveMission_failed", { missionId, status: res.status });
+          toast.error("Could not archive mission.");
+          return;
+        }
         await refetchAll();
         toast.success("Mission archived");
       } catch (err) {

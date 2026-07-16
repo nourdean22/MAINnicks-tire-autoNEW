@@ -296,7 +296,7 @@ export function ExecutionPanel({
                   Confirm Abandonment
                 </p>
                 <p className="text-xs text-zinc-400 leading-snug">
-                  Are you sure you want to abandon this task? It will be archived and removed from execution.
+                  Are you sure you want to abandon “{task.title}”? It will be archived and removed from execution.
                 </p>
               </div>
             </div>
