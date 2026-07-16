@@ -111,20 +111,43 @@ describe("instagramAdmin router", () => {
       });
     });
 
-    it("fails closed when the admin has no MFA set up (PRECONDITION_FAILED)", async () => {
-      // Locks the waves' security intent: an admin identity WITHOUT MFA
-      // must not reach any adminProcedure body. mockSecurityState resets
-      // to MFA-satisfied in beforeEach.
+    it("fails closed when MFA is ENFORCED (ADMIN_MFA_REQUIRED=1) and the admin has no MFA set up", async () => {
+      // Locks the enforced regime: with the flag on, an admin identity
+      // WITHOUT MFA must not reach any adminProcedure body. Env restored
+      // per singleFork hygiene.
+      const saved = process.env.ADMIN_MFA_REQUIRED;
+      process.env.ADMIN_MFA_REQUIRED = "1";
+      try {
+        mockSecurityState = {
+          adminRole: "owner",
+          mfaEnabled: false,
+          mfaVerifiedAt: null,
+          encryptedSecret: null,
+        };
+        const caller = appRouter.createCaller(ctx("admin"));
+        await expect(caller.instagramAdmin.getConnectionStatus()).rejects.toMatchObject({
+          code: "PRECONDITION_FAILED",
+        });
+      } finally {
+        if (saved === undefined) delete process.env.ADMIN_MFA_REQUIRED;
+        else process.env.ADMIN_MFA_REQUIRED = saved;
+      }
+    });
+
+    it("default regime (flag unset): admin identity alone reaches the procedure — no MFA wall", async () => {
+      // Operator decision 2026-07-16: Google sign-in alone, "like before".
+      // Even with an MFA-less viewer security state, the call must not die
+      // on PRECONDITION_FAILED (and permission checks run as owner).
+      delete process.env.ADMIN_MFA_REQUIRED;
       mockSecurityState = {
-        adminRole: "owner",
+        adminRole: "viewer",
         mfaEnabled: false,
         mfaVerifiedAt: null,
         encryptedSecret: null,
       };
       const caller = appRouter.createCaller(ctx("admin"));
-      await expect(caller.instagramAdmin.getConnectionStatus()).rejects.toMatchObject({
-        code: "PRECONDITION_FAILED",
-      });
+      const status = await caller.instagramAdmin.getConnectionStatus();
+      expect(status).toHaveProperty("configured");
     });
 
     it("rejects non-admin callers with FORBIDDEN", async () => {

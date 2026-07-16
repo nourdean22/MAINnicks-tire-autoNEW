@@ -144,11 +144,14 @@ export default function Admin() {
     );
   }
 
-  if (!security?.mfaEnabled || !security.mfaVerified) {
+  // The TOTP wall renders only when the server enforces it
+  // (ADMIN_MFA_REQUIRED=1). Default is Google sign-in alone — operator
+  // decision 2026-07-16; see isAdminMfaRequired in services/adminSecurity.
+  if (security?.mfaRequired && (!security.mfaEnabled || !security.mfaVerified)) {
     return (
       <AdminMfaGate
-        enabled={security?.mfaEnabled ?? false}
-        verified={security?.mfaVerified ?? false}
+        enabled={security.mfaEnabled}
+        verified={security.mfaVerified}
         accountLabel={user.email || user.name || "admin"}
         onVerified={() => utils.adminSecurity.status.invalidate()}
       />

@@ -3,7 +3,12 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
 import { touchAdminActivity } from "../lib/adminActivity";
-import { getAdminSecurityState, isMfaVerificationFresh } from "../services/adminSecurity";
+import {
+  getAdminSecurityState,
+  isAdminMfaRequired,
+  isMfaVerificationFresh,
+  MFA_NOT_REQUIRED_STATE,
+} from "../services/adminSecurity";
 import {
   hasAdminPermission,
   permissionForAdminProcedure,
@@ -73,6 +78,11 @@ const requireFreshMfaAndPermission = t.middleware(async opts => {
   // unreachable: adminProcedure always chains requireAdminIdentity first.
   if (!ctx.user || ctx.user.role !== "admin") {
     throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+  }
+  // ADMIN_MFA_REQUIRED unset → pre-wave behavior: admin identity alone is
+  // enough (operator decision 2026-07-16; see isAdminMfaRequired).
+  if (!isAdminMfaRequired()) {
+    return next({ ctx: { ...ctx, user: ctx.user, adminSecurity: MFA_NOT_REQUIRED_STATE } });
   }
   const inherited = (ctx as { adminSecurity?: Awaited<ReturnType<typeof getAdminSecurityState>> })
     .adminSecurity;
