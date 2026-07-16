@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   sanitizeCaption,
   captionFontSize,
+  wrapCaption,
   briefToSegments,
   segmentsTotalSeconds,
   buildFfmpegArgs,
@@ -83,7 +84,9 @@ describe("briefToSegments", () => {
   it("derives one segment per beat with duration = endSecond - startSecond", () => {
     const segs = briefToSegments(BRIEF);
     expect(segs.map((s) => s.dur)).toEqual([2, 4, 3]);
-    expect(segs.map((s) => s.caption)).toEqual(["THE PSI HEIST", "10F COLDER = 1 PSI LOST", "AIR IT BACK UP"]);
+    // "10F COLDER = 1 PSI LOST" is 23 chars — over the 20-char mobile budget —
+    // so briefToSegments wraps it to two balanced lines.
+    expect(segs.map((s) => s.caption)).toEqual(["THE PSI HEIST", "10F COLDER\n= 1 PSI LOST", "AIR IT BACK UP"]);
   });
   it("sorts by beatNumber so out-of-order beats still assemble correctly", () => {
     const shuffled: ReelAssemblyBrief = { ...BRIEF, storyboardBeats: [...BRIEF.storyboardBeats].reverse() };
