@@ -513,7 +513,10 @@ export const diagnoseRouter = router({
   analyze: publicProcedure
     .input(
       z.object({
-        vehicleYear: z.string().max(4).optional(),
+        // Not max(4): the Year select also offers "Older" for pre-list
+        // vehicles, and a 4-char cap would zod-reject that pick — the same
+        // client/server contract mismatch that made `symptoms` fail silently.
+        vehicleYear: z.string().max(24).optional(),
         vehicleMake: z.string().max(50).optional(),
         vehicleModel: z.string().max(50).optional(),
         mileage: z.string().max(20).optional(),
