@@ -1,37 +1,3 @@
-/**
- * Idempotent Migration Runner
- *
- * Replaces drizzle-kit migrate for production deploys. Survives journal
- * drift by treating common "already exists" errors as no-ops, then
- * back-fills the __drizzle_migrations table so future drizzle-kit
- * migrate calls also see prior migrations as applied.
- *
- * Why this exists: drizzle-kit's _journal.json drifted from production
- * during pre-2026 manual migrations. drizzle-kit migrate now fails on
- * the very first CREATE TABLE (users) because the table already exists.
- * That blocks every future migration too.
- *
- * This runner:
- *   1. Reads drizzle/meta/_journal.json — the canonical migration list
- *   2. For each migration tag, reads drizzle/<tag>.sql
- *   3. Splits on "--> statement-breakpoint" + runs each statement
- *   4. Tolerates these MySQL errors as already-applied signals:
- *        - ER_TABLE_EXISTS_ERROR (1050)
- *        - ER_DUP_KEYNAME       (1061)
- *        - ER_DUP_FIELDNAME     (1060)
- *        - ER_DUP_ENTRY         (1062)  // INSERT IGNORE situations
- *        - ER_BAD_FIELD_ERROR   (1054)  // ALTER TABLE on dropped col
- *        - ER_KEY_COLUMN_DOES_NOT_EXIST (1072)
- *   5. Back-fills __drizzle_migrations with the hash drizzle expects
- *      so drizzle-kit migrate will skip these on next run
- *
- * Run: npx tsx scripts/db-migrate.ts
- *      pnpm tsx scripts/db-migrate.ts
- *
- * Safe to re-run. Output reports "newly applied" vs "already in place"
- * per migration.
- */
-
 import "dotenv/config";
 import { createHash } from "crypto";
 import { readFileSync, readdirSync } from "fs";
@@ -46,68 +12,66 @@ interface JournalEntry {
   tag: string;
   breakpoints: boolean;
 }
+interface Journal { version: string; dialect: string; entries: JournalEntry[] }
 
-interface Journal {
-  version: string;
-  dialect: string;
-  entries: JournalEntry[];
-}
+const drizzleDir = join(process.cwd(), "drizzle");
 
-// Tolerated-error policy (incl. TiDB errno 8200) lives in ./migration-tolerance,
-// where it is unit-tested (server/__tests__/migration-tolerance.test.ts).
-
-function loadJournal(): Journal {
-  const journalPath = join(process.cwd(), "drizzle", "meta", "_journal.json");
-  return JSON.parse(readFileSync(journalPath, "utf8"));
+function loadMigrationEntries(): JournalEntry[] {
+  const journalPath = join(drizzleDir, "meta", "_journal.json");
+  const journal = JSON.parse(readFileSync(journalPath, "utf8")) as Journal;
+  const journalTags = new Set(journal.entries.map((entry) => entry.tag));
+  const sqlTags = readdirSync(drizzleDir)
+    .filter((file) => /^\d{4}_.+\.sql$/.test(file))
+    .map((file) => file.replace(/\.sql$/, ""))
+    .sort();
+  const discovered = sqlTags
+    .filter((tag) => !journalTags.has(tag))
+    .map((tag, offset): JournalEntry => ({
+      idx: journal.entries.length + offset,
+      version: journal.version,
+      when: Date.now() + offset,
+      tag,
+      breakpoints: true,
+    }));
+  if (discovered.length > 0) {
+    console.log(`Discovered ${discovered.length} unjournaled migration(s): ${discovered.map((entry) => entry.tag).join(", ")}`);
+  }
+  return [...journal.entries, ...discovered];
 }
 
 function loadMigrationSql(tag: string): string {
-  // Migration files are named like 0000_charming_squirrel_girl.sql
-  const migrationPath = join(process.cwd(), "drizzle", `${tag}.sql`);
-  return readFileSync(migrationPath, "utf8");
+  return readFileSync(join(drizzleDir, `${tag}.sql`), "utf8");
 }
 
-/** drizzle-orm uses SHA256 of the SQL string as the migration hash */
 function migrationHash(sql: string): string {
   return createHash("sha256").update(sql).digest("hex");
 }
 
-/** Strip SQL line comments (-- ... end-of-line) so they don't confuse
- *  the semicolon splitter. Block comments (slash-star) preserved. */
 function stripLineComments(sql: string): string {
   return sql
     .split("\n")
     .map((line) => line.replace(/--.*$/, "").trimEnd())
-    .filter((line) => line.length > 0)
+    .filter(Boolean)
     .join("\n");
 }
 
-/** Split migration content into individual statements.
- *  Handles two formats used in the codebase:
- *  1. drizzle-kit generated: split on "--> statement-breakpoint"
- *  2. hand-written: split on raw `;` (after stripping line comments) */
-function splitStatements(sql: string): string[] {
-  if (sql.includes("--> statement-breakpoint")) {
-    return sql
-      .split("--> statement-breakpoint")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0)
-      .flatMap((s) => splitOnSemicolons(s));
-  }
-  // Hand-written migration — split on `;` after stripping line comments
-  return splitOnSemicolons(sql);
+function splitOnSemicolons(sql: string): string[] {
+  return stripLineComments(sql)
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
 }
 
-function splitOnSemicolons(sql: string): string[] {
-  const cleaned = stripLineComments(sql);
-  return cleaned
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+function splitStatements(sql: string): string[] {
+  if (!sql.includes("--> statement-breakpoint")) return splitOnSemicolons(sql);
+  return sql
+    .split("--> statement-breakpoint")
+    .map((statement) => statement.trim())
+    .filter(Boolean)
+    .flatMap(splitOnSemicolons);
 }
 
 async function ensureMigrationsTable(conn: mysql.Connection): Promise<void> {
-  // drizzle's migration tracking table (mysql variant)
   await conn.query(`
     CREATE TABLE IF NOT EXISTS __drizzle_migrations (
       id SERIAL PRIMARY KEY,
@@ -118,35 +82,18 @@ async function ensureMigrationsTable(conn: mysql.Connection): Promise<void> {
 }
 
 async function getAppliedHashes(conn: mysql.Connection): Promise<Set<string>> {
-  const [rows] = await conn.query<mysql.RowDataPacket[]>(
-    `SELECT hash FROM __drizzle_migrations`,
-  );
-  return new Set(rows.map((r) => r.hash as string));
+  const [rows] = await conn.query<mysql.RowDataPacket[]>(`SELECT hash FROM __drizzle_migrations`);
+  return new Set(rows.map((row) => row.hash as string));
 }
 
-async function recordApplied(
-  conn: mysql.Connection,
-  hash: string,
-  whenMs: number,
-): Promise<void> {
-  await conn.query(
-    `INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)`,
-    [hash, whenMs],
-  );
-}
-
-async function applyStatement(
-  conn: mysql.Connection,
-  stmt: string,
-): Promise<"applied" | "skipped-tolerated"> {
+async function applyStatement(conn: mysql.Connection, statement: string): Promise<"applied" | "tolerated"> {
   try {
-    console.log(`Executing statement: ${stmt.substring(0, 100)}...`);
-    await conn.query(stmt);
+    console.log(`Executing statement: ${statement.substring(0, 100)}...`);
+    await conn.query(statement);
     return "applied";
-  } catch (err) {
-    console.error(`Statement failed: ${stmt}\nError:`, err);
-    if (isTolerableError(err)) return "skipped-tolerated";
-    throw err;
+  } catch (error) {
+    if (isTolerableError(error)) return "tolerated";
+    throw error;
   }
 }
 
@@ -154,97 +101,45 @@ async function main() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL missing");
 
-  console.log("\n═══ DB MIGRATE — idempotent runner ═══\n");
-
-  const journal = loadJournal();
-  console.log(`Journal: ${journal.entries.length} migrations registered`);
-
-  // Confirm migration files actually exist
-  const sqlFiles = readdirSync(join(process.cwd(), "drizzle"))
-    .filter((f) => f.endsWith(".sql"))
-    .map((f) => f.replace(/\.sql$/, ""));
-  const missingFiles = journal.entries
-    .filter((e) => !sqlFiles.includes(e.tag))
-    .map((e) => e.tag);
-  if (missingFiles.length > 0) {
-    console.warn(`⚠  ${missingFiles.length} journal entries missing .sql files: ${missingFiles.join(", ")}`);
-  }
-
+  const entries = loadMigrationEntries();
   const conn = await mysql.createConnection(url);
-
   try {
     await ensureMigrationsTable(conn);
-    const alreadyApplied = await getAppliedHashes(conn);
-    console.log(`Already in __drizzle_migrations: ${alreadyApplied.size} hashes\n`);
-
+    const appliedHashes = await getAppliedHashes(conn);
     let newlyApplied = 0;
-    let alreadyHashTracked = 0;
-    let recoveredFromDrift = 0;
-    let totalStatements = 0;
-    let toleratedStatements = 0;
+    let driftRecovered = 0;
+    let alreadyTracked = 0;
 
-    for (const entry of journal.entries) {
-      // If the file doesn't exist, skip (legacy reference). Don't touch
-      // __drizzle_migrations for missing files.
-      let sql: string;
+    for (const entry of entries) {
+      let migrationSql: string;
       try {
-        sql = loadMigrationSql(entry.tag);
+        migrationSql = loadMigrationSql(entry.tag);
       } catch {
+        console.warn(`Skipping missing migration file: ${entry.tag}`);
         continue;
       }
-
-      const hash = migrationHash(sql);
-
-      if (alreadyApplied.has(hash)) {
-        alreadyHashTracked++;
+      const hash = migrationHash(migrationSql);
+      if (appliedHashes.has(hash)) {
+        alreadyTracked += 1;
         continue;
       }
-
-      // Hash not tracked — either genuinely new OR drifted (applied to
-      // schema but not recorded in __drizzle_migrations). Run all
-      // statements with tolerance for "already exists" errors. If every
-      // statement is tolerated, the migration was drift. If at least one
-      // actually applied, this is a genuine new migration.
-      const statements = splitStatements(sql);
-      let appliedCount = 0;
-      let toleratedCount = 0;
-
-      for (const stmt of statements) {
-        totalStatements++;
-        const result = await applyStatement(conn, stmt);
-        if (result === "applied") appliedCount++;
-        else toleratedCount++;
+      const results = [];
+      for (const statement of splitStatements(migrationSql)) {
+        results.push(await applyStatement(conn, statement));
       }
-
-      toleratedStatements += toleratedCount;
-
-      // Record the hash regardless — schema state is now consistent
-      // with this migration.
-      await recordApplied(conn, hash, entry.when);
-
-      if (appliedCount === 0) {
-        recoveredFromDrift++;
-        console.log(`  · ${entry.tag} — drift-recovered (${toleratedCount} statements already in place)`);
-      } else {
-        newlyApplied++;
-        console.log(`  ✓ ${entry.tag} — applied ${appliedCount} statement(s), ${toleratedCount} tolerated`);
-      }
+      await conn.query(`INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)`, [hash, entry.when]);
+      if (results.every((result) => result === "tolerated")) driftRecovered += 1;
+      else newlyApplied += 1;
+      console.log(`Applied migration ${entry.tag}: ${results.filter((result) => result === "applied").length} statement(s), ${results.filter((result) => result === "tolerated").length} tolerated`);
     }
 
-    console.log(`\nSummary:`);
-    console.log(`  ${alreadyHashTracked} already tracked (skipped)`);
-    console.log(`  ${recoveredFromDrift} drift-recovered (back-filled __drizzle_migrations)`);
-    console.log(`  ${newlyApplied} newly applied`);
-    console.log(`  ${totalStatements} statements processed (${toleratedStatements} tolerated as no-ops)`);
-
-    console.log(`\n═══ DONE ═══`);
-    console.log(`Future drizzle-kit migrate calls will see ${alreadyHashTracked + recoveredFromDrift + newlyApplied} migrations as applied.`);
+    console.log(`Migration summary: ${alreadyTracked} tracked, ${driftRecovered} drift-recovered, ${newlyApplied} newly applied`);
   } finally {
     await conn.end();
   }
 }
 
-main().catch((err) => {
-  console.error("\nFAILED:", err instanceof Error ? err.message : err);
+main().catch((error) => {
+  console.error("Migration failed:", error instanceof Error ? error.message : error);
   process.exit(1);
 });

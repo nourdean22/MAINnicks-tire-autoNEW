@@ -1,0 +1,40 @@
+name: Admin completion diagnostic
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - agent/nickstire-admin-completion-wave-4
+
+permissions:
+  contents: read
+
+env:
+  NODE_OPTIONS: --max-old-space-size=6144
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture Nick's Tire typecheck
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter nicks-tire-auto run typecheck:raw > admin-completion-diagnostic.log 2>&1
+          status=$?
+          echo "exit_code=$status" >> admin-completion-diagnostic.log
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: admin-completion-diagnostic
+          path: admin-completion-diagnostic.log
+          if-no-files-found: error
