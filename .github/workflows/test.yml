@@ -209,9 +209,13 @@ jobs:
       # CVE was indistinguishable from the endpoint being gone. scripts/
       # audit-advisories.mjs keeps the same contract (prod-only, --audit-level,
       # non-zero exit blocks) against the bulk endpoint, which is live.
-      # NOTE: dependency-review.yml does NOT backstop this — it is
-      # continue-on-error and no-ops until GitHub Dependency Graph is enabled
-      # on the repo (Settings -> Security & analysis).
+      # NOTE: dependency-review.yml does NOT backstop this, and cannot. That
+      # action needs a PUBLIC repo or private+GitHub Advanced Security; this
+      # repo is private and owned by a personal account, and GHAS is an
+      # Enterprise-org product. It is continue-on-error, so it reports a
+      # decorative green while doing nothing. (dependency-review.yml's own
+      # comment claims enabling Dependency Graph makes it start reporting —
+      # that is false here.) This step is the repo's only dependency gate.
       - name: Dependency audit (high+ severity · advisory)
         continue-on-error: true
         run: node scripts/audit-advisories.mjs --audit-level=high --advisory
