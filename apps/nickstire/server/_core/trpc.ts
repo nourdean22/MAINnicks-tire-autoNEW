@@ -65,7 +65,18 @@ export const adminIdentityProcedure = t.procedure.use(loggerMiddleware).use(requ
 
 const requireFreshMfaAndPermission = t.middleware(async opts => {
   const { ctx, next, path, type } = opts;
-  const security = ctx.adminSecurity ?? await getAdminSecurityState(ctx.user.openId);
+  // Standalone t.middleware() is typed against the BASE context — the
+  // narrowing from requireAdminIdentity neither flows in nor out of this
+  // middleware on its own. Re-assert the precondition fail-closed (same
+  // pattern as requireUser above) and re-narrow `user` in next() so
+  // adminProcedure handlers see it non-null. At runtime this guard is
+  // unreachable: adminProcedure always chains requireAdminIdentity first.
+  if (!ctx.user || ctx.user.role !== "admin") {
+    throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+  }
+  const inherited = (ctx as { adminSecurity?: Awaited<ReturnType<typeof getAdminSecurityState>> })
+    .adminSecurity;
+  const security = inherited ?? await getAdminSecurityState(ctx.user.openId);
   if (!security?.mfaEnabled) {
     throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Admin two-factor authentication setup is required." });
   }
@@ -76,7 +87,7 @@ const requireFreshMfaAndPermission = t.middleware(async opts => {
   if (!hasAdminPermission(security.adminRole, requiredPermission)) {
     throw new TRPCError({ code: "FORBIDDEN", message: `Missing admin permission: ${requiredPermission}` });
   }
-  return next({ ctx: { ...ctx, adminSecurity: security } });
+  return next({ ctx: { ...ctx, user: ctx.user, adminSecurity: security } });
 });
 
 export const adminProcedure = t.procedure
@@ -85,12 +96,15 @@ export const adminProcedure = t.procedure
   .use(requireFreshMfaAndPermission);
 
 export function adminPermissionProcedure(permission: AdminPermission) {
-  return adminProcedure.use(t.middleware(async ({ ctx, next }) => {
+  // Plain-function .use() (not a standalone t.middleware) so the ctx type
+  // inferred from adminProcedure — non-null user + adminSecurity — flows
+  // both into this check and out to the procedure handlers.
+  return adminProcedure.use(async ({ ctx, next }) => {
     if (!hasAdminPermission(ctx.adminSecurity.adminRole, permission)) {
       throw new TRPCError({ code: "FORBIDDEN", message: `Missing admin permission: ${permission}` });
     }
     return next({ ctx });
-  }));
+  });
 }
 
 export const voiceAgentInternalProcedure = t.procedure.use(loggerMiddleware).use(
