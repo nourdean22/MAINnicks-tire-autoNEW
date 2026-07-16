@@ -10,6 +10,34 @@ export interface AdminSecurityState {
   encryptedSecret: string | null;
 }
 
+/**
+ * MFA enforcement is OPT-IN via ADMIN_MFA_REQUIRED=1.
+ *
+ * Operator decision 2026-07-16: admin auth is Google sign-in alone, "like
+ * before" — the always-on TOTP gate the admin waves shipped locked the
+ * operator out of his own dashboard ("Setup must be completed before
+ * operational data is available") on a single-operator shop site. All the
+ * MFA machinery (enrollment, verification, per-role permissions) stays
+ * intact behind this flag; flipping the env on Railway re-arms the full
+ * gate without a code change.
+ */
+export function isAdminMfaRequired(): boolean {
+  return process.env.ADMIN_MFA_REQUIRED === "1";
+}
+
+/**
+ * The security state used when enforcement is OFF: pre-wave behavior, where
+ * an admin identity alone grants full access. Role is owner so
+ * adminPermissionProcedure checks stay satisfied — per-role management is
+ * only meaningful under the enforced regime.
+ */
+export const MFA_NOT_REQUIRED_STATE: AdminSecurityState = {
+  adminRole: "owner",
+  mfaEnabled: false,
+  mfaVerifiedAt: null,
+  encryptedSecret: null,
+};
+
 function rowsFromExecute(result: unknown): Record<string, unknown>[] {
   if (Array.isArray(result) && Array.isArray(result[0])) return result[0] as Record<string, unknown>[];
   if (Array.isArray(result)) return result as Record<string, unknown>[];

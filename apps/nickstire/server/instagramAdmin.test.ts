@@ -37,8 +37,45 @@ vi.mock("./lib/db-helper", () => {
   };
 });
 
+// Admin waves #764-767 put MFA enforcement on every adminProcedure
+// (requireFreshMfaAndPermission). These router tests exercise claim-safety /
+// input-validation / shape logic, not the MFA ceremony — without this mock
+// every admin call died with "Admin two-factor authentication setup is
+// required" (10/20 tests red since the waves merged). Partial mock: only
+// getAdminSecurityState is stubbed; isMfaVerificationFresh and the
+// permission helpers stay REAL so the gate's own logic is still exercised.
+// `mockSecurityState` is mutable so a test can prove the gate fails closed.
+let mockSecurityState: {
+  adminRole: string;
+  mfaEnabled: boolean;
+  mfaVerifiedAt: Date | null;
+  encryptedSecret: string | null;
+} | null = null;
+
+vi.mock("./services/adminSecurity", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./services/adminSecurity")>();
+  return {
+    ...actual,
+    getAdminSecurityState: vi.fn(async () => mockSecurityState),
+  };
+});
+
+function mfaSatisfied() {
+  mockSecurityState = {
+    adminRole: "owner",
+    mfaEnabled: true,
+    mfaVerifiedAt: new Date(),
+    encryptedSecret: null,
+  };
+}
+
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+import { beforeEach } from "vitest";
+
+beforeEach(() => {
+  mfaSatisfied();
+});
 
 function ctx(role: "admin" | "user" | null): TrpcContext {
   return {
@@ -72,6 +109,45 @@ describe("instagramAdmin router", () => {
       await expect(caller.instagramAdmin.getConnectionStatus()).rejects.toMatchObject({
         code: "FORBIDDEN",
       });
+    });
+
+    it("fails closed when MFA is ENFORCED (ADMIN_MFA_REQUIRED=1) and the admin has no MFA set up", async () => {
+      // Locks the enforced regime: with the flag on, an admin identity
+      // WITHOUT MFA must not reach any adminProcedure body. Env restored
+      // per singleFork hygiene.
+      const saved = process.env.ADMIN_MFA_REQUIRED;
+      process.env.ADMIN_MFA_REQUIRED = "1";
+      try {
+        mockSecurityState = {
+          adminRole: "owner",
+          mfaEnabled: false,
+          mfaVerifiedAt: null,
+          encryptedSecret: null,
+        };
+        const caller = appRouter.createCaller(ctx("admin"));
+        await expect(caller.instagramAdmin.getConnectionStatus()).rejects.toMatchObject({
+          code: "PRECONDITION_FAILED",
+        });
+      } finally {
+        if (saved === undefined) delete process.env.ADMIN_MFA_REQUIRED;
+        else process.env.ADMIN_MFA_REQUIRED = saved;
+      }
+    });
+
+    it("default regime (flag unset): admin identity alone reaches the procedure — no MFA wall", async () => {
+      // Operator decision 2026-07-16: Google sign-in alone, "like before".
+      // Even with an MFA-less viewer security state, the call must not die
+      // on PRECONDITION_FAILED (and permission checks run as owner).
+      delete process.env.ADMIN_MFA_REQUIRED;
+      mockSecurityState = {
+        adminRole: "viewer",
+        mfaEnabled: false,
+        mfaVerifiedAt: null,
+        encryptedSecret: null,
+      };
+      const caller = appRouter.createCaller(ctx("admin"));
+      const status = await caller.instagramAdmin.getConnectionStatus();
+      expect(status).toHaveProperty("configured");
     });
 
     it("rejects non-admin callers with FORBIDDEN", async () => {

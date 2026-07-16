@@ -11,8 +11,10 @@ import {
   decryptMfaSecret,
   enableMfa,
   getAdminSecurityState,
+  isAdminMfaRequired,
   isMfaVerificationFresh,
   markMfaVerified,
+  MFA_NOT_REQUIRED_STATE,
   setAdminRole,
   storePendingMfaSecret,
 } from "../services/adminSecurity";
@@ -25,8 +27,21 @@ function requestIp(req: { headers?: Record<string, unknown>; ip?: string } | und
 
 export const adminSecurityRouter = router({
   status: adminIdentityProcedure.query(async ({ ctx }) => {
+    // Enforcement off → report the pre-wave contract (owner, no MFA wall)
+    // so the client gate and the middleware agree. See isAdminMfaRequired.
+    if (!isAdminMfaRequired()) {
+      return {
+        mfaRequired: false,
+        adminRole: MFA_NOT_REQUIRED_STATE.adminRole,
+        permissions: permissionsForAdminRole(MFA_NOT_REQUIRED_STATE.adminRole),
+        mfaEnabled: false,
+        mfaVerified: true,
+        mfaVerifiedAt: null,
+      };
+    }
     const security = ctx.adminSecurity ?? await getAdminSecurityState(ctx.user.openId);
     return {
+      mfaRequired: true,
       adminRole: security?.adminRole ?? "viewer",
       permissions: permissionsForAdminRole(security?.adminRole ?? "viewer"),
       mfaEnabled: security?.mfaEnabled ?? false,
