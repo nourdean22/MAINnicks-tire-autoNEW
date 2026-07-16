@@ -1,6 +1,9 @@
 name: Admin completion diagnostic
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - agent/nickstire-admin-completion-wave-4
