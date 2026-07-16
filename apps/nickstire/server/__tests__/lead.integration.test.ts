@@ -12,7 +12,7 @@ const leadSubmitSchema = z.object({
   email: z.string().email().max(320).optional(),
   vehicle: z.string().max(255).optional(),
   problem: z.string().max(5000).optional(),
-  source: z.enum(["popup", "chat", "booking", "manual", "callback", "fleet", "financing_preapproval"]).optional(),
+  source: z.enum(["popup", "chat", "booking", "manual", "callback", "fleet", "financing_preapproval", "diagnose"]).optional(),
   companyName: z.string().max(255).optional(),
   fleetSize: z.number().optional(),
   utmSource: z.string().max(100).optional(),
@@ -68,6 +68,17 @@ describe("Lead Submission", () => {
       source: "financing_preapproval",
     });
     expect(result.success).toBe(true);
+  });
+
+  it("accepts /diagnose symptom-checker lead (enum member added by drizzle/0082)", () => {
+    const result = leadSubmitSchema.safeParse({
+      name: "Symptom Checker User",
+      phone: "2165557777",
+      problem: "RED FLAG: Brakes. Checker said: Brake Service.",
+      source: "diagnose",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.source).toBe("diagnose");
   });
 
   it("rejects invalid source", () => {
