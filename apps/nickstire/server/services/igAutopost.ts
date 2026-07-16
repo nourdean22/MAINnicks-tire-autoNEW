@@ -389,7 +389,7 @@ async function fetchActiveSpecials(): Promise<Array<{ title: string; code: strin
 }
 
 /** Last ~30 concept-keys, so the model can be told what NOT to repeat. */
-async function fetchRecentConceptKeys(): Promise<string[]> {
+export async function fetchRecentConceptKeys(): Promise<string[]> {
   try {
     const d = await db();
     if (!d) return [];

@@ -23,10 +23,12 @@ function makeSelectChain(): Record<string, unknown> {
   return chain;
 }
 
+// Mutable so the CAS tests below can simulate losing the publish claim.
+const claimResult = { affectedRows: 1 };
 const database = {
   insert: () => ({ values: insertValues }),
   select: () => makeSelectChain(),
-  update: () => ({ set: () => ({ where: () => Promise.resolve([{ affectedRows: 1 }, []]) }) }),
+  update: () => ({ set: () => ({ where: () => Promise.resolve([{ affectedRows: claimResult.affectedRows }, []]) }) }),
 };
 
 vi.mock("./lib/db-helper", () => ({
@@ -65,6 +67,7 @@ const admin = () => appRouter.createCaller(ctx("admin"));
 beforeEach(() => {
   insertValues.mockClear();
   selectQueue.length = 0;
+  claimResult.affectedRows = 1;
 });
 
 describe("buildReelPublishCaption", () => {
@@ -126,6 +129,34 @@ describe("stageDraft honesty", () => {
       admin().instagramAdmin.stageDraft({ ...cleanInput, caption: "x".repeat(2201) }),
     ).rejects.toThrow();
     expect(insertValues).not.toHaveBeenCalled();
+  });
+});
+
+describe("publishPost at-most-once claim (the #748 test gap)", () => {
+  const readyDraft = {
+    id: "draft_claim",
+    version: 2,
+    status: "ready",
+    contentType: "post",
+    hookText: "hook",
+    assetPaths: ["mock://img"],
+    briefJson: "{}",
+    topic: "manual: test",
+    createdAt: new Date(),
+  };
+
+  it("throws CONFLICT and never reaches Meta when the publishing claim is lost", async () => {
+    // Draft select → ready row; approval lookup → none (manual row, warn path).
+    selectQueue.push([readyDraft], []);
+    claimResult.affectedRows = 0; // another request flipped the status first
+
+    await expect(
+      admin().instagramAdmin.publishPost({
+        inventoryId: "draft_claim",
+        platforms: ["instagram"],
+        caption: "Fresh tires, straight answers.",
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
   });
 });
 

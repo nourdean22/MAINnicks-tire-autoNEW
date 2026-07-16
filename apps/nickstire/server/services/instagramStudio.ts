@@ -107,6 +107,13 @@ export function evaluateInstagramDraft(input: {
   subheadline: string;
   artDirection: string;
   conceptKey?: string;
+  /** Carousel slide copy — the deterministic carousel render draws THESE, not
+   *  headline/subheadline, so visual readiness must score them. */
+  carouselSlides?: Array<{ headline: string; body: string }>;
+  cta?: string;
+  /** Recent concept keys (fetchRecentConceptKeys) so novelty measures actual
+   *  distinctness. Absent = recency unknown — scored honestly as unchecked. */
+  recentConceptKeys?: string[];
 }): InstagramQualityResult {
   const caption = input.caption.trim();
   const firstLine = caption.split(/\n+/)[0]?.trim() ?? "";
@@ -140,8 +147,45 @@ export function evaluateInstagramDraft(input: {
 
   const localRelevance = /cleveland|euclid|east side|i-90|ohio|pothole|road salt/i.test(lower) ? 10 : 6;
   const usefulness = /check|look for|when|before|because|means|ask|save|send|call|book|walk in/i.test(lower) ? 8 : 5;
-  const visualReadiness = input.headline.length <= 42 && input.subheadline.length <= 90 && input.artDirection.length >= 10 ? 10 : 4;
-  const novelty = input.conceptKey && input.conceptKey.length >= 3 ? 8 : 5;
+  // Visual readiness scores what the renderer actually draws. artDirection is
+  // deliberately NOT consulted: the deterministic renderer never reads it (it
+  // only feeds the LLM prompt at generation), so rewarding its length inflated
+  // this dimension with a dead input. Carousels render slide copy, not
+  // headline/subheadline — score the slides.
+  let visualReadiness: number;
+  let visualFinding: string | undefined;
+  if (input.format === "carousel") {
+    const slides = input.carouselSlides ?? [];
+    if (slides.length === 0) {
+      visualReadiness = 4;
+      visualFinding = "Carousel has no slide copy to render.";
+    } else if (slides.every((s) => s.headline.length <= 42 && s.body.length <= 110)) {
+      visualReadiness = 10;
+    } else {
+      visualReadiness = 4;
+      visualFinding = "One or more slides exceed render limits (headline 42 / body 110).";
+    }
+  } else {
+    visualReadiness = input.headline.length <= 42 && input.subheadline.length <= 90 ? 10 : 4;
+  }
+
+  // Novelty measures distinctness against RECENT posts, not the mere existence
+  // of a key (which every generated draft has — the old check awarded 8 for
+  // nothing). Unknown recency scores mid, repeats score low and say why.
+  const key = input.conceptKey?.trim().toLowerCase();
+  let novelty: number;
+  let noveltyFinding: string | undefined;
+  if (!key || key.length < 3) {
+    novelty = 5;
+  } else if (!input.recentConceptKeys) {
+    novelty = 6;
+    noveltyFinding = "Concept recency not checked against recent posts.";
+  } else if (input.recentConceptKeys.some((k) => k.trim().toLowerCase() === key)) {
+    novelty = 2;
+    noveltyFinding = `Concept "${key}" repeats a recent post — pick a different angle.`;
+  } else {
+    novelty = 8;
+  }
 
   const dimensions = [
     dimension("claim_safety", "Claim safety", claimSafety, 0.25, blockers[0]),
@@ -156,9 +200,9 @@ export function evaluateInstagramDraft(input: {
     dimension("usefulness", "Usefulness", usefulness, 0.1,
       usefulness < 7 ? "Give the driver one concrete action or diagnostic clue." : undefined),
     dimension("visual_readiness", "Visual readiness", visualReadiness, 0.1,
-      visualReadiness < 7 ? "Shorten visual copy so it can render cleanly." : undefined),
+      visualReadiness < 7 ? (visualFinding ?? "Shorten visual copy so it can render cleanly.") : undefined),
     dimension("novelty", "Concept distinctness", novelty, 0.05,
-      novelty < 7 ? "Give the concept a distinct angle instead of generic service copy." : undefined),
+      novelty < 7 ? (noveltyFinding ?? "Give the concept a distinct angle instead of generic service copy.") : undefined),
   ];
 
   for (const item of dimensions) {
