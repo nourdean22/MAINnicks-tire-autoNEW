@@ -50,16 +50,23 @@ export type { ChatMode };
  * embedding and pre-computed tool embeddings — captures INTENT not
  * keywords. Keyword regex is the fallback path for cold cache.
  *
- * Note: the current Venice model (venice-uncensored) doesn't support
- * tool calling at all; veniceFetch strips tools+tool_choice before
- * hitting Venice. This prune still runs so that when we route to a
- * tool-capable provider or model, we pass the right slice.
+ * (2026-07-15 · stale Venice note removed — Venice is retired from
+ * RUNTIME_PROVIDERS and every live provider in the chain is
+ * tool-capable. The prune's job is purely context-budget control.)
  */
 export async function pruneTools(
   mode: ChatMode,
   allTools: Record<string, unknown>,
   userContent: string,
-  userEmbedding?: number[]
+  userEmbedding?: number[],
+  // 2026-07-15 · conversation-aware matching. Keyword families keyed
+  // ONLY on the current message, so short follow-ups ("try again",
+  // "?") dropped the families the conversation needed — the model then
+  // called tools that were no longer attached ("Model tried to call
+  // unavailable tool 'arsenalWebSearch'" in tool telemetry) and told
+  // the operator the capability was unavailable. The route passes the
+  // recent user-message tail; triggers match against message + tail.
+  opts?: { conversationTail?: string }
 ): Promise<Record<string, unknown>> {
   const isDeep = mode === "deep";
 
@@ -76,8 +83,12 @@ export async function pruneTools(
   }
   allTools = allowedTools;
 
-  // Standard mode: core + semantic + keyword
-  const text = userContent.toLowerCase();
+  // Standard mode: core + semantic + keyword. Trigger text = current
+  // message + recent-user-message tail (see opts doc above).
+  const text = [userContent, opts?.conversationTail ?? ""]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
   // Core tools — always included in standard mode. These are cheap
   // reads Nick should always be able to reach for basic situational
   // awareness.
@@ -390,8 +401,19 @@ export async function pruneTools(
 
   // #8 · Recent-sentiment research + short-video generation. last30days
   // (Reddit/HN/GitHub/YouTube) and moneyprinter (video gen) had no trigger.
-  if (/\b(trending (in the )?last (month|30 ?days|week)|recent sentiment|what (are )?people (discussing|saying) (lately|recently)|last 30 days|reddit sentiment)\b/.test(text)) {
-    addMatching(/last30days/i);
+  // 2026-07-15 · social/web-trends phrasing gap (live incident): "current
+  // internet trends / recent content on twitter and reddit" matched NO web
+  // family — platform names (twitter/reddit), "social media", "forums", and
+  // qualified "trends" phrasings were never triggers, so Nick replied
+  // "search tools aren't available this session" while last30days /
+  // searchWebVerified / arsenalWebSearch sat pruned. Triggers broadened and
+  // the family now attaches the full web stack, not just last30days. Bare
+  // "trend(s|ing)" stays with the analyzeTrends family (#4). 2026-07-15b ·
+  // typo variants per AGENTS.md §11.1 (twiter/tweeter, redit, trendin,
+  // hackernews, socials) — matchers must survive fast phone typing. MIRRORED
+  // in tests/ai/chat-mode-keyword-families.test.ts.
+  if (/\b(twit?ter|tweeter|red?dit|x\.com|hacker ?news|social media|socials|(dating |online |internet |web )?forums?|(internet|online|current|latest|recent) trends?|what'?s trendin'?g?|trendin'?g? (on|in|online|lately|right now|these days)|trendin'?g? (in the )?last (month|30 ?days|week)|recent sentiment|recent (content|posts?)|what (are )?people (discussing|saying|posting) (lately|recently)|last 30 days|red?dit sentiment)\b/.test(text)) {
+    addMatching(/last30days|searchWebVerified|arsenalWebSearch|scrapeWebPage/i);
   }
   if (/\b(tiktok|reel|short video|make (a |the )?video|generate (a |the )?video|create (a |the )?(short )?video|youtube short|video from (this|that|the) script)\b/.test(text)) {
     addMatching(/moneyprinter/i);

@@ -1,0 +1,22 @@
+-- 2026-07-16 · drizzle/0082_lead_source_diagnose.sql
+--
+-- Give /diagnose symptom-checker leads their own canonical source value:
+-- ["popup", "chat", "booking", "manual", "callback", "fleet",
+--  "financing_preapproval", "sms", "careers", "diagnose"]
+--
+-- Until now DiagnosePage submitted source="popup" with a
+-- "[/diagnose symptom check]" prefix in `problem` — a stopgap, because
+-- "diagnose" is not a member of the enum until this DDL lands. Prod TiDB
+-- runs with STRICT_TRANS_TABLES, so that write does not degrade to a blank
+-- source — it is REJECTED outright (ER_WARN_DATA_TRUNCATED, "Data truncated
+-- for column 'source'"). Deploying the code first therefore DROPS every
+-- /diagnose lead, it does not merely mis-attribute them.
+--
+-- SAFETY: MODIFY COLUMN, appending one option at the END of the enum.
+-- This does not shrink, drop, or reorder any existing options, ensuring it
+-- is backwards-compatible and completely safe (TiDB only supports appending).
+--
+-- DEPLOY ORDER: the operator must apply this DDL to prod TiDB BEFORE the
+-- code that writes source="diagnose" deploys.
+
+ALTER TABLE leads MODIFY COLUMN source ENUM('popup','chat','booking','manual','callback','fleet','financing_preapproval','sms','careers','diagnose') NOT NULL DEFAULT 'popup';

@@ -22,6 +22,29 @@ import {
 } from "../../../../shared/instagramStudio";
 import LegacyStudio from "./Studio";
 
+/**
+ * Draft fields the deterministic renderer consumes. Editing any of them invalidates
+ * already-rendered assets, forcing a re-render before the draft can be staged.
+ *
+ * `carouselSlides` was missing from this set: an operator could render a carousel,
+ * then edit slide copy, and stage the PRE-EDIT images against POST-EDIT text — the
+ * stored draft and quality score described one thing while the live post showed
+ * another. Adding a field the renderer reads without adding it here reintroduces
+ * that bug, so keep this list next to `renderInstagramStudioAssets`.
+ *
+ * `artDirection` is intentionally absent: the deterministic renderer never reads it
+ * (server/services/instagramStudio.ts:340 takes no artDirection param). Over-listing
+ * a field only wastes a re-render; under-listing one publishes the wrong visual, so
+ * when in doubt add it here.
+ */
+const VISUAL_FIELDS: ReadonlySet<keyof InstagramStudioDraft> = new Set([
+  "format",
+  "headline",
+  "subheadline",
+  "cta",
+  "carouselSlides",
+]);
+
 const STATIC_FORMATS: Array<{ id: Exclude<InstagramFormat, "reel">; icon: typeof ImageIcon; description: string }> = [
   { id: "post", icon: ImageIcon, description: "One hard-hitting idea with a clean branded visual." },
   { id: "carousel", icon: Layers3, description: "Five-slide education, proof, or comparison sequence." },
@@ -90,7 +113,7 @@ export default function StudioV2() {
   }, [draft]);
 
   const patchDraft = <K extends keyof InstagramStudioDraft>(key: K, value: InstagramStudioDraft[K]) => {
-    setDraft((current) => current ? { ...current, [key]: value, imageUrls: key === "headline" || key === "subheadline" || key === "cta" ? [] : current.imageUrls } : current);
+    setDraft((current) => current ? { ...current, [key]: value, imageUrls: VISUAL_FIELDS.has(key) ? [] : current.imageUrls } : current);
   };
 
   if (showReelStudio) {

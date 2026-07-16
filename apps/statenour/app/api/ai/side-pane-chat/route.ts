@@ -41,6 +41,16 @@ export const maxDuration = 60;
  *  if multi-turn needs different scaffolding from single-shot. */
 function describeFraming(page: string): string {
   switch (page) {
+    // 2026-07-16 · the /missions page mounts page="missions" — it hit the
+    // generic default here while buildPageData had no case at all, so the
+    // pane got neither framing nor data on the operator's primary surface.
+    case "missions":
+      return (
+        "You're advising on the operator's mission board — the surface he executes from daily. " +
+        "The data block lists each active mission with its open count, completions this week, stall age, deadline, and top next action. " +
+        "Answer at MISSION level first (which one to push, which is stalling, what compounds), then name the single specific task to start. " +
+        "A mission marked STALLED or OVERDUE outranks a comfortable one — say so plainly."
+      );
     case "tasks":
       return "You're advising on the operator's daily task surface · what to focus on, what's stuck, what compounds.";
     case "goals":

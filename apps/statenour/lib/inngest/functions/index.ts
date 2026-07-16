@@ -21,6 +21,11 @@ export {
   journalConvergenceScan,
   journalThreadDormancy,
 } from "./journal-convergence";
+// Durable-fanout wave (audit 2026-07-15) · journal capture fan-out
+// (enrich + embed + thread-join) as durable steps (event:
+// journal/entry.captured) — was fire-and-forget inside the capture
+// request, not guaranteed to run on serverless.
+export { journalFanout } from "./journal-fanout";
 // 2026-05-31 · revived feeder (was deleted in Wave AE; starved recallIndustryIntel).
 export { industryPull } from "./industry-pull";
 // 2026-06-03 · v-truth · event-driven proactivity (NICK_EVENT_TRIGGERS · fail-closed)

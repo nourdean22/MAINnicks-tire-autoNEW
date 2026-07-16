@@ -35,10 +35,11 @@ export type LeadSource =
   | "fleet"
   | "financing_preapproval"
   | "sms"
-  | "careers";
+  | "careers"
+  | "diagnose";
 
 export type LeadOriginKind =
-  /** Real sales/service lead (popup, chat, booking, manual, fleet, financing, sms, careers). */
+  /** Real sales/service lead (popup, chat, booking, manual, fleet, financing, sms, careers, diagnose). */
   | "trueLead"
   /** `source="callback"` lead LINKED (callbackId set) to a callback_requests row
    *  already counted on the Callbacks surface — a duplicate of that callback. */

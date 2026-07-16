@@ -101,6 +101,12 @@ export const journalRouter = router({
           days: z.number().int().min(1).max(365).default(60),
           type: z.string().max(40).nullable().optional(),
           source: z.string().max(40).optional(),
+          // Feed v2 (audit 2026-07-15) · server-side search + cursor
+          // pagination. `cursor` is the field name tRPC's
+          // useInfiniteQuery expects — nextCursor from the previous
+          // page feeds back in here.
+          search: z.string().max(200).optional(),
+          cursor: z.string().datetime().nullish(),
         })
         .optional(),
     )
@@ -110,6 +116,8 @@ export const journalRouter = router({
         days: input?.days,
         type: input?.type,
         source: input?.source,
+        search: input?.search,
+        cursor: input?.cursor ?? undefined,
       }),
     ),
 
@@ -803,7 +811,14 @@ export const journalRouter = router({
         const p = JSON.parse(r.content) as {
           nextAction?: { action?: string; domain?: string | null; nextActionPromoted?: boolean } | null;
         };
-        if (p.nextAction && typeof p.nextAction.action === "string" && p.nextAction.nextActionPromoted !== true) {
+        if (
+          p.nextAction &&
+          typeof p.nextAction.action === "string" &&
+          // Live-verify 2026-07-15 · scrub literal "null"-string actions
+          // (legacy model artifact) so the home hub never surfaces them.
+          !["null", "none", "n/a"].includes(p.nextAction.action.trim().toLowerCase()) &&
+          p.nextAction.nextActionPromoted !== true
+        ) {
           return {
             action: p.nextAction.action,
             domain: p.nextAction.domain ?? null,
@@ -842,19 +857,39 @@ export const journalRouter = router({
       const entryId = row.key.replace("journal-take:", "");
       let parsed: {
         idea?: string | null;
+        ideaPromoted?: boolean;
         challenge?: string | null;
-        nextAction?: { action?: string; domain?: string | null } | null;
+        challengePromoted?: boolean;
+        nextAction?: {
+          action?: string;
+          domain?: string | null;
+          nextActionPromoted?: boolean;
+        } | null;
       } = {};
       try {
         parsed = JSON.parse(row.content);
       } catch {}
+      // Live-verify 2026-07-15 · legacy takes can carry the literal
+      // string "null" as the action (model artifact, now scrubbed at
+      // write in generateJournalTake) — treat those as no-action so
+      // the panel doesn't render "NEXT ACTION: null [ACCEPT]".
+      const actionStr = parsed.nextAction?.action?.trim().toLowerCase();
+      const nextAction =
+        parsed.nextAction && actionStr && !["null", "none", "n/a"].includes(actionStr)
+          ? parsed.nextAction
+          : null;
       return {
         id: row.id,
         entryId,
         updatedAt: row.updatedAt,
         idea: parsed.idea ?? null,
         challenge: parsed.challenge ?? null,
-        nextAction: parsed.nextAction ?? null,
+        nextAction,
+        // Loop-closure wave · server-truth promoted flags so the panel
+        // renders accepted state across remounts (was a client-side Set).
+        ideaPromoted: parsed.ideaPromoted === true,
+        challengePromoted: parsed.challengePromoted === true,
+        nextActionPromoted: parsed.nextAction?.nextActionPromoted === true,
       };
     });
 
@@ -969,100 +1004,37 @@ export const journalRouter = router({
   /**
    * Journal-to-Action Seam (P0) · promoteNextAction
    *
-   * Promotes a journal next action to a real task inside the mastery system.
-   * Enforces single-execution idempotency using the nextActionPromoted flag.
+   * Promotes a journal take layer (nextAction · idea · challenge) to a
+   * real task. Thin adapter — the logic + per-layer idempotency flags
+   * live in lib/services/journal-promote.ts (loop-closure wave,
+   * audit 2026-07-15). Name kept for API stability.
    */
   promoteNextAction: operatorProcedure
-    .input(z.object({ entryId: z.string().min(1).max(64) }))
+    .input(
+      z.object({
+        entryId: z.string().min(1).max(64),
+        kind: z.enum(["nextAction", "idea", "challenge"]).default("nextAction"),
+      }),
+    )
     .mutation(async ({ input }) => {
-      const { prisma } = await import("@/lib/prisma");
-      const { createTask } = await import("@/lib/services/tasks");
-      const { resolveInboxMissionId, resolveGeneralAnchorId } = await import("@/lib/services/missions");
-
-      const takeRow = await prisma.brainMemory.findUnique({
-        where: {
-          category_key: {
-            category: "journal_brain_take",
-            key: `journal-take:${input.entryId}`,
-          },
-        },
-      });
-
-      if (!takeRow) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Journal take not found",
-        });
-      }
-
-      let content: {
-        idea?: string | null;
-        challenge?: string | null;
-        nextAction?: { action?: string; domain?: string | null; nextActionPromoted?: boolean } | null;
-      } = {};
-
+      const { promoteJournalTake, JournalPromoteError } = await import(
+        "@/lib/services/journal-promote"
+      );
       try {
-        content = JSON.parse(takeRow.content);
-      } catch {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Malformed journal take content",
-        });
-      }
-
-      const nextAction = content.nextAction;
-      if (!nextAction || !nextAction.action) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "No next action defined in this journal take",
-        });
-      }
-
-      if (nextAction.nextActionPromoted === true) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Next action already promoted to task",
-        });
-      }
-
-      let missionId: string;
-      if (nextAction.domain) {
-        try {
-          const anchorId = await resolveGeneralAnchorId(nextAction.domain as any);
-          missionId = anchorId ?? (await resolveInboxMissionId());
-        } catch {
-          missionId = await resolveInboxMissionId();
+        return await promoteJournalTake(input.entryId, input.kind);
+      } catch (err) {
+        if (err instanceof JournalPromoteError) {
+          throw new TRPCError({
+            code:
+              err.code === "NOT_FOUND"
+                ? "NOT_FOUND"
+                : err.code === "TASK_FAILED"
+                  ? "INTERNAL_SERVER_ERROR"
+                  : "BAD_REQUEST",
+            message: err.message,
+          });
         }
-      } else {
-        missionId = await resolveInboxMissionId();
+        throw err;
       }
-
-      const task = await createTask({
-        title: nextAction.action,
-        missionId,
-        status: "INBOX",
-      });
-
-      if (!task) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create task",
-        });
-      }
-
-      nextAction.nextActionPromoted = true;
-      await prisma.brainMemory.update({
-        where: {
-          category_key: {
-            category: "journal_brain_take",
-            key: `journal-take:${input.entryId}`,
-          },
-        },
-        data: {
-          content: JSON.stringify(content),
-        },
-      });
-
-      return { ok: true, taskId: task.id };
     }),
 });

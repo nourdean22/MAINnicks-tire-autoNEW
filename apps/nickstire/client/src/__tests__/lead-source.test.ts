@@ -18,7 +18,7 @@ import {
 
 describe("classifyLeadOrigin", () => {
   it("classifies real web/form sources as trueLead", () => {
-    for (const source of ["popup", "chat", "booking", "manual", "fleet", "financing_preapproval", "sms", "careers"]) {
+    for (const source of ["popup", "chat", "booking", "manual", "fleet", "financing_preapproval", "sms", "careers", "diagnose"]) {
       expect(classifyLeadOrigin({ source })).toBe("trueLead");
     }
   });
@@ -85,6 +85,7 @@ describe("leadSourceLabel", () => {
   it("upper-cases a real source and dashes the unknown", () => {
     expect(leadSourceLabel({ source: "popup" })).toBe("POPUP");
     expect(leadSourceLabel({ source: "financing_preapproval" })).toBe("FINANCING_PREAPPROVAL");
+    expect(leadSourceLabel({ source: "diagnose" })).toBe("DIAGNOSE");
     expect(leadSourceLabel({})).toBe("—");
   });
 });

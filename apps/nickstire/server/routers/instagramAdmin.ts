@@ -25,17 +25,56 @@ import { checkReviewReply, buildReplyPromptRules, hasBlockingFindings } from "@s
 import { IG_ARCHETYPES } from "@shared/const";
 import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
+import { affectedRowCount } from "../lib/db-affected";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:instagramAdmin");
 
+/** Instagram's caption ceiling. Shared by the publish and schedule paths. */
+export const IG_CAPTION_MAX = 2200;
+
+/**
+ * Assemble the publishable caption for an approved Reel draft from its brief
+ * (selectedCaption + hashtags), falling back to the draft's hook text.
+ *
+ * Overlength is a hard error, not a trim: this string was hash-approved as part
+ * of the brief, and the previous `.slice(0, 2200)` silently cut whatever the
+ * limit landed on — hashtags, the CTA, or a mid-sentence break — publishing
+ * something nobody reviewed. The operator edits the caption (which re-enters
+ * the approval flow) rather than Meta receiving an unreviewed truncation.
+ */
+export function buildReelPublishCaption(briefJson: string | null, fallbackHook: string | null): string {
+  let brief: { selectedCaption?: string; hashtags?: string[] } = {};
+  try {
+    brief = JSON.parse(briefJson || "{}");
+  } catch {
+    brief = {};
+  }
+  if (!brief.selectedCaption) return fallbackHook || "";
+  const caption = `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim();
+  if (caption.length > IG_CAPTION_MAX) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Caption with hashtags is ${caption.length} characters — Instagram's limit is ${IG_CAPTION_MAX}. Shorten the caption or drop hashtags; nothing is trimmed automatically.`,
+    });
+  }
+  return caption;
+}
+
 export const instagramAdminRouter = router({
-  /** Connection diagnostics: credential/token status + durable-store fingerprint. */
+  /** Connection diagnostics: credential/token status + durable-store fingerprint
+   *  + a LIVE Graph probe. Presence checks alone showed "ready" with a dead
+   *  token (revoked permissions, password reset, unlinked page) — `live` is the
+   *  Graph API's own answer, cached 5 minutes so UI polling can't burn quota. */
   getConnectionStatus: adminProcedure.query(async () => {
-    const { getMetaSocialStatus, getPersistedTokenMeta } = await import("../services/metaSocial");
-    const [status, token] = await Promise.all([getMetaSocialStatus(), getPersistedTokenMeta()]);
-    return { ...status, token };
+    const { getMetaSocialStatus, getPersistedTokenMeta, verifyMetaConnectionLive } = await import("../services/metaSocial");
+    const [status, token, live] = await Promise.all([
+      getMetaSocialStatus(),
+      getPersistedTokenMeta(),
+      verifyMetaConnectionLive(),
+    ]);
+    return { ...status, token, live };
   }),
 
   /** Pipeline Health: Storage, Veo API, Meta API, and failed reel jobs. */
@@ -338,20 +377,37 @@ Keep it under 200 characters.`;
   stageDraft: adminProcedure
     .input(z.object({
       format: z.enum(["single", "carousel", "reel", "story", "ad"]),
-      caption: z.string().min(1),
+      // Same 2200 ceiling as publishPost — an overlength caption staged here would
+      // only surface at publish time, after the operator has moved on.
+      caption: z.string().min(1).max(2200),
       imageUrl: z.string().url().optional(),
       imageUrls: z.array(z.string().url()).optional(),
       videoUrl: z.string().url().optional(),
       sourceType: z.string(),
       sourceDetail: z.string().optional(),
       conceptBrief: z.any().optional(),
-      qualityScore: z.any().optional(),
+      // No qualityScore input: the legacy Studio sends a client-computed score and
+      // this procedure used to silently discard it while persisting a flat 80.
+      // Manual drafts are operator judgment, not machine evaluation — they stage
+      // unscored (scoreOverall 0) and the Queue shows no score badge.
     }))
     .mutation(async ({ input }) => {
       if (input.format === "reel") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Reel format drafts cannot be created via stageDraft. Reels must be enqueued via enqueueReelJob and finalized via finalizeReelDraft.",
+        });
+      }
+
+      // Same claim-safety gate as publishPost/schedulePost, applied at stage time —
+      // a banned claim should bounce while the operator is still writing, not when
+      // the cron tries to publish it hours later.
+      const { captionClaimBlockers } = await import("../services/socialPublish");
+      const blockers = captionClaimBlockers(input.caption);
+      if (blockers.length) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Claim-safety: ${blockers.map((f) => `${f.rule} ("${f.match}")`).join("; ")} — edit the caption before staging.`,
         });
       }
 
@@ -381,10 +437,14 @@ Keep it under 200 characters.`;
         bodyText: "",
         visualStyle: "manual",
         persona: "manual",
-        status: "ready", // For manual drafts, default to ready directly
+        // "ready" is deliberate for manual drafts: the operator IS the review. The
+        // publish path still applies claim-safety and the at-most-once claim.
+        status: "ready",
         assetPaths,
         briefJson: JSON.stringify(input.conceptBrief || {}),
-        scoreOverall: 80,
+        // 0 = unscored (schema default). This procedure used to write a flat 80,
+        // which the Queue then displayed as a passing machine evaluation.
+        scoreOverall: 0,
         version: 1,
       });
       
@@ -543,9 +603,10 @@ Keep it under 200 characters.`;
           )
         );
 
-      const affectedRows = (updateResult as any)?.[0]?.affectedRows !== undefined
-        ? (updateResult as any)[0].affectedRows
-        : ((updateResult as any)?.affectedRows ?? 1);
+      // Previously fell back to `?? 1`, so an unreadable driver result counted as
+      // "claimed" and silently voided this CAS. Every other claim in the server
+      // fails closed (cron/jobs/crudAutomation.ts:200); this one now does too.
+      const affectedRows = affectedRowCount(updateResult);
 
       if (affectedRows === 0) {
         throw new TRPCError({
@@ -673,6 +734,11 @@ Keep it under 200 characters.`;
       
       let publishCaption = input.caption;
       let publishVideoUrl = input.videoUrl;
+      // Re-asserted as a compare-and-set immediately before the Meta call. Reading
+      // the status and acting on it are two statements; without a claim between
+      // them two concurrent callers both pass every gate and both publish. Same
+      // at-most-once idiom as cron/jobs/crudAutomation.ts:507.
+      let observedStatus: string | null = null;
 
       if (input.inventoryId) {
         const { socialContentInventory, socialContentApprovals } = await import("../../drizzle/schema");
@@ -684,6 +750,20 @@ Keep it under 200 characters.`;
           .limit(1);
         const draft = rows[0];
         if (draft) {
+          observedStatus = draft.status;
+          // Terminal states are not re-publishable. published_partial in particular has
+          // a live post on at least one platform — re-running would duplicate it.
+          if (draft.status === "publishing" || draft.status === "published" || draft.status === "published_partial") {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message:
+                draft.status === "publishing"
+                  ? "This draft is already being published. Wait for that attempt to finish before retrying."
+                  : draft.status === "published"
+                    ? "This draft is already published. Re-publishing would duplicate the live post."
+                    : "This draft is partially published — one platform is already live. Re-publishing would duplicate it; resolve the failed platform manually.",
+            });
+          }
           if (draft.contentType === "reel") {
             if (draft.status !== "ready") {
               throw new TRPCError({
@@ -692,10 +772,7 @@ Keep it under 200 characters.`;
               });
             }
 
-            const brief = JSON.parse(draft.briefJson || "{}");
-            const approvedCaption = brief.selectedCaption
-              ? `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim().slice(0, 2200)
-              : draft.hookText || "";
+            const approvedCaption = buildReelPublishCaption(draft.briefJson, draft.hookText);
 
             let approvedVideoUrl = "";
             if (Array.isArray(draft.assetPaths)) {
@@ -775,25 +852,80 @@ Keep it under 200 characters.`;
           message: `Claim-safety: ${blockers.map((f) => `${f.rule} ("${f.match}")`).join("; ")} — edit the caption before publishing.`,
         });
       }
-      const { results, igPostId } = await publishToSocial({
-        ...input,
-        caption: publishCaption,
-        videoUrl: publishVideoUrl,
-      });
-      if (results.length > 0 && results.every((r) => !r.success)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Publish failed: ${results.map((r) => `${r.platform}: ${r.error}`).join("; ")}`,
-        });
-      }
-
-      if (input.inventoryId) {
+      const setInventoryStatus = async (status: string, errorMessage?: string) => {
+        if (!input.inventoryId) return;
         const { socialContentInventory } = await import("../../drizzle/schema");
         const { eq } = await import("drizzle-orm");
         await database.update(socialContentInventory)
-          .set({ status: "published", publishedAt: new Date() })
+          .set({
+            status,
+            updatedAt: new Date(),
+            ...(status === "published" || status === "published_partial" ? { publishedAt: new Date() } : {}),
+            ...(errorMessage !== undefined ? { errorMessage: errorMessage.slice(0, 500) } : {}),
+          })
           .where(eq(socialContentInventory.id, input.inventoryId));
+      };
+
+      // Claim the row BEFORE the irreversible external call — the last gate that can
+      // still stop a duplicate. A concurrent caller that read the same status loses
+      // the CAS (0 rows) and is told to back off rather than posting a second time.
+      if (input.inventoryId && observedStatus !== null) {
+        const { socialContentInventory } = await import("../../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const claim = await database
+          .update(socialContentInventory)
+          .set({ status: "publishing", updatedAt: new Date() })
+          .where(and(
+            eq(socialContentInventory.id, input.inventoryId),
+            eq(socialContentInventory.status, observedStatus),
+          ));
+        if (affectedRowCount(claim) === 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Another publish attempt claimed this draft first. Refresh to see its current state.",
+          });
+        }
       }
+
+      let results: Awaited<ReturnType<typeof publishToSocial>>["results"];
+      let igPostId: string | undefined;
+      try {
+        ({ results, igPostId } = await publishToSocial({
+          ...input,
+          caption: publishCaption,
+          videoUrl: publishVideoUrl,
+        }));
+      } catch (err) {
+        // The claim must not outlive a throw, or the draft wedges in "publishing"
+        // and every later attempt hits the CONFLICT guard above.
+        await setInventoryStatus(observedStatus ?? "failed", err instanceof Error ? err.message : String(err));
+        throw err;
+      }
+
+      const succeeded = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
+      const failureDetail = failed.map((r) => `${r.platform}: ${r.error}`).join("; ");
+
+      if (succeeded.length === 0) {
+        await setInventoryStatus("failed", failureDetail);
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Publish failed: ${failureDetail}`,
+        });
+      }
+
+      if (failed.length > 0) {
+        // At least one platform is LIVE and at least one is not. Recording this as
+        // "published" is what let the Queue's onSuccess toast report success for a
+        // post that never reached Instagram — so this throws instead.
+        await setInventoryStatus("published_partial", failureDetail);
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Partially published — LIVE on ${succeeded.map((r) => r.platform).join(", ")}; FAILED on ${failureDetail}. Do NOT retry: re-publishing would duplicate the live post. Post the failed platform manually.`,
+        });
+      }
+
+      await setInventoryStatus("published");
 
       return { success: true, results, postId: igPostId };
     }),
@@ -835,10 +967,7 @@ Keep it under 200 characters.`;
               });
             }
 
-            const brief = JSON.parse(draft.briefJson || "{}");
-            const approvedCaption = brief.selectedCaption
-              ? `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim().slice(0, 2200)
-              : draft.hookText || "";
+            const approvedCaption = buildReelPublishCaption(draft.briefJson, draft.hookText);
 
             let approvedVideoUrl = "";
             if (Array.isArray(draft.assetPaths)) {
@@ -1090,7 +1219,11 @@ Keep it under 200 characters.`;
       const isReel = r.contentType === "reel";
       const mediaPath = parsedAssetPaths[0] || "";
 
-      let scoreObj = { gate: "pass", overall: r.scoreOverall || 80 };
+      // scoreOverall 0 = never machine-evaluated (manual drafts). Surface that as
+      // NO badge (client renders nothing for null) — the previous `|| 80` fallback
+      // dressed unscored drafts up as a passing evaluation that never ran.
+      let scoreObj: { gate: string; overall: number } | null =
+        r.scoreOverall > 0 ? { gate: "pass", overall: r.scoreOverall } : null;
       if (isReel) {
         if (!parsedBrief || Object.keys(parsedBrief).length === 0) {
           scoreObj = { gate: "block", overall: 0 };
@@ -1126,27 +1259,11 @@ Keep it under 200 characters.`;
     return results;
   }),
 
-  /** Get Performance Insights for the Learn Panel */
-  getPerformanceInsights: adminProcedure.query(async () => {
-    const { getTopPosts } = await import("../pipelines/instagram-data");
-    const topPosts = await getTopPosts({ limit: 5 });
-    
-    return {
-      topWinners: topPosts.map(p => ({
-        id: p.postId,
-        format: p.postType === "VIDEO" ? "reel" : (p.postType === "CAROUSEL_ALBUM" ? "carousel" : "post"),
-        qualityScore: 90, // mock score for now until we have real quality scores mapped
-        caption: p.caption?.substring(0, 50) + "...",
-        likes: p.likes,
-        comments: p.comments,
-        shares: 0,
-        imageUrl: ""
-      })),
-      activeThemes: [
-        { name: "Recent Top Performers", insight: "These posts drove the most engagement in the last 30 days." }
-      ]
-    };
-  }),
+  // getPerformanceInsights was removed here: it had no consumer anywhere in the
+  // app and its payload was fabricated (qualityScore hardcoded 90, shares
+  // hardcoded 0, a canned "insight" string) on top of getTopPosts, whose source
+  // table is starved (see instagram.ts loadCache). Rebuild it against real data
+  // if a Learn-panel consumer ever materializes.
 
   /** Reject a draft manually from the Queue */
   rejectDraft: adminProcedure

@@ -40,7 +40,12 @@ export async function buildGscPrefetch(userTextSlice: string): Promise<string | 
     }
 
     const startedAt = Date.now();
-    const result = await queryCanonicalGscSummary({ from, to });
+    // timeoutMs 6s (bridge default is 15s) · this await sits on the
+    // pre-stream critical path — the user sees zero bytes until it
+    // resolves. A slow Search Console bridge degrades to the explicit
+    // UNAVAILABLE block below (the bridge returns {error} on abort),
+    // so the model still can't fabricate numbers.
+    const result = await queryCanonicalGscSummary({ from, to, timeoutMs: 6_000 });
     log.info("gsc_prefetch", {
       windowLabel,
       from,

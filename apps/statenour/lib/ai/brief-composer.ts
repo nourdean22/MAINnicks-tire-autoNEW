@@ -54,6 +54,16 @@ export function scrubThinkTags(text: string): string {
   return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 }
 
+/** aiChat NEVER throws on total provider-chain failure — it returns an
+ *  "I'm having trouble connecting…" sentinel with provider "emergency"
+ *  (lib/ai/provider.ts) that also echoes the first 50 chars of the last
+ *  user message (here: the signal block). Caching that as a brief
+ *  poisons the surface for the whole day AND leaks internal context
+ *  into the UI — seen live on /journal 2026-07-15. */
+export function isProviderSentinel(text: string): boolean {
+  return /^I'm having trouble connecting to my AI providers/i.test(text.trim());
+}
+
 export async function composeBrief(args: ComposeBriefArgs): Promise<string> {
   const taskType = args.taskType ?? "reason";
   const maxChars = args.maxChars ?? 800;
@@ -65,7 +75,14 @@ export async function composeBrief(args: ComposeBriefArgs): Promise<string> {
         where: { category: args.cacheCategory, key: args.cacheKey },
         select: { content: true },
       });
-      if (cached?.content) return cached.content;
+      // A cached sentinel (pre-guard rows) is a poisoned entry, not a
+      // brief — treat as a miss so the next successful compose
+      // overwrites it in step 3 (self-heal, no manual purge needed).
+      if (cached?.content && isProviderSentinel(cached.content)) {
+        log.warn("cache_poisoned_sentinel", { label: args.label, key: args.cacheKey });
+      } else if (cached?.content) {
+        return cached.content;
+      }
     } catch (err) {
       log.warn("cache_read_failed", {
         label: args.label,
@@ -85,7 +102,19 @@ export async function composeBrief(args: ComposeBriefArgs): Promise<string> {
       ],
       taskType as never,
     );
+    // Total provider-chain failure comes back as a RESULT, not a throw
+    // — refuse it before it can be returned or cached. Content check is
+    // belt-and-braces for callers whose mocks/paths drop the provider
+    // field.
+    if (result.provider === "emergency" || result.provider === "none") {
+      log.warn("compose_provider_failed", { label: args.label, provider: result.provider });
+      return "";
+    }
     brief = scrubThinkTags(result.content ?? "");
+    if (isProviderSentinel(brief)) {
+      log.warn("compose_sentinel_content", { label: args.label });
+      return "";
+    }
     if (brief.length > maxChars) brief = brief.slice(0, maxChars);
   } catch (err) {
     log.warn("compose_failed", {

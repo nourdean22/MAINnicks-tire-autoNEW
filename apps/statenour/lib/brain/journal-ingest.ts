@@ -25,10 +25,9 @@ const aiChat = makeTracedAiChat("journal-ingest", "journal");
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { today } from "@/lib/utils/datetime";
 import { sendTelegram } from "@/lib/services/telegram";
-import { storeGenericEmbedding } from "@/lib/brain/embedding-utils";
 import { creditFromSignal } from "@/lib/mastery/credit-signal";
 import { getJournalSettings } from "@/lib/journal/settings";
-import { enrichJournalEntry } from "@/lib/brain/journal-brain";
+import { dispatchJournalFanout } from "@/lib/brain/journal-fanout";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("brain/journal-ingest");
@@ -145,7 +144,14 @@ export async function ingestJournal(
   // hint wins over the blind fast classification. The async enrichment
   // pass may still refine it grounded-in-goals later (acceptable — mode-
   // shaped text re-classifies consistently in practice).
-  opts: { creditXp?: boolean; entryTypeHint?: ThoughtType } = {},
+  // reuseDumpId · audit 2026-07-15 · execute-actions' commit_journal
+  // re-processes an EXISTING brain_dump. Pre-fix it re-ingested the raw
+  // text, creating a duplicate row per run (the summary/extraction landed
+  // on the new row, so the caller's summary-based idempotency guard never
+  // tripped). When set, the pipeline updates the given row in place
+  // instead of creating one, and skips the 90s duplicate window (an
+  // explicit re-process is not a double-tap).
+  opts: { creditXp?: boolean; entryTypeHint?: ThoughtType; reuseDumpId?: string } = {},
 ): Promise<JournalResult> {
   const dateStr = today();
   let tasksCreated = 0;
@@ -168,8 +174,10 @@ export async function ingestJournal(
   // duplicates still leak through.
   const NINETY_SECONDS_AGO = new Date(Date.now() - 90_000);
   const currentTextHash = simpleHash(rawText);
-  const recentSameDay = await prisma.brainDump
-    .findMany({
+  const recentSameDay = opts.reuseDumpId
+    ? []
+    : await prisma.brainDump
+        .findMany({
       where: {
         date: dateStr,
         createdAt: { gte: NINETY_SECONDS_AGO },
@@ -225,15 +233,25 @@ export async function ingestJournal(
     };
   }
 
-  // 1. Store the raw brain dump immediately (never lose raw thoughts)
-  const brainDump = await prisma.brainDump.create({
-    data: {
-      date: dateStr,
-      rawThoughts: rawText,
-      moodBefore: null,
-      actionsTaken: 0,
-    },
-  });
+  // 1. Store the raw brain dump immediately (never lose raw thoughts).
+  // In reuse mode, touch the existing row instead — every downstream
+  // write keys off brainDump.id, so extraction/summary/tasks land on
+  // the ORIGINAL row (no duplicate). update() throws if the row is
+  // gone; callers already handle that as a failed commit.
+  const brainDump = opts.reuseDumpId
+    ? await prisma.brainDump.update({
+        where: { id: opts.reuseDumpId },
+        data: { rawThoughts: rawText },
+        select: { id: true },
+      })
+    : await prisma.brainDump.create({
+        data: {
+          date: dateStr,
+          rawThoughts: rawText,
+          moodBefore: null,
+          actionsTaken: 0,
+        },
+      });
 
   // 2. AI extraction — pull structure from the raw text
   try {
@@ -246,7 +264,7 @@ export async function ingestJournal(
 Return ONLY valid JSON with this structure:
 {
   "entryType": "raw|thinking|reasoning|insight|decision|reflection|planning|venting",
-  "summary": "2-3 sentence summary of what Nour is thinking/feeling",
+  "summary": "2-3 sentence summary IN FIRST PERSON, in Nour's own voice ('I ...') — never third person, never 'Nour is ...'. This renders as HIS journal entry title.",
   "mood": "one word: calm|stressed|motivated|frustrated|scattered|focused|tired|energized|anxious|reflective",
   "domains": ["business|health|personal|finance|relationship|mastery"],
   "actionItems": [{"title": "specific task", "priority": "critical|high|medium|low", "domain": "business|health|personal|system|finance"}],
@@ -353,6 +371,13 @@ ${rawText}`,
           patterns: data.patterns || null,
           extractedItems: JSON.stringify({
             entryType,
+            // Capture origin · audit 2026-07-15 · brain_dumps has no
+            // source column and origin previously lived only in the
+            // AuditEvent payload. Persisting it here (no migration
+            // needed) lets the feed/cleanup tooling distinguish
+            // telegram/chat/manual after the fact. Column promotion is
+            // a flagged follow-up via the hand-applied migration flow.
+            source,
             domains: Array.isArray(data.domains) ? data.domains : [],
             linkedTopics: Array.isArray(data.linkedTopics) ? data.linkedTopics : [],
             actionItems: data.actionItems || [],
@@ -641,18 +666,17 @@ ${rawText}`,
       recordError("brain:journal-ingest", err, { phase: "audit-write", brainDumpId: brainDump.id });
     });
 
-  // v8.22 · Auto-embed journal text into pgvector. Fire-and-forget so
-  // we don't gate the user-facing return on the embedding round-trip;
-  // storeGenericEmbedding handles dual-write (JSON + embedding_vec) and
-  // dedupes via existing-row lookup. This unlocks "when did I last
-  // feel this way?" / "show me past entries about <topic>" semantic
-  // queries without any new schema. Skip on tiny entries — too short
-  // to embed meaningfully.
-  if (rawText.trim().length >= 40) {
-    void storeGenericEmbedding("brain_dump", brainDump.id, rawText).catch(
-      (err) => log.warn("embed_failed", { brainDumpId: brainDump.id, error: err instanceof Error ? err.message : String(err) }),
-    );
-  }
+  // Durable-fanout wave (audit 2026-07-15) · embedding + thread-join +
+  // enrichment now dispatch as ONE Inngest event (journal/entry.captured)
+  // and run as durable, retried steps — the previous fire-and-forget
+  // promises were not guaranteed to run after the response on
+  // serverless. dispatchJournalFanout degrades to the old inline path
+  // when the event send fails, so capture behavior never regresses.
+  // (Baseline XP + brain-bus emits below stay in-process — they're
+  // cheap and have their own idempotency/backfill nets.)
+  void dispatchJournalFanout("brain_dump", brainDump.id, {
+    notifyTelegram: source === "telegram",
+  });
 
   // v10.0.78 · brain-bus emit on finalized brain dump. Subscribers
   // (knowledge-sync, emotional-arc, search-grounding) react instead
@@ -668,19 +692,7 @@ ${rawText}`,
     rawChars: rawText.length,
   });
 
-  // Phase D · ADR-0013 · journal pattern-radar auto-join hook.
-  // Score the new entry against active thread centroids · sim ≥ 0.80
-  // → silent auto-join · 0.65 ≤ sim < 0.80 → suggestion persisted for
-  // operator confirmation. Fire-and-forget · capture never fails
-  // because the radar is down. SituationLog / Reflection / DecisionReplay
-  // writers can call the same helper when they're ready · today only
-  // BrainDump is wired (the most-common capture path).
-  void (async () => {
-    const { tryJoinActiveThreads } = await import(
-      "@/lib/services/journal-threads"
-    );
-    await tryJoinActiveThreads("brain_dump", brainDump.id, rawText);
-  })();
+  // (Thread auto-join now rides the journal/entry.captured event above.)
 
   // Journal Brain (2026-06-01) · baseline mastery XP for the capture path.
   // Pre-fix only structured Reflections fed XP (journal-reflect.ts) — the
@@ -712,15 +724,9 @@ ${rawText}`,
     );
   }
 
-  // Journal Brain (2026-06-01 · Phase 1) · async grounding/classify/link/score.
-  // Fire-and-forget — capture returns now; enrichment runs a beat later and the
-  // enrichedAt-null cron resweep retries if the process dies mid-pass. Runs for
-  // EVERY brain_dump (independent of the baseline-XP creditXp guard above).
-  void enrichJournalEntry("brain_dump", brainDump.id, rawText, {
-    notifyTelegram: source === "telegram",
-  }).catch((err) => {
-    logError("brain.journal-ingest", err, { fn: "ingestJournal.enrichJournalEntry" });
-  });
+  // (Grounding enrichment now rides the journal/entry.captured event
+  // above — durable steps with retries; the enrichedAt-null cron sweep
+  // remains the last-resort net.)
 
   return {
     brainDumpId: brainDump.id,

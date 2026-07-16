@@ -260,12 +260,26 @@ async function chatPostInner(req: Request) {
   // kicks the promise off and lets it run in parallel with prompt
   // assembly below — same shape as before.
   const { persistUserTurn } = await import("@/lib/services/chat/persist-user-turn");
-  const dbWritePromise: Promise<string> = persistUserTurn({
-    convId,
-    lastUserMsg,
-    userContent,
-    log,
-    recordError,
+  const { withTimeout } = await import("@/lib/utils/with-timeout");
+  // Bound the write · prisma has no query timeout, so a hung Neon pool
+  // connection would stall the Promise.all below (and brainCtxPromise,
+  // which chains on this) with zero bytes to the client. persistUserTurn
+  // never rejects on its own (internal catch → "temp"), so the only
+  // rejection here is the timeout — fall back to the same "temp"
+  // contract as its error path. The detached write may still land.
+  const dbWritePromise: Promise<string> = withTimeout(
+    persistUserTurn({
+      convId,
+      lastUserMsg,
+      userContent,
+      log,
+      recordError,
+    }),
+    5_000,
+    "persist-user-turn",
+  ).catch(() => {
+    log.warn("persist_user_turn_timeout", { convId: convId ?? null });
+    return convId || "temp";
   });
 
   const { provider, modelId } = getActiveProviderInfo();
@@ -313,7 +327,9 @@ async function chatPostInner(req: Request) {
   //   3. Automatic detection via detectChatMode
   const aiConfig = await getAiConfig().catch((): null => null);
   const { classifyIntent } = await import("@/lib/ai/runtime/intent-router");
+  const classifyTimer = stageTracker.start("classify");
   const classification = await classifyIntent(userContent, __traceId);
+  classifyTimer.end();
   const mode: ChatMode =
     modeOverride ||
     aiConfig?.defaultMode ||
@@ -480,6 +496,22 @@ async function chatPostInner(req: Request) {
         }
       })();
 
+  // 2026-07-15 · explicit web-search intent. Telemetry showed turns
+  // where the operator explicitly asked to "search the web" and the
+  // model either couldn't reach a web tool (pruner follow-up gap,
+  // fixed via conversationTail) or narrated "no web search available"
+  // WITHOUT attempting the attached tool (persona-framed reasoning
+  // model). Mirror the python-execute pattern: when the ask is
+  // explicit, force arsenalWebSearch on step 0 so unavailability can't
+  // be narrated — the only choice left is the query string. Detection
+  // stays tight (explicit phrasings only) so ordinary questions keep
+  // toolChoice auto.
+  const __webSearchIntent =
+    !__pythonExecuteIntent &&
+    /\b(search (the )?(web|internet|net|online)|google (it|for|me|this|that)|web ?search|look (it |this |that |them )?up online|(find|pull|get) (me )?(the )?(latest|current|live|breaking|newest|hottest) .{0,40}\b(online|on the web|from the web|news|trends?)\b)\b/i.test(
+      userContent,
+    );
+
   let model: ReturnType<typeof getModel>;
   let effectiveForce: ProviderName | undefined = undefined;
   try {
@@ -519,11 +551,22 @@ async function chatPostInner(req: Request) {
     const isHighStakesMutation =
       __actionIntent && HIGH_STAKES_MUTATIONS.has(__actionIntent.expectedTool || "");
 
+    // 2026-07-15 · action-force repoint. The force pinned GEMINI for
+    // ordinary action intents — but the Gemini key has been hard-dead
+    // on its monthly spending cap (verbatim: "project has exceeded its
+    // monthly spending cap", provider smoke), so every action turn
+    // burned a doomed Gemini attempt and survived only via the stream
+    // fallback. Ollama Cloud is the live primary AND honors strict
+    // tool_choice (deepseek-v4-pro probed live: forced tool_calls fire
+    // reliably). High-stakes mutations keep the Anthropic pin as the
+    // declared preference — ANTHROPIC_API_KEY is currently UNSET so
+    // getModel degrades it to the normal chain today, and it becomes
+    // meaningful again the moment the key is configured.
     const toolMandatoryForce =
       __pythonExecuteIntent || __actionIntent
         ? isHighStakesMutation
           ? ("anthropic" as const)
-          : ("gemini" as const)
+          : ("ollama" as const)
         : undefined;
 
     effectiveForce = toolMandatoryForce ?? validatedProviderOverride;
@@ -719,6 +762,7 @@ async function chatPostInner(req: Request) {
   // Await the parallel work — max of the pipelines. (DB write + user
   // embedding + context-hints + brain recall are folded in so their latency
   // is hidden inside the max.)
+  const prefetchTimer = stageTracker.start("prefetch");
   const [
     { systemPrompt: rawSystemPrompt, fromCache },
     compression,
@@ -734,6 +778,13 @@ async function chatPostInner(req: Request) {
     contextHintsPromise,
     brainCtxPromise,
   ]);
+  prefetchTimer.end();
+  stageTracker.cacheHit("prefetch", fromCache);
+  // Everything from here to streamWithFallback (finalize-system-prompt,
+  // GSC prefetch, tool pruning, message sanitization) is the last
+  // pre-stream span · timed as "stream-config" so a hang there is
+  // visible in the chat-pipeline log line.
+  const streamConfigTimer = stageTracker.start("stream-config");
   convId = resolvedConvId;
 
   log.info("prompt_built", {
@@ -936,11 +987,33 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   // Quick mode → zero tools. Standard → ~15-30 relevant. Deep → all 159.
   // Cuts Venice first-token latency from 10-30s → 2-5s for conversational
   // messages without removing any capability from data-heavy queries.
+  // 2026-07-15 · conversation-aware pruning. The pruner keyed ONLY on
+  // the current message, so follow-up turns ("try again", "?", "u
+  // sure?") lost the tool families the CONVERSATION needed — telemetry
+  // showed the model calling arsenalWebSearch and getting "unavailable
+  // tool · Available tools: <core-only list>" on exactly such turns,
+  // then honestly telling the operator "web search still unavailable".
+  // Feed the last few user messages as a matching tail so families
+  // persist across the follow-ups that reference them.
+  const __conversationTail = messages
+    .filter((m) => m.role === "user")
+    .slice(-4, -1)
+    .map((m) =>
+      (m.parts ?? [])
+        .filter((p) => p?.type === "text" && typeof p.text === "string")
+        .map((p) => p.text)
+        .join(" "),
+    )
+    .filter(Boolean)
+    .join("\n")
+    .slice(-1500);
+
   let prunedTools = (await pruneTools(
     mode,
     nourTools as unknown as Record<string, unknown>,
     userContent,
-    userEmbedding
+    userEmbedding,
+    { conversationTail: __conversationTail }
   )) as typeof nourTools;
 
   // Apply the AI config's tool blocklist (#13). Tools in
@@ -980,6 +1053,17 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     const forced = { ...prunedTools } as Record<string, unknown>;
     for (const raw of __actionIntent.expectedTool.split("|")) {
       const name = raw.trim();
+      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
+    }
+    prunedTools = forced as unknown as typeof nourTools;
+  }
+  // 2026-07-15 · same coherence guarantee for the web-search force: the
+  // step-0 toolChoice below can only fire if the tool is in the set.
+  if (__webSearchIntent) {
+    const all = nourTools as unknown as Record<string, unknown>;
+    const disabled = new Set(aiConfig?.disabledTools ?? []);
+    const forced = { ...prunedTools } as Record<string, unknown>;
+    for (const name of ["arsenalWebSearch", "searchWebVerified"]) {
       if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
     }
     prunedTools = forced as unknown as typeof nourTools;
@@ -1368,6 +1452,7 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     resolveOnFinish = resolve;
   });
 
+  streamConfigTimer.end();
   const { streamWithFallback, inferProviderName } = await import("@/lib/ai/stream-with-fallback");
   const __sameTurnFallback = await streamWithFallback({
     taskType: finalTaskType,
@@ -1476,13 +1561,41 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           // anti-fabrication guarantee (can't narrate-without-acting) while
           // restoring the closing summary. stepCountIs stops the loop as soon
           // as a step emits text with no tool call.
+          //
+          // 2026-07-15 · silent-tool-turn fix (final-step text forcing).
+          // With stopWhen(stepCountIs(N)), a turn whose EVERY step emitted
+          // tool calls ends with finishReason "tool-calls" and zero prose —
+          // the tool cards render but Nick never "responds" (operator nudged
+          // with "?" to get an answer). Force toolChoice:"none" on the last
+          // allowed step so the loop always ends with a step that can only
+          // produce text. Applies to all three branches, including the
+          // previously-prepareStep-less default.
+          const lastStep = (mode === "deep" ? 5 : 3) - 1;
           if (__pythonExecuteIntent) {
             log.info("python_execute_intent_detected", { surface: "chat" });
             return {
               prepareStep: ({ stepNumber }: { stepNumber: number }) =>
                 stepNumber === 0
                   ? { toolChoice: { type: "tool" as const, toolName: "runPython" as const } }
-                  : { toolChoice: "auto" as const },
+                  : stepNumber >= lastStep
+                    ? { toolChoice: "none" as const }
+                    : { toolChoice: "auto" as const },
+            };
+          }
+
+          // 2026-07-15 · explicit web-search ask → force the web tool on
+          // step 0 (checked before the generic action intent — more
+          // specific wins). deepseek-v4-pro honors strict tool_choice
+          // via Ollama's OpenAI-compat endpoint (probed live).
+          if (__webSearchIntent) {
+            log.info("web_search_intent_detected", { surface: "chat" });
+            return {
+              prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+                stepNumber === 0
+                  ? { toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const } }
+                  : stepNumber >= lastStep
+                    ? { toolChoice: "none" as const }
+                    : { toolChoice: "auto" as const },
             };
           }
 
@@ -1499,10 +1612,15 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
               prepareStep: ({ stepNumber }: { stepNumber: number }) =>
                 stepNumber === 0
                   ? { toolChoice: "required" as const }
-                  : { toolChoice: "auto" as const },
+                  : stepNumber >= lastStep
+                    ? { toolChoice: "none" as const }
+                    : { toolChoice: "auto" as const },
             };
           }
-          return {};
+          return {
+            prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+              stepNumber >= lastStep ? { toolChoice: "none" as const } : {},
+          };
         })(),
         // v10.0.446 · `messages:` (and `system:` for non-Anthropic) are
         // now set by the conditional spread above. The Anthropic branch
@@ -1620,6 +1738,15 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   // May 02 · chat-route extract chunk 2 · the response/headers/heartbeat
   // assembly moved verbatim to lib/services/chat/response-shape.ts.
   // Pure function — no I/O, no closures — easy to unit-test.
+  // Emit the per-stage pre-stream breakdown · this is the line that
+  // answers "where did the 90s go" when a turn hangs before the first
+  // token. Stages: gate · interceptors · classify · prefetch ·
+  // stream-config. (Streaming itself happens after this return, so it
+  // is intentionally not part of this summary.)
+  log.info("chat_pipeline_stages", {
+    line: formatStageLog(reqId, mode, stageTracker.summary()),
+  });
+
   const { buildChatResponse } = await import("@/lib/services/chat/response-shape");
   return buildChatResponse({
     streamResponse: result.toUIMessageStreamResponse(),

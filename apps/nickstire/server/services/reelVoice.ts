@@ -1,8 +1,14 @@
 /**
  * Reel voiceover (TTS) — Google Neural2 by default (free quota, commercial-clean,
  * no per-use key the operator must add), ElevenLabs as a richer fallback.
- * Ported from the proven scratch/gen-vo.ts. Returns null (never throws) when no
- * script or no provider is configured, so assembly degrades to music/silent.
+ * Ported from the proven scratch/gen-vo.ts.
+ *
+ * Failure policy: a brief WITHOUT a voiceoverScript is a deliberately silent
+ * reel — null, assemble over music. A brief WITH a script is designed around
+ * narration: its beats, captions, and CTA assume a voice, so losing TTS now
+ * THROWS and fails the job (the pipeline retries, then surfaces it in the
+ * failed-jobs counter) instead of silently publishing a narration-less reel
+ * nobody reviewed. Set REEL_VO_OPTIONAL=true to restore degrade-to-silent.
  */
 import { createLogger } from "../lib/logger";
 
@@ -81,7 +87,9 @@ export interface VoiceAlignment {
 
 async function elevenLabsVoice(script: string): Promise<{ buf: Buffer; alignment?: VoiceAlignment }> {
   const KEY = process.env.ELEVENLABS_API_KEY as string;
-  const voiceId = "CwhRBWXzGAHq8TQ4Fs17"; // Roger
+  // Operator-selectable brand voice; "Roger" stays the default so existing
+  // deployments keep their sound until ELEVENLABS_VOICE_ID is set.
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || "CwhRBWXzGAHq8TQ4Fs17"; // Roger
   const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps?output_format=mp3_44100_128`, {
     method: "POST",
     headers: { "xi-api-key": KEY, "Content-Type": "application/json" },
@@ -112,29 +120,44 @@ async function elevenLabsVoice(script: string): Promise<{ buf: Buffer; alignment
   return { buf, alignment };
 }
 
+/** True when the operator has explicitly opted back into degrade-to-silent. */
+function voiceoverOptional(): boolean {
+  return process.env.REEL_VO_OPTIONAL === "true";
+}
+
 /**
- * Generate a voiceover for the reel, or null when there's no script or no
- * provider configured. Never throws — a failed/absent VO just means the reel
- * assembles over music (or silent), it doesn't fail the whole job.
+ * Generate a voiceover for the reel. Null means "this reel is silent on
+ * purpose" — either the brief carries no script, or REEL_VO_OPTIONAL=true
+ * explicitly allows degrading. When a script exists and TTS cannot deliver,
+ * this THROWS: the reel was designed around narration, and shipping it
+ * narration-less used to happen silently (the operator approved a reel with a
+ * voice; a different reel published). The assembly pipeline already retries
+ * failed jobs and surfaces terminal failures in the Settings health counter.
  */
 export async function generateVoiceover(script: string | undefined | null): Promise<VoiceAudio | null> {
   const text = (script ?? "").trim();
   if (!text) return null;
   const provider = pickVoiceProvider();
   if (!provider) {
-    log.warn("no TTS provider configured — reel will assemble without VO");
-    return null;
+    if (voiceoverOptional()) {
+      log.warn("no TTS provider configured — REEL_VO_OPTIONAL=true, assembling without VO");
+      return null;
+    }
+    throw new Error(
+      "Reel brief has a voiceover script but no TTS provider is configured (set GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_KEY, or ELEVENLABS_API_KEY; or set REEL_VO_OPTIONAL=true to allow silent assembly)",
+    );
   }
   try {
     if (provider === "google") return { buf: await googleVoice(text), ext: "wav", provider };
     const { buf, alignment } = await elevenLabsVoice(text);
     return { buf, ext: "mp3", provider, alignment };
   } catch (err) {
-    log.warn("voiceover generation failed — degrading to no-VO", {
-      provider,
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return null;
+    const msg = err instanceof Error ? err.message : String(err);
+    if (voiceoverOptional()) {
+      log.warn("voiceover generation failed — REEL_VO_OPTIONAL=true, degrading to no-VO", { provider, err: msg });
+      return null;
+    }
+    throw new Error(`Voiceover generation failed (${provider}): ${msg} — the brief's narration is required; set REEL_VO_OPTIONAL=true to allow silent assembly`);
   }
 }
 

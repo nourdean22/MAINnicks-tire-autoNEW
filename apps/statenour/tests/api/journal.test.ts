@@ -90,7 +90,37 @@ describe("tRPC journal.insightsPreview", () => {
       nextAction: { action: "Extract Card component", domain: "mastery" },
       entryTitle: "Journal Entry",
       goalId: null,
+      // Loop-closure wave · server-truth promoted flags (false when unset)
+      ideaPromoted: false,
+      challengePromoted: false,
+      nextActionPromoted: false,
     });
+  });
+
+  it("scrubs literal 'null'-string next actions (legacy model artifact)", async () => {
+    const mockTakeDate = new Date("2026-06-14T12:00:00Z");
+    mockPrisma.brainMemory.findMany.mockResolvedValue([
+      {
+        id: "take-null",
+        key: "journal-take:entry-null",
+        content: JSON.stringify({
+          idea: "still a real idea",
+          challenge: null,
+          nextAction: { action: "null", domain: null },
+        }),
+        updatedAt: mockTakeDate,
+      },
+    ]);
+    mockPrisma.brainDump.findMany.mockResolvedValue([]);
+    mockPrisma.reflection.findMany.mockResolvedValue([]);
+    mockPrisma.situationLog.findMany.mockResolvedValue([]);
+    mockPrisma.decisionReplay.findMany.mockResolvedValue([]);
+
+    const result = await caller.journal.insightsPreview();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].nextAction).toBeNull();
+    expect(result[0].idea).toBe("still a real idea");
   });
 
   it("recovers gracefully and returns null fields when JSON is malformed", async () => {
@@ -124,6 +154,9 @@ describe("tRPC journal.insightsPreview", () => {
       nextAction: null,
       entryTitle: "Journal Entry",
       goalId: null,
+      ideaPromoted: false,
+      challengePromoted: false,
+      nextActionPromoted: false,
     });
   });
 

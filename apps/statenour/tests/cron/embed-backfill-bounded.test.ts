@@ -16,6 +16,10 @@ const { mockPrisma } = vi.hoisted(() => ({
     brainMemory: { findMany: vi.fn() },
     brainDump: { findMany: vi.fn() },
     reflection: { findMany: vi.fn() },
+    // Silo wave (audit 2026-07-15) · situation_log + decision_replay
+    // joined the backfill's covered source types.
+    situationLog: { findMany: vi.fn() },
+    decisionReplay: { findMany: vi.fn() },
     strategicLaw: { findMany: vi.fn() },
     chatMessage: { findMany: vi.fn() },
   },
@@ -45,6 +49,8 @@ beforeEach(() => {
   mockPrisma.brainMemory.findMany.mockResolvedValue([]);
   mockPrisma.brainDump.findMany.mockResolvedValue([]);
   mockPrisma.reflection.findMany.mockResolvedValue([]);
+  mockPrisma.situationLog.findMany.mockResolvedValue([]);
+  mockPrisma.decisionReplay.findMany.mockResolvedValue([]);
   mockPrisma.strategicLaw.findMany.mockResolvedValue([]);
   mockPrisma.chatMessage.findMany.mockResolvedValue([]);
 });

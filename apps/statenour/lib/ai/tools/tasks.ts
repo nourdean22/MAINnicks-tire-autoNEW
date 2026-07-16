@@ -210,13 +210,14 @@ const tasksCoreTools = {
 
       const now = new Date();
       if (task.loopKind === "DAILY") {
-        // Same streak logic as /api/tasks/[id]/check route
+        // Same streak logic as /api/tasks/[id]/check route. Day boundaries
+        // are ET calendar days (toDateString), NOT server-UTC days — the UTC
+        // floor flipped "today" at 8pm ET (double bump / false reset).
         let nextStreak = 1;
         if (task.lastCompletedAt) {
-          const last = new Date(task.lastCompletedAt);
-          const lastStart = new Date(last.getFullYear(), last.getMonth(), last.getDate());
-          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const gap = Math.round((todayStart.getTime() - lastStart.getTime()) / 86_400_000);
+          const lastDayET = toDateString(new Date(task.lastCompletedAt));
+          const todayET = toDateString(now);
+          const gap = Math.round((Date.parse(todayET) - Date.parse(lastDayET)) / 86_400_000);
           if (gap === 0) {
             return {
               completed: true,
@@ -708,6 +709,42 @@ const tasksCoreTools = {
         void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.tasks", err, { fn: "journalDecision.brainMemory" }, "warn"));
       });
 
+      // Silo wave (audit 2026-07-15) · decision→journal bridge. A
+      // chat-logged decision previously lived only in mastery_decisions
+      // + a decision_log memory — the /journal feed reads
+      // decision_replays, so the decision stayed invisible until the
+      // replay coach minted a row at REVIEW time (or never). Mint the
+      // unreviewed replay stub now with the coach's own idempotencyKey
+      // (`decision_<id>_30d`) — markReplayed finds-and-UPDATES this
+      // exact row (decision-replay-coach.ts), so no duplicate is ever
+      // created, and the decision is feed-visible immediately.
+      void (async () => {
+        try {
+          const reviewAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+          const stub = await prisma.decisionReplay.create({
+            data: {
+              decisionId: decision.id,
+              title,
+              context: options,
+              choiceMade: chosen,
+              reasoning,
+              reviewAt,
+              reviewed: false,
+              idempotencyKey: `decision_${decision.id}_30d`,
+            },
+            select: { id: true },
+          });
+          // Durable-fanout wave (audit 2026-07-15) · enrich + embed +
+          // thread-join as durable Inngest steps (inline fallback inside).
+          const { dispatchJournalFanout } = await import("@/lib/brain/journal-fanout");
+          await dispatchJournalFanout("decision_replay", stub.id);
+        } catch (err) {
+          void import("@/lib/utils/error-log").then(({ logError }) =>
+            logError("ai.tools.tasks", err, { fn: "journalDecision.replayStub" }, "warn"),
+          );
+        }
+      })();
+
       return { logged: true, id: decision.id };
     },
   }),
@@ -740,9 +777,15 @@ const tasksCoreTools = {
         },
         take: 3,
       });
-      await prisma.situationLog.create({
+      const situationRow = await prisma.situationLog.create({
         data: { situation, context, lawId: matchingLaws[0]?.id || null },
       });
+      // Durable-fanout wave (audit 2026-07-15) · enrich + embed +
+      // thread-join as durable Inngest steps (inline fallback inside).
+      void (async () => {
+        const { dispatchJournalFanout } = await import("@/lib/brain/journal-fanout");
+        await dispatchJournalFanout("situation_log", situationRow.id);
+      })().catch(() => { /* dispatch never throws · double net */ });
       return {
         logged: true,
         matchingLaws: matchingLaws.map(l => ({

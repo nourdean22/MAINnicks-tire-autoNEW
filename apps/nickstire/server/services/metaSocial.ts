@@ -200,6 +200,135 @@ export async function getMetaSocialStatus(): Promise<{
   };
 }
 
+// ─── Live connection verification ──────────────────────
+// getMetaSocialStatus above is PRESENCE-only (token and IDs exist) — it stays
+// that way because publish paths and cron call it on hot paths. A token can be
+// present and dead (revoked permissions, password reset, page unlinked,
+// platform action), which used to leave Settings showing "ready" while every
+// publish failed. This live probe asks the Graph API itself, with a short
+// cache so an admin panel poll can't burn rate limit.
+
+export interface MetaLiveStatus {
+  ok: boolean;
+  checkedAt: string;
+  igUsername: string | null;
+  pageName: string | null;
+  error: string | null;
+}
+
+let liveCache: { at: number; result: MetaLiveStatus } | null = null;
+const LIVE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/** Test hook — the cache is module state and singleFork shares the process. */
+export function __resetMetaLiveCacheForTests(): void {
+  liveCache = null;
+}
+
+export async function verifyMetaConnectionLive(opts?: { force?: boolean }): Promise<MetaLiveStatus> {
+  if (!opts?.force && liveCache && Date.now() - liveCache.at < LIVE_CACHE_TTL_MS) {
+    return liveCache.result;
+  }
+
+  const checkedAt = new Date().toISOString();
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  const pageId = await getPageId();
+  const igUserId = await getIgUserId();
+
+  const fail = (error: string): MetaLiveStatus => {
+    const result: MetaLiveStatus = { ok: false, checkedAt, igUsername: null, pageName: null, error };
+    liveCache = { at: Date.now(), result };
+    return result;
+  };
+
+  if (!token) return fail("No Meta access token available");
+  if (!igUserId && !pageId) return fail("Neither META_IG_USER_ID nor META_PAGE_ID is configured");
+
+  try {
+    const probe = async (id: string, fields: string) => {
+      const res = await fetch(`${GRAPH_URL}/${id}?fields=${fields}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || data.error) {
+        throw new Error(data?.error?.message || `HTTP ${res.status}`);
+      }
+      return data as Record<string, string>;
+    };
+
+    const [ig, page] = await Promise.all([
+      igUserId ? probe(igUserId, "id,username") : Promise.resolve(null),
+      pageId ? probe(pageId, "id,name") : Promise.resolve(null),
+    ]);
+
+    const result: MetaLiveStatus = {
+      ok: true,
+      checkedAt,
+      igUsername: ig?.username ?? null,
+      pageName: page?.name ?? null,
+      error: null,
+    };
+    liveCache = { at: Date.now(), result };
+    return result;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ─── Container readiness polling ────────────────────────
+// Meta processes every uploaded media container asynchronously; publishing
+// before status_code=FINISHED intermittently fails or posts broken media.
+// This loop existed as three inline copies (image, story, reel) and was
+// MISSING entirely from the carousel path — now all four share it.
+
+export async function pollContainerReady(
+  creationId: string,
+  token: string,
+  opts: { what: string; maxAttempts?: number; intervalMs?: number },
+): Promise<{ ready: true } | { ready: false; error: string }> {
+  const maxAttempts = opts.maxAttempts ?? 12;
+  const intervalMs = opts.intervalMs ?? 5000;
+  let attempts = 0;
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+
+    const statusRes = await fetch(
+      `${GRAPH_URL}/${creationId}?fields=status_code&access_token=${encodeURIComponent(token)}`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+
+    const statusData = await statusRes.json().catch(() => null);
+    if (!statusRes.ok || !statusData) {
+      const errMsg = statusData?.error?.message || `HTTP ${statusRes.status}`;
+      log.warn(`Failed to check container status (attempt ${attempts}): ${errMsg}`);
+      continue;
+    }
+
+    if (statusData.error) {
+      log.warn(`Meta status check returned error: ${statusData.error.message}`);
+      continue;
+    }
+
+    const statusCode = statusData.status_code;
+    log.info(`Instagram container status check (attempt ${attempts}): ${statusCode}`);
+
+    if (statusCode === "FINISHED") {
+      return { ready: true };
+    }
+    if (statusCode === "ERROR") {
+      return { ready: false, error: `Meta ${opts.what} processing failed (status_code: ERROR)` };
+    }
+  }
+
+  return {
+    ready: false,
+    error: `Meta ${opts.what} processing timed out (still IN_PROGRESS after ${(maxAttempts * intervalMs) / 1000}s)`,
+  };
+}
+
 // ─── Token Reconnect (User token → never-expiring Page token) ───
 
 /**
@@ -386,44 +515,9 @@ export async function postToInstagram(params: {
     }
 
     // Step 2: Poll container status until it is FINISHED (or ERROR)
-    let isReady = false;
-    let attempts = 0;
-    const maxAttempts = 12; // 12 attempts * 5s = 60 seconds (1 minute)
-
-    while (!isReady && attempts < maxAttempts) {
-      attempts++;
-      // Wait 5 seconds between checks
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      const statusRes = await fetch(
-        `${GRAPH_URL}/${creationId}?fields=status_code&access_token=${encodeURIComponent(token)}`,
-        { signal: AbortSignal.timeout(10000) }
-      );
-
-      const statusData = await statusRes.json().catch(() => null);
-      if (!statusRes.ok || !statusData) {
-        const errMsg = statusData?.error?.message || `HTTP ${statusRes.status}`;
-        log.warn(`Failed to check container status (attempt ${attempts}): ${errMsg}`);
-        continue;
-      }
-
-      if (statusData.error) {
-        log.warn(`Meta status check returned error: ${statusData.error.message}`);
-        continue;
-      }
-
-      const statusCode = statusData.status_code;
-      log.info(`Instagram container status check (attempt ${attempts}): ${statusCode}`);
-
-      if (statusCode === "FINISHED") {
-        isReady = true;
-      } else if (statusCode === "ERROR") {
-        return { success: false, error: "Meta image processing failed (status_code: ERROR)" };
-      }
-    }
-
-    if (!isReady) {
-      return { success: false, error: "Meta image processing timed out (still IN_PROGRESS after 60s)" };
+    const readiness = await pollContainerReady(creationId, token, { what: "image" });
+    if (!readiness.ready) {
+      return { success: false, error: readiness.error };
     }
 
     // Step 3: Publish the container
@@ -504,43 +598,9 @@ export async function postInstagramStory(params: {
     }
 
     // Step 2: Poll container status until it is FINISHED (or ERROR)
-    let isReady = false;
-    let attempts = 0;
-    const maxAttempts = 12; // 12 attempts * 5s = 60 seconds (1 minute)
-
-    while (!isReady && attempts < maxAttempts) {
-      attempts++;
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      const statusRes = await fetch(
-        `${GRAPH_URL}/${creationId}?fields=status_code&access_token=${encodeURIComponent(token)}`,
-        { signal: AbortSignal.timeout(10000) }
-      );
-
-      const statusData = await statusRes.json().catch(() => null);
-      if (!statusRes.ok || !statusData) {
-        const errMsg = statusData?.error?.message || `HTTP ${statusRes.status}`;
-        log.warn(`Failed to check story status (attempt ${attempts}): ${errMsg}`);
-        continue;
-      }
-
-      if (statusData.error) {
-        log.warn(`Meta status check returned error: ${statusData.error.message}`);
-        continue;
-      }
-
-      const statusCode = statusData.status_code;
-      log.info(`Instagram story status check (attempt ${attempts}): ${statusCode}`);
-
-      if (statusCode === "FINISHED") {
-        isReady = true;
-      } else if (statusCode === "ERROR") {
-        return { success: false, error: "Meta story processing failed (status_code: ERROR)" };
-      }
-    }
-
-    if (!isReady) {
-      return { success: false, error: "Meta story processing timed out (still IN_PROGRESS after 60s)" };
+    const readiness = await pollContainerReady(creationId, token, { what: "story" });
+    if (!readiness.ready) {
+      return { success: false, error: readiness.error };
     }
 
     // Step 3: Publish the container
@@ -631,7 +691,17 @@ export async function postInstagramCarousel(params: {
       return { success: false, error: `Carousel container failed: ${containerData?.error?.message || "unknown"}` };
     }
 
-    // Step 3: Publish
+    // Step 3: Poll the carousel container until Meta reports FINISHED. Every
+    // other format polled before publishing; carousel went straight to
+    // media_publish, which intermittently failed (or published broken media)
+    // when children were still processing. The parent container's status
+    // reflects child readiness, so one poll covers all of them.
+    const readiness = await pollContainerReady(containerData.id, token, { what: "carousel" });
+    if (!readiness.ready) {
+      return { success: false, error: readiness.error };
+    }
+
+    // Step 4: Publish
     const publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
       method: "POST",
       headers: authHeaders,

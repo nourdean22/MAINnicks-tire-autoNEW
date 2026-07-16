@@ -141,6 +141,7 @@ export function ReflectComposer() {
   // auto-scrolls + pre-fills the first field.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let cleanupFocusListener: (() => void) | undefined;
     try {
       const savedTemplate = localStorage.getItem(LAST_TEMPLATE_KEY);
       if (savedTemplate === "soap" || savedTemplate === "driscoll" || savedTemplate === "ssc" || savedTemplate === "aar") {
@@ -158,6 +159,25 @@ export function ReflectComposer() {
         if (parsed.mood) setMood(parsed.mood);
         if (parsed.templateKey) setTemplateKey(parsed.templateKey);
       }
+
+      // UI wave (audit 2026-07-15) · listener for the focus event
+      // TodaysPrompt has dispatched since it shipped — grep-verified NO
+      // listener existed anywhere, so "answer now" only ever scrolled
+      // (its own fallback) and never focused the composer.
+      const focusComposer = () => {
+        requestAnimationFrame(() => {
+          document.getElementById("journal-reflect-composer")?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+          document
+            .querySelector<HTMLTextAreaElement>("#journal-reflect-composer textarea")
+            ?.focus();
+        });
+      };
+      window.addEventListener("nour:journal-focus-composer", focusComposer);
+      cleanupFocusListener = () =>
+        window.removeEventListener("nour:journal-focus-composer", focusComposer);
 
       // Hash-driven entry (from Ultron /reflect slash or the "reflect tonight?" nudge)
       const hash = window.location.hash;
@@ -191,6 +211,7 @@ export function ReflectComposer() {
         }
       }
     } catch {}
+    return () => cleanupFocusListener?.();
   }, []);
 
   // Persist draft on every change so a refresh doesn't lose what he wrote

@@ -377,34 +377,10 @@ ${missionMenu}`,
   }
 }
 
-/**
- * Durability net · re-enrich brain_dumps the live void-pass missed (process
- * died mid-pass, AI hiccup, or rows captured before Phase 1 shipped). Picks the
- * most recent unenriched, non-deleted rows (bounded) and runs the same pass.
- * Idempotent — grounded credit dedupes by sourceKey. Called from the nightly
- * mastery-xp cron. Returns the count swept.
- *
- * Phase 3 backfill reuses enrichJournalEntry directly across all 4 silos with
- * its own batch controls; this is the always-on safety sweep for the dominant
- * capture path (brain_dump).
- */
-export async function resweepUnenriched(limit = 25): Promise<number> {
-  const rows = await prisma.brainDump
-    .findMany({
-      where: { enrichedAt: null, deletedAt: null },
-      select: { id: true, rawThoughts: true },
-      orderBy: { createdAt: "desc" },
-      take: Math.min(Math.max(1, limit), 100),
-    })
-    .catch((): { id: string; rawThoughts: string }[] => []);
-  let n = 0;
-  for (const r of rows) {
-    await enrichJournalEntry("brain_dump", r.id, r.rawThoughts);
-    n++;
-  }
-  if (n > 0) log.info("journal_brain_resweep", { swept: n });
-  return n;
-}
+// resweepUnenriched (brain_dump-only durability sweep) was retired in the
+// silo wave (audit 2026-07-15) — the mastery-xp cron now runs
+// backfillJournalBrain({ limit: 15 }) which sweeps all 4 silos with the
+// same idempotency guarantees.
 
 /**
  * Phase 2 · the "sharp" layer. One "reason" call produces (a) a bold,
@@ -455,8 +431,13 @@ No preamble. Specific over generic. Blank beats fabricated: null the action if n
   if (!parsed.ok) return;
   const idea = typeof parsed.value.idea === "string" ? parsed.value.idea.trim().slice(0, 600) : null;
   const challenge = typeof parsed.value.challenge === "string" ? parsed.value.challenge.trim().slice(0, 400) : null;
-  // Next-Action: the loop's "Act" step. Honest — null when the model returns no real move (don't fabricate).
-  const actionText = typeof parsed.value.nextAction === "string" ? parsed.value.nextAction.trim().slice(0, 300) : null;
+  // Next-Action: the loop's "Act" step. Honest — null when the model returns no
+  // real move (don't fabricate). Live-verify 2026-07-15: some models return the
+  // literal STRING "null" instead of JSON null — that rendered "NEXT ACTION:
+  // null [ACCEPT]" on /journal, so scrub null-ish strings here at the source.
+  const rawAction = typeof parsed.value.nextAction === "string" ? parsed.value.nextAction.trim() : "";
+  const actionText =
+    rawAction && !["null", "none", "n/a"].includes(rawAction.toLowerCase()) ? rawAction.slice(0, 300) : null;
   const actionDomain = typeof parsed.value.domain === "string" ? parsed.value.domain.trim().slice(0, 24) : null;
   const nextAction = actionText ? { action: actionText, domain: actionDomain } : null;
   if (!idea && !challenge && !nextAction) return;
@@ -502,13 +483,15 @@ export async function backfillJournalBrain(
   for (const silo of silos) {
     let rows: { id: string; text: string }[] = [];
     if (silo === "brain_dump") {
+      // deletedAt filter (audit 2026-07-15) — without it the backfill
+      // burns "reason" calls enriching soft-deleted/quarantined rows.
       const r = await prisma.brainDump
-        .findMany({ where: { enrichedAt: null }, select: { id: true, rawThoughts: true }, orderBy: { createdAt: "desc" }, take: limit })
+        .findMany({ where: { enrichedAt: null, deletedAt: null }, select: { id: true, rawThoughts: true }, orderBy: { createdAt: "desc" }, take: limit })
         .catch((): { id: string; rawThoughts: string }[] => []);
       rows = r.map((x) => ({ id: x.id, text: x.rawThoughts }));
     } else if (silo === "reflection") {
       const r = await prisma.reflection
-        .findMany({ where: { enrichedAt: null }, select: { id: true, insight: true }, orderBy: { createdAt: "desc" }, take: limit })
+        .findMany({ where: { enrichedAt: null, deletedAt: null }, select: { id: true, insight: true }, orderBy: { createdAt: "desc" }, take: limit })
         .catch((): { id: string; insight: string }[] => []);
       rows = r.map((x) => ({ id: x.id, text: x.insight }));
     } else if (silo === "situation_log") {

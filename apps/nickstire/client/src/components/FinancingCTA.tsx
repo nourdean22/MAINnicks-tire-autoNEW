@@ -1,11 +1,4 @@
-/**
- * Reusable Financing CTA — embeddable on service pages, booking flow, etc.
- * Compact banner driving traffic to the /financing page.
- * Now includes "Check If You Qualify" pre-approval flow.
- */
-import { useState } from "react";
-import { CreditCard, ArrowRight, Shield, DollarSign } from "lucide-react";
-import FinancingPreApprovalModal from "./FinancingPreApprovalModal";
+import { ArrowRight, CreditCard, DollarSign, ShieldCheck } from "lucide-react";
 
 interface FinancingCTAProps {
   /** Compact single-line variant for tight spaces */
@@ -14,103 +7,67 @@ interface FinancingCTAProps {
 }
 
 export default function FinancingCTA({ variant = "banner", className = "" }: FinancingCTAProps) {
-  const [showPreApproval, setShowPreApproval] = useState(false);
-
   if (variant === "inline") {
     return (
-      <>
-        <a
-          href="/financing"
-          className={`inline-flex items-center gap-2 text-primary text-sm font-semibold hover:underline ${className}`}
-        >
-          <CreditCard className="w-4 h-4" />
-          Need financing? Apply online in 60 seconds
-          <ArrowRight className="w-3.5 h-3.5" />
-        </a>
-        <FinancingPreApprovalModal
-          open={showPreApproval}
-          onClose={() => setShowPreApproval(false)}
-        />
-      </>
+      <a
+        href="/financing"
+        className={`inline-flex items-center gap-2 text-primary text-sm font-semibold hover:underline ${className}`}
+      >
+        <CreditCard className="h-4 w-4" aria-hidden="true" />
+        Compare third-party payment options
+        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+      </a>
     );
   }
 
   if (variant === "card") {
     return (
-      <>
-        <div className={`bg-primary/5 border border-primary/15 rounded-xl p-5 ${className}`}>
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-              <CreditCard className="w-5 h-5" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-foreground text-sm mb-1">Need to Spread Out the Cost?</h3>
-              <p className="text-foreground/60 text-xs leading-relaxed mb-3">
-                4 payment programs available, no credit needed. Approved in seconds. Pay over time.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href="/financing"
-                  className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md font-bold text-xs tracking-wide hover:opacity-90 transition-colors"
-                >
-                  VIEW OPTIONS
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </a>
-                <button
-                  onClick={() => setShowPreApproval(true)}
-                  className="inline-flex items-center gap-2 border border-primary/30 text-primary px-4 py-2 rounded-md font-bold text-xs tracking-wide hover:bg-primary/10 transition-colors"
-                >
-                  CHECK IF YOU QUALIFY
-                </button>
-              </div>
-            </div>
+      <div className={`rounded-xl border border-primary/15 bg-primary/5 p-5 ${className}`}>
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <CreditCard className="h-5 w-5" aria-hidden="true" />
           </div>
-        </div>
-        <FinancingPreApprovalModal
-          open={showPreApproval}
-          onClose={() => setShowPreApproval(false)}
-        />
-      </>
-    );
-  }
-
-  // Default: banner
-  return (
-    <>
-      <div className={`bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/15 rounded-xl p-4 ${className}`}>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center text-primary shrink-0">
-              <DollarSign className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-bold text-foreground text-sm">Fix It Now, Pay Over Time</p>
-              <p className="text-foreground/70 text-xs">
-                4 options · No credit needed · Approved in seconds · Up to $7,500
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex-1">
+            <h3 className="mb-1 text-sm font-bold text-foreground">Need another way to pay?</h3>
+            <p className="mb-3 text-xs leading-relaxed text-foreground/60">
+              Nick's accepts four third-party payment providers. Products, approval, initial payment, and total cost vary by provider and applicant.
+            </p>
             <a
               href="/financing"
-              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-bold text-xs tracking-wide hover:opacity-90 transition-colors whitespace-nowrap"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold tracking-wide text-primary-foreground transition-opacity hover:opacity-90"
             >
-              SEE YOUR OPTIONS
-              <ArrowRight className="w-3.5 h-3.5" />
+              COMPARE OPTIONS
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </a>
-            <button
-              onClick={() => setShowPreApproval(true)}
-              className="inline-flex items-center gap-2 border border-primary/30 text-primary px-5 py-2.5 rounded-md font-bold text-xs tracking-wide hover:bg-primary/10 transition-colors whitespace-nowrap"
-            >
-              CHECK IF YOU QUALIFY
-            </button>
           </div>
         </div>
       </div>
-      <FinancingPreApprovalModal
-        open={showPreApproval}
-        onClose={() => setShowPreApproval(false)}
-      />
-    </>
+    );
+  }
+
+  return (
+    <div className={`rounded-xl border border-primary/15 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 ${className}`}>
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+            <DollarSign className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-foreground">Payment Options Are Available</p>
+            <p className="text-xs text-foreground/70">
+              Compare four third-party providers before you apply.
+            </p>
+          </div>
+        </div>
+        <a
+          href="/financing"
+          className="inline-flex items-center gap-2 whitespace-nowrap rounded-md bg-primary px-5 py-2.5 text-xs font-bold tracking-wide text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+          SEE TERMS & OPTIONS
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
+      </div>
+    </div>
   );
 }

@@ -225,6 +225,18 @@ export async function multiSourceSearch(
   const available = requested.filter(hasApiKey);
 
   if (available.length === 0) {
+    // 2026-07-15 · make config-level darkness OBSERVABLE. This graceful
+    // return was recorded as tool SUCCESS in telemetry, so a fully
+    // unconfigured search stack was invisible to /system/chat-health —
+    // the operator learned about it from the model saying "web search
+    // unavailable" in chat. Best-effort, never blocks the return.
+    void import("@/lib/errors/record-error")
+      .then(({ recordError }) =>
+        recordError("ai:tool-exec", new Error("multiSourceSearch: zero search sources configured"), {
+          requested: requested.join(","),
+        }),
+      )
+      .catch(() => {});
     return {
       consensus: null,
       sources: [],

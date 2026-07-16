@@ -1,6 +1,7 @@
 import "server-only";
 import { detectChatMode, type ChatMode } from "@/lib/ai/chat-mode-detect";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { withTimeout } from "@/lib/utils/with-timeout";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Domain Routing (formerly lib/ai/domain-routing.ts)
@@ -188,17 +189,25 @@ export async function classifyIntent(
   }
 
   try {
-    const result = await tracedAiChat(
-      {
-        label: "intent-router",
-        source: "chat",
-        parentTraceId: traceId,
-      },
-      [
-        { role: "system", content: INTENT_SYSTEM_PROMPT },
-        { role: "user", content: `Request: ${messageTrimmed}` },
-      ],
-      "classify"
+    // Bound the classify call · it sits on the pre-stream critical path,
+    // so an unbounded provider stall (45s/tier) is the "Nick is stuck"
+    // 90s zero-byte hang. Classification is a cheap decision — 8s is
+    // generous; on timeout we fall through to the general-chat default.
+    const result = await withTimeout(
+      tracedAiChat(
+        {
+          label: "intent-router",
+          source: "chat",
+          parentTraceId: traceId,
+        },
+        [
+          { role: "system", content: INTENT_SYSTEM_PROMPT },
+          { role: "user", content: `Request: ${messageTrimmed}` },
+        ],
+        "classify"
+      ),
+      8000,
+      "intent-router"
     );
 
     const raw = (result.content ?? "").trim();

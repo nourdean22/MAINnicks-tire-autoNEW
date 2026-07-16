@@ -3,12 +3,17 @@ import { runSocialInventoryPublisher } from "../cron/jobs/socialInventoryPublish
 
 // Mock database
 let mockDueItems: any[] = [];
+// Drizzle's mysql2 driver resolves `.update()` to `[ResultSetHeader, FieldPacket[]]`
+// (drizzle-orm/mysql2/session.d.ts:13). The publisher's at-most-once claim reads
+// affectedRows off that tuple to decide whether it owns the row, so resolving to a
+// bare `[]` here reads as "claim lost" and skips every publish.
+const UPDATE_RESULT: unknown = [{ affectedRows: 1 }, []];
 const mockUpdate = vi.fn().mockImplementation(() => {
   const builder = {
     set: vi.fn().mockReturnThis(),
-    where: vi.fn().mockImplementation(() => Promise.resolve([])),
+    where: vi.fn().mockImplementation(() => Promise.resolve(UPDATE_RESULT)),
     then: vi.fn().mockImplementation((onFulfilled) => {
-      return Promise.resolve([]).then(onFulfilled);
+      return Promise.resolve(UPDATE_RESULT).then(onFulfilled);
     }),
   };
   return builder;

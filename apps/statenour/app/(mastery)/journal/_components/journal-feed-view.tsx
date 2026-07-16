@@ -13,34 +13,28 @@ export function JournalFeedView() {
     entries,
     counts,
     isLoading,
+    isFetchingMore,
+    degraded,
     error,
     source,
     setSourceFilter,
     type,
     setTypeFilter,
+    search,
+    setSearch,
     loadMore,
     hasMore,
   } = useJournalFeed();
 
-  const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<"newest" | "oldest" | "alpha-asc" | "alpha-desc" | "longest" | "shortest">("newest");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Client-side filtering and sorting
+  // Feed v2 (audit 2026-07-15) · search now runs SERVER-SIDE (the hook
+  // debounces the input into the query), so matches anywhere in the
+  // archive surface — the old client filter only saw the loaded window.
+  // Sorting stays client-side over the loaded pages.
   const filteredEntries = useMemo(() => {
     let result = entries;
-    const q = search.trim().toLowerCase();
-    if (q) {
-      result = result.filter(
-        (e) =>
-          e.title.toLowerCase().includes(q) ||
-          e.body.toLowerCase().includes(q) ||
-          (e.summary && e.summary.toLowerCase().includes(q)) ||
-          e.linkedTopics.some((t) => t.toLowerCase().includes(q))
-      );
-    }
-    
-    // Sort logic
     result = [...result].sort((a, b) => {
       if (sortKey === "newest") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       if (sortKey === "oldest") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -50,9 +44,9 @@ export function JournalFeedView() {
       if (sortKey === "shortest") return a.body.length - b.body.length;
       return 0;
     });
-    
+
     return result;
-  }, [entries, search, sortKey]);
+  }, [entries, sortKey]);
 
   // Group by date
   const byDate = useMemo(() => {
@@ -84,7 +78,8 @@ export function JournalFeedView() {
           <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-(--text-tertiary)" />
           <input
             type="text"
-            placeholder="Search journal — titles, body, summary, tags..."
+            placeholder="Search the whole journal archive..."
+            aria-label="Search journal archive"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-8 pr-8 py-2 min-h-[44px] sm:min-h-0 rounded-lg bg-(--bg-elevated) border border-(--border-default) text-[12px] text-(--text-primary) placeholder:text-(--text-tertiary) outline-none focus:border-(--gold)/40 transition-colors"
@@ -92,7 +87,8 @@ export function JournalFeedView() {
           {search.length > 0 && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--bg-raised)"
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 min-h-[28px] min-w-[28px] flex items-center justify-center rounded text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--bg-raised)"
             >
               <XIcon size={12} />
             </button>
@@ -127,6 +123,15 @@ export function JournalFeedView() {
       {error && (
         <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-200 flex items-center justify-between gap-3">
           <span className="font-mono text-[11px]">{error}</span>
+        </div>
+      )}
+
+      {/* Feed v2 · degraded-source banner — a failed silo query used to
+          be swallowed silently, rendering a plausible-but-incomplete
+          feed with zero signal. */}
+      {degraded.length > 0 && (
+        <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] font-mono text-amber-200">
+          partial feed — failed source{degraded.length > 1 ? "s" : ""}: {degraded.join(", ")}
         </div>
       )}
 
@@ -173,14 +178,16 @@ export function JournalFeedView() {
             )}
         </div>
         
-        {/* Load More Button replacing the hardcoded 100 limit */}
+        {/* Feed v2 · cursor pagination — walks strictly-older pages
+            (the old window-widening capped at 200 entries / 365 days). */}
         {hasMore && !isLoading && (
           <div className="pt-6 pb-12 flex justify-center">
-            <button 
+            <button
               onClick={loadMore}
-              className="px-4 py-2 text-[11px] font-mono tracking-wide rounded-md border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+              disabled={isFetchingMore}
+              className="px-4 py-2 min-h-[44px] text-[11px] font-mono tracking-wide rounded-md border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-60"
             >
-              LOAD MORE ARCHIVES
+              {isFetchingMore ? "LOADING…" : "LOAD MORE ARCHIVES"}
             </button>
           </div>
         )}

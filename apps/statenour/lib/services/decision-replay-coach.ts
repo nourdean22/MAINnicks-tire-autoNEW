@@ -581,6 +581,27 @@ export async function markReplayed(input: MarkReplayedInput): Promise<{
   }
 
   // Persist the lesson as a brain memory · skip when blank.
+  // Silo wave (audit 2026-07-15) · refresh the replay's recall embedding
+  // with the outcome/lesson enriched text. storeGenericEmbedding skips
+  // byte-identical content, so this is a no-op unless the text changed.
+  if (replayId) {
+    const embedText = [
+      `[decision] ${decision.title} — chose: ${decision.chosen ?? "—"}`,
+      decision.reasoning ? `why: ${decision.reasoning}` : null,
+      `outcome: ${input.outcome}`,
+      input.lesson ? `lesson: ${input.lesson}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n")
+      .slice(0, 2000);
+    void (async () => {
+      try {
+        const { storeGenericEmbedding } = await import("@/lib/brain/embedding-utils");
+        await storeGenericEmbedding("decision_replay", replayId, embedText);
+      } catch { /* embed-backfill retries */ }
+    })();
+  }
+
   let lessonStored = false;
   if (input.lesson && input.lesson.trim().length > 0) {
     try {

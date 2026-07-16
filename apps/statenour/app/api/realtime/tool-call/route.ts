@@ -21,6 +21,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { createTask } from "@/lib/services/tasks";
+import { checkTask } from "@/lib/services/task-actions";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { prisma } from "@/lib/prisma";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
@@ -171,9 +172,9 @@ export async function POST(req: NextRequest) {
       }
 
       case "completeTask": {
-        // v10.0.529.101 · Wave 45 · mirrors lib/ai/tools.ts completeTask
-        // execute · DAILY tasks bump streak + stay READY · ONCE/PROMISE
-        // flip to DONE. Same streak math the /check route uses.
+        // v10.0.529.101 · Wave 45 · resolve the target by id or title,
+        // then delegate the completion itself to the shared checkTask
+        // service (streaks, idempotency, XP/stat credit, goal lift).
         const taskId = typeof args.taskId === "string" ? args.taskId : undefined;
         const titleQuery = typeof args.titleQuery === "string" ? args.titleQuery : undefined;
 
@@ -200,54 +201,38 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ ok: true, result: "I couldn't find that task." });
         }
 
-        const now = new Date();
-        if (target.loopKind === "DAILY") {
-          let nextStreak = 1;
-          if (target.lastCompletedAt) {
-            const last = new Date(target.lastCompletedAt);
-            const lastStart = new Date(last.getFullYear(), last.getMonth(), last.getDate());
-            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const gap = Math.round((todayStart.getTime() - lastStart.getTime()) / 86_400_000);
-            if (gap === 0) {
-              return NextResponse.json({
-                ok: true,
-                result: `"${target.title.slice(0, 40)}" already checked off today · streak ${target.streakCount} preserved.`,
-              });
-            }
-            nextStreak = gap === 1 ? target.streakCount + 1 : 1;
-          }
-          await prisma.task.update({
-            where: { id: target.id },
-            data: {
-              lastCompletedAt: now,
-              lastTouchedAt: now,
-              streakCount: nextStreak,
-              status: "READY",
-              snoozedUntil: null,
-            },
-          });
-          emitTaskEventAsync({
-            taskId: target.id,
-            kind: "completed",
-            source: "voice:completeTask",
-            payload: { streakCount: nextStreak },
-          });
-          log.info("voice_tool_completeTask_daily", { callId: body.callId, taskId: target.id, streakCount: nextStreak });
+        // Voice completions go through the shared checkTask spine — the
+        // previous raw prisma.task.update path earned NO stat/XP credit,
+        // no goal lift, no brain-bus emit, used UTC day-math for streaks,
+        // and killed WEEKLY loops by flipping them to permanent DONE.
+        // checkTask handles all four loop kinds + same-day idempotency.
+        const res = await checkTask({ id: target.id, action: "complete" });
+
+        if (res.idempotent) {
           return NextResponse.json({
             ok: true,
-            result: `Done · ${nextStreak} day streak on "${target.title.slice(0, 40)}".`,
+            result: `"${target.title.slice(0, 40)}" already checked off today · streak ${res.streakCount ?? target.streakCount} preserved.`,
           });
         }
 
-        await prisma.task.update({
-          where: { id: target.id },
-          data: { status: "DONE", lastCompletedAt: now, lastTouchedAt: now, snoozedUntil: null },
-        });
+        // checkTask does not emit a TaskEvent itself — keep the voice
+        // source attribution the history/pattern views rely on.
         emitTaskEventAsync({
           taskId: target.id,
           kind: "completed",
           source: "voice:completeTask",
+          ...(res.task?.streakCount != null ? { payload: { streakCount: res.task.streakCount } } : {}),
         });
+
+        if (target.loopKind === "DAILY" || target.loopKind === "WEEKLY") {
+          const streak = res.task?.streakCount ?? 1;
+          log.info("voice_tool_completeTask_daily", { callId: body.callId, taskId: target.id, streakCount: streak });
+          return NextResponse.json({
+            ok: true,
+            result: `Done · ${streak} day streak on "${target.title.slice(0, 40)}".`,
+          });
+        }
+
         log.info("voice_tool_completeTask", { callId: body.callId, taskId: target.id });
         return NextResponse.json({
           ok: true,

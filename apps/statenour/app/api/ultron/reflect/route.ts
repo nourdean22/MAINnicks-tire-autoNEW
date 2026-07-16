@@ -153,6 +153,16 @@ export async function POST(req: Request) {
       sourceKey: `journal:${reflection.id}`,
     });
 
+    // Silo wave (audit 2026-07-15) · live grounding enrichment — this
+    // legacy route duplicates journal-reflect.ts's create, so it gets
+    // the same fire-and-forget enrich (resweep is the durability net).
+    void (async () => {
+      try {
+        const { enrichJournalEntry } = await import("@/lib/brain/journal-brain");
+        await enrichJournalEntry("reflection", reflection.id, insight);
+      } catch { /* resweep retries */ }
+    })();
+
     // v10.0.78 · brain-bus emit on reflection creation. Downstream
     // learning-journal + wisdom-distiller can subscribe instead of
     // polling. Fire-and-forget; never blocks the primary write.

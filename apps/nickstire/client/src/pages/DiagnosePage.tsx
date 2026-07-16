@@ -10,76 +10,193 @@ import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import { SEOHead, Breadcrumbs, trackPhoneClick, trackEvent } from "@/components/SEO";
 import { getOpenStatus } from "@/lib/shopHours";
+import { getUtmData } from "@/lib/utm";
 import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import {
-  Phone, AlertTriangle, Zap,
+  Phone, AlertTriangle, Stethoscope,
   Shield, Wrench, Car, ArrowRight, Loader2,
-  Activity, RotateCcw, CircleDot, ChevronRight
+  Activity, RotateCcw, CircleDot, MapPin, OctagonAlert
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import FadeIn from "@/components/FadeIn";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
-import FinancingCTA from "@/components/FinancingCTA";
+import SymptomGuide from "@/components/diagnose/SymptomGuide";
 
 // Owned shop photo — real bay interior, not Manus.space CloudFront stock.
 // 2026-05-06 wave-16 · pro photo pack: diagnostics needs authority +
 // shop capability — interior bay with car on lift per PLACEMENT_GUIDE.md
 const HERO_IMG = "/photos/interior-service-bay-car-lift.webp";
 
-// ─── CAR ZONES ────────────────────────────────────────
-type CarZone = {
-  id: string;
-  label: string;
-  description: string;
-  prefilledSymptom: string;
+// ─── SYMPTOM CATEGORIES ───────────────────────────────
+// Symptom-first, not anatomy-first. The page used to open with "TAP THE PROBLEM
+// AREA" and five engineering zones (engine / cabin / underneath / rear), which
+// asks the customer to diagnose the car before they can describe it. Nobody
+// thinks "my problem is in the underneath zone" — they think "my car is
+// shaking" and "it won't start". These are the words people actually use.
+//
+// Picking one no longer dumps 150+ chars of boilerplate into the textarea for
+// them to edit around. It sets the category, aims the follow-up question at
+// what a tech would actually ask next, and leaves the box for THEIR words.
+
+type CarZoneId = "front" | "front-wheels" | "cabin" | "rear" | "underneath";
+
+const ZONE_LABEL: Record<CarZoneId, string> = {
+  front: "Engine bay",
+  "front-wheels": "Brakes & tires",
+  cabin: "Cabin & dash",
+  rear: "Exhaust",
+  underneath: "Suspension & steering",
 };
 
-const CAR_ZONES: CarZone[] = [
+type Symptom = {
+  id: string;
+  /** Chip text — what the customer would say, not what a mechanic would. */
+  label: string;
+  /** Which part of the illustration lights up. Decorative only. */
+  zone: CarZoneId | null;
+  /** The next question a tech would actually ask. Aims their description. */
+  placeholder: string;
+  /** Sent when they pick a chip but don't type anything. */
+  seed: string;
+};
+
+const SYMPTOMS: Symptom[] = [
   {
-    id: "front",
-    label: "Engine / Starting",
-    description: "Engine bay, starting issues, check engine light",
-    prefilledSymptom: "Engine / Starting Issues: My car is having problems with the engine area — hard starting, stalling, rough idle, knocking, check engine light, or reduced power.",
+    id: "warning-light",
+    label: "Warning light",
+    zone: "cabin",
+    placeholder: "Which light came on? Is it steady or flashing? Did anything change in how it drives?",
+    seed: "A warning light came on.",
   },
   {
-    id: "front-wheels",
-    label: "Brakes / Tires",
-    description: "Brake noise, tire wear, pulling to one side",
-    prefilledSymptom: "Brakes / Tires: I'm experiencing brake or tire issues — squealing or grinding when braking, uneven tire wear, vibration, pulling to one side, or TPMS light.",
+    id: "wont-start",
+    label: "Won't start",
+    zone: "front",
+    placeholder: "Does it crank, click, or do nothing at all? Any lights on the dash? Did it start fine yesterday?",
+    seed: "The car won't start.",
   },
   {
-    id: "cabin",
-    label: "AC / Heating / Electrical",
-    description: "Climate control, electronics, interior comfort",
-    prefilledSymptom: "AC / Heating / Electrical: There's a problem with interior comfort or electronics — AC blowing warm, heater not working, windows fogging, musty smell from vents, or electrical issues.",
+    id: "noise",
+    label: "Strange noise",
+    zone: null,
+    placeholder: "What does it sound like — grinding, squealing, clicking, knocking, humming? When do you hear it?",
+    seed: "The car is making a strange noise.",
   },
   {
-    id: "rear",
-    label: "Exhaust / Emissions",
-    description: "Exhaust noise, smoke, smells from rear",
-    prefilledSymptom: "Exhaust / Emissions: I'm noticing exhaust-related symptoms — loud rumble, white/blue/black smoke from tailpipe, rotten egg smell, or emissions warning.",
+    id: "shaking",
+    label: "Shaking or vibration",
+    zone: "underneath",
+    placeholder: "When does it shake — braking, accelerating, or at a certain speed? Where do you feel it?",
+    seed: "The car shakes or vibrates while driving.",
   },
   {
-    id: "underneath",
-    label: "Suspension / Steering",
-    description: "Ride quality, vibrations, steering feel",
-    prefilledSymptom: "Suspension / Steering / Vibration: I'm feeling ride quality issues — bumpy or bouncy ride, shaking while driving, whining when steering, clicking during turns, or fluid leaks underneath.",
+    id: "brakes",
+    label: "Brakes",
+    zone: "front-wheels",
+    placeholder: "What happens when you brake — noise, pulling, a soft pedal, or taking longer to stop?",
+    seed: "Something is wrong with the brakes.",
+  },
+  {
+    id: "steering",
+    label: "Steering or handling",
+    zone: "underneath",
+    placeholder: "Does it pull, wander, feel loose or stiff? Any noise when you turn?",
+    seed: "Something is wrong with the steering or handling.",
+  },
+  {
+    id: "leak",
+    label: "Leak or puddle",
+    zone: "underneath",
+    placeholder: "What colour is it, and where under the car? A few drops or a real puddle?",
+    seed: "The car is leaking something.",
+  },
+  {
+    id: "smoke-smell",
+    label: "Smoke or smell",
+    zone: "rear",
+    placeholder: "What does it smell like, or what colour is the smoke? When does it happen?",
+    seed: "There's smoke or an unusual smell.",
+  },
+  {
+    id: "overheating",
+    label: "Running hot",
+    zone: "front",
+    placeholder: "How far do you get before the gauge climbs? Any steam, coolant loss, or heater blowing cold?",
+    seed: "The engine is running hot.",
+  },
+  {
+    id: "tire",
+    label: "Tire problem",
+    zone: "front-wheels",
+    placeholder: "Flat, low, worn, vibrating, or a TPMS light? Which corner of the car?",
+    seed: "There's a problem with a tire.",
+  },
+  {
+    id: "ac-heat",
+    label: "AC or heat",
+    zone: "cabin",
+    placeholder: "Blowing warm, cold, weak, or nothing at all? Any smell from the vents?",
+    seed: "The AC or heat isn't working right.",
+  },
+  {
+    id: "other",
+    label: "Something else",
+    zone: null,
+    placeholder: "Tell us what's happening in your own words — when it started, when it happens, and whether it's getting worse.",
+    seed: "",
   },
 ];
 
+const DEFAULT_PLACEHOLDER =
+  "Example: My brakes are squealing loudly when I slow down, especially going downhill. It started about a week ago and seems to be getting worse...";
+
+/**
+ * Shown on the "how this tool works" disclosure. Bump this when the guide copy
+ * or the tool's behaviour changes — a stale date is a worse trust signal than
+ * no date. Deliberately NOT a "reviewed by ASE-certified technician" byline:
+ * that's a credential claim, and it only goes on the page once a tech has
+ * actually read it.
+ */
+const CONTENT_LAST_UPDATED = "July 2026";
+
 // ─── VEHICLE DATA ──────────────────────────────────────
-const YEARS = Array.from({ length: 35 }, (_, i) => String(2026 - i));
+// Derived from the clock, not hardcoded to 2026 — the old literal list would
+// have quietly stopped offering new model years every January. Next model year
+// first (dealers sell ahead), then back far enough to cover what actually rolls
+// into the bays; anything older picks "Older / not listed".
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 36 }, (_, i) => String(CURRENT_YEAR + 1 - i));
+/** Submitted value is deliberately short + prose-legible: it lands in the model
+ *  prompt as "Vehicle: Older Honda Civic", and the server caps vehicleYear. */
+const OLDER_VEHICLE_VALUE = "Older";
+const OLDER_VEHICLE_LABEL = "Older / not listed";
+// Discontinued domestics (Pontiac, Saturn, Mercury, Oldsmobile) stay on the
+// list on purpose — they're still rolling into an east-side Cleveland shop, and
+// omitting them pushed real customers onto "Other".
 const MAKES = [
-  "Acura", "Audi", "BMW", "Buick", "Cadillac", "Chevrolet", "Chrysler",
-  "Dodge", "Ford", "GMC", "Honda", "Hyundai", "Infiniti", "Jeep", "Kia",
-  "Lexus", "Lincoln", "Mazda", "Mercedes-Benz", "Mitsubishi", "Nissan",
-  "Ram", "Subaru", "Tesla", "Toyota", "Volkswagen", "Volvo", "Other"
+  "Acura", "Alfa Romeo", "Audi", "BMW", "Buick", "Cadillac", "Chevrolet",
+  "Chrysler", "Dodge", "Fiat", "Ford", "Genesis", "GMC", "Honda", "Hummer",
+  "Hyundai", "Infiniti", "Jaguar", "Jeep", "Kia", "Land Rover", "Lexus",
+  "Lincoln", "Mazda", "Mercedes-Benz", "Mercury", "Mini", "Mitsubishi",
+  "Nissan", "Oldsmobile", "Plymouth", "Pontiac", "Porsche", "Ram", "Saab",
+  "Saturn", "Subaru", "Suzuki", "Tesla", "Toyota", "Volkswagen", "Volvo",
+  "Other",
 ];
 
 // ─── CAR SVG SILHOUETTE ────────────────────────────────
 
+/**
+ * Decorative car illustration that MIRRORS the symptom buttons above it.
+ *
+ * It used to be the primary control: the only way in was clicking `<g>`
+ * elements with mouse handlers — not focusable, no accessible name, no key
+ * handling — so a keyboard or screen-reader user had no route into the tool at
+ * all. Now the chips are the real, accessible control and this is aria-hidden:
+ * mouse users still get the point-at-the-car affordance, and everyone else gets
+ * an equivalent (better) path instead of a broken duplicate in the a11y tree.
+ */
 function CarSilhouette({
   activeZone,
   hoveredZone,
@@ -87,19 +204,19 @@ function CarSilhouette({
   onZoneHover,
   onZoneLeave,
 }: {
-  activeZone: string | null;
-  hoveredZone: string | null;
-  onZoneClick: (id: string) => void;
-  onZoneHover: (id: string) => void;
+  activeZone: CarZoneId | null;
+  hoveredZone: CarZoneId | null;
+  onZoneClick: (id: CarZoneId) => void;
+  onZoneHover: (id: CarZoneId) => void;
   onZoneLeave: () => void;
 }) {
-  const zoneColor = (id: string) => {
+  const zoneColor = (id: CarZoneId) => {
     if (activeZone === id) return "var(--primary)";
     if (hoveredZone === id) return "var(--brand-yellow-glow)";
     return "var(--ring-neutral)";
   };
 
-  const zoneStroke = (id: string) => {
+  const zoneStroke = (id: CarZoneId) => {
     if (activeZone === id || hoveredZone === id) return "var(--primary)";
     return "var(--ring-neutral-strong)";
   };
@@ -108,7 +225,9 @@ function CarSilhouette({
     <svg
       viewBox="0 0 800 320"
       className="w-full max-w-2xl mx-auto select-none"
-      aria-label="Interactive car diagram — click a zone to select a symptom area"
+      aria-hidden="true"
+      focusable="false"
+      role="presentation"
     >
       {/* Car body outline */}
       <path
@@ -252,25 +371,25 @@ function CarSilhouette({
       </g>
 
       {/* Tooltip for hovered zone */}
-      {hoveredZone && !activeZone && (() => {
-        const zone = CAR_ZONES.find(z => z.id === hoveredZone);
-        if (!zone) return null;
-        return (
-          <g>
-            <rect x="250" y="280" width="300" height="32" rx="6" fill="var(--bg-card-elevated)" stroke="var(--primary)" strokeWidth="1" />
-            <text x="400" y="301" textAnchor="middle" fill="var(--primary)" fontSize="12" fontWeight="500">
-              {zone.label} — {zone.description}
-            </text>
-          </g>
-        );
-      })()}
+      {hoveredZone && !activeZone && (
+        <g>
+          <rect x="275" y="280" width="250" height="32" rx="6" fill="var(--bg-card-elevated)" stroke="var(--primary)" strokeWidth="1" />
+          <text x="400" y="301" textAnchor="middle" fill="var(--primary)" fontSize="12" fontWeight="500">
+            {ZONE_LABEL[hoveredZone]}
+          </text>
+        </g>
+      )}
     </svg>
   );
 }
 
-// ─── SCAN ANIMATION ────────────────────────────────────
+// ─── REVIEW ANIMATION ──────────────────────────────────
+// Was a "scanning your vehicle" sweep with a car outline. Nothing here is
+// connected to the car — it reads typed text — so the sweep + "scanning"
+// wording claimed a capability the tool does not have. Kept the motion, told
+// the truth about what it's doing.
 
-function ScanAnimation() {
+function ReviewAnimation() {
   return (
     <div className="relative w-full max-w-2xl mx-auto my-12">
       {/* Car outline ghost */}
@@ -292,8 +411,8 @@ function ScanAnimation() {
         />
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
           <Loader2 className="w-8 h-8 text-primary animate-spin mb-3" />
-          <p className="text-primary font-heading text-sm tracking-widest uppercase">Scanning your vehicle...</p>
-          <p className="text-foreground/40 text-xs mt-1">Our AI is analyzing your symptoms</p>
+          <p className="text-primary font-heading text-sm tracking-widest uppercase">Reviewing what you described...</p>
+          <p className="text-foreground/40 text-xs mt-1">Matching your words against common causes</p>
         </div>
       </div>
     </div>
@@ -301,20 +420,36 @@ function ScanAnimation() {
 }
 
 // ─── RESULT TYPES ──────────────────────────────────────
+// Inferred from the router instead of hand-mirrored. The old local copy had
+// already drifted (`likelihood: string`) and let the server change shape
+// without the compiler noticing here.
 
-type DiagnosisResult = {
-  urgency: "low" | "moderate" | "high" | "critical";
-  urgencyScore: number;
-  title: string;
-  summary: string;
-  likelyCauses: { cause: string; explanation: string; likelihood: string }[];
-  recommendedService: string;
-  estimatedCostRange: string;
-  safetyNote: string;
-  nextSteps: string[];
+type DiagnosisResult = RouterOutputs["diagnose"]["analyze"];
+type DiagnosisAnalyzed = Extract<DiagnosisResult, { status: "ai" }>;
+type RedFlag = DiagnosisResult["redFlags"][number];
+
+/**
+ * How likely a cause is, in words a customer can act on. The model ranks
+ * possibilities from a text description — it has no calibrated confidence — so
+ * "HIGH LIKELIHOOD" was false precision dressed up as measurement.
+ */
+const LIKELIHOOD_LABEL: Record<DiagnosisAnalyzed["likelyCauses"][number]["likelihood"], string> = {
+  high: "Common possibility",
+  medium: "Also possible",
+  low: "Less common",
 };
 
-// Map urgency to severity card style
+/**
+ * Urgency → the one thing the customer actually came here to find out: can I
+ * keep driving this, and how soon do I need to deal with it?
+ *
+ * The old badges answered a different question. "LOW RISK — MONITOR" and
+ * "URGENT — ADDRESS IMMEDIATELY" are risk-register labels; they tell you a
+ * severity tier, not what to do on a Tuesday morning with one car. And `high`
+ * and `critical` both rendered "URGENT — ADDRESS IMMEDIATELY", collapsing
+ * "book it this week" and "do not drive this car" into one banner — the single
+ * most consequential distinction on the page.
+ */
 function getSeverityStyle(urgency: string) {
   switch (urgency) {
     case "low":
@@ -322,7 +457,8 @@ function getSeverityStyle(urgency: string) {
         border: "border-success/40",
         bg: "bg-success/8",
         badge: "bg-success/20 text-success",
-        badgeText: "LOW RISK — MONITOR",
+        badgeText: "KEEP AN EYE ON IT",
+        verdict: "Safe to drive. Book it if it gets worse or starts bugging you.",
         icon: "text-success",
         dot: "var(--color-success)",
       };
@@ -331,17 +467,28 @@ function getSeverityStyle(urgency: string) {
         border: "border-warning/40",
         bg: "bg-warning/8",
         badge: "bg-warning/20 text-warning",
-        badgeText: "NEEDS ATTENTION SOON",
+        badgeText: "GET IT CHECKED SOON",
+        verdict: "Fine to drive for now — get it looked at in the next week or two before it grows.",
         icon: "text-warning",
         dot: "var(--color-warning)",
       };
     case "high":
+      return {
+        border: "border-warning/50",
+        bg: "bg-warning/10",
+        badge: "bg-warning/20 text-warning",
+        badgeText: "GET IT CHECKED TODAY",
+        verdict: "Don't sit on this one. Drive it straight here if it feels normal — call us if it doesn't.",
+        icon: "text-warning",
+        dot: "var(--color-warning)",
+      };
     case "critical":
       return {
         border: "border-danger/40",
         bg: "bg-danger/8",
         badge: "bg-danger/20 text-danger",
-        badgeText: "URGENT — ADDRESS IMMEDIATELY",
+        badgeText: "STOP DRIVING IT",
+        verdict: "This is a safety issue. Don't drive it — call us and we'll tell you what to do next.",
         icon: "text-danger",
         dot: "var(--color-danger)",
       };
@@ -350,7 +497,8 @@ function getSeverityStyle(urgency: string) {
         border: "border-warning/40",
         bg: "bg-warning/8",
         badge: "bg-warning/20 text-warning",
-        badgeText: "NEEDS ATTENTION",
+        badgeText: "GET IT CHECKED",
+        verdict: "Bring it by and we'll tell you what's going on.",
         icon: "text-warning",
         dot: "var(--color-warning)",
       };
@@ -382,12 +530,29 @@ function DiagnoseOpenStatusLine() {
   );
 }
 
+/** Mirrors the server cap (routers/public.ts). Enforced here so a long, useful
+ *  description shows a counter instead of being silently rejected. */
+const SYMPTOM_MAX_LEN = 2000;
+
+/** Plain-language reason we couldn't check, for the customer — never a stack. */
+function describeCheckError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (/TOO_MANY_REQUESTS|429|rate limit/i.test(message)) {
+    return "You've run a few checks in a row, so we've paused for a minute. Call us and we'll just look at it.";
+  }
+  if (/Failed to fetch|NetworkError|offline/i.test(message)) {
+    return "We couldn't reach the shop's system — check your connection, or call us.";
+  }
+  return "Something went wrong on our end, so we didn't check your symptoms.";
+}
+
 export default function DiagnosePage() {
-  const [selectedZone, setSelectedZone] = useState<string | null>(null);
-  const [hoveredZone, setHoveredZone] = useState<string | null>(null);
+  const [selectedSymptomId, setSelectedSymptomId] = useState<string | null>(null);
+  const [hoveredZone, setHoveredZone] = useState<CarZoneId | null>(null);
   const [vehicle, setVehicle] = useState({ year: "", make: "", model: "", mileage: "" });
   const [symptomText, setSymptomText] = useState("");
   const [result, setResult] = useState<DiagnosisResult | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [diagLeadName, setDiagLeadName] = useState("");
@@ -400,61 +565,68 @@ export default function DiagnosePage() {
 
   const diagnoseMutation = trpc.diagnose.analyze.useMutation();
 
-  const handleZoneClick = (zoneId: string) => {
-    setSelectedZone(zoneId);
-    const zone = CAR_ZONES.find(z => z.id === zoneId);
-    if (zone) {
-      setSymptomText(zone.prefilledSymptom);
-    }
-    // Scroll to form
-    setTimeout(() => {
-      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100);
+  const selectedSymptom = SYMPTOMS.find((s) => s.id === selectedSymptomId) ?? null;
+  /** The illustration follows the buttons — it is not the control. */
+  const activeZone: CarZoneId | null = selectedSymptom?.zone ?? null;
+
+  const handleSymptomSelect = (id: string) => {
+    // Toggle off if they tap the same chip again — a chip they can't unpick is
+    // a trap, since the category rides along on what we send.
+    setSelectedSymptomId((current) => (current === id ? null : id));
+  };
+
+  /** Mouse-only affordance: clicking the car picks that zone's first symptom. */
+  const handleZoneClick = (zoneId: CarZoneId) => {
+    const match = SYMPTOMS.find((s) => s.zone === zoneId);
+    if (match) setSelectedSymptomId(match.id);
   };
 
   const performAnalysis = async (text: string) => {
-    if (!text.trim()) return;
+    const trimmed = text.trim();
+    // A chip alone is enough to act on — "Won't start" is a real report even if
+    // they type nothing else. Only a blank box AND no chip is a no-op.
+    const description = trimmed || selectedSymptom?.seed || "";
+    if (!description) return;
+    // Category leads so the model (and the tech reading the lead) gets the frame
+    // before the prose, without us having stuffed it into the customer's box.
+    const composed = selectedSymptom && trimmed
+      ? `${selectedSymptom.label}: ${trimmed}`
+      : description;
+
     setIsAnalyzing(true);
     setShowResults(false);
     setResult(null);
+    setErrorMessage(null);
+    trackEvent("diagnose_check_started", { symptom: selectedSymptomId ?? "none" });
 
     try {
-      const symptoms = [text.trim()];
       const response = await diagnoseMutation.mutateAsync({
         vehicleYear: vehicle.year || undefined,
         vehicleMake: vehicle.make || undefined,
         vehicleModel: vehicle.model || undefined,
         mileage: vehicle.mileage || undefined,
-        symptoms,
+        symptoms: [composed.slice(0, SYMPTOM_MAX_LEN)],
         additionalInfo: undefined,
       });
 
-      setResult(response as DiagnosisResult);
+      setResult(response);
       setShowResults(true);
-    } catch (error) {
-      console.error("Diagnosis failed:", error);
-      setResult({
-        urgency: "moderate",
-        urgencyScore: 3,
-        title: "We Need to Take a Closer Look",
-        summary: "From what you described, we want to look at it in person. We'll hook up the OBD-II, walk through what it shows, and tell you exactly what's wrong before we touch anything.",
-        likelyCauses: [
-          {
-            cause: "Needs a closer look in the shop",
-            explanation: "In-person check with the OBD-II will tell us the exact issue.",
-            likelihood: "High",
-          },
-        ],
-        recommendedService: "Check Engine",
-        estimatedCostRange: "Free check · written quote",
-        safetyNote: "If you are experiencing any safety-related symptoms (brake issues, steering problems, warning lights), we want to look at the car as soon as possible.",
-        nextSteps: [
-          `Call ${BUSINESS.phone.display} or just walk in — we'll check it`,
-          "We'll hook up the scanner and tell you exactly what's wrong",
-          "You see the written quote before we touch anything. You don't pay until you say yes.",
-        ],
+      // Only the shape of the outcome — never the customer's symptom text.
+      trackEvent("diagnose_check_completed", {
+        status: response.status,
+        urgency: response.status === "ai" ? response.urgency : "unknown",
+        redFlags: response.redFlags.length,
       });
+    } catch (error) {
+      // 2026-07-16 · this catch used to build a complete, confident-looking
+      // DiagnosisResult and render it exactly like a real answer. A customer
+      // could not tell an AI conclusion from a dropped request — and the most
+      // common trigger was their own detailed description tripping the old
+      // 200-char server cap. Tell them the truth and route them to a human.
+      console.error("Symptom check failed:", error);
+      setErrorMessage(describeCheckError(error));
       setShowResults(true);
+      trackEvent("diagnose_check_failed", { reason: describeCheckError(error).slice(0, 60) });
     } finally {
       setIsAnalyzing(false);
     }
@@ -462,35 +634,52 @@ export default function DiagnosePage() {
 
   const handleAnalyze = () => performAnalysis(symptomText);
 
+  // Prefill only. This used to call performAnalysis() on mount, so every
+  // crawler hit, link-preview fetch, shared URL and refresh of a `?symptom=`
+  // link burned a rate-limited AI call that no human ever read. The customer
+  // presses the button.
+  //
+  // `?category=` is the deep-link target for GBP posts / Instagram / the
+  // problem pages: land them on the right chip, ready to describe it — never
+  // auto-running a check nobody asked for.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const symptomParam = params.get("symptom");
-    if (symptomParam) {
-      setSymptomText(symptomParam);
-      performAnalysis(symptomParam);
-      setTimeout(() => {
-        formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 300);
-    }
+    const categoryParam = params.get("category");
+    const known = categoryParam && SYMPTOMS.some((s) => s.id === categoryParam);
+    if (!symptomParam && !known) return;
+    if (known) setSelectedSymptomId(categoryParam);
+    if (symptomParam) setSymptomText(symptomParam.slice(0, SYMPTOM_MAX_LEN));
+    const timer = setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 300);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleReset = () => {
-    setSelectedZone(null);
+    setSelectedSymptomId(null);
     setVehicle({ year: "", make: "", model: "", mileage: "" });
     setSymptomText("");
     setResult(null);
+    setErrorMessage(null);
     setShowResults(false);
     setIsAnalyzing(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const severity = result ? getSeverityStyle(result.urgency) : null;
+  const analyzed = result?.status === "ai" ? result : null;
+  const severity = analyzed ? getSeverityStyle(analyzed.urgency) : null;
+  /** Red flags are matched server-side in code, so they survive an AI outage. */
+  const redFlags: RedFlag[] = result?.redFlags ?? [];
 
   return (
     <PageLayout activeHref="/diagnose" showChat={true}>
+      {/* Description no longer promises "repair costs" — the tool has no
+          pricing data and the invented cost range was removed, so that was a
+          promise the page could not keep the moment a visitor arrived. */}
       <SEOHead
         title="What's Wrong With My Car? Free Symptom Checker · Nick's Tire & Auto"
-        description="Not sure what's wrong with your car? Use our free symptom checker for likely causes, urgency & repair costs — then bring it to Nick's in Euclid. No pay til yes."
+        description="Not sure what's wrong with your car? Describe the symptom and get likely causes, how urgent it is, and the safest next step — free. Then bring it to Nick's in Euclid."
         canonicalPath="/diagnose"
       />
 
@@ -508,18 +697,28 @@ export default function DiagnosePage() {
               { label: "What's Wrong With My Car?" },
             ]} />
             <LocalBusinessSchema />
+            {/* WebApplication, not Service. This page is the free symptom-checker
+                TOOL; /diagnostics is the commercial diagnostic SERVICE. Emitting
+                `Service: "Automotive Diagnostics Service"` here re-sent the exact
+                commercial signal the /diagnose vs /diagnostics split removed, and
+                put the two pages back in competition for the same queries. */}
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
               "@context": "https://schema.org",
-              "@type": "Service",
-              "name": "Automotive Diagnostics Service",
-              "description": "Tell us the symptom, we tell you what's likely wrong + how urgent.",
-              "provider": {
+              "@type": "WebApplication",
+              "name": "What's Wrong With My Car? — Free Symptom Checker",
+              "applicationCategory": "UtilitiesApplication",
+              "operatingSystem": "All",
+              "browserRequirements": "Requires JavaScript",
+              "description": "Describe what your car is doing and get possible causes, how urgent it is, and the safest next step. Preliminary only — not an OBD-II scan.",
+              "url": `${BUSINESS.urls.website}/diagnose`,
+              "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+              },
+              "publisher": {
                 "@type": "AutoRepair",
                 "@id": `${BUSINESS.urls.website}/#localbusiness`
-              },
-              "areaServed": {
-                "@type": "City",
-                "name": "Cleveland"
               }
             })}} />
 
@@ -532,14 +731,31 @@ export default function DiagnosePage() {
                   <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center">
                     <Activity className="w-6 h-6 text-primary" />
                   </div>
-                  <span className="font-mono text-primary/70 text-xs tracking-wide">AI-Powered Diagnostic Tool</span>
+                  <span className="font-mono text-primary/70 text-xs tracking-wide">Free vehicle symptom check</span>
                 </div>
+                {/* H1 keeps the exact-match phrase on purpose. It's the query
+                    this page exists to answer, it's what holds /diagnose apart
+                    from the commercial /diagnostics page, and prerender:semantic
+                    -check pins title/H1 alignment. The friendlier "tell us what
+                    it's doing" framing lives in the subhead instead. */}
                 <h1 className="font-heading text-4xl lg:text-6xl text-foreground tracking-tight leading-[0.95]">
                   WHAT'S WRONG WITH<br />
                   <span className="text-primary">MY CAR</span>?
                 </h1>
+                <p className="mt-3 text-foreground/80 text-xl font-semibold">
+                  Tell us what it&apos;s doing. We&apos;ll tell you what it probably is.
+                </p>
+                {/* Was "our AI will provide a preliminary diagnosis in seconds" —
+                    same overclaim as the old "SCAN MY CAR" button. It doesn't
+                    diagnose; it narrows things down from your words. Say what
+                    they get, then what it costs them (nothing). */}
                 <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
-                  Tap an area on the car below to select the problem zone, describe your symptoms, and our AI will provide a preliminary diagnosis in seconds. If you have brake squealing or grinding, check out our <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake symptoms list</Link>. For shaking or vibrations, check our <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tire options</Link>, see our <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing options for repairs</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground font-semibold">contact us</Link> directly.
+                  Describe what&apos;s happening and we&apos;ll walk you through the likely causes, how
+                  urgent it is, and the safest next step &mdash; in about a minute. It&apos;s free, and
+                  the real check happens when you pull in. Squealing or grinding? See our <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake symptoms list</Link>. Shaking or vibration? Check our <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tire options</Link> or <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing for repairs</Link>.
+                </p>
+                <p className="mt-4 text-foreground/45 text-sm">
+                  Free quick check · Written quote before any work · {BUSINESS.reviews.rating}★ from {BUSINESS.reviews.countDisplay} drivers
                 </p>
               </FadeIn>
 
@@ -584,41 +800,56 @@ export default function DiagnosePage() {
           </div>
         </section>
 
-        {/* Interactive Car Silhouette */}
+        {/* Symptom-first selector. Was "TAP THE PROBLEM AREA" + 5 anatomy
+            zones, which asked the customer to locate the fault before they
+            could report it. These are real <button>s — the car illustration
+            below is now decorative and mirrors them. */}
         <section className="bg-background py-12 lg:py-16">
           <div className="container max-w-4xl">
             <FadeIn>
               <div className="text-center mb-8">
                 <h2 className="font-heading text-2xl text-foreground tracking-tight mb-2">
-                  TAP THE <span className="text-primary">PROBLEM AREA</span>
+                  WHAT&apos;S IT <span className="text-primary">DOING</span>?
                 </h2>
-                <p className="text-foreground/50 text-sm">Click a zone on the car to get started</p>
+                <p className="text-foreground/50 text-sm">
+                  Pick the closest one &mdash; you can add the details next. Not sure? Skip straight to describing it.
+                </p>
+              </div>
+
+              <div
+                role="group"
+                aria-label="What is the car doing?"
+                className="flex flex-wrap justify-center gap-2"
+              >
+                {SYMPTOMS.map((symptom) => {
+                  const active = selectedSymptomId === symptom.id;
+                  return (
+                    <button
+                      key={symptom.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => handleSymptomSelect(symptom.id)}
+                      onMouseEnter={() => symptom.zone && setHoveredZone(symptom.zone)}
+                      onMouseLeave={() => setHoveredZone(null)}
+                      className={`min-h-[44px] px-4 py-2 rounded-full text-sm font-heading tracking-wide transition-all border ${
+                        active
+                          ? "bg-primary/15 border-primary text-primary"
+                          : "bg-card border-border text-foreground/60 hover:border-primary/50 hover:text-primary/80"
+                      }`}
+                    >
+                      {symptom.label}
+                    </button>
+                  );
+                })}
               </div>
 
               <CarSilhouette
-                activeZone={selectedZone}
+                activeZone={activeZone}
                 hoveredZone={hoveredZone}
                 onZoneClick={handleZoneClick}
                 onZoneHover={setHoveredZone}
                 onZoneLeave={() => setHoveredZone(null)}
               />
-
-              {/* Zone pills */}
-              <div className="flex flex-wrap justify-center gap-2 mt-6">
-                {CAR_ZONES.map((zone) => (
-                  <button
-                    key={zone.id}
-                    onClick={() => handleZoneClick(zone.id)}
-                    className={`px-4 py-2 rounded-full text-xs font-heading tracking-wider transition-all border ${
-                      selectedZone === zone.id
-                        ? "bg-primary/15 border-primary text-primary"
-                        : "bg-card border-border text-foreground/50 hover:border-primary/50 hover:text-primary/70"
-                    }`}
-                  >
-                    {zone.label}
-                  </button>
-                ))}
-              </div>
             </FadeIn>
           </div>
         </section>
@@ -642,6 +873,10 @@ export default function DiagnosePage() {
                     >
                       <option value="">Year</option>
                       {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                      {/* Shipped in the P0 wave as a declared-but-never-rendered
+                          constant — the list just stopped at 36 years back with
+                          no way out. An east-side shop sees plenty older. */}
+                      <option value={OLDER_VEHICLE_VALUE}>{OLDER_VEHICLE_LABEL}</option>
                     </select>
                     <select
                       value={vehicle.make}
@@ -675,40 +910,67 @@ export default function DiagnosePage() {
                 {/* Symptom text area */}
                 <div>
                   <h3 className="font-heading text-lg text-foreground tracking-tight mb-1">
-                    DESCRIBE YOUR SYMPTOMS
+                    {selectedSymptom ? `TELL US ABOUT THE ${selectedSymptom.label.toUpperCase()}` : "DESCRIBE YOUR SYMPTOMS"}
                   </h3>
                   <p className="text-foreground/40 text-xs mb-4">
-                    {selectedZone
-                      ? "We've pre-filled based on your selection. Edit or add more detail below."
+                    {selectedSymptom
+                      // Aim the question instead of pre-filling their box. The
+                      // old flow dumped ~180 chars of boilerplate in here and
+                      // told them to edit around it.
+                      ? "In your own words — the more you tell us, the better we can narrow it down."
                       : "What's happening with your car? Be as specific as possible."}
                   </p>
                   <textarea
                     value={symptomText}
-                    onChange={(e) => setSymptomText(e.target.value)}
+                    onChange={(e) => setSymptomText(e.target.value.slice(0, SYMPTOM_MAX_LEN))}
+                    maxLength={SYMPTOM_MAX_LEN}
                     rows={5}
-                    placeholder="Example: My brakes are squealing loudly when I slow down, especially going downhill. It started about a week ago and seems to be getting worse..."
+                    aria-describedby="symptom-help symptom-count"
+                    placeholder={selectedSymptom ? selectedSymptom.placeholder : DEFAULT_PLACEHOLDER}
                     className="w-full bg-background border border-border text-foreground px-4 py-3 text-sm rounded-md placeholder:text-foreground/25 focus:outline-none focus:border-primary/50 resize-none leading-relaxed"
                   />
+                  <div className="mt-2 flex items-start justify-between gap-4">
+                    <p id="symptom-help" className="text-foreground/40 text-xs leading-relaxed">
+                      Helps most if you say: when it started · when it happens · any warning lights · is it getting worse
+                    </p>
+                    <span
+                      id="symptom-count"
+                      aria-live="polite"
+                      className={`shrink-0 text-xs tabular-nums ${symptomText.length > SYMPTOM_MAX_LEN * 0.9 ? "text-warning" : "text-foreground/30"}`}
+                    >
+                      {symptomText.length}/{SYMPTOM_MAX_LEN}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Scan button */}
+                {/* Check button */}
+                {/* A chip on its own is a real report ("Won't start") — don't
+                    hold the button hostage to the textarea. Only nothing-at-all
+                    is a no-op. */}
                 <button
                   onClick={handleAnalyze}
-                  disabled={isAnalyzing || !symptomText.trim()}
+                  disabled={isAnalyzing || (!symptomText.trim() && !selectedSymptom?.seed)}
                   className="w-full flex items-center justify-center gap-3 bg-primary text-black px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isAnalyzing ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      SCANNING...
+                      CHECKING...
                     </>
                   ) : (
                     <>
-                      <Zap className="w-5 h-5" />
-                      SCAN MY CAR
+                      <Stethoscope className="w-5 h-5" />
+                      CHECK MY SYMPTOMS
                     </>
                   )}
                 </button>
+
+                {/* Say what this is before they use it, not after. Nothing here
+                    touches the car — calling it a "scan" was borrowed authority. */}
+                <p className="text-center text-foreground/35 text-xs leading-relaxed">
+                  This is a preliminary symptom check &mdash; not an OBD-II scan or a confirmed
+                  diagnosis. It reads what you typed. The scan happens at the shop, and it&apos;s free.
+                </p>
               </div>
             </FadeIn>
           </div>
@@ -724,7 +986,7 @@ export default function DiagnosePage() {
               className="bg-background overflow-hidden"
             >
               <div className="container max-w-3xl">
-                <ScanAnimation />
+                <ReviewAnimation />
               </div>
             </motion.section>
           )}
@@ -732,7 +994,7 @@ export default function DiagnosePage() {
 
         {/* Results */}
         <AnimatePresence>
-          {showResults && result && severity && (
+          {showResults && (
             <motion.section
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
@@ -741,6 +1003,59 @@ export default function DiagnosePage() {
               className="bg-background py-12 lg:py-16"
             >
               <div className="container max-w-3xl space-y-6">
+
+                {/* Safety comes first and comes from code, not the model. These
+                    are matched server-side from the customer's own words, so an
+                    AI outage can never swallow "don't drive it". */}
+                {redFlags.length > 0 && (
+                  <div className="border-2 border-danger/60 bg-danger/10 rounded-xl p-5" role="alert">
+                    <div className="flex items-center gap-2 mb-3">
+                      <OctagonAlert className="w-5 h-5 text-danger shrink-0" />
+                      <span className="font-heading text-danger text-sm tracking-wider">
+                        STOP — READ THIS FIRST
+                      </span>
+                    </div>
+                    <ul className="space-y-3">
+                      {redFlags.map((flag) => (
+                        <li key={flag.id}>
+                          <p className="text-danger font-bold text-sm">{flag.label}</p>
+                          <p className="text-foreground/70 text-sm leading-relaxed mt-0.5">{flag.guidance}</p>
+                        </li>
+                      ))}
+                    </ul>
+                    <a
+                      href={BUSINESS.phone.href}
+                      onClick={() => trackPhoneClick("diagnose-red-flag")}
+                      className="mt-4 inline-flex items-center justify-center gap-2 min-h-[44px] px-5 rounded-full bg-danger text-white text-[13px] font-black uppercase tracking-wide active:scale-95 transition-transform"
+                    >
+                      <Phone className="w-4 h-4" />
+                      Call us now — {BUSINESS.phone.display}
+                    </a>
+                  </div>
+                )}
+
+                {/* We could not check. An honest dead end that routes to a human
+                    — NOT a canned card dressed up as an AI conclusion. */}
+                {(errorMessage || result?.status === "unavailable") && (
+                  <div className="border border-border bg-card rounded-xl p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+                      <h2 className="font-heading text-foreground text-base tracking-wider">
+                        WE COULDN&apos;T CHECK THIS ONE
+                      </h2>
+                    </div>
+                    <p className="text-foreground/60 text-sm leading-relaxed">
+                      {errorMessage ?? "Our symptom checker didn't come back with an answer, so we're not going to guess at one."}
+                    </p>
+                    <p className="text-foreground/60 text-sm leading-relaxed mt-2">
+                      That&apos;s on us, not you &mdash; and it costs you nothing to just bring it in.
+                      Quick checks are free and you see a written quote before anyone touches a wrench.
+                    </p>
+                  </div>
+                )}
+
+                {analyzed && severity && (
+                  <>
                 {/* Severity banner */}
                 <div className={`${severity.bg} ${severity.border} border rounded-xl p-5`}>
                   <div className="flex items-center gap-3 mb-3">
@@ -749,22 +1064,25 @@ export default function DiagnosePage() {
                       {severity.badgeText}
                     </span>
                   </div>
+                  {/* The verdict, in plain words, before any of the analysis.
+                      This is the one thing they came to find out. */}
+                  <p className="text-foreground/80 text-sm leading-relaxed mb-3">{severity.verdict}</p>
                   <div className="flex items-center gap-2 mb-2">
                     <div className="flex-1 h-2 bg-black/30 rounded-full overflow-hidden">
                       <motion.div
                         className="h-full rounded-full"
                         style={{ backgroundColor: severity.dot }}
                         initial={{ width: 0 }}
-                        animate={{ width: `${result.urgencyScore * 20}%` }}
+                        animate={{ width: `${analyzed.urgencyScore * 20}%` }}
                         transition={{ duration: 1, ease: "easeOut" }}
                       />
                     </div>
-                    <span className="text-xs" style={{ color: severity.dot }}>{result.urgencyScore}/5</span>
+                    <span className="text-xs" style={{ color: severity.dot }}>{analyzed.urgencyScore}/5</span>
                   </div>
-                  {result.safetyNote && (
+                  {analyzed.safetyNote && (
                     <p className="text-xs mt-2" style={{ color: severity.dot }}>
                       <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
-                      {result.safetyNote}
+                      {analyzed.safetyNote}
                     </p>
                   )}
                 </div>
@@ -772,7 +1090,7 @@ export default function DiagnosePage() {
                 {/* Diagnosis title */}
                 <div>
                   <h2 className="font-heading text-3xl text-foreground tracking-tight mb-2">
-                    {result.title}
+                    {analyzed.title}
                   </h2>
                   {(vehicle.year || vehicle.make || vehicle.model) && (
                     <p className="text-xs text-foreground/40">
@@ -781,19 +1099,22 @@ export default function DiagnosePage() {
                       {vehicle.mileage ? ` — ${vehicle.mileage} miles` : ""}
                     </p>
                   )}
-                  <p className="text-foreground/70 text-sm mt-3 leading-relaxed">{result.summary}</p>
+                  <p className="text-foreground/70 text-sm mt-3 leading-relaxed">{analyzed.summary}</p>
                 </div>
 
-                {/* Likely Causes as severity-coded cards */}
+                {/* Possible causes. Ranked, not measured — see LIKELIHOOD_LABEL. */}
                 <div className="space-y-3 stagger-in">
                   <h3 className="font-heading text-sm text-primary tracking-wider">POSSIBLE CAUSES</h3>
-                  {result.likelyCauses.map((cause, i) => {
-                    // Assign severity color per cause based on likelihood
-                    const causeStyle = cause.likelihood === "High"
-                      ? { border: "border-danger/30", bg: "bg-danger/5", dot: "var(--color-danger)" }
-                      : cause.likelihood === "Medium"
-                      ? { border: "border-warning/30", bg: "bg-warning/5", dot: "var(--color-warning)" }
-                      : { border: "border-success/30", bg: "bg-success/5", dot: "var(--color-success)" };
+                  <p className="text-foreground/40 text-xs -mt-1">
+                    Ranked from what you described. The inspection is what confirms it.
+                  </p>
+                  {analyzed.likelyCauses.map((cause, i) => {
+                    // Neutral chips. These used to be danger/warning-coded, which
+                    // painted a *possibility* in the same red as a confirmed
+                    // safety finding. Urgency belongs to the banner above.
+                    const causeStyle = cause.likelihood === "high"
+                      ? { border: "border-primary/30", bg: "bg-primary/5", dot: "var(--primary)" }
+                      : { border: "border-border", bg: "bg-card", dot: "var(--ring-neutral-strong)" };
 
                     return (
                       <motion.div
@@ -808,22 +1129,16 @@ export default function DiagnosePage() {
                             <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: causeStyle.dot }} />
                             <h4 className="font-heading text-foreground tracking-wider text-sm">{cause.cause}</h4>
                           </div>
-                          <span className="text-[10px] tracking-wider px-2 py-0.5 rounded" style={{ color: causeStyle.dot, backgroundColor: `${causeStyle.dot}20` }}>
-                            {cause.likelihood.toUpperCase()} LIKELIHOOD
+                          <span className="text-[10px] tracking-wider px-2 py-0.5 rounded whitespace-nowrap text-foreground/50 bg-foreground/5">
+                            {LIKELIHOOD_LABEL[cause.likelihood]}
                           </span>
                         </div>
                         <p className="text-foreground/60 text-sm leading-relaxed ml-[18px]">{cause.explanation}</p>
-
-                        {/* Book This Repair CTA */}
-                        <div className="mt-3 ml-[18px]">
-                          <Link
-                            href="/contact"
-                            className="inline-flex items-center gap-1.5 text-primary text-xs font-heading tracking-wider hover:text-primary/80 transition-colors"
-                          >
-                            BOOK THIS REPAIR
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </Link>
-                        </div>
+                        {/* No "BOOK THIS REPAIR" link here. We have not confirmed
+                            any repair — booking a specific job off a guessed cause
+                            sells work nobody verified, and it scattered the page's
+                            conversion across N speculative links. One action group
+                            lives below the result. */}
                       </motion.div>
                     );
                   })}
@@ -836,15 +1151,20 @@ export default function DiagnosePage() {
                       <Wrench className="w-4 h-4 text-primary" />
                       <span className="text-xs text-foreground/50 tracking-wide">Recommended Service</span>
                     </div>
-                    <p className="font-heading text-foreground tracking-wider">{result.recommendedService}</p>
+                    <p className="font-heading text-foreground tracking-wider">{analyzed.recommendedService}</p>
                   </div>
+                  {/* Was "Estimated Cost Range" + a dollar figure the model made
+                      up: no labor guide, no parts feed, no pricing table behind
+                      it. A persuasive invented number on a repair quote is the
+                      one thing that can't be hand-waved, so the card now states
+                      the shop's real, verifiable offer instead. */}
                   <div className="bg-card border border-border rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
                       <CircleDot className="w-4 h-4 text-foreground/40" />
-                      <span className="text-xs text-foreground/50 tracking-wide">Estimated Cost Range</span>
+                      <span className="text-xs text-foreground/50 tracking-wide">What it costs to find out</span>
                     </div>
-                    <p className="font-heading text-foreground tracking-wider">{result.estimatedCostRange}</p>
-                    <p className="text-[10px] text-foreground/30 mt-1">*Actual cost determined after in-person diagnosis</p>
+                    <p className="font-heading text-foreground tracking-wider">{analyzed.costNote}</p>
+                    <p className="text-[10px] text-foreground/30 mt-1">Repair price comes from the inspection — you approve it before any work.</p>
                   </div>
                 </div>
 
@@ -852,7 +1172,7 @@ export default function DiagnosePage() {
                 <div>
                   <h3 className="font-heading text-sm text-primary tracking-wider mb-3">RECOMMENDED NEXT STEPS</h3>
                   <ol className="space-y-2">
-                    {result.nextSteps.map((step, i) => (
+                    {analyzed.nextSteps.map((step, i) => (
                       <li key={i} className="flex items-start gap-3">
                         <span className="w-6 h-6 bg-primary/20 text-primary rounded-full flex items-center justify-center text-xs shrink-0 mt-0.5">
                           {i + 1}
@@ -867,27 +1187,50 @@ export default function DiagnosePage() {
                 <div className="bg-card/50 border border-border rounded-xl p-4">
                   <p className="text-xs text-foreground/40 leading-relaxed">
                     <Shield className="w-3.5 h-3.5 inline mr-1 text-foreground/30" />
-                    This is a preliminary read based on the symptoms you described. For the real answer we want the car in front of us. ASE-certified hands, OBD-II tools, written quote before anyone touches a wrench.
+                    This is a preliminary read of what you typed &mdash; not an OBD-II scan and not a
+                    confirmed diagnosis. For the real answer we want the car in front of us:
+                    ASE-certified hands, OBD-II tools, written quote before anyone touches a wrench.
                   </p>
                 </div>
+                  </>
+                )}
 
-                {/* CTAs */}
-                <div className="flex flex-col sm:flex-row gap-4">
+                {/* ONE action group, in every state. The page used to scatter
+                    conversion across per-cause "book this repair" links, a
+                    "schedule drop-off" button and a lead form — all pointing at
+                    /contact, which is a form, not the booking flow. High-intent
+                    visitors got sent sideways. Confirm it → call → directions. */}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Link
+                    href="/booking"
+                    onClick={() => trackEvent("diagnose_booking_click", {
+                      urgency: analyzed?.urgency ?? "unknown",
+                      service: analyzed?.recommendedService ?? "unknown",
+                      redFlags: redFlags.length,
+                    })}
+                    className="flex items-center justify-center gap-2 bg-primary text-black px-6 py-4 rounded-md font-heading text-sm tracking-wider hover:bg-primary/90 transition-colors sm:col-span-3"
+                  >
+                    LET NICK&apos;S CONFIRM IT
+                    <ArrowRight className="w-5 h-5" />
+                  </Link>
                   <a
                     href={BUSINESS.phone.href}
                     onClick={() => trackPhoneClick("diagnose-results")}
-                    className="flex items-center justify-center gap-2 bg-primary text-black px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-primary/90 transition-colors flex-1"
+                    className="flex items-center justify-center gap-2 border-2 border-primary/40 text-primary px-6 py-4 rounded-md font-heading text-sm tracking-wider hover:bg-primary/10 hover:border-primary transition-colors sm:col-span-2"
                   >
-                    <Phone className="w-5 h-5" />
+                    <Phone className="w-4 h-4" />
                     CALL {BUSINESS.phone.display}
                   </a>
-                  <Link
-                    href="/contact"
-                    className="flex items-center justify-center gap-2 border-2 border-primary/40 text-primary px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-primary/10 hover:border-primary transition-colors flex-1"
+                  <a
+                    href={BUSINESS.urls.googleMapsDirectionsNamed}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => trackEvent("diagnose_directions_click", { urgency: analyzed?.urgency ?? "unknown" })}
+                    className="flex items-center justify-center gap-2 border border-border text-foreground/70 px-6 py-4 rounded-md font-heading text-sm tracking-wider hover:border-primary/40 hover:text-primary transition-colors"
                   >
-                    SCHEDULE DROP-OFF
-                    <ArrowRight className="w-5 h-5" />
-                  </Link>
+                    <MapPin className="w-4 h-4" />
+                    DIRECTIONS
+                  </a>
                 </div>
 
                 {/* Lead Capture */}
@@ -909,8 +1252,28 @@ export default function DiagnosePage() {
                               name: diagLeadName,
                               phone: diagLeadPhone,
                               vehicle: `${vehicle.year} ${vehicle.make} ${vehicle.model}`.trim() || undefined,
-                              problem: `Symptom: ${result?.recommendedService || "check"} — ${result?.urgency || "unknown"} urgency. ${symptomText.slice(0, 200)}`,
-                              source: "popup",
+                              // Lead the note with any red flag, so whoever
+                              // picks this up in the CRM knows whether it's hot.
+                              // The old "[/diagnose symptom check]" prefix is
+                              // gone: source="diagnose" carries the origin now.
+                              problem: [
+                                redFlags.length ? `RED FLAG: ${redFlags.map((f) => f.label).join(", ")}.` : "",
+                                analyzed ? `Checker said: ${analyzed.recommendedService} — ${analyzed.urgency} urgency.` : "Checker did not return a result.",
+                                symptomText.slice(0, 1200),
+                              ].filter(Boolean).join(" "),
+                              // Canonical origin — enum member appended by
+                              // drizzle/0082_lead_source_diagnose.sql. That DDL
+                              // must be live in prod BEFORE this code deploys:
+                              // under STRICT_TRANS_TABLES an unknown enum member
+                              // is rejected, not blanked, so shipping this first
+                              // would drop the lead entirely.
+                              source: "diagnose",
+                              // Every other lead form on the site spreads this.
+                              // /diagnose did not — so its leads reached the CRM
+                              // with no landing page, no referrer, no session id
+                              // and no UTMs, which is why the tool has never been
+                              // creditable for a single booked job.
+                              ...getUtmData(),
                             });
                             setDiagLeadSubmitted(true);
                           } catch {
@@ -948,6 +1311,54 @@ export default function DiagnosePage() {
             </motion.section>
           )}
         </AnimatePresence>
+
+        {/* The crawlable half of the page. The tool's answers are generated
+            per-visitor and never reach an index — without this, /diagnose has
+            nothing for Google to read but nav chrome and a form. */}
+        <SymptomGuide />
+
+        {/* How this tool works. Google's people-first guidance asks who made
+            the content, how, and why — and a symptom checker that won't explain
+            itself is exactly the thing a reader should distrust. */}
+        <section className="bg-background pb-16" aria-labelledby="how-it-works-heading">
+          <div className="container max-w-3xl">
+            <div className="bg-card/50 border border-border rounded-xl p-5">
+              <h2 id="how-it-works-heading" className="font-heading text-sm text-foreground tracking-wider mb-3">
+                HOW THIS TOOL WORKS
+              </h2>
+              <ul className="space-y-2 text-xs text-foreground/50 leading-relaxed">
+                <li>
+                  <strong className="text-foreground/70">It reads your words, not your car.</strong> Nothing here
+                  connects to your vehicle and no trouble codes are read. You describe what it&apos;s doing, and we
+                  narrow down what usually causes that.
+                </li>
+                <li>
+                  <strong className="text-foreground/70">Safety checks run in plain code, not the AI.</strong> Things
+                  like &ldquo;won&apos;t stop&rdquo;, a flashing check-engine light or an oil-pressure warning are
+                  matched directly from what you typed &mdash; so the warning still shows even if the rest of the
+                  check fails.
+                </li>
+                <li>
+                  <strong className="text-foreground/70">We don&apos;t quote prices from a description.</strong> We
+                  have no way to price a repair we haven&apos;t seen. The quick check is free and the quote is written,
+                  after we look at it.
+                </li>
+                <li>
+                  <strong className="text-foreground/70">It can be wrong.</strong> It&apos;s a starting point built
+                  from common causes &mdash; the real answer comes from an ASE-certified tech with the car on the lift.
+                  If it says stop driving, take that seriously.
+                </li>
+                <li>
+                  <strong className="text-foreground/70">What we keep.</strong> Your description is used to run the
+                  check. We only store it if you choose to leave your name and number.
+                </li>
+              </ul>
+              <p className="mt-4 text-[11px] text-foreground/35">
+                Written by the team at {BUSINESS.name}, {BUSINESS.address.full} &middot; Last updated {CONTENT_LAST_UPDATED}
+              </p>
+            </div>
+          </div>
+        </section>
 
       </main>
 

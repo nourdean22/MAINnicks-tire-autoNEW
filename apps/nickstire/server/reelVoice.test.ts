@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { pickVoiceProvider, googleTtsRequest, generateVoiceover, buildReelSsml } from "./services/reelVoice";
 
 describe("pickVoiceProvider", () => {
@@ -52,5 +52,80 @@ describe("generateVoiceover", () => {
   it("returns null for empty/whitespace script without calling any provider", async () => {
     expect(await generateVoiceover("   ")).toBeNull();
     expect(await generateVoiceover(null)).toBeNull();
+  });
+});
+
+/**
+ * Fail-closed policy (Instagram audit wave 4): a brief WITH a voiceover script
+ * is designed around narration — losing TTS must fail the job, not silently
+ * assemble a narration-less reel the operator never reviewed. Null stays the
+ * contract only for deliberately silent reels (no script) or the explicit
+ * REEL_VO_OPTIONAL=true escape hatch.
+ */
+describe("generateVoiceover fail-closed policy", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  function clearProviders() {
+    vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL", "");
+    vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_KEY", "");
+    vi.stubEnv("ELEVENLABS_API_KEY", "");
+    vi.stubEnv("REEL_VO_OPTIONAL", "");
+  }
+
+  it("THROWS when a script exists but no TTS provider is configured", async () => {
+    clearProviders();
+    await expect(generateVoiceover("Check your tread depth.")).rejects.toThrow(/no TTS provider/);
+  });
+
+  it("degrades to null under the explicit REEL_VO_OPTIONAL=true escape hatch", async () => {
+    clearProviders();
+    vi.stubEnv("REEL_VO_OPTIONAL", "true");
+    expect(await generateVoiceover("Check your tread depth.")).toBeNull();
+  });
+
+  it("THROWS when the provider errors (was: silent null → narration-less reel)", async () => {
+    clearProviders();
+    vi.stubEnv("ELEVENLABS_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false,
+      status: 500,
+      text: async () => "upstream down",
+    })));
+    await expect(generateVoiceover("Check your tread depth.")).rejects.toThrow(/Voiceover generation failed \(elevenlabs\)/);
+  });
+
+  it("provider errors still degrade to null when REEL_VO_OPTIONAL=true", async () => {
+    clearProviders();
+    vi.stubEnv("ELEVENLABS_API_KEY", "test-key");
+    vi.stubEnv("REEL_VO_OPTIONAL", "true");
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false,
+      status: 500,
+      text: async () => "upstream down",
+    })));
+    expect(await generateVoiceover("Check your tread depth.")).toBeNull();
+  });
+
+  it("uses ELEVENLABS_VOICE_ID when set, defaulting to Roger otherwise", async () => {
+    clearProviders();
+    vi.stubEnv("ELEVENLABS_API_KEY", "test-key");
+    vi.stubEnv("ELEVENLABS_VOICE_ID", "custom-voice-123");
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ audio_base64: Buffer.from("audio").toString("base64") }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const vo = await generateVoiceover("Check your tread depth.");
+    expect(vo?.provider).toBe("elevenlabs");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("custom-voice-123");
+
+    vi.stubEnv("ELEVENLABS_VOICE_ID", "");
+    await generateVoiceover("Check your tread depth.");
+    expect(String(fetchMock.mock.calls[1][0])).toContain("CwhRBWXzGAHq8TQ4Fs17");
   });
 });

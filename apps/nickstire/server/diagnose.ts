@@ -1,45 +1,105 @@
 /**
- * AI-Powered Vehicle Diagnostic Tool
- * Analyzes user-reported symptoms and returns structured diagnosis.
- * Uses the built-in LLM helper for AI inference.
+ * "What's wrong with my car?" — free symptom checker.
+ *
+ * This reads a customer's typed description and organizes it into possible
+ * causes plus a next step. It is NOT an OBD-II scan: nothing here touches the
+ * vehicle. Wording on the page and in this file must keep saying so.
+ *
+ * Safety and shape are enforced deterministically in ./diagnose-safety — the
+ * model ranks and explains causes, it does not get the final say on whether
+ * someone is safe to keep driving, and its reply is validated before use.
  */
 
 import { invokeLLM } from "./_core/llm";
+import {
+  aiDiagnosisSchema,
+  applySafetyFloor,
+  detectRedFlags,
+  type Likelihood,
+  type RedFlag,
+  type Urgency,
+} from "./diagnose-safety";
 
 import { createLogger } from "./lib/logger";
 
 const log = createLogger("diagnose");
-const DIAGNOSIS_SYSTEM_PROMPT = `You are a professional automotive diagnostic system for Nick's Tire & Auto, a trusted independent auto repair shop at 17625 Euclid Ave, Cleveland, OH 44112.
 
-Your role is to analyze vehicle symptoms reported by customers and provide a structured preliminary assessment. You must:
+/**
+ * What it costs to find out. Grounded in the shop's actual offer — free quick
+ * checks, written quote before any work — instead of a dollar range the model
+ * invents with no labor guide, parts feed or pricing table behind it.
+ */
+const COST_NOTE = "Free quick check · written quote before any work";
 
+const DIAGNOSIS_SYSTEM_PROMPT = `You are the symptom-intake assistant for Nick's Tire & Auto, a trusted independent auto repair shop at 17625 Euclid Ave, Cleveland, OH 44112.
+
+A customer has typed a description of what their car is doing. You have NOT scanned the vehicle and you have no diagnostic trouble codes — you only have their words. Your job is to organize what they described into the most likely possibilities and a clear next step.
+
+You must:
 1. Be accurate and conservative — never overstate or understate urgency
-2. Explain in plain language that a non-mechanic can understand
-3. Always note that this is a preliminary assessment and in-person diagnosis is required
-4. Provide realistic cost ranges for the Cleveland, Ohio area
-5. Consider the vehicle year, make, model, and mileage when assessing causes
-6. Rank causes by likelihood based on the specific symptoms described
-7. Be direct, calm, confident, and professional — no hype or gimmicks
+2. Explain in plain language a non-mechanic understands. No jargon without a plain-language gloss.
+3. Be explicit that this is preliminary and an in-person inspection is what confirms it
+4. Consider the vehicle year, make, model, and mileage when ranking causes
+5. Rank causes by likelihood based on the specific symptoms described
+6. Be direct, calm, confident, and professional — no hype, no scare tactics
+
+NEVER do these:
+- NEVER estimate prices, dollar amounts, or cost ranges. You have no pricing data. The shop quotes in writing after seeing the car.
+- NEVER claim you scanned, read codes from, or connected to the vehicle.
+- NEVER invent a specific part failure as a certainty. These are possibilities, not findings.
 
 Urgency levels:
 - low (1-2): Routine maintenance or minor issue, can wait a few weeks
-- moderate (2-3): Should be addressed within 1-2 weeks
-- high (3-4): Needs attention within a few days, could worsen
-- critical (4-5): Safety concern, should be inspected immediately
+- moderate (3): Should be addressed within 1-2 weeks
+- high (4): Needs attention within a few days, could worsen
+- critical (5): Safety concern, should be inspected immediately
+
+Return between 2 and 4 likely causes when the symptoms support it. Use likelihood "high" for the most probable, "medium" and "low" for the alternatives.
 
 You MUST respond with ONLY a valid JSON object matching the exact schema requested. No markdown, no explanation, just the JSON.`;
 
-export type DiagnosisResult = {
-  urgency: "low" | "moderate" | "high" | "critical";
+export type DiagnosisCause = {
+  cause: string;
+  explanation: string;
+  likelihood: Likelihood;
+};
+
+/**
+ * A real analysis the model produced and that passed runtime validation.
+ * `urgency` here has already been reconciled against the red-flag floor.
+ */
+export type DiagnosisAnalyzed = {
+  status: "ai";
+  urgency: Urgency;
   urgencyScore: number;
   title: string;
   summary: string;
-  likelyCauses: { cause: string; explanation: string; likelihood: string }[];
+  likelyCauses: DiagnosisCause[];
   recommendedService: string;
-  estimatedCostRange: string;
+  costNote: string;
   safetyNote: string;
   nextSteps: string[];
+  redFlags: RedFlag[];
 };
+
+/**
+ * We could NOT analyze the symptoms. Deliberately carries no title/summary/
+ * urgencyScore: the old code returned a fully-formed fake diagnosis on failure,
+ * so customers could not tell an AI conclusion from a silent error. Making this
+ * a separate shape means the UI cannot render an error as a result even by
+ * accident — there is nothing to render.
+ *
+ * Red flags survive here: they are matched in code, so a model outage never
+ * suppresses "your brakes are gone, don't drive it".
+ */
+export type DiagnosisUnavailable = {
+  status: "unavailable";
+  reason: "ai_error" | "ai_invalid";
+  redFlags: RedFlag[];
+  costNote: string;
+};
+
+export type DiagnosisResult = DiagnosisAnalyzed | DiagnosisUnavailable;
 
 export async function runDiagnosis(input: {
   vehicleYear?: string;
@@ -52,31 +112,41 @@ export async function runDiagnosis(input: {
   const vehicleStr = [input.vehicleYear, input.vehicleMake, input.vehicleModel].filter(Boolean).join(" ");
   const mileageStr = input.mileage ? `Approximate mileage: ${input.mileage}` : "";
 
-  const userMessage = `Analyze these vehicle symptoms and provide a structured diagnosis.
+  // Matched BEFORE the model runs, so an outage can't suppress a safety warning.
+  const symptomText = [...input.symptoms, input.additionalInfo ?? ""].join("\n");
+  const redFlags = detectRedFlags(symptomText);
+
+  const redFlagBlock = redFlags.length
+    ? `\nSafety screening already flagged this description as: ${redFlags
+        .map((f) => f.label)
+        .join(", ")}. Treat urgency as critical and do not soften it. Do not repeat the tow/stop-driving instruction — the page already shows it.\n`
+    : "";
+
+  const userMessage = `Analyze these vehicle symptoms and provide a structured, preliminary assessment.
 
 Vehicle: ${vehicleStr || "Not specified"}
 ${mileageStr}
 
 Reported symptoms:
-${input.symptoms.map(s => `- ${s}`).join("\n")}
+${input.symptoms.map((s) => `- ${s}`).join("\n")}
 
 ${input.additionalInfo ? `Additional details from the customer: ${input.additionalInfo}` : ""}
-
+${redFlagBlock}
 Respond with a JSON object with these exact fields:
 {
   "urgency": "low" | "moderate" | "high" | "critical",
   "urgencyScore": number (1-5),
-  "title": "Short diagnostic title",
+  "title": "Short, plain-language title for what is likely going on",
   "summary": "2-3 sentence plain-language summary of the likely issue",
   "likelyCauses": [
-    {"cause": "Cause name", "explanation": "Plain language explanation", "likelihood": "High" | "Medium" | "Low"}
+    {"cause": "Cause name", "explanation": "Plain language explanation", "likelihood": "high" | "medium" | "low"}
   ],
   "recommendedService": "Service category at Nick's",
-  "estimatedCostRange": "$X - $Y range",
   "safetyNote": "Safety warning if applicable, or empty string",
   "nextSteps": ["Step 1", "Step 2", "Step 3"]
 }`;
 
+  let content: unknown;
   try {
     const response = await invokeLLM({
       messages: [
@@ -91,9 +161,11 @@ Respond with a JSON object with these exact fields:
           schema: {
             type: "object",
             properties: {
-              urgency: { type: "string", description: "low, moderate, high, or critical" },
-              urgencyScore: { type: "integer", description: "1-5 urgency score" },
-              title: { type: "string", description: "Short diagnostic title" },
+              // Real enum constraints, not just prose descriptions — the
+              // provider can then enforce exact values instead of us hoping.
+              urgency: { type: "string", enum: ["low", "moderate", "high", "critical"] },
+              urgencyScore: { type: "integer", minimum: 1, maximum: 5, description: "1-5 urgency score" },
+              title: { type: "string", description: "Short plain-language title" },
               summary: { type: "string", description: "Plain language summary" },
               likelyCauses: {
                 type: "array",
@@ -102,24 +174,19 @@ Respond with a JSON object with these exact fields:
                   properties: {
                     cause: { type: "string" },
                     explanation: { type: "string" },
-                    likelihood: { type: "string" },
+                    likelihood: { type: "string", enum: ["high", "medium", "low"] },
                   },
                   required: ["cause", "explanation", "likelihood"],
                   additionalProperties: false,
                 },
               },
               recommendedService: { type: "string" },
-              estimatedCostRange: { type: "string" },
               safetyNote: { type: "string" },
-              nextSteps: {
-                type: "array",
-                items: { type: "string" },
-              },
+              nextSteps: { type: "array", items: { type: "string" } },
             },
             required: [
               "urgency", "urgencyScore", "title", "summary",
-              "likelyCauses", "recommendedService", "estimatedCostRange",
-              "safetyNote", "nextSteps",
+              "likelyCauses", "recommendedService", "safetyNote", "nextSteps",
             ],
             additionalProperties: false,
           },
@@ -127,37 +194,40 @@ Respond with a JSON object with these exact fields:
       },
     });
 
-    const content = response.choices?.[0]?.message?.content;
-    if (content && typeof content === "string") {
-      const parsed = JSON.parse(content) as DiagnosisResult;
-      // Validate urgency score range
-      parsed.urgencyScore = Math.min(5, Math.max(1, parsed.urgencyScore));
-      return parsed;
-    }
+    content = response.choices?.[0]?.message?.content;
   } catch (error) {
-    log.error("[Diagnose] AI diagnosis failed:", error);
+    log.error("[Diagnose] AI call failed:", error);
+    return { status: "unavailable", reason: "ai_error", redFlags, costNote: COST_NOTE };
   }
 
-  // Fallback
+  if (typeof content !== "string" || !content.trim()) {
+    log.error("[Diagnose] AI returned no content");
+    return { status: "unavailable", reason: "ai_error", redFlags, costNote: COST_NOTE };
+  }
+
+  // Validated, not cast. A drifted model shape fails loudly here instead of
+  // rendering `undefined`/garbage into the customer-facing result card.
+  let parsed;
+  try {
+    parsed = aiDiagnosisSchema.parse(JSON.parse(content));
+  } catch (error) {
+    log.error("[Diagnose] AI reply failed validation:", error);
+    return { status: "unavailable", reason: "ai_invalid", redFlags, costNote: COST_NOTE };
+  }
+
+  const { urgency, urgencyScore, safetyNote } = applySafetyFloor(parsed, redFlags);
+
   return {
-    urgency: "moderate",
-    urgencyScore: 3,
-    title: "Professional Inspection Recommended",
-    summary: "Based on the symptoms you described, we recommend bringing your vehicle in for a professional diagnostic inspection. Our technicians use advanced OBD-II diagnostic equipment to pinpoint the exact cause of the issue so you only pay for what you need.",
-    likelyCauses: [
-      {
-        cause: "Multiple potential causes",
-        explanation: "The combination of symptoms you described could point to several different issues. An in-person inspection with professional diagnostic equipment will identify the exact problem.",
-        likelihood: "High",
-      },
-    ],
-    recommendedService: "Diagnostics",
-    estimatedCostRange: "Call for estimate",
-    safetyNote: "",
-    nextSteps: [
-      "Call (216) 862-0005 to schedule a diagnostic appointment",
-      "Our technicians will use professional OBD-II equipment to identify the exact cause",
-      "We will explain the findings and provide a detailed repair estimate before any work begins",
-    ],
+    status: "ai",
+    urgency,
+    urgencyScore,
+    title: parsed.title,
+    summary: parsed.summary,
+    likelyCauses: parsed.likelyCauses,
+    recommendedService: parsed.recommendedService,
+    costNote: COST_NOTE,
+    safetyNote,
+    nextSteps: parsed.nextSteps,
+    redFlags,
   };
 }

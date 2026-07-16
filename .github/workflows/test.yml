@@ -97,6 +97,12 @@ jobs:
     if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.workflow == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      # 2026-07-15 · @statenour/web tsc --noEmit outgrew Node's ~2GB default
+      # old-space: deterministic OOM (exit 134) on runs 29408774484 and
+      # 29409229006, killing the pipeline before tests. Runners have 16GB;
+      # verified locally: the same check passes with this heap in ~44s.
+      NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - name: Checkout (full history for affected-detection)
         uses: actions/checkout@v4
@@ -165,6 +171,15 @@ jobs:
         run: pnpm --filter nicks-tire-auto prerender:check
 
       # ─── Statenour-only custom validators ───
+      # Workflow-only diffs flip these validators ON while `turbo --affected`
+      # builds nothing, so prompt:size-check crashed importing the unbuilt
+      # @nour/ai-capabilities dist (runs 29362837192 / 29364485363). Build the
+      # statenour workspace deps explicitly — turbo cache makes this ~free
+      # whenever --affected already built them.
+      - name: Statenour · build workspace deps (validators import dists)
+        if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm exec turbo run build --filter="@statenour/web^..." --output-logs=errors-only
+
       - name: Statenour · raw-sql check
         if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter @statenour/web check:raw-sql
@@ -188,13 +203,25 @@ jobs:
         run: pnpm --filter @statenour/web exec prisma validate
 
       # ─── Security audit (high+ · advisory, non-blocking) ─────────────
+      # Both steps below used to run `pnpm audit`, which POSTs to npm's legacy
+      # audit endpoint. npm RETIRED it — every call now returns 410, so the
+      # blocking gate failed on 100% of PRs no matter the content, and a real
+      # CVE was indistinguishable from the endpoint being gone. scripts/
+      # audit-advisories.mjs keeps the same contract (prod-only, --audit-level,
+      # non-zero exit blocks) against the bulk endpoint, which is live.
+      # NOTE: dependency-review.yml does NOT backstop this — it is
+      # continue-on-error and no-ops until GitHub Dependency Graph is enabled
+      # on the repo (Settings -> Security & analysis).
       - name: Dependency audit (high+ severity · advisory)
         continue-on-error: true
-        run: pnpm audit --prod --audit-level=high
+        run: node scripts/audit-advisories.mjs --audit-level=high --advisory
 
       # ─── Security gate (critical · BLOCKING) ─────────────────────────
+      # Exits 2 (fails) if the scanner itself cannot run. That is deliberate:
+      # a scan that silently passes when it is broken is how this gate rotted
+      # into permanent red that everyone learned to ignore.
       - name: Dependency audit (critical severity · blocking)
-        run: pnpm audit --prod --audit-level=critical
+        run: node scripts/audit-advisories.mjs --audit-level=critical
 
   voice:
     needs: changes

@@ -62,7 +62,19 @@ export default function Settings() {
   const isLoading = connection.isLoading || health.isLoading || config.isLoading;
   if (isLoading) return <div className="flex min-h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
-  const metaReady = Boolean(connection.data?.configured && (connection.data?.facebookReady || connection.data?.instagramReady));
+  // "Configured" (presence) and "alive" (the Graph API accepted the token just
+  // now) are different facts — a revoked token used to show green here while
+  // every publish failed. The card is only green when BOTH hold.
+  const live = connection.data?.live;
+  const metaConfigured = Boolean(connection.data?.configured && (connection.data?.facebookReady || connection.data?.instagramReady));
+  const metaReady = metaConfigured && live?.ok !== false;
+  const metaDetail = !metaConfigured
+    ? "Meta identifiers or access token are incomplete."
+    : live?.ok === false
+      ? `Configured, but the Graph API rejected the token: ${live.error ?? "unknown error"}`
+      : live?.ok
+        ? `Live check passed${live.igUsername ? ` as @${live.igUsername}` : ""}${live.pageName ? ` · Page "${live.pageName}"` : ""}.`
+        : "Facebook or Instagram Graph access is configured.";
   const tokenReady = Boolean(connection.data?.token?.present);
   const storageReady = Boolean(health.data?.storage?.configured && health.data?.storage?.permanentUrls);
   const generatorReady = Boolean(health.data?.generator?.configured);
@@ -75,7 +87,7 @@ export default function Settings() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatusCard label="Meta connection" ok={metaReady} detail={metaReady ? "Facebook or Instagram Graph access is configured." : "Meta identifiers or access token are incomplete."} icon={Server} />
+        <StatusCard label="Meta connection" ok={metaReady} detail={metaDetail} icon={Server} />
         <StatusCard label="Access token" ok={tokenReady} detail={tokenReady ? "A persisted token is present. Its raw value is hidden." : "No persisted Meta access token is available."} icon={KeyRound} />
         <StatusCard label="Permanent media" ok={storageReady} detail={storageReady ? "S3 and CloudFront are configured for Meta-readable permanent URLs." : "S3_BUCKET and CLOUDFRONT_DOMAIN must both be configured."} icon={Database} />
         <StatusCard label="Media generation" ok={generatorReady} detail={generatorReady ? "The configured media provider has credentials." : "The Reel/media generation provider is not fully configured."} icon={ImageIcon} />

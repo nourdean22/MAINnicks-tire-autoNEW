@@ -96,9 +96,22 @@ export async function runGate(req: Request): Promise<GateResult> {
   }
 
   // 2. AI budget cap (power-panel)
-  const budget = await checkAiBudget(2).catch(
-    () => ({ allowed: true } as const),
-  );
+  // 2026-07-16 audit · this passed `2` as the spend estimate purely to
+  // satisfy a `> 10` strict-mode threshold that then never fired. The
+  // threshold is gone (power-panel.ts); the estimate stays 0 because the
+  // real per-turn cost is unknown pre-flight and the daily-cap branch
+  // compares `spent + estimate` — a fabricated 2¢ only skewed that.
+  //
+  // Still fails OPEN on a DB error: a chat outage is worse than an
+  // overspend, and lib/ai/budget.ts's assertWithinBudget re-checks the
+  // hard cap downstream. Now logged instead of silently swallowed, so a
+  // persistently-open gate is visible in /system/logs.
+  const budget = await checkAiBudget(0).catch((err) => {
+    void import("@/lib/errors/record-error").then(({ recordError }) =>
+      recordError("chat:request", err, { stage: "checkAiBudget", failedOpen: true }),
+    );
+    return { allowed: true } as const;
+  });
   if (!budget.allowed) {
     return {
       kind: "block",

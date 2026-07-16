@@ -32,7 +32,11 @@ const log = rootLogger.withSurface("brain/embedding");
  * Tracks pgvector availability via the shared cache in lib/db/pgvector
  * so the probe runs at most once per 5min across the whole process.
  */
-async function writePgvectorColumn(
+// Exported in the durable-fanout wave (audit 2026-07-15) so
+// journal-convergence's ensureEmbeddings can dual-write the native
+// vector column — it was the last writer producing JSON-only rows,
+// which kept the pgvector kNN path starved for journal entries.
+export async function writePgvectorColumn(
   rowId: string,
   vec: number[],
 ): Promise<void> {
@@ -152,7 +156,13 @@ export type EmbeddingSourceType =
   // AG-31 · the Wave Z Greene corpus (BrainMemory category greene_law —
   // the actions-bearing store). sourceId = the BrainMemory key. Enables
   // the matcher's vector fallback for paraphrases keyword triggers miss.
-  | "greene_law";
+  | "greene_law"
+  // Silo wave (audit 2026-07-15) · the two journal silos that were
+  // invisible to ALL semantic recall — convergence scans wrote raw
+  // vector rows for them directly via prisma, but nothing typed
+  // could. sourceId = the silo row id.
+  | "situation_log"
+  | "decision_replay";
 
 async function markMemoryEmbeddingPending(memoryId: string): Promise<void> {
   try {

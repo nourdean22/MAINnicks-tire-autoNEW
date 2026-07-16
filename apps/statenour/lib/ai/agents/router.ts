@@ -23,6 +23,7 @@
 
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { extractJsonObject } from "@/lib/ai/extract-structured";
+import { withTimeout } from "@/lib/utils/with-timeout";
 import {
   isSpecialistRoutingEnabled,
   isSpecialistShadowMode,
@@ -87,12 +88,20 @@ When in doubt, choose "general". Specialists are narrow.`;
 
 async function classifyViaLlm(userContent: string): Promise<RoutingDecision> {
   try {
-    const result = await aiChat(
-      [
-        { role: "system", content: CLASSIFY_SYSTEM_PROMPT },
-        { role: "user", content: userContent.slice(0, 1500) },
-      ],
-      "classify",
+    // Bound the classify call · specialist routing also sits on the
+    // pre-stream critical path (before Promise.all), so an unbounded
+    // provider stall compounds the intent-router hang. Fail fast to
+    // "general" — the safe default — rather than block the turn.
+    const result = await withTimeout(
+      aiChat(
+        [
+          { role: "system", content: CLASSIFY_SYSTEM_PROMPT },
+          { role: "user", content: userContent.slice(0, 1500) },
+        ],
+        "classify",
+      ),
+      8000,
+      "specialist-router",
     );
 
     // Provider sentinel · graceful-degradation reply means we couldn't
