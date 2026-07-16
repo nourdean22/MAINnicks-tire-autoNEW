@@ -306,7 +306,11 @@ const normalizeResponseFormat = ({
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const model = params.model || (process.env.OPENAI_API_KEY
     ? (process.env.LLM_MODEL || "gpt-4o")
-    : (process.env.GEMINI_MODEL || "gemini-1.5-pro"));
+    // gemini-1.5-pro was RETIRED by Google (404 "not found for API version") —
+    // observed live 2026-07-16 killing reel brief generation in prod. 2.5-flash
+    // is the model the rest of this codebase is tuned for (see the
+    // thinking-overhead notes in igAutopost/carouselBriefGen/reviewReplies).
+    : (process.env.GEMINI_MODEL || "gemini-2.5-flash"));
 
   assertApiKey(model);
 

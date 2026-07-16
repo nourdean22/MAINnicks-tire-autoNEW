@@ -348,7 +348,10 @@ export async function generateReelBriefAI(
     systemPrompt += `\n\n${skillPayload.fragment}`;
   }
 
-  const modelOverride = process.env.REEL_GEN_MODEL || (process.env.GEMINI_API_KEY ? "gemini-1.5-pro" : undefined);
+  // gemini-1.5-pro is retired (404 from Google, observed live 2026-07-16) —
+  // the maxTokens/timeout below were already sized for 2.5-flash's thinking
+  // overhead; only this default string had lagged behind.
+  const modelOverride = process.env.REEL_GEN_MODEL || (process.env.GEMINI_API_KEY ? "gemini-2.5-flash" : undefined);
 
   log.info("Generating initial Reel Brief via LLM", { model: modelOverride });
   const res = await invokeLLM({
