@@ -3,7 +3,7 @@ import { getBusinessDateKey, isBusinessDate } from "@/lib/businessDate";
 import { classifyIntegrationFreshness } from "@/lib/integrationFreshness";
 import { getQueueActionDefinition } from "@/pages/admin/today/queueActions";
 import { hasAdminPermission } from "@shared/adminPermissions";
-import { generateTotpCode, generateTotpSecret, verifyTotpCode } from "../../server/lib/totp";
+import { generateTotpCode, generateTotpSecret, verifyTotpCode } from "../../../server/lib/totp";
 
 describe("Cleveland business date", () => {
   it("does not roll to tomorrow at 8pm Eastern", () => {
