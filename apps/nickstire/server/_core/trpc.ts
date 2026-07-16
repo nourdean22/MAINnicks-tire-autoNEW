@@ -61,7 +61,13 @@ const requireAdminIdentity = t.middleware(async opts => {
     throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
   }
   touchAdminActivity(`trpc:${path}`);
-  const security = await getAdminSecurityState(ctx.user.openId);
+  // Only fetch security state when the MFA gate is actually on — with it off
+  // (the default since #772) this was a wasted DB query on EVERY admin call,
+  // and any throw from it 500s ALL admin procedures in middleware, before the
+  // handler runs. Consumers that need the state regardless (the MFA setup
+  // flows on adminIdentityProcedure) already fall back to fetching it
+  // themselves via `ctx.adminSecurity ?? getAdminSecurityState(...)`.
+  const security = isAdminMfaRequired() ? await getAdminSecurityState(ctx.user.openId) : null;
   return next({ ctx: { ...ctx, user: ctx.user, adminSecurity: security } });
 });
 
