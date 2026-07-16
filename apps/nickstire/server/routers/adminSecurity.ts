@@ -1,7 +1,12 @@
 import { TRPCError } from "@trpc/server";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { router, adminIdentityProcedure, adminPermissionProcedure, adminProcedure } from "../_core/trpc";
+import { algProbeLog } from "../../drizzle/schema";
 import { ADMIN_ROLES, permissionsForAdminRole } from "../../shared/adminPermissions";
+import { adminIdentityProcedure, adminPermissionProcedure, adminProcedure, router } from "../_core/trpc";
+import { db } from "../lib/db-helper";
+import { buildTotpUri, generateTotpSecret, verifyTotpCode } from "../lib/totp";
+import { getRecentAdminActions, recordAdminAction, reportAdminClientError } from "../services/adminAudit";
 import {
   decryptMfaSecret,
   enableMfa,
@@ -11,8 +16,6 @@ import {
   setAdminRole,
   storePendingMfaSecret,
 } from "../services/adminSecurity";
-import { buildTotpUri, generateTotpSecret, verifyTotpCode } from "../lib/totp";
-import { getRecentAdminActions, recordAdminAction, reportAdminClientError } from "../services/adminAudit";
 
 function requestIp(req: { headers?: Record<string, unknown>; ip?: string } | undefined): string | null {
   const forwarded = req?.headers?.["x-forwarded-for"];
@@ -102,6 +105,26 @@ export const adminSecurityRouter = router({
   recentActions: adminPermissionProcedure("reports.view")
     .input(z.object({ limit: z.number().int().min(1).max(200).default(50) }).optional())
     .query(({ input }) => getRecentAdminActions(input?.limit ?? 50)),
+
+  integrationFreshness: adminProcedure.query(async () => {
+    const database = await db();
+    const generatedAt = new Date();
+    if (!database) {
+      return { connected: false, lastSuccessfulAt: null, generatedAt, source: "alg_probe_log" as const };
+    }
+    const rows = await database
+      .select({ completedAt: algProbeLog.completedAt })
+      .from(algProbeLog)
+      .where(eq(algProbeLog.outcome, "success"))
+      .orderBy(desc(algProbeLog.completedAt))
+      .limit(1);
+    return {
+      connected: rows.length > 0,
+      lastSuccessfulAt: rows[0]?.completedAt ?? null,
+      generatedAt,
+      source: "alg_probe_log" as const,
+    };
+  }),
 
   reportClientError: adminIdentityProcedure
     .input(z.object({
