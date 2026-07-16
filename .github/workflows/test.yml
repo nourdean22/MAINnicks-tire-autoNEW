@@ -219,29 +219,70 @@ jobs:
       # Do not re-add it here without giving it real data AND a step-level
       # timeout-minutes; a hang here silently disables every step below.
 
+      # DATABASE_URL is required for this to run at all, but is NEVER connected
+      # to: `prisma validate` only parses the schema and resolves env() refs.
+      # Without it the step died P1012 ("Environment variable not found:
+      # DATABASE_URL" at schema.prisma:8) on every run -- prisma.config.ts
+      # makes the CLI log "Prisma config detected, skipping environment
+      # variable loading", so its own `process.env.DATABASE_URL || placeholder`
+      # fallback never reaches schema.prisma's env("DATABASE_URL").
+      # This went unnoticed because the prompt:size-check hang (removed in
+      # #762) always killed the job before reaching this step. The value below
+      # is the same placeholder prisma.config.ts already defines.
       - name: Statenour · prisma validate
         if: ${{ needs.changes.outputs.statenour == 'true' || needs.changes.outputs.workflow == 'true' }}
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/statenour
         run: pnpm --filter @statenour/web exec prisma validate
 
-      # ─── Security audit (high+ · advisory, non-blocking) ─────────────
-      # Both steps below used to run `pnpm audit`, which POSTs to npm's legacy
-      # audit endpoint. npm RETIRED it — every call now returns 410, so the
-      # blocking gate failed on 100% of PRs no matter the content, and a real
-      # CVE was indistinguishable from the endpoint being gone. scripts/
-      # audit-advisories.mjs keeps the same contract (prod-only, --audit-level,
-      # non-zero exit blocks) against the bulk endpoint, which is live.
+  # ─── Dependency gate — deliberately its OWN job ────────────────────
+  # These two steps used to be the last steps of `node`. That placement meant
+  # ANY unrelated failure above them skipped the gate silently, and in
+  # practice it never ran once:
+  #   - the prompt:size-check hang (removed in #762) ate the 25-min budget
+  #     -> both audit steps "skipped"
+  #   - with the hang gone, `prisma validate` failed P1012 on run 29507730752
+  #     -> both audit steps "skipped" again
+  # A security gate that an unrelated statenour validator can switch off is
+  # not a gate. In its own job it runs regardless of what else breaks, and it
+  # cannot be disabled by anything except itself.
+  #
+  # Ungated on `changes` on purpose: advisories are published against
+  # dependencies you ALREADY have, so "nothing changed" is not a reason to
+  # skip. It costs ~1 min.
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node 20 (matches Railway runtime)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      # scripts/audit-advisories.mjs replaced `pnpm audit`, which POSTs to
+      # npm's legacy audit endpoint. npm RETIRED it — every call returns 410,
+      # so the blocking gate failed on 100% of PRs regardless of content and a
+      # real CVE was indistinguishable from the endpoint being gone (#760).
       # NOTE: dependency-review.yml does NOT backstop this, and cannot. That
       # action needs a PUBLIC repo or private+GitHub Advanced Security; this
       # repo is private and owned by a personal account, and GHAS is an
       # Enterprise-org product. It is continue-on-error, so it reports a
-      # decorative green while doing nothing. (dependency-review.yml's own
-      # comment claims enabling Dependency Graph makes it start reporting —
-      # that is false here.) This step is the repo's only dependency gate.
+      # decorative green while doing nothing. This job is the repo's ONLY
+      # dependency gate.
       - name: Dependency audit (high+ severity · advisory)
         continue-on-error: true
         run: node scripts/audit-advisories.mjs --audit-level=high --advisory
 
-      # ─── Security gate (critical · BLOCKING) ─────────────────────────
       # Exits 2 (fails) if the scanner itself cannot run. That is deliberate:
       # a scan that silently passes when it is broken is how this gate rotted
       # into permanent red that everyone learned to ignore.
