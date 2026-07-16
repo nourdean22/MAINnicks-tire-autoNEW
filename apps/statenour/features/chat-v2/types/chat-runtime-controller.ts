@@ -1,4 +1,4 @@
-import { UIMessage } from "ai";
+import type { UIMessage } from "ai";
 
 export type ChatRuntimeController = {
   messages: UIMessage[];
@@ -11,4 +11,5 @@ export type ChatRuntimeController = {
   regenerate: (options?: { messageId?: string } & any) => Promise<void>;
   setMessages: (messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[])) => void;
   liveContextBlocksRef: React.RefObject<any>;
+  lastTraceIdRef: React.RefObject<string | null>;
 };
