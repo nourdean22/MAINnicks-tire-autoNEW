@@ -25,6 +25,7 @@ import { checkReviewReply, buildReplyPromptRules, hasBlockingFindings } from "@s
 import { IG_ARCHETYPES } from "@shared/const";
 import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
+import { affectedRowCount } from "../lib/db-affected";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
 
@@ -543,9 +544,10 @@ Keep it under 200 characters.`;
           )
         );
 
-      const affectedRows = (updateResult as any)?.[0]?.affectedRows !== undefined
-        ? (updateResult as any)[0].affectedRows
-        : ((updateResult as any)?.affectedRows ?? 1);
+      // Previously fell back to `?? 1`, so an unreadable driver result counted as
+      // "claimed" and silently voided this CAS. Every other claim in the server
+      // fails closed (cron/jobs/crudAutomation.ts:200); this one now does too.
+      const affectedRows = affectedRowCount(updateResult);
 
       if (affectedRows === 0) {
         throw new TRPCError({
@@ -673,6 +675,11 @@ Keep it under 200 characters.`;
       
       let publishCaption = input.caption;
       let publishVideoUrl = input.videoUrl;
+      // Re-asserted as a compare-and-set immediately before the Meta call. Reading
+      // the status and acting on it are two statements; without a claim between
+      // them two concurrent callers both pass every gate and both publish. Same
+      // at-most-once idiom as cron/jobs/crudAutomation.ts:507.
+      let observedStatus: string | null = null;
 
       if (input.inventoryId) {
         const { socialContentInventory, socialContentApprovals } = await import("../../drizzle/schema");
@@ -684,6 +691,20 @@ Keep it under 200 characters.`;
           .limit(1);
         const draft = rows[0];
         if (draft) {
+          observedStatus = draft.status;
+          // Terminal states are not re-publishable. published_partial in particular has
+          // a live post on at least one platform — re-running would duplicate it.
+          if (draft.status === "publishing" || draft.status === "published" || draft.status === "published_partial") {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message:
+                draft.status === "publishing"
+                  ? "This draft is already being published. Wait for that attempt to finish before retrying."
+                  : draft.status === "published"
+                    ? "This draft is already published. Re-publishing would duplicate the live post."
+                    : "This draft is partially published — one platform is already live. Re-publishing would duplicate it; resolve the failed platform manually.",
+            });
+          }
           if (draft.contentType === "reel") {
             if (draft.status !== "ready") {
               throw new TRPCError({
@@ -775,25 +796,80 @@ Keep it under 200 characters.`;
           message: `Claim-safety: ${blockers.map((f) => `${f.rule} ("${f.match}")`).join("; ")} — edit the caption before publishing.`,
         });
       }
-      const { results, igPostId } = await publishToSocial({
-        ...input,
-        caption: publishCaption,
-        videoUrl: publishVideoUrl,
-      });
-      if (results.length > 0 && results.every((r) => !r.success)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Publish failed: ${results.map((r) => `${r.platform}: ${r.error}`).join("; ")}`,
-        });
-      }
-
-      if (input.inventoryId) {
+      const setInventoryStatus = async (status: string, errorMessage?: string) => {
+        if (!input.inventoryId) return;
         const { socialContentInventory } = await import("../../drizzle/schema");
         const { eq } = await import("drizzle-orm");
         await database.update(socialContentInventory)
-          .set({ status: "published", publishedAt: new Date() })
+          .set({
+            status,
+            updatedAt: new Date(),
+            ...(status === "published" || status === "published_partial" ? { publishedAt: new Date() } : {}),
+            ...(errorMessage !== undefined ? { errorMessage: errorMessage.slice(0, 500) } : {}),
+          })
           .where(eq(socialContentInventory.id, input.inventoryId));
+      };
+
+      // Claim the row BEFORE the irreversible external call — the last gate that can
+      // still stop a duplicate. A concurrent caller that read the same status loses
+      // the CAS (0 rows) and is told to back off rather than posting a second time.
+      if (input.inventoryId && observedStatus !== null) {
+        const { socialContentInventory } = await import("../../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const claim = await database
+          .update(socialContentInventory)
+          .set({ status: "publishing", updatedAt: new Date() })
+          .where(and(
+            eq(socialContentInventory.id, input.inventoryId),
+            eq(socialContentInventory.status, observedStatus),
+          ));
+        if (affectedRowCount(claim) === 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Another publish attempt claimed this draft first. Refresh to see its current state.",
+          });
+        }
       }
+
+      let results: Awaited<ReturnType<typeof publishToSocial>>["results"];
+      let igPostId: string | undefined;
+      try {
+        ({ results, igPostId } = await publishToSocial({
+          ...input,
+          caption: publishCaption,
+          videoUrl: publishVideoUrl,
+        }));
+      } catch (err) {
+        // The claim must not outlive a throw, or the draft wedges in "publishing"
+        // and every later attempt hits the CONFLICT guard above.
+        await setInventoryStatus(observedStatus ?? "failed", err instanceof Error ? err.message : String(err));
+        throw err;
+      }
+
+      const succeeded = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
+      const failureDetail = failed.map((r) => `${r.platform}: ${r.error}`).join("; ");
+
+      if (succeeded.length === 0) {
+        await setInventoryStatus("failed", failureDetail);
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Publish failed: ${failureDetail}`,
+        });
+      }
+
+      if (failed.length > 0) {
+        // At least one platform is LIVE and at least one is not. Recording this as
+        // "published" is what let the Queue's onSuccess toast report success for a
+        // post that never reached Instagram — so this throws instead.
+        await setInventoryStatus("published_partial", failureDetail);
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Partially published — LIVE on ${succeeded.map((r) => r.platform).join(", ")}; FAILED on ${failureDetail}. Do NOT retry: re-publishing would duplicate the live post. Post the failed platform manually.`,
+        });
+      }
+
+      await setInventoryStatus("published");
 
       return { success: true, results, postId: igPostId };
     }),
