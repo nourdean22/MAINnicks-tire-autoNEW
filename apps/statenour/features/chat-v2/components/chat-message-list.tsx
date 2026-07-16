@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { UIMessage } from "ai";
-import { AlertTriangle, Paperclip } from "lucide-react";
+import type { UIMessage } from "ai";
+import { AlertTriangle, CheckCircle2, ExternalLink, Paperclip, ShieldCheck, Wrench } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { ToolResultCard, isKnownToolName } from "@/components/chat/tool-result-card";
 import { NickMessage } from "@/components/chat/nick-message";
@@ -14,84 +15,85 @@ import { extractContextBlocks, extractQuality, extractCitations } from "@/lib/ch
 import { toast } from "sonner";
 import { useLazyRenderMessages } from "@/hooks/chat/use-lazy-render-messages";
 
-async function copyToClipboard(text: string): Promise<void> {
-  if (typeof navigator !== "undefined" && navigator.clipboard) {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success("Copied to clipboard", { duration: 1500 });
-    } catch {
-      toast.error("Clipboard blocked by browser");
-    }
-  }
-}
-
-/**
- * True when a message is a persisted stream-interruption stub —
- * stream-error-handler.ts writes an assistant row with
- * `streamingState:"errored"` on a mid/pre-stream failure. Hydrated onto the
- * UIMessage by use-conversations.ts.
- */
-function isErroredAssistantTurn(m: UIMessage): boolean {
-  return m.role === "assistant" && (m as { streamingState?: string }).streamingState === "errored";
-}
-
-/**
- * True when a reply was cut off by the output-token cap — persist-assistant-turn
- * maps finishReason==="length" → streamingState:"truncated". The text is useful
- * (a real partial answer), so unlike an errored turn we keep the bubble and just
- * append a "cut off · regenerate" affordance (2026-07-06 bug fix — chat-v2
- * previously rendered these as ordinary complete replies with no indication).
- */
-function isTruncatedAssistantTurn(m: UIMessage): boolean {
-  return m.role === "assistant" && (m as { streamingState?: string }).streamingState === "truncated";
-}
-
-/** The visible partial reply on an errored turn — `""` on a cold (pre-first-token) failure. */
-function erroredPartialText(m: UIMessage): string {
-  return (m.parts ?? [])
-    .filter((p): p is { type: "text"; text: string } => p.type === "text")
-    .map((p) => p.text)
-    .join("")
+function textOf(message: UIMessage): string {
+  return (message.parts ?? [])
+    .filter((part): part is { type: "text"; text: string } => part.type === "text")
+    .map((part) => part.text)
+    .join("\n")
     .trim();
 }
 
-/**
- * The explicit interrupted-turn affordance for a persisted errored stub row
- * (2026-07-05 audit HIGH). The v2 parts-only render path never read
- * `streamingState`, so a reloaded errored turn used to show a BLANK assistant
- * bubble with no error chip and no retry (the MessageStatusBadge lived only on
- * the dead components/chat list). Shows the partial reply if any, plus a red
- * "interrupted" chip and a Retry button wired to the same regenerate.
- */
-function InterruptedTurnCard({ message, onRetry }: { message: UIMessage; onRetry?: () => void }) {
-  const partialText = erroredPartialText(message);
+async function copyToClipboard(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard", { duration: 1500 });
+  } catch {
+    toast.error("Clipboard blocked by browser");
+  }
+}
+
+function isErroredAssistantTurn(message: UIMessage): boolean {
+  return message.role === "assistant" && (message as { streamingState?: string }).streamingState === "errored";
+}
+
+function isTruncatedAssistantTurn(message: UIMessage): boolean {
+  return message.role === "assistant" && (message as { streamingState?: string }).streamingState === "truncated";
+}
+
+function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?: string | null }) {
+  const toolParts = (message.parts ?? []).filter((part) => part.type.startsWith("tool-")) as Array<{
+    type: string;
+    state?: string;
+  }>;
+  if (toolParts.length === 0 && !traceId) return null;
+
+  const complete = toolParts.filter((part) => part.state === "output-available").length;
+  const failed = toolParts.filter((part) => part.state === "output-error").length;
+  const running = toolParts.length - complete - failed;
+
   return (
-    <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div className="max-w-[85%] rounded-2xl border border-red-900/40 bg-red-950/25 px-5 py-3.5 shadow-sm">
-        {partialText.length > 0 && (
-          <div className="mb-3 whitespace-pre-wrap text-[15px] leading-relaxed text-zinc-200">{partialText}</div>
-        )}
+    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-edge bg-void/60 px-3 py-2 text-[11px] text-fg-secondary">
+      <ShieldCheck size={13} className={failed > 0 ? "text-red-400" : "text-emerald-400"} />
+      {toolParts.length > 0 && (
+        <span>
+          Tool receipts: {complete} verified{failed ? ` · ${failed} failed` : ""}{running ? ` · ${running} running` : ""}
+        </span>
+      )}
+      {traceId && (
+        <Link
+          href={`/system/cockpit-observability?search=${encodeURIComponent(traceId)}`}
+          className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-md px-2 font-medium text-gold hover:bg-gold/10"
+        >
+          View trace <ExternalLink size={11} />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function InterruptedTurnCard({ message, onRetry }: { message: UIMessage; onRetry?: () => void }) {
+  const partialText = textOf(message);
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[85%] rounded-2xl border border-red-900/40 bg-red-950/25 px-5 py-3.5">
+        {partialText && <div className="mb-3 whitespace-pre-wrap text-[15px] leading-relaxed text-fg">{partialText}</div>}
         <div className="flex items-center gap-2 text-red-400">
-          <AlertTriangle size={15} className="shrink-0" />
+          <AlertTriangle size={15} />
           <span className="text-[13px] font-semibold">Response interrupted</span>
         </div>
-        <p className="mt-1 text-[11px] text-red-400/60">
-          {partialText.length > 0
-            ? "The reply was cut off — tap to regenerate."
-            : "This turn failed before any reply — tap to try again."}
-        </p>
-        {onRetry && (
-          <button
-            onClick={onRetry}
-            className="mt-3 rounded-lg bg-red-500/15 px-5 py-2 text-[12px] font-semibold text-red-300 transition-all hover:bg-red-500/25 active:scale-95"
-          >
-            Retry
-          </button>
-        )}
+        <p className="mt-1 text-[11px] text-red-300/60">{partialText ? "The reply was cut off." : "This turn failed before any reply."}</p>
+        {onRetry && <button onClick={onRetry} className="mt-3 rounded-lg bg-red-500/15 px-5 py-2 text-[12px] font-semibold text-red-300">Retry</button>}
       </div>
     </div>
   );
 }
+
+const COMMANDS = [
+  { label: "Run my command brief", prompt: "/today", detail: "Done, open, top stat, one warning" },
+  { label: "Find the biggest revenue leaks", prompt: "Show me the biggest revenue leaks right now using live shop data. Rank the actions by money and urgency.", detail: "Leads, estimates, callbacks" },
+  { label: "Plan today around reality", prompt: "Plan the rest of today using my calendar, open missions, energy, and current commitments. Give me a realistic execution order.", detail: "Calendar + missions + energy" },
+  { label: "Show verified recent actions", prompt: "/receipts", detail: "What Nick and the system actually did" },
+];
 
 export function ChatMessageList({
   messages,
@@ -99,278 +101,151 @@ export function ChatMessageList({
   isLoadingConvo,
   error,
   liveContextBlocksRef,
+  lastTraceIdRef,
   onRetry,
+  onCommand,
 }: {
-  messages: UIMessage[],
-  isLoading: boolean,
-  isLoadingConvo?: boolean,
-  error: Error | undefined,
-  liveContextBlocksRef?: React.RefObject<any>,
-  onRetry?: () => void,
+  messages: UIMessage[];
+  isLoading: boolean;
+  isLoadingConvo?: boolean;
+  error: Error | undefined;
+  liveContextBlocksRef?: React.RefObject<any>;
+  lastTraceIdRef?: React.RefObject<string | null>;
+  onRetry?: () => void;
+  onCommand?: (prompt: string) => void;
 }) {
-  const pending = useChatUiStore((s) => s.pending);
-  const setDraft = useChatUiStore((s) => s.setDraft);
+  const pending = useChatUiStore((state) => state.pending);
+  const connection = useChatUiStore((state) => state.connection);
+  const diagnosticReport = useChatUiStore((state) => state.diagnosticReport);
+  const setDiagnosticReport = useChatUiStore((state) => state.setDiagnosticReport);
+  const setDraft = useChatUiStore((state) => state.setDraft);
   const [actionSheetMsg, setActionSheetMsg] = useState<{ id: string; role: "user" | "assistant"; text: string } | null>(null);
   const [reasoningTraceMsg, setReasoningTraceMsg] = useState<string | null>(null);
-
-  // 2026-07-06 bug fix · tap-to-edit a sent message. The UserMessageBubble is
-  // titled "Tap to edit" but chat-v2 wired onClick to a no-op, so there was no
-  // way to edit/correct a previously-sent message. Load its text into the
-  // composer draft (useLongPress now distinguishes a tap from a drag-select, so
-  // this doesn't fire when the user selects text to copy).
-  const editMessage = (text: string) => {
-    setDraft(text);
-    toast("Loaded into composer — edit and resend", { duration: 1600 });
-  };
-
   const { renderedMessages, hasHidden, hiddenCount, showOlder } = useLazyRenderMessages(messages, isLoading);
 
-  if (messages.length === 0 && pending.length === 0) {
+  if (messages.length === 0 && pending.length === 0 && !diagnosticReport) {
     if (isLoadingConvo) {
-      return (
-        <div className="flex h-full flex-col items-center justify-center p-8">
-          <div className="animate-pulse text-xs font-semibold uppercase tracking-widest text-zinc-600">
-            Loading conversation...
-          </div>
-        </div>
-      );
+      return <div className="flex h-full items-center justify-center p-8 text-xs font-semibold uppercase tracking-widest text-fg-tertiary">Loading conversation…</div>;
     }
     return (
-      <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-        <h2 className="text-xl font-semibold text-zinc-400">NOUR OS</h2>
-        <p className="mt-2 text-sm text-zinc-600">The cognitive force multiplier is online.</p>
+      <div className="mx-auto flex h-full w-full max-w-3xl flex-col justify-center p-5 sm:p-8">
+        <div className="mb-6 text-center">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-gold">NOUR OS · operator chat</p>
+          <h2 className="mt-2 text-2xl font-semibold text-fg">What are we solving?</h2>
+          <p className="mt-2 text-sm text-fg-secondary">
+            Live business data, memory, tasks, research, and verified system actions from one surface.
+          </p>
+          {connection !== "online" && (
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] text-amber-300">
+              <AlertTriangle size={12} /> Chat is degraded — run /diagnose for an independent check.
+            </p>
+          )}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {COMMANDS.map((command) => (
+            <button
+              key={command.label}
+              type="button"
+              onClick={() => onCommand?.(command.prompt)}
+              className="rounded-xl border border-edge bg-raised p-4 text-left transition hover:border-gold/35 hover:bg-elevated"
+            >
+              <div className="flex items-start gap-3">
+                <Wrench size={16} className="mt-0.5 shrink-0 text-gold" />
+                <div>
+                  <p className="text-sm font-semibold text-fg">{command.label}</p>
+                  <p className="mt-1 text-[11px] text-fg-tertiary">{command.detail}</p>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 pb-12">
-      {/* Show-older banner — only when lazy-rendering a long conversation */}
-      {hasHidden && (
-        <button
-          onClick={showOlder}
-          className="mx-auto rounded-full border border-zinc-700 bg-zinc-900 px-4 py-1.5 text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-200 active:scale-95"
-        >
-          Show {hiddenCount} older {hiddenCount === 1 ? "message" : "messages"}
-        </button>
+      {diagnosticReport && (
+        <section className="rounded-xl border border-gold/25 bg-gold/[0.04] p-4">
+          <div className="mb-3 flex items-center gap-2 text-gold">
+            <CheckCircle2 size={15} />
+            <h3 className="text-[12px] font-bold uppercase tracking-wider">Independent chat diagnostic</h3>
+            <button onClick={() => setDiagnosticReport(null)} className="ml-auto text-[11px] text-fg-tertiary hover:text-fg">Dismiss</button>
+          </div>
+          <NickMessage text={diagnosticReport} streaming={false} messageId="chat-diagnostic" />
+        </section>
       )}
 
-      {/* Real Messages */}
-      {/* eslint-disable-next-line react-hooks/refs */}
-      {renderedMessages.map((m) => {
-        // A persisted errored stub row renders as an explicit interrupted-turn
-        // card instead of the blank bubble the parts-only path below would
-        // produce (2026-07-05 audit HIGH — see InterruptedTurnCard).
-        if (isErroredAssistantTurn(m)) {
-          return <InterruptedTurnCard key={m.id} message={m} onRetry={onRetry} />;
-        }
+      {hasHidden && <button onClick={showOlder} className="mx-auto rounded-full border border-edge bg-raised px-4 py-1.5 text-xs text-fg-secondary">Show {hiddenCount} older messages</button>}
+
+      {renderedMessages.map((message, messageIndex) => {
+        if (isErroredAssistantTurn(message)) return <InterruptedTurnCard key={message.id} message={message} onRetry={onRetry} />;
+        const isLatestAssistant = message.role === "assistant" && messageIndex === renderedMessages.length - 1;
         return (
-        <div key={m.id} className={`flex animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-          <div className={`max-w-[85%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm ${
-            m.role === "user" 
-              ? "bg-zinc-800 text-zinc-100 shadow-[0_0_15px_-5px_rgba(0,0,0,0.3)]" 
-              : "bg-zinc-900/80 backdrop-blur-md border border-white/5 text-zinc-200 shadow-[0_0_15px_-5px_rgba(0,0,0,0.5)]"
-          }`}>
-            {m.parts?.map((part, i) => {
-              if (part.type === "text") {
-                if (m.role === "user") {
+          <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[88%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed ${message.role === "user" ? "bg-surface text-fg" : "border border-glass bg-raised/85 text-fg"}`}>
+              {message.parts?.map((part, index) => {
+                if (part.type === "text") {
+                  if (message.role === "user") {
+                    return <UserMessageBubble key={`${message.id}-${index}`} text={part.text} onClick={() => setDraft(part.text)} onLongPress={() => setActionSheetMsg({ id: message.id, role: "user", text: part.text })} />;
+                  }
+                  const contextBlocks = extractContextBlocks(message, liveContextBlocksRef?.current || null);
+                  const quality = extractQuality(message);
+                  const citations = extractCitations(message);
+                  const reasoningSteps = ((message.parts as any[]) || []).filter((item) => item?.type === "data-reasoningStep").map((item) => item.data);
                   return (
-                    <UserMessageBubble 
-                      key={`${m.id}-part-${i}`}
-                      text={part.text}
-                      onClick={() => editMessage(part.text)}
-                      onLongPress={() => setActionSheetMsg({ id: m.id, role: "user", text: part.text })}
-                    />
+                    <div key={`${message.id}-${index}`}>
+                      <AssistantMessageShell text={part.text} messageId={message.id} onLongPress={() => setActionSheetMsg({ id: message.id, role: "assistant", text: part.text })} contextBlocks={contextBlocks} quality={quality} citations={citations} onRegen={() => onRetry?.()}>
+                        <ReasoningTraceLive steps={reasoningSteps} />
+                        <NickMessage text={part.text} streaming={isLoading && isLatestAssistant} messageId={message.id} />
+                      </AssistantMessageShell>
+                      {isTruncatedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300"><AlertTriangle size={12} /> Response cut off — regenerate</button>}
+                    </div>
                   );
                 }
-                
-                const contextBlocks = extractContextBlocks(m, liveContextBlocksRef?.current || null);
-                const quality = extractQuality(m);
-                const citations = extractCitations(m);
-
-                // 2026-07-11 review · read reasoning steps from the v6
-                // `data-reasoningStep` parts the server now emits
-                // (simulate-stream-from-text.ts). Was reading a
-                // non-existent `message.annotations` (v4 concept) → the
-                // live deep-reasoning panel never rendered.
-                const reasoningSteps = ((m.parts as any[]) || [])
-                  .filter((p: any) => p?.type === "data-reasoningStep")
-                  .map((p: any) => p.data);
-
-                return (
-                  <div key={`${m.id}-part-${i}`}>
-                    <AssistantMessageShell
-                      text={part.text}
-                      messageId={m.id}
-                      onLongPress={() => setActionSheetMsg({ id: m.id, role: "assistant", text: part.text })}
-                      contextBlocks={contextBlocks}
-                      quality={quality}
-                      citations={citations}
-                      // 2026-07-04 audit P4 · was a dead "coming soon" toast —
-                      // the QualityBar's REGEN chip (the quality-gate escape
-                      // hatch) did nothing in chat-v2. Wire it to the same
-                      // regenerate() the Retry card uses.
-                      onRegen={() => onRetry?.()}
-                    >
-                      <ReasoningTraceLive steps={reasoningSteps} />
-                      <NickMessage
-                        text={part.text}
-                        streaming={isLoading && m.id === messages[messages.length - 1]?.id}
-                        messageId={m.id}
-                      />
-                    </AssistantMessageShell>
-                    {isTruncatedAssistantTurn(m) && (
-                      <button
-                        onClick={() => onRetry?.()}
-                        className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/[0.06] px-2.5 py-1 text-[11px] font-semibold text-amber-300 transition-all hover:bg-amber-500/[0.12] active:scale-95"
-                      >
-                        <AlertTriangle size={12} className="shrink-0" />
-                        Response cut off — tap to regenerate
-                      </button>
-                    )}
-                  </div>
-                );
-              }
-              // Truthfulness wave (audit 2026-07-16) · render file parts.
-              // Pre-fix this switch handled ONLY "text" and "tool-*", so a
-              // file part fell through every branch and returned undefined:
-              // the operator attached an image, saw the composer preview,
-              // hit send — and the image silently vanished from their own
-              // bubble (and from history on reload). The attach feature was
-              // dead end-to-end despite the picker, preview and upload path
-              // all existing.
-              if (part.type === "file") {
-                const filePart = part as unknown as {
-                  url?: string;
-                  mediaType?: string;
-                  filename?: string;
-                };
-                const src = filePart.url;
-                if (src && filePart.mediaType?.startsWith("image/")) {
-                  return (
-                    // eslint-disable-next-line @next/next/no-img-element -- data-URL attachment, not a remote asset next/image can optimize
-                    <img
-                      key={`${m.id}-part-${i}`}
-                      src={src}
-                      alt={filePart.filename || "attached image"}
-                      className="mt-2 max-h-64 w-auto rounded-lg border border-white/10"
-                    />
-                  );
+                if (part.type === "file") {
+                  const file = part as { url?: string; mediaType?: string; filename?: string };
+                  if (file.url && file.mediaType?.startsWith("image/")) return <img key={`${message.id}-${index}`} src={file.url} alt={file.filename || "attached image"} className="mt-2 max-h-64 rounded-lg border border-glass" />;
+                  return <div key={`${message.id}-${index}`} className="mt-2 flex items-center gap-2 rounded-lg border border-edge px-3 py-2 text-xs text-fg-secondary"><Paperclip size={12} />{file.filename || "attachment"}</div>;
                 }
-                return (
-                  <div
-                    key={`${m.id}-part-${i}`}
-                    className="mt-2 flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[12px] text-zinc-400"
-                  >
-                    <Paperclip size={12} aria-hidden />
-                    <span className="truncate">{filePart.filename || "attachment"}</span>
-                  </div>
-                );
-              }
-              if (part.type.startsWith("tool-")) {
-                const toolName = part.type.replace("tool-", "");
-                if (isKnownToolName(toolName)) {
-                  return (
-                    <ToolResultCard
-                      key={`${m.id}-part-${i}`}
-                      toolName={toolName}
-                      state={(part as any).state}
-                      output={(part as any).output}
-                    />
-                  );
+                if (part.type.startsWith("tool-")) {
+                  const toolName = part.type.replace("tool-", "");
+                  if (isKnownToolName(toolName)) return <ToolResultCard key={`${message.id}-${index}`} toolName={toolName} state={(part as any).state} output={(part as any).output} />;
+                  return <div key={`${message.id}-${index}`} className="mt-2 rounded-lg border border-edge bg-void/50 p-3 text-xs text-fg-secondary">{toolName}: {(part as any).state === "output-available" ? "verified complete" : (part as any).state === "output-error" ? "failed" : "running"}</div>;
                 }
-                return (
-                  <div key={`${m.id}-part-${i}`} className="mt-3 rounded-xl border border-zinc-700/50 bg-zinc-950 p-3 text-sm font-mono text-zinc-400">
-                    <span className="text-zinc-500">[{toolName}]</span>
-                    {(part as any).state === "output-available" && (
-                      <div className="mt-2 pl-2 border-l border-zinc-700">Done.</div>
-                    )}
-                  </div>
-                );
-              }
-              return null;
-            })}
+                return null;
+              })}
+              {message.role === "assistant" && <ToolReceiptSummary message={message} traceId={isLatestAssistant ? lastTraceIdRef?.current : null} />}
+            </div>
           </div>
-        </div>
         );
       })}
 
-      {/* Pending / Optimistic Messages */}
-      {pending.map((p) => (
-        <div key={p.tempId} className="flex justify-end opacity-60 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="max-w-[85%] rounded-2xl bg-zinc-800 px-5 py-3.5 text-[15px] leading-relaxed text-zinc-100 shadow-sm">
-            {p.text}
+      {pending.map((item) => (
+        <div key={item.tempId} className="flex justify-end opacity-75">
+          <div className="max-w-[88%] rounded-2xl bg-surface px-5 py-3.5 text-[15px] text-fg">
+            <p className="whitespace-pre-wrap">{item.text}</p>
+            <p className="mt-1 font-mono text-[9px] uppercase tracking-wider text-fg-tertiary">{item.status === "resolving-context" ? "Resolving live context…" : "Sending…"}</p>
           </div>
         </div>
       ))}
 
-      {/* Loading Indicator */}
-      {isLoading && messages[messages.length - 1]?.role === "user" && (
-        <div className="flex justify-start">
-           <div className="animate-pulse px-4 py-2 text-xs font-semibold uppercase tracking-widest text-zinc-500">
-             Thinking...
-           </div>
-        </div>
-      )}
+      {isLoading && messages[messages.length - 1]?.role === "user" && <div className="px-4 py-2 text-xs font-semibold uppercase tracking-widest text-fg-tertiary">Thinking…</div>}
+      {error && <div className="mx-auto rounded-xl border border-red-900/40 bg-red-950/25 p-4 text-center text-sm text-red-300">Stream failed. {onRetry && <button onClick={onRetry} className="ml-2 underline">Retry</button>}</div>}
 
-      {/* Error State */}
-      {error && (
-        <div className="mx-auto w-full max-w-md rounded-xl border border-red-900/40 bg-red-950/25 p-4 text-center">
-          <div className="flex items-center justify-center gap-2 text-red-400 mb-1">
-            <AlertTriangle size={15} className="shrink-0" />
-            <span className="text-[13px] font-semibold">Stream failed</span>
-          </div>
-          <p className="text-[11px] text-red-400/60 mb-3">
-            Response was interrupted — tap below to try again
-          </p>
-          {onRetry && (
-            <button
-              onClick={onRetry}
-              className="px-5 py-2 rounded-lg bg-red-500/15 hover:bg-red-500/25 active:scale-95 text-red-300 text-[12px] font-semibold transition-all"
-            >
-              Retry
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Action Sheet */}
-      <MessageActionSheet 
-        open={!!actionSheetMsg}
+      <MessageActionSheet
+        open={Boolean(actionSheetMsg)}
         onClose={() => setActionSheetMsg(null)}
         role={actionSheetMsg?.role || "user"}
         text={actionSheetMsg?.text || ""}
-        onCopy={() => {
-          if (actionSheetMsg?.text) copyToClipboard(actionSheetMsg.text);
-        }}
-        onEdit={
-          actionSheetMsg?.role === "user"
-            ? () => {
-                if (actionSheetMsg?.text) editMessage(actionSheetMsg.text);
-                setActionSheetMsg(null);
-              }
-            : undefined
-        }
-        onSaveAsBelief={() => {
-          toast("Save as belief triggered (memory port pending)");
-        }}
-        onSaveAsDecision={() => {
-          toast("Save as decision triggered (memory port pending)");
-        }}
+        onCopy={() => actionSheetMsg?.text && void copyToClipboard(actionSheetMsg.text)}
+        onEdit={actionSheetMsg?.role === "user" ? () => actionSheetMsg?.text && setDraft(actionSheetMsg.text) : undefined}
         onShowReasoning={() => {
-          if (actionSheetMsg?.id) {
-            setReasoningTraceMsg(actionSheetMsg.id);
-          }
+          if (actionSheetMsg?.id) setReasoningTraceMsg(actionSheetMsg.id);
           setActionSheetMsg(null);
         }}
       />
-
-      {/* Reasoning Trace Modal */}
-      <ReasoningTraceModal
-        open={reasoningTraceMsg !== null}
-        messageId={reasoningTraceMsg}
-        onClose={() => setReasoningTraceMsg(null)}
-      />
+      <ReasoningTraceModal open={reasoningTraceMsg !== null} messageId={reasoningTraceMsg} onClose={() => setReasoningTraceMsg(null)} />
     </div>
   );
 }
