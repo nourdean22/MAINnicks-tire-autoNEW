@@ -4,7 +4,11 @@ import superjson from "superjson";
 import type { TrpcContext } from "./context";
 import { touchAdminActivity } from "../lib/adminActivity";
 import { getAdminSecurityState, isMfaVerificationFresh } from "../services/adminSecurity";
-import { hasAdminPermission, type AdminPermission } from "../../shared/adminPermissions";
+import {
+  hasAdminPermission,
+  permissionForAdminProcedure,
+  type AdminPermission,
+} from "../../shared/adminPermissions";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("_core:trpc");
@@ -59,8 +63,8 @@ const requireAdminIdentity = t.middleware(async opts => {
 /** Admin identity without MFA enforcement. Restricted to setup/status/verification procedures. */
 export const adminIdentityProcedure = t.procedure.use(loggerMiddleware).use(requireAdminIdentity);
 
-const requireFreshMfa = t.middleware(async opts => {
-  const { ctx, next } = opts;
+const requireFreshMfaAndPermission = t.middleware(async opts => {
+  const { ctx, next, path, type } = opts;
   const security = ctx.adminSecurity ?? await getAdminSecurityState(ctx.user.openId);
   if (!security?.mfaEnabled) {
     throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Admin two-factor authentication setup is required." });
@@ -68,13 +72,17 @@ const requireFreshMfa = t.middleware(async opts => {
   if (!isMfaVerificationFresh(security.mfaVerifiedAt)) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin two-factor verification is required." });
   }
+  const requiredPermission = permissionForAdminProcedure(path, type);
+  if (!hasAdminPermission(security.adminRole, requiredPermission)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: `Missing admin permission: ${requiredPermission}` });
+  }
   return next({ ctx: { ...ctx, adminSecurity: security } });
 });
 
 export const adminProcedure = t.procedure
   .use(loggerMiddleware)
   .use(requireAdminIdentity)
-  .use(requireFreshMfa);
+  .use(requireFreshMfaAndPermission);
 
 export function adminPermissionProcedure(permission: AdminPermission) {
   return adminProcedure.use(t.middleware(async ({ ctx, next }) => {
