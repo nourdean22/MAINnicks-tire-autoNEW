@@ -25,6 +25,10 @@ beforeEach(() => {
   vi.stubEnv("REEL_LIVE_TEST_ENABLED", "");
   vi.stubEnv("REEL_LIVE_TEST_ALLOW_PUBLISH", "");
   vi.stubEnv("REEL_LEGACY_PUBLISH_ENABLED", "");
+  // Own this flag so the "endpoint did not arm publishing" assertion is
+  // deterministic under singleFork (another file can leak a raw
+  // process.env.REEL_PUBLISH_ENABLED="true" that unstubAllEnvs won't restore).
+  vi.stubEnv("REEL_PUBLISH_ENABLED", "");
 });
 afterEach(() => vi.unstubAllEnvs());
 

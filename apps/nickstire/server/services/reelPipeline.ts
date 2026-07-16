@@ -157,8 +157,14 @@ export async function processNextReelJob(): Promise<{
     const beats = brief.storyboardBeats ?? [];
     if (!beats.length) throw new Error("brief has no storyboardBeats");
 
+    // Fail BEFORE the first paid Veo clip if the output can't be durably kept —
+    // otherwise we pay for clips that a deploy/restart wipes off ephemeral disk
+    // (a failure prod already recorded). Marks the job failed with a clear,
+    // actionable message rather than silently spending credits.
+    const { assertDurableStorageForGeneration, storagePut } = await import("../storage");
+    assertDurableStorageForGeneration(`reel job ${job.id} clip generation`);
+
     const { generateReelClipVideo } = await import("./veoStudio");
-    const { storagePut } = await import("../storage");
 
     let clipUrls: string[] = [];
     try {
