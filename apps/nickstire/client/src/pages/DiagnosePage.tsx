@@ -1264,8 +1264,9 @@ export default function DiagnosePage() {
                               // Canonical origin — enum member appended by
                               // drizzle/0082_lead_source_diagnose.sql. That DDL
                               // must be live in prod BEFORE this code deploys:
-                              // writing "diagnose" without it coerces the
-                              // column to '' (blank, invisible to rollups).
+                              // under STRICT_TRANS_TABLES an unknown enum member
+                              // is rejected, not blanked, so shipping this first
+                              // would drop the lead entirely.
                               source: "diagnose",
                               // Every other lead form on the site spreads this.
                               // /diagnose did not — so its leads reached the CRM

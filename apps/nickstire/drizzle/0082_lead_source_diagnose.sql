@@ -6,8 +6,11 @@
 --
 -- Until now DiagnosePage submitted source="popup" with a
 -- "[/diagnose symptom check]" prefix in `problem` — a stopgap, because
--- writing "diagnose" before this DDL lands makes MySQL coerce the column
--- to '' (blank source, invisible to every source rollup).
+-- "diagnose" is not a member of the enum until this DDL lands. Prod TiDB
+-- runs with STRICT_TRANS_TABLES, so that write does not degrade to a blank
+-- source — it is REJECTED outright (ER_WARN_DATA_TRUNCATED, "Data truncated
+-- for column 'source'"). Deploying the code first therefore DROPS every
+-- /diagnose lead, it does not merely mis-attribute them.
 --
 -- SAFETY: MODIFY COLUMN, appending one option at the END of the enum.
 -- This does not shrink, drop, or reorder any existing options, ensuring it
