@@ -246,9 +246,17 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
           }).length;
         })
         .catch(() => 0),
-      prisma.task.groupBy({ by: ["status"], _count: { id: true } }),
+      // Soft-deleted tasks are tombstones — counting them made /api/health
+      // report 161 tasks / 52 INBOX when the live universe was 57 / 0 (104 of
+      // 161 Task rows are soft-deleted). The journalThread groupBy below has
+      // always filtered; these two were the oversight.
+      prisma.task.groupBy({
+        by: ["status"],
+        where: { deletedAt: null },
+        _count: { id: true },
+      }),
       prisma.commitment.count({
-        where: { status: { in: ["active", "in_progress"] } },
+        where: { status: { in: ["active", "in_progress"] }, deletedAt: null },
       }),
       prisma.smartDevice.groupBy({
         by: ["status"],

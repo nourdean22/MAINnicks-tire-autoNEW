@@ -1056,18 +1056,20 @@ async function cmdStatus(chatId: string): Promise<void> {
   // the live Task queue + reflections.
   const [inbox, ready, doing, alerts, leads, commitments, reflectedToday] =
     await Promise.all([
-      prisma.task.count({ where: { status: "INBOX" } }).catch(() => 0),
-      prisma.task.count({ where: { status: "READY" } }).catch(() => 0),
-      prisma.task.count({ where: { status: "DOING" } }).catch(() => 0),
+      // deletedAt:null — /status is read on the operator's phone. Pre-fix it
+      // reported an inbox of 52 when every INBOX row was soft-deleted (0).
+      prisma.task.count({ where: { status: "INBOX", deletedAt: null } }).catch(() => 0),
+      prisma.task.count({ where: { status: "READY", deletedAt: null } }).catch(() => 0),
+      prisma.task.count({ where: { status: "DOING", deletedAt: null } }).catch(() => 0),
       (async () => {
         const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
         return (await getUnresolvedAlerts().catch(() => [])).length;
       })(),
       Promise.resolve(0).catch(() => 0),
       prisma.commitment
-        .count({ where: { status: { in: ["active", "in_progress"] } } })
+        .count({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } })
         .catch(() => 0),
-      prisma.reflection.count({ where: { date: today() } }).catch(() => 0),
+      prisma.reflection.count({ where: { date: today(), deletedAt: null } }).catch(() => 0),
     ]);
 
   await sendTelegram(
@@ -1367,15 +1369,20 @@ async function cmdStats(chatId: string): Promise<void> {
     recentAlerts,
     embeddingTotal,
   ] = await Promise.all([
-    prisma.lifeGoal.count({ where: { status: "active" } }).catch(() => 0),
+    // deletedAt:null across the board — the task read already filtered; the
+    // goal / commitment / journal reads beside it did not (2 of 4 life_goals
+    // are soft-deleted, so "active goals" could read double the truth).
+    prisma.lifeGoal.count({ where: { status: "active", deletedAt: null } }).catch(() => 0),
     prisma.prediction.count({ where: { status: "pending" } }).catch(() => 0),
     prisma.task
       .count({ where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null } })
       .catch(() => 0),
     prisma.commitment
-      .count({ where: { status: { in: ["active", "in_progress"] } } })
+      .count({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } })
       .catch(() => 0),
-    prisma.brainDump.count({ where: { createdAt: { gte: sevenDaysAgo } } }).catch(() => 0),
+    prisma.brainDump
+      .count({ where: { createdAt: { gte: sevenDaysAgo }, deletedAt: null } })
+      .catch(() => 0),
     prisma.brainMemory
       .count({
         where: {

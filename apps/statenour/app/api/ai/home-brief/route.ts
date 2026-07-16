@@ -71,8 +71,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         prisma.relationshipLedger.count({
           where: { createdAt: { gte: new Date(now - 7 * DAY_MS) } },
         }),
+        // deletedAt:null — the brainDump read below always filtered; this one
+        // didn't, so the brief told Nick about ~104 tasks that don't exist.
         prisma.task.count({
-          where: { status: { in: ["READY", "DOING", "INBOX"] } },
+          where: { status: { in: ["READY", "DOING", "INBOX"] }, deletedAt: null },
         }),
         // Synthesis wave (audit 2026-07-15) · the docstring + system
         // prompt promised "recent journal" signal — no journal query

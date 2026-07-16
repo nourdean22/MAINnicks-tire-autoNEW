@@ -137,8 +137,14 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   // ── Backlog pressure ──
   const backlogP = Promise.all([
     prisma.captureInboxItem.count({ where: { status: "active" } }),
-    prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }),
-    prisma.task.count({ where: { status: "INBOX" } }),
+    // Backlog pressure must count LIVE rows only. Pre-fix this reported 52
+    // inbox tasks when every INBOX row was soft-deleted (truth: 0) — the
+    // operator's entire backlog signal was fictional. The brainDump /
+    // reflection freshness reads below always filtered; these were missed.
+    prisma.commitment.count({
+      where: { status: { in: ["active", "in_progress"] }, deletedAt: null },
+    }),
+    prisma.task.count({ where: { status: "INBOX", deletedAt: null } }),
     prisma.brainMemory
       .findMany({
         where: {

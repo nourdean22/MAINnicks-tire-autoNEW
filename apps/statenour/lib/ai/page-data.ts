@@ -392,10 +392,13 @@ export async function buildPageData(page: string): Promise<string> {
           take: 6,
           select: { category: true, content: true, confidence: true },
         }),
-        prisma.brainMemory.count({ where: { lastSeen: { gte: sevenDaysAgo } } }),
+        // deletedAt:null — this text goes verbatim into Nick's side-pane
+        // prompt ("N brain memories touched this week"). 6,319 of 17,926
+        // brain_memories are soft-deleted by the confidence pruner.
+        prisma.brainMemory.count({ where: { lastSeen: { gte: sevenDaysAgo }, deletedAt: null } }),
         prisma.brainMemory.groupBy({
           by: ["category"],
-          where: { lastSeen: { gte: sevenDaysAgo } },
+          where: { lastSeen: { gte: sevenDaysAgo }, deletedAt: null },
           _count: true,
           orderBy: { _count: { category: "desc" } },
           take: 5,

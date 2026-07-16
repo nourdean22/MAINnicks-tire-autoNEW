@@ -61,16 +61,20 @@ export async function POST(req: NextRequest) {
     // weakest identity axis + unresolved contradictions.
     let stateContext = "";
     try {
+      // Every count here is stated to Nick as CURRENT STATE in the system
+      // prompt, so all of them must exclude tombstones. Pre-fix `loops` put
+      // ~104 non-existent tasks into the prompt on this surface.
       const [loops, commitCount, overdueCommits, openContradictions, snapRow] = await Promise.all([
-        prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] } } }),
-        prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }),
+        prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null } }),
+        prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } }),
         prisma.commitment.count({
           where: {
             status: "active",
             deadline: { lt: new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) },
+            deletedAt: null,
           },
         }),
-        prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.CONTRADICTION, createdAt: { gte: new Date(Date.now() - 14 * 86400_000) } } }),
+        prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.CONTRADICTION, createdAt: { gte: new Date(Date.now() - 14 * 86400_000) }, deletedAt: null } }),
         prisma.brainMemory.findUnique({
           where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
           select: { content: true },

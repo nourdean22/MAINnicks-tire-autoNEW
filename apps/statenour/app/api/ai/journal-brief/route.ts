@@ -88,8 +88,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             lastJoinAt: true,
           },
         }),
+        // deletedAt:null — the brainDump read beside it always filtered.
         prisma.reflection.count({
-          where: { createdAt: { gte: sevenDaysAgo } },
+          where: { createdAt: { gte: sevenDaysAgo }, deletedAt: null },
         }),
         prisma.brainDump.count({
           where: { createdAt: { gte: sevenDaysAgo }, deletedAt: null },

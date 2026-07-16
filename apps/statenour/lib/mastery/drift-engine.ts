@@ -47,8 +47,11 @@ export async function runDriftScan(): Promise<Array<{ rule_id: string; rule_name
   // Apr 18: OpenLoop retired → Task create-rate is the tool-shopping
   // signal. Variable name kept stable so DriftContext + drift rules
   // that reference openLoopsCreatedLast7d don't need refactoring.
+  // deletedAt:null — this feeds the `new_projects_3_in_7d` rule (>= 3 fires
+  // "NOVELTY-SEEKING detected" at the operator). Counting soft-deleted rows
+  // meant a task created and then deleted still accused him of tool-shopping.
   const openLoopsCreatedLast7d = await prisma.task.count({
-    where: { createdAt: { gte: daysAgo(7) } },
+    where: { createdAt: { gte: daysAgo(7) }, deletedAt: null },
   });
 
   const weightLast30dRaw = await prisma.bodyTracking.findMany({
