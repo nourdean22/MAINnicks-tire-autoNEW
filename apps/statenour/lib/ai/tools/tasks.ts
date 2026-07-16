@@ -210,13 +210,14 @@ const tasksCoreTools = {
 
       const now = new Date();
       if (task.loopKind === "DAILY") {
-        // Same streak logic as /api/tasks/[id]/check route
+        // Same streak logic as /api/tasks/[id]/check route. Day boundaries
+        // are ET calendar days (toDateString), NOT server-UTC days — the UTC
+        // floor flipped "today" at 8pm ET (double bump / false reset).
         let nextStreak = 1;
         if (task.lastCompletedAt) {
-          const last = new Date(task.lastCompletedAt);
-          const lastStart = new Date(last.getFullYear(), last.getMonth(), last.getDate());
-          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const gap = Math.round((todayStart.getTime() - lastStart.getTime()) / 86_400_000);
+          const lastDayET = toDateString(new Date(task.lastCompletedAt));
+          const todayET = toDateString(now);
+          const gap = Math.round((Date.parse(todayET) - Date.parse(lastDayET)) / 86_400_000);
           if (gap === 0) {
             return {
               completed: true,

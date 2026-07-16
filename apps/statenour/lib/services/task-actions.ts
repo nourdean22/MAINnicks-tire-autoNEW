@@ -43,6 +43,7 @@ import type { TaskReward } from "@/lib/mastery/task-reward";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { nextWeekdayOccurrence } from "@/lib/loops/weekday";
+import { toDateString } from "@/lib/utils/datetime";
 
 const log = rootLogger.withSurface("services/task-actions");
 
@@ -198,10 +199,15 @@ export async function checkTask(args: {
     const isWeekly = task.loopKind === "WEEKLY";
     let nextStreak = 1;
     if (task.lastCompletedAt) {
-      const last = new Date(task.lastCompletedAt);
-      const lastDayStart = new Date(last.getFullYear(), last.getMonth(), last.getDate());
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const gapDays = Math.round((todayStart.getTime() - lastDayStart.getTime()) / 86_400_000);
+      // Day boundaries are ET calendar days (toDateString), NOT server-zone
+      // days — the server runs UTC (Railway), where the day flips at 8pm ET:
+      // a same-evening re-check read as "next day" (double streak bump) and
+      // a legit next-ET-evening check read as a 2-day gap (false reset).
+      // Parsing the two YYYY-MM-DD strings as UTC midnights keeps the
+      // subtraction an exact multiple of 86.4M ms across DST shifts.
+      const lastDayET = toDateString(new Date(task.lastCompletedAt));
+      const todayET = toDateString(now);
+      const gapDays = Math.round((Date.parse(todayET) - Date.parse(lastDayET)) / 86_400_000);
       if (gapDays === 0) {
         return {
           ok: true,

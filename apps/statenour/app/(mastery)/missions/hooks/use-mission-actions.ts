@@ -81,33 +81,26 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
       let xpAdded = 0;
       try {
         telemetry.event("completeTask", { taskId: id, isDaily });
-        if (isDaily) {
-          const tomorrow = new Date();
-          tomorrow.setHours(0, 0, 0, 0);
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          const currentStreak = (task as unknown as { streakCount?: number } | undefined)?.streakCount ?? 0;
-          const res = await updateTask.mutateAsync({
-            id,
-            fields: {
-              status: "WAITING",
-              snoozedUntil: tomorrow.toISOString(),
-              lastCompletedAt: new Date().toISOString(),
-              streakCount: currentStreak + 1,
-            },
-          });
-          const dailyReward = (res as unknown as { reward?: TaskReward }).reward ?? {
-            xpCredited: null,
-            goalLifted: false,
-            streak: currentStreak + 1,
-          };
-          const dailyMsg = formatReward(dailyReward);
-          if (dailyMsg) {
-            toast.success(dailyMsg, { duration: 4500, action: { label: "Stats", onClick: () => router.push("/stats") } });
-          }
-          if (dailyReward.levelUp) setLevelUpState(dailyReward.levelUp);
-          if (dailyReward.xpCredited) xpAdded = dailyReward.xpCredited;
-        } else if (isWeekly) {
+        if (isRecurring) {
+          // Streak + lastCompletedAt are server-authoritative via task.check
+          // (same-day idempotency included) — never write streakCount from
+          // the client: the polled cache can be 15s stale, so a client-side
+          // `streak + 1` clobbers concurrent writers (chat/Telegram/voice)
+          // and double-bumps across day boundaries.
           const res = await checkTaskMut.mutateAsync({ id, action: "complete" });
+          if (isDaily) {
+            // Presentation only: checkTask leaves DAILY status READY; the
+            // board hides a checked daily until tomorrow via WAITING +
+            // snoozedUntil (the resurface cron flips it back). No streak
+            // fields in this write.
+            const tomorrow = new Date();
+            tomorrow.setHours(0, 0, 0, 0);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            await updateTask.mutateAsync({
+              id,
+              fields: { status: "WAITING", snoozedUntil: tomorrow.toISOString() },
+            });
+          }
           const msg = formatReward(res.reward);
           if (msg) {
             toast.success(msg, { duration: 4500, action: { label: "Stats", onClick: () => router.push("/stats") } });
@@ -334,6 +327,13 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
 
         if (!created?.id) return;
         setTimeout(() => void refetchAll(), 2500);
+      } catch (err) {
+        // Toast here AND rethrow: callers (MissionsQuickAdd / OmniCapture)
+        // rely on the rejection to keep the typed text for retry — a
+        // swallowed failure here means silently lost captures.
+        log.error("quickAdd_failed", { err });
+        toast.error("Could not capture. Try again.");
+        throw err;
       } finally {
         setSubmitting(false);
       }

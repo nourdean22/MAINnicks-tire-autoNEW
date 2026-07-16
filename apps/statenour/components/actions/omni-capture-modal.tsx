@@ -97,6 +97,10 @@ export function OmniCaptureModal({
       await onCapture(trimmed);
       setText("");
       setOpen(false);
+    } catch {
+      // The consumer toasts the failure (handleQuickAdd rethrows after
+      // toast.error). Keep the modal open with the text intact so the
+      // operator can retry — clearing/closing only happens on success.
     } finally {
       setSubmitting(false);
     }
