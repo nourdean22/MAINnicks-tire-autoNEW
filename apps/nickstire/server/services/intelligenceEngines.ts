@@ -291,6 +291,10 @@ const SERVICE_VALUES: Record<string, number> = {
 
 const SOURCE_QUALITY: Record<string, number> = {
   manual: 80, callback: 75, booking: 70, chat: 50, popup: 40, fleet: 90,
+  // /diagnose symptom-checker lead: described a real symptom and left a
+  // number asking for an inspection — warmer than a popup, cooler than a
+  // booking. Red-flag urgency is scored separately (urgencyScore).
+  diagnose: 55,
 };
 
 export async function scoreLeads() {

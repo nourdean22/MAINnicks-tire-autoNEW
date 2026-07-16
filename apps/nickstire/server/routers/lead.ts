@@ -44,6 +44,8 @@ export const leadRouter = router({
         // EmailNewsletterCapture lead. They stay accepted here (public forms
         // send them) and are REMAPPED to valid enum values at insert below.
         // "sms" added — it exists in the DB enum but was missing here.
+        // "diagnose" added with drizzle/0082 — canonical source for the
+        // /diagnose symptom-checker (previously submitted as "popup").
         source: z.enum([
           "popup",
           "chat",
@@ -54,6 +56,7 @@ export const leadRouter = router({
           "financing_preapproval",
           "careers",
           "sms",
+          "diagnose",
           "sms_capture",
           "newsletter",
         ]).default("popup"),

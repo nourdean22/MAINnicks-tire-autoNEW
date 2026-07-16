@@ -309,8 +309,10 @@ describe("/diagnose · lead attribution", () => {
     const payload = mockLeadMutateAsync.mock.calls[0][0];
     expect(payload.landingPage).toBe("/diagnose");
     expect(payload.sessionId).toBe("sess-diag-1");
-    // Origin is legible in the CRM even while `source` waits on the enum migration.
-    expect(payload.problem).toMatch(/\[\/diagnose symptom check\]/);
+    // Canonical source (enum member added by drizzle/0082) — the old
+    // "[/diagnose symptom check]" problem-prefix stopgap is retired with it.
+    expect(payload.source).toBe("diagnose");
+    expect(payload.problem).not.toMatch(/\[\/diagnose symptom check\]/);
   });
 });
 

@@ -1252,23 +1252,21 @@ export default function DiagnosePage() {
                               name: diagLeadName,
                               phone: diagLeadPhone,
                               vehicle: `${vehicle.year} ${vehicle.make} ${vehicle.model}`.trim() || undefined,
-                              // Lead the note with where it came from + any red
-                              // flag, so whoever picks this up in the CRM knows
-                              // it's a symptom-checker lead and whether it's hot.
+                              // Lead the note with any red flag, so whoever
+                              // picks this up in the CRM knows whether it's hot.
+                              // The old "[/diagnose symptom check]" prefix is
+                              // gone: source="diagnose" carries the origin now.
                               problem: [
-                                "[/diagnose symptom check]",
                                 redFlags.length ? `RED FLAG: ${redFlags.map((f) => f.label).join(", ")}.` : "",
                                 analyzed ? `Checker said: ${analyzed.recommendedService} — ${analyzed.urgency} urgency.` : "Checker did not return a result.",
                                 symptomText.slice(0, 1200),
                               ].filter(Boolean).join(" "),
-                              // NOTE: still "popup" — `leads.source` is a MySQL
-                              // enum with no "diagnose" member, and writing one
-                              // before the DDL lands coerces the column to ''.
-                              // The enum promotion ships with its own migration;
-                              // until then getUtmData() below at least gives
-                              // these leads the session attribution they were
-                              // missing entirely.
-                              source: "popup",
+                              // Canonical origin — enum member appended by
+                              // drizzle/0082_lead_source_diagnose.sql. That DDL
+                              // must be live in prod BEFORE this code deploys:
+                              // writing "diagnose" without it coerces the
+                              // column to '' (blank, invisible to rollups).
+                              source: "diagnose",
                               // Every other lead form on the site spreads this.
                               // /diagnose did not — so its leads reached the CRM
                               // with no landing page, no referrer, no session id
