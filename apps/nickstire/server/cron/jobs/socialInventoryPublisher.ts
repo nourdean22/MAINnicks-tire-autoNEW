@@ -96,6 +96,26 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
           throw new Error(`Caption blocked due to unsafe claims: ${blockers.join(", ")}`);
         }
 
+        // Integrity: if this row was approved with a provenance record, the
+        // media/brief being published must still hash to what the human saw.
+        // Rows approved before provenance existed have no record — let those
+        // through with a warning rather than bricking the whole queue.
+        const { verifyApprovalRecord } = await import("../../services/contentApprovals");
+        const verdict = await verifyApprovalRecord(db, {
+          inventoryId: item.id,
+          version: (item.version ?? 1) - 1,
+          briefJson: item.briefJson,
+          mediaUrls: assets,
+        });
+        if (!verdict.ok && verdict.reason !== "no_record") {
+          throw new Error(
+            `Integrity breach: ${verdict.reason === "brief_mismatch" ? "content" : "media"} changed after approval — re-approve before publishing`,
+          );
+        }
+        if (!verdict.ok) {
+          log.warn(`No approval record for ${item.id} v${(item.version ?? 1) - 1} (pre-provenance row) — publishing without integrity check`);
+        }
+
         const { results } = await publishToSocial(mediaInput);
         const succeeded = results.filter((r) => r.success);
         const failedResults = results.filter((r) => !r.success);

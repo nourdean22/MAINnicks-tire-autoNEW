@@ -18,6 +18,7 @@ import {
   renderInstagramStudioAssets,
 } from "../services/instagramStudio";
 import { captionClaimBlockers, publishToSocial } from "../services/socialPublish";
+import { IG_CAPTION_MAX } from "./instagramAdmin";
 
 const sourceSchema = z.object({
   type: z.enum(INSTAGRAM_SOURCE_TYPES),
@@ -278,15 +279,39 @@ export const instagramStudioRouter = router({
 
   approve: adminProcedure
     .input(z.object({ id: z.string(), expectedVersion: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const { user } = ctx;
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin identity missing" });
       const { database, row, draft } = await loadInventoryDraft(input.id);
       if (row.version !== input.expectedVersion) throw new TRPCError({ code: "CONFLICT", message: "Draft version changed. Refresh first." });
       if (row.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "Only needs-review drafts can be approved." });
       assertPublishable(draft);
+
+      // Provenance: hash the brief + the exact media bytes being approved,
+      // BEFORE the status flip — publish/schedule/cron recompute and refuse on
+      // mismatch, so what goes live is what this human looked at. Reels have
+      // had this since the approval-integrity arc; other formats had nothing.
+      const { createApprovalRecord } = await import("../services/contentApprovals");
+      const mediaUrls = draft.format === "reel" ? [draft.videoUrl as string] : draft.imageUrls;
+      await createApprovalRecord(database, {
+        inventoryId: input.id,
+        version: input.expectedVersion,
+        approvedBy: user.id,
+        briefJson: row.briefJson,
+        mediaUrls,
+      });
+
       const nextVersion = row.version + 1;
-      await database.update(socialContentInventory).set({
+      const updateResult = await database.update(socialContentInventory).set({
         status: "ready", version: nextVersion, errorMessage: null, updatedAt: new Date(),
       }).where(and(eq(socialContentInventory.id, input.id), eq(socialContentInventory.version, input.expectedVersion)));
+      // The pre-checks above are read-then-act; this is the actual gate. Losing
+      // the CAS means another request approved/edited first — say so instead of
+      // returning a success for an update that matched zero rows.
+      const { affectedRowCount } = await import("../lib/db-affected");
+      if (affectedRowCount(updateResult) === 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "Draft was modified by another request. Refresh and re-review." });
+      }
       return { status: "ready" as const, version: nextVersion };
     }),
 
@@ -307,15 +332,67 @@ export const instagramStudioRouter = router({
       const { database, row, draft } = await loadInventoryDraft(input.id);
       if (row.status !== "ready") throw new TRPCError({ code: "BAD_REQUEST", message: "Approve the draft before publishing." });
       assertPublishable(draft);
-      const outcome = await publishToSocial({
-        platforms: ["instagram"],
-        caption: `${draft.caption}\n\n${draft.hashtags.map((tag) => `#${tag}`).join(" ")}`.trim().slice(0, 2200),
-        ...mediaForDraft(draft),
-        isStory: draft.format === "story",
+
+      // Same ceiling publishPost enforces; the previous `.slice(0, 2200)` here
+      // silently cut hashtags/CTA off an approved caption at publish time.
+      const caption = `${draft.caption}\n\n${draft.hashtags.map((tag) => `#${tag}`).join(" ")}`.trim();
+      if (caption.length > IG_CAPTION_MAX) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Caption with hashtags is ${caption.length} characters — Instagram's limit is ${IG_CAPTION_MAX}. Shorten it; nothing is trimmed automatically.`,
+        });
+      }
+
+      // Integrity: what publishes must be byte-identical to what was approved.
+      // The approval record was written at version-1 (approve bumps the row).
+      const { verifyApprovalRecord } = await import("../services/contentApprovals");
+      const mediaUrls = draft.format === "reel" ? [draft.videoUrl as string] : draft.imageUrls;
+      const verdict = await verifyApprovalRecord(database, {
+        inventoryId: input.id,
+        version: row.version - 1,
+        briefJson: row.briefJson,
+        mediaUrls,
       });
+      if (!verdict.ok) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            verdict.reason === "no_record"
+              ? "No approval record found for this version — re-approve the draft before publishing."
+              : `Integrity breach: the draft's ${verdict.reason === "brief_mismatch" ? "content" : "media"} changed after approval. Re-review and re-approve.`,
+        });
+      }
+
+      // At-most-once claim before the irreversible Meta call (same idiom as
+      // publishPost/#748): two concurrent publishes both pass the status read
+      // above; only the CAS winner proceeds.
+      const { affectedRowCount } = await import("../lib/db-affected");
+      const claim = await database.update(socialContentInventory)
+        .set({ status: "publishing", updatedAt: new Date() })
+        .where(and(eq(socialContentInventory.id, input.id), eq(socialContentInventory.status, "ready")));
+      if (affectedRowCount(claim) === 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "Another publish attempt claimed this draft first." });
+      }
+
+      let outcome: Awaited<ReturnType<typeof publishToSocial>>;
+      try {
+        outcome = await publishToSocial({
+          platforms: ["instagram"],
+          caption,
+          ...mediaForDraft(draft),
+          isStory: draft.format === "story",
+        });
+      } catch (err) {
+        // The claim must not outlive a throw or the draft wedges in "publishing".
+        await database.update(socialContentInventory).set({
+          status: "ready", errorMessage: (err instanceof Error ? err.message : String(err)).slice(0, 500), updatedAt: new Date(),
+        }).where(eq(socialContentInventory.id, input.id));
+        throw err;
+      }
       const instagram = outcome.results.find((item) => item.platform === "instagram");
       if (!instagram?.success) {
         await database.update(socialContentInventory).set({
+          status: "ready",
           errorMessage: instagram?.error?.slice(0, 500) || "Instagram publish failed",
           updatedAt: new Date(),
         }).where(eq(socialContentInventory.id, input.id));
