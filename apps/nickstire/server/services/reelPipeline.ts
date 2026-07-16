@@ -65,6 +65,28 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promis
   });
 }
 
+/**
+ * Which video generator produces reel clips. Veo (Gemini) and Higgsfield
+ * (Seedance) both work; the pipeline was hardwired to Veo, so a dead Gemini key
+ * blocked reels even with a funded Higgsfield plan loaded.
+ *
+ * Selection: explicit REEL_VIDEO_PROVIDER wins. Otherwise auto — use whichever
+ * is actually credentialed, preferring Veo only when it has a key; if Veo has
+ * no key but Higgsfield does, use Higgsfield. So "Higgsfield loaded, Gemini key
+ * dead" generates today with zero config.
+ */
+export async function selectReelVideoProvider(): Promise<"veo" | "higgsfield"> {
+  const explicit = process.env.REEL_VIDEO_PROVIDER?.toLowerCase();
+  if (explicit === "veo" || explicit === "higgsfield") return explicit;
+  const { veoCredentialsPresent } = await import("./veoStudio");
+  if (veoCredentialsPresent()) return "veo";
+  try {
+    const { getHiggsfieldCredentialsJson } = await import("./higgsfieldStudio");
+    if (await getHiggsfieldCredentialsJson()) return "higgsfield";
+  } catch { /* fall through */ }
+  return "veo";
+}
+
 /** Minimal structural view of a client ReelBrief — only the fields gen needs. */
 export interface ReelJobBrief {
   id?: string;
@@ -175,7 +197,8 @@ export async function processNextReelJob(): Promise<{
     const { assertDurableStorageForGeneration, storagePut } = await import("../storage");
     assertDurableStorageForGeneration(`reel job ${job.id} clip generation`);
 
-    const { generateReelClipVideo } = await import("./veoStudio");
+    const videoProvider = await selectReelVideoProvider();
+    log.info("reel clip generation provider selected", { jobId: job.id, provider: videoProvider });
 
     let clipUrls: string[] = [];
     try {
@@ -201,9 +224,29 @@ export async function processNextReelJob(): Promise<{
         brief.higgsfieldPromptPack?.find((p) => p.beatNumber === beat.beatNumber)?.prompt ?? beat.visual;
       if (!prompt || !prompt.trim()) throw new Error(`beat ${beat.beatNumber} has no prompt`);
 
+      let finalClipUrl = "";
+
+      if (videoProvider === "higgsfield") {
+        // Higgsfield/Seedance is a single blocking call (submit+poll+rehost
+        // internally) — no resumable op name. Each beat's URL is persisted right
+        // after success below, so a job retry resume-skips completed beats. A
+        // local timeout requeues and regenerates only the unfinished beat.
+        const { generateReelClipVideo } = await import("./higgsfieldStudio");
+        finalClipUrl = await withTimeout(
+          generateReelClipVideo(prompt),
+          GEN_CLIP_TIMEOUT_MS,
+          `higgsfield beat ${beat.beatNumber}`,
+        );
+        clipUrls[i] = finalClipUrl;
+        await d.update(reelJobs)
+          .set({ clipUrlsJson: JSON.stringify(clipUrls), updatedAt: new Date() })
+          .where(eq(reelJobs.id, job.id));
+        log.info("reel clip generated (higgsfield) and saved progressively", { jobId: job.id, beat: beat.beatNumber, of: beats.length });
+        continue;
+      }
+
       const { submitVeoRequest, pollVeoOperation, downloadAndRehostVeoVideo } = await import("./veoStudio");
 
-      let finalClipUrl = "";
       let opName = beat.veoOperationName;
 
       if (opName) {

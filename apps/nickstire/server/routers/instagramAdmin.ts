@@ -103,7 +103,10 @@ export const instagramAdminRouter = router({
         // ACTIVE provider and ITS credentials. REEL_VIDEO_PROVIDER lets the
         // operator name the provider explicitly; default reflects the code path
         // (reelPipeline.submitVeoRequest → Veo).
-        const provider = (process.env.REEL_VIDEO_PROVIDER || "veo").toLowerCase();
+        // Use the SAME selector the pipeline uses (explicit env, else auto by
+        // credentials) so the card reports the provider that will actually run.
+        const { selectReelVideoProvider } = await import("../services/reelPipeline");
+        const provider = await selectReelVideoProvider();
         const { veoCredentialsPresent } = await import("../services/veoStudio");
         const higgsfieldConfigured = !!(await (await import("../services/higgsfieldStudio")).getHiggsfieldCredentialsJson());
         const configured = provider === "higgsfield" ? higgsfieldConfigured : veoCredentialsPresent();
