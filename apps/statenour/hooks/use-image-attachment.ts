@@ -11,6 +11,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
 
 export interface AttachedImage {
   file: File;
@@ -22,11 +23,32 @@ export function useImageAttachment() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  // Truthfulness wave (audit 2026-07-16) · intake guards. Pre-fix this
+  // accepted ANY file at ANY size with no type check: the whole file was
+  // read into memory and base64'd on send, so a 500 MB pick was a browser
+  // hang and a doomed multi-hundred-MB request body. The accept attribute
+  // is a hint the OS picker can bypass (and paste/drag ignore it), so the
+  // guard has to live here.
+  const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const preview = URL.createObjectURL(file);
-      setAttached({ file, preview });
+      if (!file.type.startsWith("image/")) {
+        toast.error("Images only for now — PDFs and docs aren't readable yet.", { duration: 4000 });
+      } else if (file.size > MAX_BYTES) {
+        toast.error(
+          `That image is ${(file.size / 1024 / 1024).toFixed(1)} MB — the limit is 10 MB.`,
+          { duration: 4000 },
+        );
+      } else {
+        // Replacing an existing pick · revoke the old object URL first
+        // (pre-fix each replacement leaked the previous blob).
+        setAttached((prev) => {
+          if (prev?.preview) URL.revokeObjectURL(prev.preview);
+          return { file, preview: URL.createObjectURL(file) };
+        });
+      }
     }
     e.target.value = "";
   }, []);
