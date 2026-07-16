@@ -21,6 +21,14 @@ vi.mock("ai", () => ({
   streamText: (config: unknown) => streamTextMock(config),
 }));
 
+// Mock error-log — the fallback loop logs loudly (logError → ErrorLog
+// table) when provider inference fails; stub it so tests never touch
+// prisma and can assert the loud path fired.
+const logErrorMock = vi.fn();
+vi.mock("@/lib/utils/error-log", () => ({
+  logError: (...args: unknown[]) => logErrorMock(...args),
+}));
+
 // Mock provider — control which model getModel returns.
 const getModelMock = vi.fn();
 const markProviderFailedMock = vi.fn();
@@ -402,6 +410,158 @@ describe("audit P3 · first-chunk probe failover", () => {
     // Pre-P3 the ollama "thinking budget" setTimeout was never cleared
     // on success; the probe timer must be cleared on settle.
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+/**
+ * 2026-07-16 chat audit · (1) openai/anthropic quota breakers were
+ * UNWIRED — they existed in provider.ts but mark was never exported and
+ * no failure path called them, so during the 07-15 provider outage every
+ * chat call re-tried the dead paid lanes and burned the full per-attempt
+ * timeout (~29s/call). (2) When inferProviderName returned null the
+ * failure-marking silently no-opped and the dead lane was re-picked on
+ * every retry. These tests exercise the REAL breaker state (the provider
+ * mock spreads the real module; only getModel/markProviderFailed are
+ * stubbed), so `isOpenAiQuotaExhausted` etc. observe genuine wiring.
+ */
+describe("2026-07-16 audit · quota breakers wired into the stream failure path", () => {
+  afterEach(async () => {
+    const provider = await import("@/lib/ai/provider");
+    (provider as { clearOpenAiQuotaExhausted?: () => void }).clearOpenAiQuotaExhausted?.();
+    (provider as { clearAnthropicQuotaExhausted?: () => void }).clearAnthropicQuotaExhausted?.();
+  });
+
+  it("an openai-lane quota error part trips the openai breaker (isOpenAiQuotaExhausted → true)", async () => {
+    const { isOpenAiQuotaExhausted, isAnthropicQuotaExhausted } = await import("@/lib/ai/provider");
+    expect(isOpenAiQuotaExhausted()).toBe(false);
+
+    getModelMock
+      .mockReturnValueOnce({ modelId: "gpt-4o" })
+      .mockReturnValueOnce({ modelId: "claude-3-5-sonnet" });
+    streamTextMock
+      .mockImplementationOnce(() =>
+        makeStreamResult([
+          { type: "error", error: new Error("429 insufficient_quota — you exceeded your current quota") },
+        ]),
+      )
+      .mockImplementationOnce(() => makeStreamResult());
+
+    const out = await streamWithFallback({
+      taskType: "reason",
+      buildConfig: (model: any) => ({ model, system: "test" }) as never,
+    });
+
+    expect(out.provider).toBe("anthropic");
+    expect(markProviderFailedMock).toHaveBeenCalledWith("openai");
+    // THE fix: the quota error tripped the openai circuit breaker…
+    expect(isOpenAiQuotaExhausted()).toBe(true);
+    // …and only openai's — the healthy rotation target is untouched.
+    expect(isAnthropicQuotaExhausted()).toBe(false);
+  });
+
+  it("an anthropic-lane billing error trips the anthropic breaker", async () => {
+    const { isAnthropicQuotaExhausted } = await import("@/lib/ai/provider");
+    expect(isAnthropicQuotaExhausted()).toBe(false);
+
+    getModelMock
+      .mockReturnValueOnce({ modelId: "claude-3-5-sonnet" })
+      .mockReturnValueOnce({ modelId: "gemini-3.5-flash" });
+    streamTextMock
+      .mockImplementationOnce(() =>
+        makeStreamResult([
+          { type: "error", error: new Error("Your credit balance is too low to access the Anthropic API") },
+        ]),
+      )
+      .mockImplementationOnce(() => makeStreamResult());
+
+    await streamWithFallback({
+      taskType: "reason",
+      buildConfig: (model: any) => ({ model, system: "test" }) as never,
+    });
+
+    expect(markProviderFailedMock).toHaveBeenCalledWith("anthropic");
+    expect(isAnthropicQuotaExhausted()).toBe(true);
+  });
+
+  it("a NON-quota failure marks the 60s rotation only — the long breaker stays closed", async () => {
+    const { isOpenAiQuotaExhausted } = await import("@/lib/ai/provider");
+
+    getModelMock
+      .mockReturnValueOnce({ modelId: "gpt-4o" })
+      .mockReturnValueOnce({ modelId: "gemini-3.5-flash" });
+    streamTextMock
+      .mockImplementationOnce(() =>
+        makeStreamResult([{ type: "error", error: new Error("upstream 503 bad gateway") }]),
+      )
+      .mockImplementationOnce(() => makeStreamResult());
+
+    await streamWithFallback({
+      taskType: "reason",
+      buildConfig: (model: any) => ({ model, system: "test" }) as never,
+    });
+
+    expect(markProviderFailedMock).toHaveBeenCalledWith("openai");
+    expect(isOpenAiQuotaExhausted()).toBe(false);
+  });
+});
+
+describe("2026-07-16 audit · unknown-modelId marking is no longer a silent no-op", () => {
+  it("logs loudly (logError with the modelId) when the provider can't be inferred on failure", async () => {
+    getModelMock.mockReturnValue({ modelId: "mystery-model-9000" });
+    streamTextMock.mockImplementation(() => {
+      throw new Error("provider down");
+    });
+
+    let thrown: unknown;
+    try {
+      await streamWithFallback({
+        taskType: "reason",
+        maxAttempts: 1,
+        buildConfig: (model: any) => ({ model, system: "test" }) as never,
+      });
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    // Marking couldn't run (no lane to mark) — but it must be LOUD now.
+    expect(markProviderFailedMock).not.toHaveBeenCalled();
+    expect(logErrorMock).toHaveBeenCalledTimes(1);
+    const [source, err, ctx] = logErrorMock.mock.calls[0] as [string, Error, Record<string, unknown>];
+    expect(source).toBe("ai.stream-with-fallback");
+    expect(err.message).toContain("mystery-model-9000");
+    expect(ctx).toMatchObject({ modelId: "mystery-model-9000" });
+  });
+
+  it("prefers the ground-truth provider tag getModel stamps on the model over string inference", async () => {
+    // getModel() tags every model it builds with the provider entry that
+    // created it — inference no longer guesses when the tag is present,
+    // even for a modelId classifyModelId can't place.
+    const taggedModel: Record<PropertyKey, unknown> = { modelId: "mystery-model-9000" };
+    Object.defineProperty(taggedModel, Symbol.for("nour.ai.providerName"), {
+      value: "openai",
+      enumerable: false,
+    });
+    expect(inferProviderName(taggedModel)).toBe("openai");
+
+    getModelMock
+      .mockReturnValueOnce(taggedModel)
+      .mockReturnValueOnce({ modelId: "gemini-3.5-flash" });
+    streamTextMock
+      .mockImplementationOnce(() => {
+        throw new Error("provider down");
+      })
+      .mockImplementationOnce(() => makeStreamResult());
+
+    const out = await streamWithFallback({
+      taskType: "reason",
+      buildConfig: (model: any) => ({ model, system: "test" }) as never,
+    });
+
+    // The failing lane was marked via the tag — no silent skip, no guess.
+    expect(out.attempts[0].provider).toBe("openai");
+    expect(markProviderFailedMock).toHaveBeenCalledWith("openai");
+    expect(logErrorMock).not.toHaveBeenCalled();
   });
 });
 

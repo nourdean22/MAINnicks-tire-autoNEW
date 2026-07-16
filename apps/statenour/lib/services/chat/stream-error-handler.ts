@@ -137,7 +137,8 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
             : "";
         // Heuristic: provider name appears in the modelId. Match
         // against the known provider names we manage in PROVIDERS.
-        const { markProviderFailed, markGeminiQuotaExhausted, classifyModelId } = await import("@/lib/ai/provider");
+        const { markProviderFailed, markProviderQuotaExhausted, classifyModelId, getTaggedModelProvider } =
+          await import("@/lib/ai/provider");
         // 2026-07-04 (audit P2) · OpenRouter FIRST — vendor-prefixed ids
         // ("google/gemini-*") otherwise match the gemini branch below and
         // ban the healthy native lane instead of the failing OpenRouter.
@@ -147,13 +148,27 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
         // lib/ai/stream-with-fallback.ts.
         // ONE canonical classifier (classifyModelId in provider.ts) — shared with
         // inferProviderName + modelToProvider so these three can't drift again.
-        const failed = classifyModelId(modelInfo);
-        if (failed) {
-          markProviderFailed(failed);
-          if (failed === "gemini" && /quota|exhausted|budget|spending.*cap|billing|limit/i.test(errMsg)) {
-            markGeminiQuotaExhausted();
-          }
+        //
+        // 2026-07-16 (chat audit) · ground-truth tag first, then string
+        // inference, then deps.provider — the lane the route actually
+        // selected at call time, KNOWN here all along but previously
+        // ignored: an unclassifiable modelId made marking a silent no-op
+        // and the dead lane was re-picked on every retry.
+        const inferred = getTaggedModelProvider(model) ?? classifyModelId(modelInfo);
+        if (!inferred) {
+          log.warn("provider_marking_inference_failed_using_known_provider", {
+            modelId: modelInfo,
+            fallbackProvider: provider,
+          });
         }
+        const failed = inferred ?? provider;
+        markProviderFailed(failed);
+        // Quota/billing-class errors additionally trip the provider's
+        // LONG circuit breaker. Pre-fix this was gemini-only — the
+        // openai/anthropic breakers existed in provider.ts but were
+        // unwired (mark never exported), so the 2026-07-15 outage
+        // re-tried the dead paid lanes at ~29s per chat call.
+        markProviderQuotaExhausted(failed, errMsg);
       } catch {
         /* swallow — don't let provider-marking crash onError */
       }
