@@ -11,6 +11,7 @@ import {
   contentAdminRouter,
   contentStudioRouter,
   adminDashboardRouter,
+  adminSecurityRouter,
   analyticsRouter,
   followUpsRouter,
   weeklyReportRouter,
@@ -135,6 +136,7 @@ export const appRouter = router({
   loyalty: loyaltyRouter,
 
   adminDashboard: adminDashboardRouter,
+  adminSecurity: adminSecurityRouter,
   contentAdmin: contentAdminRouter,
   contentStudio: contentStudioRouter,
   analytics: analyticsRouter,
