@@ -586,44 +586,48 @@ Keep it under 200 characters.`;
       const briefHash = createHash("sha256").update(draft.briefJson || "").digest("hex");
 
       const nextVersion = draft.version + 1;
-
-      const updateResult = await database
-        .update(socialContentInventory)
-        .set({
-          status: "ready",
-          version: nextVersion,
-          errorMessage: null,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(socialContentInventory.id, input.id),
-            eq(socialContentInventory.status, "review_ready"),
-            eq(socialContentInventory.version, input.expectedVersion)
-          )
-        );
-
-      // Previously fell back to `?? 1`, so an unreadable driver result counted as
-      // "claimed" and silently voided this CAS. Every other claim in the server
-      // fails closed (cron/jobs/crudAutomation.ts:200); this one now does too.
-      const affectedRows = affectedRowCount(updateResult);
-
-      if (affectedRows === 0) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "Draft was modified by another request. Aborting approval.",
-        });
-      }
-
       const approvalId = `appr_${randomUUID()}`;
-      await database.insert(socialContentApprovals).values({
-        id: approvalId,
-        inventoryId: draft.id,
-        version: input.expectedVersion,
-        approvedBy: ctx.user.id,
-        briefHash,
-        mediaHash: validation.mediaHash,
-        mediaUrl: videoUrl,
+
+      // The CAS flip to "ready" and the approval-record insert MUST be atomic.
+      // When they weren't, the missing social_content_approvals table (see the
+      // 2026-07-16 audit) let the flip land and the insert fail — stranding a
+      // publishable-looking row with no approval record. Both now commit or
+      // roll back together.
+      await database.transaction(async (tx: typeof database) => {
+        const updateResult = await tx
+          .update(socialContentInventory)
+          .set({
+            status: "ready",
+            version: nextVersion,
+            errorMessage: null,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(socialContentInventory.id, input.id),
+              eq(socialContentInventory.status, "review_ready"),
+              eq(socialContentInventory.version, input.expectedVersion)
+            )
+          );
+
+        // Fails closed (like every other claim in the server): an unreadable
+        // driver result counts as 0 → CONFLICT, which rolls back the tx.
+        if (affectedRowCount(updateResult) === 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Draft was modified by another request. Aborting approval.",
+          });
+        }
+
+        await tx.insert(socialContentApprovals).values({
+          id: approvalId,
+          inventoryId: draft.id,
+          version: input.expectedVersion,
+          approvedBy: ctx.user.id,
+          briefHash,
+          mediaHash: validation.mediaHash,
+          mediaUrl: videoUrl,
+        });
       });
 
       return { success: true };
