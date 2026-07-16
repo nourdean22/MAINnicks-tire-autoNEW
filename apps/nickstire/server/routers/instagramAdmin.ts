@@ -831,6 +831,49 @@ Keep it under 200 characters.`;
 
             publishCaption = approvedCaption;
             publishVideoUrl = approvedVideoUrl;
+          } else {
+            // Non-reel drafts: media is SERVER-authoritative. The client used to
+            // supply imageUrl(s) verbatim with no check against the row — the last
+            // format-level integrity hole after the reel gate (missed by both
+            // prior audits). Publish what the row carries; when an approval
+            // record exists (V2-approved drafts), verify hashes like reels. Rows
+            // without a record (manual stageDraft — the operator IS the review)
+            // pass with a warning, not a block.
+            const rowAssets: string[] = Array.isArray(draft.assetPaths)
+              ? (draft.assetPaths as string[])
+              : (() => {
+                  try {
+                    const parsed = JSON.parse((draft.assetPaths as string) || "[]");
+                    return Array.isArray(parsed) ? parsed : [];
+                  } catch {
+                    return [];
+                  }
+                })();
+            if (rowAssets.length > 0) {
+              const { verifyApprovalRecord } = await import("../services/contentApprovals");
+              const verdict = await verifyApprovalRecord(database, {
+                inventoryId: draft.id,
+                version: draft.version - 1,
+                briefJson: draft.briefJson,
+                mediaUrls: rowAssets,
+              });
+              if (!verdict.ok && verdict.reason !== "no_record") {
+                throw new TRPCError({
+                  code: "BAD_REQUEST",
+                  message: `Integrity breach: the draft's ${verdict.reason === "brief_mismatch" ? "content" : "media"} changed after approval. Re-review and re-approve.`,
+                });
+              }
+              if (!verdict.ok) {
+                log.warn(`publishPost: no approval record for ${draft.id} v${draft.version - 1} (manual/pre-provenance draft) — publishing row media without integrity check`);
+              }
+              if (rowAssets.length > 1) {
+                input.imageUrls = rowAssets;
+                input.imageUrl = undefined;
+              } else {
+                input.imageUrl = rowAssets[0];
+                input.imageUrls = undefined;
+              }
+            }
           }
         }
       } else {

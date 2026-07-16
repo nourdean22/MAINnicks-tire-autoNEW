@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createHash } from "crypto";
 import { runSocialInventoryPublisher } from "../socialInventoryPublisher";
 import { getDbTyped } from "../../../db";
+
+/** Mirror of contentApprovals.computeBriefHash for building approval fixtures. */
+const computeBriefHashLike = (briefJson: string) => createHash("sha256").update(briefJson).digest("hex");
 
 vi.mock("../../../db", () => ({
   getDbTyped: vi.fn(),
@@ -22,9 +26,13 @@ vi.mock("../../../services/socialPublish", () => ({
  * `.limit()` on it, the update chain awaits it. The root db object must stay
  * non-thenable or `await getDbTyped()` would unwrap it.
  */
-function makeMockDb(rows: unknown[], opts: { claimAffectedRows?: number } = {}) {
+function makeMockDb(rows: unknown[], opts: { claimAffectedRows?: number; selectQueue?: unknown[][] } = {}) {
+  // First select = the due-items query; later selects (integrity approval
+  // lookups) consume selectQueue, defaulting to [] = no approval record,
+  // which the publisher treats as a legacy row (warn + proceed).
+  const selects = [rows, ...(opts.selectQueue ?? [])];
   const whereResult: Record<string, unknown> = {
-    limit: vi.fn().mockResolvedValue(rows),
+    limit: vi.fn(() => Promise.resolve(selects.shift() ?? [])),
     then: (resolve: (value: unknown) => void) =>
       resolve([{ affectedRows: opts.claimAffectedRows ?? 1 }, []]),
   };
@@ -142,6 +150,46 @@ describe("Social Inventory Publisher Claim Blockers", () => {
 
     expect(publishToSocial).not.toHaveBeenCalled();
     expect(result.recordsProcessed).toBe(0);
+  });
+
+  it("BLOCKS publishing when media hashes no longer match the approval record", async () => {
+    const item = { ...dueImageRow, version: 2, briefJson: '{"caption":"approved"}', assetPaths: ["mock://img"] };
+    // Approval exists for v1 with a DIFFERENT media hash → integrity breach.
+    const mockDb = makeMockDb([item], {
+      selectQueue: [[{ briefHash: computeBriefHashLike('{"caption":"approved"}'), mediaHash: "some_other_hash" }]],
+    });
+    (getDbTyped as any).mockResolvedValue(mockDb);
+
+    const { publishToSocial, captionClaimBlockers } = await import("../../../services/socialPublish");
+    (captionClaimBlockers as any).mockReturnValue([]);
+
+    await runSocialInventoryPublisher();
+
+    expect(publishToSocial).not.toHaveBeenCalled();
+    expect(mockDb.set).toHaveBeenCalledWith(expect.objectContaining({
+      status: "failed",
+      errorMessage: expect.stringContaining("Integrity breach"),
+    }));
+  });
+
+  it("publishes when the approval record matches (and when none exists — legacy row)", async () => {
+    const item = { ...dueImageRow, version: 2, briefJson: '{"caption":"approved"}', assetPaths: ["mock://img"] };
+    const mockDb = makeMockDb([item], {
+      selectQueue: [[{
+        briefHash: computeBriefHashLike('{"caption":"approved"}'),
+        mediaHash: "mocked_media_hash_32chars_long_hash",
+      }]],
+    });
+    (getDbTyped as any).mockResolvedValue(mockDb);
+
+    const { publishToSocial, captionClaimBlockers } = await import("../../../services/socialPublish");
+    (captionClaimBlockers as any).mockReturnValue([]);
+    (publishToSocial as any).mockResolvedValue({ results: [{ success: true, platform: "facebook" }] });
+
+    await runSocialInventoryPublisher();
+
+    expect(publishToSocial).toHaveBeenCalled();
+    expect(mockDb.set).toHaveBeenCalledWith(expect.objectContaining({ status: "published" }));
   });
 
   it("records a partial publish as published_partial, never as published", async () => {
