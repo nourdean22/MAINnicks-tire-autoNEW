@@ -63,11 +63,18 @@ export function buildReelPublishCaption(briefJson: string | null, fallbackHook: 
 }
 
 export const instagramAdminRouter = router({
-  /** Connection diagnostics: credential/token status + durable-store fingerprint. */
+  /** Connection diagnostics: credential/token status + durable-store fingerprint
+   *  + a LIVE Graph probe. Presence checks alone showed "ready" with a dead
+   *  token (revoked permissions, password reset, unlinked page) — `live` is the
+   *  Graph API's own answer, cached 5 minutes so UI polling can't burn quota. */
   getConnectionStatus: adminProcedure.query(async () => {
-    const { getMetaSocialStatus, getPersistedTokenMeta } = await import("../services/metaSocial");
-    const [status, token] = await Promise.all([getMetaSocialStatus(), getPersistedTokenMeta()]);
-    return { ...status, token };
+    const { getMetaSocialStatus, getPersistedTokenMeta, verifyMetaConnectionLive } = await import("../services/metaSocial");
+    const [status, token, live] = await Promise.all([
+      getMetaSocialStatus(),
+      getPersistedTokenMeta(),
+      verifyMetaConnectionLive(),
+    ]);
+    return { ...status, token, live };
   }),
 
   /** Pipeline Health: Storage, Veo API, Meta API, and failed reel jobs. */
