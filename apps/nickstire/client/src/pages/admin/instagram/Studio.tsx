@@ -231,7 +231,8 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
       sourceType: source || "manual",
       sourceDetail: sourceDetail,
       conceptBrief: format === "reel" ? reelBrief : undefined,
-      qualityScore: score
+      // No qualityScore: the local evaluation here is a client-side heuristic;
+      // the server stages manual drafts as unscored rather than persisting it.
     });
   };
 
