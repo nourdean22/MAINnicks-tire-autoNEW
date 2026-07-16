@@ -744,13 +744,45 @@ export interface EmbeddingHealth {
 }
 
 /**
+ * Count embeddings whose SOURCE brain memory is still alive.
+ *
+ * Soft-deleting a memory never deletes its embedding (only the hard-delete
+ * path in semantic-dedup does), so `vectorEmbedding.count({sourceType:
+ * "brain_memory"})` counts orphans. Measured on prod 2026-07-16: 4,330 of
+ * 6,482 brain-memory embeddings (67%) belonged to soft-deleted rows — an
+ * unjoined numerator over a live denominator would report 55.6% coverage
+ * when the live truth was 18.4%. This helper is the ONLY sanctioned
+ * numerator for any embeddings-per-memory ratio; pair it with a
+ * `deletedAt: null` denominator.
+ *
+ * Raw SQL because sourceType/sourceId are polymorphic (no Prisma relation).
+ * Camel columns quoted per the check:raw-sql rule.
+ */
+export async function countLiveBrainMemoryEmbeddings(): Promise<number> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ count: number }>>`
+      SELECT COUNT(*)::int AS count
+      FROM vector_embeddings ve
+      JOIN brain_memories bm ON bm.id = ve."sourceId"
+      WHERE ve."sourceType" = 'brain_memory' AND bm.deleted_at IS NULL
+    `;
+    return rows[0]?.count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Compute health metrics for the embedding system.
  * Used by brain maturity and system health checks.
+ *
+ * Coverage is LIVE/LIVE: live-sourced embeddings over live memories — the
+ * pair moved together (see countLiveBrainMemoryEmbeddings).
  */
 export async function getEmbeddingHealth(): Promise<EmbeddingHealth> {
   const [totalMemories, embeddedCount, sampleRows] = await Promise.all([
-    prisma.brainMemory.count().catch(() => 0),
-    prisma.vectorEmbedding.count({ where: { sourceType: "brain_memory" } }).catch(() => 0),
+    prisma.brainMemory.count({ where: { deletedAt: null } }).catch(() => 0),
+    countLiveBrainMemoryEmbeddings(),
     prisma.vectorEmbedding.findMany({
       where: { sourceType: "brain_memory" },
       select: { embedding: true },

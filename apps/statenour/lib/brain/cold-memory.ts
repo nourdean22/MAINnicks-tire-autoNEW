@@ -30,7 +30,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { semanticSearch } from "@/lib/brain/embedding-utils";
+import { countLiveBrainMemoryEmbeddings, semanticSearch } from "@/lib/brain/embedding-utils";
 
 export type ColdMemoryScope = "drive" | "all" | "archive" | "ingest";
 
@@ -193,12 +193,16 @@ export async function getColdMemoryStats(): Promise<{
   categories: Record<string, number>;
 }> {
   try {
+    // total + embedded moved as a PAIR to the live population (2026-07-16):
+    // soft-delete never removes embeddings, so the unjoined embedding count
+    // held 67% orphans on prod — filtering only the denominator would have
+    // reported 55.6% coverage when the live truth was 18.4%.
     const [total, driveCount, embedded, lastSync, byCategory] = await Promise.all([
-      prisma.brainMemory.count(),
+      prisma.brainMemory.count({ where: { deletedAt: null } }),
       prisma.brainMemory.count({
         where: { deletedAt: null, source: { in: ["drive_cron", "drive_manual_sync"] } },
       }),
-      prisma.vectorEmbedding.count({ where: { sourceType: "brain_memory" } }),
+      countLiveBrainMemoryEmbeddings(),
       prisma.auditEvent.findFirst({
         where: { eventType: "drive_docs_ingested" },
         orderBy: { createdAt: "desc" },

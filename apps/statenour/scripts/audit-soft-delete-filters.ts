@@ -81,17 +81,11 @@ const ALLOWLIST: Array<{ file: string; contains: string; reason: string }> = [
     reason:
       "/system/diagnostics is a PHYSICAL table census shown next to models that have no deletedAt at all (smartDevice, chatMessage, aiGeneration). Tombstones are part of 'how big is this table'. Filtering would make the rows incomparable on the same card.",
   },
-  {
-    file: "lib/brain/cold-memory.ts",
-    contains: "totalBrainMemories",
-    reason:
-      "Denominator of embeddingCoverage. The numerator (vectorEmbedding.count sourceType=brain_memory) is NOT scoped to live rows — soft-delete never removes embeddings. Filtering the denominator alone takes coverage from 36.1% to 55.7% (and >100% once backfill completes). Needs a PAIRED fix that scopes the numerator; tracked separately.",
-  },
-  {
-    file: "lib/brain/embedding-utils.ts",
-    contains: "coveragePercent",
-    reason: "Same numerator/denominator population mismatch as cold-memory.ts — see above. Paired fix required.",
-  },
+  // (removed 2026-07-16) cold-memory.ts totalBrainMemories + embedding-utils
+  // coveragePercent: the embeddingCoverage numerator/denominator pair moved
+  // TOGETHER — countLiveBrainMemoryEmbeddings() joins to live brain_memories,
+  // and both denominators filter deletedAt. Measured on prod: 67% of
+  // brain-memory embeddings were orphans of pruned rows; live coverage 18.4%.
   // (removed 2026-07-16) lib/brain/learning-velocity.ts oldAvgConfidence:
   // the confidenceDelta pair (current avg + 30d-old avg) was fixed TOGETHER
   // — both halves now filter deletedAt: null, so the one-sided-fix hazard
