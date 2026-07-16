@@ -76,18 +76,45 @@ const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 // ─── SYNC POSTS ─────────────────────────────────────────
 
 /**
- * Sync Instagram posts from cache into analytics table with AI scoring.
+ * Sync Instagram posts into the analytics table with AI scoring.
+ *
+ * Source order: live Graph first (media list + account profile), the JSON
+ * cache as fallback. Until 2026-07 this read ONLY instagram-cache.json — a
+ * file whose sole writer was archived — so the loop below processed zero rows
+ * on every run while the endpoint reported success. The returned `source`
+ * makes that failure mode visible instead of silent: "none" means the
+ * pipeline is starved and every downstream analytics read is empty.
+ *
+ * After a successful Graph fetch the cache file is refreshed (best-effort) so
+ * the cache readers — admin live feed, account header — heal for free.
  */
 export async function syncInstagramPosts(): Promise<{
   processed: number;
   newPosts: number;
   errors: number;
+  source: "graph" | "cache" | "none";
 }> {
   const d = await db();
   if (!d) throw new Error("Database not available");
 
-  const posts = await getInstagramPosts(25); // Get up to 25 recent posts
-  const account = await getInstagramAccount();
+  const { fetchInstagramMedia, fetchInstagramAccountProfile } = await import("../services/metaSocial");
+  const liveMedia = await fetchInstagramMedia(25);
+  const liveAccount = liveMedia.ok ? await fetchInstagramAccountProfile() : { ok: false as const, error: "skipped" };
+
+  const posts = liveMedia.ok ? liveMedia.posts : await getInstagramPosts(25);
+  const account = liveAccount.ok ? liveAccount.account : await getInstagramAccount();
+  const source: "graph" | "cache" | "none" = liveMedia.ok ? "graph" : posts.length > 0 ? "cache" : "none";
+
+  if (source === "none") {
+    log.error(
+      `[Instagram Pipeline] STARVED: Graph unavailable (${liveMedia.ok ? "" : liveMedia.error}) and the JSON cache is empty/absent — 0 posts to sync; analytics reads will be empty`,
+    );
+  }
+  if (source === "graph") {
+    const { writeInstagramCache } = await import("../instagram");
+    await writeInstagramCache(posts, account); // best-effort; logs on failure
+  }
+
   const followers = account?.followers || 0;
 
   let newPosts = 0;
@@ -172,7 +199,7 @@ export async function syncInstagramPosts(): Promise<{
     }
   }
 
-  return { processed: posts.length, newPosts, errors };
+  return { processed: posts.length, newPosts, errors, source };
 }
 
 // ─── AI CONTENT SCORING ─────────────────────────────────

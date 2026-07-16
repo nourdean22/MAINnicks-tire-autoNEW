@@ -1017,6 +1017,111 @@ export async function getMediaInsights(
   }
 }
 
+// ─── Live feed reads (media list + account profile) ─────
+// These are the READ half the integration never had: posting and per-media
+// insights existed, but the media LIST and account profile only ever came from
+// instagram-cache.json — a file with no writer — so the analytics pipeline
+// processed zero rows while looking healthy. Both return the same shapes the
+// cache readers produce (server/instagram.ts), so callers can fall back
+// transparently.
+
+type GraphMediaNode = {
+  id: string;
+  media_type?: string;
+  caption?: string;
+  permalink?: string;
+  like_count?: number;
+  comments_count?: number;
+  timestamp?: string;
+  media_url?: string;
+  thumbnail_url?: string;
+};
+
+export async function fetchInstagramMedia(
+  limit = 25,
+): Promise<{ ok: true; posts: import("../instagram").InstagramPost[] } | { ok: false; error: string }> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  const igUserId = await getIgUserId();
+  if (!token || !igUserId) {
+    return { ok: false, error: "Instagram not configured (need META_PAGE_ACCESS_TOKEN + META_IG_USER_ID)" };
+  }
+  try {
+    const fields = "id,media_type,caption,permalink,like_count,comments_count,timestamp,media_url,thumbnail_url";
+    const url = `${GRAPH_URL}/${igUserId}/media?fields=${fields}&limit=${Math.min(Math.max(limit, 1), 100)}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.error) {
+      const errMsg = data?.error?.message || `HTTP ${res.status}`;
+      log.error("Instagram media list fetch failed:", { error: errMsg });
+      return { ok: false, error: errMsg };
+    }
+    const nodes: GraphMediaNode[] = Array.isArray(data.data) ? data.data : [];
+    const posts = nodes.map((n) => ({
+      id: n.id,
+      // Graph's media_type values match the cache enum exactly; anything novel
+      // degrades to IMAGE rather than dropping the row.
+      type: (n.media_type === "VIDEO" || n.media_type === "CAROUSEL_ALBUM" ? n.media_type : "IMAGE") as
+        | "IMAGE"
+        | "VIDEO"
+        | "CAROUSEL_ALBUM",
+      caption: n.caption ?? "",
+      link: n.permalink ?? "",
+      likes: n.like_count ?? 0,
+      comments: n.comments_count ?? 0,
+      posted: n.timestamp ?? "",
+      mediaUrl: n.media_url,
+      thumbnailUrl: n.thumbnail_url,
+    }));
+    return { ok: true, posts };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error("Instagram media list error:", { error: errMsg });
+    return { ok: false, error: errMsg };
+  }
+}
+
+export async function fetchInstagramAccountProfile(): Promise<
+  { ok: true; account: import("../instagram").InstagramAccount } | { ok: false; error: string }
+> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  const igUserId = await getIgUserId();
+  if (!token || !igUserId) {
+    return { ok: false, error: "Instagram not configured (need META_PAGE_ACCESS_TOKEN + META_IG_USER_ID)" };
+  }
+  try {
+    const fields = "username,name,biography,followers_count,follows_count,media_count,profile_picture_url,website";
+    const res = await fetch(`${GRAPH_URL}/${igUserId}?fields=${fields}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.error) {
+      const errMsg = data?.error?.message || `HTTP ${res.status}`;
+      log.error("Instagram account profile fetch failed:", { error: errMsg });
+      return { ok: false, error: errMsg };
+    }
+    return {
+      ok: true,
+      account: {
+        username: data.username ?? "",
+        name: data.name ?? "",
+        bio: data.biography ?? "",
+        followers: data.followers_count ?? 0,
+        following: data.follows_count ?? 0,
+        posts: data.media_count ?? 0,
+        profilePicture: data.profile_picture_url ?? "",
+        website: data.website ?? "",
+      },
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error("Instagram account profile error:", { error: errMsg });
+    return { ok: false, error: errMsg };
+  }
+}
+
 /**
  * Post a reply to a specific comment on our own media. LIVE Graph write,
  * so callers MUST claim-safety-check the message and gate it behind an

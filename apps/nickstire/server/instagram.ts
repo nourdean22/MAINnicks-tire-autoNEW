@@ -11,7 +11,7 @@ import * as path from "path";
 import { createLogger } from "./lib/logger";
 
 const log = createLogger("instagram");
-interface InstagramPost {
+export interface InstagramPost {
   id: string;
   type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
   caption: string;
@@ -23,7 +23,7 @@ interface InstagramPost {
   thumbnailUrl?: string;
 }
 
-interface InstagramAccount {
+export interface InstagramAccount {
   username: string;
   name: string;
   bio: string;
@@ -83,4 +83,29 @@ export async function getInstagramAccount(): Promise<InstagramAccount | null> {
   const cache = loadCache();
   if (!cache) return null;
   return cache.account;
+}
+
+/**
+ * Persist a fresh feed snapshot so the cache readers above (admin live feed,
+ * account header, public widgets) serve real data without their own Graph
+ * calls. Until 2026-07 nothing ever wrote this file — its only writer was an
+ * archived sandbox script, so every reader returned empty forever (the starved
+ * analytics pipeline). The Graph-backed sync now refreshes it on each run.
+ *
+ * Best-effort: an unwritable disk must not fail a sync whose DB writes
+ * already landed. Write-then-rename keeps a crash from leaving a torn file.
+ */
+export async function writeInstagramCache(posts: InstagramPost[], account: InstagramAccount | null): Promise<boolean> {
+  const cache: InstagramCache = { posts, account, lastUpdated: new Date().toISOString() };
+  try {
+    const tmp = `${CACHE_PATH}.tmp`;
+    await fs.promises.writeFile(tmp, JSON.stringify(cache, null, 2), "utf-8");
+    await fs.promises.rename(tmp, CACHE_PATH);
+    memoryCache = cache;
+    memoryCacheTime = Date.now();
+    return true;
+  } catch (err) {
+    log.warn("[Instagram] Failed to write feed cache (readers keep prior data):", err);
+    return false;
+  }
 }
