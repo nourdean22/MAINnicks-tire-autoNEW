@@ -148,7 +148,22 @@ export async function generateVoiceover(script: string | undefined | null): Prom
     );
   }
   try {
-    if (provider === "google") return { buf: await googleVoice(text), ext: "wav", provider };
+    if (provider === "google") {
+      try {
+        return { buf: await googleVoice(text), ext: "wav", provider };
+      } catch (err) {
+        // Runtime fallback (previously selection-time only): a Google failure
+        // with ElevenLabs configured should degrade to the other provider, not
+        // to a failed job. Google outages were burning whole reels.
+        if (process.env.ELEVENLABS_API_KEY) {
+          const msg = err instanceof Error ? err.message : String(err);
+          log.warn("Google TTS failed - falling back to ElevenLabs", { err: msg });
+          const { buf, alignment } = await elevenLabsVoice(text);
+          return { buf, ext: "mp3", provider: "elevenlabs", alignment };
+        }
+        throw err;
+      }
+    }
     const { buf, alignment } = await elevenLabsVoice(text);
     return { buf, ext: "mp3", provider, alignment };
   } catch (err) {

@@ -147,6 +147,15 @@ The viewer should finish feeling smarter, not advertised to. Authority is implie
   sections.push(`# RESEARCH STANDARD
 Every reel is built on ONE verifiable mechanic truth. Acceptable proof source families: ${PROOF_SOURCE_FAMILIES.join(", ")}. Attach at least one PROOF source note (label is enough; URL optional) plus optionally a PAIN-POINT source showing drivers actually ask this. If you cannot ground the fact, output status "needs_research" and STOP — do not fabricate.`);
 
+  sections.push(`# VOICEOVER CONTRACT (hard)
+voiceoverScript is REQUIRED and must not be empty (every brief tonight shipped SILENT because this was left "optional"):
+- 38-48 words total for a ${REEL_OUTPUT_RULES.minSeconds}-${REEL_OUTPUT_RULES.maxSeconds}s reel (roughly 2.2 spoken words/second)
+- One spoken idea per beat, in beat order - narration must land before the SAVE ending, never talk over it
+- Conversational Cleveland mechanic voice: plain, warm, zero hype
+- Claim-safe: no prices, no guarantees, no "you need", no diagnosis-by-sound
+- Never speak the phone number, address, or URL - those live in the caption
+- The reel still teaches muted; the voice ADDS warmth, it does not carry the lesson alone`);
+
   sections.push(`# FORMAT CONTRACT (hard)
 - Exactly ${REEL_OUTPUT_RULES.reelsPerRun} reel per run
 - ${REEL_OUTPUT_RULES.minSeconds}-${REEL_OUTPUT_RULES.maxSeconds} seconds total, ${REEL_OUTPUT_RULES.minBeats}-${REEL_OUTPUT_RULES.maxBeats} contiguous beats (no gaps, no overlaps, beat 1 starts at 0s)
@@ -173,7 +182,7 @@ For the winner, write ${REEL_OUTPUT_RULES.minBeats}-${REEL_OUTPUT_RULES.maxBeats
 One prompt per beat: vertical 9:16, clip length = beat duration, subject + motion + style from the chosen lens/archetype/character. Always include the negative prompt: "human face, person, hands, talking head, text artifacts, warped letters, watermark, logo, low-res". On-screen TEXT is added in assembly, not generation — never ask the generator to render words.`);
 
   sections.push(`# FFMPEG REQUIREMENTS (plan only — never executed by you)
-Concat beat clips -> libx264, ${REEL_OUTPUT_RULES.pixelFormat}, ${REEL_OUTPUT_RULES.fps}fps, ${REEL_OUTPUT_RULES.resolution}, -movflags +faststart. A cut/push/text change every 1.5-2.5s. Audio: music bed (plus optional VO) but the reel must teach muted. Pick a face-free cover frame.`);
+Concat beat clips -> libx264, ${REEL_OUTPUT_RULES.pixelFormat}, ${REEL_OUTPUT_RULES.fps}fps, ${REEL_OUTPUT_RULES.resolution}, -movflags +faststart. A cut/push/text change every 1.5-2.5s. Audio: music bed + the REQUIRED voiceover script (see VOICEOVER CONTRACT) - and the reel must STILL teach muted. Pick a face-free cover frame.`);
 
   sections.push(`# CAPTION STRUCTURE
 7 hook options (first lines). Selected caption = hook + 1-2 plain-English teaching lines + soft CTA: DM/comment the campaign keyword + business close (${STUDIO_BRAND.phone} / ${STUDIO_BRAND.address} / ${STUDIO_BRAND.website}). 3-12 hashtags, locally weighted. ASCII characters only.
