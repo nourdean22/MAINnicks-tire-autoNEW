@@ -3761,6 +3761,36 @@ export const autonomyPolicyVersions = mysqlTable("autonomy_policy_versions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const generationReservations = mysqlTable("generation_reservations", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  actionId: varchar("action_id", { length: 64 }).notNull().unique(),
+  campaignId: varchar("campaign_id", { length: 64 }),
+  provider: varchar("provider", { length: 48 }).notNull(),
+  model: varchar("model", { length: 64 }).notNull(),
+  operation: varchar("operation", { length: 48 }).notNull(),
+  estimatedCostUsd: decimal("estimated_cost_usd", { precision: 10, scale: 4 }).notNull(),
+  actualCostUsd: decimal("actual_cost_usd", { precision: 10, scale: 4 }),
+  isEstimate: boolean("is_estimate").notNull().default(true),
+  status: varchar("status", { length: 16 }).notNull().default("reserved"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  settledAt: timestamp("settled_at"),
+});
+
+export const contentReservations = mysqlTable("content_reservations", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  campaignId: varchar("campaign_id", { length: 64 }),
+  platform: varchar("platform", { length: 24 }).notNull(),
+  format: varchar("format", { length: 24 }).notNull(),
+  topic: varchar("topic", { length: 300 }),
+  cta: varchar("cta", { length: 120 }),
+  territory: varchar("territory", { length: 64 }),
+  windowStart: timestamp("window_start").notNull(),
+  windowEnd: timestamp("window_end").notNull(),
+  priority: int("priority").notNull().default(50),
+  status: varchar("status", { length: 16 }).notNull().default("reserved"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const autonomyAuditEvents = mysqlTable("autonomy_audit_events", {
   id: varchar("id", { length: 64 }).primaryKey(),
   occurredAt: timestamp("occurred_at").defaultNow().notNull(),

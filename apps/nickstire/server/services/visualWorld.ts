@@ -82,6 +82,21 @@ export interface ReferenceFrameCandidate {
  */
 export async function generateReferenceFrames(brief: VisualWorldBriefInput): Promise<ReferenceFrameCandidate[]> {
   const { generateCarouselSlideImage } = await import("./higgsfieldStudio");
+  // Ledger: reserve the 3-image spend up front, settle with the actual
+  // success count after. Per-invocation action id — frame batches are not
+  // retried under one identity, so idempotency is per batch.
+  const { reserve, settle, release, COST_ESTIMATES_USD } = await import("./generationLedger");
+  const { getActivePolicy } = await import("./autonomyControl");
+  const actionId = `ref_frames_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const policy = await getActivePolicy();
+  await reserve({
+    actionId,
+    provider: "higgsfield",
+    model: "gpt_image_2",
+    operation: "reference_frames",
+    estimatedCostUsd: VISUAL_WORLD_STYLES.length * COST_ESTIMATES_USD.gpt_image_2,
+    dailyBudgetUsd: policy.limits.maxGenerationCostPerDayUsd,
+  });
   const results = await Promise.allSettled(
     VISUAL_WORLD_STYLES.map(async (style) => {
       const framePrompt = buildReferenceFramePrompt(brief, style);
@@ -100,8 +115,10 @@ export async function generateReferenceFrames(brief: VisualWorldBriefInput): Pro
     log.warn("reference frame candidate failed", { err: f.reason instanceof Error ? f.reason.message.slice(0, 160) : String(f.reason) });
   }
   if (frames.length === 0) {
+    await release(actionId);
     throw new Error(`All reference-frame candidates failed: ${failures[0]?.reason instanceof Error ? failures[0].reason.message : "unknown"}`);
   }
+  await settle(actionId, frames.length * COST_ESTIMATES_USD.gpt_image_2);
   log.info("reference frames generated", { requested: VISUAL_WORLD_STYLES.length, succeeded: frames.length });
   return frames;
 }

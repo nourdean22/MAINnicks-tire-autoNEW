@@ -1240,28 +1240,10 @@ export const contentAdminRouter = router({
       const d = await getDb();
       if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
 
-      // Autonomy control plane: render spend passes the versioned policy
-      // BEFORE provider credits burn — kill switches, daily budget, mode.
-      try {
-        const { assertAllowed, ESTIMATED_REEL_RENDER_COST_USD } = await import("../services/autonomyControl");
-        const { reelJobs } = await import("../../drizzle/schema");
-        const { gte, sql: dsql } = await import("drizzle-orm");
-        const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
-        const [row] = await d.select({ n: dsql<number>`COUNT(*)` }).from(reelJobs).where(gte(reelJobs.createdAt, midnight));
-        await assertAllowed({
-          type: "enqueue_render",
-          format: "reel",
-          estimatedCostUsd: ESTIMATED_REEL_RENDER_COST_USD,
-          today: { generationCostUsd: Number(row?.n ?? 0) * ESTIMATED_REEL_RENDER_COST_USD },
-        });
-      } catch (err) {
-        if (err instanceof Error && err.message.startsWith("Blocked by autonomy policy")) {
-          throw new TRPCError({ code: "FORBIDDEN", message: err.message });
-        }
-        // Policy infrastructure failure must not brick the operator's render
-        // path — log loud, proceed (the DEFAULT policy would have allowed).
-        log.warn("autonomy policy check errored — proceeding under default posture", { err: err instanceof Error ? err.message : String(err) });
-      }
+      // Autonomy policy is enforced at the SHARED service boundary
+      // (reelPipeline.enqueueReelJob) — router-only enforcement let cron and
+      // service callers bypass it (#815 review P1). The service's denial is
+      // mapped to FORBIDDEN below at the call site.
 
       const { resolveSourceProvenance } = await import("../services/reelBriefGen");
       const resolved = await resolveSourceProvenance(
@@ -1354,7 +1336,15 @@ export const contentAdminRouter = router({
       const briefWithId = { ...briefClean, id: inventoryId };
 
       const { enqueueReelJob } = await import("../services/reelPipeline");
-      const { jobId } = await enqueueReelJob(briefWithId, "admin");
+      let jobId: number;
+      try {
+        ({ jobId } = await enqueueReelJob(briefWithId, "admin"));
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith("Blocked by autonomy policy")) {
+          throw new TRPCError({ code: "FORBIDDEN", message: err.message });
+        }
+        throw err;
+      }
       return { inventoryId, jobId };
     }),
   getReelJob: adminProcedure
