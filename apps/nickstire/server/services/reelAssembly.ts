@@ -644,6 +644,25 @@ export async function assembleReel(
     // job overwrite the same data/generated/reel.mp4. reel-<jobId>.mp4 keeps them distinct.
     const put = await storagePut(`reels/reel-${jobId}.mp4`, mp4, "video/mp4");
     log.info("reel assembled", { jobId, bytes: mp4.length, url: put.url });
+    // Canonical registry entry for the master (checksum, lineage, permanence
+    // truth). Tolerant seam — bookkeeping failure never fails the render.
+    try {
+      const { getDb } = await import("../db");
+      const { registerProducedAsset } = await import("./mediaRegistry");
+      const d = await getDb();
+      if (d) {
+        await registerProducedAsset(d, mp4, {
+          logicalKey: `reel:${jobId}:master`,
+          assetType: "draft_render",
+          format: "video",
+          mimeType: "video/mp4",
+          campaignId: String(jobId),
+          provider: "ffmpeg-assembly",
+          runtimeUrl: put.url,
+          generationParams: { durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath },
+        });
+      }
+    } catch { /* registerProducedAsset is already tolerant; belt over suspenders */ }
     // Report the REAL file length (beats + the save-payload freeze), not just the beats.
     return { mp4Url: put.url, durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath };
   } finally {

@@ -708,6 +708,13 @@
       "when": 1784254000002,
       "tag": "0087_approval_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "5",
+      "when": 1784295493866,
+      "tag": "0088_media_registry",
+      "breakpoints": true
     }
   ]
 }
