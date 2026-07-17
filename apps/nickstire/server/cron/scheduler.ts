@@ -571,14 +571,17 @@ export function startTieredScheduler(): void {
             .then((r) => r.recovered)
             .catch(() => 0);
           const gen = await settle(processNextReelJob());
+          const { processNextRepairJob } = await import("../services/selectiveRepair");
+          const rep = await settle(processNextRepairJob());
           const asm = await settle(processNextAssemblyJob());
           const details = [
             recovered ? `recovered ${recovered}` : null,
             gen.processed ? `gen ${gen.jobId ?? "?"}: ${gen.status}` : null,
             asm.processed ? `assemble ${asm.jobId ?? "?"}: ${asm.status}` : null,
+            rep.processed ? `repair ${rep.jobId ?? "?"}: ${rep.status}` : null,
           ].filter(Boolean).join("; ");
           return {
-            recordsProcessed: recovered + (gen.processed ? 1 : 0) + (asm.processed ? 1 : 0),
+            recordsProcessed: recovered + (gen.processed ? 1 : 0) + (asm.processed ? 1 : 0) + (rep.processed ? 1 : 0),
             details: details || "no reel jobs to process",
           };
         },

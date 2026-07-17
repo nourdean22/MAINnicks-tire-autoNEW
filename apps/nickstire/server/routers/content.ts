@@ -475,9 +475,9 @@ export const contentAdminRouter = router({
 
   /** Selective repair: regenerate EXACTLY one failing beat (from the QA
    *  verdict's preserve/change instruction or an explicit one), replace only
-   *  that clip, and return the job to assets_ready so the existing assembly
-   *  worker re-assembles from accepted + repaired clips. Policy-gated render
-   *  spend with the repair cap enforced from the job's own history. */
+   *  that clip in a BACKGROUND worker (no provider call on the request
+   *  path), then the existing assembly worker re-assembles. Queuing
+   *  invalidates the stale mp4 immediately. Policy-gated, cap-enforced. */
   repairReelBeat: adminProcedure
     .input(z.object({
       jobId: z.number().int().positive(),
@@ -490,9 +490,9 @@ export const contentAdminRouter = router({
       }).optional(),
     }))
     .mutation(async ({ input }) => {
-      const { repairReelBeat } = await import("../services/selectiveRepair");
+      const { requestBeatRepair } = await import("../services/selectiveRepair");
       try {
-        return await repairReelBeat(input);
+        return await requestBeatRepair(input);
       } catch (err) {
         if (err instanceof Error && err.message.startsWith("Blocked by autonomy policy")) {
           throw new TRPCError({ code: "FORBIDDEN", message: err.message });

@@ -20,7 +20,7 @@ const signals = (over: Partial<PlannerSignals> = {}): PlannerSignals => ({
 describe("structural shadow guarantee", () => {
   it("the planner module imports NOTHING that can generate, reserve, enqueue, or publish", () => {
     const src = readFileSync(resolve(process.cwd(), "server/services/shadowPlanner.ts"), "utf8");
-    for (const forbidden of ["higgsfieldStudio", "metaSocial", "socialPublish", "reelPipeline", "generationLedger", "contentGovernor", "invokeLLM", "_core/llm", "selectiveRepair", "reelBriefGen", "carouselBriefGen"]) {
+    for (const forbidden of ["higgsfieldStudio", "metaSocial", "socialPublish", "reelPipeline", "generationLedger", "contentGovernor", "invokeLLM", "_core/llm", "selectiveRepair", "reelBriefGen", "carouselBriefGen", "checkWeatherTriggers"]) {
       expect(src.includes(forbidden), `shadowPlanner must not reference ${forbidden}`).toBe(false);
     }
   });
@@ -61,7 +61,7 @@ describe("deterministic scoring", () => {
 
   it("a live weather trigger maxes timing and says so", () => {
     const m = SEASONAL_PLAYBOOK.find((p) => p.id === "first_freeze_battery")!;
-    const cold = scoreOpportunity(m, signals({ month: 11, weather: { available: true, triggered: ["cold_snap"] } }));
+    const cold = scoreOpportunity(m, signals({ month: 11, weather: { available: true, triggered: ["first_freeze"] } }));
     const calm = scoreOpportunity(m, signals({ month: 11 }));
     expect(cold.score).toBeGreaterThan(calm.score);
     expect(cold.reasoningCodes).toContain("WEATHER_TRIGGER_LIVE");

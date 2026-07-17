@@ -1,24 +1,32 @@
 /**
- * Selective repair — Long Haul milestone 9 (ledger: selective-repair).
+ * Selective repair — async, durable, attempt-accounted (closes #820's three
+ * unresolved review findings):
  *
- * Consumes a rendered-QA verdict and regenerates EXACTLY the failing beat:
+ * P1 (repair blocked the request path): the endpoint now VALIDATES,
+ * authorizes, invalidates stale outputs, and QUEUES a durable repair request
+ * — provider generation happens in the pipeline worker on the next pulse,
+ * reusing the existing claim/retry/stuck-recovery machinery.
  *
- *   verdict finding (beatNumber + preserve/change)
- *   → policy boundary (enqueue_render, repair cap enforced from the job's
- *     own repair history) + ledger reservation (1 clip)
- *   → repair prompt = the beat's ORIGINAL prompt + a REPAIR block compiled
- *     from the finding (deterministic)
- *   → one provider clip
- *   → clipUrls[beatIndex] replaced — every accepted clip untouched
- *   → status flips to assets_ready so the EXISTING assembly worker
- *     re-assembles from accepted + repaired clips (no new assembly path)
- *   → repair recorded in the payload (attempt, code, previous clip, cost)
+ * P2 (stale MP4 survived): queueing a repair immediately moves the current
+ * mp4 into payload.mp4History and NULLs mp4Url — the stale render can no
+ * longer be previewed, approved, or published; the QA verdict and contact
+ * sheet are flagged stale.
  *
- * Never regenerates the whole package because one component failed.
+ * P2 (failed reservation reused): every PROVIDER ATTEMPT gets a fresh,
+ * immutable reservation (`<logicalRepairId>_p<n>`); failed attempts stay on
+ * the ledger as failed spend and are never settled or reused.
+ *
+ * State model (unambiguous):
+ *   job.status: repair_queued -> repair_rendering -> assets_ready (existing
+ *   assembly takes over) | repair_failed
+ *   entry.state: queued -> rendering -> ready_for_assembly | failed
  */
+import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("services:selective-repair");
+
+const MAX_PROVIDER_ATTEMPTS = 2;
 
 export interface RepairInstruction {
   code?: string;
@@ -42,35 +50,41 @@ export function buildRepairPrompt(originalPrompt: string, instruction: RepairIns
   ].join("\n");
 }
 
-export interface RepairRecord {
-  beatNumber: number;
-  attempt: number;
-  findingCode: string | null;
-  previousClipUrl: string | null;
-  newClipUrl: string;
-  repairedAt: string;
+export interface ProviderAttempt {
+  providerAttemptId: string;
+  reservationId: string;
+  startedAt: string;
+  outcome: "succeeded" | "failed";
+  error?: string;
 }
 
-export interface RepairResult {
+export interface RepairQueueEntry {
+  logicalRepairId: string;
+  beatNumber: number;
+  instruction: RepairInstruction;
+  state: "queued" | "rendering" | "ready_for_assembly" | "failed";
+  requestedAt: string;
+  attempts: ProviderAttempt[];
+  previousClipUrl: string | null;
+  newClipUrl?: string;
+}
+
+export interface RepairRequestResult {
   jobId: number;
   beatNumber: number;
-  attempt: number;
-  newClipUrl: string;
-  status: "assets_ready";
+  logicalRepairId: string;
+  state: "queued";
 }
 
 /**
- * Repair one beat of an assembled/assets_ready job. Operator-initiated
- * (actor operator at the policy boundary). Throws with a clear reason on
- * cap/missing-state; the job is never left in a broken intermediate state —
- * clip replacement and status flip happen in one update after the provider
- * call succeeds.
+ * Operator-facing: validate + authorize + invalidate stale outputs + QUEUE.
+ * Returns immediately — no provider call on the request path (P1).
  */
-export async function repairReelBeat(input: {
+export async function requestBeatRepair(input: {
   jobId: number;
   beatNumber: number;
   instruction?: RepairInstruction;
-}): Promise<RepairResult> {
+}): Promise<RepairRequestResult> {
   const { getDb } = await import("../db");
   const d = await getDb();
   if (!d) throw new Error("DB not available");
@@ -79,8 +93,8 @@ export async function repairReelBeat(input: {
 
   const [job] = await d.select().from(reelJobs).where(eq(reelJobs.id, input.jobId)).limit(1);
   if (!job) throw new Error(`job ${input.jobId} not found`);
-  if (!["assembled", "assets_ready"].includes(job.status)) {
-    throw new Error(`job ${input.jobId} is ${job.status} — repair needs assembled or assets_ready`);
+  if (!["assembled", "assets_ready", "repair_failed"].includes(job.status)) {
+    throw new Error(`job ${input.jobId} is ${job.status} — repair needs assembled, assets_ready, or repair_failed`);
   }
   const payload = JSON.parse(job.payload ?? "{}");
   const beats: Array<{ beatNumber: number }> = payload.storyboardBeats ?? [];
@@ -90,11 +104,15 @@ export async function repairReelBeat(input: {
   if (clipUrls.length !== beats.length) {
     throw new Error(`job ${input.jobId} has ${clipUrls.length} clips for ${beats.length} beats — repair needs a complete clip set`);
   }
-  const pack: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }> = payload.promptPack ?? payload.higgsfieldPromptPack ?? [];
-  const beatPrompt = pack.find((p) => p.beatNumber === input.beatNumber);
-  if (!beatPrompt) throw new Error(`no prompt for beat ${input.beatNumber} in job ${input.jobId}`);
+  const pack: Array<{ beatNumber: number; prompt: string }> = payload.promptPack ?? payload.higgsfieldPromptPack ?? [];
+  if (!pack.find((p) => p.beatNumber === input.beatNumber)) {
+    throw new Error(`no prompt for beat ${input.beatNumber} in job ${input.jobId}`);
+  }
+  const queue: RepairQueueEntry[] = payload.repairQueue ?? [];
+  if (queue.some((e) => e.state === "queued" || e.state === "rendering")) {
+    throw new Error(`job ${input.jobId} already has a repair in flight — one at a time`);
+  }
 
-  // Instruction: explicit > the QA verdict's finding for this beat > minimal.
   const verdictFinding = (payload.renderedQa?.findings ?? []).find(
     (f: { beatNumber: number | null }) => f.beatNumber === input.beatNumber,
   );
@@ -105,81 +123,185 @@ export async function repairReelBeat(input: {
     change: verdictFinding?.change ?? [],
   };
 
-  const priorRepairs: RepairRecord[] = payload.repairs ?? [];
-  const attempt = priorRepairs.filter((r) => r.beatNumber === input.beatNumber).length + 1;
-
-  // Policy boundary: repair spend is render spend, and the repair cap is
-  // enforced from the JOB'S OWN history — the caller cannot undercount.
+  // Repair cap counts LOGICAL repairs on this job — provider retries within
+  // a repair do not consume the cap, failed repair requests do.
   const { enforceAtBoundary } = await import("./autonomyControl");
-  const { COST_ESTIMATES_USD, reserve, settle, fail: failReservation } = await import("./generationLedger");
+  const { COST_ESTIMATES_USD, dailySpendUsd } = await import("./generationLedger");
+  const spend = await dailySpendUsd();
   await enforceAtBoundary(
     {
       type: "enqueue_render",
       format: "reel",
       estimatedCostUsd: COST_ESTIMATES_USD.seedance_clip,
-      today: { repairAttemptsForAsset: priorRepairs.length },
+      today: {
+        repairAttemptsForAsset: queue.length,
+        ...(spend !== null ? { generationCostUsd: spend } : {}),
+      },
     },
-    { type: "operator", id: `repair_job_${input.jobId}` },
+    { type: "operator", id: `repair_request_job_${input.jobId}` },
     payload.genomeId ?? null,
   );
-  const actionId = `repair_${input.jobId}_beat${input.beatNumber}_a${attempt}`;
-  const { getActivePolicy } = await import("./autonomyControl");
-  const policy = await getActivePolicy();
-  await reserve({
-    actionId,
-    campaignId: payload.genomeId ?? null,
-    provider: "higgsfield",
-    model: "seedance1_5",
-    operation: "beat_repair",
-    estimatedCostUsd: COST_ESTIMATES_USD.seedance_clip,
-    dailyBudgetUsd: policy.limits.maxGenerationCostPerDayUsd,
-  });
 
-  let newClipUrl: string;
-  try {
-    const { generateReelClipVideo } = await import("./higgsfieldStudio");
-    newClipUrl = await generateReelClipVideo({
-      prompt: buildRepairPrompt(beatPrompt.prompt, instruction),
-      negativePrompt: beatPrompt.negativePrompt,
-    });
-  } catch (err) {
-    await failReservation(actionId);
-    throw err;
-  }
-  await settle(actionId, COST_ESTIMATES_USD.seedance_clip);
-
-  const previousClipUrl = clipUrls[beatIndex] ?? null;
-  const nextClips = [...clipUrls];
-  nextClips[beatIndex] = newClipUrl;
-  const record: RepairRecord = {
+  const logicalRepairId = `rep_${randomUUID().slice(0, 12)}`;
+  const entry: RepairQueueEntry = {
+    logicalRepairId,
     beatNumber: input.beatNumber,
-    attempt,
-    findingCode: instruction.code ?? null,
-    previousClipUrl,
-    newClipUrl,
-    repairedAt: new Date().toISOString(),
+    instruction,
+    state: "queued",
+    requestedAt: new Date().toISOString(),
+    attempts: [],
+    previousClipUrl: clipUrls[beatIndex] ?? null,
   };
-  payload.repairs = [...priorRepairs, record];
-  // Stale QA verdict no longer describes the current clips — clear it so the
-  // next QA pass judges the repaired render, not the rejected one.
+  payload.repairQueue = [...queue, entry];
+
+  // P2: the current render is stale the moment a repair is accepted —
+  // preserve it as history, remove it from every consumable surface.
+  if (job.mp4Url) {
+    payload.mp4History = [
+      ...(payload.mp4History ?? []),
+      { mp4Url: job.mp4Url, replacedAt: new Date().toISOString(), reason: `repair beat ${input.beatNumber} (${logicalRepairId})` },
+    ];
+  }
   if (payload.renderedQa) payload.renderedQa = { ...payload.renderedQa, staleAfterRepair: true };
 
   await d
     .update(reelJobs)
     .set({
-      clipUrlsJson: JSON.stringify(nextClips),
       payload: JSON.stringify(payload),
-      status: "assets_ready", // existing assembly worker re-assembles
+      mp4Url: null,
+      status: "repair_queued",
       attempts: 0,
       error: null,
     })
     .where(eq(reelJobs.id, input.jobId));
 
-  log.info("beat repaired — job returned to assembly", {
+  log.info("beat repair QUEUED (no provider call on request path)", {
     jobId: input.jobId,
     beat: input.beatNumber,
-    attempt,
-    code: instruction.code ?? "(manual)",
+    logicalRepairId,
   });
-  return { jobId: input.jobId, beatNumber: input.beatNumber, attempt, newClipUrl, status: "assets_ready" };
+  return { jobId: input.jobId, beatNumber: input.beatNumber, logicalRepairId, state: "queued" };
+}
+
+/**
+ * Pipeline worker stage: claim one repair_queued job, run ONE provider
+ * attempt with a FRESH per-attempt reservation, and either hand the job to
+ * the existing assembly stage or park it as repair_failed at the attempt cap.
+ * Kill switches are re-checked FRESH here — an operator's emergency stop
+ * between request and execution wins.
+ */
+export async function processNextRepairJob(): Promise<{ processed: boolean; jobId?: number; status?: string; error?: string }> {
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) return { processed: false };
+  const { reelJobs } = await import("../../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+
+  const [job] = await d.select().from(reelJobs).where(eq(reelJobs.status, "repair_queued")).limit(1);
+  if (!job) return { processed: false };
+
+  // Claim (same conditional-update pattern as the other stages — a racing
+  // worker's update matches zero rows and it moves on).
+  await d.update(reelJobs).set({ status: "repair_rendering", updatedAt: new Date() }).where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "repair_queued")));
+  const [claimed] = await d.select().from(reelJobs).where(eq(reelJobs.id, job.id)).limit(1);
+  if (!claimed || claimed.status !== "repair_rendering") return { processed: false };
+
+  const payload = JSON.parse(claimed.payload ?? "{}");
+  const queue: RepairQueueEntry[] = payload.repairQueue ?? [];
+  const entry = queue.find((e) => e.state === "queued" || e.state === "rendering");
+  if (!entry) {
+    await d.update(reelJobs).set({ status: "repair_failed", error: "repair_queued with no queue entry" }).where(eq(reelJobs.id, job.id));
+    return { processed: true, jobId: job.id, status: "repair_failed", error: "no queue entry" };
+  }
+  entry.state = "rendering";
+
+  // Fresh emergency check — leave the job queued (not failed) under a switch.
+  const { getEmergencyControlsFresh } = await import("./autonomyControl");
+  const emergency = await getEmergencyControlsFresh();
+  if (emergency.controls.globalKillSwitch || emergency.controls.generationKillSwitch) {
+    entry.state = "queued";
+    await d.update(reelJobs).set({ status: "repair_queued", payload: JSON.stringify(payload) }).where(eq(reelJobs.id, job.id));
+    log.warn("repair deferred — kill switch armed", { jobId: job.id });
+    return { processed: true, jobId: job.id, status: "repair_queued", error: "kill switch armed" };
+  }
+
+  const attemptNumber = entry.attempts.length + 1;
+  if (attemptNumber > MAX_PROVIDER_ATTEMPTS) {
+    entry.state = "failed";
+    await d.update(reelJobs).set({ status: "repair_failed", payload: JSON.stringify(payload), error: `repair ${entry.logicalRepairId} exhausted ${MAX_PROVIDER_ATTEMPTS} provider attempts` }).where(eq(reelJobs.id, job.id));
+    return { processed: true, jobId: job.id, status: "repair_failed" };
+  }
+
+  // P2: fresh, immutable, per-attempt reservation — failed attempts remain
+  // failed spend on the ledger and are never reused.
+  const { reserve, settle, fail: failReservation, COST_ESTIMATES_USD } = await import("./generationLedger");
+  const { getActivePolicy } = await import("./autonomyControl");
+  const policy = await getActivePolicy();
+  const reservationId = `${entry.logicalRepairId}_p${attemptNumber}`;
+  try {
+    await reserve({
+      actionId: reservationId,
+      campaignId: payload.genomeId ?? null,
+      provider: "higgsfield",
+      model: "seedance1_5",
+      operation: "beat_repair",
+      estimatedCostUsd: COST_ESTIMATES_USD.seedance_clip,
+      dailyBudgetUsd: policy.limits.maxGenerationCostPerDayUsd,
+    });
+  } catch (err) {
+    // Budget breach at attempt time: leave queued for tomorrow's window.
+    entry.state = "queued";
+    await d.update(reelJobs).set({ status: "repair_queued", payload: JSON.stringify(payload) }).where(eq(reelJobs.id, job.id));
+    return { processed: true, jobId: job.id, status: "repair_queued", error: err instanceof Error ? err.message : "reservation failed" };
+  }
+
+  const pack: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }> = payload.promptPack ?? payload.higgsfieldPromptPack ?? [];
+  const beatPrompt = pack.find((p) => p.beatNumber === entry.beatNumber)!;
+  const attempt: ProviderAttempt = {
+    providerAttemptId: `${entry.logicalRepairId}_a${attemptNumber}`,
+    reservationId,
+    startedAt: new Date().toISOString(),
+    outcome: "failed",
+  };
+
+  try {
+    const { generateReelClipVideo } = await import("./higgsfieldStudio");
+    const newClipUrl = await generateReelClipVideo({
+      prompt: buildRepairPrompt(beatPrompt.prompt, entry.instruction),
+      negativePrompt: beatPrompt.negativePrompt,
+    });
+    await settle(reservationId, COST_ESTIMATES_USD.seedance_clip);
+    attempt.outcome = "succeeded";
+    entry.attempts.push(attempt);
+
+    const beats: Array<{ beatNumber: number }> = payload.storyboardBeats ?? [];
+    const beatIndex = beats.findIndex((b) => b.beatNumber === entry.beatNumber);
+    const clipUrls: string[] = claimed.clipUrlsJson ? JSON.parse(claimed.clipUrlsJson) : [];
+    clipUrls[beatIndex] = newClipUrl;
+    entry.newClipUrl = newClipUrl;
+    entry.state = "ready_for_assembly";
+    payload.repairs = [
+      ...(payload.repairs ?? []),
+      { beatNumber: entry.beatNumber, attempt: attemptNumber, findingCode: entry.instruction.code ?? null, previousClipUrl: entry.previousClipUrl, newClipUrl, repairedAt: new Date().toISOString(), logicalRepairId: entry.logicalRepairId },
+    ];
+
+    await d
+      .update(reelJobs)
+      .set({ clipUrlsJson: JSON.stringify(clipUrls), payload: JSON.stringify(payload), status: "assets_ready", attempts: 0, error: null })
+      .where(eq(reelJobs.id, job.id));
+    log.info("beat repair rendered — job handed to assembly", { jobId: job.id, beat: entry.beatNumber, attempt: attemptNumber });
+    return { processed: true, jobId: job.id, status: "assets_ready" };
+  } catch (err) {
+    await failReservation(reservationId);
+    attempt.error = err instanceof Error ? err.message.slice(0, 300) : String(err);
+    entry.attempts.push(attempt);
+    const exhausted = attemptNumber >= MAX_PROVIDER_ATTEMPTS;
+    entry.state = exhausted ? "failed" : "queued";
+    await d
+      .update(reelJobs)
+      .set({ status: exhausted ? "repair_failed" : "repair_queued", payload: JSON.stringify(payload), error: attempt.error })
+      .where(eq(reelJobs.id, job.id));
+    log.warn("repair provider attempt failed", { jobId: job.id, attempt: attemptNumber, exhausted });
+    return { processed: true, jobId: job.id, status: exhausted ? "repair_failed" : "repair_queued", error: attempt.error };
+  }
 }
