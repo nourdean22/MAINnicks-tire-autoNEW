@@ -161,6 +161,40 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
   }
 }
 
+/**
+ * PURE weather evaluation — fetch + classify, ZERO side effects (no alerts,
+ * no SMS). This is the ONLY weather entry point observational surfaces
+ * (shadow planner, dashboards) may use: #824 review found the Control tab's
+ * shadow plan could fire live customer SMS through checkWeatherTriggers().
+ */
+export async function evaluateWeatherTriggers(): Promise<{ triggered: string[]; details: string }> {
+  const apiKey = process.env.OPENWEATHER_API_KEY;
+  if (!apiKey) {
+    log.debug("OPENWEATHER_API_KEY not set, skipping");
+    return { triggered: [], details: "No API key" };
+  }
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${LAT}&lon=${LON}&appid=${apiKey}&units=imperial`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) return { triggered: [], details: `API error: ${res.status}` };
+    const raw = await res.json();
+    const data: WeatherData = {
+      tempMax: raw.main?.temp_max ?? 50,
+      tempMin: raw.main?.temp_min ?? 40,
+      rainMm: (raw.rain?.["1h"] ?? 0) * 25.4,
+      snowMm: (raw.snow?.["1h"] ?? 0) * 25.4,
+      description: raw.weather?.[0]?.description ?? "",
+      month: new Date().getMonth() + 1,
+    };
+    const triggered = TRIGGERS.filter((t) => t.check(data)).map((t) => t.id);
+    return { triggered, details: `Temp: ${data.tempMin}-${data.tempMax}°F, ${data.description}` };
+  } catch (e) {
+    return { triggered: [], details: e instanceof Error ? e.message : "weather evaluation failed" };
+  }
+}
+
 export async function checkWeatherTriggers(): Promise<{ triggered: string[]; details: string }> {
   const apiKey = process.env.OPENWEATHER_API_KEY;
   if (!apiKey) {

@@ -12,7 +12,8 @@
  * Signals used TODAY (each available-flagged, never silently zero):
  *   - creative memory fingerprints (repetition control)
  *   - published inventory topics (30-day repetition window)
- *   - live weather triggers (weatherIntelligence)
+ *   - live weather triggers via the PURE evaluateWeatherTriggers path (the
+ *     side-effecting cron check path sends SMS/alerts - #824 P1)
  *   - Cleveland calendar month (seasonal playbook)
  * Evidence strength scores LOW while the evidence tables are starved — the
  * planner says so with a code instead of pretending grounding exists.
@@ -37,11 +38,11 @@ export interface SeasonalMoment {
 
 /** Cleveland seasonal playbook — deterministic candidate source. */
 export const SEASONAL_PLAYBOOK: SeasonalMoment[] = [
-  { id: "pothole_thaw", audienceMoment: "Freeze-thaw potholes eating wheels on the commute", campaignKeyword: "POTHOLE", creativeTerritory: "road_villain", objective: "save", months: [1, 2, 3, 4], urgency: 13, marginClass: "high", weatherTriggers: ["freeze_thaw"] },
-  { id: "first_freeze_battery", audienceMoment: "First hard freeze exposes weak batteries in driveways", campaignKeyword: "BATTERY", creativeTerritory: "weather_local_alert", objective: "save", months: [10, 11, 12, 1], urgency: 14, marginClass: "medium", weatherTriggers: ["first_freeze", "cold_snap"] },
-  { id: "winter_tread", audienceMoment: "Bald tires meeting the season's first lake-effect snow", campaignKeyword: "TREAD", creativeTerritory: "cleveland_survival_guide", objective: "booking", months: [10, 11, 12], urgency: 14, marginClass: "high", weatherTriggers: ["snow_incoming"] },
-  { id: "salt_undercarriage", audienceMoment: "Road salt quietly eating brake lines and rockers", campaignKeyword: "SALT", creativeTerritory: "csi_evidence_board", objective: "save", months: [12, 1, 2, 3], urgency: 10, marginClass: "medium" },
-  { id: "summer_pressure", audienceMoment: "Heat swings blowing tire pressure past the door-sticker number", campaignKeyword: "PRESSURE", creativeTerritory: "mechanic_translation", objective: "save", months: [6, 7, 8], urgency: 9, marginClass: "medium" },
+  { id: "pothole_thaw", audienceMoment: "Freeze-thaw potholes eating wheels on the commute", campaignKeyword: "POTHOLE", creativeTerritory: "road_villain", objective: "save", months: [1, 2, 3, 4], urgency: 13, marginClass: "high", weatherTriggers: ["pothole_season"] },
+  { id: "first_freeze_battery", audienceMoment: "First hard freeze exposes weak batteries in driveways", campaignKeyword: "BATTERY", creativeTerritory: "weather_local_alert", objective: "save", months: [10, 11, 12, 1], urgency: 14, marginClass: "medium", weatherTriggers: ["first_freeze"] },
+  { id: "winter_tread", audienceMoment: "Bald tires meeting the season's first lake-effect snow", campaignKeyword: "TREAD", creativeTerritory: "cleveland_survival_guide", objective: "booking", months: [10, 11, 12], urgency: 14, marginClass: "high", weatherTriggers: ["first_freeze"] },
+  { id: "salt_undercarriage", audienceMoment: "Road salt quietly eating brake lines and rockers", campaignKeyword: "SALT", creativeTerritory: "csi_evidence_board", objective: "save", months: [12, 1, 2, 3, 4], urgency: 10, marginClass: "medium", weatherTriggers: ["salt_season_end"] },
+  { id: "summer_pressure", audienceMoment: "Heat swings blowing tire pressure past the door-sticker number", campaignKeyword: "PRESSURE", creativeTerritory: "mechanic_translation", objective: "save", months: [6, 7, 8], urgency: 9, marginClass: "medium", weatherTriggers: ["extreme_heat"] },
   { id: "roadtrip_check", audienceMoment: "Road-trip season on tires that have not been looked at since winter", campaignKeyword: "TIRES", creativeTerritory: "before_the_bill", objective: "booking", months: [5, 6, 7, 8], urgency: 10, marginClass: "high" },
   { id: "rain_wipers", audienceMoment: "First heavy rains after months of dry-rotting wiper blades", campaignKeyword: "WIPERS", creativeTerritory: "warning_system", objective: "shop_visit", months: [3, 4, 5, 9, 10], urgency: 8, marginClass: "low", weatherTriggers: ["heavy_rain"] },
   { id: "echeck_deadline", audienceMoment: "E-Check due with the registration renewal clock ticking", campaignKeyword: "ECHECK", creativeTerritory: "myth_courtroom", objective: "shop_visit", months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], urgency: 7, marginClass: "medium" },
@@ -97,8 +98,8 @@ export async function collectPlannerSignals(now: Date = new Date()): Promise<Pla
     }
   } catch { /* stays unavailable */ }
   try {
-    const { checkWeatherTriggers } = await import("./weatherIntelligence");
-    const w = await checkWeatherTriggers();
+    const { evaluateWeatherTriggers } = await import("./weatherIntelligence");
+    const w = await evaluateWeatherTriggers();
     signals.weather = { available: true, triggered: w.triggered ?? [] };
   } catch { /* stays unavailable */ }
   return signals;

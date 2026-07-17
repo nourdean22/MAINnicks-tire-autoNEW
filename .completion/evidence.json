@@ -8,7 +8,7 @@
       "ref": "server/contentGovernor.test.ts (publish-door cap/spacing/story-bypass) + kill-switch path in socialPublish exercised via getEmergencyControlsFresh contract tests in server/autonomyBoundary.test.ts"
     },
     "render-spend-trajectory": {
-      "ref": "server/selectiveRepair.test.ts (repair spend trajectory) + server/autonomyBoundary.test.ts + server/goldenCampaign.test.ts (unchanged, green)"
+      "ref": "server/selectiveRepair.test.ts async trajectories + server/autonomyBoundary.test.ts + goldenCampaign (green)"
     },
     "visual-world-trajectory": {
       "ref": "server/autonomyBoundary.test.ts — locked invariants present in EVERY prompt of the persisted reel-job payload"
@@ -17,13 +17,13 @@
       "ref": "server/autonomyPolicy.test.ts (kill switches, caps, scores, approval matrix, mode ladder) + server/autonomyBoundary.test.ts (actor semantics, strict schema, Cleveland day)"
     },
     "cron-fail-closed": {
-      "ref": "server/autonomyBoundary.test.ts — cron enqueue rejects with fail-closed when kill-switch state is unverifiable"
+      "ref": "server/selectiveRepair.test.ts (worker defers under armed kill switch; fresh emergency reads) + server/autonomyBoundary.test.ts"
     },
     "operator-walkthrough": {
       "deferred": "Browser dead all session; the shadow card walkthrough is owed at acceptance and recorded as the P2 on shadow-planner."
     },
     "capability-ledger-updated": {
-      "ref": "capability-ledger.json in this diff: shadow-planner proposed -> integration_verified/operator_only"
+      "ref": "capability-ledger.json: +review-aware-completion (live-proven); selective-repair + shadow-planner evidence/blockers updated for the closed findings"
     }
   }
 }

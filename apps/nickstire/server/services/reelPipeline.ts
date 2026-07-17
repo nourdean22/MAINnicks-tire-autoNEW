@@ -567,12 +567,12 @@ export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
   const stuck = await d
     .select()
     .from(reelJobs)
-    .where(and(inArray(reelJobs.status, ["generating", "assembling"]), lt(reelJobs.updatedAt, cutoff)));
+    .where(and(inArray(reelJobs.status, ["generating", "assembling", "repair_rendering"]), lt(reelJobs.updatedAt, cutoff)));
 
   let recovered = 0;
   for (const job of stuck) {
     const attempts = job.attempts ?? 0;
-    const requeue = job.status === "assembling" ? "assets_ready" : "queued";
+    const requeue = job.status === "assembling" ? "assets_ready" : job.status === "repair_rendering" ? "repair_queued" : "queued";
     const nextStatus = attempts >= MAX_ATTEMPTS ? "failed" : requeue;
     const res = await d
       .update(reelJobs)

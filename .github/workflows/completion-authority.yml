@@ -29,6 +29,10 @@ jobs:
           }
       - name: DoD compiler (requirements derived from the diff)
         run: node apps/nickstire/scripts/dod-compiler.mjs --base "origin/${{ github.base_ref }}" --enforce
+      - name: Review gate (unresolved P0/P1/P2 threads, stale approvals, changes-requested)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node apps/nickstire/scripts/check-review-gate.mjs ${{ github.event.pull_request.number }} --enforce --skip-ci-check
       - name: Contradiction detector (claims vs evidence vs ledger vs PR body)
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
