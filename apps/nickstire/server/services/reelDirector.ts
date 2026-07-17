@@ -130,10 +130,12 @@ export async function draftReelFromGenome(genome: CreativeGenome): Promise<Draft
     sourceType: "manual",
     sourceDetail: genomeConstraintBlock(genome),
   });
-  const { resolveEvidenceHandles } = await import("./evidenceResolver");
-  const resolution = await resolveEvidenceHandles(genome.proprietaryProof);
-  const brief = attachResolvedProof(rawBrief, resolution.resolved, genome.mechanicTruth);
-  if (brief !== rawBrief) log.info("resolved genome evidence attached as proof notes", { attached: resolution.resolved.length });
+  const { resolveEvidenceRecords } = await import("./evidenceRecords");
+  const resolution = await resolveEvidenceRecords(genome.proprietaryProof, genome.mechanicTruth);
+  const brief = attachResolvedProof(rawBrief, resolution.records.map((r) => ({ assertion: r.assertion })), genome.mechanicTruth);
+  if (brief !== rawBrief) log.info("resolved genome evidence attached as proof notes", { attached: resolution.records.length });
+  // Claim-level provenance rides the brief - a published asset can name its evidence.
+  (brief as { evidenceRecords?: unknown }).evidenceRecords = resolution.records;
   const qualityScore = calculateReelQualityScore(brief);
   log.info("reel drafted from genome", {
     territory: genome.creativeTerritory,
@@ -147,6 +149,6 @@ export async function draftReelFromGenome(genome: CreativeGenome): Promise<Draft
     brief,
     qualityScore,
     campaignKeyword,
-    evidence: { attached: brief === rawBrief ? 0 : resolution.resolved.slice(0, 2).length, rejected: resolution.rejected },
+    evidence: { attached: brief === rawBrief ? 0 : resolution.records.slice(0, 2).length, rejected: resolution.rejected },
   };
 }
