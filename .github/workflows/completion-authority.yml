@@ -8,6 +8,14 @@ on:
   pull_request:
     branches: [main]
 
+# The review gate reads PR threads/reviews via GraphQL — the default
+# restricted workflow token gets FORBIDDEN ("Resource not accessible by
+# integration") without an explicit pull-requests:read. First live PR-event
+# run of the gate (#828) proved it; prior PRs merged before CI finished.
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   completion-authority:
     runs-on: ubuntu-latest
