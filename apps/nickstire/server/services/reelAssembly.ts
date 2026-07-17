@@ -175,10 +175,13 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   const musIdx = clipPaths.length + (haveVo ? 1 : 0);
 
   const fc: string[] = [];
-  // 1. normalize each beat to a trimmed vertical clip + a deterministic slow
-  //    push-in (Phase 4.1 motion): Ken Burns 1.0 -> 1.06 across the beat keeps a
-  //    static AI clip alive for watch-time. pzoom accumulates frame-to-frame
-  const zInc = (0.06 / Math.max(1, 30)).toFixed(6);
+  // 1. normalize each beat to a trimmed vertical 30fps clip. NO zoompan: the
+  //    Ken Burns stage was built for STATIC AI stills, but zoompan regenerates
+  //    PTS in a way that poisons chained xfade offsets - the live 2026-07-17
+  //    render came out 156 frames spread across a 1231s container (players
+  //    hold one frame = "one image the whole time"). Seedance clips carry
+  //    native motion; removing zoompan yields exact-duration output (bisect-
+  //    verified locally on the real job-630001 clips: 528 frames / 22.0s).
   const XFADE_DUR = 0.5;
   const XFADE_TRANSITION = "fade";
 
@@ -186,9 +189,15 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   segs.forEach((s, i) => {
     const pad = i < segs.length - 1 ? `:stop_duration=${XFADE_DUR}` : "";
     fc.push(
-      `[${i}:v]trim=0:${s.dur},setpts=PTS-STARTPTS,` +
+      // fps=30 FIRST: Seedance sources are 24fps, and zoompan re-times N input
+      // frames to N output frames AT ITS fps= SETTING - on a 24fps source that
+      // silently shrank every beat by 20%, so the second-based xfade offsets
+      // pointed past each stream's end and tpad=clone froze the remainder
+      // (observed live 2026-07-17: 25s render with 72 unique frames - "one
+      // image the whole time"). Normalizing to the graph's 30fps contract up
+      // front keeps native clip motion and the downstream time math honest.
+      `[${i}:v]trim=0:${s.dur},setpts=PTS-STARTPTS,fps=30,` +
         `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,` +
-        `zoompan=z='min(pzoom+${zInc},1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30,` +
         `setsar=1,format=yuv420p,` +
         `tpad=stop_mode=clone${pad}[v${i}]`,
     );

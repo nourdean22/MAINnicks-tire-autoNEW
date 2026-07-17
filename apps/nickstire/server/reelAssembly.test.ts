@@ -158,10 +158,23 @@ describe("buildFfmpegArgs", () => {
     expect(fc).toContain("apad=whole_dur=12");
   });
 
-  it("adds per-beat push-in motion + a save-payload freeze with a SAVE overlay (Phase 3.1/4.1)", () => {
+  it("normalizes every source to 30fps BEFORE zoompan (24fps Seedance clips shrank beats and froze the render)", () => {
+    const fc = buildFfmpegArgs(base).join(" ");
+    // fps=30 must sit between setpts and scale in every beat chain - zoompan
+    // re-times frames at its own fps, so feeding it 24fps input shortened each
+    // beat 20% and xfade+tpad filled the timeline with frozen clones.
+    expect(fc).toContain("setpts=PTS-STARTPTS,fps=30,scale=");
+    const perBeat = fc.match(/setpts=PTS-STARTPTS,fps=30,scale=/g) || [];
+    expect(perBeat.length).toBe(segs.length);
+  });
+
+  it("keeps NATIVE clip motion (no zoompan - it poisoned xfade PTS into frozen output) + save-payload freeze", () => {
     const args = buildFfmpegArgs(base);
     const fc = args.join(" ");
-    expect(fc).toContain("zoompan=z='min(pzoom+"); // Ken Burns per beat
+    // zoompan is BANNED from this graph: on real Seedance clips it regenerated
+    // PTS so badly the render was 156 frames across a 1231s container (live
+    // "one image the whole time", 2026-07-17). Native clip motion needs no help.
+    expect(fc).not.toContain("zoompan");
     expect(fc).toContain("tpad=stop_mode=clone:stop_duration=3"); // freeze final frame 3s
     expect(fc).toContain("textfile='caption_save.txt'"); // save-payload prompt
     expect(fc).toContain("[vout]");
