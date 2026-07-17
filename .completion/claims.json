@@ -1,27 +1,24 @@
 {
-  "$comment": "Executable PR claims (Reality Control). scripts/detect-contradictions.mjs verifies refs exist on disk.",
+  "$comment": "Executable PR claims (Reality Control).",
   "claims": [
     {
-      "id": "command-center-no-silent-zeros",
-      "assertion": "Every command-center section either carries real rows or an explicit available:false; the governing policy always shows its SOURCE, and a fallback source renders a visible warning banner with the exact operator remedy.",
+      "id": "shadow-structurally-enforced",
+      "assertion": "The planner cannot act: a source-level test forbids every provider/publish/enqueue/LLM import, and every plan self-declares shadow:true.",
       "evidence": [
         {
-          "file": "apps/nickstire/server/services/commandCenter.ts"
+          "file": "apps/nickstire/server/services/shadowPlanner.ts"
         },
         {
-          "file": "apps/nickstire/server/commandCenter.test.ts"
-        },
-        {
-          "file": "apps/nickstire/client/src/components/admin/AutonomyCommandCenter.tsx"
+          "file": "apps/nickstire/server/shadowPlanner.test.ts"
         }
       ]
     },
     {
-      "id": "command-center-emergency-controls",
-      "assertion": "Kill-switch toggles publish a new policy version through the existing versioned path; the UI never fakes a toggle - a persistence failure surfaces as an error toast.",
+      "id": "shadow-deterministic-honest",
+      "assertion": "Scoring is deterministic (same signals, same plan), repetition is a hard reject, and evidence starvation scores LOW with an explicit code instead of pretending grounding exists.",
       "evidence": [
         {
-          "file": "apps/nickstire/client/src/components/admin/AutonomyCommandCenter.tsx"
+          "file": "apps/nickstire/server/shadowPlanner.test.ts"
         }
       ]
     }

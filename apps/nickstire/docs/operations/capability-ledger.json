@@ -431,13 +431,28 @@
       "capabilityId": "shadow-planner",
       "name": "Shadow-mode opportunity planner",
       "owner": "operator",
-      "evidence": {},
-      "blockers": [],
-      "deferredScope": [],
-      "lastVerifiedAt": null,
-      "codeState": "not_started",
-      "operationalState": "unverified",
-      "exposure": "disabled"
+      "evidence": {
+        "codeCommit": "nickstire/shadow-planner branch (this PR)",
+        "tests": [
+          "server/shadowPlanner.test.ts — STRUCTURAL shadow guarantee (source-level scan: no provider/publish/enqueue/LLM imports), 12-month playbook coverage (>=3 candidates/month), deterministic scoring (same signals = same plan), weather-trigger boost, territory-recency discount, HARD_REJECT_REPETITION, honest evidence-starved scoring with code flip when tables populate"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "no operator-vs-planner comparison history persisted yet (recommendations are computed live); Control-tab card unwalked in a browser",
+          "source": "design"
+        }
+      ],
+      "deferredScope": [
+        "recommendation persistence + agreement tracking",
+        "model-assisted opportunity discovery layered on the deterministic core",
+        "shop-capacity signal"
+      ],
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only"
     }
   ],
   "axes": {
