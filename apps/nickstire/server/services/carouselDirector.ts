@@ -24,23 +24,27 @@ import { createLogger } from "../lib/logger";
 const log = createLogger("services:carousel-director");
 
 /**
- * Carousel flavor of the Reel Director's proof attachment: the model
- * (correctly) refuses to fabricate evidence when the evidence engine finds
- * nothing, so attach the genome's operator-supplied proof handles as PROOF
- * source notes — only when the model emitted none, never overriding
- * model-found proof, no-op for proofless genomes.
+ * Carousel flavor of the Reel Director's proof attachment, hardened the same
+ * way: only RESOLVED evidence (verified DB row or accepted public proof
+ * family) becomes a proof note, carrying the resolved assertion — raw handle
+ * strings never satisfy the grounding gate. Never overrides model-found
+ * proof; no-op when nothing resolved.
  */
-export function withGenomeProof(brief: CarouselBrief, genome: CreativeGenome): CarouselBrief {
-  if (genome.proprietaryProof.length === 0) return brief;
+export function attachResolvedProof(
+  brief: CarouselBrief,
+  resolved: Array<{ assertion: string }>,
+  mechanicTruth: string,
+): CarouselBrief {
+  if (resolved.length === 0) return brief;
   if (brief.sourceNotes.some((s) => s.kind === "proof")) return brief;
   return {
     ...brief,
     sourceNotes: [
       ...brief.sourceNotes,
-      ...genome.proprietaryProof.slice(0, 2).map((label) => ({
-        label: label.slice(0, 200),
+      ...resolved.slice(0, 2).map((r) => ({
+        label: r.assertion.slice(0, 200),
         kind: "proof" as const,
-        supports: genome.mechanicTruth.slice(0, 200),
+        supports: mechanicTruth.slice(0, 200),
       })),
     ],
   };
@@ -49,6 +53,8 @@ export function withGenomeProof(brief: CarouselBrief, genome: CreativeGenome): C
 export interface DraftCarouselFromGenomeResult {
   brief: CarouselBrief;
   boostScore: BoostScoreResult;
+  /** evidence accounting: what the resolver verified vs rejected */
+  evidence: { attached: number; rejected: string[] };
 }
 
 /**
@@ -65,8 +71,10 @@ export async function draftCarouselFromGenome(genome: CreativeGenome): Promise<D
     campaignKeyword,
     seasonLocalAngle: genome.clevelandAngle,
   });
-  const brief = withGenomeProof(rawBrief, genome);
-  if (brief !== rawBrief) log.info("genome proof handles attached as source notes", { count: genome.proprietaryProof.length });
+  const { resolveEvidenceHandles } = await import("./evidenceResolver");
+  const resolution = await resolveEvidenceHandles(genome.proprietaryProof);
+  const brief = attachResolvedProof(rawBrief, resolution.resolved, genome.mechanicTruth);
+  if (brief !== rawBrief) log.info("resolved genome evidence attached as proof notes", { attached: resolution.resolved.length });
   const boostScore = calculateBoostScore(brief);
   log.info("carousel drafted from genome", {
     territory: genome.creativeTerritory,
@@ -74,6 +82,11 @@ export async function draftCarouselFromGenome(genome: CreativeGenome): Promise<D
     slides: brief.slides.length,
     score: boostScore.score,
     passing: boostScore.passing,
+    evidenceRejected: resolution.rejected.length,
   });
-  return { brief, boostScore };
+  return {
+    brief,
+    boostScore,
+    evidence: { attached: brief === rawBrief ? 0 : resolution.resolved.slice(0, 2).length, rejected: resolution.rejected },
+  };
 }

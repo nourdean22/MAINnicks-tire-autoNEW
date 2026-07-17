@@ -1,0 +1,95 @@
+/**
+ * Evidence resolver — Reel Director hardening.
+ *
+ * Closes the trust gap found in #811 review: `withGenomeProof` attached raw
+ * genome proof-handle STRINGS as `kind:"proof"` source notes, so a handle
+ * like "review:rev_123" satisfied the quality gate's grounding check without
+ * anyone verifying the review exists. This module makes proof handles TYPED
+ * and RESOLVED:
+ *
+ *   review:<id>        -> resolveSourceProvenance("review")        (5-star row must exist)
+ *   declined_work:<id> -> resolveSourceProvenance("declined_work") (declined row must exist)
+ *   work_order:<id>    -> same declined_work resolution path (covers workOrders)
+ *   <accepted public family text, e.g. "NHTSA tire pressure guidance">
+ *                      -> allowed as a public proof source (the existing
+ *                         PROOF_SOURCE_FAMILIES standard for reels+carousels)
+ *   anything else      -> REJECTED (never becomes a proof note)
+ *
+ * The resolved ASSERTION (actual review text / work-order line), not the raw
+ * handle, is what lands in the source note — so the approval gate reviews
+ * real evidence.
+ */
+import { PROOF_SOURCE_FAMILIES } from "../../client/src/lib/facelessReelStudio";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("services:evidence-resolver");
+
+export type ParsedEvidenceHandle =
+  | { type: "review"; id: string }
+  | { type: "declined_work"; id: string }
+  | { type: "public_source"; family: string; label: string }
+  | { type: "unrecognized"; label: string };
+
+export function parseEvidenceHandle(handle: string): ParsedEvidenceHandle {
+  const trimmed = handle.trim();
+  const typed = trimmed.match(/^(review|declined_work|work_order)\s*:\s*(.+)$/i);
+  if (typed) {
+    const kind = typed[1].toLowerCase();
+    const id = typed[2].trim();
+    if (kind === "review") return { type: "review", id };
+    // work_order handles resolve through the same declined-work path, which
+    // checks both work_order_items and work_orders.
+    return { type: "declined_work", id };
+  }
+  const family = PROOF_SOURCE_FAMILIES.find((f) => trimmed.toLowerCase().includes(f.toLowerCase()));
+  if (family) return { type: "public_source", family, label: trimmed };
+  return { type: "unrecognized", label: trimmed };
+}
+
+export interface ResolvedEvidence {
+  handle: string;
+  /** the verified assertion the proof note should carry */
+  assertion: string;
+  origin: "db" | "public_family";
+}
+
+export interface EvidenceResolution {
+  resolved: ResolvedEvidence[];
+  /** handles that could NOT be verified — these never become proof notes */
+  rejected: string[];
+}
+
+export async function resolveEvidenceHandles(handles: string[]): Promise<EvidenceResolution> {
+  const resolved: ResolvedEvidence[] = [];
+  const rejected: string[] = [];
+  for (const handle of handles) {
+    const parsed = parseEvidenceHandle(handle);
+    if (parsed.type === "public_source") {
+      resolved.push({ handle, assertion: parsed.label, origin: "public_family" });
+      continue;
+    }
+    if (parsed.type === "unrecognized") {
+      rejected.push(handle);
+      continue;
+    }
+    try {
+      const { resolveSourceProvenance } = await import("./reelBriefGen");
+      const res = await resolveSourceProvenance(parsed.type, parsed.id);
+      if (res.isVerified && res.evidence) {
+        resolved.push({ handle, assertion: res.evidence, origin: "db" });
+      } else {
+        rejected.push(handle);
+      }
+    } catch (err) {
+      log.warn("evidence resolution failed — handle rejected", {
+        handle,
+        err: err instanceof Error ? err.message.slice(0, 120) : String(err),
+      });
+      rejected.push(handle);
+    }
+  }
+  if (rejected.length) {
+    log.info("evidence handles rejected (unresolvable)", { rejected });
+  }
+  return { resolved, rejected };
+}

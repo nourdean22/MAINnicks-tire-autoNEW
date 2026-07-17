@@ -408,6 +408,40 @@ export const contentAdminRouter = router({
       const frames = await generateReferenceFrames(input.brief as never);
       return { frames };
     }),
+  /** Evidence options for the Campaign Package proof picker: recent verified
+   *  5-star reviews + declined work items, as typed handles the evidence
+   *  resolver can verify (review:<id> / declined_work:<id>). Read-only. */
+  listEvidenceOptions: adminProcedure.query(async () => {
+    const out: Array<{ handle: string; label: string }> = [];
+    try {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) return out;
+      const { reviewPipeline, workOrderItems } = await import("../../drizzle/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const reviews = await d
+        .select({ id: reviewPipeline.id, author: reviewPipeline.authorName, text: reviewPipeline.reviewText })
+        .from(reviewPipeline)
+        .where(eq(reviewPipeline.rating, 5))
+        .orderBy(desc(reviewPipeline.reviewTime))
+        .limit(8);
+      for (const r of reviews) {
+        if (!r.text) continue;
+        out.push({ handle: `review:${r.id}`, label: `5-star ${r.author || "review"}: "${r.text.slice(0, 90)}"` });
+      }
+      const declined = await d
+        .select({ id: workOrderItems.id, description: workOrderItems.description })
+        .from(workOrderItems)
+        .where(eq(workOrderItems.declined, true))
+        .limit(8);
+      for (const w of declined) {
+        out.push({ handle: `declined_work:${w.id}`, label: `Declined work: ${w.description.slice(0, 90)}` });
+      }
+    } catch (err) {
+      log.warn("listEvidenceOptions unavailable", { err: err instanceof Error ? err.message : String(err) });
+    }
+    return out;
+  }),
 
   /** Genome Wave 2: Reel Director — one campaign genome -> a full
    *  quality-scored ReelBrief via the existing generator. Generation only;
@@ -1177,6 +1211,9 @@ export const contentAdminRouter = router({
         // collapses non-DB sources to "manual" (#797) - sourceOrigin preserves
         // the original category for provenance, analytics, and audits.
         sourceOrigin: z.string().max(64).optional(),
+        // Campaign lineage: the creative_genomes row this brief was drafted
+        // from, so a published reel traces back to its campaign.
+        genomeId: z.string().max(64).nullable().optional(),
         sourceId: z.string().optional(),
         sourceNotes: z.any().optional(),
         mechanicTruth: z.any().optional(),

@@ -41,11 +41,20 @@ function CopyButton({ label, value }: { label: string; value: string }) {
 export default function CampaignPackageCard() {
   const [ask, setAsk] = useState("");
   const [objective, setObjective] = useState<string>("save");
+  const [proofHandles, setProofHandles] = useState<string[]>([]);
+
+  const evidenceOptions = trpc.contentAdmin.listEvidenceOptions.useQuery(undefined, { staleTime: 60_000 });
+  const toggleProof = (handle: string) =>
+    setProofHandles((prev) => (prev.includes(handle) ? prev.filter((h) => h !== handle) : [...prev, handle]));
 
   const tournament = trpc.contentAdmin.runConceptTournament.useMutation({
     onError: (e) => toast.error("Campaign generation failed", { description: e.message }),
     onSuccess: () => {
+      // A new campaign invalidates every per-campaign mutation state — the
+      // enqueue reset was missing in #811, leaving the button dead (and
+      // showing a false "Enqueued") for every campaign after the first.
       reelDraft.reset();
+      enqueue.reset();
       carouselDraft.reset();
       saveCarousel.reset();
     },
@@ -104,9 +113,40 @@ export default function CampaignPackageCard() {
             </Button>
           ))}
         </div>
+        {(evidenceOptions.data?.length ?? 0) > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Attach real evidence (verified before use)
+            </p>
+            <div className="flex max-h-36 flex-col gap-1 overflow-y-auto">
+              {evidenceOptions.data?.map((o) => (
+                <button
+                  key={o.handle}
+                  type="button"
+                  onClick={() => toggleProof(o.handle)}
+                  className={`rounded-md border px-2 py-1 text-left text-xs transition-colors ${
+                    proofHandles.includes(o.handle)
+                      ? "border-primary/60 bg-primary/10"
+                      : "border-border/40 hover:border-border"
+                  }`}
+                >
+                  {proofHandles.includes(o.handle) ? "✓ " : ""}
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <Button
           disabled={ask.trim().length < 8 || tournament.isPending}
-          onClick={() => tournament.mutate({ campaignAsk: ask.trim(), objective, generateGenome: true })}
+          onClick={() =>
+            tournament.mutate({
+              campaignAsk: ask.trim(),
+              objective,
+              generateGenome: true,
+              proofHandles: proofHandles.length ? proofHandles : undefined,
+            })
+          }
         >
           {tournament.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
           {tournament.isPending ? "Running tournament (5 model calls)..." : "Generate Campaign Package"}
@@ -151,7 +191,10 @@ export default function CampaignPackageCard() {
                     size="sm"
                     variant="outline"
                     disabled={reelDraft.isPending}
-                    onClick={() => reelDraft.mutate({ genome: result.genome })}
+                    onClick={() => {
+                      enqueue.reset();
+                      reelDraft.mutate({ genome: result.genome });
+                    }}
                   >
                     {reelDraft.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
                     {reelDraft.isPending ? "Drafting full brief..." : reelDraft.data ? "Redraft" : "Draft reel brief"}
@@ -171,6 +214,19 @@ export default function CampaignPackageCard() {
                     {reelDraft.data.brief.voiceoverScript && (
                       <p className="text-xs text-muted-foreground">VO: {reelDraft.data.brief.voiceoverScript}</p>
                     )}
+                    {!reelDraft.data.qualityScore.passing && reelDraft.data.qualityScore.reasoning.length > 0 && (
+                      <ul className="space-y-0.5 text-xs text-destructive">
+                        {reelDraft.data.qualityScore.reasoning.map((r) => (
+                          <li key={r}>• {r}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {reelDraft.data.evidence?.rejected.length > 0 && (
+                      <p className="text-xs text-amber-500">
+                        {reelDraft.data.evidence.rejected.length} evidence handle(s) could not be verified and were NOT
+                        attached: {reelDraft.data.evidence.rejected.join(", ")}
+                      </p>
+                    )}
                     <Button
                       size="sm"
                       disabled={enqueue.isPending || enqueue.isSuccess || !reelDraft.data.qualityScore.passing}
@@ -181,6 +237,7 @@ export default function CampaignPackageCard() {
                             ...b,
                             sourceType: "manual" as const,
                             sourceOrigin: "campaign_package",
+                            genomeId: result.genomeId ?? null,
                           },
                         });
                       }}
@@ -233,6 +290,19 @@ export default function CampaignPackageCard() {
                       <Badge variant="outline">DM "{carouselDraft.data.brief.campaignKeyword}"</Badge>
                     </div>
                     <p className="text-sm">{carouselDraft.data.brief.topic}</p>
+                    {!carouselDraft.data.boostScore.passing && (
+                      <ul className="space-y-0.5 text-xs text-destructive">
+                        {carouselDraft.data.boostScore.parts.filter((p) => !p.ok).map((p) => (
+                          <li key={p.label}>• {p.detail}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {carouselDraft.data.evidence?.rejected.length > 0 && (
+                      <p className="text-xs text-amber-500">
+                        {carouselDraft.data.evidence.rejected.length} evidence handle(s) could not be verified and were
+                        NOT attached: {carouselDraft.data.evidence.rejected.join(", ")}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {saveCarousel.isSuccess
                         ? "On the Draft Board — render slides and publish from there."
