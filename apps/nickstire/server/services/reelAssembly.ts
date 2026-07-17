@@ -153,12 +153,18 @@ export function segmentsTotalSeconds(segs: ReelSegment[]): number {
  */
 export function evaluateRenderIntegrity(input: {
   durationSec: number;
+  videoStreamSec?: number;
   nbFrames: number;
   expectedSec: number;
   frameHashes: string[];
 }): { ok: boolean; reasons: string[] } {
   const reasons: string[] = [];
-  const { durationSec, nbFrames, expectedSec, frameHashes } = input;
+  const { durationSec, videoStreamSec, nbFrames, expectedSec, frameHashes } = input;
+  // The container can report full length via the AUDIO track while the video
+  // track ends early (ffmpeg 5.x tpad PTS drop) - judge the video stream itself.
+  if (typeof videoStreamSec === "number" && videoStreamSec > 0 && videoStreamSec < expectedSec - 0.75) {
+    reasons.push(`video stream ends at ${videoStreamSec.toFixed(2)}s but the storyboard contract is ${expectedSec.toFixed(2)}s - the tail is missing`);
+  }
   if (Math.abs(durationSec - expectedSec) > 0.75) {
     reasons.push(`duration ${durationSec.toFixed(2)}s deviates from the storyboard contract ${expectedSec.toFixed(2)}s by more than 0.75s`);
   }
@@ -279,7 +285,13 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   //     stamp a top-of-frame "SAVE THIS" prompt (works muted; a save is a top Meta
   //     reach lever). tpad clone-holds the last rendered frame; the overlay shows
   //     only during the freeze window so it never collides with beat captions.
-  fc.push(`[vcap]tpad=stop_mode=clone:stop_duration=${SAVE_FREEZE_SECONDS}[vpad]`);
+  // setpts AFTER the freeze-tpad: on ffmpeg 5.x (the prod image) tpad's cloned
+  // frames carry non-advancing PTS and the encoder silently DROPS them - the
+  // reassembled 630001 render lost its entire 3s SAVE tail (video stream ended
+  // at 22.03s inside a 25s container; verified by packet PTS). Re-deriving
+  // PTS from the frame index (N/30) gives clones real timestamps on every
+  // ffmpeg version; on 8.x it is an identity transform.
+  fc.push(`[vcap]tpad=stop_mode=clone:stop_duration=${SAVE_FREEZE_SECONDS},setpts=N/30/TB[vpad]`);
   fc.push(
     `[vpad]drawtext=fontfile='${fontEsc}':textfile='caption_save.txt':fontsize=72:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=h*0.12:enable='gte(t,${total.toFixed(2)})'[vout]`,
   );
@@ -417,12 +429,12 @@ function hashFrameAt(file: string, atSec: number, cwd: string): Promise<string> 
   });
 }
 
-function ffprobeReel(file: string): Promise<{ width: number; height: number; duration: number; hasAudio: boolean; nbFrames: number }> {
+function ffprobeReel(file: string): Promise<{ width: number; height: number; duration: number; hasAudio: boolean; nbFrames: number; videoStreamSec: number }> {
   return new Promise((resolve, reject) => {
     const bin = process.env.FFPROBE_PATH || "ffprobe";
     const child = spawn(bin, [
       "-v", "error",
-      "-show_entries", "stream=width,height,codec_type,nb_frames",
+      "-show_entries", "stream=width,height,codec_type,nb_frames,duration",
       "-show_entries", "format=duration",
       "-of", "json",
       file,
@@ -436,7 +448,7 @@ function ffprobeReel(file: string): Promise<{ width: number; height: number; dur
       if (code !== 0) return reject(new Error(`ffprobe exited ${code}: ${err.slice(-300)}`));
       try {
         const j = JSON.parse(out) as {
-          streams?: Array<{ width?: number; height?: number; codec_type?: string; nb_frames?: string }>;
+          streams?: Array<{ width?: number; height?: number; codec_type?: string; nb_frames?: string; duration?: string }>;
           format?: { duration?: string };
         };
         const v = (j.streams ?? []).find((s) => s.codec_type === "video");
@@ -447,6 +459,7 @@ function ffprobeReel(file: string): Promise<{ width: number; height: number; dur
           duration: Number(j.format?.duration ?? 0),
           hasAudio,
           nbFrames: Number(v?.nb_frames ?? 0),
+          videoStreamSec: Number(v?.duration ?? 0),
         });
       } catch (e) {
         reject(new Error(`ffprobe parse failed: ${e instanceof Error ? e.message : String(e)}`));
@@ -614,6 +627,7 @@ export async function assembleReel(
     }
     const integrity = evaluateRenderIntegrity({
       durationSec: probe.duration,
+      videoStreamSec: probe.videoStreamSec,
       nbFrames: probe.nbFrames,
       expectedSec,
       frameHashes,

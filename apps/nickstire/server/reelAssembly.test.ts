@@ -231,6 +231,15 @@ describe("evaluateRenderIntegrity", () => {
     expect(v.reasons.join(" ")).toContain("frozen image");
     expect(v.reasons.join(" ")).toContain("no motion");
   });
+  it("FAILS the tail-loss shape: container 25s (audio) but video stream ends at 22s", () => {
+    const v = evaluateRenderIntegrity({ durationSec: 25, videoStreamSec: 22.03, nbFrames: 661, expectedSec: 25, frameHashes: ["a","b","c","d","e"] });
+    expect(v.ok).toBe(false);
+    expect(v.reasons.join(" ")).toContain("the tail is missing");
+  });
+  it("freeze tail regenerates PTS so ffmpeg 5.x cannot drop the cloned frames", () => {
+    const fc = buildFfmpegArgs({ segs: briefToSegments(BRIEF), clipPaths: ["/t/c1.mp4", "/t/c2.mp4", "/t/c3.mp4"], voPath: null, musicPath: null, assPath: null, fontPath: "/f.ttf", outPath: "/t/o.mp4" }).join(" ");
+    expect(fc).toContain(`tpad=stop_mode=clone:stop_duration=3,setpts=N/30/TB[vpad]`);
+  });
   it("passes a healthy render (750 frames / 25s, distinct samples)", () => {
     const v = evaluateRenderIntegrity({ durationSec: 25, nbFrames: 750, expectedSec: 25, frameHashes: hashes(5) });
     expect(v).toEqual({ ok: true, reasons: [] });
