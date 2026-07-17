@@ -292,8 +292,30 @@ export function evaluateAutonomyAction(policy: AutonomyPolicy, action: AutonomyA
   return { decision: "ALLOW", reasoningCodes: ["WITHIN_POLICY"], policyVersion: policy.version };
 }
 
+// ─── Boundary actor semantics ──────────────────────────────────────
+
+export type BoundaryActor = "operator" | "cron" | "autonomous_system";
+
+export type BoundaryOutcome = "proceed" | "proceed_operator_approved" | "blocked";
+
+/**
+ * What a REQUIRE_APPROVAL means depends on WHO is acting. An operator's own
+ * tap on an admin surface IS the approval (recorded as such in the audit
+ * trail); cron and autonomous actors must STOP — approval cannot be implied
+ * for an actor that cannot approve.
+ */
+export function resolveBoundaryOutcome(decision: PolicyDecision, actor: BoundaryActor): BoundaryOutcome {
+  if (decision.decision === "DENY") return "blocked";
+  if (decision.decision === "REQUIRE_APPROVAL") {
+    return actor === "operator" ? "proceed_operator_approved" : "blocked";
+  }
+  return "proceed";
+}
+
 /** Structural validation for operator-submitted policy JSON (no zod here —
- *  this module stays dependency-free like the other pure studio libs). */
+ *  this module stays dependency-free like the other pure studio libs).
+ *  The SERVER validates with the strict zod schema in autonomyControl —
+ *  this shape check is a client-side convenience only. */
 export function validateAutonomyPolicyShape(p: unknown): p is AutonomyPolicy {
   if (typeof p !== "object" || p === null) return false;
   const pol = p as AutonomyPolicy;

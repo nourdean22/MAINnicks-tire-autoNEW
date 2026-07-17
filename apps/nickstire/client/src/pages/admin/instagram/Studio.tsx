@@ -65,6 +65,10 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
       setReelBrief(data.brief);
       setContent(data.brief.selectedCaption);
       setScore(data.qualityScore as any);
+      // A NEW brief invalidates the old visual world: stale reference-frame
+      // candidates from a previous brief could be selected onto an unrelated
+      // topic, producing contradictory prompts on paid renders (#814 P2).
+      referenceFrames.reset();
       toast.success("Reel Brief generated successfully!");
     },
     onError: (err) => {
@@ -536,7 +540,9 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                             variant="outline"
                             size="sm"
                             disabled={referenceFrames.isPending || !reelBrief}
-                            onClick={() =>
+                            onClick={() => {
+                              // regenerating candidates orphans the old selection
+                              selectVisualWorld(null);
                               referenceFrames.mutate({
                                 brief: {
                                   topic: reelBrief.topic,
@@ -544,8 +550,8 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                                   motionLens: reelBrief.motionLens,
                                   storyboardBeats: reelBrief.storyboardBeats ?? [],
                                 },
-                              })
-                            }
+                              });
+                            }}
                           >
                             {referenceFrames.isPending ? (
                               <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />

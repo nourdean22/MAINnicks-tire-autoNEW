@@ -5,6 +5,9 @@
  * adminProcedure; the cron only fires rows the owner explicitly scheduled).
  */
 import { checkReviewReply } from "@shared/reviewReplyQa";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("services:social-publish");
 
 export interface PublishInput {
   platforms: ("facebook" | "instagram")[];
@@ -45,6 +48,45 @@ export function assertPermanentPublicMediaUrl(url?: string | null): void {
 export async function publishToSocial(input: PublishInput): Promise<PublishOutcome> {
   const { postToFacebook, postToInstagram, postInstagramReel, postInstagramCarousel, postInstagramStory } = await import("./metaSocial");
   const results: PublishOutcome["results"] = [];
+
+  // Autonomy kill switches at THE publish choke point (fresh read, 2s cache):
+  // global + publishing + per-platform. Defense-in-depth alongside the
+  // existing claim-safety and REEL_PUBLISH_ENABLED gates below — the policy
+  // engine adds an instant, versioned, audited emergency stop that covers
+  // EVERY publish shape (static, carousel, reel, story, Facebook).
+  try {
+    const { getEmergencyControlsFresh } = await import("./autonomyControl");
+    const { controls: ec, source } = await getEmergencyControlsFresh();
+    if (source === "fallback_unreachable") {
+      log.warn("kill-switch state unverifiable (storage unreachable) — existing gates govern");
+    }
+    const blockedPlatforms = input.platforms.filter(
+      (p) => ec.globalKillSwitch || ec.publishingKillSwitch || ec.platformKillSwitches[p],
+    );
+    if (blockedPlatforms.length) {
+      const { recordAuditEvent } = await import("./autonomyControl");
+      await recordAuditEvent({
+        actionType: "publish",
+        decision: "DENY",
+        reasoningCodes: [
+          ec.globalKillSwitch ? "GLOBAL_KILL_SWITCH" : ec.publishingKillSwitch ? "PUBLISHING_KILL_SWITCH" : "PLATFORM_KILL_SWITCH",
+          ...blockedPlatforms.map((p) => `platform:${p}`),
+        ],
+        policyVersion: 0,
+        context: { platforms: input.platforms, isStory: input.isStory, hasVideo: !!input.videoUrl },
+      });
+      for (const p of blockedPlatforms) {
+        results.push({ platform: p, success: false, error: "Publishing is paused by the autonomy kill switch." });
+      }
+      const remaining = input.platforms.filter((p) => !blockedPlatforms.includes(p));
+      if (remaining.length === 0) return { results };
+      input = { ...input, platforms: remaining };
+    }
+  } catch (err) {
+    // The switch check itself must never make publishing MORE dangerous:
+    // on infra failure the existing gates below still govern.
+    log.warn("kill-switch check unavailable — existing gates govern", { err: err instanceof Error ? err.message : String(err) });
+  }
 
   if (input.platforms.includes("facebook")) {
     const fbRes = await postToFacebook({

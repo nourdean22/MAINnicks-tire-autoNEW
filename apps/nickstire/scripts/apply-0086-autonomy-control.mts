@@ -52,5 +52,12 @@ if ((idx[0] as any[]).length > 0) {
   await db.execute(sql`CREATE INDEX idx_autonomy_audit_occurred ON autonomy_audit_events (occurred_at)`);
   console.log("index: CREATED");
 }
+const uq: any = await db.execute(sql`SHOW INDEX FROM autonomy_policy_versions WHERE Key_name = 'uq_autonomy_policy_version'`);
+if ((uq[0] as any[]).length > 0) {
+  console.log("unique version index: already present, skipping");
+} else {
+  await db.execute(sql`CREATE UNIQUE INDEX uq_autonomy_policy_version ON autonomy_policy_versions (version)`);
+  console.log("unique version index: CREATED");
+}
 console.log("done - autonomy control plane storage is live");
 process.exit(0);

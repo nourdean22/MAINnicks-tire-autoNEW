@@ -24,3 +24,5 @@ CREATE TABLE `autonomy_audit_events` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_autonomy_audit_occurred` ON `autonomy_audit_events` (`occurred_at`);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `uq_autonomy_policy_version` ON `autonomy_policy_versions` (`version`);

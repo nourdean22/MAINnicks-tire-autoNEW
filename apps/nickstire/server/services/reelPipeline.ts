@@ -101,6 +101,16 @@ export interface ReelJobBrief {
   promptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
   higgsfieldPromptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
   voiceoverScript?: string;
+  /** campaign lineage — the creative_genomes row this brief descends from */
+  genomeId?: string | null;
+  /** operator-approved visual world; its locked invariants MUST survive into
+   *  the prompt pack rebuilt here (the #814 P1: briefClean dropped this) */
+  visualWorld?: {
+    style: string;
+    heroFrameUrl: string;
+    framePrompt: string;
+    lockedInvariants: string;
+  };
 }
 
 /**
@@ -115,6 +125,32 @@ export async function enqueueReelJob(
   const d = await getDb();
   if (!d) throw new Error("DB not available");
   const { reelJobs } = await import("../../drizzle/schema");
+
+  // THE authoritative policy boundary for render spend (#815 review P1: the
+  // router-only check let cron + service callers bypass kill switches and
+  // budget). Every caller — admin Studio, Campaign Package, daily cron,
+  // content manufacturing, future autonomous controllers — passes here.
+  // Operator paths proceed loud on policy-infra failure; cron fails closed.
+  {
+    const { enforceAtBoundary, clevelandDayStart, ESTIMATED_REEL_RENDER_COST_USD } = await import("./autonomyControl");
+    const { gte } = await import("drizzle-orm");
+    const { sql: dsql } = await import("drizzle-orm");
+    let rendersToday = 0;
+    try {
+      const [row] = await d.select({ n: dsql<number>`COUNT(*)` }).from(reelJobs).where(gte(reelJobs.createdAt, clevelandDayStart()));
+      rendersToday = Number(row?.n ?? 0);
+    } catch { /* count unavailable — budget check runs without today's spend */ }
+    await enforceAtBoundary(
+      {
+        type: "enqueue_render",
+        format: "reel",
+        estimatedCostUsd: ESTIMATED_REEL_RENDER_COST_USD,
+        today: { generationCostUsd: rendersToday * ESTIMATED_REEL_RENDER_COST_USD },
+      },
+      { type: source === "cron" ? "cron" : "operator", id: source },
+      (brief as { genomeId?: string | null }).genomeId ?? null,
+    );
+  }
 
   try {
     const { buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
