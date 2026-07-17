@@ -175,6 +175,19 @@ export async function requestBeatRepair(input: {
     })
     .where(eq(reelJobs.id, input.jobId));
 
+  // P1 (gated assessment, confirmed): the job's mp4 was cleared but the
+  // LINKED INVENTORY row still carried the stale render in assetPaths at
+  // review_ready — the rejected mp4 stayed one Approve tap from publishing
+  // while its repair was queued. Demote the row alongside the job.
+  if (job.briefId && job.briefId !== "unknown") {
+    const { socialContentInventory } = await import("../../drizzle/schema");
+    await d
+      .update(socialContentInventory)
+      .set({ status: "pending", assetPaths: [], errorMessage: `render superseded: repair queued for beat ${input.beatNumber}`, updatedAt: new Date() })
+      .where(eq(socialContentInventory.id, job.briefId))
+      .catch((e: unknown) => log.error("failed to demote inventory row for repair-queued job", { jobId: input.jobId, briefId: job.briefId, e: e instanceof Error ? e.message : String(e) }));
+  }
+
   log.info("beat repair QUEUED (no provider call on request path)", {
     jobId: input.jobId,
     beat: input.beatNumber,

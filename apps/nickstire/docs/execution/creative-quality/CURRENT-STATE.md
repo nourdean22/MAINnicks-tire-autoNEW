@@ -1,47 +1,30 @@
 # Creative-quality long haul — current state
 
-Updated: 2026-07-17T15:00Z · main `9af84eb16` (#829) · "do the rest" run executed
+Updated: 2026-07-17T16:20Z · main `aaf8ebbf5` (#833) · PR #834 open (repair P1 + Gemini failure logging + VO fixture)
 
-## "Do the rest" run (2026-07-17 afternoon)
-- 0088 APPLIED to prod (media_assets 32 cols + integration_tokens 5) after the review gate's filter-bug catch.
-- GCP redirect URI added + Drive consent granted VIA THE OPERATOR'S REAL CHROME (drive.file only). Vault root `17SCNTPnvjEgwz3ii9o2YNbWdT0SfaOJC`.
-- **Backfill: 19/19 git-hostage masters registered + byte-verified archived in Drive; reconcile 19/19 healthy.** repo-media-cleanup-001 unblocked.
-- RENDERED_QA_ENABLED=true set on prod (deploy a4c08d1c SUCCESS).
-- **NEW P1: shared OpenRouter account is DRY** — creative LLM legs dead everywhere; genome capability honestly demoted; QA critic will fail-soft until credits.
-- **Trajectory job 660001 enqueued** (A/B: 30008's exact brief through the FIXED pipeline — governor slot + $1.75 ledger reservation engaged). Renders on prod pulses.
+## FINAL-COMMAND scoreboard (honest)
 
-## Verified facts (do not re-derive)
-
-- Main through #827 merged and deployed (Railway SUCCESS 2026-07-17 09:15 EDT; health OK).
-- Migrations 0083–0087 all journaled (idx 96–100). Prod columns for 0086/0087 verified live.
-- **Permanence**: S3_BUCKET unset on prod (checked by key name, 113 vars); no Railway volume on the app service; `storagePut` → ephemeral disk. 19 files / 62MB media are git-committed (accidental permanence via Docker image) including the published reel master. `/generated/*` misses return 200 text/html via SPA catch-all.
-- **Census**: reel_jobs 63 (59 failed / 2 posted / 2 assembled); creative_genomes 0 rows; inventory 30 pending "30-Day Reels" + 3 published.
-- **Published-reel quality (measured)**: audio dead air 7.1s→22.0s (68%); character identity drift (two gremlin designs); caption safe-zone violations; mono 55kbps AAC; per-frame visual quality high; concept distinctive. Full record: QUALITY-BASELINE.json.
-- Source clips are 8.0s each (7×8s for a 22s cut).
-- Google: nickstire prod already has GOOGLE_OAUTH_CLIENT_ID/SECRET (admin login). statenour's `lib/services/google-oauth.ts` + `drive-api.ts` are the proven refresh-token pattern (read-only there; vault needs write w/ `drive.file` scope).
-- ffmpeg/ffprobe 8.1 available on the dev machine; frame extraction + loudness measurement work locally.
-- Worktree has no `.env`; inject `DATABASE_URL` from main checkout inline (never print).
-
-## Milestones
-
-| # | Milestone | State |
+| # | Item | State |
 |---|---|---|
-| M1 | Baseline + benchmarks | media_verified |
-| M2 | Media registry (0088) | integration_verified (verify:media-registry 10/10 vs real MySQL; prod DDL awaits tap) |
-| M3 | Drive Creative Vault | unit_verified (7 mocked-network tests; live round-trip owed after consent) |
-| M-audio | Dead-air root cause + fix + render gate | media_verified (REAL-render trajectory: previously-fatal shape now renders 0 gaps, stereo). ROOT CAUSE CORRECTED: beds existed since #253; sidechaincompress ends output at KEY (VO) end → music truncated → apad silence. 'No beds' hypothesis was wrong (ls from reset cwd). |
-| M-404 | /generated misses answer 404, not SPA HTML | implemented (post-deploy probe owed) |
-| M-caption | Safe-zone width cap + per-line rendering | media_verified (real-pixel cropdetect ≤82% + margins; evidence frame inspected). Two NEW live-defect discoveries: hook ×1.35 could still overflow post-band-sizing; drawtext renders LF as tofu with some fonts — two-line captions had never rendered in prod. |
-| M-failures | 94% failure-rate taxonomy | done — 49/59 = dead provider eras (Veo scopes/spend + pre-fix Higgsfield sessions); 9 = watchdog recoveries WORKING; 1 brief-shape. Headline rate is history, not current behavior. |
-| M4 | Real QA→repair→archive trajectory | blocked (deploy + 0088 tap + Drive consent + credits) |
+| 1 | Baseline + benchmarks | **done** (measured; QUALITY-BASELINE.json) |
+| 2 | Media registry | **live** — 0088 APPLIED to prod (32/5 cols); 20 rows; ORGANIC producer-seam row captured (ma_5453daac from job 660002); dupes surfaced |
+| 3 | Drive vault | **live** — consent granted (drive.file, nourdean22); root `17SCNTPnvjEgwz3ii9o2YNbWdT0SfaOJC`; 19 backfilled + 660002 master archived (fileId `1wjuYbzxURcrfFrfdNSr2o0mnwustqFnQ`); reconcile 20/20. Remaining: auto-archival wiring (no production caller of archiveRegisteredAsset yet), full folder taxonomy, scheduled reconciliation |
+| 4 | Real trajectory | **~70%** — 660002 ASSEMBLED (24s stereo, **0 silence events** vs 68% baseline dead air; per-line captions verified in frames; real vision QA verdict approve/8 frames after #833's fixes). Remaining: repair leg (parked on #834's P1 deploy) → reassembly → 2nd verdict → campaign manifest → forensic doc |
+| 5-17 | Visual Bible → acceptance campaigns | partial substrates only (gated-assessment percentages accepted as fair) |
 
-## Review gate — first live catches (2026-07-17, PR #828)
+## Standing corrections (supersede anything older elsewhere)
+- 0088 is APPLIED (no tap pending). Vault is LIVE (not unit_verified). #828–#833 all MERGED. Active trajectory = **660002** (660001 failed on Higgsfield 502 outage; its orphaned governor slot was released by hand — failed jobs never release creation reservations: open defect).
+- LLM: **AI_FORCE_GEMINI=true live on prod** — free Gemini carries tournament/brief-gen/QA critic (OpenRouter dry; reversible by unsetting the flag).
+- QA hook had NEVER run on prod (data/ path-prefix bug since #819) — fixed in #833. Critic calibration gap: approved frames with visible text artifacts (beats 1-2) — §62 calibration owed, first calibration asset in hand.
+- First prod creative_genomes rows exist (4; tournament auto-persist + saveGenome dupe noted).
 
-The gate's first-ever real PR-event runs produced three findings, all fixed on-branch:
-1. Workflow token lacked `pull-requests: read` → FORBIDDEN (permissions block added).
-2. Even then, the query's `statusCheckRollup` field needs `checks: read` and one forbidden field NULLS the whole response → field no longer requested in `--skip-ci-check` mode.
-3. **The gate then caught a REAL P2**: apply-0088's comment filter silently dropped the first CREATE TABLE (media_assets would never have been created on prod). Fixed + proven on a bare dev db (both tables, 32/5 cols); thread resolved with evidence.
-
-## Last verified commit / suite
-
-- Base: `4b9d3cac0` (suite 2031/0 at #827 gate). Branch suite: **2051 passed / 0 failed** after audio milestone.
+## Fix queue (verified-or-pending, priority order)
+1. ~~P1 repair inventory demotion~~ → PR #834
+2. P1 scheduling can outlive approval expiry (verify then fix)
+3. P2 repair-claim race (affected-rows unchecked)
+4. P2 review gate: COMMENTED overwrites CHANGES_REQUESTED
+5. P2 evidenceRecords stripped by ROUTER zod schema (service stringify keeps them; wizard path drops)
+6. P2 evidence snapshots serialized (8×6s worst case)
+7. Auto-archival wiring for new renders (vault's real remaining leg)
+8. Critic calibration (§62) with 660002's missed artifacts
+9. Failed jobs must release creation reservations

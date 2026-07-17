@@ -336,11 +336,19 @@ export async function aiGateway(request: GatewayRequest): Promise<GatewayRespons
   if (process.env.AI_FORCE_GEMINI === "true") {
     const t0 = Date.now();
     const { invokeLLM, resolveEffectiveModel } = await import("../_core/llm");
-    const result = await invokeLLM({ messages: request.messages as never, model: resolveEffectiveModel(model) });
-    const content = (result as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content ?? "";
-    const latencyMs = Date.now() - t0;
-    logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: "gemini(forced)", latencyMs, success: true, fallbackUsed: true });
-    return { content, latencyMs, wasFallback: true } as GatewayResponse;
+    try {
+      const result = await invokeLLM({ messages: request.messages as never, model: resolveEffectiveModel(model) });
+      const content = (result as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content ?? "";
+      const latencyMs = Date.now() - t0;
+      logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: "gemini(forced)", latencyMs, success: true, fallbackUsed: true });
+      return { content, latencyMs, wasFallback: true } as GatewayResponse;
+    } catch (err) {
+      // #832 review P2: a failed forced-Gemini call must be VISIBLE to the
+      // health panel — an unlogged rethrow made the gateway look healthy
+      // through a Gemini outage.
+      logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: "gemini(forced)", latencyMs: Date.now() - t0, success: false, fallbackUsed: true, error: (err as Error).message });
+      throw err;
+    }
   }
 
   if (provider === "openai") {
