@@ -6,10 +6,11 @@
       "model": "seedance-1.5",
       "operation": "text_to_video",
       "observedOutput": "1080x1920 9:16, 8.000s clips, h264, delivered via CloudFront (d8j0ntlcm91z4.cloudfront.net), 5-11MB per clip",
-      "inputImageSupported": null,
+      "inputImageSupported": "cli-documented, per-model-unverified",
       "verifiedAt": "2026-07-17",
-      "verificationEvidence": "Real prod clips clip-30008-1..7.mp4 (ffprobe) + live CloudFront URLs in reel_jobs rows; auth = HIGGSFIELD_CREDENTIALS_JSON device-flow (Railway var confirmed by name)",
-      "knownLimitations": ["Image conditioning NOT verified in current pipeline — briefs are text-conditioned only (the continuity defect proves it)", "URL TTL unknown — treat as expiring"]
+      "verificationEvidence": "Real prod clips clip-30008-1..7.mp4 (ffprobe) + live CloudFront URLs in reel_jobs rows; auth = HIGGSFIELD_CREDENTIALS_JSON device-flow. IMAGE CONDITIONING: `hf generate create --help` documents media flags `--image, --start-image, --end-image` for video models (verified 2026-07-17). seedance1_5-SPECIFIC support NOT verified end-to-end — verification needs `model get seedance1_5` or a paid image render, and re-authing the local CLI would rotate prod's in-memory creds (standing rule: never run local hf CLI while prod owns the session).",
+      "conditioningRealityForCurrentPipeline": "TEXT-CONDITIONED ONLY through #841. Each beat was an independent --prompt call with no shared visual anchor — the MECHANICAL ROOT of the baseline's identity drift (verified by reading generateReelClipVideo's args). Milestone-6 wiring adds --start-image (beat 1 = hero frame, beat N = beat N-1's clip) behind REEL_IMAGE_CONDITIONING (default OFF); arg builder unit-proven (server/imageConditioning.test.ts), LIVE image-conditioned generation NOT yet proven (needs a paid seedance image render + a moment prod isn't mid-session).",
+      "knownLimitations": ["Live image-conditioned generation unproven — flag off in prod", "URL TTL unknown — treat as expiring"]
     },
     {
       "provider": "google",
