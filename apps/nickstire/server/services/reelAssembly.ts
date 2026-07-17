@@ -788,6 +788,19 @@ export async function assembleReel(
         throw new Error(`audio integrity failed: ${audio.reasons.join("; ")}`);
       }
       log.info("audio integrity verified", { jobId, silentGaps: gaps.length });
+
+      // Full audio QA (milestone 8): loudness, true peak, clipping, channels.
+      // Best-effort EVIDENCE, not a hard block — the dead-air gate above is
+      // the render-integrity guard; a loudness/peak finding is a repair signal
+      // for the approve gate, logged loudly, never a silent pass.
+      try {
+        const { runAudioQa } = await import("./audioQa");
+        const aqa = await runAudioQa(outPath);
+        if (aqa.decision === "repair") log.warn("audio QA flagged findings (evidence for approve gate)", { jobId, findings: aqa.findings, lufs: aqa.integratedLufs, tp: aqa.truePeakDb, ch: aqa.channels });
+        else log.info("audio QA passed", { jobId, lufs: aqa.integratedLufs, tp: aqa.truePeakDb, ch: aqa.channels });
+      } catch (e) {
+        log.warn("audio QA hook failed (render unaffected)", { jobId, e: e instanceof Error ? e.message : String(e) });
+      }
     }
 
     const mp4 = await fs.promises.readFile(outPath);
