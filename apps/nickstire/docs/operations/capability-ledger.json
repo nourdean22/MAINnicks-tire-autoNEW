@@ -8,7 +8,8 @@
       "evidence": {
         "codeCommit": "merged through #805",
         "tests": [
-          "server/reelAssembly render-integrity tests"
+          "server/reelAssembly render-integrity tests",
+          "server/reelAudioIntegrity.test.ts (8): dead-air gate refuses the exact published silent-reel case; REAL-RENDER trajectory — the previously-fatal shape (2s VO + 4s shorter-than-reel bed, 9s timeline) renders with zero dead-air gaps and stereo audio through the actual ffmpeg graph"
         ],
         "liveRuns": [
           "IG 18018908711883906",
@@ -24,6 +25,11 @@
           "severity": "P2",
           "description": "mp4s live on ephemeral storage — reels vanish on redeploy (S3 pending)",
           "source": "session ledger"
+        },
+        {
+          "severity": "P2",
+          "description": "dead-air fix (sidechain key padding + bed looping + silencedetect render gate + stereo encode) verified by real local render; first PROD render post-merge is the live confirmation",
+          "source": "audio-dead-air-001"
         }
       ],
       "deferredScope": [

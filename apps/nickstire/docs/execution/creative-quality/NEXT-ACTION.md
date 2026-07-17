@@ -1,9 +1,11 @@
 # Exact next action
 
-PR is open with M1–M3. On operator taps, in order:
-1. Merge the PR (deploys registry seams + vault routes).
-2. Authorize `pnpm exec tsx scripts/apply-0088-media-registry.mts` (creates media_assets + integration_tokens on prod).
-3. GCP: add `https://nickstire.org/api/oauth/drive/callback` to the OAuth client's redirect URIs; then hit `/api/admin/drive-vault/start` and approve.
-4. Say the word on render credits → run traj-001 (real generation → rendered-QA verdict → selective repair → registry versions → Drive archive → reconcile clean), which also archives the 19 git-committed masters into the vault and unblocks repo-media-cleanup-001.
+PR #828 is open with M1–M3 + the dead-air fix + /generated 404 honesty. On operator taps, in order:
+1. Merge #828 (deploys registry seams, vault routes, audio fix, 404 fix).
+2. Authorize `pnpm exec tsx scripts/apply-0088-media-registry.mts` (additive: media_assets + integration_tokens).
+3. GCP: add `https://nickstire.org/api/oauth/drive/callback` to the OAuth client's redirect URIs; then `/api/admin/drive-vault/start` → approve (drive.file only).
+4. Say the word on render credits → traj-001: real generation → first real rendered-QA verdict → selective repair → registry versions → Drive archive → reconciliation clean. The render also live-confirms the dead-air fix (the gate refuses any regression). Then vault the 19 git-committed masters and unblock removing 62MB from git.
 
-Parallel buildable without taps: audio-dead-air-001 (assembly music-bed fix + deterministic audio gate) and generated-404-001 — next milestones on this branch.
+Post-deploy probes (no tap needed, I run them): `/generated/definitely-not-real-xyz123.mp4` → must be 404 now; a fresh render's silencedetect → no gaps.
+
+Next buildable without taps: caption-safezone-001 (verify current renderer against the baseline violation, then width-measurement enforcement), failure-rate-001 (classify the 59 failed jobs, read-only).
