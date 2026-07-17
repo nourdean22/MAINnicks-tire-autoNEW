@@ -175,6 +175,13 @@ describe("scoring", () => {
 });
 
 describe("prompt engine", () => {
+  it("voiceover is a HARD requirement (three straight briefs shipped silent while it was optional)", () => {
+    const p = buildFacelessReelSystemPrompt({ mode: "asset_prep", factBucket: "myth_buster" });
+    expect(p).toContain("voiceoverScript is REQUIRED and must not be empty");
+    expect(p).toContain("38-48 words");
+    expect(p).not.toContain("optional VO");
+  });
+
   it("master prompt contains the required sections", () => {
     const p = buildFacelessReelSystemPrompt({ mode: "asset_prep", factBucket: "myth_buster" });
     for (const section of [
@@ -183,6 +190,7 @@ describe("prompt engine", () => {
       "# PROPRIETARY SHOP EVIDENCE",
       "# HIDDEN PERSUASION",
       "# RESEARCH STANDARD",
+      "# VOICEOVER CONTRACT",
       "# FORMAT CONTRACT",
       "# FACT BUCKETS",
       "# ARCHETYPES",

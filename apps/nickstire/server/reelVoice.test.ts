@@ -129,3 +129,43 @@ describe("generateVoiceover fail-closed policy", () => {
     expect(String(fetchMock.mock.calls[1][0])).toContain("CwhRBWXzGAHq8TQ4Fs17");
   });
 });
+
+describe("google -> elevenlabs RUNTIME fallback", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("falls back to ElevenLabs when Google fails AT RUNTIME and the key is configured", async () => {
+    vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL", "svc@x");
+    vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_KEY", "k");
+    vi.stubEnv("ELEVENLABS_API_KEY", "el-key");
+    vi.stubEnv("REEL_VO_OPTIONAL", "");
+    const audio = new Uint8Array([1, 2, 3]).buffer;
+    vi.stubGlobal("fetch", vi.fn(async (url: any) => {
+      const u = String(url);
+      if (u.includes("elevenlabs")) {
+        return {
+          ok: true, status: 200,
+          arrayBuffer: async () => audio,
+          json: async () => ({ audio_base64: Buffer.from([1, 2, 3]).toString("base64"), alignment: { characters: ["a"], character_start_times_seconds: [0], character_end_times_seconds: [0.1] } }),
+          text: async () => "",
+        } as any;
+      }
+      // every Google leg (auth token or TTS call) is down
+      return { ok: false, status: 500, text: async () => "google down", json: async () => ({}) } as any;
+    }));
+    const res = await generateVoiceover("Check your tread depth before the heat.");
+    expect(res).not.toBeNull();
+    expect(res!.provider).toBe("elevenlabs");
+  });
+
+  it("still THROWS when Google fails and ElevenLabs is NOT configured", async () => {
+    vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL", "svc@x");
+    vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_KEY", "k");
+    vi.stubEnv("ELEVENLABS_API_KEY", "");
+    vi.stubEnv("REEL_VO_OPTIONAL", "");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 500, text: async () => "down", json: async () => ({}) } as any)));
+    await expect(generateVoiceover("Check your tread depth.")).rejects.toThrow(/Voiceover generation failed/);
+  });
+});
