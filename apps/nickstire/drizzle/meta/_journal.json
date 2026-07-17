@@ -701,6 +701,13 @@
       "when": 1784254000001,
       "tag": "0086_autonomy_control",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "5",
+      "when": 1784254000002,
+      "tag": "0087_approval_expiry",
+      "breakpoints": true
     }
   ]
 }

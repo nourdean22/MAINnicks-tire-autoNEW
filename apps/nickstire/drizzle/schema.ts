@@ -3810,6 +3810,10 @@ export const socialContentApprovals = mysqlTable("social_content_approvals", {
   briefHash: varchar("brief_hash", { length: 64 }).notNull(),
   mediaHash: varchar("media_hash", { length: 64 }).notNull(),
   mediaUrl: text("media_url").notNull(),
+  /** approvals expire — a stale approval must not authorize a publish (null = legacy pre-0087 rows) */
+  expiresAt: timestamp("expires_at"),
+  /** which autonomy policy version governed when the human approved */
+  policyVersion: int("policy_version"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("uniq_sca_inventory_version").on(table.inventoryId, table.version),

@@ -489,6 +489,32 @@
         "review-recency requirements"
       ],
       "lastVerifiedAt": "2026-07-17"
+    },
+    {
+      "capabilityId": "durable-approvals",
+      "name": "Durable approval authority (hash-bound, versioned, expiring)",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "nickstire/durable-approvals branch (this PR); EXTENDS the existing #780 hash-approval machinery (approve writes briefHash+mediaHash, publish recomputes+refuses) rather than rebuilding it",
+        "tests": [
+          "server/approvalExpiry.test.ts (expired refuses with distinct reason before hash work; live passes; legacy null-expiry allowed; hash mismatch independent) + server/__tests__/approval-integrity.test.ts (existing E2E, green)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "0087 NOT applied - expires_at/policy_version columns absent on prod; writes would fail on unknown column until the operator runs apply-0087-approval-expiry.mts",
+          "source": "migration status"
+        }
+      ],
+      "deferredScope": [
+        "break-glass override records",
+        "approval invalidation on policy-version change"
+      ],
+      "lastVerifiedAt": "2026-07-17"
     }
   ],
   "axes": {

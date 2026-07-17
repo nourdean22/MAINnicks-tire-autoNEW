@@ -49,14 +49,26 @@ export function computeBriefHash(briefJson: string | null): string {
 /** Write the approval record for (inventoryId, version). Idempotent per the
  *  table's unique (inventoryId, version) index — a re-approve of the same
  *  version replaces nothing and surfaces as a duplicate-key error upstream. */
+/** How long a human approval authorizes a publish. A 3-day-old approval of a
+ *  time-sensitive post should not silently fire — re-approval is one tap. */
+export const APPROVAL_TTL_HOURS = 72;
+
 export async function createApprovalRecord(
   database: DB,
   args: { inventoryId: string; version: number; approvedBy: number; briefJson: string | null; mediaUrls: string[] },
-): Promise<{ approvalId: string; briefHash: string; mediaHash: string }> {
+): Promise<{ approvalId: string; briefHash: string; mediaHash: string; expiresAt: Date }> {
   const { randomUUID } = await import("crypto");
   const briefHash = computeBriefHash(args.briefJson);
   const mediaHash = await computeMediaHash(args.mediaUrls);
   const approvalId = `appr_${randomUUID()}`;
+  const expiresAt = new Date(Date.now() + APPROVAL_TTL_HOURS * 3600_000);
+  // Stamp which policy version governed at approval time — best-effort, the
+  // approval stands even if the policy loader is degraded.
+  let policyVersion: number | null = null;
+  try {
+    const { getActivePolicy } = await import("./autonomyControl");
+    policyVersion = (await getActivePolicy()).version;
+  } catch { /* legacy posture */ }
   await database.insert(socialContentApprovals).values({
     id: approvalId,
     inventoryId: args.inventoryId,
@@ -65,13 +77,16 @@ export async function createApprovalRecord(
     briefHash,
     mediaHash,
     mediaUrl: JSON.stringify(args.mediaUrls),
+    expiresAt,
+    policyVersion,
   });
-  return { approvalId, briefHash, mediaHash };
+  return { approvalId, briefHash, mediaHash, expiresAt };
 }
 
 export type ApprovalVerification =
   | { ok: true }
   | { ok: false; reason: "no_record" }
+  | { ok: false; reason: "expired" }
   | { ok: false; reason: "brief_mismatch" | "media_mismatch" };
 
 /**
@@ -92,6 +107,11 @@ export async function verifyApprovalRecord(
     .limit(1);
   if (!rows.length) return { ok: false, reason: "no_record" };
   const approval = rows[0];
+  // Expiration is enforced at EXECUTION time (null = legacy pre-0087 rows,
+  // allowed for backward compatibility — new approvals always carry a TTL).
+  if (approval.expiresAt && new Date(approval.expiresAt).getTime() < Date.now()) {
+    return { ok: false, reason: "expired" };
+  }
   if (computeBriefHash(args.briefJson) !== approval.briefHash) return { ok: false, reason: "brief_mismatch" };
   if ((await computeMediaHash(args.mediaUrls)) !== approval.mediaHash) return { ok: false, reason: "media_mismatch" };
   return { ok: true };

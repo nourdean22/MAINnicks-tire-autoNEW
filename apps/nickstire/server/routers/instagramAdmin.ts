@@ -655,6 +655,14 @@ Keep it under 200 characters.`;
           });
         }
 
+        // Durable approval semantics (0087): approvals expire and record the
+        // governing policy version - enforced at publish time.
+        let approvalPolicyVersion: number | null = null;
+        try {
+          const { getActivePolicy } = await import("../services/autonomyControl");
+          approvalPolicyVersion = (await getActivePolicy()).version;
+        } catch { /* legacy posture */ }
+        const { APPROVAL_TTL_HOURS } = await import("../services/contentApprovals");
         await tx.insert(socialContentApprovals).values({
           id: approvalId,
           inventoryId: draft.id,
@@ -663,6 +671,8 @@ Keep it under 200 characters.`;
           briefHash,
           mediaHash: validation.mediaHash,
           mediaUrl: videoUrl,
+          expiresAt: new Date(Date.now() + APPROVAL_TTL_HOURS * 3600_000),
+          policyVersion: approvalPolicyVersion,
         });
       });
 
@@ -874,6 +884,12 @@ Keep it under 200 characters.`;
               currentMediaHash = createHash("sha256").update(buffer).digest("hex");
             }
 
+            if (approval.expiresAt && new Date(approval.expiresAt).getTime() < Date.now()) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Approval EXPIRED - re-approve this content before publishing (approvals authorize for a limited window).",
+              });
+            }
             if (currentBriefHash !== approval.briefHash || currentMediaHash !== approval.mediaHash) {
               throw new TRPCError({
                 code: "BAD_REQUEST",
@@ -1098,6 +1114,12 @@ Keep it under 200 characters.`;
             const currentBriefHash = createHash("sha256").update(draft.briefJson || "").digest("hex");
             const currentMediaHash = createHash("sha256").update(approvedVideoUrl).digest("hex");
 
+            if (approval.expiresAt && new Date(approval.expiresAt).getTime() < Date.now()) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Approval EXPIRED - re-approve this content before publishing (approvals authorize for a limited window).",
+              });
+            }
             if (currentBriefHash !== approval.briefHash || currentMediaHash !== approval.mediaHash) {
               throw new TRPCError({
                 code: "BAD_REQUEST",
