@@ -234,6 +234,7 @@ export async function enqueueReelJob(
       if (err instanceof Error && err.message.startsWith("BUDGET_DAILY_EXCEEDED")) {
         const { eq } = await import("drizzle-orm");
         await d.update(reelJobs).set({ status: "failed", error: err.message.slice(0, 1000) }).where(eq(reelJobs.id, jobId));
+        await releaseFailedJobReservation(JSON.stringify(brief), jobId);
       }
       throw err;
     }
@@ -249,6 +250,25 @@ export async function enqueueReelJob(
  * SAFETY: hard no-op unless REEL_GENERATION_ENABLED === "true" — enqueued jobs
  * never spend Higgsfield credits until the operator explicitly arms generation.
  */
+/**
+ * A job that terminally FAILS must release its content-governor slot — the
+ * reel it reserved a window for never came to exist. Live incident: failed
+ * job 660001's orphaned reservation blocked every reel enqueue for its full
+ * 24h window (RESERVATION_SPACING) until released by hand. Best-effort: a
+ * missing/unparseable id just logs.
+ */
+export async function releaseFailedJobReservation(payloadJson: string | null, jobId: number): Promise<void> {
+  try {
+    const payload = JSON.parse(payloadJson ?? "{}") as { contentReservationId?: string };
+    if (!payload.contentReservationId) return;
+    const { releaseReservation } = await import("./contentGovernor");
+    await releaseReservation(payload.contentReservationId);
+    log.info("released content reservation for terminally failed job", { jobId, reservationId: payload.contentReservationId });
+  } catch (e) {
+    log.warn("failed to release reservation for failed job", { jobId, e: e instanceof Error ? e.message : String(e) });
+  }
+}
+
 export async function processNextReelJob(): Promise<{
   processed: boolean;
   jobId?: number;
@@ -438,6 +458,7 @@ export async function processNextReelJob(): Promise<{
       try {
         const { fail } = await import("./generationLedger");
         await fail(`reel_job_${job.id}`);
+        await releaseFailedJobReservation(job.payload, job.id);
       } catch { /* ledger degraded */ }
     }
     log.warn("reel job step failed", { jobId: job.id, attempt, nextStatus, error: msg });
@@ -569,6 +590,7 @@ export async function processNextAssemblyJob(): Promise<{
     // Retry assembly (back to assets_ready, NOT queued — clips are already gen'd).
     const nextStatus = attempt >= MAX_ATTEMPTS ? "failed" : "assets_ready";
     await d.update(reelJobs).set({ status: nextStatus, error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
+    if (nextStatus === "failed") await releaseFailedJobReservation(job.payload, job.id);
     log.warn("reel assembly failed", { jobId: job.id, attempt, nextStatus, error: msg });
     return { processed: true, jobId: job.id, status: nextStatus, error: msg };
   }
@@ -612,6 +634,7 @@ export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
     const attempts = job.attempts ?? 0;
     const requeue = job.status === "assembling" ? "assets_ready" : job.status === "repair_rendering" ? "repair_queued" : "queued";
     const nextStatus = attempts >= MAX_ATTEMPTS ? "failed" : requeue;
+    if (nextStatus === "failed") await releaseFailedJobReservation(job.payload, job.id);
     const res = await d
       .update(reelJobs)
       .set({
