@@ -2,23 +2,26 @@
   "$comment": "Executable PR claims (Reality Control). scripts/detect-contradictions.mjs verifies refs exist on disk.",
   "claims": [
     {
-      "id": "repair-smallest-unit",
-      "assertion": "A repair regenerates exactly one beat: the original prompt stays base truth, KEEP/CHANGE narrows from the QA finding, only that clip index is replaced, and the job re-enters the EXISTING assembly worker.",
+      "id": "command-center-no-silent-zeros",
+      "assertion": "Every command-center section either carries real rows or an explicit available:false; the governing policy always shows its SOURCE, and a fallback source renders a visible warning banner with the exact operator remedy.",
       "evidence": [
         {
-          "file": "apps/nickstire/server/services/selectiveRepair.ts"
+          "file": "apps/nickstire/server/services/commandCenter.ts"
         },
         {
-          "file": "apps/nickstire/server/selectiveRepair.test.ts"
+          "file": "apps/nickstire/server/commandCenter.test.ts"
+        },
+        {
+          "file": "apps/nickstire/client/src/components/admin/AutonomyCommandCenter.tsx"
         }
       ]
     },
     {
-      "id": "repair-governed-spend",
-      "assertion": "Repair spend passes the policy boundary with the repair cap enforced from the job own history (caller cannot undercount), reserves and settles in the generation ledger, and a provider failure fails the reservation while leaving the job untouched.",
+      "id": "command-center-emergency-controls",
+      "assertion": "Kill-switch toggles publish a new policy version through the existing versioned path; the UI never fakes a toggle - a persistence failure surfaces as an error toast.",
       "evidence": [
         {
-          "file": "apps/nickstire/server/selectiveRepair.test.ts"
+          "file": "apps/nickstire/client/src/components/admin/AutonomyCommandCenter.tsx"
         }
       ]
     }
