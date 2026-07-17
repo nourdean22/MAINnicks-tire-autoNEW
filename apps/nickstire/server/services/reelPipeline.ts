@@ -362,14 +362,16 @@ export async function processNextReelJob(): Promise<{
         // local timeout requeues and regenerates only the unfinished beat.
         const { generateReelClipVideo } = await import("./higgsfieldStudio");
         // Image conditioning (milestone 6, flag-gated REEL_IMAGE_CONDITIONING):
-        // the identity-drift killer. Beat 1 anchors on the approved Visual
-        // World hero frame; each later beat anchors on the PREVIOUS beat's
-        // clip so visual identity carries forward. generateReelClipVideo
-        // ignores startImageUrl unless the flag is on, so prod stays
-        // text-only until a paid seedance image-render proves it live.
-        const startImageUrl = i === 0
-          ? brief.visualWorld?.heroFrameUrl
-          : clipUrls[i - 1] || undefined;
+        // the identity-drift killer. EVERY beat anchors on the SAME approved
+        // Visual World hero frame — a real generated IMAGE — so all beats share
+        // one visual DNA. (The earlier "chain on the previous beat's clip"
+        // wiring was wrong: --start-image needs an IMAGE, and clipUrls hold
+        // mp4s; a shared hero anchor is both correct and stronger for identity
+        // lock.) generateReelClipVideo ignores startImageUrl unless the flag is
+        // on AND the URL looks like an image, so prod stays text-only until a
+        // paid seedance image-render proves it live.
+        const hero = brief.visualWorld?.heroFrameUrl;
+        const startImageUrl = hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero) ? hero : undefined;
         finalClipUrl = await withTimeout(
           generateReelClipVideo({ prompt, negativePrompt, startImageUrl }),
           GEN_CLIP_TIMEOUT_MS,
