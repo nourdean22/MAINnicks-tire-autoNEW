@@ -18,11 +18,11 @@ const lines = [
   "",
   "**GENERATED from `capability-ledger.json` by `scripts/render-reality-ledger.mjs` — do not edit by hand.**",
   "",
-  "State advances only with evidence (`scripts/check-capability-ledger.mjs` enforces the gates in CI).",
+  "Three axes: codeState (a merge changes ONLY this) x operationalState (advances only with evidence) x exposure (the promotion decision). Operational state advances only with evidence (`scripts/check-capability-ledger.mjs` enforces the gates in CI).",
   "`Merged` is deliberately not a state: merging code and promoting a capability are independent events.",
   "",
-  "| Capability | State | Blockers | Evidence highlights | Deferred scope |",
-  "|---|---|---|---|---|",
+  "| Capability | Code | Operational | Exposure | Blockers | Evidence highlights | Deferred scope |",
+  "|---|---|---|---|---|---|---|",
 ];
 for (const c of ledger.capabilities) {
   const blockers = (c.blockers ?? []).map((b) => `**${b.severity}** ${b.description}`).join("<br>") || "—";
@@ -30,7 +30,7 @@ for (const c of ledger.capabilities) {
     .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join("; ") : v}`)
     .join("<br>") || "—";
   const deferred = (c.deferredScope ?? []).join(", ") || "—";
-  lines.push(`| ${c.name} | \`${c.state}\` | ${blockers} | ${ev} | ${deferred} |`);
+  lines.push(`| ${c.name} | \`${c.codeState}\` | \`${c.operationalState}\` | \`${c.exposure}\` | ${blockers} | ${ev} | ${deferred} |`);
 }
 lines.push("");
 writeFileSync(out, lines.join("\n"));

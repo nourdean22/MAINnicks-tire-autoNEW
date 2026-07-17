@@ -1,39 +1,46 @@
 #!/usr/bin/env node
 /**
- * Completion Authority — capability ledger validator.
+ * Reality Control — capability ledger validator (three-axis model).
  *
- * Makes it impossible to CALL incomplete work complete: a capability's state
- * only stands when the evidence its state requires is present, and elevated
- * states cannot carry P0/P1 blockers. Runs in CI and in verify gates.
+ * Three INDEPENDENT axes per capability:
+ *   codeState        — where the code is (a merge changes ONLY this)
+ *   operationalState — what evidence proves (advances only with evidence)
+ *   exposure         — who can reach it (the promotion-authority decision)
  *
- * Evidence gates (cumulative by state):
- *   unit_verified+      -> evidence.tests (non-empty)
- *   integrated+         -> evidence.codeCommit
- *   deployed+           -> evidence.deploymentId
- *   live_verified+      -> evidence.liveRuns OR evidence.databaseAssertions
- *   visually_verified+  -> evidence.renderedAssets OR evidence.screenshots
- *   business_verified+  -> evidence.businessMetrics
- *   production_ready    -> evidence.operatorApprovalId AND zero P0/P1/P2 blockers
- * Additionally: states deployed+ cannot carry P0/P1 blockers.
+ * Evidence gates on operationalState (cumulative):
+ *   unit_verified+         -> evidence.tests
+ *   integration_verified+  -> evidence.codeCommit
+ *   deployed+              -> evidence.deploymentId
+ *   live_verified+         -> evidence.liveRuns OR evidence.databaseAssertions
+ *   visually_verified+     -> evidence.renderedAssets OR evidence.screenshots
+ *   business_verified      -> evidence.businessMetrics
+ *
+ * Cross-axis rules:
+ *   - operationalState deployed+ cannot carry P0/P1 blockers (resolve or demote)
+ *   - exposure production          requires operationalState >= live_verified
+ *   - exposure limited_autonomy    requires operationalState >= live_verified
+ *   - exposure operator_only       requires operationalState >= integration_verified
+ *   - exposure beyond "disabled"   requires codeState merged
+ *   - verificationExpiresAt in the past => REVERIFICATION REQUIRED (error)
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const VALID_STATES = [
-  "proposed",
-  "implemented",
+const CODE_STATES = ["not_started", "in_progress", "merged", "retired"];
+const OP_STATES = [
+  "unverified",
   "unit_verified",
-  "integrated",
+  "integration_verified",
   "deployed",
   "live_verified",
   "visually_verified",
   "business_verified",
-  "production_ready",
 ];
+const EXPOSURES = ["disabled", "shadow", "internal", "operator_only", "limited_autonomy", "production"];
 const SEVERITIES = ["P0", "P1", "P2", "P3"];
 
-export function validateLedger(ledger) {
+export function validateLedger(ledger, now = new Date()) {
   const errors = [];
   if (!Array.isArray(ledger.capabilities)) return ["capabilities must be an array"];
   const seen = new Set();
@@ -45,44 +52,55 @@ export function validateLedger(ledger) {
     seen.add(cap.capabilityId);
     if (!cap.name) err("name required");
     if (!cap.owner) err("owner required");
-    if (!VALID_STATES.includes(cap.state)) {
-      err(`invalid state "${cap.state}"`);
-      continue;
-    }
-    const rank = VALID_STATES.indexOf(cap.state);
+    if (!CODE_STATES.includes(cap.codeState)) { err(`invalid codeState "${cap.codeState}"`); continue; }
+    if (!OP_STATES.includes(cap.operationalState)) { err(`invalid operationalState "${cap.operationalState}"`); continue; }
+    if (!EXPOSURES.includes(cap.exposure)) { err(`invalid exposure "${cap.exposure}"`); continue; }
+
+    const op = OP_STATES.indexOf(cap.operationalState);
     const ev = cap.evidence ?? {};
     const nonEmpty = (v) => (Array.isArray(v) ? v.length > 0 : typeof v === "string" && v.trim().length > 0);
 
-    if (rank >= VALID_STATES.indexOf("unit_verified") && !nonEmpty(ev.tests)) {
-      err(`state ${cap.state} requires evidence.tests`);
+    if (op >= OP_STATES.indexOf("unit_verified") && !nonEmpty(ev.tests)) err(`operationalState ${cap.operationalState} requires evidence.tests`);
+    if (op >= OP_STATES.indexOf("integration_verified") && !nonEmpty(ev.codeCommit)) err(`operationalState ${cap.operationalState} requires evidence.codeCommit`);
+    if (op >= OP_STATES.indexOf("deployed") && !nonEmpty(ev.deploymentId)) err(`operationalState ${cap.operationalState} requires evidence.deploymentId`);
+    if (op >= OP_STATES.indexOf("live_verified") && !nonEmpty(ev.liveRuns) && !nonEmpty(ev.databaseAssertions)) {
+      err(`operationalState ${cap.operationalState} requires evidence.liveRuns or evidence.databaseAssertions`);
     }
-    if (rank >= VALID_STATES.indexOf("integrated") && !nonEmpty(ev.codeCommit)) {
-      err(`state ${cap.state} requires evidence.codeCommit`);
+    if (op >= OP_STATES.indexOf("visually_verified") && !nonEmpty(ev.renderedAssets) && !nonEmpty(ev.screenshots)) {
+      err(`operationalState ${cap.operationalState} requires evidence.renderedAssets or evidence.screenshots`);
     }
-    if (rank >= VALID_STATES.indexOf("deployed") && !nonEmpty(ev.deploymentId)) {
-      err(`state ${cap.state} requires evidence.deploymentId`);
+    if (op >= OP_STATES.indexOf("business_verified") && !nonEmpty(ev.businessMetrics)) {
+      err(`operationalState ${cap.operationalState} requires evidence.businessMetrics`);
     }
-    if (rank >= VALID_STATES.indexOf("live_verified") && !nonEmpty(ev.liveRuns) && !nonEmpty(ev.databaseAssertions)) {
-      err(`state ${cap.state} requires evidence.liveRuns or evidence.databaseAssertions`);
-    }
-    if (rank >= VALID_STATES.indexOf("visually_verified") && !nonEmpty(ev.renderedAssets) && !nonEmpty(ev.screenshots)) {
-      err(`state ${cap.state} requires evidence.renderedAssets or evidence.screenshots`);
-    }
-    if (rank >= VALID_STATES.indexOf("business_verified") && !nonEmpty(ev.businessMetrics)) {
-      err(`state ${cap.state} requires evidence.businessMetrics`);
-    }
+
     const blockers = Array.isArray(cap.blockers) ? cap.blockers : [];
     for (const b of blockers) {
       if (!SEVERITIES.includes(b.severity)) err(`blocker severity invalid: ${b.severity}`);
       if (!b.description) err("blocker missing description");
     }
     const hasHigh = blockers.some((b) => b.severity === "P0" || b.severity === "P1");
-    if (rank >= VALID_STATES.indexOf("deployed") && hasHigh) {
-      err(`state ${cap.state} cannot carry P0/P1 blockers — resolve them or demote the state`);
+    if (op >= OP_STATES.indexOf("deployed") && hasHigh) {
+      err(`operationalState ${cap.operationalState} cannot carry P0/P1 blockers — resolve them or demote`);
     }
-    if (cap.state === "production_ready") {
-      if (!nonEmpty(ev.operatorApprovalId)) err("production_ready requires evidence.operatorApprovalId");
-      if (blockers.some((b) => b.severity !== "P3")) err("production_ready cannot carry P0/P1/P2 blockers");
+
+    // Cross-axis promotion rules.
+    const exp = EXPOSURES.indexOf(cap.exposure);
+    if (exp > EXPOSURES.indexOf("disabled") && cap.codeState !== "merged") {
+      err(`exposure ${cap.exposure} requires codeState merged (is ${cap.codeState})`);
+    }
+    if (cap.exposure === "production" && op < OP_STATES.indexOf("live_verified")) {
+      err(`exposure production requires operationalState >= live_verified (is ${cap.operationalState})`);
+    }
+    if (cap.exposure === "limited_autonomy" && op < OP_STATES.indexOf("live_verified")) {
+      err(`exposure limited_autonomy requires operationalState >= live_verified (is ${cap.operationalState})`);
+    }
+    if (cap.exposure === "operator_only" && op < OP_STATES.indexOf("integration_verified")) {
+      err(`exposure operator_only requires operationalState >= integration_verified (is ${cap.operationalState})`);
+    }
+
+    // Evidence expiry — stale truth regresses, loudly.
+    if (cap.verificationExpiresAt && new Date(cap.verificationExpiresAt).getTime() < now.getTime()) {
+      err(`verification EXPIRED ${cap.verificationExpiresAt} — REVERIFICATION REQUIRED: demote operationalState or re-verify`);
     }
   }
   return errors;
@@ -99,6 +117,6 @@ if (isMain) {
     process.exit(1);
   }
   const counts = {};
-  for (const c of ledger.capabilities) counts[c.state] = (counts[c.state] ?? 0) + 1;
-  console.log(`✓ capability ledger valid — ${ledger.capabilities.length} capabilities: ${Object.entries(counts).map(([s, n]) => `${s}=${n}`).join(", ")}`);
+  for (const c of ledger.capabilities) counts[c.operationalState] = (counts[c.operationalState] ?? 0) + 1;
+  console.log(`✓ capability ledger valid — ${ledger.capabilities.length} capabilities; operational: ${Object.entries(counts).map(([s, n]) => `${s}=${n}`).join(", ")}`);
 }

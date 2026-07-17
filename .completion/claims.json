@@ -1,0 +1,27 @@
+{
+  "$comment": "Executable PR claims (Reality Control). Every claim names living evidence; scripts/detect-contradictions.mjs verifies the refs exist on disk and blocks any claim without them — an unevidenced claim is an IMPLEMENTATION CLAIM, NOT VERIFIED.",
+  "claims": [
+    {
+      "id": "three-axis-ledger-enforced",
+      "assertion": "Capability records carry independent codeState/operationalState/exposure; operational states advance only with evidence; exposure production/limited_autonomy requires live verification; expired verification regresses loudly.",
+      "evidence": [
+        { "file": "apps/nickstire/scripts/check-capability-ledger.mjs" },
+        { "file": "apps/nickstire/server/completionAuthority.test.ts" }
+      ]
+    },
+    {
+      "id": "contradiction-detection-deterministic",
+      "assertion": "A PR body carrying a do-not-merge clause without an explicit merge-intent acknowledgment is blocked; claims without living evidence are blocked; sub-live capabilities described as live-verified are blocked. No model judgment involved.",
+      "evidence": [
+        { "file": "apps/nickstire/scripts/detect-contradictions.mjs" }
+      ]
+    },
+    {
+      "id": "golden-campaign-deterministic",
+      "assertion": "One replayable harness drives evidence -> tournament -> genome -> visual world -> policy -> reservations -> service enqueue -> persisted payload -> publish-denial under kill switch -> audit trail, with deterministic mocks and zero provider calls.",
+      "evidence": [
+        { "file": "apps/nickstire/server/goldenCampaign.test.ts" }
+      ]
+    }
+  ]
+}
