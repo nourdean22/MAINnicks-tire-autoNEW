@@ -19,6 +19,8 @@ import {
   detectGenericAdLanguage,
   detectPriceClaims,
   validateFacelessSubject,
+  validateNoInFrameText,
+  facelessCleanSceneDirective,
   validateBeatCount,
   validateReelLengthTarget,
   validateMutedFirstClarity,
@@ -106,6 +108,82 @@ describe("faceless contract", () => {
     const report = runSafetyChecks(b, () => "t");
     expect(report.blocked).toBe(true);
     expect(report.findings.some((f) => f.rule === "no-human-face")).toBe(true);
+  });
+
+  // Regression for reel 690001: gloved HANDS rendered despite the contract.
+  it("rejects gloved/human hands, arms, and fingers as subjects", () => {
+    expect(validateFacelessSubject(["gloved hands lift the brake rotor"]).ok).toBe(false);
+    expect(validateFacelessSubject(["a mechanic's hand torques the lug nut"]).ok).toBe(false);
+    expect(validateFacelessSubject(["bare fingers wipe the sensor"]).ok).toBe(false);
+    expect(validateFacelessSubject(["hands install the caliper"]).ok).toBe(false);
+    // A metaphorical "hands off" between shots must NOT false-positive.
+    expect(validateFacelessSubject(["the tire hands off to the next shot"]).ok).toBe(true);
+  });
+
+  it("runSafetyChecks blocks a beat whose visual casts gloved hands", () => {
+    const b = structuredClone(sample());
+    b.storyboardBeats[0].visual = "gloved hands lift the rotor into frame";
+    const report = runSafetyChecks(b, () => "t");
+    expect(report.blocked).toBe(true);
+    expect(report.findings.some((f) => f.rule === "no-human-face")).toBe(true);
+  });
+});
+
+// Regression for reel 690001's garbled "FTD913" readout + "Nixs" logo: a beat
+// that structurally requires rendered text/brand is caught at DESIGN time.
+describe("in-frame text / branding gate", () => {
+  it("validateNoInFrameText blocks readable-text and brand subjects", () => {
+    expect(validateNoInFrameText(["diagnostic tester screen showing 12.6V"]).ok).toBe(false);
+    expect(validateNoInFrameText(["macro of a battery with the part number stamped on it"]).ok).toBe(false);
+    expect(validateNoInFrameText(["a glowing Nick's logo spins into view"]).ok).toBe(false);
+    expect(validateNoInFrameText(["gauge showing the low reading"]).ok).toBe(false);
+    expect(validateNoInFrameText(["silent-film intertitle card"]).ok).toBe(false);
+  });
+
+  it("validateNoInFrameText allows wordless, unbranded physical shots", () => {
+    expect(validateNoInFrameText(["extreme macro of worn tire tread"]).ok).toBe(true);
+    expect(validateNoInFrameText(["a rusted brake rotor turning slowly"]).ok).toBe(true);
+    // 'sidewall number' names a number but does not ask to RENDER a readout.
+    expect(validateNoInFrameText(["macro push into the sidewall number area"]).ok).toBe(true);
+  });
+
+  it("runSafetyChecks HARD-blocks a text-dependent beat, and it survives a high score", () => {
+    const b = structuredClone(sample());
+    b.storyboardBeats[0].visual = "a diagnostic scanner screen displays the fault reading";
+    const report = runSafetyChecks(b, () => "t");
+    expect(report.blocked).toBe(true);
+    expect(report.findings.some((f) => f.rule === "no-in-frame-text")).toBe(true);
+    // The scoring gate must FAIL even though only one 10-pt part is lost.
+    const scored = calculateReelQualityScore(b);
+    expect(scored.passing).toBe(false);
+    expect(scored.gate).toBe("block");
+  });
+
+  it("a clean sample brief still passes both new gates", () => {
+    const report = runSafetyChecks(sample(), () => "t");
+    expect(report.findings.some((f) => f.rule === "no-in-frame-text")).toBe(false);
+    expect(report.findings.some((f) => f.rule === "no-human-face")).toBe(false);
+  });
+});
+
+describe("lens-aware clean-scene directive", () => {
+  it("non-graphical lenses get the strict 'no readable text' directive", () => {
+    const d = facelessCleanSceneDirective("xray_cutaway");
+    expect(d).toContain("no readable text of any kind");
+    expect(d).toContain("clean and unbranded");
+  });
+
+  it("glowing-display lenses keep the no-brand rule but allow abstract glyphs", () => {
+    for (const lens of ["warning_light_world", "weather_radar_overlay", "blueprint_technical"]) {
+      const d = facelessCleanSceneDirective(lens);
+      // hard rule stays
+      expect(d).toContain("No brand names");
+      expect(d).toContain("no gloves");
+      // but the lens's own indicator glows / sweeps are permitted
+      expect(d).toContain("indicator glows");
+      // the strict "screens dark" clause is NOT imposed on a glowing-display lens
+      expect(d).not.toContain("angled away from camera");
+    }
   });
 });
 

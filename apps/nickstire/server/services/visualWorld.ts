@@ -51,7 +51,14 @@ export function buildReferenceFramePrompt(brief: VisualWorldBriefInput, style: V
     `Style: ${STYLE_DIRECTIVES[style]}`,
     `Palette: graphite black and deep shadow tones with gold #FDB913 accent highlights.`,
     `Composition: hero object dominant, clear silhouette, generous headroom and footroom kept clean for caption overlays.`,
-    `DO NOT INCLUDE: ${lens.avoid}, humans, faces, hands, text, lettering, logos, watermarks.`,
+    // POSITIVE clean-scene phrasing, not a "DO NOT INCLUDE" list: this prompt
+    // goes to the image generator AND is quoted verbatim into every beat's
+    // Seedance prompt, so naming text/logos/watermarks in a negation here
+    // re-introduces the exact pink-elephant trigger PR #855 removed from the
+    // beat negative (it produced the "Nixs" logo + garbled readouts in reel
+    // 690001). Only the style-breakers stay as an avoid note (not concept tokens).
+    `Unpopulated and unbranded scene: the object stands alone — no people, faces, hands, or gloves; every surface clean with no signage, logos, lettering, words, or numbers anywhere in frame; any screen or gauge dark, off, or angled away from camera.`,
+    `Keep the look free of ${lens.avoid}.`,
   ].join(" ");
 }
 

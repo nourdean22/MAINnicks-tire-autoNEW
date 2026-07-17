@@ -31,7 +31,10 @@ describe("buildReferenceFramePrompt", () => {
       expect(p).toContain("9:16 vertical hero frame");
       expect(p).toContain(STYLE_DIRECTIVES[VISUAL_WORLD_STYLES[i]].slice(0, 40));
       expect(p).toContain("#FDB913");
-      expect(p).toMatch(/DO NOT INCLUDE:.*humans, faces, hands, text/);
+      // Faceless + unbranded is now stated POSITIVELY (no pink-elephant DO-NOT
+      // list) — this prompt is quoted verbatim into every beat's Seedance prompt.
+      expect(p).toContain("no people, faces, hands, or gloves");
+      expect(p).not.toContain("DO NOT INCLUDE");
     }
   });
 });
@@ -71,7 +74,19 @@ describe("continuity takeover", () => {
     for (const beat of pack) {
       expect(beat.prompt).toContain("operator-approved reference frame");
       expect(beat.prompt).toContain(framePrompt.slice(0, 60));
+      // Regression for reel 690001: the quoted framePrompt must NOT re-introduce
+      // the pink-elephant "DO NOT INCLUDE ... text/lettering/logos/watermarks"
+      // negation into the beat prompt on the operator-approved override path.
+      expect(beat.prompt).not.toContain("DO NOT INCLUDE");
+      expect(beat.prompt).not.toContain(", text, lettering, logos, watermarks");
     }
+  });
+
+  it("reference-frame prompt is POSITIVE clean-scene, not a pink-elephant DO-NOT list", () => {
+    const framePrompt = buildReferenceFramePrompt(brief, "safe");
+    expect(framePrompt).not.toContain("DO NOT INCLUDE");
+    expect(framePrompt).not.toContain("text, lettering, logos, watermarks");
+    expect(framePrompt).toContain("Unpopulated and unbranded");
   });
 });
 

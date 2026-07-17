@@ -93,9 +93,33 @@ export const REEL_OUTPUT_RULES = {
  * Subjects that violate the faceless contract when they appear as the
  * VISUAL SUBJECT of a beat or prompt. Pure-string heuristic: the operator
  * still does a manual no-face check after any future render.
+ *
+ * Limbs (gloved/bare hands, arms, fingers) are included because prod reel
+ * 690001 rendered gloved hands even though the subject was an object — a beat
+ * whose action verb casts hands as the actor ("gloved hands lift the rotor")
+ * has to be caught at design time, not just hinted at in the negative prompt.
+ * Bare hand/arm/finger tokens are scoped to a human cue so a metaphor like
+ * "the tire hands off to the next shot" does not false-positive; "glove" and
+ * an explicit action ("hands install/torque…") are human enough to block.
  */
 const FACE_SUBJECT_PATTERN =
-  /\b(?:human\s+face|person'?s?\s+face|talking\s+head|man|woman|mechanic\s+(?:smiling|talking|speaking|on\s+camera)|customer\s+(?:smiling|talking|face)|selfie|presenter|spokesperson|face\s+to\s+camera|shop\s+tour)\b/i;
+  /\b(?:human\s+face|person'?s?\s+face|talking\s+head|man|woman|mechanic\s+(?:smiling|talking|speaking|on\s+camera)|customer\s+(?:smiling|talking|face)|selfie|presenter|spokesperson|face\s+to\s+camera|shop\s+tour|glove[ds]?|gloved\s+hands?|(?:human|bare|mechanic'?s?)\s+(?:hand|arm|finger)s?|hands?\s+(?:hold|grip|grab|lift|install|torque|wrench|turn|reach|place|wipe|point)\w*)\b/i;
+
+/**
+ * Beat visuals that structurally REQUIRE the generator to render readable
+ * text/brand/readouts. Seedance cannot spell — any word, number, gauge
+ * reading, screen readout, badge, sign, or logo written into a beat comes
+ * back garbled (prod reel 690001 shipped a fake "FTD913" battery readout and
+ * a "Nixs" logo exactly this way). This is the design-time gate: a beat that
+ * depends on the viewer READING something is disqualified before it ever
+ * reaches Seedance. The gold caption is an ffmpeg overlay added AFTER
+ * generation, so it is not affected — only content the generator would draw.
+ * NOTE: runs over beat visual + motion (author-designed), never the compiled
+ * prompt, which itself contains the clean-scene directive's own "no logos /
+ * no text" wording and would self-trigger.
+ */
+const IN_FRAME_TEXT_PATTERN =
+  /\b(?:logo|signage|billboard|brand\s+name|branded|branding|nick'?s|watermark|readout|read-out|screen\s+(?:show|display|read)\w*|monitor\s+(?:show|display)\w*|gauge\s+(?:show|read|display)\w*|dial\s+read\w*|scanner\s+(?:show|display|read)\w*|diagnostic\s+(?:tester|screen|readout)|dashboard\s+(?:text|read)\w*|license\s+plate|number\s+plate|part\s+number|serial\s+number|(?:label|text|words?|letters?|numbers?|caption)\s+(?:that\s+)?(?:read|say|spell|show)\w*|title\s+card|intertitle)\b/i;
 
 // ─── Fact buckets ──────────────────────────────────────────────────
 
@@ -253,7 +277,7 @@ export const MOTION_LENSES: Record<MotionLens, { label: string; essence: string;
   },
   blueprint_technical: {
     label: "Blueprint / Technical", essence: "Drafting lines, callouts, and exploded views that teach.",
-    grammar: "Orthographic technical blueprint visualization, flat deep-navy drafting field, precise white linework, exploded component layers, measured callout arrows, flat lighting.",
+    grammar: "Orthographic technical blueprint visualization, flat deep-navy drafting field, precise white linework, exploded component layers, measured callout arrows, flat lighting. Render callouts as bare arrows and marker dots only — no legible letters or numbers; any labels are added as ffmpeg overlays after generation.",
     avoid: "depth of field, film grain, photographic realism, dramatic shadows",
   },
   neon_retro_futurist: {
@@ -263,7 +287,7 @@ export const MOTION_LENSES: Record<MotionLens, { label: string; essence: string;
   },
   forensic_evidence_scan: {
     label: "Forensic Evidence Scan", essence: "UV light, evidence markers, magnified clue passes.",
-    grammar: "Forensic evidence examination, fixed locked-off composition, UV sweep lighting passes, numbered evidence markers, dark graphite field, clinical magnification detail.",
+    grammar: "Forensic evidence examination, fixed locked-off composition, UV sweep lighting passes, plain evidence marker dots, dark graphite field, clinical magnification detail. Markers are bare dots and tape only — no legible letters or numbers; any labels are added as ffmpeg overlays after generation.",
     avoid: "glossy product-ad camera moves, warm cozy lighting",
   },
   product_ad_macro: {
@@ -273,7 +297,7 @@ export const MOTION_LENSES: Record<MotionLens, { label: string; essence: string;
   },
   weather_radar_overlay: {
     label: "Weather Radar Overlay", essence: "Storm-tracker graphics tracking salt, ice, and pothole season.",
-    grammar: "Broadcast weather-radar graphics package, sweeping radar arcs, threat-zone color overlays on a stylized road map, crisp motion-graphics aesthetic.",
+    grammar: "Broadcast weather-radar graphics package, sweeping radar arcs, threat-zone color overlays on a stylized road map, crisp motion-graphics aesthetic. Keep the map and radar abstract — no legible place names, letters, or numbers; any labels are added as ffmpeg overlays after generation.",
     avoid: "cinematic depth of field, film grain, photorealistic street photography",
   },
   warning_light_world: {
@@ -619,7 +643,21 @@ export function validateBeatCount(beats: StoryboardBeat[]): { ok: boolean; reaso
 export function validateFacelessSubject(texts: string[]): { ok: boolean; reason?: string } {
   for (const t of texts) {
     const m = t.match(FACE_SUBJECT_PATTERN);
-    if (m) return { ok: false, reason: `Faceless rule violated by "${m[0]}" — recast with an object character` };
+    if (m) return { ok: false, reason: `Faceless rule violated by "${m[0]}" — recast with an object character (no faces, hands, gloves, or arms)` };
+  }
+  return { ok: true };
+}
+
+/**
+ * Design-time gate against beats that depend on rendered text/brand/readouts —
+ * the direct upstream cause of garbled on-screen text and mis-spelled logos.
+ * Recast such a beat to show the physical thing itself (worn tread, dead
+ * terminal), wordless and unbranded; the teaching words are an ffmpeg overlay.
+ */
+export function validateNoInFrameText(texts: string[]): { ok: boolean; reason?: string } {
+  for (const t of texts) {
+    const m = t.match(IN_FRAME_TEXT_PATTERN);
+    if (m) return { ok: false, reason: `Beat depends on rendered text/brand "${m[0]}" — Seedance cannot spell; recast as a wordless, unbranded shot (words are an ffmpeg overlay, not generated)` };
   }
   return { ok: true };
 }
@@ -721,12 +759,18 @@ export function runSafetyChecks(brief: ReelBrief, now: () => string = () => new 
       ...detectGenericAdLanguage(text, where),
     );
   }
-  const faceless = validateFacelessSubject([
-    ...brief.storyboardBeats.map((b) => b.visual),
-    ...brief.higgsfieldPromptPack.map((p) => p.prompt),
-  ]);
+  // Faceless + wordless gates run over the AUTHORED design (beat visual +
+  // motion), never the compiled higgsfield prompt — the compiled prompt carries
+  // the clean-scene directive's own "no hands / no logos / no text" wording and
+  // would self-trigger these patterns, blocking every reel.
+  const designInputs = brief.storyboardBeats.flatMap((b) => [b.visual, b.motion]);
+  const faceless = validateFacelessSubject(designInputs);
   if (!faceless.ok) {
-    findings.push({ severity: "block", rule: "no-human-face", match: faceless.reason ?? "face subject", where: "storyboard/prompts", fix: "Recast the beat with an object character — the format is faceless." });
+    findings.push({ severity: "block", rule: "no-human-face", match: faceless.reason ?? "face subject", where: "storyboard", fix: "Recast the beat with an object character (no faces, hands, gloves, or arms) — the format is faceless." });
+  }
+  const inFrameText = validateNoInFrameText(designInputs);
+  if (!inFrameText.ok) {
+    findings.push({ severity: "block", rule: "no-in-frame-text", match: inFrameText.reason ?? "in-frame text subject", where: "storyboard", fix: "Recast the beat to show the physical object itself, wordless and unbranded — Seedance cannot spell; teaching text is an ffmpeg overlay added after generation." });
   }
   return { findings, blocked: findings.some((f) => f.severity === "block"), checkedAt: now() };
 }
@@ -742,7 +786,9 @@ export function calculateReelQualityScore(brief: ReelBrief, minScore: number = S
   const loopOk = winner ? validateLoopPlan(winner.loopIdea).ok : false;
   const hardBlocks = safety.findings.filter((f) => f.severity === "block");
   const faceBlocks = hardBlocks.filter((f) => f.rule === "no-human-face");
-  const claimBlocks = hardBlocks.filter((f) => f.rule !== "no-human-face");
+  const textBlocks = hardBlocks.filter((f) => f.rule === "no-in-frame-text");
+  const claimBlocks = hardBlocks.filter((f) => f.rule !== "no-human-face" && f.rule !== "no-in-frame-text");
+  const facelessWordlessOk = faceBlocks.length === 0 && textBlocks.length === 0;
   const firstBeat = brief.storyboardBeats[0];
   const hookOk = !!firstBeat && firstBeat.startSecond === 0 && !!firstBeat.visual.trim() && !!firstBeat.onScreenText.trim();
 
@@ -753,13 +799,16 @@ export function calculateReelQualityScore(brief: ReelBrief, minScore: number = S
     { label: `${REEL_OUTPUT_RULES.minSeconds}-${REEL_OUTPUT_RULES.maxSeconds} second target`, max: 5, ok: lengthOk, points: lengthOk ? 5 : 0, detail: lengthOk ? "Length in band" : "Length out of band" },
     { label: "Loop plan", max: 5, ok: loopOk, points: loopOk ? 5 : 0, detail: loopOk ? "Last frame feeds the first" : "No loop plan on winning concept" },
     { label: "Verified mechanic fact (sourced)", max: 10, ok: srcOk, points: srcOk ? 10 : 0, detail: srcOk ? "Proof source present" : "Needs a proof source" },
-    { label: "Faceless contract", max: 10, ok: faceBlocks.length === 0, points: faceBlocks.length === 0 ? 10 : 0, detail: faceBlocks.length === 0 ? "No face/talking-head subjects" : "Face subject detected" },
+    { label: "Faceless & wordless contract", max: 10, ok: facelessWordlessOk, points: facelessWordlessOk ? 10 : 0, detail: facelessWordlessOk ? "No face/hand/limb subjects and no in-frame text or branding" : (faceBlocks[0]?.match ?? textBlocks[0]?.match ?? "Faceless/wordless violation") },
     { label: "Claim safety (no blocked claims)", max: 10, ok: claimBlocks.length === 0, points: claimBlocks.length === 0 ? 10 : 0, detail: claimBlocks.length === 0 ? "No blocked claims" : `${claimBlocks.length} blocked claim(s)` },
     { label: "Campaign keyword valid", max: 5, ok: kwOk, points: kwOk ? 5 : 0, detail: brief.campaignKeyword },
     { label: `Winning concept >= ${STUDIO_DEFAULTS.conceptMinScore}/60`, max: 5, ok: !!(winner && scoreReelConcept(winner).passing), points: winner && scoreReelConcept(winner).passing ? 5 : 0, detail: winner ? `${scoreReelConcept(winner).total}/60` : "No winning concept" },
   ];
   const score = parts.reduce((a, p) => a + p.points, 0);
-  const passing = score >= minScore;
+  // Faceless & wordless is a HARD gate, not merely a scored part: a face/limb or
+  // in-frame-text block must fail the reel even if the numeric total clears the
+  // bar (otherwise a single 10-pt part loss on an 85-max scale could still pass).
+  const passing = score >= minScore && facelessWordlessOk;
   const reasoning = parts.filter(p => !p.ok).map(p => p.detail);
   const gate = passing ? "pass" as const : "block" as const;
   return { overall: score, gate, reasoning, parts, passing };
@@ -835,6 +884,25 @@ export const FACELESS_CLEAN_SCENE_DIRECTIVE = [
   `Every surface is clean and unbranded: no signage, no logos, no lettering, no words, no numbers, no readable text of any kind anywhere in frame; any screen, gauge, or display is dark, powered off, or angled away from camera.`,
 ].join("\n");
 
+/**
+ * A few motion lenses are BUILT around glowing indicators / radar sweeps /
+ * blueprint callout linework — for those, the strict "screens dark, no numbers"
+ * clause negates the lens's own premise (a warning-light world with every light
+ * off is not the lens). The graphical variant keeps the HARD no-brand /
+ * no-readable-word rule (the actual defect) but permits the style's abstract,
+ * non-spelling elements. Everything else gets the strict directive.
+ */
+const GRAPHICAL_DISPLAY_LENSES = new Set<string>(["warning_light_world", "weather_radar_overlay", "blueprint_technical"]);
+
+const FACELESS_CLEAN_SCENE_DIRECTIVE_GRAPHICAL = [
+  `Unpopulated scene: no people, no faces, no hands, no arms, no gloves — the objects move on their own.`,
+  `No brand names, no logos, no signage, and no readable words or spelled-out numbers anywhere in frame. The style's own abstract elements — indicator glows, radar sweeps, callout lines, marker dots, scan lines — are welcome as long as they spell nothing legible.`,
+].join("\n");
+
+export function facelessCleanSceneDirective(motionLens: string): string {
+  return GRAPHICAL_DISPLAY_LENSES.has(motionLens) ? FACELESS_CLEAN_SCENE_DIRECTIVE_GRAPHICAL : FACELESS_CLEAN_SCENE_DIRECTIVE;
+}
+
 export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatPrompt[] {
   const lens = MOTION_LENSES[brief.motionLens];
   const character = OBJECT_CHARACTERS[brief.objectCharacter];
@@ -866,7 +934,7 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
           ? `Opening frame: continue directly from the previous shot - the hero object in the same state and position it settled in (previous shot ended on: ${prev.visual})`
           : `Opening frame: strongest possible first frame - the hero object clearly readable at a glance.`,
         `Timing: complete the primary action by ${actionCompleteBySec} seconds; keep every frame after that visually stable${isLast ? ", settled on a frame that echoes the opening shot for a seamless loop" : ", ready for a match cut into the next shot"}.`,
-        FACELESS_CLEAN_SCENE_DIRECTIVE,
+        facelessCleanSceneDirective(brief.motionLens),
         `Leave the top 12% and bottom 20% of frame clear for IG UI; key action center-frame.`,
       ].join("\n"),
       // The scene bans (people/hands/text/branding) live in the POSITIVE prompt

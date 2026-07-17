@@ -413,6 +413,7 @@ Verify:
 2. Safety & Compliance: Ensure there are no price quotes, no pricing guarantees, no vehicle-specific claims that require a vin, no generic safety claims that cannot be verified. Sell the visit, not the price.
 3. Cleveland Angle: Ensure any Cleveland references (e.g. potholes, road names like Dead Man's Curve, local streets, weather patterns) are 100% accurate and feel genuinely local.
 4. Reel Flow: Check that the storyboard beats are contiguous, have excellent pacing, clear muted-first text overlay, and a compelling hook beat.
+5. Faceless + wordless + unbranded (HARD): NO beat "visual" or "motion" may depend on readable text, a screen/gauge/dashboard showing values, a part label or number, a license plate, a brand name, or a logo, and NO beat may cast human faces, hands, gloves, or arms. The video generator cannot spell — it renders any requested text/logo as garbled gibberish (a real reel shipped a fake "FTD913" readout and a "Nixs" logo this way). "onScreenText" is an ffmpeg overlay added AFTER generation, so it is fine there, but the generated video itself must render zero words. If any beat violates this, rewrite its "visual"/"motion" to show the physical object itself, wordless and unbranded.
 
 If any aspect is not perfect, rewrite the fields directly. OUTPUT ONLY the corrected, fully populated Reel Brief JSON object matching the provided schema. Do not include markdown fences or any prose outside the JSON.`;
 

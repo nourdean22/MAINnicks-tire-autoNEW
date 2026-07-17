@@ -166,7 +166,12 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     brief.id = briefId;
     brief.higgsfieldPromptPack = buildHiggsfieldReelPromptPack(brief);
 
-    // Enqueue background generation
+    // Enqueue background generation.
+    // NOTE (image conditioning / milestone 6): this autonomous brief has NO
+    // visualWorld, so brief.visualWorld?.heroFrameUrl is undefined and every
+    // cron reel renders text-only regardless of REEL_IMAGE_CONDITIONING. The
+    // --start-image identity anchor is OPERATOR-PATH-ONLY (Studio ref-frame
+    // approval) until a reference frame is auto-generated + auto-selected here.
     const { jobId } = await enqueueReelJob(brief, "cron");
     log.info(`Enqueued new dynamic reel job: ${jobId} for briefId: ${briefId}`);
     return { recordsProcessed: 0, details: `Enqueued new dynamic reel job (ID: ${jobId}) for today` };

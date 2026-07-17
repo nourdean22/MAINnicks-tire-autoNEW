@@ -178,8 +178,17 @@ hook · truth · save · local · absurdity · fit. The winning concept must sco
   sections.push(`# STORYBOARD STRUCTURE
 For the winner, write ${REEL_OUTPUT_RULES.minBeats}-${REEL_OUTPUT_RULES.maxBeats} beats. Each beat: beatNumber, startSecond, endSecond, visual, motion, onScreenText, purpose, audioCue, safeZoneNotes. Beat 1 must stop the scroll at frame one. Keep the top 12% and bottom 20% of frame clear of critical text (IG UI).`);
 
+  sections.push(`# IN-FRAME TEXT & BRANDING (hard — the #1 cause of rejected reels)
+The generator (Seedance) CANNOT spell — any word, number, gauge reading, screen readout, badge, sign, or logo written into a beat visual comes back garbled or misspelled (a real reel shipped a fake "FTD913" battery readout and a "Nixs" logo this exact way).
+- NEVER design a beat whose meaning depends on the viewer READING something in the shot: no diagnostic-tester screens showing values, no gauges/dials with numbers, no dashboards with legible words, no part labels or part numbers, no license plates, no street signs, no book/manual pages, no price tags, no phone screens.
+- Every screen, gauge, meter, or display in a beat is dark, powered-off, blank, or angled away from camera.
+- UNBRANDED: never place a brand, shop name, logo, or the handle into a beat visual — not even Nick's own name. Brand identity lives in the caption and the account, never rendered in the video.
+- If an archetype or lens implies text (diagnostic HUD readouts, title cards, intertitles, kinetic typography, blueprint callouts, numbered evidence markers, radar labels), the generated video shows ONLY that style's abstract visual texture (scan lines, sweep arcs, exploded parts, marker dots) and ZERO legible letters or numbers.
+- onScreenText is NOT rendered by the generator — it is a gold caption overlaid in ffmpeg AFTER generation. Design every beat visual to carry zero words; the teaching text is added on top later.
+- If a concept can ONLY work by showing a readable number/label/logo, it is DISQUALIFIED — show the physical thing itself (worn tread, rusted rotor, dead battery terminal), not a screen describing it.`);
+
   sections.push(`# HIGGSFIELD REQUIREMENTS
-One prompt per beat: vertical 9:16, clip length = beat duration, subject + motion + style from the chosen lens/archetype/character. Always include the negative prompt: "human face, person, hands, talking head, text artifacts, warped letters, watermark, logo, low-res". On-screen TEXT is added in assembly, not generation — never ask the generator to render words.`);
+One prompt per beat: vertical 9:16, clip length = beat duration, subject + motion + style from the chosen lens/archetype/character. The scene is UNPOPULATED and UNBRANDED: design each beat so the generator renders NO words, numbers, logos, signage, screens-with-readings, or human faces/hands/gloves in the first place. Do NOT author a negative prompt or name banned concepts (text, letters, logo, watermark) in a "do not include" clause — naming a banned concept in a negation makes the generator render it; the deterministic negative prompt is compiled downstream, not by you. On-screen TEXT is added in assembly, not generation — never ask the generator to render words.`);
 
   sections.push(`# FFMPEG REQUIREMENTS (plan only — never executed by you)
 Concat beat clips -> libx264, ${REEL_OUTPUT_RULES.pixelFormat}, ${REEL_OUTPUT_RULES.fps}fps, ${REEL_OUTPUT_RULES.resolution}, -movflags +faststart. A cut/push/text change every 1.5-2.5s. Audio: music bed + the REQUIRED voiceover script (see VOICEOVER CONTRACT) - and the reel must STILL teach muted. Pick a face-free cover frame.`);
