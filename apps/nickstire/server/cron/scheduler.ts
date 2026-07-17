@@ -1655,7 +1655,11 @@ export function startTieredScheduler(): void {
       },
       {
         name: "review-pipeline", // Fetch + analyze Google reviews, alert on negatives
-        requiresEnv: "GOOGLE_PLACES_API_KEY",
+        // The fetch layer (server/_core/map.ts) hard-requires GOOGLE_MAPS_API_KEY;
+        // gating on GOOGLE_PLACES_API_KEY let the job run and die on the missing
+        // Maps key in any env that has one but not the other (tripwire found
+        // 2026-07-16 while diagnosing the empty review_pipeline table).
+        requiresEnv: "GOOGLE_MAPS_API_KEY",
         handler: async () => {
           try {
             const { runReviewPipeline, getUrgentReviews } = await import("../pipelines/gbp-reviews");

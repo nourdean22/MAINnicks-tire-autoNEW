@@ -988,6 +988,10 @@ export const contentAdminRouter = router({
         hashtags: z.array(z.string()),
         selectedCaption: z.string().min(1),
         sourceType: z.enum(["review", "declined_work", "manual"]),
+        // The wizard has NINE creative source categories but the enqueue enum
+        // collapses non-DB sources to "manual" (#797) - sourceOrigin preserves
+        // the original category for provenance, analytics, and audits.
+        sourceOrigin: z.string().max(64).optional(),
         sourceId: z.string().optional(),
         sourceNotes: z.any().optional(),
         mechanicTruth: z.any().optional(),
@@ -1050,6 +1054,7 @@ export const contentAdminRouter = router({
         hashtags: brief.hashtags,
         selectedCaption: brief.selectedCaption,
         sourceType: brief.sourceType,
+        sourceOrigin: (brief as any).sourceOrigin,
         sourceId: brief.sourceId,
         sourceNotes: brief.sourceNotes,
         mechanicTruth: brief.mechanicTruth,
