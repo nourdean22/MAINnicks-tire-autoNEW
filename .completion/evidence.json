@@ -23,7 +23,7 @@
       "deferred": "Browser dead all session; the shadow card walkthrough is owed at acceptance and recorded as the P2 on shadow-planner."
     },
     "capability-ledger-updated": {
-      "ref": "capability-ledger.json: +durable-approvals (integration_verified/internal, honest 0087 P1)"
+      "ref": "capability-ledger.json: evidence-resolution gains record-level tests + honest entailment P2; durable-approvals promoted to deployed on 0087 prod assertion"
     }
   }
 }

@@ -2,26 +2,17 @@
   "$comment": "Executable PR claims (Reality Control).",
   "claims": [
     {
-      "id": "approvals-expire-at-execution",
-      "assertion": "An expired approval refuses at publish time with its own reason in BOTH the shared service verify and the reel paths two inline verifies; new approvals stamp TTL + governing policy version; legacy null-expiry rows stay valid.",
+      "id": "claim-level-evidence-records",
+      "assertion": "Resolved evidence becomes structured claim-linked records (deterministic ids, retrievedAt, TTL, snapshot hash or explicit fetch_blocked, entailment honestly not_evaluated) persisted onto director briefs so published assets carry claim-level provenance.",
       "evidence": [
         {
-          "file": "apps/nickstire/server/services/contentApprovals.ts"
+          "file": "apps/nickstire/server/services/evidenceRecords.ts"
         },
         {
-          "file": "apps/nickstire/server/routers/instagramAdmin.ts"
+          "file": "apps/nickstire/server/evidenceRecords.test.ts"
         },
         {
-          "file": "apps/nickstire/server/approvalExpiry.test.ts"
-        }
-      ]
-    },
-    {
-      "id": "extends-not-rebuilds",
-      "assertion": "The existing #780 hash-approval machinery is extended (2 columns + expiry checks), not duplicated - per the directive rule against rebuilding working systems.",
-      "evidence": [
-        {
-          "file": "apps/nickstire/drizzle/0087_approval_expiry.sql"
+          "file": "apps/nickstire/server/services/reelDirector.ts"
         }
       ]
     }
