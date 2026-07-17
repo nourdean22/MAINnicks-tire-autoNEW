@@ -12,6 +12,7 @@
 import { invokeLLM, type OutputSchema } from "../_core/llm";
 import { createLogger } from "../lib/logger";
 import { buildFacelessReelSystemPrompt } from "../../client/src/lib/facelessReelStudioPrompt";
+import { serializeThesisForPrompt, type CreativeThesis } from "../../client/src/lib/creativeThesis";
 import { applyCreativeSkills } from "./skillRouter";
 import {
   CAMPAIGN_KEYWORDS,
@@ -39,6 +40,11 @@ export interface GenerateReelBriefInput {
   sourceType?: string;
   sourceId?: string;
   sourceDetail?: string;
+  /** Milestone 3: the LOCKED campaign truth as a STRUCTURED contract (not the
+   *  lossy sourceDetail prose). When present, its readable representation leads
+   *  the system prompt so the model develops this exact concept — carrying
+   *  mechanicTruth / premise / customerTension that genomeConstraintBlock drops. */
+  thesis?: CreativeThesis;
 }
 
 /** Strict JSON schema for the WINNING reel only — the model ideates + scores
@@ -347,6 +353,14 @@ export async function generateReelBriefAI(
     proprietaryEvidence,
     resolvedEvidence: resolved.evidence,
   });
+
+  if (input.thesis) {
+    // Milestone 3: the LOCKED campaign truth LEADS the prompt — structured
+    // contract in, readable representation here — so the model develops this
+    // exact concept instead of the flattened sourceDetail blob that dropped
+    // mechanicTruth / audienceMoment / driverTension entirely.
+    systemPrompt = `${serializeThesisForPrompt(input.thesis)}\n\n${systemPrompt}`;
+  }
 
   // Phase 5.4 + 3.3: feed what's performed back into generation + push a DM-share CTA.
   let feedback = "";

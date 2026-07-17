@@ -126,6 +126,16 @@ describe("draftReelFromGenome", () => {
     expect(input.campaignKeyword).toBe("BATTERY");
     expect(input.topic).toContain(baseGenome.audienceMoment.slice(0, 40));
     expect(input.sourceDetail).toContain("CAMPAIGN GENOME CONSTRAINTS");
+    // Milestone 3: a STRUCTURED Creative Thesis rides alongside sourceDetail,
+    // carrying the fields genomeConstraintBlock dropped (mechanicTruth, premise,
+    // customerTension) as typed data, not a truncated prose blob.
+    expect(input.thesis).toBeDefined();
+    expect(input.thesis.mechanicTruth).toBe(baseGenome.mechanicTruth);
+    expect(input.thesis.customerTension).toBe(baseGenome.driverTension);
+    expect(input.thesis.premise).toBe(baseGenome.audienceMoment);
+    expect(input.thesis.visualMetaphor).toBe(baseGenome.visualMetaphor);
+    expect(input.thesis.conceptId).toMatch(/^gen_[0-9a-f]{12}$/);
+    expect(input.thesis.mustPreserve).toContain("mechanicTruth");
     expect(res.brief).toEqual(sample);
     expect(typeof res.qualityScore.overall).toBe("number");
     expect(typeof res.qualityScore.passing).toBe("boolean");
