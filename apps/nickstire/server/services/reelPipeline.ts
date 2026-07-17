@@ -510,6 +510,44 @@ export async function processNextAssemblyJob(): Promise<{
       } catch (e) {
         log.warn("rendered QA hook failed (job remains assembled)", { jobId: job.id, e: e instanceof Error ? e.message : String(e) });
       }
+      // Observed Visual Bible (milestone 5): continuity facts from the ACTUAL
+      // rendered pixels, persisted onto the payload so future campaign briefs
+      // can inherit forbiddenChanges/identity facts (the identity-drift
+      // killer). Same flag + best-effort posture as QA — never fails the job.
+      try {
+        const path = await import("path");
+        const fsp = await import("fs/promises");
+        const os = await import("os");
+        const { spawn } = await import("child_process");
+        const mp4Path = mp4Url.startsWith("/") || /^[A-Za-z]:/.test(mp4Url)
+          ? mp4Url
+          : path.join(process.cwd(), "data", mp4Url.replace(/^https?:\/\/[^/]+\//, ""));
+        const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "bible-"));
+        const frames: string[] = [];
+        for (let i = 0; i < 6; i++) {
+          const t = (i * (Math.max(durationSec - 1, 6) / 5) + 0.5).toFixed(2);
+          const p = path.join(dir, `f${i}.jpg`);
+          await new Promise<void>((resolve) => {
+            const bin = process.env.FFMPEG_PATH || "ffmpeg";
+            const c = spawn(bin, ["-y", "-v", "error", "-ss", t, "-i", mp4Path, "-frames:v", "1", "-vf", "scale=540:960", "-q:v", "5", p], { shell: process.platform === "win32" && !process.env.FFMPEG_PATH });
+            c.on("close", () => resolve());
+            c.on("error", () => resolve());
+          });
+          frames.push(p);
+        }
+        const { observeVisualBible } = await import("./visualBibleObserved");
+        const bible = await observeVisualBible(job.id, frames, brief.voiceoverScript?.slice(0, 300));
+        if (bible) {
+          const freshRes = await d.select({ payload: reelJobs.payload }).from(reelJobs).where(eq(reelJobs.id, job.id)).limit(1);
+          const fresh = JSON.parse(freshRes[0]?.payload ?? "{}");
+          fresh.observedVisualBible = bible;
+          await d.update(reelJobs).set({ payload: JSON.stringify(fresh) }).where(eq(reelJobs.id, job.id));
+          log.info("observed visual bible persisted", { jobId: job.id, defects: bible.visibleDefects.length, drift: bible.identityDriftAcrossFrames.length });
+        }
+        await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+      } catch (e) {
+        log.warn("observed-bible hook failed (job remains assembled)", { jobId: job.id, e: e instanceof Error ? e.message : String(e) });
+      }
     }
 
     if (job.briefId && job.briefId !== "unknown") {
