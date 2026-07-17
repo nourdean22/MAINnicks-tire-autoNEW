@@ -276,6 +276,31 @@ export const contentAdminRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Save Reel draft failed" });
       }
     }),
+  /** Deterministic 4:5 slide rendering for a carousel brief - the consumer of
+   *  the Studio's headline/body design intent (docs/operations: textOverlayPlan
+   *  had NO production path until 2026-07-17). Renders via the same
+   *  puppeteer+storagePut stack as Studio V2, with per-territory design systems. */
+  renderCarouselSlides: adminProcedure
+    .input(z.object({
+      brief: z.object({
+        id: z.string().optional(),
+        creativeTerritory: z.string(),
+        campaignKeyword: z.string().min(1),
+        topic: z.string().min(1),
+        slides: z.array(z.object({
+          slideNumber: z.number().int().min(1).max(7),
+          role: z.string(),
+          headline: z.string().min(1),
+          body: z.string(),
+        })).min(1).max(7),
+      }),
+    }))
+    .mutation(async ({ input }) => {
+      const { renderCarouselSlides } = await import("../services/carouselSlideRenderer");
+      const urls = await renderCarouselSlides(input.brief as any);
+      return { urls };
+    }),
+
   saveCarouselDraft: adminProcedure
     .input(z.object({
       id: z.string(),

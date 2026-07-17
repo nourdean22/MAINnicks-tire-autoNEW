@@ -21,6 +21,26 @@ export default function DraftBoardPanel() {
   const { data: reels, isLoading: reelsLoading, refetch: refetchReels } = trpc.contentAdmin.allReelDrafts.useQuery();
 
   // Mutations
+  const renderSlides = trpc.contentAdmin.renderCarouselSlides.useMutation({
+    onError: (e: any) => toast.error("Slide render failed", { description: e.message }),
+  });
+
+  const handleRenderSlides = async (draft: any) => {
+    toast.info("Rendering 4:5 slides...", { description: "Deterministic typography via the server renderer." });
+    const res = await renderSlides.mutateAsync({
+      brief: {
+        id: draft.id,
+        creativeTerritory: draft.creativeTerritory || "premium_product_ad",
+        campaignKeyword: draft.campaignKeyword || "TREAD",
+        topic: draft.topic,
+        slides: (draft.slides || []).map((s: any) => ({ slideNumber: s.slideNumber, role: s.role, headline: s.headline, body: s.body })),
+      },
+    });
+    const updatedBrief = { ...draft, renderedSlideUrls: res.urls, updatedAt: new Date().toISOString() };
+    saveCarousel.mutate({ id: draft.id, topic: draft.topic, brief: updatedBrief });
+    toast.success(`Rendered ${res.urls.length} slides`, { description: res.urls[0] });
+  };
+
   const saveCarousel = trpc.contentAdmin.saveCarouselDraft.useMutation({
     onSuccess: () => {
       toast.success("Carousel draft updated");
@@ -286,6 +306,7 @@ export default function DraftBoardPanel() {
                         onUpdateDate={(plannedDate) => handleUpdateDate(d, plannedDate)}
                         onUpdateNotes={(notes) => handleUpdateNotes(d, notes)}
                         onOpenPublish={() => setSelectedDraftForPublish(d)}
+                        onRenderSlides={d.contentType === "carousel" && (d.slides || []).length ? () => handleRenderSlides(d) : undefined}
                         onOpenStudio={() => {
                           const route = d.contentType === "carousel" ? "/admin/ig-studio" : "/admin/reel-studio";
                           window.location.href = `${route}?briefId=${d.id}`;
@@ -328,6 +349,7 @@ export default function DraftBoardPanel() {
                         onUpdateDate={(plannedDate) => handleUpdateDate(d, plannedDate)}
                         onUpdateNotes={(notes) => handleUpdateNotes(d, notes)}
                         onOpenPublish={() => setSelectedDraftForPublish(d)}
+                        onRenderSlides={d.contentType === "carousel" && (d.slides || []).length ? () => handleRenderSlides(d) : undefined}
                         onOpenStudio={() => {
                           const route = d.contentType === "carousel" ? "/admin/ig-studio" : "/admin/reel-studio";
                           window.location.href = `${route}?briefId=${d.id}`;
@@ -354,7 +376,8 @@ export default function DraftBoardPanel() {
                       onUpdateDate={(plannedDate) => handleUpdateDate(d, plannedDate)}
                       onUpdateNotes={(notes) => handleUpdateNotes(d, notes)}
                       onOpenPublish={() => setSelectedDraftForPublish(d)}
-                      onOpenStudio={() => {
+                      onRenderSlides={d.contentType === "carousel" && (d.slides || []).length ? () => handleRenderSlides(d) : undefined}
+                        onOpenStudio={() => {
                         const route = d.contentType === "carousel" ? "/admin/ig-studio" : "/admin/reel-studio";
                         window.location.href = `${route}?briefId=${d.id}`;
                       }}
