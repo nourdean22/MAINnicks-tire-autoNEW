@@ -22,10 +22,12 @@ import {
   validateNoExternalSideEffects,
   validateSourceGrounding,
   buildPublishChecklist,
+  CREATIVE_TERRITORIES,
 } from "../lib/igCarouselStudio";
 import {
   buildCarouselStudioSystemPrompt,
   buildHiggsfieldPromptPack,
+  compileCarouselSlidePrompt,
   MASTER_PROMPT_SECTIONS,
 } from "../lib/igCarouselStudioPrompt";
 import { SAMPLE_BRIEFS } from "../lib/igCarouselStudioSamples";
@@ -198,6 +200,28 @@ describe("prompt engine", () => {
     for (let i = 1; i <= 5; i++) expect(pack).toContain(`## Slide ${i}`);
     expect(pack).toContain("NO baked-in text");
     expect(pack).toContain("1080×1350");
+  });
+  it("slide prompts use TERRITORY grammar, not one universal 85mm suffix", () => {
+    // SAMPLE_BRIEFS[1] is tiny_world: miniature diorama grammar, no film-grain
+    // product-ad language, and a hard DO NOT INCLUDE tail with its avoid list.
+    const brief = SAMPLE_BRIEFS[1];
+    const own = CREATIVE_TERRITORIES[brief.creativeTerritory];
+    const pack = buildHiggsfieldPromptPack(brief);
+    expect(pack).toContain(own.grammar);
+    expect(pack).toContain(`DO NOT INCLUDE: ${own.avoid}`);
+    // The old universal suffix is gone unless the territory itself wants it.
+    if (!own.grammar.includes("85mm")) expect(pack).not.toContain("85mm");
+    if (!own.grammar.includes("film grain")) expect(pack).not.toContain("film grain texture");
+    // The premium territory KEEPS the 85mm product language - that is its style.
+    const premium = compileCarouselSlidePrompt({ creativeTerritory: "premium_product_ad" }, { visualPrompt: "A brake rotor on a dark pedestal" });
+    expect(premium).toContain("85mm product photography");
+    // Blueprint forbids the photographic treatment outright.
+    const bp = compileCarouselSlidePrompt({ creativeTerritory: "blueprint_xray" }, { visualPrompt: "Suspension cutaway" });
+    expect(bp).toContain("Orthographic technical illustration");
+    expect(bp).toContain("DO NOT INCLUDE: shallow depth of field, film grain, photographic background");
+    // Every compiled prompt bans baked-in lettering and carries 4:5 composition.
+    expect(bp).toContain("baked-in text");
+    expect(bp).toContain("Portrait 4:5 composition");
   });
 });
 

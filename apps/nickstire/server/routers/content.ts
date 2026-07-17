@@ -1154,7 +1154,7 @@ export const contentAdminRouter = router({
         const { generateCarouselSlideImage } = await import("../services/higgsfieldStudio");
         log.info(`Generating ${input.prompts.length} Carousel images via Higgsfield in parallel...`);
         hgUrls = await Promise.all(
-          input.prompts.map((prompt) => generateCarouselSlideImage(prompt))
+          input.prompts.map((prompt) => generateCarouselSlideImage({ prompt, aspectRatio: "3:4" }))
         );
       } catch (err) {
         log.warn("Higgsfield Carousel image generation failed, trying Gemini/OpenRouter fallback...", {

@@ -171,7 +171,15 @@ function parseResultUrl(stdout: string): string {
 /**
  * Generate a single image using gpt_image_2 model
  */
-export async function generateCarouselSlideImage(prompt: string): Promise<string> {
+/** Portrait vs square is the CALLER's call: single-post autopost keeps 1:1
+ *  (bare-string back-compat), the carousel path passes 3:4 - the closest
+ *  portrait in Higgsfield aspect enums (4:5 was absent from the seedance enum
+ *  and gpt_image_2 could not be probed without rotating the prod session,
+ *  2026-07-16). A rejected ratio fails LOUD in the Studio rather than
+ *  silently shipping square crops against a 4:5 brief. */
+export async function generateCarouselSlideImage(req: string | { prompt: string; aspectRatio?: string }): Promise<string> {
+  const prompt = typeof req === "string" ? req : req.prompt;
+  const aspectRatio = typeof req === "string" ? "1:1" : (req.aspectRatio || "3:4");
   const binPath = await ensureHiggsfieldBinary();
   const { env, tempCredsFile } = await getSpawnEnv();
 
@@ -187,7 +195,7 @@ export async function generateCarouselSlideImage(prompt: string): Promise<string
         "--prompt",
         prompt,
         "--aspect_ratio",
-        "1:1",
+        aspectRatio,
         "--resolution",
         "2k",
         "--wait",
