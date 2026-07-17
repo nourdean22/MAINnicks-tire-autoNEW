@@ -34,7 +34,9 @@ campaign ask
 - `winnerId` / per-dimension `scores` / `judgeReasoning` — computed + returned (line 377) but **not passed** to `generateCampaignGenome`.
 - `title` / `hook` / `coreIdea` / `visualIdea` — **stringified** into prose only; no field map, so the genome LLM may reinterpret or ignore them.
 
-**Zero winner fields are deterministically preserved into the genome.** The deterministic map the code *could* use (`visualIdea→visualMetaphor`, `coreIdea→mechanicTruth/audienceMoment`, `hook→driverTension`, `whyItWorks→emotionalTurn`, lens→`nickSignature`/`creativeTerritory`) is discarded at conceptTournament.ts:331-344. → **M4** owns this: pass the winner as structured inputs + assert genome lineage.
+**Zero winner fields are deterministically preserved into the genome.** The deterministic map the code *could* use (`visualIdea→visualMetaphor`, `coreIdea→mechanicTruth/audienceMoment`, `hook→driverTension`, `whyItWorks→emotionalTurn`, lens→`nickSignature`/`creativeTerritory`) is discarded at conceptTournament.ts:331-344. → **M4** owns this.
+
+**M4 (done):** `generateCampaignGenome` now takes a `winnerSeed` and **FORCES** the winner's three identity fields (`visualMetaphor`←visualIdea, `mechanicTruth`←coreIdea, `emotionalTurn`←whyItWorks) into the genome after generation — the LLM fills only genuine gaps. `whyItWorks` (previously dropped entirely) is now in the seed AND the prose. The forced values are pre-sliced to genome limits and re-run through claim safety. Proven: a drifted LLM genome is overridden to the winner on all three fields (genomeGen.test.ts). Still open for later milestones: lens/role attribution restoration, judge scores/reasoning into the genome, and gating reelBriefGen's downstream re-ideation (3.2, M4-continued/M9).
 
 ## Smaller drops worth fixing in-flight
 
