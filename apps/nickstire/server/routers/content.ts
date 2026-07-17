@@ -349,6 +349,19 @@ export const contentAdminRouter = router({
       return draftReelFromGenome(genome);
     }),
 
+  /** Genome Wave 2: Carousel Director — one campaign genome -> a full
+   *  boost-scored CarouselBrief via the existing generator. Generation only;
+   *  the client chains the result into saveCarouselDraft (Draft Board), where
+   *  the existing render + publish paths take over. */
+  draftCarouselFromGenome: adminProcedure
+    .input(z.object({ genome: z.unknown() }))
+    .mutation(async ({ input }) => {
+      const { creativeGenomeSchema } = await import("../../client/src/lib/creativeGenome");
+      const genome = creativeGenomeSchema.parse(input.genome);
+      const { draftCarouselFromGenome } = await import("../services/carouselDirector");
+      return draftCarouselFromGenome(genome);
+    }),
+
   /** Genome Wave 1: generate ONE claim-safe campaign genome + the seeds that
    *  drive today's reel/carousel/photo flows from it. */
   generateCampaignGenome: adminProcedure

@@ -17,6 +17,7 @@ import {
   CREATIVE_TERRITORIES,
   CAMPAIGN_KEYWORDS,
   type CarouselBrief,
+  type CarouselConcept,
   type CarouselSlide,
   type CampaignKeyword,
   type CreativeTerritory,
@@ -70,11 +71,44 @@ const CAROUSEL_BRIEF_SCHEMA: OutputSchema = {
           required: ["headline", "body", "visualPrompt", "textOverlayPlan", "qaNotes"],
         },
       },
+      // The winning concept's summary + honest self-scores. The prompt already
+      // makes the model ideate and score 10 concepts internally; without this
+      // block the emission dropped the winner, so every AI brief hard-capped
+      // at 65/75 on the boost score ("No winning concept" + "Save/share
+      // reason" can never pass) — in the Studio one-click flow too.
+      winningConcept: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          hook: { type: "string" },
+          driverEmotion: { type: "string" },
+          saveShareReason: { type: "string" },
+          boostReason: { type: "string" },
+          nickFitReason: { type: "string" },
+          nonGenericReason: { type: "string" },
+          rejectionRisk: { type: "string" },
+          scores: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              hook: { type: "number" },
+              truth: { type: "number" },
+              save: { type: "number" },
+              local: { type: "number" },
+              absurdity: { type: "number" },
+              fit: { type: "number" },
+            },
+            required: ["hook", "truth", "save", "local", "absurdity", "fit"],
+          },
+        },
+        required: ["hook", "driverEmotion", "saveShareReason", "boostReason", "nickFitReason", "nonGenericReason", "rejectionRisk", "scores"],
+      },
     },
     required: [
       "topic", "mechanicTruth", "driverConfusion", "clevelandAngle", "seasonality",
       "usefulAbsurdity", "campaignKeyword", "creativeTerritory", "typographyPlan",
       "avoidedForRepetition", "selectedCaption", "captionHooks", "hashtags", "slides",
+      "winningConcept",
     ],
   },
 };
@@ -144,12 +178,14 @@ export async function generateCarouselBriefAI(
       {
         role: "user",
         content:
-          "Run the full process internally — research, ideate the 10 concepts, score them, pick the single winner — then OUTPUT ONLY the winning carousel as one JSON object matching the provided schema (exactly 5 slides in order, caption, hashtags). No prose, no markdown.",
+          "Run the full process internally — research, ideate the 10 concepts, score them, pick the single winner — then OUTPUT ONLY the winning carousel as one JSON object matching the provided schema (exactly 5 slides in order, caption, hashtags, and the winningConcept block carrying the winner's summary with your HONEST self-scores from the internal scoring, not inflated ones). No prose, no markdown.",
       },
     ],
-    // The brief is large and gemini-2.5-flash spends heavily on internal
-    // thinking before output; generous headroom so the JSON completes.
-    maxTokens: 8192,
+    // The brief is large and gemini-2.5-flash counts internal thinking
+    // against maxOutputTokens; 8192 truncated mid-JSON once the winningConcept
+    // block was added (same defect class as the reel critic in #796). Same
+    // headroom as the reel generator.
+    maxTokens: 24576,
     // Full-brief generation routinely exceeds the default 30s LLM timeout.
     timeoutMs: 120000,
     outputSchema: CAROUSEL_BRIEF_SCHEMA,
@@ -176,6 +212,42 @@ export async function generateCarouselBriefAI(
       };
     });
 
+  const campaignKeyword = coerceKeyword(str(parsed.campaignKeyword));
+  const creativeTerritory = coerceTerritory(str(parsed.creativeTerritory));
+
+  // Rebuild the winner as a first-class CarouselConcept so the boost score's
+  // concept parts (winning concept >= bar, save/share reason) score the real
+  // winner instead of always failing on an empty concepts array.
+  const wc = (parsed.winningConcept ?? {}) as Record<string, unknown>;
+  const wcScores = (wc.scores ?? {}) as Record<string, unknown>;
+  const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  const winningConcept: CarouselConcept | null = str(wc.hook)
+    ? {
+        id: "winner",
+        hook: str(wc.hook),
+        mechanicTruth: str(parsed.mechanicTruth),
+        driverEmotion: str(wc.driverEmotion),
+        campaignKeyword,
+        creativeTerritory,
+        usefulAbsurdity: str(parsed.usefulAbsurdity),
+        localAngle: str(parsed.clevelandAngle),
+        slideOutline: slides.map((s) => s.headline),
+        saveShareReason: str(wc.saveShareReason),
+        boostReason: str(wc.boostReason),
+        nickFitReason: str(wc.nickFitReason),
+        nonGenericReason: str(wc.nonGenericReason),
+        rejectionRisk: str(wc.rejectionRisk),
+        scores: {
+          hook: num(wcScores.hook),
+          truth: num(wcScores.truth),
+          save: num(wcScores.save),
+          local: num(wcScores.local),
+          absurdity: num(wcScores.absurdity),
+          fit: num(wcScores.fit),
+        },
+      }
+    : null;
+
   const now = new Date().toISOString();
   const brief: CarouselBrief = {
     id: `ai-${Date.now()}`,
@@ -189,11 +261,11 @@ export async function generateCarouselBriefAI(
     clevelandAngle: str(parsed.clevelandAngle),
     seasonality: str(parsed.seasonality),
     sourceNotes: [],
-    campaignKeyword: coerceKeyword(str(parsed.campaignKeyword)),
-    creativeTerritory: coerceTerritory(str(parsed.creativeTerritory)),
+    campaignKeyword,
+    creativeTerritory,
     usefulAbsurdity: str(parsed.usefulAbsurdity),
-    concepts: [],
-    winningConceptId: null,
+    concepts: winningConcept ? [winningConcept] : [],
+    winningConceptId: winningConcept ? winningConcept.id : null,
     slides,
     higgsfieldPrompts: slides.map((s) => s.visualPrompt),
     typographyPlan: str(parsed.typographyPlan),
