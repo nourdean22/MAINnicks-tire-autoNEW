@@ -15,7 +15,19 @@ const db = await getDb();
 if (!db) { console.error("no database connection"); process.exit(1); }
 
 const ddl = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../drizzle/0088_media_registry.sql"), "utf-8");
-const statements = ddl.split(/;\s*\n/).map((s) => s.trim()).filter((s) => s && !s.startsWith("--"));
+// Strip comment LINES before splitting — the file's leading comment block is
+// glued to the first CREATE TABLE after a naive split, and a chunk-level
+// startsWith("--") filter would silently drop media_assets entirely
+// (review finding on PR #828, verified against a bare dev DB).
+const statements = ddl
+  .replace(/^--.*$/gm, "")
+  .split(/;\s*(?:\n|$)/)
+  .map((s) => s.trim())
+  .filter(Boolean);
+if (statements.length !== 2) {
+  console.error(`expected 2 DDL statements, parsed ${statements.length} — refusing`);
+  process.exit(1);
+}
 
 for (const stmt of statements) {
   const name = stmt.match(/`(\w+)`/)?.[1] ?? "statement";
