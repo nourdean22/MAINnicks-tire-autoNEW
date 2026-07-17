@@ -598,6 +598,243 @@
         "campaign summary doc rendering"
       ],
       "lastVerifiedAt": "2026-07-17"
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [],
+      "capabilityId": "image-conditioning",
+      "name": "Reel image conditioning (hero-frame anchor, flag-gated)",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "#842/#853",
+        "tests": [
+          "server/imageConditioning.test.ts (5, incl. mp4-rejection)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "live seedance image-render unproven (paid + REEL_IMAGE_CONDITIONING off); text-conditioning was verified as the drift root cause",
+          "source": "PROVIDER-CAPABILITIES.json"
+        }
+      ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [],
+      "capabilityId": "source-clip-analysis",
+      "name": "Edit-planner source-clip analysis (freeze/motion/brightness)",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "#843",
+        "tests": [
+          "server/editPlanner.test.ts (8, real detector distinguishes moving vs frozen)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "analyzeSourceClip has no live pipeline caller yet — the ReelEditPlan consumer is future work",
+          "source": "CURRENT-STATE.md"
+        }
+      ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [],
+      "capabilityId": "audio-qa",
+      "name": "Deterministic audio QA (LUFS/true-peak/clipping/channels)",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "#844",
+        "tests": [
+          "server/audioQa.test.ts (8, real ffmpeg approve-stereo/flag-mono)"
+        ],
+        "liveRuns": [
+          "wired into reelAssembly post-render as approve-gate evidence"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "voice-naturalness (listening pass) NOT done — deterministic half only",
+          "source": "directive §53"
+        }
+      ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [],
+      "capabilityId": "critic-panel",
+      "name": "Specialist critic panel (7 lenses, no-averaging merge)",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "#845",
+        "tests": [
+          "server/criticPanel.test.ts (7, single-block-forces-repair)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "mergePanel is pure; the multi-lens live run (7 LLM calls/render) not yet wired",
+          "source": "CURRENT-STATE.md"
+        }
+      ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [],
+      "capabilityId": "repair-routing",
+      "name": "Repair routing (cheapest fix per defect, free before paid)",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "#846",
+        "tests": [
+          "server/repairRouter.test.ts (8)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "planRepairs pure; not yet consumed by the repair worker",
+          "source": "CURRENT-STATE.md"
+        }
+      ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [],
+      "capabilityId": "story-photo-directors",
+      "name": "Story/Photo directors (arc + subject-safe crop geometry)",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "#847",
+        "tests": [
+          "server/storyPhotoDirector.test.ts (7)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "pure planners; no live Story/Photo production path yet",
+          "source": "CURRENT-STATE.md"
+        }
+      ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [],
+      "capabilityId": "portfolio-balancer",
+      "name": "Weekly portfolio balancer (concentration caps + education floor)",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "#848",
+        "tests": [
+          "server/portfolioBalancer.test.ts (6)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "balanceWeek pure; not yet wired to the planner",
+          "source": "CURRENT-STATE.md"
+        }
+      ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [],
+      "capabilityId": "reuse-decision",
+      "name": "Media reuse decision engine (CREATE_NEW/REUSE_*/DO_NOT_REUSE)",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "#849",
+        "tests": [
+          "server/reuseDecision.test.ts (10)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "pure; no library-search caller (similarity/dupe detection deferred)",
+          "source": "directive §25"
+        }
+      ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [],
+      "capabilityId": "quality-automation",
+      "name": "Quality-driven automation decision engine (7-way)",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "#850",
+        "tests": [
+          "server/qualityAutomation.test.ts (9, every branch)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "decideAutomation pure; not yet the pipeline gate — acceptance harness exercises it manually",
+          "source": "CURRENT-STATE.md"
+        }
+      ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [],
+      "capabilityId": "higgsfield-keepalive",
+      "name": "Higgsfield session keepalive (15-min refresh)",
+      "codeState": "merged",
+      "operationalState": "deployed",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "#852",
+        "tests": [
+          "30 cron tests green"
+        ],
+        "deploymentId": "railway 7c86cad0 (2026-07-17 15:50 EDT)",
+        "liveRuns": [
+          "fresh creds pushed + deploy live; render 690001 generating on the refreshed session"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "keepalive maintains a live session but cannot revive a dead one — bootstrap login owed on full revocation",
+          "source": "PR #852"
+        }
+      ]
     }
   ],
   "axes": {
