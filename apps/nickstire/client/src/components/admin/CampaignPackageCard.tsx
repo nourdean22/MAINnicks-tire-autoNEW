@@ -44,8 +44,17 @@ export default function CampaignPackageCard() {
   const [proofHandles, setProofHandles] = useState<string[]>([]);
 
   const evidenceOptions = trpc.contentAdmin.listEvidenceOptions.useQuery(undefined, { staleTime: 60_000 });
+  // Server accepts at most 8 proofHandles — selecting a 9th must be
+  // impossible here, not a zod error after the tournament button.
+  const MAX_PROOF_HANDLES = 8;
   const toggleProof = (handle: string) =>
-    setProofHandles((prev) => (prev.includes(handle) ? prev.filter((h) => h !== handle) : [...prev, handle]));
+    setProofHandles((prev) =>
+      prev.includes(handle)
+        ? prev.filter((h) => h !== handle)
+        : prev.length >= MAX_PROOF_HANDLES
+          ? prev
+          : [...prev, handle],
+    );
 
   const tournament = trpc.contentAdmin.runConceptTournament.useMutation({
     onError: (e) => toast.error("Campaign generation failed", { description: e.message }),
@@ -70,7 +79,7 @@ export default function CampaignPackageCard() {
     onError: (e) => toast.error("Carousel draft failed", { description: e.message }),
   });
   const saveCarousel = trpc.contentAdmin.saveCarouselDraft.useMutation({
-    onSuccess: () => toast.success("Carousel saved to Draft Board", { description: "Render slides and publish from there." }),
+    onSuccess: () => toast.success("Carousel saved to Draft Board", { description: "Open the Drafts tab to render slides and publish." }),
     onError: (e) => toast.error("Draft save failed", { description: e.message }),
   });
   const draftAndSaveCarousel = async (genome: unknown) => {
@@ -116,7 +125,7 @@ export default function CampaignPackageCard() {
         {(evidenceOptions.data?.length ?? 0) > 0 && (
           <div className="space-y-1.5">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Attach real evidence (verified before use)
+              Attach real evidence (verified before use) — {proofHandles.length}/{MAX_PROOF_HANDLES}
             </p>
             <div className="flex max-h-36 flex-col gap-1 overflow-y-auto">
               {evidenceOptions.data?.map((o) => (
@@ -305,7 +314,7 @@ export default function CampaignPackageCard() {
                     )}
                     <p className="text-xs text-muted-foreground">
                       {saveCarousel.isSuccess
-                        ? "On the Draft Board — render slides and publish from there."
+                        ? "Saved — open the Drafts tab to render slides and publish."
                         : "Saving to Draft Board..."}
                     </p>
                   </div>

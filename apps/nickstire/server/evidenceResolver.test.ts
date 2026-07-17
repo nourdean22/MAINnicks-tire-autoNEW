@@ -18,10 +18,17 @@ describe("parseEvidenceHandle", () => {
     expect(parseEvidenceHandle("work_order:abc")).toEqual({ type: "declined_work", id: "abc" });
   });
 
-  it("recognizes accepted public proof families as labels", () => {
+  it("maps a family + topic label to a CURATED record with a canonical URL", () => {
     const p = parseEvidenceHandle("NHTSA tire pressure guidance");
     expect(p.type).toBe("public_source");
-    if (p.type === "public_source") expect(p.family).toBe("NHTSA");
+    if (p.type === "public_source") {
+      expect(p.record.family).toBe("NHTSA");
+      expect(p.record.canonicalUrl).toContain("nhtsa.gov");
+    }
+  });
+
+  it("a family NAME alone is recognition, not evidence — rejected", () => {
+    expect(parseEvidenceHandle("Consumer Reports recommends this").type).toBe("family_without_record");
   });
 
   it("rejects free text that names no family and no typed id — the #811 trust gap", () => {
@@ -49,15 +56,20 @@ describe("resolveEvidenceHandles", () => {
     expect(res.rejected).toEqual(["review:99999", "not a real source"]);
   });
 
-  it("passes public-family labels without a DB roundtrip", async () => {
+  it("resolves registry-matched public labels to the curated record's title + URL, no DB roundtrip", async () => {
     const spy = vi.fn();
     vi.doMock("./services/reelBriefGen", () => ({ resolveSourceProvenance: spy }));
     vi.resetModules();
     const { resolveEvidenceHandles } = await import("./services/evidenceResolver");
 
-    const res = await resolveEvidenceHandles(["Ohio E-Check requirements overview"]);
+    const res = await resolveEvidenceHandles([
+      "Ohio E-Check inspection requirements overview",
+      "Bridgestone education material", // family with no curated record → rejected
+    ]);
     expect(spy).not.toHaveBeenCalled();
-    expect(res.resolved[0]?.origin).toBe("public_family");
-    expect(res.rejected).toHaveLength(0);
+    expect(res.resolved).toHaveLength(1);
+    expect(res.resolved[0].origin).toBe("public_family");
+    expect(res.resolved[0].assertion).toContain("epa.ohio.gov");
+    expect(res.rejected).toEqual(["Bridgestone education material"]);
   });
 });

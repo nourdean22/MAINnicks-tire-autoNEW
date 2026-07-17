@@ -1319,6 +1319,11 @@ export const contentAdminRouter = router({
         motionLens: brief.motionLens,
         objectCharacter: brief.objectCharacter,
         archetype: brief.archetype,
+        // Campaign lineage + approved visual world MUST survive the whitelist:
+        // omitting them here silently stripped genomeId (review P2) and the
+        // hero-frame URL before inventory + reel_jobs persistence.
+        genomeId: (brief as any).genomeId ?? null,
+        visualWorld: (brief as any).visualWorld,
         promptPack: (brief as any).promptPack,
         higgsfieldPromptPack: (brief as any).higgsfieldPromptPack,
       };

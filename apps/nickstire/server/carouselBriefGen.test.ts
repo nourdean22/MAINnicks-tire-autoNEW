@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import { parseBriefJson } from "./services/carouselBriefGen";
@@ -64,6 +64,13 @@ describe("parseBriefJson (resilient extraction)", () => {
 });
 
 describe("winning-concept emission (boost-score cap regression)", () => {
+  afterEach(async () => {
+    const { vi } = await import("vitest");
+    vi.doUnmock("./_core/llm");
+    vi.doUnmock("./services/evidenceEngine");
+    vi.resetModules();
+  });
+
   it("assembles the emitted winningConcept so the boost score's concept parts can pass", async () => {
     const { vi } = await import("vitest");
     const model = {
@@ -113,8 +120,5 @@ describe("winning-concept emission (boost-score cap regression)", () => {
     expect(byLabel["Save/share reason"]).toBe(true);
     expect(score.parts.find((p) => p.label.startsWith("Winning concept"))?.ok).toBe(true);
 
-    vi.doUnmock("./_core/llm");
-    vi.doUnmock("./services/evidenceEngine");
-    vi.resetModules();
   });
 });

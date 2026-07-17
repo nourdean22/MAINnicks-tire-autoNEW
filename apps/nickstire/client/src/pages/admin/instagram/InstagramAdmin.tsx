@@ -6,6 +6,7 @@ import QueueV2 from "./QueueV2";
 import { Inbox } from "./Inbox";
 import Learn from "./Learn";
 import Settings from "./Settings";
+import DraftBoardPanel from "../DraftBoardPanel";
 
 export function InstagramAdmin() {
   const [activeTab, setActiveTab] = useState("hq");
@@ -20,10 +21,11 @@ export function InstagramAdmin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 gap-1 lg:grid-cols-6">
+        <TabsList className="grid w-full grid-cols-3 gap-1 lg:grid-cols-7">
           <TabsTrigger value="hq">HQ</TabsTrigger>
           <TabsTrigger value="studio">Studio</TabsTrigger>
           <TabsTrigger value="queue">Queue</TabsTrigger>
+          <TabsTrigger value="drafts">Drafts</TabsTrigger>
           <TabsTrigger value="inbox">Inbox</TabsTrigger>
           <TabsTrigger value="learn">Learn</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -36,6 +38,9 @@ export function InstagramAdmin() {
         </TabsContent>
         <TabsContent value="queue" className="mt-4">
           <QueueV2 />
+        </TabsContent>
+        <TabsContent value="drafts" className="mt-4">
+          <DraftBoardPanel />
         </TabsContent>
         <TabsContent value="inbox" className="mt-4">
           <Inbox onNavigate={setActiveTab} />
