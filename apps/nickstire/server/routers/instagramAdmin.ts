@@ -62,6 +62,22 @@ export function buildReelPublishCaption(briefJson: string | null, fallbackHook: 
   return caption;
 }
 
+/**
+ * Inventory -> Queue status mapping (pure; unit-tested). review_ready is the
+ * REEL review state (finalizeReelDraft / assembly set it) - before 2026-07-17
+ * it fell through unmapped, so the legacy Queue rendered reel drafts with NO
+ * Approve button (the button keys on needs_review) and reel 630001 had to be
+ * approved via raw tRPC calls.
+ */
+export function mapInventoryStatusForQueue(status: string): string {
+  if (status === "assets_ready") return "ready";
+  if (status === "pending") return "needs_review";
+  if (status === "approved") return "ready";
+  if (status === "generating") return "needs_review";
+  if (status === "review_ready") return "needs_review";
+  return status;
+}
+
 export const instagramAdminRouter = router({
   /** Connection diagnostics: credential/token status + durable-store fingerprint
    *  + a LIVE Graph probe. Presence checks alone showed "ready" with a dead
@@ -1289,11 +1305,7 @@ Keep it under 200 characters.`;
       let parsedAssetPaths: any[] = [];
       try { parsedAssetPaths = r.assetPaths ? (Array.isArray(r.assetPaths) ? r.assetPaths : JSON.parse(r.assetPaths as string)) : []; } catch {}
       
-      let mappedStatus = r.status;
-      if (r.status === "assets_ready") mappedStatus = "ready";
-      if (r.status === "pending") mappedStatus = "needs_review";
-      if (r.status === "approved") mappedStatus = "ready";
-      if (r.status === "generating") mappedStatus = "needs_review";
+      const mappedStatus = mapInventoryStatusForQueue(r.status);
       
       const isReel = r.contentType === "reel";
       const mediaPath = parsedAssetPaths[0] || "";
