@@ -25,7 +25,10 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const NICKSTIRE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-export const EXPECTED_TABLE_COUNT = 127;
+// 2026-07-17: 127 → 134. The pin had drifted (0085 creative_genomes + 0086
+// autonomy tables landed without bumping it); 0088 adds media_assets +
+// integration_tokens. Bump this whenever schema.ts gains/loses tables.
+export const EXPECTED_TABLE_COUNT = 134;
 
 // The full column set drizzle expects for search_performance, but with the page
 // index as a PREFIX (page(768)) instead of the full varchar(1000) that blows

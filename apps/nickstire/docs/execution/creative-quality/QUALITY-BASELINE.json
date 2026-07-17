@@ -1,0 +1,124 @@
+{
+  "capturedAt": "2026-07-17T13:35:00Z",
+  "method": "Deterministic ffmpeg/ffprobe measurements + agent visual inspection of extracted frames (contact sheet, full-res hook frame, per-clip first-frame strip). Audio measured deterministically (loudnorm, silencedetect); voice naturalness NOT evaluated — no listening pass has occurred; operator ear owed. Scores are 1-10, small-N, descriptive not statistical.",
+  "productionCensus": {
+    "reelJobsTotal": 63,
+    "reelJobsFailed": 59,
+    "reelJobsPosted": 2,
+    "reelJobsAssembled": 2,
+    "jobFailureRate": 0.937,
+    "creativeGenomesPersistedInProd": 0,
+    "inventory": { "pending30DayReels": 30, "publishedReels": 2, "publishedManualDrafts": 1 },
+    "evidence": "evidence/media-permanence-2026-07-17.txt"
+  },
+  "permanence": {
+    "finding": "NO intentional permanent storage exists. S3_BUCKET unset on prod (113 Railway vars checked by name); no Railway volume on the app service; storagePut lands on ephemeral container disk. 19 files (62MB) incl. the published reel master + its 7 source clips are ACCIDENTALLY permanent because they were committed to git and ship inside every Docker image. Everything else: 4 of 12 probed /generated/ URLs are dead behind an SPA catch-all that answers 200 text/html for missing media; provider CloudFront clips (12 probed alive) have unknown TTL; 7 Catbox URLs (anonymous host) answer HEAD 200 with content-length 0.",
+    "gitCommittedMedia": { "files": 19, "bytes": 65011712, "includes": ["reel-30008.mp4 (published master)", "clip-30008-1..7.mp4", "clip-30007-1.mp4", "veo-*.mp4 x3", "test-carousel slides x3"] },
+    "deadUrlClasses": ["clip-60001-* (SPA HTML masquerade)", "older jobs never persisted"]
+  },
+  "benchmarks": [
+    {
+      "benchmarkId": "bm_reel_30008_published",
+      "name": "First autonomous published reel (IG 18018908711883906, job 30008, 'pothole gremlin')",
+      "source": "apps/nickstire/data/generated/reel-30008.mp4 (git-committed copy of the published master)",
+      "format": "video",
+      "durationMs": 22000,
+      "width": 1080,
+      "height": 1920,
+      "frameRate": 30,
+      "codec": "h264 High yuv420p 4.39Mbps",
+      "audioCodec": "aac 48kHz MONO 55.7kbps",
+      "fileSizeBytes": 12080240,
+      "productionMethod": "7x 8s Higgsfield Seedance clips (independent prompts) -> ffmpeg assembly, deterministic gold/black captions, VO+music first ~7s",
+      "provider": "higgsfield",
+      "visualScore": 6,
+      "automotiveScore": 7,
+      "editorialScore": 5,
+      "typographyScore": 4,
+      "audioScore": 2,
+      "brandScore": 6,
+      "strategicScore": 7,
+      "productionScore": 3,
+      "visualContinuityScore": 2,
+      "hardFailures": [
+        "AUDIO_DEAD_AIR: silence (< -35dB) from 7.12s to 22.0s = 68% of runtime silent (deterministic: silencedetect)",
+        "CHARACTER_IDENTITY_DRIFT: 'pothole gremlin' appears as two entirely different creature designs (clip 2: brown hard-hat goblin, warm night; clip 5: black rocky yellow-eyed creature)",
+        "TEXT_SAFE_ZONE: hook caption runs edge-to-edge (0 margin) and covers the focal subject; address caption clips at frame edge"
+      ],
+      "strengths": [
+        "Hook frame: sharp macro pothole, strong composition, legible on-brand caption",
+        "Concept genuinely distinctive (pothole gremlin / 'potholes keep score') vs generic tire content",
+        "Cleveland-specific copy; coherent story chain pothole -> tire damage -> inspection CTA",
+        "Per-frame image quality high (sharp, well-lit, premium AI look)",
+        "Loudness of the voiced section on target (-14.6 LUFS integrated, TP -1.45)"
+      ],
+      "weaknesses": [
+        "Zero visual continuity: 2 gremlin designs, 2 different cars (blue sedan vs gray car), 3 lighting worlds across 7 beats",
+        "Fake AI shop interior presented as Nick's premises (brand authenticity)",
+        "~4s static gold end card over dead air = weak ending",
+        "Mono 55kbps audio (platform norm: stereo AAC >=128kbps)",
+        "AI artifact: unnaturally regular zigzag crack in hook asphalt"
+      ],
+      "operatorNotes": [],
+      "automatedNotes": [
+        "loudnorm: input_i=-14.63 LUFS, input_tp=-1.45dBTP, LRA=5.1",
+        "silencedetect -35dB: silence_start=7.122, silence_end=22.016 (14.894s)",
+        "source clips are 8.0s each (7x8s=56s source for 22s cut)"
+      ],
+      "knownPerformance": null,
+      "createdAt": "2026-07-16"
+    },
+    {
+      "benchmarkId": "bm_clipset_30008_sources",
+      "name": "Source-clip continuity across the 7 Seedance clips of job 30008",
+      "source": "clip-30008-1..7.mp4 (git-committed); first-frame strip in evidence/clips-30008-strip.jpg",
+      "format": "video",
+      "width": 1080,
+      "height": 1920,
+      "productionMethod": "independent text-conditioned prompts per beat; no shared reference image, seed, or continuity bible",
+      "provider": "higgsfield",
+      "visualScore": 7,
+      "automotiveScore": 7,
+      "editorialScore": 4,
+      "typographyScore": 0,
+      "audioScore": 0,
+      "brandScore": 5,
+      "strategicScore": 6,
+      "productionScore": 3,
+      "visualContinuityScore": 2,
+      "hardFailures": ["IDENTITY_DRIFT across beats (creature, vehicle, environment, lighting all change)"],
+      "strengths": ["Individual clips well-composed and sharp", "Mechanic pressure-check behavior automotive-plausible", "No malformed wheels/components visible at inspection resolution"],
+      "weaknesses": ["Night macro -> day street -> warm interior -> cool interior palette whiplash", "Typography/audio scores are 0 = not-applicable (raw source clips), not failures"],
+      "automatedNotes": ["all 7 clips exactly 8.000s"],
+      "createdAt": "2026-07-16"
+    },
+    {
+      "benchmarkId": "bm_carousel_deterministic",
+      "name": "Deterministic carousel renderer output (existing visual verification)",
+      "source": "carousel slide renderer arc (#810-#812 evidence: rendered slide JPEGs, visually verified); committed test slides at data/generated/1782324640192-test-carousel-*.jpg",
+      "format": "image",
+      "width": 1080,
+      "height": 1350,
+      "productionMethod": "Satori/deterministic HTML->JPEG via renderHtmlToJpeg + storagePut",
+      "visualScore": 7,
+      "automotiveScore": 0,
+      "editorialScore": 6,
+      "typographyScore": 8,
+      "audioScore": 0,
+      "brandScore": 7,
+      "strategicScore": 7,
+      "productionScore": 4,
+      "strengths": ["Deterministic typography = no spelling/clipping risk", "Territory design systems exist"],
+      "weaknesses": ["No image plates behind typography yet (flat decks)", "Same permanence gap as all media"],
+      "automatedNotes": ["scores carried from the #810-#812 visual-verification evidence; not re-scored this pass"],
+      "createdAt": "2026-07-15"
+    }
+  ],
+  "qualityTargets": {
+    "audioScore": "no dead air ever; stereo >=128kbps; music bed spans full runtime under VO",
+    "visualContinuityScore": ">=7 via image-derived Visual Bible + shared conditioning",
+    "typographyScore": ">=8 via safe-zone enforcement + width measurement (max 82% frame width)",
+    "productionScore": ">=8 via registry + Drive vault (every master permanently archived with checksum + lineage)",
+    "jobFailureRate": "<20% with classified failure taxonomy"
+  }
+}

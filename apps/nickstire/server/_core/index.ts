@@ -147,6 +147,11 @@ async function startServer() {
   }));
   app.use(express.urlencoded({ limit: "2mb", extended: true }));
   app.use("/generated", express.static(path.join(process.cwd(), "data", "generated")));
+  // A missing media file must 404 — before this, misses fell through to the
+  // SPA catch-all and answered 200 text/html, hiding media loss from every
+  // monitor and from Meta (baseline finding generated-404-001: 4 of 12
+  // probed /generated/ URLs were dead behind lying 200s).
+  app.use("/generated", (_req, res) => res.status(404).json({ error: "media not found" }));
 
   // ─── Request ID + Duration Tracking ──────────────────
   // Generates a UUID per request, attaches to res.locals and response header.

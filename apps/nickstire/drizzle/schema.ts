@@ -3915,4 +3915,84 @@ export const nickgptDefectLedger = mysqlTable("nickgpt_defect_ledger", {
 export type NickgptDefectLedger = typeof nickgptDefectLedger.$inferSelect;
 export type InsertNickgptDefectLedger = typeof nickgptDefectLedger.$inferInsert;
 
+/**
+ * Canonical media asset registry (0088) — the single source of truth for
+ * every produced/ingested media artifact: identity, checksum, lineage,
+ * lifecycle, rights, and archive state. The DB row is canonical metadata;
+ * Google Drive is the durable human archive; storagePut output is runtime
+ * delivery. A provider URL is never permanence.
+ *
+ * Versioning: `logicalKey` names the logical output (e.g. "reel:30008:master");
+ * exactly one row per logicalKey has isCurrent=1 (enforced in
+ * services/mediaRegistry.ts inside a transaction — TiDB, no partial unique
+ * indexes). A repair NEVER overwrites: it registers a new version with
+ * parentAssetId set and flips isCurrent.
+ */
+export const mediaAssets = mysqlTable("media_assets", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  /** logical output identity — versions share it */
+  logicalKey: varchar("logical_key", { length: 191 }).notNull(),
+  version: int("version").notNull().default(1),
+  isCurrent: int("is_current").notNull().default(1),
+  /** campaign linkage (social_content_inventory id / reel job id as string) */
+  campaignId: varchar("campaign_id", { length: 64 }),
+  genomeId: varchar("genome_id", { length: 64 }),
+  visualWorldId: varchar("visual_world_id", { length: 64 }),
+  parentAssetId: varchar("parent_asset_id", { length: 64 }),
+  /** JSON string[] of source asset ids this was derived from */
+  derivedFromJson: text("derived_from_json"),
+  assetType: varchar("asset_type", { length: 32 }).notNull(),
+  format: varchar("format", { length: 16 }).notNull(),
+  lifecycleState: varchar("lifecycle_state", { length: 24 }).notNull().default("available"),
+  provider: varchar("provider", { length: 32 }),
+  providerModel: varchar("provider_model", { length: 64 }),
+  providerRequestId: varchar("provider_request_id", { length: 128 }),
+  originalProviderUrl: text("original_provider_url"),
+  runtimeUrl: text("runtime_url"),
+  gdriveFileId: varchar("gdrive_file_id", { length: 128 }),
+  gdriveFolderId: varchar("gdrive_folder_id", { length: 128 }),
+  gdriveViewUrl: text("gdrive_view_url"),
+  /** not_required | pending | uploading | synced | failed | missing — 'synced'
+   *  may only be written after byte-size verification (service-enforced) */
+  gdriveSyncState: varchar("gdrive_sync_state", { length: 16 }).notNull().default("pending"),
+  mimeType: varchar("mime_type", { length: 64 }).notNull(),
+  byteSize: int("byte_size").notNull(),
+  width: int("width"),
+  height: int("height"),
+  durationMs: int("duration_ms"),
+  checksumSha256: varchar("checksum_sha256", { length: 64 }).notNull(),
+  /** JSON of generation parameters / probe metadata (codecs, fps, prompt refs) */
+  generationParamsJson: text("generation_params_json"),
+  rightsStatus: varchar("rights_status", { length: 24 }).notNull().default("ai_generated"),
+  reuseAllowed: int("reuse_allowed").notNull().default(1),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_ma_logical_current").on(table.logicalKey, table.isCurrent),
+  index("idx_ma_checksum").on(table.checksumSha256),
+  index("idx_ma_campaign").on(table.campaignId),
+  index("idx_ma_lifecycle").on(table.lifecycleState),
+  uniqueIndex("uniq_ma_logical_version").on(table.logicalKey, table.version),
+]);
+
+export type MediaAsset = typeof mediaAssets.$inferSelect;
+export type InsertMediaAsset = typeof mediaAssets.$inferInsert;
+
+/**
+ * Server-side integration token store (0088) — refresh tokens for headless
+ * integrations (first consumer: Google Drive Creative Vault, scope
+ * drive.file). Mirrors statenour's Integration-row pattern. configJson holds
+ * { refreshToken, scopes, email, grantedAt, accessToken?, accessTokenExpiresAt? }.
+ * NEVER log configJson.
+ */
+export const integrationTokens = mysqlTable("integration_tokens", {
+  name: varchar("name", { length: 64 }).primaryKey(),
+  configJson: text("config_json").notNull(),
+  status: varchar("status", { length: 16 }).notNull().default("healthy"),
+  consecutiveFailures: int("consecutive_failures").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type IntegrationToken = typeof integrationTokens.$inferSelect;
+
 

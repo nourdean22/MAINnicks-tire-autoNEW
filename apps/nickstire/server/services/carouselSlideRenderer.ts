@@ -192,11 +192,26 @@ export async function renderCarouselSlides(brief: RenderableCarouselBrief): Prom
   const { storagePut } = await import("../storage");
   const deckId = brief.id || `carousel-${Date.now()}`;
   const urls: string[] = [];
+  // Registry seam (tolerant — bookkeeping failure never fails the render)
+  const registryDb = await import("../db").then((m) => m.getDb()).catch(() => null);
+  const { registerProducedAsset } = await import("./mediaRegistry");
   for (let i = 0; i < slides.length; i++) {
     const html = renderCarouselSlideHtml(brief, slides[i], i, slides.length);
     const buffer = await renderHtmlToJpeg(html, CAROUSEL_W, CAROUSEL_H);
     const upload = await storagePut(`carousel-studio/${deckId}-${i + 1}.jpg`, buffer, "image/jpeg");
     if (!upload.url) throw new Error(`carousel slide ${i + 1} could not be hosted`);
+    if (registryDb) {
+      await registerProducedAsset(registryDb, buffer, {
+        logicalKey: `carousel:${deckId}:slide:${i + 1}`,
+        assetType: "carousel_slide",
+        format: "image",
+        mimeType: "image/jpeg",
+        campaignId: deckId,
+        provider: "deterministic-renderer",
+        runtimeUrl: upload.url,
+        generationParams: { territory: brief.creativeTerritory, slideNumber: i + 1, ofSlides: slides.length },
+      });
+    }
     urls.push(upload.url);
   }
   log.info("rendered carousel deck", { deckId, territory: brief.creativeTerritory, slides: urls.length });

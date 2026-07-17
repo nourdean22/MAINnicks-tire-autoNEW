@@ -2,28 +2,25 @@
   "$comment": "Branch evidence manifest for the DoD compiler (Completion Authority). Every derived requirement gets a ref (test file / run / assertion) or an explicit deferred reason — never silence.",
   "evidence": {
     "migration-evidence": {
-      "ref": "drizzle/0087_approval_expiry.sql + scripts/apply-0087-approval-expiry.mts (idempotent, additive-nullable only). APPLICATION PENDING operator authorization - recorded as the P1 on durable-approvals."
+      "ref": "drizzle/0088_media_registry.sql (additive CREATE TABLE IF NOT EXISTS only) + scripts/apply-0088-media-registry.mts (idempotent, column-count verified) + journal idx 101. APPLICATION PENDING operator authorization — recorded as the P2 blocker on media-asset-registry."
     },
-    "publish-boundary-test": {
-      "ref": "server/contentGovernor.test.ts (publish-door cap/spacing/story-bypass) + kill-switch path in socialPublish exercised via getEmergencyControlsFresh contract tests in server/autonomyBoundary.test.ts"
+    "service-tests": {
+      "ref": "server/mediaRegistry.test.ts (5) + server/creativeVault.test.ts (7) + scripts/verify-media-registry.mts (10/10 against real in-memory MySQL via startDevDb)"
     },
-    "render-spend-trajectory": {
-      "ref": "server/selectiveRepair.test.ts async trajectories + server/autonomyBoundary.test.ts + goldenCampaign (green)"
+    "producer-wiring-regression": {
+      "ref": "server/reelAssembly.test.ts + server/carouselSlideRenderer.test.ts (39 existing tests green after the tolerant registry seams)"
     },
-    "visual-world-trajectory": {
-      "ref": "server/autonomyBoundary.test.ts — locked invariants present in EVERY prompt of the persisted reel-job payload"
+    "baseline-evidence": {
+      "ref": "docs/execution/creative-quality/QUALITY-BASELINE.json + evidence/ (prod census, deterministic AV measurements, inspected frames). Read-only against prod; no writes."
     },
-    "policy-matrix": {
-      "ref": "server/autonomyPolicy.test.ts (kill switches, caps, scores, approval matrix, mode ladder) + server/autonomyBoundary.test.ts (actor semantics, strict schema, Cleveland day)"
-    },
-    "cron-fail-closed": {
-      "ref": "server/selectiveRepair.test.ts (worker defers under armed kill switch; fresh emergency reads) + server/autonomyBoundary.test.ts"
+    "oauth-route-safety": {
+      "ref": "consent start is requireAdminApiKey-gated; callback is CSRF-bound to server-minted state (server/creativeVault.test.ts 'rejects a state mismatch before any token exchange')"
     },
     "operator-walkthrough": {
-      "deferred": "Browser dead all session; the shadow card walkthrough is owed at acceptance and recorded as the P2 on shadow-planner."
+      "deferred": "Vault has no UI surface yet (routes only); Control-tab walkthrough remains owed at acceptance (traj-001). Live Drive round-trip owed after operator consent — capability held at unit_verified/disabled accordingly."
     },
     "capability-ledger-updated": {
-      "ref": "capability-ledger.json: evidence-resolution gains record-level tests + honest entailment P2; durable-approvals promoted to deployed on 0087 prod assertion"
+      "ref": "capability-ledger.json: +media-asset-registry (integration_verified/disabled, P2 = 0088 pending), +drive-creative-vault (unit_verified/disabled, P2 = consent + live round-trip owed). No prior capability state changed."
     }
   }
 }

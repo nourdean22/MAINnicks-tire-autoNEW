@@ -302,21 +302,39 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     // Phase 4.2: duck the music DYNAMICALLY under the VO via sidechaincompress
     // (keyed off the VO) instead of a static volume — music breathes back in the
     // gaps. Both sources resampled to a common rate first (sidechaincompress
-    // requires it). Padded to videoTotal so music carries through the freeze.
+    // requires it).
+    //
+    // TWO length bugs lived here and produced the published dead-air defect
+    // (reel-30008: silent from VO-end 7.1s to 22.0s — measured, see
+    // docs/execution/creative-quality/QUALITY-BASELINE.json):
+    //  1. sidechaincompress ENDS ITS OUTPUT when the KEY input ends. A 7s VO
+    //     key truncated the ducked music to 7s, amix had nothing longer, and
+    //     apad filled the rest with digital silence — so "music carries
+    //     through" was never true. The key is now silence-padded to the full
+    //     timeline: silence key = zero compression = music actually breathes
+    //     back in after the VO.
+    //  2. a bed shorter than the reel died at bed-end the same way. Beds are
+    //     now looped (aloop) before trimming, so any bed covers any legal
+    //     reel length (duration gate allows up to 90s).
     fc.push(
       `[${voIdx}:a]aresample=48000,volume=1.15,asplit=2[vo_mix][vo_key]`,
-      `[${musIdx}:a]aresample=48000,volume=0.6[mus_raw]`,
-      `[mus_raw][vo_key]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[mus_duck]`,
+      `[vo_key]apad=whole_dur=${videoTotal}[vo_key_p]`,
+      `[${musIdx}:a]aloop=loop=-1:size=4000000,aresample=48000,volume=0.6,atrim=0:${videoTotal}[mus_raw]`,
+      `[mus_raw][vo_key_p]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[mus_duck]`,
       `[vo_mix][mus_duck]amix=inputs=2:duration=longest:normalize=0[am]`,
       `[am]atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`,
     );
     maps.push("-map", "[aout]");
   } else if (haveVo) {
     // aresample FIRST so loudnorm computes the apad/duration on a known 48k rate.
+    // NOTE: this branch pads everything after the VO with silence — acceptable
+    // only for VO that spans (most of) the video. The dead-air render gate in
+    // assembleReel refuses the result otherwise.
     fc.push(`[${voIdx}:a]aresample=48000,volume=1.15,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
     maps.push("-map", "[aout]");
   } else if (haveMusic) {
-    fc.push(`[${musIdx}:a]aresample=48000,volume=0.5,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
+    // Loop the bed here too — a 60s bed under a 90s reel must not die at 60s.
+    fc.push(`[${musIdx}:a]aloop=loop=-1:size=4000000,aresample=48000,volume=0.5,atrim=0:${videoTotal},asetpts=PTS-STARTPTS,apad=whole_dur=${videoTotal},loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]`);
     maps.push("-map", "[aout]");
   }
   const hasAudio = maps.includes("[aout]");
@@ -345,7 +363,7 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     "medium",
     "-crf",
     "20",
-    ...(hasAudio ? ["-c:a", "aac", "-b:a", "192k"] : ["-an"]),
+    ...(hasAudio ? ["-c:a", "aac", "-b:a", "192k", "-ac", "2"] : ["-an"]),
     "-movflags",
     "+faststart",
     "-y",
@@ -474,7 +492,9 @@ async function downloadTo(url: string, dest: string): Promise<void> {
   await fs.promises.writeFile(dest, Buffer.from(await r.arrayBuffer()));
 }
 
-function runFfmpeg(args: string[], timeoutMs = 5 * 60 * 1000, cwd?: string): Promise<void> {
+/** Resolves with ffmpeg's stderr on success — filters like silencedetect
+ *  report their findings there on exit 0. */
+function runFfmpeg(args: string[], timeoutMs = 5 * 60 * 1000, cwd?: string): Promise<string> {
   return new Promise((resolve, reject) => {
     if (cwd) {
        const cmdStr = ["ffmpeg", ...args.map(a => `"${a}"`)].join(" ");
@@ -497,10 +517,56 @@ function runFfmpeg(args: string[], timeoutMs = 5 * 60 * 1000, cwd?: string): Pro
     });
     child.on("close", (code) => {
       clearTimeout(timer);
-      if (code === 0) resolve();
+      if (code === 0) resolve(stderr);
       else reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-600)}`));
     });
   });
+}
+
+// ─── Audio integrity (dead-air gate) ────────────────────────────────
+// The frozen-reel incident bought us the video-integrity gate; the published
+// dead-air reel (30008: silent 7.1s→22.0s) buys us this one. Deterministic:
+// silencedetect on the ACTUAL render, refused when a long gap sits inside the
+// timeline. Pure functions exported for tests.
+
+export interface SilenceGap { start: number; end: number }
+
+/** Parse ffmpeg silencedetect stderr into gaps. An unterminated
+ *  silence_start (file ends silent) closes at durationSec. */
+export function parseSilencedetect(stderr: string, durationSec: number): SilenceGap[] {
+  const gaps: SilenceGap[] = [];
+  let open: number | null = null;
+  for (const line of stderr.split(/\r?\n/)) {
+    const s = line.match(/silence_start:\s*([\d.]+)/);
+    if (s) { open = Number(s[1]); continue; }
+    const e = line.match(/silence_end:\s*([\d.]+)/);
+    if (e && open !== null) { gaps.push({ start: open, end: Number(e[1]) }); open = null; }
+  }
+  if (open !== null) gaps.push({ start: open, end: durationSec });
+  return gaps;
+}
+
+/**
+ * Refuse renders with dead air. A gap counts when it is longer than
+ * maxGapSec AND starts inside the timeline (the final 0.75s is tolerated —
+ * natural tail-off into the freeze frame).
+ */
+export function evaluateAudioIntegrity(input: {
+  gaps: SilenceGap[];
+  durationSec: number;
+  maxGapSec?: number;
+}): { ok: boolean; reasons: string[] } {
+  const maxGap = input.maxGapSec ?? 2.5;
+  const reasons: string[] = [];
+  for (const g of input.gaps) {
+    const len = g.end - g.start;
+    if (len >= maxGap && g.start < input.durationSec - 0.75) {
+      reasons.push(
+        `dead air: silent from ${g.start.toFixed(2)}s to ${g.end.toFixed(2)}s (${len.toFixed(1)}s of ${input.durationSec.toFixed(1)}s)`,
+      );
+    }
+  }
+  return { ok: reasons.length === 0, reasons };
 }
 
 export interface AssembleResult {
@@ -598,8 +664,9 @@ export async function assembleReel(
     const ctaText = brief.campaignKeyword ? `SAVE THIS | DM "${brief.campaignKeyword.toUpperCase()}"` : "SAVE THIS POST";
     await fs.promises.writeFile(path.join(workDir, "caption_save.txt"), ctaText, "utf-8");
 
-    const args = buildFfmpegArgs({ segs, clipPaths, voPath, assPath, musicPath: pickMusicBed(brief), fontPath: "font.ttf", outPath });
-    log.info("assembling reel", { jobId, beats: segs.length, total, usedVo: !!voPath, usedAss: !!assPath });
+    const musicPath = pickMusicBed(brief);
+    const args = buildFfmpegArgs({ segs, clipPaths, voPath, assPath, musicPath, fontPath: "font.ttf", outPath });
+    log.info("assembling reel", { jobId, beats: segs.length, total, usedVo: !!voPath, usedAss: !!assPath, usedMusic: !!musicPath });
     await runFfmpeg(args, 5 * 60 * 1000, workDir);
 
     // Publish-gate hardening: never ship a corrupt / wrong-aspect / silent reel.
@@ -637,6 +704,24 @@ export async function assembleReel(
     }
     log.info("render integrity verified", { jobId, durationSec: probe.duration, nbFrames: probe.nbFrames, distinctFrames: new Set(frameHashes).size });
 
+    // Dead-air gate: measure the ACTUAL rendered audio. The published reel
+    // 30008 shipped 68% silent because the graph truncated music at VO-end —
+    // a defect no string-level test could see. Deterministic and cheap
+    // (~1s): silencedetect over the final file, refuse long in-timeline gaps.
+    if (voPath || musicPath) {
+      const silenceStderr = await runFfmpeg(
+        ["-i", outPath, "-af", "silencedetect=n=-35dB:d=1.0", "-f", "null", "-"],
+        60 * 1000,
+        workDir,
+      );
+      const gaps = parseSilencedetect(silenceStderr, probe.duration);
+      const audio = evaluateAudioIntegrity({ gaps, durationSec: probe.duration });
+      if (!audio.ok) {
+        throw new Error(`audio integrity failed: ${audio.reasons.join("; ")}`);
+      }
+      log.info("audio integrity verified", { jobId, silentGaps: gaps.length });
+    }
+
     const mp4 = await fs.promises.readFile(outPath);
     const { storagePut } = await import("../storage");
     // Unique basename per job: the no-S3 fallback serves by basename only
@@ -644,6 +729,25 @@ export async function assembleReel(
     // job overwrite the same data/generated/reel.mp4. reel-<jobId>.mp4 keeps them distinct.
     const put = await storagePut(`reels/reel-${jobId}.mp4`, mp4, "video/mp4");
     log.info("reel assembled", { jobId, bytes: mp4.length, url: put.url });
+    // Canonical registry entry for the master (checksum, lineage, permanence
+    // truth). Tolerant seam — bookkeeping failure never fails the render.
+    try {
+      const { getDb } = await import("../db");
+      const { registerProducedAsset } = await import("./mediaRegistry");
+      const d = await getDb();
+      if (d) {
+        await registerProducedAsset(d, mp4, {
+          logicalKey: `reel:${jobId}:master`,
+          assetType: "draft_render",
+          format: "video",
+          mimeType: "video/mp4",
+          campaignId: String(jobId),
+          provider: "ffmpeg-assembly",
+          runtimeUrl: put.url,
+          generationParams: { durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath },
+        });
+      }
+    } catch { /* registerProducedAsset is already tolerant; belt over suspenders */ }
     // Report the REAL file length (beats + the save-payload freeze), not just the beats.
     return { mp4Url: put.url, durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath };
   } finally {

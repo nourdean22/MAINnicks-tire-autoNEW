@@ -8,7 +8,8 @@
       "evidence": {
         "codeCommit": "merged through #805",
         "tests": [
-          "server/reelAssembly render-integrity tests"
+          "server/reelAssembly render-integrity tests",
+          "server/reelAudioIntegrity.test.ts (8): dead-air gate refuses the exact published silent-reel case; REAL-RENDER trajectory — the previously-fatal shape (2s VO + 4s shorter-than-reel bed, 9s timeline) renders with zero dead-air gaps and stereo audio through the actual ffmpeg graph"
         ],
         "liveRuns": [
           "IG 18018908711883906",
@@ -24,6 +25,11 @@
           "severity": "P2",
           "description": "mp4s live on ephemeral storage — reels vanish on redeploy (S3 pending)",
           "source": "session ledger"
+        },
+        {
+          "severity": "P2",
+          "description": "dead-air fix (sidechain key padding + bed looping + silencedetect render gate + stereo encode) verified by real local render; first PROD render post-merge is the live confirmation",
+          "source": "audio-dead-air-001"
         }
       ],
       "deferredScope": [
@@ -517,6 +523,64 @@
       "deferredScope": [
         "break-glass override records",
         "approval invalidation on policy-version change"
+      ],
+      "lastVerifiedAt": "2026-07-17"
+    },
+    {
+      "capabilityId": "media-asset-registry",
+      "name": "Canonical media asset registry (identity, checksum, lineage, archive gate)",
+      "owner": "system",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "nickstire/creative-quality-lh (this PR): drizzle 0088 + server/services/mediaRegistry.ts + producer seams in assembleReel/carouselSlideRenderer",
+        "tests": [
+          "server/mediaRegistry.test.ts (5: pre-db refusals, archive gate, graph refusal, byte-mismatch->failed)",
+          "scripts/verify-media-registry.mts 10/10 against real in-memory MySQL (version flip, dupe surfacing, illegal jump, archive refusal, verified-sync->archived, repair lineage, missing-table tolerance)"
+        ],
+        "databaseAssertions": [
+          "0088 journaled (idx 101); NOT applied to prod — apply script ready, awaits operator tap"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "0088 not applied to prod; producers register into a table that does not exist there yet (tolerant seam logs loudly, renders unaffected)",
+          "source": "scripts/apply-0088-media-registry.mts pending"
+        }
+      ],
+      "deferredScope": [
+        "media intelligence profiles",
+        "perceptual similarity",
+        "reuse decision engine"
+      ],
+      "lastVerifiedAt": "2026-07-17"
+    },
+    {
+      "capabilityId": "drive-creative-vault",
+      "name": "Google Drive Creative Vault (verified idempotent archive, drive.file scope)",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "nickstire/creative-quality-lh (this PR): server/services/creativeVault.ts + OAuth routes in adminRoutes.ts; reuses existing GOOGLE_OAUTH_CLIENT_ID/SECRET (verified present on prod by key name)",
+        "tests": [
+          "server/creativeVault.test.ts (7: idempotency short-circuit, multipart+verify, resumable headers, verification refusal, consent CSRF state, checksum-mismatch archive refusal before any network)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No real Drive round-trip has ever run — operator consent (drive.file) + GCP redirect-URI registration owed; stays unit_verified until a live upload+verify+reconcile passes",
+          "source": "ACTIVE-BLOCKERS.md"
+        }
+      ],
+      "deferredScope": [
+        "full folder taxonomy (00 Brand System etc.)",
+        "scheduled reconciliation cron",
+        "campaign summary doc rendering"
       ],
       "lastVerifiedAt": "2026-07-17"
     }
