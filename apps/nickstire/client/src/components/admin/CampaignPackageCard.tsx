@@ -9,7 +9,7 @@
  * copy buttons, not retyping.
  */
 import { useState } from "react";
-import { Loader2, Sparkles, Copy, Check, Trophy, Dna, Clapperboard, Send } from "lucide-react";
+import { Loader2, Sparkles, Copy, Check, Trophy, Dna, Clapperboard, Send, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,11 @@ export default function CampaignPackageCard() {
 
   const tournament = trpc.contentAdmin.runConceptTournament.useMutation({
     onError: (e) => toast.error("Campaign generation failed", { description: e.message }),
-    onSuccess: () => reelDraft.reset(),
+    onSuccess: () => {
+      reelDraft.reset();
+      carouselDraft.reset();
+      saveCarousel.reset();
+    },
   });
   const reelDraft = trpc.contentAdmin.draftReelFromGenome.useMutation({
     onError: (e) => toast.error("Reel draft failed", { description: e.message }),
@@ -53,6 +57,17 @@ export default function CampaignPackageCard() {
     onSuccess: () => toast.success("Reel render enqueued", { description: "Review it in the Queue when it reaches review-ready." }),
     onError: (e) => toast.error("Enqueue failed", { description: e.message }),
   });
+  const carouselDraft = trpc.contentAdmin.draftCarouselFromGenome.useMutation({
+    onError: (e) => toast.error("Carousel draft failed", { description: e.message }),
+  });
+  const saveCarousel = trpc.contentAdmin.saveCarouselDraft.useMutation({
+    onSuccess: () => toast.success("Carousel saved to Draft Board", { description: "Render slides and publish from there." }),
+    onError: (e) => toast.error("Draft save failed", { description: e.message }),
+  });
+  const draftAndSaveCarousel = async (genome: unknown) => {
+    const res = await carouselDraft.mutateAsync({ genome });
+    await saveCarousel.mutateAsync({ id: res.brief.id, topic: res.brief.topic, brief: res.brief });
+  };
   const result = tournament.data;
   const territoryLabel = result?.genome
     ? CREATIVE_TERRITORIES[result.genome.creativeTerritory]?.label ?? result.genome.creativeTerritory
@@ -178,6 +193,51 @@ export default function CampaignPackageCard() {
                         Below the 70/75 gate — redraft, or refine in the Advanced Reel Studio instead.
                       </p>
                     )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {result.genome && (
+              <div className="space-y-3 rounded-lg border border-border/40 bg-muted/20 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <LayoutGrid className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold">Carousel Director</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={carouselDraft.isPending || saveCarousel.isPending}
+                    onClick={() => void draftAndSaveCarousel(result.genome)}
+                  >
+                    {carouselDraft.isPending || saveCarousel.isPending ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    {carouselDraft.isPending
+                      ? "Drafting 5-slide brief..."
+                      : saveCarousel.isPending
+                        ? "Saving to Draft Board..."
+                        : carouselDraft.data
+                          ? "Redraft carousel"
+                          : "Draft carousel to Draft Board"}
+                  </Button>
+                </div>
+                {carouselDraft.data && (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={carouselDraft.data.boostScore.passing ? "default" : "destructive"}>
+                        {carouselDraft.data.boostScore.score}/75 {carouselDraft.data.boostScore.passing ? "PASS" : "BELOW GATE"}
+                      </Badge>
+                      <Badge variant="outline">{carouselDraft.data.brief.slides.length} slides</Badge>
+                      <Badge variant="outline">DM "{carouselDraft.data.brief.campaignKeyword}"</Badge>
+                    </div>
+                    <p className="text-sm">{carouselDraft.data.brief.topic}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {saveCarousel.isSuccess
+                        ? "On the Draft Board — render slides and publish from there."
+                        : "Saving to Draft Board..."}
+                    </p>
                   </div>
                 )}
               </div>

@@ -62,3 +62,59 @@ describe("parseBriefJson (resilient extraction)", () => {
     expect(parseBriefJson(messy)).toMatchObject({ topic: "alignment" });
   });
 });
+
+describe("winning-concept emission (boost-score cap regression)", () => {
+  it("assembles the emitted winningConcept so the boost score's concept parts can pass", async () => {
+    const { vi } = await import("vitest");
+    const model = {
+      topic: "First freeze battery check",
+      mechanicTruth: "Cold cuts cranking power roughly in half",
+      driverConfusion: "Slow crank feels normal in winter",
+      clevelandAngle: "Lake-effect cold snaps hit Euclid first",
+      seasonality: "first hard freeze",
+      usefulAbsurdity: "battery as hibernating animal",
+      campaignKeyword: "BATTERY",
+      creativeTerritory: "weather_local_alert",
+      typographyPlan: "bold gold on graphite",
+      avoidedForRepetition: "pothole crime scenes",
+      selectedCaption: "Cold mornings tell on weak batteries first.",
+      captionHooks: ["First freeze = battery test"],
+      hashtags: ["#cleveland"],
+      slides: [1, 2, 3, 4, 5].map((n) => ({
+        headline: `H${n}`, body: `B${n}`, visualPrompt: `V${n}`, textOverlayPlan: `T${n}`, qaNotes: `Q${n}`,
+      })),
+      winningConcept: {
+        hook: "First freeze = battery test",
+        driverEmotion: "quiet dread at the first cold start",
+        saveShareReason: "checklist neighbors will need the same week",
+        boostReason: "seasonal urgency",
+        nickFitReason: "practical, no fear-selling",
+        nonGenericReason: "hibernation metaphor, not stock advice",
+        rejectionRisk: "none identified",
+        scores: { hook: 10, truth: 10, save: 10, local: 10, absurdity: 9, fit: 9 },
+      },
+    };
+    vi.doMock("./_core/llm", () => ({
+      invokeLLM: vi.fn().mockResolvedValue({ choices: [{ message: { content: JSON.stringify(model) } }] }),
+    }));
+    vi.doMock("./services/evidenceEngine", () => ({ getProprietaryEvidence: vi.fn().mockResolvedValue(undefined) }));
+    vi.resetModules();
+    const { generateCarouselBriefAI } = await import("./services/carouselBriefGen");
+    const { calculateBoostScore } = await import("../client/src/lib/igCarouselStudio");
+
+    const { brief } = await generateCarouselBriefAI({ topic: "battery" });
+    expect(brief.winningConceptId).toBe("winner");
+    expect(brief.concepts).toHaveLength(1);
+    expect(brief.concepts[0].saveShareReason).toContain("checklist");
+    expect(brief.concepts[0].slideOutline).toEqual(["H1", "H2", "H3", "H4", "H5"]);
+
+    const score = calculateBoostScore(brief);
+    const byLabel = Object.fromEntries(score.parts.map((p) => [p.label, p.ok]));
+    expect(byLabel["Save/share reason"]).toBe(true);
+    expect(score.parts.find((p) => p.label.startsWith("Winning concept"))?.ok).toBe(true);
+
+    vi.doUnmock("./_core/llm");
+    vi.doUnmock("./services/evidenceEngine");
+    vi.resetModules();
+  });
+});
