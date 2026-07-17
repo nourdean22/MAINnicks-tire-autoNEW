@@ -278,7 +278,10 @@ export function buildSeedanceArgs(prompt: string, opts: { startImageUrl?: string
     "--duration", "4",
     "--resolution", "1080p",
   ];
-  if (opts.startImageUrl && process.env.REEL_IMAGE_CONDITIONING === "true") {
+  // --start-image needs an IMAGE. Reject anything that is not an image URL
+  // even under the flag — a video/other URL would fail or silently degrade
+  // (the bug the acceptance-campaign setup surfaced: a chained mp4 clip URL).
+  if (opts.startImageUrl && process.env.REEL_IMAGE_CONDITIONING === "true" && /\.(jpe?g|png|webp)([?#]|$)/i.test(opts.startImageUrl)) {
     args.push("--start-image", opts.startImageUrl);
   }
   args.push("--wait", "--json");

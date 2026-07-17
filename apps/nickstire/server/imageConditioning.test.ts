@@ -39,6 +39,14 @@ describe("buildSeedanceArgs", () => {
     expect(buildSeedanceArgs("a battery", {})).not.toContain("--start-image");
   });
 
+  it("flag on but a NON-image URL (mp4 clip) is REJECTED — --start-image needs an image", () => {
+    process.env.REEL_IMAGE_CONDITIONING = "true";
+    // the exact bug the acceptance-campaign setup surfaced: a chained clip URL
+    expect(buildSeedanceArgs("a battery", { startImageUrl: "https://cdn/x/clip-3.mp4" })).not.toContain("--start-image");
+    // an actual image is accepted
+    expect(buildSeedanceArgs("a battery", { startImageUrl: "https://cdn/x/hero.jpg" })).toContain("--start-image");
+  });
+
   it("always emits the fixed 9:16 / 4s / 1080p contract the assembler expects", () => {
     const args = buildSeedanceArgs("x");
     expect(args).toEqual(expect.arrayContaining(["--aspect_ratio", "9:16", "--duration", "4", "--resolution", "1080p"]));
