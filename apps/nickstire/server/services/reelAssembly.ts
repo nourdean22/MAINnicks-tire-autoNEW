@@ -138,6 +138,42 @@ export function segmentsTotalSeconds(segs: ReelSegment[]): number {
   return Number(segs.reduce((a, s) => a + s.dur, 0).toFixed(2));
 }
 
+/**
+ * Render-integrity verdict — the check that would have caught the frozen-reel
+ * defect (2026-07-17: a 25s container with only 72 unique frames shipped and
+ * published because the gate only looked at dimensions/duration-band/audio).
+ * Pure so it is unit-testable; the caller supplies probe numbers + sampled
+ * frame hashes.
+ *
+ *  - duration must match the storyboard contract (beats + freeze), not just
+ *    fall in a loose 3-90s band;
+ *  - the video stream must actually CONTAIN ~30fps worth of frames;
+ *  - frames sampled across the timeline must differ — a reel is motion, and
+ *    identical samples mean the viewer is staring at one held frame.
+ */
+export function evaluateRenderIntegrity(input: {
+  durationSec: number;
+  nbFrames: number;
+  expectedSec: number;
+  frameHashes: string[];
+}): { ok: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  const { durationSec, nbFrames, expectedSec, frameHashes } = input;
+  if (Math.abs(durationSec - expectedSec) > 0.75) {
+    reasons.push(`duration ${durationSec.toFixed(2)}s deviates from the storyboard contract ${expectedSec.toFixed(2)}s by more than 0.75s`);
+  }
+  // nb_frames can be unreported (0) by some containers — only judge when known.
+  const minFrames = Math.floor(0.8 * 30 * expectedSec);
+  if (nbFrames > 0 && nbFrames < minFrames) {
+    reasons.push(`video stream has ${nbFrames} frames — a real ${expectedSec.toFixed(1)}s/30fps reel needs at least ~${minFrames}; this renders as a frozen image`);
+  }
+  const distinct = new Set(frameHashes.filter(Boolean)).size;
+  if (frameHashes.length >= 3 && distinct < 3) {
+    reasons.push(`only ${distinct} distinct frame(s) across ${frameHashes.length} timeline samples — no motion`);
+  }
+  return { ok: reasons.length === 0, reasons };
+}
+
 export interface FfmpegBuildOpts {
   segs: ReelSegment[];
   clipPaths: string[];
@@ -361,12 +397,32 @@ export async function resolveReelFontPath(): Promise<string> {
  * duration / audio presence). Throws on a malformed probe so the caller can
  * fail the job instead of shipping a broken reel.
  */
-function ffprobeReel(file: string): Promise<{ width: number; height: number; duration: number; hasAudio: boolean }> {
+/** MD5 of the single decoded frame at `atSec` — cheap motion forensics. */
+function hashFrameAt(file: string, atSec: number, cwd: string): Promise<string> {
+  return new Promise((resolve) => {
+    const bin = process.env.FFMPEG_PATH || "ffmpeg";
+    const child = spawn(bin, ["-v", "error", "-ss", String(atSec), "-i", file, "-frames:v", "1", "-f", "md5", "-"], {
+      cwd,
+      shell: process.platform === "win32" && !process.env.FFMPEG_PATH,
+    });
+    let out = "";
+    child.stdout.on("data", (d) => (out += String(d)));
+    // Best-effort: an unhashable sample resolves empty and the evaluator
+    // simply has one fewer sample — never blocks assembly by itself.
+    child.on("error", () => resolve(""));
+    child.on("close", () => {
+      const m = out.match(/MD5=([0-9a-f]+)/i);
+      resolve(m ? m[1] : "");
+    });
+  });
+}
+
+function ffprobeReel(file: string): Promise<{ width: number; height: number; duration: number; hasAudio: boolean; nbFrames: number }> {
   return new Promise((resolve, reject) => {
     const bin = process.env.FFPROBE_PATH || "ffprobe";
     const child = spawn(bin, [
       "-v", "error",
-      "-show_entries", "stream=width,height,codec_type",
+      "-show_entries", "stream=width,height,codec_type,nb_frames",
       "-show_entries", "format=duration",
       "-of", "json",
       file,
@@ -380,7 +436,7 @@ function ffprobeReel(file: string): Promise<{ width: number; height: number; dur
       if (code !== 0) return reject(new Error(`ffprobe exited ${code}: ${err.slice(-300)}`));
       try {
         const j = JSON.parse(out) as {
-          streams?: Array<{ width?: number; height?: number; codec_type?: string }>;
+          streams?: Array<{ width?: number; height?: number; codec_type?: string; nb_frames?: string }>;
           format?: { duration?: string };
         };
         const v = (j.streams ?? []).find((s) => s.codec_type === "video");
@@ -390,6 +446,7 @@ function ffprobeReel(file: string): Promise<{ width: number; height: number; dur
           height: Number(v?.height ?? 0),
           duration: Number(j.format?.duration ?? 0),
           hasAudio,
+          nbFrames: Number(v?.nb_frames ?? 0),
         });
       } catch (e) {
         reject(new Error(`ffprobe parse failed: ${e instanceof Error ? e.message : String(e)}`));
@@ -544,6 +601,27 @@ export async function assembleReel(
     if (voPath && !probe.hasAudio) {
       throw new Error("assembled reel has a VO input but no audio stream — mux failed");
     }
+
+    // Motion + frame-count forensics: sample frames across the timeline and
+    // require the render to actually move. This is the gate the frozen-reel
+    // incident proved we needed — dimensions/duration/audio all passed while
+    // the video stream held one image.
+    const expectedSec = total + SAVE_FREEZE_SECONDS;
+    const sampleTimes = [0.2, 0.35, 0.5, 0.65, 0.8].map((f) => Number((expectedSec * f).toFixed(2)));
+    const frameHashes: string[] = [];
+    for (const t of sampleTimes) {
+      frameHashes.push(await hashFrameAt(outPath, t, workDir));
+    }
+    const integrity = evaluateRenderIntegrity({
+      durationSec: probe.duration,
+      nbFrames: probe.nbFrames,
+      expectedSec,
+      frameHashes,
+    });
+    if (!integrity.ok) {
+      throw new Error(`render integrity failed: ${integrity.reasons.join("; ")}`);
+    }
+    log.info("render integrity verified", { jobId, durationSec: probe.duration, nbFrames: probe.nbFrames, distinctFrames: new Set(frameHashes).size });
 
     const mp4 = await fs.promises.readFile(outPath);
     const { storagePut } = await import("../storage");
