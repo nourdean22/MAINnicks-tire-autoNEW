@@ -188,22 +188,20 @@
         "tests": [
           "server/autonomyPolicy.test.ts",
           "server/autonomyBoundary.test.ts"
+        ],
+        "deploymentId": "railway main auto-deploy (#815+#817 merged)",
+        "databaseAssertions": [
+          "0086 APPLIED+VERIFIED on prod 2026-07-17 (operator-authorized): 4 tables with correct columns; policy v2 published and read back as GOVERNING; getEmergencyControlsFresh source=storage (fallback banner retired)"
         ]
       },
-      "blockers": [
-        {
-          "severity": "P1",
-          "description": "0086 NOT applied anywhere — policy versions, audit trail, kill-switch persistence all inert; DEFAULT policy governs from code",
-          "source": "migration status"
-        }
-      ],
+      "blockers": [],
       "deferredScope": [
         "durable approval events with content hashes",
         "OPA delegation"
       ],
       "lastVerifiedAt": "2026-07-17",
       "codeState": "merged",
-      "operationalState": "integration_verified",
+      "operationalState": "live_verified",
       "exposure": "internal"
     },
     {
@@ -214,13 +212,17 @@
         "codeCommit": "milestone 3 (recovered onto completion-authority branch after stranding)",
         "tests": [
           "server/autonomyBoundary.test.ts trajectory: visualWorld+genomeId through service enqueue; cron fail-closed on unverifiable switch state"
+        ],
+        "deploymentId": "railway main auto-deploy (#817 merged)",
+        "databaseAssertions": [
+          "0086 APPLIED+VERIFIED on prod 2026-07-17 (operator-authorized): 4 tables with correct columns; policy v2 published and read back as GOVERNING; getEmergencyControlsFresh source=storage (fallback banner retired)"
         ]
       },
       "blockers": [
         {
-          "severity": "P1",
-          "description": "never deployed — main lacks milestone 3 until this branch merges",
-          "source": "branch comparison 2026-07-17"
+          "severity": "P2",
+          "description": "no prod runtime boundary decision recorded in the audit trail yet - first real enqueue/publish through prod promotes to live_verified",
+          "source": "audit table 0 rows"
         }
       ],
       "deferredScope": [
@@ -229,7 +231,7 @@
       ],
       "lastVerifiedAt": "2026-07-17",
       "codeState": "merged",
-      "operationalState": "integration_verified",
+      "operationalState": "deployed",
       "exposure": "internal"
     },
     {
@@ -240,17 +242,16 @@
         "codeCommit": "milestone 4 (recovered onto completion-authority branch after stranding)",
         "tests": [
           "server/generationLedger.test.ts (idempotency, budget compensation, settle, loud fallback)"
+        ],
+        "deploymentId": "railway main auto-deploy (#817 merged)",
+        "databaseAssertions": [
+          "0086 APPLIED+VERIFIED on prod 2026-07-17 (operator-authorized): 4 tables with correct columns; policy v2 published and read back as GOVERNING; getEmergencyControlsFresh source=storage (fallback banner retired)"
         ]
       },
       "blockers": [
         {
-          "severity": "P1",
-          "description": "never deployed; 0086 unapplied so ledger is inert and coarse fallback governs",
-          "source": "branch comparison"
-        },
-        {
           "severity": "P2",
-          "description": "all costs are FLAGGED ESTIMATES — no real provider usage feed",
+          "description": "all costs remain FLAGGED ESTIMATES (no provider usage feed); no prod reservation exercised yet",
           "source": "design"
         }
       ],
@@ -260,7 +261,7 @@
       ],
       "lastVerifiedAt": "2026-07-17",
       "codeState": "merged",
-      "operationalState": "unit_verified",
+      "operationalState": "deployed",
       "exposure": "internal"
     },
     {
@@ -271,13 +272,17 @@
         "codeCommit": "milestone 5 (recovered onto completion-authority branch after stranding)",
         "tests": [
           "server/contentGovernor.test.ts (caps, spacing, repetition, publish door, stories bypass)"
+        ],
+        "deploymentId": "railway main auto-deploy (#817 merged)",
+        "databaseAssertions": [
+          "0086 APPLIED+VERIFIED on prod 2026-07-17 (operator-authorized): 4 tables with correct columns; policy v2 published and read back as GOVERNING; getEmergencyControlsFresh source=storage (fallback banner retired)"
         ]
       },
       "blockers": [
         {
-          "severity": "P1",
-          "description": "never deployed; 0086 unapplied so reservations are inert (publish-door check works from inventory)",
-          "source": "branch comparison"
+          "severity": "P2",
+          "description": "no prod reservation exercised yet; consumption linkage deferred",
+          "source": "design"
         }
       ],
       "deferredScope": [
@@ -287,7 +292,7 @@
       ],
       "lastVerifiedAt": "2026-07-17",
       "codeState": "merged",
-      "operationalState": "unit_verified",
+      "operationalState": "deployed",
       "exposure": "internal"
     },
     {
