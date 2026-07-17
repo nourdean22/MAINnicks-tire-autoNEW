@@ -281,6 +281,16 @@ export async function runConceptTournament(
   input: TournamentInput,
   opts: { generateGenome?: boolean } = {},
 ): Promise<TournamentResult> {
+  // 0. Creative memory: when the caller supplies no recency list, pull the
+  //    account's recent fingerprints automatically (stored genomes + published
+  //    reels bridged into genome space). Memory is an enhancement - cold or
+  //    unavailable memory never blocks a tournament.
+  if (!input.avoidRecent?.length) {
+    const { recentCreativeFingerprints } = await import("./creativeMemory");
+    const remembered = await recentCreativeFingerprints(10);
+    if (remembered.length) input = { ...input, avoidRecent: remembered };
+  }
+
   // 1. Four role pitches in parallel — a failed role shrinks the field but
   //    never kills the tournament (minimum viable field: 3 concepts).
   const settled = await Promise.allSettled(CREATIVE_ROLES.map((r) => pitchRole(r, input)));
@@ -353,6 +363,8 @@ export async function runConceptTournament(
       proofHandles: input.proofHandles,
     });
     genome = chained.genome;
+    const { saveGenome } = await import("./creativeMemory");
+    await saveGenome({ genome: chained.genome, campaignAsk: input.campaignAsk, source: "tournament" });
   }
 
   return { concepts: field, scores: verdict.scores, winner, judgeReasoning: verdict.judgeReasoning, genome };

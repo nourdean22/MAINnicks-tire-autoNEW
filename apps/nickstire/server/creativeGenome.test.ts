@@ -9,6 +9,7 @@ import {
   genomeToPhotoSeed,
   genomeToReelSeed,
   validateGenomeClaimSafety,
+  fingerprintFromGenome,
   type CreativeGenome,
 } from "../client/src/lib/creativeGenome";
 import { CREATIVE_TERRITORIES } from "../client/src/lib/igCarouselStudio";
@@ -100,5 +101,22 @@ describe("seeds into today's generators", () => {
     expect(photo).toContain(GENOME.visualMetaphor);
     expect(photo).toContain("DO NOT INCLUDE:");
     expect(photo).toContain(CREATIVE_TERRITORIES.road_villain.grammar.slice(0, 30));
+  });
+});
+
+describe("fingerprintFromGenome", () => {
+  it("is deterministic, territory-anchored, and survives punctuation/case noise", () => {
+    const fp = fingerprintFromGenome(GENOME);
+    expect(fp).toBe(fingerprintFromGenome({ ...GENOME }));
+    expect(fp).toContain("territory:road_villain");
+    expect(fp).toContain("moment:the driver hit a pothole");
+    expect(fp.length).toBeLessThanOrEqual(512);
+  });
+  it("does NOT strip letters during normalization (the s-regex escaping trap)", () => {
+    const fp = fingerprintFromGenome({ ...GENOME, visualMetaphor: "Tires wearing like staircases" });
+    expect(fp).toContain("metaphor:tires wearing like staircases");
+  });
+  it("differs when the recognizable creative surface differs", () => {
+    expect(fingerprintFromGenome(GENOME)).not.toBe(fingerprintFromGenome({ ...GENOME, visualMetaphor: "a battery with a fading heartbeat monitor" }));
   });
 });

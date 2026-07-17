@@ -304,6 +304,13 @@ export const contentAdminRouter = router({
   /** Genome Wave 1 slice 2: role-diverse concept tournament with an
    *  INDEPENDENT judge (replaces self-scored concept selection). Optionally
    *  chains the judged winner into a campaign genome. */
+  listCampaignGenomes: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(20) }).optional())
+    .query(async ({ input }) => {
+      const { listGenomes } = await import("../services/creativeMemory");
+      return listGenomes(input?.limit ?? 20);
+    }),
+
   runConceptTournament: adminProcedure
     .input(z.object({
       campaignAsk: z.string().min(8).max(600),
@@ -330,6 +337,8 @@ export const contentAdminRouter = router({
       const { generateCampaignGenome } = await import("../services/genomeGen");
       const { genomeToReelSeed, genomeToCarouselSeed, genomeToPhotoSeed } = await import("../../client/src/lib/creativeGenome");
       const { genome, attempts } = await generateCampaignGenome(input);
+      const { saveGenome } = await import("../services/creativeMemory");
+      await saveGenome({ genome, campaignAsk: input.campaignAsk, source: "direct" });
       return {
         genome,
         attempts,
