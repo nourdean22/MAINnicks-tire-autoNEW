@@ -2,20 +2,23 @@
   "$comment": "Executable PR claims (Reality Control).",
   "claims": [
     {
-      "id": "registry-urls-truth-audited",
-      "assertion": "Every PUBLIC_SOURCE_REGISTRY record carries a per-record retrievalStatus; 2 of 3 original URLs were proven wrong by live fetch and corrected via fetch or search-index confirmation on 2026-07-17; the overclaiming curated-by-hand comment is rewritten to state exactly how each URL was verified.",
+      "id": "shadow-structurally-enforced",
+      "assertion": "The planner cannot act: a source-level test forbids every provider/publish/enqueue/LLM import, and every plan self-declares shadow:true.",
       "evidence": [
         {
-          "file": "apps/nickstire/server/services/evidenceResolver.ts"
+          "file": "apps/nickstire/server/services/shadowPlanner.ts"
+        },
+        {
+          "file": "apps/nickstire/server/shadowPlanner.test.ts"
         }
       ]
     },
     {
-      "id": "cost-constant-marked-assumption",
-      "assertion": "The seedance per-clip cost comment no longer states plan pricing as fact - it is marked an unverified operator-tunable assumption.",
+      "id": "shadow-deterministic-honest",
+      "assertion": "Scoring is deterministic (same signals, same plan), repetition is a hard reject, and evidence starvation scores LOW with an explicit code instead of pretending grounding exists.",
       "evidence": [
         {
-          "file": "apps/nickstire/server/services/generationLedger.ts"
+          "file": "apps/nickstire/server/shadowPlanner.test.ts"
         }
       ]
     }

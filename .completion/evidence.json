@@ -20,10 +20,10 @@
       "ref": "server/autonomyBoundary.test.ts — cron enqueue rejects with fail-closed when kill-switch state is unverifiable"
     },
     "operator-walkthrough": {
-      "deferred": "Browser session dead all session; the Control tab walkthrough is owed at acceptance time and recorded as the P2 on operator-command-center."
+      "deferred": "Browser dead all session; the shadow card walkthrough is owed at acceptance and recorded as the P2 on shadow-planner."
     },
     "capability-ledger-updated": {
-      "ref": "capability-ledger.json in this diff: evidence-resolution URL truth audit recorded"
+      "ref": "capability-ledger.json in this diff: shadow-planner proposed -> integration_verified/operator_only"
     }
   }
 }
