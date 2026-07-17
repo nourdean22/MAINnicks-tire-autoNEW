@@ -1,3 +1,4 @@
+import { mapInventoryStatusForQueue } from "./routers/instagramAdmin";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 /**
@@ -184,5 +185,18 @@ describe("getAllDrafts score honesty", () => {
     selectQueue.push([{ ...baseRow, scoreOverall: 87 }]);
     const drafts = await admin().instagramAdmin.getAllDrafts();
     expect(drafts[0].qualityScore).toEqual({ gate: "pass", overall: 87 });
+  });
+});
+
+describe("mapInventoryStatusForQueue", () => {
+  it("maps review_ready to needs_review so reel drafts get an Approve button", () => {
+    expect(mapInventoryStatusForQueue("review_ready")).toBe("needs_review");
+  });
+  it("keeps the existing mappings and passes unknown statuses through", () => {
+    expect(mapInventoryStatusForQueue("assets_ready")).toBe("ready");
+    expect(mapInventoryStatusForQueue("pending")).toBe("needs_review");
+    expect(mapInventoryStatusForQueue("approved")).toBe("ready");
+    expect(mapInventoryStatusForQueue("generating")).toBe("needs_review");
+    expect(mapInventoryStatusForQueue("published")).toBe("published");
   });
 });
