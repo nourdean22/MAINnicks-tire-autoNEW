@@ -266,6 +266,28 @@ describe("builders", () => {
     }
   });
 
+  it("Higgsfield pack: text/brand bans are POSITIVE (no pink-elephant tokens in the DO-NOT list)", () => {
+    // Regression for prod reel 690001 — garbled on-screen text + a mis-spelled
+    // "Nixs" logo + gloved hands. Seedance has no negative param; naming
+    // text/logo/watermark inside the compiled "DO NOT INCLUDE" string activated
+    // those concepts. The fix: describe an empty, unbranded scene positively and
+    // drop the backfiring tokens from the negative.
+    const pack = buildHiggsfieldReelPromptPack(sample());
+    for (const p of pack) {
+      // The clean-scene directive rides in EVERY beat's positive prompt.
+      expect(p.prompt).toContain("no readable text of any kind");
+      expect(p.prompt).toContain("clean and unbranded");
+      expect(p.prompt).toContain("no gloves");
+      // The concept-activating tokens must NOT appear in the negative anymore.
+      expect(p.negativePrompt).not.toContain("watermark");
+      expect(p.negativePrompt).not.toContain("logo");
+      expect(p.negativePrompt).not.toContain("warped letters");
+      expect(p.negativePrompt).not.toContain("text artifacts");
+      // The hands gap that let gloved hands through is now closed in both places.
+      expect(p.negativePrompt).toContain("gloves");
+    }
+  });
+
   it("prompt compiler: style grammar is LENS-SPECIFIC, not one universal 85mm suffix", () => {
     const brief = sample();
     const blueprint = buildHiggsfieldReelPromptPack({ ...brief, motionLens: "blueprint_technical" });
