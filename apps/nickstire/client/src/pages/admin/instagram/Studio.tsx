@@ -512,7 +512,19 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                               size="sm" 
                               onClick={() => {
                                 setJobError(null);
-                                enqueueReelJob.mutate({ brief: reelBrief });
+                                // The generated brief carries no sourceType, but the enqueue
+                                // schema requires review|declined_work|manual — without this
+                                // mapping EVERY wizard reel failed enqueue with a zod error
+                                // (observed live 2026-07-16). review/declined_work keep their
+                                // DB-verified provenance path; every other wizard source is
+                                // "manual" by definition.
+                                enqueueReelJob.mutate({
+                                  brief: {
+                                    ...reelBrief,
+                                    sourceType: source === "review" || source === "declined_work" ? source : "manual",
+                                    sourceId: sourceId || undefined,
+                                  },
+                                });
                               }}
                               disabled={enqueueReelJob.isPending || !score || score.gate !== "pass"}
                             >
@@ -580,7 +592,19 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                               size="sm" 
                               onClick={() => {
                                 setJobError(null);
-                                enqueueReelJob.mutate({ brief: reelBrief });
+                                // The generated brief carries no sourceType, but the enqueue
+                                // schema requires review|declined_work|manual — without this
+                                // mapping EVERY wizard reel failed enqueue with a zod error
+                                // (observed live 2026-07-16). review/declined_work keep their
+                                // DB-verified provenance path; every other wizard source is
+                                // "manual" by definition.
+                                enqueueReelJob.mutate({
+                                  brief: {
+                                    ...reelBrief,
+                                    sourceType: source === "review" || source === "declined_work" ? source : "manual",
+                                    sourceId: sourceId || undefined,
+                                  },
+                                });
                               }}
                             >
                               <RefreshCw className="h-3 w-3 mr-1.5" /> Retry
