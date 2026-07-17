@@ -133,19 +133,32 @@ export async function enqueueReelJob(
   // Operator paths proceed loud on policy-infra failure; cron fails closed.
   {
     const { enforceAtBoundary, clevelandDayStart, ESTIMATED_REEL_RENDER_COST_USD } = await import("./autonomyControl");
-    const { gte } = await import("drizzle-orm");
-    const { sql: dsql } = await import("drizzle-orm");
-    let rendersToday = 0;
-    try {
-      const [row] = await d.select({ n: dsql<number>`COUNT(*)` }).from(reelJobs).where(gte(reelJobs.createdAt, clevelandDayStart()));
-      rendersToday = Number(row?.n ?? 0);
-    } catch { /* count unavailable — budget check runs without today's spend */ }
+    // Today's spend comes from the generation LEDGER (reserved + settled +
+    // failed since Cleveland midnight) — never from job-row counts. Until
+    // 0086 is applied the ledger returns null and the coarse count-based
+    // fallback stands in, loudly.
+    let spendToday: number;
+    const { dailySpendUsd } = await import("./generationLedger");
+    const ledgerSpend = await dailySpendUsd();
+    if (ledgerSpend !== null) {
+      spendToday = ledgerSpend;
+    } else {
+      const { gte } = await import("drizzle-orm");
+      const { sql: dsql } = await import("drizzle-orm");
+      let rendersToday = 0;
+      try {
+        const [row] = await d.select({ n: dsql<number>`COUNT(*)` }).from(reelJobs).where(gte(reelJobs.createdAt, clevelandDayStart()));
+        rendersToday = Number(row?.n ?? 0);
+      } catch { /* count unavailable — budget check runs without today's spend */ }
+      spendToday = rendersToday * ESTIMATED_REEL_RENDER_COST_USD;
+      log.warn("generation ledger unavailable — coarse job-count spend fallback in use", { spendToday });
+    }
     await enforceAtBoundary(
       {
         type: "enqueue_render",
         format: "reel",
         estimatedCostUsd: ESTIMATED_REEL_RENDER_COST_USD,
-        today: { generationCostUsd: rendersToday * ESTIMATED_REEL_RENDER_COST_USD },
+        today: { generationCostUsd: spendToday },
       },
       { type: source === "cron" ? "cron" : "operator", id: source },
       (brief as { genomeId?: string | null }).genomeId ?? null,
@@ -176,6 +189,34 @@ export async function enqueueReelJob(
       (res as unknown as Array<{ insertId?: number }>)?.[0]?.insertId ??
       0,
   );
+  // Reserve the render budget in the ledger (idempotent on the job id).
+  // Settled at assets_ready with clips × per-clip estimate; failed jobs keep
+  // the conservative reservation as their spend record.
+  {
+    const { reserve, COST_ESTIMATES_USD } = await import("./generationLedger");
+    const { getActivePolicy } = await import("./autonomyControl");
+    const beatsCount = brief.storyboardBeats?.length ?? 6;
+    const policy = await getActivePolicy();
+    try {
+      await reserve({
+        actionId: `reel_job_${jobId}`,
+        campaignId: (brief as { genomeId?: string | null }).genomeId ?? null,
+        provider: "higgsfield",
+        model: "seedance1_5",
+        operation: "reel_clips",
+        estimatedCostUsd: beatsCount * COST_ESTIMATES_USD.seedance_clip,
+        dailyBudgetUsd: policy.limits.maxGenerationCostPerDayUsd,
+      });
+    } catch (err) {
+      // A budget breach discovered at reservation time must stop the job:
+      // flip it to failed before the worker ever picks it up.
+      if (err instanceof Error && err.message.startsWith("BUDGET_DAILY_EXCEEDED")) {
+        const { eq } = await import("drizzle-orm");
+        await d.update(reelJobs).set({ status: "failed", error: err.message.slice(0, 1000) }).where(eq(reelJobs.id, jobId));
+      }
+      throw err;
+    }
+  }
   log.info("reel job enqueued", { jobId, briefId: brief.id, beats: brief.storyboardBeats?.length ?? 0 });
   return { jobId };
 }
@@ -357,6 +398,12 @@ export async function processNextReelJob(): Promise<{
       // reset attempts so the assembly stage gets its own fresh retry budget
       .set({ status: "assets_ready", clipUrlsJson: JSON.stringify(clipUrls), error: null, attempts: 0 })
       .where(eq(reelJobs.id, job.id));
+    // Provider spend is complete at this point — settle the reservation with
+    // clips × per-clip estimate (flagged estimate; no USD feed from the CLI).
+    try {
+      const { settle, COST_ESTIMATES_USD } = await import("./generationLedger");
+      await settle(`reel_job_${job.id}`, clipUrls.length * COST_ESTIMATES_USD.seedance_clip);
+    } catch { /* ledger degraded — reservation's estimate stands */ }
     log.info("reel job assets_ready", { jobId: job.id, clips: clipUrls.length });
     return { processed: true, jobId: job.id, status: "assets_ready" };
   } catch (err) {
@@ -364,6 +411,14 @@ export async function processNextReelJob(): Promise<{
     // Retry on the next pulse until MAX_ATTEMPTS, then park as failed.
     const nextStatus = attempt >= MAX_ATTEMPTS ? "failed" : "queued";
     await d.update(reelJobs).set({ status: nextStatus, error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
+    if (nextStatus === "failed") {
+      // Terminal failure: keep the conservative reservation as the spend
+      // record (clips may have partially generated and burned credits).
+      try {
+        const { fail } = await import("./generationLedger");
+        await fail(`reel_job_${job.id}`);
+      } catch { /* ledger degraded */ }
+    }
     log.warn("reel job step failed", { jobId: job.id, attempt, nextStatus, error: msg });
     return { processed: true, jobId: job.id, status: nextStatus, error: msg };
   }
