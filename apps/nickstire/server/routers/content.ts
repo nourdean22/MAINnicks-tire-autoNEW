@@ -322,7 +322,17 @@ export const contentAdminRouter = router({
     .mutation(async ({ input }) => {
       const { runConceptTournament } = await import("../services/conceptTournament");
       const { generateGenome, ...tournamentInput } = input;
-      return runConceptTournament(tournamentInput, { generateGenome });
+      const result = await runConceptTournament(tournamentInput, { generateGenome });
+      if (!result.genome) return { ...result, seeds: null };
+      const { genomeToReelSeed, genomeToCarouselSeed, genomeToPhotoSeed } = await import("../../client/src/lib/creativeGenome");
+      return {
+        ...result,
+        seeds: {
+          reel: genomeToReelSeed(result.genome),
+          carousel: genomeToCarouselSeed(result.genome),
+          photo: genomeToPhotoSeed(result.genome),
+        },
+      };
     }),
 
   /** Genome Wave 1: generate ONE claim-safe campaign genome + the seeds that
