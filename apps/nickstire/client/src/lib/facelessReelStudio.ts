@@ -815,6 +815,26 @@ export function buildReelContinuityBlock(
   ].join("\n");
 }
 
+/**
+ * FACELESS + UNBRANDED SCENE, expressed as a POSITIVE description of the scene
+ * state rather than a DO-NOT list.
+ *
+ * Seedance has no negative-prompt parameter (verified via `model get`,
+ * higgsfieldStudio.ts:245) — exclusions are compiled into a "DO NOT INCLUDE"
+ * string. Text-to-video models activate concept tokens even inside a negation,
+ * so naming "text / letters / logo / watermark" in a DO-NOT clause is a
+ * documented cause of exactly the garbled on-screen text and mis-spelled brand
+ * logos ("Nixs" for "Nick's") measured in prod reel 690001. Describing an
+ * empty, unbranded scene gives the model a concrete clean state to render
+ * instead of a forbidden concept to fixate on. The gold caption is a
+ * deterministic ffmpeg overlay added AFTER generation — the generator itself
+ * must render zero text.
+ */
+export const FACELESS_CLEAN_SCENE_DIRECTIVE = [
+  `Unpopulated scene: no people, no faces, no hands, no arms, no gloves — the objects move on their own.`,
+  `Every surface is clean and unbranded: no signage, no logos, no lettering, no words, no numbers, no readable text of any kind anywhere in frame; any screen, gauge, or display is dark, powered off, or angled away from camera.`,
+].join("\n");
+
 export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatPrompt[] {
   const lens = MOTION_LENSES[brief.motionLens];
   const character = OBJECT_CHARACTERS[brief.objectCharacter];
@@ -846,11 +866,16 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
           ? `Opening frame: continue directly from the previous shot - the hero object in the same state and position it settled in (previous shot ended on: ${prev.visual})`
           : `Opening frame: strongest possible first frame - the hero object clearly readable at a glance.`,
         `Timing: complete the primary action by ${actionCompleteBySec} seconds; keep every frame after that visually stable${isLast ? ", settled on a frame that echoes the opening shot for a seamless loop" : ", ready for a match cut into the next shot"}.`,
-        `No humans, no faces, no hands, no readable shop signage.`,
+        FACELESS_CLEAN_SCENE_DIRECTIVE,
         `Leave the top 12% and bottom 20% of frame clear for IG UI; key action center-frame.`,
       ].join("\n"),
+      // The scene bans (people/hands/text/branding) live in the POSITIVE prompt
+      // above — the DO-NOT list keeps ONLY the render-quality avoids plus a light
+      // human backstop, because naming "text/letters/logo/watermark" in a negation
+      // is what made Seedance render garbled screens and the "Nixs" logo. Gloves +
+      // arms are added since a bare "hands" ban let gloved hands through in 690001.
       negativePrompt:
-        `human face, person, hands, talking head, text artifacts, warped letters, watermark, logo, low-res, extra fingers, plastic glow, oversaturated AI look, warped engine parts, ${lens.avoid}`,
+        `human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts, ${lens.avoid}`,
       styleKit: `${lens.label} + ${REEL_ARCHETYPES[brief.archetype].label}`,
       safeZoneGuidance: b.safeZoneNotes || "Keep critical visuals out of the top 12% / bottom 20% IG UI zones.",
     };
