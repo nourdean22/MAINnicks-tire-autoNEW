@@ -7,6 +7,7 @@ import { Inbox } from "./Inbox";
 import Learn from "./Learn";
 import Settings from "./Settings";
 import DraftBoardPanel from "../DraftBoardPanel";
+import AutonomyCommandCenter from "@/components/admin/AutonomyCommandCenter";
 
 export function InstagramAdmin() {
   const [activeTab, setActiveTab] = useState("hq");
@@ -21,13 +22,14 @@ export function InstagramAdmin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 gap-1 lg:grid-cols-7">
+        <TabsList className="grid w-full grid-cols-4 gap-1 lg:grid-cols-8">
           <TabsTrigger value="hq">HQ</TabsTrigger>
           <TabsTrigger value="studio">Studio</TabsTrigger>
           <TabsTrigger value="queue">Queue</TabsTrigger>
           <TabsTrigger value="drafts">Drafts</TabsTrigger>
           <TabsTrigger value="inbox">Inbox</TabsTrigger>
           <TabsTrigger value="learn">Learn</TabsTrigger>
+          <TabsTrigger value="control">Control</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         <TabsContent value="hq" className="mt-4">
@@ -47,6 +49,9 @@ export function InstagramAdmin() {
         </TabsContent>
         <TabsContent value="learn" className="mt-4">
           <Learn onNavigate={setActiveTab} />
+        </TabsContent>
+        <TabsContent value="control" className="mt-4">
+          <AutonomyCommandCenter />
         </TabsContent>
         <TabsContent value="settings" className="mt-4">
           <Settings />

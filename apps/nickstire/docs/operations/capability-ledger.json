@@ -403,13 +403,29 @@
       "capabilityId": "operator-command-center",
       "name": "Command center: policy status, spend, approvals, lineage",
       "owner": "operator",
-      "evidence": {},
-      "blockers": [],
-      "deferredScope": [],
-      "lastVerifiedAt": null,
-      "codeState": "not_started",
-      "operationalState": "unverified",
-      "exposure": "disabled"
+      "evidence": {
+        "codeCommit": "nickstire/command-center branch (this PR)",
+        "tests": [
+          "server/commandCenter.test.ts — no-storage: DEFAULT policy + honest fallback source + EVERY section available:false (no silent zeros); with-storage: spend/reservations/audit/jobs fill with QA+repair state per job; corrupt job payload degrades to status-only"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Control tab never walked through in a browser; kill-switch toggles cannot persist until 0086 is applied (the UI says so in an amber banner)",
+          "source": "design"
+        }
+      ],
+      "deferredScope": [
+        "capability-ledger view in the UI",
+        "approval queue",
+        "break-glass audit action",
+        "policy rollback control"
+      ],
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only"
     },
     {
       "capabilityId": "shadow-planner",

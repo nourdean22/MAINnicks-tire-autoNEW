@@ -311,6 +311,15 @@ export const contentAdminRouter = router({
       return listGenomes(input?.limit ?? 20);
     }),
 
+  /** Operator command center: governing policy + its SOURCE (storage vs
+   *  code-default fallback), kill switches, today's spend vs cap, live
+   *  reservations, decision trail, recent jobs with QA verdicts. Every
+   *  section carries an explicit available flag — no silent zeros. */
+  getCommandCenter: adminProcedure.query(async () => {
+    const { collectCommandCenter } = await import("../services/commandCenter");
+    return collectCommandCenter();
+  }),
+
   /** Autonomy control plane: active policy + recent audit tail for the
    *  operator, plus policy versioning and one-tap kill switches. */
   getAutonomyStatus: adminProcedure.query(async () => {
