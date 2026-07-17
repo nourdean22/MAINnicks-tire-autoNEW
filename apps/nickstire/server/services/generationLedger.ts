@@ -26,7 +26,7 @@ const log = createLogger("services:generation-ledger");
  *  are operator-tunable stand-ins and every row they touch is FLAGGED
  *  isEstimate until a real provider-usage feed replaces them. */
 export const COST_ESTIMATES_USD = {
-  seedance_clip: 0.25, // 12 credits/clip on the PRO plan
+  seedance_clip: 0.25, // ASSUMPTION (unverified): believed ~12 credits/clip; Higgsfield publishes no per-call USD - operator-tunable
   gpt_image_2: 0.1,
   elevenlabs_vo: 0.05,
   gemini_brief: 0.01,
