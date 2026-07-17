@@ -311,6 +311,14 @@ export const contentAdminRouter = router({
       return listGenomes(input?.limit ?? 20);
     }),
 
+  /** Shadow planner (Stage 0 autonomy): DETERMINISTIC ranked campaign
+   *  recommendations from real signals - observes and recommends ONLY.
+   *  Structurally incapable of generating, reserving, or publishing. */
+  getShadowPlan: adminProcedure.query(async () => {
+    const { generateShadowPlan } = await import("../services/shadowPlanner");
+    return generateShadowPlan();
+  }),
+
   /** Operator command center: governing policy + its SOURCE (storage vs
    *  code-default fallback), kill switches, today's spend vs cap, live
    *  reservations, decision trail, recent jobs with QA verdicts. Every

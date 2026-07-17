@@ -4,7 +4,7 @@
  * what is reserved, what was decided, and what the last renders look like.
  * Sections that depend on 0086 show "unavailable" honestly instead of zeros.
  */
-import { Loader2, ShieldAlert, ShieldCheck, Gauge, CalendarClock, ScrollText, Film, Power } from "lucide-react";
+import { Loader2, ShieldAlert, ShieldCheck, Gauge, CalendarClock, ScrollText, Film, Power, Compass } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ function SwitchRow({ label, on, scope, busy, onToggle }: { label: string; on: bo
 
 export default function AutonomyCommandCenter() {
   const center = trpc.contentAdmin.getCommandCenter.useQuery(undefined, { refetchInterval: 30_000 });
+  const shadow = trpc.contentAdmin.getShadowPlan.useQuery(undefined, { staleTime: 300_000 });
   const killSwitch = trpc.contentAdmin.setAutonomyKillSwitch.useMutation({
     onSuccess: (r) => {
       toast.success(`Kill switch updated — policy v${r.version} published`);
@@ -150,6 +151,39 @@ export default function AutonomyCommandCenter() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Compass className="h-4 w-4 text-primary" /> Shadow planner
+            <Badge variant="outline">SHADOW — takes no action</Badge>
+          </CardTitle>
+          <CardDescription>
+            Deterministic ranked recommendations from live signals (season, weather triggers, creative memory,
+            repetition). Compare against your own instinct — nothing here spends or posts.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!shadow.data ? (
+            <p className="text-sm text-muted-foreground">{shadow.isLoading ? "Planning..." : "Plan unavailable."}</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {shadow.data.recommendations.map((o) => (
+                <li key={o.id} className="rounded-md border border-border/40 p-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge>{o.score}/100</Badge>
+                    <span className="font-medium">{o.audienceMoment}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    DM "{o.campaignKeyword}" · {o.creativeTerritory} · {o.objective} ·{" "}
+                    <span className="font-mono text-[10px]">{o.reasoningCodes.join(", ")}</span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
