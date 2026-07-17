@@ -1,22 +1,10 @@
 {
   "$comment": "Completion Authority capability ledger — THE canonical record of what is actually done. States only advance with evidence; scripts/check-capability-ledger.mjs enforces the gates and CI runs it. 'Merged' is not a state on purpose: code merge and capability promotion are independent events. Render docs/operations/REALITY-LEDGER.md from this file via scripts/render-reality-ledger.mjs — never edit the rendered file by hand.",
-  "stateOrder": [
-    "proposed",
-    "implemented",
-    "unit_verified",
-    "integrated",
-    "deployed",
-    "live_verified",
-    "visually_verified",
-    "business_verified",
-    "production_ready"
-  ],
   "capabilities": [
     {
       "capabilityId": "reel-pipeline-assembly",
       "name": "Reel generation + assembly + render-integrity gate",
       "owner": "operator",
-      "state": "visually_verified",
       "evidence": {
         "codeCommit": "merged through #805",
         "tests": [
@@ -43,13 +31,15 @@
         "SFX",
         "animated CTA"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "visually_verified",
+      "exposure": "production"
     },
     {
       "capabilityId": "creative-genome-core",
       "name": "Creative Genome + tournament + creative memory",
       "owner": "operator",
-      "state": "live_verified",
       "evidence": {
         "codeCommit": "merged #809/#810",
         "tests": [
@@ -69,13 +59,15 @@
         "performance-informed genome generation",
         "semantic repetition beyond fingerprints"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "operator_only"
     },
     {
       "capabilityId": "format-directors",
       "name": "Reel + Carousel Directors (genome to scored brief)",
       "owner": "operator",
-      "state": "live_verified",
       "evidence": {
         "codeCommit": "merged #811/#812",
         "tests": [
@@ -100,13 +92,15 @@
         "Story Director",
         "Ad Director"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "operator_only"
     },
     {
       "capabilityId": "carousel-renderer",
       "name": "Deterministic 4:5 carousel slide renderer (13 territories)",
       "owner": "operator",
-      "state": "visually_verified",
       "evidence": {
         "codeCommit": "merged #807",
         "tests": [
@@ -126,13 +120,15 @@
         "deck judge",
         "per-slide regeneration"
       ],
-      "lastVerifiedAt": "2026-07-16"
+      "lastVerifiedAt": "2026-07-16",
+      "codeState": "merged",
+      "operationalState": "visually_verified",
+      "exposure": "operator_only"
     },
     {
       "capabilityId": "evidence-resolution",
       "name": "Typed evidence handles + curated public-source registry",
       "owner": "operator",
-      "state": "live_verified",
       "evidence": {
         "codeCommit": "recovered onto main via #816 (milestone 1-2)",
         "tests": [
@@ -155,13 +151,15 @@
         "excerpt entailment",
         "evidence expiration"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "operator_only"
     },
     {
       "capabilityId": "first-party-evidence-ingestion",
       "name": "First-party evidence ingestion (reviews + work orders)",
       "owner": "operator",
-      "state": "implemented",
       "evidence": {
         "codeCommit": "review-monitor/competitor-monitor either-key env gates fixed in #816 milestone 2"
       },
@@ -175,13 +173,15 @@
       "deferredScope": [
         "work-order entry workflow"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "unverified",
+      "exposure": "disabled"
     },
     {
       "capabilityId": "autonomy-policy-engine",
       "name": "Versioned AutonomyPolicy + deterministic decision engine",
       "owner": "operator",
-      "state": "integrated",
       "evidence": {
         "codeCommit": "merged #815; strict schema + boundary semantics on completion-authority branch",
         "tests": [
@@ -200,13 +200,15 @@
         "durable approval events with content hashes",
         "OPA delegation"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "internal"
     },
     {
       "capabilityId": "boundary-enforcement",
       "name": "Policy enforcement at service choke points (enqueue + publish)",
       "owner": "operator",
-      "state": "integrated",
       "evidence": {
         "codeCommit": "milestone 3 (recovered onto completion-authority branch after stranding)",
         "tests": [
@@ -224,13 +226,15 @@
         "generateCampaign/generateMedia/scheduleContent gateways",
         "durable approvals"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "internal"
     },
     {
       "capabilityId": "generation-ledger",
       "name": "Cost reservations: reserve/settle/release/fail",
       "owner": "operator",
-      "state": "unit_verified",
       "evidence": {
         "codeCommit": "milestone 4 (recovered onto completion-authority branch after stranding)",
         "tests": [
@@ -253,13 +257,15 @@
         "real provider usage ingestion",
         "campaign budget wiring beyond reels"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     },
     {
       "capabilityId": "content-governor",
       "name": "Cadence governor: creation reservations + publish-door assertion",
       "owner": "operator",
-      "state": "unit_verified",
       "evidence": {
         "codeCommit": "milestone 5 (recovered onto completion-authority branch after stranding)",
         "tests": [
@@ -278,13 +284,15 @@
         "carousel/photo creator wiring",
         "scheduling intelligence"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     },
     {
       "capabilityId": "visual-world",
       "name": "Reel Visual World: 3 reference frames + locked invariants",
       "owner": "operator",
-      "state": "integrated",
       "evidence": {
         "codeCommit": "merged #814; briefClean P1 fixed via #816; trajectory test on this branch",
         "tests": [
@@ -309,13 +317,15 @@
         "provider image conditioning",
         "independent candidate judge"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only"
     },
     {
       "capabilityId": "drafts-surface",
       "name": "Drafts tab (DraftBoardPanel mounted) + carousel visibility",
       "owner": "operator",
-      "state": "integrated",
       "evidence": {
         "codeCommit": "#816 milestone 2 (was an orphan component imported by nothing)",
         "tests": [
@@ -330,13 +340,15 @@
         }
       ],
       "deferredScope": [],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only"
     },
     {
       "capabilityId": "rendered-creative-qa",
       "name": "Rendered QA: contact sheets + visual critic + structured defects",
       "owner": "operator",
-      "state": "proposed",
       "evidence": {},
       "blockers": [],
       "deferredScope": [
@@ -345,13 +357,15 @@
         "automotive critic",
         "deck sheets"
       ],
-      "lastVerifiedAt": null
+      "lastVerifiedAt": null,
+      "codeState": "not_started",
+      "operationalState": "unverified",
+      "exposure": "disabled"
     },
     {
       "capabilityId": "selective-repair",
       "name": "Beat/slide-level repair without regenerating accepted assets",
       "owner": "operator",
-      "state": "proposed",
       "evidence": {},
       "blockers": [],
       "deferredScope": [
@@ -359,27 +373,59 @@
         "cover alternatives",
         "reassembly from accepted components"
       ],
-      "lastVerifiedAt": null
+      "lastVerifiedAt": null,
+      "codeState": "not_started",
+      "operationalState": "unverified",
+      "exposure": "disabled"
     },
     {
       "capabilityId": "operator-command-center",
       "name": "Command center: policy status, spend, approvals, lineage",
       "owner": "operator",
-      "state": "proposed",
       "evidence": {},
       "blockers": [],
       "deferredScope": [],
-      "lastVerifiedAt": null
+      "lastVerifiedAt": null,
+      "codeState": "not_started",
+      "operationalState": "unverified",
+      "exposure": "disabled"
     },
     {
       "capabilityId": "shadow-planner",
       "name": "Shadow-mode opportunity planner",
       "owner": "operator",
-      "state": "proposed",
       "evidence": {},
       "blockers": [],
       "deferredScope": [],
-      "lastVerifiedAt": null
+      "lastVerifiedAt": null,
+      "codeState": "not_started",
+      "operationalState": "unverified",
+      "exposure": "disabled"
     }
-  ]
+  ],
+  "axes": {
+    "codeState": [
+      "not_started",
+      "in_progress",
+      "merged",
+      "retired"
+    ],
+    "operationalState": [
+      "unverified",
+      "unit_verified",
+      "integration_verified",
+      "deployed",
+      "live_verified",
+      "visually_verified",
+      "business_verified"
+    ],
+    "exposure": [
+      "disabled",
+      "shadow",
+      "internal",
+      "operator_only",
+      "limited_autonomy",
+      "production"
+    ]
+  }
 }
