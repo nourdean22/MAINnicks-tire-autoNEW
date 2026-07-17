@@ -1,27 +1,21 @@
 {
-  "$comment": "Executable PR claims (Reality Control). scripts/detect-contradictions.mjs verifies refs exist on disk.",
+  "$comment": "Executable PR claims (Reality Control).",
   "claims": [
     {
-      "id": "command-center-no-silent-zeros",
-      "assertion": "Every command-center section either carries real rows or an explicit available:false; the governing policy always shows its SOURCE, and a fallback source renders a visible warning banner with the exact operator remedy.",
+      "id": "registry-urls-truth-audited",
+      "assertion": "Every PUBLIC_SOURCE_REGISTRY record carries a per-record retrievalStatus; 2 of 3 original URLs were proven wrong by live fetch and corrected via fetch or search-index confirmation on 2026-07-17; the overclaiming curated-by-hand comment is rewritten to state exactly how each URL was verified.",
       "evidence": [
         {
-          "file": "apps/nickstire/server/services/commandCenter.ts"
-        },
-        {
-          "file": "apps/nickstire/server/commandCenter.test.ts"
-        },
-        {
-          "file": "apps/nickstire/client/src/components/admin/AutonomyCommandCenter.tsx"
+          "file": "apps/nickstire/server/services/evidenceResolver.ts"
         }
       ]
     },
     {
-      "id": "command-center-emergency-controls",
-      "assertion": "Kill-switch toggles publish a new policy version through the existing versioned path; the UI never fakes a toggle - a persistence failure surfaces as an error toast.",
+      "id": "cost-constant-marked-assumption",
+      "assertion": "The seedance per-clip cost comment no longer states plan pricing as fact - it is marked an unverified operator-tunable assumption.",
       "evidence": [
         {
-          "file": "apps/nickstire/client/src/components/admin/AutonomyCommandCenter.tsx"
+          "file": "apps/nickstire/server/services/generationLedger.ts"
         }
       ]
     }

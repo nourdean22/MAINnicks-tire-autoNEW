@@ -23,7 +23,7 @@
       "deferred": "Browser session dead all session; the Control tab walkthrough is owed at acceptance time and recorded as the P2 on operator-command-center."
     },
     "capability-ledger-updated": {
-      "ref": "capability-ledger.json in this diff: operator-command-center proposed -> integration_verified/operator_only with honest P2"
+      "ref": "capability-ledger.json in this diff: evidence-resolution URL truth audit recorded"
     }
   }
 }

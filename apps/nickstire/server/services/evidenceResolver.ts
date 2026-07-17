@@ -29,14 +29,18 @@ const log = createLogger("services:evidence-resolver");
  * grounding ("NHTSA says so" is recognition, not evidence) — a label only
  * resolves when it maps to a specific curated record, and the resolved
  * assertion carries the record's title + canonical URL. Records are
- * section-level canonical URLs verified by hand at curation time; full
- * document retrieval + excerpt entailment is the Wave-B upgrade.
+ * audit found the ORIGINAL urls were written from model memory and 2 of 3
+ * were WRONG (404). Current urls were re-verified 2026-07-17 by live fetch
+ * or search-index confirmation, as recorded per record. Full document
+ * retrieval + excerpt entailment remains the Wave-B upgrade.
  */
 export interface PublicSourceRecord {
   id: string;
   family: (typeof PROOF_SOURCE_FAMILIES)[number];
   title: string;
   canonicalUrl: string;
+  /** how the canonical URL was last verified */
+  retrievalStatus: "fetch_verified" | "search_confirmed" | "fetch_blocked_search_confirmed";
   /** at least one topic keyword must appear in the label for a match */
   topics: string[];
   curatedAt: string;
@@ -48,6 +52,7 @@ export const PUBLIC_SOURCE_REGISTRY: PublicSourceRecord[] = [
     family: "NHTSA",
     title: "NHTSA vehicle tire safety guidance",
     canonicalUrl: "https://www.nhtsa.gov/vehicle-safety/tires",
+    retrievalStatus: "fetch_blocked_search_confirmed",
     topics: ["tire", "tread", "pressure", "psi", "tpms", "inflation", "aging", "blowout", "rotation"],
     curatedAt: "2026-07-17",
   },
@@ -55,7 +60,8 @@ export const PUBLIC_SOURCE_REGISTRY: PublicSourceRecord[] = [
     id: "ohio_echeck",
     family: "Ohio E-Check",
     title: "Ohio EPA E-Check program requirements",
-    canonicalUrl: "https://epa.ohio.gov/divisions-and-offices/air-pollution-control/echeck",
+    canonicalUrl: "https://epa.ohio.gov/divisions-and-offices/air-pollution-control/e-check",
+    retrievalStatus: "fetch_blocked_search_confirmed",
     topics: ["e-check", "echeck", "emission", "inspection", "test"],
     curatedAt: "2026-07-17",
   },
@@ -63,7 +69,8 @@ export const PUBLIC_SOURCE_REGISTRY: PublicSourceRecord[] = [
     id: "carcare_maintenance",
     family: "Car Care Council",
     title: "Car Care Council preventative maintenance guidance",
-    canonicalUrl: "https://www.carcare.org/car-care-basics/",
+    canonicalUrl: "https://www.carcare.org/car-care-tips/",
+    retrievalStatus: "fetch_verified",
     topics: ["battery", "wiper", "fluid", "brake", "maintenance", "winter", "inspection", "belt", "hose"],
     curatedAt: "2026-07-17",
   },

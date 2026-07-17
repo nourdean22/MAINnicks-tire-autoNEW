@@ -135,7 +135,8 @@
           "server/evidenceResolver.test.ts"
         ],
         "databaseAssertions": [
-          "prod probe 2026-07-17: review:1 REJECTED (no row), free text REJECTED, registry labels RESOLVED with canonical URLs; all evidence tables confirmed EMPTY"
+          "prod probe 2026-07-17: review:1 REJECTED (no row), free text REJECTED, registry labels RESOLVED with canonical URLs; all evidence tables confirmed EMPTY",
+          "URL truth audit 2026-07-17: original registry URLs were written from model memory — 2 of 3 were WRONG (404); corrected via live fetch (carcare.org/car-care-tips VERIFIED covering battery/wipers/fluids/brakes) + search-index confirmation (nhtsa.gov/vehicle-safety/tires, epa.ohio.gov .../e-check — both sites block fetchers); per-record retrievalStatus now in the registry"
         ],
         "deploymentId": "railway main auto-deploy (#816 merged)"
       },
