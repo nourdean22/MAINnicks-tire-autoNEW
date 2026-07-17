@@ -21,6 +21,7 @@ import {
   type InstagramStudioDraft,
 } from "../../../../shared/instagramStudio";
 import LegacyStudio from "./Studio";
+import CampaignPackageCard from "@/components/admin/CampaignPackageCard";
 
 /**
  * Draft fields the deterministic renderer consumes. Editing any of them invalidates
@@ -141,6 +142,8 @@ export default function StudioV2() {
           <Film className="mr-2 h-4 w-4" /> Open Advanced Reel Studio
         </Button>
       </div>
+
+      <CampaignPackageCard />
 
       <div className="grid gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
         <Card className="h-fit xl:sticky xl:top-5">

@@ -3738,6 +3738,20 @@ export const socialContentInventory = mysqlTable("social_content_inventory", {
   index("idx_sci_topic_type").on(table.topic, table.contentType),
 ]);
 
+/** Campaign genomes (Genome Wave 1 slice 3): the judged campaign roots +
+ *  their creative fingerprints, so tournaments avoid repeating what already
+ *  ran. DDL: drizzle/0085 (hand-apply via scripts/apply-0085-creative-genomes.mts).*/
+export const creativeGenomes = mysqlTable("creative_genomes", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  objective: varchar("objective", { length: 32 }).notNull(),
+  territory: varchar("territory", { length: 64 }).notNull(),
+  campaignAsk: text("campaign_ask").notNull(),
+  fingerprint: varchar("fingerprint", { length: 512 }).notNull(),
+  genomeJson: text("genome_json").notNull(),
+  source: varchar("source", { length: 32 }).notNull().default("direct"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const socialContentApprovals = mysqlTable("social_content_approvals", {
   id: varchar("id", { length: 64 }).primaryKey(),
   inventoryId: varchar("inventory_id", { length: 64 }).notNull(),

@@ -301,6 +301,40 @@ export const contentAdminRouter = router({
       return { urls };
     }),
 
+  /** Genome Wave 1 slice 2: role-diverse concept tournament with an
+   *  INDEPENDENT judge (replaces self-scored concept selection). Optionally
+   *  chains the judged winner into a campaign genome. */
+  listCampaignGenomes: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(20) }).optional())
+    .query(async ({ input }) => {
+      const { listGenomes } = await import("../services/creativeMemory");
+      return listGenomes(input?.limit ?? 20);
+    }),
+
+  runConceptTournament: adminProcedure
+    .input(z.object({
+      campaignAsk: z.string().min(8).max(600),
+      objective: z.string().max(32).optional(),
+      proofHandles: z.array(z.string().max(200)).max(8).optional(),
+      avoidRecent: z.array(z.string().max(200)).max(12).optional(),
+      generateGenome: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runConceptTournament } = await import("../services/conceptTournament");
+      const { generateGenome, ...tournamentInput } = input;
+      const result = await runConceptTournament(tournamentInput, { generateGenome });
+      if (!result.genome) return { ...result, seeds: null };
+      const { genomeToReelSeed, genomeToCarouselSeed, genomeToPhotoSeed } = await import("../../client/src/lib/creativeGenome");
+      return {
+        ...result,
+        seeds: {
+          reel: genomeToReelSeed(result.genome),
+          carousel: genomeToCarouselSeed(result.genome),
+          photo: genomeToPhotoSeed(result.genome),
+        },
+      };
+    }),
+
   /** Genome Wave 1: generate ONE claim-safe campaign genome + the seeds that
    *  drive today's reel/carousel/photo flows from it. */
   generateCampaignGenome: adminProcedure
@@ -313,6 +347,8 @@ export const contentAdminRouter = router({
       const { generateCampaignGenome } = await import("../services/genomeGen");
       const { genomeToReelSeed, genomeToCarouselSeed, genomeToPhotoSeed } = await import("../../client/src/lib/creativeGenome");
       const { genome, attempts } = await generateCampaignGenome(input);
+      const { saveGenome } = await import("../services/creativeMemory");
+      await saveGenome({ genome, campaignAsk: input.campaignAsk, source: "direct" });
       return {
         genome,
         attempts,

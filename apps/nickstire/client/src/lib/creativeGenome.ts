@@ -226,3 +226,16 @@ export function genomeToPhotoSeed(genome: CreativeGenome): string {
     `DO NOT INCLUDE: ${t.avoid}, humans, hands, logos, watermarks.`,
   ].join(" ");
 }
+
+/** Compact creative fingerprint for repetition control: the parts of a
+ *  campaign a viewer would RECOGNIZE as repeated (moment, metaphor,
+ *  territory, action) - normalized, order-stable, human-readable. */
+export function fingerprintFromGenome(genome: CreativeGenome): string {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, "").replace(/\s+/g, " ").trim().slice(0, 90);
+  return [
+    `territory:${genome.creativeTerritory}`,
+    `moment:${norm(genome.audienceMoment)}`,
+    `metaphor:${norm(genome.visualMetaphor)}`,
+    `action:${norm(genome.desiredAction)}`,
+  ].join(" | ").slice(0, 512);
+}
