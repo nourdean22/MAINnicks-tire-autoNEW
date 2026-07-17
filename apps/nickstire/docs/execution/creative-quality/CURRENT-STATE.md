@@ -18,10 +18,10 @@ Updated: 2026-07-17T13:45Z · branch `nickstire/creative-quality-lh` off main `4
 
 | # | Milestone | State |
 |---|---|---|
-| M1 | Baseline + benchmarks | media_verified (this commit) |
-| M2 | Media registry (0088) | in progress |
-| M3 | Drive Creative Vault | planned |
-| M4 | Real QA→repair→archive trajectory | blocked (deploy + credits + Drive grant) |
+| M1 | Baseline + benchmarks | media_verified |
+| M2 | Media registry (0088) | integration_verified (verify:media-registry 10/10 vs real MySQL; prod DDL awaits tap) |
+| M3 | Drive Creative Vault | unit_verified (7 mocked-network tests; live round-trip owed after consent) |
+| M4 | Real QA→repair→archive trajectory | blocked (deploy + 0088 tap + Drive consent + credits) |
 
 ## Last verified commit / suite
 
