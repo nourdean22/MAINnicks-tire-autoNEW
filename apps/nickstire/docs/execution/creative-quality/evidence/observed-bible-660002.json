@@ -1,0 +1,52 @@
+{
+  "sourceJobId": 660002,
+  "subject": "car, car battery, engine bay, road, human hand, diagnostic tool, text overlays",
+  "vehicleIdentity": null,
+  "componentIdentity": null,
+  "environment": [
+    "asphalt road (outdoor)",
+    "car engine bay (indoor or shaded outdoor)"
+  ],
+  "camera": {
+    "angle": "aerial, above, front-on",
+    "shotSize": "wide shot, mid-shot, close-up, extreme close-up",
+    "depthOfField": "deep focus, moderate shallow focus"
+  },
+  "lighting": {
+    "direction": "overhead, diffused",
+    "colorTemperature": "neutral daylight",
+    "contrast": "moderate to high"
+  },
+  "palette": [
+    "dark grey",
+    "black",
+    "white",
+    "gold",
+    "yellow",
+    "red",
+    "silver",
+    "blue (HUD)"
+  ],
+  "textSafeZones": [
+    "bottom third of the frame",
+    "top third of the frame (frames 1-2)"
+  ],
+  "forbiddenChanges": [
+    "the use of gold text on a black background for captions",
+    "the general concept of a car and its battery being present"
+  ],
+  "visibleDefects": [
+    "gibberish text/symbols in various areas (e.g., top corners, road markings, battery branding, diagnostic tool screen, HUD overlay)",
+    "malformed road markings",
+    "generic/AI-generated appearance of some components (e.g., diagnostic tool, certain battery details)",
+    "non-sensical branding/logos on batteries"
+  ],
+  "identityDriftAcrossFrames": [
+    "The car's exterior (frames 1-2) is a dark sedan. The engine bay shown in frame 3 appears to be from a different, older vehicle. The engine bay in frame 6 appears to be from yet another distinct car. The engine bay and battery in frames 7-8 are visually distinct from all prior car/engine bay depictions.",
+    "The car battery shown in frames 3-5 is a black, rectangular battery with varying levels of visible wear/cleanliness and inconsistent branding ('energizer'-like in F3, 'IN OOBO' in F4, generic in F5). The car battery shown in frames 7-8 is a different grey/beige color, with a different shape and distinct terminal protectors."
+  ],
+  "requestedVsObservedContradictions": [],
+  "confidence": 0.9,
+  "extractedAt": "2026-07-17T16:26:57.501Z",
+  "critic": "vision"
+}
