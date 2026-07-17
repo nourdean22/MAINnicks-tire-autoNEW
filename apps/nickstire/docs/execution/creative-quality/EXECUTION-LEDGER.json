@@ -121,9 +121,9 @@
       "affectedData": [],
       "affectedAssets": [],
       "acceptanceCriteria": ["GET /generated/missing.mp4 -> 404", "existing files still served", "post-deploy curl probe"],
-      "evidenceRequired": ["post-deploy: curl -sI nickstire.org/generated/definitely-not-real-xyz123.mp4 returns 404 (the baseline's control URL); curl -sI /generated/reel-30008.mp4 still 200 video/mp4"],
-      "state": "implemented",
-      "remainingRisk": ["verified by mount-order reasoning (express.static next()s on miss into the sibling handler); live probe owed post-deploy with the exact baseline control URL"]
+      "evidenceRequired": ["LIVE-VERIFIED 2026-07-17 14:24Z post-#828-deploy: control URL definitely-not-real-xyz123.mp4 -> 404 application/json (was 200 text/html); reel-30008.mp4 still 200 video/mp4"],
+      "state": "done",
+      "remainingRisk": []
     },
     {
       "id": "repo-media-cleanup-001",
