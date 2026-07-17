@@ -23,6 +23,8 @@ Updated: 2026-07-17T13:45Z · branch `nickstire/creative-quality-lh` off main `4
 | M3 | Drive Creative Vault | unit_verified (7 mocked-network tests; live round-trip owed after consent) |
 | M-audio | Dead-air root cause + fix + render gate | media_verified (REAL-render trajectory: previously-fatal shape now renders 0 gaps, stereo). ROOT CAUSE CORRECTED: beds existed since #253; sidechaincompress ends output at KEY (VO) end → music truncated → apad silence. 'No beds' hypothesis was wrong (ls from reset cwd). |
 | M-404 | /generated misses answer 404, not SPA HTML | implemented (post-deploy probe owed) |
+| M-caption | Safe-zone width cap + per-line rendering | media_verified (real-pixel cropdetect ≤82% + margins; evidence frame inspected). Two NEW live-defect discoveries: hook ×1.35 could still overflow post-band-sizing; drawtext renders LF as tofu with some fonts — two-line captions had never rendered in prod. |
+| M-failures | 94% failure-rate taxonomy | done — 49/59 = dead provider eras (Veo scopes/spend + pre-fix Higgsfield sessions); 9 = watchdog recoveries WORKING; 1 brief-shape. Headline rate is history, not current behavior. |
 | M4 | Real QA→repair→archive trajectory | blocked (deploy + 0088 tap + Drive consent + credits) |
 
 ## Review gate — first live catches (2026-07-17, PR #828)

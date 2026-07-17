@@ -194,7 +194,10 @@ describe("buildFfmpegArgs", () => {
     const fc = buildFfmpegArgs(base).join(" ");
     expect(fc).toContain("fontcolor=0xFDB913"); // brand yellow, not white
     expect(fc).not.toContain("fontcolor=white");
-    expect(fc).toContain("y=(h-text_h)/2"); // beat 1 hook, screen-centered
+    // beat 1 hook: screen-centered as a numeric line BLOCK — per-line drawtext
+    // (caption-safezone-001) centers (h - lines*lineH)/2 + j*lineH instead of
+    // the old single-run (h-text_h)/2
+    expect(fc).toMatch(/y=\(h-\d+\)\/2\+0/);
     expect(fc).toContain("y=h*0.62"); // later captions in the lower third (out of IG safe zone)
   });
 

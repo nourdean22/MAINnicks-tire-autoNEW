@@ -1,0 +1,15 @@
+FAILED_TOTAL: 59
+
+[provider_generation] n=49
+  #30002: Veo submit failed (HTTP 403): Request had insufficient authentication scopes.
+  #30003: Veo submit failed (HTTP 403): Request had insufficient authentication scopes.
+  #30005: Higgsfield CLI exited with code 2. Stderr: Error: Session expired.
+Hint: Run: hf auth login
+
+[other] n=9
+  #1: recovered from stuck 'generating' (no progress >12m)
+  #30001: recovered from stuck 'generating' (no progress >12m)
+  #30004: Veo submit failed (HTTP 429): Your project has exceeded its monthly spending cap. Please go to AI Studio at https://ai.studio/spend to manage your project spend
+
+[brief_shape] n=1
+  #120001: brief has no storyboardBeats
