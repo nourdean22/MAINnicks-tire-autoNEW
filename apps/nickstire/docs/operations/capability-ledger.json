@@ -58,16 +58,23 @@
         "databaseAssertions": [
           "0085 applied 2026-07-17: creative_genomes 8 columns + index verified"
         ],
-        "deploymentId": "railway main auto-deploy (#809/#810 merged)"
+        "deploymentId": "railway main auto-deploy (#809/#810 merged)",
+        "regressionNote": "DEMOTED from live_verified 2026-07-17: shared OpenRouter account dry (402) — tournament/brief-gen cannot run anywhere until credits added. Code unchanged; operations broken by provider credit exhaustion."
       },
-      "blockers": [],
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "OpenRouter account (shared local+prod OPENAI_API_KEY) is OUT OF CREDITS — 402 on every invokeLLM; tournament/brief-gen/QA-critic LLM legs are dead in prod RIGHT NOW (health 'openaiHealthy' is misleading: zero recent requests). Operator must add credits.",
+          "source": "live probe 2026-07-17 14:42Z"
+        }
+      ],
       "deferredScope": [
         "performance-informed genome generation",
         "semantic repetition beyond fingerprints"
       ],
       "lastVerifiedAt": "2026-07-17",
       "codeState": "merged",
-      "operationalState": "live_verified",
+      "operationalState": "integration_verified",
       "exposure": "operator_only"
     },
     {
@@ -372,6 +379,11 @@
           "severity": "P2",
           "description": "vision critic has never judged a REAL render; pipeline hook flag RENDERED_QA_ENABLED default OFF until an operator-armed live run produces a verdict worth trusting",
           "source": "design"
+        },
+        {
+          "severity": "P1",
+          "description": "QA critic runs on the same dry OpenRouter account — verdicts will fail-soft ('skipped') until credits are added. RENDERED_QA_ENABLED is now true on prod.",
+          "source": "live probe 2026-07-17"
         }
       ],
       "deferredScope": [
@@ -531,8 +543,8 @@
       "name": "Canonical media asset registry (identity, checksum, lineage, archive gate)",
       "owner": "system",
       "codeState": "merged",
-      "operationalState": "integration_verified",
-      "exposure": "disabled",
+      "operationalState": "live_verified",
+      "exposure": "internal",
       "evidence": {
         "codeCommit": "nickstire/creative-quality-lh (this PR): drizzle 0088 + server/services/mediaRegistry.ts + producer seams in assembleReel/carouselSlideRenderer",
         "tests": [
@@ -540,14 +552,19 @@
           "scripts/verify-media-registry.mts 10/10 against real in-memory MySQL (version flip, dupe surfacing, illegal jump, archive refusal, verified-sync->archived, repair lineage, missing-table tolerance)"
         ],
         "databaseAssertions": [
-          "0088 journaled (idx 101); NOT applied to prod — apply script ready, awaits operator tap"
-        ]
+          "0088 APPLIED+VERIFIED on prod 2026-07-17 (operator: 'do the rest'): media_assets 32 cols + integration_tokens 5 cols",
+          "19 live prod rows with computed checksums, lifecycle archived, byte-verified gdrive sync; duplicate checksums surfaced across veo-*/clip-* (real finding)"
+        ],
+        "liveRuns": [
+          "backfill 19/19 archived + reconcile clean; organic producer-seam row expected from trajectory job 660001"
+        ],
+        "deploymentId": "railway a4c08d1c (2026-07-17 10:40 EDT, RENDERED_QA_ENABLED redeploy; #829 code + 0088 schema live)"
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "0088 not applied to prod; producers register into a table that does not exist there yet (tolerant seam logs loudly, renders unaffected)",
-          "source": "scripts/apply-0088-media-registry.mts pending"
+          "description": "producer seam (assembleReel/carousel) has not yet fired organically in prod — trajectory job 660001 in flight is its first exercise",
+          "source": "traj-001"
         }
       ],
       "deferredScope": [
@@ -562,21 +579,19 @@
       "name": "Google Drive Creative Vault (verified idempotent archive, drive.file scope)",
       "owner": "operator",
       "codeState": "merged",
-      "operationalState": "unit_verified",
-      "exposure": "disabled",
+      "operationalState": "live_verified",
+      "exposure": "internal",
       "evidence": {
         "codeCommit": "nickstire/creative-quality-lh (this PR): server/services/creativeVault.ts + OAuth routes in adminRoutes.ts; reuses existing GOOGLE_OAUTH_CLIENT_ID/SECRET (verified present on prod by key name)",
         "tests": [
           "server/creativeVault.test.ts (7: idempotency short-circuit, multipart+verify, resumable headers, verification refusal, consent CSRF state, checksum-mismatch archive refusal before any network)"
-        ]
+        ],
+        "liveRuns": [
+          "2026-07-17: operator consent completed via real browser (drive.file, account nourdean22); root workspace created in the real Drive (rootId 17SCNTPnvjEgwz3ii9o2YNbWdT0SfaOJC); idempotent re-upload returned the SAME fileId; BACKFILL: 19/19 git-hostage masters registered + byte-verified archived (incl. published reel master with campaign manifest carrying IG media id); reconcileVault: checked=19 healthy=19 drift=0"
+        ],
+        "deploymentId": "railway a4c08d1c (2026-07-17 10:40 EDT, RENDERED_QA_ENABLED redeploy; #829 code + 0088 schema live)"
       },
-      "blockers": [
-        {
-          "severity": "P2",
-          "description": "No real Drive round-trip has ever run — operator consent (drive.file) + GCP redirect-URI registration owed; stays unit_verified until a live upload+verify+reconcile passes",
-          "source": "ACTIVE-BLOCKERS.md"
-        }
-      ],
+      "blockers": [],
       "deferredScope": [
         "full folder taxonomy (00 Brand System etc.)",
         "scheduled reconciliation cron",

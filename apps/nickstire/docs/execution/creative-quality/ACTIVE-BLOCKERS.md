@@ -2,8 +2,12 @@
 
 | Blocker | Blocks | Operator action |
 |---|---|---|
-| Drive consent not yet granted | M3 live path, M4 archive leg | After M3 deploys: (1) in GCP console, add `https://nickstire.org/api/oauth/drive/callback` to the OAuth client's Authorized redirect URIs (same client as admin login); (2) `curl -H "Authorization: Bearer $ADMIN_API_KEY" https://nickstire.org/api/admin/drive-vault/start` → open the returned authUrl → approve. `drive.file` scope only — the vault can touch nothing but files it creates |
-| Render credits authorization | M4 trajectory | Say the word when M2/M3 are deployed |
-| Listening pass | Audio naturalness scores | Play `reel-30008` once; the measured dead-air finding stands regardless |
-| S3 decision (optional) | Runtime permanence layer | Registry+vault work without it; S3_BUCKET would upgrade runtime URLs from ephemeral to durable |
-| 0088 DDL tap | Registry live in prod | Authorize `pnpm exec tsx scripts/apply-0088-media-registry.mts` when M2 ships |
+| **OpenRouter account OUT OF CREDITS (P1)** | Tournament, brief generation, rendered-QA critic — in prod AND locally (same `sk-or-v1` key both places; 402 on every call; health "openaiHealthy" was misleading — zero recent requests) | Add credits at openrouter.ai/settings/credits. Everything creative-LLM resumes instantly; QA verdicts on assembled jobs can be re-run |
+| Listening pass | Audio naturalness scores | Play the trajectory render when it lands; the deterministic gates stand regardless |
+| Render trajectory in flight | traj-001 completion | None — job 660001 (A/B re-render of 30008's exact brief through the FIXED pipeline) is on prod's 15-min pulses; monitor armed |
+
+## Resolved this run (2026-07-17)
+- ~~0088 DDL~~ → APPLIED + verified (32/5 cols)
+- ~~GCP redirect URI~~ → added via your Chrome, "OAuth client saved"
+- ~~Drive consent~~ → granted (drive.file, nourdean22); vault live: root `17SCNTPnvjEgwz3ii9o2YNbWdT0SfaOJC`
+- ~~19 git-hostage masters unarchived~~ → 19/19 registered + byte-verified in Drive, reconcile clean; git cleanup unblocked
