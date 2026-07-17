@@ -213,11 +213,15 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
   const [job] = await d.select().from(reelJobs).where(eq(reelJobs.status, "repair_queued")).limit(1);
   if (!job) return { processed: false };
 
-  // Claim (same conditional-update pattern as the other stages — a racing
-  // worker's update matches zero rows and it moves on).
-  await d.update(reelJobs).set({ status: "repair_rendering", updatedAt: new Date() }).where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "repair_queued")));
+  // Claim via conditional update — and gate on the AFFECTED-ROW COUNT, not a
+  // re-select (gated assessment P2, confirmed: the loser's zero-row update
+  // followed by a re-select ALSO saw status=repair_rendering, so two workers
+  // could both proceed and double-spend the same repair).
+  const { affectedRowCount } = await import("../lib/db-affected");
+  const claimRes = await d.update(reelJobs).set({ status: "repair_rendering", updatedAt: new Date() }).where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "repair_queued")));
+  if (affectedRowCount(claimRes) !== 1) return { processed: false };
   const [claimed] = await d.select().from(reelJobs).where(eq(reelJobs.id, job.id)).limit(1);
-  if (!claimed || claimed.status !== "repair_rendering") return { processed: false };
+  if (!claimed) return { processed: false };
 
   const payload = JSON.parse(claimed.payload ?? "{}");
   const queue: RepairQueueEntry[] = payload.repairQueue ?? [];

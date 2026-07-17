@@ -54,7 +54,9 @@ function repairDb(jobRow: Row) {
       },
     }),
     insert: (t: Row) => ({ values: (v: Row) => { inserts.push({ __table: tableName(t), ...v }); return Promise.resolve({}); } }),
-    update: (t: Row) => ({ set: (v: Row) => ({ where: () => { updates.push({ __table: tableName(t), ...v }); return Promise.resolve({}); } }) }),
+    // mysql2 write shape: [ResultSetHeader, fields] — the race-safe claim
+    // gates on affectedRows, so the mock reports one row touched.
+    update: (t: Row) => ({ set: (v: Row) => ({ where: () => { updates.push({ __table: tableName(t), ...v }); return Promise.resolve([{ affectedRows: 1 }, []]); } }) }),
   };
   return { db, updates, inserts, current };
 }

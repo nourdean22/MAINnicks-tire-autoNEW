@@ -1291,6 +1291,24 @@ export const contentAdminRouter = router({
         motionLens: z.string(),
         objectCharacter: z.string(),
         archetype: z.string(),
+        // P2 (gated assessment, confirmed): the directors attach claim-level
+        // evidence records to the brief, but zod's default strip removed them
+        // here — so the persisted job payload and the approval hash covered a
+        // brief WITHOUT its evidence provenance. Schema-validated passthrough.
+        evidenceRecords: z.array(z.object({
+          id: z.string(),
+          handle: z.string(),
+          sourceType: z.enum(["db_record", "public_registry"]),
+          assertion: z.string(),
+          claim: z.string(),
+          retrievedAt: z.string(),
+          expiresAt: z.string(),
+          snapshotHash: z.string().nullable(),
+          snapshotStatus: z.enum(["fetched", "fetch_blocked", "db_row", "not_attempted"]),
+          entailment: z.literal("not_evaluated"),
+          confidence: z.number(),
+          sensitivity: z.enum(["public", "internal"]),
+        })).optional(),
       })
     }))
     .mutation(async ({ input }) => {
