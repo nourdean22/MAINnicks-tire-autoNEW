@@ -116,4 +116,77 @@ describe("generateReferenceFrames", () => {
     const { generateReferenceFrames } = await import("./services/visualWorld");
     await expect(generateReferenceFrames(brief)).rejects.toThrow(/All reference-frame candidates failed/);
   });
+
+  it("requests ONLY the styles passed — one image call for a single style (cost control)", async () => {
+    const spy = vi.fn().mockResolvedValue("https://img.test/safe.jpg");
+    vi.doMock("./services/higgsfieldStudio", () => ({ generateCarouselSlideImage: spy }));
+    vi.resetModules();
+    const { generateReferenceFrames } = await import("./services/visualWorld");
+    const frames = await generateReferenceFrames(brief, ["safe"]);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(frames.map((f) => f.style)).toEqual(["safe"]);
+  });
+});
+
+// Audit gap #8: give AUTONOMOUS (cron) reels a continuity anchor. Flag-gated,
+// default OFF (zero cost until enabled), non-fatal on failure.
+describe("attachAutonomousVisualWorld", () => {
+  const prevFlag = process.env.REEL_AUTO_VISUAL_WORLD;
+  afterEach(() => {
+    if (prevFlag === undefined) delete process.env.REEL_AUTO_VISUAL_WORLD;
+    else process.env.REEL_AUTO_VISUAL_WORLD = prevFlag;
+  });
+
+  it("is a no-op with zero generation calls when the flag is OFF", async () => {
+    delete process.env.REEL_AUTO_VISUAL_WORLD;
+    const spy = vi.fn().mockResolvedValue("https://img.test/safe.jpg");
+    vi.doMock("./services/higgsfieldStudio", () => ({ generateCarouselSlideImage: spy }));
+    vi.resetModules();
+    const { attachAutonomousVisualWorld } = await import("./services/visualWorld");
+    const b = structuredClone(brief);
+    delete b.visualWorld;
+    const out = await attachAutonomousVisualWorld(b);
+    expect(spy).not.toHaveBeenCalled();
+    expect(out.visualWorld).toBeUndefined();
+  });
+
+  it("attaches a 'safe' visual world when the flag is ON and none exists", async () => {
+    process.env.REEL_AUTO_VISUAL_WORLD = "true";
+    const spy = vi.fn().mockResolvedValue("https://img.test/safe.jpg");
+    vi.doMock("./services/higgsfieldStudio", () => ({ generateCarouselSlideImage: spy }));
+    vi.resetModules();
+    const { attachAutonomousVisualWorld } = await import("./services/visualWorld");
+    const b = structuredClone(brief);
+    delete b.visualWorld;
+    const out = await attachAutonomousVisualWorld(b);
+    expect(spy).toHaveBeenCalledTimes(1); // one style => one paid image, not three
+    expect(out.visualWorld?.style).toBe("safe");
+    expect(out.visualWorld?.heroFrameUrl).toBe("https://img.test/safe.jpg");
+    expect(out.visualWorld?.lockedInvariants).toContain("operator-approved reference frame");
+  });
+
+  it("leaves an operator-approved world untouched (no generation)", async () => {
+    process.env.REEL_AUTO_VISUAL_WORLD = "true";
+    const spy = vi.fn().mockResolvedValue("https://img.test/other.jpg");
+    vi.doMock("./services/higgsfieldStudio", () => ({ generateCarouselSlideImage: spy }));
+    vi.resetModules();
+    const { attachAutonomousVisualWorld } = await import("./services/visualWorld");
+    const b = structuredClone(brief);
+    b.visualWorld = { style: "bold", heroFrameUrl: "https://img.test/operator.jpg", framePrompt: "fp", lockedInvariants: "operator-approved reference frame locked" };
+    const out = await attachAutonomousVisualWorld(b);
+    expect(spy).not.toHaveBeenCalled();
+    expect(out.visualWorld?.heroFrameUrl).toBe("https://img.test/operator.jpg");
+  });
+
+  it("degrades gracefully — a generation failure leaves the reel text-only, never throws", async () => {
+    process.env.REEL_AUTO_VISUAL_WORLD = "true";
+    const spy = vi.fn().mockRejectedValue(new Error("model unavailable"));
+    vi.doMock("./services/higgsfieldStudio", () => ({ generateCarouselSlideImage: spy }));
+    vi.resetModules();
+    const { attachAutonomousVisualWorld } = await import("./services/visualWorld");
+    const b = structuredClone(brief);
+    delete b.visualWorld;
+    const out = await attachAutonomousVisualWorld(b);
+    expect(out.visualWorld).toBeUndefined();
+  });
 });
