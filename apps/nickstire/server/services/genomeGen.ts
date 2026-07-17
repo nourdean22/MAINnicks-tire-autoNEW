@@ -26,6 +26,11 @@ export interface GenerateGenomeInput {
   objective?: string;
   /** verified evidence handles the model may cite (never invent) */
   proofHandles?: string[];
+  /** Milestone 4: the judged tournament winner's identity fields. FORCED into
+   *  the genome after generation so the winner survives intact — the LLM only
+   *  fills genuine gaps. Pre-sliced to the genome field limits by the caller and
+   *  already claim-safety checked upstream. */
+  winnerSeed?: { visualMetaphor: string; mechanicTruth: string; emotionalTurn: string };
 }
 
 const GENOME_SCHEMA: OutputSchema = {
@@ -67,6 +72,9 @@ function buildPrompt(input: GenerateGenomeInput, safetyFeedback?: string): strin
     `# CAMPAIGN ASK`,
     input.campaignAsk,
     input.objective ? `Preferred objective: ${input.objective}` : ``,
+    input.winnerSeed
+      ? `\n# PRESERVE THE JUDGED WINNER (do NOT reinterpret these — they ARE the approved concept):\n- visualMetaphor: ${input.winnerSeed.visualMetaphor}\n- mechanicTruth: ${input.winnerSeed.mechanicTruth}\n- emotionalTurn: ${input.winnerSeed.emotionalTurn}\nUse these exact ideas verbatim; fill only the remaining genome fields around them.`
+      : ``,
     ``,
     `# EVIDENCE YOU MAY CITE (never invent evidence; leave proprietaryProof empty if none fits)`,
     (input.proofHandles ?? []).map((p) => `- ${p}`).join("\n") || `- (none provided)`,
@@ -121,6 +129,16 @@ export async function generateCampaignGenome(input: GenerateGenomeInput): Promis
     });
     const raw = res.choices?.[0]?.message?.content ?? "";
     const genome = parseGenome(typeof raw === "string" ? raw : JSON.stringify(raw));
+    if (input.winnerSeed) {
+      // Milestone 4: FORCE the judged winner's identity fields so the tournament
+      // winner survives intact regardless of LLM drift. The seed is pre-sliced to
+      // the genome limits and was already claim-safety checked upstream (the
+      // pseudoGenome pre-check); validateGenomeClaimSafety below re-checks the
+      // merged result, so a forced value can never smuggle a claim past the gate.
+      genome.visualMetaphor = input.winnerSeed.visualMetaphor;
+      genome.mechanicTruth = input.winnerSeed.mechanicTruth;
+      genome.emotionalTurn = input.winnerSeed.emotionalTurn;
+    }
     const findings = validateGenomeClaimSafety(genome);
     if (!findings.length) {
       log.info("campaign genome generated", { attempt, territory: genome.creativeTerritory, objective: genome.objective });

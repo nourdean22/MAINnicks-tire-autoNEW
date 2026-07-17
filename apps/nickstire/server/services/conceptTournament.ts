@@ -360,10 +360,20 @@ export async function runConceptTournament(
   let genome: CreativeGenome | undefined;
   let genomeId: string | null = null;
   if (opts.generateGenome) {
+    // Milestone 4: preserve the judged winner into the genome as STRUCTURED data,
+    // not just prose. winnerSeed forces the three identity fields; the prose now
+    // ALSO carries whyItWorks (previously dropped entirely). Sliced to the genome
+    // field limits (visualMetaphor/emotionalTurn <=300, mechanicTruth <=600).
+    const winnerSeed = {
+      visualMetaphor: winner.visualIdea.slice(0, 300),
+      mechanicTruth: winner.coreIdea.slice(0, 600),
+      emotionalTurn: winner.whyItWorks.slice(0, 300),
+    };
     const chained = await generateCampaignGenome({
-      campaignAsk: `${input.campaignAsk}\n\nJUDGED WINNING CONCEPT (build the genome around exactly this):\nTitle: ${winner.title}\nHook: ${winner.hook}\nCore idea: ${winner.coreIdea}\nVisual: ${winner.visualIdea}`,
+      campaignAsk: `${input.campaignAsk}\n\nJUDGED WINNING CONCEPT (build the genome around exactly this):\nTitle: ${winner.title}\nHook: ${winner.hook}\nCore idea: ${winner.coreIdea}\nVisual: ${winner.visualIdea}\nWhy it works: ${winner.whyItWorks}`,
       objective: input.objective,
       proofHandles: input.proofHandles,
+      winnerSeed,
     });
     genome = chained.genome;
     const { saveGenome } = await import("./creativeMemory");
