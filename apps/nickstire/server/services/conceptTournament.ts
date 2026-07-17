@@ -170,6 +170,8 @@ export interface TournamentResult {
   winner: TournamentConcept;
   judgeReasoning: string;
   genome?: CreativeGenome;
+  /** creative_genomes row id when the chained genome persisted — campaign lineage */
+  genomeId?: string | null;
 }
 
 /**
@@ -356,6 +358,7 @@ export async function runConceptTournament(
 
   // 4. Optionally chain the judged winner into the campaign genome.
   let genome: CreativeGenome | undefined;
+  let genomeId: string | null = null;
   if (opts.generateGenome) {
     const chained = await generateCampaignGenome({
       campaignAsk: `${input.campaignAsk}\n\nJUDGED WINNING CONCEPT (build the genome around exactly this):\nTitle: ${winner.title}\nHook: ${winner.hook}\nCore idea: ${winner.coreIdea}\nVisual: ${winner.visualIdea}`,
@@ -364,8 +367,12 @@ export async function runConceptTournament(
     });
     genome = chained.genome;
     const { saveGenome } = await import("./creativeMemory");
-    await saveGenome({ genome: chained.genome, campaignAsk: input.campaignAsk, source: "tournament" });
+    // Capture the persisted id for campaign lineage — briefs and jobs drafted
+    // from this genome carry it, so a published asset traces back to the
+    // campaign that produced it.
+    const saved = await saveGenome({ genome: chained.genome, campaignAsk: input.campaignAsk, source: "tournament" });
+    genomeId = saved?.id ?? null;
   }
 
-  return { concepts: field, scores: verdict.scores, winner, judgeReasoning: verdict.judgeReasoning, genome };
+  return { concepts: field, scores: verdict.scores, winner, judgeReasoning: verdict.judgeReasoning, genome, genomeId };
 }

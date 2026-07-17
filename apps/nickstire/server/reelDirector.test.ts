@@ -8,7 +8,7 @@ import {
   campaignKeywordFromGenome,
   genomeConstraintBlock,
   draftReelFromGenome,
-  withGenomeProof,
+  attachResolvedProof,
 } from "./services/reelDirector";
 import { validateSourceGrounding } from "../client/src/lib/facelessReelStudio";
 import { creativeGenomeSchema, type CreativeGenome } from "../client/src/lib/creativeGenome";
@@ -86,26 +86,26 @@ describe("genomeConstraintBlock", () => {
   });
 });
 
-describe("withGenomeProof", () => {
-  it("attaches genome proof handles when the model emitted no proof note (live-run 55/75 + 60/75 failure shape)", () => {
+describe("attachResolvedProof", () => {
+  it("attaches RESOLVED assertions when the model emitted no proof note (live-run 55/75 + 60/75 failure shape)", () => {
     const sample = SAMPLE_REEL_BRIEFS[0];
     const noProof = { ...sample, sourceNotes: sample.sourceNotes.filter((s) => s.kind !== "proof") };
     expect(validateSourceGrounding(noProof).ok).toBe(false);
-    const patched = withGenomeProof(noProof, baseGenome);
+    const patched = attachResolvedProof(noProof, [{ assertion: "Grounded 5-Star Review by Sam: fixed my slow crank" }, { assertion: "Grounded Declined Work Item: battery replacement" }], baseGenome.mechanicTruth);
     expect(validateSourceGrounding(patched).ok).toBe(true);
     const attached = patched.sourceNotes.filter((s) => s.kind === "proof");
     expect(attached.length).toBe(2);
-    expect(attached[0].label).toBe("review:rev_123");
+    expect(attached[0].label).toContain("Grounded 5-Star Review");
     expect(attached[0].supports).toContain("Cold cuts battery cranking power");
   });
 
-  it("never overrides model-found proof and no-ops for proofless genomes", () => {
+  it("never overrides model-found proof and no-ops when nothing resolved", () => {
     const sample = SAMPLE_REEL_BRIEFS[0];
     if (sample.sourceNotes.some((s) => s.kind === "proof")) {
-      expect(withGenomeProof(sample, baseGenome)).toBe(sample);
+      expect(attachResolvedProof(sample, [{ assertion: "x" }], baseGenome.mechanicTruth)).toBe(sample);
     }
     const noProof = { ...sample, sourceNotes: sample.sourceNotes.filter((s) => s.kind !== "proof") };
-    expect(withGenomeProof(noProof, { ...baseGenome, proprietaryProof: [] })).toBe(noProof);
+    expect(attachResolvedProof(noProof, [], baseGenome.mechanicTruth)).toBe(noProof);
   });
 });
 
