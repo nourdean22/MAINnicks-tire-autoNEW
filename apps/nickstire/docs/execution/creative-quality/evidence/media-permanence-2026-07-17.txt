@@ -1,0 +1,216 @@
+TABLES: [{"t":"creative_genomes","n":0},{"t":"reel_jobs","n":63},{"t":"social_content_approvals","n":2},{"t":"social_content_inventory","n":33}]
+REEL_JOBS_BY_STATUS: [{"status":"failed","n":59},{"status":"posted","n":2},{"status":"assembled","n":2}]
+INVENTORY_BY_STATUS_SERIES: [{"status":"pending","series_name":"30-Day Reels","n":30},{"status":"published","series_name":"reels","n":2},{"status":"published","series_name":"manual_drafts","n":1}]
+DISTINCT_MEDIA_URLS_HARVESTED: 41
+PERMANENCE_REPORT: {
+  "ephemeral_local_disk": {
+    "total": 22,
+    "probed": 12,
+    "alive": 8,
+    "dead": 4,
+    "samples": [
+      {
+        "url": "https://nickstire.org/generated/clip-30008-1.mp4",
+        "status": 200,
+        "bytes": "1028541",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://nickstire.org/generated/clip-30008-2.mp4",
+        "status": 200,
+        "bytes": "2373810",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://nickstire.org/generated/clip-30008-3.mp4",
+        "status": 200,
+        "bytes": "7268636",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://nickstire.org/generated/clip-30008-4.mp4",
+        "status": 200,
+        "bytes": "2467433",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://nickstire.org/generated/clip-30008-5.mp4",
+        "status": 200,
+        "bytes": "4485597",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://nickstire.org/generated/clip-30008-6.mp4",
+        "status": 200,
+        "bytes": "1438988",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://nickstire.org/generated/clip-30008-7.mp4",
+        "status": 200,
+        "bytes": "1053128",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://nickstire.org/generated/reel-30008.mp4",
+        "status": 200,
+        "bytes": "12080240",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://nickstire.org/generated/clip-60001-1.mp4",
+        "status": 200,
+        "bytes": null,
+        "contentType": "text/html; charset=utf-8"
+      },
+      {
+        "url": "https://nickstire.org/generated/clip-60001-2.mp4",
+        "status": 200,
+        "bytes": null,
+        "contentType": "text/html; charset=utf-8"
+      },
+      {
+        "url": "https://nickstire.org/generated/clip-60001-3.mp4",
+        "status": 200,
+        "bytes": null,
+        "contentType": "text/html; charset=utf-8"
+      },
+      {
+        "url": "https://nickstire.org/generated/clip-60001-4.mp4",
+        "status": 200,
+        "bytes": null,
+        "contentType": "text/html; charset=utf-8"
+      }
+    ]
+  },
+  "anonymous_catbox": {
+    "total": 7,
+    "probed": 7,
+    "alive": 7,
+    "dead": 0,
+    "samples": [
+      {
+        "url": "https://files.catbox.moe/nbn57e.mp4",
+        "status": 200,
+        "bytes": "0",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://files.catbox.moe/f6bfsl.mp4",
+        "status": 200,
+        "bytes": "0",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://files.catbox.moe/so33d5.mp4",
+        "status": 200,
+        "bytes": "0",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://files.catbox.moe/5gkvtg.mp4",
+        "status": 200,
+        "bytes": "0",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://files.catbox.moe/86gwbr.mp4",
+        "status": 200,
+        "bytes": "0",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://files.catbox.moe/tdx4z1.mp4",
+        "status": 200,
+        "bytes": "0",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://files.catbox.moe/fzurhy.mp4",
+        "status": 200,
+        "bytes": "0",
+        "contentType": "video/mp4"
+      }
+    ]
+  },
+  "other": {
+    "total": 12,
+    "probed": 12,
+    "alive": 12,
+    "dead": 0,
+    "samples": [
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_005907_dd7d0839-b535-4ff0-9523-8cc8ac8c58c4.mp4",
+        "status": 200,
+        "bytes": "11126720",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_010041_be166743-d470-4b15-9162-eded4c9b84df.mp4",
+        "status": 200,
+        "bytes": "8670241",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_010156_6c3909e2-42dc-48c1-89a2-53fc2267a843.mp4",
+        "status": 200,
+        "bytes": "9435750",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_010333_d0044b46-2101-4513-9ee2-29e3bbc254c2.mp4",
+        "status": 200,
+        "bytes": "8536874",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_010518_0d149a67-91cf-449d-b77f-9663beb6e0bb.mp4",
+        "status": 200,
+        "bytes": "5748675",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_010656_824cac04-c9a6-4373-8652-ff88f44ccfa2.mp4",
+        "status": 200,
+        "bytes": "7641462",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_015837_97013f29-7cce-42b5-b2b4-b850a8049a33.mp4",
+        "status": 200,
+        "bytes": "9618828",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_020057_53575ded-bb45-4025-b1cf-542739b1b488.mp4",
+        "status": 200,
+        "bytes": "10468228",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_020236_b3cf277b-25f3-4a77-b6e2-18e0cd8a5c39.mp4",
+        "status": 200,
+        "bytes": "10057950",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_020428_251c9034-6664-49ae-b064-4eba8ae2bf76.mp4",
+        "status": 200,
+        "bytes": "10680349",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_020641_f25bdaa4-d609-4dd5-80b8-f54ef21603d4.mp4",
+        "status": 200,
+        "bytes": "8849125",
+        "contentType": "video/mp4"
+      },
+      {
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260717_020759_bda7fe40-5cdd-46cd-aae5-5da1ecf6e772.mp4",
+        "status": 200,
+        "bytes": "7910143",
+        "contentType": "video/mp4"
+      }
+    ]
+  }
+}

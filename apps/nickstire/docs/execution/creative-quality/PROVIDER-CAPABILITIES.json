@@ -1,0 +1,41 @@
+{
+  "note": "Only capabilities with named evidence. Never write capabilities from model memory.",
+  "providers": [
+    {
+      "provider": "higgsfield",
+      "model": "seedance-1.5",
+      "operation": "text_to_video",
+      "observedOutput": "1080x1920 9:16, 8.000s clips, h264, delivered via CloudFront (d8j0ntlcm91z4.cloudfront.net), 5-11MB per clip",
+      "inputImageSupported": null,
+      "verifiedAt": "2026-07-17",
+      "verificationEvidence": "Real prod clips clip-30008-1..7.mp4 (ffprobe) + live CloudFront URLs in reel_jobs rows; auth = HIGGSFIELD_CREDENTIALS_JSON device-flow (Railway var confirmed by name)",
+      "knownLimitations": ["Image conditioning NOT verified in current pipeline — briefs are text-conditioned only (the continuity defect proves it)", "URL TTL unknown — treat as expiring"]
+    },
+    {
+      "provider": "google",
+      "model": "cloud-tts (primary) -> elevenlabs (runtime fallback)",
+      "operation": "text_to_speech",
+      "observedOutput": "mono 48kHz AAC voiceover in published reel (55.7kbps in final mux)",
+      "verifiedAt": "2026-07-16",
+      "verificationEvidence": "VOICEOVER CONTRACT (#803) in server/services/reelVoice.ts; published reel carries VO for first ~7s (measured)",
+      "knownLimitations": ["Final mux is mono 55kbps — encode setting, not provider limit", "VO/music bed does not span full video duration (dead-air defect audio-dead-air-001)"]
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini vision (via _core/llm.ts)",
+      "operation": "vision_analysis",
+      "observedOutput": "structured rendered-QA verdicts from contact-sheet images",
+      "verifiedAt": "2026-07-17",
+      "verificationEvidence": "image_url parts support confirmed at server/_core/llm.ts:135; renderedQa service + tests (#819)",
+      "knownLimitations": ["RENDERED_QA_ENABLED default OFF; no real-render verdict has run yet (traj-001)"]
+    },
+    {
+      "provider": "ffmpeg",
+      "model": "8.1 local / apt-installed on Railway (RAILPACK_DEPLOY_APT_PACKAGES)",
+      "operation": "assembly, frame extraction, loudness/silence measurement",
+      "verifiedAt": "2026-07-17",
+      "verificationEvidence": "This baseline's extractions + prod assembly of reel-30008",
+      "knownLimitations": []
+    }
+  ]
+}
