@@ -3825,6 +3825,45 @@ export type InsertSocialContentInventory = typeof socialContentInventory.$inferI
 export type SocialContentApproval = typeof socialContentApprovals.$inferSelect;
 export type InsertSocialContentApproval = typeof socialContentApprovals.$inferInsert;
 
+/**
+ * Authenticated operator quality-override (Creative Compiler 2.0 Milestone 1).
+ * When an operator accepts ADVISORY findings (critic REPAIR — not a hard gate),
+ * this records a "publish_anyway" decision bound to the EXACT
+ * (inventoryId, version, contentHash). Any re-render/caption/audio change alters
+ * the hash and invalidates the override; hard gates always re-run; consumed
+ * atomically at publish. Mirrors 0089_operator_quality_overrides.sql.
+ */
+export const operatorQualityOverrides = mysqlTable("operator_quality_overrides", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  campaignId: varchar("campaign_id", { length: 64 }),
+  inventoryId: varchar("inventory_id", { length: 64 }).notNull(),
+  assetId: varchar("asset_id", { length: 128 }),
+  assetVersion: int("asset_version").notNull(),
+  /** the approved media/render hash (sha256 of bytes) — catches re-render/audio */
+  contentHash: varchar("content_hash", { length: 64 }).notNull(),
+  /** the approved brief hash (sha256 of briefJson) — catches caption/metadata edits */
+  briefHash: varchar("brief_hash", { length: 64 }).notNull().default(""),
+  action: varchar("action", { length: 32 }).notNull().default("publish_anyway"),
+  /** JSON array of accepted critic findingIds */
+  acceptedFindingIds: text("accepted_finding_ids").notNull(),
+  /** JSON array of accepted severities ("warn" | "repair") */
+  acceptedSeverities: varchar("accepted_severities", { length: 255 }).notNull(),
+  operatorReason: text("operator_reason").notNull(),
+  actorId: int("actor_id").notNull(),
+  actorEmail: varchar("actor_email", { length: 255 }),
+  /** active | consumed | expired | revoked | invalidated */
+  state: varchar("state", { length: 24 }).notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  consumedAt: timestamp("consumed_at"),
+}, (table) => [
+  index("idx_oqo_binding").on(table.inventoryId, table.assetVersion, table.state),
+  index("idx_oqo_hash").on(table.contentHash),
+  index("idx_oqo_campaign").on(table.campaignId),
+]);
+export type OperatorQualityOverride = typeof operatorQualityOverrides.$inferSelect;
+export type InsertOperatorQualityOverride = typeof operatorQualityOverrides.$inferInsert;
+
 export const intelligenceDecisionLedger = mysqlTable("intelligence_decision_ledger", {
   id: int("id").autoincrement().primaryKey(),
   engineId: varchar("engine_id", { length: 64 }).notNull(),
