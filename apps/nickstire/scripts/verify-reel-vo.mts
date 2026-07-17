@@ -26,7 +26,18 @@ import mysql from "mysql2/promise";
 import { startDevDb } from "./lib/dev-db.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const CLIP = path.resolve(HERE, "..", "data", "generated", "clip-30008-1.mp4");
+// #831 removed the committed media (registry+Drive are the archive now), which
+// orphaned the fixture this verifier hardcoded. Synthesize an equivalent tiny
+// clip with lavfi on demand — a clean checkout needs only ffmpeg.
+const CLIP = path.resolve(HERE, "..", "data", "generated", "vo-verify-fixture.mp4");
+if (!fs.existsSync(CLIP)) {
+  fs.mkdirSync(path.dirname(CLIP), { recursive: true });
+  const { spawnSync } = await import("child_process");
+  const gen = spawnSync(process.env.FFMPEG_PATH || "ffmpeg",
+    ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=darkslategray:s=270x480:d=8:r=24", "-pix_fmt", "yuv420p", CLIP],
+    { encoding: "utf8", shell: process.platform === "win32" && !process.env.FFMPEG_PATH, timeout: 60_000 });
+  if (gen.status !== 0) { console.error("fixture synthesis failed:", (gen.stderr || "").slice(-300)); process.exit(1); }
+}
 
 function serveClip(): Promise<{ url: string; close: () => void }> {
   return new Promise((resolve) => {
