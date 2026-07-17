@@ -8,7 +8,7 @@
       "ref": "server/contentGovernor.test.ts (publish-door cap/spacing/story-bypass) + kill-switch path in socialPublish exercised via getEmergencyControlsFresh contract tests in server/autonomyBoundary.test.ts"
     },
     "render-spend-trajectory": {
-      "ref": "server/autonomyBoundary.test.ts + server/goldenCampaign.test.ts (unchanged, still green) — this PR adds post-assembly QA which spends nothing"
+      "ref": "server/selectiveRepair.test.ts (repair spend trajectory) + server/autonomyBoundary.test.ts + server/goldenCampaign.test.ts (unchanged, green)"
     },
     "visual-world-trajectory": {
       "ref": "server/autonomyBoundary.test.ts — locked invariants present in EVERY prompt of the persisted reel-job payload"
@@ -23,7 +23,7 @@
       "deferred": "Browser session dead this entire session (No tab available). Walkthrough owed at acceptance time and recorded as P2 blockers on drafts-surface + format-directors in the capability ledger."
     },
     "capability-ledger-updated": {
-      "ref": "capability-ledger.json in this diff: rendered-creative-qa proposed -> unit_verified/internal with honest P2"
+      "ref": "capability-ledger.json in this diff: selective-repair proposed -> unit_verified/operator_only with honest P2"
     }
   }
 }

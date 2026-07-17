@@ -2,35 +2,23 @@
   "$comment": "Executable PR claims (Reality Control). scripts/detect-contradictions.mjs verifies refs exist on disk.",
   "claims": [
     {
-      "id": "rendered-qa-deterministic-extraction",
-      "assertion": "First / per-beat midpoint / final frames extract deterministically from an assembled mp4 and produce a contact sheet.",
+      "id": "repair-smallest-unit",
+      "assertion": "A repair regenerates exactly one beat: the original prompt stays base truth, KEEP/CHANGE narrows from the QA finding, only that clip index is replaced, and the job re-enters the EXISTING assembly worker.",
       "evidence": [
         {
-          "file": "apps/nickstire/server/renderedQa.test.ts"
+          "file": "apps/nickstire/server/services/selectiveRepair.ts"
         },
         {
-          "file": "apps/nickstire/server/services/renderedQa.ts"
+          "file": "apps/nickstire/server/selectiveRepair.test.ts"
         }
       ]
     },
     {
-      "id": "rendered-qa-structured-verdicts",
-      "assertion": "Critic output is clamped to a fixed defect registry: severities come from the registry never the model, any block finding forces repair, unknown codes drop with a warning, critic failure yields a SKIPPED verdict rather than a fabricated one.",
+      "id": "repair-governed-spend",
+      "assertion": "Repair spend passes the policy boundary with the repair cap enforced from the job own history (caller cannot undercount), reserves and settles in the generation ledger, and a provider failure fails the reservation while leaving the job untouched.",
       "evidence": [
         {
-          "file": "apps/nickstire/server/renderedQa.test.ts"
-        }
-      ]
-    },
-    {
-      "id": "rendered-qa-exposure-discipline",
-      "assertion": "The pipeline hook is gated by RENDERED_QA_ENABLED (default OFF - prod unchanged); the operator endpoint evaluates on demand and never changes job status.",
-      "evidence": [
-        {
-          "file": "apps/nickstire/server/services/reelPipeline.ts"
-        },
-        {
-          "file": "apps/nickstire/server/routers/content.ts"
+          "file": "apps/nickstire/server/selectiveRepair.test.ts"
         }
       ]
     }

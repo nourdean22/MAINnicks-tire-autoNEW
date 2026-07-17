@@ -456,6 +456,34 @@ export const contentAdminRouter = router({
       return verdict;
     }),
 
+  /** Selective repair: regenerate EXACTLY one failing beat (from the QA
+   *  verdict's preserve/change instruction or an explicit one), replace only
+   *  that clip, and return the job to assets_ready so the existing assembly
+   *  worker re-assembles from accepted + repaired clips. Policy-gated render
+   *  spend with the repair cap enforced from the job's own history. */
+  repairReelBeat: adminProcedure
+    .input(z.object({
+      jobId: z.number().int().positive(),
+      beatNumber: z.number().int().min(1).max(12),
+      instruction: z.object({
+        code: z.string().max(64).optional(),
+        description: z.string().max(400).optional(),
+        preserve: z.array(z.string().max(200)).max(6).default([]),
+        change: z.array(z.string().max(200)).max(6).default([]),
+      }).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { repairReelBeat } = await import("../services/selectiveRepair");
+      try {
+        return await repairReelBeat(input);
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith("Blocked by autonomy policy")) {
+          throw new TRPCError({ code: "FORBIDDEN", message: err.message });
+        }
+        throw new TRPCError({ code: "BAD_REQUEST", message: err instanceof Error ? err.message : "repair failed" });
+      }
+    }),
+
   /** Genome Wave 2: Reel Director — one campaign genome -> a full
    *  quality-scored ReelBrief via the existing generator. Generation only;
    *  rendering stays behind the operator's explicit enqueueReelJob tap. The
