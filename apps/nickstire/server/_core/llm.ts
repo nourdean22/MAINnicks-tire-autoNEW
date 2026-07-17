@@ -303,8 +303,23 @@ const normalizeResponseFormat = ({
   };
 };
 
+/**
+ * Provider escape hatch: AI_FORCE_GEMINI=true reroutes EVERY OpenAI-family
+ * request (explicit "gpt-*"/"o*" call-site pins included) onto the Gemini
+ * free-tier key. Added 2026-07-17 when the shared OpenRouter account ran out
+ * of credits and 402'd every creative leg in prod — ~9 call sites hard-pin
+ * gpt-4o-mini, so an env-only key removal would throw instead of degrading.
+ * Reversible by unsetting the flag; explicit gemini-* pins are untouched.
+ */
+export function resolveEffectiveModel(requested: string | undefined): string | undefined {
+  if (process.env.AI_FORCE_GEMINI !== "true") return requested;
+  if (requested && (requested.startsWith("gemini-") || requested.startsWith("google/"))) return requested;
+  return process.env.GEMINI_MODEL || "gemini-2.5-flash";
+}
+
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  const model = params.model || (process.env.OPENAI_API_KEY
+  const requestedModel = resolveEffectiveModel(params.model);
+  const model = requestedModel || (process.env.OPENAI_API_KEY && process.env.AI_FORCE_GEMINI !== "true"
     ? (process.env.LLM_MODEL || "gpt-4o")
     // gemini-1.5-pro was RETIRED by Google (404 "not found for API version") —
     // observed live 2026-07-16 killing reel brief generation in prod. 2.5-flash
