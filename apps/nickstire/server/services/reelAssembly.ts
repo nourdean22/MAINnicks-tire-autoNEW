@@ -804,7 +804,7 @@ export async function assembleReel(
       const { registerProducedAsset } = await import("./mediaRegistry");
       const d = await getDb();
       if (d) {
-        await registerProducedAsset(d, mp4, {
+        const registered = await registerProducedAsset(d, mp4, {
           logicalKey: `reel:${jobId}:master`,
           assetType: "draft_render",
           format: "video",
@@ -814,6 +814,26 @@ export async function assembleReel(
           runtimeUrl: put.url,
           generationParams: { durationSec: total + SAVE_FREEZE_SECONDS, usedVo: !!voPath },
         });
+        // AUTO-ARCHIVAL (vault's remaining leg, gated assessment): until now
+        // archiveRegisteredAsset had no production caller — masters reached
+        // Drive only by hand. Every registered master now vaults itself:
+        // campaign workspace ensured, byte-verified upload, registry flipped
+        // to synced only on size match. Best-effort — archival failure logs
+        // LOUDLY (reconciliation surfaces the pending backlog) but never
+        // fails the render.
+        if (registered) {
+          try {
+            const { vaultConfigured, ensureCampaignWorkspace, archiveRegisteredAsset } = await import("./creativeVault");
+            if (await vaultConfigured(d)) {
+              const ws = await ensureCampaignWorkspace(d, { campaignId: `reel-${jobId}`, name: `Reel ${jobId}` });
+              const arch = await archiveRegisteredAsset(d, registered.id, { folderId: ws.folderId, bytes: mp4 });
+              if (arch.ok) log.info("master auto-archived to vault", { jobId, assetId: registered.id, fileId: arch.fileId });
+              else log.error("master auto-archival FAILED — registry keeps it pending, reconcile will surface it", { jobId, assetId: registered.id, reason: arch.reason });
+            }
+          } catch (e) {
+            log.error("auto-archival hook failed (render unaffected)", { jobId, e: e instanceof Error ? e.message : String(e) });
+          }
+        }
       }
     } catch { /* registerProducedAsset is already tolerant; belt over suspenders */ }
     // Report the REAL file length (beats + the save-payload freeze), not just the beats.
