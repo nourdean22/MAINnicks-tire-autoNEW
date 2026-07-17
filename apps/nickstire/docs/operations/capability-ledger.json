@@ -864,6 +864,39 @@
           "source": "PR #852"
         }
       ]
+    },
+    {
+      "owner": "operator",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [
+        "make the override MANDATORY when automation returns REQUEST_OPERATOR_DECISION (Milestone 11 — decideAutomation is not yet a publish-time gate)",
+        "operator UI to review + accept the exact findings (Milestone 12)",
+        "close the wrong-account + hookText-hash gaps flagged by the integration map"
+      ],
+      "capabilityId": "operator-quality-override",
+      "name": "Authenticated operator quality-override (exact-hash publish-anyway)",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "operatorOverride.ts service + createQualityOverride endpoint + publishPost consume wiring + 0089 migration",
+        "tests": [
+          "server/operatorOverride.test.ts (12): advisory-vs-block classification, records bound to BOTH hashes, REFUSES a block finding, atomic consume, re-render + caption-edit invalidation, expiry, lost-race, deploy-safe missing-table to none",
+          "server/__tests__/approval-integrity.test.ts (5): the modified publishPost path still passes (backward compatible)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "0089_operator_quality_overrides migration is hand-applied and AWAITS operator authorization (writes to prod DB); until then createQualityOverride errors and the publish consume is a deploy-safe no-op",
+          "source": "scripts/apply-0089-operator-overrides.mts"
+        },
+        {
+          "severity": "P2",
+          "description": "not yet exercised on a real live publish end-to-end (needs 0089 applied + a REPAIR-verdict asset)",
+          "source": "session ledger"
+        }
+      ]
     }
   ],
   "axes": {

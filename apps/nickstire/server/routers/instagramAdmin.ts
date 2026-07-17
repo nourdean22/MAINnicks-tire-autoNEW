@@ -780,6 +780,65 @@ Keep it under 200 characters.`;
       }
     }),
 
+  /** Milestone 1 (Creative Compiler 2.0): record an authenticated operator
+   *  "publish anyway" override that accepts specific ADVISORY quality findings,
+   *  bound to the exact approved (inventory, version, brief+media hash). Refuses
+   *  any block-severity finding — a hard block needs a fix, never an override. */
+  createQualityOverride: adminProcedure
+    .input(z.object({
+      inventoryId: z.string(),
+      assetVersion: z.number().int(),
+      assetId: z.string().optional(),
+      campaignId: z.string().optional(),
+      findings: z.array(z.object({
+        findingId: z.string(),
+        severity: z.enum(["warn", "repair", "block"]),
+      })).min(1),
+      operatorReason: z.string().min(1).max(2000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.user?.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Authenticated operator required to record an override." });
+      }
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      const { socialContentApprovals } = await import("../../drizzle/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      // Bind to the exact hashes the operator approved — copy them from the
+      // approval record for this version. No approval => nothing to override.
+      const approvals = await database
+        .select()
+        .from(socialContentApprovals)
+        .where(and(eq(socialContentApprovals.inventoryId, input.inventoryId), eq(socialContentApprovals.version, input.assetVersion)))
+        .limit(1);
+      if (approvals.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No approval record for this version — approve the content before recording an override." });
+      }
+      const approval = approvals[0];
+
+      const { createOperatorOverride } = await import("../services/operatorOverride");
+      const res = await createOperatorOverride(database, {
+        campaignId: input.campaignId ?? null,
+        inventoryId: input.inventoryId,
+        assetId: input.assetId ?? null,
+        assetVersion: input.assetVersion,
+        contentHash: approval.mediaHash,
+        briefHash: approval.briefHash,
+        findings: input.findings,
+        operatorReason: input.operatorReason,
+        actorId: ctx.user.id,
+        actorEmail: (ctx.user as unknown as { email?: string | null }).email ?? null,
+      });
+      if (!res.ok) {
+        if (res.reason === "contains_hard_block") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot override hard blocks (${res.blockedFindingIds.join(", ")}) — these require a fix, not an override.` });
+        }
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No findings provided to accept." });
+      }
+      return { ok: true as const, overrideId: res.overrideId, expiresAt: res.expiresAt };
+    }),
+
   /** Publish a custom image or Reel to Instagram directly. */
   publishPost: adminProcedure
     .input(z.object({
@@ -801,6 +860,12 @@ Keep it under 200 characters.`;
       // them two concurrent callers both pass every gate and both publish. Same
       // at-most-once idiom as cron/jobs/crudAutomation.ts:507.
       let observedStatus: string | null = null;
+      // Milestone 1 (Creative Compiler 2.0): if an authenticated operator recorded
+      // a publish-anyway override for this exact (inventory, approved version,
+      // brief+media hashes), it is consumed atomically once the publish claim is
+      // won. Captured in the reel integrity gate (where the current hashes are
+      // known); consumed at the CAS below. Additive — no override = unchanged path.
+      let pendingOverride: { inventoryId: string; assetVersion: number; currentContentHash: string; currentBriefHash: string } | null = null;
 
       if (input.inventoryId) {
         const { socialContentInventory, socialContentApprovals } = await import("../../drizzle/schema");
@@ -896,6 +961,16 @@ Keep it under 200 characters.`;
                 message: "Integrity breach: Current brief or media hash does not match approved values.",
               });
             }
+
+            // Integrity confirmed against the approved version — capture the
+            // exact binding so an optional operator override can be consumed at
+            // the publish CAS below (brief+media hashes already proven current).
+            pendingOverride = {
+              inventoryId: draft.id,
+              assetVersion: draft.version - 1,
+              currentContentHash: currentMediaHash,
+              currentBriefHash,
+            };
 
             publishCaption = approvedCaption;
             publishVideoUrl = approvedVideoUrl;
@@ -994,6 +1069,29 @@ Keep it under 200 characters.`;
           throw new TRPCError({
             code: "CONFLICT",
             message: "Another publish attempt claimed this draft first. Refresh to see its current state.",
+          });
+        }
+      }
+
+      // Publication is beginning (claim won) — consume any operator quality
+      // override atomically and record it in the audit trail. Additive: with no
+      // override this is a no-op ("none") and the publish proceeds on the
+      // approval exactly as before. The override NEVER weakened a hard gate — all
+      // of them (approval existence/expiry, hash match, kill switch, cadence,
+      // claim safety) ran above, unchanged.
+      if (pendingOverride) {
+        const { consumeOverrideForPublish } = await import("../services/operatorOverride");
+        const consumed = await consumeOverrideForPublish(database, pendingOverride);
+        if (consumed.ok) {
+          const { recordAuditEvent, getActivePolicy } = await import("../services/autonomyControl");
+          let policyVersion = 0;
+          try { policyVersion = (await getActivePolicy()).version; } catch { /* degraded policy loader — audit still records */ }
+          await recordAuditEvent({
+            actionType: "reel_publish",
+            decision: "APPROVED_BY_OPERATOR_OVERRIDE",
+            reasoningCodes: consumed.acceptedFindingIds,
+            policyVersion,
+            context: { overrideId: consumed.overrideId, inventoryId: pendingOverride.inventoryId, assetVersion: pendingOverride.assetVersion },
           });
         }
       }
