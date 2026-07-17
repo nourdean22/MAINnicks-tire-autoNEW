@@ -61,13 +61,18 @@ export function classifyReviewState(pr, opts = {}) {
   return { mode: pr.merged ? "post-merge" : "pre-merge", violations, advisories };
 }
 
-const QUERY = `query($owner:String!,$name:String!,$number:Int!){
+// statusCheckRollup requires checks:read on the token; a single forbidden
+// field NULLS the whole pullRequest with FORBIDDEN (live-diagnosed on #828's
+// first real PR-event run of this gate). In --skip-ci-check mode the rollup
+// is unused — don't even request it, so the gate works with the minimal
+// pull-requests:read grant.
+const queryFor = (skipCiCheck) => `query($owner:String!,$name:String!,$number:Int!){
   repository(owner:$owner,name:$name){
     pullRequest(number:$number){
       merged headRefOid
       reviewThreads(first:50){nodes{isResolved comments(first:1){nodes{body}}}}
       reviews(first:50){nodes{state author{login} commit{oid}}}
-      commits(last:1){nodes{commit{statusCheckRollup{state}}}}
+      ${skipCiCheck ? "" : "commits(last:1){nodes{commit{statusCheckRollup{state}}}}"}
     }
   }
 }`;
@@ -85,7 +90,7 @@ if (isMain) {
   }
   const raw = execFileSync(
     "gh",
-    ["api", "graphql", "-f", `query=${QUERY}`, "-F", "owner=nourdean22", "-F", "name=MAINnicks-tire-autoNEW", "-F", `number=${number}`],
+    ["api", "graphql", "-f", `query=${queryFor(skipCiCheck)}`, "-F", "owner=nourdean22", "-F", "name=MAINnicks-tire-autoNEW", "-F", `number=${number}`],
     { encoding: "utf8" },
   );
   const pr = JSON.parse(raw).data.repository.pullRequest;
