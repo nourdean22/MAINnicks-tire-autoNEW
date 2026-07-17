@@ -90,6 +90,8 @@ export async function selectReelVideoProvider(): Promise<"veo" | "higgsfield"> {
 /** Minimal structural view of a client ReelBrief — only the fields gen needs. */
 export interface ReelJobBrief {
   id?: string;
+  topic?: string;
+  campaignKeyword?: string;
   selectedCaption?: string;
   hashtags?: string[];
   storyboardBeats?: Array<{ 
@@ -163,6 +165,25 @@ export async function enqueueReelJob(
       { type: source === "cron" ? "cron" : "operator", id: source },
       (brief as { genomeId?: string | null }).genomeId ?? null,
     );
+  }
+
+  // Content governor: reserve the publishing slot BEFORE spending on
+  // production — a reel that could never be scheduled (cap, spacing, repeat
+  // topic/CTA) must die here, not after 6 provider clips. Reservation id
+  // rides the payload for the future consumption linkage.
+  {
+    const { requestReservation } = await import("./contentGovernor");
+    const now = new Date();
+    const reservation = await requestReservation({
+      platform: "instagram",
+      format: "reel",
+      windowStart: now,
+      windowEnd: new Date(now.getTime() + 24 * 3600_000),
+      topic: brief.topic,
+      cta: brief.campaignKeyword,
+      campaignId: (brief as { genomeId?: string | null }).genomeId ?? null,
+    });
+    if (reservation) (brief as { contentReservationId?: string }).contentReservationId = reservation.reservationId;
   }
 
   try {

@@ -88,5 +88,33 @@ if ((gidx[0] as any[]).length > 0) {
   await db.execute(sql`CREATE INDEX idx_generation_reservations_created ON generation_reservations (created_at)`);
   console.log("reservations created index: CREATED");
 }
+const t4: any = await db.execute(sql`SHOW TABLES LIKE 'content_reservations'`);
+if ((t4[0] as any[]).length > 0) {
+  console.log("table content_reservations: already present, skipping");
+} else {
+  await db.execute(sql`CREATE TABLE content_reservations (
+    id varchar(64) NOT NULL,
+    campaign_id varchar(64),
+    platform varchar(24) NOT NULL,
+    format varchar(24) NOT NULL,
+    topic varchar(300),
+    cta varchar(120),
+    territory varchar(64),
+    window_start timestamp NOT NULL,
+    window_end timestamp NOT NULL,
+    priority int NOT NULL DEFAULT 50,
+    status varchar(16) NOT NULL DEFAULT 'reserved',
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT content_reservations_id PRIMARY KEY(id)
+  )`);
+  console.log("table content_reservations: CREATED");
+}
+const cidx: any = await db.execute(sql`SHOW INDEX FROM content_reservations WHERE Key_name = 'idx_content_reservations_window'`);
+if ((cidx[0] as any[]).length > 0) {
+  console.log("reservations window index: already present, skipping");
+} else {
+  await db.execute(sql`CREATE INDEX idx_content_reservations_window ON content_reservations (window_start, status)`);
+  console.log("reservations window index: CREATED");
+}
 console.log("done - autonomy control plane storage is live");
 process.exit(0);

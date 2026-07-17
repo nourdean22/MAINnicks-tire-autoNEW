@@ -45,3 +45,21 @@ CREATE TABLE `generation_reservations` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_generation_reservations_created` ON `generation_reservations` (`created_at`);
+--> statement-breakpoint
+CREATE TABLE `content_reservations` (
+  `id` varchar(64) NOT NULL,
+  `campaign_id` varchar(64),
+  `platform` varchar(24) NOT NULL,
+  `format` varchar(24) NOT NULL,
+  `topic` varchar(300),
+  `cta` varchar(120),
+  `territory` varchar(64),
+  `window_start` timestamp NOT NULL,
+  `window_end` timestamp NOT NULL,
+  `priority` int NOT NULL DEFAULT 50,
+  `status` varchar(16) NOT NULL DEFAULT 'reserved',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `content_reservations_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE INDEX `idx_content_reservations_window` ON `content_reservations` (`window_start`,`status`);

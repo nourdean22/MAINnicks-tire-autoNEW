@@ -88,6 +88,29 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
     log.warn("kill-switch check unavailable — existing gates govern", { err: err instanceof Error ? err.message : String(err) });
   }
 
+  // Content governor at the publish door: daily caps + spacing hold against
+  // ACTUALLY PUBLISHED inventory for every caller (scheduled posts,
+  // autoposters, admin), reservation or not.
+  try {
+    const { assertPublishCadence } = await import("./contentGovernor");
+    const format = input.isStory
+      ? ("story" as const)
+      : input.imageUrls && input.imageUrls.length >= 2
+        ? ("carousel" as const)
+        : input.videoUrl
+          ? ("reel" as const)
+          : ("photo" as const);
+    await assertPublishCadence({ format });
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("Blocked by content governor")) {
+      for (const p of input.platforms) {
+        results.push({ platform: p, success: false, error: err.message });
+      }
+      return { results };
+    }
+    log.warn("publish cadence check errored — proceeding", { err: err instanceof Error ? err.message : String(err) });
+  }
+
   if (input.platforms.includes("facebook")) {
     const fbRes = await postToFacebook({
       message: input.caption,
