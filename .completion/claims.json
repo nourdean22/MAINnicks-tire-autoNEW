@@ -1,26 +1,37 @@
 {
-  "$comment": "Executable PR claims (Reality Control). Every claim names living evidence; scripts/detect-contradictions.mjs verifies the refs exist on disk and blocks any claim without them — an unevidenced claim is an IMPLEMENTATION CLAIM, NOT VERIFIED.",
+  "$comment": "Executable PR claims (Reality Control). scripts/detect-contradictions.mjs verifies refs exist on disk.",
   "claims": [
     {
-      "id": "three-axis-ledger-enforced",
-      "assertion": "Capability records carry independent codeState/operationalState/exposure; operational states advance only with evidence; exposure production/limited_autonomy requires live verification; expired verification regresses loudly.",
+      "id": "rendered-qa-deterministic-extraction",
+      "assertion": "First / per-beat midpoint / final frames extract deterministically from an assembled mp4 and produce a contact sheet.",
       "evidence": [
-        { "file": "apps/nickstire/scripts/check-capability-ledger.mjs" },
-        { "file": "apps/nickstire/server/completionAuthority.test.ts" }
+        {
+          "file": "apps/nickstire/server/renderedQa.test.ts"
+        },
+        {
+          "file": "apps/nickstire/server/services/renderedQa.ts"
+        }
       ]
     },
     {
-      "id": "contradiction-detection-deterministic",
-      "assertion": "A PR body carrying a do-not-merge clause without an explicit merge-intent acknowledgment is blocked; claims without living evidence are blocked; sub-live capabilities described as live-verified are blocked. No model judgment involved.",
+      "id": "rendered-qa-structured-verdicts",
+      "assertion": "Critic output is clamped to a fixed defect registry: severities come from the registry never the model, any block finding forces repair, unknown codes drop with a warning, critic failure yields a SKIPPED verdict rather than a fabricated one.",
       "evidence": [
-        { "file": "apps/nickstire/scripts/detect-contradictions.mjs" }
+        {
+          "file": "apps/nickstire/server/renderedQa.test.ts"
+        }
       ]
     },
     {
-      "id": "golden-campaign-deterministic",
-      "assertion": "One replayable harness drives evidence -> tournament -> genome -> visual world -> policy -> reservations -> service enqueue -> persisted payload -> publish-denial under kill switch -> audit trail, with deterministic mocks and zero provider calls.",
+      "id": "rendered-qa-exposure-discipline",
+      "assertion": "The pipeline hook is gated by RENDERED_QA_ENABLED (default OFF - prod unchanged); the operator endpoint evaluates on demand and never changes job status.",
       "evidence": [
-        { "file": "apps/nickstire/server/goldenCampaign.test.ts" }
+        {
+          "file": "apps/nickstire/server/services/reelPipeline.ts"
+        },
+        {
+          "file": "apps/nickstire/server/routers/content.ts"
+        }
       ]
     }
   ]

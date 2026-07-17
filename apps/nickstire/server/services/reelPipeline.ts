@@ -500,6 +500,17 @@ export async function processNextAssemblyJob(): Promise<{
     const { mp4Url, durationSec } = await assembleReel(brief, clipUrls, job.id);
 
     await d.update(reelJobs).set({ status: "assembled", mp4Url, error: null }).where(eq(reelJobs.id, job.id));
+    // Rendered creative QA (flag-gated; default OFF so prod behavior is
+    // unchanged until the operator arms it). Best-effort: QA never fails an
+    // assembled job - its verdict is evidence for the approve gate.
+    if (process.env.RENDERED_QA_ENABLED === "true") {
+      try {
+        const { runRenderedQaOnJob } = await import("./renderedQa");
+        await runRenderedQaOnJob(job.id);
+      } catch (e) {
+        log.warn("rendered QA hook failed (job remains assembled)", { jobId: job.id, e: e instanceof Error ? e.message : String(e) });
+      }
+    }
 
     if (job.briefId && job.briefId !== "unknown") {
       await d
