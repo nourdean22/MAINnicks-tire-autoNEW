@@ -376,17 +376,28 @@
       "capabilityId": "selective-repair",
       "name": "Beat/slide-level repair without regenerating accepted assets",
       "owner": "operator",
-      "evidence": {},
-      "blockers": [],
-      "deferredScope": [
-        "beat replacement",
-        "cover alternatives",
-        "reassembly from accepted components"
+      "evidence": {
+        "codeCommit": "nickstire/selective-repair branch (this PR)",
+        "tests": [
+          "server/selectiveRepair.test.ts — trajectory: ONLY the failing clip replaced (siblings untouched), repair recorded w/ previous clip, ledger reserve+settle captured, audit captured, QA verdict marked stale, job returned to assets_ready for the EXISTING assembly worker; repair cap denies the 3rd attempt from the job own history with NO provider call; provider failure fails the reservation and leaves the job untouched; incomplete clip sets and unknown beats refuse with clear reasons"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "has never repaired a REAL render (no real QA verdict exists yet to consume) — first live repair promotes this past unit_verified",
+          "source": "design"
+        }
       ],
-      "lastVerifiedAt": null,
-      "codeState": "not_started",
-      "operationalState": "unverified",
-      "exposure": "disabled"
+      "deferredScope": [
+        "carousel slide replacement",
+        "alternate hook/cover generation",
+        "VO/music/subtitle-only replacement"
+      ],
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only"
     },
     {
       "capabilityId": "operator-command-center",
