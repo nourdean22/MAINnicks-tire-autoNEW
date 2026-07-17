@@ -129,8 +129,8 @@ describe.skipIf(!hasFfmpeg || !systemFont)("real-render dead-air trajectory", ()
     expect(ff(["-y", "-v", "error", "-f", "lavfi", "-i", "sine=f=300:d=2", "vo.wav"]).status).toBe(0);
     expect(ff(["-y", "-v", "error", "-f", "lavfi", "-i", "sine=f=110:d=4", "-b:a", "96k", "music.mp3"]).status).toBe(0);
     fs.copyFileSync(systemFont!, path.join(workDir, "font.ttf"));
-    fs.writeFileSync(path.join(workDir, "caption_0.txt"), "HOOK");
-    fs.writeFileSync(path.join(workDir, "caption_1.txt"), "BODY");
+    fs.writeFileSync(path.join(workDir, "caption_0_0.txt"), "HOOK");
+    fs.writeFileSync(path.join(workDir, "caption_1_0.txt"), "BODY");
     fs.writeFileSync(path.join(workDir, "caption_save.txt"), "SAVE THIS");
 
     const segs = briefToSegments(BRIEF); // 6s of beats + 3s freeze = 9s timeline

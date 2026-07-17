@@ -161,9 +161,10 @@
       "affectedData": ["reel_jobs.error"],
       "affectedAssets": [],
       "acceptanceCriteria": ["read-only aggregation of error strings into classes with counts"],
-      "evidenceRequired": ["classified table in evidence/"],
-      "state": "discovered",
-      "remainingRisk": ["many failures predate recent fixes; classify before fixing"]
+      "evidenceRequired": ["evidence/reel-failure-taxonomy-2026-07-17.txt"],
+      "state": "done",
+      "rootCause": "49/59 = dead provider eras (Veo 403 insufficient-scope + Veo 429 spending cap from the pre-Higgsfield era; Higgsfield CLI 'Session expired' from before the credentials.json device-flow fix, #803-#806). 9 = stuck-generating watchdog recoveries (the watchdog WORKING). 1 = brief with no storyboardBeats. The 94% headline rate is history, not current behavior — the latest pipeline runs succeeded (30008 published).",
+      "remainingRisk": ["session-expiry recurrence is mitigated by HIGGSFIELD_CREDENTIALS_JSON + the never-run-local-CLI rule, not eliminated", "spend-cap class now governed by the generation ledger caps", "probe-reel-failures.mts is committed for re-runs"]
     },
     {
       "id": "genome-persistence-001",
@@ -201,9 +202,11 @@
       "affectedData": [],
       "affectedAssets": [],
       "acceptanceCriteria": ["width measured pre-render; overflow rejected or wrapped; regression test"],
-      "evidenceRequired": ["before/after frames"],
-      "state": "discovered",
-      "remainingRisk": ["verify against current code first — later PRs may have partially addressed"]
+      "evidenceRequired": ["server/captionSafeZone.test.ts incl. REAL-PIXEL cropdetect measurement of the rendered box (<=82% + centered margins)", "evidence/caption-safezone-after.jpg (per-line stacked render, visually inspected)"],
+      "state": "media_verified",
+      "rootCause": "Verification-first paid off: wrapping, apostrophe preservation, and band sizing had ALREADY shipped post-publish — the remaining real gaps were (1) the hook x1.35 multiplier applied AFTER band sizing could still overflow the frame (28-char hook line -> ~1100px estimated on 1080), and (2) two-line captions had NEVER rendered in prod, and drawtext renders the LF control char as a tofu box with some fonts/builds (observed on a real render).",
+      "currentBehavior": "capFontSizeToSafeWidth caps the FINAL size (after hook multiplier) to an 82% frame budget using a 0.60em advance model calibrated against real cropdetect pixels (Arial Bold measured 0.587em); captions render ONE drawtext PER LINE (no control chars in any text run), stacked at 1.2em; floor 34px logs loudly instead of shrinking unreadable",
+      "remainingRisk": ["prod font is Anton-style (narrower than the calibration font) — model is conservative in the right direction", "first prod two-line render post-merge is the live confirmation"]
     },
     {
       "id": "catbox-audit-001",

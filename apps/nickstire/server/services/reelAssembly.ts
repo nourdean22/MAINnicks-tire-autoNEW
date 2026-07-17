@@ -118,6 +118,53 @@ export function captionFontSize(caption: string): number {
   return 44;
 }
 
+// ─── Caption safe-zone (pixel-width cap) ────────────────────────────
+// The published reel's hook ran EDGE TO EDGE (baseline finding
+// caption-safezone-001): band sizing alone cannot guarantee width, because
+// the hook's ×1.35 multiplier lands AFTER the band — a 28-char hook line at
+// 50×1.35=68px estimates ~1100px on a 1080 frame. The cap below makes
+// overflow mathematically impossible down to the readability floor, using a
+// conservative per-char advance (0.58em covers Anton/Arial-Bold uppercase —
+// verified by rendering the worst case and inspecting the frame).
+export const CAPTION_SAFE = {
+  frameW: 1080,
+  /** max text-box fraction of frame width (margins live in the remainder) */
+  maxWidthFrac: 0.82,
+  /** conservative average glyph advance per char, in ems, for UPPERCASE bold.
+   *  Real measurement (cropdetect on Arial Bold, the widest face we render):
+   *  0.587em — 0.60 keeps real pixels under budget with headroom. */
+  charAspect: 0.6,
+  /** drawtext boxborderw=28 on both sides */
+  boxPadPx: 56,
+  /** readability floor — below this we log loudly rather than shrink further */
+  minFontPx: 34,
+} as const;
+
+/** Estimated rendered text-box width in px for the caption's longest line. */
+export function estimateCaptionWidthPx(caption: string, fontSize: number): number {
+  const longest = Math.max(...caption.split("\n").map((l) => l.length), 0);
+  return Math.round(longest * CAPTION_SAFE.charAspect * fontSize) + CAPTION_SAFE.boxPadPx;
+}
+
+/**
+ * Cap a proposed font size so the caption's longest line fits inside the safe
+ * width. Apply AFTER any hook multiplier — the cap must see the final size.
+ */
+export function capFontSizeToSafeWidth(caption: string, proposedSize: number): number {
+  const longest = Math.max(...caption.split("\n").map((l) => l.length), 0);
+  if (longest === 0) return proposedSize;
+  const budgetPx = CAPTION_SAFE.frameW * CAPTION_SAFE.maxWidthFrac - CAPTION_SAFE.boxPadPx;
+  const maxSize = Math.floor(budgetPx / (longest * CAPTION_SAFE.charAspect));
+  const capped = Math.min(proposedSize, maxSize);
+  if (capped < CAPTION_SAFE.minFontPx) {
+    log.warn("caption cannot fit safe width even at the floor font — rendering at floor", {
+      caption: caption.slice(0, 60), longest, proposedSize, floor: CAPTION_SAFE.minFontPx,
+    });
+    return CAPTION_SAFE.minFontPx;
+  }
+  return capped;
+}
+
 /** One segment per storyboard beat; duration from the beat's own start/end timing. */
 export function briefToSegments(brief: ReelAssemblyBrief): ReelSegment[] {
   const beats = [...(brief.storyboardBeats ?? [])].sort((a, b) => a.beatNumber - b.beatNumber);
@@ -272,11 +319,28 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
       cum = end;
       const next = i === segs.length - 1 ? "vcap" : `d${i}`;
       const isHook = i === 0;
-      const size = isHook ? Math.round(s.fontSize * 1.35) : s.fontSize;
-      const yPos = isHook ? "(h-text_h)/2" : "h*0.62";
-      fc.push(
-        `[${label}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}.txt':fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yPos}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${next}]`,
-      );
+      // Width cap AFTER the hook multiplier — the safe zone must see the
+      // final size (caption-safezone-001: band sizing alone let long hooks
+      // run edge-to-edge on the published reel).
+      const size = capFontSizeToSafeWidth(s.caption, isHook ? Math.round(s.fontSize * 1.35) : s.fontSize);
+      // ONE drawtext PER LINE: drawtext renders the LF control char as a tofu
+      // box with some fonts/builds even while breaking the line (observed on
+      // a real render of a wrapped caption — two-line captions have never
+      // shipped through prod, so this was a live defect waiting). Per-line
+      // runs contain no control characters anywhere. Files are
+      // caption_<beat>_<line>.txt, stacked at a 1.2em line height.
+      const lines = s.caption.split("\n");
+      const lineH = Math.round(size * 1.2);
+      lines.forEach((_line, j) => {
+        const stepIn = j === 0 ? label : `d${i}l${j}`;
+        const stepOut = j === lines.length - 1 ? next : `d${i}l${j + 1}`;
+        const yExpr = isHook
+          ? `(h-${lines.length * lineH})/2+${j * lineH}`
+          : `h*0.62+${j * lineH}`;
+        fc.push(
+          `[${stepIn}]drawtext=fontfile='${fontEsc}':textfile='caption_${i}_${j}.txt':fontsize=${size}:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=${yExpr}:enable='gte(t,${start.toFixed(2)})*lt(t,${end.toFixed(2)})'[${stepOut}]`,
+        );
+      });
       label = next;
     });
   }
@@ -659,7 +723,11 @@ export async function assembleReel(
     await fs.promises.copyFile(origFontPath, localFontPath);
 
     for (let i = 0; i < segs.length; i++) {
-      await fs.promises.writeFile(path.join(workDir, `caption_${i}.txt`), segs[i].caption, "utf-8");
+      // per-line files — see the per-line drawtext note in buildFfmpegArgs
+      const capLines = segs[i].caption.split("\n");
+      for (let j = 0; j < capLines.length; j++) {
+        await fs.promises.writeFile(path.join(workDir, `caption_${i}_${j}.txt`), capLines[j], "utf-8");
+      }
     }
     const ctaText = brief.campaignKeyword ? `SAVE THIS | DM "${brief.campaignKeyword.toUpperCase()}"` : "SAVE THIS POST";
     await fs.promises.writeFile(path.join(workDir, "caption_save.txt"), ctaText, "utf-8");
