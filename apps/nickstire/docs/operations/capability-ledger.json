@@ -897,6 +897,33 @@
           "source": "session ledger"
         }
       ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [
+        "remove the still-lossy genomeConstraintBlock once downstream stops reading it (M5)",
+        "persist thesis lineage to a workspace table (M12)"
+      ],
+      "capabilityId": "creative-thesis-lock",
+      "name": "Creative Compiler 2.0 M3: versioned protected Creative Thesis contract",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "evidence": {
+        "codeCommit": "client/src/lib/creativeThesis.ts (lockCreativeThesis / serializeThesisForPrompt / thesisPreservationViolations) + reelBriefGen thesis field + reelDirector wiring",
+        "tests": [
+          "client/src/__tests__/creative-thesis.test.ts (6): carries the genome fields the sourceDetail blob dropped, never invents unknowns, PRESERVE flags, detects a swapped mechanicTruth/conceptId",
+          "server/reelDirector.test.ts (10): draftReelFromGenome builds + passes the structured thesis carrying genome mechanicTruth/premise/customerTension"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "thesis rides ALONGSIDE the still-lossy genomeConstraintBlock (kept for evidence provenance); the MANDATORY critic-preservation guard using thesisPreservationViolations is Milestone 9",
+          "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
+        }
+      ]
     }
   ],
   "axes": {

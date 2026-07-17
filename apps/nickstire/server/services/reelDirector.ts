@@ -122,6 +122,14 @@ export interface DraftReelFromGenomeResult {
 export async function draftReelFromGenome(genome: CreativeGenome): Promise<DraftReelFromGenomeResult> {
   const seed = genomeToReelSeed(genome);
   const campaignKeyword = campaignKeywordFromGenome(genome);
+  // Milestone 3: lock a structured Creative Thesis from the genome and hand it to
+  // the generator as a typed contract (not the lossy 1000-char sourceDetail
+  // blob). conceptId is a deterministic per-genome lineage anchor (the v1 genome
+  // carries no id). sourceDetail is kept only for the evidence-provenance channel.
+  const { lockCreativeThesis } = await import("../../client/src/lib/creativeThesis");
+  const { createHash, randomUUID } = await import("crypto");
+  const conceptId = `gen_${createHash("sha1").update(`${genome.mechanicTruth}|${genome.visualMetaphor}`).digest("hex").slice(0, 12)}`;
+  const thesis = lockCreativeThesis(genome, { thesisId: `thesis_${randomUUID()}`, conceptId });
   const { generateReelBriefAI } = await import("./reelBriefGen");
   const { brief: rawBrief } = await generateReelBriefAI({
     topic: seed.topic,
@@ -129,6 +137,7 @@ export async function draftReelFromGenome(genome: CreativeGenome): Promise<Draft
     campaignKeyword,
     sourceType: "manual",
     sourceDetail: genomeConstraintBlock(genome),
+    thesis,
   });
   const { resolveEvidenceRecords } = await import("./evidenceRecords");
   const resolution = await resolveEvidenceRecords(genome.proprietaryProof, genome.mechanicTruth);
