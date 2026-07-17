@@ -385,14 +385,14 @@
       "evidence": {
         "codeCommit": "nickstire/selective-repair branch (this PR)",
         "tests": [
-          "server/selectiveRepair.test.ts — trajectory: ONLY the failing clip replaced (siblings untouched), repair recorded w/ previous clip, ledger reserve+settle captured, audit captured, QA verdict marked stale, job returned to assets_ready for the EXISTING assembly worker; repair cap denies the 3rd attempt from the job own history with NO provider call; provider failure fails the reservation and leaves the job untouched; incomplete clip sets and unknown beats refuse with clear reasons"
+          "server/selectiveRepair.test.ts (async model): request path queues + invalidates stale mp4 into history + NO provider call; worker claims + FRESH per-attempt reservations (rep_x_p1 failed -> rep_x_p2 fresh, never reused); attempt cap parks repair_failed; in-flight exclusivity; cap counts logical repairs"
         ]
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "has never repaired a REAL render (no real QA verdict exists yet to consume) — first live repair promotes this past unit_verified",
-          "source": "design"
+          "description": "#820 review threads resolve when this fix reaches main; still never repaired a REAL render",
+          "source": "PR #820 review"
         }
       ],
       "deferredScope": [
@@ -440,14 +440,15 @@
       "evidence": {
         "codeCommit": "nickstire/shadow-planner branch (this PR)",
         "tests": [
-          "server/shadowPlanner.test.ts — STRUCTURAL shadow guarantee (source-level scan: no provider/publish/enqueue/LLM imports), 12-month playbook coverage (>=3 candidates/month), deterministic scoring (same signals = same plan), weather-trigger boost, territory-recency discount, HARD_REJECT_REPETITION, honest evidence-starved scoring with code flip when tables populate"
+          "server/shadowPlanner.test.ts — STRUCTURAL shadow guarantee (source-level scan: no provider/publish/enqueue/LLM imports), 12-month playbook coverage (>=3 candidates/month), deterministic scoring (same signals = same plan), weather-trigger boost, territory-recency discount, HARD_REJECT_REPETITION, honest evidence-starved scoring with code flip when tables populate",
+          "#824 P1 FIXED: planner now uses PURE evaluateWeatherTriggers (zero SMS/alert side effects; source-scan forbids the side-effecting path); #824 P2 FIXED: playbook trigger ids now match the REAL emitted set (first_freeze/heavy_rain/pothole_season/extreme_heat/salt_season_end)"
         ]
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "no operator-vs-planner comparison history persisted yet (recommendations are computed live); Control-tab card unwalked in a browser",
-          "source": "design"
+          "description": "#824 review threads resolve when this fix reaches main; comparison history still unpersisted; card unwalked",
+          "source": "PR #824 review"
         }
       ],
       "deferredScope": [
@@ -459,6 +460,35 @@
       "codeState": "merged",
       "operationalState": "integration_verified",
       "exposure": "operator_only"
+    },
+    {
+      "capabilityId": "review-aware-completion",
+      "name": "Review-aware Completion Authority (gate + post-merge regression)",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "nickstire/review-gate-and-repair-debt branch (this PR)",
+        "tests": [
+          "pure classifier over GraphQL shapes; LIVE runs against real PRs: #820 post-merge -> exactly the 3 known findings; #824 post-merge -> found 2 UNKNOWN findings (shadow-planner weather SMS P1 + fake trigger ids P2), both fixed in this same PR"
+        ],
+        "liveRuns": [
+          "check-review-gate.mjs 820 and 824 executed against the real GitHub API 2026-07-17 - output in session log"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "in-CI mode cannot detect a not-yet-posted automated review (no marker exists) - it enforces unresolved severity threads, stale approvals, and changes-requested; full pre-review blocking needs branch protection",
+          "source": "design"
+        }
+      ],
+      "deferredScope": [
+        "automatic capability regression triggered by the gate (regress-capability.mjs exists as the manual tool)",
+        "review-recency requirements"
+      ],
+      "lastVerifiedAt": "2026-07-17"
     }
   ],
   "axes": {
