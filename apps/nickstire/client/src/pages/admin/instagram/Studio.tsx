@@ -93,7 +93,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
       setJobId(data.jobId);
       setJobStatus("pending");
       setJobError(null);
-      toast.success(`Veo video generation enqueued! Job ID: ${data.jobId}`);
+      toast.success(`Reel video generation enqueued! Job ID: ${data.jobId}`);
     },
     onError: (err) => {
       toast.error("Failed to enqueue video generation", { description: err.message });
@@ -375,7 +375,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                   {generateReelBrief.isPending && !reelBrief ? (
                     <div className="flex flex-col items-center justify-center py-20">
                       <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-                      <p className="text-sm font-medium">Generating structured ReelBrief with Gemini 1.5 Pro...</p>
+                      <p className="text-sm font-medium">Generating structured ReelBrief (server-selected model)...</p>
                       <p className="text-xs text-muted-foreground mt-1">Researching Cleveland road parameters and compiling storyboard...</p>
                     </div>
                   ) : reelBrief ? (
@@ -503,7 +503,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                             </div>
                             <div>
                               <h4 className="font-bold text-sm">Background Assembly Pipeline</h4>
-                              <p className="text-xs text-muted-foreground">Creates clips via Veo 3.1, overlays text, and renders audio.</p>
+                              <p className="text-xs text-muted-foreground">Creates clips via the server-selected video provider (Higgsfield/Veo), overlays text, and renders audio.</p>
                             </div>
                           </div>
                           {!jobStatus && !mediaUrl && (
@@ -542,7 +542,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                               <p className="text-sm font-semibold capitalize">Reel Media Render: {jobStatus}</p>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {jobStatus === "pending" && "Waiting in background worker queue..."}
-                                {jobStatus === "generating" && "Calling Veo 3.1 Fast video generation for storyboard..."}
+                                {jobStatus === "generating" && "Generating storyboard clips via the selected video provider..."}
                                 {jobStatus === "assembling" && "Concatenating scenes and overlays in local FFmpeg..."}
                               </p>
                             </div>
