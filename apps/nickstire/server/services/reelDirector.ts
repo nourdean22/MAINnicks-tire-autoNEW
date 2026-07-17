@@ -80,25 +80,28 @@ export function genomeConstraintBlock(genome: CreativeGenome): string {
 }
 
 /**
- * Attach the genome's operator-supplied proof handles as PROOF source notes
- * when the model emitted none. Live runs showed the model (correctly) refuses
- * to fabricate evidence when the evidence engine finds nothing for the topic —
- * but the genome already CARRIES the campaign's proof handles (tournament
- * proofHandles / operator input), the same trust level as the operator typing
- * them into the wizard's source-notes field. Deterministic, never overrides
- * model-found proof, no-op for proofless genomes.
+ * Attach RESOLVED genome evidence as PROOF source notes when the model
+ * emitted none. Hardened after #811 review: raw handle strings no longer
+ * satisfy the grounding gate — only evidence the resolver verified (a real
+ * 5-star review / declined work-order row, or an accepted public proof
+ * family) is attached, and the note carries the resolved ASSERTION, not the
+ * handle. Never overrides model-found proof; no-op when nothing resolved.
  */
-export function withGenomeProof(brief: ReelBrief, genome: CreativeGenome): ReelBrief {
-  if (genome.proprietaryProof.length === 0) return brief;
+export function attachResolvedProof(
+  brief: ReelBrief,
+  resolved: Array<{ assertion: string }>,
+  mechanicTruth: string,
+): ReelBrief {
+  if (resolved.length === 0) return brief;
   if (brief.sourceNotes.some((s) => s.kind === "proof")) return brief;
   return {
     ...brief,
     sourceNotes: [
       ...brief.sourceNotes,
-      ...genome.proprietaryProof.slice(0, 2).map((label) => ({
-        label: label.slice(0, 200),
+      ...resolved.slice(0, 2).map((r) => ({
+        label: r.assertion.slice(0, 200),
         kind: "proof" as const,
-        supports: genome.mechanicTruth.slice(0, 200),
+        supports: mechanicTruth.slice(0, 200),
       })),
     ],
   };
@@ -108,6 +111,8 @@ export interface DraftReelFromGenomeResult {
   brief: ReelBrief;
   qualityScore: QualityScoreResult;
   campaignKeyword: CampaignKeyword | undefined;
+  /** evidence accounting: what the resolver verified vs rejected */
+  evidence: { attached: number; rejected: string[] };
 }
 
 /**
@@ -125,8 +130,10 @@ export async function draftReelFromGenome(genome: CreativeGenome): Promise<Draft
     sourceType: "manual",
     sourceDetail: genomeConstraintBlock(genome),
   });
-  const brief = withGenomeProof(rawBrief, genome);
-  if (brief !== rawBrief) log.info("genome proof handles attached as source notes", { count: genome.proprietaryProof.length });
+  const { resolveEvidenceHandles } = await import("./evidenceResolver");
+  const resolution = await resolveEvidenceHandles(genome.proprietaryProof);
+  const brief = attachResolvedProof(rawBrief, resolution.resolved, genome.mechanicTruth);
+  if (brief !== rawBrief) log.info("resolved genome evidence attached as proof notes", { attached: resolution.resolved.length });
   const qualityScore = calculateReelQualityScore(brief);
   log.info("reel drafted from genome", {
     territory: genome.creativeTerritory,
@@ -134,6 +141,12 @@ export async function draftReelFromGenome(genome: CreativeGenome): Promise<Draft
     campaignKeyword: campaignKeyword ?? "(generator's choice)",
     score: qualityScore.overall,
     passing: qualityScore.passing,
+    evidenceRejected: resolution.rejected.length,
   });
-  return { brief, qualityScore, campaignKeyword };
+  return {
+    brief,
+    qualityScore,
+    campaignKeyword,
+    evidence: { attached: brief === rawBrief ? 0 : resolution.resolved.slice(0, 2).length, rejected: resolution.rejected },
+  };
 }

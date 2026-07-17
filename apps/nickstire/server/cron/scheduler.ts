@@ -27,8 +27,11 @@ interface TieredJob {
   handler: () => Promise<{ recordsProcessed?: number; details?: string }>;
   /** Only run during business hours (7 AM - 9 PM ET) */
   businessHoursOnly?: boolean;
-  /** Only run if this env var is set */
-  requiresEnv?: string;
+  /** Only run if this env var is set (array = at least ONE must be set,
+   *  matching handlers that accept alternative keys — review-monitor and
+   *  competitor-monitor accept PLACES or MAPS but were gated on PLACES
+   *  only, so a MAPS-only environment silently starved review ingestion) */
+  requiresEnv?: string | string[];
   /** Skip if disabled */
   enabled?: boolean;
 }
@@ -191,9 +194,10 @@ async function runTier(tier: Tier): Promise<void> {
     // skip is logged once per scheduler-tier-pass to avoid spamming the
     // log table (a 5-minute heartbeat tier × 7 days × dozens of jobs
     // would write ~12,096 skip rows otherwise).
-    if (job.requiresEnv && !process.env[job.requiresEnv]) {
+    const requiredEnvs = job.requiresEnv ? (Array.isArray(job.requiresEnv) ? job.requiresEnv : [job.requiresEnv]) : [];
+    if (requiredEnvs.length && !requiredEnvs.some((k) => process.env[k])) {
       skipped++;
-      logTierJob(job.name, "skipped", 0, 0, `requiresEnv:${job.requiresEnv} (env var not set)`).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
+      logTierJob(job.name, "skipped", 0, 0, `requiresEnv:${requiredEnvs.join("|")} (no env var set)`).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
       continue;
     }
 
@@ -1344,7 +1348,7 @@ export function startTieredScheduler(): void {
       },
       {
         name: "review-monitor",
-        requiresEnv: "GOOGLE_PLACES_API_KEY",
+        requiresEnv: ["GOOGLE_PLACES_API_KEY", "GOOGLE_MAPS_API_KEY"],
         handler: async () => {
           const { processReviewMonitor } = await import("./jobs/reviewMonitor");
           return processReviewMonitor();
@@ -1363,7 +1367,7 @@ export function startTieredScheduler(): void {
       },
       {
         name: "competitor-monitor",
-        requiresEnv: "GOOGLE_PLACES_API_KEY",
+        requiresEnv: ["GOOGLE_PLACES_API_KEY", "GOOGLE_MAPS_API_KEY"],
         // wave-181.x · Tier S · enabled now that competitor_snapshots
         // table persists baselines across pod restarts. Without
         // persistence the in-memory diff reset on every restart and
