@@ -389,6 +389,31 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        // Higgsfield SESSION KEEPALIVE. The CLI's access token expires ~90 min
+        // and, once expired, refuses to auto-refresh ("Session expired — run
+        // hf auth login"). Prod only made authenticated Higgsfield calls when
+        // GENERATING reels, so any >90-min gap between renders killed the
+        // session and stranded the next job (observed live 2026-07-17, twice).
+        // A credit-FREE `hf account status` every pulse (15 min << 90 min)
+        // forces the CLI to refresh+rotate the token; the existing persist
+        // hook writes the rotated pair back to app_secret_kv. Runs BEFORE the
+        // reel-pipeline job below, so a render always sees a fresh token. Skips
+        // (no CLI spawn) when no creds are configured. A failed refresh is
+        // LOUD — the operator needs to re-login only when the refresh token
+        // itself is revoked, not on ordinary inactivity.
+        name: "higgsfield-session-keepalive",
+        handler: async () => {
+          const { getHiggsfieldCredentialsJson, getHiggsfieldAccountHealth } = await import("../services/higgsfieldStudio");
+          if (!(await getHiggsfieldCredentialsJson())) return { recordsProcessed: 0, details: "no higgsfield creds — skip" };
+          const health = await getHiggsfieldAccountHealth();
+          if (!health.credsValid) {
+            log.error("Higgsfield session keepalive FAILED — refresh token likely revoked; re-login required", { raw: health.raw.slice(0, 200) });
+            return { recordsProcessed: 0, details: "keepalive FAILED — re-login required" };
+          }
+          return { recordsProcessed: 1, details: `session refreshed${health.balanceCredits != null ? `, ${health.balanceCredits} credits` : ""}` };
+        },
+      },
+      {
         // 2026-05-05 audit follow-up: cron failure observer.
         // Reads cron_log, alerts owner via Telegram (channel='critical')
         // on any job with 2+ consecutive failures in the last 24h.
