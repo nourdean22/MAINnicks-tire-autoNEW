@@ -18,13 +18,30 @@ Updated: 2026-07-17T16:20Z · main `aaf8ebbf5` (#833) · PR #834 open (repair P1
 - QA hook had NEVER run on prod (data/ path-prefix bug since #819) — fixed in #833. Critic calibration gap: approved frames with visible text artifacts (beats 1-2) — §62 calibration owed, first calibration asset in hand.
 - First prod creative_genomes rows exist (4; tournament auto-persist + saveGenome dupe noted).
 
-## Fix queue (verified-or-pending, priority order)
-1. ~~P1 repair inventory demotion~~ → PR #834
-2. P1 scheduling can outlive approval expiry (verify then fix)
-3. P2 repair-claim race (affected-rows unchecked)
-4. P2 review gate: COMMENTED overwrites CHANGES_REQUESTED
-5. P2 evidenceRecords stripped by ROUTER zod schema (service stringify keeps them; wizard path drops)
-6. P2 evidence snapshots serialized (8×6s worst case)
-7. Auto-archival wiring for new renders (vault's real remaining leg)
-8. Critic calibration (§62) with 660002's missed artifacts
-9. Failed jobs must release creation reservations
+## Fix queue — ALL DRAINED (main e379f0e4f, 2026-07-17)
+1. ~~P1 repair inventory demotion~~ → #834 MERGED
+2. ~~P1 scheduling can outlive approval expiry~~ → #837 MERGED
+3. ~~P2 repair-claim race (affected-rows)~~ → #838 MERGED
+4. ~~P2 review gate COMMENTED overwrites CHANGES_REQUESTED~~ → #838 MERGED
+5. ~~P2 evidenceRecords stripped by router zod~~ → #838 MERGED
+6. ~~P2 evidence snapshots serialized~~ → #838 MERGED
+7. ~~Auto-archival wiring for new renders~~ → #839 MERGED (archiveRegisteredAsset now has its production caller in reelAssembly)
+8. ~~Critic calibration (§62)~~ → #841 MERGED (before/after proof on 660002 v1: approve/0 → repair with blocking artifact findings)
+9. ~~Failed jobs release creation reservations~~ → #840 MERGED (all 4 failure sites + reelReservationRelease.test.ts)
+
+Every confirmed defect from the gated assessment (2 P1s + 6 P2s) plus auto-archival and calibration are on main. The production spine is now self-maintaining: renders register → auto-archive → self-document (observed bible) → calibrated-critic judge → repair-without-overwrite → release-slot-on-failure.
+
+## Milestone map (directive FINAL COMMAND) — remaining
+5 ✅ image-derived Visual Bible (core #835 + wiring #836; remaining leg: feed forbiddenChanges INTO the next brief's prompt — belongs with milestone 6)
+6 · true image conditioning + provider routing (Higgsfield image-to-video verification, ProviderCapability registry, quality scorecard)
+7 · professional edit planner (ReelEditPlan: source-clip analysis, hook variants, transitions, grade, pacing)
+8 · Audio Director (voice profiles, pronunciation lexicon, music strategy, mix/master, audio QA, LISTENING pass)
+9 · specialist critic panel (split the single vision critic into visual/automotive/editorial/typography/audio/brand/strategic)
+10 · expand selective repair to audio/subtitle/transition/carousel-slide/story-frame units
+11 · Story + Photo directors; carousel QA 2.0 (contact sheet, deck judge)
+12 · Planner 2.0 (CampaignProductionPlan, weekly portfolio, learning from operator decisions)
+13 · media intelligence + reuse (MediaIntelligenceProfile, similarity/dupe, reuse decision engine)
+14 · unified campaign workspace UI
+15 · quality-driven automation (PROCEED/REPAIR/PAUSE decision engine)
+16 · three acceptance campaigns (A trust/education, B cinematic, C local personality)
+17 · measured baseline-vs-final report

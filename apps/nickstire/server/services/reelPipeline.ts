@@ -361,8 +361,17 @@ export async function processNextReelJob(): Promise<{
         // after success below, so a job retry resume-skips completed beats. A
         // local timeout requeues and regenerates only the unfinished beat.
         const { generateReelClipVideo } = await import("./higgsfieldStudio");
+        // Image conditioning (milestone 6, flag-gated REEL_IMAGE_CONDITIONING):
+        // the identity-drift killer. Beat 1 anchors on the approved Visual
+        // World hero frame; each later beat anchors on the PREVIOUS beat's
+        // clip so visual identity carries forward. generateReelClipVideo
+        // ignores startImageUrl unless the flag is on, so prod stays
+        // text-only until a paid seedance image-render proves it live.
+        const startImageUrl = i === 0
+          ? brief.visualWorld?.heroFrameUrl
+          : clipUrls[i - 1] || undefined;
         finalClipUrl = await withTimeout(
-          generateReelClipVideo({ prompt, negativePrompt }),
+          generateReelClipVideo({ prompt, negativePrompt, startImageUrl }),
           GEN_CLIP_TIMEOUT_MS,
           `higgsfield beat ${beat.beatNumber}`,
         );

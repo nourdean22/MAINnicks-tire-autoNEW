@@ -252,31 +252,52 @@ export function combinePromptWithNegative(prompt: string, negativePrompt?: strin
   return prompt + String.fromCharCode(10) + "DO NOT INCLUDE: " + neg + ".";
 }
 
-export async function generateReelClipVideo(req: string | { prompt: string; negativePrompt?: string }): Promise<string> {
+/**
+ * Pure CLI arg construction for a seedance1_5 clip — extracted so the
+ * image-conditioning path is unit-testable without spawning the CLI.
+ *
+ * IMAGE CONDITIONING (milestone 6): the identity drift measured in the
+ * baseline (one gremlin body per beat, three lighting worlds) is a DIRECT
+ * consequence of text-only generation — each beat was an independent
+ * `--prompt` call with no shared visual anchor. The Higgsfield CLI documents
+ * `--start-image` for video models; passing a reference frame anchors the
+ * clip's opening on a shared image so identity carries across beats.
+ *
+ * HONESTY: seedance1_5's per-model support for --start-image is NOT yet
+ * verified end-to-end (verification requires `model get` / a paid image
+ * render, and re-authing the local CLI would rotate prod's in-memory creds).
+ * So this path is gated behind REEL_IMAGE_CONDITIONING (default OFF) and
+ * stays text-only in prod until a paid verification run proves it. The arg
+ * BUILDER is proven here; the live GENERATION is not.
+ */
+export function buildSeedanceArgs(prompt: string, opts: { startImageUrl?: string } = {}): string[] {
+  const args = [
+    "generate", "create", "seedance1_5",
+    "--prompt", prompt,
+    "--aspect_ratio", "9:16",
+    "--duration", "4",
+    "--resolution", "1080p",
+  ];
+  if (opts.startImageUrl && process.env.REEL_IMAGE_CONDITIONING === "true") {
+    args.push("--start-image", opts.startImageUrl);
+  }
+  args.push("--wait", "--json");
+  return args;
+}
+
+export async function generateReelClipVideo(req: string | { prompt: string; negativePrompt?: string; startImageUrl?: string }): Promise<string> {
   const prompt = typeof req === "string" ? req : combinePromptWithNegative(req.prompt, req.negativePrompt);
+  const startImageUrl = typeof req === "string" ? undefined : req.startImageUrl;
   const binPath = await ensureHiggsfieldBinary();
   const { env, tempCredsFile } = await getSpawnEnv();
 
-  log.info("Generating Reel clip video via Higgsfield (seedance1_5)...", { prompt });
+  const conditioned = !!startImageUrl && process.env.REEL_IMAGE_CONDITIONING === "true";
+  log.info("Generating Reel clip video via Higgsfield (seedance1_5)...", { prompt, imageConditioned: conditioned });
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(
       binPath,
-      [
-        "generate",
-        "create",
-        "seedance1_5",
-        "--prompt",
-        prompt,
-        "--aspect_ratio",
-        "9:16",
-        "--duration",
-        "4",
-        "--resolution",
-        "1080p",
-        "--wait",
-        "--json"
-      ],
+      buildSeedanceArgs(prompt, { startImageUrl }),
       {
         env: {
           ...env,
