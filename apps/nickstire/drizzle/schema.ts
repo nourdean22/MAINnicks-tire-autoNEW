@@ -3752,6 +3752,26 @@ export const creativeGenomes = mysqlTable("creative_genomes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const autonomyPolicyVersions = mysqlTable("autonomy_policy_versions", {
+  id: int("id").autoincrement().primaryKey(),
+  version: int("version").notNull(),
+  policyJson: text("policy_json").notNull(),
+  note: varchar("note", { length: 400 }).notNull().default(""),
+  createdBy: varchar("created_by", { length: 120 }).notNull().default("operator"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const autonomyAuditEvents = mysqlTable("autonomy_audit_events", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  occurredAt: timestamp("occurred_at").defaultNow().notNull(),
+  actionType: varchar("action_type", { length: 48 }).notNull(),
+  decision: varchar("decision", { length: 24 }).notNull(),
+  reasoningCodes: varchar("reasoning_codes", { length: 1024 }).notNull(),
+  policyVersion: int("policy_version").notNull(),
+  contextJson: text("context_json"),
+  campaignId: varchar("campaign_id", { length: 64 }),
+});
+
 export const socialContentApprovals = mysqlTable("social_content_approvals", {
   id: varchar("id", { length: 64 }).primaryKey(),
   inventoryId: varchar("inventory_id", { length: 64 }).notNull(),

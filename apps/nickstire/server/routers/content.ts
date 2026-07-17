@@ -311,6 +311,52 @@ export const contentAdminRouter = router({
       return listGenomes(input?.limit ?? 20);
     }),
 
+  /** Autonomy control plane: active policy + recent audit tail for the
+   *  operator, plus policy versioning and one-tap kill switches. */
+  getAutonomyStatus: adminProcedure.query(async () => {
+    const { getActivePolicy } = await import("../services/autonomyControl");
+    const policy = await getActivePolicy();
+    let recentEvents: Array<{ occurredAt: Date; actionType: string; decision: string; reasoningCodes: string; policyVersion: number }> = [];
+    try {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (d) {
+        const { autonomyAuditEvents } = await import("../../drizzle/schema");
+        const { desc } = await import("drizzle-orm");
+        recentEvents = await d
+          .select({
+            occurredAt: autonomyAuditEvents.occurredAt,
+            actionType: autonomyAuditEvents.actionType,
+            decision: autonomyAuditEvents.decision,
+            reasoningCodes: autonomyAuditEvents.reasoningCodes,
+            policyVersion: autonomyAuditEvents.policyVersion,
+          })
+          .from(autonomyAuditEvents)
+          .orderBy(desc(autonomyAuditEvents.occurredAt))
+          .limit(25);
+      }
+    } catch { /* 0086 pending — status still returns the governing policy */ }
+    return { policy, recentEvents };
+  }),
+
+  publishAutonomyPolicy: adminProcedure
+    .input(z.object({ policy: z.unknown(), note: z.string().max(400).default("") }))
+    .mutation(async ({ input, ctx }) => {
+      const { publishPolicyVersion } = await import("../services/autonomyControl");
+      const { validateAutonomyPolicyShape } = await import("../../client/src/lib/autonomyPolicy");
+      if (!validateAutonomyPolicyShape(input.policy)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Policy failed shape validation" });
+      }
+      return publishPolicyVersion(input.policy, input.note, ctx.user?.email ?? "admin");
+    }),
+
+  setAutonomyKillSwitch: adminProcedure
+    .input(z.object({ scope: z.enum(["global", "generation", "publishing"]), on: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      const { setKillSwitch } = await import("../services/autonomyControl");
+      return setKillSwitch(input.scope, input.on, ctx.user?.email ?? "admin");
+    }),
+
   runConceptTournament: adminProcedure
     .input(z.object({
       campaignAsk: z.string().min(8).max(600),
@@ -320,6 +366,13 @@ export const contentAdminRouter = router({
       generateGenome: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
+      const { assertAllowed } = await import("../services/autonomyControl");
+      await assertAllowed({ type: "generate_campaign" }).catch((err: unknown) => {
+        if (err instanceof Error && err.message.startsWith("Blocked by autonomy policy")) {
+          throw new TRPCError({ code: "FORBIDDEN", message: err.message });
+        }
+        return undefined; // policy infra failure — default posture allows
+      });
       const { runConceptTournament } = await import("../services/conceptTournament");
       const { generateGenome, ...tournamentInput } = input;
       const result = await runConceptTournament(tournamentInput, { generateGenome });
@@ -1149,7 +1202,30 @@ export const contentAdminRouter = router({
       const { getDb } = await import("../db");
       const d = await getDb();
       if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
-      
+
+      // Autonomy control plane: render spend passes the versioned policy
+      // BEFORE provider credits burn — kill switches, daily budget, mode.
+      try {
+        const { assertAllowed, ESTIMATED_REEL_RENDER_COST_USD } = await import("../services/autonomyControl");
+        const { reelJobs } = await import("../../drizzle/schema");
+        const { gte, sql: dsql } = await import("drizzle-orm");
+        const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+        const [row] = await d.select({ n: dsql<number>`COUNT(*)` }).from(reelJobs).where(gte(reelJobs.createdAt, midnight));
+        await assertAllowed({
+          type: "enqueue_render",
+          format: "reel",
+          estimatedCostUsd: ESTIMATED_REEL_RENDER_COST_USD,
+          today: { generationCostUsd: Number(row?.n ?? 0) * ESTIMATED_REEL_RENDER_COST_USD },
+        });
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith("Blocked by autonomy policy")) {
+          throw new TRPCError({ code: "FORBIDDEN", message: err.message });
+        }
+        // Policy infrastructure failure must not brick the operator's render
+        // path — log loud, proceed (the DEFAULT policy would have allowed).
+        log.warn("autonomy policy check errored — proceeding under default posture", { err: err instanceof Error ? err.message : String(err) });
+      }
+
       const { resolveSourceProvenance } = await import("../services/reelBriefGen");
       const resolved = await resolveSourceProvenance(
         input.brief.sourceType,

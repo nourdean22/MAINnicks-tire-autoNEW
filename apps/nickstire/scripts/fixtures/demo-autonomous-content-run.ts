@@ -1,3 +1,12 @@
+/**
+ * DEMO FIXTURE - NOT A PRODUCTION SYSTEM.
+ *
+ * Formerly scripts/run-autonomous-studio.ts. Retired from production naming
+ * because it uses hardcoded briefs, a hardcoded Windows .env path, mock
+ * one-pixel images, mock video files, and fake post URLs. Kept only as a
+ * demo/smoke fixture for the content-run shape. The real autonomous path is
+ * the campaign pipeline behind the autonomy control plane.
+ */
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";

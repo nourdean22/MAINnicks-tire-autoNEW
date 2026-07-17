@@ -694,6 +694,13 @@
       "when": 1784254000000,
       "tag": "0085_creative_genomes",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "5",
+      "when": 1784254000001,
+      "tag": "0086_autonomy_control",
+      "breakpoints": true
     }
   ]
 }
