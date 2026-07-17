@@ -424,6 +424,23 @@ export interface HiggsfieldBeatPrompt {
   safeZoneGuidance: string;
 }
 
+export const VISUAL_WORLD_STYLES = ["safe", "bold", "experimental"] as const;
+export type VisualWorldStyle = (typeof VISUAL_WORLD_STYLES)[number];
+
+/** An approved reference frame + the invariants every clip must match. The
+ *  frame itself conditions generation only where the video model supports an
+ *  input image (NOT verified for seedance1_5 — probing the model schema
+ *  rotates the prod CLI session); until then the lock is enforced through
+ *  the compiled invariant text in every beat prompt. */
+export interface ReelVisualWorld {
+  style: VisualWorldStyle;
+  heroFrameUrl: string;
+  /** the exact prompt that produced the approved frame */
+  framePrompt: string;
+  /** compiled invariant block inserted into every beat prompt */
+  lockedInvariants: string;
+}
+
 export interface ReelBrief {
   id: string;
   createdAt: string;
@@ -459,6 +476,11 @@ export interface ReelBrief {
   hashtags: string[];
 
   avoidedForRepetition: string; // what was deliberately NOT used today
+
+  /** Approved visual world (reference frame + locked invariants) — when set,
+   *  the continuity block in EVERY beat prompt locks to it. Optional: briefs
+   *  without one keep the standard brief-derived continuity block. */
+  visualWorld?: ReelVisualWorld;
 
   qualityScore: number; // cached last computation (recompute via calculateReelQualityScore)
   assetPlan: string; // cover frame + file naming plan — text only in V1
@@ -773,7 +795,15 @@ export function buildRepetitionChecks(
  * call to the same hero subject (beat 1's visual), the same palette, and the
  * same invariants. Deterministic - derived from the brief, no LLM call.
  */
-export function buildReelContinuityBlock(brief: Pick<ReelBrief, "storyboardBeats" | "objectCharacter" | "motionLens">): string {
+export function buildReelContinuityBlock(
+  brief: Pick<ReelBrief, "storyboardBeats" | "objectCharacter" | "motionLens" | "visualWorld">,
+): string {
+  // An operator-approved visual world REPLACES the derived continuity block:
+  // its invariants were compiled from the exact approved reference frame, so
+  // they are stricter and already carry palette/environment/lighting locks.
+  if (brief.visualWorld?.lockedInvariants?.trim()) {
+    return brief.visualWorld.lockedInvariants.trim();
+  }
   const character = OBJECT_CHARACTERS[brief.objectCharacter];
   const heroAnchor = brief.storyboardBeats[0]?.visual.trim() || character.essence;
   return [

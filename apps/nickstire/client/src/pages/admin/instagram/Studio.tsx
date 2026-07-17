@@ -88,6 +88,27 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
     }
   });
 
+  const referenceFrames = trpc.contentAdmin.generateReelReferenceFrames.useMutation({
+    onError: (err) => toast.error("Reference frame generation failed", { description: err.message }),
+  });
+  const selectVisualWorld = (candidate: { style: string; url: string; framePrompt: string; lockedInvariants: string } | null) => {
+    setReelBrief((prev: any) =>
+      prev
+        ? {
+            ...prev,
+            visualWorld: candidate
+              ? {
+                  style: candidate.style,
+                  heroFrameUrl: candidate.url,
+                  framePrompt: candidate.framePrompt,
+                  lockedInvariants: candidate.lockedInvariants,
+                }
+              : undefined,
+          }
+        : prev,
+    );
+  };
+
   const enqueueReelJob = trpc.contentAdmin.enqueueReelJob.useMutation({
     onSuccess: (data) => {
       setJobId(data.jobId);
@@ -492,6 +513,75 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                             setScore(null);
                           }}
                         />
+                      </div>
+
+                      {/* Visual World — approved reference frame locks continuity */}
+                      <div className="border rounded-xl p-5 space-y-3 bg-muted/20 border-border/80">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <h4 className="font-bold text-sm flex items-center gap-2">
+                              <ImageIcon className="h-4 w-4 text-primary" /> Visual World
+                              {reelBrief?.visualWorld && (
+                                <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-primary">
+                                  {reelBrief.visualWorld.style} locked
+                                </span>
+                              )}
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              Approve ONE reference frame; its invariants lock hero, environment, lighting, and palette into
+                              every clip prompt. Optional — skipping keeps the standard continuity block.
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={referenceFrames.isPending || !reelBrief}
+                            onClick={() =>
+                              referenceFrames.mutate({
+                                brief: {
+                                  topic: reelBrief.topic,
+                                  objectCharacter: reelBrief.objectCharacter,
+                                  motionLens: reelBrief.motionLens,
+                                  storyboardBeats: reelBrief.storyboardBeats ?? [],
+                                },
+                              })
+                            }
+                          >
+                            {referenceFrames.isPending ? (
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            {referenceFrames.isPending
+                              ? "Generating 3 frames..."
+                              : referenceFrames.data
+                                ? "Regenerate frames"
+                                : "Generate 3 candidates (image credits)"}
+                          </Button>
+                        </div>
+                        {referenceFrames.data && (
+                          <div className="grid grid-cols-3 gap-2">
+                            {referenceFrames.data.frames.map((f) => {
+                              const selected = reelBrief?.visualWorld?.heroFrameUrl === f.url;
+                              return (
+                                <button
+                                  key={f.style}
+                                  type="button"
+                                  onClick={() => selectVisualWorld(selected ? null : f)}
+                                  className={`group relative overflow-hidden rounded-lg border-2 transition-colors ${
+                                    selected ? "border-primary" : "border-border/40 hover:border-border"
+                                  }`}
+                                >
+                                  <img src={f.url} alt={`${f.style} reference frame`} className="aspect-[9/16] w-full object-cover" />
+                                  <span className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-white">
+                                    {selected ? "✓ " : ""}
+                                    {f.style}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
 
                       {/* Media Generation Section */}
