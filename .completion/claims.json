@@ -2,41 +2,26 @@
   "$comment": "Executable PR claims (Reality Control).",
   "claims": [
     {
-      "id": "review-gate-live-proven",
-      "assertion": "The review gate reproduced #820s three known findings AND surfaced two unknown #824 findings (shadow weather SMS P1, fake trigger ids P2) from the real GitHub API; both #824 findings are fixed in this same PR.",
+      "id": "approvals-expire-at-execution",
+      "assertion": "An expired approval refuses at publish time with its own reason in BOTH the shared service verify and the reel paths two inline verifies; new approvals stamp TTL + governing policy version; legacy null-expiry rows stay valid.",
       "evidence": [
         {
-          "file": "apps/nickstire/scripts/check-review-gate.mjs"
+          "file": "apps/nickstire/server/services/contentApprovals.ts"
         },
         {
-          "file": "apps/nickstire/server/reviewGate.test.ts"
+          "file": "apps/nickstire/server/routers/instagramAdmin.ts"
+        },
+        {
+          "file": "apps/nickstire/server/approvalExpiry.test.ts"
         }
       ]
     },
     {
-      "id": "repair-820-findings-closed",
-      "assertion": "P1: the repair request path queues durably and calls no provider (worker renders on the pulse); P2: queueing invalidates the stale mp4 into history and nulls it; P2: every provider attempt reserves fresh (rep_x_p1 failed -> rep_x_p2), never reusing a failed reservation.",
+      "id": "extends-not-rebuilds",
+      "assertion": "The existing #780 hash-approval machinery is extended (2 columns + expiry checks), not duplicated - per the directive rule against rebuilding working systems.",
       "evidence": [
         {
-          "file": "apps/nickstire/server/services/selectiveRepair.ts"
-        },
-        {
-          "file": "apps/nickstire/server/selectiveRepair.test.ts"
-        }
-      ]
-    },
-    {
-      "id": "shadow-824-findings-closed",
-      "assertion": "The planner uses the new PURE evaluateWeatherTriggers (zero SMS/alert side effects; source scan forbids the side-effecting path) and playbook trigger ids match the real emitted set.",
-      "evidence": [
-        {
-          "file": "apps/nickstire/server/services/weatherIntelligence.ts"
-        },
-        {
-          "file": "apps/nickstire/server/services/shadowPlanner.ts"
-        },
-        {
-          "file": "apps/nickstire/server/shadowPlanner.test.ts"
+          "file": "apps/nickstire/drizzle/0087_approval_expiry.sql"
         }
       ]
     }

@@ -2,7 +2,7 @@
   "$comment": "Branch evidence manifest for the DoD compiler (Completion Authority). Every derived requirement gets a ref (test file / run / assertion) or an explicit deferred reason — never silence.",
   "evidence": {
     "migration-evidence": {
-      "ref": "scripts/apply-0086-autonomy-control.mts (idempotent, extends 0083/0085 pattern). APPLICATION PENDING: 0086 has never been applied anywhere — recorded as P1 blockers on autonomy-policy-engine / generation-ledger / content-governor in the capability ledger; operator applies post-merge."
+      "ref": "drizzle/0087_approval_expiry.sql + scripts/apply-0087-approval-expiry.mts (idempotent, additive-nullable only). APPLICATION PENDING operator authorization - recorded as the P1 on durable-approvals."
     },
     "publish-boundary-test": {
       "ref": "server/contentGovernor.test.ts (publish-door cap/spacing/story-bypass) + kill-switch path in socialPublish exercised via getEmergencyControlsFresh contract tests in server/autonomyBoundary.test.ts"
@@ -23,7 +23,7 @@
       "deferred": "Browser dead all session; the shadow card walkthrough is owed at acceptance and recorded as the P2 on shadow-planner."
     },
     "capability-ledger-updated": {
-      "ref": "capability-ledger.json: +review-aware-completion (live-proven); selective-repair + shadow-planner evidence/blockers updated for the closed findings"
+      "ref": "capability-ledger.json: +durable-approvals (integration_verified/internal, honest 0087 P1)"
     }
   }
 }
