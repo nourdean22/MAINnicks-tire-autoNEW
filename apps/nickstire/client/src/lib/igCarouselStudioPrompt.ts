@@ -232,6 +232,21 @@ export function buildCarouselStudioSystemPrompt(opts: MasterPromptOptions): stri
   return lines.join("\n");
 }
 
+/** One compiled image prompt per slide: base visual + territory grammar +
+ *  4:5-composition note + a hard DO NOT INCLUDE tail (image models get no
+ *  negative-prompt parameter on the Higgsfield CLI). Single source of truth
+ *  for BOTH the operator copy-paste pack and any wired generation path. */
+export function compileCarouselSlidePrompt(
+  brief: Pick<CarouselBrief, "creativeTerritory">,
+  slide: Pick<CarouselBrief["slides"][number], "visualPrompt">,
+): string {
+  const t = CREATIVE_TERRITORIES[brief.creativeTerritory];
+  const base = slide.visualPrompt.trim().replace(/.$/, "");
+  const grammar = t?.grammar ?? "clean professional automotive photography";
+  const avoid = t?.avoid ? `${t.avoid}, ` : "";
+  return `${base}. ${grammar} Portrait 4:5 composition with clean negative space reserved for the headline overlay. DO NOT INCLUDE: ${avoid}baked-in text, lettering, words, logos, watermarks, humans, hands.`;
+}
+
 export function buildHiggsfieldPromptPack(brief: CarouselBrief): string {
   const out: string[] = [];
   out.push(`# HIGGSFIELD PROMPT PACK — ${brief.topic} [${brief.campaignKeyword}]`);
@@ -240,13 +255,14 @@ export function buildHiggsfieldPromptPack(brief: CarouselBrief): string {
   out.push("- 4:5 portrait · 1080×1350 px · consistent world across all 5 slides");
   out.push("- NO baked-in text or lettering of any kind (overlay added manually; AI text = reject)");
   out.push("- Leave clean negative space where noted for the headline overlay");
-  out.push("- Quality keywords: award-winning, 85mm lens, shallow depth of field, ultra-detailed, 8K, studio-grade lighting, cinematic color grade, dramatic high contrast, photorealistic premium product photography, 35mm film grain texture, no AI artifacts, professional automotive photography");
+  out.push(`- Style grammar (territory-specific): ${CREATIVE_TERRITORIES[brief.creativeTerritory]?.grammar ?? "clean professional automotive photography"}`);
   out.push("");
   brief.slides.forEach((s, i) => {
     out.push(`## Slide ${s.slideNumber} — ${SLIDE_ROLES[i]?.label ?? s.role}`);
-    const basePrompt = s.visualPrompt.trim();
-    const premiumSuffix = "award-winning, 85mm lens, shallow depth of field, ultra-detailed, 8K, studio-grade lighting, cinematic color grade, dramatic high contrast, photorealistic premium product photography, 35mm film grain texture, no AI artifacts, professional automotive photography.";
-    const fullPrompt = basePrompt.endsWith(".") ? `${basePrompt} ${premiumSuffix}` : `${basePrompt}. ${premiumSuffix}`;
+    // Territory-specific grammar replaces the old universal 85mm/film-grain
+    // suffix that pulled blueprint/evidence/tiny-world decks toward one glossy
+    // product-ad look (same defect class the reel lens compiler fixed).
+    const fullPrompt = compileCarouselSlidePrompt(brief, s);
     out.push(fullPrompt);
     out.push(`Overlay plan: ${s.textOverlayPlan}`);
     out.push("");

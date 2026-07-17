@@ -89,61 +89,96 @@ export type CreativeTerritory =
   | "premium_product_ad"
   | "weather_local_alert";
 
+/**
+ * Each territory carries its OWN image-generation grammar. Before this, one
+ * universal "85mm / shallow depth of field / film grain" suffix was appended to
+ * every slide prompt, pulling blueprint, evidence-board, tiny-world, and
+ * weather-alert decks toward the same glossy product-ad look (the same defect
+ * class the reel compiler fixed for motion lenses). `grammar` is the language
+ * the image model MUST receive for this territory; `avoid` is compiled into a
+ * DO NOT INCLUDE tail.
+ */
 export const CREATIVE_TERRITORIES: Record<
   CreativeTerritory,
-  { label: string; essence: string }
+  { label: string; essence: string; grammar: string; avoid: string }
 > = {
   cleveland_survival_guide: {
     label: "Cleveland Survival Guide",
     essence: "Local roads, local seasons, local fixes — survival manual energy.",
+    grammar: "Field-guide editorial photography, real Cleveland streetscape texture, overcast midwest light, practical documentary framing, rugged tactile detail.",
+    avoid: "luxury studio lighting, film grain, glossy product-ad polish",
   },
   mechanic_translation: {
     label: "Mechanic Translation",
     essence: "Shop language translated to plain English, side by side.",
+    grammar: "Clean split-composition explainer, neutral studio background, one clear subject per side, bright even lighting, generous negative space for labels.",
+    avoid: "shallow depth of field, moody shadows, cluttered shop background",
   },
   csi_evidence_board: {
     label: "CSI / Evidence Board",
     essence: "Clues, string, magnifying glass — the car left evidence.",
+    grammar: "Forensic evidence photography, controlled tabletop lighting, numbered-object staging, dark investigative atmosphere, clinical magnification detail.",
+    avoid: "luxury product-ad lighting, film grain, police tape cliches, whimsical cartoon treatment",
   },
   myth_courtroom: {
     label: "Myth Courtroom",
     essence: "A common belief goes on trial; the verdict teaches the truth.",
+    grammar: "Dramatic theatrical staging, single spotlight on the accused part, dark formal backdrop, courtroom gravitas rendered physically real.",
+    avoid: "literal gavels and judges, cartoon rendering, busy background",
   },
   tiny_world: {
     label: "Tiny World",
     essence: "Miniature crews working inside the car — scale makes it memorable.",
+    grammar: "High-detail miniature practical diorama, strong scale cues, tilt-shift focus band, tactile model materials, macro photography of a tiny scene.",
+    avoid: "full-size human workers, photoreal giant people, film grain, flat illustration",
   },
   warning_system: {
     label: "Warning System",
     essence: "Sounds, lights, and feel as an early-warning network.",
+    grammar: "Dashboard warning-light world, deep blacks with amber and red indicator glow, macro bokeh of instrument detail, alert-panel graphic energy.",
+    avoid: "daylight exterior, product-ad turntable staging, pastel palette",
   },
   luxury_part_hero: {
     label: "Luxury Part Hero",
     essence: "One humble part shot like a flagship product.",
+    grammar: "Premium product commercial, 85mm macro lens, shallow depth of field, studio-grade key lighting on a dark seamless background, controlled reflections, ultra-detailed.",
+    avoid: "diagram labels, cluttered scene, cartoon texture",
   },
   road_villain: {
     label: "Road Villain",
     essence: "Pothole, salt, or curb cast as the antagonist.",
+    grammar: "Cinematic low-angle antagonist framing, wet asphalt atmosphere, dramatic rim lighting on the hazard, storm-light mood, physically real menace.",
+    avoid: "cartoon villain faces, glossy showroom polish, cheerful daylight",
   },
   car_body_language: {
     label: "Car Body Language",
     essence: "What the car is 'saying' through pulls, shakes, and noises.",
+    grammar: "Expressive motion-cue photography, subtle motion blur on the symptomatic part, clean neutral environment, one readable gesture per frame.",
+    avoid: "anthropomorphic cartoon faces, busy backgrounds, film grain",
   },
   before_the_bill: {
     label: "Before The Bill",
     essence: "The cheap moment before the expensive one — timeline framing.",
+    grammar: "Two-state timeline composition, matched framing between early clue and costly outcome, clean editorial lighting, visual before-and-after discipline.",
+    avoid: "shallow depth of field haze, luxury ad styling, random collage clutter",
   },
   blueprint_xray: {
     label: "Blueprint / X-Ray",
     essence: "Cutaway, schematic, see-through teaching visuals.",
+    grammar: "Orthographic technical illustration, flat deep-navy drafting field, precise white linework, exploded cutaway layers, flat controlled illumination.",
+    avoid: "shallow depth of field, film grain, photographic background, cinematic bokeh",
   },
   premium_product_ad: {
     label: "Premium Product-Ad",
     essence: "Ad-grade lighting and composition for an everyday service.",
+    grammar: "Award-winning 85mm product photography, shallow depth of field, studio-grade lighting, cinematic color grade, dramatic high contrast, photorealistic premium detail.",
+    avoid: "diagram labels, cartoon texture, cluttered composition",
   },
   weather_local_alert: {
     label: "Weather / Local Alert",
     essence: "Forecast-style urgency tied to a real seasonal behavior.",
+    grammar: "Broadcast weather-graphics package, sweeping radar arcs and threat-zone overlays on a stylized Cleveland map, crisp motion-graphics aesthetic, alert-banner energy.",
+    avoid: "cinematic depth of field, film grain, photorealistic street photography",
   },
 };
 
