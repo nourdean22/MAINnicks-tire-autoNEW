@@ -443,6 +443,19 @@ export const contentAdminRouter = router({
     return out;
   }),
 
+  /** Rendered creative QA on demand: extract frames from an assembled reel,
+   *  build a contact sheet, run the vision critic against the brief +
+   *  approved Visual World, persist the structured verdict into the job
+   *  payload. Read/evaluate only — never changes job status. */
+  runRenderedQa: adminProcedure
+    .input(z.object({ jobId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const { runRenderedQaOnJob } = await import("../services/renderedQa");
+      const verdict = await runRenderedQaOnJob(input.jobId);
+      if (!verdict) throw new TRPCError({ code: "BAD_REQUEST", message: "Rendered QA could not run (job missing, no mp4, or extraction failed) — see server logs." });
+      return verdict;
+    }),
+
   /** Genome Wave 2: Reel Director — one campaign genome -> a full
    *  quality-scored ReelBrief via the existing generator. Generation only;
    *  rendering stays behind the operator's explicit enqueueReelJob tap. The

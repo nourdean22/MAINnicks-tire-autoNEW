@@ -349,18 +349,28 @@
       "capabilityId": "rendered-creative-qa",
       "name": "Rendered QA: contact sheets + visual critic + structured defects",
       "owner": "operator",
-      "evidence": {},
-      "blockers": [],
-      "deferredScope": [
-        "frame extraction",
-        "continuity critic",
-        "automotive critic",
-        "deck sheets"
+      "evidence": {
+        "codeCommit": "nickstire/rendered-qa branch (this PR)",
+        "tests": [
+          "server/renderedQa.test.ts — registry parity, clamp red-green (registry severity wins, block forces repair, unknown codes drop), REAL ffmpeg extraction on a synthesized 3-color video with distinct per-beat frames, mocked vision seam (image parts + world invariants verified), critic-failure => SKIPPED verdict never fabricated"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "vision critic has never judged a REAL render; pipeline hook flag RENDERED_QA_ENABLED default OFF until an operator-armed live run produces a verdict worth trusting",
+          "source": "design"
+        }
       ],
-      "lastVerifiedAt": null,
-      "codeState": "not_started",
-      "operationalState": "unverified",
-      "exposure": "disabled"
+      "deferredScope": [
+        "selective repair consuming the preserve/change instructions",
+        "carousel deck sheets",
+        "automotive-accuracy specialist critic"
+      ],
+      "lastVerifiedAt": "2026-07-17",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     },
     {
       "capabilityId": "selective-repair",
