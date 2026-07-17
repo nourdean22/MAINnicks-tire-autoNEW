@@ -330,6 +330,19 @@ export async function aiGateway(request: GatewayRequest): Promise<GatewayRespons
   const provider = request.overrideProvider || config.provider;
   const model = request.overrideModel || config.model;
 
+  // AI_FORCE_GEMINI=true (OpenRouter credit exhaustion, 2026-07-17): route the
+  // gateway's OpenAI-pinned tasks through invokeLLM's Gemini path instead of
+  // the dead key. Delegation keeps one provider seam; unset the flag to revert.
+  if (process.env.AI_FORCE_GEMINI === "true") {
+    const t0 = Date.now();
+    const { invokeLLM, resolveEffectiveModel } = await import("../_core/llm");
+    const result = await invokeLLM({ messages: request.messages as never, model: resolveEffectiveModel(model) });
+    const content = (result as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content ?? "";
+    const latencyMs = Date.now() - t0;
+    logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: "gemini(forced)", latencyMs, success: true, fallbackUsed: true });
+    return { content, latencyMs, wasFallback: true } as GatewayResponse;
+  }
+
   if (provider === "openai") {
     try {
       const result = await callOpenAI(model, request.messages, config.timeoutMs);
