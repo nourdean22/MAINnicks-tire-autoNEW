@@ -1,0 +1,26 @@
+{
+  "$comment": "Branch evidence manifest for the DoD compiler (Completion Authority). Every derived requirement gets a ref (test file / run / assertion) or an explicit deferred reason — never silence.",
+  "evidence": {
+    "migration-evidence": {
+      "ref": "scripts/apply-0086-autonomy-control.mts (idempotent, extends 0083/0085 pattern). APPLICATION PENDING: 0086 has never been applied anywhere — recorded as P1 blockers on autonomy-policy-engine / generation-ledger / content-governor in the capability ledger; operator applies post-merge."
+    },
+    "publish-boundary-test": {
+      "ref": "server/contentGovernor.test.ts (publish-door cap/spacing/story-bypass) + kill-switch path in socialPublish exercised via getEmergencyControlsFresh contract tests in server/autonomyBoundary.test.ts"
+    },
+    "render-spend-trajectory": {
+      "ref": "server/autonomyBoundary.test.ts (visualWorld+genomeId through service enqueue into persisted payload; cron fail-closed) + server/generationLedger.test.ts (reserve/settle/budget compensation)"
+    },
+    "visual-world-trajectory": {
+      "ref": "server/autonomyBoundary.test.ts — locked invariants present in EVERY prompt of the persisted reel-job payload"
+    },
+    "policy-matrix": {
+      "ref": "server/autonomyPolicy.test.ts (kill switches, caps, scores, approval matrix, mode ladder) + server/autonomyBoundary.test.ts (actor semantics, strict schema, Cleveland day)"
+    },
+    "cron-fail-closed": {
+      "ref": "server/autonomyBoundary.test.ts — cron enqueue rejects with fail-closed when kill-switch state is unverifiable"
+    },
+    "operator-walkthrough": {
+      "deferred": "Browser session dead this entire session (No tab available). Walkthrough owed at acceptance time and recorded as P2 blockers on drafts-surface + format-directors in the capability ledger."
+    }
+  }
+}

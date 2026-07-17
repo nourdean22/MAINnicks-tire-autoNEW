@@ -1,0 +1,31 @@
+name: Completion Authority
+
+# The machine that makes it impossible to call incomplete work complete:
+# - capability ledger states only advance with evidence (validator)
+# - completion requirements are DERIVED from the diff (DoD compiler) and
+#   must carry evidence refs or explicit deferrals — never silence.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  completion-authority:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate capability ledger (evidence-gated states)
+        run: node apps/nickstire/scripts/check-capability-ledger.mjs
+      - name: Reality ledger is in sync with the JSON
+        run: |
+          node apps/nickstire/scripts/render-reality-ledger.mjs
+          git diff --exit-code apps/nickstire/docs/operations/REALITY-LEDGER.md || {
+            echo "::error::REALITY-LEDGER.md is stale — run scripts/render-reality-ledger.mjs and commit the result"
+            exit 1
+          }
+      - name: DoD compiler (requirements derived from the diff)
+        run: node apps/nickstire/scripts/dod-compiler.mjs --base "origin/${{ github.base_ref }}" --enforce
