@@ -98,8 +98,8 @@ export interface ReelJobBrief {
     onScreenText?: string;
     veoOperationName?: string;
   }>;
-  promptPack?: Array<{ beatNumber: number; prompt: string }>;
-  higgsfieldPromptPack?: Array<{ beatNumber: number; prompt: string }>;
+  promptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
+  higgsfieldPromptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
   voiceoverScript?: string;
 }
 
@@ -224,9 +224,15 @@ export async function processNextReelJob(): Promise<{
         continue;
       }
 
-      const prompt =
-        brief.promptPack?.find((p) => p.beatNumber === beat.beatNumber)?.prompt ??
-        brief.higgsfieldPromptPack?.find((p) => p.beatNumber === beat.beatNumber)?.prompt ?? beat.visual;
+      // Keep the compiled negativePrompt paired with its beat: Seedance has no
+      // negative parameter, so the adapter compiles it into a DO NOT INCLUDE
+      // section - dropping it here (the pre-2026-07-17 behavior) meant every
+      // style exclusion the compiler produced had zero effect on generation.
+      const packEntry =
+        brief.promptPack?.find((p) => p.beatNumber === beat.beatNumber) ??
+        brief.higgsfieldPromptPack?.find((p) => p.beatNumber === beat.beatNumber);
+      const prompt = packEntry?.prompt ?? beat.visual;
+      const negativePrompt = packEntry?.negativePrompt;
       if (!prompt || !prompt.trim()) throw new Error(`beat ${beat.beatNumber} has no prompt`);
 
       let finalClipUrl = "";
@@ -238,7 +244,7 @@ export async function processNextReelJob(): Promise<{
         // local timeout requeues and regenerates only the unfinished beat.
         const { generateReelClipVideo } = await import("./higgsfieldStudio");
         finalClipUrl = await withTimeout(
-          generateReelClipVideo(prompt),
+          generateReelClipVideo({ prompt, negativePrompt }),
           GEN_CLIP_TIMEOUT_MS,
           `higgsfield beat ${beat.beatNumber}`,
         );

@@ -293,7 +293,16 @@ describe("builders", () => {
     for (let i = 1; i < pack.length; i++) {
       expect(pack[i].prompt).toContain(`previous shot ended on: ${sample().storyboardBeats[i - 1].visual}`);
     }
-    for (const p of pack) expect(p.prompt).toContain("complete the primary action by 3.3 seconds");
+    // Timing speaks the renderer truth per beat: 4s source, trim to storyboard
+    // length, action completes before the settle window (trim - min(0.6, 20%)).
+    for (const p of pack) expect(p.prompt).toContain("Generate a four-second source clip");
+    const beats = sample().storyboardBeats;
+    pack.forEach((p, i) => {
+      const trim = Math.min(4, Math.max(0.8, beats[i].endSecond - beats[i].startSecond));
+      const actionBy = Number((trim - Math.min(0.6, trim * 0.2)).toFixed(1));
+      expect(p.prompt).toContain(`the first ${trim.toFixed(1)} seconds`);
+      expect(p.prompt).toContain(`complete the primary action by ${actionBy} seconds`);
+    });
     expect(pack[pack.length - 1].prompt).toContain("seamless loop");
   });
 

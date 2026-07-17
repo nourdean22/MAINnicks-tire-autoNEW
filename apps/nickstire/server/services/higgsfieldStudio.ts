@@ -76,6 +76,7 @@ async function getSpawnEnv(): Promise<{ env: NodeJS.ProcessEnv; tempCredsFile: s
       // mode 0o600: owner read/write only — if cleanup is ever missed, the
       // leaked credentials file is still not readable by other local users.
       fs.writeFileSync(tempCredsFile, credentialsJson, { encoding: "utf8", mode: 0o600 });
+      lastWrittenCredsJson = credentialsJson;
       spawnEnv.HIGGSFIELD_CREDENTIALS_PATH = tempCredsFile;
     } catch (err) {
       log.warn("failed to write Higgsfield credentials to temp file", {
@@ -91,6 +92,53 @@ function cleanupTempFile(filepath: string | null) {
     try {
       fs.unlinkSync(filepath);
     } catch (_) {}
+  }
+}
+
+/** The exact credentials JSON most recently written to a temp file, so the
+ *  post-run rotation check knows what "unchanged" looks like. */
+let lastWrittenCredsJson: string | null = null;
+
+/**
+ * The Higgsfield CLI ROTATES tokens: on refresh it rewrites its credentials
+ * file with a new access/refresh pair and the old refresh token is consumed.
+ * Observed live 2026-07-16: prod's static HIGGSFIELD_CREDENTIALS_JSON env pair
+ * died ~90 minutes after login ("Session expired") because the CLI's rotated
+ * successor was written to a throwaway temp file and discarded. So before
+ * deleting the temp file, persist any rotated pair to the app_secret_kv row
+ * (which getHiggsfieldCredentialsJson PREFERS over the env var) and refresh
+ * the in-process cache. Best-effort: failures only log — generation itself
+ * already succeeded or failed on its own terms.
+ */
+async function persistRotatedCredentialsThenCleanup(tempCredsFile: string | null): Promise<void> {
+  try {
+    if (tempCredsFile && fs.existsSync(tempCredsFile)) {
+      const current = fs.readFileSync(tempCredsFile, "utf8");
+      if (current && current !== lastWrittenCredsJson) {
+        const parsed = JSON.parse(current) as Record<string, unknown>;
+        if (parsed && typeof parsed === "object" && (parsed.access_token || parsed.refresh_token)) {
+          cachedHiggsfieldCredentialsJson = current;
+          credentialsLoadAttempted = true;
+          lastWrittenCredsJson = current;
+          const { db } = await import("../lib/db-helper");
+          const d = await db();
+          if (d) {
+            const { appSecretKv } = await import("../../drizzle/schema");
+            await d
+              .insert(appSecretKv)
+              .values({ k: "higgsfield_credentials_json", v: current })
+              .onDuplicateKeyUpdate({ set: { v: current } });
+            log.info("persisted rotated Higgsfield credentials to durable store");
+          }
+        }
+      }
+    }
+  } catch (err) {
+    log.warn("failed to persist rotated Higgsfield credentials", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  } finally {
+    cleanupTempFile(tempCredsFile);
   }
 }
 
@@ -166,7 +214,7 @@ export async function generateCarouselSlideImage(prompt: string): Promise<string
     });
 
     child.on("close", (code) => {
-      cleanupTempFile(tempCredsFile);
+      void persistRotatedCredentialsThenCleanup(tempCredsFile);
       if (code !== 0) {
         reject(new Error(`Higgsfield CLI exited with code ${code}. Stderr: ${stderr.trim()}`));
         return;
@@ -187,7 +235,17 @@ export async function generateCarouselSlideImage(prompt: string): Promise<string
  * production-verified reel pipeline (scratch/gen-reel1-assets.ts). 4s source
  * clips are trimmed per storyboard beat at assembly time.
  */
-export async function generateReelClipVideo(prompt: string): Promise<string> {
+/** Seedance has NO negative-prompt parameter (verified via model get seedance1_5,
+ *  2026-07-16) - so style exclusions are compiled into the prompt as a hard
+ *  DO NOT INCLUDE section. Accepts a bare string for back-compat. */
+export function combinePromptWithNegative(prompt: string, negativePrompt?: string): string {
+  const neg = (negativePrompt || "").trim();
+  if (!neg) return prompt;
+  return prompt + String.fromCharCode(10) + "DO NOT INCLUDE: " + neg + ".";
+}
+
+export async function generateReelClipVideo(req: string | { prompt: string; negativePrompt?: string }): Promise<string> {
+  const prompt = typeof req === "string" ? req : combinePromptWithNegative(req.prompt, req.negativePrompt);
   const binPath = await ensureHiggsfieldBinary();
   const { env, tempCredsFile } = await getSpawnEnv();
 
@@ -232,7 +290,7 @@ export async function generateReelClipVideo(prompt: string): Promise<string> {
     });
 
     child.on("close", (code) => {
-      cleanupTempFile(tempCredsFile);
+      void persistRotatedCredentialsThenCleanup(tempCredsFile);
       if (code !== 0) {
         reject(new Error(`Higgsfield CLI exited with code ${code}. Stderr: ${stderr.trim()}`));
         return;
@@ -278,7 +336,7 @@ export async function getHiggsfieldAccountHealth(): Promise<{
     const finish = (credsValid: boolean) => {
       if (settled) return;
       settled = true;
-      cleanupTempFile(tempCredsFile);
+      void persistRotatedCredentialsThenCleanup(tempCredsFile);
       const raw = `${stdout}${stderr}`.trim();
       const m = raw.match(/([\d,]+(?:\.\d+)?)\s*(?:credits?|\bcr\b)/i) || raw.match(/balance["':\s]+([\d,]+(?:\.\d+)?)/i);
       const parsed = m ? Number(m[1].replace(/,/g, "")) : NaN;

@@ -791,12 +791,19 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
   const continuity = buildReelContinuityBlock(brief);
   const beats = brief.storyboardBeats;
   return beats.map((b, i) => {
+    // Source clips are ALWAYS 4s (Seedance fixed duration); assembly trims each
+    // beat to its storyboard length. The prompt must speak the renderer TRUTH:
+    // a 4s source of which only the first trimDurationSec survives - the old
+    // "clip, 2.5s" line contradicted the actual generation and actions ran long.
+    const trimDurationSec = Math.min(4, Math.max(0.8, b.endSecond - b.startSecond));
+    const settleSec = Math.min(0.6, trimDurationSec * 0.2);
+    const actionCompleteBySec = Number((trimDurationSec - settleSec).toFixed(1));
     const prev = i > 0 ? beats[i - 1] : null;
     const isLast = i === beats.length - 1;
     return {
       beatNumber: b.beatNumber,
       prompt: [
-        `Vertical 9:16 cinematic clip, ${b.endSecond - b.startSecond}s.`,
+        `Vertical 9:16 cinematic clip. Generate a four-second source clip; the final edit uses only the first ${trimDurationSec.toFixed(1)} seconds.`,
         `Subject: ${b.visual}`,
         `Character energy: ${character.label} - ${character.essence}`,
         `Motion: ${b.motion}`,
@@ -808,7 +815,7 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
         prev
           ? `Opening frame: continue directly from the previous shot - the hero object in the same state and position it settled in (previous shot ended on: ${prev.visual})`
           : `Opening frame: strongest possible first frame - the hero object clearly readable at a glance.`,
-        `Timing: complete the primary action by 3.3 seconds; hold the final 0.7 seconds visually stable${isLast ? ", settled on a frame that echoes the opening shot for a seamless loop" : ", ready for a match cut into the next shot"}.`,
+        `Timing: complete the primary action by ${actionCompleteBySec} seconds; keep every frame after that visually stable${isLast ? ", settled on a frame that echoes the opening shot for a seamless loop" : ", ready for a match cut into the next shot"}.`,
         `No humans, no faces, no hands, no readable shop signage.`,
         `Leave the top 12% and bottom 20% of frame clear for IG UI; key action center-frame.`,
       ].join("\n"),
