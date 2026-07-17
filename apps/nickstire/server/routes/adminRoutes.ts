@@ -323,4 +323,55 @@ export function registerAdminRoutes(app: Express): void {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
+
+  // ─── Google Drive Creative Vault OAuth (one-time operator consent) ───
+  // /start is admin-key-gated and returns the consent URL as JSON (a browser
+  // navigation can't carry the Bearer header). The Google-facing callback is
+  // necessarily public-path but CSRF-bound to the state minted by /start and
+  // stored server-side — a forged callback without the matching state is
+  // rejected before any token exchange.
+  app.get("/api/admin/drive-vault/start", requireAdminApiKey, async (_req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) return res.status(503).json({ error: "database unavailable" });
+      const { beginDriveConsent } = await import("../services/creativeVault");
+      res.json(await beginDriveConsent(db));
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.get("/api/admin/drive-vault/status", requireAdminApiKey, async (_req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) return res.status(503).json({ error: "database unavailable" });
+      const { vaultConfigured } = await import("../services/creativeVault");
+      res.json({ configured: await vaultConfigured(db) });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.get("/api/oauth/drive/callback", async (req, res) => {
+    const code = String(req.query.code ?? "");
+    const state = String(req.query.state ?? "");
+    if (!code || !state) return res.status(400).send("Missing code/state");
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) return res.status(503).send("Database unavailable");
+      const { completeDriveConsent } = await import("../services/creativeVault");
+      const { email } = await completeDriveConsent(db, code, state);
+      serverLog.info("drive vault connected", { email: email ?? "(unknown)" });
+      res
+        .status(200)
+        .type("html")
+        .send("<html><body style=\"font-family:system-ui;padding:2rem\"><h2>Creative Vault connected</h2><p>Google Drive access granted. You can close this tab.</p></body></html>");
+    } catch (err) {
+      serverLog.error("drive vault callback failed", { error: err instanceof Error ? err.message : String(err) });
+      res.status(400).send("Drive consent failed — restart from the admin console.");
+    }
+  });
 }
