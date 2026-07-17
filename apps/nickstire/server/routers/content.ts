@@ -301,6 +301,29 @@ export const contentAdminRouter = router({
       return { urls };
     }),
 
+  /** Genome Wave 1: generate ONE claim-safe campaign genome + the seeds that
+   *  drive today's reel/carousel/photo flows from it. */
+  generateCampaignGenome: adminProcedure
+    .input(z.object({
+      campaignAsk: z.string().min(8).max(600),
+      objective: z.string().max(32).optional(),
+      proofHandles: z.array(z.string().max(200)).max(8).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { generateCampaignGenome } = await import("../services/genomeGen");
+      const { genomeToReelSeed, genomeToCarouselSeed, genomeToPhotoSeed } = await import("../../client/src/lib/creativeGenome");
+      const { genome, attempts } = await generateCampaignGenome(input);
+      return {
+        genome,
+        attempts,
+        seeds: {
+          reel: genomeToReelSeed(genome),
+          carousel: genomeToCarouselSeed(genome),
+          photo: genomeToPhotoSeed(genome),
+        },
+      };
+    }),
+
   saveCarouselDraft: adminProcedure
     .input(z.object({
       id: z.string(),
