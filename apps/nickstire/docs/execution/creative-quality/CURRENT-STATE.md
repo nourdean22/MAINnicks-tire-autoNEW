@@ -1,6 +1,14 @@
 # Creative-quality long haul — current state
 
-Updated: 2026-07-17T13:45Z · branch `nickstire/creative-quality-lh` off main `4b9d3cac0` (#827)
+Updated: 2026-07-17T15:00Z · main `9af84eb16` (#829) · "do the rest" run executed
+
+## "Do the rest" run (2026-07-17 afternoon)
+- 0088 APPLIED to prod (media_assets 32 cols + integration_tokens 5) after the review gate's filter-bug catch.
+- GCP redirect URI added + Drive consent granted VIA THE OPERATOR'S REAL CHROME (drive.file only). Vault root `17SCNTPnvjEgwz3ii9o2YNbWdT0SfaOJC`.
+- **Backfill: 19/19 git-hostage masters registered + byte-verified archived in Drive; reconcile 19/19 healthy.** repo-media-cleanup-001 unblocked.
+- RENDERED_QA_ENABLED=true set on prod (deploy a4c08d1c SUCCESS).
+- **NEW P1: shared OpenRouter account is DRY** — creative LLM legs dead everywhere; genome capability honestly demoted; QA critic will fail-soft until credits.
+- **Trajectory job 660001 enqueued** (A/B: 30008's exact brief through the FIXED pipeline — governor slot + $1.75 ledger reservation engaged). Renders on prod pulses.
 
 ## Verified facts (do not re-derive)
 
