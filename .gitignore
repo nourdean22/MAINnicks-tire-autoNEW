@@ -158,3 +158,6 @@ docs/LOCAL-CONTEXT-PACK.md
 # separately with git-filter-repo + force-push (operator, out of band).
 apps/nickstire/data/shopdriver-customers.csv
 apps/nickstire/data/*customers*.csv
+
+# runtime-produced media (registry + Drive vault are the durable layers)
+apps/nickstire/data/generated/
