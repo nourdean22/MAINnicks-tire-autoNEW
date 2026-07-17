@@ -335,6 +335,27 @@ export const contentAdminRouter = router({
       };
     }),
 
+  /** Reel Visual World: generate three 9:16 reference-frame candidates
+   *  (safe / bold / experimental) for a brief's hero + motion lens. Uses
+   *  image credits (up to 3 calls). Selection is the operator's — the chosen
+   *  candidate's visualWorld object rides the brief into enqueue, where its
+   *  locked invariants replace the generic continuity block in every beat
+   *  prompt. */
+  generateReelReferenceFrames: adminProcedure
+    .input(z.object({
+      brief: z.object({
+        topic: z.string().min(1).max(400),
+        objectCharacter: z.string().min(1).max(60),
+        motionLens: z.string().min(1).max(60),
+        storyboardBeats: z.array(z.object({ visual: z.string() }).passthrough()).default([]),
+      }).passthrough(),
+    }))
+    .mutation(async ({ input }) => {
+      const { generateReferenceFrames } = await import("../services/visualWorld");
+      const frames = await generateReferenceFrames(input.brief as never);
+      return { frames };
+    }),
+
   /** Genome Wave 2: Reel Director — one campaign genome -> a full
    *  quality-scored ReelBrief via the existing generator. Generation only;
    *  rendering stays behind the operator's explicit enqueueReelJob tap. The
@@ -1110,6 +1131,15 @@ export const contentAdminRouter = router({
         concepts: z.any().optional(),
         voiceoverScript: z.any().optional(),
         captionHooks: z.any().optional(),
+        // Operator-approved visual world — zod strips unknown keys, so without
+        // this line the approved reference frame would be SILENTLY dropped at
+        // enqueue and every beat prompt would fall back to generic continuity.
+        visualWorld: z.object({
+          style: z.enum(["safe", "bold", "experimental"]),
+          heroFrameUrl: z.string().max(2048),
+          framePrompt: z.string().max(4000),
+          lockedInvariants: z.string().max(4000),
+        }).optional(),
         motionLens: z.string(),
         objectCharacter: z.string(),
         archetype: z.string(),
