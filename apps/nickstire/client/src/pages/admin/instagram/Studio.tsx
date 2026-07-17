@@ -522,6 +522,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                                   brief: {
                                     ...reelBrief,
                                     sourceType: source === "review" || source === "declined_work" ? source : "manual",
+                                    sourceOrigin: source ?? undefined,
                                     sourceId: sourceId || undefined,
                                   },
                                 });
@@ -602,6 +603,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                                   brief: {
                                     ...reelBrief,
                                     sourceType: source === "review" || source === "declined_work" ? source : "manual",
+                                    sourceOrigin: source ?? undefined,
                                     sourceId: sourceId || undefined,
                                   },
                                 });
