@@ -6,19 +6,21 @@
       "name": "Reel generation + assembly + render-integrity gate",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "merged through #805",
+        "codeCommit": "merged through #856 (reel-690001 garbled-text/brand/gloved-hands defense: prevent + hard gate + visualWorld positive framePrompt)",
         "tests": [
+          "client/faceless-reel-studio.test.ts (37): IN_FRAME_TEXT_PATTERN hard-block, gloves/hands/arms faceless detection, lens-aware clean-scene directive, hard-gate scoring override; server/visualWorld.test.ts: positive framePrompt with no pink-elephant DO-NOT negation quoted into beats",
           "server/reelAssembly render-integrity tests",
           "server/reelAudioIntegrity.test.ts (8): dead-air gate refuses the exact published silent-reel case; REAL-RENDER trajectory — the previously-fatal shape (2s VO + 4s shorter-than-reel bed, 9s timeline) renders with zero dead-air gaps and stereo audio through the actual ffmpeg graph"
         ],
         "liveRuns": [
+          "IG 18124540093661758 (reel/Da6DDnzlelQ — job 690001, operator-override publish that surfaced the garbled-text/Nixs-logo/gloved-hands defect classes now fixed in #855+#856)",
           "IG 18018908711883906",
           "IG 17877918753617173 (frame forensics: 750 frames, 7 distinct sampled)"
         ],
         "renderedAssets": [
           "instagram.com/reel/Da4RUOCAoKi"
         ],
-        "deploymentId": "railway main auto-deploy (merged through #805)"
+        "deploymentId": "railway main auto-deploy (merged through #856)"
       },
       "blockers": [
         {
