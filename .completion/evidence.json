@@ -21,6 +21,9 @@
     },
     "capability-ledger-updated": {
       "ref": "capability-ledger.json: +media-asset-registry (integration_verified/disabled, P2 = 0088 pending), +drive-creative-vault (unit_verified/disabled, P2 = consent + live round-trip owed). No prior capability state changed."
+    },
+    "render-spend-trajectory": {
+      "ref": "server/reelReservationRelease.test.ts (3: releases the payload-recorded slot on terminal failure; no-id no-op; unparseable payload never throws into the failure path) + existing selectiveRepair/autonomyBoundary trajectories on main"
     }
   }
 }

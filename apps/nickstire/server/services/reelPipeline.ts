@@ -257,7 +257,7 @@ export async function enqueueReelJob(
  * 24h window (RESERVATION_SPACING) until released by hand. Best-effort: a
  * missing/unparseable id just logs.
  */
-async function releaseFailedJobReservation(payloadJson: string | null, jobId: number): Promise<void> {
+export async function releaseFailedJobReservation(payloadJson: string | null, jobId: number): Promise<void> {
   try {
     const payload = JSON.parse(payloadJson ?? "{}") as { contentReservationId?: string };
     if (!payload.contentReservationId) return;
