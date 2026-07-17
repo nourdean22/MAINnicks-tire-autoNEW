@@ -301,6 +301,23 @@ export const contentAdminRouter = router({
       return { urls };
     }),
 
+  /** Genome Wave 1 slice 2: role-diverse concept tournament with an
+   *  INDEPENDENT judge (replaces self-scored concept selection). Optionally
+   *  chains the judged winner into a campaign genome. */
+  runConceptTournament: adminProcedure
+    .input(z.object({
+      campaignAsk: z.string().min(8).max(600),
+      objective: z.string().max(32).optional(),
+      proofHandles: z.array(z.string().max(200)).max(8).optional(),
+      avoidRecent: z.array(z.string().max(200)).max(12).optional(),
+      generateGenome: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runConceptTournament } = await import("../services/conceptTournament");
+      const { generateGenome, ...tournamentInput } = input;
+      return runConceptTournament(tournamentInput, { generateGenome });
+    }),
+
   /** Genome Wave 1: generate ONE claim-safe campaign genome + the seeds that
    *  drive today's reel/carousel/photo flows from it. */
   generateCampaignGenome: adminProcedure
