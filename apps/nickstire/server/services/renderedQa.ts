@@ -244,7 +244,19 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
     });
     const content = res.choices?.[0]?.message?.content;
     const text = typeof content === "string" ? content : "";
-    const parsed = JSON.parse(text.replace(/```(?:json)?/g, "").trim() || "{}");
+    // Gemini-flash wraps/pads JSON unpredictably (prose before, trailing junk
+    // after — both observed live on the 660002 retrigger). Extract the first
+    // BALANCED object; a truncated object still fails parse and stays an
+    // honest "skipped", never a fabricated verdict.
+    const cleaned = text.replace(/```(?:json)?/g, "").trim();
+    const start = cleaned.indexOf("{");
+    let depth = 0;
+    let end = -1;
+    for (let i = start; start >= 0 && i < cleaned.length; i++) {
+      if (cleaned[i] === "{") depth++;
+      else if (cleaned[i] === "}") { depth--; if (depth === 0) { end = i; break; } }
+    }
+    const parsed = JSON.parse(start >= 0 && end > start ? cleaned.slice(start, end + 1) : "{}");
     return clampVerdict(parsed, input.frames.length, "vision");
   } catch (err) {
     log.warn("vision critic unavailable — verdict skipped, not fabricated", {
@@ -270,9 +282,12 @@ export async function runRenderedQaOnJob(jobId: number): Promise<RenderedQaVerdi
     }
     const payload = JSON.parse(job.payload ?? "{}");
     const beats: Array<{ beatNumber: number; startSecond: number; endSecond: number }> = payload.storyboardBeats ?? [];
+    // /generated/* URLs are served FROM data/generated on disk — the old
+    // mapping dropped the data/ prefix, so the QA hook silently failed on
+    // EVERY prod assembly (found live retriggering 660002's verdict).
     const mp4Path = job.mp4Url.startsWith("/") || /^[A-Za-z]:/.test(job.mp4Url)
       ? job.mp4Url
-      : path.join(process.cwd(), job.mp4Url.replace(/^https?:\/\/[^/]+\//, ""));
+      : path.join(process.cwd(), "data", job.mp4Url.replace(/^https?:\/\/[^/]+\//, ""));
     const frames = await extractReelFrames(mp4Path, beats);
     const sheet = await buildContactSheet(frames, path.join(path.dirname(frames[0].path), "contact-sheet.jpg")).catch(() => undefined);
     const verdict = await evaluateRenderedReel({ frames, brief: payload });
