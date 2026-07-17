@@ -501,13 +501,16 @@
         "codeCommit": "nickstire/durable-approvals branch (this PR); EXTENDS the existing #780 hash-approval machinery (approve writes briefHash+mediaHash, publish recomputes+refuses) rather than rebuilding it",
         "tests": [
           "server/approvalExpiry.test.ts (expired refuses with distinct reason before hash work; live passes; legacy null-expiry allowed; hash mismatch independent) + server/__tests__/approval-integrity.test.ts (existing E2E, green)"
+        ],
+        "databaseAssertions": [
+          "0087 APPLIED+VERIFIED on prod 2026-07-17 (operator: run 0087): expires_at + policy_version columns present on social_content_approvals"
         ]
       },
       "blockers": [
         {
-          "severity": "P1",
-          "description": "0087 NOT applied - expires_at/policy_version columns absent on prod; writes would fail on unknown column until the operator runs apply-0087-approval-expiry.mts",
-          "source": "migration status"
+          "severity": "P2",
+          "description": "code deploys when #826 merges; until then prod approvals write without TTL (columns exist, nullable)",
+          "source": "deploy status"
         }
       ],
       "deferredScope": [
