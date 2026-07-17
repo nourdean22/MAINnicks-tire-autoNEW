@@ -22,10 +22,11 @@ interface DraftCardProps {
   onUpdateDate: (date: string) => void;
   onUpdateNotes: (notes: string) => void;
   onOpenPublish: () => void;
+  onRenderSlides?: () => void;
   onOpenStudio: () => void;
 }
 
-export default function DraftCard({ draft, onUpdateStatus, onUpdateDate, onUpdateNotes, onOpenPublish, onOpenStudio }: DraftCardProps) {
+export default function DraftCard({ draft, onUpdateStatus, onUpdateDate, onUpdateNotes, onOpenPublish, onOpenStudio, onRenderSlides }: DraftCardProps) {
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [isEditingDate, setIsEditingDate] = useState(false);
   const [newDate, setNewDate] = useState(draft.plannedDate || "");
@@ -232,6 +233,16 @@ export default function DraftCard({ draft, onUpdateStatus, onUpdateDate, onUpdat
             <ExternalLink className="w-3 h-3" />
             Open Studio
           </button>
+          {draft.contentType === "carousel" && onRenderSlides && (
+            <button
+              onClick={onRenderSlides}
+              className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-semibold rounded border border-border/30 text-foreground/60 hover:text-foreground hover:border-primary/40 transition-all"
+              title="Render designed 4:5 slides (deterministic typography)"
+            >
+              <Play className="w-3 h-3" />
+              Render slides
+            </button>
+          )}
         </div>
 
         {draft.status === "needs_review" && (
