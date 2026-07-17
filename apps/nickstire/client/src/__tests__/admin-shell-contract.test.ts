@@ -1,9 +1,13 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+// Resolve from the vitest root (apps/nickstire), NOT import.meta.url: this
+// suite runs under jsdom where import.meta.url is an http:// URL, so
+// fileURLToPath threw "The URL must be of scheme file" and the WHOLE suite
+// failed at collection - the repo-wide red test since the admin waves.
 const adminSource = readFileSync(
-  fileURLToPath(new URL("../pages/Admin.tsx", import.meta.url)),
+  resolve(process.cwd(), "client/src/pages/Admin.tsx"),
   "utf8",
 );
 
