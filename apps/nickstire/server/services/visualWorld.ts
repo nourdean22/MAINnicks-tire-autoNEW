@@ -87,11 +87,14 @@ export interface ReferenceFrameCandidate {
  * that fail generation are dropped with a warning rather than failing the
  * whole set; zero successes throws so the UI fails loud.
  */
-export async function generateReferenceFrames(brief: VisualWorldBriefInput): Promise<ReferenceFrameCandidate[]> {
+export async function generateReferenceFrames(
+  brief: VisualWorldBriefInput,
+  styles: readonly VisualWorldStyle[] = VISUAL_WORLD_STYLES,
+): Promise<ReferenceFrameCandidate[]> {
   const { generateCarouselSlideImage } = await import("./higgsfieldStudio");
-  // Ledger: reserve the 3-image spend up front, settle with the actual
-  // success count after. Per-invocation action id — frame batches are not
-  // retried under one identity, so idempotency is per batch.
+  // Ledger: reserve the image spend up front (one call per requested style),
+  // settle with the actual success count after. Per-invocation action id —
+  // frame batches are not retried under one identity, so idempotency is per batch.
   const { reserve, settle, release, COST_ESTIMATES_USD } = await import("./generationLedger");
   const { getActivePolicy } = await import("./autonomyControl");
   const actionId = `ref_frames_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -101,11 +104,11 @@ export async function generateReferenceFrames(brief: VisualWorldBriefInput): Pro
     provider: "higgsfield",
     model: "gpt_image_2",
     operation: "reference_frames",
-    estimatedCostUsd: VISUAL_WORLD_STYLES.length * COST_ESTIMATES_USD.gpt_image_2,
+    estimatedCostUsd: styles.length * COST_ESTIMATES_USD.gpt_image_2,
     dailyBudgetUsd: policy.limits.maxGenerationCostPerDayUsd,
   });
   const results = await Promise.allSettled(
-    VISUAL_WORLD_STYLES.map(async (style) => {
+    styles.map(async (style) => {
       const framePrompt = buildReferenceFramePrompt(brief, style);
       const url = await generateCarouselSlideImage({ prompt: framePrompt, aspectRatio: "9:16" });
       return {
@@ -126,7 +129,7 @@ export async function generateReferenceFrames(brief: VisualWorldBriefInput): Pro
     throw new Error(`All reference-frame candidates failed: ${failures[0]?.reason instanceof Error ? failures[0].reason.message : "unknown"}`);
   }
   await settle(actionId, frames.length * COST_ESTIMATES_USD.gpt_image_2);
-  log.info("reference frames generated", { requested: VISUAL_WORLD_STYLES.length, succeeded: frames.length });
+  log.info("reference frames generated", { requested: styles.length, succeeded: frames.length });
   return frames;
 }
 
@@ -138,4 +141,49 @@ export function visualWorldFromCandidate(candidate: ReferenceFrameCandidate): Re
     framePrompt: candidate.framePrompt,
     lockedInvariants: candidate.lockedInvariants,
   };
+}
+
+/** Lowest-risk look for UNATTENDED posting — credible documentary realism,
+ *  not the bold/experimental styles an operator might pick with an eye on it. */
+const AUTONOMOUS_WORLD_STYLE: VisualWorldStyle = "safe";
+
+/**
+ * Give an AUTONOMOUS (cron / manufacturing) reel a visual-continuity anchor.
+ *
+ * The audit gap (#8): only the operator Studio path attaches a Visual World, so
+ * every daily reel generates independent beats with no shared identity — the
+ * baseline drift defect the whole long-haul set out to kill. When
+ * REEL_AUTO_VISUAL_WORLD is on and the brief has no operator-approved world,
+ * generate ONE "safe" reference frame and attach it: its locked invariants then
+ * flow into every beat prompt (buildReelContinuityBlock prefers them), and if
+ * REEL_IMAGE_CONDITIONING is also on, heroFrameUrl anchors --start-image.
+ *
+ * COST: one gpt_image_2 call per reel when enabled — hence default OFF ($0
+ * until the operator flips the flag). Failure is NON-FATAL: the reel proceeds
+ * text-only, never blocked.
+ *
+ * KNOWN LIMIT (audit #11): the auto-selected frame is not yet vision-audited
+ * for defects before use — a bad anchor would propagate to every beat. That
+ * guard + a live --start-image render are the gates before this ships ON in
+ * prod. Until then the flag stays OFF and this is dead-safe wiring.
+ */
+export async function attachAutonomousVisualWorld(brief: ReelBrief): Promise<ReelBrief> {
+  if (process.env.REEL_AUTO_VISUAL_WORLD !== "true") return brief;
+  if (brief.visualWorld?.lockedInvariants?.trim()) return brief; // already anchored (operator path)
+  try {
+    const [candidate] = await generateReferenceFrames(brief, [AUTONOMOUS_WORLD_STYLE]);
+    if (!candidate) {
+      log.warn("autonomous visual world skipped — no candidate frame", { briefId: brief.id });
+      return brief;
+    }
+    brief.visualWorld = visualWorldFromCandidate(candidate);
+    log.info("autonomous visual world attached", { briefId: brief.id, style: candidate.style });
+    return brief;
+  } catch (err) {
+    log.warn("autonomous visual world generation failed — reel proceeds text-only", {
+      briefId: brief.id,
+      err: err instanceof Error ? err.message.slice(0, 160) : String(err),
+    });
+    return brief;
+  }
 }

@@ -24,6 +24,7 @@ import { shopSettings, reelJobs } from "../../../drizzle/schema";
 import { BUSINESS } from "@shared/business";
 import { generateReelBriefAI } from "../../services/reelBriefGen";
 import { enqueueReelJob } from "../../services/reelPipeline";
+import { attachAutonomousVisualWorld } from "../../services/visualWorld";
 import { buildHiggsfieldReelPromptPack } from "../../../client/src/lib/facelessReelStudio";
 import { publishToSocial } from "../../services/socialPublish";
 
@@ -162,16 +163,17 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     log.info(`Generating fresh dynamic storyboard brief for topic: "${topic}"`);
     const { brief } = await generateReelBriefAI({ topic });
     
-    // Set unique briefId and build Higgsfield prompt pack
+    // Set unique briefId, attach an autonomous visual-world anchor (flag-gated
+    // REEL_AUTO_VISUAL_WORLD, default OFF — no-op + zero cost until enabled),
+    // then build the prompt pack so beats carry its locked invariants.
     brief.id = briefId;
+    await attachAutonomousVisualWorld(brief);
     brief.higgsfieldPromptPack = buildHiggsfieldReelPromptPack(brief);
 
-    // Enqueue background generation.
-    // NOTE (image conditioning / milestone 6): this autonomous brief has NO
-    // visualWorld, so brief.visualWorld?.heroFrameUrl is undefined and every
-    // cron reel renders text-only regardless of REEL_IMAGE_CONDITIONING. The
-    // --start-image identity anchor is OPERATOR-PATH-ONLY (Studio ref-frame
-    // approval) until a reference frame is auto-generated + auto-selected here.
+    // Enqueue background generation. With the anchor flag on, this cron reel
+    // now carries a hero-frame continuity anchor (locked invariants in every
+    // beat + optional --start-image); with it off it renders text-only exactly
+    // as before.
     const { jobId } = await enqueueReelJob(brief, "cron");
     log.info(`Enqueued new dynamic reel job: ${jobId} for briefId: ${briefId}`);
     return { recordsProcessed: 0, details: `Enqueued new dynamic reel job (ID: ${jobId}) for today` };

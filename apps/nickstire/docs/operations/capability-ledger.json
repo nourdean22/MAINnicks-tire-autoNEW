@@ -627,6 +627,33 @@
     {
       "owner": "system",
       "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [
+        "vision defect-audit of the auto-selected anchor before use (audit #11)",
+        "live --start-image render proof before enabling in prod",
+        "cost-tune (currently 1 gpt_image_2 per reel when enabled)"
+      ],
+      "capabilityId": "autonomous-visual-world-anchor",
+      "name": "Autonomous (cron) reel visual-continuity anchor (flag-gated)",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "attachAutonomousVisualWorld + REEL_AUTO_VISUAL_WORLD (wired into dailyReelPost + contentManufacturing cron enqueue)",
+        "tests": [
+          "server/visualWorld.test.ts: flag-OFF no-op (0 image calls); flag-ON attaches 'safe' world (1 image call, not 3); operator-approved world untouched; generation-failure graceful text-only passthrough; generateReferenceFrames styles-subset cost control"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "auto-selected anchor is not yet vision-audited for defects before use (audit #11) — a defective anchor would propagate to every beat; flag stays OFF until that guard plus a live --start-image render land",
+          "source": "reel-defect-rootcause-audit wf_6160d3c8-c33"
+        }
+      ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
       "deferredScope": [],
       "capabilityId": "source-clip-analysis",
       "name": "Edit-planner source-clip analysis (freeze/motion/brightness)",

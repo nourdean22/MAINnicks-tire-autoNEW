@@ -996,9 +996,13 @@ export async function runManufacturingPipeline(
             log.info("Generating Reel Brief and Enqueueing Job...");
             const { generateReelBriefAI } = await import("./reelBriefGen");
             const { enqueueReelJob } = await import("./reelPipeline");
+            const { attachAutonomousVisualWorld } = await import("./visualWorld");
 
             const { brief } = await generateReelBriefAI({ topic });
             brief.id = draftId;
+            // Flag-gated (REEL_AUTO_VISUAL_WORLD, default OFF) continuity anchor;
+            // no-op + zero cost until enabled, non-fatal on failure.
+            await attachAutonomousVisualWorld(brief);
 
             const { jobId } = await enqueueReelJob(brief, "cron");
 
