@@ -9,7 +9,7 @@
  * copy buttons, not retyping.
  */
 import { useState } from "react";
-import { Loader2, Sparkles, Copy, Check, Trophy, Dna } from "lucide-react";
+import { Loader2, Sparkles, Copy, Check, Trophy, Dna, Clapperboard, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,14 @@ export default function CampaignPackageCard() {
 
   const tournament = trpc.contentAdmin.runConceptTournament.useMutation({
     onError: (e) => toast.error("Campaign generation failed", { description: e.message }),
+    onSuccess: () => reelDraft.reset(),
+  });
+  const reelDraft = trpc.contentAdmin.draftReelFromGenome.useMutation({
+    onError: (e) => toast.error("Reel draft failed", { description: e.message }),
+  });
+  const enqueue = trpc.contentAdmin.enqueueReelJob.useMutation({
+    onSuccess: () => toast.success("Reel render enqueued", { description: "Review it in the Queue when it reaches review-ready." }),
+    onError: (e) => toast.error("Enqueue failed", { description: e.message }),
   });
   const result = tournament.data;
   const territoryLabel = result?.genome
@@ -115,8 +123,64 @@ export default function CampaignPackageCard() {
             {result.seeds?.reel && (
               <p className="text-xs text-muted-foreground">
                 Reel suggestion: {result.seeds.reel.archetype} · {result.seeds.reel.motionLens} — paste the seed into the
-                Reel wizard's context box (Manual Idea source).
+                Reel wizard's context box (Manual Idea source), or draft directly below.
               </p>
+            )}
+
+            {result.genome && (
+              <div className="space-y-3 rounded-lg border border-border/40 bg-muted/20 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Clapperboard className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold">Reel Director</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={reelDraft.isPending}
+                    onClick={() => reelDraft.mutate({ genome: result.genome })}
+                  >
+                    {reelDraft.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+                    {reelDraft.isPending ? "Drafting full brief..." : reelDraft.data ? "Redraft" : "Draft reel brief"}
+                  </Button>
+                </div>
+                {reelDraft.data && (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={reelDraft.data.qualityScore.passing ? "default" : "destructive"}>
+                        {reelDraft.data.qualityScore.overall}/75 {reelDraft.data.qualityScore.passing ? "PASS" : "BELOW GATE"}
+                      </Badge>
+                      <Badge variant="outline">{reelDraft.data.brief.storyboardBeats?.length ?? 0} beats</Badge>
+                      <Badge variant="outline">DM "{reelDraft.data.brief.campaignKeyword}"</Badge>
+                      <Badge variant="outline">{reelDraft.data.brief.motionLens}</Badge>
+                    </div>
+                    <p className="text-sm">{reelDraft.data.brief.topic}</p>
+                    {reelDraft.data.brief.voiceoverScript && (
+                      <p className="text-xs text-muted-foreground">VO: {reelDraft.data.brief.voiceoverScript}</p>
+                    )}
+                    <Button
+                      size="sm"
+                      disabled={enqueue.isPending || enqueue.isSuccess || !reelDraft.data.qualityScore.passing}
+                      onClick={() => {
+                        const b = reelDraft.data.brief;
+                        enqueue.mutate({
+                          brief: {
+                            ...b,
+                            sourceType: "manual" as const,
+                            sourceOrigin: "campaign_package",
+                          },
+                        });
+                      }}
+                    >
+                      {enqueue.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1.5 h-3.5 w-3.5" />}
+                      {enqueue.isSuccess ? "Enqueued — review in Queue" : "Enqueue render (uses provider credits)"}
+                    </Button>
+                    {!reelDraft.data.qualityScore.passing && (
+                      <p className="text-xs text-destructive">
+                        Below the 70/75 gate — redraft, or refine in the Advanced Reel Studio instead.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

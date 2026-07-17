@@ -1,0 +1,139 @@
+/**
+ * Reel Director — Genome Wave 2, slice 1.
+ *
+ * The first format director: turns ONE campaign genome into a full,
+ * quality-scored ReelBrief through the EXISTING generator (master prompt +
+ * critic + evidence engine + performance feedback), replacing the copy-paste
+ * seed-string handoff from Wave 1. The genome constrains the generation —
+ * topic, suggested archetype, campaign keyword, and a constraint block in
+ * sourceDetail — but the generator keeps its own craft (beats, VO, captions).
+ *
+ * Deliberately NO new prompt machinery: the director maps genome -> the
+ * generator's existing input contract. Rendering stays behind the operator's
+ * explicit enqueue tap; publishing stays behind the approve gate.
+ */
+import {
+  CAMPAIGN_KEYWORDS,
+  calculateReelQualityScore,
+  type CampaignKeyword,
+  type QualityScoreResult,
+  type ReelBrief,
+} from "../../client/src/lib/facelessReelStudio";
+import { genomeToReelSeed, type CreativeGenome } from "../../client/src/lib/creativeGenome";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("services:reel-director");
+
+/**
+ * Extract the campaign keyword the genome asks for. Priority:
+ * 1. An explicit `DM "X"` in desiredAction where X is a registry keyword.
+ * 2. Any registry keyword mentioned anywhere in the genome's text fields
+ *    (longest match first, so TIRES doesn't shadow a more specific ask).
+ * Returns undefined when nothing matches — the generator then picks its own.
+ */
+export function campaignKeywordFromGenome(genome: CreativeGenome): CampaignKeyword | undefined {
+  const dmMatch = genome.desiredAction.match(/DM\s+["']?([A-Za-z]+)["']?/i);
+  if (dmMatch) {
+    const candidate = dmMatch[1].toUpperCase();
+    if ((CAMPAIGN_KEYWORDS as readonly string[]).includes(candidate)) return candidate as CampaignKeyword;
+  }
+  const haystack = [
+    genome.audienceMoment,
+    genome.driverTension,
+    genome.mechanicTruth,
+    genome.visualMetaphor,
+    genome.desiredAction,
+  ]
+    .join(" ")
+    .toUpperCase();
+  const byLength = [...CAMPAIGN_KEYWORDS].sort((a, b) => b.length - a.length);
+  for (const kw of byLength) {
+    if (new RegExp(`\\b${kw}\\b`).test(haystack)) return kw;
+  }
+  return undefined;
+}
+
+/**
+ * The genome's creative constraints, packed into the generator's existing
+ * sourceDetail channel (1000-char budget on the endpoint). This is how the
+ * campaign's shared metaphor, emotional turn, and signature reach the brief
+ * without new prompt-builder surgery.
+ */
+export function genomeConstraintBlock(genome: CreativeGenome): string {
+  const seed = genomeToReelSeed(genome);
+  const proof = genome.proprietaryProof.length
+    ? `Proof handles: ${genome.proprietaryProof.slice(0, 3).join("; ")}.`
+    : "";
+  return [
+    `CAMPAIGN GENOME CONSTRAINTS (this reel is one format of a multi-format campaign):`,
+    `Shared visual metaphor: ${genome.visualMetaphor}.`,
+    `Emotional turn: ${genome.emotionalTurn}.`,
+    `Nick signature: ${genome.nickSignature}.`,
+    `Cleveland angle: ${genome.clevelandAngle}.`,
+    `Desired action: ${genome.desiredAction}.`,
+    `Suggested motion lens: ${seed.motionLens}.`,
+    proof,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, 1000);
+}
+
+/**
+ * Attach the genome's operator-supplied proof handles as PROOF source notes
+ * when the model emitted none. Live runs showed the model (correctly) refuses
+ * to fabricate evidence when the evidence engine finds nothing for the topic —
+ * but the genome already CARRIES the campaign's proof handles (tournament
+ * proofHandles / operator input), the same trust level as the operator typing
+ * them into the wizard's source-notes field. Deterministic, never overrides
+ * model-found proof, no-op for proofless genomes.
+ */
+export function withGenomeProof(brief: ReelBrief, genome: CreativeGenome): ReelBrief {
+  if (genome.proprietaryProof.length === 0) return brief;
+  if (brief.sourceNotes.some((s) => s.kind === "proof")) return brief;
+  return {
+    ...brief,
+    sourceNotes: [
+      ...brief.sourceNotes,
+      ...genome.proprietaryProof.slice(0, 2).map((label) => ({
+        label: label.slice(0, 200),
+        kind: "proof" as const,
+        supports: genome.mechanicTruth.slice(0, 200),
+      })),
+    ],
+  };
+}
+
+export interface DraftReelFromGenomeResult {
+  brief: ReelBrief;
+  qualityScore: QualityScoreResult;
+  campaignKeyword: CampaignKeyword | undefined;
+}
+
+/**
+ * Genome -> full ReelBrief via the existing generator. Generation only:
+ * no render, no enqueue, no posting.
+ */
+export async function draftReelFromGenome(genome: CreativeGenome): Promise<DraftReelFromGenomeResult> {
+  const seed = genomeToReelSeed(genome);
+  const campaignKeyword = campaignKeywordFromGenome(genome);
+  const { generateReelBriefAI } = await import("./reelBriefGen");
+  const { brief: rawBrief } = await generateReelBriefAI({
+    topic: seed.topic,
+    archetype: seed.archetype,
+    campaignKeyword,
+    sourceType: "manual",
+    sourceDetail: genomeConstraintBlock(genome),
+  });
+  const brief = withGenomeProof(rawBrief, genome);
+  if (brief !== rawBrief) log.info("genome proof handles attached as source notes", { count: genome.proprietaryProof.length });
+  const qualityScore = calculateReelQualityScore(brief);
+  log.info("reel drafted from genome", {
+    territory: genome.creativeTerritory,
+    archetype: seed.archetype,
+    campaignKeyword: campaignKeyword ?? "(generator's choice)",
+    score: qualityScore.overall,
+    passing: qualityScore.passing,
+  });
+  return { brief, qualityScore, campaignKeyword };
+}

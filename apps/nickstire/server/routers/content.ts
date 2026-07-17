@@ -335,6 +335,20 @@ export const contentAdminRouter = router({
       };
     }),
 
+  /** Genome Wave 2: Reel Director — one campaign genome -> a full
+   *  quality-scored ReelBrief via the existing generator. Generation only;
+   *  rendering stays behind the operator's explicit enqueueReelJob tap. The
+   *  genome arrives inline (not by id) so this works before drizzle/0085 is
+   *  applied and directly from a just-run tournament result. */
+  draftReelFromGenome: adminProcedure
+    .input(z.object({ genome: z.unknown() }))
+    .mutation(async ({ input }) => {
+      const { creativeGenomeSchema } = await import("../../client/src/lib/creativeGenome");
+      const genome = creativeGenomeSchema.parse(input.genome);
+      const { draftReelFromGenome } = await import("../services/reelDirector");
+      return draftReelFromGenome(genome);
+    }),
+
   /** Genome Wave 1: generate ONE claim-safe campaign genome + the seeds that
    *  drive today's reel/carousel/photo flows from it. */
   generateCampaignGenome: adminProcedure
