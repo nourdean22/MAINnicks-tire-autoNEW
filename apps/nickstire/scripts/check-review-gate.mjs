@@ -38,9 +38,14 @@ export function classifyReviewState(pr, opts = {}) {
   }
 
   const reviews = pr.reviews?.nodes ?? [];
+  // Only STATE-BEARING reviews (APPROVED / CHANGES_REQUESTED) update an
+  // author's standing — GitHub keeps a requested-changes state active until
+  // the same author approves or dismisses; a later plain COMMENTED review
+  // must never erase it (gated assessment P2, confirmed).
   const latestByAuthor = new Map();
   for (const r of reviews) {
     if (!r.author?.login) continue;
+    if (r.state !== "APPROVED" && r.state !== "CHANGES_REQUESTED") continue;
     latestByAuthor.set(r.author.login, r);
   }
   for (const r of latestByAuthor.values()) {

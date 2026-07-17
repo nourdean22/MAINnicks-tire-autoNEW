@@ -75,20 +75,24 @@ export async function resolveEvidenceRecords(
 ): Promise<EvidenceRecordResolution> {
   const { resolved, rejected } = await resolveEvidenceHandles(handles);
   const now = Date.now();
+  // Snapshots run CONCURRENTLY (gated assessment P2, confirmed: the serial
+  // loop stacked up to 8×6s of timeout inside an operator-facing request).
+  // Each fetch already fails soft into fetch_blocked; Promise.all is safe.
+  const snaps = await Promise.all(
+    resolved.map(async (r) => {
+      if (r.origin === "db" || opts.snapshot === false) return null;
+      const url = r.assertion.match(/\((https?:\/\/[^)]+)\)\s*$/)?.[1];
+      return url ? snapshotUrl(url) : null;
+    }),
+  );
   const records: EvidenceRecord[] = [];
-  for (const r of resolved) {
+  for (let i = 0; i < resolved.length; i++) {
+    const r = resolved[i];
     const isDb = r.origin === "db";
     const ttlDays = isDb ? EVIDENCE_TTL_DAYS.db : EVIDENCE_TTL_DAYS.public_family;
-    let snapshotHash: string | null = null;
-    let snapshotStatus: EvidenceRecord["snapshotStatus"] = isDb ? "db_row" : "not_attempted";
-    if (!isDb && opts.snapshot !== false) {
-      const url = r.assertion.match(/\((https?:\/\/[^)]+)\)\s*$/)?.[1];
-      if (url) {
-        const snap = await snapshotUrl(url);
-        snapshotHash = snap.hash;
-        snapshotStatus = snap.status;
-      }
-    }
+    const snap = snaps[i];
+    const snapshotHash: string | null = snap?.hash ?? null;
+    const snapshotStatus: EvidenceRecord["snapshotStatus"] = isDb ? "db_row" : snap ? snap.status : "not_attempted";
     records.push({
       id: `evr_${createHash("sha256").update(`${r.handle}|${claim}`).digest("hex").slice(0, 16)}`,
       handle: r.handle,
