@@ -1,7 +1,7 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` on 2026-07-11  
+**Verified against:** `main` on 2026-07-17  
 **Owner:** Nick's Tire & Auto operator
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
@@ -75,6 +75,7 @@ A transcript classification, tool invocation, direction instruction, transfer at
 - Lead, callback and booking persistence
 - ShopDriver invoice/customer synchronization where configured
 - Selected internal alerts and recovery workflows
+- Reel manufacturing: cron-pulsed clip generation (Higgsfield Seedance 1.5) and ffmpeg assembly with a blocking render-integrity gate (duration contract, video-stream length, frame count, sampled-frame motion proof) — operational contract in [`docs/operations/REEL-PIPELINE.md`](operations/REEL-PIPELINE.md); publish remains operator-gated
 
 Automation success is valid only when the final system of record confirms the action.
 
@@ -82,6 +83,7 @@ Automation success is valid only when the final system of record confirms the ac
 
 - Applying SEO copy changes to source
 - Publishing generated content or GBP material
+- Approving and publishing reels (Queue -> Reels & legacy drafts -> Approve, hash-sealed via approveDraft/publishPost; verified live 2026-07-17 with IG posts 18018908711883906 and 17877918753617173)
 - Approving and publishing Instagram Studio V2 drafts — server-owned quality gate (review/declined-work require a verified DB record), deterministic HTML→JPEG render, and an explicit approve → schedule/publish step; nothing posts without operator action (`server/services/instagramStudio.ts`, `server/routers/instagramStudio.ts`)
 - Pushing VAPI prompt/configuration changes
 - Resolving weak invoice or customer matches
