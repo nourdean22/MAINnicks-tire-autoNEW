@@ -1054,6 +1054,8 @@ Keep it under 200 characters.`;
       scheduledAt: z.string().datetime(),
     }))
     .mutation(async ({ input }) => {
+      // P1 fix: captured so the schedule-time check below can compare the PUBLICATION time against the approval TTL
+      let scheduledApprovalExpiresAt: Date | null = null;
       const database = await db();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
@@ -1120,6 +1122,7 @@ Keep it under 200 characters.`;
                 message: "Approval EXPIRED - re-approve this content before publishing (approvals authorize for a limited window).",
               });
             }
+            scheduledApprovalExpiresAt = approval.expiresAt ? new Date(approval.expiresAt) : null;
             if (currentBriefHash !== approval.briefHash || currentMediaHash !== approval.mediaHash) {
               throw new TRPCError({
                 code: "BAD_REQUEST",
@@ -1153,6 +1156,16 @@ Keep it under 200 characters.`;
       const when = new Date(input.scheduledAt);
       if (when.getTime() <= Date.now()) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Scheduled time must be in the future." });
+      }
+      // P1 (gated assessment, confirmed): expiry was checked at NOW but never
+      // against the PUBLICATION time — a post scheduled past its approval's
+      // TTL would fire from the worker with an approval that had already
+      // lapsed. The human authorization must cover the moment of publish.
+      if (scheduledApprovalExpiresAt && when.getTime() > scheduledApprovalExpiresAt.getTime()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Scheduled time falls AFTER this approval expires (${scheduledApprovalExpiresAt.toISOString()}). Schedule earlier or re-approve closer to the publish window.`,
+        });
       }
       
       const { scheduledPosts, socialContentInventory } = await import("../../drizzle/schema");
