@@ -25,6 +25,13 @@ Updated: 2026-07-17T13:45Z · branch `nickstire/creative-quality-lh` off main `4
 | M-404 | /generated misses answer 404, not SPA HTML | implemented (post-deploy probe owed) |
 | M4 | Real QA→repair→archive trajectory | blocked (deploy + 0088 tap + Drive consent + credits) |
 
+## Review gate — first live catches (2026-07-17, PR #828)
+
+The gate's first-ever real PR-event runs produced three findings, all fixed on-branch:
+1. Workflow token lacked `pull-requests: read` → FORBIDDEN (permissions block added).
+2. Even then, the query's `statusCheckRollup` field needs `checks: read` and one forbidden field NULLS the whole response → field no longer requested in `--skip-ci-check` mode.
+3. **The gate then caught a REAL P2**: apply-0088's comment filter silently dropped the first CREATE TABLE (media_assets would never have been created on prod). Fixed + proven on a bare dev db (both tables, 32/5 cols); thread resolved with evidence.
+
 ## Last verified commit / suite
 
-- Base: `4b9d3cac0` (suite 2031 passed / 0 failed at #827 gate).
+- Base: `4b9d3cac0` (suite 2031/0 at #827 gate). Branch suite: **2051 passed / 0 failed** after audio milestone.
