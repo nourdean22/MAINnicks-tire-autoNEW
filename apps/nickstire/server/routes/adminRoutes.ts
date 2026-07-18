@@ -185,14 +185,14 @@ export function registerAdminRoutes(app: Express): void {
         if (job.status !== "assembled") { res.status(409).json({ error: `job not assembled (status=${job.status})` }); return; }
         if (!job.mp4Url) { res.status(409).json({ error: "job has no mp4Url" }); return; }
 
-        // M11 gate ENFORCED at publish: re-run rendered QA and refuse a
-        // non-"proceed" gate unless the operator explicitly forces (audited).
-        const { runRenderedQaOnJob } = await import("../services/renderedQa");
-        const { orchestratePostQa } = await import("../services/postQaOrchestrator");
-        const verdict = await runRenderedQaOnJob(jobId);
-        const publishGate = verdict ? orchestratePostQa(verdict.findings).publishGate : "unknown";
-        if (publishGate !== "proceed" && !force) {
-          res.status(412).json({ error: "M11 publish gate did not return proceed", publishGate, findings: verdict?.findings ?? [], hint: "pass force=true to override (audited)" });
+        // M11 gate ENFORCED at publish via the CONSOLIDATED gate (same one the
+        // autonomous doors use). Refuse a real non-"proceed" gate unless the
+        // operator explicitly forces. QA-unavailable is allowed (g.allowed=true).
+        const { evaluateReelPublishGate } = await import("../services/qualityGate");
+        const g = await evaluateReelPublishGate(jobId);
+        const publishGate = g.gate;
+        if (!g.allowed && !force) {
+          res.status(412).json({ error: "rendered-QA publish gate did not return proceed", publishGate, findings: g.findings, reason: g.reason, hint: "pass force=true to override" });
           return;
         }
 
