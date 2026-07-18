@@ -212,13 +212,33 @@ export async function enqueueReelJob(
   const caption = brief.selectedCaption
     ? `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim().slice(0, 2200)
     : null;
-  const res = await d.insert(reelJobs).values({
-    briefId: String(brief.id ?? "unknown"),
-    payload: JSON.stringify(brief),
-    status: "queued",
-    caption,
-    source,
-  });
+  // Compensation boundary: the content reservation was created above. If THIS
+  // insert throws (constraint, connection, an oversized field), release the
+  // reserved slot before rethrowing so it doesn't leak and eat the feed
+  // cap/spacing for a reel that will never exist. (MEDIUMTEXT fixed one cause of
+  // the insert failure; this closes the boundary for any cause.)
+  let res;
+  try {
+    res = await d.insert(reelJobs).values({
+      briefId: String(brief.id ?? "unknown"),
+      payload: JSON.stringify(brief),
+      status: "queued",
+      caption,
+      source,
+    });
+  } catch (insertErr) {
+    const resId = (brief as { contentReservationId?: string }).contentReservationId;
+    if (resId) {
+      try {
+        const { releaseReservation } = await import("./contentGovernor");
+        await releaseReservation(resId);
+        log.warn("released content reservation after reel_jobs insert failure", { resId });
+      } catch (relErr) {
+        log.error("failed to release reservation after insert failure — slot may leak", { resId, err: relErr instanceof Error ? relErr.message : String(relErr) });
+      }
+    }
+    throw insertErr;
+  }
   const jobId = Number(
     (res as unknown as { insertId?: number })?.insertId ??
       (res as unknown as Array<{ insertId?: number }>)?.[0]?.insertId ??

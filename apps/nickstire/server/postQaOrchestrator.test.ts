@@ -1,7 +1,8 @@
 /**
  * Post-QA orchestrator (Creative Compiler 2.0 Milestone 11) — wires the
  * rendered-QA findings -> repair router -> quality automation -> publish gate.
- * REQUEST_OPERATOR_DECISION maps to needs_operator_override (the M1 override).
+ * REQUEST_OPERATOR_DECISION maps to needs_paid_repair (a rendered block → paid
+ * repair; publish held, NOT a publish-override — the M1 override refuses blocks).
  */
 import { describe, it, expect } from "vitest";
 import { orchestratePostQa, publishGateForDecision } from "./services/postQaOrchestrator";
@@ -16,7 +17,7 @@ describe("publishGateForDecision maps every automation decision", () => {
     expect(publishGateForDecision("PROCEED")).toBe("proceed");
     expect(publishGateForDecision("PROCEED_WITH_WARNING")).toBe("proceed");
     expect(publishGateForDecision("REPAIR_AUTOMATICALLY")).toBe("auto_repair");
-    expect(publishGateForDecision("REQUEST_OPERATOR_DECISION")).toBe("needs_operator_override");
+    expect(publishGateForDecision("REQUEST_OPERATOR_DECISION")).toBe("needs_paid_repair");
     expect(publishGateForDecision("PAUSE_FOR_MISSING_EVIDENCE")).toBe("pause");
     expect(publishGateForDecision("PAUSE_FOR_PROVIDER")).toBe("pause");
     expect(publishGateForDecision("REJECT_OUTPUT")).toBe("reject");
@@ -36,9 +37,9 @@ describe("orchestratePostQa (QA -> repair -> automation -> gate)", () => {
     expect(o.publishGate).toBe("proceed");
   });
 
-  it("a pixel block (paid regen) -> needs_operator_override; the repair plan is paid", () => {
+  it("a pixel block (paid regen) -> needs_paid_repair; the repair plan is paid", () => {
     const o = orchestratePostQa([finding("GENERATED_TEXT_ARTIFACT", "block")]);
-    expect(o.publishGate).toBe("needs_operator_override");
+    expect(o.publishGate).toBe("needs_paid_repair");
     expect(o.repairPlan.paidRegenerations).toBe(1);
     expect(o.repairPlan.deterministicFixes).toBe(0);
   });

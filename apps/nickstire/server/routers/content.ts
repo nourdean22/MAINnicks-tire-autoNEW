@@ -472,7 +472,7 @@ export const contentAdminRouter = router({
       if (!verdict) throw new TRPCError({ code: "BAD_REQUEST", message: "Rendered QA could not run (job missing, no mp4, or extraction failed) — see server logs." });
       // M11: wire QA -> repair router -> quality automation -> publish gate so the
       // endpoint returns the actual decision (proceed / auto_repair /
-      // needs_operator_override / pause / reject), not just raw findings.
+      // needs_paid_repair / pause / reject), not just raw findings.
       const { orchestratePostQa } = await import("../services/postQaOrchestrator");
       const outcome = orchestratePostQa(verdict.findings);
       return { ...verdict, automation: outcome.verdict, repairPlan: outcome.repairPlan, publishGate: outcome.publishGate };

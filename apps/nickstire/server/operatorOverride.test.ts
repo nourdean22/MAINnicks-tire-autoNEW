@@ -24,7 +24,7 @@ function makeDb() {
   };
   const db = {
     insert: () => ({ values: async (row: Record<string, unknown>) => { state.inserted.push(row); return [{ affectedRows: 1 }]; } }),
-    select: () => ({ from: () => ({ where: () => ({ limit: async () => state.selectResult }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: async () => state.selectResult }) }) }) }),
     update: () => ({ set: (vals: Record<string, unknown>) => ({ where: async () => { state.updated.push(vals); return [{ affectedRows: state.updateAffected }]; } }) }),
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -107,7 +107,7 @@ describe("consumeOverrideForPublish", () => {
 
   it("is deploy-safe: a select error (table pending 0089) yields 'none', never throws", async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = { select: () => ({ from: () => ({ where: () => ({ limit: async () => { throw new Error("Table 'operator_quality_overrides' doesn't exist"); } }) }) }) } as any;
+    const db = { select: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ limit: async () => { throw new Error("Table 'operator_quality_overrides' doesn't exist"); } }) }) }) }) } as any;
     const c = await consumeOverrideForPublish(db, { inventoryId: "inv_1", assetVersion: 3, currentContentHash: "media_hash", currentBriefHash: "brief_hash" });
     expect(c).toEqual({ ok: false, reason: "none" });
   });
