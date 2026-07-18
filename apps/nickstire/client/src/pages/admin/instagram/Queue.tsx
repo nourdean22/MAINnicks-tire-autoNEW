@@ -12,6 +12,9 @@ type DraftStatus = "needs_review" | "ready" | "scheduled" | "published" | "rejec
 export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<DraftStatus | "all">("all");
+  /** Draft whose publish was refused by the quality gate, awaiting an operator decision. */
+  const [blockedDraft, setBlockedDraft] = useState<{ id: string; version: number; reason: string } | null>(null);
+  const [overrideReason, setOverrideReason] = useState("");
 
   const { data: drafts, isLoading, refetch } = trpc.instagramAdmin.getAllDrafts.useQuery();
 
@@ -20,9 +23,49 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
       toast.success("Published Successfully!");
       refetch();
     },
-    onError: (err) => {
+    onError: (err, vars) => {
+      // The quality gate refuses on ADVISORY findings too, and until now that was
+      // a dead end: an error toast and no way forward. createQualityOverride has
+      // existed (session-authed) the whole time with no caller. Offer it here.
+      const gateRefusal = /rendered-QA gate|quality decision|needs_review|needs_paid_repair|stale/i.test(err.message);
+      if (gateRefusal && vars?.inventoryId) {
+        const d = (drafts || []).find((x: any) => x.id === vars.inventoryId);
+        setBlockedDraft({ id: vars.inventoryId, version: d?.version ?? 0, reason: err.message });
+        setOverrideReason("");
+        return;
+      }
       toast.error("Publishing Failed", { description: err.message });
     }
+  });
+
+  /** Re-run rendered QA against the current mp4 — the honest first move on a hold. */
+  const rerunQa = trpc.contentAdmin.runRenderedQa.useMutation({
+    onSuccess: (v: any) => {
+      toast.success("Rendered QA re-run", {
+        description: `${v?.decision ?? "done"} — ${v?.findings?.length ?? 0} finding(s) across ${v?.framesEvaluated ?? "?"} frames.`,
+      });
+      refetch();
+    },
+    onError: (err) => toast.error("QA could not run", { description: err.message }),
+  });
+
+  /** Record an operator override for ADVISORY findings, then retry the publish. */
+  const createOverride = trpc.instagramAdmin.createQualityOverride.useMutation({
+    onSuccess: (_d, vars) => {
+      toast.success("Override recorded", { description: "Findings accepted — retrying the publish." });
+      const d = (drafts || []).find((x: any) => x.id === vars.inventoryId);
+      setBlockedDraft(null);
+      if (d) {
+        publishDraft.mutate({
+          inventoryId: d.id,
+          platforms: ["instagram"],
+          caption: d.caption || "",
+          imageUrl: d.format !== "reel" ? (d.assetPack?.imageUrl || undefined) : undefined,
+          videoUrl: d.format === "reel" ? (d.assetPack?.videoUrl || undefined) : undefined,
+        });
+      }
+    },
+    onError: (err) => toast.error("Override refused", { description: err.message }),
   });
 
   const rejectDraft = trpc.instagramAdmin.rejectDraft.useMutation({
@@ -185,6 +228,65 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
                     <XCircle className="h-4 w-4" />
                   </Button>
                 </div>
+
+                {/* Quality-gate refusal, resolved IN THE DOM. window.confirm is
+                    silently suppressed in the standalone iOS PWA, so a native
+                    dialog here would look like a dead button on the operator's
+                    phone. */}
+                {blockedDraft && blockedDraft.id === draft.id && (
+                  <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-none" />
+                      <div className="text-xs leading-relaxed">
+                        <p className="font-semibold text-amber-600">Quality gate held this reel</p>
+                        <p className="text-muted-foreground mt-1">{blockedDraft?.reason}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={rerunQa.isPending || !draft.reelJobId}
+                        onClick={() => draft.reelJobId && rerunQa.mutate({ jobId: Number(draft.reelJobId) })}
+                        title={draft.reelJobId ? "Re-evaluate the current mp4" : "No reel job linked to this draft"}
+                      >
+                        {rerunQa.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                        Re-run QA
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setBlockedDraft(null)}>
+                        Leave it held
+                      </Button>
+                    </div>
+                    <div className="pt-1 space-y-2 border-t border-amber-500/20">
+                      <p className="text-[11px] text-muted-foreground">
+                        Publishing anyway records an operator override bound to this exact media.
+                        A hard BLOCK finding can never be overridden — only advisory ones.
+                      </p>
+                      <Input
+                        value={overrideReason}
+                        onChange={(e) => setOverrideReason(e.target.value)}
+                        placeholder="Why is this acceptable to publish? (required, recorded)"
+                        className="h-8 text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        className="bg-amber-600 hover:bg-amber-700 text-white"
+                        disabled={overrideReason.trim().length < 4 || createOverride.isPending || publishDraft.isPending}
+                        onClick={() => createOverride.mutate({
+                          inventoryId: draft.id,
+                          // The approval is recorded against the reviewed version,
+                          // which is the one BEFORE approve bumped the row.
+                          assetVersion: (draft.version ?? 1) - 1,
+                          findings: [{ findingId: "operator_accepted_advisory", severity: "repair" as const }],
+                          operatorReason: overrideReason.trim(),
+                        })}
+                      >
+                        {createOverride.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Send className="h-3 w-3 mr-1" />}
+                        Accept findings & publish
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
