@@ -18,7 +18,7 @@
  * advanced and the date is NOT recorded, so the next eligible tick retries the
  * same reel — never a skip, never a double-post.
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createLogger } from "../../lib/logger";
 import { shopSettings, reelJobs } from "../../../drizzle/schema";
 import { BUSINESS } from "@shared/business";
@@ -234,10 +234,39 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       log.warn(`daily reel: publish gate check errored for job ${job.id} — publishing without gate`, { err: err instanceof Error ? err.message : String(err) });
     }
 
+    // EXACTLY-ONCE: claim assembled -> publishing BEFORE the external Meta call,
+    // so two overlapping cron ticks cannot both publish this reel. The loser of
+    // the CAS simply reports that another run owns it.
+    const claimRes = await d.update(reelJobs).set({ status: "publishing" })
+      .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "assembled")));
+    const claimed = (claimRes as unknown as Array<{ affectedRows?: number }>)?.[0]?.affectedRows
+      ?? (claimRes as unknown as { affectedRows?: number })?.affectedRows ?? 0;
+    if (claimed !== 1) {
+      log.warn(`daily reel: publish already claimed by another run (job ${job.id})`);
+      return { recordsProcessed: 0, details: `publish already claimed by another run (job ${job.id})` };
+    }
+
     log.info(`Attempting to publish assembled reel job ${job.id} (mp4Url: ${videoUrl})`);
-    const outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption });
+    let outcome;
+    try {
+      outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption });
+    } catch (pubErr) {
+      // THREW — Meta may or may not have accepted the reel. Do NOT restore
+      // "assembled" (that risks a double-publish); park it for reconciliation
+      // and fail the cron run loudly.
+      const msg = pubErr instanceof Error ? pubErr.message : String(pubErr);
+      await d.update(reelJobs)
+        .set({ status: "publish_ambiguous", error: `publish threw: ${msg.slice(0, 300)}` })
+        .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      log.error(`daily reel: publish THREW — job ${job.id} parked publish_ambiguous; verify on Instagram before retrying`, { err: msg });
+      throw pubErr;
+    }
     const ig = outcome.results.find((r) => r.platform === "instagram");
     if (!ig?.success) {
+      // Cleanly-returned failure: Meta explicitly did not accept it, so the
+      // claim is safe to release for a later retry.
+      await d.update(reelJobs).set({ status: "assembled" })
+        .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
       log.error(`Reel autopost publish failed for job ${job.id}`, { error: ig?.error });
       return { recordsProcessed: 0, details: `Publish failed: ${ig?.error ?? "unknown"} — not advancing index` };
     }

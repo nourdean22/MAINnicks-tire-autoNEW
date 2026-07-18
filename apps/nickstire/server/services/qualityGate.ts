@@ -1,6 +1,5 @@
 /**
- * The consolidated reel publish gate (the persisted Quality Decision Record,
- * Creative Compiler 2.0 review closure).
+ * The consolidated reel publish gate (the Quality Decision authority).
  *
  * ONE decision, used at EVERY autonomous reel publish door so no path can post
  * merely because status === "assembled". It reads the PERSISTED rendered-QA
@@ -8,51 +7,93 @@
  * — folds in the REAL per-job repair-attempt count + the policy repair cap +
  * audio verdict, and returns the publish permit via orchestratePostQa.
  *
- * Honesty: a rendered-QA that cannot run does NOT hard-block. The upstream
- * compiler + M10 preflight already prevent the known defect classes, and holding
- * every reel on flaky frame-extraction is worse than shipping one unscored clean
- * render. Such a case returns allowed:true with source:"unavailable" so the
- * caller can log it. A real non-"proceed" verdict DOES hold the publish.
+ * CORE RULE (audit: "failure and missing evidence were read as permission"):
+ * only a COMPLETED, CURRENT, COMPLETE evaluation can authorize a publish.
+ *   - critic outage / timeout / parse failure  -> qaState "unavailable" -> HOLD
+ *   - verdict stale after a repair re-render   -> HOLD
+ *   - critic said "repair" but findings are empty, or unknown defect codes were
+ *     dropped (incomplete evidence)            -> HOLD for review
+ *   - RENDERED_QA_ENABLED explicitly off       -> "disabled" -> allowed (an
+ *     operator POLICY choice, logged — not a silent failure)
+ * Absence of evidence is never evidence of quality.
  */
 import type { PublishGate } from "./postQaOrchestrator";
 import type { RenderedFinding, RenderedQaVerdict } from "./renderedQa";
 
+/** Gate outcomes that are NOT an orchestrator decision — evidence problems. */
+export type EvidenceGate = "unavailable" | "stale" | "needs_review" | "disabled";
+
 export interface ReelPublishGateResult {
-  gate: PublishGate | "unavailable";
-  /** the publish permit — true only for a clean "proceed" (or QA unavailable). */
+  gate: PublishGate | EvidenceGate;
+  /** the publish permit — only a clean, current, complete evaluation (or an
+   *  explicit operator disable) may be true. */
   allowed: boolean;
   findings: RenderedFinding[];
-  source: "persisted" | "fresh" | "unavailable";
+  source: "persisted" | "fresh" | "unavailable" | "disabled";
   repairAttempts: number;
   reason: string;
 }
 
 export async function evaluateReelPublishGate(jobId: number): Promise<ReelPublishGateResult> {
-  const skip = (source: ReelPublishGateResult["source"], reason: string): ReelPublishGateResult =>
-    ({ gate: "unavailable", allowed: true, findings: [], source, repairAttempts: 0, reason });
+  const result = (
+    gate: ReelPublishGateResult["gate"],
+    allowed: boolean,
+    source: ReelPublishGateResult["source"],
+    reason: string,
+    findings: RenderedFinding[] = [],
+    repairAttempts = 0,
+  ): ReelPublishGateResult => ({ gate, allowed, findings, source, repairAttempts, reason });
+
+  // An explicit operator disable is a POLICY choice, not a failed evaluation.
+  if (process.env.RENDERED_QA_ENABLED !== "true") {
+    return result("disabled", true, "disabled", "RENDERED_QA_ENABLED is off — publishing on upstream compiler + preflight gates by operator policy");
+  }
 
   const { getDb } = await import("../db");
   const d = await getDb();
-  if (!d) return skip("unavailable", "no db — gate skipped");
+  if (!d) return result("unavailable", false, "unavailable", "no database — cannot read a quality decision; refusing to publish unscored");
 
   const { reelJobs } = await import("../../drizzle/schema");
   const { eq } = await import("drizzle-orm");
   const [job] = await d.select().from(reelJobs).where(eq(reelJobs.id, jobId)).limit(1);
-  if (!job) return skip("unavailable", "job not found");
+  if (!job) return result("unavailable", false, "unavailable", `reel job ${jobId} not found — no quality evidence`);
 
   let payload: Record<string, unknown> = {};
-  try { payload = JSON.parse(job.payload ?? "{}"); } catch { /* malformed payload → treat as no evidence */ }
+  try { payload = JSON.parse(job.payload ?? "{}"); } catch {
+    return result("unavailable", false, "unavailable", "job payload unparseable — no quality evidence");
+  }
 
-  // Rendered-QA verdict: prefer the persisted one; else run it once (if enabled).
+  // Prefer the persisted verdict; else run it once.
   let verdict = payload.renderedQa as RenderedQaVerdict | undefined;
   let source: ReelPublishGateResult["source"] = "persisted";
-  if (!verdict && process.env.RENDERED_QA_ENABLED === "true") {
+  if (!verdict) {
     const { runRenderedQaOnJob } = await import("./renderedQa");
     verdict = (await runRenderedQaOnJob(jobId)) ?? undefined;
     source = verdict ? "fresh" : "unavailable";
   }
   if (!verdict || !Array.isArray(verdict.findings)) {
-    return skip("unavailable", "rendered QA unavailable — upstream compiler + preflight gates stand");
+    return result("unavailable", false, "unavailable", "rendered QA produced no verdict — refusing to publish unscored");
+  }
+
+  // A NON-evaluation must never satisfy the gate. `qaState` is authoritative;
+  // `critic === "skipped"` is checked too so verdicts persisted before qaState
+  // existed are still caught.
+  if (verdict.qaState !== "completed" || verdict.critic === "skipped") {
+    return result("unavailable", false, source, "vision critic did not evaluate (outage/timeout/parse failure) — an approve-shaped non-evaluation is not an approval", verdict.findings);
+  }
+
+  // The media changed after this verdict was written (selectiveRepair re-render).
+  if (verdict.staleAfterRepair) {
+    return result("stale", false, source, "verdict predates a repair re-render — re-run rendered QA against the current mp4", verdict.findings);
+  }
+
+  // Incomplete evidence: the critic flagged a problem we could not classify, or
+  // asked for repair while its recognized findings came back empty.
+  if ((verdict.droppedUnknownCodes ?? 0) > 0) {
+    return result("needs_review", false, source, `${verdict.droppedUnknownCodes} unrecognized defect code(s) were dropped — evidence incomplete, operator review required`, verdict.findings);
+  }
+  if (verdict.decision === "repair" && verdict.findings.length === 0) {
+    return result("needs_review", false, source, "critic returned decision=repair with no classifiable findings — operator review required", verdict.findings);
   }
 
   // Real context: repair attempts already spent on this asset + the policy cap.
@@ -66,12 +107,12 @@ export async function evaluateReelPublishGate(jobId: number): Promise<ReelPublis
 
   const { orchestratePostQa } = await import("./postQaOrchestrator");
   const outcome = orchestratePostQa(verdict.findings, { repairAttempts, maxRepairAttempts, audioDecision });
-  return {
-    gate: outcome.publishGate,
-    allowed: outcome.publishGate === "proceed",
-    findings: verdict.findings,
+  return result(
+    outcome.publishGate,
+    outcome.publishGate === "proceed",
     source,
+    outcome.verdict.reason,
+    verdict.findings,
     repairAttempts,
-    reason: outcome.verdict.reason,
-  };
+  );
 }

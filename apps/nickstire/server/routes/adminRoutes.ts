@@ -206,7 +206,21 @@ export function registerAdminRoutes(app: Express): void {
 
         const { publishToSocial } = await import("../services/socialPublish");
         const { getInstagramPermalink } = await import("../services/metaSocial");
-        const outcome = await publishToSocial({ platforms: ["instagram"], videoUrl: job.mp4Url, caption: job.caption || "" });
+        let outcome;
+        try {
+          outcome = await publishToSocial({ platforms: ["instagram"], videoUrl: job.mp4Url, caption: job.caption || "" });
+        } catch (pubErr) {
+          // THREW — we cannot know whether Meta accepted the post. Do NOT restore
+          // "assembled" (that risks double-publishing a live reel); park it for
+          // reconciliation. A cleanly-returned failure below IS safe to restore.
+          const msg = pubErr instanceof Error ? pubErr.message : String(pubErr);
+          await d.update(reelJobs)
+            .set({ status: "publish_ambiguous", error: `publish threw: ${msg.slice(0, 300)}` })
+            .where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "publishing")));
+          serverLog.error("[Admin] reel-canary publish threw — parked publish_ambiguous", { jobId, error: msg });
+          res.status(502).json({ error: "publish threw — job parked as publish_ambiguous; verify on Instagram before retrying", detail: msg, publishGate });
+          return;
+        }
         const ig = Array.isArray(outcome.results)
           ? outcome.results.find((r: { platform: string; success?: boolean; postId?: string; error?: string }) => r.platform === "instagram")
           : undefined;
