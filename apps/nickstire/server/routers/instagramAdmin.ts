@@ -1503,6 +1503,30 @@ Keep it under 200 characters.`;
       .orderBy(desc(socialContentInventory.createdAt))
       .limit(50);
       
+    // Resolve the reel job behind each reel draft ONCE, in a single batched query,
+    // so the Queue can offer per-job actions (re-run QA, repair, re-assemble).
+    // Without this the client has no way to reach a reel job: brief_json.reelJobId
+    // is written only by the cron manufacturing path — measured on prod, 0 of 32
+    // reel inventory rows carry it — so reel_jobs.briefId is the real link for
+    // everything else. Same resolution the publish authority uses, just batched.
+    const reelJobByInventoryId = new Map<string, number>();
+    try {
+      const reelIds = rows.filter((r: typeof rows[number]) => r.contentType === "reel").map((r: typeof rows[number]) => r.id);
+      if (reelIds.length) {
+        const { reelJobs } = await import("../../drizzle/schema");
+        const { inArray, asc } = await import("drizzle-orm");
+        const jobs = await database
+          .select({ id: reelJobs.id, briefId: reelJobs.briefId })
+          .from(reelJobs)
+          .where(inArray(reelJobs.briefId, reelIds))
+          .orderBy(asc(reelJobs.id));
+        // Ascending, so the LAST write wins => the newest job for that inventory row.
+        for (const j of jobs) if (j.briefId) reelJobByInventoryId.set(j.briefId, Number(j.id));
+      }
+    } catch (e) {
+      log.warn("could not resolve reel jobs for the queue (per-job actions will be unavailable)", e);
+    }
+
     const results = [];
     for (const r of rows) {
       let parsedBrief: any = {};
@@ -1549,6 +1573,10 @@ Keep it under 200 characters.`;
           videoUrl: isReel ? mediaPath : "",
         },
         qualityScore: scoreObj,
+        // brief_json.reelJobId when the cron wrote it, else the batched briefId
+        // lookup. null when neither resolves — the UI disables per-job actions
+        // and says why rather than offering a control that cannot work.
+        reelJobId: (parsedBrief && parsedBrief.reelJobId) ?? reelJobByInventoryId.get(r.id) ?? null,
         conceptBrief: { sourceSummary: r.topic, ...parsedBrief }
       });
     }
