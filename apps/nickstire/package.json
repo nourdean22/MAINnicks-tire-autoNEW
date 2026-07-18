@@ -26,8 +26,8 @@
     "test:only": "vitest run",
     "test:ai-evals": "tsx server/lib/ai/evals/blog-seeder/runner.ts",
     "eval:prompts": "tsx scripts/run-prompt-evals.ts",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate",
-    "db:migrate": "tsx scripts/run.ts db-migrate.ts",
+    "db:push": "node scripts/assert-safe-checkout.mjs && drizzle-kit generate && drizzle-kit migrate",
+    "db:migrate": "node scripts/assert-safe-checkout.mjs && tsx scripts/run.ts db-migrate.ts",
     "gsc:report": "tsx scripts/run.ts gsc-report.ts",
     "script": "tsx scripts/run.ts",
     "lint": "prettier --check README.md package.json scripts/env-validate.mjs docs/integrations/INTEGRATION_REGISTRY.md docs/operations/LOAD_BEARING_SYSTEMS.md",
@@ -41,7 +41,9 @@
     "typecheck:raw": "tsc -p tsconfig.typecheck.json --noEmit",
     "verify": "pnpm run env:validate && pnpm run typecheck:raw && pnpm run lint && pnpm run lint:source && pnpm run lint:hooks && pnpm run lint:brand-voice && pnpm run lint:pii && pnpm run validate:routes && pnpm run prerender:check && pnpm run prerender:semantic-check && pnpm run test && pnpm run build",
     "ingest:reels": "tsx scripts/run.ts ingest-reels-markdown.ts",
-    "backfill:skills": "tsx scripts/run.ts backfill-creative-skills.ts"
+    "backfill:skills": "tsx scripts/run.ts backfill-creative-skills.ts",
+    "checkout:safe": "node scripts/assert-safe-checkout.mjs",
+    "migrations:reconcile": "node scripts/reconcile-migrations.mjs --report"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
