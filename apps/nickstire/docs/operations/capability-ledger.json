@@ -1032,6 +1032,33 @@
           "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
         }
       ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-18",
+      "deferredScope": [
+        "reserved previous_frame / fallback modes",
+        "raise continuity-risk in the production estimate for text_only (Section 14)"
+      ],
+      "capabilityId": "conditioning-aware-compiler",
+      "name": "Creative Compiler 2.0 M8: conditioning-aware continuity (no contradictory instructions)",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "evidence": {
+        "codeCommit": "ConditioningMode + resolveConditioningMode + buildHiggsfieldReelPromptPack branches the opening-frame instruction on hero_image vs text_only; per-beat conditioningMode exposed",
+        "tests": [
+          "client/src/__tests__/faceless-reel-studio.test.ts (50, +3): text_only keeps 'previous shot ended on'; hero_image drops it and shares one identity; resolveConditioningMode maps hero-frame presence",
+          "visualWorld + reelDirector + goldenCampaign green (no regression)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "runs on all pack-build paths incl. cron but integration_verified only (no live render observed), so exposure capped at operator_only; previous_frame/fallback modes reserved but unused",
+          "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
+        }
+      ]
     }
   ],
   "axes": {
