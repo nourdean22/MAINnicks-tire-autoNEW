@@ -860,7 +860,9 @@ export function buildReelContinuityBlock(
     return brief.visualWorld.lockedInvariants.trim();
   }
   const character = OBJECT_CHARACTERS[brief.objectCharacter];
-  const heroAnchor = brief.storyboardBeats[0]?.visual.trim() || character.essence;
+  // M6: neutralize renderable tokens in the anchor so the continuity block never
+  // seeds the generator with a label/code/brand to (mis)spell.
+  const heroAnchor = transformToProviderSafeScene(brief.storyboardBeats[0]?.visual.trim() || character.essence);
   return [
     `VISUAL CONTINUITY (identical in every shot of this reel):`,
     `Hero subject: ${character.label} - ${character.essence} First established as: ${heroAnchor}`,
@@ -928,6 +930,35 @@ export interface ProviderSceneCompilation {
  * beat that slipped the brief-level gate. The full intent->scene TRANSFORMATION
  * (zero-lettering rewrites) is Milestone 6; M5 establishes the seam + the guard.
  */
+/**
+ * Milestone 6 (zero generated lettering): deterministically NEUTRALIZE the
+ * renderable-text tokens a beat visual may carry — brand/logo words, quoted
+ * labels, measured readings, and alphanumeric codes — so the generator has
+ * nothing to (mis)spell. This is the compiler-level kill for the "FTD913" /
+ * "Nixs" / 'MAX PRESS 44 PSI' class from reel 690001. Removal (not paraphrase)
+ * keeps the surrounding prose grammatical; the removed meaning is carried by the
+ * deterministic caption overlay (ffmpeg), never by generated pixels.
+ */
+export function transformToProviderSafeScene(visual: string): string {
+  return visual
+    // brand / logo constructs -> a clean unbranded surface
+    .replace(/\b(?:nick'?s\s+)?(?:logos?|wordmarks?|badges?|signage)\b/gi, "unbranded surface")
+    .replace(/\bnick'?s\b/gi, "the shop")
+    .replace(/\bbrand(?:ed|ing)?\b/gi, "unbranded")
+    // quoted readable labels -> removed (the caption overlay carries the words).
+    // The opening quote must follow start-or-space so a possessive apostrophe
+    // ("sidewall's") is never mistaken for a label delimiter.
+    .replace(/(?<=^|\s)["'“”‘’][^"'“”‘’]{1,60}["'“”‘’]/g, "")
+    // measured readings (11.8V, 44 PSI, 2mm, 63%) -> removed
+    .replace(/\b\d+(?:\.\d+)?\s?(?:v|volts?|psi|mm|%|percent|degrees?)\b/gi, "")
+    // bare alphanumeric codes (FTD913, DOT1234) -> removed
+    .replace(/\b(?=[A-Za-z]*\d)(?=\d*[A-Za-z])[A-Za-z0-9]{4,}\b/g, "")
+    // tidy the gaps left behind
+    .replace(/\s+([,.;])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 export function compileProviderScene(visual: string, motion: string): ProviderSceneCompilation {
   const design = `${visual}\n${motion}`;
   const findings: string[] = [];
@@ -935,12 +966,16 @@ export function compileProviderScene(visual: string, motion: string): ProviderSc
   if (!text.ok && text.reason) findings.push(text.reason);
   const faceless = validateFacelessSubject([design]);
   if (!faceless.ok && faceless.reason) findings.push(faceless.reason);
+  // M6: neutralize renderable tokens even when the structural validator did not
+  // fire — a bare code / quoted label slips IN_FRAME_TEXT_PATTERN.
+  const transformed = transformToProviderSafeScene(visual);
+  if (transformed !== visual) findings.push("renderable text/brand tokens neutralized (M6)");
   if (findings.length === 0) return { scene: visual, status: "clean", findings: [] };
   const corrections: string[] = [];
-  if (!text.ok) corrections.push("every screen, gauge, or display is dark, off, or angled away and shows NO readable text, numbers, or logos");
+  if (!text.ok || transformed !== visual) corrections.push("every screen, gauge, or display is dark, off, or angled away and shows NO readable text, numbers, or logos — all words are added as overlays later");
   if (!faceless.ok) corrections.push("no people, faces, hands, gloves, or arms; the object moves on its own");
   return {
-    scene: `${visual} [provider-safe: ${corrections.join("; ")}]`,
+    scene: `${transformed} [provider-safe: ${corrections.join("; ")}]`,
     status: "corrected",
     findings,
   };
@@ -978,7 +1013,7 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
         // Transition intent: source clips are fixed-length; the story action must
         // land inside the clip, and adjacent shots must hand off composition.
         prev
-          ? `Opening frame: continue directly from the previous shot - the hero object in the same state and position it settled in (previous shot ended on: ${prev.visual})`
+          ? `Opening frame: continue directly from the previous shot - the hero object in the same state and position it settled in (previous shot ended on: ${transformToProviderSafeScene(prev.visual)})`
           : `Opening frame: strongest possible first frame - the hero object clearly readable at a glance.`,
         `Timing: complete the primary action by ${actionCompleteBySec} seconds; keep every frame after that visually stable${isLast ? ", settled on a frame that echoes the opening shot for a seamless loop" : ", ready for a match cut into the next shot"}.`,
         facelessCleanSceneDirective(brief.motionLens),

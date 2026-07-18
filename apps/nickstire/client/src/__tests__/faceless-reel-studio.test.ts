@@ -22,6 +22,7 @@ import {
   validateNoInFrameText,
   facelessCleanSceneDirective,
   compileProviderScene,
+  transformToProviderSafeScene,
   validateBeatCount,
   validateReelLengthTarget,
   validateMutedFirstClarity,
@@ -358,13 +359,56 @@ describe("compileProviderScene", () => {
     expect(c.scene).toContain("no people, faces, hands");
   });
 
-  it("the pack exposes per-beat sceneStatus and keeps a clean sample's Subject intact", () => {
+  it("the pack exposes per-beat sceneStatus and neutralizes renderable tokens in the Subject (M6)", () => {
     const pack = buildHiggsfieldReelPromptPack(sample());
     for (const p of pack) {
-      expect(p.sceneStatus).toBe("clean"); // sample beats are clean → no correction
+      expect(p.sceneStatus).toBeDefined();
       expect(p.prompt).toContain("Subject:");
-      expect(p.prompt).not.toContain("provider-safe:");
     }
+    // sample beat 1's visual carries a quoted 'MAX PRESS 44 PSI' label — M6 removes
+    // it from the provider Subject so the generator has no text to mis-spell.
+    expect(pack[0].sceneStatus).toBe("corrected");
+    expect(pack[0].prompt).not.toContain("MAX PRESS 44 PSI");
+  });
+
+  it("a genuinely wordless beat stays clean and passes through unchanged", () => {
+    const c = compileProviderScene("extreme macro of a rusted brake rotor turning slowly", "slow orbit");
+    expect(c.status).toBe("clean");
+    expect(c.scene).toBe("extreme macro of a rusted brake rotor turning slowly");
+  });
+});
+
+// Milestone 6: zero generated lettering — the 690001 regression corpus.
+describe("transformToProviderSafeScene", () => {
+  it("removes a fake alphanumeric readout code (the FTD913 class)", () => {
+    const out = transformToProviderSafeScene("a car battery stamped FTD913 on the case");
+    expect(out).not.toContain("FTD913");
+    expect(out).toContain("battery");
+  });
+
+  it("removes a quoted on-screen label ('MAX PRESS 44 PSI')", () => {
+    const out = transformToProviderSafeScene("a tire sidewall's embossed 'MAX PRESS 44 PSI' lettering");
+    expect(out).not.toContain("MAX PRESS 44 PSI");
+    expect(out).not.toContain("44 PSI");
+    expect(out).toContain("sidewall");
+  });
+
+  it("unbrands a Nick's logo without garbling the sentence (the Nixs class)", () => {
+    const out = transformToProviderSafeScene("the Nick's logo spins on the workshop wall");
+    expect(out.toLowerCase()).not.toContain("nick");
+    expect(out.toLowerCase()).not.toContain("logo");
+    expect(out).toContain("unbranded surface");
+    expect(out).toContain("wall");
+  });
+
+  it("strips measured readings (11.8V)", () => {
+    const out = transformToProviderSafeScene("a tester needle near 11.8V");
+    expect(out).not.toContain("11.8V");
+  });
+
+  it("leaves a wordless physical description untouched", () => {
+    const clean = "extreme macro push into worn tire tread on wet asphalt";
+    expect(transformToProviderSafeScene(clean)).toBe(clean);
   });
 });
 
@@ -434,7 +478,9 @@ describe("builders", () => {
     expect(pack[0].prompt).toContain("strongest possible first frame");
     expect(pack[0].prompt).not.toContain("previous shot ended on");
     for (let i = 1; i < pack.length; i++) {
-      expect(pack[i].prompt).toContain(`previous shot ended on: ${sample().storyboardBeats[i - 1].visual}`);
+      // The prev-shot reference now carries the M6 provider-safe (token-neutralized)
+      // form of the previous beat's visual, not the raw text.
+      expect(pack[i].prompt).toContain(`previous shot ended on: ${transformToProviderSafeScene(sample().storyboardBeats[i - 1].visual)}`);
     }
     // Timing speaks the renderer truth per beat: 4s source, trim to storyboard
     // length, action completes before the settle window (trim - min(0.6, 20%)).
