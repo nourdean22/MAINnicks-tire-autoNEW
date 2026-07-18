@@ -106,6 +106,30 @@ const normType = (t) =>
 /** MySQL reports these without the length drizzle may or may not write. */
 const LENGTHLESS = new Set(["text", "mediumtext", "longtext", "tinytext", "json", "date", "datetime", "timestamp", "time", "blob", "mediumblob", "longblob"]);
 
+/**
+ * Declared-vs-stored type equivalences.
+ *
+ * MySQL has no boolean type — it is an alias for tinyint(1), and
+ * information_schema reports the alias TARGET. Comparing the declared spelling to
+ * the stored one therefore flagged every boolean column in the repo as a
+ * mismatch: 28 false positives that buried the genuine findings.
+ */
+const TYPE_ALIASES = new Map([
+  ["boolean", "tinyint(1)"],
+  ["bool", "tinyint(1)"],
+  ["integer", "int"],
+  ["dec", "decimal"],
+  ["numeric", "decimal"],
+]);
+
+function canonType(t) {
+  const n = normType(t);
+  if (TYPE_ALIASES.has(n)) return TYPE_ALIASES.get(n);
+  const b = n.match(/^([a-z]+)/)?.[1];
+  if (b && TYPE_ALIASES.has(b) && !n.includes("(")) return TYPE_ALIASES.get(b);
+  return n;
+}
+
 function baseType(t) {
   const m = normType(t).match(/^([a-z]+)/);
   return m ? m[1] : normType(t);
@@ -121,6 +145,20 @@ function splitStatements(sql) {
     ? stripped.split(/-->\s*statement-breakpoint/)
     : stripped.split(/;\s*[\r\n]/);
   return parts.map((s) => s.replace(/;\s*$/, "").trim()).filter(Boolean);
+}
+
+/** Split on commas at depth 0, so type parameters like decimal(3,1) stay intact. */
+function splitTopLevel(text) {
+  const out = [];
+  let depth = 0, buf = "";
+  for (const ch of text) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (ch === "," && depth === 0) { if (buf.trim()) out.push(buf.trim()); buf = ""; continue; }
+    buf += ch;
+  }
+  if (buf.trim()) out.push(buf.trim());
+  return out;
 }
 
 /** Parse the column list inside CREATE TABLE (...) at depth 1 only. */
@@ -171,10 +209,34 @@ function parseStatement(stmt) {
     return { kind: "create_table", table: m[1], columns, raw: s };
   }
 
-  m = s.match(/^ALTER\s+TABLE\s+[`"]?([A-Za-z0-9_]+)[`"]?\s+ADD\s+(?:COLUMN\s+)?[`"]?([A-Za-z0-9_]+)[`"]?\s+([A-Za-z]+(?:\([^)]*\))?(?:\s+unsigned)?)/i);
-  if (m) return { kind: "add_column", table: m[1], column: m[2], type: m[3], notNull: /\bNOT\s+NULL\b/i.test(s), raw: s };
+  // ALTER TABLE x ADD COLUMN a ..., ADD COLUMN b ... is ONE statement with several
+  // clauses. Parsing only the first lost every later column, and testing
+  // /NOT NULL/ against the whole statement leaked one column's constraint onto
+  // another — it reported users.adminRole (declared NULL) as NOT NULL because a
+  // sibling clause in the same ALTER declared mfaEnabled NOT NULL. Each clause is
+  // now judged on its own text.
+  m = s.match(/^ALTER\s+TABLE\s+[`"]?([A-Za-z0-9_]+)[`"]?\s+(ADD\s+(?:COLUMN\s+)?[\s\S]+)$/i);
+  if (m && /ADD\s+(?:COLUMN\s+)?[`"]?[A-Za-z0-9_]+[`"]?\s+[A-Za-z]/i.test(m[2])) {
+    const table = m[1];
+    const clauses = splitTopLevel(m[2]);
+    const cols = [];
+    for (const c of clauses) {
+      const cm = c.match(/^ADD\s+(?:COLUMN\s+)?(?:IF\s+NOT\s+EXISTS\s+)?[`"]?([A-Za-z0-9_]+)[`"]?\s+([A-Za-z]+(?:\([^)]*\))?(?:\s+unsigned)?)/i);
+      if (!cm) continue; // ADD INDEX / ADD CONSTRAINT / ADD UNIQUE — not a column
+      cols.push({ kind: "add_column", table, column: cm[1], type: cm[2], notNull: /\bNOT\s+NULL\b/i.test(c), raw: c });
+    }
+    if (cols.length === 1) return cols[0];
+    if (cols.length > 1) return { kind: "multi", parts: cols, table, raw: s };
+  }
 
-  m = s.match(/^ALTER\s+TABLE\s+[`"]?([A-Za-z0-9_]+)[`"]?\s+(?:MODIFY|CHANGE)\s+(?:COLUMN\s+)?[`"]?([A-Za-z0-9_]+)[`"]?\s+(?:[`"]?[A-Za-z0-9_]+[`"]?\s+)?([A-Za-z]+(?:\([^)]*\))?(?:\s+unsigned)?)/i);
+  // MODIFY keeps the column name; only CHANGE takes a NEW name after the old one.
+  // Sharing one regex let the optional rename group swallow the TYPE on MODIFY, so
+  // "MODIFY COLUMN payload mediumtext NOT NULL" parsed its type as "not" — and the
+  // migration was then reported ABSENT even though the column was correct.
+  m = s.match(/^ALTER\s+TABLE\s+[`"]?([A-Za-z0-9_]+)[`"]?\s+MODIFY\s+(?:COLUMN\s+)?[`"]?([A-Za-z0-9_]+)[`"]?\s+([A-Za-z]+(?:\([^)]*\))?(?:\s+unsigned)?)/i);
+  if (m) return { kind: "modify_column", table: m[1], column: m[2], type: m[3], notNull: /\bNOT\s+NULL\b/i.test(s), raw: s };
+
+  m = s.match(/^ALTER\s+TABLE\s+[`"]?([A-Za-z0-9_]+)[`"]?\s+CHANGE\s+(?:COLUMN\s+)?[`"]?[A-Za-z0-9_]+[`"]?\s+[`"]?([A-Za-z0-9_]+)[`"]?\s+([A-Za-z]+(?:\([^)]*\))?(?:\s+unsigned)?)/i);
   if (m) return { kind: "modify_column", table: m[1], column: m[2], type: m[3], notNull: /\bNOT\s+NULL\b/i.test(s), raw: s };
 
   m = s.match(/^CREATE\s+(UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"]?([A-Za-z0-9_]+)[`"]?\s+ON\s+[`"]?([A-Za-z0-9_]+)[`"]?\s*\(([^)]*)\)/i);
@@ -255,14 +317,23 @@ function checkStatement(st, fp) {
   const miss = (why) => ({ ok: false, why });
 
   switch (st.kind) {
+    case "multi": {
+      // One ALTER with several ADD COLUMN clauses: every part must hold.
+      const problems = [];
+      for (const part of st.parts) {
+        const r = checkStatement(part, fp);
+        if (r.ok === false) problems.push(r.why);
+      }
+      return problems.length ? miss(problems.join("; ")) : { ok: true };
+    }
     case "create_table": {
       if (!t || !t.exists) return miss(`table ${st.table} absent`);
       const problems = [];
       for (const c of st.columns) {
         const live = t.columns.get(c.name);
         if (!live) { problems.push(`${st.table}.${c.name} missing`); continue; }
-        const want = normType(c.type);
-        const got = live.type;
+        const want = canonType(c.type);
+        const got = canonType(live.type);
         const lengthless = LENGTHLESS.has(baseType(want));
         const typeOk = lengthless ? baseType(want) === baseType(got) : want === got || baseType(want) === baseType(got) && want.includes("(") === false;
         if (!typeOk) problems.push(`${st.table}.${c.name} type ${got} != ${want}`);
@@ -275,8 +346,9 @@ function checkStatement(st, fp) {
       if (!t || !t.exists) return miss(`table ${st.table} absent`);
       const live = t.columns.get(st.column);
       if (!live) return miss(`${st.table}.${st.column} missing`);
-      const want = normType(st.type);
-      const ok = LENGTHLESS.has(baseType(want)) ? baseType(want) === baseType(live.type) : want === live.type;
+      const want = canonType(st.type);
+      const liveType = canonType(live.type);
+      const ok = LENGTHLESS.has(baseType(want)) ? baseType(want) === baseType(liveType) : want === liveType;
       if (!ok) return miss(`${st.table}.${st.column} type ${live.type} != ${want}`);
       if (st.notNull && live.nullable) return miss(`${st.table}.${st.column} is NULLABLE, migration says NOT NULL`);
       return { ok: true };
