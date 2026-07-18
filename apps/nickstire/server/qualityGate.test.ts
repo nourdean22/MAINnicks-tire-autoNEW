@@ -38,12 +38,16 @@ const completed = (findings: unknown[], extra: Record<string, unknown> = {}) => 
   findings, framesEvaluated: 8, evaluatedAt: "", critic: "vision", qaState: "completed", droppedUnknownCodes: 0, ...extra,
 });
 const block = { beatNumber: 1, code: "GENERATED_TEXT_ARTIFACT", severity: "block", description: "x", preserve: [], change: [] };
+// Audio is now a REQUIRED evidence source (it was silently defaulting to pass),
+// so the default fixture carries a completed audio verdict. Its absence is tested
+// explicitly below rather than being the accidental baseline.
+const audioOk = { decision: "approve", qaState: "completed" };
 const setJob = (renderedQa: unknown, rest: Record<string, unknown> = {}) => {
-  jobRow = { id: 1, payload: JSON.stringify({ renderedQa, ...rest }) };
+  jobRow = { id: 1, payload: JSON.stringify({ renderedQa, audioQa: audioOk, ...rest }) };
 };
 
 describe("evaluateReelPublishGate", () => {
-  beforeEach(() => { jobRow = null; recentFailures = 0; process.env.RENDERED_QA_ENABLED = "true"; });
+  beforeEach(() => { jobRow = null; recentFailures = 0; process.env.RENDERED_QA_ENABLED = "true"; delete process.env.AUDIO_QA_ENABLED; });
 
   it("proceeds on a clean COMPLETED verdict", async () => {
     setJob(completed([]));
@@ -142,5 +146,36 @@ describe("evaluateReelPublishGate", () => {
     setJob(completed([block]));
     const g = await evaluateReelPublishGate(1);
     expect(g.gate).toBe("needs_paid_repair");
+  });
+
+  // AUDIO — production proved payload.audioQa has never existed on any job, so the
+  // old ternary made "never ran" indistinguishable from "passed".
+  it("HOLDS when audio QA is ABSENT — a stage that never ran is not a pass", async () => {
+    jobRow = { id: 1, payload: JSON.stringify({ renderedQa: completed([]) }) }; // no audioQa key at all
+    const g = await evaluateReelPublishGate(1);
+    expect(g.allowed).toBe(false);
+    expect(g.gate).toBe("unavailable");
+    expect(g.reason).toMatch(/audio/i);
+  });
+
+  it("HOLDS when audio QA ran but did not complete", async () => {
+    setJob(completed([]), { audioQa: { decision: "approve", qaState: "unavailable" } });
+    const g = await evaluateReelPublishGate(1);
+    expect(g.allowed).toBe(false);
+    expect(g.gate).toBe("unavailable");
+  });
+
+  it("HOLDS when audio QA asks for a repair", async () => {
+    setJob(completed([]), { audioQa: { decision: "repair", qaState: "completed" } });
+    const g = await evaluateReelPublishGate(1);
+    expect(g.allowed).toBe(false);
+  });
+
+  it("publishes without audio ONLY when explicitly disabled by policy", async () => {
+    process.env.AUDIO_QA_ENABLED = "false";
+    jobRow = { id: 1, payload: JSON.stringify({ renderedQa: completed([]) }) };
+    const g = await evaluateReelPublishGate(1);
+    expect(g.allowed).toBe(true);
+    expect(g.gate).toBe("proceed");
   });
 });

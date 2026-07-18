@@ -103,7 +103,26 @@ export async function evaluateReelPublishGate(jobId: number): Promise<ReelPublis
     const { getActivePolicy } = await import("./autonomyControl");
     maxRepairAttempts = (await getActivePolicy()).limits.maxRepairAttemptsPerAsset;
   } catch { /* policy unavailable → conservative default cap */ }
-  const audioDecision = (payload.audioQa as { decision?: string } | undefined)?.decision === "repair" ? "repair" : "approve";
+  // AUDIO — the same fail-open the vision critic had, found by querying production:
+  // `payload.audioQa` has NEVER existed on any job row, so the old expression
+  //     audioQa?.decision === "repair" ? "repair" : "approve"
+  // has always evaluated to "approve". A stage that never ran was indistinguishable
+  // from a stage that passed, and audio has therefore never gated a publish.
+  //
+  // Absent evidence is now a HOLD, exactly as for vision. If audio QA legitimately
+  // is not a stage yet, AUDIO_QA_ENABLED=false is the honest way to say so — an
+  // explicit operator policy that gets logged, not a silent default-pass.
+  const audioQa = payload.audioQa as { decision?: string; qaState?: string } | undefined;
+  const audioPolicyDisabled = process.env.AUDIO_QA_ENABLED === "false";
+  if (!audioPolicyDisabled) {
+    if (!audioQa || typeof audioQa.decision !== "string") {
+      return result("unavailable", false, source, "no audio QA verdict on this job — audio was never evaluated, which is not the same as audio passing (set AUDIO_QA_ENABLED=false to publish on visual QA alone by explicit policy)", verdict.findings);
+    }
+    if (audioQa.qaState && audioQa.qaState !== "completed") {
+      return result("unavailable", false, source, `audio QA did not complete (${audioQa.qaState}) — an approve-shaped non-evaluation is not an approval`, verdict.findings);
+    }
+  }
+  const audioDecision = audioQa?.decision === "repair" ? "repair" : "approve";
 
   // decideAutomation has always had PAUSE_MISSING_EVIDENCE and PAUSE_PROVIDER_DOWN
   // branches, but NO caller ever passed either input — they defaulted to

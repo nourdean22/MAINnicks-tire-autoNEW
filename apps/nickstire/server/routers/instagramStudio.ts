@@ -424,9 +424,22 @@ export const instagramStudioRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Scheduled time must be in the future." });
       }
       const media = mediaForDraft(draft);
+
+      // The publish path was fixed to REJECT an over-length caption; this one still
+      // silently `.slice(0, 2200)`d it, so the same draft would publish intact but
+      // schedule truncated — the operator reviews one caption and a different one
+      // goes out hours later, with no signal. Deferred execution is exactly when
+      // nobody is watching, so it needs the stricter rule, not the looser one.
+      const scheduledCaption = `${draft.caption}\n\n${draft.hashtags.map((tag) => `#${tag}`).join(" ")}`.trim();
+      if (scheduledCaption.length > IG_CAPTION_MAX) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Caption with hashtags is ${scheduledCaption.length} characters — Instagram's limit is ${IG_CAPTION_MAX}. Shorten it; nothing is trimmed automatically.`,
+        });
+      }
       await database.insert(scheduledPosts).values({
         platforms: ["instagram"],
-        caption: `${draft.caption}\n\n${draft.hashtags.map((tag) => `#${tag}`).join(" ")}`.trim().slice(0, 2200),
+        caption: scheduledCaption,
         imageUrl: "imageUrl" in media ? media.imageUrl ?? null : null,
         imageUrls: "imageUrls" in media ? media.imageUrls ?? null : null,
         videoUrl: null,
