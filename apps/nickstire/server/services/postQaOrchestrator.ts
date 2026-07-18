@@ -5,21 +5,23 @@
  *   rendered-QA findings -> repair router (what is cheaply fixable) ->
  *   quality automation (the 7-way decision) -> a publish gate.
  *
- * REQUEST_OPERATOR_DECISION maps to needs_operator_override — the M1 operator
- * quality-override is exactly what satisfies that gate. This is the seam that
- * makes quality automation the ACTUAL post-QA decision, not a pure function
- * nobody calls.
+ * REQUEST_OPERATOR_DECISION maps to needs_paid_repair: a rendered BLOCK is a real
+ * pixel defect, so publish is HELD and the operator authorizes a paid REGEN to
+ * fix it — it is NOT publish-overridable. (The M1 exact-hash operator override
+ * only accepts ADVISORY warn/repair findings; it refuses block findings, so
+ * mapping a block to "operator override" was a gate nothing could satisfy —
+ * review-audit taxonomy finding.)
  */
 import { decideAutomation, type AutomationDecision, type AutomationVerdict } from "./qualityAutomation";
 import { planRepairs, type RepairPlan } from "./repairRouter";
 import { type RenderedFinding } from "./renderedQa";
 
 export type PublishGate =
-  | "proceed"                  // advance to publish (still subject to hard gates)
-  | "auto_repair"              // deterministic fixes only — run them, no operator needed
-  | "needs_operator_override"  // paid regen / taste call — requires an M1 override to publish
-  | "pause"                    // missing evidence or unhealthy provider — hold
-  | "reject";                  // unrecoverable
+  | "proceed"           // advance to publish (still subject to hard gates)
+  | "auto_repair"       // deterministic fixes only — run them, no operator needed
+  | "needs_paid_repair" // rendered block needing paid regen — HOLD; operator authorizes a repair, NOT a publish-override
+  | "pause"             // missing evidence or unhealthy provider — hold
+  | "reject";           // unrecoverable
 
 export interface PostQaOutcome {
   verdict: AutomationVerdict;
@@ -35,7 +37,7 @@ export function publishGateForDecision(decision: AutomationDecision): PublishGat
     case "REPAIR_AUTOMATICALLY":
       return "auto_repair";
     case "REQUEST_OPERATOR_DECISION":
-      return "needs_operator_override";
+      return "needs_paid_repair";
     case "PAUSE_FOR_MISSING_EVIDENCE":
     case "PAUSE_FOR_PROVIDER":
       return "pause";

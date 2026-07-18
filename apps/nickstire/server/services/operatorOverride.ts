@@ -19,7 +19,7 @@
  * saw" is the same check the approval integrity gate already makes.
  */
 import { randomUUID } from "crypto";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { operatorQualityOverrides } from "../../drizzle/schema";
 import type { DB } from "../db";
 import { createLogger } from "../lib/logger";
@@ -81,6 +81,20 @@ export async function createOperatorOverride(
   const overrideId = `ovr_${randomUUID()}`;
   const expiresAt = new Date(now + OVERRIDE_TTL_HOURS * 3600_000);
   const severities = [...new Set(args.findings.map((f) => f.severity))];
+  // Guarantee at most ONE active override per (inventoryId, assetVersion): a new
+  // acceptance supersedes any prior active one, so a stale active row can never
+  // mask this newer valid override when consume selects a single active row.
+  try {
+    await database.update(operatorQualityOverrides)
+      .set({ state: "superseded" })
+      .where(and(
+        eq(operatorQualityOverrides.inventoryId, args.inventoryId),
+        eq(operatorQualityOverrides.assetVersion, args.assetVersion),
+        eq(operatorQualityOverrides.state, "active"),
+      ));
+  } catch (err) {
+    log.warn("supersede prior overrides skipped (table pending 0089?)", { err: err instanceof Error ? err.message.slice(0, 120) : String(err) });
+  }
   await database.insert(operatorQualityOverrides).values({
     id: overrideId,
     campaignId: args.campaignId ?? null,
@@ -132,6 +146,7 @@ export async function consumeOverrideForPublish(
         eq(operatorQualityOverrides.assetVersion, args.assetVersion),
         eq(operatorQualityOverrides.state, "active"),
       ))
+      .orderBy(desc(operatorQualityOverrides.createdAt)) // newest active first — never mask a newer override with a stale one
       .limit(1);
   } catch (err) {
     log.warn("override lookup skipped (table pending 0089?)", { err: err instanceof Error ? err.message.slice(0, 120) : String(err) });

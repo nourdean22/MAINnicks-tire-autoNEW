@@ -96,12 +96,12 @@ describe("CC2 acceptance campaign — battery subject, full chain", () => {
     expect(w.generation[0].prompt).toContain("Subject:");
   });
 
-  it("M11: a rendered pixel defect routes to needs_operator_override (the M1 override satisfies it)", () => {
+  it("M11: a rendered pixel defect routes to needs_paid_repair (publish held; not override-satisfiable)", () => {
     const findings: RenderedFinding[] = [
       { beatNumber: 2, code: "GENERATED_TEXT_ARTIFACT", severity: "block", description: "garbled letters on the case", preserve: [], change: ["remove text"] },
     ];
     const outcome = orchestratePostQa(findings);
-    expect(outcome.publishGate).toBe("needs_operator_override");
+    expect(outcome.publishGate).toBe("needs_paid_repair");
     expect(outcome.repairPlan.paidRegenerations).toBe(1);
   });
 });

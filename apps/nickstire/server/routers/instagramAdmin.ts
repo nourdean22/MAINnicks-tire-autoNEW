@@ -1088,7 +1088,9 @@ Keep it under 200 characters.`;
           try { policyVersion = (await getActivePolicy()).version; } catch { /* degraded policy loader — audit still records */ }
           await recordAuditEvent({
             actionType: "reel_publish",
-            decision: "APPROVED_BY_OPERATOR_OVERRIDE",
+            // 21 chars — fits the audit decision varchar(24) uncut (was
+            // "APPROVED_BY_OPERATOR_OVERRIDE", 29 chars, silently sliced to 24).
+            decision: "APPROVED_VIA_OVERRIDE",
             reasoningCodes: consumed.acceptedFindingIds,
             policyVersion,
             context: { overrideId: consumed.overrideId, inventoryId: pendingOverride.inventoryId, assetVersion: pendingOverride.assetVersion },
