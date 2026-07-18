@@ -1113,6 +1113,32 @@
           "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
         }
       ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-18",
+      "deferredScope": [
+        "wire source-clip analysis into trim, portfolio balancer into planner, reuse into media search",
+        "ENFORCE the gate at publish (mandatory override on needs_operator_override) — needs QA-decision persistence"
+      ],
+      "capabilityId": "postqa-orchestrator",
+      "name": "Creative Compiler 2.0 M11: quality cores wired (QA -> repair -> automation -> publish gate)",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "evidence": {
+        "codeCommit": "orchestratePostQa + publishGateForDecision connect rendered-QA findings -> planRepairs -> decideAutomation -> publish gate; wired into the runRenderedQa endpoint response",
+        "tests": [
+          "server/postQaOrchestrator.test.ts (7): all 7 decision->gate mappings; clean->proceed, warn->proceed, pixel-block->needs_operator_override (paid plan), missing-evidence->pause, unhealthy-provider->pause, cap-reached->reject"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "wires QA->automation->repair into the runRenderedQa endpoint but does NOT yet ENFORCE the gate at publish (that needs the QA decision persisted for the publish path to read); other cores (source-clip/portfolio/reuse) not yet in the live path",
+          "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
+        }
+      ]
     }
   ],
   "axes": {
