@@ -208,8 +208,14 @@ export function registerAdminRoutes(app: Express): void {
 
       res.status(400).json({ error: "unknown action", allowed: ["start", "advance", "qa", "publish"] });
     } catch (err) {
-      serverLog.error("[Admin] reel-canary error", { action, error: err instanceof Error ? err.message : String(err) });
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err), action });
+      // Drizzle wraps the driver error: err.message is only the query echo, the
+      // real MySQL reason (e.g. "Data too long for column 'payload'") is on
+      // err.cause. Surface both so a failed enqueue is diagnosable without logs.
+      const msg = err instanceof Error ? err.message : String(err);
+      const cause = (err as { cause?: unknown })?.cause;
+      const causeMsg = cause instanceof Error ? cause.message : cause ? String(cause) : undefined;
+      serverLog.error("[Admin] reel-canary error", { action, error: msg, cause: causeMsg });
+      res.status(500).json({ error: msg, cause: causeMsg, action });
     }
   });
 
