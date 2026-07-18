@@ -206,10 +206,23 @@ export function registerAdminRoutes(app: Express): void {
 
         const { publishToSocial } = await import("../services/socialPublish");
         const { getInstagramPermalink } = await import("../services/metaSocial");
+
+        // Same durable attempt record as the cron and Queue doors — the canary
+        // publishes to the same live account, so a crash here is just as ambiguous.
+        const { recordPublishAttempt, recordPublishOutcome, OUTCOME } = await import("../services/publishAttemptLedger");
+        const attemptId = await recordPublishAttempt({ jobId, platforms: ["instagram"], mediaUrl: job.mp4Url });
+        if (!attemptId) {
+          await d.update(reelJobs).set({ status: "assembled" })
+            .where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "publishing")));
+          res.status(503).json({ error: "publish-attempt ledger unavailable — refusing to publish unrecorded" });
+          return;
+        }
+
         let outcome;
         try {
           outcome = await publishToSocial({ platforms: ["instagram"], videoUrl: job.mp4Url, caption: job.caption || "" });
         } catch (pubErr) {
+          await recordPublishOutcome(attemptId, OUTCOME.ambiguous, { error: pubErr instanceof Error ? pubErr.message : String(pubErr) });
           // THREW — we cannot know whether Meta accepted the post. Do NOT restore
           // "assembled" (that risks double-publishing a live reel); park it for
           // reconciliation. A cleanly-returned failure below IS safe to restore.
@@ -224,6 +237,9 @@ export function registerAdminRoutes(app: Express): void {
         const ig = Array.isArray(outcome.results)
           ? outcome.results.find((r: { platform: string; success?: boolean; postId?: string; error?: string }) => r.platform === "instagram")
           : undefined;
+        await recordPublishOutcome(attemptId, ig?.success ? OUTCOME.confirmed : OUTCOME.failed, {
+          igPostId: ig?.postId ?? null, error: ig?.success ? null : (ig?.error ?? "unknown"), platformResults: outcome.results,
+        });
         if (!ig?.success) {
           // release the claim so a retry can re-attempt (publishing -> assembled)
           await d.update(reelJobs).set({ status: "assembled" }).where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "publishing")));

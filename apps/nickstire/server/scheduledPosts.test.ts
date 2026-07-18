@@ -27,6 +27,15 @@ let stealClaim = false;
 
 vi.mock("./services/socialPublish", () => ({ publishToSocial: async () => publishImpl() }));
 
+/** The attempt ledger is a hard precondition now: a null id means "do not publish". */
+let ledgerAvailable = true;
+let outcomes: Array<{ id: string; outcome: string }>;
+vi.mock("./services/publishAttemptLedger", () => ({
+  recordPublishAttempt: async () => (ledgerAvailable ? "pub_test_1" : null),
+  recordPublishOutcome: async (id: string, outcome: string) => { outcomes.push({ id, outcome }); },
+  OUTCOME: { attempted: "ATTEMPTED", confirmed: "CONFIRMED", failed: "FAILED", ambiguous: "AMBIGUOUS" },
+}));
+
 vi.mock("./lib/db-helper", () => ({
   db: async () => ({
     select: () => ({ from: () => ({ where: () => ({ limit: async () => rows.filter((r) => r.status === "pending") }) }) }),
@@ -56,6 +65,8 @@ const bad = (p: string) => ({ platform: p, success: false, error: "boom" });
 beforeEach(() => {
   rows = [row()];
   stealClaim = false;
+  ledgerAvailable = true;
+  outcomes = [];
   publishImpl = async () => ({ results: [ok("instagram"), ok("facebook")], igPostId: "ig_1" });
 });
 
@@ -126,5 +137,38 @@ describe("runScheduledPosts — column-width invariant", () => {
     }
     expect(seen).toEqual(["posted", "partial", "failed", "ambiguous"]);
     for (const s of [...seen, "publishing", "pending"]) expect(s.length).toBeLessThanOrEqual(16);
+  });
+});
+
+describe("runScheduledPosts — attempt ledger is a precondition", () => {
+  it("REFUSES to publish when the ledger is unavailable, and releases the claim", async () => {
+    ledgerAvailable = false;
+    let published = false;
+    publishImpl = async () => { published = true; return { results: [ok("instagram")] }; };
+    const res = await runScheduledPosts();
+    expect(published).toBe(false);
+    // Released back to pending, not left wedged in "publishing".
+    expect(rows[0].status).toBe("pending");
+    // Must NOT be reported as "claimed-elsewhere" — a different situation entirely.
+    expect(res.details).toMatch(/1 HELD \(attempt ledger unavailable\)/);
+    expect(res.details).toMatch(/0 claimed-elsewhere/);
+  });
+
+  it("records CONFIRMED on success", async () => {
+    await runScheduledPosts();
+    expect(outcomes).toEqual([{ id: "pub_test_1", outcome: "CONFIRMED" }]);
+  });
+
+  it("records FAILED when every platform failed", async () => {
+    publishImpl = async () => ({ results: [bad("instagram")] });
+    await runScheduledPosts();
+    expect(outcomes[0].outcome).toBe("FAILED");
+  });
+
+  it("records AMBIGUOUS on a throw — the attempt must not stay silently open", async () => {
+    publishImpl = async () => { throw new Error("socket hang up"); };
+    await runScheduledPosts();
+    expect(outcomes[0].outcome).toBe("AMBIGUOUS");
+    expect(rows[0].status).toBe("ambiguous");
   });
 });

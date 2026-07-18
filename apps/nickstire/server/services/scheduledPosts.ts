@@ -1,5 +1,6 @@
 import { createLogger } from "../lib/logger";
 import { publishToSocial } from "./socialPublish";
+import { recordPublishAttempt, recordPublishOutcome, OUTCOME } from "./publishAttemptLedger";
 
 const log = createLogger("services:scheduledPosts");
 
@@ -59,6 +60,9 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
     let partial = 0;
     let failed = 0;
     let skipped = 0;
+    // Distinct from `skipped`: "another runner has it" and "we refused to publish
+    // unrecorded" are different operator situations and must not share a label.
+    let unrecordable = 0;
     for (const row of due) {
       // CLAIM BEFORE PUBLISHING. The select above and the status write below used
       // to be separated by an irreversible external call with nothing in between,
@@ -75,6 +79,22 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
         continue;
       }
 
+      // Durable attempt record before the irreversible call. The CAS claim above
+      // stops two runners racing; it does not survive a process death, and a
+      // redeploy landing mid-publish is routine here. A null id means the ledger
+      // is unavailable: release the claim and leave the row pending rather than
+      // publish unrecorded.
+      const attemptId = await recordPublishAttempt({
+        inventoryId: null, platforms: row.platforms, mediaUrl: row.videoUrl ?? row.imageUrl ?? null,
+      });
+      if (!attemptId) {
+        await database.update(scheduledPosts).set({ status: STATUS.pending })
+          .where(and(eq(scheduledPosts.id, row.id), eq(scheduledPosts.status, STATUS.publishing)));
+        unrecordable++;
+        log.error("publish-attempt ledger unavailable — released the claim, leaving row pending", { id: row.id });
+        continue;
+      }
+
       try {
         const { results, igPostId } = await publishToSocial({
           platforms: row.platforms,
@@ -86,6 +106,9 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
         const succeeded = results.filter((r) => r.success);
         const failures = results.filter((r) => !r.success);
         const failureDetail = failures.map((r) => `${r.platform}: ${r.error}`).join("; ").slice(0, 500);
+        await recordPublishOutcome(attemptId, succeeded.length === 0 ? OUTCOME.failed : OUTCOME.confirmed, {
+          igPostId: igPostId ?? null, error: failureDetail || null, platformResults: results,
+        });
 
         if (succeeded.length === 0) {
           failed++;
@@ -117,6 +140,7 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
         // before dying. Park it for reconciliation rather than releasing the claim
         // back to "pending", which would invite a duplicate on the next tick.
         failed++;
+        await recordPublishOutcome(attemptId, OUTCOME.ambiguous, { error: err instanceof Error ? err.message : String(err) });
         log.error("scheduled post threw mid-publish — parking as ambiguous (may be LIVE)", { id: row.id, err });
         await database
           .update(scheduledPosts)
@@ -127,7 +151,9 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
           .where(eq(scheduledPosts.id, row.id));
       }
     }
-    const detail = `${posted} posted, ${partial} partial, ${failed} failed, ${skipped} claimed-elsewhere of ${due.length} due`;
+    const detail = `${posted} posted, ${partial} partial, ${failed} failed, ${skipped} claimed-elsewhere`
+      + (unrecordable ? `, ${unrecordable} HELD (attempt ledger unavailable)` : "")
+      + ` of ${due.length} due`;
     return { recordsProcessed: posted + partial + failed, details: detail };
   } catch (err) {
     log.error("runScheduledPosts failed (scheduled_posts table missing? migration 0071 not applied yet?)", err);

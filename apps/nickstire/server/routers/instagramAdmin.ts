@@ -1074,6 +1074,35 @@ Keep it under 200 characters.`;
         }
       }
 
+      // Media presence is validated BEFORE the attempt is recorded. Recording first
+      // would write a "may be live" row for a request that never reached Meta,
+      // putting a phantom entry on the reconciliation surface — the one place that
+      // must only ever show real ambiguity.
+      const hasMedia = Boolean(publishVideoUrl || input.imageUrl || (input.imageUrls && input.imageUrls.length));
+      if (!hasMedia) {
+        await setInventoryStatus(observedStatus ?? "ready");
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No media to publish — provide imageUrl, imageUrls or videoUrl." });
+      }
+
+      // Durable attempt record BEFORE the irreversible call. The inventory CAS above
+      // stops two operators racing, but it does not survive a process death: killed
+      // between Meta accepting and the DB write, nothing would record the attempt.
+      // A null id means the ledger is unavailable — refuse rather than publish
+      // unrecorded, which is the ambiguity the ledger exists to remove.
+      const { recordPublishAttempt, recordPublishOutcome, OUTCOME } = await import("../services/publishAttemptLedger");
+      const attemptId = await recordPublishAttempt({
+        inventoryId: input.inventoryId ?? null,
+        platforms: input.platforms ?? [],
+        mediaUrl: publishVideoUrl ?? null,
+      });
+      if (!attemptId) {
+        await setInventoryStatus(observedStatus ?? "ready");
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Publish-attempt ledger unavailable — refusing to publish unrecorded. Retry shortly.",
+        });
+      }
+
       let results: Awaited<ReturnType<typeof publishToSocial>>["results"];
       let igPostId: string | undefined;
       try {
@@ -1083,6 +1112,9 @@ Keep it under 200 characters.`;
           videoUrl: publishVideoUrl,
         }));
       } catch (err) {
+        // A throw is not proof nothing posted — record it as AMBIGUOUS so the
+        // reconciler surfaces it rather than leaving the attempt silently open.
+        await recordPublishOutcome(attemptId, OUTCOME.ambiguous, { error: err instanceof Error ? err.message : String(err) });
         // The claim must not outlive a throw, or the draft wedges in "publishing"
         // and every later attempt hits the CONFLICT guard above.
         await setInventoryStatus(observedStatus ?? "failed", err instanceof Error ? err.message : String(err));
@@ -1099,6 +1131,11 @@ Keep it under 200 characters.`;
       const succeeded = results.filter((r) => r.success);
       const failed = results.filter((r) => !r.success);
       const failureDetail = failed.map((r) => `${r.platform}: ${r.error}`).join("; ");
+      await recordPublishOutcome(
+        attemptId,
+        succeeded.length === 0 ? OUTCOME.failed : OUTCOME.confirmed,
+        { igPostId: igPostId ?? null, error: failureDetail || null, platformResults: results },
+      );
 
       if (succeeded.length === 0) {
         await setInventoryStatus("failed", failureDetail);
