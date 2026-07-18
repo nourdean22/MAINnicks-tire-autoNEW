@@ -2196,12 +2196,11 @@ export const contentAdminRouter = router({
     const d = await getDb();
     if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-    const { reelJobs } = await import("../../drizzle/schema");
-    const { inArray, desc } = await import("drizzle-orm");
-    const ATTENTION = ["assembled", "publishing", "publish_ambiguous", "queued", "generating", "assets_ready", "assembling", "repair_rendering"];
-    const rows = await d.select().from(reelJobs).where(inArray(reelJobs.status, ATTENTION)).orderBy(desc(reelJobs.id)).limit(50);
-
-    const { assessReelJob } = await import("../services/reelRecoverability");
+    // ONE definition of "needs attention", shared with HQ so the two screens can
+    // never disagree — they did: HQ counted every failed job ever (61) while this
+    // list excluded failed entirely and reported nothing stuck.
+    const { assessReelJob, selectReelJobsNeedingAttention } = await import("../services/reelRecoverability");
+    const rows = await selectReelJobsNeedingAttention(d, 50);
     const { evaluateReelPublishGate } = await import("../services/qualityGate");
 
     const jobs = await Promise.all(
@@ -2221,7 +2220,7 @@ export const contentAdminRouter = router({
     );
     return {
       count: jobs.length,
-      unrecoverable: jobs.filter((j) => j.recoverability === "brief_only" || j.recoverability === "unrecoverable").length,
+      unrecoverable: jobs.filter((j: typeof jobs[number]) => j.recoverability === "brief_only" || j.recoverability === "unrecoverable").length,
       jobs,
     };
   }),
@@ -2291,6 +2290,9 @@ export const contentAdminRouter = router({
    *  or double-posts to a live audience. */
   resolveAmbiguousPublish: adminProcedure
     .input(z.object({
+      /** Which table the id belongs to — reel jobs and scheduled posts have
+       *  independent id spaces, so writing to the wrong one is silent corruption. */
+      kind: z.enum(["reel_job", "scheduled_post"]).default("reel_job"),
       jobId: z.number().int().positive(),
       attemptId: z.string().min(1),
       decision: z.enum(["published", "not_published"]),

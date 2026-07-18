@@ -165,12 +165,22 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
               disabled={!onNavigate}
               className="p-4 rounded border bg-card text-left transition-colors enabled:hover:bg-accent/50 enabled:cursor-pointer"
             >
-              <div className="text-sm font-medium text-muted-foreground mb-1">Failed Jobs</div>
+              <div className="text-sm font-medium text-muted-foreground mb-1">Needs attention</div>
               <div className="flex items-center gap-2">
-                <div className={`h-2 w-2 rounded-full ${health.failedJobs === 0 ? "bg-green-500" : "bg-destructive"}`} />
-                <span>{health.failedJobs} stuck/failed job{health.failedJobs === 1 ? "" : "s"}</span>
+                {/* UNKNOWN IS NOT ZERO. When the count cannot be read the dot is
+                    amber and the text says so — rendering a failed query as
+                    "0 jobs" is a green light the system never actually gave. */}
+                <div className={`h-2 w-2 rounded-full ${
+                  health.failedJobs === null ? "bg-amber-500"
+                    : health.failedJobs === 0 ? "bg-green-500" : "bg-destructive"
+                }`} />
+                <span>
+                  {health.failedJobs === null
+                    ? "Unable to determine — count unavailable"
+                    : `${health.failedJobs} job${health.failedJobs === 1 ? "" : "s"} needing attention`}
+                </span>
               </div>
-              {health.failedJobs > 0 && onNavigate && (
+              {(health.failedJobs === null || health.failedJobs > 0) && onNavigate && (
                 <span className="text-[11px] text-primary mt-1 inline-block">Open the Action Center →</span>
               )}
             </button>

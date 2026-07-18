@@ -138,6 +138,8 @@ export async function reconcileAttempt(args: {
  * normal retry through the full gate.
  */
 export async function applyReconciliation(args: {
+  /** Which table the id belongs to. Omitted = reel job, the original caller. */
+  kind?: "reel_job" | "scheduled_post";
   jobId: number;
   attemptId: string;
   decision: "published" | "not_published";
@@ -148,41 +150,59 @@ export async function applyReconciliation(args: {
   const d = await getDb();
   if (!d) return { ok: false, detail: "Database not available" };
 
-  const { reelJobs } = await import("../../drizzle/schema");
+  const { reelJobs, scheduledPosts } = await import("../../drizzle/schema");
   const { eq, and, inArray } = await import("drizzle-orm");
   const { affectedRowCount } = await import("../lib/db-affected");
   const { recordPublishOutcome, OUTCOME } = await import("./publishAttemptLedger");
 
-  // Only a job that is actually ambiguous (or still claimed) may be reconciled —
-  // never one that already reached a terminal state by another route.
-  const RECONCILABLE = ["publish_ambiguous", "publishing"];
+  const isScheduled = args.kind === "scheduled_post";
+
+  // Only a row that is actually ambiguous (or still claimed) may be reconciled —
+  // never one that already reached a terminal state by another route. The two
+  // tables spell these states differently because scheduled_posts.status is
+  // varchar(16) and "publish_ambiguous" does not fit.
+  const RECONCILABLE = isScheduled ? ["ambiguous", "publishing"] : ["publish_ambiguous", "publishing"];
+  const PUBLISHED = isScheduled ? "posted" : "posted";
+  const RELEASED = isScheduled ? "pending" : "assembled";
+
+  const applyStatus = async (status: string, extra: Record<string, unknown>) => {
+    if (isScheduled) {
+      return d.update(scheduledPosts).set({ status, ...extra })
+        .where(and(eq(scheduledPosts.id, args.jobId), inArray(scheduledPosts.status, RECONCILABLE)));
+    }
+    return d.update(reelJobs).set({ status, ...extra })
+      .where(and(eq(reelJobs.id, args.jobId), inArray(reelJobs.status, RECONCILABLE)));
+  };
+
+  const noun = isScheduled ? "Scheduled post" : "Reel job";
 
   if (args.decision === "published") {
-    const res = await d
-      .update(reelJobs)
-      .set({ status: "posted", igPostId: args.igPostId ?? null, error: null })
-      .where(and(eq(reelJobs.id, args.jobId), inArray(reelJobs.status, RECONCILABLE)));
+    const res = await applyStatus(PUBLISHED, isScheduled
+      ? { igPostId: args.igPostId ?? null, postedAt: new Date(), error: null }
+      : { igPostId: args.igPostId ?? null, error: null });
     if (affectedRowCount(res) !== 1) {
-      return { ok: false, detail: "Job is no longer in a reconcilable state — refresh and look again." };
+      return { ok: false, detail: `${noun} is no longer in a reconcilable state — refresh and look again.` };
     }
     await recordPublishOutcome(args.attemptId, OUTCOME.confirmed, {
       igPostId: args.igPostId ?? null,
       error: args.operatorNote ? `reconciled by operator: ${args.operatorNote}` : "reconciled: confirmed live",
     });
-    log.warn("ambiguous publish reconciled as LIVE", { jobId: args.jobId, igPostId: args.igPostId });
-    return { ok: true, detail: "Marked as published. This reel will not be retried." };
+    log.warn("ambiguous publish reconciled as LIVE", { kind: args.kind ?? "reel_job", id: args.jobId, igPostId: args.igPostId });
+    return { ok: true, detail: "Marked as published. This will not be retried." };
   }
 
-  const res = await d
-    .update(reelJobs)
-    .set({ status: "assembled", error: "reconciled: did not reach Instagram — safe to retry" })
-    .where(and(eq(reelJobs.id, args.jobId), inArray(reelJobs.status, RECONCILABLE)));
+  const res = await applyStatus(RELEASED, { error: "reconciled: did not reach Instagram — safe to retry" });
   if (affectedRowCount(res) !== 1) {
-    return { ok: false, detail: "Job is no longer in a reconcilable state — refresh and look again." };
+    return { ok: false, detail: `${noun} is no longer in a reconcilable state — refresh and look again.` };
   }
   await recordPublishOutcome(args.attemptId, OUTCOME.failed, {
     error: args.operatorNote ? `reconciled by operator: ${args.operatorNote}` : "reconciled: never reached Instagram",
   });
-  log.warn("ambiguous publish reconciled as NOT published — released for retry", { jobId: args.jobId });
-  return { ok: true, detail: "Released for retry. It will go through the full quality gate again." };
+  log.warn("ambiguous publish reconciled as NOT published — released for retry", { kind: args.kind ?? "reel_job", id: args.jobId });
+  return {
+    ok: true,
+    detail: isScheduled
+      ? "Released back to pending. The scheduler will retry it on the next tick."
+      : "Released for retry. It will go through the full quality gate again.",
+  };
 }

@@ -30,6 +30,11 @@ vi.mock("./services/qualityGate", () => ({
   evaluateReelPublishGate: async () => gateResult,
 }));
 
+let overridePresent = false;
+vi.mock("./services/operatorOverride", () => ({
+  hasActiveOverride: async () => ({ present: overridePresent, acceptedFindingIds: ["f1"] }),
+}));
+
 import { authorizeReelPublish, resolveReelJobId, ReelNotPublishableError } from "./services/reelPublishAuthority";
 
 /** Fake drizzle surface: select().from().where().orderBy().limit() */
@@ -43,6 +48,7 @@ const draft = (briefJson: string | null) => ({ id: "inv_1", version: 4, briefJso
 
 beforeEach(() => {
   delete process.env.REEL_GATE_REQUIRE_JOB;
+  overridePresent = false;
   gateResult = { allowed: true, gate: "proceed", reason: "clean", findings: [] };
   approvalResult = { ok: true, briefHash: "bh", mediaHash: "mh", expiresAt: null };
   reelJobRows = [];
@@ -162,5 +168,52 @@ describe("authorizeReelPublish", () => {
   it("surfaces the finding count so the operator knows what to resolve", async () => {
     gateResult = { allowed: false, gate: "needs_paid_repair", reason: "block", findings: [{}, {}] };
     await expect(call()).rejects.toThrow(/2 finding\(s\)/);
+  });
+});
+
+describe("operator override is honoured AT THE GATE, not after it", () => {
+  const call = () => authorizeReelPublish(fakeDb(), {
+    draft: draft(JSON.stringify({ reelJobId: 1 })), videoUrl: "https://cdn/x.mp4",
+  });
+  const warnFinding = { severity: "warn" };
+  const repairFinding = { severity: "repair" };
+  const blockFinding = { severity: "block" };
+
+  it("PROCEEDS on advisory findings when a valid override exists", async () => {
+    // The whole defect: the override was consumed ~130 lines downstream at the
+    // publish CAS, which this function throws long before reaching. The Queue
+    // recorded an override, retried, hit the same refusal, and reported success.
+    gateResult = { allowed: false, gate: "needs_paid_repair", reason: "advisory", findings: [repairFinding] };
+    overridePresent = true;
+    const auth = await call();
+    expect(auth.gate).toBe("needs_paid_repair_overridden");
+    expect(auth.overrideBinding.inventoryId).toBe("inv_1");
+  });
+
+  it("still REFUSES the same findings when no override exists", async () => {
+    gateResult = { allowed: false, gate: "needs_paid_repair", reason: "advisory", findings: [warnFinding] };
+    overridePresent = false;
+    await expect(call()).rejects.toBeInstanceOf(ReelNotPublishableError);
+  });
+
+  it("NEVER lets an override carry a BLOCK finding", async () => {
+    // OVERRIDABLE_SEVERITIES is warn|repair by contract; block is the hard gate.
+    gateResult = { allowed: false, gate: "needs_paid_repair", reason: "block present", findings: [warnFinding, blockFinding] };
+    overridePresent = true;
+    await expect(call()).rejects.toThrow(/needs_paid_repair/);
+  });
+
+  it.each(["unavailable", "stale"])("NEVER lets an override carry '%s' — there is no finding to have judged", async (gate) => {
+    // These mean the evidence is missing or describes a different file. Allowing
+    // an override here would re-open the fail-open this whole arc closed.
+    gateResult = { allowed: false, gate, reason: "no evidence", findings: [repairFinding] };
+    overridePresent = true;
+    await expect(call()).rejects.toThrow(new RegExp(gate));
+  });
+
+  it("refuses when the gate gave no findings at all — nothing was accepted", async () => {
+    gateResult = { allowed: false, gate: "needs_review", reason: "incomplete", findings: [] };
+    overridePresent = true;
+    await expect(call()).rejects.toBeInstanceOf(ReelNotPublishableError);
   });
 });

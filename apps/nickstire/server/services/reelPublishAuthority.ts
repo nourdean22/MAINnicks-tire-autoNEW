@@ -103,6 +103,35 @@ export async function resolveReelJobId(database: DB, draft: { id: string; briefJ
   }
 }
 
+
+/**
+ * May an operator override carry this particular refusal?
+ *
+ * NOT every refusal. An override means "I have seen these findings and accept
+ * them", so it can only apply where there are findings to have seen:
+ *
+ *   - any BLOCK-severity finding  -> NEVER. That is the hard gate the whole
+ *     override contract excludes (OVERRIDABLE_SEVERITIES = warn | repair).
+ *   - unavailable / stale         -> NEVER. These mean the evidence is missing or
+ *     describes a different file. There is nothing for the operator to have
+ *     judged, and allowing it would re-open the fail-open this arc closed.
+ *   - warn/repair findings only   -> allowed, if a valid override is bound to
+ *     exactly this media.
+ */
+async function overrideMayProceed(
+  database: DB,
+  gate: { gate: string; findings: Array<{ severity?: string }> },
+  binding: { inventoryId: string; assetVersion: number; currentContentHash: string; currentBriefHash: string },
+): Promise<boolean> {
+  if (gate.gate === "unavailable" || gate.gate === "stale") return false;
+  if (!gate.findings.length) return false;
+  if (gate.findings.some((f) => f.severity === "block")) return false;
+
+  const { hasActiveOverride } = await import("./operatorOverride");
+  const { present } = await hasActiveOverride(database, binding);
+  return present;
+}
+
 /**
  * Authorize a reel publish, or throw ReelNotPublishableError.
  *
@@ -178,6 +207,23 @@ export async function authorizeReelPublish(
   const { evaluateReelPublishGate } = await import("./qualityGate");
   const gate = await evaluateReelPublishGate(reelJobId);
   if (!gate.allowed) {
+    // AN OPERATOR OVERRIDE IS HONOURED HERE, not 100 lines downstream at the
+    // publish CAS. Consuming happens there; if this function throws first, the
+    // consume is unreachable — which is exactly what happened: the Queue recorded
+    // an override, retried, hit this same refusal, and told the operator it had
+    // worked. The override was real and the publish still never happened.
+    const binding = {
+      inventoryId: draft.id,
+      assetVersion: draft.version - 1,
+      currentContentHash: verdict.mediaHash,
+      currentBriefHash: verdict.briefHash,
+    };
+    if (await overrideMayProceed(database, gate, binding)) {
+      log.warn("publish proceeding on an operator override of ADVISORY findings", {
+        inventoryId: draft.id, gate: gate.gate, findings: gate.findings.length,
+      });
+      return { overrideBinding: binding, approvalExpiresAt: verdict.expiresAt, reelJobId, gate: `${gate.gate}_overridden` };
+    }
     throw new ReelNotPublishableError(
       `Blocked by the rendered-QA gate (${gate.gate}): ${gate.reason}` +
         (gate.findings.length ? ` — ${gate.findings.length} finding(s) to resolve.` : ""),

@@ -43,8 +43,21 @@ for (const v of Object.values(OUTCOME)) {
   if (v.length > 24) throw new Error(`publish outcome "${v}" exceeds decision varchar(24)`);
 }
 
+/**
+ * WHAT is being published. Reel jobs and scheduled posts live in different tables
+ * with independent id spaces, so an attempt that records only a bare id cannot be
+ * reconciled — the reconciler would not know which table to write. That gap was
+ * real: scheduled posts recorded no id at all, so an ambiguous scheduled post
+ * appeared in the Action Center with every resolve action disabled.
+ */
+export type PublishTargetKind = "reel_job" | "scheduled_post";
+
 export interface PublishTarget {
+  /** Defaults to reel_job so existing callers keep their meaning. */
+  kind?: PublishTargetKind;
   jobId?: number | null;
+  /** scheduled_posts.id — same numeric space as jobId but a DIFFERENT table. */
+  scheduledPostId?: number | null;
   inventoryId?: string | null;
   platforms: string[];
   mediaUrl?: string | null;
@@ -75,7 +88,9 @@ export async function recordPublishAttempt(target: PublishTarget): Promise<strin
       policyVersion: 0,
       contextJson: JSON.stringify({
         attemptId,
+        kind: target.kind ?? "reel_job",
         jobId: target.jobId ?? null,
+        scheduledPostId: target.scheduledPostId ?? null,
         inventoryId: target.inventoryId ?? null,
         platforms: target.platforms,
         mediaUrl: (target.mediaUrl ?? "").slice(0, 500),
@@ -136,7 +151,10 @@ export async function recordPublishOutcome(
 export interface UnreconciledAttempt {
   attemptId: string;
   occurredAt: Date;
+  /** Which table the id belongs to. Legacy rows without it are reel jobs. */
+  kind: PublishTargetKind;
   jobId: number | null;
+  scheduledPostId: number | null;
   inventoryId: string | null;
   platforms: string[];
   ageMinutes: number;
@@ -176,13 +194,17 @@ export async function findUnreconciledAttempts(olderThanMinutes = 15): Promise<U
   const open: UnreconciledAttempt[] = [];
   for (const a of attempts) {
     if (settled.has(a.id)) continue;
-    let ctx: { jobId?: number | null; inventoryId?: string | null; platforms?: string[] } = {};
+    let ctx: { kind?: string; jobId?: number | null; scheduledPostId?: number | null; inventoryId?: string | null; platforms?: string[] } = {};
     try { ctx = JSON.parse(a.contextJson ?? "{}"); } catch { /* keep the row: an unreadable context is still an open attempt */ }
     const occurredAt = new Date(a.occurredAt);
     open.push({
       attemptId: a.id,
       occurredAt,
+      // Attempts written before `kind` existed are all reel jobs — that was the
+      // only caller at the time.
+      kind: ctx.kind === "scheduled_post" ? "scheduled_post" : "reel_job",
       jobId: ctx.jobId ?? null,
+      scheduledPostId: ctx.scheduledPostId ?? null,
       inventoryId: ctx.inventoryId ?? null,
       platforms: Array.isArray(ctx.platforms) ? ctx.platforms : [],
       ageMinutes: Math.round((Date.now() - occurredAt.getTime()) / 60_000),
