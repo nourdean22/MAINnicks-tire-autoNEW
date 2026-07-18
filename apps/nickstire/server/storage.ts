@@ -5,11 +5,53 @@ import { createLogger } from "./lib/logger";
 
 const log = createLogger("storage");
 
+/**
+ * S3 client for either real AWS or an S3-compatible endpoint (Railway Buckets).
+ *
+ * When S3_ENDPOINT is set we pass credentials EXPLICITLY rather than letting the
+ * SDK walk its default provider chain — on Railway there is no instance profile
+ * to fall back to, so an implicit lookup fails with a confusing credentials
+ * error instead of a clear configuration one. forcePathStyle keeps bucket names
+ * out of the hostname, which S3-compatible providers generally require.
+ */
 async function getS3Client() {
   const { S3Client } = await import("@aws-sdk/client-s3");
-  const region = process.env.AWS_REGION || "us-east-1";
-  // AWS SDK v3 auto-reads AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from env
-  return new S3Client({ region });
+  const endpoint = process.env.S3_ENDPOINT;
+  const region = process.env.S3_REGION || process.env.AWS_REGION || "us-east-1";
+  if (!endpoint) {
+    // AWS SDK v3 auto-reads AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY from env.
+    return new S3Client({ region });
+  }
+  const accessKeyId = process.env.S3_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error("S3_ENDPOINT is set but S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY are missing");
+  }
+  return new S3Client({ region, endpoint, forcePathStyle: true, credentials: { accessKeyId, secretAccessKey } });
+}
+
+/**
+ * Is the object store private, requiring us to proxy reads rather than hand out
+ * a direct URL? Railway Buckets have no public-object mode, so a caller that
+ * needs a PERMANENT url (Meta must fetch it; the DB stores it forever) cannot use
+ * a presigned link — those expire, which would recreate the dead-URL problem on a
+ * 24-hour delay instead of at the next restart.
+ */
+function usesProxiedReads(): boolean {
+  return !!process.env.S3_ENDPOINT && !process.env.CLOUDFRONT_DOMAIN;
+}
+
+/**
+ * The stable, public URL for a stored object.
+ *
+ * Deliberately the SAME shape the local-disk path has always produced
+ * (`{SITE_URL}/generated/{name}`), so switching the backing store does not
+ * invalidate URLs already written to the database — the route behind it changes,
+ * the identity does not.
+ */
+export function publicObjectUrl(key: string): string {
+  const siteUrl = process.env.SITE_URL || "https://nickstire.org";
+  return `${siteUrl}/generated/${normalizeKey(key)}`;
 }
 
 function getBucket(): string {
@@ -128,15 +170,53 @@ export async function storagePut(
     })
   );
 
-  // If CloudFront is configured, use it; otherwise generate a presigned URL
   const cdnDomain = process.env.CLOUDFRONT_DOMAIN;
   if (cdnDomain) {
     return { key, url: `https://${cdnDomain}/${key}` };
+  }
+  // Private bucket, no CDN: hand back the PERMANENT proxy URL. Returning a
+  // presigned link here would be a latent version of the bug this whole change
+  // exists to fix — mp4Url is stored forever, so a 24-hour signature means the
+  // master becomes unreachable on a timer instead of at the next restart.
+  if (usesProxiedReads()) {
+    log.info("storagePut: stored in object storage", { key, bytes: (body as Buffer).length ?? undefined });
+    return { key, url: publicObjectUrl(key) };
   }
   const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
   const url = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: 86400 });
 
   return { key, url };
+}
+
+/**
+ * Stream an object out of the store, for the /generated proxy route.
+ * Returns null when the object is absent so the caller can fall through to local
+ * disk (assets written before the store existed) and then to a 404.
+ */
+export async function storageGetStream(
+  relKey: string,
+): Promise<{ body: NodeJS.ReadableStream; contentType?: string; contentLength?: number } | null> {
+  const bucket = process.env.S3_BUCKET;
+  if (!bucket) return null;
+  const key = normalizeKey(relKey);
+  try {
+    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+    const s3 = await getS3Client();
+    const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    if (!res.Body) return null;
+    return {
+      body: res.Body as unknown as NodeJS.ReadableStream,
+      contentType: res.ContentType,
+      contentLength: typeof res.ContentLength === "number" ? res.ContentLength : undefined,
+    };
+  } catch (err) {
+    const name = (err as { name?: string })?.name;
+    // A genuine miss is normal during the transition; anything else is worth seeing.
+    if (name !== "NoSuchKey" && name !== "NotFound") {
+      log.warn("storageGetStream failed", { key, err: err instanceof Error ? err.message.slice(0, 140) : String(err) });
+    }
+    return null;
+  }
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {

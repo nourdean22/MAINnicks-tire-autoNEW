@@ -146,6 +146,33 @@ async function startServer() {
     },
   }));
   app.use(express.urlencoded({ limit: "2mb", extended: true }));
+  // /generated is the PERMANENT public identity of every generated asset — it is
+  // what lives in reel_jobs.mp4Url and what Meta fetches at publish time. It used
+  // to be served straight off data/generated on the container's EPHEMERAL disk, so
+  // a redeploy took every master with it: all 5 published reels and all 3 held
+  // ones measured 404 on 2026-07-18, hours after publishing.
+  //
+  // Object storage is now tried FIRST, with local disk kept as a transitional
+  // fallback for anything written before the bucket existed. The URL shape is
+  // unchanged on purpose, so rows already storing these URLs stay valid.
+  app.get("/generated/:name", async (req, res, next) => {
+    try {
+      const { storageGetStream } = await import("../storage");
+      const obj = await storageGetStream(req.params.name);
+      if (obj) {
+        if (obj.contentType) res.type(obj.contentType);
+        if (obj.contentLength !== undefined) res.setHeader("Content-Length", String(obj.contentLength));
+        // Immutable: a given key's bytes never change (new renders get new keys).
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        obj.body.pipe(res);
+        return;
+      }
+    } catch {
+      // Fall through to disk rather than 500 — a store hiccup should not make a
+      // locally-present asset unreachable.
+    }
+    next();
+  });
   app.use("/generated", express.static(path.join(process.cwd(), "data", "generated")));
   // A missing media file must 404 — before this, misses fell through to the
   // SPA catch-all and answered 200 text/html, hiding media loss from every
