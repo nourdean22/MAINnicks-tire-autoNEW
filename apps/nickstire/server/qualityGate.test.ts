@@ -178,4 +178,22 @@ describe("evaluateReelPublishGate", () => {
     expect(g.allowed).toBe(true);
     expect(g.gate).toBe("proceed");
   });
+
+  // A LIST view must never trigger rendered QA: it downloads the master, extracts
+  // frames and calls the vision model. The attention endpoint's first live call
+  // timed out doing exactly that for three jobs.
+  it("runIfMissing:false reports 'not evaluated' instead of RUNNING QA", async () => {
+    jobRow = { id: 1, payload: JSON.stringify({}) }; // no renderedQa persisted
+    const g = await evaluateReelPublishGate(1, { runIfMissing: false });
+    expect(g.allowed).toBe(false);
+    expect(g.gate).toBe("unavailable");
+    expect(g.reason).toMatch(/has not been run/i);
+  });
+
+  it("still evaluates a PERSISTED verdict under runIfMissing:false — it only skips PRODUCING one", async () => {
+    setJob(completed([]));
+    const g = await evaluateReelPublishGate(1, { runIfMissing: false });
+    expect(g.allowed).toBe(true);
+    expect(g.gate).toBe("proceed");
+  });
 });

@@ -319,7 +319,12 @@ export function registerAdminRoutes(app: Express): void {
           let gateReason: string | undefined;
           if (job.status === "assembled") {
             try {
-              const g = await evaluateReelPublishGate(job.id);
+              // runIfMissing:false — this is a LIST view. Triggering rendered QA
+              // here would download each master, extract frames and call the
+              // vision model per job: minutes of latency and real model spend on
+              // a page view. The first live call to this endpoint timed out doing
+              // exactly that.
+              const g = await evaluateReelPublishGate(job.id, { runIfMissing: false });
               if (!g.allowed) gateReason = `${g.gate}: ${g.reason}`;
             } catch (err) {
               gateReason = `quality gate could not be evaluated: ${err instanceof Error ? err.message.slice(0, 160) : String(err)}`;

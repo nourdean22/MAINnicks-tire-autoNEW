@@ -34,7 +34,25 @@ export interface ReelPublishGateResult {
   reason: string;
 }
 
-export async function evaluateReelPublishGate(jobId: number): Promise<ReelPublishGateResult> {
+export interface ReelPublishGateOptions {
+  /**
+   * When no verdict is persisted, may this call RUN rendered QA to produce one?
+   *
+   * True for publish doors — they need a decision and it is worth the wait.
+   * FALSE for anything that merely displays state: running QA downloads the
+   * master, extracts frames and calls the vision model, so an operator list
+   * endpoint that evaluated N jobs would take minutes, spend model budget on a
+   * page view, and time out. (It did — the attention endpoint's first live call
+   * died in undici.) Reporting "not yet evaluated" is the honest answer there.
+   */
+  runIfMissing?: boolean;
+}
+
+export async function evaluateReelPublishGate(
+  jobId: number,
+  options: ReelPublishGateOptions = {},
+): Promise<ReelPublishGateResult> {
+  const runIfMissing = options.runIfMissing !== false;
   const result = (
     gate: ReelPublishGateResult["gate"],
     allowed: boolean,
@@ -67,6 +85,9 @@ export async function evaluateReelPublishGate(jobId: number): Promise<ReelPublis
   let verdict = payload.renderedQa as RenderedQaVerdict | undefined;
   let source: ReelPublishGateResult["source"] = "persisted";
   if (!verdict) {
+    if (!runIfMissing) {
+      return result("unavailable", false, "unavailable", "rendered QA has not been run for this job yet (not evaluated on a read-only check)");
+    }
     const { runRenderedQaOnJob } = await import("./renderedQa");
     verdict = (await runRenderedQaOnJob(jobId)) ?? undefined;
     source = verdict ? "fresh" : "unavailable";
