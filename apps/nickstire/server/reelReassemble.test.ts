@@ -19,6 +19,9 @@ let updates: Array<Record<string, unknown>>;
 let claimAffected: number;
 let probeReachable: boolean;
 let assembleImpl: () => Promise<{ mp4Url: string; durationSec: number; usedVo: boolean }>;
+/** What the row looks like AFTER assembleReel ran — it persists its own audioQa. */
+let rowAfterAssembly: Record<string, unknown> | null = null;
+let selectCalls = 0;
 
 vi.mock("./services/reelRecoverability", () => ({
   probeUrl: async (url: string | null) => ({ url, reachable: probeReachable }),
@@ -26,7 +29,18 @@ vi.mock("./services/reelRecoverability", () => ({
 vi.mock("./services/reelAssembly", () => ({ assembleReel: async () => assembleImpl() }));
 vi.mock("./lib/db-helper", () => ({
   db: async () => ({
-    select: () => ({ from: () => ({ where: () => ({ limit: async () => (jobRow ? [jobRow] : []) }) }) }),
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => {
+            selectCalls++;
+            // 1st read = pre-assembly job; 2nd = post-assembly re-read.
+            if (selectCalls > 1 && rowAfterAssembly) return [rowAfterAssembly];
+            return jobRow ? [jobRow] : [];
+          },
+        }),
+      }),
+    }),
     update: () => ({
       set: (vals: Record<string, unknown>) => ({
         where: async () => {
@@ -47,6 +61,8 @@ const payload = (extra: Record<string, unknown> = {}) =>
 
 beforeEach(() => {
   updates = [];
+  selectCalls = 0;
+  rowAfterAssembly = null;
   claimAffected = 1;
   probeReachable = true;
   assembleImpl = async () => ({ mp4Url: "https://nickstire.org/generated/reels/reel-1.mp4", durationSec: 18, usedVo: false });
@@ -136,5 +152,53 @@ describe("failure recovery", () => {
     const last = updates[updates.length - 1];
     expect(last.status).toBe("assembled");
     expect(String(last.error)).toMatch(/re-assembly failed/);
+  });
+});
+
+describe("payload re-read after assembly", () => {
+  it("KEEPS an audio verdict evaluated against THIS render (evaluatedAt after start)", async () => {
+    // assembleReel persists a fresh audioQa mid-run. Writing back the payload we
+    // loaded before assembly would erase it, and under an armed audio gate the
+    // recovered job would hold forever. Observed live on all three recoveries.
+    rowAfterAssembly = {
+      ...jobRow,
+      payload: JSON.stringify({
+        storyboardBeats: beats,
+        renderedQa: { decision: "approve" },
+        audioQa: { decision: "approve", qaState: "completed", evaluatedAt: new Date(Date.now() + 5_000).toISOString() },
+      }),
+    };
+    await reassembleFromClips(1);
+    const final = updates.find((u) => u.status === "assembled" && typeof u.payload === "string")!;
+    const saved = JSON.parse(final.payload as string);
+    expect(saved.audioQa).toMatchObject({ qaState: "completed" });
+    // renderedQa still described the OLD file, so it must be gone.
+    expect(saved.renderedQa).toBeUndefined();
+  });
+
+  it("DROPS a carried-over audio verdict that predates this render", async () => {
+    // Re-reading alone is not enough: if assembleReel never reached its audio
+    // stage, the re-read still carries the PREVIOUS verdict. Keeping it would
+    // smuggle a stale approval onto a new file.
+    rowAfterAssembly = {
+      ...jobRow,
+      payload: JSON.stringify({
+        storyboardBeats: beats,
+        audioQa: { decision: "approve", qaState: "completed", evaluatedAt: new Date(Date.now() - 3_600_000).toISOString() },
+      }),
+    };
+    await reassembleFromClips(1);
+    const final = updates.find((u) => u.status === "assembled" && typeof u.payload === "string")!;
+    expect(JSON.parse(final.payload as string).audioQa).toBeUndefined();
+  });
+
+  it("DROPS an audio verdict with no evaluatedAt at all — unknown age is not fresh", async () => {
+    rowAfterAssembly = {
+      ...jobRow,
+      payload: JSON.stringify({ storyboardBeats: beats, audioQa: { decision: "approve" } }),
+    };
+    await reassembleFromClips(1);
+    const final = updates.find((u) => u.status === "assembled" && typeof u.payload === "string")!;
+    expect(JSON.parse(final.payload as string).audioQa).toBeUndefined();
   });
 });

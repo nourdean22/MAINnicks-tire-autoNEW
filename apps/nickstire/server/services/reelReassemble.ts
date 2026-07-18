@@ -93,16 +93,34 @@ export async function reassembleFromClips(jobId: number): Promise<ReassembleResu
     return fail("another process claimed this job first");
   }
 
+  // Marks the boundary between "evaluated against the OLD file" and "evaluated
+  // against this render" — the only way to tell a fresh audio verdict from a
+  // carried-over one.
+  const startedAt = Date.now();
   try {
     const { assembleReel } = await import("./reelAssembly");
     const { mp4Url, durationSec } = await assembleReel(brief as never, clipUrls, jobId);
 
-    // The media CHANGED, so every judgement about the old media is void. Dropping
-    // renderedQa forces a fresh evaluation; leaving it would let a verdict about a
-    // file that no longer exists authorise a publish.
-    const fresh = JSON.parse(job.payload ?? "{}");
+    // RE-READ the payload. assembleReel persists a fresh audioQa verdict of its own
+    // during the run, so writing back the copy loaded BEFORE assembly would clobber
+    // it — a read-modify-write race against ourselves. (Observed live: all three
+    // recovered jobs came back with no audio verdict, which under an armed audio
+    // gate would hold them forever.)
+    const [after] = await d.select().from(reelJobs).where(eq(reelJobs.id, jobId)).limit(1);
+    const fresh = JSON.parse(after?.payload ?? job.payload ?? "{}");
+
+    // The media CHANGED, so any judgement about the OLD media is void.
     delete fresh.renderedQa;
-    delete fresh.audioQa;
+
+    // Audio is kept ONLY if it was evaluated against THIS render. Re-reading alone
+    // is not enough: when assembleReel does not reach its audio stage, the re-read
+    // still carries the PREVIOUS verdict, and keeping that would smuggle a stale
+    // approval onto a new file — the very thing dropping renderedQa prevents.
+    const audio = fresh.audioQa as { evaluatedAt?: string } | undefined;
+    const evaluatedAt = audio?.evaluatedAt ? Date.parse(audio.evaluatedAt) : NaN;
+    if (!Number.isFinite(evaluatedAt) || evaluatedAt < startedAt) {
+      delete fresh.audioQa;
+    }
     fresh.reassembledAt = new Date().toISOString();
 
     await d
