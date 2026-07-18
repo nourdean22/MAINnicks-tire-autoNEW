@@ -248,14 +248,25 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
       return;
     }
     
-    publishDraft.mutate({ 
-      format: format || "single", 
-      caption: content, 
-      videoUrl: format === "reel" ? mediaUrl : undefined,
-      imageUrl: format !== "reel" ? mediaUrl : undefined,
+    // A REEL IS ALREADY QUEUED by the time this button is reachable. "Generate
+    // Reel Video" calls enqueueReelJob, which creates the reel job AND its
+    // inventory record; stageDraft then hard-rejects format "reel" server-side
+    // ("Reel format drafts cannot be created via stageDraft"), so this button
+    // could only ever produce an error toast on a reel that was already in the
+    // queue. Say so instead of firing a request that cannot succeed.
+    if (format === "reel") {
+      toast.success("Already in the Queue", {
+        description: `This reel was queued when its video was generated${jobId ? ` (job ${jobId})` : ""}. Open the Queue tab to review, approve and publish it.`,
+      });
+      return;
+    }
+
+    publishDraft.mutate({
+      format: format || "single",
+      caption: content,
+      imageUrl: mediaUrl,
       sourceType: source || "manual",
       sourceDetail: sourceDetail,
-      conceptBrief: format === "reel" ? reelBrief : undefined,
       // No qualityScore: the local evaluation here is a client-side heuristic;
       // the server stages manual drafts as unscored rather than persisting it.
     });
@@ -730,7 +741,10 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                     {publishDraft.isPending ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     ) : <Play className="h-4 w-4 mr-2" />}
-                    {publishDraft.isPending ? "Queuing..." : "Send to Queue"}
+                    {/* A reel reaches the queue via "Generate Reel Video"; this
+                        button only confirms where it went, so labelling it "Send
+                        to Queue" promised an action that could not happen. */}
+                    {publishDraft.isPending ? "Queuing..." : "Where is my Reel?"}
                   </Button>
                 </CardFooter>
               </Card>
